@@ -1,0 +1,365 @@
+> OpenLogo Specification v0.1.0 — Draft (Status: Normative)
+
+# Geometry Module
+
+Back to the [specification index](README.md).
+
+This document is the normative owner for the Geometry profile: geometry is a derived standard library written in OpenLogo, not a hidden set of opaque primitives. Signatures, kinds, and default arities are the Geometry rows of the [C3 canonical primitive matrix](commands.md). The teaching order is always: first show the `repeat` construction and the turtle math, then name it as a packaged command.
+
+Geometry examples use the locked OpenLogo surface: variable reads are written as `:name`, assignment uses `=`, equality uses `==`, blocks use `[ ]` or `end`, optional trailing parameters use parenthesized defaults on `define` lines, and word values use closed quotes such as `"polygon"`.
+
+## Profile and source contract
+
+The Geometry profile adds these derived commands and reporters:
+
+| Name | Kind | Signature | Result |
+|---|---:|---|---|
+| `polygon` | C | `polygon :sides :size` | draws |
+| `star` | C | `star :points :size (:step 2)` | draws |
+| `circle` | C | `circle :radius (:segments 36)` | draws |
+| `arc` | C | `arc :angle :radius` | draws |
+| `grid` | C | `grid` | overlay |
+| `axes` | C | `axes` | overlay |
+| `measure` | C | `measure` | annotation overlay |
+| `area` | R | `area :shape` | number |
+| `perimeter` | R | `perimeter :shape` | number |
+
+Drawing commands use the current turtle state defined by the turtle model: origin at the canvas center, heading `0` upward, `right` clockwise, `left` counter-clockwise, degrees, and pen-down drawing by default. Unless otherwise stated, geometry commands preserve the current pen state and use ordinary turtle movement.
+
+## `polygon :sides :size`
+
+Source first:
+
+```logo
+repeat :sides [
+  forward :size
+  right 360 / :sides
+]
+```
+
+Packaged command:
+
+```logo
+define polygon :sides :size
+  repeat :sides [
+    forward :size
+    right 360 / :sides
+  ]
+end
+```
+
+`polygon` draws a regular polygon with `:sides` equal sides, each of length `:size`. `:sides` MUST be a number at least `3`; `:size` MUST be a number. Non-numeric inputs raise `ol-type`.
+
+The math: a full turn is `360` degrees. A regular polygon splits that turn evenly across all sides, so each exterior turn is `360 / :sides`. For a pentagon:
+
+```logo
+print 360 / 5
+```
+
+The answer is `72`, so each side is followed by a `right 72` turn. After exactly `:sides` equal moves and equal exterior turns, the turtle returns to its starting position and original heading, subject only to numeric rounding.
+
+Example:
+
+```logo
+polygon 5 100
+```
+
+Concept taught: regular shapes are loops plus a turn angle, not magic commands.
+
+## `star :points :size (:step 2)`
+
+Source first:
+
+```logo
+repeat :points [
+  forward :size
+  right 360 * :step / :points
+]
+```
+
+Packaged command:
+
+```logo
+define star :points :size (:step 2)
+  repeat :points [
+    forward :size
+    right 360 * :step / :points
+  ]
+end
+```
+
+`star` draws the star polygon `{p/k}` where `p` is `:points` and `k` is `:step`. The default `:step` is `2`, which makes the familiar pentagram when `:points` is `5`.
+
+Validation is normative: `:points` and `:step` MUST be numbers, and `:step` MUST satisfy `1 < :step < :points`. `:points` SHOULD be a whole number at least `5` for the default to teach a recognizable star. Non-numeric inputs or invalid counts raise `ol-type`.
+
+The math: instead of walking to the next polygon vertex, a star walks to the vertex `:step` positions away. The exterior turn is therefore:
+
+```logo
+360 * :step / :points
+```
+
+For a pentagram `{5/2}`:
+
+```logo
+print 360 * 2 / 5
+```
+
+The answer is `144`, so the turtle draws one side and then turns `right 144`. Repeating that five times draws the five-point star.
+
+Examples:
+
+```logo
+star 5 100
+(star 7 80 3)
+```
+
+The second call supplies the optional trailing `:step`, so it uses the parenthesized call form.
+
+Concept taught: a star is a polygon with a larger skip, so a new shape grows from changing one number in the loop.
+
+## `circle :radius (:segments 36)`
+
+Source first:
+
+```logo
+local side
+:side = 2 * :radius * sin (180 / :segments)
+repeat :segments [
+  forward :side
+  right 360 / :segments
+]
+```
+
+Packaged command:
+
+```logo
+define circle :radius (:segments 36)
+  local side
+  :side = 2 * :radius * sin (180 / :segments)
+  repeat :segments [
+    forward :side
+    right 360 / :segments
+  ]
+end
+```
+
+Normatively, `circle` draws an inscribed regular polygon approximation. The default is a 36-segment regular polygon. Its side length is:
+
+```logo
+2 * :radius * sin (180 / 36)
+```
+
+and each exterior turn is:
+
+```logo
+360 / 36
+```
+
+More generally, the side length is `2·r·sin(180/n)` where `r` is `:radius` and `n` is `:segments`. The `sin` reporter uses degrees. `:radius` MUST be a positive number. `:segments` MUST be a number at least `3`. Non-numeric inputs raise `ol-type`.
+
+Because this is an approximation, the path is a many-sided polygon whose vertices lie on the mathematical circle. With the default 36 segments, the approximation is close enough for learners while still making the loop visible. After exactly `:segments` moves and turns, the turtle returns to its starting position and original heading, subject only to numeric rounding.
+
+Examples:
+
+```logo
+circle 50
+(circle 50 72)
+```
+
+Concept taught: curves can be built from many tiny straight lines.
+
+## `arc :angle :radius`
+
+Source first:
+
+```logo
+local segments
+local step_angle
+local step_length
+:segments = int (:angle / 5) + 1
+:step_angle = :angle / :segments
+:step_length = 2 * :radius * sin (:step_angle / 2)
+
+left :step_angle / 2
+repeat :segments [
+  forward :step_length
+  left :step_angle
+]
+right :step_angle / 2
+```
+
+Packaged command:
+
+```logo
+define arc :angle :radius
+  local segments
+  local step_angle
+  local step_length
+  :segments = int (:angle / 5) + 1
+  :step_angle = :angle / :segments
+  :step_length = 2 * :radius * sin (:step_angle / 2)
+
+  left :step_angle / 2
+  repeat :segments [
+    forward :step_length
+    left :step_angle
+  ]
+  right :step_angle / 2
+end
+```
+
+`arc` draws with the pen in its current state. For a positive `:angle`, the center of the circle is exactly `:radius` units to the turtle's left at the start of the command. The turtle curves left, counter-clockwise around that center, through `:angle` degrees. Its heading rotates left by `:angle`.
+
+If the start position is `[:x :y]` and the start heading is `:h`, the circle center is:
+
+```logo
+[(:x - :radius * cos :h) (:y + :radius * sin :h)]
+```
+
+After a positive arc of `:angle` degrees, the final heading is `:h - :angle` normalized to `[0 360)`. The final position is the point on that same circle reached by rotating the start radius counter-clockwise by `:angle`. In mathematical notation this is:
+
+```logo
+[(:x - :radius * cos :h + :radius * cos (:angle - :h))
+ (:y + :radius * sin :h + :radius * sin (:angle - :h))]
+```
+
+The stepped construction uses small chords. It turns left by half a step, repeats small `forward` and `left` movements, then turns right by half a step so the final heading matches the ideal arc. Implementations MAY use a finer internal step, but MUST preserve the direction, center, final position, and final heading within documented numeric tolerance.
+
+`:angle` MUST be a non-negative number and `:radius` MUST be a positive number. Non-numeric inputs raise `ol-type`.
+
+Example:
+
+```logo
+arc 90 50
+```
+
+Concept taught: a curve is a controlled sequence of tiny straight moves and tiny turns.
+
+## `grid`
+
+`grid` creates or refreshes a persistent renderer overlay. It is not turtle drawing and it does not change turtle position, heading, pen, color, or width. The overlay survives `clean`.
+
+Default grid spacing is `20` canvas units. Grid lines are parallel to the canvas axes and pass through every multiple of the spacing. The grid is an educational aid for estimating distance and coordinates.
+
+Packaged command:
+
+```logo
+grid
+```
+
+Concept taught: coordinate space can be seen without becoming part of the learner's drawing.
+
+## `axes`
+
+`axes` creates or refreshes a persistent renderer overlay for the coordinate axes. It is not turtle drawing and it survives `clean`.
+
+The horizontal axis is the line `y == 0`. The vertical axis is the line `x == 0`. They cross at the origin, which is the turtle's `home` position.
+
+Packaged command:
+
+```logo
+axes
+```
+
+Concept taught: the origin and axes explain position, heading, and symmetry.
+
+## `measure`
+
+`measure` creates or refreshes an educational annotation overlay. It is not a data reporter. It returns no value and does not change the turtle state.
+
+An implementation MAY annotate segment lengths, turn angles, current position, heading, or radius guides. These annotations are overlays for learning and inspection; they are not part of exported drawing geometry unless an export format explicitly includes overlays.
+
+Packaged command:
+
+```logo
+measure
+```
+
+Concept taught: visible labels can explain the math without hiding it.
+
+## Shape-spec lists for `area` and `perimeter`
+
+`area` and `perimeter` compute values without drawing. Each takes one shape-spec list. A shape-spec list is a list literal whose first element is a quoted shape-name word followed by numeric arguments.
+
+Supported v0.1 shape specs are:
+
+```logo
+["polygon" 5 100]
+["circle" 50]
+```
+
+The first means a regular polygon with `5` sides of length `100`. The second means a circle with radius `50`. The quoted word is required; `polygon` without quotes would be a procedure call, not a word value.
+
+### `area :shape`
+
+Source sketch:
+
+```logo
+define area :shape
+  if :shape[1] == "polygon" [
+    local sides
+    local size
+    :sides = :shape[2]
+    :size = :shape[3]
+    return :sides * power :size 2 / (4 * tan (180 / :sides))
+  ]
+
+  if :shape[1] == "circle" [
+    local radius
+    :radius = :shape[2]
+    return pi * power :radius 2
+  ]
+end
+```
+
+Formulas:
+
+- Regular polygon: `n * s² / (4 * tan (180 / n))`
+- Circle: `pi * r²`
+
+Examples:
+
+```logo
+print area ["polygon" 5 100]
+print area ["circle" 50]
+```
+
+### `perimeter :shape`
+
+Source sketch:
+
+```logo
+define perimeter :shape
+  if :shape[1] == "polygon" [
+    local sides
+    local size
+    :sides = :shape[2]
+    :size = :shape[3]
+    return :sides * :size
+  ]
+
+  if :shape[1] == "circle" [
+    local radius
+    :radius = :shape[2]
+    return 2 * pi * :radius
+  ]
+end
+```
+
+Formulas:
+
+- Regular polygon: `n * s`
+- Circle: `2 * pi * r`
+
+Examples:
+
+```logo
+print perimeter ["polygon" 5 100]
+print perimeter ["circle" 50]
+```
+
+For both reporters, an unsupported shape word or a shape-spec list with missing numeric arguments raises `ol-type`. These reporters MUST NOT move the turtle, draw lines, emit drawing events, or inspect the current turtle state.
+
+## Notes for implementers
+
+The learner-visible source is part of the contract: documentation and teaching tools SHOULD display the OpenLogo definitions before presenting the packaged command names. Renderers SHOULD emit ordinary turtle movement and turn events for `polygon`, `star`, `circle`, and `arc`, and overlay events for `grid`, `axes`, and `measure`, consistent with the execution event stream.

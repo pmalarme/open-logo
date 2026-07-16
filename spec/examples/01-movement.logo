@@ -1,0 +1,20 @@
+# OpenLogo example 01: movement
+# level 1 introduces the turtle heading pen and color.
+
+clear_screen
+set_color "blue"
+set_width 3
+
+# draw three sides of a path with full command names.
+forward 80
+right 90
+forward 80
+left 90
+back 30
+
+# lift the pen to move without drawing then return home.
+pen_up
+home
+pen_down
+
+# expected final state: turtle at the origin with heading 0 pen down blue width 3.

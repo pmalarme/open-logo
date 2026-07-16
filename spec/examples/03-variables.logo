@@ -1,0 +1,25 @@
+# OpenLogo example 03: variables
+# level 3 teaches :name reads and = assignment.
+
+clear_screen
+set_color "purple"
+
+:side = 50
+set gap to 20
+:turn = 90
+
+forward :side
+right :turn
+forward :side + :gap
+right :turn
+
+:side = :side + 30
+forward :side
+right :turn
+forward :side + :gap
+
+# random output is property-based: :lucky is a number from 0 through 99.
+:lucky = random 100
+print :lucky
+
+# expected final state: :side is 80 and :gap is 20 and :lucky is from 0 through 99.

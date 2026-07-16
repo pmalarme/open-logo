@@ -1,0 +1,34 @@
+# OpenLogo example 09: sprites showcase
+# sprites profile adds multiple turtles and addressed blocks.
+
+clear_screen
+
+:leader = new_turtle
+:follower = new_turtle
+:team = [:leader :follower]
+
+ask :leader [
+  set_shape "turtle"
+  set_color "blue"
+  repeat 3 [
+    forward 60
+    right 120
+  ]
+]
+
+ask :follower [
+  set_shape "arrow"
+  set_color "green"
+  right 30
+  repeat 6 [
+    forward 30
+    right 60
+  ]
+]
+
+tell :team
+each [
+  stamp
+]
+
+# expected final state: two turtles draw separate shapes and both stamp once.

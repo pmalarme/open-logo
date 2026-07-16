@@ -1,0 +1,45 @@
+# OpenLogo example 07: data structures
+# level 7 shows lists dicts records and uniform access.
+
+clear_screen
+set_color "red"
+
+struct point [ x y ]
+struct person [ name age ]
+
+:colors = ["red" "green" "blue"]
+print :colors[1]
+:colors[2] = "purple"
+add "orange" to :colors
+
+:ages = {
+  tom: 8
+  sophie: 6
+}
+:who = "tom"
+print :ages.tom
+print :ages[tom]
+print :ages[:who]
+:ages.max = 9
+
+:people = {
+  tom: person "tom" 8
+}
+print :people.tom.age
+:people.tom.age = :people.tom.age + 1
+
+:path = list
+add (point 0 0) to :path
+add (point 80 0) to :path
+add (point 80 80) to :path
+
+print count :path
+print :path[1].x
+
+for p in :path [
+  set_xy :p.x :p.y
+  stamp
+]
+
+# expected output includes "red" then 8 then 8 then 8 then 8 then 3 then 0.
+# expected final state: :ages.max exists with value 9 and :people.tom.age is 9.

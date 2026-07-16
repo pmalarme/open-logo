@@ -1,0 +1,32 @@
+# OpenLogo example 05: procedures
+# level 5 introduces define end and return.
+
+clear_screen
+set_color "black"
+
+define double :n
+  return :n * 2
+end define
+
+define draw_square :size
+  repeat 4 [
+    forward :size
+    right 90
+  ]
+end define
+
+# one heritage procedure form is shown for compatibility.
+to draw_tick :size
+  forward :size
+  back :size
+end
+
+:answer = double 21
+print :answer
+
+draw_square 60
+right 45
+draw_tick 50
+repeat 2 draw_tick 25
+
+# expected output: 42 and expected drawing: a square with three diagonal ticks.
