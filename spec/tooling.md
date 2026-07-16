@@ -28,7 +28,7 @@ classified as keywords, variables, operators, or delimiters.
 | Token class | Normative scope |
 |---|---|
 | `keyword` | Structural words recognized by the reader: the reserved words listed in [Reserved words](#reserved-words-for-tooling), plus profile block-heads when their profile is active. |
-| `primitive` | Built-in commands, reporters, and aliases from the C3 primitive matrix, including full names such as `forward`, one-word aliases such as `pendown`, short aliases such as `fd`, heritage command aliases such as `pr`, and profile primitives when enabled. Structural special-form heads are `keyword` unless they are being documented as callable entries. |
+| `primitive` | Built-in commands, reporters, and aliases from the C3 primitive matrix, including full names such as `forward`, one-word aliases such as `setcolor`, short aliases such as `fd`, heritage command aliases such as `pr`, and profile primitives when enabled. Structural special-form heads are `keyword` unless they are being documented as callable entries. |
 | `number` | Numeric literals, including negative literals when the lexer rules classify the leading `-` as part of the number. |
 | `word/string` | Closed double-quoted word literals such as `"tom"`, `"#ff0000"`, and `"hello world"`; escapes `\"` and `\\` remain inside the same token. |
 | `:variable` | A colon-prefixed variable read or colon-form assignable place head, such as `:count`, `:nums[1]`, or `:people.tom.age`. The `:` and identifier SHOULD be styled as one semantic unit. |
@@ -75,8 +75,7 @@ Bracket role is grammar-derived:
 | Role | Position |
 |---|---|
 | List literal | Value position, such as after `=` or as a command argument. |
-| Instruction block | Body position after `repeat`, `if`, `while`, `for`, or `forever`. |
-| Comprehension expression-block | Body position after `map`, `filter`, or `reduce`; must produce a value. |
+| Instruction block | Body position after `repeat`, `if`, `while`, `for`, `forever`, `map`, `filter`, or `reduce`; a comprehension body must produce a value. |
 | Selector | Postfix position after an indexable primary: `:nums[1]`, `:ages[:who]`. |
 | Pattern | Binder position, such as `for [:x :y] in :points`. |
 | Field list | Immediately after `struct <type>`. |

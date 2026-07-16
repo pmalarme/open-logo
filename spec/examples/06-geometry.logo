@@ -17,11 +17,15 @@ end define
 
 define house :size
   polygon 4 :size
-  left 30
+  pen_up
+  forward :size
+  right 90
+  forward :size
+  right 180
+  pen_down
   triangle :size
-  right 30
 end define
 
 house 70
 
-# expected final state: a square house body and triangular roof are drawn.
+# expected final state: a square house body with a triangular roof sitting on top.

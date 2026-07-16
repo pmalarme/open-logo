@@ -147,11 +147,25 @@ The **Educational** profile provides deterministic baseline meta-commands such a
 `hint`, and `debug`, as specified in [educational-model.md](educational-model.md). This profile is a
 capability profile; it is distinct from learner levels.
 
+A conforming **Educational** implementation MUST provide `explain`, `why`, `hint`, and `debug` as
+deterministic, offline, template-based commands that reveal concepts without printing a complete
+ready-to-run solution. `hint` MUST be progressive: it escalates from a nudge toward the underlying
+concept and MUST NOT reveal a full solution on its first request. These requirements are normative
+here; [educational-model.md](educational-model.md) is informative and explains the pedagogy behind
+them.
+
 ### Tutor (AI)
 
 The **Tutor (AI)** profile provides AI-augmented tutoring behavior, including `challenge`, Socratic
 guardrails, learner adaptation, and offline degradation to Educational behavior, as specified in
 [ai-tutor.md](ai-tutor.md). It depends on **Educational**.
+
+A conforming **Tutor (AI)** implementation MUST augment the baseline meta-commands and `challenge`
+while preserving their deterministic Educational behavior, and when its AI backend is unavailable it
+MUST degrade gracefully to that Educational baseline. The tutor MUST ask guiding questions before
+giving a direct answer and MUST NOT emit a complete take-home solution in place of guidance. These
+requirements are normative here; [ai-tutor.md](ai-tutor.md) is informative and describes how a tutor
+realizes them.
 
 ## Feature to profile table
 

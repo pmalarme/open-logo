@@ -95,7 +95,7 @@ to deliver the next handler consistently.
 ## Trace stream integration
 
 Interaction and sound behavior is tied to the normative trace stream in
-[C9](execution-model.md). Each handler invocation emits the same common event
+[the trace and event registry](execution-model.md#trace-and-event-registry). Each handler invocation emits the same common event
 envelope as ordinary execution: monotonic `seq`, `kind`, `source-span`,
 optional `turtle-id`, and a typed payload.
 

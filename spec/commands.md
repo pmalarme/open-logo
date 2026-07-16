@@ -118,7 +118,7 @@ define grow :n
 end
 ```
 
-- **Possible errors:** `ol-reserved-word`; `ol-stop-outside-proc` or related procedure-context diagnostics may apply if used where a local frame is unavailable.
+- **Possible errors:** `ol-reserved-word` when a name is a reserved word. Used outside any procedure, `local` introduces the name in the top-level program frame rather than raising an error.
 
 ### `thing`
 

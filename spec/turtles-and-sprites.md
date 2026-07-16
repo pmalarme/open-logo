@@ -4,7 +4,7 @@
 
 [Back to the specification index](README.md).
 
-This document defines the optional **Sprites** profile for OpenLogo. It extends the required [Turtle & Rendering](commands.md#turtle--rendering) model with multiple addressable turtles, sprite-like shapes, and profile-local block heads for agent-based drawings and simulations. The model follows the lineage of StarLogo, NetLogo, and MicroWorlds while keeping the OpenLogo surface small and readable.
+This document defines the optional **Sprites** profile for OpenLogo. It extends the required [Turtle & Rendering](conformance.md#turtle--rendering) model with multiple addressable turtles, sprite-like shapes, and profile-local block heads for agent-based drawings and simulations. The model follows the lineage of StarLogo, NetLogo, and MicroWorlds while keeping the OpenLogo surface small and readable.
 
 ## Profile status and dependency
 
@@ -31,7 +31,7 @@ The full underscored names are primary. Implementations MAY expose aliases throu
 
 `new_turtle` creates a fresh turtle with its own state: position, heading, pen state, color, width, visibility, and shape. The initial state for a new turtle follows the same turtle defaults as the main turtle in [commands.md](commands.md) and [execution-model.md](execution-model.md): origin at the canvas center, heading `0` degrees up, pen down, color `"black"`, width `1`, visible, and the implementation's default turtle shape.
 
-Creating a turtle emits the `spawn-turtle` trace event defined in [execution-model.md](execution-model.md#execution-safety--the-traceevent-registry). The event is an effect event, so it is emitted immediately after the new turtle exists. Its envelope includes the common `seq`, `kind`, `source-span`, optional `turtle-id?`, and `payload` fields. The payload MUST identify the newly created turtle and SHOULD include its initial visible state for renderers and debuggers.
+Creating a turtle emits the `spawn-turtle` trace event defined in [execution-model.md](execution-model.md#trace-and-event-registry). The event is an effect event, so it is emitted immediately after the new turtle exists. Its envelope includes the common `seq`, `kind`, `source-span`, optional `turtle-id?`, and `payload` fields. The payload MUST identify the newly created turtle and SHOULD include its initial visible state for renderers and debuggers.
 
 ```logo
 :leader = who

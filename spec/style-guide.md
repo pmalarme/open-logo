@@ -12,7 +12,7 @@ This guide is about writing OpenLogo that a learner can read again tomorrow. The
 |---|---|---|---|
 | Identifier shape | `side_length` | `sideLength`, `side-length` | `ol-style-name-case` |
 | Keyword spelling | `repeat`, `define`, `end` | `REPEAT`, `Define` | `ol-style-name-case` |
-| Command name | `pen_down` | `pendown`, `pd` | `ol-style-full-name` |
+| Command name | `pen_down` | `pd` | `ol-style-full-name` |
 | Line shape | one command per line | squeezed command chains | `ol-style-one-command-per-line` |
 | Block body | `[ ]` inline, `… end` for multi-line | a sprawling multi-line `[ ]` block | `ol-style-prefer-block` |
 | Predicate names | `empty?`, `is_square?` | `empty`, `check_square` | `ol-style-predicate-name` |
@@ -93,13 +93,24 @@ A short single-line block is acceptable when the whole idea truly fits on one li
 if :done [ print "finished" ]
 ```
 
-Do not pack several effects together just to save space.
+Do not pack several effects onto one physical line just to save space. Inside a bracket block, packing parses but hides the individual steps:
 
 ```logo
-forward 100 right 90 forward 100 right 90
+repeat 2 [ forward 100 right 90 forward 100 right 90 ]
 ```
 
-Linter check: `ol-style-one-command-per-line` warns when multiple effectful commands appear on one physical line outside a deliberately short one-line block.
+Prefer one command per line:
+
+```logo
+repeat 2 [
+  forward 100
+  right 90
+]
+```
+
+At the top level this packing is not even legal: the grammar separates top-level statements with newlines, so `forward 100 right 90` on one physical line is a syntax error rather than a style problem.
+
+Linter check: `ol-style-one-command-per-line` warns when multiple effectful commands appear on one physical line inside a block body, outside a deliberately short one-line block.
 
 ## Indent block bodies
 

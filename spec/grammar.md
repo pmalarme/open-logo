@@ -46,7 +46,7 @@ Horizontal whitespace and indentation are insignificant except as token separato
 
 ## EBNF notation
 
-The grammar below uses W3C/ISO-style EBNF. Literal terminals are quoted. `? name ?` denotes a lexical class or semantic predicate described in prose. `{ x }` means zero or more repetitions. `[ x ]` means an optional item. In the EBNF itself these meta-brackets are notation, not OpenLogo source brackets.
+The grammar below uses W3C/ISO-style EBNF. Literal terminals are quoted. `? name ?` denotes a lexical class or semantic predicate described in prose. `{ x }` means zero or more repetitions. `[ x ]` means an optional item. `(* x *)` is a comment. In the EBNF itself these meta-brackets are notation, not OpenLogo source brackets.
 
 ```logo
 name                ::= identifier
@@ -203,7 +203,7 @@ list-literal        ::= "[" [ expression { expression } ] "]"
 dict-literal        ::= "{" { dict-entry } "}"
 dict-entry          ::= dict-key ":" expression
 dict-key            ::= identifier | number | word-literal
-authoring-note      ::= ? dict entries are separated by whitespace or newlines and never by commas ?
+(* dict entries are separated by whitespace or newlines, never by commas *)
 parenthesized-expression ::= "(" expression ")"
 fixed-call          ::= callable-name { ? exactly the callable's default number of inputs ? }
 parenthesized-call  ::= "(" callable-name { expression } ")"

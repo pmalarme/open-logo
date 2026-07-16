@@ -64,7 +64,7 @@ fill
 
 ## Coordinate mapping and viewport
 
-OpenLogo world coordinates follow [C4](execution-model.md): origin `(0,0)` is at the canvas center, `+x` points right, `+y` points up, heading `0°` points up, `right` turns clockwise, `left` turns counter-clockwise, degrees are used, and headings are normalized into `[0,360)`.
+OpenLogo world coordinates follow [the turtle and canvas state model](execution-model.md#turtle-and-canvas-state): origin `(0,0)` is at the canvas center, `+x` points right, `+y` points up, heading `0°` points up, `right` turns clockwise, `left` turns counter-clockwise, degrees are used, and headings are normalized into `[0,360)`.
 
 The world-to-target mapping for an unpanned viewport is:
 
@@ -79,7 +79,7 @@ At start and after `clear_screen`, the turtle is at `(0,0)`, heading `0`, pen do
 
 ## Execution-event consumption
 
-Rendering consumes the normative execution-event stream defined by [C9](execution-model.md). Each event has `seq`, `kind`, `source-span`, optional `turtle-id`, and `payload`. Rendering-relevant event kinds include `instruction`, `move`, `turn`, `pen-change`, `width-change`, `color-change`, `background-change`, `draw-segment`, `fill`, `stamp`, `shape-change`, `visibility-change`, `clear`, `overlay`, `spawn-turtle`, and `error`.
+Rendering consumes the normative execution-event stream defined by [the trace and event registry](execution-model.md#trace-and-event-registry). Each event has `seq`, `kind`, `source-span`, optional `turtle-id`, and `payload`. Rendering-relevant event kinds include `instruction`, `move`, `turn`, `pen-change`, `width-change`, `color-change`, `background-change`, `draw-segment`, `fill`, `stamp`, `shape-change`, `visibility-change`, `clear`, `overlay`, `spawn-turtle`, and `error`.
 
 Start events are emitted before their effect. Effect events are emitted immediately after the state change they describe. The renderer MUST apply effect events in increasing `seq` order. If multiple turtles are supported by the Sprites profile, `turtle-id` identifies which turtle state or scene operation the event affects.
 
@@ -169,7 +169,7 @@ If random drawing is used, determinism depends on the language-level random seed
 
 ## Accessibility
 
-Rendering accessibility is normative for the Turtle & Rendering profile and follows [C13](conformance.md). A conforming Canvas target MUST be operable and understandable without relying on motion, color, or pointer-only interaction.
+Rendering accessibility is normative for the Turtle & Rendering profile; see [conformance.md](conformance.md#turtle--rendering). A conforming Canvas target MUST be operable and understandable without relying on motion, color, or pointer-only interaction.
 
 ### Reduced motion
 
