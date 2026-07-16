@@ -703,7 +703,7 @@ print is_a? 5 "number"
 
 ## Control
 
-Control forms run blocks for their effects and do not report values. Their bodies may be bracketed blocks, long `… end` blocks where allowed, or one bare instruction according to the reader rules in [grammar.md](grammar.md) and [execution-model.md](execution-model.md).
+Control forms run blocks for their effects and do not report values. Their bodies are bracketed `[ … ]` blocks or long `… end` blocks according to the reader rules in [grammar.md](grammar.md) and [execution-model.md](execution-model.md); a control body is always delimited.
 
 ### `if … [else …]`
 

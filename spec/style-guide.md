@@ -14,7 +14,7 @@ This guide is about writing OpenLogo that a learner can read again tomorrow. The
 | Keyword spelling | `repeat`, `define`, `end` | `REPEAT`, `Define` | `ol-style-name-case` |
 | Command name | `pen_down` | `pendown`, `pd` | `ol-style-full-name` |
 | Line shape | one command per line | squeezed command chains | `ol-style-one-command-per-line` |
-| Block body | `… end` for multi-line, `[ ]` inline | unclear bare bodies | `ol-style-prefer-block` |
+| Block body | `[ ]` inline, `… end` for multi-line | a sprawling multi-line `[ ]` block | `ol-style-prefer-block` |
 | Predicate names | `empty?`, `is_square?` | `empty`, `check_square` | `ol-style-predicate-name` |
 | Procedure names | `draw_star`, `is_inside?` | vague verbs like `do_it` | `ol-style-procedure-name` |
 | Comments | `#` for normal notes | `//` everywhere | `ol-style-comment-style` |
@@ -122,28 +122,23 @@ repeat 4 [ forward 100  right 90 ]
 
 Linter checks: `ol-style-block-indentation` warns about inconsistent indentation, and `ol-style-deep-nesting` suggests labels such as `end repeat` or `end define` when nesting makes a plain `end` hard to match.
 
-## Choose `end`, `[ ]`, or bare bodies with care
+## Choose `[ ]` or `end` blocks
 
-The `… end` block is the default form for any body that spans more than one line. It reads like a small story: one instruction per line, an aligned closing `end`, and an optional label such as `end repeat` or `end if` that makes nested code easy to match.
+Every control body is delimited. Use a bracketed `[ ]` block for a short body that fits comfortably on a single line — this inline form is handy for a quick loop or a one-line `if`, and it is required even for a single instruction.
+
+```logo
+repeat 4 [ forward 100  right 90 ]
+if :done [ print "finished" ]
+repeat 4 [ move_and_turn ]
+```
+
+Use the `… end` block as the default whenever the body spans more than one line. It reads like a small story: one instruction per line, an aligned closing `end`, and an optional label such as `end repeat` or `end if` that makes nested code easy to match. A `[ ]` block may also span several lines, but prefer `… end` for readability.
 
 ```logo
 repeat 4
   forward 100
   right 90
 end repeat
-```
-
-Use a bracketed `[ ]` block for a short body that fits comfortably on a single line. This inline form is handy for a quick loop or a one-line `if`.
-
-```logo
-repeat 4 [ forward 100  right 90 ]
-if :done [ print "finished" ]
-```
-
-Use a bare body for exactly one instruction after `repeat`, `if`, `while`, `for`, or `forever`.
-
-```logo
-repeat 4 move_and_turn
 ```
 
 Reach for the `end` form whenever the body has comments, nested control, or an `else`, so every part stays on its own labelled line.
@@ -165,7 +160,7 @@ Comprehensions always use a bracketed expression block, even across several line
 :bigger = filter size in :sizes [ :size > 20 ]
 ```
 
-Linter check: `ol-style-prefer-block` warns when a bare body has more than one instruction, when a multi-line body is not delimited, and when a multi-line bracketed block would read more clearly as an `end` block.
+Linter check: `ol-style-prefer-block` warns when a multi-line bracketed block would read more clearly as an `end` block.
 
 ## Name predicates with `?`
 
@@ -279,9 +274,9 @@ end
 
 Linter check: `ol-style-hidden-abstraction` warns in early-level teaching examples when a shape helper appears before the repeated construction it represents.
 
-### Bare multi-line bodies
+### Undelimited bodies
 
-A bare body is exactly one instruction. If the body needs more lines, wrap it.
+A control body is always delimited. A header followed by instructions with no `[ ]` block and no `end` is a parse error, even for a single instruction.
 
 ```logo
 repeat 4
@@ -289,7 +284,7 @@ repeat 4
   right 90
 ```
 
-Use a long block or a bracketed block instead.
+Wrap the body in a `[ ]` block or close it with `end` instead.
 
 ```logo
 repeat 4
@@ -298,7 +293,7 @@ repeat 4
 end repeat
 ```
 
-Linter check: `ol-style-prefer-block` warns and points to the missing block delimiter.
+This is `ol-missing-end`, a parse error rather than a style warning; the fix adds `[ ]` or `end`.
 
 ### Deep unlabeled nesting
 

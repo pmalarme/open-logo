@@ -102,7 +102,7 @@ codes only outside the `ol-*` namespace.
 | `ol-unmatched-bracket` | parse | `delimiter`, optional `opened_at` | `[` or `]` is unmatched. Use for list literals, blocks, selectors, field lists, and patterns when the bracket itself is the structural problem. |
 | `ol-unmatched-brace` | parse | `delimiter`, optional `opened_at` | `{` or `}` is unmatched in a dictionary literal. |
 | `ol-unmatched-paren` | parse | `delimiter`, optional `opened_at` | `(` or `)` is unmatched in grouping or parenthesized call syntax. |
-| `ol-missing-end` | parse | `opener`, optional `hint` | A long block or procedure was opened but not closed, or a bare single-instruction body left extra tokens on the line. The hint SHOULD mention wrapping multiple instructions in `[ ]` when appropriate. |
+| `ol-missing-end` | parse | `opener`, optional `hint` | A long block or procedure was opened but not closed, or a control header was followed by an undelimited body. The hint SHOULD mention wrapping the body in `[ ]` or closing it with `end`. |
 | `ol-mismatched-end` | parse | `expected`, `actual` | An `end` label is orphaned or does not match its opener; includes an `else` with no still-open `if`. |
 | `ol-unclosed-comment` | parse | `opened_at` | A `/* … */` comment reached end of file before `*/`. |
 | `ol-unclosed-string` | parse | `opened_at` | A closed double-quoted word/string reached end of line or file before the closing `"`. |

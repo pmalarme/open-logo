@@ -144,7 +144,7 @@ and SHOULD recover far enough to report additional independent findings in the s
 | Unmatched `[` or `]` | `ol-unmatched-bracket` | Point at the unmatched delimiter; include the expected mate in `params`. |
 | Unmatched `{` or `}` | `ol-unmatched-brace` | Treat braces only as dict delimiters; never as blocks. |
 | Unmatched `(` or `)` | `ol-unmatched-paren` | Include whether the parser was inside grouping or a parenthesized call. |
-| Missing long-block terminator | `ol-missing-end` | Use for a `define`, long control block, or bare-body line with leftover tokens that should be wrapped in `[ ]`. |
+| Missing body delimiter or long-block terminator | `ol-missing-end` | Use for a `define` or long control block left unclosed, or a control header followed by an undelimited body that should be wrapped in `[ ]` or closed with `end`. |
 | Mismatched, orphan, or invalid `end` label | `ol-mismatched-end` | Accept only `end`, `end if`, `end while`, `end repeat`, `end for`, `end forever`, and `end define`. |
 | Unclosed block comment | `ol-unclosed-comment` | `/* ... */` comments are non-nesting. |
 | Unclosed string | `ol-unclosed-string` | Closed double quotes are required; classic open `"word` is invalid. |
@@ -153,12 +153,12 @@ and SHOULD recover far enough to report additional independent findings in the s
 Example parse diagnostics:
 
 ```logo
-repeat 4 forward 100 right 90
+repeat 4 forward 100
 ```
 
 Finding: `code=ol-missing-end`, `stage=parse`, `severity=error`, `params={ opener: "repeat",
-hint: "wrap the body in [ ]" }`, message: `repeat has more than one instruction after it. wrap the
-body in [ ].`
+hint: "wrap the body in [ ] or close it with end" }`, message: `repeat needs its body wrapped in [ ]
+or closed with end.`
 
 ```logo
 :ages = { tom: 8 sophie: 6 }
@@ -239,7 +239,7 @@ it MUST keep the code identity stable when the rule is enabled.
 | `ol-style-full-name` | Prefer primary full underscored primitive names over short aliases in teaching material, such as `pen_down` over `pd`. |
 | `ol-style-one-command-per-line` | Prefer one command or special form per line outside compact one-line examples. |
 | `ol-style-block-indentation` | Indent the contents of `[ ]` and long `... end` blocks consistently. |
-| `ol-style-prefer-block` | Use `[ ]` or `... end` when a control body would be clearer than a bare single-instruction body, especially when nested. |
+| `ol-style-prefer-block` | Suggest a `... end` block when a bracketed `[ ]` control body spans multiple lines. |
 | `ol-style-predicate-name` | Procedures that return booleans should end in `?`, such as `is_ready?`. |
 | `ol-style-procedure-name` | Procedure names should describe the learner-visible action or question, often `draw_*`, `make_*`, or `is_*?`. |
 | `ol-style-comment-style` | Prefer `#` comments in examples; `//` and `/* ... */` remain valid syntax. |
@@ -282,7 +282,7 @@ An editor integration can expose this specification through Language Server Prot
 - `textDocument/definition` jumps from a user procedure call to `define`, from a struct constructor
   or field to `struct`, and from an alias to its declaration or target.
 - `textDocument/codeAction` offers safe fixes such as replacing `fd` with `forward`, adding a missing
-  `end`, wrapping a multi-instruction bare body in `[ ]`, changing `=` to `==` in an `if` condition,
+  `end`, wrapping an undelimited control body in `[ ]` or a `... end` block, changing `=` to `==` in an `if` condition,
   or inserting a missing comprehension final expression placeholder.
 - `textDocument/formatting` applies the indentation and one-command-per-line rules from the style
   guide without changing program meaning.

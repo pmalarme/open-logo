@@ -27,6 +27,6 @@ print :answer
 draw_square 60
 right 45
 draw_tick 50
-repeat 2 draw_tick 25
+repeat 2 [ draw_tick 25 ]
 
 # expected output: 42 and expected drawing: a square with three diagonal ticks.

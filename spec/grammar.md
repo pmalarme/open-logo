@@ -20,7 +20,7 @@ Word/string literals are closed double-quote literals such as `"tom"`, `"#ff0000
 
 Comments are whitespace. `#` and `//` start line comments that end at the next line break. `/* */` delimits a non-nesting block comment; an unterminated block comment raises `ol-unclosed-comment`. Comment markers inside strings are literal text.
 
-Whitespace is insignificant except as a token separator. Newline also terminates a bare single-instruction body.
+Horizontal whitespace and indentation are insignificant except as token separators. A newline ends the current statement at the top level and inside a bracketed `[ ... ]` or long `... end` control body; inside `[ ... ]` the newline is optional, because fixed arity also separates adjacent instructions. Immediately after a control or procedure header, a newline selects the long `... end` body form. Within a single expression, list literal, dict literal, or parenthesized group, newlines are insignificant.
 
 ```logo
 # primary line comment
@@ -97,7 +97,12 @@ remove-key-statement ::= "remove" "key" key-term "from" expression
 insert-statement    ::= "insert" expression "in" expression "at" expression
 clear-statement     ::= "clear" expression
 
-if-statement        ::= "if" expression control-body [ "else" control-body ]
+if-statement        ::= "if" expression if-bracket-tail
+                      | "if" expression if-long-tail
+if-bracket-tail     ::= bracket-block [ "else" bracket-block ]
+if-long-tail        ::= newline { statement terminator }
+                        [ "else" newline { statement terminator } ] if-end-label
+if-end-label        ::= "end" [ "if" ]
 while-statement     ::= "while" expression control-body
 repeat-statement    ::= "repeat" expression control-body
 for-in-statement    ::= "for" binder "in" expression control-body
@@ -111,12 +116,11 @@ reduce-statement    ::= "reduce" name name "in" expression "from" expression exp
 binder              ::= name | destructuring-pattern
 destructuring-pattern ::= "[" ":" name { ":" name } "]"
 
-control-body        ::= bracket-block | long-control-block | bare-single-instruction
-bracket-block       ::= "[" { statement terminator } "]"
-expression-block    ::= "[" { statement terminator } expression "]"
+control-body        ::= bracket-block | long-control-block
+bracket-block       ::= "[" { terminator } { statement { terminator } } "]"
+expression-block    ::= "[" { terminator } { statement terminator } expression { terminator } "]"
 long-control-block  ::= newline { statement terminator } control-end-label
 control-end-label   ::= "end" [ "if" | "while" | "repeat" | "for" | "forever" ]
-bare-single-instruction ::= ? exactly one complete non-if statement on the same physical line ?
 
 define-statement    ::= "define" callable-name { parameter } newline { statement terminator } define-end
 to-statement        ::= "to" callable-name { parameter } newline { statement terminator } define-end
@@ -238,17 +242,18 @@ The roles never overlap because each occupies a distinct grammar slot. `{ }` is 
 
 Control bodies for `if`, `while`, `repeat`, `for`, and `forever` use exactly one of these forms:
 
-1. bracketed block `[ ... ]`, short or multiline
-2. long block `... end` with an optional matching label
-3. a bare single-instruction body
+1. bracketed block `[ ... ]`, inline or multiline
+2. long block `... end` with an optional matching label, preferred for multi-line bodies
+
+A control body is always delimited: there is no bare or undelimited body, so even a single instruction is written `repeat 4 [ forward 100 ]` or as a `... end` block. Inside a bracketed body, instructions are separated by their fixed arity, so `[ forward 100 right 90 ]` holds two commands and newlines inside `[ ]` are optional. After a control header, the rest of the physical line decides the form: if it begins with `[`, the body is a bracketed block; if the header ends the line, the body is a long `... end` block; any other token raises `ol-missing-end` with a hint to wrap the body in `[ ]` or close it with `end`.
 
 Valid end labels are exactly `end`, `end if`, `end while`, `end repeat`, `end for`, `end forever`, and `end define`. A mismatched or orphan label raises `ol-mismatched-end`; a missing terminator raises `ol-missing-end`.
 
-A bare single-instruction body must be exactly one complete instruction on the same physical line as the control header and must be followed by newline or EOF. It may not itself be an `if` or `if ... else`; nested conditionals used as bodies must be bracketed or long-form to avoid dangling `else`.
+An `if` takes either bracketed branches, `if <cond> [ ... ] else [ ... ]`, or long-form branches, `if <cond>` … `else` … `end if`; both branches use the same form. Because every branch is delimited, `else` binds to the nearest still-open `if` and there is no dangling-`else` ambiguity.
 
-Comprehension bodies for `map`, `filter`, and `reduce` are bracketed expression blocks only. They are never long blocks and never bare bodies.
+Comprehension bodies for `map`, `filter`, and `reduce` are bracketed expression blocks only. They are never long blocks.
 
-Procedure bodies for `define` and heritage `to` are long blocks only and close with `end` or `end define`. They are never `[ ]` blocks and never bare bodies. `struct` is a one-line declaration.
+Procedure bodies for `define` and heritage `to` are long blocks only and close with `end` or `end define`. They are never `[ ]` blocks. `struct` is a one-line declaration.
 
 ```logo
 repeat 4 [ forward 100 right 90 ]
@@ -257,8 +262,6 @@ repeat 4
   forward 100
   right 90
 end repeat
-
-repeat 4 forward 100
 
 if :count > 3 [ print "big" ] else [ print "small" ]
 

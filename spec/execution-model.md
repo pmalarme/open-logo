@@ -53,8 +53,13 @@ The reader receives tokens from the normative lexer in [grammar.md](grammar.md):
   other characters are literal. Unterminated strings raise `ol-unclosed-string`.
 - `#` and `//` start line comments; `/* ... */` starts a non-nesting block
   comment. Unterminated block comments raise `ol-unclosed-comment`.
-- Whitespace is insignificant except as a separator. Newline also terminates a
-  bare single-instruction body.
+- Horizontal whitespace and indentation are insignificant except as token
+  separators. A newline ends the current statement at the top level and inside a
+  bracketed `[ ... ]` or long `... end` control body; inside `[ ... ]` the newline
+  is optional, because fixed arity also separates adjacent instructions.
+  Immediately after a control or procedure header, a newline selects the long
+  `... end` body form. Within a single expression, list literal, dict literal, or
+  parenthesized group, newlines are insignificant.
 
 ## Reader pipeline
 
@@ -144,12 +149,18 @@ OpenLogo gives `[` five grammatical roles, disambiguated by position:
 | Field-list | `struct point [ x y ]` | Immediately after `struct <type>`. |
 
 Control forms (`if`, `while`, `repeat`, `for`, `forever`) accept exactly one of
-three body forms:
+two body forms:
 
-1. a bracketed block `[ ... ]`;
+1. a bracketed block `[ ... ]`, inline or multiline;
 2. a long block closed by `end` with optional matching label: `end`, `end if`,
-   `end while`, `end repeat`, `end for`, or `end forever`;
-3. a bare single-instruction body on the same physical line.
+   `end while`, `end repeat`, `end for`, or `end forever`, preferred for
+   multi-line bodies.
+
+A control body is always delimited; there is no bare or undelimited body. Even a
+single instruction is written `repeat 4 [ forward 100 ]` or as a `... end` block.
+Inside a bracketed body the reader separates instructions by their fixed arity,
+so `[ forward 100 right 90 ]` is two commands and newlines inside `[ ]` are
+optional.
 
 Comprehensions (`map`, `filter`, `reduce`) accept only a bracketed
 expression-block `[ ... ]`. A procedure `define` accepts only a long block
@@ -157,14 +168,14 @@ closed by `end` or `end define`. `struct` is a one-line declaration with no
 body. The valid labels are exactly `end`, `end if`, `end while`, `end repeat`,
 `end for`, `end forever`, and `end define`.
 
-The bare single-instruction body rule removes ambiguity. After a control header,
-if the rest of the same physical line begins with `[`, it is a bracketed block;
-if it is empty, it is a long `... end` form; otherwise it must be exactly one
-complete instruction followed by newline or EOF. Any leftover tokens raise
-`ol-missing-end` with a hint to wrap the body in `[ ]`. A bare body may not
-itself be an `if` or `if ... else`; nested conditionals must use `[ ]` or
-`... end`. An `else` binds to the nearest still-open `if` lacking an `else`;
-otherwise it raises `ol-mismatched-end`.
+The delimited-body rule removes ambiguity. After a control header, if the rest
+of the same physical line begins with `[`, the body is a bracketed block; if the
+header ends the line, the body is a long `... end` block; any other token raises
+`ol-missing-end` with a hint to wrap the body in `[ ]` or close it with `end`.
+An `if` applies the same rule to each branch: bracketed branches read
+`if <cond> [ ... ] else [ ... ]`, long-form branches read `if <cond>` ... `else`
+... `end if`, and both branches take the same form. `else` binds to the nearest
+still-open `if` lacking an `else`; otherwise it raises `ol-mismatched-end`.
 
 ## The block-result rule
 

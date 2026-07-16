@@ -13,8 +13,8 @@ file is optional unless an implementation declares the corresponding profile.
 
 The locked OpenLogo surface applies here: variables are written with `:name`,
 assignment uses `=`, equality uses `==`, strings are closed double-quoted words,
-blocks are `[ … ]`, `… end`, or one bare instruction under the block-result
-rule, and examples do not use arrays, lambdas, or commas.
+blocks are `[ … ]` or `… end` under the block-result rule, and examples do not
+use arrays, lambdas, or commas.
 
 ## Profiles and reservation
 

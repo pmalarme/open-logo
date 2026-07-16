@@ -376,7 +376,7 @@ print :c       # fresh list
 
 At Level 8, higher-order work is written with three comprehension special forms. OpenLogo v0.1 has no first-class functions and no `lambda`.
 
-Each comprehension uses a binder, a list expression, and a bracketed expression body. The body is `[ ]` only, not `… end` and not a bare instruction. It reports by the value of its last expression, so `return`, `output`, and `op` are not used in comprehension bodies.
+Each comprehension uses a binder, a list expression, and a bracketed expression body. The body is `[ ]` only, never `… end`. It reports by the value of its last expression, so `return`, `output`, and `op` are not used in comprehension bodies.
 
 ```logo
 :nums = [1 2 3 4]

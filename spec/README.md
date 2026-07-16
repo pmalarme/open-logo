@@ -69,7 +69,7 @@ This is **OpenLogo Specification v0.1.0 — Draft**. The status line at the top 
 - **Field**: a named slot in a record/struct, accessed with `.field`.
 - **Key**: a word or number used to access a dict entry.
 - **Place**: an assignable variable, index, field, key, or nested chain such as `:people.tom.age`.
-- **Block**: a list of instructions used as a body, written `[ ]`, `… end`, or as one bare instruction where allowed.
+- **Block**: a list of instructions used as a body, written `[ ]` inline or multiline, or `… end` (preferred for multi-line bodies). A control body is always delimited.
 - **Procedure**: a learner-defined callable introduced with `define` or heritage `to`.
 - **Reporter**: a callable that produces a value.
 - **Command**: a callable that performs an effect and returns no value.
