@@ -7,10 +7,10 @@
 
 set_tempo 120
 
-for pitch in :melody [
+for pitch in :melody
   note :pitch :durations[:i]
   :i = :i + 1
-]
+end for
 
 rest 1
 beep

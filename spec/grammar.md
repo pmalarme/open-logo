@@ -296,9 +296,9 @@ add (point 0 0) to :path
 Destructuring patterns bind names positionally from lists or records in declared field order.
 
 ```logo
-for [:x :y] in :points [
+for [:x :y] in :points
   print :x
-]
+end for
 ```
 
 Core comprehension forms are special forms, not function-valued higher-order calls:

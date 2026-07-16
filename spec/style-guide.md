@@ -14,7 +14,7 @@ This guide is about writing OpenLogo that a learner can read again tomorrow. The
 | Keyword spelling | `repeat`, `define`, `end` | `REPEAT`, `Define` | `ol-style-name-case` |
 | Command name | `pen_down` | `pendown`, `pd` | `ol-style-full-name` |
 | Line shape | one command per line | squeezed command chains | `ol-style-one-command-per-line` |
-| Blocks | indented `[ ]` or `end` blocks | unclear bare bodies | `ol-style-prefer-block` |
+| Block body | `… end` for multi-line, `[ ]` inline | unclear bare bodies | `ol-style-prefer-block` |
 | Predicate names | `empty?`, `is_square?` | `empty`, `check_square` | `ol-style-predicate-name` |
 | Procedure names | `draw_star`, `is_inside?` | vague verbs like `do_it` | `ol-style-procedure-name` |
 | Comments | `#` for normal notes | `//` everywhere | `ol-style-comment-style` |
@@ -34,9 +34,7 @@ struct turtle_step [ distance angle ]
 Prefer complete words when they help the reader. A short loop binder is fine when its role is local and obvious.
 
 ```logo
-for i from 1 to 4 [
-  print :i
-]
+for i from 1 to 4 [ print :i ]
 ```
 
 Linter check: `ol-style-name-case` warns on mixed case, hyphenated names, and built-in examples that are not lowercase snake_case.
@@ -46,10 +44,10 @@ Linter check: `ol-style-name-case` warns on mixed case, hyphenated names, and bu
 OpenLogo keywords are case-insensitive, but lowercase is the shared style. Lowercase makes copied examples look the same in every lesson and keeps localized aliases visibly separate from the canonical English form.
 
 ```logo
-repeat 4 [
+repeat 4
   forward 100
   right 90
-]
+end repeat
 ```
 
 Linter check: `ol-style-name-case` warns when canonical keywords or primitive names are written with other casing.
@@ -103,18 +101,9 @@ forward 100 right 90 forward 100 right 90
 
 Linter check: `ol-style-one-command-per-line` warns when multiple effectful commands appear on one physical line outside a deliberately short one-line block.
 
-## Indent bracketed blocks and `end` blocks
+## Indent block bodies
 
-Use two spaces inside a block. Align the closing `]` or `end` with the command that opened the block.
-
-```logo
-repeat 4 [
-  forward 100
-  right 90
-]
-```
-
-For long-form blocks, use the same indentation. Add the optional label when it makes nested code easier to scan.
+Use two spaces inside every block. In the default `… end` form, align the closing `end` with the command that opened the block, and add the optional label when it makes nested code easier to scan.
 
 ```logo
 define draw_square :size
@@ -125,26 +114,39 @@ define draw_square :size
 end define
 ```
 
+A short inline `[ ]` block keeps the same breathing room around its single line.
+
+```logo
+repeat 4 [ forward 100  right 90 ]
+```
+
 Linter checks: `ol-style-block-indentation` warns about inconsistent indentation, and `ol-style-deep-nesting` suggests labels such as `end repeat` or `end define` when nesting makes a plain `end` hard to match.
 
-## Choose `[ ]`, `end`, or bare bodies with care
+## Choose `end`, `[ ]`, or bare bodies with care
 
-A bare body is for one small instruction on the same line, usually after `repeat`, `if`, `while`, `for`, or `forever`.
+The `… end` block is the default form for any body that spans more than one line. It reads like a small story: one instruction per line, an aligned closing `end`, and an optional label such as `end repeat` or `end if` that makes nested code easy to match.
+
+```logo
+repeat 4
+  forward 100
+  right 90
+end repeat
+```
+
+Use a bracketed `[ ]` block for a short body that fits comfortably on a single line. This inline form is handy for a quick loop or a one-line `if`.
+
+```logo
+repeat 4 [ forward 100  right 90 ]
+if :done [ print "finished" ]
+```
+
+Use a bare body for exactly one instruction after `repeat`, `if`, `while`, `for`, or `forever`.
 
 ```logo
 repeat 4 move_and_turn
 ```
 
-Prefer a bracketed block when the body has two or more instructions, when an `else` is nearby, or when a learner should see the body as a visible list of steps.
-
-```logo
-repeat 4 [
-  forward 100
-  right 90
-]
-```
-
-Prefer an `end` block when the body is long, has comments, or contains nested control. The long form reads like a small story.
+Reach for the `end` form whenever the body has comments, nested control, or an `else`, so every part stays on its own labelled line.
 
 ```logo
 if :side_length > 0
@@ -157,13 +159,13 @@ else
 end if
 ```
 
-Comprehensions always use a bracketed expression block.
+Comprehensions always use a bracketed expression block, even across several lines, because `[ ]` is the only body form the block-result rule lets return a value.
 
 ```logo
 :bigger = filter size in :sizes [ :size > 20 ]
 ```
 
-Linter check: `ol-style-prefer-block` warns when a bare body is too complex, when a multi-line body is not delimited, or when a long nested block would be clearer with an `end` label.
+Linter check: `ol-style-prefer-block` warns when a bare body has more than one instruction, when a multi-line body is not delimited, and when a multi-line bracketed block would read more clearly as an `end` block.
 
 ## Name predicates with `?`
 
@@ -174,9 +176,9 @@ define is_square? :width :height
   return :width == :height
 end
 
-if is_square? 100 100 [
+if is_square? 100 100
   print "all sides match"
-]
+end if
 ```
 
 Use `is_*?` for predicates that classify a value, and keep built-in predicate style such as `empty?`, `member?`, and `is_a?`.
@@ -189,10 +191,10 @@ Use `draw_*` for procedures that draw, `move_*` for turtle motion helpers, `make
 
 ```logo
 define draw_triangle :size
-  repeat 3 [
+  repeat 3
     forward :size
     right 120
-  ]
+  end repeat
 end
 
 define is_long_enough? :size
@@ -234,17 +236,17 @@ Use `=` only to assign to a place. Use `==` and `!=` to ask a question. If a lin
 
 ```logo
 :side_count = 4
-if :side_count == 4 [
+if :side_count == 4
   print "square time"
-]
+end if
 ```
 
 This is confusing and should be rewritten:
 
 ```logo
-if :side_count = 4 [
+if :side_count = 4
   print "square time"
-]
+end if
 ```
 
 Linter check: `ol-style-equality-confusion` warns on assignment-looking text in condition positions and suggests `==` when the learner likely meant equality.
@@ -262,16 +264,16 @@ draw_square 100
 Show the pattern first, then package it as a procedure.
 
 ```logo
-repeat 4 [
+repeat 4
   forward 100
   right 90
-]
+end repeat
 
 define draw_square :size
-  repeat 4 [
+  repeat 4
     forward :size
     right 90
-  ]
+  end repeat
 end
 ```
 
@@ -359,18 +361,18 @@ Linter check: `ol-style-magic-number` warns on unexplained numeric literals outs
 A control block runs for effects and discards any final value. If a value matters, print it, assign it, or return it from a procedure. If a comprehension needs a value, make the last expression intentional.
 
 ```logo
-repeat 4 [
+repeat 4
   forward 100
   :side_length
-]
+end repeat
 ```
 
 Better:
 
 ```logo
-repeat 4 [
+repeat 4
   forward :side_length
-]
+end repeat
 ```
 
 Linter check: `ol-style-useless-value` warns when a control block ends with a value-producing expression that will be ignored by the block-result rule.

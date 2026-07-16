@@ -6,9 +6,9 @@ set_color "green"
 set_width 2
 
 define branch :length :depth
-  if :depth == 0 [
+  if :depth == 0
     return :length
-  ] else [
+  else
     forward :length
 
     local next
@@ -23,15 +23,15 @@ define branch :length :depth
     :turn_total = reduce sum turn in :wide_turns from 0 [ :sum + :turn ]
     :balanced_turns = map turn in :wide_turns [ :turn - :turn_total ]
 
-    for turn in :balanced_turns [
+    for turn in :balanced_turns
       left :turn
       branch :next (:depth - 1)
       right :turn
-    ]
+    end for
 
     back :length
     return :length
-  ]
+  end if
 end define
 
 pen_up

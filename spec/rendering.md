@@ -55,10 +55,10 @@ If the active path is not closed, the renderer MUST close it for filling by conn
 
 ```logo
 set_color "blue"
-repeat 4 [
+repeat 4
   forward 100
   right 90
-]
+end repeat
 fill
 ```
 
@@ -102,10 +102,10 @@ Speed control MAY be expressed as steps per second, a named speed scale, or a sl
 In reduced-motion mode, animation MUST default to instant or low-motion stepping while preserving manual step and pause. See [Accessibility](#accessibility).
 
 ```logo
-repeat 4 [
+repeat 4
   forward 100
   right 90
-]
+end repeat
 ```
 
 In the program above, each source instruction produces its own `instruction` event. Pressing **step** once at the first `forward 100` consumes that one instruction and the resulting `move` and `draw-segment` effects. The following `right 90` is a separate step.
@@ -208,8 +208,8 @@ A keyboard user MUST be able to run this program, pause it, step each instructio
 set_background "white"
 set_color "black"
 set_width 2
-repeat 4 [
+repeat 4
   forward 100
   right 90
-]
+end repeat
 ```

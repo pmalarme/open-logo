@@ -17,10 +17,10 @@ The turtle is the learner's avatar. It has a position, heading, pen, color, widt
 ```logo
 set_color "blue"
 set_width 3
-repeat 4 [
+repeat 4
   forward 100
   right 90
-]
+end repeat
 ```
 
 The turtle makes mathematical ideas tangible: distance is how far the turtle walks, an angle is how much it turns, and state is what the turtle remembers between instructions.
@@ -73,20 +73,20 @@ OpenLogo avoids shortcuts that hide the idea the learner is ready to discover. A
 Instead, learners should first build the square:
 
 ```logo
-repeat 4 [
+repeat 4
   forward 100
   right 90
-]
+end repeat
 ```
 
 Only after that does naming become powerful:
 
 ```logo
 define square :size
-  repeat 4 [
+  repeat 4
     forward :size
     right 90
-  ]
+  end repeat
 end
 ```
 
@@ -94,10 +94,10 @@ The same rule applies to geometry. `polygon` is a useful abstraction, but the le
 
 ```logo
 define polygon :sides :size
-  repeat :sides [
+  repeat :sides
     forward :size
     right 360 / :sides
-  ]
+  end repeat
 end
 ```
 

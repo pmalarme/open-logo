@@ -24,10 +24,10 @@ Examples should always answer “why?” in plain language:
 
 ```logo
 # why: four equal moves and turns bring the turtle back to the start
-repeat 4 [
+repeat 4
   forward 80
   right 90
-]
+end repeat
 ```
 
 ## The 8 progressive LEVELS
@@ -76,10 +76,10 @@ Core ideas:
 
 ```logo
 # why: a square is one side-and-turn idea repeated four times
-repeat 4 [
+repeat 4
   forward 80
   right 90
-]
+end repeat
 ```
 
 A good Level 2 lesson asks learners to change only one number at a time: the distance, the turn, or the repeat count.
@@ -101,17 +101,17 @@ Core ideas:
 ```logo
 # why: changing :size once changes every side
 :size = 80
-repeat 4 [
+repeat 4
   forward :size
   right 90
-]
+end repeat
 
 # why: the worded form says the same idea in a sentence
 set size to 100
-repeat 4 [
+repeat 4
   forward :size
   right 90
-]
+end repeat
 ```
 
 Teachers should say the colon out loud as “the value of” on reads and “the variable named” on write targets.
@@ -134,16 +134,16 @@ Core ideas:
 # why: the turtle chooses a turn from a boolean comparison
 :sides = 4
 
-if :sides == 4 [
+if :sides == 4
   set_color "green"
-] else [
+else
   set_color "purple"
-]
+end if
 
-repeat :sides [
+repeat :sides
   forward 70
   right 360 / :sides
-]
+end repeat
 ```
 
 Error messages should help here. If a learner writes `if :sides [ … ]`, the response should explain that `:sides` is a number and the condition needs a boolean. See [error-model.md](error-model.md).
@@ -165,10 +165,10 @@ Core ideas:
 ```logo
 # why: polygon is the side-and-turn pattern with names for the parts
 define polygon :sides :size
-  repeat :sides [
+  repeat :sides
     forward :size
     right 360 / :sides
-  ]
+  end repeat
 end
 
 # why: five sides need five equal turns that add to a full turn
@@ -189,10 +189,10 @@ The heritage form may appear as a comparison exercise after learners are comfort
 ```logo
 # why: this heritage spelling means the same shape-building idea
 to triangle :size
-  repeat 3 [
+  repeat 3
     forward :size
     right 120
-  ]
+  end repeat
 end
 ```
 
@@ -213,10 +213,10 @@ Core ideas:
 ```logo
 # why: 360 divided by 6 makes six equal outside turns
 define polygon :sides :size
-  repeat :sides [
+  repeat :sides
     forward :size
     right 360 / :sides
-  ]
+  end repeat
 end
 
 polygon 6 50
@@ -247,10 +247,10 @@ Core ideas:
 :steps = [30 50 70]
 add 90 to :steps
 
-for step in :steps [
+for step in :steps
   forward :step
   right 90
-]
+end for
 
 # why: changing the first item changes the first move next time
 :steps[1] = 40
@@ -335,9 +335,9 @@ Core ideas:
 ```logo
 # why: each branch draws two smaller branches until the size is tiny
 define branch :size
-  if :size < 5 [
+  if :size < 5
     stop
-  ]
+  end if
 
   forward :size
   left 30
@@ -383,10 +383,10 @@ Core ideas:
 # why: each point gives names to its two parts before drawing
 :points = [[0 0] [50 0] [50 50] [0 50]]
 
-for [:x :y] in :points [
+for [:x :y] in :points
   set_xy :x :y
   stamp
-]
+end for
 ```
 
 ## Concept to command map
@@ -430,10 +430,10 @@ Example template:
 
 ```logo
 # why: explain should name the idea without solving the next challenge
-repeat 4 [
+repeat 4
   forward 80
   right 90
-]
+end repeat
 ```
 
 Possible response: “`repeat` runs the block four times. Each time, the turtle moves forward and turns right. The repeated side-and-turn pattern makes a square.”
@@ -452,11 +452,11 @@ Baseline behavior:
 ```logo
 # why: the color changes because the comparison is true
 :sides = 4
-if :sides == 4 [
+if :sides == 4
   set_color "green"
-] else [
+else
   set_color "purple"
-]
+end if
 ```
 
 Possible response: “The turtle became green because `:sides == 4` was `true`, so OpenLogo ran the first block.”

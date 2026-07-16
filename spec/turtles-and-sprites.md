@@ -129,10 +129,10 @@ The Sprites profile does not define time or input. Simple animation uses `wait`,
 ```logo
 :bug = new_turtle
 ask :bug [
-  repeat 10 [
+  repeat 10
     forward 10
     wait 1
-  ]
+  end repeat
 ]
 ```
 

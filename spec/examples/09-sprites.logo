@@ -10,20 +10,20 @@ clear_screen
 ask :leader [
   set_shape "turtle"
   set_color "blue"
-  repeat 3 [
+  repeat 3
     forward 60
     right 120
-  ]
+  end repeat
 ]
 
 ask :follower [
   set_shape "arrow"
   set_color "green"
   right 30
-  repeat 6 [
+  repeat 6
     forward 30
     right 60
-  ]
+  end repeat
 ]
 
 tell :team

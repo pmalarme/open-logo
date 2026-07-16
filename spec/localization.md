@@ -160,10 +160,10 @@ Canonical English program:
 
 ```logo
 define square :side
-  repeat 4 [
+  repeat 4
     forward :side
     right 90
-  ]
+  end repeat
 end define
 
 square 80
@@ -175,10 +175,10 @@ Localized program after importing the pack:
 import "francais"
 
 definir carre :cote
-  repete 4 [
+  repete 4
     avance :cote
     tourne_droite 90
-  ]
+  fin repete
 fin definir
 
 carre 80
@@ -192,10 +192,10 @@ The same pack may support accented learner-facing names:
 import "francais"
 
 definir carré :côté
-  répète 4 [
+  répète 4
     avance :côté
     tourne_droite 90
-  ]
+  fin répète
 fin definir
 
 carré 80

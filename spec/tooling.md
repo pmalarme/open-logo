@@ -251,9 +251,9 @@ it MUST keep the code identity stable when the rule is enabled.
 Example style diagnostics:
 
 ```logo
-repeat 4 [
+repeat 4
   :side * 2
-]
+end repeat
 ```
 
 Finding: `code=ol-style-useless-value`, `stage=semantic`, `severity=warning`, `params={ form:

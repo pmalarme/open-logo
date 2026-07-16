@@ -331,9 +331,9 @@ struct point [ x y ]
 
 :points = (list (point 0 0) (point 50 100))
 
-for [:x :y] in :points [
+for [:x :y] in :points
   print sentence :x :y
-]
+end for
 ```
 
 The pattern list uses `:names` because it binds variables. A short or long pattern mismatch raises `ol-range`.

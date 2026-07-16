@@ -5,11 +5,11 @@ clear_screen
 set_color "blue"
 
 define factorial :n
-  if :n == 0 [
+  if :n == 0
     return 1
-  ] else [
+  else
     return :n * factorial (:n - 1)
-  ]
+  end if
 end define
 
 :five_factorial = factorial 5
@@ -25,10 +25,10 @@ print :evens
 print :total
 
 :points = [[0 0] [50 0] [50 50] [0 50]]
-for [:x :y] in :points [
+for [:x :y] in :points
   set_xy :x :y
   stamp
-]
+end for
 
 # expected output: 120 then [1 4 9 16 25] then [2 4] then 15.
 # expected final state: stamps mark the four coordinate pairs in :points.

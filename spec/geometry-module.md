@@ -31,20 +31,20 @@ Drawing commands use the current turtle state defined by the turtle model: origi
 Source first:
 
 ```logo
-repeat :sides [
+repeat :sides
   forward :size
   right 360 / :sides
-]
+end repeat
 ```
 
 Packaged command:
 
 ```logo
 define polygon :sides :size
-  repeat :sides [
+  repeat :sides
     forward :size
     right 360 / :sides
-  ]
+  end repeat
 end
 ```
 
@@ -71,20 +71,20 @@ Concept taught: regular shapes are loops plus a turn angle, not magic commands.
 Source first:
 
 ```logo
-repeat :points [
+repeat :points
   forward :size
   right 360 * :step / :points
-]
+end repeat
 ```
 
 Packaged command:
 
 ```logo
 define star :points :size (:step 2)
-  repeat :points [
+  repeat :points
     forward :size
     right 360 * :step / :points
-  ]
+  end repeat
 end
 ```
 
@@ -124,10 +124,10 @@ Source first:
 ```logo
 local side
 :side = 2 * :radius * sin (180 / :segments)
-repeat :segments [
+repeat :segments
   forward :side
   right 360 / :segments
-]
+end repeat
 ```
 
 Packaged command:
@@ -136,10 +136,10 @@ Packaged command:
 define circle :radius (:segments 36)
   local side
   :side = 2 * :radius * sin (180 / :segments)
-  repeat :segments [
+  repeat :segments
     forward :side
     right 360 / :segments
-  ]
+  end repeat
 end
 ```
 
@@ -181,10 +181,10 @@ local step_length
 :step_length = 2 * :radius * sin (:step_angle / 2)
 
 left :step_angle / 2
-repeat :segments [
+repeat :segments
   forward :step_length
   left :step_angle
-]
+end repeat
 right :step_angle / 2
 ```
 
@@ -200,10 +200,10 @@ define arc :angle :radius
   :step_length = 2 * :radius * sin (:step_angle / 2)
 
   left :step_angle / 2
-  repeat :segments [
+  repeat :segments
     forward :step_length
     left :step_angle
-  ]
+  end repeat
   right :step_angle / 2
 end
 ```
@@ -296,19 +296,19 @@ Source sketch:
 
 ```logo
 define area :shape
-  if :shape[1] == "polygon" [
+  if :shape[1] == "polygon"
     local sides
     local size
     :sides = :shape[2]
     :size = :shape[3]
     return :sides * power :size 2 / (4 * tan (180 / :sides))
-  ]
+  end if
 
-  if :shape[1] == "circle" [
+  if :shape[1] == "circle"
     local radius
     :radius = :shape[2]
     return pi * power :radius 2
-  ]
+  end if
 end
 ```
 
@@ -330,19 +330,19 @@ Source sketch:
 
 ```logo
 define perimeter :shape
-  if :shape[1] == "polygon" [
+  if :shape[1] == "polygon"
     local sides
     local size
     :sides = :shape[2]
     :size = :shape[3]
     return :sides * :size
-  ]
+  end if
 
-  if :shape[1] == "circle" [
+  if :shape[1] == "circle"
     local radius
     :radius = :shape[2]
     return 2 * pi * :radius
-  ]
+  end if
 end
 ```
 

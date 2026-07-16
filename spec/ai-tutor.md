@@ -23,10 +23,10 @@ A Tutor implementation may be local, cloud-hosted, school-provided, parent-provi
 The [commands reference](commands.md) owns invocation syntax. This document owns the AI-enhanced behavior.
 
 ```logo
-repeat 4 [
+repeat 4
   forward 100
   right 90
-]
+end repeat
 explain
 why
 hint
@@ -77,10 +77,10 @@ AI `hint` follows the deterministic hint ladder and may make each rung more pers
 For example, if a learner writes a triangle with the wrong turn, the tutor might say:
 
 ```logo
-repeat 3 [
+repeat 3
   forward 100
   right 90
-]
+end repeat
 ```
 
 First hint: "A triangle needs three equal outside turns. What should all three turns add up to?"

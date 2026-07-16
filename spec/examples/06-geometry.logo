@@ -5,10 +5,10 @@ clear_screen
 set_color "brown"
 
 define polygon :sides :size
-  repeat :sides [
+  repeat :sides
     forward :size
     right 360 / :sides
-  ]
+  end repeat
 end define
 
 define triangle :size

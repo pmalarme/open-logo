@@ -209,11 +209,11 @@ delay. Turtle and geometry documents may reference `wait` for animation, but
 this document owns its definition.
 
 ```logo
-repeat 36 [
+repeat 36
   forward 5
   right 10
   wait 2
-]
+end repeat
 ```
 
 ## Sound primitives
@@ -289,9 +289,9 @@ play ["c4" 1 "e4" 1 "g4" 2 "rest" 1 "g4" 1]
 for beginner feedback and accessibility substitutes rather than precise music.
 
 ```logo
-if :score == 10 [
+if :score == 10
   beep
-]
+end if
 ```
 
 ### `rest <duration>`

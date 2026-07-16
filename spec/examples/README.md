@@ -23,10 +23,10 @@ The turtle moves and turns with the pen down. Why: learners see that a drawing i
 File: [`02-repetition.logo`](02-repetition.logo)
 
 ```logo
-repeat 4 [
+repeat 4
   forward 80
   right 90
-]
+end repeat
 ```
 
 `repeat` runs an instruction block for its effects. Why: the square becomes a pattern the learner can vary.
@@ -48,11 +48,11 @@ forward :side
 File: [`04-conditions.logo`](04-conditions.logo)
 
 ```logo
-if :sides == 4 [
+if :sides == 4
   print "square"
-] else [
+else
   print "not square"
-]
+end if
 ```
 
 Conditions require booleans, and equality is `==`, not `=`. Why: programs can make visible choices.
@@ -75,10 +75,10 @@ File: [`06-geometry.logo`](06-geometry.logo)
 
 ```logo
 define polygon :sides :size
-  repeat :sides [
+  repeat :sides
     forward :size
     right 360 / :sides
-  ]
+  end repeat
 end define
 ```
 
@@ -139,9 +139,9 @@ File: [`11-music.logo`](11-music.logo)
 
 ```logo
 set_tempo 120
-for pitch in :melody [
+for pitch in :melody
   note :pitch 1
-]
+end for
 ```
 
 Sound commands make a list audible. Why: the same sequence idea used for drawing can become rhythm and melody.
@@ -152,11 +152,11 @@ File: [`12-fractal.logo`](12-fractal.logo)
 
 ```logo
 define branch :length :depth
-  if :depth == 0 [
+  if :depth == 0
     return :length
-  ] else [
+  else
     forward :length
-  ]
+  end if
 end define
 ```
 

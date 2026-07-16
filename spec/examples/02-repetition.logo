@@ -7,10 +7,10 @@ set_color "green"
 set_width 2
 
 /* this block comment is part of the comments surface. */
-repeat 4 [
+repeat 4
   forward 80
   right 90
-]
+end repeat
 
 # repcount reports which repeat pass is running.
 pen_up
@@ -19,9 +19,9 @@ forward 120
 left 45
 pen_down
 
-repeat 6 [
+repeat 6
   forward 10 * repcount
   right 60
-]
+end repeat
 
 # expected final state: a green square and a six-step spiral are drawn.

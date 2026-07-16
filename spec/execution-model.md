@@ -284,10 +284,10 @@ Optional trailing parameters use parenthesized defaults:
 
 ```logo
 define star :points :size (:step 2)
-  repeat :points [
+  repeat :points
     forward :size
     right 360 / :points * :step
-  ]
+  end repeat
 end define
 ```
 
@@ -529,9 +529,9 @@ come before effects; effect events come after the change.
 
 ```logo
 define countdown :n
-  if :n == 0 [
+  if :n == 0
     return 0
-  ]
+  end if
   print :n
   return countdown :n - 1
 end define
@@ -613,10 +613,10 @@ write would raise `ol-unknown-key`.
 struct rectangle [ x y width height ]
 :shapes = (list (rectangle 0 0 100 50) (rectangle 10 10 40 40))
 
-for [:x :y :w :h] in :shapes [
+for [:x :y :w :h] in :shapes
   print :x
   print :w
-]
+end for
 ```
 
 For each record, the pattern binds in declared field order: `x`, `y`, `width`,

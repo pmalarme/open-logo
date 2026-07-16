@@ -8,22 +8,22 @@ set_color "orange"
 :size = 70
 :is_square = :sides == 4
 
-if :is_square [
+if :is_square
   print "square"
-  repeat :sides [
+  repeat :sides
     forward :size
     right 360 / :sides
-  ]
-] else [
+  end repeat
+else
   print "not square"
   forward :size
-]
+end if
 
 :has_many_sides = :sides > 5
-if not :has_many_sides [
+if not :has_many_sides
   print "few sides"
-] else [
+else
   print "many sides"
-]
+end if
 
 # expected output: "square" then "few sides" and a square is drawn.

@@ -25,9 +25,9 @@ set count to 6
 make "count" 7
 print :count
 
-if :count == 7 [
+if :count == 7
   print "ready"
-]
+end if
 
 :nums = [10 20 30]
 print :nums[1]
@@ -571,9 +571,9 @@ print 5 >= 4
 - **Example:**
 
 ```logo
-if :count > 0 and :count < 10 [
+if :count > 0 and :count < 10
   print "inside"
-]
+end if
 ```
 
 - **Possible errors:** `ol-not-boolean`.
@@ -590,9 +590,9 @@ if :count > 0 and :count < 10 [
 - **Example:**
 
 ```logo
-if :done or :is_ready [
+if :done or :is_ready
   print "go"
-]
+end if
 ```
 
 - **Possible errors:** `ol-not-boolean`.
@@ -609,9 +609,9 @@ if :done or :is_ready [
 - **Example:**
 
 ```logo
-if not :done [
+if not :done
   forward 50
-]
+end if
 ```
 
 - **Possible errors:** `ol-not-boolean`.
@@ -717,11 +717,11 @@ Control forms run blocks for their effects and do not report values. Their bodie
 - **Example:**
 
 ```logo
-if :count > 3 [
+if :count > 3
   print "big"
-] else [
+else
   print "small"
-]
+end if
 ```
 
 - **Possible errors:** `ol-not-boolean`.
@@ -739,10 +739,10 @@ if :count > 3 [
 
 ```logo
 :n = 3
-while :n > 0 [
+while :n > 0
   print :n
   :n = :n - 1
-]
+end while
 ```
 
 - **Possible errors:** `ol-not-boolean`, `ol-limit`.
@@ -759,10 +759,10 @@ while :n > 0 [
 - **Example:**
 
 ```logo
-repeat 4 [
+repeat 4
   forward 100
   right 90
-]
+end repeat
 ```
 
 - **Possible errors:** `ol-type`, `ol-limit`.
@@ -779,9 +779,9 @@ repeat 4 [
 - **Example:**
 
 ```logo
-repeat 3 [
+repeat 3
   print repcount
-]
+end repeat
 ```
 
 - **Possible errors:** none specified in the primitive matrix.
@@ -799,9 +799,9 @@ repeat 3 [
 
 ```logo
 :names = ["ana" "tom"]
-for name in :names [
+for name in :names
   print :name
-]
+end for
 ```
 
 - **Possible errors:** `ol-type`.
@@ -818,9 +818,9 @@ for name in :names [
 - **Example:**
 
 ```logo
-for i from 1 to 4 [
+for i from 1 to 4
   print :i
-]
+end for
 ```
 
 - **Possible errors:** `ol-type`.
@@ -837,9 +837,9 @@ for i from 1 to 4 [
 - **Example:**
 
 ```logo
-forever [
+forever
   right 10
-]
+end forever
 ```
 
 - **Possible errors:** `ol-limit`.
@@ -955,9 +955,9 @@ end
 
 ```logo
 define draw_if_ready :ready
-  if not :ready [
+  if not :ready
     stop
-  ]
+  end if
   forward 100
 end
 ```
