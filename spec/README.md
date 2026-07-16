@@ -7,10 +7,10 @@ OpenLogo is a modern, open-source, educational reimagining of Logo. Its canonica
 OpenLogo keeps Logo's constructionist spirit: learners discover ideas by building visible things, starting with turtle graphics and growing toward data, procedures, events, and optional AI tutor support.
 
 ```logo
-repeat 4 [
+repeat 4
   forward 100
   right 90
-]
+end
 ```
 
 ## Goals
