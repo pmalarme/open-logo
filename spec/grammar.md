@@ -16,7 +16,18 @@ Identifiers use snake_case. The ASCII core form is `[a-z_][a-z0-9_]*[?!]?`. The 
 
 Numbers use `.` as the decimal point regardless of locale. A leading `-` directly before a numeral, when there is no left operand, is part of a negative numeric literal. Between operands it is subtraction. Thus `-5`, `forward -10`, and `:x * -2` contain negative literals, while `:a-:b` and `:a - 1` contain subtraction.
 
-Word/string literals are closed double-quote literals such as `"tom"`, `"#ff0000"`, and `"hello world"`. They may contain any Unicode scalar value except an unescaped closing quote or backslash. Escapes are `\"` for a quote and `\\` for a backslash; other characters are literal. Unterminated strings raise `ol-unclosed-string`. Classic Logo open-quote word syntax such as `"word` is not OpenLogo.
+Word/string literals come in two forms. A **single-line** literal is closed double quotes such as `"tom"`, `"#ff0000"`, and `"hello world"`; it may contain any Unicode scalar value except a raw newline, an unescaped closing quote, or a backslash. A **multi-line** literal is triple double quotes `"""..."""` and may span several lines. Escapes are `\"` for a quote and `\\` for a backslash in both forms; other characters are literal. An unterminated single-line or multi-line literal raises `ol-unclosed-string`. Classic Logo open-quote word syntax such as `"word` is not OpenLogo.
+
+A multi-line literal is normalized when it is read: the newline immediately after the opening `"""` and the newline immediately before the closing `"""` are dropped, and the **common leading whitespace** shared by every non-blank content line is removed, so the least-indented content line moves to column 0 while relative indentation is preserved. The indentation of the closing `"""` does not affect the result. For example:
+
+```logo
+:poem = """
+    Hello
+  World
+"""
+```
+
+yields the two lines `  Hello` and `World`: the two spaces common to both lines are stripped, and `Hello` keeps its extra two-space indent.
 
 Comments are whitespace. `#` and `//` start line comments that end at the next line break. `/* */` delimits a non-nesting block comment; an unterminated block comment raises `ol-unclosed-comment`. Comment markers inside strings are literal text.
 
@@ -42,13 +53,22 @@ name                ::= identifier
 identifier          ::= ascii-identifier | unicode-identifier
 ascii-identifier    ::= ( "a"..."z" | "_" ) { "a"..."z" | "0"..."9" | "_" } [ "?" | "!" ]
 unicode-identifier  ::= XID_Start { XID_Continue | "_" } [ "?" | "!" ]
+callable-name       ::= identifier
+type-name           ::= identifier
 number              ::= [ "-" ] digit { digit } [ "." digit { digit } ] [ exponent ]
 exponent            ::= ( "e" | "E" ) [ "+" | "-" ] digit { digit }
-word-literal        ::= "\"" { string-character | "\\\"" | "\\\\" } "\""
-string-character    ::= ? any Unicode scalar value except unescaped quote or backslash ?
+digit               ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
+word-literal        ::= single-line-string | multi-line-string
+single-line-string  ::= "\"" { string-character | string-escape } "\""
+multi-line-string   ::= "\"\"\"" { multiline-character | string-escape } "\"\"\""
+string-character    ::= ? any Unicode scalar value except newline, unescaped quote, or backslash ?
+multiline-character ::= ? any Unicode scalar value except backslash or an unescaped run of three quotes ?
+string-escape       ::= "\\\"" | "\\\\"
 line-comment        ::= "#" { ? any character except newline ? }
                       | "//" { ? any character except newline ? }
 block-comment       ::= "/*" { ? any character sequence not containing */ ? } "*/"
+newline             ::= ? a line feed U+000A, optionally preceded by a carriage return U+000D ?
+EOF                 ::= ? the end of the input ?
 
 program             ::= [ terminator ] { statement terminator } [ statement ] EOF
 terminator          ::= newline { newline }
@@ -72,6 +92,7 @@ statement           ::= assignment
                       | struct-declaration
                       | return-statement
                       | stop-statement
+                      | throw-statement
                       | local-statement
                       | alias-statement
                       | import-statement
@@ -109,14 +130,14 @@ forever-statement   ::= "forever" control-body
 comprehension       ::= map-expression | filter-expression | reduce-expression
 map-expression      ::= "map" binder "in" expression expression-block
 filter-expression   ::= "filter" binder "in" expression expression-block
-reduce-expression   ::= "reduce" name name "in" expression "from" expression expression-block
+reduce-expression   ::= "reduce" name binder "in" expression "from" expression expression-block
 
 binder              ::= name | destructuring-pattern
 destructuring-pattern ::= "[" ":" name { ":" name } "]"
 
 control-body        ::= bracket-block | long-control-block
 bracket-block       ::= "[" { terminator } { statement { terminator } } "]"
-expression-block    ::= "[" { terminator } { statement terminator } expression { terminator } "]"
+expression-block    ::= "[" { terminator } { statement { terminator } } "]"
 long-control-block  ::= terminator { statement terminator } control-end-label
 control-end-label   ::= "end" [ "if" | "while" | "repeat" | "for" | "forever" ]
 
@@ -126,6 +147,7 @@ define-end          ::= "end" [ "define" ]
 parameter           ::= ":" name | "(" ":" name expression ")"
 return-statement    ::= ( "return" | "output" | "op" ) expression
 stop-statement      ::= "stop"
+throw-statement     ::= "throw" expression
 local-statement     ::= "local" name | "(" "local" name { name } ")"
 
 struct-declaration  ::= "struct" type-name field-list
@@ -152,8 +174,12 @@ Expression grammar:
 expression          ::= or-expression
 or-expression       ::= and-expression { "or" and-expression }
 and-expression      ::= comparison { "and" comparison }
-comparison          ::= additive [ compare-op additive ]
+comparison          ::= additive ( is-predicate | { compare-op additive } )
 compare-op          ::= "==" | "!=" | "<" | ">" | "<=" | ">="
+is-predicate        ::= "is" ( "empty"
+                              | "member" "of" additive
+                              | "a" word-literal
+                              | [ "strictly" ] "between" additive "and" additive )
 additive            ::= multiplicative { ( "+" | "-" ) multiplicative }
 multiplicative      ::= unary { ( "*" | "/" | "mod" ) unary }
 unary               ::= ( "-" | "not" ) unary | postfix-expression
@@ -196,6 +222,8 @@ Precedence from high to low is:
 7. `or`
 
 Binary operators are left-associative. `and` and `or` short-circuit. `not` is unary prefix. Assignment `=` and `set ... to` are statement forms, not expression operators.
+
+Comparisons may be **chained**: `1 < :x < 10` reads as `1 < :x and :x < 10`, evaluating each operand once with `and` short-circuit semantics. The worded predicates `is <value> empty`, `is <value> member of <collection>`, `is <value> a <type-word>`, and `is <value> [ strictly ] between <low> and <high>` also sit at the comparison level and produce booleans. The words after `is` — `empty`, `member`, `of`, `a`, `strictly`, `between`, and the `and` that separates the two bounds — are contextual keywords recognized only in this position, so they remain usable as ordinary names elsewhere. Chaining and `is`-predicates apply to numbers and words; other operand types raise `ol-type`.
 
 ## Places, selectors, and keys
 
@@ -320,19 +348,24 @@ A comprehension is an expression: because it is recognized by its leading keywor
 The normative OpenLogo reserved-word list is:
 
 ```logo
-define to end return output op stop
+define to end return output op stop throw
 set make local thing
 if else while repeat for forever in from at by of
 key value add remove insert clear
 map filter reduce
 and or not true false
+is between strictly
 struct alias import export
 ```
 
-`to` is one reserved word with multiple contextual roles: heritage procedure opener, the preposition in `set ... to`, and the bound in `for ... from ... to`.
+`to` is one reserved word with multiple contextual roles: heritage procedure opener, the preposition in `set ... to`, and the bound in `for ... from ... to`. By contrast, `empty`, `member`, and `a` are **not** reserved: they act as keywords only inside an `is`-predicate (`is :x empty`, `is 2 member of :nums`, `is :p a "point"`) and stay ordinary names everywhere else.
 
 Reserved words are structural tokens recognized by the reader. They may not be redefined as variables, procedures, primitives, or struct type constructors; such collisions raise `ol-reserved-word`. Reserved words may be aliased by `alias` or localized keyword packs because aliasing adds reader-recognized spellings rather than redefining the underlying word.
 
 Primitives, user procedures, and struct type constructors share one callable namespace. Record field names live in a per-type namespace reached only by `.field`, so they do not collide with globals or structural words. Dictionary keys and selector bare keys are data, not declarations, so reserved words are legal keys.
 
-Profile-specific block heads such as `tell`, `ask`, and `each` for Sprites and `when`, `every`, `on_key`, and `on_click` for Interaction are reserved only in their profiles and are specified in their profile documents.
+Profile-specific reserved words are recognized only when their profile is active and are specified in their profile documents: the Sprites block heads `ask` and `each` and the Sprites command `tell` — a mode switch that takes no block — plus the Interaction block heads `when`, `every`, `on_key`, and `on_click`.
+
+## Profile grammar extensions
+
+When a profile is active, the `statement` production gains that profile's own statement forms. Each profile document defines them formally, reusing the Core `expression`, `bracket-block`, `statement`, and `terminator` productions together with a profile-specific labeled `end` such as `end ask`, `end each`, or `end when`. See [turtles-and-sprites.md](turtles-and-sprites.md) and [interaction-events.md](interaction-events.md).

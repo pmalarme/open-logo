@@ -89,14 +89,17 @@ theme maps all roles to the same bracket color.
 The Core reserved-word list is generated from the grammar. This is the C19 registry repeated here so
 highlighters and linters can share the same names:
 
-`define`, `to`, `end`, `return`, `output`, `op`, `stop`, `set`, `make`, `local`, `thing`, `if`,
-`else`, `while`, `repeat`, `for`, `forever`, `in`, `from`, `at`, `by`, `of`, `key`, `value`, `add`,
-`remove`, `insert`, `clear`, `map`, `filter`, `reduce`, `and`, `or`, `not`, `true`, `false`,
-`struct`, `alias`, `import`, `export`.
+`define`, `to`, `end`, `return`, `output`, `op`, `stop`, `throw`, `set`, `make`, `local`, `thing`,
+`if`, `else`, `while`, `repeat`, `for`, `forever`, `in`, `from`, `at`, `by`, `of`, `key`, `value`,
+`add`, `remove`, `insert`, `clear`, `map`, `filter`, `reduce`, `and`, `or`, `not`, `is`, `between`,
+`strictly`, `true`, `false`, `struct`, `alias`, `import`, `export`.
 
 `to` is contextual: it is both the heritage procedure opener and the slot word in `set ... to` and
-`for ... from ... to`. Profile block-heads are reserved only when the profile is active:
-`tell`, `ask`, and `each` for Sprites; `when`, `every`, `on_key`, and `on_click` for Interaction.
+`for ... from ... to`. The words after `is` in a worded predicate — `empty`, `member`, `of`, `a`,
+`between`, `strictly`, and the bound-separating `and` — are contextual keywords: a highlighter marks
+them as `keyword` only inside an `is`-predicate and as ordinary names elsewhere. Profile forms are
+reserved only when their profile is active: the `ask` and `each` block-heads and the `tell` command
+for Sprites; the `when`, `every`, `on_key`, and `on_click` block-heads for Interaction.
 Reserved words may be aliased by `alias`, but they MUST NOT be redefined as variables, procedures,
 or struct type names; such redefinitions produce `ol-reserved-word`.
 
@@ -123,7 +126,7 @@ Every syntax checker, semantic checker, and style linter finding MUST use the C1
 | Field | Requirement |
 |---|---|
 | `code` | A stable `ol-*` or `ol-style-*` code. |
-| `source-span` | File URI or path plus start/end line and column in the original source. |
+| `source_span` | File URI or path plus start/end line and column in the original source. |
 | `params` | Structured values used to localize and deduplicate the diagnostic. |
 | `message` | A localizable learner-facing message. Diagnostic identity is not the prose. |
 | `stage` | One of `parse`, `semantic`, or `runtime`. Static tooling normally emits `parse` or `semantic`. |
@@ -161,10 +164,10 @@ hint: "wrap the body in [ ] or close it with end" }`, message: `repeat needs its
 or closed with end.`
 
 ```logo
-:ages = { tom: 8 sophie: 6 }
+:ages = { tom: 8, sophie: 6 }
 ```
 
-Finding: `code=ol-bad-token`, `stage=parse`, `severity=error`, `params={ token: "," }`, message:
+Finding: `code=ol-bad-token`, `stage=parse`, `severity=error`, `params={ text: "," }`, message:
 `openlogo does not use commas here. write dictionary entries with spaces or new lines.`
 
 ## Layer 2: semantic checking
@@ -213,7 +216,7 @@ Finding: `code=ol-not-enough-inputs`, `stage=semantic`, `severity=error`, `param
 count :nums = 3
 ```
 
-Finding: `code=ol-not-a-place`, `stage=semantic`, `severity=error`, `params={ target: "count :nums"
+Finding: `code=ol-not-a-place`, `stage=semantic`, `severity=error`, `params={ text: "count :nums"
 }`, message: `count :nums is a value, not a place you can change.`
 
 ```logo

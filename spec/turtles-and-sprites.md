@@ -151,7 +151,23 @@ Sprite `ask` addresses turtles. User input is the `input` reporter in the [Inter
 
 ## Reserved words in this profile
 
-`tell`, `ask`, and `each` are profile block-heads and are reserved only within the Sprites profile. They are not part of the Core reserved-word list in [grammar.md](grammar.md). When the Sprites profile is active, programs MUST NOT redefine them as variables, procedures, or struct constructors; doing so raises `ol-reserved-word`.
+`ask` and `each` are profile block-heads, and `tell` is a profile command that switches the addressed set without taking a block; all three are reserved only within the Sprites profile. They are not part of the Core reserved-word list in [grammar.md](grammar.md). When the Sprites profile is active, programs MUST NOT redefine them as variables, procedures, or struct constructors; doing so raises `ol-reserved-word`.
+
+## Profile grammar
+
+When the Sprites profile is active, the Core `statement` production (see [grammar.md](grammar.md#profile-grammar-extensions)) gains these forms. They reuse the Core `expression`, `bracket-block`, `statement`, and `terminator` productions.
+
+```logo
+sprites-statement   ::= tell-statement | ask-statement | each-statement
+tell-statement      ::= "tell" expression
+ask-statement       ::= "ask" expression sprites-block-tail
+each-statement      ::= "each" sprites-block-tail
+sprites-block-tail  ::= bracket-block
+                      | terminator { statement terminator } sprites-end
+sprites-end         ::= "end" [ "ask" | "each" ]
+```
+
+`tell` takes no block; it is a command that switches the addressed set. `ask` and `each` are block heads. A labeled `end` MUST match its opener — `end ask` closes an `ask`, `end each` closes an `each` — and a mismatched label raises `ol-mismatched-end`.
 
 ## Errors and diagnostics
 

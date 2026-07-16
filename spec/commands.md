@@ -64,7 +64,7 @@ OpenLogo has no `function` primitive, no `f(x,y)` call syntax, no lambda syntax,
 ### `<place> = <value>`
 
 - **Signature:** `<place> = <value>`
-- **Aliases:** `assign`
+- **Aliases:** none (the worded `set … to` and heritage `make "n" v` are separate spellings, not aliases of this token)
 - **Kind:** Special form
 - **Argument types:** assignable place, value
 - **Result:** —
@@ -457,6 +457,8 @@ print pi
 
 Booleans are strict. The only boolean literals are `true` and `false`. Conditions and logical operands must already be boolean values. OpenLogo has no truthiness.
 
+Comparisons may be **chained**: `1 < :x < 10` means `1 < :x and :x < 10`, with each operand evaluated once. Alongside the prefix `?`-predicates below, OpenLogo offers equivalent **worded predicates** that read as English and also return booleans: `is <value> empty` (see `empty?`), `is <value> member of <collection>` (see `member?`), `is <value> a <type-word>` (see `is_a?`), and `is <value> [ strictly ] between <low> and <high>` (inclusive, or exclusive with `strictly`). Only `is` is reserved; the words that follow it are contextual keywords. There is no infix `in` membership operator — use the worded form or `member?`.
+
 ### `==`
 
 - **Signature:** `value == value`
@@ -663,6 +665,7 @@ end if
 
 ```logo
 print empty? []
+print is [] empty
 ```
 
 - **Possible errors:** none specified in the primitive matrix.
@@ -680,6 +683,7 @@ print empty? []
 
 ```logo
 print member? 2 [1 2 3]
+print is 2 member of [1 2 3]
 ```
 
 - **Possible errors:** none specified in the primitive matrix.
@@ -697,6 +701,7 @@ print member? 2 [1 2 3]
 
 ```logo
 print is_a? 5 "number"
+print is 5 a "number"
 ```
 
 - **Possible errors:** none specified in the primitive matrix.
@@ -813,7 +818,7 @@ end for
 - **Kind:** Special form
 - **Argument types:** variable name, number, number, optional number, block
 - **Result:** —
-- **Description:** Runs a block for a numeric range. The `by` step form is available as the C3 extension spelling.
+- **Description:** Runs a block for a numeric range. The optional `by step` clause sets the increment (default `1`) and is part of Core; the `*(ext)*` mark in the primitive matrix is provenance only, not a separate profile.
 - **Concept:** Counting through a range.
 - **Example:**
 
@@ -963,6 +968,28 @@ end
 ```
 
 - **Possible errors:** `ol-stop-outside-proc`.
+
+### `throw`
+
+- **Signature:** `throw <value>`
+- **Aliases:** none
+- **Kind:** Special form
+- **Argument types:** value (typically a word message)
+- **Result:** — (halts execution)
+- **Description:** Halts execution immediately and raises the runtime diagnostic `ol-user-error`, using the thrown word as the learner-facing message. It lets a procedure reject invalid input in its own words — the geometry library uses it to validate arguments. v0.1 has no `try`/`catch`, so a thrown error stops the program like any other runtime error.
+- **Concept:** A program can refuse bad input and say why.
+- **Example:**
+
+```logo
+define checked_sqrt :n
+  if :n < 0
+    throw "square root needs a number that is not negative"
+  end if
+  return sqrt :n
+end
+```
+
+- **Possible errors:** `ol-user-error` (the raised diagnostic).
 
 ## Words and lists
 

@@ -26,4 +26,10 @@ else
   print "many sides"
 end if
 
-# expected output: "square" then "few sides" and a square is drawn.
+# a worded range test reads like english and returns a boolean.
+:in_range = :sides is between 3 and 6
+if :in_range
+  print "a friendly number of sides"
+end if
+
+# expected output: "square" then "few sides" then "a friendly number of sides"; a square is drawn.

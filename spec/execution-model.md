@@ -49,8 +49,12 @@ The reader receives tokens from the normative lexer in [grammar.md](grammar.md):
 - `-` is never part of an identifier. A leading `-` directly before a numeral
   with no left operand is a negative literal; between operands it is subtraction.
 - Numbers use `.` as the decimal point, independent of locale.
-- Word literals are closed double-quoted strings. `\"` and `\\` are escapes;
-  other characters are literal. Unterminated strings raise `ol-unclosed-string`.
+- Word literals are closed double-quoted strings in two forms: a single-line
+  `"..."` that contains no raw newline, and a multi-line triple-quoted
+  `"""..."""` whose reader drops the newlines adjacent to the delimiters and
+  strips the common leading indentation shared by its content lines. `\"` and
+  `\\` are escapes in both forms; other characters are literal. Unterminated
+  strings raise `ol-unclosed-string`.
 - `#` and `//` start line comments; `/* ... */` starts a non-nesting block
   comment. Unterminated block comments raise `ol-unclosed-comment`.
 - Horizontal whitespace and indentation are insignificant except as token
@@ -126,7 +130,7 @@ Precedence from highest to lowest:
 | 2 | Unary `-`, prefix `not` | `not` requires a boolean. |
 | 3 | `*`, `/`, `mod` | Left-associative. |
 | 4 | `+`, `-` | Left-associative. |
-| 5 | `==`, `!=`, `<`, `>`, `<=`, `>=` | Left-associative comparisons. |
+| 5 | `==`, `!=`, `<`, `>`, `<=`, `>=`, `is` | Comparisons; may chain (`1 < :x < 10`); worded `is`-predicates. |
 | 6 | `and` | Left-associative, short-circuit. |
 | 7 | `or` | Left-associative, short-circuit. |
 
@@ -135,6 +139,21 @@ Thus `:count > 0 and :count < 10` means
 the left operand is `true`; `or` evaluates its right operand only when the left
 operand is `false`. Parenthesized `(and ...)` and `(or ...)` use the same
 left-to-right short-circuit semantics.
+
+Comparisons may be **chained**: `1 < :x < 10` is evaluated as
+`1 < :x and :x < 10`, computing each operand once with `and` short-circuit
+semantics. OpenLogo also offers worded predicates at the comparison level that
+read as English and return booleans: `is <value> empty`,
+`is <value> member of <collection>`, `is <value> a <type-word>`, and
+`is <value> [ strictly ] between <low> and <high>` (inclusive, or exclusive with
+`strictly`). These are first-class alternates to the prefix `?`-predicates
+(`empty?`, `member?`, `is_a?`). Only `is` is globally reserved; the words that
+follow it (`empty`, `member`, `of`, `a`, `strictly`, `between`, and the
+bound-separating `and`) are contextual keywords and remain valid ordinary names
+elsewhere. There is no infix `in` membership operator — use
+`is <value> member of <collection>` or `member?`; the word `in` is only the
+`for`/comprehension preposition. Chaining and `is`-predicates operate on numbers
+and words; other operand types raise `ol-type`.
 
 Assignment `=` and `set ... to` are statement-level special forms, not
 expression operators.
@@ -318,6 +337,13 @@ reporter; a procedure that does not is a command. Using a command procedure
 where a value is required raises `ol-no-output` at the call site. `stop` exits a
 procedure early without a value and is invalid outside a procedure.
 
+`throw <value>` halts execution immediately with the runtime diagnostic
+`ol-user-error`, carrying the thrown word as the learner-facing message. It lets
+a procedure reject bad input in its own words — the geometry library uses it to
+explain, for instance, an out-of-range star step. `throw` is a Core command;
+v0.1 has no `try`/`catch`, so a thrown error stops the program like any other
+runtime diagnostic.
+
 Recursion is supported. Each recursive invocation creates a new frame and emits
 its own trace events.
 
@@ -325,7 +351,7 @@ its own trace events.
 
 `if` and `while` require boolean conditions. `repeat` requires a numeric count.
 `forever` runs until cancellation or a configured limit. `for ... from ... to`
-iterates numerically, with optional `by` in profiles that implement it. `for ...
+iterates numerically, with an optional `by` step. `for ...
 in ...` iterates list elements in order; dict iteration follows insertion order
 when a dict is accepted by a profile-specific form. Control forms run their
 bodies for effect and produce no value.
@@ -385,10 +411,17 @@ Records are mutable references. Reading or writing an unknown field raises
 `ol-unknown-field`. `type_of :p` reports the type word, and `is_a? :p "point"`
 reports a boolean.
 
-Destructuring in `for ... in` uses a pattern list of `:names` and binds
-positionally from each element. Records destructure in declared field order;
-lists destructure by item order. A short or long pattern mismatch raises
-`ol-range`.
+Destructuring binds a pattern list of `:names` positionally from each element
+and is available in every element-binding form — `for ... in`, `map`, `filter`,
+and `reduce` (its item binder, not the accumulator). Records destructure in
+declared field order; lists destructure by item order. A short or long pattern
+mismatch raises `ol-range`.
+
+```logo
+:corners = (list (point 0 0) (point 100 90))
+:xs = map [:x :y] in :corners [ :x ]
+for [:x :y] in :corners [ set_xy :x :y ]
+```
 
 ## Collections and uniform access
 
@@ -465,7 +498,7 @@ these educational errors.
 
 `random n` reports an integer in `[0,n-1]`. `(random a b)` reports an integer in
 `[a,b]`. `randomize` with no input uses an implementation seed;
-`randomize seed` is deterministic within an implementation. Examples that
+`(randomize seed)` is deterministic within an implementation. Examples that
 depend on randomness state properties such as "a number in `[0,99]`" unless a
 future version standardizes a PRNG.
 

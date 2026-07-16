@@ -52,11 +52,13 @@ the profile that owns a feature, not by whether that feature is historically inh
 - value support for `number`, `word`, `list`, and `boolean`;
 - variables and places via `:name`, assignment with `<place> = <value>`, and worded assignment with
   `set <place> to <value>`;
-- strict booleans, comparisons with `==`, `!=`, `<`, `>`, `<=`, and `>=`, and logical operators;
+- strict booleans; comparisons with `==`, `!=`, `<`, `>`, `<=`, and `>=` that may be chained
+  (`1 < :x < 10`); the worded `is`-predicates (`is … empty`, `is … member of …`, `is … a …`,
+  `is … [ strictly ] between … and …`); and logical operators;
 - control forms including `if`, `while`, `repeat`, `forever`, `for … in`, and `for … from … to`;
 - Core comprehensions: `map`, `filter`, and `reduce`, with bracketed expression bodies and no
   lambda or first-class procedure values;
-- procedures with `define … end`, `return`, and `stop`;
+- procedures with `define … end`, `return`, `stop`, and `throw`;
 - Core math, logic, output, word, and list reporters as assigned to Core by the C3 primitive matrix.
 
 Core is non-interactive. `print` and `show` are Core output facilities, but blocking input is not:
@@ -162,11 +164,11 @@ purposes.
 | Reader/evaluator, fixed default arity, variadic parentheses, block-result rule | Core Language | Yes | Defined by [execution-model.md](execution-model.md). |
 | Values `number`, `word`, `list`, `boolean` | Core Language | Yes | No arrays, no null, no procedure values. |
 | Variables with `:name`, `<place> = <value>`, and `set … to` | Core Language | Yes | `make` spelling is Heritage. |
-| Strict booleans, comparisons, math, logic | Core Language | Yes | `=` assigns; `==` compares. |
+| Strict booleans, comparisons, chaining, `is`-predicates, math, logic | Core Language | Yes | `=` assigns; `==` compares. |
 | `print` and `show` output | Core Language | Yes | Non-interactive output only. |
 | Control forms including `for … in` | Core Language | Yes | Includes `for … from … to`. |
 | `map`, `filter`, `reduce` comprehensions | Core Language | Yes | No lambda; bracketed expression body. |
-| Procedures, `define … end`, `return`, `stop` | Core Language | Yes | `to`, `output`, and `op` spellings are Heritage. |
+| Procedures, `define … end`, `return`, `stop`, `throw` | Core Language | Yes | `to`, `output`, and `op` spellings are Heritage. |
 | Full-name word/list reporters | Core Language | Yes | Includes `first`, `last`, `butfirst`, `butlast`, `count`, `word`, `sentence`, `fput`, `lput`. |
 | Turtle movement, pen, color, heading, visibility, shape | Turtle & Rendering | Yes | Required for graphical and minimal conformance. |
 | Canvas rendering target | Turtle & Rendering | Yes | SVG/PNG recommended. |

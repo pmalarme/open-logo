@@ -81,6 +81,9 @@ Packaged command:
 
 ```logo
 define star :points :size (:step 2)
+  if not (:step is strictly between 1 and :points)
+    throw "a star step must be a whole number between 2 and one less than the number of points"
+  end if
   repeat :points
     forward :size
     right 360 * :step / :points
@@ -90,7 +93,7 @@ end
 
 `star` draws the star polygon `{p/k}` where `p` is `:points` and `k` is `:step`. The default `:step` is `2`, which makes the familiar pentagram when `:points` is `5`.
 
-Validation is normative: `:points` and `:step` MUST be numbers, and `:step` MUST satisfy `1 < :step < :points`. `:points` SHOULD be a whole number at least `5` for the default to teach a recognizable star. Non-numeric inputs or invalid counts raise `ol-type`.
+Validation is normative: `:points` and `:step` MUST be numbers, and `:step` MUST satisfy `1 < :step < :points`. `:points` SHOULD be a whole number at least `5` for the default to teach a recognizable star. A non-numeric input raises `ol-type` from the arithmetic it reaches; an out-of-range `:step` is rejected by the `throw` shown above, which raises `ol-user-error` with a learner-facing message.
 
 The math: instead of walking to the next polygon vertex, a star walks to the vertex `:step` positions away. The exterior turn is therefore:
 
@@ -309,6 +312,8 @@ define area :shape
     :radius = :shape[2]
     return pi * power :radius 2
   end if
+
+  throw "area knows only the polygon and circle shapes"
 end
 ```
 
@@ -343,6 +348,8 @@ define perimeter :shape
     :radius = :shape[2]
     return 2 * pi * :radius
   end if
+
+  throw "perimeter knows only the polygon and circle shapes"
 end
 ```
 
@@ -358,7 +365,7 @@ print perimeter ["polygon" 5 100]
 print perimeter ["circle" 50]
 ```
 
-For both reporters, an unsupported shape word or a shape-spec list with missing numeric arguments raises `ol-type`. These reporters MUST NOT move the turtle, draw lines, emit drawing events, or inspect the current turtle state.
+For both reporters, an unsupported shape word is rejected by the `throw` in each reporter, raising `ol-user-error` with a learner-facing message; a shape-spec list with missing numeric arguments raises `ol-range` or `ol-type` from the list access and arithmetic it reaches. These reporters MUST NOT move the turtle, draw lines, emit drawing events, or inspect the current turtle state.
 
 ## Notes for implementers
 

@@ -36,10 +36,13 @@ add (point 80 80) to :path
 print count :path
 print :path[1].x
 
+# worded membership replaces any infix operator and reads as english.
+print is "orange" member of :colors
+
 for p in :path
   set_xy :p.x :p.y
   stamp
 end for
 
-# expected output includes "red" then 8 then 8 then 8 then 8 then 3 then 0.
+# expected output includes "red" then 8 then 8 then 8 then 8 then 3 then 0 then true.
 # expected final state: :ages.max exists with value 9 and :people.tom.age is 9.

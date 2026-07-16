@@ -129,12 +129,13 @@ print count :nums # => 3
 | `reverse` | R | list | list | — | returns a fresh list in reverse order |
 | `pick` | R | list | element | `ol-range` on empty | returns one element |
 | `sort` | R | list | list | — | returns a fresh sorted list |
-| `<value> in <coll>` | R infix | value, list/dict | boolean | — | tests list membership or dict key membership |
+| `member? value list` | R | value, list | boolean | — | tests list membership; worded form `is value member of list` |
 
 ```logo
 :nums = [1 2 3]
 :backward = reverse :nums
-print 2 in :nums       # => true
+print member? 2 :nums          # => true
+print is 2 member of :nums     # => true
 ```
 
 ## Dictionaries
@@ -225,7 +226,7 @@ Only the final selector upserts. A missing intermediate container in a chain rai
 | `value of … for key …` | R | dictExpr, keyExpr | value | `ol-unknown-key` | Heritage dict reader |
 | `remove key … from` | S | key, dictExpr | — | — | removes the key if present |
 | `clear` | S | dict expr | — | — | removes all entries |
-| `<value> in <dict>` | R infix | value, dict | boolean | — | tests whether the value is a key |
+| `member? key dict` | R | key, dict | boolean | — | tests whether the value is a key; worded form `is key member of dict` |
 | `keys` | R | dict | list | — | returns keys in insertion order |
 | `values` | R | dict | list | — | returns values in insertion order |
 | `count` | R | dict | number | — | returns entry count |
@@ -236,7 +237,8 @@ Only the final selector upserts. A missing intermediate container in a chain rai
   sophie: 6
 }
 
-print "tom" in :ages
+print member? "tom" :ages
+print is "tom" member of :ages
 print keys :ages
 print values :ages
 print count :ages
@@ -322,9 +324,9 @@ print :path[1].x
 
 Parentheses are used around `point 0 0` when it is nested as the value input to `add`.
 
-### Destructuring in `for`
+### Destructuring
 
-A `for … in …` binder may be a pattern list of variable names. The pattern binds positionally from each list element, or from record fields in declared order.
+Every element-binding form — `for … in`, `map`, `filter`, and `reduce` (its item binder, not the accumulator) — may use a pattern list of variable names instead of a single name. The pattern binds positionally from each list element, or from record fields in declared order.
 
 ```logo
 struct point [ x y ]
@@ -334,9 +336,11 @@ struct point [ x y ]
 for [:x :y] in :points
   print sentence :x :y
 end for
+
+:xs = map [:x :y] in :points [ :x ]          # => [0 50]
 ```
 
-The pattern list uses `:names` because it binds variables. A short or long pattern mismatch raises `ol-range`.
+The pattern list uses `:names` because it binds variables. The same pattern works in `map`, `filter`, and `reduce`. A short or long pattern mismatch raises `ol-range`.
 
 ## Mutation versus copy
 

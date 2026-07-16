@@ -46,6 +46,24 @@ that does not declare this profile does not reserve those words except through a
 vendor extension or an imported alias. Sound command names are ordinary
 primitive names when the Sound profile is present.
 
+## Profile grammar
+
+When the Interaction & Events profile is active, the Core `statement` production (see [grammar.md](grammar.md#profile-grammar-extensions)) gains these forms. They reuse the Core `expression`, `bracket-block`, `statement`, and `terminator` productions.
+
+```logo
+interaction-statement ::= when-statement | every-statement
+                        | on-key-statement | on-click-statement
+when-statement        ::= "when" expression event-block-tail
+every-statement       ::= "every" expression event-block-tail
+on-key-statement      ::= "on_key" expression event-block-tail
+on-click-statement    ::= "on_click" event-block-tail
+event-block-tail      ::= bracket-block
+                        | terminator { statement terminator } event-end
+event-end             ::= "end" [ "when" | "every" | "on_key" | "on_click" ]
+```
+
+Each block head takes its arguments — an event word, a tick count, or a key word, while `on_click` takes none — followed by a block. A labeled `end` MUST match its opener; a mismatched label raises `ol-mismatched-end`. `input` and `wait` are ordinary calls and take no block.
+
 ## Time, ticks, and handlers
 
 Interaction time is measured in **ticks**. A tick is an implementation-defined
