@@ -336,6 +336,11 @@ with comprehension special forms:
 :total = reduce sum num in :nums from 0 [ :sum + :num ]
 ```
 
+Each comprehension is a value-producing expression and may be used anywhere a
+value is expected — the right side of `=` or `set ... to` (as above), a call
+argument, or the body of another comprehension. Used alone as a statement, its
+result is discarded like any other unused value.
+
 `map <var> in <listExpr> [ <expr> ]` returns a fresh list containing the body
 value for each element. `filter <var> in <listExpr> [ <boolExpr> ]` returns a
 fresh list of original elements whose body value is `true`; a non-boolean body

@@ -67,9 +67,6 @@ statement           ::= assignment
                       | for-in-statement
                       | for-range-statement
                       | forever-statement
-                      | map-statement
-                      | filter-statement
-                      | reduce-statement
                       | define-statement
                       | to-statement
                       | struct-declaration
@@ -109,9 +106,10 @@ for-in-statement    ::= "for" binder "in" expression control-body
 for-range-statement ::= "for" name "from" expression "to" expression [ "by" expression ] control-body
 forever-statement   ::= "forever" control-body
 
-map-statement       ::= "map" binder "in" expression expression-block
-filter-statement    ::= "filter" binder "in" expression expression-block
-reduce-statement    ::= "reduce" name name "in" expression "from" expression expression-block
+comprehension       ::= map-expression | filter-expression | reduce-expression
+map-expression      ::= "map" binder "in" expression expression-block
+filter-expression   ::= "filter" binder "in" expression expression-block
+reduce-expression   ::= "reduce" name name "in" expression "from" expression expression-block
 
 binder              ::= name | destructuring-pattern
 destructuring-pattern ::= "[" ":" name { ":" name } "]"
@@ -171,6 +169,7 @@ primary             ::= number
                       | parenthesized-call
                       | type-constructor-call
                       | value-of-reader
+                      | comprehension
 
 boolean-literal     ::= "true" | "false"
 variable-read       ::= ":" name
@@ -313,6 +312,8 @@ Core comprehension forms are special forms, not function-valued higher-order cal
 ```
 
 `map` returns a fresh list of body values. `filter` returns elements whose body value is `true`. `reduce` folds left from the initial value; the accumulator and item binder names must differ.
+
+A comprehension is an expression: because it is recognized by its leading keyword, it may appear anywhere a value is expected — the right side of `=` or `set ... to`, a `return`, `output`, or `op` value, a call argument, or nested inside another comprehension. It may also stand alone as a statement. The `[ ... ]` that follows the collection is always the comprehension body, never a selector on that collection; to iterate over an indexed collection, parenthesize it, as in `map n in (:matrix[0]) [ :n * 2 ]`.
 
 ## Reserved words and namespaces
 
