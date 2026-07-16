@@ -20,7 +20,7 @@ Word/string literals are closed double-quote literals such as `"tom"`, `"#ff0000
 
 Comments are whitespace. `#` and `//` start line comments that end at the next line break. `/* */` delimits a non-nesting block comment; an unterminated block comment raises `ol-unclosed-comment`. Comment markers inside strings are literal text.
 
-Horizontal whitespace and indentation are insignificant except as token separators. A newline ends the current statement at the top level and inside a bracketed `[ ... ]` or long `... end` control body; inside `[ ... ]` the newline is optional, because fixed arity also separates adjacent instructions. Immediately after a control or procedure header, a newline selects the long `... end` body form. Within a single expression, list literal, dict literal, or parenthesized group, newlines are insignificant.
+Horizontal whitespace and indentation are insignificant except as token separators. A newline ends the current statement at the top level and inside a bracketed `[ ... ]` or long `... end` control body; inside `[ ... ]` the newline is optional, because fixed arity also separates adjacent instructions. Immediately after a control or procedure header, a newline selects the long `... end` body form. Within a single expression, list literal, dict literal, or parenthesized group, newlines are insignificant. Consecutive newlines form a single separator, so blank lines may appear between statements anywhere — at the top level, inside `[ ... ]`, and inside a `... end` block — and the newline after the final statement of a file is optional.
 
 ```logo
 # primary line comment
@@ -50,8 +50,8 @@ line-comment        ::= "#" { ? any character except newline ? }
                       | "//" { ? any character except newline ? }
 block-comment       ::= "/*" { ? any character sequence not containing */ ? } "*/"
 
-program             ::= { statement terminator } EOF
-terminator          ::= newline | EOF
+program             ::= [ terminator ] { statement terminator } [ statement ] EOF
+terminator          ::= newline { newline }
 
 statement           ::= assignment
                       | set-assignment
@@ -97,8 +97,8 @@ clear-statement     ::= "clear" expression
 if-statement        ::= "if" expression if-bracket-tail
                       | "if" expression if-long-tail
 if-bracket-tail     ::= bracket-block [ "else" bracket-block ]
-if-long-tail        ::= newline { statement terminator }
-                        [ "else" newline { statement terminator } ] if-end-label
+if-long-tail        ::= terminator { statement terminator }
+                        [ "else" terminator { statement terminator } ] if-end-label
 if-end-label        ::= "end" [ "if" ]
 while-statement     ::= "while" expression control-body
 repeat-statement    ::= "repeat" expression control-body
@@ -117,11 +117,11 @@ destructuring-pattern ::= "[" ":" name { ":" name } "]"
 control-body        ::= bracket-block | long-control-block
 bracket-block       ::= "[" { terminator } { statement { terminator } } "]"
 expression-block    ::= "[" { terminator } { statement terminator } expression { terminator } "]"
-long-control-block  ::= newline { statement terminator } control-end-label
+long-control-block  ::= terminator { statement terminator } control-end-label
 control-end-label   ::= "end" [ "if" | "while" | "repeat" | "for" | "forever" ]
 
-define-statement    ::= "define" callable-name { parameter } newline { statement terminator } define-end
-to-statement        ::= "to" callable-name { parameter } newline { statement terminator } define-end
+define-statement    ::= "define" callable-name { parameter } terminator { statement terminator } define-end
+to-statement        ::= "to" callable-name { parameter } terminator { statement terminator } define-end
 define-end          ::= "end" [ "define" ]
 parameter           ::= ":" name | "(" ":" name expression ")"
 return-statement    ::= ( "return" | "output" | "op" ) expression
@@ -246,7 +246,7 @@ Control bodies for `if`, `while`, `repeat`, `for`, and `forever` use exactly one
 
 A control body is always delimited: there is no bare or undelimited body, so even a single instruction is written `repeat 4 [ forward 100 ]` or as a `... end` block. Inside a bracketed body, instructions are separated by their fixed arity, so `[ forward 100 right 90 ]` holds two commands and newlines inside `[ ]` are optional. After a control header, the rest of the physical line decides the form: if it begins with `[`, the body is a bracketed block; if the header ends the line, the body is a long `... end` block; any other token raises `ol-missing-end` with a hint to wrap the body in `[ ]` or close it with `end`.
 
-Valid end labels are exactly `end`, `end if`, `end while`, `end repeat`, `end for`, `end forever`, and `end define`. A mismatched or orphan label raises `ol-mismatched-end`; a missing terminator raises `ol-missing-end`.
+Every long block closes with `end`, optionally followed by the single keyword that opened it. The core labels are `end`, `end if`, `end while`, `end repeat`, `end for`, `end forever`, and `end define`. Optional profiles extend this rule uniformly: an effect-block opened by a profile keyword — for example `ask`, `each`, `when`, `every`, `on_key`, or `on_click` — closes with `end` or `end <keyword>` using that same opener, and the profile documents are normative for their own keywords. A suffix that does not match its opener, or an orphan label, raises `ol-mismatched-end`; a missing terminator raises `ol-missing-end`.
 
 An `if` takes either bracketed branches, `if <cond> [ ... ] else [ ... ]`, or long-form branches, `if <cond>` … `else` … `end if`; both branches use the same form. Because every branch is delimited, `else` binds to the nearest still-open `if` and there is no dangling-`else` ambiguity.
 

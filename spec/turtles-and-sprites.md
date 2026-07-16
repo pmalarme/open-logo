@@ -66,9 +66,16 @@ ask :t [
 forward 20
 ```
 
-The final `forward 20` runs for the addressed set that was active before `ask`.
+The final `forward 20` runs for the addressed set that was active before `ask`. The same `ask` may be written in long form, which closes with `end` or `end ask`:
 
-`each <block>` runs its block once per turtle in the current `tell` or `ask` set. During each run, `who` reports the turtle for that iteration, and Turtle commands affect only that turtle unless the program changes the addressed set again.
+```logo
+ask :t
+  set_color "red"
+  forward 80
+end ask
+```
+
+`each <block>` runs its block once per turtle in the current `tell` or `ask` set. During each run, `who` reports the turtle for that iteration, and Turtle commands affect only that turtle unless the program changes the addressed set again. In long form an `each` block closes with `end` or `end each`.
 
 ```logo
 :a = new_turtle

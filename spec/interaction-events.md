@@ -13,8 +13,9 @@ file is optional unless an implementation declares the corresponding profile.
 
 The locked OpenLogo surface applies here: variables are written with `:name`,
 assignment uses `=`, equality uses `==`, strings are closed double-quoted words,
-blocks are `[ … ]` or `… end` under the block-result rule, and examples do not
-use arrays, lambdas, or commas.
+blocks are `[ … ]` or `… end` under the block-result rule — a long event block
+closes with `end` or `end <keyword>` (`end when`, `end every`, `end on_key`, or
+`end on_click`) — and examples do not use arrays, lambdas, or commas.
 
 ## Profiles and reservation
 

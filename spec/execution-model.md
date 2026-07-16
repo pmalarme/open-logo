@@ -59,7 +59,10 @@ The reader receives tokens from the normative lexer in [grammar.md](grammar.md):
   is optional, because fixed arity also separates adjacent instructions.
   Immediately after a control or procedure header, a newline selects the long
   `... end` body form. Within a single expression, list literal, dict literal, or
-  parenthesized group, newlines are insignificant.
+  parenthesized group, newlines are insignificant. Consecutive newlines form a
+  single separator, so blank lines may appear between statements anywhere — at the
+  top level, inside `[ ... ]`, and inside a `... end` block — and the newline after
+  the final statement of a file is optional.
 
 ## Reader pipeline
 
@@ -165,8 +168,10 @@ optional.
 Comprehensions (`map`, `filter`, `reduce`) accept only a bracketed
 expression-block `[ ... ]`. A procedure `define` accepts only a long block
 closed by `end` or `end define`. `struct` is a one-line declaration with no
-body. The valid labels are exactly `end`, `end if`, `end while`, `end repeat`,
-`end for`, `end forever`, and `end define`.
+body. The core labels are `end`, `end if`, `end while`, `end repeat`, `end for`,
+`end forever`, and `end define`; optional profiles extend this rule uniformly, so a
+profile effect-block (such as `ask`, `each`, `when`, `every`, `on_key`, or
+`on_click`) closes with `end` or `end <keyword>` for its own opener.
 
 The delimited-body rule removes ambiguity. After a control header, if the rest
 of the same physical line begins with `[`, the body is a bracketed block; if the

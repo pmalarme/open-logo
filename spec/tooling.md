@@ -145,7 +145,7 @@ and SHOULD recover far enough to report additional independent findings in the s
 | Unmatched `{` or `}` | `ol-unmatched-brace` | Treat braces only as dict delimiters; never as blocks. |
 | Unmatched `(` or `)` | `ol-unmatched-paren` | Include whether the parser was inside grouping or a parenthesized call. |
 | Missing body delimiter or long-block terminator | `ol-missing-end` | Use for a `define` or long control block left unclosed, or a control header followed by an undelimited body that should be wrapped in `[ ]` or closed with `end`. |
-| Mismatched, orphan, or invalid `end` label | `ol-mismatched-end` | Accept only `end`, `end if`, `end while`, `end repeat`, `end for`, `end forever`, and `end define`. |
+| Mismatched, orphan, or invalid `end` label | `ol-mismatched-end` | Accept the core labels `end`, `end if`, `end while`, `end repeat`, `end for`, `end forever`, and `end define`, plus `end <keyword>` for any active profile block-head (e.g. `ask`, `each`, `when`, `every`, `on_key`, `on_click`). |
 | Unclosed block comment | `ol-unclosed-comment` | `/* ... */` comments are non-nesting. |
 | Unclosed string | `ol-unclosed-string` | Closed double quotes are required; classic open `"word` is invalid. |
 | Bad token | `ol-bad-token` | Use for characters or token sequences outside the grammar, including commas used as separators. |
