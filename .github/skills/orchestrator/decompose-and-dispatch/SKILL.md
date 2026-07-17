@@ -43,7 +43,8 @@ contracts agreed first. You write no feature code — you decompose, dispatch, a
   slice defining its nodes. _Agreed ≠ frozen_: parallelize only against a contract already merged to
   `main`.
 - Every task names exactly one primary owner and a write-set; overlapping write-sets are serialized.
-- You never merge on green alone — humans + required CI checks gate merges.
+- You never merge on green alone — every merge needs an independent, non-author review-gate PASS
+  plus required CI; a human merges unless the maintainer has delegated it (see `integrate-and-merge`).
 
 ## Checklist
 - [ ] Profile entry criteria met; contracts agreed first.
