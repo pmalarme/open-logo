@@ -159,7 +159,10 @@ valid ordinary names elsewhere. There is no infix `in` membership operator — u
 comparisons (`<`, `>`, `<=`, `>=`) and `[ strictly ] between` require numbers or
 words; `==` and `!=` compare any two values; `is empty` accepts lists, dicts, and
 words; `is member of` accepts lists and dicts; `is a` accepts any value. A
-wrong-typed operand raises `ol-type`.
+wrong-typed operand raises `ol-type`. The `<type-word>` operand of `is a` /
+`is_a?` must itself be a word that names a known type: a non-word type argument
+raises `ol-type`, and a word naming no built-in type or declared struct raises
+`ol-unknown-type`.
 
 Assignment `=` and `set ... to` are statement-level special forms, not
 expression operators.
@@ -513,8 +516,11 @@ raises `ol-neg-sqrt`; a non-integer where an integer is required raises
 `ol-type`. OpenLogo never exposes NaN or Infinity as learner-facing results for
 these educational errors.
 
-`random n` reports an integer in `[0,n-1]`. `(random a b)` reports an integer in
-`[a,b]`. `randomize` with no input uses an implementation seed;
+`random n` reports an integer in `[0,n-1]`; `n` MUST be a whole number of at
+least `1`. `(random a b)` reports an integer in `[a,b]`; `a` and `b` MUST be
+whole numbers with `a <= b`. Inputs are checked in order: a non-whole bound
+raises `ol-type`, then `n` below `1` or `a` greater than `b` raises `ol-range`.
+`randomize` with no input uses an implementation seed;
 `(randomize seed)` is deterministic within an implementation. Examples that
 depend on randomness state properties such as "a number in `[0,99]`" unless a
 future version standardizes a PRNG.

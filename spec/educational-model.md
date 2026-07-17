@@ -163,6 +163,7 @@ Core ideas:
 - Parameters are variables such as `:sides` and `:size`.
 - `return` hands a value back from a reporter.
 - A command procedure may draw without returning a value.
+- `local` names a variable that lives only inside the procedure.
 - Learners build `polygon` from `repeat`; it is never introduced as a black-box drawing trick.
 
 ```logo
@@ -404,7 +405,7 @@ end for
 | Variable naming | `:name = value`, `set name to value`, `:name` reads | 3 | One value can control many instructions. |
 | Showing values | `print` | 3 | Learners can read a value, not only see a drawing. |
 | Comparison and choice | `if … else`, `==`, `!=`, `<`, `>`, `<=`, `>=`, worded `is` predicates, `true`, `false`, `and`, `or`, `not` | 4 | Programs can choose only from explicit booleans. |
-| Procedures | `define … end`, procedure calls | 5 | Learners teach OpenLogo a discovered pattern. |
+| Procedures | `define … end`, `local`, procedure calls | 5 | Learners teach OpenLogo a discovered pattern. |
 | Reporters | `return`, heritage `output` and `op` | 5 | A procedure can answer a question with a value. |
 | Derived geometry | learner-built `polygon`, then `star`, `circle`, `arc`, `grid`, `axes`, `measure` | 6 | Shapes are visible math, not hidden primitives. |
 | Turtle placement and marking | `set_xy`, `stamp` | 6 | Coordinates and stamps support diagrams and games. |
@@ -418,7 +419,7 @@ end for
 
 ## Baseline meta-commands
 
-The [Educational profile in conformance.md](conformance.md#educational) makes four baseline meta-commands its normative requirement: `explain`, `why`, `hint`, and `debug`. This document is their owning profile document in the sense of [conformance.md](conformance.md), so their canonical signatures are normative here:
+The [Educational profile in conformance.md](conformance.md#educational) makes four baseline meta-commands a normative requirement — `explain`, `why`, `hint`, and `debug` — and specifies their canonical signatures normatively there. This document owns their educational behavior. Their signatures are, for reference:
 
 | Name | Kind | Default arity | Result |
 |---|---:|---:|---|
@@ -427,7 +428,7 @@ The [Educational profile in conformance.md](conformance.md#educational) makes fo
 | `hint` | C | 0 | none (tutor output) |
 | `debug` | C | 0 | none (tutor output) |
 
-Each is a Command invoked as a bare word with no inputs; the AI-enhanced `challenge` command has the same shape and is specified in [ai-tutor.md](ai-tutor.md). Their educational behavior is owned here.
+Each is a Command invoked as a bare word with no inputs; the AI-enhanced `challenge` command has the same shape, is required by the Tutor profile with a signature that is normative in [conformance.md](conformance.md#tutor-ai), and its behavior is specified in [ai-tutor.md](ai-tutor.md). Their educational behavior is owned here.
 
 Baseline means **no AI is required**. These commands are deterministic and template-based. They use the parsed program, source spans, trace events, diagnostics, and known command metadata to produce predictable help. AI-enhanced behavior is optional and is specified in [ai-tutor.md](ai-tutor.md).
 

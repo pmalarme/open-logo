@@ -159,6 +159,16 @@ concept and MUST NOT reveal a full solution on its first request. These requirem
 here; [educational-model.md](educational-model.md) is informative and explains the pedagogy behind
 them.
 
+The canonical signatures of these baseline meta-commands are normative here. Each is a Command
+invoked as a bare word with no inputs and produces tutor output rather than a program value:
+
+| Name | Kind | Arity | Result |
+|---|---:|---:|---|
+| `explain` | Command | 0 | none (tutor output) |
+| `why` | Command | 0 | none (tutor output) |
+| `hint` | Command | 0 | none (tutor output) |
+| `debug` | Command | 0 | none (tutor output) |
+
 ### Tutor (AI)
 
 The **Tutor (AI)** profile provides AI-augmented tutoring behavior, including `challenge`, Socratic
@@ -171,6 +181,13 @@ MUST degrade gracefully to that Educational baseline. The tutor MUST ask guiding
 giving a direct answer and MUST NOT emit a complete take-home solution in place of guidance. These
 requirements are normative here; [ai-tutor.md](ai-tutor.md) is informative and describes how a tutor
 realizes them.
+
+The canonical signature of `challenge` is normative here; like the baseline meta-commands it is a
+Command invoked as a bare word with no inputs and produces tutor output rather than a program value:
+
+| Name | Kind | Arity | Result |
+|---|---:|---:|---|
+| `challenge` | Command | 0 | none (tutor output) |
 
 ## Feature to profile table
 

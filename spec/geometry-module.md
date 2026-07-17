@@ -320,7 +320,7 @@ Supported v0.1 shape specs are:
 
 The first means a regular polygon with `5` sides of length `100`. The second means a circle with radius `50`. The quoted word is required; `polygon` without quotes would be a procedure call, not a word value.
 
-Numeric arguments in a shape spec must be positive: a polygon needs a whole number of sides that is at least `3` and a positive side length, and a circle needs a positive radius. `area` and `perimeter` raise `ol-user-error` through `throw` when a shape spec breaks these rules.
+Numeric arguments in a shape spec must be positive: a polygon needs a whole number of sides that is at least `3` and a positive side length, and a circle needs a positive radius. When a shape spec's numeric arguments break these rules, `area` and `perimeter` raise `ol-user-error` through `throw`; a non-numeric argument instead raises `ol-type` when it reaches a comparison or arithmetic step.
 
 ### `area :shape`
 

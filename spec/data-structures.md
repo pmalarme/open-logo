@@ -284,7 +284,7 @@ print is_a? :p "person"
 | `<type>` constructor | R | field values | record | `ol-not-enough-inputs`, `ol-too-many-inputs` | constructs a mutable record with arity equal to the field count |
 | `:record.field` | R/place | — | field value | `ol-unknown-field` | reads or writes a fixed field |
 | `type_of` | R | record | word | — | reports the record type name |
-| `is_a?` (Core) | R | value, type | boolean | — | Core type test on any value; for a record it matches the struct type name |
+| `is_a?` (Core) | R | value, type | boolean | `ol-type`, `ol-unknown-type` | Core type test on any value; the type must be a word naming a known type, else `ol-type` (non-word) or `ol-unknown-type` (unknown word); for a record it matches the struct type name |
 
 ### Nested records and dictionaries
 

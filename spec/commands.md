@@ -704,7 +704,7 @@ print is_a? 5 "number"
 print (5 is a "number")
 ```
 
-- **Possible errors:** `ol-unknown-type` when the type word does not name a known built-in type or declared struct.
+- **Possible errors:** `ol-type` when the type argument is not a word, and `ol-unknown-type` when the type word does not name a known built-in type or declared struct.
 
 ## Control
 
@@ -1643,4 +1643,4 @@ The color concept is representation: the same visible idea can be named, measure
 - Data-profile mutation and structure primitives such as `list`, `add … to`, `remove … from`, `insert … in … at`, `clear`, dictionary literals, `keys`, `values`, `struct`, constructors, and record fields are specified in [data-structures.md](data-structures.md).
 - Sprite-profile primitives `new_turtle`, `tell`, `ask`, `each`, `turtles`, and `who` are specified in [turtles-and-sprites.md](turtles-and-sprites.md).
 - Interaction and sound primitives including `input`, `wait`, `when`, `every`, `on_key`, `on_click`, `note`, `play`, `beep`, `rest`, and `set_tempo` are specified in [interaction-events.md](interaction-events.md).
-- Meta-commands are commands taking no inputs, invoked as the bare words `explain`, `why`, `hint`, and `debug` in the Educational profile; their canonical signatures are owned by [educational-model.md](educational-model.md). AI-enhanced behavior and the `challenge` command are specified in [ai-tutor.md](ai-tutor.md).
+- Meta-commands are commands taking no inputs, invoked as the bare words `explain`, `why`, `hint`, and `debug` in the Educational profile; their canonical signatures are normative in [conformance.md](conformance.md#educational) and their educational behavior is owned by [educational-model.md](educational-model.md). AI-enhanced behavior and the `challenge` command (whose signature is normative in [conformance.md](conformance.md#tutor-ai)) are specified in [ai-tutor.md](ai-tutor.md).
