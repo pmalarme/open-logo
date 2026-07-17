@@ -80,6 +80,79 @@ test("reads a list literal", () => {
   assert.deepEqual(values, [1, 2, 3]);
 });
 
+test("groups a fixed-arity word/list reporter as one call, not stray statements", () => {
+  // Regression: before `count` had a default arity it fell back to 0, so it
+  // gathered no inputs and `[1 2 3]` silently became a second, stray statement
+  // with no diagnostic. It must read as a single `print (count [1 2 3])`.
+  const { ast, diagnostics } = OL.parse("print count [1 2 3]", doc);
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(ast.body.length, 1);
+  const print = ast.body[0];
+  assert.equal(print.callee, "print");
+  assert.equal(print.args.length, 1);
+  const count = print.args[0];
+  assert.equal(count.kind, "Call");
+  assert.equal(count.callee, "count");
+  assert.equal(count.args.length, 1);
+  assert.equal(count.args[0].kind, "ListLit");
+
+  // A two-input reporter gathers both inputs into the same statement.
+  const two = OL.parse("fput 1 [2 3]", doc);
+  assert.deepEqual(two.diagnostics, []);
+  assert.equal(two.ast.body.length, 1);
+  const fput = two.ast.body[0];
+  assert.equal(fput.callee, "fput");
+  assert.equal(fput.args.length, 2);
+  assert.equal(fput.args[0].value, 1);
+  assert.equal(fput.args[1].kind, "ListLit");
+});
+
+test("gathers the exact input count for every core word/list reporter", () => {
+  // The seven names marked (new) were missing from the arity table; the four
+  // originals are included so the whole `commands.md` word/list section is pinned.
+  const oneInput = [
+    "first",
+    "last",
+    "butfirst", // new
+    "butlast", // new
+    "count", // new
+    "uppercase", // new
+    "lowercase", // new
+  ];
+  for (const name of oneInput) {
+    const { ast, diagnostics } = OL.parse(`print ${name} [1 2 3]`, doc);
+    assert.deepEqual(
+      diagnostics,
+      [],
+      `${name} should parse without diagnostics`,
+    );
+    assert.equal(ast.body.length, 1, `${name} should read as one statement`);
+    const call = ast.body[0].args[0];
+    assert.equal(call.callee, name);
+    assert.equal(call.args.length, 1, `${name} takes one input`);
+  }
+
+  const twoInputs = [
+    "word",
+    "sentence",
+    "fput", // new
+    "lput", // new
+  ];
+  for (const name of twoInputs) {
+    const { ast, diagnostics } = OL.parse(`print ${name} 1 [2 3]`, doc);
+    assert.deepEqual(
+      diagnostics,
+      [],
+      `${name} should parse without diagnostics`,
+    );
+    assert.equal(ast.body.length, 1, `${name} should read as one statement`);
+    const call = ast.body[0].args[0];
+    assert.equal(call.callee, name);
+    assert.equal(call.args.length, 2, `${name} takes two inputs`);
+  }
+});
+
 test("binds multiplication tighter than addition", () => {
   const { ast } = OL.parse("print 1 + 2 * 3", doc);
 

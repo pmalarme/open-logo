@@ -11,6 +11,13 @@
  * by precedence, and the AST records them as {@link CallNode}s with the operator as callee.
  * Variadic forms such as `(print :a :b)` or `(random a b)` use the parenthesized call and so
  * do not depend on the default arity.
+ *
+ * Every fixed-arity Core Reporter and Command from `commands.md` must appear here: an omitted
+ * name falls back to arity `0` in the reader, so its arguments are silently left on the line as
+ * stray statements instead of being gathered — a quiet miscount with no diagnostic. Special
+ * forms (`if`/`while`/`repeat`/`for`/`forever`/`define`/`return`/`stop`/`throw`/`local`/
+ * `map`/`filter`/`reduce`) and the literals `true`/`false` are handled by dedicated grammar
+ * productions, not this table.
  */
 
 /** Default arity of each Core primitive, keyed by its canonical lowercase name. */
@@ -41,6 +48,13 @@ export const CORE_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
   ["sentence", 2],
   ["first", 1],
   ["last", 1],
+  ["butfirst", 1],
+  ["butlast", 1],
+  ["fput", 2],
+  ["lput", 2],
+  ["count", 1],
+  ["uppercase", 1],
+  ["lowercase", 1],
 ]);
 
 /**
