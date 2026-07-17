@@ -1,0 +1,44 @@
+name: "Foundation / chore"
+description: Toolchain, monorepo, CI, or other cross-cutting setup work (mostly milestone M0).
+title: "[foundation]: "
+labels: ["type:foundation"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - ci
+        - grammar
+        - highlighter
+        - checker
+        - runtime
+        - rendering
+        - studio
+        - edu
+        - docs
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What needs to be set up
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+    validations:
+      required: true
+  - type: textarea
+    id: dod
+    attributes:
+      label: Definition of Done
+      value: |
+        - [ ] Reproducible for every contributor/agent
+        - [ ] Wired into CI where applicable
+        - [ ] Any cross-cutting decision recorded in an ADR
+        - [ ] One PR, declared write-set
+    validations:
+      required: true

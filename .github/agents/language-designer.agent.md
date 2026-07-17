@@ -60,6 +60,7 @@ Consult these playbooks before acting.
 |---|---|
 | [evolve-the-grammar](../skills/language-designer/evolve-the-grammar/SKILL.md) | Change EBNF, keywords, reserved words safely |
 | [syntax-highlighting](../skills/language-designer/syntax-highlighting/SKILL.md) | Produce grammar-derived token classes / semantic tokens |
+| [syntax-checking](../skills/language-designer/syntax-checking/SKILL.md) | Build the parse/semantic/style checker (the linter, not the highlighter) |
 | [shared/spec-fidelity](../skills/shared/spec-fidelity/SKILL.md) | Keep vocabulary + profiles exact |
 | [shared/vertical-slice](../skills/shared/vertical-slice/SKILL.md) | Deliver syntax changes as end-to-end slices |
 | [shared/conformance-fixture](../skills/shared/conformance-fixture/SKILL.md) | Add grammar/highlighting fixtures |

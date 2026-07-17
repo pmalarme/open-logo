@@ -20,10 +20,10 @@ We implement that spec as a **TypeScript 7 monorepo** in `openlogo/` with six pa
 | Package | Owns | Primary agent(s) |
 |---|---|---|
 | `@openlogo/core` | value/type model, `ol-*` diagnostics, trace/event registry, feature-detection metadata | interpreter |
-| `@openlogo/parser` | lexis, reader, EBNF grammar, AST, reserved words, parse + semantic lint | language-designer, interpreter |
+| `@openlogo/parser` | lexis, reader, EBNF grammar, AST, reserved words, syntax highlighting, syntax + semantic checker | language-designer, interpreter |
 | `@openlogo/runtime` | evaluator, scoping, procedures, control forms, comprehensions, places/mutation, equality, safety | interpreter |
 | `@openlogo/robot` | turtle/sprite state, pen/heading/shape, rendering (Canvas/SVG/PNG), animation, export, accessibility | turtle-engine |
-| `@openlogo/studio` | editor/REPL, run/stop/step, diagnostics UI, tooling/LSP, lesson pane, persistence | learner-experience |
+| `@openlogo/studio` | browser web app: editor/REPL, Canvas turtle view, run/stop/step, diagnostics UI, tooling/LSP, lesson pane, persistence | learner-experience |
 | `@openlogo/edu` | learner levels, `explain`/`why`/`hint`/`debug`, geometry stdlib, AI tutor, curriculum, examples | geometry-teacher, ai-tutor, curriculum |
 
 ## 2. The source of truth
@@ -183,3 +183,21 @@ Match the merged spec exactly. Common mistakes to avoid:
 - **Milestones are profile-based synchronization points** on the spec DAG. A milestone completes when
   its profile conformance is green across **all** domains (not when one package finishes); from M2
   (Turtle & Rendering = minimal conformance) onward a release tuple is tagged.
+
+## 13. Where to work & how the backlog is run
+
+- **Source lives in `packages/<name>/src/`** — [`packages/README.md`](../../packages/README.md) is the
+  source-folder map, and each package's public entry is `src/index.ts` only.
+- **Folder-scoped instructions.** Each package has a scoped agreement at
+  `.github/instructions/<name>.instructions.md` (`applyTo: "packages/<name>/**"`) that inherits this
+  charter and pins that package's responsibilities, spec files, boundaries, and conventions. Read your
+  package's file before editing under it.
+- **File issues from templates**, never freehand:
+  [`.github/ISSUE_TEMPLATE/`](../ISSUE_TEMPLATE) — `epic`, `feature-slice`, `conformance-task`,
+  `foundation`, `bug`, `docs`. Each seeds the right `type:*`/`agent:*` labels.
+- **Labels are a manifest.** [`.github/labels.yml`](../labels.yml) is the single source of truth
+  (`agent:*` owner, `type:*` kind, `profile:*`, `area:*`, `level:*`). Exactly one `agent:*` and one
+  `type:*` per issue; the milestone — not a label — says which M0–M6 it lands in.
+- **The product-owner runs the board** (Project, milestones, issues, labels) via `gh`; see the
+  `product-owner/github-project`, `epics-and-milestones`, and `triage-and-label` skills. Other agents
+  request work through issues and let the product-owner/orchestrator schedule it.

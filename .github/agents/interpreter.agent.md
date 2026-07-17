@@ -68,6 +68,7 @@ Consult these playbooks before acting.
 |---|---|
 | [implement-a-primitive](../skills/interpreter/implement-a-primitive/SKILL.md) | Build a command end to end (core + parser + runtime) |
 | [ast-design](../skills/interpreter/ast-design/SKILL.md) | Add/change AST nodes that mirror the grammar |
+| [syntax-checking](../skills/language-designer/syntax-checking/SKILL.md) | Emit semantic-layer `ol-*` diagnostics (co-owned checker) |
 | [shared/vertical-slice](../skills/shared/vertical-slice/SKILL.md) | Shape each feature as one slice |
 | [shared/spec-fidelity](../skills/shared/spec-fidelity/SKILL.md) | Honor exact vocabulary + profiles |
 | [shared/diagnostics](../skills/shared/diagnostics/SKILL.md) | Emit `ol-*` diagnostics, never ad-hoc strings |

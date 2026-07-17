@@ -46,15 +46,21 @@ Each package is a workspace member with `package.json`, a `tsconfig.json` that e
 another package's internals — only its `src/index.ts` (`OL` namespace). See
 [`.github/skills/shared/ts7-package/SKILL.md`](../.github/skills/shared/ts7-package/SKILL.md).
 
+**Where the source lives & folder-scoped instructions.** The source root of each package is
+`packages/<name>/src/` — [`packages/README.md`](../packages/README.md) is the source-folder map. Each
+package also has a **scoped working agreement** at `.github/instructions/<name>.instructions.md`
+(`applyTo: "packages/<name>/**"`) that inherits the always-on team agreement and pins that package's
+responsibilities, spec files, boundaries, and conventions.
+
 ## 3. Package definitions
 
 | Package | Purpose | Depends on | Owning agent(s) |
 |---|---|---|---|
 | `@openlogo/core` | value/type model, `ol-*` diagnostic registry, trace/event registry, profile/feature-detection metadata | — | interpreter |
-| `@openlogo/parser` | lexer, reader, EBNF grammar, **AST**, reserved words, **syntax highlighting** classes, parse + semantic lints | core | language-designer, interpreter |
+| `@openlogo/parser` | lexer, reader, EBNF grammar, **AST**, reserved words, **syntax highlighting** classes, **syntax + semantic checker** (parse/semantic/style lints) | core | language-designer, interpreter |
 | `@openlogo/runtime` | evaluator, scoping, procedures, control forms, comprehensions, places/mutation, equality, execution budget | core, parser | interpreter |
 | `@openlogo/robot` | turtle/sprite state, pen/heading/shape, **rendering** (Canvas/SVG/PNG), animation, stepping, export, a11y | core | turtle-engine |
-| `@openlogo/studio` | **UI**: editor/REPL, Run/Stop/Reset, diagnostics view, **LSP**, lesson pane, persistence, a11y | core, parser, runtime, robot, edu | learner-experience |
+| `@openlogo/studio` | **browser web app**: editor/REPL, Canvas turtle view, Run/Stop/Reset, diagnostics view, **LSP**, lesson pane, persistence, a11y | core, parser, runtime, robot, edu | learner-experience |
 | `@openlogo/edu` | learner levels, `explain`/`why`/`hint`/`debug`, geometry stdlib (`.logo`), AI tutor, curriculum, examples | core, runtime | geometry-teacher, ai-tutor, curriculum |
 
 ### Suggested module layout (KISS — not a straitjacket)
@@ -62,7 +68,7 @@ another package's internals — only its `src/index.ts` (`OL` namespace). See
 - **core/src**: `values.ts`, `diagnostics.ts` (`ol-*` registry), `events.ts` (trace/event types +
   registry), `profiles.ts` (feature metadata), `index.ts`.
 - **parser/src**: `tokens.ts`, `reader.ts`, `grammar.ts`, `ast.ts` (nodes + factory + visitor),
-  `highlight.ts` (token classification), `lint/` (style + semantic), `index.ts`.
+  `highlight.ts` (token classification), `check.ts` (parse/semantic/style checker), `index.ts`.
 - **runtime/src**: `evaluator.ts`, `scope.ts`, `procedures.ts`, `control.ts`, `comprehensions.ts`,
   `places.ts`, `equality.ts`, `budget.ts`, `index.ts`.
 - **robot/src**: `turtle.ts`, `state.ts`, `render/{canvas,svg,png}.ts`, `animation.ts`,
@@ -84,7 +90,7 @@ them in parallel.** Any change is a serialized, one-PR change reviewed by the ow
 | **Trace / event stream** | `core/src/events.ts` | runtime | robot (render), studio (step), tests | Deterministic, ordered, headless events (`turtle.move`, `draw.line`, …). No timing/frames in the stream. See `turtle-engine/turtle-event-contract`. |
 | **Diagnostics** | `core/src/diagnostics.ts` | parser, runtime | studio (UI), tests, tutor | Normative `ol-*` shape: code, span, params, message, stage, severity, did-you-mean. Never ad-hoc strings. See `shared/diagnostics`. |
 | **LSP / tooling** | `studio/src/lsp` | studio | editors | Built from parser (tokens, AST, lints) + core (diagnostics): highlight, hover, diagnostics, completion. Informative in the spec; must stay grammar-faithful. |
-| **Rendering** | `robot/src/render` | robot | studio | Consumes events → Canvas (required), SVG/PNG (export). Deterministic export; honors reduced-motion, keyboard, non-visual descriptions (`spec/rendering.md`). |
+| **Rendering** | `robot/src/render` | robot | studio | Consumes events → Canvas (required — the live **browser** surface), SVG/PNG (export). Deterministic export; honors reduced-motion, keyboard, non-visual descriptions (`spec/rendering.md`). |
 | **Studio UI / state** | `studio/src` | studio | learner | Composes editor + turtle view + diagnostics + lesson pane over a single state model (source, run-state, diagnostics, turtle frame). Run/Stop/Reset drive the runtime budget. See `learner-experience/studio-ui`. |
 
 ## 5. How it all fits

@@ -16,10 +16,10 @@ The implementation is a **TypeScript 7 monorepo** (`openlogo/`) with six package
 | Package | Responsibility |
 |---|---|
 | `@openlogo/core` | Value/type model, `ol-*` diagnostics, trace/event registry, feature detection |
-| `@openlogo/parser` | Lexer, reader, EBNF grammar, AST, reserved words, parse/semantic lint |
+| `@openlogo/parser` | Lexer, reader, EBNF grammar, AST, reserved words, syntax highlighting + syntax/semantic checker |
 | `@openlogo/runtime` | Evaluator, scoping, procedures, control forms, comprehensions, places, safety |
 | `@openlogo/robot` | Turtle/sprite state, pen/heading/shape, rendering (Canvas/SVG/PNG), animation, a11y |
-| `@openlogo/studio` | Learner IDE: editor/REPL, run/stop/step, diagnostics UI, tooling, lessons |
+| `@openlogo/studio` | Browser web app (learner IDE): editor/REPL, Canvas turtle view, run/stop/step, diagnostics UI, tooling, lessons |
 | `@openlogo/edu` | Learner levels, `explain`/`why`/`hint`/`debug`, geometry stdlib, AI tutor, curriculum |
 
 Build order follows the spec's profile DAG: **Core Language → Turtle & Rendering** (minimal
@@ -35,9 +35,11 @@ docs/architecture.md   Monorepo definition + cross-cutting contracts (AST, highl
 docs/delivery.md       Release + milestone strategy
 .github/agents/  The OpenLogo agent team (*.agent.md)
 .github/skills/  Agent skill playbooks (shared + per-agent)
-.github/instructions/  Shared team working agreement (always in context)
-packages/        @openlogo/* implementation packages (created as the build proceeds)
-tests/conformance/     Stack-neutral source→events/diagnostics fixtures (created with the build)
+.github/instructions/  Team working agreement (always on) + per-package rules (applyTo packages/<name>/**)
+.github/ISSUE_TEMPLATE/  Issue forms — epic, feature-slice, conformance-task, foundation, bug, docs
+.github/labels.yml     Label taxonomy manifest (agent:*/type:*/profile:*/area:*/level:*)
+packages/        @openlogo/* packages — src/ skeleton in place; see packages/README.md for the map
+tests/conformance/     Stack-neutral source→events/diagnostics fixtures (grow with the build)
 ```
 
 ## How to work here (for any agent)
@@ -56,6 +58,11 @@ parallelization map, and [`docs/delivery.md`](docs/delivery.md) for the release 
 6. **KISS + Boy Scout**: keep the design as simple as the spec allows, and leave each file a little
    better than you found it — but only within your task's declared write-set, never unrelated
    refactors. (Full rules in the team working agreement.)
+
+When editing under `packages/<name>/`, read that package's
+`.github/instructions/<name>.instructions.md` first. To open work, **file an issue from a template**
+in [`.github/ISSUE_TEMPLATE/`](.github/ISSUE_TEMPLATE) (labels come from
+[`.github/labels.yml`](.github/labels.yml)); the `product-owner` schedules it onto a milestone.
 
 ## Spec fidelity cheatsheet (canonical OpenLogo, not classic Logo)
 

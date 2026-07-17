@@ -1,0 +1,69 @@
+name: "Epic"
+description: A large capability, usually one spec profile or major feature, spanning multiple slices and agents.
+title: "[epic]: "
+labels: ["type:epic"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        An **epic** groups feature slices toward a milestone. It closes when its profile is conformant across all domains.
+  - type: dropdown
+    id: profile
+    attributes:
+      label: Profile / area
+      options:
+        - core
+        - turtle-rendering
+        - data
+        - geometry
+        - heritage
+        - sprites
+        - interaction
+        - sound
+        - modules
+        - localization
+        - educational
+        - tutor-ai
+    validations:
+      required: true
+  - type: input
+    id: milestone
+    attributes:
+      label: Target milestone
+      placeholder: M2 Turtle & Rendering
+    validations:
+      required: true
+  - type: input
+    id: spec
+    attributes:
+      label: Spec sections (normative)
+      placeholder: spec/rendering.md, spec/conformance.md#turtle--rendering
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What capability this epic delivers and why it matters.
+    validations:
+      required: true
+  - type: textarea
+    id: slices
+    attributes:
+      label: Child slices
+      value: |
+        - [ ] #
+        - [ ] #
+    validations:
+      required: false
+  - type: textarea
+    id: exit
+    attributes:
+      label: Exit criteria
+      value: |
+        - [ ] The profile's conformance suite is green across all domains
+        - [ ] Cross-cutting contracts (AST / events / diagnostics / token classes) agreed and stable
+        - [ ] Docs + highlighting + examples updated
+        - [ ] Release tuple tagged (M2 onward)
+    validations:
+      required: true
