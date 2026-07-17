@@ -8,6 +8,12 @@ dist/
 # Test / coverage
 coverage/
 
+# Logs and local env
+*.log
+.env
+.env.*
+!.env.example
+
 # Editor / OS
 .DS_Store
-*.log
+Thumbs.db
