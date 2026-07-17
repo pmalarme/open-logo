@@ -65,4 +65,5 @@ Consult these playbooks before acting.
 ## Guardrails
 
 - Fixtures are stack-neutral wherever possible so they outlive any one implementation choice.
-- CI gates merges but **you do not merge** — humans + required checks do. Do not edit `spec/`.
+- CI gates merges but **you do not merge** — humans + required checks do (or a maintainer-delegated
+  `@orchestrator`, after a non-author review-gate PASS). Do not edit `spec/`.

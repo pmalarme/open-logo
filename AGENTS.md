@@ -59,7 +59,9 @@ parallelization map, and [`docs/delivery.md`](docs/delivery.md) for the release 
 5. **Definition of Done**: builds, type-checks, lints, unit + conformance + example tests pass,
    docs/spec cross-links updated, and an **independent pre-merge review** by a non-author has passed
    ([`shared/review-gate`](.github/skills/shared/review-gate/SKILL.md)). Do not self-merge — humans +
-   CI gate `main`.
+   required CI checks gate `main` by default; the maintainer may delegate merge execution to
+   `@orchestrator`, only after that non-author review-gate PASS + green CI (the implementer is never
+   the sole attester).
 6. **KISS + Boy Scout**: keep the design as simple as the spec allows, and leave each file a little
    better than you found it — but only within your task's declared write-set, never unrelated
    refactors. (Full rules in the team working agreement.)

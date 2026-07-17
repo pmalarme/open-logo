@@ -104,7 +104,8 @@ If yes, the update **must be in the same PR**. A behavior change that leaves its
 - End with an explicit **verdict**: `pass` (gate satisfied) or `block` (with the specific items to
   fix). A block is resolved by a new revision and a re-run of this gate.
 - **No self-merge.** The gate does not merge. Once the verdict is `pass` and required CI is green, a
-  **human** performs the merge (team instructions §5).
+  **human** performs the merge by default — or a maintainer-delegated `@orchestrator`, only on that
+  recorded non-author PASS (team instructions §5). The implementer is never the sole attester.
 
 ## Checklist (record on the PR)
 

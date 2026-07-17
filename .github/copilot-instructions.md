@@ -25,4 +25,6 @@ programming + turtle graphics + geometry + AI coaching + discovery learning.
 - Educational commands `explain`/`why`/`hint`/`debug` are deterministic; `hint` is progressive; the
   AI tutor is Socratic and degrades offline to the deterministic baseline.
 
-Do not self-merge; humans and required CI checks gate `main`.
+Do not self-merge; humans and required CI checks gate `main` by default — the maintainer may delegate
+merge execution to `@orchestrator`, only after an independent, non-author review-gate PASS
+(`shared/review-gate`) plus green required CI. The implementer is never the sole attester.

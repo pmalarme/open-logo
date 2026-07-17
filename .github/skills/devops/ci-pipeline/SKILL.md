@@ -58,7 +58,8 @@ Every merge to `main` must pass the same gates. This skill is how you wire and e
   action versions. `repeat 10000 [ forward 1 ]` tests semantics, not frames.
 - **Testing authors the suites; you wire them.** Don't write test content here — run what `@testing`
   produces.
-- You wire the gate; **humans + required checks merge.** Never add an auto-merge that bypasses review.
+- You wire the gate; **humans + required checks merge** (or a maintainer-delegated `@orchestrator`,
+  only on a non-author review-gate PASS). Never add an auto-merge that bypasses review.
 
 ## Procedure
 
