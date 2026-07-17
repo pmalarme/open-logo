@@ -320,6 +320,8 @@ Supported v0.1 shape specs are:
 
 The first means a regular polygon with `5` sides of length `100`. The second means a circle with radius `50`. The quoted word is required; `polygon` without quotes would be a procedure call, not a word value.
 
+Numeric arguments in a shape spec must be positive: a polygon needs a whole number of sides that is at least `3` and a positive side length, and a circle needs a positive radius. `area` and `perimeter` raise `ol-user-error` through `throw` when a shape spec breaks these rules.
+
 ### `area :shape`
 
 Source sketch:
@@ -333,6 +335,9 @@ define area :shape
     :size = :shape[3]
     if :sides < 3 or not (:sides == int :sides)
       throw "area needs a polygon with a whole number of sides, at least 3"
+    end if
+    if :size <= 0
+      throw "area needs a polygon with a positive side length"
     end if
     return :sides * (power :size 2) / (4 * tan (180 / :sides))
   end if
@@ -375,6 +380,9 @@ define perimeter :shape
     :size = :shape[3]
     if :sides < 3 or not (:sides == int :sides)
       throw "perimeter needs a polygon with a whole number of sides, at least 3"
+    end if
+    if :size <= 0
+      throw "perimeter needs a polygon with a positive side length"
     end if
     return :sides * :size
   end if

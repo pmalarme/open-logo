@@ -170,7 +170,7 @@ If the issue is a typo, the tutor may use did-you-mean information from the [err
 
 ## `challenge`: AI-created practice, not a test trap
 
-`challenge` belongs to the Tutor profile. It asks the learner to extend, vary, or explain their program. A challenge should be small enough to try now and open enough to invite discovery.
+`challenge` belongs to the Tutor profile. It is a Command invoked as the bare word `challenge` with no inputs, and it produces tutor output rather than a program value. It asks the learner to extend, vary, or explain their program. A challenge should be small enough to try now and open enough to invite discovery.
 
 Good challenges:
 

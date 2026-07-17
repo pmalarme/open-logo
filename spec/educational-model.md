@@ -45,7 +45,7 @@ Core ideas:
 - A turtle has a position, heading, pen, color, and width.
 - `forward` and `back` move; `right` and `left` turn in degrees.
 - `pen_up` and `pen_down` decide whether movement draws.
-- `clear_screen` starts again.
+- `clear_screen` starts again, and `home` returns the turtle to the center.
 
 ```logo
 # why: the turtle draws only while the pen is down
@@ -98,6 +98,7 @@ Core ideas:
 - `set size to 80` is the worded assignment form.
 - `==` compares; `=` assigns.
 - `random 100` reports a whole number for variety, and arithmetic such as `+`, `-`, `*`, and `/` combines values.
+- `print` shows a value so the learner can check it.
 
 ```logo
 # why: changing :size once changes every side
@@ -210,6 +211,8 @@ Core ideas:
 - A regular polygon turns by `360 / :sides`.
 - A circle can be approximated by many small polygon sides.
 - `sin`, `cos`, `tan`, `sqrt`, `power`, and `pi` are tools for explaining motion and shape.
+- `mod` and `abs` help with remainders and distances.
+- `set_xy` places the turtle at a coordinate, and `stamp` leaves a copy of its shape.
 - `grid`, `axes`, and `measure` are overlays that help learners see relationships.
 
 ```logo
@@ -238,7 +241,7 @@ Lists are ordered mutable sequences. They use `[ ]` in value position and are in
 
 Core ideas:
 
-- `[ ]` can make a list.
+- `[ ]` can make a list, and `list` makes one that starts empty.
 - `:l[i]` reads or writes a list item.
 - `add … to` grows a list in place.
 - `remove … from` removes the first matching item.
@@ -395,15 +398,18 @@ end for
 
 | Learner concept | Primary OpenLogo forms | First level | Why it appears there |
 |---|---|---:|---|
-| Movement with visible feedback | `forward`, `back`, `right`, `left`, `pen_up`, `pen_down`, `set_color`, `set_width` | 1 | The learner can immediately see cause and effect. |
+| Movement with visible feedback | `forward`, `back`, `right`, `left`, `pen_up`, `pen_down`, `set_color`, `set_width`, `home` | 1 | The learner can immediately see cause and effect. |
 | Ordered instructions | one instruction per line, `[ ]` blocks later | 1 | A program begins as a readable list of actions. |
 | Repetition | `repeat`, `repcount` | 2 | A visible pattern becomes one named rule. |
 | Variable naming | `:name = value`, `set name to value`, `:name` reads | 3 | One value can control many instructions. |
+| Showing values | `print` | 3 | Learners can read a value, not only see a drawing. |
 | Comparison and choice | `if … else`, `==`, `!=`, `<`, `>`, `<=`, `>=`, worded `is` predicates, `true`, `false`, `and`, `or`, `not` | 4 | Programs can choose only from explicit booleans. |
 | Procedures | `define … end`, procedure calls | 5 | Learners teach OpenLogo a discovered pattern. |
 | Reporters | `return`, heritage `output` and `op` | 5 | A procedure can answer a question with a value. |
 | Derived geometry | learner-built `polygon`, then `star`, `circle`, `arc`, `grid`, `axes`, `measure` | 6 | Shapes are visible math, not hidden primitives. |
-| Lists | `[ ]`, `:l[i]`, `add … to`, `remove … from`, `count`, `member?` / worded `… is member of` | 7a | Ordered memory supports paths, scores, and steps. |
+| Turtle placement and marking | `set_xy`, `stamp` | 6 | Coordinates and stamps support diagrams and games. |
+| Number tools | `mod`, `abs`, `int`, `round` | 6 | Arithmetic helpers measure and adjust motion. |
+| Lists | `[ ]`, `list`, `:l[i]`, `add … to`, `remove … from`, `count`, `member?` / worded `… is member of` | 7a | Ordered memory supports paths, scores, and steps. |
 | Dictionaries | `{ key: value }`, `:d.k`, `:d[k]`, `:d[:var]`, upsert on write | 7b | Named memory supports meaningful lookup. |
 | Records | `struct`, type-name constructor, `:p.f`, nested chains | 7c | Fixed fields keep related facts together. |
 | Recursion | `define`, `if`, self-call, `stop` | 8a | A rule can solve a smaller version of itself. |
@@ -412,7 +418,16 @@ end for
 
 ## Baseline meta-commands
 
-The [Educational profile in conformance.md](conformance.md#educational) makes four baseline meta-commands its normative requirement: `explain`, `why`, `hint`, and `debug`. They are commands, and their invocation syntax is documented in [commands.md](commands.md). Their educational behavior is owned here.
+The [Educational profile in conformance.md](conformance.md#educational) makes four baseline meta-commands its normative requirement: `explain`, `why`, `hint`, and `debug`. This document is their owning profile document in the sense of [conformance.md](conformance.md), so their canonical signatures are normative here:
+
+| Name | Kind | Default arity | Result |
+|---|---:|---:|---|
+| `explain` | C | 0 | none (tutor output) |
+| `why` | C | 0 | none (tutor output) |
+| `hint` | C | 0 | none (tutor output) |
+| `debug` | C | 0 | none (tutor output) |
+
+Each is a Command invoked as a bare word with no inputs; the AI-enhanced `challenge` command has the same shape and is specified in [ai-tutor.md](ai-tutor.md). Their educational behavior is owned here.
 
 Baseline means **no AI is required**. These commands are deterministic and template-based. They use the parsed program, source spans, trace events, diagnostics, and known command metadata to produce predictable help. AI-enhanced behavior is optional and is specified in [ai-tutor.md](ai-tutor.md).
 

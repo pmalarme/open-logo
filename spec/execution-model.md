@@ -364,7 +364,11 @@ its own trace events.
 whole-number count, checked in order: if the count is not a whole number it
 raises `ol-type`; otherwise, if it is negative, it raises `ol-range`.
 `forever` runs until cancellation or a configured limit. `for ... from ... to`
-iterates numerically, with an optional `by` step. `for ...
+iterates numerically over an inclusive range: the variable starts at `start` and
+each turn adds the `by` step (default `1`); with a positive step the body runs
+while the variable is at most `end`, and with a negative step while it is at
+least `end`. A step that points away from `end` runs the body zero times, and a
+step of `0` raises `ol-range`. `for ...
 in ...` iterates list elements in order; dict iteration follows insertion order
 when a dict is accepted by a profile-specific form. Control forms run their
 bodies for effect and produce no value.
@@ -555,7 +559,7 @@ stepping, `why`, `debug`, playback, and sprites. Every event has this envelope:
 | `seq` | Monotonic integer sequence number. |
 | `kind` | One registered event kind. |
 | `source-span` | Source range that caused the event. |
-| `turtle-id?` | Optional turtle identity when the event is turtle-specific. |
+| `turtle-id` | Turtle identity; present only when the event is turtle-specific, otherwise absent. |
 | `payload` | Kind-specific typed data. |
 
 There are two timing classes:

@@ -31,7 +31,7 @@ The full underscored names are primary. Implementations MAY expose aliases throu
 
 `new_turtle` creates a fresh turtle with its own state: position, heading, pen state, color, width, visibility, and shape. The initial state for a new turtle follows the same turtle defaults as the main turtle in [commands.md](commands.md) and [execution-model.md](execution-model.md): origin at the canvas center, heading `0` degrees up, pen down, color `"black"`, width `1`, visible, and the implementation's default turtle shape.
 
-Creating a turtle emits the `spawn-turtle` trace event defined in [execution-model.md](execution-model.md#trace-and-event-registry). The event is an effect event, so it is emitted immediately after the new turtle exists. Its envelope includes the common `seq`, `kind`, `source-span`, optional `turtle-id?`, and `payload` fields. The payload MUST identify the newly created turtle and SHOULD include its initial visible state for renderers and debuggers.
+Creating a turtle emits the `spawn-turtle` trace event defined in [execution-model.md](execution-model.md#trace-and-event-registry). The event is an effect event, so it is emitted immediately after the new turtle exists. Its envelope includes the common `seq`, `kind`, `source-span`, optional `turtle-id`, and `payload` fields. The payload MUST identify the newly created turtle and SHOULD include its initial visible state for renderers and debuggers.
 
 ```logo
 :leader = who

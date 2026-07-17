@@ -169,7 +169,9 @@ when "start" [
 - **Errors:** `ol-type`, `ol-range`
 - **Concept:** repeated timed action
 
-`every` registers a block to run every `n` ticks. `n` MUST be a positive number.
+`every` registers a block to run every `n` ticks. `n` MUST be a positive whole
+number: a non-whole count raises `ol-type`, and a zero or negative count raises
+`ol-range`.
 The first run occurs after `n` ticks have elapsed. If a prior invocation is
 still running when the next interval arrives, the implementation queues at most
 one pending invocation for that `every` handler to prevent unbounded buildup.
@@ -230,7 +232,8 @@ on_click [
 - **Concept:** time and animation pacing
 
 `wait` pauses the current program for `n` ticks. `n` MUST be a non-negative
-number. `wait 0` yields to the renderer and event loop without adding a visible
+whole number: a non-whole count raises `ol-type`, and a negative count raises
+`ol-range`. `wait 0` yields to the renderer and event loop without adding a visible
 delay. Turtle and geometry documents may reference `wait` for animation, but
 this document owns its definition.
 

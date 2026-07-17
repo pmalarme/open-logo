@@ -305,7 +305,7 @@ print sqrt 81
 - **Kind:** Reporter
 - **Argument types:** number
 - **Result:** number
-- **Description:** Reports the integer part of a number.
+- **Description:** Reports the integer part of a number by truncating toward zero (the fractional part is dropped), so `int 3.8` is `3` and the integer part of `-3.8` is `-3`.
 - **Concept:** Separating whole-number quantity from fractional detail.
 - **Example:**
 
@@ -322,7 +322,7 @@ print int 3.8
 - **Kind:** Reporter
 - **Argument types:** number
 - **Result:** number
-- **Description:** Reports the nearest whole number.
+- **Description:** Reports the nearest whole number. A value exactly halfway between two whole numbers rounds up toward positive infinity, so `round 3.5` is `4` and the nearest whole number to `-3.5` is `-3`.
 - **Concept:** Approximation.
 - **Example:**
 
@@ -356,7 +356,7 @@ print power 2 8
 - **Kind:** Reporter
 - **Argument types:** number or two numbers
 - **Result:** number
-- **Description:** `random n` reports an integer in `[0,n-1]`. `(random a b)` reports an integer in `[a,b]`.
+- **Description:** `random n` reports an integer in `[0, n-1]`; `n` MUST be a whole number of at least `1`. `(random a b)` reports an integer in `[a, b]`; `a` and `b` MUST be whole numbers with `a <= b`. Inputs are checked in order: a non-whole bound raises `ol-type`; then `n` below `1`, or `a` greater than `b`, raises `ol-range`.
 - **Concept:** Controlled unpredictability.
 - **Example:**
 
@@ -365,7 +365,7 @@ print random 100
 print (random 1 6)
 ```
 
-- **Possible errors:** `ol-type`.
+- **Possible errors:** `ol-type`, `ol-range`.
 
 ### `randomize`
 
@@ -668,7 +668,7 @@ print empty? []
 print ([] is empty)
 ```
 
-- **Possible errors:** none specified in the primitive matrix.
+- **Possible errors:** `ol-type` when the value is not a list, dict, or word, matching the worded form `value is empty`.
 
 ### `member?`
 
@@ -686,7 +686,7 @@ print member? 2 [1 2 3]
 print (2 is member of [1 2 3])
 ```
 
-- **Possible errors:** none specified in the primitive matrix.
+- **Possible errors:** `ol-type` when the collection is not a list or dict, matching the worded form `value is member of collection`.
 
 ### `is_a?`
 
@@ -704,7 +704,7 @@ print is_a? 5 "number"
 print (5 is a "number")
 ```
 
-- **Possible errors:** none specified in the primitive matrix.
+- **Possible errors:** `ol-unknown-type` when the type word does not name a known built-in type or declared struct.
 
 ## Control
 
@@ -779,7 +779,7 @@ end repeat
 - **Kind:** Reporter
 - **Argument types:** none
 - **Result:** number
-- **Description:** Reports the current 1-based iteration count inside `repeat`.
+- **Description:** Reports the current 1-based iteration count of the innermost enclosing `repeat`. When several `repeat` loops are nested, `repcount` refers to the nearest one.
 - **Concept:** A loop can know which turn it is on.
 - **Example:**
 
@@ -789,7 +789,7 @@ repeat 3
 end repeat
 ```
 
-- **Possible errors:** none specified in the primitive matrix.
+- **Possible errors:** `ol-repcount-outside-repeat` when `repcount` is used outside any `repeat` loop.
 
 ### `for … in …`
 
@@ -818,7 +818,7 @@ end for
 - **Kind:** Special form
 - **Argument types:** variable name, number, number, optional number, block
 - **Result:** —
-- **Description:** Runs a block for a numeric range. The optional `by step` clause sets the increment (default `1`) and is part of Core; the `*(ext)*` mark in the primitive matrix is provenance only, not a separate profile.
+- **Description:** Runs a block over a numeric range with an inclusive start and end. The optional `by step` clause sets the increment (default `1`) and is part of Core; the `*(ext)*` mark in the primitive matrix is provenance only, not a separate profile. The variable begins at `start`; each turn adds `step`. With a positive `step` the block runs while the variable is `<= end`; with a negative `step` it runs while the variable is `>= end`. A `step` that points away from `end` — for example `for i from 1 to 4 by -1` — runs the block zero times, and a `step` of `0` cannot make progress and raises `ol-range`.
 - **Concept:** Counting through a range.
 - **Example:**
 
@@ -828,7 +828,7 @@ for i from 1 to 4
 end for
 ```
 
-- **Possible errors:** `ol-type`.
+- **Possible errors:** `ol-type`, `ol-range`.
 
 ### `forever`
 
@@ -1531,7 +1531,7 @@ set_color "blue"
 forward 100
 ```
 
-- **Possible errors:** none specified in C3 beyond general type and arity diagnostics.
+- **Possible errors:** `ol-bad-color` when the argument is not one of the accepted color forms.
 
 ### `set_background`
 
@@ -1548,7 +1548,7 @@ forward 100
 set_background "white"
 ```
 
-- **Possible errors:** none specified in C3 beyond general type and arity diagnostics.
+- **Possible errors:** `ol-bad-color` when the argument is not one of the accepted color forms.
 
 ### `set_width`
 
@@ -1557,7 +1557,7 @@ set_background "white"
 - **Kind:** Command
 - **Argument types:** number
 - **Result:** —
-- **Description:** Sets the pen stroke width for future drawing.
+- **Description:** Sets the pen stroke width for future drawing. The width MUST be a positive number.
 - **Concept:** Lines have measurable thickness.
 - **Example:**
 
@@ -1566,7 +1566,7 @@ set_width 4
 forward 100
 ```
 
-- **Possible errors:** none specified in C3 beyond general type and arity diagnostics.
+- **Possible errors:** `ol-range` when the width is zero or negative; a non-number width is the general `ol-type`.
 
 ### `fill`
 
@@ -1627,6 +1627,8 @@ Color values accepted by `set_color` and `set_background` are exactly:
 - An RGB list `[r g b]` where each component is a number from `0` through `255`.
 - A hex word of the form `"#rrggbb"`.
 
+Any value that is not one of these three forms — including an unknown color word, a hex word that is not exactly `"#rrggbb"`, or an `[r g b]` list of the wrong length or with a component outside `0` through `255` — raises `ol-bad-color`.
+
 ```logo
 set_color "red"
 set_background [240 240 240]
@@ -1641,4 +1643,4 @@ The color concept is representation: the same visible idea can be named, measure
 - Data-profile mutation and structure primitives such as `list`, `add … to`, `remove … from`, `insert … in … at`, `clear`, dictionary literals, `keys`, `values`, `struct`, constructors, and record fields are specified in [data-structures.md](data-structures.md).
 - Sprite-profile primitives `new_turtle`, `tell`, `ask`, `each`, `turtles`, and `who` are specified in [turtles-and-sprites.md](turtles-and-sprites.md).
 - Interaction and sound primitives including `input`, `wait`, `when`, `every`, `on_key`, `on_click`, `note`, `play`, `beep`, `rest`, and `set_tempo` are specified in [interaction-events.md](interaction-events.md).
-- Meta-commands are invoked as `explain`, `why`, `hint`, and `debug` in the Educational profile. AI-enhanced behavior and `challenge` are specified in [ai-tutor.md](ai-tutor.md).
+- Meta-commands are commands taking no inputs, invoked as the bare words `explain`, `why`, `hint`, and `debug` in the Educational profile; their canonical signatures are owned by [educational-model.md](educational-model.md). AI-enhanced behavior and the `challenge` command are specified in [ai-tutor.md](ai-tutor.md).

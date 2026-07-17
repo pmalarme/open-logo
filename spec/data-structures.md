@@ -128,8 +128,8 @@ print count :nums # => 3
 |---|---:|---|---|---|---|
 | `reverse` | R | list | list | — | returns a fresh list in reverse order |
 | `pick` | R | list | element | `ol-range` on empty | returns one element |
-| `sort` | R | list | list | — | returns a fresh sorted list |
-| `member? value collection` (Core) | R | value, collection | boolean | — | Core membership test; on a list it checks elements, and with the Data profile a dict is also accepted, checking its keys; worded form `value is member of collection` |
+| `sort` | R | list | list | `ol-type` | returns a fresh list sorted in ascending order; elements must be mutually orderable (all numbers or all words), else `ol-type` |
+| `member? value collection` (Core) | R | value, collection | boolean | `ol-type` | Core membership test; on a list it checks elements, and with the Data profile a dict is also accepted, checking its keys; a collection that is neither a list nor a dict raises `ol-type`; worded form `value is member of collection` |
 
 ```logo
 :nums = [1 2 3]
@@ -137,6 +137,8 @@ print count :nums # => 3
 print member? 2 :nums          # => true
 print (2 is member of :nums)   # => true
 ```
+
+`sort` orders numbers numerically and words lexicographically, following the same ordering rules as `<`, `>`, `<=`, and `>=` in [execution-model.md](execution-model.md). A list that mixes numbers and words, or that contains any other type, is not mutually orderable and raises `ol-type`.
 
 ## Dictionaries
 
