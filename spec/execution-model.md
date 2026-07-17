@@ -159,9 +159,10 @@ valid ordinary names elsewhere. There is no infix `in` membership operator — u
 comparisons (`<`, `>`, `<=`, `>=`) and `[ strictly ] between` require numbers or
 words; `==` and `!=` compare any two values; `is empty` accepts lists, dicts, and
 words; `is member of` accepts lists and dicts; `is a` accepts any value. A
-wrong-typed operand raises `ol-type`. The `<type-word>` operand of `is a` /
-`is_a?` must itself be a word that names a known type: a non-word type argument
-raises `ol-type`, and a word naming no built-in type or declared struct raises
+wrong-typed operand raises `ol-type`. The worded `is a` form takes a literal
+type word in the grammar, so at runtime only an unknown type word can occur and
+it raises `ol-unknown-type`. The prefix `is_a? value type` evaluates its type
+argument: a non-word type raises `ol-type`, and an unknown type word raises
 `ol-unknown-type`.
 
 Assignment `=` and `set ... to` are statement-level special forms, not
