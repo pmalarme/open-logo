@@ -1,0 +1,150 @@
+---
+applyTo: "**"
+---
+
+# OpenLogo Team — Working Agreement
+
+This file is the shared charter for every OpenLogo agent and contributor. It is always in
+context (`applyTo: "**"`). Individual agents live in `.github/agents/*.agent.md` and inherit
+these rules.
+
+## 1. What we are building
+
+**OpenLogo** (short name **OL**, source files `*.logo`) is a modern, open-source, educational
+reimagining of Logo: **programming + turtle graphics + geometry + AI coaching + discovery
+learning**. The language contract is fully specified in [`spec/`](../../spec/README.md).
+
+We implement that spec as a **TypeScript 7 monorepo** in `openlogo/` with six packages
+(see [ADR-0001](../../docs/adr/0001-tech-stack.md)):
+
+| Package | Owns | Primary agent(s) |
+|---|---|---|
+| `@openlogo/core` | value/type model, `ol-*` diagnostics, trace/event registry, feature-detection metadata | interpreter |
+| `@openlogo/parser` | lexis, reader, EBNF grammar, AST, reserved words, parse + semantic lint | language-designer, interpreter |
+| `@openlogo/runtime` | evaluator, scoping, procedures, control forms, comprehensions, places/mutation, equality, safety | interpreter |
+| `@openlogo/robot` | turtle/sprite state, pen/heading/shape, rendering (Canvas/SVG/PNG), animation, export, accessibility | turtle-engine |
+| `@openlogo/studio` | editor/REPL, run/stop/step, diagnostics UI, tooling/LSP, lesson pane, persistence | learner-experience |
+| `@openlogo/edu` | learner levels, `explain`/`why`/`hint`/`debug`, geometry stdlib, AI tutor, curriculum, examples | geometry-teacher, ai-tutor, curriculum |
+
+## 2. The source of truth
+
+- **`spec/` is normative.** It is the contract. When code and spec disagree, the spec wins;
+  open an issue rather than diverging silently.
+- **`spec/` is owned by the maintainer (@pmalarme).** No agent edits `spec/` directly. The
+  **product-owner** agent proposes changes via a PR that a human reviews and merges. Everyone
+  else raises ambiguities as issues/change-requests.
+- Key spec files agents must read before working in their area:
+  [`conformance.md`](../../spec/conformance.md) (profiles + dependency DAG + minimal path),
+  [`grammar.md`](../../spec/grammar.md), [`commands.md`](../../spec/commands.md) (C3 primitive
+  matrix), [`execution-model.md`](../../spec/execution-model.md),
+  [`error-model.md`](../../spec/error-model.md) (`ol-*` codes),
+  [`rendering.md`](../../spec/rendering.md), [`educational-model.md`](../../spec/educational-model.md),
+  [`ai-tutor.md`](../../spec/ai-tutor.md), [`tooling.md`](../../spec/tooling.md).
+
+## 3. Build order follows the spec's profile DAG
+
+Minimal conforming implementation is **Core Language → Turtle & Rendering**. Build in that
+order, then add optional profiles only with their transitive dependencies:
+
+```text
+Core Language
+├─ Turtle & Rendering ─┬─ Geometry (also needs Data) └─ Sprites
+├─ Data
+├─ Heritage (also needs Data)
+├─ Interaction & Events
+├─ Sound
+├─ Modules ─ Localization
+└─ Educational ─ Tutor (AI)
+```
+
+Learner **levels are a curriculum sequencing model, not profiles** — do not conflate them.
+
+## 4. How we work
+
+- **Vertical slices, not horizontal phases.** Deliver one language feature end to end:
+  grammar → AST → runtime + trace events → renderer/UI → conformance + integration tests →
+  teaching hooks → docs. Do **not** build "all parsing", then "all runtime".
+- **One task = one PR** on a feature branch. Each task **declares its write-set** (the files/
+  packages it will touch) up front.
+- **Serialize shared-file edits.** Grammar, cross-package contracts, `package.json`/workspace
+  manifests, and anything under `spec/` change one PR at a time to avoid conflicts.
+- **One integration owner per story** (the orchestrator or the story's primary agent) merges
+  the slice and keeps `main` green.
+- **Respect package boundaries.** Depend on a sibling package's public API, never its internals.
+  Cross-package changes need the owning agent's review.
+
+## 5. Definition of Done (CI-enforced)
+
+A change is done only when, for the artifacts it touches:
+
+1. It builds and type-checks (TypeScript 7).
+2. Lint passes (including OpenLogo style-lint rules where relevant).
+3. Unit tests pass.
+4. **Conformance fixtures pass** — behavior is proven by stack-neutral `source → events/
+   diagnostics` fixtures under `tests/conformance/`, extended for the new feature.
+5. Runnable `spec/examples/*.logo` and doc examples still parse and run.
+6. Accessibility and pedagogy checks pass where applicable (see §8–9).
+7. Docs and spec cross-links are updated in the same PR (no drift).
+
+Agents do not self-merge; humans and required CI checks gate `main`.
+
+## 6. Spec fidelity — canonical OpenLogo, not classic Logo
+
+Match the merged spec exactly. Common mistakes to avoid:
+
+- **Lowercase keywords, light punctuation.** No commas, no `f(x,y)` call syntax, no significant
+  whitespace, no arrays/lambda/first-class procedure values in v0.1.
+- **Procedures:** Core uses `define … end` with `return`/`stop`/`throw`. `to`/`output`/`op` are
+  **Heritage** spellings (optional profile), not Core.
+- **Turtle commands:** Core canonical names are `forward`/`back`/`left`/`right`/`penup`/
+  `pendown`/`showturtle`/`hideturtle`/`clearscreen`/`print`. `fd`/`bk`/`lt`/`rt`/`pu`/`pd`/
+  `st`/`ht`/`cs`/`pr` are **Heritage** aliases.
+- **Assignment vs comparison:** `<place> = <value>` and `set <place> to <value>` assign; `==`
+  compares. `make` is Heritage. Variables are referenced as `:name`; places nest like
+  `:people.tom.age`.
+- **Values:** `number`, `word` (`"red"`), `list` (`[ ]`), `boolean` are Core. `dict` (`{ k: v }`)
+  and `record`/`struct` are the **Data** profile.
+- **Control forms:** `if`, `while`, `repeat`, `forever`, `for … in`, `for … from … to`.
+  Comprehensions `map`/`filter`/`reduce` are Core with bracketed expression bodies — no lambda.
+- **Blocks** are `[ … ]` inline or `… end` multiline; a control body is always delimited.
+- **Geometry is discoverable source.** `polygon` and friends are OpenLogo standard-library
+  procedures (Geometry profile), **not** opaque primitives. Only `grid`/`axes`/`measure` are
+  renderer-backed. Never add hidden drawing shortcuts that bypass learning `repeat`/turns/`define`.
+
+## 7. Diagnostics, traces, and feature detection
+
+- All diagnostics use the normative shape and stable **`ol-*` codes** from
+  [`error-model.md`](../../spec/error-model.md): code, source span, params, message, stage
+  (parse/semantic/runtime), severity, plus optional did-you-mean. Style lints use `ol-style-*`.
+  Diagnostics are owned by `@openlogo/core`; never invent ad-hoc error strings.
+- Execution emits a **deterministic trace/event stream** (`@openlogo/core` registry, produced by
+  `@openlogo/runtime`, consumed by `@openlogo/robot` and `@openlogo/studio`). Keep turtle
+  **state/events deterministic and headless**, with animation layered on top — so
+  `repeat 10000 [ forward 1 ]` tests semantics, not frames.
+- Feature-detection metadata exposes `openlogo.version` = `0.1.0`, supported profiles, extension
+  names, and rendering targets. Extensions use the `<vendor>.<feature>` namespace and must not
+  redefine profile behavior.
+
+## 8. Determinism, safety, and rendering
+
+- Movement/heading math is deterministic; degrees, `0` points up, `right` turns clockwise.
+- Enforce a cancellable execution budget (Run/Stop/Reset) so runaway programs stay stable.
+- Rendering (`@openlogo/robot`) must support at least Canvas; SVG/PNG recommended. Honor
+  reduced-motion, keyboard access, and non-visual descriptions from
+  [`rendering.md`](../../spec/rendering.md). Export must be deterministic.
+
+## 9. Educational guardrails
+
+- `explain`, `why`, `hint`, `debug` are **Educational** profile commands: deterministic, offline,
+  template-based, and must not print a complete ready-to-run solution. **`hint` is progressive** —
+  a nudge first, never the full answer.
+- `challenge` and AI behavior are the **Tutor (AI)** profile: Socratic (ask before answering),
+  learner-adaptive, and **degrade gracefully to the deterministic Educational baseline when the
+  AI backend is unavailable**. The AI provider is pluggable behind a provider-neutral adapter.
+
+## 10. Conventions
+
+- TypeScript 7, ES modules, `strict` on. Public API namespace is **OL**.
+- Prefer ecosystem tooling over hand-rolled scripts. No secrets in code or fixtures.
+- No MCP servers required in v1 (optional Microsoft Learn MCP later for research-heavy agents).
+- When you finish a slice, leave the tree green and the docs/spec cross-links consistent.
