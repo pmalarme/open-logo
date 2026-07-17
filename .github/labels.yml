@@ -1,0 +1,62 @@
+# OpenLogo issue label taxonomy — the single source of truth for the labeler.
+# Sync with: see .github/skills/product-owner/triage-and-label/SKILL.md
+# Rule: exactly one agent:* and one type:* per issue; add profile:*/area:*/level:* as they apply.
+
+# --- Owning agent (exactly one) ---
+- { name: "agent:orchestrator",      color: "5319e7", description: "Owned by the orchestrator / tech-lead" }
+- { name: "agent:product-owner",     color: "5319e7", description: "Owned by the product owner" }
+- { name: "agent:language-designer", color: "5319e7", description: "Owned by the language designer" }
+- { name: "agent:interpreter",       color: "5319e7", description: "Owned by the interpreter engineer" }
+- { name: "agent:turtle-engine",     color: "5319e7", description: "Owned by the turtle engine" }
+- { name: "agent:learner-experience",color: "5319e7", description: "Owned by learner experience (studio)" }
+- { name: "agent:geometry-teacher",  color: "5319e7", description: "Owned by the geometry teacher" }
+- { name: "agent:ai-tutor",          color: "5319e7", description: "Owned by the AI tutor" }
+- { name: "agent:curriculum",        color: "5319e7", description: "Owned by curriculum" }
+- { name: "agent:testing",           color: "5319e7", description: "Owned by testing / QA" }
+- { name: "agent:documentation",     color: "5319e7", description: "Owned by documentation" }
+- { name: "agent:devops",            color: "5319e7", description: "Owned by DevSecOps / platform" }
+
+# --- Kind of work (exactly one) ---
+- { name: "type:feature-request", color: "a2eeef", description: "Inbound idea / enhancement request, before triage" }
+- { name: "type:epic",        color: "3e4b9e", description: "Large capability, usually one profile / major feature" }
+- { name: "type:slice",       color: "1d76db", description: "One vertical slice / user story, end to end" }
+- { name: "type:bug",         color: "d73a4a", description: "A defect with a reproduction" }
+- { name: "type:conformance", color: "0e8a16", description: "Conformance fixtures / harness work" }
+- { name: "type:foundation",  color: "6f42c1", description: "Toolchain / monorepo / CI setup (mostly M0)" }
+- { name: "type:docs",        color: "0075ca", description: "Documentation task" }
+- { name: "type:chore",       color: "bfdadc", description: "Small maintenance task" }
+
+# --- Spec profile the work touches (the milestone, set separately, says where it lands) ---
+- { name: "profile:core",             color: "fbca04", description: "Core Language profile" }
+- { name: "profile:turtle-rendering", color: "fbca04", description: "Turtle & Rendering profile" }
+- { name: "profile:data",             color: "fbca04", description: "Data profile" }
+- { name: "profile:geometry",         color: "fbca04", description: "Geometry profile" }
+- { name: "profile:heritage",         color: "fbca04", description: "Heritage profile" }
+- { name: "profile:sprites",          color: "fbca04", description: "Sprites profile" }
+- { name: "profile:interaction",      color: "fbca04", description: "Interaction & Events profile" }
+- { name: "profile:sound",            color: "fbca04", description: "Sound profile" }
+- { name: "profile:modules",          color: "fbca04", description: "Modules profile" }
+- { name: "profile:localization",     color: "fbca04", description: "Localization profile" }
+- { name: "profile:educational",      color: "fbca04", description: "Educational profile" }
+- { name: "profile:tutor-ai",         color: "fbca04", description: "Tutor (AI) profile" }
+
+# --- Cross-cutting domain (orthogonal to the owning agent) ---
+- { name: "area:grammar",     color: "c2e0c6", description: "EBNF grammar / reserved words" }
+- { name: "area:highlighter", color: "c2e0c6", description: "Syntax highlighting / token classes" }
+- { name: "area:checker",     color: "c2e0c6", description: "Syntax + semantic checker / linter" }
+- { name: "area:runtime",     color: "c2e0c6", description: "Evaluator / runtime" }
+- { name: "area:rendering",   color: "c2e0c6", description: "Turtle rendering / export" }
+- { name: "area:studio",      color: "c2e0c6", description: "Browser studio UI" }
+- { name: "area:edu",         color: "c2e0c6", description: "Education layer" }
+- { name: "area:ci",          color: "c2e0c6", description: "CI / build / tooling" }
+- { name: "area:docs",        color: "c2e0c6", description: "Docs surface" }
+
+# --- Curriculum learner level (progression, not a profile) ---
+- { name: "level:1", color: "d4c5f9", description: "L1 movement" }
+- { name: "level:2", color: "d4c5f9", description: "L2 repetition" }
+- { name: "level:3", color: "d4c5f9", description: "L3 variables" }
+- { name: "level:4", color: "d4c5f9", description: "L4 conditions" }
+- { name: "level:5", color: "d4c5f9", description: "L5 procedures" }
+- { name: "level:6", color: "d4c5f9", description: "L6 geometry / math" }
+- { name: "level:7", color: "d4c5f9", description: "L7 data" }
+- { name: "level:8", color: "d4c5f9", description: "L8 algorithms" }

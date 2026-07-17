@@ -1,0 +1,101 @@
+name: "User story (vertical slice)"
+description: One observable behavior delivered end to end (semantics → runtime/events → render/UI → tests → teaching → docs).
+title: "[slice]: "
+labels: ["type:slice"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A **vertical slice**: one behavior, one PR, one declared write-set. Ground everything in the spec.
+  - type: dropdown
+    id: agent
+    attributes:
+      label: Owning agent
+      options:
+        - orchestrator
+        - product-owner
+        - language-designer
+        - interpreter
+        - turtle-engine
+        - learner-experience
+        - geometry-teacher
+        - ai-tutor
+        - curriculum
+        - testing
+        - documentation
+        - devops
+    validations:
+      required: true
+  - type: dropdown
+    id: profile
+    attributes:
+      label: Profile
+      options:
+        - core
+        - turtle-rendering
+        - data
+        - geometry
+        - heritage
+        - sprites
+        - interaction
+        - sound
+        - modules
+        - localization
+        - educational
+        - tutor-ai
+    validations:
+      required: true
+  - type: input
+    id: spec
+    attributes:
+      label: Spec sections (normative)
+      description: Exact paths this slice implements.
+      placeholder: spec/commands.md (forward), spec/execution-model.md
+    validations:
+      required: true
+  - type: textarea
+    id: story
+    attributes:
+      label: User story
+      placeholder: As a learner, I want the turtle to move forward so that I can draw.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria (Given / When / Then)
+      value: |
+        Given a turtle at x=0 y=0 heading=0
+        When  forward 100 is executed
+        Then  the turtle is at x=0 y=100 and a segment (0,0)->(0,100) is drawn
+    validations:
+      required: true
+  - type: textarea
+    id: dod
+    attributes:
+      label: Definition of Done
+      value: |
+        - [ ] Behavior matches the cited spec sections (canonical vocabulary)
+        - [ ] Unit tests + conformance fixtures added and green
+        - [ ] `ol-*` diagnostics used (no ad-hoc errors) where applicable
+        - [ ] Runnable examples validated
+        - [ ] Docs / highlighting updated in the same PR if grammar/semantics changed
+        - [ ] Accessibility / pedagogy checks pass where applicable
+        - [ ] One vertical slice, one PR, declared write-set
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies / write-set
+      description: >-
+        The files/globs this slice will change (its declared write-set, per the team
+        instructions §4), plus any blocking issues. Required so shared-file edits can be
+        serialized and reviewers can spot overlap before work starts.
+      placeholder: |
+        Write-set:
+          - packages/parser/src/grammar/**
+          - packages/runtime/src/eval/repeat.ts
+        Blocked by: #12
+    validations:
+      required: true

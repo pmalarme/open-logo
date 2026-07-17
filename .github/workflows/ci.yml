@@ -1,0 +1,86 @@
+name: CI
+
+# Encodes the team Definition of Done as gates. The meta job runs from day one and
+# detects whether the workspace manifest (package.json) has landed; code jobs activate
+# automatically once it has. See .github/skills/devops/ci-pipeline/SKILL.md. Owned by @devops.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  meta:
+    name: Meta (labels, issue forms, workflows)
+    runs-on: ubuntu-latest
+    outputs:
+      has_toolchain: ${{ steps.detect.outputs.has_toolchain }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - run: pip install pyyaml
+      - name: Validate metadata
+        run: python .github/scripts/validate-meta.py
+      - id: detect
+        name: Detect toolchain
+        # hashFiles() is unreliable in a job-level `if` (it runs before checkout), so we
+        # detect the manifest here and expose it as an output the code jobs gate on.
+        run: |
+          if [ -f package.json ]; then
+            echo "has_toolchain=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_toolchain=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    name: Build & type-check
+    needs: meta
+    if: ${{ needs.meta.outputs.has_toolchain == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # TODO(@devops): align install with the workspace manager chosen in ADR-0001.
+      # No --if-present: once the toolchain lands, each DoD script MUST exist, so a
+      # missing gate is a real failure rather than a silent pass.
+      - run: npm ci
+      - run: npm run -s build
+      - run: npm run -s typecheck
+
+  lint:
+    name: Lint & format
+    needs: meta
+    if: ${{ needs.meta.outputs.has_toolchain == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm ci
+      - run: npm run -s lint
+      - run: npm run -s format:check
+
+  test:
+    name: Unit, conformance & examples
+    needs: meta
+    if: ${{ needs.meta.outputs.has_toolchain == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm ci
+      - run: npm run -s test
+      - run: npm run -s conformance
+      - run: npm run -s examples
+      # TODO(@devops + @testing): add integration and a11y/pedagogy gates as those
+      # suites land (DoD sections 5-9); wire them here so they block merge.

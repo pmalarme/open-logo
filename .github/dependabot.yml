@@ -1,0 +1,38 @@
+version: 2
+
+# Dependency update PRs — the remediation half of our supply-chain hygiene. Complements
+# .github/workflows/dependency-review.yml, which gates PRs that *introduce* bad deps at merge
+# time; Dependabot opens PRs to *update/patch* the deps we already have.
+# See .github/skills/devops/security-and-release/SKILL.md. Owned by @devops.
+
+updates:
+  # GitHub Actions — active now: keeps our pinned action versions (checkout, codeql-action,
+  # labeler, setup-node/python, dependency-review-action) patched. Grouped into one PR/week.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    labels:
+      - "agent:devops"
+      - "area:ci"
+      - "type:chore"
+    groups:
+      github-actions:
+        patterns: ["*"]
+
+  # npm — dormant until the workspace manifest lands (ADR-0001). It will then keep the
+  # @openlogo/* dependencies current. TODO(@devops): once the workspace manager is chosen,
+  # cover every package via `directories: ["/", "/packages/*"]` (or per-package entries).
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels:
+      - "agent:devops"
+      - "area:ci"
+      - "type:chore"
+    groups:
+      dev-dependencies:
+        dependency-type: development
+        update-types: ["minor", "patch"]

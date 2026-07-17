@@ -1,0 +1,55 @@
+name: "Conformance task"
+description: Add or extend stack-neutral conformance fixtures (source → expected events/diagnostics) for a profile.
+title: "[conformance]: "
+labels: ["type:conformance", "agent:testing"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Fixtures are the objective definition of "done". They are stack-neutral and live in `tests/conformance/`.
+  - type: dropdown
+    id: profile
+    attributes:
+      label: Profile under test
+      options:
+        - core
+        - turtle-rendering
+        - data
+        - geometry
+        - heritage
+        - sprites
+        - interaction
+        - sound
+        - modules
+        - localization
+        - educational
+        - tutor-ai
+    validations:
+      required: true
+  - type: input
+    id: spec
+    attributes:
+      label: Spec section(s) the fixtures encode
+      placeholder: spec/tooling.md#layer-2-semantic-checking
+    validations:
+      required: true
+  - type: textarea
+    id: cases
+    attributes:
+      label: Cases to add
+      description: List positive and negative cases (source → expected events or `ol-*` code + span).
+      value: |
+        - [ ] positive:
+        - [ ] negative (expected `ol-...`):
+    validations:
+      required: true
+  - type: textarea
+    id: dod
+    attributes:
+      label: Definition of Done
+      value: |
+        - [ ] Fixtures are stack-neutral and run by profile along the DAG
+        - [ ] Negative cases assert exact `ol-*` code + span + params
+        - [ ] Suite is green in CI
+    validations:
+      required: true

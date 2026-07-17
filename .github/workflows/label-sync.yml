@@ -1,0 +1,29 @@
+name: Label sync
+
+# Reconciles repo labels with the .github/labels.yml manifest whenever it changes.
+# Idempotent create/update; does not delete labels missing from the manifest.
+# The taxonomy is owned by @product-owner; the sync is owned by @devops.
+
+on:
+  push:
+    branches: [main]
+    paths: [".github/labels.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - run: pip install pyyaml
+      - name: Sync labels from manifest
+        run: python .github/scripts/sync-labels.py

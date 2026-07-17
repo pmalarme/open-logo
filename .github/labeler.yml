@@ -1,0 +1,70 @@
+# Path-based PR auto-labeling (actions/labeler v5). Labels must exist in .github/labels.yml.
+# See .github/skills/devops/labeler-and-labels/SKILL.md.
+#
+# Policy: the labeler SEEDS labels; @product-owner triage confirms them (see the
+# triage-and-label skill). We therefore auto-apply:
+#   - area:* for every package/surface (unambiguous — describes the area, not the owner);
+#   - agent:* ONLY for single-owner surfaces. Co-owned surfaces (parser = language-designer
+#     + interpreter; edu = geometry-teacher + ai-tutor + curriculum) get their area label
+#     only, and a human assigns the specific owner during triage.
+
+# --- agent:* (single-owner surfaces only) ---
+"agent:interpreter":
+  - changed-files:
+      - any-glob-to-any-file: ["packages/core/**", "packages/runtime/**"]
+
+"agent:turtle-engine":
+  - changed-files:
+      - any-glob-to-any-file: ["packages/turtle/**"]
+
+"agent:learner-experience":
+  - changed-files:
+      - any-glob-to-any-file: ["packages/studio/**"]
+
+"agent:testing":
+  - changed-files:
+      - any-glob-to-any-file: ["tests/conformance/**"]
+
+"agent:devops":
+  - changed-files:
+      - any-glob-to-any-file:
+          [".github/workflows/**", ".github/labeler.yml", ".github/scripts/**"]
+
+"agent:product-owner":
+  - changed-files:
+      - any-glob-to-any-file:
+          ["spec/**", ".github/ISSUE_TEMPLATE/**", ".github/labels.yml"]
+
+"agent:documentation":
+  - changed-files:
+      - any-glob-to-any-file: ["docs/**"]
+
+# --- area:* (all surfaces; owner-neutral) ---
+"area:grammar":
+  - changed-files:
+      - any-glob-to-any-file: ["packages/parser/**"]
+
+"area:runtime":
+  - changed-files:
+      - any-glob-to-any-file: ["packages/core/**", "packages/runtime/**"]
+
+"area:rendering":
+  - changed-files:
+      - any-glob-to-any-file: ["packages/turtle/**"]
+
+"area:studio":
+  - changed-files:
+      - any-glob-to-any-file: ["packages/studio/**"]
+
+"area:edu":
+  - changed-files:
+      - any-glob-to-any-file: ["packages/edu/**"]
+
+"area:ci":
+  - changed-files:
+      - any-glob-to-any-file:
+          [".github/workflows/**", ".github/labeler.yml", ".github/scripts/**"]
+
+"area:docs":
+  - changed-files:
+      - any-glob-to-any-file: ["docs/**"]

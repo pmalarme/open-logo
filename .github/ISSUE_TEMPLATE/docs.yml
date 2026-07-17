@@ -1,0 +1,29 @@
+name: "Documentation"
+description: Reference, tutorial, or example work. Docs sync within the slice that changed the behavior.
+title: "[docs]: "
+labels: ["type:docs", "agent:documentation"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What to document
+    validations:
+      required: true
+  - type: input
+    id: spec
+    attributes:
+      label: Spec source of truth
+      placeholder: spec/commands.md (C3 signature)
+    validations:
+      required: true
+  - type: textarea
+    id: dod
+    attributes:
+      label: Definition of Done
+      value: |
+        - [ ] Signature / behavior / errors sourced from the spec; profile + level noted
+        - [ ] Every code sample is runnable and validated against the runtime
+        - [ ] Canonical forms primary; Heritage aliases clearly labeled
+        - [ ] Highlighting driven by the parser classifier
+    validations:
+      required: true

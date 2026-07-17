@@ -1,0 +1,51 @@
+name: "Bug"
+description: A defect with a reproduction. Fixes gain a regression fixture.
+title: "[bug]: "
+labels: ["type:bug"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - grammar
+        - highlighter
+        - checker
+        - runtime
+        - rendering
+        - studio
+        - edu
+        - ci
+        - docs
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction (.logo)
+      description: Minimal OpenLogo source that triggers the bug.
+      render: text
+      placeholder: |
+        repeat 4 [ forward 100 right 90 ]
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include the `ol-*` code + source span if a diagnostic was involved.
+    validations:
+      required: true
+  - type: input
+    id: spec
+    attributes:
+      label: Relevant spec section
+      placeholder: spec/execution-model.md
+    validations:
+      required: false
