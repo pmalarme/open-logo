@@ -47,7 +47,7 @@ first.
    assignment, then `define … end`), each with runtime code + a `core` diagnostic where relevant +
    trace events + conformance fixtures. Follow the profile DAG (**Core → Turtle & Rendering**).
 2. **Emit a deterministic, headless trace/event stream** from the runtime (registered in `core`),
-   consumed by `@openlogo/robot` and `@openlogo/studio`. Keep execution reproducible; animation is
+   consumed by `@openlogo/turtle` and `@openlogo/studio`. Keep execution reproducible; animation is
    a rendering concern, not a runtime concern — so `repeat 10000 [ forward 1 ]` exercises semantics,
    not frames.
 3. **Diagnostics** use only the normative shape and stable `ol-*` codes from `error-model.md` —

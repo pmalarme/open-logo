@@ -1,0 +1,66 @@
+# Path-based PR auto-labeling (actions/labeler v5). Labels must exist in .github/labels.yml.
+# See .github/skills/devops/labeler-and-labels/SKILL.md. Labeler seeds labels; PO triage confirms.
+
+"agent:interpreter":
+  - changed-files:
+      - any-glob-to-any-file: ["packages/core/**", "packages/runtime/**"]
+
+"agent:language-designer":
+  - changed-files:
+      - any-glob-to-any-file: ["packages/parser/**"]
+
+"agent:turtle-engine":
+  - changed-files:
+      - any-glob-to-any-file: ["packages/turtle/**"]
+
+"agent:learner-experience":
+  - changed-files:
+      - any-glob-to-any-file: ["packages/studio/**"]
+
+"agent:curriculum":
+  - changed-files:
+      - any-glob-to-any-file: ["packages/edu/**"]
+
+"agent:testing":
+  - changed-files:
+      - any-glob-to-any-file: ["tests/conformance/**"]
+
+"agent:devops":
+  - changed-files:
+      - any-glob-to-any-file: [".github/workflows/**", ".github/labeler.yml", ".github/labels.yml"]
+
+"agent:product-owner":
+  - changed-files:
+      - any-glob-to-any-file: ["spec/**", ".github/ISSUE_TEMPLATE/**"]
+
+"agent:documentation":
+  - changed-files:
+      - any-glob-to-any-file: ["docs/**", "**/*.md"]
+
+"area:grammar":
+  - changed-files:
+      - any-glob-to-any-file: ["packages/parser/**"]
+
+"area:runtime":
+  - changed-files:
+      - any-glob-to-any-file: ["packages/core/**", "packages/runtime/**"]
+
+"area:rendering":
+  - changed-files:
+      - any-glob-to-any-file: ["packages/turtle/**"]
+
+"area:studio":
+  - changed-files:
+      - any-glob-to-any-file: ["packages/studio/**"]
+
+"area:edu":
+  - changed-files:
+      - any-glob-to-any-file: ["packages/edu/**"]
+
+"area:ci":
+  - changed-files:
+      - any-glob-to-any-file: [".github/workflows/**", ".github/labeler.yml"]
+
+"area:docs":
+  - changed-files:
+      - any-glob-to-any-file: ["docs/**"]

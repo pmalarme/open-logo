@@ -14,8 +14,10 @@
 - { name: "agent:curriculum",        color: "5319e7", description: "Owned by curriculum" }
 - { name: "agent:testing",           color: "5319e7", description: "Owned by testing / QA" }
 - { name: "agent:documentation",     color: "5319e7", description: "Owned by documentation" }
+- { name: "agent:devops",            color: "5319e7", description: "Owned by DevSecOps / platform" }
 
 # --- Kind of work (exactly one) ---
+- { name: "type:feature-request", color: "a2eeef", description: "Inbound idea / enhancement request, before triage" }
 - { name: "type:epic",        color: "3e4b9e", description: "Large capability, usually one profile / major feature" }
 - { name: "type:slice",       color: "1d76db", description: "One vertical slice / user story, end to end" }
 - { name: "type:bug",         color: "d73a4a", description: "A defect with a reproduction" }

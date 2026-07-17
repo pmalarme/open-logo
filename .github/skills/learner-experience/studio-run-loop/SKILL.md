@@ -18,7 +18,7 @@ for a runaway program — without the studio ever owning language logic.
 1. **Read** `spec/execution-model.md` (execution budget, cancellation) and the turtle event contract
    (`turtle-engine/turtle-event-contract`).
 2. **Drive execution through `@openlogo/runtime`.** Run submits source and streams trace events; the
-   studio renders turtle frames from `@openlogo/robot` as they arrive. Never embed an interpreter.
+   studio renders turtle frames from `@openlogo/turtle` as they arrive. Never embed an interpreter.
 3. **Stop = cancel the budget.** Cancellation must promptly halt `repeat 10000 [ forward 1 ]`; verify
    with a headless controller test, not just a manual click.
 4. **Reset** returns turtle + canvas + run state to the initial state deterministically; **Step**

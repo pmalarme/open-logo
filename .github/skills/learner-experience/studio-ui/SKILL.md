@@ -11,14 +11,14 @@ updated: 2026-07-17T00:00
 ## Purpose
 
 The studio is where a learner writes OpenLogo and watches it run. It **composes** parser, runtime,
-robot, and edu behind one coherent, accessible UI — it owns presentation and interaction, not
+turtle, and edu behind one coherent, accessible UI — it owns presentation and interaction, not
 language logic.
 
 ## Architecture
 
 - **Single state model:** `{ source, runState (idle|running|stopped), diagnostics[], turtleFrame,
   lesson, replHistory }`. All panes render from it; interactions produce state transitions.
-- **Panes:** code **editor**, **turtle view** (Canvas from `@openlogo/robot`), **diagnostics**,
+- **Panes:** code **editor**, **turtle view** (Canvas from `@openlogo/turtle`), **diagnostics**,
   **lesson/tutor** pane (content from `@openlogo/edu`), and a **REPL**.
 - **Controller / view split:** put run orchestration and state in a headless controller
   (`run-controller.ts`) so `@testing` can drive it without a browser; keep rendering in the view.
@@ -29,7 +29,7 @@ language logic.
   `language-designer/syntax-highlighting`.
 - **Diagnostics** (`ol-*`) from `@openlogo/core`: render each inline at its `source_span` with the
   learner message and did-you-mean; never show raw stack traces.
-- **Events + rendering** from `@openlogo/runtime`/`@openlogo/robot`: drive the turtle view and
+- **Events + rendering** from `@openlogo/runtime`/`@openlogo/turtle`: drive the turtle view and
   stepping from the deterministic event stream.
 - **Teaching** from `@openlogo/edu`: surface `explain`/`why`/`hint`/`debug` and tutor output in the
   lesson pane — pull the text, don't author it here.
@@ -44,7 +44,7 @@ interpreter.
 ## Accessibility (acceptance, not polish)
 
 Every control keyboard-operable and screen-reader-labeled; honor **reduced motion**; provide the
-**non-visual description** of the drawing from `@openlogo/robot`; diagnostics reachable and announced.
+**non-visual description** of the drawing from `@openlogo/turtle`; diagnostics reachable and announced.
 Follows [`spec/rendering.md`](../../../../spec/rendering.md).
 
 ## Procedure

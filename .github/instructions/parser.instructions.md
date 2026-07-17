@@ -32,7 +32,7 @@ the **AST**, the **reserved-word registry**, the **syntax highlighter** (token c
 - Suggested modules: `tokens.ts`, `reader.ts`, `grammar.ts`, `ast.ts`, `highlight.ts`, `check.ts`.
 
 ## Boundaries
-- Depends on **`@openlogo/core`** (diagnostics, values) only — never on `runtime`/`robot`/`studio`.
+- Depends on **`@openlogo/core`** (diagnostics, values) only — never on `runtime`/`turtle`/`studio`.
 - **Highlighting and checking classify from the grammar**, not ad-hoc regex.
 - The reserved-word list is the single C19 registry shared by highlighter and checker — do not fork it.
 

@@ -18,7 +18,7 @@ The implementation is a **TypeScript 7 monorepo** (`openlogo/`) with six package
 | `@openlogo/core` | Value/type model, `ol-*` diagnostics, trace/event registry, feature detection |
 | `@openlogo/parser` | Lexer, reader, EBNF grammar, AST, reserved words, syntax highlighting + syntax/semantic checker |
 | `@openlogo/runtime` | Evaluator, scoping, procedures, control forms, comprehensions, places, safety |
-| `@openlogo/robot` | Turtle/sprite state, pen/heading/shape, rendering (Canvas/SVG/PNG), animation, a11y |
+| `@openlogo/turtle` | Turtle/sprite state, pen/heading/shape, rendering (Canvas/SVG/PNG), animation, a11y |
 | `@openlogo/studio` | Browser web app (learner IDE): editor/REPL, Canvas turtle view, run/stop/step, diagnostics UI, tooling, lessons |
 | `@openlogo/edu` | Learner levels, `explain`/`why`/`hint`/`debug`, geometry stdlib, AI tutor, curriculum |
 
@@ -36,8 +36,11 @@ docs/delivery.md       Release + milestone strategy
 .github/agents/  The OpenLogo agent team (*.agent.md)
 .github/skills/  Agent skill playbooks (shared + per-agent)
 .github/instructions/  Team working agreement (always on) + per-package rules (applyTo packages/<name>/**)
-.github/ISSUE_TEMPLATE/  Issue forms — epic, feature-slice, conformance-task, foundation, bug, docs
+.github/ISSUE_TEMPLATE/  Issue forms — feature-request, epic, feature-slice (user story), conformance-task, foundation, bug, docs
 .github/labels.yml     Label taxonomy manifest (agent:*/type:*/profile:*/area:*/level:*)
+.github/labeler.yml    Path→label rules for PR auto-labeling
+.github/scripts/        Metadata validation + label sync (run by CI)
+.github/workflows/     CI (Definition of Done), labeler, label sync — owned by @devops
 packages/        @openlogo/* packages — src/ skeleton in place; see packages/README.md for the map
 tests/conformance/     Stack-neutral source→events/diagnostics fixtures (grow with the build)
 ```
@@ -87,4 +90,6 @@ prefer small, reviewable PRs and keep this file and the ADRs updated as the tool
 
 The specialized agents in [`.github/agents/`](.github/agents/) map to the packages above. In
 Copilot CLI, invoke one with `@<name>` (e.g. `@interpreter`). The `orchestrator` agent decomposes
-the spec into tasks and coordinates the others. See each agent file for its exact mandate.
+the spec into tasks and coordinates the others. **Cross-cutting agents own no single package:**
+`orchestrator`, `product-owner`, `testing`, `documentation`, and `devops` (CI/CD under
+`.github/workflows/`, security, labeler, releases). See each agent file for its exact mandate.

@@ -18,8 +18,8 @@ with minimal conflict. Grounded in `docs/adr/0001-tech-stack.md`.
 ```text
 core  ← parser
 core  ← runtime           (parser + runtime depend on core's public API)
-core  ← robot             (robot consumes the trace/event registry)
-parser + runtime + robot  ← studio     (studio composes them)
+core  ← turtle             (turtle consumes the trace/event registry)
+parser + runtime + turtle  ← studio     (studio composes them)
 core + runtime            ← edu         (edu adds .logo stdlib + teaching over runtime)
 ```
 
@@ -35,7 +35,7 @@ Cross-package changes need the owning agent's review and a serialized PR.
   `.github/instructions/openlogo-team.instructions.md`). If code doesn't fit its package, it's in the
   wrong package.
 - Deterministic core: no wall-clock/random in `core`/`parser`/`runtime` outputs; animation/timing
-  live only in `robot`/`studio`.
+  live only in `turtle`/`studio`.
 - No secrets in code or fixtures; the AI adapter (`edu`) reads config at runtime.
 
 ## Adding or extending a package

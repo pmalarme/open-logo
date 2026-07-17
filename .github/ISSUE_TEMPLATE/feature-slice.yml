@@ -1,4 +1,4 @@
-name: "Feature slice (user story)"
+name: "User story (vertical slice)"
 description: One observable behavior delivered end to end (semantics → runtime/events → render/UI → tests → teaching → docs).
 title: "[slice]: "
 labels: ["type:slice"]
@@ -23,6 +23,7 @@ body:
         - curriculum
         - testing
         - documentation
+        - devops
     validations:
       required: true
   - type: dropdown

@@ -1,10 +1,10 @@
 ---
-applyTo: "packages/robot/**"
+applyTo: "packages/turtle/**"
 ---
 
-# `@openlogo/robot` — working rules
+# `@openlogo/turtle` — working rules
 
-Scoped rules for files under `packages/robot/`. Read the always-on
+Scoped rules for files under `packages/turtle/`. Read the always-on
 [team agreement](openlogo-team.instructions.md) and the
 [architecture](../../docs/architecture.md) first.
 
@@ -24,7 +24,7 @@ The turtle/sprite engine and renderer. Owns turtle/sprite **state** (`x`, `y`, `
 - [`spec/execution-model.md`](../../spec/execution-model.md) — the trace events it consumes.
 
 ## Source layout
-- `packages/robot/src/index.ts` — the only public entry (reduce events → frames; Canvas/SVG/PNG).
+- `packages/turtle/src/index.ts` — the only public entry (reduce events → frames; Canvas/SVG/PNG).
 - Suggested modules: `state.ts`, `scene.ts`, `canvas.ts`, `svg.ts`, `png.ts`, `a11y.ts`.
 
 ## Boundaries

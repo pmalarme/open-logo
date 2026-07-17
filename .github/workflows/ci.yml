@@ -1,0 +1,72 @@
+name: CI
+
+# Encodes the team Definition of Done as gates. The meta job runs from day one;
+# code jobs activate automatically once the workspace manifest (package.json) lands.
+# See .github/skills/devops/ci-pipeline/SKILL.md. Owned by @devops.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  meta:
+    name: Meta (labels, issue forms, workflows)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - run: pip install pyyaml
+      - name: Validate metadata
+        run: python .github/scripts/validate-meta.py
+
+  build:
+    name: Build & type-check
+    needs: meta
+    if: ${{ hashFiles('package.json') != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # TODO(@devops): align install/build with the workspace manager chosen in ADR-0001.
+      - run: |
+          npm ci
+          npm run -s build --if-present
+          npm run -s typecheck --if-present
+
+  lint:
+    name: Lint & format
+    needs: meta
+    if: ${{ hashFiles('package.json') != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: |
+          npm ci
+          npm run -s lint --if-present
+          npm run -s format:check --if-present
+
+  test:
+    name: Unit & conformance
+    needs: meta
+    if: ${{ hashFiles('package.json') != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: |
+          npm ci
+          npm run -s test --if-present
+          npm run -s conformance --if-present

@@ -33,7 +33,7 @@ gh project create --owner pmalarme --title "OpenLogo"
 gh project list --owner pmalarme                       # note the project <number>
 # Single-select fields mirroring our labels so the board can group/filter:
 gh project field-create <number> --owner pmalarme --name "Agent"   --data-type SINGLE_SELECT \
-  --single-select-options "orchestrator,product-owner,language-designer,interpreter,turtle-engine,learner-experience,geometry-teacher,ai-tutor,curriculum,testing,documentation"
+  --single-select-options "orchestrator,product-owner,language-designer,interpreter,turtle-engine,learner-experience,geometry-teacher,ai-tutor,curriculum,testing,documentation,devops"
 gh project field-create <number> --owner pmalarme --name "Profile" --data-type SINGLE_SELECT \
   --single-select-options "core,turtle-rendering,data,geometry,heritage,sprites,interaction,sound,modules,localization,educational,tutor-ai"
 gh project field-list <number> --owner pmalarme        # Status + Milestone exist by default
@@ -62,6 +62,15 @@ forms apply their **default labels**; then attach milestone + project:
 gh issue edit <n> --milestone "M2 Turtle & Rendering" --add-label "agent:interpreter"
 gh issue edit <n> --add-project "OpenLogo"
 ```
+
+## Tooling: `gh` vs the GitHub MCP
+
+- **Issues** — you can create/edit them with the **GitHub MCP** (or this app's issue-creation tool)
+  instead of `gh issue`; that is often the smoother path for coding agents. Either way, create from a
+  **template** so the default labels apply, then set milestone + `agent:*` afterward.
+- **Projects v2, milestones, and labels** — use **`gh`**: MCP coverage of Projects v2 fields/items is
+  thin, and `gh project` / `gh api …/milestones` / `gh label` are the most complete. The commands
+  below use `gh` for that reason.
 
 ## Critical rules
 

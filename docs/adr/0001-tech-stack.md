@@ -25,12 +25,12 @@ learners use the `.logo` extension (per the spec).
 | `@openlogo/core` | Value/type model, `ol-*` diagnostics, trace/event registry, feature-detection metadata | interpreter | `execution-model.md`, `error-model.md`, `conformance.md` |
 | `@openlogo/parser` | Lexis, reader, EBNF grammar, AST, reserved words, parse + semantic lint | language-designer, interpreter | `grammar.md`, `tooling.md`, `commands.md` |
 | `@openlogo/runtime` | Evaluator, scoping, procedures, control forms, comprehensions, places/mutation, equality, safety | interpreter | `execution-model.md`, `commands.md`, `data-structures.md` |
-| `@openlogo/robot` | Turtle/sprite state, pen/heading/shape, rendering (Canvas/SVG/PNG), animation, export, accessibility | turtle-engine | `commands.md` (turtle), `rendering.md`, `turtles-and-sprites.md` |
+| `@openlogo/turtle` | Turtle/sprite state, pen/heading/shape, rendering (Canvas/SVG/PNG), animation, export, accessibility | turtle-engine | `commands.md` (turtle), `rendering.md`, `turtles-and-sprites.md` |
 | `@openlogo/studio` | Learner IDE: editor/REPL, run/stop/step, diagnostics UI, tooling/LSP, lesson pane, persistence | learner-experience | `tooling.md`, `rendering.md`, `error-model.md` |
 | `@openlogo/edu` | Learner levels, `explain`/`why`/`hint`/`debug`, geometry stdlib, AI tutor, curriculum, examples | geometry-teacher, ai-tutor, curriculum | `educational-model.md`, `geometry-module.md`, `ai-tutor.md`, `examples/` |
 
-**Dependency direction (high level):** `parser` and `runtime` depend on `core`; `robot` consumes
-the trace/event registry from `core`; `studio` composes `parser` + `runtime` + `robot`; `edu`
+**Dependency direction (high level):** `parser` and `runtime` depend on `core`; `turtle` consumes
+the trace/event registry from `core`; `studio` composes `parser` + `runtime` + `turtle`; `edu`
 builds on `runtime` (for `.logo` stdlib) and `core` (for diagnostics/traces).
 
 **Build sequencing** follows the spec's profile DAG: **Core Language → Turtle & Rendering**
@@ -43,7 +43,7 @@ These are intentionally not fixed yet; record each in its own ADR when decided:
 - **Package manager / workspace tool** (npm workspaces vs pnpm vs bun) and the exact
   build/test/lint commands (to be reflected in `AGENTS.md` once chosen).
 - **Test runner** (e.g. Vitest/Jest/node:test) and the conformance-fixture harness format.
-- **Rendering libraries** for `@openlogo/robot` beyond the required Canvas target (SVG/PNG export).
+- **Rendering libraries** for `@openlogo/turtle` beyond the required Canvas target (SVG/PNG export).
 - **Studio shell** technology (framework/bundler) for `@openlogo/studio`.
 - **AI provider adapter** for the Tutor (AI) profile — kept provider-neutral (Foundry or others
   slot in behind one interface).

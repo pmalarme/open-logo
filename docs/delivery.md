@@ -30,8 +30,8 @@ profile passes conformance. The trains and their coupling:
 | **Language contract** | `spec/` | maintainer review | — (drives all others) |
 | **Engine** | core, parser, runtime | conformance for the profiles it claims (starting Core) | spec version |
 | **Highlighter / tooling** | parser (`highlight`), studio (`lsp`) | token-class fixtures match the **current grammar** | **pinned to the grammar/spec version** — ships with or immediately after any grammar change so editors never lag the language |
-| **Rendering / turtle** | robot | Turtle & Rendering conformance + a11y checks + deterministic export | events contract |
-| **Studio / UI** | studio | end-to-end run loop + a11y; composes only packages agreeing on one spec version + profile set | engine + robot + edu versions |
+| **Rendering / turtle** | turtle | Turtle & Rendering conformance + a11y checks + deterministic export | events contract |
+| **Studio / UI** | studio | end-to-end run loop + a11y; composes only packages agreeing on one spec version + profile set | engine + turtle + edu versions |
 | **Education** | edu | Educational/Tutor/Geometry conformance; tutor degrades offline | runtime API + spec version; curriculum pins a language version |
 
 **The interlock rule:** the **highlighter and tooling track the grammar version**. Because token

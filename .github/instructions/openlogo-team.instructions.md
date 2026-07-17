@@ -22,9 +22,13 @@ We implement that spec as a **TypeScript 7 monorepo** in `openlogo/` with six pa
 | `@openlogo/core` | value/type model, `ol-*` diagnostics, trace/event registry, feature-detection metadata | interpreter |
 | `@openlogo/parser` | lexis, reader, EBNF grammar, AST, reserved words, syntax highlighting, syntax + semantic checker | language-designer, interpreter |
 | `@openlogo/runtime` | evaluator, scoping, procedures, control forms, comprehensions, places/mutation, equality, safety | interpreter |
-| `@openlogo/robot` | turtle/sprite state, pen/heading/shape, rendering (Canvas/SVG/PNG), animation, export, accessibility | turtle-engine |
+| `@openlogo/turtle` | turtle/sprite state, pen/heading/shape, rendering (Canvas/SVG/PNG), animation, export, accessibility | turtle-engine |
 | `@openlogo/studio` | browser web app: editor/REPL, Canvas turtle view, run/stop/step, diagnostics UI, tooling/LSP, lesson pane, persistence | learner-experience |
 | `@openlogo/edu` | learner levels, `explain`/`why`/`hint`/`debug`, geometry stdlib, AI tutor, curriculum, examples | geometry-teacher, ai-tutor, curriculum |
+
+**Cross-cutting agents own no package:** `orchestrator` (coordination), `product-owner` (backlog +
+spec stewardship), `testing` (conformance/QA suites), `documentation` (docs), and `devops` (CI/CD
+under `.github/workflows/`, security, labeler + label sync, releases).
 
 ## 2. The source of truth
 
@@ -86,7 +90,7 @@ A change is done only when, for the artifacts it touches:
 6. Accessibility and pedagogy checks pass where applicable (see §8–9).
 7. Docs and spec cross-links are updated in the same PR (no drift).
 
-Agents do not self-merge; humans and required CI checks gate `main`.
+Agents do not self-merge; humans and required CI checks (pipelines wired by `@devops`) gate `main`.
 
 ## 6. Spec fidelity — canonical OpenLogo, not classic Logo
 
@@ -118,7 +122,7 @@ Match the merged spec exactly. Common mistakes to avoid:
   (parse/semantic/runtime), severity, plus optional did-you-mean. Style lints use `ol-style-*`.
   Diagnostics are owned by `@openlogo/core`; never invent ad-hoc error strings.
 - Execution emits a **deterministic trace/event stream** (`@openlogo/core` registry, produced by
-  `@openlogo/runtime`, consumed by `@openlogo/robot` and `@openlogo/studio`). Keep turtle
+  `@openlogo/runtime`, consumed by `@openlogo/turtle` and `@openlogo/studio`). Keep turtle
   **state/events deterministic and headless**, with animation layered on top — so
   `repeat 10000 [ forward 1 ]` tests semantics, not frames.
 - Feature-detection metadata exposes `openlogo.version` = `0.1.0`, supported profiles, extension
@@ -129,7 +133,7 @@ Match the merged spec exactly. Common mistakes to avoid:
 
 - Movement/heading math is deterministic; degrees, `0` points up, `right` turns clockwise.
 - Enforce a cancellable execution budget (Run/Stop/Reset) so runaway programs stay stable.
-- Rendering (`@openlogo/robot`) must support at least Canvas; SVG/PNG recommended. Honor
+- Rendering (`@openlogo/turtle`) must support at least Canvas; SVG/PNG recommended. Honor
   reduced-motion, keyboard access, and non-visual descriptions from
   [`rendering.md`](../../spec/rendering.md). Export must be deterministic.
 
@@ -193,11 +197,17 @@ Match the merged spec exactly. Common mistakes to avoid:
   charter and pins that package's responsibilities, spec files, boundaries, and conventions. Read your
   package's file before editing under it.
 - **File issues from templates**, never freehand:
-  [`.github/ISSUE_TEMPLATE/`](../ISSUE_TEMPLATE) — `epic`, `feature-slice`, `conformance-task`,
-  `foundation`, `bug`, `docs`. Each seeds the right `type:*`/`agent:*` labels.
+  [`.github/ISSUE_TEMPLATE/`](../ISSUE_TEMPLATE) — `feature-request` (inbound idea), `epic`,
+  `feature-slice` (user story), `conformance-task`, `foundation`, `bug`, `docs`. Each seeds the right
+  `type:*`/`agent:*` labels.
 - **Labels are a manifest.** [`.github/labels.yml`](../labels.yml) is the single source of truth
   (`agent:*` owner, `type:*` kind, `profile:*`, `area:*`, `level:*`). Exactly one `agent:*` and one
   `type:*` per issue; the milestone — not a label — says which M0–M6 it lands in.
+- **CI/CD is owned by `@devops`.** Pipelines live in `.github/workflows/` (with `.github/scripts/` +
+  [`.github/labeler.yml`](../labeler.yml)) under
+  [`workflows.instructions.md`](workflows.instructions.md): CI enforces the Definition of Done, PRs are
+  auto-labeled by path, and `labels.yml` is reconciled on change. `@product-owner` owns the label
+  *taxonomy*; `@devops` owns the *automation*.
 - **The product-owner runs the board** (Project, milestones, issues, labels) via `gh`; see the
   `product-owner/github-project`, `epics-and-milestones`, and `triage-and-label` skills. Other agents
   request work through issues and let the product-owner/orchestrator schedule it.

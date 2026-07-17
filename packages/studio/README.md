@@ -11,5 +11,5 @@ persistence, and accessibility. It composes the other packages and owns no langu
 - **Spec:** [`rendering.md`](../../spec/rendering.md) (Canvas target + controls + a11y),
   [`tooling.md`](../../spec/tooling.md) (LSP integration),
   [`interaction-events.md`](../../spec/interaction-events.md).
-- **Depends on:** `@openlogo/parser`, `@openlogo/runtime`, `@openlogo/robot`, `@openlogo/edu`,
+- **Depends on:** `@openlogo/parser`, `@openlogo/runtime`, `@openlogo/turtle`, `@openlogo/edu`,
   `@openlogo/core`.

@@ -2,7 +2,7 @@
 name: turtle-event-contract
 description: >-
   How @turtle-engine defines and evolves the deterministic turtle/sprite event contract in
-  @openlogo/robot — consuming the runtime trace stream and producing render-agnostic state so studio,
+  @openlogo/turtle — consuming the runtime trace stream and producing render-agnostic state so studio,
   Canvas/SVG/PNG export, and a11y all agree. Use for turtle state, pen, heading, shapes, rendering.
 created: 2026-07-17T00:00
 updated: 2026-07-17T00:00

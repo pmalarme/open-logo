@@ -23,7 +23,7 @@ build. Every primitive lands with its diagnostics, trace events, and fixtures in
    most primitives are ordinary prefix `Call` nodes.
 4. **Evaluate** in `@openlogo/runtime`: implement the effect, honor scoping, and run under the
    **cancellable execution budget**. Keep it deterministic and headless.
-5. **Emit trace events** (registered in `core`) for any observable effect so `@openlogo/robot` and
+5. **Emit trace events** (registered in `core`) for any observable effect so `@openlogo/turtle` and
    `@openlogo/studio` can react — never draw or animate from the runtime.
 6. **Diagnostics** via `shared/diagnostics`: wrong arity/type/etc. use stable `ol-*` codes with spans
    and did-you-mean — never ad-hoc strings.

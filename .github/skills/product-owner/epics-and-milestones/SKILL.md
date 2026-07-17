@@ -15,6 +15,8 @@ when it's "done." This skill defines the *vocabulary*; `github-project` is how y
 
 ## The hierarchy
 
+- **Feature request** — an **inbound idea** ("I wish OpenLogo could…"), before triage. Anyone can file
+  one; you accept it into an epic/story or decline with a reason. Label `type:feature-request`.
 - **Epic** — a large capability, usually **one spec profile or a major feature** (e.g. "Core Language",
   "Turtle & Rendering", "Educational baseline", "Syntax checker"). An epic spans multiple slices and
   usually multiple agents. Label `type:epic`.
@@ -24,6 +26,24 @@ when it's "done." This skill defines the *vocabulary*; `github-project` is how y
 - **Task / chore** — a smaller unit under a story (foundation, CI, docs, conformance fixture). Labels
   `type:foundation`/`type:conformance`/`type:docs`/`type:chore`.
 - **Bug** — a defect with a reproduction; gains a regression fixture. Label `type:bug`.
+
+## How the issue templates relate
+
+Each [issue template](../../../ISSUE_TEMPLATE) maps to one rung, so the backlog reads top-down:
+
+```text
+feature-request        (inbound idea)
+   └─ PO accepts → epic                         (one profile / major feature)
+          └─ user story / feature slice         (vertical slice, Given/When/Then)
+                 ├─ conformance-task            (stack-neutral fixtures)
+                 ├─ foundation                  (toolchain / CI / monorepo)
+                 └─ docs                         (reference / tutorial / examples)
+   bug = a defect found against any of the above → regression fixture
+```
+
+A feature request is the only *pre-scheduled* type; everything below it is planned work with an owner
+(`agent:*`), a kind (`type:*`), and a milestone. Foundation/conformance/docs tasks usually hang off a
+story but can stand alone under an epic (e.g. M0 foundation before any story exists).
 
 ## Milestones = profile-DAG sync points
 

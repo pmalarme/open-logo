@@ -1,0 +1,52 @@
+name: "Feature request"
+description: Suggest a capability or improvement for OpenLogo. The product owner triages this into an epic or user story (or explains why not).
+title: "[request]: "
+labels: ["type:feature-request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea! This is an **inbound request**, not scheduled work yet.
+        `@product-owner` will triage it against the [spec](../../spec/README.md) and either accept it
+        (→ an epic or user story) or explain why it does not fit. Language/behavior changes are
+        maintainer-owned via `spec/`.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What can't a learner or implementer do today, and why does it matter?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Proposed idea
+      description: Sketch the behavior. If it's language syntax, show canonical OpenLogo (lowercase keywords, `:name` vars, `[ ]` blocks).
+    validations:
+      required: true
+  - type: dropdown
+    id: profile
+    attributes:
+      label: Closest profile (if you know)
+      options:
+        - "not sure"
+        - core
+        - turtle-rendering
+        - data
+        - geometry
+        - heritage
+        - sprites
+        - interaction
+        - sound
+        - modules
+        - localization
+        - educational
+        - tutor-ai
+    validations:
+      required: false
+  - type: textarea
+    id: notes
+    attributes:
+      label: Alternatives / prior art / links
+    validations:
+      required: false

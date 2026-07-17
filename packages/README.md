@@ -17,8 +17,8 @@ cross-cutting contracts, and [`docs/delivery.md`](../docs/delivery.md) for the r
 | [`@openlogo/core`](core/README.md) | `core/src/` | values, `ol-*` diagnostics, trace/event registry, profile metadata | `@interpreter` | — |
 | [`@openlogo/parser`](parser/README.md) | `parser/src/` | lexer, grammar, AST, reserved words, highlighter, checker | `@language-designer` + `@interpreter` | core |
 | [`@openlogo/runtime`](runtime/README.md) | `runtime/src/` | evaluator, scoping, control forms, comprehensions, safety, events | `@interpreter` | core, parser |
-| [`@openlogo/robot`](robot/README.md) | `robot/src/` | turtle/sprite state, Canvas/SVG/PNG rendering, export, a11y | `@turtle-engine` | core, runtime |
-| [`@openlogo/studio`](studio/README.md) | `studio/src/` | **browser web app**: editor, Canvas view, run loop, diagnostics UI | `@learner-experience` | parser, runtime, robot, edu, core |
+| [`@openlogo/turtle`](turtle/README.md) | `turtle/src/` | turtle/sprite state, Canvas/SVG/PNG rendering, export, a11y | `@turtle-engine` | core, runtime |
+| [`@openlogo/studio`](studio/README.md) | `studio/src/` | **browser web app**: editor, Canvas view, run loop, diagnostics UI | `@learner-experience` | parser, runtime, turtle, edu, core |
 | [`@openlogo/edu`](edu/README.md) | `edu/src/` | levels, `explain`/`why`/`hint`/`debug`, geometry stdlib, AI tutor | `@geometry-teacher` + `@ai-tutor` + `@curriculum` | runtime, core |
 
 Each package has a scoped working agreement in

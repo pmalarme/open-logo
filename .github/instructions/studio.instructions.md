@@ -29,11 +29,11 @@ presentation and interaction, never language logic.
 ## Source layout
 - `packages/studio/src/index.ts` — app entry (mounts the browser UI).
 - Split a **headless controller** (`run-controller.ts`, state model) from the **view/DOM** so the
-  controller is testable without a browser; host `@openlogo/robot`'s Canvas in the turtle pane.
+  controller is testable without a browser; host `@openlogo/turtle`'s Canvas in the turtle pane.
 
 ## Boundaries
 - Composes **`@openlogo/parser`** (highlight/LSP/check), **`@openlogo/runtime`** (execute),
-  **`@openlogo/robot`** (Canvas), **`@openlogo/edu`** (lessons/tutor), **`@openlogo/core`** (diagnostics).
+  **`@openlogo/turtle`** (Canvas), **`@openlogo/edu`** (lessons/tutor), **`@openlogo/core`** (diagnostics).
 - **No private interpreter or renderer.** If a package doesn't expose what you need, file it to that owner.
 
 ## Conventions

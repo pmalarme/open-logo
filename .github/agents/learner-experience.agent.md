@@ -37,7 +37,7 @@ first.
 ## How you work
 
 1. **Consume contracts, don't reimplement them.** Parse/diagnose via `@openlogo/parser`, execute
-   via `@openlogo/runtime`, render via `@openlogo/robot`, teach via `@openlogo/edu`. You compose;
+   via `@openlogo/runtime`, render via `@openlogo/turtle`, teach via `@openlogo/edu`. You compose;
    you don't fork their logic.
 2. Make the **first-run loop delightful**: type `forward 100`, press Run, see the turtle move,
    press Stop to cancel, Reset to clear. Immediate visible feedback is the product.

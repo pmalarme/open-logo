@@ -36,8 +36,8 @@ Add value/type support and any `ol-*` diagnostic to `@openlogo/core` (see `share
 then implement evaluation in `@openlogo/runtime`. Emit the deterministic **trace/event(s)** for the
 feature. Keep runtime headless and reproducible.
 
-### Step 4 — Output (`@openlogo/robot` and/or `@openlogo/studio`)
-If the feature draws or moves, consume the events in `@openlogo/robot` and render (Canvas). If it
+### Step 4 — Output (`@openlogo/turtle` and/or `@openlogo/studio`)
+If the feature draws or moves, consume the events in `@openlogo/turtle` and render (Canvas). If it
 touches the learner loop, surface it in `@openlogo/studio` (Run/Stop/Reset, diagnostics).
 
 ### Step 5 — Prove it (`tests/conformance/` + integration)
@@ -57,7 +57,7 @@ Run `shared/definition-of-done`. Open one PR with the declared write-set. Do not
 ## Worked example — the walking skeleton
 
 `forward 100` end to end: tokenize `forward` + number → AST call → runtime evaluates, updates
-turtle pose, emits `move`/`line` events → `@openlogo/robot` draws the segment on Canvas →
+turtle pose, emits `move`/`line` events → `@openlogo/turtle` draws the segment on Canvas →
 `@openlogo/studio` Run button shows it → conformance fixture asserts the two events and final pose →
 docs show the snippet. That one slice exercises every package boundary; build it first.
 

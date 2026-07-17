@@ -30,7 +30,7 @@ Emits the deterministic, headless **trace/event stream**.
 
 ## Boundaries
 - Depends on **`@openlogo/core`** (values, diagnostics, events) and **`@openlogo/parser`** (AST).
-- **No rendering or animation** — emit trace events; `@openlogo/robot` turns them into pictures.
+- **No rendering or animation** — emit trace events; `@openlogo/turtle` turns them into pictures.
 - Runaway programs (`repeat 10000 [ forward 1 ]`) stay within the budget and cancel promptly.
 
 ## Conventions

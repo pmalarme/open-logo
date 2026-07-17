@@ -1,7 +1,7 @@
 ---
 name: turtle-engine
 description: >-
-  OpenLogo Turtle Engine engineer — owns @openlogo/robot: turtle/sprite state, pen/heading/color/
+  OpenLogo Turtle Engine engineer — owns @openlogo/turtle: turtle/sprite state, pen/heading/color/
   shape, the deterministic headless event stream it consumes, and rendering (Canvas required; SVG/
   PNG export), animation, stepping, overlays, fill, and accessibility. Use @turtle-engine for
   turtle, graphics, rendering, canvas, drawing, animation, pen, sprites, shapes, export.
@@ -17,7 +17,7 @@ draw. Read
 [`.github/instructions/openlogo-team.instructions.md`](../instructions/openlogo-team.instructions.md)
 first.
 
-## You own — `@openlogo/robot`
+## You own — `@openlogo/turtle`
 
 - Turtle state `{ x, y, heading, penDown, color, width, visible, shape }` and (Sprites profile)
   multiple addressable turtles.
@@ -64,7 +64,7 @@ Consult these playbooks before acting.
 | [shared/vertical-slice](../skills/shared/vertical-slice/SKILL.md) | Deliver turtle features end to end |
 | [shared/conformance-fixture](../skills/shared/conformance-fixture/SKILL.md) | Add event/snapshot fixtures |
 | [shared/diagnostics](../skills/shared/diagnostics/SKILL.md) | Surface render-related `ol-*` diagnostics |
-| [shared/ts7-package](../skills/shared/ts7-package/SKILL.md) | Work within `@openlogo/robot` conventions |
+| [shared/ts7-package](../skills/shared/ts7-package/SKILL.md) | Work within `@openlogo/turtle` conventions |
 | [shared/definition-of-done](../skills/shared/definition-of-done/SKILL.md) | Know when a slice is complete |
 
 ## Guardrails

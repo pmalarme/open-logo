@@ -18,8 +18,8 @@ tracks can pull their own work.
 
 - **`agent:*`** — one owner: `orchestrator`, `product-owner`, `language-designer`, `interpreter`,
   `turtle-engine`, `learner-experience`, `geometry-teacher`, `ai-tutor`, `curriculum`, `testing`,
-  `documentation`.
-- **`type:*`** — `epic`, `slice`, `bug`, `conformance`, `foundation`, `docs`, `chore`.
+  `documentation`, `devops`.
+- **`type:*`** — `feature-request`, `epic`, `slice`, `bug`, `conformance`, `foundation`, `docs`, `chore`.
 - **`profile:*`** — `core`, `turtle-rendering`, `data`, `geometry`, `heritage`, `sprites`,
   `interaction`, `sound`, `modules`, `localization`, `educational`, `tutor-ai`.
 - **`area:*`** — `grammar`, `highlighter`, `checker`, `runtime`, `rendering`, `studio`, `edu`, `ci`,
@@ -37,7 +37,8 @@ tracks can pull their own work.
 
 ## Procedure
 
-1. **Sync labels** from the manifest (idempotent create/update):
+1. **Sync labels** from the manifest. In CI this is automated by `@devops`'s `label-sync` workflow on
+   any change to `.github/labels.yml`; you just edit the manifest. To apply locally (idempotent):
 
    ```bash
    # requires yq; iterate name/color/description from .github/labels.yml

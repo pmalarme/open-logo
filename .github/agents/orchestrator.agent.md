@@ -24,13 +24,14 @@ and [`AGENTS.md`](../../AGENTS.md) first — they bind you and every agent below
 | product-owner | epics, stories, acceptance criteria; spec stewardship | `@product-owner` |
 | language-designer | grammar/EBNF, keywords, `@openlogo/parser` syntax | `@language-designer` |
 | interpreter | `@openlogo/core`, `@openlogo/parser`, `@openlogo/runtime` | `@interpreter` |
-| turtle-engine | `@openlogo/robot` (turtle + rendering) | `@turtle-engine` |
+| turtle-engine | `@openlogo/turtle` (turtle + rendering) | `@turtle-engine` |
 | learner-experience | `@openlogo/studio` (editor/REPL/UI) | `@learner-experience` |
 | geometry-teacher | geometry reasoning + stdlib in `@openlogo/edu` | `@geometry-teacher` |
 | ai-tutor | Socratic tutoring + AI adapter in `@openlogo/edu` | `@ai-tutor` |
 | curriculum | levels, lessons, exercises in `@openlogo/edu` | `@curriculum` |
-| testing | conformance fixtures, CI, stability | `@testing` |
+| testing | conformance fixtures, negative/fuzz/regression, stability | `@testing` |
 | documentation | reference, tutorials, examples | `@documentation` |
+| devops | CI/CD pipelines, security scanning, labeler, releases (`.github/workflows/`) | `@devops` |
 
 ## How you work
 

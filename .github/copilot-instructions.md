@@ -14,7 +14,7 @@ programming + turtle graphics + geometry + AI coaching + discovery learning.
 **Essentials:**
 
 - Implementation is a **TypeScript 7 monorepo** with packages `@openlogo/{core, parser, runtime,
-  robot, studio, edu}`. Build order follows the spec's profile DAG: **Core Language → Turtle &
+  turtle, studio, edu}`. Build order follows the spec's profile DAG: **Core Language → Turtle &
   Rendering** first (minimal conformance), then optional profiles with their dependencies.
 - Work in **vertical slices**, one feature end to end; one task per PR; prove behavior with
   conformance fixtures under `tests/conformance/`; keep docs and spec cross-links in sync.
