@@ -5,8 +5,8 @@ description: >-
   the Definition of Done from a clean tree (verifying the build actually emits artifacts), checks
   spec-fidelity, conformance, runnable examples, and instructions/skills/docs/spec drift, then
   records a pass/block verdict. Use before any change is handed to a human for merge.
-created: 2025-06-01T00:00
-updated: 2025-06-01T00:00
+created: 2026-07-17T00:00
+updated: 2026-07-17T00:00
 ---
 
 ## Purpose
@@ -40,6 +40,10 @@ invent a new persona:
 
 One reviewer may cover several rows, but the reviewer is always distinct from the author and is
 **named** on the PR.
+
+> `@testing` is the OpenLogo QA agent (`.github/agents/testing.agent.md`). `rubber-duck` and
+> `code-review` are the Copilot CLI built-in reviewer agents — reuse them rather than adding a new
+> OpenLogo persona (KISS). What matters is the role, not the tool: an independent, non-author review.
 
 ## The checklist
 

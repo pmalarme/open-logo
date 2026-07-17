@@ -1,7 +1,7 @@
 # 4. Independent review gate in the Definition of Done
 
 - Status: Accepted
-- Date: 2024
+- Date: 2026-07-17
 - Deciders: OpenLogo maintainer (@pmalarme) + team
 
 ## Context
