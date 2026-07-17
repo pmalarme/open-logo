@@ -361,7 +361,8 @@ its own trace events.
 ## Control forms
 
 `if` and `while` require boolean conditions. `repeat` requires a non-negative
-whole-number count; a negative or fractional count raises `ol-range`.
+whole-number count; a count that is not a whole number raises `ol-type` and a
+negative count raises `ol-range`.
 `forever` runs until cancellation or a configured limit. `for ... from ... to`
 iterates numerically, with an optional `by` step. `for ...
 in ...` iterates list elements in order; dict iteration follows insertion order
