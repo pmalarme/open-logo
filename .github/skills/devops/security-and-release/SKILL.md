@@ -23,6 +23,10 @@ Two workflows already exist; keep them least-privilege and low-noise:
   `detect` job so it stays dormant until `package.json` lands (nothing to scan before then).
 - **Dependency review** ([`.github/workflows/dependency-review.yml`](../../../workflows/dependency-review.yml))
   — active on every PR; blocks known-vulnerable/deny-listed dependencies (`fail-on-severity: high`).
+- **Dependabot** ([`.github/dependabot.yml`](../../../dependabot.yml)) — the remediation half:
+  opens grouped update PRs. `github-actions` runs now (keeps pinned actions patched); `npm`
+  activates when the workspace manifest lands. dependency-review guards the door, Dependabot patches
+  what is already inside — run both.
 - **Secret scanning + push protection** enabled; **no secrets or tokens** in code, fixtures, or
   workflows (matches the team no-secrets rule). Use `GITHUB_TOKEN` with least-privilege `permissions:`.
 - Keep signal high: triage/suppress false positives explicitly; don't let the dashboard rot.
@@ -47,7 +51,7 @@ A release is a **validated tuple**, not one package version:
   maintainer approval.
 
 ## Checklist
-- [ ] CodeQL + dependency review + secret scanning active; least-privilege tokens; actions pinned.
+- [ ] CodeQL + dependency review + Dependabot + secret scanning active; least-privilege tokens; actions pinned.
 - [ ] Release tags a single lockstep tuple; all packages share one spec version + profiles.
 - [ ] Conformance (profile + DAG deps) green before tag **and** re-checked in the release job.
 - [ ] Highlighter/tooling shipped with the grammar change it tracks.

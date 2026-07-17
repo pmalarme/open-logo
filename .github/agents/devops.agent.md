@@ -26,7 +26,9 @@ first.
 - **Security scanning** — [`.github/workflows/codeql.yml`](../workflows/codeql.yml) (CodeQL,
   JavaScript/TypeScript; guarded like `ci.yml` so it activates when the toolchain lands),
   [`.github/workflows/dependency-review.yml`](../workflows/dependency-review.yml) (active on every
-  PR), secret-scanning config, and (later) SBOM / provenance. You keep these green and low-noise.
+  PR), [`.github/dependabot.yml`](../dependabot.yml) (update PRs — github-actions now, npm when the
+  manifest lands), secret-scanning config, and (later) SBOM / provenance. You keep these green and
+  low-noise.
 - **The labeler** — [`.github/labeler.yml`](../labeler.yml) (path → label rules) and the workflow
   that applies it, plus **label sync** from [`.github/labels.yml`](../labels.yml) (the taxonomy is
   `@product-owner`'s source of truth; you keep the repo in sync with it).
