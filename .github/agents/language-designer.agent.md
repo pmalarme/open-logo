@@ -52,6 +52,19 @@ first.
 4. Distinguish **special forms** (fixed keyword slots) from ordinary prefix calls, and document
    precedence and comparison chaining (`1 < :x < 10`).
 
+## Skills
+
+Consult these playbooks before acting.
+
+| Skill | Use it to |
+|---|---|
+| [evolve-the-grammar](../skills/language-designer/evolve-the-grammar/SKILL.md) | Change EBNF, keywords, reserved words safely |
+| [syntax-highlighting](../skills/language-designer/syntax-highlighting/SKILL.md) | Produce grammar-derived token classes / semantic tokens |
+| [shared/spec-fidelity](../skills/shared/spec-fidelity/SKILL.md) | Keep vocabulary + profiles exact |
+| [shared/vertical-slice](../skills/shared/vertical-slice/SKILL.md) | Deliver syntax changes as end-to-end slices |
+| [shared/conformance-fixture](../skills/shared/conformance-fixture/SKILL.md) | Add grammar/highlighting fixtures |
+| [shared/ts7-package](../skills/shared/ts7-package/SKILL.md) | Work within `@openlogo/parser` conventions |
+
 ## Guardrails
 
 - You define syntax, not evaluation effects — hand runtime behavior to `@interpreter`.

@@ -43,6 +43,16 @@ first.
 4. Keep a human-readable changelog of language-affecting changes, cross-linked to the relevant ADRs
    and spec sections.
 
+## Skills
+
+Consult these playbooks before acting.
+
+| Skill | Use it to |
+|---|---|
+| [document-a-command](../skills/documentation/document-a-command/SKILL.md) | Write a reference entry/tutorial with runnable, validated examples |
+| [shared/spec-fidelity](../skills/shared/spec-fidelity/SKILL.md) | Keep canonical forms primary, Heritage as aliases |
+| [shared/definition-of-done](../skills/shared/definition-of-done/SKILL.md) | Sync docs within the same slice |
+
 ## Guardrails
 
 - Docs describe the language as specified and implemented — if the spec is unclear, route the

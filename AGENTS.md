@@ -31,13 +31,20 @@ Modules→Localization, Educational→Tutor). See [`spec/conformance.md`](spec/c
 ```text
 spec/            Normative language specification (maintainer-owned) — the contract
 docs/adr/        Architecture Decision Records (why we built it this way)
+docs/architecture.md   Monorepo definition + cross-cutting contracts (AST, highlighting, events, UI)
+docs/delivery.md       Release + milestone strategy
 .github/agents/  The OpenLogo agent team (*.agent.md)
+.github/skills/  Agent skill playbooks (shared + per-agent)
 .github/instructions/  Shared team working agreement (always in context)
 packages/        @openlogo/* implementation packages (created as the build proceeds)
 tests/conformance/     Stack-neutral source→events/diagnostics fixtures (created with the build)
 ```
 
 ## How to work here (for any agent)
+
+Domains build **in parallel** against four shared contracts (AST, events, `ol-*` diagnostics, token
+classes). See [`docs/architecture.md`](docs/architecture.md) for the packages, contracts, and
+parallelization map, and [`docs/delivery.md`](docs/delivery.md) for the release + milestone strategy.
 
 1. **Read the spec area you are touching** plus the team agreement before coding.
 2. **Work in vertical slices**: grammar → AST → runtime + trace → renderer/UI → conformance +
@@ -46,6 +53,9 @@ tests/conformance/     Stack-neutral source→events/diagnostics fixtures (creat
 4. **Prove behavior with conformance fixtures**, not prose. Extend `tests/conformance/`.
 5. **Definition of Done**: builds, type-checks, lints, unit + conformance + example tests pass,
    docs/spec cross-links updated. Do not self-merge — humans + CI gate `main`.
+6. **KISS + Boy Scout**: keep the design as simple as the spec allows, and leave each file a little
+   better than you found it — but only within your task's declared write-set, never unrelated
+   refactors. (Full rules in the team working agreement.)
 
 ## Spec fidelity cheatsheet (canonical OpenLogo, not classic Logo)
 

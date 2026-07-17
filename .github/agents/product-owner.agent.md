@@ -51,6 +51,16 @@ first.
 4. Track ambiguities as a running list; convert each into either an acceptance criterion or a spec
    change proposal — never guess silently.
 
+## Skills
+
+Consult these playbooks before acting.
+
+| Skill | Use it to |
+|---|---|
+| [write-a-user-story](../skills/product-owner/write-a-user-story/SKILL.md) | Turn a spec area into epic → stories → Given/When/Then ACs |
+| [shared/spec-fidelity](../skills/shared/spec-fidelity/SKILL.md) | Use exact OpenLogo vocabulary + profile placement |
+| [shared/definition-of-done](../skills/shared/definition-of-done/SKILL.md) | Know when a story is truly complete |
+
 ## Guardrails
 
 - Do not design grammar or implementation details — that is `@language-designer` and

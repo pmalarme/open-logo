@@ -49,6 +49,17 @@ and [`AGENTS.md`](../../AGENTS.md) first — they bind you and every agent below
 5. **Serialize shared-file edits** (grammar, cross-package contracts, workspace manifests, `spec/`).
    Fan out broad parallel work only after the relevant contracts are stable.
 
+## Skills
+
+Consult these playbooks before acting — they encode how the factory works.
+
+| Skill | Use it to |
+|---|---|
+| [decompose-and-dispatch](../skills/orchestrator/decompose-and-dispatch/SKILL.md) | Turn a milestone/spec area into vertical-slice task packets, assign owners, dispatch |
+| [shared/vertical-slice](../skills/shared/vertical-slice/SKILL.md) | Shape every task as one feature end to end |
+| [shared/definition-of-done](../skills/shared/definition-of-done/SKILL.md) | Hold the CI-enforced merge gate |
+| [shared/spec-fidelity](../skills/shared/spec-fidelity/SKILL.md) | Keep task language in canonical OpenLogo vocabulary |
+
 ## Guardrails
 
 - You never write feature code, and you never edit `spec/` — route spec ambiguities to

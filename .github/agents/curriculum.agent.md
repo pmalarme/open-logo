@@ -50,6 +50,17 @@ L4 conditions (if / while)                  L8 algorithms (8a recursion · 8b co
 4. Coordinate with `@geometry-teacher` (L6) and `@ai-tutor` (hints/challenges) so lessons expose the
    right teaching hooks, and with `@learner-experience` for the lesson pane.
 
+## Skills
+
+Consult these playbooks before acting.
+
+| Skill | Use it to |
+|---|---|
+| [author-a-lesson](../skills/curriculum/author-a-lesson/SKILL.md) | Author a level lesson with runnable, validated exercises |
+| [shared/spec-fidelity](../skills/shared/spec-fidelity/SKILL.md) | Use level-appropriate primitives + vocabulary |
+| [shared/conformance-fixture](../skills/shared/conformance-fixture/SKILL.md) | Validate every example against the runtime |
+| [shared/definition-of-done](../skills/shared/definition-of-done/SKILL.md) | Know when a lesson is complete |
+
 ## Guardrails
 
 - Never teach a command before its level/profile is available; keep the floor low and the ceiling high.

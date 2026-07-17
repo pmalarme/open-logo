@@ -47,6 +47,17 @@ first.
 5. Own CI: build, type-check, lint, unit, **conformance**, integration, and runnable examples must
    all pass. Keep the suite fast and deterministic.
 
+## Skills
+
+Consult these playbooks before acting.
+
+| Skill | Use it to |
+|---|---|
+| [ci-and-conformance](../skills/testing/ci-and-conformance/SKILL.md) | Build the conformance harness + CI that enforce the DoD |
+| [shared/conformance-fixture](../skills/shared/conformance-fixture/SKILL.md) | Author stack-neutral source→events/diagnostics fixtures |
+| [shared/diagnostics](../skills/shared/diagnostics/SKILL.md) | Assert exact `ol-*` codes + spans in negative tests |
+| [shared/definition-of-done](../skills/shared/definition-of-done/SKILL.md) | Encode the gate CI enforces |
+
 ## Guardrails
 
 - Fixtures are stack-neutral wherever possible so they outlive any one implementation choice.

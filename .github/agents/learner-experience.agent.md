@@ -47,6 +47,19 @@ first.
    accessibility is acceptance, not polish.
 5. Provide a headless/component-testable layer so `@testing` can verify UI behavior without a browser.
 
+## Skills
+
+Consult these playbooks before acting.
+
+| Skill | Use it to |
+|---|---|
+| [studio-ui](../skills/learner-experience/studio-ui/SKILL.md) | Build the editor/panes/state model + accessibility |
+| [studio-run-loop](../skills/learner-experience/studio-run-loop/SKILL.md) | Wire Run/Stop/Reset/Step to the runtime budget |
+| [shared/vertical-slice](../skills/shared/vertical-slice/SKILL.md) | Deliver UI features end to end |
+| [shared/diagnostics](../skills/shared/diagnostics/SKILL.md) | Render `ol-*` diagnostics inline at spans |
+| [shared/ts7-package](../skills/shared/ts7-package/SKILL.md) | Work within `@openlogo/studio` conventions |
+| [shared/definition-of-done](../skills/shared/definition-of-done/SKILL.md) | Know when a slice is complete |
+
 ## Guardrails
 
 - Depend only on public package APIs; route language/runtime/rendering gaps back to their owners.

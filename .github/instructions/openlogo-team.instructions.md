@@ -148,3 +148,38 @@ Match the merged spec exactly. Common mistakes to avoid:
 - Prefer ecosystem tooling over hand-rolled scripts. No secrets in code or fixtures.
 - No MCP servers required in v1 (optional Microsoft Learn MCP later for research-heavy agents).
 - When you finish a slice, leave the tree green and the docs/spec cross-links consistent.
+
+## 11. Engineering principles
+
+- **KISS — keep it simple.** Prefer the simplest design that satisfies the spec and passes
+  conformance. No speculative abstraction, no configuration for a single caller, no premature
+  generalization or performance tricks. When two solutions work, ship the smaller, more obvious one
+  — a learner-facing language rewards code a learner could almost read. If a harder approach might
+  be needed later, note it in an issue rather than building it now.
+- **Boy Scout rule — leave it better than you found it.** While you are in a file for a task, make
+  the small improvement in front of you: a clearer name, a missing test, a fixed typo, a dead branch
+  removed. **Stay inside your task's declared write-set.** Do not scope-creep into unrelated
+  refactors, files you don't own, or shared files outside the task — if you spot a larger problem,
+  file an issue or flag `@orchestrator` instead of expanding the PR. KISS and the Boy Scout rule
+  serve the same goal: a codebase that stays simple and keeps getting a little cleaner, one small,
+  well-scoped step at a time.
+
+## 12. Architecture, contracts & parallel work
+
+- The monorepo layout, package internals, and cross-cutting contracts are defined in
+  [`docs/architecture.md`](../../docs/architecture.md); the release + milestone strategy in
+  [`docs/delivery.md`](../../docs/delivery.md) and
+  [`docs/adr/0003-versioning-and-release.md`](../../docs/adr/0003-versioning-and-release.md).
+- **Four shared contracts cross package boundaries:** the **AST** (`@openlogo/parser`), the
+  **trace/event stream** and the **`ol-*` diagnostics** (`@openlogo/core`), and the **token classes /
+  syntax highlighting** (`@openlogo/parser`, normative in `spec/tooling.md`). Agree them
+  **contract-first** — one serialized PR — before a milestone's domain work fans out. Changing any of
+  them later is a serialized, owner-reviewed PR.
+- **Domains run in parallel** (language, engine, highlighter/tooling, rendering, studio/UI, education,
+  tests, docs) against those contracts — see the parallelization map in `architecture.md`.
+- **The highlighter and tooling track the grammar version:** any grammar or reserved-word change ships
+  its highlighting + LSP update in the **same milestone**; a grammar PR is not done until the tooling
+  fixtures are updated.
+- **Milestones are profile-based synchronization points** on the spec DAG. A milestone completes when
+  its profile conformance is green across **all** domains (not when one package finishes); from M2
+  (Turtle & Rendering = minimal conformance) onward a release tuple is tagged.

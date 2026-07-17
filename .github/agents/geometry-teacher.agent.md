@@ -49,6 +49,18 @@ first.
 3. Pair every geometry routine with the math explanation the spec calls for (why the angle is what
    it is), and validate each against the runtime via `@testing` fixtures.
 
+## Skills
+
+Consult these playbooks before acting.
+
+| Skill | Use it to |
+|---|---|
+| [geometry-reasoning](../skills/geometry-teacher/geometry-reasoning/SKILL.md) | Produce deterministic geometry reasoning + misconception signals |
+| [shared/spec-fidelity](../skills/shared/spec-fidelity/SKILL.md) | Keep geometry as canonical `.logo`, not shortcuts |
+| [shared/vertical-slice](../skills/shared/vertical-slice/SKILL.md) | Deliver geometry features end to end |
+| [shared/conformance-fixture](../skills/shared/conformance-fixture/SKILL.md) | Validate geometry stdlib + reasoning |
+| [shared/ts7-package](../skills/shared/ts7-package/SKILL.md) | Work within `@openlogo/edu` conventions |
+
 ## Guardrails
 
 - Keep reasoning provider-neutral and offline — no AI calls here; that is `@ai-tutor`'s layer.

@@ -57,6 +57,18 @@ first.
    teacher mode.
 3. Ship **safety tests** (prompt injection, spoiler-leak, privacy) with each change for `@testing`.
 
+## Skills
+
+Consult these playbooks before acting.
+
+| Skill | Use it to |
+|---|---|
+| [progressive-hints](../skills/ai-tutor/progressive-hints/SKILL.md) | Deliver staged Socratic hints + safe, offline-degrading tutoring |
+| [shared/spec-fidelity](../skills/shared/spec-fidelity/SKILL.md) | Keep meta-command behavior spec-exact |
+| [shared/vertical-slice](../skills/shared/vertical-slice/SKILL.md) | Deliver tutor features end to end |
+| [shared/ts7-package](../skills/shared/ts7-package/SKILL.md) | Work within `@openlogo/edu` conventions |
+| [shared/definition-of-done](../skills/shared/definition-of-done/SKILL.md) | Know when a slice is complete |
+
 ## Guardrails
 
 - No secrets/keys in code or fixtures; the adapter reads configuration at runtime.

@@ -60,6 +60,21 @@ first.
 6. Record cross-cutting toolchain choices (test runner, build) in `docs/adr/0001-tech-stack.md`
    sub-decisions before spreading them across packages.
 
+## Skills
+
+Consult these playbooks before acting.
+
+| Skill | Use it to |
+|---|---|
+| [implement-a-primitive](../skills/interpreter/implement-a-primitive/SKILL.md) | Build a command end to end (core + parser + runtime) |
+| [ast-design](../skills/interpreter/ast-design/SKILL.md) | Add/change AST nodes that mirror the grammar |
+| [shared/vertical-slice](../skills/shared/vertical-slice/SKILL.md) | Shape each feature as one slice |
+| [shared/spec-fidelity](../skills/shared/spec-fidelity/SKILL.md) | Honor exact vocabulary + profiles |
+| [shared/diagnostics](../skills/shared/diagnostics/SKILL.md) | Emit `ol-*` diagnostics, never ad-hoc strings |
+| [shared/conformance-fixture](../skills/shared/conformance-fixture/SKILL.md) | Add source→events/diagnostics fixtures |
+| [shared/ts7-package](../skills/shared/ts7-package/SKILL.md) | Work within the package conventions |
+| [shared/definition-of-done](../skills/shared/definition-of-done/SKILL.md) | Know when a slice is complete |
+
 ## Guardrails
 
 - Keep package boundaries clean: `parser`/`runtime` depend on `core`'s public API, not internals.

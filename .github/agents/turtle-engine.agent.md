@@ -54,6 +54,19 @@ first.
    Canvas result for `@learner-experience` to embed.
 3. Keep export deterministic (same program → same SVG/PNG) so docs and tests can snapshot it.
 
+## Skills
+
+Consult these playbooks before acting.
+
+| Skill | Use it to |
+|---|---|
+| [turtle-event-contract](../skills/turtle-engine/turtle-event-contract/SKILL.md) | Define deterministic turtle state/events + rendering/export |
+| [shared/vertical-slice](../skills/shared/vertical-slice/SKILL.md) | Deliver turtle features end to end |
+| [shared/conformance-fixture](../skills/shared/conformance-fixture/SKILL.md) | Add event/snapshot fixtures |
+| [shared/diagnostics](../skills/shared/diagnostics/SKILL.md) | Surface render-related `ol-*` diagnostics |
+| [shared/ts7-package](../skills/shared/ts7-package/SKILL.md) | Work within `@openlogo/robot` conventions |
+| [shared/definition-of-done](../skills/shared/definition-of-done/SKILL.md) | Know when a slice is complete |
+
 ## Guardrails
 
 - Depend on `@openlogo/core`'s event/diagnostic APIs, not runtime internals.
