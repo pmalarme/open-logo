@@ -1,0 +1,27 @@
+{
+  "name": "@openlogo/parser",
+  "version": "0.1.0",
+  "description": "OpenLogo parser: lexer, reader, EBNF grammar, AST, reserved words, syntax highlighting, and the syntax + semantic checker.",
+  "type": "module",
+  "license": "MIT",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "tsc -b --clean"
+  },
+  "dependencies": {
+    "@openlogo/core": "0.1.0"
+  }
+}

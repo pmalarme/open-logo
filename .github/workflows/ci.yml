@@ -47,8 +47,9 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: "22"
-      # TODO(@devops): align install with the workspace manager chosen in ADR-0001.
-      # No --if-present: once the toolchain lands, each DoD script MUST exist, so a
+          cache: "npm"
+      # Install from the committed lockfile (npm workspaces — see ADR-0001).
+      # No --if-present: every DoD script exists now that the toolchain has landed, so a
       # missing gate is a real failure rather than a silent pass.
       - run: npm ci
       - run: npm run -s build
@@ -64,6 +65,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: "22"
+          cache: "npm"
       - run: npm ci
       - run: npm run -s lint
       - run: npm run -s format:check
@@ -78,6 +80,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: "22"
+          cache: "npm"
       - run: npm ci
       - run: npm run -s test
       - run: npm run -s conformance

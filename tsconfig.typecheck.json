@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "incremental": false,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "noEmit": true,
+    "paths": {
+      "@openlogo/core": ["./packages/core/src/index.ts"],
+      "@openlogo/parser": ["./packages/parser/src/index.ts"],
+      "@openlogo/runtime": ["./packages/runtime/src/index.ts"],
+      "@openlogo/turtle": ["./packages/turtle/src/index.ts"],
+      "@openlogo/edu": ["./packages/edu/src/index.ts"],
+      "@openlogo/studio": ["./packages/studio/src/index.ts"]
+    }
+  },
+  "include": ["packages/*/src"]
+}

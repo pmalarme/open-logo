@@ -28,7 +28,15 @@
 "agent:devops":
   - changed-files:
       - any-glob-to-any-file:
-          [".github/workflows/**", ".github/labeler.yml", ".github/scripts/**"]
+          - ".github/workflows/**"
+          - ".github/labeler.yml"
+          - ".github/scripts/**"
+          - "package.json"
+          - "package-lock.json"
+          - "tsconfig*.json"
+          - "eslint.config.js"
+          - ".prettier*"
+          - "scripts/**"
 
 "agent:product-owner":
   - changed-files:
@@ -63,7 +71,15 @@
 "area:ci":
   - changed-files:
       - any-glob-to-any-file:
-          [".github/workflows/**", ".github/labeler.yml", ".github/scripts/**"]
+          - ".github/workflows/**"
+          - ".github/labeler.yml"
+          - ".github/scripts/**"
+          - "package.json"
+          - "package-lock.json"
+          - "tsconfig*.json"
+          - "eslint.config.js"
+          - ".prettier*"
+          - "scripts/**"
 
 "area:docs":
   - changed-files:

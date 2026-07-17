@@ -82,10 +82,23 @@ in [`.github/ISSUE_TEMPLATE/`](.github/ISSUE_TEMPLATE) (labels come from
 
 ## Build & test
 
-The monorepo is being scaffolded. Once `packages/` and the workspace manifest exist, the standard
-loop is workspace install → build → test → conformance (exact commands are recorded in
-[`docs/adr/0001-tech-stack.md`](docs/adr/0001-tech-stack.md) as they are decided). Until then,
-prefer small, reviewable PRs and keep this file and the ADRs updated as the toolchain lands.
+The monorepo uses **npm workspaces** (`packages/*`). Install once with `npm ci`, then run the
+Definition-of-Done gates — the same scripts CI runs:
+
+```bash
+npm ci               # install from the committed lockfile
+npm run build        # tsc -b across project references (emits dist/)
+npm run typecheck    # strict, no-emit type-check
+npm run lint         # ESLint (flat config); npm run format to auto-format
+npm run format:check # Prettier
+npm run test         # unit tests
+npm run conformance  # stack-neutral fixtures (tests/conformance/, by profile)
+npm run examples     # run spec/examples/*.logo
+```
+
+Some gates are wired but stay green until their content lands (`test`/`conformance`/`examples` have
+no fixtures/harness yet). Toolchain details — including the TypeScript 7 compiler note — live in
+[`docs/adr/0001-tech-stack.md`](docs/adr/0001-tech-stack.md).
 
 ## The agent team
 

@@ -1,0 +1,27 @@
+{
+  "name": "@openlogo/turtle",
+  "version": "0.1.0",
+  "description": "OpenLogo turtle: turtle/sprite state, pen/heading/shape, Canvas/SVG/PNG rendering, animation, export, and accessibility.",
+  "type": "module",
+  "license": "MIT",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "tsc -b --clean"
+  },
+  "dependencies": {
+    "@openlogo/core": "0.1.0"
+  }
+}
