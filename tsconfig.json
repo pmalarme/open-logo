@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "files": [],
+  "references": [
+    { "path": "packages/core" },
+    { "path": "packages/parser" },
+    { "path": "packages/runtime" },
+    { "path": "packages/turtle" },
+    { "path": "packages/edu" },
+    { "path": "packages/studio" }
+  ]
+}

@@ -1,0 +1,15 @@
+# Generated / vendored
+node_modules
+dist
+coverage
+*.tsbuildinfo
+package-lock.json
+
+# Maintainer-owned normative contract — never reformatted by tooling.
+spec/
+
+# Hand-authored prose (ADRs, agent docs, instructions, skills, READMEs) predates the
+# formatter and keeps its ~100-column house style. Markdown is out of the code format gate.
+docs/
+.github/
+*.md

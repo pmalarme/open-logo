@@ -1,0 +1,30 @@
+{
+  "name": "openlogo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OpenLogo — a modern, open, educational reimagining of Logo (TypeScript 7 monorepo).",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b",
+    "lint": "biome lint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "node --test",
+    "conformance": "node scripts/conformance.mjs",
+    "examples": "node scripts/check-examples.mjs",
+    "clean": "tsc -b --clean"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.3",
+    "prettier": "^3.4.2",
+    "typescript": "^7.0.2"
+  }
+}

@@ -82,10 +82,24 @@ in [`.github/ISSUE_TEMPLATE/`](.github/ISSUE_TEMPLATE) (labels come from
 
 ## Build & test
 
-The monorepo is being scaffolded. Once `packages/` and the workspace manifest exist, the standard
-loop is workspace install → build → test → conformance (exact commands are recorded in
-[`docs/adr/0001-tech-stack.md`](docs/adr/0001-tech-stack.md) as they are decided). Until then,
-prefer small, reviewable PRs and keep this file and the ADRs updated as the toolchain lands.
+The workspace uses **npm workspaces** (Node `>=22`). From the repo root:
+
+```bash
+npm ci               # restore the workspace from the committed lockfile
+npm run build        # tsc -b — emits dist/*.js + *.d.ts across all packages
+npm run typecheck    # tsc -b type-check
+npm run lint         # Biome
+npm run format:check # Prettier
+npm run test         # node:test
+npm run conformance  # stack-neutral fixtures (placeholder until issue #6)
+npm run examples     # verify every spec/examples/*.logo is present and non-empty
+```
+
+These seven scripts are the CI-enforced Definition of Done; see
+[`docs/adr/0005-toolchain.md`](docs/adr/0005-toolchain.md) for why each tool was chosen (npm
+workspaces, `tsc -b`, Prettier, Biome, `node:test`) and the `typescript-eslint`/Vitest traps it
+avoids. Work in small, reviewable PRs and keep this file and the ADRs in sync as the toolchain
+evolves.
 
 ## The agent team
 
