@@ -1,0 +1,27 @@
+# OpenLogo example 02: repetition
+# level 2 adds blocks and repeat.
+// secondary line comments also work.
+
+clear_screen
+set_color "green"
+set_width 2
+
+/* this block comment is part of the comments surface. */
+repeat 4
+  forward 80
+  right 90
+end repeat
+
+# repcount reports which repeat pass is running.
+pen_up
+right 45
+forward 120
+left 45
+pen_down
+
+repeat 30
+  forward repcount
+  right 90
+end repeat
+
+# expected final state: a green square and a growing square spiral are drawn.

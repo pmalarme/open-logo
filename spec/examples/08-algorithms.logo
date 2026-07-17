@@ -1,0 +1,34 @@
+# OpenLogo example 08: algorithms
+# level 8 shows recursion comprehensions and destructuring.
+
+clear_screen
+set_color "blue"
+
+define factorial :n
+  if :n == 0
+    return 1
+  else
+    return :n * factorial (:n - 1)
+  end if
+end define
+
+:five_factorial = factorial 5
+print :five_factorial
+
+:nums = [1 2 3 4 5]
+:squares = map num in :nums [ :num * :num ]
+:evens = filter num in :nums [ :num mod 2 == 0 ]
+:total = reduce sum num in :nums from 0 [ :sum + :num ]
+
+print :squares
+print :evens
+print :total
+
+:points = [[0 0] [50 0] [50 50] [0 50]]
+for [:x :y] in :points
+  set_xy :x :y
+  stamp
+end for
+
+# expected output: 120 then [1 4 9 16 25] then [2 4] then 15.
+# expected final state: stamps mark the four coordinate pairs in :points.

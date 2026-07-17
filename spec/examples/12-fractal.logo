@@ -1,0 +1,43 @@
+# OpenLogo example 12: fractal showcase
+# recursion plus comprehensions creates a branching tree.
+
+clear_screen
+set_color "green"
+set_width 2
+
+define branch :length :depth
+  if :depth == 0
+    return :length
+  else
+    forward :length
+
+    local next
+    local turns
+    local wide_turns
+    local turn_total
+    local balanced_turns
+
+    :next = :length * 0.67
+    :turns = [-30 30]
+    :wide_turns = filter turn in :turns [ (abs :turn) >= 30 ]
+    :turn_total = reduce sum turn in :wide_turns from 0 [ :sum + :turn ]
+    :balanced_turns = map turn in :wide_turns [ :turn - :turn_total ]
+
+    for turn in :balanced_turns
+      left :turn
+      branch :next (:depth - 1)
+      right :turn
+    end for
+
+    back :length
+    return :length
+  end if
+end define
+
+pen_up
+back 120
+pen_down
+
+branch 70 4
+
+# expected final state: a recursive green tree is drawn and the turtle returns to the trunk base.

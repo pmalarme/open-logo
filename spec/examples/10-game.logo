@@ -1,0 +1,41 @@
+# OpenLogo example 10: game showcase
+# interaction profile connects keys clicks time and randomness.
+
+clear_screen
+set_color "pink"
+
+:score = 0
+:turn_size = 15
+:step_size = 20
+
+on_key "left" [
+  left :turn_size
+]
+
+on_key "right" [
+  right :turn_size
+]
+
+on_key "up" [
+  forward :step_size
+]
+
+on_click [
+  :score = :score + 1
+  print :score
+]
+
+every 30 [
+  :coin_x = (random -120 120)
+  :coin_y = (random -80 80)
+  pen_up
+  set_xy :coin_x :coin_y
+  stamp
+  pen_down
+]
+
+wait 300
+
+# expected final state: key and click handlers are installed for 300 ticks.
+# randomness property: each :coin_x is from -120 through 120 and each :coin_y is from -80 through 80.
+# expected output: each click prints the updated :score.

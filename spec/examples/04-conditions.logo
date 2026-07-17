@@ -1,0 +1,35 @@
+# OpenLogo example 04: conditions
+# level 4 uses strict booleans if else and == for equality.
+
+clear_screen
+set_color "orange"
+
+:sides = 4
+:size = 70
+:is_square = :sides == 4
+
+if :is_square
+  print "square"
+  repeat :sides
+    forward :size
+    right 360 / :sides
+  end repeat
+else
+  print "not square"
+  forward :size
+end if
+
+:has_many_sides = :sides > 5
+if not :has_many_sides
+  print "few sides"
+else
+  print "many sides"
+end if
+
+# a worded range test reads like english and returns a boolean.
+:in_range = :sides is between 3 and 6
+if :in_range
+  print "a friendly number of sides"
+end if
+
+# expected output: "square" then "few sides" then "a friendly number of sides"; a square is drawn.

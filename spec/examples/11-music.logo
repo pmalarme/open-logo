@@ -1,0 +1,18 @@
+# OpenLogo example 11: music showcase
+# sound profile makes sequences audible.
+
+:melody = ["c4" "d4" "e4" "g4" "e4" "d4" "c4"]
+:durations = [1 1 1 2 1 1 2]
+:i = 1
+
+set_tempo 120
+
+for pitch in :melody
+  note :pitch :durations[:i]
+  :i = :i + 1
+end for
+
+rest 1
+beep
+
+# expected final state: the seven-note melody plays at tempo 120 then rests and beeps.

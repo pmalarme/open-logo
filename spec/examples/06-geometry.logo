@@ -1,0 +1,31 @@
+# OpenLogo example 06: geometry
+# level 6 builds polygon from repeat before using it.
+
+clear_screen
+set_color "brown"
+
+define polygon :sides :size
+  repeat :sides
+    forward :size
+    right 360 / :sides
+  end repeat
+end define
+
+define triangle :size
+  polygon 3 :size
+end define
+
+define house :size
+  polygon 4 :size
+  pen_up
+  forward :size
+  right 90
+  forward :size
+  right 180
+  pen_down
+  triangle :size
+end define
+
+house 70
+
+# expected final state: a square house body with a triangular roof sitting on top.
