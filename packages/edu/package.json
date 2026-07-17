@@ -1,18 +1,17 @@
 {
   "name": "@openlogo/edu",
   "version": "0.1.0",
-  "description": "OpenLogo edu: learner levels, explain/why/hint/debug, the geometry stdlib, the AI tutor, and curriculum.",
-  "type": "module",
+  "description": "OpenLogo education: learner levels, explain/why/hint/debug, geometry stdlib, AI tutor, and curriculum.",
   "license": "MIT",
-  "private": true,
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "type": "module",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     }
   },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "files": [
     "dist",
     "src"

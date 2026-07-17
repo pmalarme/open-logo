@@ -1,14 +1,9 @@
 /**
- * `@openlogo/parser` — the lexer, reader, EBNF grammar, the AST, reserved words, syntax
- * highlighting classes, and the syntax + semantic checker. This module is the package's
- * only public entry point; import it as the OpenLogo (`OL`) namespace:
+ * `@openlogo/parser` — lexer, reader, EBNF grammar, AST, reserved words, syntax highlighting,
+ * and the syntax/semantic checker. Depends on `@openlogo/core`.
  *
- * ```ts
- * import * as OL from "@openlogo/parser";
- * ```
- *
- * M0 skeleton: the real surface lands with this package's first vertical slice. The
- * `version` constant exists so the workspace builds and type-checks and so the
- * `@openlogo/*` tuple versions in lockstep.
+ * The AST and token-class contracts land in issue #7; this is the M0 skeleton.
  */
-export const version = "0.1.0";
+
+/** Marker export so the M0 skeleton is a real ES module; replaced by real exports in #7. */
+export const PARSER_PACKAGE = "@openlogo/parser";

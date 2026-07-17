@@ -19,7 +19,7 @@ Every merge to `main` must pass the same gates. This skill is how you wire and e
 |---|---|---|
 | meta | markdown links, YAML lint (issue forms, labels, workflows), spec-example presence | always |
 | build + type-check | `tsc -b` across project references (TS7, strict) | when `package.json` exists |
-| lint + format | ESLint / formatter + OpenLogo style-lint | when `package.json` exists |
+| lint + format | Biome (lint) + Prettier (format) + OpenLogo style-lint | when `package.json` exists |
 | unit | package unit tests | when `package.json` exists |
 | **conformance** | stack-neutral `tests/conformance/` fixtures, **by profile along the DAG** | when fixtures exist |
 | integration + examples | vertical-slice integration + every `spec/examples/*.logo` still runs | when `package.json` exists |

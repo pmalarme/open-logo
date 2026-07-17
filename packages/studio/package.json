@@ -1,18 +1,17 @@
 {
   "name": "@openlogo/studio",
   "version": "0.1.0",
-  "description": "OpenLogo studio: the browser learner IDE — editor/REPL, Canvas turtle view, run/stop/step, diagnostics UI, tooling, and lessons.",
-  "type": "module",
+  "description": "OpenLogo studio: the browser learner IDE — editor/REPL, Canvas turtle view, run/stop/step, diagnostics, tooling, and lessons.",
   "license": "MIT",
-  "private": true,
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "type": "module",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     }
   },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "files": [
     "dist",
     "src"

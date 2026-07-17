@@ -1,38 +1,30 @@
 {
   "name": "openlogo",
   "version": "0.1.0",
-  "description": "OpenLogo (OL) — a modern, open, educational reimagining of Logo. TypeScript 7 monorepo.",
   "private": true,
-  "type": "module",
+  "description": "OpenLogo — a modern, open, educational reimagining of Logo (TypeScript 7 monorepo).",
   "license": "MIT",
-  "homepage": "https://github.com/pmalarme/open-logo",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/pmalarme/open-logo.git"
+  "type": "module",
+  "engines": {
+    "node": ">=22"
   },
   "workspaces": [
     "packages/*"
   ],
-  "engines": {
-    "node": ">=22"
-  },
   "scripts": {
-    "build": "tsc -b tsconfig.json",
-    "typecheck": "tsc -p tsconfig.typecheck.json",
-    "lint": "eslint .",
+    "build": "tsc -b",
+    "typecheck": "tsc -b",
+    "lint": "biome lint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "node scripts/test.mjs",
+    "test": "node --test",
     "conformance": "node scripts/conformance.mjs",
-    "examples": "node scripts/examples.mjs",
-    "clean": "tsc -b tsconfig.json --clean"
+    "examples": "node scripts/check-examples.mjs",
+    "clean": "tsc -b --clean"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
-    "eslint": "^10.6.0",
-    "globals": "^17.7.0",
-    "prettier": "^3.9.5",
-    "typescript": "^6.0.3",
-    "typescript-eslint": "^8.63.1-alpha.8"
+    "@biomejs/biome": "^2.5.3",
+    "prettier": "^3.4.2",
+    "typescript": "^7.0.2"
   }
 }

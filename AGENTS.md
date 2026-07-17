@@ -84,23 +84,24 @@ in [`.github/ISSUE_TEMPLATE/`](.github/ISSUE_TEMPLATE) (labels come from
 
 ## Build & test
 
-The monorepo uses **npm workspaces** (`packages/*`). Install once with `npm ci`, then run the
-Definition-of-Done gates — the same scripts CI runs:
+The workspace uses **npm workspaces** (Node `>=22`). From the repo root:
 
 ```bash
-npm ci               # install from the committed lockfile
-npm run build        # tsc -b across project references (emits dist/)
-npm run typecheck    # strict, no-emit type-check
-npm run lint         # ESLint (flat config); npm run format to auto-format
+npm ci               # restore the workspace from the committed lockfile
+npm run build        # tsc -b — emits dist/*.js + *.d.ts across all packages
+npm run typecheck    # tsc -b type-check
+npm run lint         # Biome
 npm run format:check # Prettier
-npm run test         # unit tests
-npm run conformance  # stack-neutral fixtures (tests/conformance/, by profile)
-npm run examples     # run spec/examples/*.logo
+npm run test         # node:test
+npm run conformance  # stack-neutral fixtures (placeholder until issue #6)
+npm run examples     # verify every spec/examples/*.logo is present and non-empty
 ```
 
-Some gates are wired but stay green until their content lands (`test`/`conformance`/`examples` have
-no fixtures/harness yet). Toolchain details — including the TypeScript 7 compiler note — live in
-[`docs/adr/0001-tech-stack.md`](docs/adr/0001-tech-stack.md).
+These seven scripts are the CI-enforced Definition of Done; see
+[`docs/adr/0005-toolchain.md`](docs/adr/0005-toolchain.md) for why each tool was chosen (npm
+workspaces, `tsc -b`, Prettier, Biome, `node:test`) and the `typescript-eslint`/Vitest traps it
+avoids. Work in small, reviewable PRs and keep this file and the ADRs in sync as the toolchain
+evolves.
 
 ## The agent team
 

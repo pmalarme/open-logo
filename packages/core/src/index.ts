@@ -1,14 +1,9 @@
 /**
- * `@openlogo/core` — the value/type model, `ol-*` diagnostics, the trace/event registry,
- * and profile/feature-detection metadata. This module is the package's only public entry
- * point; import it as the OpenLogo (`OL`) namespace:
+ * `@openlogo/core` — value/type model, `ol-*` diagnostics, the trace/event registry, and
+ * feature-detection/profile metadata. Everything depends on core; core depends on nothing.
  *
- * ```ts
- * import * as OL from "@openlogo/core";
- * ```
- *
- * M0 skeleton: the real surface lands with this package's first vertical slice. The
- * `version` constant exists so the workspace builds and type-checks and so the
- * `@openlogo/*` tuple versions in lockstep.
+ * The cross-cutting contracts (events, diagnostics) land in issue #7; this is the M0 skeleton.
  */
-export const version = "0.1.0";
+
+/** The OpenLogo language/spec version this build targets. */
+export const OPENLOGO_VERSION = "0.1.0";
