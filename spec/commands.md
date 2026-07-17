@@ -457,7 +457,7 @@ print pi
 
 Booleans are strict. The only boolean literals are `true` and `false`. Conditions and logical operands must already be boolean values. OpenLogo has no truthiness.
 
-Comparisons may be **chained**: `1 < :x < 10` means `1 < :x and :x < 10`, with each operand evaluated once. Alongside the prefix `?`-predicates below, OpenLogo offers equivalent **worded predicates** that read as English and also return booleans: `is <value> empty` (see `empty?`), `is <value> member of <collection>` (see `member?`), `is <value> a <type-word>` (see `is_a?`), and `is <value> [ strictly ] between <low> and <high>` (inclusive, or exclusive with `strictly`). Only `is` is reserved; the words that follow it are contextual keywords. There is no infix `in` membership operator — use the worded form or `member?`.
+Comparisons may be **chained**: `1 < :x < 10` means `1 < :x and :x < 10`, with each operand evaluated once. Alongside the prefix `?`-predicates below, OpenLogo offers equivalent **worded predicates** that read as English and also return booleans, written **operand-first** with the value before `is`: `<value> is empty` (see `empty?`), `<value> is member of <collection>` (see `member?`), `<value> is a <type-word>` (see `is_a?`), and `<value> is [ strictly ] between <low> and <high>` (inclusive, or exclusive with `strictly`). Only `is`, `strictly`, and `between` are reserved; `empty`, `member`, `of`, and `a` are contextual keywords after `is`. There is no infix `in` membership operator — use the worded form or `member?`.
 
 ### `==`
 
@@ -665,7 +665,7 @@ end if
 
 ```logo
 print empty? []
-print is [] empty
+print ([] is empty)
 ```
 
 - **Possible errors:** none specified in the primitive matrix.
@@ -683,7 +683,7 @@ print is [] empty
 
 ```logo
 print member? 2 [1 2 3]
-print is 2 member of [1 2 3]
+print (2 is member of [1 2 3])
 ```
 
 - **Possible errors:** none specified in the primitive matrix.
@@ -701,7 +701,7 @@ print is 2 member of [1 2 3]
 
 ```logo
 print is_a? 5 "number"
-print is 5 a "number"
+print (5 is a "number")
 ```
 
 - **Possible errors:** none specified in the primitive matrix.
@@ -926,7 +926,7 @@ end
 print double 5
 ```
 
-- **Possible errors:** `ol-reserved-word`, `ol-not-enough-inputs`, `ol-too-many-inputs`.
+- **Possible errors:** `ol-reserved-word` when the procedure name collides with a reserved word or existing name. Wrong argument counts are reported at the call site as `ol-not-enough-inputs` or `ol-too-many-inputs`, not by `define` itself.
 
 ### `return`
 
@@ -976,7 +976,7 @@ end
 - **Kind:** Special form
 - **Argument types:** value (typically a word message)
 - **Result:** — (halts execution)
-- **Description:** Halts execution immediately and raises the runtime diagnostic `ol-user-error`, using the thrown word as the learner-facing message. It lets a procedure reject invalid input in its own words — the geometry library uses it to validate arguments. v0.1 has no `try`/`catch`, so a thrown error stops the program like any other runtime error.
+- **Description:** Halts execution immediately and raises the runtime diagnostic `ol-user-error`, using the thrown word as the learner-facing message; a non-word value is shown by its printed form. It lets a procedure reject invalid input in its own words — the geometry library uses it to validate arguments. v0.1 has no `try`/`catch`, so a thrown error stops the program like any other runtime error.
 - **Concept:** A program can refuse bad input and say why.
 - **Example:**
 
@@ -1488,7 +1488,7 @@ forward 50
 - **Kind:** Command
 - **Argument types:** none
 - **Result:** —
-- **Description:** Clears the drawing and sends the turtle home. It keeps pen color, width, and background.
+- **Description:** Clears the drawing and sends the turtle home. It keeps the pen state, color, width, visibility, and background; full defaults are restored only at program start.
 - **Concept:** Resetting a workspace while keeping style choices.
 - **Example:**
 

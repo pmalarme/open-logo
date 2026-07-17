@@ -75,7 +75,7 @@ The y-axis inversion is required because world `+y` is up while most raster surf
 
 The viewport MAY support pan and zoom as UI operations. Pan and zoom MUST NOT change the retained scene, turtle coordinates, exported world geometry, or program-visible values such as `xcor`, `ycor`, `heading`, and `pos`.
 
-At start and after `clear_screen`, the turtle is at `(0,0)`, heading `0`, pen down, color `"black"`, width `1`, visible, and the background is `"white"`. `home` moves to `(0,0)` and heading `0`. `clear_screen` clears drawing and homes the turtle while keeping color, width, and background; `clean` clears drawing only. Renderer overlays are not drawing and persist across `clean`.
+At program start, the turtle is at `(0,0)`, heading `0`, pen down, color `"black"`, width `1`, visible, and the background is `"white"`. `home` moves to `(0,0)` and heading `0` without changing the pen, color, width, visibility, or background. `clear_screen` clears the drawing and homes the turtle while preserving the pen state, color, width, visibility, and background; the full start defaults are restored only at program start. `clean` clears drawing only. Renderer overlays are not drawing and persist across `clean`.
 
 ## Execution-event consumption
 

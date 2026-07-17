@@ -37,7 +37,7 @@ print count :path
 print :path[1].x
 
 # worded membership replaces any infix operator and reads as english.
-print is "orange" member of :colors
+print ("orange" is member of :colors)
 
 for p in :path
   set_xy :p.x :p.y

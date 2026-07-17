@@ -48,7 +48,7 @@ At any moment, turtle commands run for an **addressed set**. In a program withou
 ```logo
 :a = new_turtle
 :b = new_turtle
-tell (list :a :b)
+tell [ :a :b ]
 forward 50
 right 90
 ```
@@ -80,7 +80,7 @@ end ask
 ```logo
 :a = new_turtle
 :b = new_turtle
-tell (list :a :b)
+tell [ :a :b ]
 each [
   print who
   forward 40

@@ -97,7 +97,7 @@ The alias substitutes exactly one token. It cannot define a new multi-token gram
 
 ## Reserved words and collisions
 
-The normative reserved-word list is owned by [grammar](grammar.md). Reserved words include structural keywords such as `define`, `to`, `end`, `return`, `set`, `make`, `if`, `else`, `repeat`, `for`, `in`, `from`, `to`, `of`, `key`, `value`, `map`, `filter`, `reduce`, `struct`, `alias`, `import`, and `export`.
+The normative reserved-word list is owned by [grammar](grammar.md). Reserved words include structural keywords such as `define`, `to`, `end`, `return`, `set`, `make`, `if`, `else`, `repeat`, `for`, `in`, `from`, `to`, `key`, `value`, `map`, `filter`, `reduce`, `struct`, `alias`, `import`, and `export`.
 
 Reserved words may be aliased:
 

@@ -105,7 +105,7 @@ codes only outside the `ol-*` namespace.
 | `ol-missing-end` | parse | `opener`, optional `hint` | A long block or procedure was opened but not closed, or a control header was followed by an undelimited body. The hint SHOULD mention wrapping the body in `[ ]` or closing it with `end`. |
 | `ol-mismatched-end` | parse | `expected`, `actual` | An `end` label is orphaned or does not match its opener; includes an `else` with no still-open `if`. |
 | `ol-unclosed-comment` | parse | `opened_at` | A `/* … */` comment reached end of file before `*/`. |
-| `ol-unclosed-string` | parse | `opened_at` | A closed double-quoted word/string reached end of line or file before the closing `"`. |
+| `ol-unclosed-string` | parse | `opened_at` | A single-line `"…"` word reached end of line or end of file, or a triple-quoted `"""…"""` word reached end of file, before its closing quote. |
 | `ol-bad-token` | parse | `text` | The lexer found characters that are not valid OpenLogo tokens. The message SHOULD point at the unexpected text and mention the closest legal form when clear. |
 | `ol-div-zero` | runtime | `operation` | `/` or `mod` attempted to divide by zero. OpenLogo reports this instead of producing infinity or NaN. |
 | `ol-neg-sqrt` | runtime | `value` | `sqrt` received a negative number. |

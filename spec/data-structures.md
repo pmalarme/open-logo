@@ -129,13 +129,13 @@ print count :nums # => 3
 | `reverse` | R | list | list | — | returns a fresh list in reverse order |
 | `pick` | R | list | element | `ol-range` on empty | returns one element |
 | `sort` | R | list | list | — | returns a fresh sorted list |
-| `member? value list` | R | value, list | boolean | — | tests list membership; worded form `is value member of list` |
+| `member? value collection` (Core) | R | value, collection | boolean | — | Core membership test; on a list it checks elements, and with the Data profile a dict is also accepted, checking its keys; worded form `value is member of collection` |
 
 ```logo
 :nums = [1 2 3]
 :backward = reverse :nums
 print member? 2 :nums          # => true
-print is 2 member of :nums     # => true
+print (2 is member of :nums)   # => true
 ```
 
 ## Dictionaries
@@ -238,7 +238,7 @@ Only the final selector upserts. A missing intermediate container in a chain rai
 }
 
 print member? "tom" :ages
-print is "tom" member of :ages
+print ("tom" is member of :ages)
 print keys :ages
 print values :ages
 print count :ages
@@ -282,7 +282,7 @@ print is_a? :p "person"
 | `<type>` constructor | R | field values | record | `ol-not-enough-inputs`, `ol-too-many-inputs` | constructs a mutable record with arity equal to the field count |
 | `:record.field` | R/place | — | field value | `ol-unknown-field` | reads or writes a fixed field |
 | `type_of` | R | record | word | — | reports the record type name |
-| `is_a?` | R | record, type | boolean | — | reports whether the record has that type |
+| `is_a?` (Core) | R | value, type | boolean | — | Core type test on any value; for a record it matches the struct type name |
 
 ### Nested records and dictionaries
 

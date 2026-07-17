@@ -4,7 +4,7 @@
 
 Back to the [specification index](README.md).
 
-This document is the normative owner for the Geometry profile: geometry is a derived standard library written in OpenLogo, not a hidden set of opaque primitives. Signatures, kinds, and default arities are the Geometry rows of the [C3 canonical primitive matrix](commands.md). The teaching order is always: first show the `repeat` construction and the turtle math, then name it as a packaged command.
+This document is the normative owner for the Geometry profile. Most of geometry is a derived standard library written in OpenLogo, not a hidden set of opaque primitives; the `grid`, `axes`, and `measure` overlays are the exception — they are renderer-backed primitives specified behaviorally rather than as OpenLogo source. Signatures, kinds, and default arities are the Geometry rows of the [C3 canonical primitive matrix](commands.md). For the derived shapes the teaching order is always: first show the `repeat` construction and the turtle math, then name it as a packaged command.
 
 Geometry examples use the locked OpenLogo surface: variable reads are written as `:name`, assignment uses `=`, equality uses `==`, blocks use `[ ]` or `end`, optional trailing parameters use parenthesized defaults on `define` lines, and word values use closed quotes such as `"polygon"`.
 
@@ -24,7 +24,7 @@ The Geometry profile adds these derived commands and reporters:
 | `area` | R | `area :shape` | number |
 | `perimeter` | R | `perimeter :shape` | number |
 
-Drawing commands use the current turtle state defined by the turtle model: origin at the canvas center, heading `0` upward, `right` clockwise, `left` counter-clockwise, degrees, and pen-down drawing by default. Unless otherwise stated, geometry commands preserve the current pen state and use ordinary turtle movement.
+Drawing commands use the current turtle state defined by the turtle model: origin at the canvas center, heading `0` upward, `right` clockwise, `left` counter-clockwise, degrees, and pen-down drawing by default. Unless otherwise stated, geometry commands preserve the current pen state and use ordinary turtle movement. The `area` and `perimeter` reporters read their shape-spec list by index (`:shape[2]`), so they additionally require the **Data** profile's list indexing.
 
 ## `polygon :sides :size`
 
@@ -84,6 +84,9 @@ define star :points :size (:step 2)
   if not (:step is strictly between 1 and :points)
     throw "a star step must be a whole number between 2 and one less than the number of points"
   end if
+  if not (:step == int :step)
+    throw "a star step must be a whole number"
+  end if
   repeat :points
     forward :size
     right 360 * :step / :points
@@ -93,7 +96,7 @@ end
 
 `star` draws the star polygon `{p/k}` where `p` is `:points` and `k` is `:step`. The default `:step` is `2`, which makes the familiar pentagram when `:points` is `5`.
 
-Validation is normative: `:points` and `:step` MUST be numbers, and `:step` MUST satisfy `1 < :step < :points`. `:points` SHOULD be a whole number at least `5` for the default to teach a recognizable star. A non-numeric input raises `ol-type` from the arithmetic it reaches; an out-of-range `:step` is rejected by the `throw` shown above, which raises `ol-user-error` with a learner-facing message.
+Validation is normative: `:points` and `:step` MUST be numbers, `:step` MUST be a whole number, and `:step` MUST satisfy `1 < :step < :points`. `:points` SHOULD be a whole number at least `5` for the default to teach a recognizable star. A non-numeric input raises `ol-type` from the arithmetic it reaches; a non-integer or out-of-range `:step` is rejected by the `throw`s shown above, which raise `ol-user-error` with a learner-facing message.
 
 The math: instead of walking to the next polygon vertex, a star walks to the vertex `:step` positions away. The exterior turn is therefore:
 

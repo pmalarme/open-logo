@@ -110,6 +110,13 @@ the implementation MAY continue rendering already-emitted trace events, but it
 MUST NOT run new OpenLogo instructions or event handler blocks until the read
 finishes or the program is cancelled.
 
+Unlike `input`, `wait` does not block the event system. While a `wait` pause
+elapses, the tick clock keeps advancing and registered `every`, `on_key`, and
+`on_click` handlers still fire; only the top-level instructions that follow the
+`wait` are deferred until the pause completes. This is what lets a program
+register its handlers and then hold itself open with a long `wait` while those
+handlers drive the animation.
+
 `wait` emits a `primitive` event after the pause completes. Sound commands emit
 `sound` events after sound state has been scheduled. Event registration forms
 emit `primitive` events after the handler is registered.

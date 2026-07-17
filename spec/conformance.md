@@ -86,8 +86,13 @@ DAG below states a dependency.
 ### Geometry
 
 The **Geometry** profile provides the derived, source-shown standard library described in
-[geometry-module.md](geometry-module.md). Geometry procedures are written in OpenLogo and build on
-Core control plus Turtle & Rendering behavior; they are not opaque primitive shortcuts.
+[geometry-module.md](geometry-module.md). Most geometry procedures are written in OpenLogo and build
+on Core control plus Turtle & Rendering behavior; they are not opaque primitive shortcuts. The
+`grid`, `axes`, and `measure` overlays are the exception: they are renderer-backed primitives that
+draw onto renderer overlay layers, specified behaviorally rather than as OpenLogo source. The
+`area` and `perimeter` reporters read their shape-spec argument by list index (`:shape[2]`), which
+is Data-profile behavior, so an implementation that provides `area` or `perimeter` also needs the
+**Data** profile.
 
 ### Data
 
@@ -106,7 +111,7 @@ The **Heritage** profile is **alternate spellings only**. It does not add new se
 - `output` and `op` as heritage spellings for `return`;
 - short command aliases `fd`, `bk`, `lt`, `rt`, `pu`, `pd`, `st`, `ht`, `cs`, and `pr`;
 - list-reporter alias spellings `bf`, `bl`, and `se`;
-- the worded dictionary reporter spelling `value of … for key`.
+- the worded dictionary reporter spelling `value of … for key`, which operates on dicts and therefore also needs the **Data** profile.
 
 The full-name reporters `first`, `last`, `butfirst`, `butlast`, `count`, `word`, `sentence`, `fput`,
 and `lput` are **Core**, not Heritage. The Heritage profile does not restore classic Logo open
@@ -194,7 +199,7 @@ purposes.
 | `make`, `to`, `output`, `op` spellings | Heritage | No | Alternate spellings only. |
 | `fd`, `bk`, `lt`, `rt`, `pu`, `pd`, `st`, `ht`, `cs`, `pr` | Heritage | No | Short command aliases only. |
 | `bf`, `bl`, `se` alias spellings | Heritage | No | Full-name reporters remain Core. |
-| `value of … for key` spelling | Heritage | No | Alternate dictionary reporter spelling. |
+| `value of … for key` spelling | Heritage | No | Alternate dictionary reporter spelling; operates on dicts, so it also needs Data. |
 | Multiple turtles/sprites and sprite addressing | Sprites | No | Depends on Turtle & Rendering. |
 | `input`, waits, timers, keyboard/mouse events | Interaction & Events | No | Core remains non-interactive. |
 | Sound and music primitives | Sound | No | Separate optional profile. |

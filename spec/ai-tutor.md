@@ -10,7 +10,7 @@ The AI tutor's job is to be a teacher, not a code generator. It helps you notice
 
 ## Optional Tutor profile
 
-The Tutor profile is optional and depends on the Educational profile described in [conformance](conformance.md). An implementation may be a complete OpenLogo environment without AI. If AI is present, it must sit beside the deterministic baseline rather than replacing it.
+The Tutor profile is optional and depends on the Educational profile described in [conformance](conformance.md). An implementation may be a complete OpenLogo environment without AI. If AI is present, it sits beside the deterministic baseline rather than replacing it; the [Tutor profile in conformance.md](conformance.md#tutor-ai) states this requirement normatively.
 
 A Tutor implementation may be local, cloud-hosted, school-provided, parent-provided, or disabled. It is therefore pluggable:
 

@@ -63,6 +63,7 @@ single-line-string  ::= "\"" { string-character | string-escape } "\""
 multi-line-string   ::= "\"\"\"" { multiline-character | string-escape } "\"\"\""
 string-character    ::= ? any Unicode scalar value except newline, unescaped quote, or backslash ?
 multiline-character ::= ? any Unicode scalar value except backslash or an unescaped run of three quotes ?
+(* the lexer takes the longest match, so a leading """ opens a multi-line string, never an empty "" followed by a quote *)
 string-escape       ::= "\\\"" | "\\\\"
 line-comment        ::= "#" { ? any character except newline ? }
                       | "//" { ? any character except newline ? }
@@ -141,10 +142,11 @@ expression-block    ::= "[" { terminator } { statement { terminator } } "]"
 long-control-block  ::= terminator { statement terminator } control-end-label
 control-end-label   ::= "end" [ "if" | "while" | "repeat" | "for" | "forever" ]
 
-define-statement    ::= "define" callable-name { parameter } terminator { statement terminator } define-end
-to-statement        ::= "to" callable-name { parameter } terminator { statement terminator } define-end
+define-statement    ::= "define" callable-name { required-parameter } { optional-parameter } terminator { statement terminator } define-end
+to-statement        ::= "to" callable-name { required-parameter } { optional-parameter } terminator { statement terminator } define-end
 define-end          ::= "end" [ "define" ]
-parameter           ::= ":" name | "(" ":" name expression ")"
+required-parameter  ::= ":" name
+optional-parameter  ::= "(" ":" name expression ")"
 return-statement    ::= ( "return" | "output" | "op" ) expression
 stop-statement      ::= "stop"
 throw-statement     ::= "throw" expression
@@ -205,7 +207,7 @@ dict-entry          ::= dict-key ":" expression
 dict-key            ::= identifier | number | word-literal
 (* dict entries are separated by whitespace or newlines, never by commas *)
 parenthesized-expression ::= "(" expression ")"
-fixed-call          ::= callable-name { ? exactly the callable's default number of inputs ? }
+fixed-call          ::= callable-name { ? the callable's default arity, each input a full expression ? }
 parenthesized-call  ::= "(" callable-name { expression } ")"
 type-constructor-call ::= type-name { ? exactly one expression per declared field ? }
 value-of-reader     ::= "value" "of" expression "for" "key" expression
@@ -223,7 +225,9 @@ Precedence from high to low is:
 
 Binary operators are left-associative. `and` and `or` short-circuit. `not` is unary prefix. Assignment `=` and `set ... to` are statement forms, not expression operators.
 
-Comparisons may be **chained**: `1 < :x < 10` reads as `1 < :x and :x < 10`, evaluating each operand once with `and` short-circuit semantics. The worded predicates `is <value> empty`, `is <value> member of <collection>`, `is <value> a <type-word>`, and `is <value> [ strictly ] between <low> and <high>` also sit at the comparison level and produce booleans. The words after `is` — `empty`, `member`, `of`, `a`, `strictly`, `between`, and the `and` that separates the two bounds — are contextual keywords recognized only in this position, so they remain usable as ordinary names elsewhere. Chaining and `is`-predicates apply to numbers and words; other operand types raise `ol-type`.
+Each input to a prefix call is a full expression, so infix operators bind inside the argument rather than around the call: `forward :size * 2` means `forward (:size * 2)`, and `power 2 3 * 4` means `power 2 (3 * 4)`. Reporters still nest by their known arity, so `forward random 100` means `forward (random 100)`.
+
+Comparisons may be **chained**: `1 < :x < 10` reads as `1 < :x and :x < 10`, evaluating each operand once with `and` short-circuit semantics. The worded predicates are written **operand-first**, matching the grammar production (the value precedes `is`): `<value> is empty`, `<value> is member of <collection>`, `<value> is a <type-word>`, and `<value> is [ strictly ] between <low> and <high>`. They sit at the comparison level and produce booleans. Among the words involved, `is`, `strictly`, and `between` are globally reserved; only `empty`, `member`, `of`, and `a` are contextual keywords recognized just after `is`, so those four remain usable as ordinary names elsewhere. Operand types depend on the operator: ordering comparisons (`<`, `>`, `<=`, `>=`) and `[ strictly ] between` require numbers or words; `==` and `!=` compare any two values; `<value> is empty` accepts lists, dicts, and words; `<value> is member of` accepts lists and dicts; `<value> is a` accepts any value. An operand of the wrong type raises `ol-type`.
 
 ## Places, selectors, and keys
 
@@ -274,7 +278,7 @@ Control bodies for `if`, `while`, `repeat`, `for`, and `forever` use exactly one
 
 A control body is always delimited: there is no bare or undelimited body, so even a single instruction is written `repeat 4 [ forward 100 ]` or as a `... end` block. Inside a bracketed body, instructions are separated by their fixed arity, so `[ forward 100 right 90 ]` holds two commands and newlines inside `[ ]` are optional. After a control header, the rest of the physical line decides the form: if it begins with `[`, the body is a bracketed block; if the header ends the line, the body is a long `... end` block; any other token raises `ol-missing-end` with a hint to wrap the body in `[ ]` or close it with `end`.
 
-Every long block closes with `end`, optionally followed by the single keyword that opened it. The core labels are `end`, `end if`, `end while`, `end repeat`, `end for`, `end forever`, and `end define`. Optional profiles extend this rule uniformly: an effect-block opened by a profile keyword — for example `ask`, `each`, `when`, `every`, `on_key`, or `on_click` — closes with `end` or `end <keyword>` using that same opener, and the profile documents are normative for their own keywords. A suffix that does not match its opener, or an orphan label, raises `ol-mismatched-end`; a missing terminator raises `ol-missing-end`.
+Every long block closes with `end`, optionally followed by the single keyword that opened it. The core labels are `end`, `end if`, `end while`, `end repeat`, `end for`, `end forever`, and `end define`. Optional profiles extend this rule uniformly: an effect-block opened by a profile keyword — for example `ask`, `each`, `when`, `every`, `on_key`, or `on_click` — closes with `end` or `end <keyword>` using that same opener, and the profile documents are normative for their own keywords. A suffix that does not match its opener, or an orphan label, raises `ol-mismatched-end`; a missing terminator raises `ol-missing-end`. An unbalanced `[ ]`, `{ }`, or `( )` raises `ol-unmatched-bracket`, `ol-unmatched-brace`, or `ol-unmatched-paren` respectively.
 
 An `if` takes either bracketed branches, `if <cond> [ ... ] else [ ... ]`, or long-form branches, `if <cond>` … `else` … `end if`; both branches use the same form. Because every branch is delimited, `else` binds to the nearest still-open `if` and there is no dangling-`else` ambiguity.
 
@@ -341,7 +345,7 @@ Core comprehension forms are special forms, not function-valued higher-order cal
 
 `map` returns a fresh list of body values. `filter` returns elements whose body value is `true`. `reduce` folds left from the initial value; the accumulator and item binder names must differ.
 
-A comprehension is an expression: because it is recognized by its leading keyword, it may appear anywhere a value is expected — the right side of `=` or `set ... to`, a `return`, `output`, or `op` value, a call argument, or nested inside another comprehension. It may also stand alone as a statement. The `[ ... ]` that follows the collection is always the comprehension body, never a selector on that collection; to iterate over an indexed collection, parenthesize it, as in `map n in (:matrix[0]) [ :n * 2 ]`.
+A comprehension is an expression: because it is recognized by its leading keyword, it may appear anywhere a value is expected — the right side of `=` or `set ... to`, a `return`, `output`, or `op` value, a call argument, or nested inside another comprehension. It may also stand alone as a statement. The `[ ... ]` that follows the collection is always the comprehension body, never a selector on that collection; to iterate over an indexed collection, parenthesize it, as in `map n in (:matrix[1]) [ :n * 2 ]`.
 
 ## Reserved words and namespaces
 
@@ -350,7 +354,7 @@ The normative OpenLogo reserved-word list is:
 ```logo
 define to end return output op stop throw
 set make local thing
-if else while repeat for forever in from at by of
+if else while repeat for forever in from at by
 key value add remove insert clear
 map filter reduce
 and or not true false
@@ -358,7 +362,7 @@ is between strictly
 struct alias import export
 ```
 
-`to` is one reserved word with multiple contextual roles: heritage procedure opener, the preposition in `set ... to`, and the bound in `for ... from ... to`. By contrast, `empty`, `member`, and `a` are **not** reserved: they act as keywords only inside an `is`-predicate (`is :x empty`, `is 2 member of :nums`, `is :p a "point"`) and stay ordinary names everywhere else.
+`to` is one reserved word with multiple contextual roles: heritage procedure opener, the preposition in `set ... to`, and the bound in `for ... from ... to`. By contrast, `empty`, `member`, `of`, and `a` are **not** reserved: they act as keywords only inside an `is`-predicate (`:x is empty`, `2 is member of :nums`, `:p is a "point"`) and stay ordinary names everywhere else. (`of` is also the contextual preposition in the heritage `value of … for key` reader.)
 
 Reserved words are structural tokens recognized by the reader. They may not be redefined as variables, procedures, primitives, or struct type constructors; such collisions raise `ol-reserved-word`. Reserved words may be aliased by `alias` or localized keyword packs because aliasing adds reader-recognized spellings rather than redefining the underlying word.
 

@@ -97,6 +97,7 @@ Core ideas:
 - `:size = :size + 10` changes the value.
 - `set size to 80` is the worded assignment form.
 - `==` compares; `=` assigns.
+- `random 100` reports a whole number for variety, and arithmetic such as `+`, `-`, `*`, and `/` combines values.
 
 ```logo
 # why: changing :size once changes every side
@@ -128,6 +129,7 @@ Core ideas:
 - `==` asks “are these equal?”
 - `!=` asks “are these different?”
 - `and`, `or`, and `not` combine booleans.
+- Worded predicates read like English and also make booleans, such as `:n is [ strictly ] between 3 and 6` and `:list is empty`.
 - Conditions use strict booleans; there is no truthiness.
 
 ```logo
@@ -397,11 +399,11 @@ end for
 | Ordered instructions | one instruction per line, `[ ]` blocks later | 1 | A program begins as a readable list of actions. |
 | Repetition | `repeat`, `repcount` | 2 | A visible pattern becomes one named rule. |
 | Variable naming | `:name = value`, `set name to value`, `:name` reads | 3 | One value can control many instructions. |
-| Comparison and choice | `if … else`, `==`, `!=`, `<`, `>`, `<=`, `>=`, `true`, `false`, `and`, `or`, `not` | 4 | Programs can choose only from explicit booleans. |
+| Comparison and choice | `if … else`, `==`, `!=`, `<`, `>`, `<=`, `>=`, worded `is` predicates, `true`, `false`, `and`, `or`, `not` | 4 | Programs can choose only from explicit booleans. |
 | Procedures | `define … end`, procedure calls | 5 | Learners teach OpenLogo a discovered pattern. |
 | Reporters | `return`, heritage `output` and `op` | 5 | A procedure can answer a question with a value. |
 | Derived geometry | learner-built `polygon`, then `star`, `circle`, `arc`, `grid`, `axes`, `measure` | 6 | Shapes are visible math, not hidden primitives. |
-| Lists | `[ ]`, `:l[i]`, `add … to`, `remove … from`, `count` | 7a | Ordered memory supports paths, scores, and steps. |
+| Lists | `[ ]`, `:l[i]`, `add … to`, `remove … from`, `count`, `member?` / worded `is … member of` | 7a | Ordered memory supports paths, scores, and steps. |
 | Dictionaries | `{ key: value }`, `:d.k`, `:d[k]`, `:d[:var]`, upsert on write | 7b | Named memory supports meaningful lookup. |
 | Records | `struct`, type-name constructor, `:p.f`, nested chains | 7c | Fixed fields keep related facts together. |
 | Recursion | `define`, `if`, self-call, `stop` | 8a | A rule can solve a smaller version of itself. |
@@ -463,7 +465,7 @@ Possible response: “The turtle became green because `:sides == 4` was `true`, 
 
 ## `hint`
 
-`hint` is progressive and must never reveal a full solution. This is required for Educational conformance. The same request should move through stages only when the learner asks again or the environment records that earlier hints were already shown.
+`hint` is progressive and never reveals a full solution: the same request moves through stages only when the learner asks again or the environment records that earlier hints were already shown. The [Educational profile in conformance.md](conformance.md#educational) makes this progressive, no-full-solution behavior normative.
 
 Required progression:
 
@@ -483,7 +485,7 @@ Even the last-resort hint avoids presenting the whole final program.
 
 ## `debug`
 
-`debug` helps learners inspect what happened without exposing implementation stack traces. It should use the same diagnostic codes and source-span model as [error-model.md](error-model.md).
+`debug` helps learners inspect what happened without exposing implementation stack traces. It should use the same diagnostic codes and `source_span` model as [error-model.md](error-model.md).
 
 Baseline behavior:
 
@@ -504,7 +506,7 @@ Possible response: “`forward` needs a number to tell it how far to go. Here `:
 
 ## Educational conformance notes
 
-An implementation claiming Educational conformance must provide deterministic baseline `explain`, `why`, `hint`, and `debug` behavior even when offline and without AI services. It may also provide the optional Tutor profile, but AI must degrade gracefully to the baseline described here.
+The [Educational profile in conformance.md](conformance.md#educational) normatively requires deterministic baseline `explain`, `why`, `hint`, and `debug` behavior even when offline and without AI services, and requires any AI Tutor layer to degrade gracefully to that baseline. This section explains the pedagogy those requirements protect.
 
 To protect discovery:
 

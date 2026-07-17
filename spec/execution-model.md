@@ -105,7 +105,10 @@ The evaluator operates over three explicit layers:
    ```
 
    This parses as `forward (random 100)`, `print (double 5)`, and
-   `set_xy 10 20`. A callable with variadic or alternate arity must be wrapped
+   `set_xy 10 20`. Each input is itself a full expression, so an infix
+   operator binds inside the argument: `forward :size * 2` means
+   `forward (:size * 2)`, and `power 2 3 * 4` means `power 2 (3 * 4)`. A
+   callable with variadic or alternate arity must be wrapped
    in parentheses, with no commas:
 
    ```logo
@@ -143,17 +146,20 @@ left-to-right short-circuit semantics.
 Comparisons may be **chained**: `1 < :x < 10` is evaluated as
 `1 < :x and :x < 10`, computing each operand once with `and` short-circuit
 semantics. OpenLogo also offers worded predicates at the comparison level that
-read as English and return booleans: `is <value> empty`,
-`is <value> member of <collection>`, `is <value> a <type-word>`, and
-`is <value> [ strictly ] between <low> and <high>` (inclusive, or exclusive with
-`strictly`). These are first-class alternates to the prefix `?`-predicates
-(`empty?`, `member?`, `is_a?`). Only `is` is globally reserved; the words that
-follow it (`empty`, `member`, `of`, `a`, `strictly`, `between`, and the
-bound-separating `and`) are contextual keywords and remain valid ordinary names
-elsewhere. There is no infix `in` membership operator — use
-`is <value> member of <collection>` or `member?`; the word `in` is only the
-`for`/comprehension preposition. Chaining and `is`-predicates operate on numbers
-and words; other operand types raise `ol-type`.
+read as English and return booleans. They are written **operand-first**, with
+the value before `is`: `<value> is empty`, `<value> is member of <collection>`,
+`<value> is a <type-word>`, and `<value> is [ strictly ] between <low> and
+<high>` (inclusive, or exclusive with `strictly`). These are first-class
+alternates to the prefix `?`-predicates (`empty?`, `member?`, `is_a?`). Only
+`is`, `strictly`, and `between` are globally reserved; the contextual words
+`empty`, `member`, `of`, and `a` are recognized only just after `is` and remain
+valid ordinary names elsewhere. There is no infix `in` membership operator — use
+`<value> is member of <collection>` or `member?`; the word `in` is only the
+`for`/comprehension preposition. Operand types depend on the operator: ordering
+comparisons (`<`, `>`, `<=`, `>=`) and `[ strictly ] between` require numbers or
+words; `==` and `!=` compare any two values; `is empty` accepts lists, dicts, and
+words; `is member of` accepts lists and dicts; `is a` accepts any value. A
+wrong-typed operand raises `ol-type`.
 
 Assignment `=` and `set ... to` are statement-level special forms, not
 expression operators.
@@ -310,9 +316,11 @@ and locals live in the procedure frame where they are declared and are invisible
 to callees unless explicitly passed as values.
 
 Assignment by `:name = value` or `set name to value` updates the nearest
-lexically visible binding; if none exists, it creates or updates a global.
-`local name` declares a frame-local binding. Reading `:name` is sugar for
-`thing "name"` and raises `ol-undefined-var` if no binding exists.
+lexically visible binding; if none exists, it creates or updates a global. The
+top-level program runs in a root frame, and a global is simply a binding in that
+root frame. `local name` declares a frame-local binding; used at the top level it
+declares the name in the root frame rather than raising an error. Reading `:name`
+is sugar for `thing "name"` and raises `ol-undefined-var` if no binding exists.
 
 Procedures use `define name :a :b ... end` with heritage `to` as an alias.
 Optional trailing parameters use parenthesized defaults:
@@ -334,15 +342,18 @@ extra arguments beyond the fixed default arity, use the parenthesized call form:
 `return value` exits the current procedure and provides its value. `output` and
 `op` are heritage aliases. A procedure that reaches `return` is usable as a
 reporter; a procedure that does not is a command. Using a command procedure
-where a value is required raises `ol-no-output` at the call site. `stop` exits a
-procedure early without a value and is invalid outside a procedure.
+where a value is required raises `ol-no-output` at the call site. A `return`,
+`output`, or `op` outside any procedure raises `ol-return-outside-proc`. `stop`
+exits a procedure early without a value and outside any procedure raises
+`ol-stop-outside-proc`.
 
 `throw <value>` halts execution immediately with the runtime diagnostic
-`ol-user-error`, carrying the thrown word as the learner-facing message. It lets
-a procedure reject bad input in its own words — the geometry library uses it to
-explain, for instance, an out-of-range star step. `throw` is a Core command;
-v0.1 has no `try`/`catch`, so a thrown error stops the program like any other
-runtime diagnostic.
+`ol-user-error`, carrying the thrown word as the learner-facing message; if the
+value is not a word, its printed form (as `print` would show it) becomes the
+message. It lets a procedure reject bad input in its own words — the geometry
+library uses it to explain, for instance, an out-of-range star step. `throw` is a
+Core special form; v0.1 has no `try`/`catch`, so a thrown error stops the program
+like any other runtime diagnostic.
 
 Recursion is supported. Each recursive invocation creates a new frame and emits
 its own trace events.
@@ -504,7 +515,7 @@ future version standardizes a PRNG.
 
 ## Turtle and canvas state
 
-At program start and after `clear_screen`, the default turtle/canvas state is:
+At program start, the default turtle/canvas state is:
 
 - origin `(0,0)` at canvas center;
 - `+x` right and `+y` up;
@@ -521,7 +532,7 @@ At program start and after `clear_screen`, the default turtle/canvas state is:
 Movement by distance `d` at heading `h` updates position to
 `(x + d·sin h, y + d·cos h)`. With heading `0`, positive movement increases
 `y`. `home` moves to `(0,0)` and sets heading to `0`. `clear_screen` clears the
-drawing and homes the turtle while preserving color, width, and background.
+drawing and homes the turtle (position `(0,0)`, heading `0`) while preserving the pen state, color, width, visibility, and background.
 `clean` clears the drawing only.
 
 ## Execution safety

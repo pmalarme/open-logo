@@ -22,21 +22,21 @@ may be a type name; a bare identifier inside a dict literal before `:` is a dict
 
 Tokenization is case-insensitive for keywords and built-in primitives; lowercase is canonical.
 User names may contain Unicode letters as allowed by the identifier grammar. Word values preserve
-case. Comments and strings are atomic: tokens inside comments or closed `"..."` strings MUST NOT be
-classified as keywords, variables, operators, or delimiters.
+case. Comments and strings are atomic: tokens inside comments or closed `"..."` and `"""..."""` strings MUST NOT
+be classified as keywords, variables, operators, or delimiters.
 
 | Token class | Normative scope |
 |---|---|
 | `keyword` | Structural words recognized by the reader: the reserved words listed in [Reserved words](#reserved-words-for-tooling), plus profile block-heads when their profile is active. |
 | `primitive` | Built-in commands, reporters, and aliases from the C3 primitive matrix, including full names such as `forward`, one-word aliases such as `setcolor`, short aliases such as `fd`, heritage command aliases such as `pr`, and profile primitives when enabled. Structural special-form heads are `keyword` unless they are being documented as callable entries. |
 | `number` | Numeric literals, including negative literals when the lexer rules classify the leading `-` as part of the number. |
-| `word/string` | Closed double-quoted word literals such as `"tom"`, `"#ff0000"`, and `"hello world"`; escapes `\"` and `\\` remain inside the same token. |
+| `word/string` | Closed double-quoted word literals such as `"tom"`, `"#ff0000"`, and `"hello world"`, plus triple-quoted `"""..."""` multi-line word literals; escapes `\"` and `\\` remain inside the same token. |
 | `:variable` | A colon-prefixed variable read or colon-form assignable place head, such as `:count`, `:nums[1]`, or `:people.tom.age`. The `:` and identifier SHOULD be styled as one semantic unit. |
 | `comment` | `#` and `//` line comments, and non-nesting `/* ... */` block comments. |
 | `bracket` | `[` and `]` delimiters for list literals, instruction blocks, comprehension expression-blocks, destructuring patterns, and struct field lists. |
 | `brace` | `{` and `}` delimiters for dictionary literals only. |
 | `paren` | `(` and `)` grouping and parenthesized alternate/variadic calls. |
-| `operator` | Assignment `=`, comparisons `== != < > <= >=`, arithmetic `+ - * / mod`, boolean `and or not`, membership `in` when used as an infix reporter, and dictionary-literal key separator `:`. |
+| `operator` | Assignment `=`, comparisons `== != < > <= >=`, arithmetic `+ - * / mod`, boolean `and or not`, and the dictionary-literal key separator `:`. |
 | `index/dot` | Postfix selectors and access punctuation: `[` `]` when used as an index/key selector, and `.` in `:record.field`, `:dict.key`, or nested chains. |
 | `dict-key` | A bare dictionary literal key before `:` inside `{ key: value }`, and a bare selector key in `:dict[key]` when parsed as a literal word key. Reserved words are allowed here as data. |
 | `procedure-name` | User-defined procedure names in `define name ... end` / `to name ... end`, procedure calls resolved to user procedures, and alias declarations whose target is a procedure. |
@@ -89,14 +89,14 @@ The Core reserved-word list is generated from the grammar. This is the C19 regis
 highlighters and linters can share the same names:
 
 `define`, `to`, `end`, `return`, `output`, `op`, `stop`, `throw`, `set`, `make`, `local`, `thing`,
-`if`, `else`, `while`, `repeat`, `for`, `forever`, `in`, `from`, `at`, `by`, `of`, `key`, `value`,
+`if`, `else`, `while`, `repeat`, `for`, `forever`, `in`, `from`, `at`, `by`, `key`, `value`,
 `add`, `remove`, `insert`, `clear`, `map`, `filter`, `reduce`, `and`, `or`, `not`, `is`, `between`,
 `strictly`, `true`, `false`, `struct`, `alias`, `import`, `export`.
 
 `to` is contextual: it is both the heritage procedure opener and the slot word in `set ... to` and
-`for ... from ... to`. The words after `is` in a worded predicate — `empty`, `member`, `of`, `a`,
-`between`, `strictly`, and the bound-separating `and` — are contextual keywords: a highlighter marks
-them as `keyword` only inside an `is`-predicate and as ordinary names elsewhere. Profile forms are
+`for ... from ... to`. The words `empty`, `member`, `of`, and `a` are contextual keywords: a
+highlighter marks them as `keyword` only inside an `is`-predicate and as ordinary names elsewhere.
+(`is`, `between`, and `strictly` are globally reserved and appear in the list above.) Profile forms are
 reserved only when their profile is active: the `ask` and `each` block-heads and the `tell` command
 for Sprites; the `when`, `every`, `on_key`, and `on_click` block-heads for Interaction.
 Reserved words may be aliased by `alias`, but they MUST NOT be redefined as variables, procedures,
@@ -149,7 +149,7 @@ and SHOULD recover far enough to report additional independent findings in the s
 | Missing body delimiter or long-block terminator | `ol-missing-end` | Use for a `define` or long control block left unclosed, or a control header followed by an undelimited body that should be wrapped in `[ ]` or closed with `end`. |
 | Mismatched, orphan, or invalid `end` label | `ol-mismatched-end` | Accept the core labels `end`, `end if`, `end while`, `end repeat`, `end for`, `end forever`, and `end define`, plus `end <keyword>` for any active profile block-head (e.g. `ask`, `each`, `when`, `every`, `on_key`, `on_click`). |
 | Unclosed block comment | `ol-unclosed-comment` | `/* ... */` comments are non-nesting. |
-| Unclosed string | `ol-unclosed-string` | Closed double quotes are required; classic open `"word` is invalid. |
+| Unclosed string | `ol-unclosed-string` | Closed double quotes are required; classic open `"word` is invalid. A single-line `"..."` must close on its line; a triple-quoted `"""..."""` may span lines and must close before end of file. |
 | Bad token | `ol-bad-token` | Use for characters or token sequences outside the grammar, including commas used as separators. |
 
 Example parse diagnostics:
@@ -246,7 +246,7 @@ it MUST keep the code identity stable when the rule is enabled.
 | `ol-style-procedure-name` | Procedure names should describe the learner-visible action or question, often `draw_*`, `make_*`, or `is_*?`. |
 | `ol-style-comment-style` | Prefer `#` comments in examples; `//` and `/* ... */` remain valid syntax. |
 | `ol-style-magic-number` | Repeated unexplained numeric literals should be named with a variable. |
-| `ol-style-equality-confusion` | Suspicious use of `=` where `==` was probably intended, or `==` in an assignment-shaped learner pattern. |
+| `ol-style-equality-confusion` | A standalone comparison statement such as `:x == :y` whose boolean result is discarded, which usually means an assignment `=` was intended. `=` inside a condition is a parse error, not a style warning. |
 | `ol-style-deep-nesting` | Deep unlabeled nesting should be refactored or labeled with matching `end <form>` where long blocks are used. |
 | `ol-style-hidden-abstraction` | A shortcut procedure such as `draw_square 100` hides a concept that the surrounding lesson expects the learner to build from `repeat`. |
 
