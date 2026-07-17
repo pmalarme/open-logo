@@ -19,6 +19,7 @@
     "format:check": "prettier --check .",
     "pretest": "npm run -s build",
     "test": "node --test",
+    "preconformance": "npm run -s build",
     "conformance": "node scripts/conformance.mjs",
     "examples": "node scripts/check-examples.mjs",
     "clean": "tsc -b --clean"

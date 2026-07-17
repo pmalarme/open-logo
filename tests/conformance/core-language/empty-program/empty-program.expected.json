@@ -1,0 +1,6 @@
+{
+  "description": "A comment-only program produces no events and no diagnostics.",
+  "profiles": ["core-language"],
+  "events": [],
+  "diagnostics": []
+}

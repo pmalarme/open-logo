@@ -1,0 +1,18 @@
+{
+  "description": "Self-test: asserts a move event for a program that emits none, so the harness must report a mismatch. expect=mismatch turns correct detection into a pass, so the gate stays green while both outcomes are exercised every run.",
+  "expect": "mismatch",
+  "profiles": [],
+  "events": [
+    {
+      "seq": 1,
+      "kind": "move",
+      "source-span": {
+        "document": "detects-mismatch.logo",
+        "start": [1, 1],
+        "end": [1, 1]
+      },
+      "payload": { "from": [0, 0], "to": [0, 100], "heading": 0 }
+    }
+  ],
+  "diagnostics": []
+}
