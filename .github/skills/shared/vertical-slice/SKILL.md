@@ -52,7 +52,9 @@ mapping, and (for shapes) geometry reasoning.
 Update the reference/tutorial and runnable examples in the **same PR** (`@documentation`). No drift.
 
 ### Step 8 — Close out
-Run `shared/definition-of-done`. Open one PR with the declared write-set. Do not self-merge.
+Run `shared/definition-of-done`, then hand the slice to `shared/review-gate` — an agent that did
+**not** author it runs the independent pre-merge review and records a pass verdict (reviewer ≠
+author). Open one PR with the declared write-set. Do not self-merge.
 
 ## Worked example — the walking skeleton
 
@@ -67,4 +69,5 @@ docs show the snippet. That one slice exercises every package boundary; build it
 - [ ] Canonical vocabulary only (`shared/spec-fidelity`).
 - [ ] Conformance + integration tests added and green.
 - [ ] Teaching hooks + docs updated in the same PR.
+- [ ] Independent review gate passed — `shared/review-gate`, reviewer ≠ author.
 - [ ] One PR, declared write-set, shared files serialized.

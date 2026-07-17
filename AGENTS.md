@@ -57,7 +57,9 @@ parallelization map, and [`docs/delivery.md`](docs/delivery.md) for the release 
 3. **One task, one PR**, declaring the files/packages you will change; respect package boundaries.
 4. **Prove behavior with conformance fixtures**, not prose. Extend `tests/conformance/`.
 5. **Definition of Done**: builds, type-checks, lints, unit + conformance + example tests pass,
-   docs/spec cross-links updated. Do not self-merge — humans + CI gate `main`.
+   docs/spec cross-links updated, and an **independent pre-merge review** by a non-author has passed
+   ([`shared/review-gate`](.github/skills/shared/review-gate/SKILL.md)). Do not self-merge — humans +
+   CI gate `main`.
 6. **KISS + Boy Scout**: keep the design as simple as the spec allows, and leave each file a little
    better than you found it — but only within your task's declared write-set, never unrelated
    refactors. (Full rules in the team working agreement.)
