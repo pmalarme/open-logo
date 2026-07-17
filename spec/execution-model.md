@@ -130,7 +130,7 @@ Precedence from highest to lowest:
 | Level | Operators/forms | Associativity and notes |
 |---|---|---|
 | 1 | Postfix `[]` and `.` | Left-to-right chain. |
-| 2 | Unary `-`, prefix `not` | `not` requires a boolean. |
+| 2 | Prefix `not` | `not` requires a boolean. A leading `-` on a numeral is part of a negative literal, not a unary operator. |
 | 3 | `*`, `/`, `mod` | Left-associative. |
 | 4 | `+`, `-` | Left-associative. |
 | 5 | `==`, `!=`, `<`, `>`, `<=`, `>=`, `is` | Comparisons; may chain (`1 < :x < 10`); worded `is`-predicates. |

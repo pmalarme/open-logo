@@ -27,7 +27,7 @@ The form registers `new_name` as a single-token synonym for `existing_name`, whe
 - a reserved keyword such as `define`, `repeat`, `for`, or `end`
 - an already registered alias
 
-`new_name` MUST be a valid identifier under the lexical rules in [grammar](grammar.md). `new_name` MUST be fresh in the active program namespace after imports and built-ins are considered. Aliasing onto an existing primitive, procedure, type constructor, reserved keyword, or previously registered alias raises `ol-reserved-word`.
+`new_name`, the new spelling, MUST be a valid identifier under the lexical rules in [grammar](grammar.md) and MUST be fresh in the active program namespace after imports and built-ins are considered. Reusing an existing primitive, procedure, type constructor, reserved keyword, or previously registered alias as `new_name` raises `ol-reserved-word`. The `existing_name` operand is unrestricted: it is the name the alias points to and may itself be a reserved keyword, which is exactly how localized packs rename keywords.
 
 ```logo
 alias avance forward
@@ -106,7 +106,7 @@ alias definir define
 alias fin end
 ```
 
-Reserved words may not be redefined as procedures, variables, type constructors, or alias targets for a new spelling. Any attempt to introduce a name already occupied by a reserved word, primitive, procedure, type constructor, or alias raises `ol-reserved-word`.
+Reserved words may not be redefined as procedures, variables, or type constructors, nor reused as a new alias spelling (`new_name`). Any attempt to introduce a `new_name` already occupied by a reserved word, primitive, procedure, type constructor, or alias raises `ol-reserved-word`. A reserved word may still serve as the `existing_name` an alias points to.
 
 ```logo
 alias repeat forward    # error: repeat already exists

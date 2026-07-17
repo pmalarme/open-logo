@@ -1186,7 +1186,7 @@ print lowercase "Logo"
 
 ## Turtle movement
 
-Turtle geometry uses origin `(0,0)` at the canvas center, +x to the right, +y upward, and heading `0` degrees upward. `right` turns clockwise and `left` turns counter-clockwise. Movement uses degrees. Start and `clear_screen` defaults are position `(0,0)`, heading `0`, pen down, color `"black"`, width `1`, turtle visible, and background `"white"`.
+Turtle geometry uses origin `(0,0)` at the canvas center, +x to the right, +y upward, and heading `0` degrees upward. `right` turns clockwise and `left` turns counter-clockwise. Movement uses degrees. At program start the turtle is at position `(0,0)`, heading `0`, pen down, color `"black"`, width `1`, visible, with background `"white"`. `clear_screen` clears the drawing and homes the turtle but preserves the pen state, color, width, visibility, and background; the full start defaults are restored only at program start.
 
 ### `forward`
 

@@ -403,7 +403,7 @@ end for
 | Procedures | `define … end`, procedure calls | 5 | Learners teach OpenLogo a discovered pattern. |
 | Reporters | `return`, heritage `output` and `op` | 5 | A procedure can answer a question with a value. |
 | Derived geometry | learner-built `polygon`, then `star`, `circle`, `arc`, `grid`, `axes`, `measure` | 6 | Shapes are visible math, not hidden primitives. |
-| Lists | `[ ]`, `:l[i]`, `add … to`, `remove … from`, `count`, `member?` / worded `is … member of` | 7a | Ordered memory supports paths, scores, and steps. |
+| Lists | `[ ]`, `:l[i]`, `add … to`, `remove … from`, `count`, `member?` / worded `… is member of` | 7a | Ordered memory supports paths, scores, and steps. |
 | Dictionaries | `{ key: value }`, `:d.k`, `:d[k]`, `:d[:var]`, upsert on write | 7b | Named memory supports meaningful lookup. |
 | Records | `struct`, type-name constructor, `:p.f`, nested chains | 7c | Fixed fields keep related facts together. |
 | Recursion | `define`, `if`, self-call, `stop` | 8a | A rule can solve a smaller version of itself. |
@@ -412,7 +412,7 @@ end for
 
 ## Baseline meta-commands
 
-The Educational profile requires four baseline meta-commands: `explain`, `why`, `hint`, and `debug`. They are commands, and their invocation syntax is documented in [commands.md](commands.md). Their educational behavior is owned here.
+The [Educational profile in conformance.md](conformance.md#educational) makes four baseline meta-commands its normative requirement: `explain`, `why`, `hint`, and `debug`. They are commands, and their invocation syntax is documented in [commands.md](commands.md). Their educational behavior is owned here.
 
 Baseline means **no AI is required**. These commands are deterministic and template-based. They use the parsed program, source spans, trace events, diagnostics, and known command metadata to produce predictable help. AI-enhanced behavior is optional and is specified in [ai-tutor.md](ai-tutor.md).
 
@@ -467,7 +467,7 @@ Possible response: “The turtle became green because `:sides == 4` was `true`, 
 
 `hint` is progressive and never reveals a full solution: the same request moves through stages only when the learner asks again or the environment records that earlier hints were already shown. The [Educational profile in conformance.md](conformance.md#educational) makes this progressive, no-full-solution behavior normative.
 
-Required progression:
+Progression:
 
 1. **Nudge** — point attention to the relevant place.
 2. **Concept** — name the concept that may help.

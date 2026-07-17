@@ -25,6 +25,6 @@ end
 print :answer
 
 draw_square 60
-repeat 3 [ right 30 draw_tick 30 ]
+repeat 3 [ left 30 draw_tick 30 ]
 
 # expected output: 42 and expected drawing: a square with three ticks fanning from one corner.

@@ -19,9 +19,9 @@ forward 120
 left 45
 pen_down
 
-repeat 6
-  forward 10 * repcount
-  right 60
+repeat 30
+  forward repcount
+  right 90
 end repeat
 
-# expected final state: a green square and a six-step spiral are drawn.
+# expected final state: a green square and a growing square spiral are drawn.

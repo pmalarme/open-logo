@@ -19,7 +19,7 @@ define branch :length :depth
 
     :next = :length * 0.67
     :turns = [-30 30]
-    :wide_turns = filter turn in :turns [ abs :turn >= 30 ]
+    :wide_turns = filter turn in :turns [ (abs :turn) >= 30 ]
     :turn_total = reduce sum turn in :wide_turns from 0 [ :sum + :turn ]
     :balanced_turns = map turn in :wide_turns [ :turn - :turn_total ]
 

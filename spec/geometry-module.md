@@ -41,6 +41,9 @@ Packaged command:
 
 ```logo
 define polygon :sides :size
+  if :sides < 3
+    throw "a polygon needs at least 3 sides"
+  end if
   repeat :sides
     forward :size
     right 360 / :sides
@@ -48,7 +51,7 @@ define polygon :sides :size
 end
 ```
 
-`polygon` draws a regular polygon with `:sides` equal sides, each of length `:size`. `:sides` MUST be a number at least `3`; `:size` MUST be a number. Non-numeric inputs raise `ol-type`.
+`polygon` draws a regular polygon with `:sides` equal sides, each of length `:size`. `:sides` MUST be a number at least `3`, and `:size` MUST be a number. A `:sides` value below `3` is rejected by the guard above with `ol-user-error`; non-numeric inputs raise `ol-type` from the comparison and arithmetic they reach.
 
 The math: a full turn is `360` degrees. A regular polygon splits that turn evenly across all sides, so each exterior turn is `360 / :sides`. For a pentagon:
 
@@ -141,6 +144,12 @@ Packaged command:
 ```logo
 define circle :radius (:segments 36)
   local side
+  if :radius <= 0
+    throw "a circle needs a positive radius"
+  end if
+  if :segments < 3
+    throw "a circle needs at least 3 segments"
+  end if
   :side = 2 * :radius * sin (180 / :segments)
   repeat :segments
     forward :side
@@ -161,7 +170,7 @@ and each exterior turn is:
 360 / 36
 ```
 
-More generally, the side length is `2·r·sin(180/n)` where `r` is `:radius` and `n` is `:segments`. The `sin` reporter uses degrees. `:radius` MUST be a positive number. `:segments` MUST be a number at least `3`. Non-numeric inputs raise `ol-type`.
+More generally, the side length is `2·r·sin(180/n)` where `r` is `:radius` and `n` is `:segments`. The `sin` reporter uses degrees. `:radius` MUST be a positive number, and `:segments` MUST be a number at least `3`. A non-positive `:radius` or a `:segments` value below `3` is rejected by the guards above with `ol-user-error`; non-numeric inputs raise `ol-type`.
 
 Because this is an approximation, the path is a many-sided polygon whose vertices lie on the mathematical circle. With the default 36 segments, the approximation is close enough for learners while still making the loop visible. After exactly `:segments` moves and turns, the turtle returns to its starting position and original heading, subject only to numeric rounding.
 
@@ -182,7 +191,7 @@ Source first:
 local segments
 local step_angle
 local step_length
-:segments = int (:angle / 5) + 1
+:segments = (int (:angle / 5)) + 1
 :step_angle = :angle / :segments
 :step_length = 2 * :radius * sin (:step_angle / 2)
 
@@ -201,7 +210,13 @@ define arc :angle :radius
   local segments
   local step_angle
   local step_length
-  :segments = int (:angle / 5) + 1
+  if :angle < 0
+    throw "an arc needs an angle of 0 or more"
+  end if
+  if :radius <= 0
+    throw "an arc needs a positive radius"
+  end if
+  :segments = (int (:angle / 5)) + 1
   :step_angle = :angle / :segments
   :step_length = 2 * :radius * sin (:step_angle / 2)
 
@@ -219,19 +234,19 @@ end
 If the start position is `[:x :y]` and the start heading is `:h`, the circle center is:
 
 ```logo
-[(:x - :radius * cos :h) (:y + :radius * sin :h)]
+[(:x - :radius * (cos :h)) (:y + :radius * (sin :h))]
 ```
 
 After a positive arc of `:angle` degrees, the final heading is `:h - :angle` normalized to `[0 360)`. The final position is the point on that same circle reached by rotating the start radius counter-clockwise by `:angle`. In mathematical notation this is:
 
 ```logo
-[(:x - :radius * cos :h + :radius * cos (:angle - :h))
- (:y + :radius * sin :h + :radius * sin (:angle - :h))]
+[(:x - :radius * (cos :h) + :radius * (cos (:angle - :h)))
+ (:y + :radius * (sin :h) + :radius * (sin (:angle - :h)))]
 ```
 
 The stepped construction uses small chords. It turns left by half a step, repeats small `forward` and `left` movements, then turns right by half a step so the final heading matches the ideal arc. Implementations MAY use a finer internal step, but MUST preserve the direction, center, final position, and final heading within documented numeric tolerance.
 
-`:angle` MUST be a non-negative number and `:radius` MUST be a positive number. Non-numeric inputs raise `ol-type`.
+`:angle` MUST be a non-negative number and `:radius` MUST be a positive number. A negative `:angle` or a non-positive `:radius` is rejected by the guards above with `ol-user-error`; non-numeric inputs raise `ol-type`.
 
 Example:
 
@@ -307,7 +322,7 @@ define area :shape
     local size
     :sides = :shape[2]
     :size = :shape[3]
-    return :sides * power :size 2 / (4 * tan (180 / :sides))
+    return :sides * (power :size 2) / (4 * tan (180 / :sides))
   end if
 
   if :shape[1] == "circle"

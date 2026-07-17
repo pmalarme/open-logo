@@ -184,7 +184,7 @@ is-predicate        ::= "is" ( "empty"
                               | [ "strictly" ] "between" additive "and" additive )
 additive            ::= multiplicative { ( "+" | "-" ) multiplicative }
 multiplicative      ::= unary { ( "*" | "/" | "mod" ) unary }
-unary               ::= ( "-" | "not" ) unary | postfix-expression
+unary               ::= "not" unary | postfix-expression
 postfix-expression  ::= primary { selector | "." identifier }
 primary             ::= number
                       | word-literal
@@ -204,7 +204,7 @@ variable-read       ::= ":" name
 list-literal        ::= "[" [ expression { expression } ] "]"
 dict-literal        ::= "{" { dict-entry } "}"
 dict-entry          ::= dict-key ":" expression
-dict-key            ::= identifier | number | word-literal
+dict-key            ::= identifier | number
 (* dict entries are separated by whitespace or newlines, never by commas *)
 parenthesized-expression ::= "(" expression ")"
 fixed-call          ::= callable-name { ? the callable's default arity, each input a full expression ? }
@@ -216,14 +216,14 @@ value-of-reader     ::= "value" "of" expression "for" "key" expression
 Precedence from high to low is:
 
 1. postfix selectors and fields: `[]`, `.`
-2. unary `-` and `not`
+2. prefix `not`
 3. `*`, `/`, `mod`
 4. `+`, `-`
 5. comparisons: `==`, `!=`, `<`, `>`, `<=`, `>=`
 6. `and`
 7. `or`
 
-Binary operators are left-associative. `and` and `or` short-circuit. `not` is unary prefix. Assignment `=` and `set ... to` are statement forms, not expression operators.
+Binary operators are left-associative. `and` and `or` short-circuit. `not` is unary prefix. A leading `-` on a numeral is part of a negative literal, not a unary operator, so negating an expression is written `0 - x`. Assignment `=` and `set ... to` are statement forms, not expression operators.
 
 Each input to a prefix call is a full expression, so infix operators bind inside the argument rather than around the call: `forward :size * 2` means `forward (:size * 2)`, and `power 2 3 * 4` means `power 2 (3 * 4)`. Reporters still nest by their known arity, so `forward random 100` means `forward (random 100)`.
 
@@ -307,7 +307,7 @@ The result of a block is governed by the [block-result rule](execution-model.md)
 
 ## Collections, records, and comprehensions
 
-List literals contain whitespace-separated value expressions. Dictionary literals use bare or quoted keys followed by `:` and a value expression. Entries are separated by whitespace or newlines; commas are forbidden.
+List literals contain whitespace-separated value expressions. Dictionary literals use bare keys followed by `:` and a value expression. Entries are separated by whitespace or newlines; commas are forbidden.
 
 ```logo
 :nums = [1 2 3]

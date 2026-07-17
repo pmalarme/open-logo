@@ -53,8 +53,8 @@ the profile that owns a feature, not by whether that feature is historically inh
 - variables and places via `:name`, assignment with `<place> = <value>`, and worded assignment with
   `set <place> to <value>`;
 - strict booleans; comparisons with `==`, `!=`, `<`, `>`, `<=`, and `>=` that may be chained
-  (`1 < :x < 10`); the worded `is`-predicates (`is … empty`, `is … member of …`, `is … a …`,
-  `is … [ strictly ] between … and …`); and logical operators;
+  (`1 < :x < 10`); the worded `is`-predicates (`… is empty`, `… is member of …`, `… is a …`,
+  `… is [ strictly ] between … and …`); and logical operators;
 - control forms including `if`, `while`, `repeat`, `forever`, `for … in`, and `for … from … to`;
 - Core comprehensions: `map`, `filter`, and `reduce`, with bracketed expression bodies and no
   lambda or first-class procedure values;
@@ -226,6 +226,8 @@ Core Language
 └─ Educational
    └─ Tutor (AI)
 ```
+
+Two optional features create a conditional dependency on **Data** that the tree above does not draw as an edge, because the rest of their profiles do not need it: the `area` and `perimeter` reporters in **Geometry** and the `value of … for key` reader in **Heritage** read a collection by index or key, which is **Data** behavior. An implementation that offers either feature MUST also claim **Data**.
 
 The required minimal conformance path is:
 

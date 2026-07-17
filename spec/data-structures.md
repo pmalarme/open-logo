@@ -226,7 +226,7 @@ Only the final selector upserts. A missing intermediate container in a chain rai
 | `value of … for key …` | R | dictExpr, keyExpr | value | `ol-unknown-key` | Heritage dict reader |
 | `remove key … from` | S | key, dictExpr | — | — | removes the key if present |
 | `clear` | S | dict expr | — | — | removes all entries |
-| `member? key dict` | R | key, dict | boolean | — | tests whether the value is a key; worded form `is key member of dict` |
+| `member? key dict` | R | key, dict | boolean | — | tests whether the value is a key; worded form `key is member of dict` |
 | `keys` | R | dict | list | — | returns keys in insertion order |
 | `values` | R | dict | list | — | returns values in insertion order |
 | `count` | R | dict | number | — | returns entry count |

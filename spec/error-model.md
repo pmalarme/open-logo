@@ -116,7 +116,7 @@ codes only outside the `ol-*` namespace.
 | `ol-duplicate-binder` | semantic | `name`, `form` | A binder name is repeated where names must be distinct, including `reduce sum sum …` or a repeated name in a destructuring pattern. |
 | `ol-stop-outside-proc` | semantic | none or `keyword` | `stop` appears outside any procedure. |
 | `ol-limit` | runtime | `limit`, optional `value` | A configurable safety limit was reached, such as instruction budget, recursion depth, or cancellation. The message MUST be friendly and MUST NOT expose a host stack overflow. |
-| `ol-user-error` | runtime | `message` | A program reached a `throw`, halting with the learner-facing message it supplied. Library procedures such as `star`, `area`, and `perimeter` use it to reject invalid input in their own words. v0.1 has no `try`/`catch`, so it stops the program like any other runtime error. |
+| `ol-user-error` | runtime | `message` | A program reached a `throw`, halting with the learner-facing message it supplied. Library procedures such as `polygon`, `star`, `circle`, `arc`, `area`, and `perimeter` use it to reject invalid input in their own words. v0.1 has no `try`/`catch`, so it stops the program like any other runtime error. |
 | `ol-not-boolean` | runtime | `actual`, optional `operation` | A condition or logical operand was not `true` or `false`. There is no truthiness. |
 | `ol-reserved-word` | semantic | `name`, `namespace` | A program attempted to redefine or collide with a reserved keyword, primitive, existing procedure, type constructor, or alias target where freshness is required. |
 | `ol-unknown-type` | semantic | `name` | A struct type or type name is referenced but not declared or imported. |

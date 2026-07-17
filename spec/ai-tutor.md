@@ -4,7 +4,7 @@
 
 [Back to the specification index.](README.md)
 
-OpenLogo can include an AI tutor, but it never needs one in order to teach. The required, deterministic learning support for `explain`, `why`, `hint`, and `debug` lives in the [educational model](educational-model.md). This document describes the optional Tutor profile: a pluggable AI layer that can make those same commands warmer, more personal, and more conversational, and adds `challenge`.
+OpenLogo can include an AI tutor, but it never needs one in order to teach. The deterministic, always-available learning support for `explain`, `why`, `hint`, and `debug` lives in the [educational model](educational-model.md), which the Educational profile in [conformance.md](conformance.md#educational) makes normative. This document describes the optional Tutor profile: a pluggable AI layer that can make those same commands warmer, more personal, and more conversational, and adds `challenge`.
 
 The AI tutor's job is to be a teacher, not a code generator. It helps you notice patterns, predict what the turtle will do, and choose your next experiment. It does not hand over a finished program or replace the joy of making the idea yours.
 
@@ -38,7 +38,7 @@ challenge
 
 AI-enhanced meta-commands use the current program, diagnostics from the [error model](error-model.md), learner level from the [educational model](educational-model.md), and execution information from the [execution model](execution-model.md). They may also use the trace event stream to point to a step, movement, turn, print, return, or error.
 
-The AI layer must preserve four promises:
+The AI layer is designed around four promises:
 
 1. **The learner stays in control.** The tutor suggests the next thing to try; it does not silently change code.
 2. **The idea comes before the answer.** The tutor asks a guiding question before giving a direct explanation whenever it is safe and useful.
@@ -228,7 +228,7 @@ Adaptation should not infer sensitive traits, make permanent judgments, or hide 
 
 ## Teacher, not code generator
 
-The AI tutor must not produce complete take-home solutions on request. It may provide:
+The AI tutor does not produce complete take-home solutions on request. It may provide:
 
 - a question;
 - a concept explanation;
