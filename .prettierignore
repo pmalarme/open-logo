@@ -1,0 +1,17 @@
+# Build output and dependencies
+node_modules/
+**/dist/
+**/*.tsbuildinfo
+coverage/
+
+# Generated lockfile
+package-lock.json
+
+# Prose and maintainer-owned content are not reformatted by this toolchain.
+# The spec is maintainer-owned; docs, agents, and skills are hand-authored Markdown,
+# and .github YAML (labels, workflows, issue forms) is hand-maintained and pinned.
+*.md
+spec/
+docs/
+LICENSE
+.github/

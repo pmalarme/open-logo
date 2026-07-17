@@ -1,0 +1,3 @@
+# Normalize line endings to LF on checkout across platforms so Prettier
+# (endOfLine: lf) and cross-platform contributors stay consistent.
+* text=auto eol=lf
