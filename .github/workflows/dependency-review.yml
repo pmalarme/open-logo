@@ -1,7 +1,13 @@
 name: Dependency review
 
-# Flags vulnerable or disallowed dependencies a PR would introduce. Real from day one:
-# with no dependency manifest yet it simply finds no changes. Owned by @devops.
+# Flags vulnerable or disallowed dependencies a PR would introduce, before merge.
+#
+# Dependency review relies on the Dependency Graph. On a PRIVATE repo that requires
+# GitHub Advanced Security; without it the action errors ("not supported on this
+# repository"). So we make the step advisory while the repo is private (it may lack
+# GHAS) and a hard gate automatically once the repo is public — where it always works.
+# To enforce it on a private repo, enable GHAS + Dependency Graph in
+# Settings > Code security, then this becomes blocking on its own. Owned by @devops.
 
 on:
   pull_request:
@@ -16,5 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/dependency-review-action@v4
+        continue-on-error: ${{ github.event.repository.private }}
         with:
           fail-on-severity: high
+

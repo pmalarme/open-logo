@@ -24,7 +24,9 @@ suites these workflows run; you wire and secure them.
   toolchain lands. Do **not** use `hashFiles()` in a job-level `if` — it evaluates before checkout.
 - `codeql.yml` — CodeQL JS/TS scan (PRs, `main`, weekly); guarded by its own `detect` job so it
   activates when `package.json` lands.
-- `dependency-review.yml` — blocks new high-severity/deny-listed dependencies on every PR (active now).
+- `dependency-review.yml` — blocks new high-severity/deny-listed dependencies on every PR. Needs the
+  Dependency Graph (GHAS on private repos), so it is advisory while the repo is private and a hard
+  gate once public.
 - `labeler.yml` — path→label PR labeling from [`.github/labeler.yml`](../labeler.yml).
 - `label-sync.yml` — reconciles repo labels from [`.github/labels.yml`](../labels.yml) via
   `.github/scripts/sync-labels.py` when the manifest changes.

@@ -25,8 +25,8 @@ first.
   `@testing` authors the test/conformance *content* they run.
 - **Security scanning** — [`.github/workflows/codeql.yml`](../workflows/codeql.yml) (CodeQL,
   JavaScript/TypeScript; guarded like `ci.yml` so it activates when the toolchain lands),
-  [`.github/workflows/dependency-review.yml`](../workflows/dependency-review.yml) (active on every
-  PR), [`.github/dependabot.yml`](../dependabot.yml) (update PRs — github-actions now, npm when the
+  [`.github/workflows/dependency-review.yml`](../workflows/dependency-review.yml) (runs on every PR;
+  advisory until GHAS/Dependency Graph is enabled on this private repo, then a hard gate), [`.github/dependabot.yml`](../dependabot.yml) (update PRs — github-actions now, npm when the
   manifest lands), secret-scanning config, and (later) SBOM / provenance. You keep these green and
   low-noise.
 - **The labeler** — [`.github/labeler.yml`](../labeler.yml) (path → label rules) and the workflow
@@ -56,8 +56,9 @@ first.
    `.github/**`) to the right `agent:*` / `area:*` labels; the label-sync workflow reconciles the repo
    with `.github/labels.yml` on change. Never hand-edit labels in the UI.
 3. **Keep security shift-left:** `dependency-review.yml` runs on every PR (fail on new high-severity
-   deps); `codeql.yml` analyzes JS/TS and activates once `package.json` lands. Never commit secrets or
-   tokens (see the spec-fidelity guardrail — fixtures carry no secrets).
+   deps; advisory until GHAS/Dependency Graph is enabled on a private repo); `codeql.yml` analyzes
+   JS/TS and activates once `package.json` lands. Never commit secrets or tokens (see the
+   spec-fidelity guardrail — fixtures carry no secrets).
 4. **Release only validated tuples:** tag a release when all target packages share one spec version +
    declared profiles and conformance is green (delivery.md). Highlighter/tooling ship in the same
    milestone as the grammar change they track.

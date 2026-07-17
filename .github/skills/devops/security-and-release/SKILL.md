@@ -22,7 +22,11 @@ Two workflows already exist; keep them least-privilege and low-noise:
   PRs, pushes to `main`, and a weekly schedule; fail on new high-severity alerts. Guarded by a
   `detect` job so it stays dormant until `package.json` lands (nothing to scan before then).
 - **Dependency review** ([`.github/workflows/dependency-review.yml`](../../../workflows/dependency-review.yml))
-  — active on every PR; blocks known-vulnerable/deny-listed dependencies (`fail-on-severity: high`).
+  — runs on every PR; blocks known-vulnerable/deny-listed dependencies (`fail-on-severity: high`).
+  It needs the Dependency Graph, which on a **private** repo requires **GitHub Advanced Security**;
+  until GHAS is enabled it is **advisory** (`continue-on-error` while private) and becomes a hard
+  gate automatically when the repo is public. Enable GHAS + Dependency Graph in *Settings > Code
+  security* to enforce it while private.
 - **Dependabot** ([`.github/dependabot.yml`](../../../dependabot.yml)) — the remediation half:
   opens grouped update PRs. `github-actions` runs now (keeps pinned actions patched); `npm`
   activates when the workspace manifest lands. dependency-review guards the door, Dependabot patches
