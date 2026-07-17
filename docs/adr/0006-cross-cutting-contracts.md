@@ -75,6 +75,8 @@ an event, and a diagnostic and reads them back against the registries.
   payloads are intentionally minimal and fill in with each feature's vertical slice. Adding
   a node/kind/code later is a normal contract change, not a redesign.
 - The runtime unit-test placeholder (`scripts/test.mjs`) discovers `*.test.mjs`, so the
-  smoke tests are authored in `.mjs` against each package's built public API. When
-  `@testing` chooses the real test runner it can run TypeScript tests directly; this ADR
-  does not settle that deferred sub-decision.
+  smoke tests are authored in `.mjs` against each package's built public API. Because that
+  API is the compiled `dist`, a `pretest` hook (`npm run -s build`) makes `npm test`
+  self-contained — it builds first, so the test gate works in a fresh CI checkout as well
+  as locally. When `@testing` chooses the real test runner it can run TypeScript tests
+  directly; this ADR does not settle that deferred sub-decision.
