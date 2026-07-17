@@ -17,19 +17,23 @@ testable. Diagnostics are owned by `@openlogo/core` and asserted by conformance 
 
 A diagnostic carries:
 
-- **code** — a stable identifier: `ol-*` for errors/semantics, `ol-style-*` for style lints. Codes
-  never change meaning once shipped.
-- **source_span** — start (and end) line/column into the source.
+- **code** — a stable identifier from the **normative registry** in `spec/error-model.md`: `ol-*` for
+  parse/semantic/runtime errors, `ol-style-*` for style lints. Codes never change meaning once shipped.
+- **source_span** — a source document plus a character range (or equivalent line/column range).
 - **params** — structured values used to render the message (e.g. the bad token, the expected arity).
-- **message** — the learner-facing text, generated from code + params (localizable).
+  `params` are part of the diagnostic identity; empty object is allowed.
+- **message** — the learner-facing text, generated from code + params (localizable). Tools MUST NOT
+  parse the English message.
 - **stage** — `parse`, `semantic`, or `runtime`.
-- **severity** — error / warning / info (style lints are typically warning/info).
+- **severity** — `error` or `warning` **only** (style lints are `warning`). There is no `info`.
 - **debug** — optional extra detail for tooling, off by default for learners.
 
 ## Rules
 
-- **Register every code once** in the `@openlogo/core` diagnostic registry. Never throw bare strings
-  or `Error("...")` for language errors.
+- **Use codes from the normative registry** (`spec/error-model.md`). The `ol-*` namespace is
+  **reserved by the spec** — never invent an `ol-*` code in implementation code; a genuinely new code
+  is a spec change (maintainer-owned). Vendor-specific extensions MUST use a non-`ol-*` namespace.
+  Register each code once in the `@openlogo/core` registry; never throw bare strings or `Error("...")`.
 - Attach an accurate **span** — the studio underlines exactly this range.
 - Provide **did-you-mean** where the spec defines it (unknown command/variable close to a known
   name). Keep suggestions deterministic.
@@ -39,8 +43,9 @@ A diagnostic carries:
 
 ## Procedure
 
-1. Choose or add a code in the `@openlogo/core` registry with its param schema and message template.
-2. At the error site, construct the diagnostic with code + span + params (no inline prose).
+1. Look up the code in the normative registry (`spec/error-model.md`) with its param schema and
+   message template. Do not invent `ol-*` codes — a new one is a maintainer-owned spec change.
+2. At the error site, construct the diagnostic with code + source_span + params (no inline prose).
 3. Add a **negative conformance fixture** asserting the exact code, stage, and span
    (`shared/conformance-fixture`).
 4. If the message is new/changed, notify `@documentation` and (if learner-facing wording)
@@ -51,13 +56,14 @@ A diagnostic carries:
 Program `forward` (missing input) →
 
 ```json
-{ "code": "ol-arity", "stage": "semantic", "severity": "error",
-  "source_span": { "line": 1, "col": 1 },
-  "params": { "name": "forward", "expected": 1, "got": 0 },
+{ "code": "ol-not-enough-inputs", "stage": "semantic", "severity": "error",
+  "source_span": { "document": "main.logo", "start": [1, 1], "end": [1, 8] },
+  "params": { "callable": "forward", "expected": 1, "actual": 0 },
   "message": "forward needs 1 input (a distance), but none was given." }
 ```
 
-(Use the actual code assigned in `spec/error-model.md`; `ol-arity` is illustrative.)
+(`ol-not-enough-inputs` and its `callable`/`expected`/`actual` params are the normative code from
+`spec/error-model.md`.)
 
 ## Checklist
 - [ ] Code registered in `@openlogo/core`; no ad-hoc strings.

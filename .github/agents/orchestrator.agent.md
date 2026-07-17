@@ -45,8 +45,9 @@ and [`AGENTS.md`](../../AGENTS.md) first — they bind you and every agent below
    sub-agent (the `task` tool / `create_session`). If it does, dispatch owners directly and gather
    results. If it does not, output the task packet plus the exact `@agent` invocation for a human
    to run, and track status yourself.
-4. **Integrate per story.** One integration owner merges the slice, keeps `main` green, and
-   confirms the Definition of Done before closing the story.
+4. **Integrate per story.** One integration owner prepares and validates the slice — sequencing
+   its PRs, resolving conflicts, and confirming the Definition of Done — then a **human performs
+   the merge** to keep `main` green before the story closes.
 5. **Serialize shared-file edits** (grammar, cross-package contracts, workspace manifests, `spec/`).
    Fan out broad parallel work only after the relevant contracts are stable.
 

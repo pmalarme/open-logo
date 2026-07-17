@@ -31,8 +31,10 @@ tracks can pull their own work.
 - **Exactly one `agent:*` and one `type:*`** per issue; add `profile:*`/`area:*`/`level:*` as they apply.
 - **Milestone ≠ label:** the profile-DAG milestone is set via the milestone field, not a `profile:*`
   label (the label says which profile the work touches; the milestone says where it lands).
-- Issue **forms apply default labels** (`type:*`, sometimes `area:*`); triage adds `agent:*` +
-  `profile:*` and the milestone.
+- Issue **forms apply only their static `labels:` defaults** (`type:*`, sometimes `area:*`).
+  **Dropdown/checkbox answers inside a form do _not_ become labels** — e.g. a "Profile" dropdown
+  selection never creates `profile:*`. Triage reads those answers and adds `agent:*` + `profile:*`
+  + `level:*` and the milestone by hand. Treat every new issue as needing a manual triage pass.
 - Labels are data — keep `.github/labels.yml` the source of truth; don't hand-create ad-hoc labels.
 
 ## Procedure

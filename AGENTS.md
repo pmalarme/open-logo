@@ -23,8 +23,8 @@ The implementation is a **TypeScript 7 monorepo** (`openlogo/`) with six package
 | `@openlogo/edu` | Learner levels, `explain`/`why`/`hint`/`debug`, geometry stdlib, AI tutor, curriculum |
 
 Build order follows the spec's profile DAG: **Core Language → Turtle & Rendering** (minimal
-conformance) → optional profiles (Data, Geometry, Heritage, Sprites, Interaction, Sound,
-Modules→Localization, Educational→Tutor). See [`spec/conformance.md`](spec/conformance.md).
+conformance) → optional profiles (Data, Geometry, Heritage, Sprites, Interaction & Events, Sound,
+Modules→Localization, Educational→Tutor (AI)). See [`spec/conformance.md`](spec/conformance.md).
 
 ## Repository layout
 
@@ -71,7 +71,8 @@ in [`.github/ISSUE_TEMPLATE/`](.github/ISSUE_TEMPLATE) (labels come from
 
 - Lowercase keywords; no commas, no `f(x,y)`, no arrays/lambda in v0.1.
 - Procedures: `define … end` with `return` (Core). `to`/`output`/`op` are Heritage.
-- Turtle: `forward`/`back`/`left`/`right`/`penup`/`pendown`… (Core); `fd`/`bk`/`lt`/`rt`… are Heritage.
+- Turtle: `forward`/`back`/`left`/`right`/`pen_up`/`pen_down`/`clear_screen`… (Core, underscored names
+  primary); `fd`/`bk`/`lt`/`rt`/`pu`/`pd`/`cs`… are Heritage aliases.
 - `=` and `set … to` **assign**; `==` **compares**; `make` is Heritage. Variables: `:name`.
 - Values: `number`, `word` (`"red"`), `list` `[ ]`, `boolean` (Core); `dict` `{k: v}`, `struct` (Data).
 - Diagnostics use stable `ol-*` codes ([`spec/error-model.md`](spec/error-model.md)); never ad-hoc strings.

@@ -14,8 +14,9 @@ Scoped rules for files under `packages/turtle/`. Read the always-on
 
 ## Responsibility
 The turtle/sprite engine and renderer. Owns turtle/sprite **state** (`x`, `y`, `heading`, `penDown`,
-`color`, `shape`, `visible`), **pen/heading/shape**, the retained **drawing scene**, and the
-**Canvas / SVG / PNG** targets with animation, export, and rendering accessibility.
+`color`, `width`, `shape`, `visible`), the **background** and retained **drawing scene** (scene/
+background are separate from per-turtle state), **pen/heading/shape**, and the **Canvas / SVG / PNG**
+targets with animation, export, and rendering accessibility.
 
 ## Spec (normative)
 - [`spec/rendering.md`](../../spec/rendering.md) — rendering targets, drawing model, coordinate mapping,

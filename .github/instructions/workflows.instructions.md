@@ -19,8 +19,12 @@ suites these workflows run; you wire and secure them.
 
 ## Files here
 - `ci.yml` — DoD gates: an always-on **meta** job (labels/issue-forms/workflows validation via
-  `.github/scripts/validate-meta.py`) plus **build/lint/test** jobs guarded by
-  `if: ${{ hashFiles('package.json') != '' }}` until the toolchain lands.
+  `.github/scripts/validate-meta.py`, plus a `detect` step exposing `has_toolchain`) and
+  **build/lint/test** jobs gated on `if: ${{ needs.meta.outputs.has_toolchain == 'true' }}` until the
+  toolchain lands. Do **not** use `hashFiles()` in a job-level `if` — it evaluates before checkout.
+- `codeql.yml` — CodeQL JS/TS scan (PRs, `main`, weekly); guarded by its own `detect` job so it
+  activates when `package.json` lands.
+- `dependency-review.yml` — blocks new high-severity/deny-listed dependencies on every PR (active now).
 - `labeler.yml` — path→label PR labeling from [`.github/labeler.yml`](../labeler.yml).
 - `label-sync.yml` — reconciles repo labels from [`.github/labels.yml`](../labels.yml) via
   `.github/scripts/sync-labels.py` when the manifest changes.

@@ -37,7 +37,7 @@ first.
    `define … end` (not `to`), `forward`/`right` (not `fd`/`rt`), `=`/`set … to` for assignment vs
    `==` for comparison, `:name` variables, `ol-*` diagnostics. Note Heritage spellings as aliases.
 2. Document behavior **per profile and per level** so readers know what requires Data, Geometry,
-   Sprites, Educational, Tutor, etc., and what the minimal (**Core + Turtle & Rendering**) surface is.
+   Sprites, Educational, Tutor (AI), etc., and what the minimal (**Core + Turtle & Rendering**) surface is.
 3. Make examples **copy-run-able** and covered by an automated check; update the reference in the
    **same PR** as the change that motivated it (Definition of Done forbids drift).
 4. Keep a human-readable changelog of language-affecting changes, cross-linked to the relevant ADRs

@@ -72,8 +72,9 @@ Learner **levels are a curriculum sequencing model, not profiles** — do not co
   packages it will touch) up front.
 - **Serialize shared-file edits.** Grammar, cross-package contracts, `package.json`/workspace
   manifests, and anything under `spec/` change one PR at a time to avoid conflicts.
-- **One integration owner per story** (the orchestrator or the story's primary agent) merges
-  the slice and keeps `main` green.
+- **One integration owner per story** (the orchestrator or the story's primary agent) prepares
+  and validates the merge — sequencing the slice's PRs, resolving conflicts, and confirming the
+  Definition of Done is green — but **a human performs the actual merge** (see §5).
 - **Respect package boundaries.** Depend on a sibling package's public API, never its internals.
   Cross-package changes need the owning agent's review.
 
@@ -100,9 +101,9 @@ Match the merged spec exactly. Common mistakes to avoid:
   whitespace, no arrays/lambda/first-class procedure values in v0.1.
 - **Procedures:** Core uses `define … end` with `return`/`stop`/`throw`. `to`/`output`/`op` are
   **Heritage** spellings (optional profile), not Core.
-- **Turtle commands:** Core canonical names are `forward`/`back`/`left`/`right`/`penup`/
-  `pendown`/`showturtle`/`hideturtle`/`clearscreen`/`print`. `fd`/`bk`/`lt`/`rt`/`pu`/`pd`/
-  `st`/`ht`/`cs`/`pr` are **Heritage** aliases.
+- **Turtle commands:** Core canonical names are `forward`/`back`/`left`/`right`/`pen_up`/
+  `pen_down`/`show_turtle`/`hide_turtle`/`clear_screen`/`print` (full underscored names are primary).
+  `fd`/`bk`/`lt`/`rt`/`pu`/`pd`/`st`/`ht`/`cs`/`pr` are **Heritage** aliases (optional profile).
 - **Assignment vs comparison:** `<place> = <value>` and `set <place> to <value>` assign; `==`
   compares. `make` is Heritage. Variables are referenced as `:name`; places nest like
   `:people.tom.age`.

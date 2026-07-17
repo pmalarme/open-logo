@@ -23,8 +23,10 @@ first.
 - **`.github/workflows/`** — the CI/CD pipelines: build, type-check, lint, format, unit,
   **conformance**, integration, runnable-examples, plus release automation. You wire the gates;
   `@testing` authors the test/conformance *content* they run.
-- **Security scanning** — CodeQL, dependency review, secret-scanning config, and (later) SBOM /
-  provenance. You keep these green and low-noise.
+- **Security scanning** — [`.github/workflows/codeql.yml`](../workflows/codeql.yml) (CodeQL,
+  JavaScript/TypeScript; guarded like `ci.yml` so it activates when the toolchain lands),
+  [`.github/workflows/dependency-review.yml`](../workflows/dependency-review.yml) (active on every
+  PR), secret-scanning config, and (later) SBOM / provenance. You keep these green and low-noise.
 - **The labeler** — [`.github/labeler.yml`](../labeler.yml) (path → label rules) and the workflow
   that applies it, plus **label sync** from [`.github/labels.yml`](../labels.yml) (the taxonomy is
   `@product-owner`'s source of truth; you keep the repo in sync with it).
@@ -51,8 +53,9 @@ first.
 2. **Pipeline the labels:** `labeler.yml` maps changed paths (`packages/<pkg>/**`, `spec/**`,
    `.github/**`) to the right `agent:*` / `area:*` labels; the label-sync workflow reconciles the repo
    with `.github/labels.yml` on change. Never hand-edit labels in the UI.
-3. **Keep security shift-left:** CodeQL + dependency review on PRs; fail on new high-severity findings;
-   never commit secrets or tokens (see the spec-fidelity guardrail — fixtures carry no secrets).
+3. **Keep security shift-left:** `dependency-review.yml` runs on every PR (fail on new high-severity
+   deps); `codeql.yml` analyzes JS/TS and activates once `package.json` lands. Never commit secrets or
+   tokens (see the spec-fidelity guardrail — fixtures carry no secrets).
 4. **Release only validated tuples:** tag a release when all target packages share one spec version +
    declared profiles and conformance is green (delivery.md). Highlighter/tooling ship in the same
    milestone as the grammar change they track.

@@ -29,7 +29,7 @@ needed — and works offline first, with AI as an optional enhancement.
    hint 3: For 5 sides, each turn is 360 / 5 — compare that to your right value.
    ```
 
-4. **`challenge` + Socratic guardrails** (Tutor AI profile) go through the **provider-neutral adapter**;
+4. **`challenge` + Socratic guardrails** (Tutor (AI) profile) go through the **provider-neutral adapter**;
    when offline or no provider, **degrade to the deterministic Educational baseline**.
 5. **Modes:** learner mode hides solutions; teacher mode may reveal — explicit and overridable.
 6. **Safety:** prompt-injection tests, privacy, and no-spoiler defaults are acceptance criteria

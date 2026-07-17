@@ -24,20 +24,23 @@ sync with that manifest and (b) auto-applies path-derived labels to PRs.
 
 ## PR labeling (paths → labels)
 
-- `.github/labeler.yml` maps changed paths to labels using `actions/labeler`. Keep the map aligned
-  with the package → owner table in [`architecture.md`](../../../../docs/architecture.md):
+- `.github/labeler.yml` maps changed paths to labels using `actions/labeler`. **Policy:** apply
+  `area:*` for every surface (owner-neutral), but `agent:*` **only for single-owner surfaces**.
+  Co-owned surfaces (`packages/parser` = language-designer + interpreter; `packages/edu` =
+  geometry-teacher + ai-tutor + curriculum) get their `area:*` label only — a human assigns the
+  specific owner in triage. Keep the map aligned with the package → owner table in
+  [`architecture.md`](../../../../docs/architecture.md):
 
   | Path glob | Labels |
   |---|---|
-  | `packages/core/**` | `agent:interpreter`, `area:runtime` |
-  | `packages/parser/**` | `agent:language-designer`, `area:grammar` |
-  | `packages/runtime/**` | `agent:interpreter`, `area:runtime` |
+  | `packages/core/**`, `packages/runtime/**` | `agent:interpreter`, `area:runtime` |
+  | `packages/parser/**` | `area:grammar` (co-owned → owner set in triage) |
   | `packages/turtle/**` | `agent:turtle-engine`, `area:rendering` |
   | `packages/studio/**` | `agent:learner-experience`, `area:studio` |
-  | `packages/edu/**` | `agent:curriculum`, `area:edu` |
-  | `tests/conformance/**` | `agent:testing`, `type:conformance` |
-  | `.github/workflows/**`, `.github/labeler.yml` | `agent:devops`, `area:ci` |
-  | `spec/**` | `agent:product-owner` |
+  | `packages/edu/**` | `area:edu` (co-owned → owner set in triage) |
+  | `tests/conformance/**` | `agent:testing` |
+  | `.github/workflows/**`, `.github/labeler.yml`, `.github/scripts/**` | `agent:devops`, `area:ci` |
+  | `spec/**`, `.github/ISSUE_TEMPLATE/**`, `.github/labels.yml` | `agent:product-owner` |
   | `docs/**` | `agent:documentation`, `area:docs` |
 
 - Labeler is a **hint**, not the final word: it seeds `agent:*`/`area:*` from paths; `@product-owner`

@@ -33,7 +33,7 @@ The four shared contracts (AST, trace/events, `ol-*` diagnostics, token classes)
 
 **Milestones** are **profile-based synchronization points** on the spec DAG (M0 Foundation → M1 Core
 → **M2 Turtle & Rendering = minimal conformance / first release** → M3 Educational → M4 Data &
-Geometry → M5 Heritage·Sprites·Interaction·Sound → M6 Modules·Localization·Tutor). A milestone
+Geometry → M5 Heritage·Sprites·Interaction & Events·Sound → M6 Modules·Localization·Tutor (AI)). A milestone
 completes when its profile conformance is green across **all** domains, not when one package finishes.
 Each milestone maps to a GitHub milestone; issues are one vertical slice each, labeled by owning agent
 and profile so parallel tracks pull independently.

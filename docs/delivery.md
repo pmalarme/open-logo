@@ -32,7 +32,7 @@ profile passes conformance. The trains and their coupling:
 | **Highlighter / tooling** | parser (`highlight`), studio (`lsp`) | token-class fixtures match the **current grammar** | **pinned to the grammar/spec version** — ships with or immediately after any grammar change so editors never lag the language |
 | **Rendering / turtle** | turtle | Turtle & Rendering conformance + a11y checks + deterministic export | events contract |
 | **Studio / UI** | studio | end-to-end run loop + a11y; composes only packages agreeing on one spec version + profile set | engine + turtle + edu versions |
-| **Education** | edu | Educational/Tutor/Geometry conformance; tutor degrades offline | runtime API + spec version; curriculum pins a language version |
+| **Education** | edu | Educational/Tutor (AI)/Geometry conformance; tutor degrades offline | runtime API + spec version; curriculum pins a language version |
 
 **The interlock rule:** the **highlighter and tooling track the grammar version**. Because token
 classes are normative (`spec/tooling.md`) and derived from the grammar, any grammar/reserved-word
@@ -69,7 +69,7 @@ green, and (from M2 on) we tag a release.
 | **M2 Turtle & Rendering** | + Turtle & Rendering = **minimal conformance** | Turtle state + events, Canvas render + SVG/PNG export, studio Run/Stop/Reset + turtle view + a11y | **`0.1.0` — first conformant release** |
 | **M3 Educational baseline** | + Educational | `explain`/`why`/`hint`/`debug` deterministic; curriculum L1–L5; studio lesson pane | `0.2.0` |
 | **M4 Data & Geometry** | + Data, + Geometry | dicts/records/mutation; geometry stdlib (`.logo`) + geometry-teacher reasoning; highlighter dict/struct/field classes | `0.3.0` |
-| **M5 Heritage · Sprites · Interaction · Sound** | + those four (independent) | alternate spellings; multiple turtles; input/events/timers; sound — parallelizable | `0.4.0` |
+| **M5 Heritage · Sprites · Interaction & Events · Sound** | + those four (independent) | alternate spellings; multiple turtles; input/events/timers; sound — parallelizable | `0.4.0` |
 | **M6 Modules · Localization · Tutor (AI)** | + Modules → Localization, + Tutor (AI) | `import`/`export`; localized keyword packs; AI tutor (Socratic, offline-degrading) behind the provider-neutral adapter | `0.5.0` |
 
 M2 is the flagship: the smallest thing that is a real, conformant OpenLogo. Everything after M2 is

@@ -88,6 +88,14 @@ body:
     id: dependencies
     attributes:
       label: Dependencies / write-set
-      description: Blocking issues, and the files/globs this slice will change.
+      description: >-
+        The files/globs this slice will change (its declared write-set, per the team
+        instructions §4), plus any blocking issues. Required so shared-file edits can be
+        serialized and reviewers can spot overlap before work starts.
+      placeholder: |
+        Write-set:
+          - packages/parser/src/grammar/**
+          - packages/runtime/src/eval/repeat.ts
+        Blocked by: #12
     validations:
-      required: false
+      required: true

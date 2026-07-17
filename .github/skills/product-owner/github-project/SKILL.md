@@ -20,7 +20,7 @@ mechanics; it assumes `gh auth status` is green for `pmalarme/open-logo`.
 for m in \
   "M0 Foundation" "M1 Core Language" "M2 Turtle & Rendering" \
   "M3 Educational" "M4 Data & Geometry" \
-  "M5 Heritage · Sprites · Interaction · Sound" "M6 Modules · Localization · Tutor (AI)"; do
+  "M5 Heritage · Sprites · Interaction & Events · Sound" "M6 Modules · Localization · Tutor (AI)"; do
   gh api repos/pmalarme/open-logo/milestones -f title="$m" >/dev/null
 done
 gh api repos/pmalarme/open-logo/milestones --jq '.[].title'   # verify

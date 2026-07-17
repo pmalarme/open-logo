@@ -57,7 +57,7 @@ set reaches conformance across all domains** (see [`docs/delivery.md`](../../../
 | M2 Turtle & Rendering | + Turtle & Rendering = **minimal conformance** | **`0.1.0`** |
 | M3 Educational | + Educational | `0.2.0` |
 | M4 Data & Geometry | + Data, + Geometry | `0.3.0` |
-| M5 Heritage · Sprites · Interaction · Sound | those four | `0.4.0` |
+| M5 Heritage · Sprites · Interaction & Events · Sound | those four | `0.4.0` |
 | M6 Modules · Localization · Tutor (AI) | those | `0.5.0` |
 
 The **8 learner levels** (`spec/educational-model.md`) drive curriculum epics/stories; tag with

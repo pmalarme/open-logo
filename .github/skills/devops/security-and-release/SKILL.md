@@ -16,8 +16,13 @@ only validated tuples**. Grounded in [`docs/delivery.md`](../../../../docs/deliv
 
 ## Security scanning
 
-- **CodeQL** on PRs + a weekly schedule for the TS codebase; fail on new high-severity alerts.
-- **Dependency review** on PRs to block known-vulnerable/deny-listed dependencies before merge.
+Two workflows already exist; keep them least-privilege and low-noise:
+
+- **CodeQL** ([`.github/workflows/codeql.yml`](../../../workflows/codeql.yml)) — JS/TS analysis on
+  PRs, pushes to `main`, and a weekly schedule; fail on new high-severity alerts. Guarded by a
+  `detect` job so it stays dormant until `package.json` lands (nothing to scan before then).
+- **Dependency review** ([`.github/workflows/dependency-review.yml`](../../../workflows/dependency-review.yml))
+  — active on every PR; blocks known-vulnerable/deny-listed dependencies (`fail-on-severity: high`).
 - **Secret scanning + push protection** enabled; **no secrets or tokens** in code, fixtures, or
   workflows (matches the team no-secrets rule). Use `GITHUB_TOKEN` with least-privilege `permissions:`.
 - Keep signal high: triage/suppress false positives explicitly; don't let the dashboard rot.

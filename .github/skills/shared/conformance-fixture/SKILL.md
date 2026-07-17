@@ -34,25 +34,36 @@ forward.expected.json
 {
   "profiles": ["core-language", "turtle-rendering"],
   "events": [
-    { "type": "turtle.move", "from": [0, 0], "to": [0, 100], "penDown": true },
-    { "type": "draw.line",   "from": [0, 0], "to": [0, 100] }
+    { "seq": 1, "kind": "instruction",
+      "source-span": { "document": "forward.logo", "start": [1, 1], "end": [1, 12] } },
+    { "seq": 2, "kind": "move",
+      "source-span": { "document": "forward.logo", "start": [1, 1], "end": [1, 12] },
+      "payload": { "from": [0, 0], "to": [0, 100], "heading": 0 } },
+    { "seq": 3, "kind": "draw-segment",
+      "source-span": { "document": "forward.logo", "start": [1, 1], "end": [1, 12] },
+      "payload": { "from": [0, 0], "to": [0, 100], "color": "black", "width": 1 } }
   ],
   "turtle": { "x": 0, "y": 100, "heading": 0 },
   "diagnostics": []
 }
 ```
 
-Event/field names must match the trace/event registry in `@openlogo/core` — coordinate with
-`@interpreter` and `@turtle-engine`; do not invent event shapes here.
+Events use the normative envelope — `seq`, `kind`, `source-span`, optional `turtle-id`, `payload` —
+and registered `kind` values (`instruction`, `move`, `draw-segment`, …) from
+`spec/execution-model.md`. Coordinate exact payloads with `@interpreter` and `@turtle-engine`; do not
+invent event shapes here.
 
 ## Negative fixtures
 
-For invalid programs, assert the **exact diagnostic** (see `shared/diagnostics`):
+For invalid programs, assert the **exact diagnostic** (see `shared/diagnostics`). Note diagnostics use
+`source_span` (underscore) while events use `source-span` (hyphen) — match the spec exactly:
 
 ```
 missing-arg.logo        →  forward
 missing-arg.expected.json →
-{ "diagnostics": [ { "code": "ol-...", "stage": "semantic", "span": {"line":1,"col":1} } ],
+{ "diagnostics": [ { "code": "ol-not-enough-inputs", "stage": "semantic", "severity": "error",
+    "source_span": { "document": "missing-arg.logo", "start": [1, 1], "end": [1, 8] },
+    "params": { "callable": "forward", "expected": 1, "actual": 0 } } ],
   "events": [] }
 ```
 

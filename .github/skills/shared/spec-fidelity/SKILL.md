@@ -18,7 +18,7 @@ matching it exactly and catching the common "classic Logo" mistakes.
 | Concept | Canonical (Core) | NOT this |
 |---|---|---|
 | Procedure def | `define … end` with `return` | `to … end` / `output` (those are **Heritage**) |
-| Move/turn | `forward`/`back`/`left`/`right`/`penup`/`pendown` | `fd`/`bk`/`lt`/`rt`/`pu`/`pd` (**Heritage** aliases) |
+| Move/turn/pen | `forward`/`back`/`left`/`right`/`pen_up`/`pen_down` (underscored names primary) | `fd`/`bk`/`lt`/`rt`/`pu`/`pd` (**Heritage** aliases) |
 | Assign | `<place> = <value>` or `set <place> to <value>` | `make` (**Heritage**) |
 | Compare | `==`, `!=`, `<`, `>`, `<=`, `>=` (chainable: `1 < :x < 10`) | using `=` to compare |
 | Variable ref | `:name`, nested places `:people.tom.age` | `$name`, arrays |

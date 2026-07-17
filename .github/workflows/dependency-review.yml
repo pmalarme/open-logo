@@ -1,0 +1,20 @@
+name: Dependency review
+
+# Flags vulnerable or disallowed dependencies a PR would introduce. Real from day one:
+# with no dependency manifest yet it simply finds no changes. Owned by @devops.
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-review:
+    name: Dependency review
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high

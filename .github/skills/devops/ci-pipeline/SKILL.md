@@ -27,7 +27,31 @@ Every merge to `main` must pass the same gates. This skill is how you wire and e
 ## Rules
 
 - **Guard code jobs** so the pipeline is green before any toolchain exists and activates
-  automatically once it lands: `if: ${{ hashFiles('package.json') != '' }}`.
+  automatically once it lands. Detect the manifest in the always-on `meta` job (after checkout) and
+  gate code jobs on its output — **not** on `hashFiles()` in a job-level `if`, which evaluates before
+  checkout and is unreliable:
+
+  ```yaml
+  jobs:
+    meta:
+      outputs:
+        has_toolchain: ${{ steps.detect.outputs.has_toolchain }}
+      steps:
+        - uses: actions/checkout@v4
+        - id: detect
+          run: |
+            if [ -f package.json ]; then
+              echo "has_toolchain=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "has_toolchain=false" >> "$GITHUB_OUTPUT"
+            fi
+    build:
+      needs: meta
+      if: ${{ needs.meta.outputs.has_toolchain == 'true' }}
+  ```
+- **No `--if-present`.** Once the toolchain lands, each DoD script (`build`, `typecheck`, `lint`,
+  `format:check`, `test`, `conformance`, `examples`) MUST exist — call them plainly so a missing gate
+  is a real failure, not a silent pass.
 - **Conformance is profile-aware:** a profile's job passes only when its fixtures **and its DAG
   dependencies'** fixtures pass (`spec/conformance.md`). Turtle & Rendering ⇒ needs Core green.
 - **Fast + deterministic:** headless turtle, no wall-clock/frame dependence, cache dependencies, pin
@@ -45,6 +69,7 @@ Every merge to `main` must pass the same gates. This skill is how you wire and e
 
 ## Checklist
 - [ ] Each DoD item maps to a CI gate; names are clear.
-- [ ] Code jobs guarded on `hashFiles('package.json')`; meta job always runs.
+- [ ] Code jobs gated on the `meta` job's `has_toolchain` output; meta job always runs.
+- [ ] No `--if-present` — every DoD script is called plainly so a missing gate fails.
 - [ ] Conformance runs by profile along the DAG.
 - [ ] Actions pinned; permissions least-privilege; no bypass of review.
