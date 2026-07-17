@@ -1,14 +1,10 @@
 /**
- * `@openlogo/runtime` — the evaluator, scoping, procedures, control forms, comprehensions,
- * places/mutation, equality, and the cancellable execution budget. This module is the
- * package's only public entry point; import it as the OpenLogo (`OL`) namespace:
+ * `@openlogo/runtime` — evaluator, scoping, procedures, control forms, comprehensions,
+ * places/mutation, equality, and the cancellable execution budget. Depends on `@openlogo/core`
+ * and `@openlogo/parser`.
  *
- * ```ts
- * import * as OL from "@openlogo/runtime";
- * ```
- *
- * M0 skeleton: the real surface lands with this package's first vertical slice. The
- * `version` constant exists so the workspace builds and type-checks and so the
- * `@openlogo/*` tuple versions in lockstep.
+ * The evaluator and trace emission land in later slices; this is the M0 skeleton.
  */
-export const version = "0.1.0";
+
+/** Marker export so the M0 skeleton is a real ES module; replaced by real exports later. */
+export const RUNTIME_PACKAGE = "@openlogo/runtime";

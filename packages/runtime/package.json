@@ -1,18 +1,17 @@
 {
   "name": "@openlogo/runtime",
   "version": "0.1.0",
-  "description": "OpenLogo runtime: evaluator, scoping, procedures, control forms, comprehensions, places, equality, and the execution budget.",
-  "type": "module",
+  "description": "OpenLogo runtime: evaluator, scoping, procedures, control forms, comprehensions, places, equality, and safety.",
   "license": "MIT",
-  "private": true,
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "type": "module",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     }
   },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "files": [
     "dist",
     "src"

@@ -1,15 +1,10 @@
 /**
- * `@openlogo/edu` — learner levels, the deterministic `explain`/`why`/`hint`/`debug`
- * commands, the geometry standard library (`.logo`), the Socratic AI tutor, and curriculum.
- * This module is the package's only public entry point; import it as the OpenLogo (`OL`)
- * namespace:
+ * `@openlogo/edu` — learner levels, the deterministic `explain`/`why`/`hint`/`debug` commands,
+ * the geometry standard library (discoverable OpenLogo source), the Socratic AI tutor, and the
+ * curriculum. Depends on `@openlogo/core` and `@openlogo/runtime`.
  *
- * ```ts
- * import * as OL from "@openlogo/edu";
- * ```
- *
- * M0 skeleton: the real surface lands with this package's first vertical slice. The
- * `version` constant exists so the workspace builds and type-checks and so the
- * `@openlogo/*` tuple versions in lockstep.
+ * The educational commands and geometry stdlib land in later slices; this is the M0 skeleton.
  */
-export const version = "0.1.0";
+
+/** Marker export so the M0 skeleton is a real ES module; replaced by real exports later. */
+export const EDU_PACKAGE = "@openlogo/edu";

@@ -1,18 +1,17 @@
 {
   "name": "@openlogo/core",
   "version": "0.1.0",
-  "description": "OpenLogo core: value/type model, ol-* diagnostics, the trace/event registry, and profile metadata.",
-  "type": "module",
+  "description": "OpenLogo core: value/type model, ol-* diagnostics, trace/event registry, and feature-detection metadata.",
   "license": "MIT",
-  "private": true,
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "type": "module",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     }
   },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "files": [
     "dist",
     "src"

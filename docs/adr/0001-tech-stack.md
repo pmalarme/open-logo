@@ -36,53 +36,12 @@ builds on `runtime` (for `.logo` stdlib) and `core` (for diagnostics/traces).
 **Build sequencing** follows the spec's profile DAG: **Core Language → Turtle & Rendering**
 (minimal conformance) first, then optional profiles with their transitive dependencies.
 
-## Toolchain (landed in M0)
-
-The workspace and toolchain are scaffolded (issue #5); the previously deferred package-manager and
-lint/format sub-decisions are now made:
-
-- **Package manager / workspaces:** **npm workspaces** over `packages/*`, installed with `npm ci`
-  from the committed `package-lock.json`.
-- **Compiler:** the stable **`typescript`** package driven by `tsc -b` over **project references** —
-  one `tsconfig.json` per package extending a strict **`tsconfig.base.json`** (ESM `NodeNext`, target
-  `ES2023`, `strict` plus `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`,
-  `verbatimModuleSyntax`, `isolatedModules`), with the dependency direction encoded as `references`.
-  No-emit type-checking uses a single-program **`tsconfig.typecheck.json`** (because `tsc -b --noEmit`
-  is rejected when project references are present).
-- **Lint / format:** **ESLint** (flat config `eslint.config.js` with `typescript-eslint`) and
-  **Prettier** (`.prettierrc.json`; the maintainer-owned `spec/` and prose Markdown are in
-  `.prettierignore`).
-
-### TypeScript 7 note
-
-TypeScript 7 (the native `tsgo`) is published as `typescript@7`, but the lint toolchain
-(`typescript-eslint`) currently peer-supports TypeScript only `< 6.1`. To keep the **lint gate**
-green we pin the compiler to the newest supported release on the 6→7 line and target
-TypeScript-7-level *semantics* (identical strictness), then bump to `typescript@7` once
-`typescript-eslint` ships stable TypeScript-7 support. This is precisely the "TypeScript 7 caveat"
-fallback recorded under Consequences.
-
-### Definition-of-Done commands
-
-CI (`.github/workflows/ci.yml`) and contributors run the same npm scripts:
-
-| Script | Runs |
-|---|---|
-| `npm run build` | `tsc -b` across project references (emits `dist/`) |
-| `npm run typecheck` | `tsc -p tsconfig.typecheck.json` (strict, no emit) |
-| `npm run lint` | ESLint (flat config) |
-| `npm run format:check` | Prettier check (`npm run format` writes) |
-| `npm run test` | unit tests (placeholder runner until the harness lands) |
-| `npm run conformance` | stack-neutral fixtures under `tests/conformance/`, by profile |
-| `npm run examples` | run every `spec/examples/*.logo` (pending parser + runtime) |
-
 ## Deferred sub-decisions (own follow-up ADRs)
 
-These remain intentionally open; record each in its own ADR when decided:
+The package manager (npm workspaces), the build/lint/format tooling, and the test runner are
+decided in [ADR-0005](0005-toolchain.md); the conformance-fixture harness format is still open
+(issue #6). These remain intentionally open — record each in its own ADR when decided:
 
-- **Test runner** (e.g. Vitest/Jest/`node:test`) and the conformance-fixture harness format. M0 ships
-  a discovery-based `test` placeholder (runs `node --test` over any JS test files, green when there
-  are none); `@testing` replaces it and records the choice.
 - **Rendering libraries** for `@openlogo/turtle` beyond the required Canvas target (SVG/PNG export).
 - **Studio shell** technology (framework/bundler) for `@openlogo/studio`.
 - **AI provider adapter** for the Tutor (AI) profile — kept provider-neutral (Foundry or others
