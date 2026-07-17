@@ -759,7 +759,7 @@ end while
 - **Kind:** Special form
 - **Argument types:** whole number, block
 - **Result:** —
-- **Description:** Runs a block a fixed number of times. `count` MUST be a non-negative whole number; `repeat 0` runs the block zero times. A `count` that is not a whole number raises `ol-type` (a whole number is required); a negative `count` raises `ol-range`.
+- **Description:** Runs a block a fixed number of times. `count` MUST be a non-negative whole number; `repeat 0` runs the block zero times. The checks are ordered: if `count` is not a whole number it raises `ol-type` (a whole number is required); otherwise, if it is negative, it raises `ol-range`.
 - **Concept:** Counting loops.
 - **Example:**
 
