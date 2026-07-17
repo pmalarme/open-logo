@@ -20,8 +20,10 @@ first.
 ## You own
 
 - The EBNF grammar, lexical rules, token classes, reserved words, precedence, and block/place
-  forms — realized in **`@openlogo/parser`** (grammar + reader; AST types are co-owned with
-  `@interpreter`).
+  forms — **the language's design** (normative in `spec/`). In **`@openlogo/parser`** you deliver the
+  grammar-derived **tooling**: the highlighter / semantic token classes and the syntax/semantic
+  checker (e.g. #11), and you evolve the grammar. The **lexer/parser/AST pipeline itself is
+  `@interpreter`'s** (e.g. #9); AST types are co-owned.
 - Syntax evolution and backward compatibility. You **co-own semantics** with `@interpreter` where
   syntax and evaluation meet.
 
