@@ -39,8 +39,10 @@ reviewer records a pass/block verdict; a human still performs the merge.
 - **One task = one PR**, on a feature branch, with the **declared write-set** listed.
 - Shared files (grammar, cross-package contracts, workspace manifests, anything under `spec/`) are
   changed **one PR at a time**.
-- **You do not self-merge.** Humans + required CI checks gate `main`. `spec/` changes go through
-  `@product-owner` to the maintainer.
+- **You do not self-merge.** Humans + required CI checks gate `main` by default; the maintainer may
+  delegate merge execution to `@orchestrator`, only after a non-author review-gate PASS + green CI
+  (the implementer is never the sole attester). `spec/` changes go through `@product-owner` to the
+  maintainer.
 
 ## Suggested PR body
 

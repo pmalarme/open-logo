@@ -33,7 +33,8 @@ through (`docs/delivery.md`); you own the harness and the CI that runs it.
 
 - Fixtures are stack-neutral and seeded **before/with** implementation, not after.
 - Test semantics (events/diagnostics), not pixels or timing.
-- Green CI is necessary but not sufficient — humans + required checks gate merges.
+- Green CI is necessary but not sufficient — humans + required checks gate merges (the maintainer may
+  delegate merge execution to `@orchestrator` only, after a non-author review-gate PASS).
 
 ## Checklist
 - [ ] Fixtures run per profile along the DAG; claims gated by conformance.

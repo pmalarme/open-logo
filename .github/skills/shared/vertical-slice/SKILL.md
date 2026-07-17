@@ -54,7 +54,8 @@ Update the reference/tutorial and runnable examples in the **same PR** (`@docume
 ### Step 8 — Close out
 Run `shared/definition-of-done`, then hand the slice to `shared/review-gate` — an agent that did
 **not** author it runs the independent pre-merge review and records a pass verdict (reviewer ≠
-author). Open one PR with the declared write-set. Do not self-merge.
+author). Open one PR with the declared write-set. Do not self-merge — a human merges by default, or a
+maintainer-delegated `@orchestrator` only on that non-author PASS.
 
 ## Worked example — the walking skeleton
 

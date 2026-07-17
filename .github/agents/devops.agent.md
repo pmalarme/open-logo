@@ -78,7 +78,8 @@ Consult these playbooks before acting.
 ## Guardrails
 
 - CI gates merges but **you do not merge** and you do not bypass required checks — humans + green
-  checks gate `main`.
+  checks gate `main` (the maintainer may delegate merge execution to `@orchestrator` only, after a
+  non-author review-gate PASS).
 - **Labels come from `.github/labels.yml`**; propose taxonomy changes to `@product-owner` rather than
   inventing labels in a workflow.
 - Do not edit `spec/`, feature code, or test content — wire the pipelines that run them.

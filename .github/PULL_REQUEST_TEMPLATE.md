@@ -53,7 +53,8 @@ merge. Reviewer ≠ author. See .github/skills/shared/review-gate/SKILL.md.
 
 <!--
 Name the owning agent(s) for the packages touched and any required cross-package reviewers.
-Agents do not self-merge — a human merges once CI is green (team instructions §5).
+Agents do not self-merge — a human merges once CI is green, or a maintainer-delegated `@orchestrator`
+only on a non-author review-gate PASS; the implementer is never the sole attester (team instructions §5).
 -->
 
 -
