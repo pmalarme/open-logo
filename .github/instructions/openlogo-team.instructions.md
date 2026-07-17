@@ -90,8 +90,13 @@ A change is done only when, for the artifacts it touches:
 5. Runnable `spec/examples/*.logo` and doc examples still parse and run.
 6. Accessibility and pedagogy checks pass where applicable (see §8–9).
 7. Docs and spec cross-links are updated in the same PR (no drift).
+8. **An independent pre-merge review has passed** — an agent that did **not** author the change ran
+   the [`shared/review-gate`](../skills/shared/review-gate/SKILL.md) checklist (a clean-tree DoD
+   re-run that verifies the build actually _emits_ artifacts, spec-fidelity, conformance, runnable
+   examples, and instructions/skills/docs/spec drift) and recorded a pass verdict. Reviewer ≠ author.
 
-Agents do not self-merge; humans and required CI checks (pipelines wired by `@devops`) gate `main`.
+Agents do not self-merge; an independent reviewer (not the author) records a pass verdict, then
+humans and required CI checks (pipelines wired by `@devops`) gate `main`.
 
 ## 6. Spec fidelity — canonical OpenLogo, not classic Logo
 

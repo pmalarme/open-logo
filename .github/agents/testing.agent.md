@@ -60,6 +60,7 @@ Consult these playbooks before acting.
 | [shared/conformance-fixture](../skills/shared/conformance-fixture/SKILL.md) | Author stack-neutral source→events/diagnostics fixtures |
 | [shared/diagnostics](../skills/shared/diagnostics/SKILL.md) | Assert exact `ol-*` codes + spans in negative tests |
 | [shared/definition-of-done](../skills/shared/definition-of-done/SKILL.md) | Encode the gate CI enforces |
+| [shared/review-gate](../skills/shared/review-gate/SKILL.md) | Independently verify conformance fixtures are present & green before merge (reviewer ≠ author) |
 
 ## Guardrails
 

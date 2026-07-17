@@ -60,6 +60,7 @@ Consult these playbooks before acting — they encode how the factory works.
 | [decompose-and-dispatch](../skills/orchestrator/decompose-and-dispatch/SKILL.md) | Turn a milestone/spec area into vertical-slice task packets, assign owners, dispatch |
 | [shared/vertical-slice](../skills/shared/vertical-slice/SKILL.md) | Shape every task as one feature end to end |
 | [shared/definition-of-done](../skills/shared/definition-of-done/SKILL.md) | Hold the CI-enforced merge gate |
+| [shared/review-gate](../skills/shared/review-gate/SKILL.md) | Run the independent pre-merge review before a human merges (reviewer ≠ author) |
 | [shared/spec-fidelity](../skills/shared/spec-fidelity/SKILL.md) | Keep task language in canonical OpenLogo vocabulary |
 
 ## Guardrails

@@ -23,6 +23,16 @@ A change is "done" only when it is proven, documented, and green. This skill is 
 6. **Accessibility/pedagogy checks pass** where applicable (reduced-motion, keyboard, non-visual
    descriptions; progressive hints / no-spoilers).
 7. **Docs & spec cross-links updated** in the same PR (no drift).
+8. **Independent review gate passed** — an agent that did **not** author the change ran
+   [`shared/review-gate`](../review-gate/SKILL.md) and recorded a pass verdict (reviewer ≠ author).
+
+## Independent review gate
+
+CI-green plus the author's own attestation is not enough. Before a change goes to a human for merge,
+an agent that did **not** write it runs [`shared/review-gate`](../review-gate/SKILL.md): a clean-tree
+DoD re-run that verifies the build actually **emits** artifacts (not just a `0` exit), spec-fidelity,
+conformance fixtures, runnable examples, a11y/pedagogy, and instructions/skills/docs/spec drift. The
+reviewer records a pass/block verdict; a human still performs the merge.
 
 ## PR expectations
 
@@ -46,6 +56,7 @@ A change is "done" only when it is proven, documented, and green. This skill is 
 - [ ] conformance fixtures extended + green
 - [ ] examples run   - [ ] a11y/pedagogy (if applicable)
 - [ ] docs + spec cross-links updated
+- [ ] independent review gate passed (reviewer ≠ author)
 - [ ] one PR, write-set declared, shared files serialized
 ```
 

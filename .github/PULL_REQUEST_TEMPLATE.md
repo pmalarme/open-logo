@@ -36,6 +36,19 @@ are serialized one PR at a time.
 - [ ] Accessibility / pedagogy checks pass where applicable
 - [ ] Docs, highlighter, and spec cross-links updated in this PR (no drift)
 
+## Independent review gate
+
+<!--
+An agent that did NOT author this change runs shared/review-gate before it goes to a human for
+merge. Reviewer ≠ author. See .github/skills/shared/review-gate/SKILL.md.
+-->
+
+- [ ] Clean-tree DoD re-run — build **emits** verified (real `dist/*.js` + `*.d.ts`, not just exit 0)
+- [ ] Spec-fidelity re-checked (canonical vocabulary, `ol-*` codes with spans, profile boundaries)
+- [ ] Conformance fixtures present & green
+- [ ] Instructions / skills / docs / spec drift checked (in this PR if needed)
+- [ ] Reviewer named and ≠ author:
+
 ## Reviewers / integration
 
 <!--
