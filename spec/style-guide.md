@@ -238,7 +238,7 @@ Linter check: `ol-style-comment-style` suggests `#` for ordinary line comments a
 
 ## Keep assignment and comparison visually distinct
 
-Use `=` only to assign to a place. Use `==` and `!=` to ask a question. If a line reads like a condition, it should not contain assignment.
+Use `=` only to assign to a place. Use `==` and `!=` to ask a question. `=` is a statement on its own, never an operator inside an expression, so a condition always uses `==`:
 
 ```logo
 :side_count = 4
@@ -247,15 +247,15 @@ if :side_count == 4
 end if
 ```
 
-This is confusing and should be rewritten:
+Writing `=` where a comparison belongs is a syntax error, not merely a style problem. Because `=` cannot appear inside an expression, the parser never finds a delimited body after the condition below and reports `ol-missing-end`:
 
 ```logo
-if :side_count = 4
+if :side_count = 4        # syntax error: a condition needs ==, not =
   print "square time"
 end if
 ```
 
-Linter check: `ol-style-equality-confusion` warns on assignment-looking text in condition positions and suggests `==` when the learner likely meant equality.
+The opposite slip still parses: a bare `:side_count == 4` on its own line computes a boolean and discards it, which usually means the learner meant to assign with `=`. Linter check: `ol-style-equality-confusion` flags such a discarded top-level comparison and suggests `=`.
 
 ## Anti-patterns
 
