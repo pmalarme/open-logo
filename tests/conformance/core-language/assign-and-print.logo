@@ -1,0 +1,4 @@
+# A well-formed Core program: bind :size with `=`, then read it back with print.
+# Core assignment is `<place> = <value>`; the classic `make "size 100` is Heritage.
+:size = 100
+print :size
