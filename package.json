@@ -17,6 +17,7 @@
     "lint": "biome lint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "pretest": "npm run -s build",
     "test": "node --test",
     "conformance": "node scripts/conformance.mjs",
     "examples": "node scripts/check-examples.mjs",
