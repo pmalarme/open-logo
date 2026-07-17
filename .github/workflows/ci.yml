@@ -19,8 +19,8 @@ jobs:
     outputs:
       has_toolchain: ${{ steps.detect.outputs.has_toolchain }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.x"
       - run: pip install pyyaml
@@ -43,8 +43,8 @@ jobs:
     if: ${{ needs.meta.outputs.has_toolchain == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
       # TODO(@devops): align install with the workspace manager chosen in ADR-0001.
@@ -60,8 +60,8 @@ jobs:
     if: ${{ needs.meta.outputs.has_toolchain == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
       - run: npm ci
@@ -74,8 +74,8 @@ jobs:
     if: ${{ needs.meta.outputs.has_toolchain == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
       - run: npm ci
