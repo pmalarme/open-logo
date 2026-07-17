@@ -5,7 +5,7 @@ description: >-
   owner, declares write-sets, and dispatches to the right agent. Use when planning a milestone, filing
   issues, or coordinating parallel domain work. Owns integration + the Definition of Done gate.
 created: 2026-07-17T00:00
-updated: 2026-07-17T00:00
+updated: 2026-07-17T23:40
 ---
 
 ## Purpose
@@ -43,6 +43,14 @@ contracts agreed first. You write no feature code — you decompose, dispatch, a
   slice defining its nodes. _Agreed ≠ frozen_: parallelize only against a contract already merged to
   `main`.
 - Every task names exactly one primary owner and a write-set; overlapping write-sets are serialized.
+- **`@openlogo/parser` is co-owned — split slices by pipeline stage.** The **lex → reader → parse →
+  AST** construction, semantic analysis, and evaluation are **`@interpreter`** (e.g. #9 lex/parse→AST,
+  #10 evaluate). Grammar/keyword/reserved-word evolution and the **grammar-derived tooling** —
+  highlighter / semantic token classes and the syntax/semantic checker — are **`@language-designer`**
+  (e.g. #11 highlighter). Both hold `execute` and ship their own PRs; the AST node shapes are the
+  shared contract (interpreter-authored, language-designer-reviewed, grown one slice at a time). Never
+  route the lex/parse/AST slice to `@language-designer` or the highlighter/checker slice to
+  `@interpreter`.
 - You never merge on green alone — every merge needs an independent, non-author review-gate PASS
   plus required CI; a human merges unless the maintainer has delegated it (see `integrate-and-merge`).
 

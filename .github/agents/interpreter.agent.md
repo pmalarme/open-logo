@@ -23,7 +23,9 @@ first.
 - **`@openlogo/core`** — value/type model (`number`, `word`, `list`, `boolean`; `dict`/`struct`
   for Data), the `ol-*` diagnostic registry, the trace/event registry, and feature-detection
   metadata.
-- **`@openlogo/parser`** — reader + parser + AST (grammar co-owned with `@language-designer`).
+- **`@openlogo/parser`** — the **lex → reader → parse → AST** pipeline + semantic analysis; you
+  deliver the lex/parse/AST slices (e.g. #9). Grammar and token classes are co-owned with
+  `@language-designer`, who delivers the highlighter + syntax/semantic checker tooling (e.g. #11).
 - **`@openlogo/runtime`** — evaluator, scoping, procedure registration, control flow, comprehensions,
   places/mutation, equality, `return`/`stop`/`throw`, and the execution safety budget.
 
