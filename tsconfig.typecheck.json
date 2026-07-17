@@ -16,5 +16,6 @@
       "@openlogo/studio": ["./packages/studio/src/index.ts"]
     }
   },
-  "include": ["packages/*/src"]
+  "include": ["packages/*/src"],
+  "exclude": ["packages/*/src/**/*.test.ts"]
 }
