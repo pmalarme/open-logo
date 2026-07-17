@@ -91,7 +91,7 @@ Definition-of-Done gates — the same scripts CI runs:
 npm ci               # install from the committed lockfile
 npm run build        # tsc -b across project references (emits dist/)
 npm run typecheck    # strict, no-emit type-check
-npm run lint         # ESLint (flat config); npm run format to auto-format
+npm run lint         # Biome (no TypeScript peer-cap); npm run format to auto-format
 npm run format:check # Prettier
 npm run test         # unit tests
 npm run conformance  # stack-neutral fixtures (tests/conformance/, by profile)
