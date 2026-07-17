@@ -198,11 +198,11 @@ print 2 + 3
 ### `-`
 
 - **Signature:** `number - number`
-- **Aliases:** unary negative literal syntax for numerals
+- **Aliases:** none
 - **Kind:** Reporter infix
 - **Argument types:** number, number
 - **Result:** number
-- **Description:** Subtracts the right number from the left number.
+- **Description:** Subtracts the right number from the left number. A leading `-` written directly on a numeral, as in `-3`, is a negative numeral literal produced by the lexer, not this operator; negate an expression by writing `0 - :x`.
 - **Concept:** Difference and direction on a number line.
 - **Example:**
 
@@ -757,9 +757,9 @@ end while
 - **Signature:** `repeat count block`
 - **Aliases:** none
 - **Kind:** Special form
-- **Argument types:** number, block
+- **Argument types:** whole number, block
 - **Result:** —
-- **Description:** Runs a block a fixed number of times.
+- **Description:** Runs a block a fixed number of times. `count` MUST be a non-negative whole number; `repeat 0` runs the block zero times. A negative or fractional `count` raises `ol-range`.
 - **Concept:** Counting loops.
 - **Example:**
 
@@ -770,7 +770,7 @@ repeat 4
 end repeat
 ```
 
-- **Possible errors:** `ol-type`, `ol-limit`.
+- **Possible errors:** `ol-type`, `ol-range`, `ol-limit`.
 
 ### `repcount`
 

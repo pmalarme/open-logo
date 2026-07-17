@@ -81,7 +81,7 @@ SVG and PNG export targets are recommended.
 ## Optional profiles
 
 **Status: Normative.** Optional profiles MAY be implemented independently except where the dependency
-DAG below states a dependency.
+DAG below states a dependency, including the annotated cross-dependencies on **Data**.
 
 ### Geometry
 
@@ -191,7 +191,7 @@ purposes.
 | Full-name word/list reporters | Core Language | Yes | Includes `first`, `last`, `butfirst`, `butlast`, `count`, `word`, `sentence`, `fput`, `lput`. |
 | Turtle movement, pen, color, heading, visibility, shape | Turtle & Rendering | Yes | Required for graphical and minimal conformance. |
 | Canvas rendering target | Turtle & Rendering | Yes | SVG/PNG recommended. |
-| Geometry standard library | Geometry | No | Derived OpenLogo source built from Core + Turtle behavior. |
+| Geometry standard library | Geometry | No | Derived OpenLogo source built from Core + Turtle behavior; `area`/`perimeter` read a shape spec by list index, so they also need Data. |
 | Dictionaries and dictionary literals | Data | No | `{ key: value }`, dictionary access, mutation, keys, values. |
 | Records/structs and record field access | Data | No | Fixed fields; unknown field errors. |
 | Mutable indexing and field access for Data collections | Data | No | Includes nested places and final-key dict upsert. |
@@ -215,10 +215,10 @@ purposes.
 ```text
 Core Language
 ├─ Turtle & Rendering
-│  ├─ Geometry
+│  ├─ Geometry        (also depends on Data)
 │  └─ Sprites
 ├─ Data
-├─ Heritage
+├─ Heritage           (also depends on Data)
 ├─ Interaction & Events
 ├─ Sound
 ├─ Modules
@@ -227,7 +227,7 @@ Core Language
    └─ Tutor (AI)
 ```
 
-Two optional features create a conditional dependency on **Data** that the tree above does not draw as an edge, because the rest of their profiles do not need it: the `area` and `perimeter` reporters in **Geometry** and the `value of … for key` reader in **Heritage** read a collection by index or key, which is **Data** behavior. An implementation that offers either feature MUST also claim **Data**.
+The tree layout lists each profile once, so two dependencies on **Data** appear as the `(also depends on Data)` annotations above rather than as extra branches. **Geometry** depends on **Data** because its `area` and `perimeter` reporters read a shape spec by list index, and **Heritage** depends on **Data** because its `value of … for key` reader operates on dicts. These annotated edges are normative: claiming **Geometry** or **Heritage** therefore also requires claiming **Data**.
 
 The required minimal conformance path is:
 

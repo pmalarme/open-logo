@@ -44,6 +44,9 @@ define polygon :sides :size
   if :sides < 3
     throw "a polygon needs at least 3 sides"
   end if
+  if not (:sides == int :sides)
+    throw "a polygon needs a whole number of sides"
+  end if
   repeat :sides
     forward :size
     right 360 / :sides
@@ -51,7 +54,7 @@ define polygon :sides :size
 end
 ```
 
-`polygon` draws a regular polygon with `:sides` equal sides, each of length `:size`. `:sides` MUST be a number at least `3`, and `:size` MUST be a number. A `:sides` value below `3` is rejected by the guard above with `ol-user-error`; non-numeric inputs raise `ol-type` from the comparison and arithmetic they reach.
+`polygon` draws a regular polygon with `:sides` equal sides, each of length `:size`. `:sides` MUST be a whole number at least `3`, and `:size` MUST be a number. A `:sides` value below `3`, or one that is not a whole number, is rejected by the guards above with `ol-user-error`; non-numeric inputs raise `ol-type` from the comparison and arithmetic they reach.
 
 The math: a full turn is `360` degrees. A regular polygon splits that turn evenly across all sides, so each exterior turn is `360 / :sides`. For a pentagon:
 
@@ -84,6 +87,9 @@ Packaged command:
 
 ```logo
 define star :points :size (:step 2)
+  if not (:points == int :points)
+    throw "a star needs a whole number of points"
+  end if
   if not (:step is strictly between 1 and :points)
     throw "a star step must be a whole number between 2 and one less than the number of points"
   end if
@@ -99,7 +105,7 @@ end
 
 `star` draws the star polygon `{p/k}` where `p` is `:points` and `k` is `:step`. The default `:step` is `2`, which makes the familiar pentagram when `:points` is `5`.
 
-Validation is normative: `:points` and `:step` MUST be numbers, `:step` MUST be a whole number, and `:step` MUST satisfy `1 < :step < :points`. `:points` SHOULD be a whole number at least `5` for the default to teach a recognizable star. A non-numeric input raises `ol-type` from the arithmetic it reaches; a non-integer or out-of-range `:step` is rejected by the `throw`s shown above, which raise `ol-user-error` with a learner-facing message.
+Validation is normative: `:points` and `:step` MUST be numbers, `:points` and `:step` MUST both be whole numbers, and `:step` MUST satisfy `1 < :step < :points`. `:points` SHOULD be at least `5` for the default to teach a recognizable star. A non-numeric input raises `ol-type` from the arithmetic it reaches; a non-integer `:points`, or a non-integer or out-of-range `:step`, is rejected by the `throw`s shown above, which raise `ol-user-error` with a learner-facing message.
 
 The math: instead of walking to the next polygon vertex, a star walks to the vertex `:step` positions away. The exterior turn is therefore:
 
@@ -150,6 +156,9 @@ define circle :radius (:segments 36)
   if :segments < 3
     throw "a circle needs at least 3 segments"
   end if
+  if not (:segments == int :segments)
+    throw "a circle needs a whole number of segments"
+  end if
   :side = 2 * :radius * sin (180 / :segments)
   repeat :segments
     forward :side
@@ -170,7 +179,7 @@ and each exterior turn is:
 360 / 36
 ```
 
-More generally, the side length is `2·r·sin(180/n)` where `r` is `:radius` and `n` is `:segments`. The `sin` reporter uses degrees. `:radius` MUST be a positive number, and `:segments` MUST be a number at least `3`. A non-positive `:radius` or a `:segments` value below `3` is rejected by the guards above with `ol-user-error`; non-numeric inputs raise `ol-type`.
+More generally, the side length is `2·r·sin(180/n)` where `r` is `:radius` and `n` is `:segments`. The `sin` reporter uses degrees. `:radius` MUST be a positive number, and `:segments` MUST be a whole number at least `3`. A non-positive `:radius`, a `:segments` value below `3`, or a `:segments` value that is not a whole number is rejected by the guards above with `ol-user-error`; non-numeric inputs raise `ol-type`.
 
 Because this is an approximation, the path is a many-sided polygon whose vertices lie on the mathematical circle. With the default 36 segments, the approximation is close enough for learners while still making the loop visible. After exactly `:segments` moves and turns, the turtle returns to its starting position and original heading, subject only to numeric rounding.
 
@@ -322,12 +331,18 @@ define area :shape
     local size
     :sides = :shape[2]
     :size = :shape[3]
+    if :sides < 3 or not (:sides == int :sides)
+      throw "area needs a polygon with a whole number of sides, at least 3"
+    end if
     return :sides * (power :size 2) / (4 * tan (180 / :sides))
   end if
 
   if :shape[1] == "circle"
     local radius
     :radius = :shape[2]
+    if :radius <= 0
+      throw "area needs a circle with a positive radius"
+    end if
     return pi * power :radius 2
   end if
 
@@ -358,12 +373,18 @@ define perimeter :shape
     local size
     :sides = :shape[2]
     :size = :shape[3]
+    if :sides < 3 or not (:sides == int :sides)
+      throw "perimeter needs a polygon with a whole number of sides, at least 3"
+    end if
     return :sides * :size
   end if
 
   if :shape[1] == "circle"
     local radius
     :radius = :shape[2]
+    if :radius <= 0
+      throw "perimeter needs a circle with a positive radius"
+    end if
     return 2 * pi * :radius
   end if
 

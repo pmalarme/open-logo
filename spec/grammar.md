@@ -223,7 +223,7 @@ Precedence from high to low is:
 6. `and`
 7. `or`
 
-Binary operators are left-associative. `and` and `or` short-circuit. `not` is unary prefix. A leading `-` on a numeral is part of a negative literal, not a unary operator, so negating an expression is written `0 - x`. Assignment `=` and `set ... to` are statement forms, not expression operators.
+Binary operators are left-associative. `and` and `or` short-circuit. `not` is unary prefix. A leading `-` on a numeral is part of a negative literal, not a unary operator, so negating a value is written `0 - :x` and negating a compound expression is written `0 - (:a + :b)`. Assignment `=` and `set ... to` are statement forms, not expression operators.
 
 Each input to a prefix call is a full expression, so infix operators bind inside the argument rather than around the call: `forward :size * 2` means `forward (:size * 2)`, and `power 2 3 * 4` means `power 2 (3 * 4)`. Reporters still nest by their known arity, so `forward random 100` means `forward (random 100)`.
 
