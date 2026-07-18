@@ -48,12 +48,46 @@ test("a fully-applied fixed-arity primitive call is never flagged", () => {
   assert.deepEqual(checkSource("print 1"), []);
 });
 
-test("a parenthesized primitive call is never flagged in either direction (variadic escape hatch)", () => {
-  // `first` is fixed-arity-1, yet the parenthesized form is left to the runtime (issue #97):
-  // the single-number arity table cannot say whether a primitive has an alternate/variadic form.
-  assert.deepEqual(checkSource('(print "x" 1)'), []);
-  assert.deepEqual(checkSource("(first 1 2)"), []);
+test("a parenthesized fixed-arity primitive given too many inputs raises too-many", () => {
+  const [finding] = checkSource("(first 1 2)");
+  assert.equal(finding.code, "ol-too-many-inputs");
+  assert.equal(finding.stage, "semantic");
+  assert.equal(finding.severity, "error");
+  assert.deepEqual(finding.params, {
+    callable: "first",
+    expected: 1,
+    actual: 2,
+  });
+  assert.equal(finding.message, "first takes one input, but got 2.");
+});
+
+test("a parenthesized bounded-alternate primitive is judged against its ceiling, not its default", () => {
+  // `random`'s bare default arity is 1, but `(random a b)` is a valid two-input alternate form.
+  assert.deepEqual(checkSource("(random 1 5)"), []);
+  const [finding] = checkSource("(random 1 2 3)");
+  assert.deepEqual(finding.params, {
+    callable: "random",
+    expected: 2,
+    actual: 3,
+  });
+});
+
+test("an open-variadic primitive is never flagged too-many, however many inputs it gets", () => {
+  assert.deepEqual(checkSource("(print 1 2 3 4)"), []);
+  assert.deepEqual(checkSource('(word "a" "b" "c")'), []);
+});
+
+test("the lower bound of a parenthesized primitive call is left to the runtime (not flagged)", () => {
+  // A parenthesized under-supply (`(power 1)`, `(first)`) is the runtime arity check's job (#97):
+  // an open variadic's true minimum is not expressible in the default-arity table.
+  assert.deepEqual(checkSource("(power 1)"), []);
   assert.deepEqual(checkSource("(first)"), []);
+});
+
+test("a parenthesized primitive call in the alternate/variadic form is never flagged", () => {
+  // `first` is fixed-arity-1; a correct parenthesized call supplies exactly its arity.
+  assert.deepEqual(checkSource('(print "x" 1)'), []);
+  assert.deepEqual(checkSource("(first 1)"), []);
 });
 
 test("an unknown callee is left entirely to ol-unknown-command (no arity finding)", () => {

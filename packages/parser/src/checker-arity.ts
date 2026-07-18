@@ -8,14 +8,17 @@
  * ## What "statically known" means here
  * Only two callables have an arity this rule can trust before execution:
  *
- * - **Core primitives** — a fixed default arity from {@link corePrimitiveArity}. OpenLogo's
- *   reader gathers *exactly* that many arguments for a bare (non-parenthesized) call, so a bare
- *   primitive call can only ever be short of arguments (the line or block ended first, e.g.
- *   `print first`), never over — extra tokens become stray statements the parser reports as
- *   `ol-bad-token`, not a too-many call. The parenthesized form `(f …)` is precisely the spec's
+ * - **Core primitives** — a default arity from {@link corePrimitiveArity} and a variadic ceiling
+ *   from {@link corePrimitiveArityRange}. OpenLogo's reader gathers *exactly* the default number
+ *   of arguments for a bare (non-parenthesized) call, so a bare primitive call can only ever be
+ *   short of arguments (the line or block ended first, e.g. `print first`), never over — extra
+ *   tokens become stray statements the parser reports as `ol-bad-token`, not a too-many call. The
+ *   parenthesized form `(f …)` is where a learner can over-supply, and it is also the spec's
  *   escape hatch for a primitive's alternate/variadic arities (`(print …)`, `(random a b)`,
- *   `(word …)`), and the single-number arity table cannot say which primitives have one — so this
- *   rule stays conservative and never flags a *parenthesized* primitive call in either direction.
+ *   `(word …)`): a *strictly fixed-arity* primitive given too many inputs there (`(first 1 2)`)
+ *   raises `ol-too-many-inputs`, while an open variadic (`(print …)`) never does. The lower bound
+ *   of a parenthesized primitive call is left to the runtime arity check (issue #97), since an
+ *   open variadic's true minimum is not expressible in the default-arity table.
  * - **User procedures** — declared with `define`, they have an exact, non-variadic arity: the
  *   required-parameter count (parameters without a default) is the floor, the total parameter
  *   count the ceiling. Optional (defaulted) trailing parameters can only be supplied via the
@@ -32,7 +35,7 @@ import type { Diagnostic, SourceSpan } from "@openlogo/core";
 import type { AnyNode, CallNode, ParenCallNode, ProgramNode } from "./ast.js";
 import { walk } from "./ast.js";
 import type { CheckProfile } from "./check.js";
-import { corePrimitiveArity } from "./signatures.js";
+import { corePrimitiveArityRange } from "./signatures.js";
 
 /** The statically-known arity of a callee: a required floor and a total ceiling. */
 interface Arity {
@@ -167,16 +170,26 @@ export function arityRule(
       // Core primitives are not visible: an unknown callee for `ol-unknown-command`, not arity.
       return;
     }
-    const primitiveArity = corePrimitiveArity(lower);
-    if (primitiveArity === undefined) {
+    const range = corePrimitiveArityRange(lower);
+    if (range === undefined) {
       // Unknown callee (or grammar operator): not this rule's concern.
       return;
     }
-    // A parenthesized primitive call is the alternate/variadic form the single-number arity
-    // table cannot describe — stay conservative and let the runtime arity check (issue #97)
-    // judge it. Only the bare form's reader-capped count can be statically short.
-    if (node.kind === "Call" && actual < primitiveArity) {
-      diagnostics.push(notEnoughDiagnostic(raw, primitiveArity, actual, span));
+    if (node.kind === "Call") {
+      // Bare form: the reader caps a bare call at the primitive's default arity, so extra inputs
+      // become stray statements (a parse-stage `ol-bad-token`) and only too-few is reachable.
+      if (actual < range.min) {
+        diagnostics.push(notEnoughDiagnostic(raw, range.min, actual, span));
+      }
+      return;
+    }
+    // Parenthesized form: the learner explicitly grouped the inputs, so this is the only place a
+    // primitive can be over-supplied. A strictly fixed-arity primitive has `max === min`, so
+    // `(first 1 2)` is too many; an open variadic (`max` is infinite, e.g. `(print …)`) never is.
+    // The lower bound of a parenthesized primitive call is left to the runtime arity check (#97):
+    // an open variadic's true minimum is not expressible in the single default-arity table.
+    if (actual > range.max) {
+      diagnostics.push(tooManyDiagnostic(raw, range.max, actual, span));
     }
   });
 
