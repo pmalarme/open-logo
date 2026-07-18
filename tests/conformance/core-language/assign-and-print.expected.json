@@ -1,0 +1,6 @@
+{
+  "description": "A well-formed Core program — assign with `=`, then read the value back with `print` — parses with no diagnostics. Trace events arrive with the evaluator slice; at the parse stage the stream is empty.",
+  "profiles": ["core-language"],
+  "events": [],
+  "diagnostics": []
+}

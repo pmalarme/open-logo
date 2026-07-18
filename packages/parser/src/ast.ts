@@ -6,10 +6,12 @@
  * `source_span` on every node, immutable nodes, and a walker. Co-owned by
  * `@language-designer` + `@interpreter` (see the `interpreter/ast-design` skill).
  *
- * M0 scope: {@link OL_NODE_KINDS} is the full Core node-kind vocabulary; concrete node
- * interfaces exist for a representative subset so the factory and walker are exercised
- * end to end. The remaining kinds keep their reserved name here and gain typed shapes with
- * their grammar slice — the AST grows one node per production, never ahead of the grammar.
+ * Every kind in {@link OL_NODE_KINDS} now has a typed interface, a factory helper on
+ * {@link ast}, and a {@link walk} traversal case. Names that the checker points diagnostics at
+ * (callees, procedure names, parameters, binders, and place bases/fields) carry their own
+ * {@link SpannedName}. Core parses dotted places (`:a.b.c`); index/key selectors (`:a[i]`) and
+ * the Data/Heritage profiles extend these shapes in their own slices. The AST still grows one
+ * node per grammar production, never ahead of the grammar.
  */
 
 import type { SourceSpan } from "@openlogo/core";
@@ -27,8 +29,11 @@ export const OL_NODE_KINDS = [
   "VarRef",
   "Place",
   "Assign",
+  "Local",
   "Call",
   "ParenCall",
+  "ComparisonChain",
+  "IsPredicate",
   "Block",
   "If",
   "While",
@@ -49,6 +54,17 @@ export type NodeKind = (typeof OL_NODE_KINDS)[number];
 /** Fields shared by every node: its kind and the source range it came from. */
 export interface NodeBase {
   readonly kind: NodeKind;
+  readonly source_span: SourceSpan;
+}
+
+/**
+ * A name written in the source together with its own span: a callee, a procedure name, a
+ * parameter, a loop/comprehension binder, or a place base/field. It is metadata, not a walkable
+ * node (it has no `kind`), so the checker can point `ol-reserved-word`, `ol-duplicate-binder`,
+ * and `ol-unknown-command` at the exact identifier without a second lookup or a re-lex.
+ */
+export interface SpannedName {
+  readonly name: string;
   readonly source_span: SourceSpan;
 }
 
@@ -101,9 +117,212 @@ export interface VarRefNode extends NodeBase {
  */
 export interface CallNode extends NodeBase {
   readonly kind: "Call";
-  readonly callee: string;
+  readonly callee: SpannedName;
   readonly canonical?: string;
   readonly args: readonly ExpressionNode[];
+}
+
+/**
+ * A variadic or alternate-arity call written with explicit parentheses, e.g. `(list 1 2 3)`
+ * or `(print :a :b)`. Same shape as {@link CallNode}; the distinct kind records that the call
+ * came from the parenthesized form so tooling can round-trip it. The parenthesized `(and …)`
+ * and `(or …)` variadic logic heads use this node too.
+ */
+export interface ParenCallNode extends NodeBase {
+  readonly kind: "ParenCall";
+  readonly callee: SpannedName;
+  readonly canonical?: string;
+  readonly args: readonly ExpressionNode[];
+}
+
+/**
+ * One postfix segment of a place. Core parses dotted field access (`.field`); index/key
+ * selectors (`[i]`) join with the Data profile as a second `kind`, so the shape is fixed now to
+ * keep that a non-breaking extension.
+ */
+export interface FieldSegment {
+  readonly kind: "field";
+  readonly name: SpannedName;
+  readonly source_span: SourceSpan;
+}
+
+/** A postfix place segment. Only `field` in Core; `index` selectors arrive with Data. */
+export type PlaceSegment = FieldSegment;
+
+/**
+ * An assignable place: a base variable plus zero or more postfix segments, so `:count` reads as
+ * `{ base: count, segments: [] }` and `:people.tom.age` carries a `.tom` and an `.age` field
+ * segment. Assignment targets are always a place; a bare `:name` read stays a {@link VarRefNode}
+ * for the common case and only grows into a place when it has a postfix.
+ */
+export interface PlaceNode extends NodeBase {
+  readonly kind: "Place";
+  readonly base: SpannedName;
+  readonly segments: readonly PlaceSegment[];
+}
+
+/**
+ * An assignment: `:place = value` (`form: "equals"`) or `set place to value`
+ * (`form: "set"`). Both bind the same place; `form` preserves the surface spelling.
+ */
+export interface AssignNode extends NodeBase {
+  readonly kind: "Assign";
+  readonly place: PlaceNode;
+  readonly value: ExpressionNode;
+  readonly form: "equals" | "set";
+}
+
+/**
+ * `local name` or `(local name {name})` — declare one or more names in the current scope. The
+ * names carry their own spans so the checker can point `ol-reserved-word`/`ol-duplicate-binder`
+ * at each one.
+ */
+export interface LocalNode extends NodeBase {
+  readonly kind: "Local";
+  readonly names: readonly SpannedName[];
+}
+
+/**
+ * A comparison chain of two or more comparisons, e.g. `1 < :x < 10`. Each operand is stored
+ * exactly once (`operators[i]` sits between `operands[i]` and `operands[i + 1]`), so a
+ * side-effecting middle operand is evaluated and walked once — the runtime lowers the chain to
+ * left-to-right `and` with that single-evaluation guarantee. A lone comparison stays a
+ * {@link CallNode} with the operator as callee; the chain node appears only for two or more.
+ */
+export interface ComparisonChainNode extends NodeBase {
+  readonly kind: "ComparisonChain";
+  readonly operands: readonly ExpressionNode[];
+  readonly operators: readonly SpannedName[];
+}
+
+/**
+ * The tail of a worded `is`-predicate, operand-first: `is empty`, `is member of <collection>`,
+ * `is a <type-word>`, or `is [ strictly ] between <low> and <high>`.
+ */
+export type IsTest =
+  | { readonly form: "empty" }
+  | { readonly form: "member-of"; readonly collection: ExpressionNode }
+  | { readonly form: "a"; readonly type: WordLitNode }
+  | {
+      readonly form: "between";
+      readonly strict: boolean;
+      readonly low: ExpressionNode;
+      readonly high: ExpressionNode;
+    };
+
+/** A worded `is`-predicate such as `:x is empty` or `:n is between 1 and 10`. */
+export interface IsPredicateNode extends NodeBase {
+  readonly kind: "IsPredicate";
+  readonly operand: ExpressionNode;
+  readonly test: IsTest;
+}
+
+/** `if condition <body> [ else <body> ]`. */
+export interface IfNode extends NodeBase {
+  readonly kind: "If";
+  readonly condition: ExpressionNode;
+  readonly thenBody: BlockNode;
+  readonly elseBody?: BlockNode;
+}
+
+/** `while condition <body>`. */
+export interface WhileNode extends NodeBase {
+  readonly kind: "While";
+  readonly condition: ExpressionNode;
+  readonly body: BlockNode;
+}
+
+/** `repeat count <body>`. */
+export interface RepeatNode extends NodeBase {
+  readonly kind: "Repeat";
+  readonly count: ExpressionNode;
+  readonly body: BlockNode;
+}
+
+/** `forever <body>`. */
+export interface ForeverNode extends NodeBase {
+  readonly kind: "Forever";
+  readonly body: BlockNode;
+}
+
+/** `for binder in iterable <body>`. The destructuring binder form is a later slice. */
+export interface ForInNode extends NodeBase {
+  readonly kind: "ForIn";
+  readonly binder: SpannedName;
+  readonly iterable: ExpressionNode;
+  readonly body: BlockNode;
+}
+
+/** `for variable from start to stop [ by step ] <body>`. */
+export interface ForRangeNode extends NodeBase {
+  readonly kind: "ForRange";
+  readonly variable: SpannedName;
+  readonly from: ExpressionNode;
+  readonly to: ExpressionNode;
+  readonly by?: ExpressionNode;
+  readonly body: BlockNode;
+}
+
+/**
+ * Fields shared by every `map`/`filter`/`reduce` comprehension: a binder and the iterable it
+ * ranges over, plus a bracketed expression body (no lambda).
+ */
+interface ComprehensionBase extends NodeBase {
+  readonly kind: "Comprehension";
+  readonly binder: SpannedName;
+  readonly iterable: ExpressionNode;
+  readonly body: BlockNode;
+}
+
+/** A `map` or `filter` comprehension: binder, iterable, body — no accumulator. */
+export interface MapFilterComprehensionNode extends ComprehensionBase {
+  readonly form: "map" | "filter";
+}
+
+/** A `reduce` comprehension: it also carries its accumulator name and `from` seed. */
+export interface ReduceComprehensionNode extends ComprehensionBase {
+  readonly form: "reduce";
+  readonly accumulator: SpannedName;
+  readonly initial: ExpressionNode;
+}
+
+/**
+ * A comprehension, discriminated on `form` so `reduce` always carries an `accumulator` and
+ * `initial` seed while `map`/`filter` cannot — the impossible states are unrepresentable.
+ */
+export type ComprehensionNode =
+  MapFilterComprehensionNode | ReduceComprehensionNode;
+
+/** One procedure parameter: a required `:name`, or an optional `( :name defaultValue )`. */
+export interface ProcedureParam {
+  readonly name: SpannedName;
+  readonly defaultValue?: ExpressionNode;
+}
+
+/** `define name :params… <body> end`. */
+export interface ProcedureDefNode extends NodeBase {
+  readonly kind: "ProcedureDef";
+  readonly name: SpannedName;
+  readonly params: readonly ProcedureParam[];
+  readonly body: BlockNode;
+}
+
+/** `return value` (Core). `output`/`op` are Heritage spellings handled by that profile. */
+export interface ReturnNode extends NodeBase {
+  readonly kind: "Return";
+  readonly keyword: "return" | "output" | "op";
+  readonly value: ExpressionNode;
+}
+
+/** `stop` — leave the current procedure with no value. */
+export interface StopNode extends NodeBase {
+  readonly kind: "Stop";
+}
+
+/** `throw value` — halt with a learner-facing value. */
+export interface ThrowNode extends NodeBase {
+  readonly kind: "Throw";
+  readonly value: ExpressionNode;
 }
 
 /** Nodes usable in value position. */
@@ -113,13 +332,35 @@ export type ExpressionNode =
   | BooleanLitNode
   | ListLitNode
   | VarRefNode
-  | CallNode;
+  | PlaceNode
+  | CallNode
+  | ParenCallNode
+  | ComparisonChainNode
+  | IsPredicateNode
+  | ComprehensionNode;
 
-/** Nodes usable in statement position. */
-export type StatementNode = CallNode | BlockNode;
+/**
+ * Nodes usable in statement position. A bare expression is a valid statement, so every
+ * {@link ExpressionNode} is also a statement, alongside the statement-only forms.
+ */
+export type StatementNode =
+  | ExpressionNode
+  | AssignNode
+  | LocalNode
+  | BlockNode
+  | IfNode
+  | WhileNode
+  | RepeatNode
+  | ForeverNode
+  | ForInNode
+  | ForRangeNode
+  | ProcedureDefNode
+  | ReturnNode
+  | StopNode
+  | ThrowNode;
 
-/** Any concrete AST node (the M0-typed subset of {@link NodeKind}). */
-export type AnyNode = ProgramNode | ExpressionNode | StatementNode;
+/** Any concrete AST node. */
+export type AnyNode = ProgramNode | StatementNode;
 
 /** Factory helpers that build immutable, spanned nodes. */
 export const ast = {
@@ -145,11 +386,151 @@ export const ast = {
     return { kind: "VarRef", source_span: span, name };
   },
   call(
-    callee: string,
+    callee: SpannedName,
     args: readonly ExpressionNode[],
     span: SourceSpan,
   ): CallNode {
     return { kind: "Call", source_span: span, callee, args };
+  },
+  parenCall(
+    callee: SpannedName,
+    args: readonly ExpressionNode[],
+    span: SourceSpan,
+  ): ParenCallNode {
+    return { kind: "ParenCall", source_span: span, callee, args };
+  },
+  place(
+    base: SpannedName,
+    segments: readonly PlaceSegment[],
+    span: SourceSpan,
+  ): PlaceNode {
+    return { kind: "Place", source_span: span, base, segments };
+  },
+  assign(
+    place: PlaceNode,
+    value: ExpressionNode,
+    form: AssignNode["form"],
+    span: SourceSpan,
+  ): AssignNode {
+    return { kind: "Assign", source_span: span, place, value, form };
+  },
+  local(names: readonly SpannedName[], span: SourceSpan): LocalNode {
+    return { kind: "Local", source_span: span, names };
+  },
+  comparisonChain(
+    operands: readonly ExpressionNode[],
+    operators: readonly SpannedName[],
+    span: SourceSpan,
+  ): ComparisonChainNode {
+    return { kind: "ComparisonChain", source_span: span, operands, operators };
+  },
+  isPredicate(
+    operand: ExpressionNode,
+    test: IsTest,
+    span: SourceSpan,
+  ): IsPredicateNode {
+    return { kind: "IsPredicate", source_span: span, operand, test };
+  },
+  ifStmt(
+    condition: ExpressionNode,
+    thenBody: BlockNode,
+    elseBody: BlockNode | undefined,
+    span: SourceSpan,
+  ): IfNode {
+    return { kind: "If", source_span: span, condition, thenBody, elseBody };
+  },
+  whileStmt(
+    condition: ExpressionNode,
+    body: BlockNode,
+    span: SourceSpan,
+  ): WhileNode {
+    return { kind: "While", source_span: span, condition, body };
+  },
+  repeat(count: ExpressionNode, body: BlockNode, span: SourceSpan): RepeatNode {
+    return { kind: "Repeat", source_span: span, count, body };
+  },
+  forever(body: BlockNode, span: SourceSpan): ForeverNode {
+    return { kind: "Forever", source_span: span, body };
+  },
+  forIn(
+    binder: SpannedName,
+    iterable: ExpressionNode,
+    body: BlockNode,
+    span: SourceSpan,
+  ): ForInNode {
+    return { kind: "ForIn", source_span: span, binder, iterable, body };
+  },
+  forRange(
+    variable: SpannedName,
+    from: ExpressionNode,
+    to: ExpressionNode,
+    by: ExpressionNode | undefined,
+    body: BlockNode,
+    span: SourceSpan,
+  ): ForRangeNode {
+    return {
+      kind: "ForRange",
+      source_span: span,
+      variable,
+      from,
+      to,
+      by,
+      body,
+    };
+  },
+  mapFilter(
+    form: "map" | "filter",
+    binder: SpannedName,
+    iterable: ExpressionNode,
+    body: BlockNode,
+    span: SourceSpan,
+  ): MapFilterComprehensionNode {
+    return {
+      kind: "Comprehension",
+      source_span: span,
+      form,
+      binder,
+      iterable,
+      body,
+    };
+  },
+  reduce(
+    fields: {
+      readonly accumulator: SpannedName;
+      readonly binder: SpannedName;
+      readonly iterable: ExpressionNode;
+      readonly initial: ExpressionNode;
+      readonly body: BlockNode;
+    },
+    span: SourceSpan,
+  ): ReduceComprehensionNode {
+    return {
+      kind: "Comprehension",
+      source_span: span,
+      form: "reduce",
+      ...fields,
+    };
+  },
+  procedureDef(
+    name: SpannedName,
+    params: readonly ProcedureParam[],
+    body: BlockNode,
+    span: SourceSpan,
+  ): ProcedureDefNode {
+    return { kind: "ProcedureDef", source_span: span, name, params, body };
+  },
+  returnStmt(
+    keyword: ReturnNode["keyword"],
+    value: ExpressionNode,
+    span: SourceSpan,
+  ): ReturnNode {
+    return { kind: "Return", source_span: span, keyword, value };
+  },
+  stop(span: SourceSpan): StopNode {
+    return { kind: "Stop", source_span: span };
+  },
+  throwStmt(value: ExpressionNode, span: SourceSpan): ThrowNode {
+    return { kind: "Throw", source_span: span, value };
   },
 } as const;
 
@@ -164,7 +545,53 @@ function childrenOf(node: AnyNode): readonly AnyNode[] {
     case "ListLit":
       return node.elements;
     case "Call":
+    case "ParenCall":
       return node.args;
+    case "ComparisonChain":
+      return node.operands;
+    case "IsPredicate":
+      switch (node.test.form) {
+        case "member-of":
+          return [node.operand, node.test.collection];
+        case "a":
+          return [node.operand, node.test.type];
+        case "between":
+          return [node.operand, node.test.low, node.test.high];
+        default:
+          return [node.operand];
+      }
+    case "Assign":
+      return [node.place, node.value];
+    case "If":
+      return node.elseBody === undefined
+        ? [node.condition, node.thenBody]
+        : [node.condition, node.thenBody, node.elseBody];
+    case "While":
+      return [node.condition, node.body];
+    case "Repeat":
+      return [node.count, node.body];
+    case "Forever":
+      return [node.body];
+    case "ForIn":
+      return [node.iterable, node.body];
+    case "ForRange":
+      return node.by === undefined
+        ? [node.from, node.to, node.body]
+        : [node.from, node.to, node.by, node.body];
+    case "Comprehension":
+      return node.form === "reduce"
+        ? [node.iterable, node.initial, node.body]
+        : [node.iterable, node.body];
+    case "ProcedureDef":
+      return [
+        ...node.params.flatMap((param) =>
+          param.defaultValue === undefined ? [] : [param.defaultValue],
+        ),
+        node.body,
+      ];
+    case "Return":
+    case "Throw":
+      return [node.value];
     default:
       return [];
   }
