@@ -1,0 +1,7 @@
+{
+  "description": "Every `[ key-term ]` selector form (spec/grammar.md:111) parses cleanly: number `[1]`, bare identifier as a literal word key `[tom]`, `:name` read `[:who]`, word literal `[\"tom\"]`, and parenthesized expression `[(:i + 1)]`, plus a mixed chain `:a.b[1].c` that interleaves a selector with dotted fields in source order (issue #79).",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

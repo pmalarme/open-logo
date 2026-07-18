@@ -264,16 +264,50 @@ export function parse(source: string, document = "<input>"): ParseResult {
   }
 
   /**
-   * Look past a `:variable` and any dotted `.field` segments to decide whether this is an
-   * assignment target (`:a.b = …`) rather than a bare place read used as an expression.
+   * Look past a `:variable` and any postfix segments — dotted `.field`s and adjacent `[ … ]`
+   * selectors — to decide whether this is an assignment target (`:a.b[1] = …`) rather than a bare
+   * place read used as an expression. Selectors are skipped by balanced bracket/paren depth so a
+   * parenthesized key-term (`:nums[(:i + 1)] = …`) is spanned correctly.
    */
+  function peekAdjacent(offset: number): boolean {
+    const prevEnd = peek(offset - 1).source_span.end;
+    const start = peek(offset).source_span.start;
+    return prevEnd[0] === start[0] && prevEnd[1] === start[1];
+  }
+
   function colonAssignmentAhead(): boolean {
     if (current().kind !== "variable") {
       return false;
     }
     let k = 1;
-    while (peek(k).kind === "dot" && peek(k + 1).kind === "name") {
-      k += 2;
+    for (;;) {
+      if (peek(k).kind === "dot" && peek(k + 1).kind === "name") {
+        k += 2;
+        continue;
+      }
+      if (peek(k).kind === "lbracket" && peekAdjacent(k)) {
+        let depth = 0;
+        let j = k;
+        for (;;) {
+          const kind = peek(j).kind;
+          if (kind === "eof") {
+            return false;
+          }
+          if (kind === "lbracket" || kind === "lparen") {
+            depth += 1;
+          } else if (kind === "rbracket" || kind === "rparen") {
+            depth -= 1;
+            if (depth === 0) {
+              j += 1;
+              break;
+            }
+          }
+          j += 1;
+        }
+        k = j;
+        continue;
+      }
+      break;
     }
     const token = peek(k);
     return token.kind === "op" && token.text === "=";
@@ -596,22 +630,92 @@ export function parse(source: string, document = "<input>"): ParseResult {
     return parsePostfix();
   }
 
-  function collectFieldSegments(): PlaceSegment[] {
+  /**
+   * Is the current token lexically adjacent to the previously consumed token (no gap between
+   * them)? A selector `[` binds as a postfix only when it directly follows its place, so
+   * `:durations[:i]` is a selector while `map n in :nums [ … ]` keeps `[ … ]` as a separate body.
+   * `lastEnd` tracks the end of the last consumed token, so this compares the `[`'s start to it.
+   */
+  function currentAdjacentToPrev(): boolean {
+    const start = current().source_span.start;
+    return lastEnd[0] === start[0] && lastEnd[1] === start[1];
+  }
+
+  /**
+   * Parse one `key-term` inside a selector `[ … ]` (`spec/grammar.md:111`): a `number`/word
+   * literal, a `:name` read, a bare identifier (a *literal word key*, never evaluated — reserved
+   * words are valid data here), or a parenthesized expression. Returns `undefined` for anything
+   * else so the caller can report the malformed selector.
+   */
+  function parseKeyTerm(): ExpressionNode | undefined {
+    const token = current();
+    switch (token.kind) {
+      case "number":
+        advance();
+        return ast.numberLit(Number(token.text), token.source_span);
+      case "word":
+        advance();
+        return ast.wordLit(token.value, token.source_span);
+      case "variable":
+        advance();
+        return ast.varRef(token.value, token.source_span);
+      case "name":
+        advance();
+        return ast.wordLit(token.text, token.source_span);
+      case "lparen":
+        return parseParenthesized();
+      default:
+        return undefined;
+    }
+  }
+
+  /**
+   * Collect a place's postfix segments in source order: a dotted `.field` or an adjacent
+   * `[ key-term ]` selector, interleaved freely (so `:a.b[1].c` yields field, selector, field).
+   * A `[` is only a selector when it is lexically adjacent to what precedes it; a spaced `[`
+   * belongs to something else (a list literal, a control body) and ends the chain.
+   */
+  function collectPostfixSegments(): PlaceSegment[] {
     const segments: PlaceSegment[] = [];
-    while (current().kind === "dot" && peek(1).kind === "name") {
-      const dot = current();
-      advance();
-      const field = current();
-      advance();
-      segments.push({
-        kind: "field",
-        name: sname(field.text, field),
-        source_span: makeSpan(
-          document,
-          dot.source_span.start,
-          field.source_span.end,
-        ),
-      });
+    for (;;) {
+      if (current().kind === "dot" && peek(1).kind === "name") {
+        const dot = current();
+        advance();
+        const field = current();
+        advance();
+        segments.push({
+          kind: "field",
+          name: sname(field.text, field),
+          source_span: makeSpan(
+            document,
+            dot.source_span.start,
+            field.source_span.end,
+          ),
+        });
+        continue;
+      }
+      if (current().kind === "lbracket" && currentAdjacentToPrev()) {
+        const open = current();
+        advance();
+        const key = parseKeyTerm();
+        if (key === undefined) {
+          diagnostics.push(unexpected(current()));
+          break;
+        }
+        if (current().kind !== "rbracket") {
+          diagnostics.push(parseDiag.unmatchedBracket(open.source_span, "["));
+          break;
+        }
+        const close = current();
+        advance();
+        segments.push({
+          kind: "index",
+          key,
+          source_span: spanBetween(open, close),
+        });
+        continue;
+      }
+      break;
     }
     return segments;
   }
@@ -621,17 +725,18 @@ export function parse(source: string, document = "<input>"): ParseResult {
     if (primary === undefined) {
       return undefined;
     }
-    // A dotted read `:a.b.c` grows the bare variable into a place; a plain `:a` stays a VarRef.
+    // A postfix read `:a.b.c` or `:nums[1]` grows the bare variable into a place; a plain `:a`
+    // stays a VarRef. A `[` counts only when adjacent, so a spaced `[ … ]` stays a separate token.
     if (
       primary.kind === "VarRef" &&
-      current().kind === "dot" &&
-      peek(1).kind === "name"
+      ((current().kind === "dot" && peek(1).kind === "name") ||
+        (current().kind === "lbracket" && currentAdjacentToPrev()))
     ) {
       const base: SpannedName = {
         name: primary.name,
         source_span: primary.source_span,
       };
-      const segments = collectFieldSegments();
+      const segments = collectPostfixSegments();
       return ast.place(base, segments, spanToHere(primary.source_span.start));
     }
     return primary;
@@ -976,7 +1081,29 @@ export function parse(source: string, document = "<input>"): ParseResult {
           break;
       }
     }
-    return parseExpression();
+    const expr = parseExpression();
+    // A reporter/call used as an assignment target (`first :x = 5`) is not a place. Recognize the
+    // structure here so the semantic checker can flag it with `ol-not-a-place`; `=` is the only op
+    // that survives to this fall-through, so a bare `text === "="` guard is sufficient.
+    if (expr === undefined) {
+      return undefined;
+    }
+    const isCallTarget = expr.kind === "Call" || expr.kind === "ParenCall";
+    if (isCallTarget && current().text === "=") {
+      advance();
+      const value = parseExpression();
+      if (value === undefined) {
+        diagnostics.push(unexpected(current()));
+        return expr;
+      }
+      return ast.assign(
+        expr,
+        value,
+        "equals",
+        spanFrom(expr.source_span.start, value),
+      );
+    }
+    return expr;
   }
 
   function parseLocal(): StatementNode | undefined {
@@ -1021,7 +1148,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     const varTok = current();
     advance();
     const base = sname(varTok.value, varTok);
-    const segments = collectFieldSegments();
+    const segments = collectPostfixSegments();
     const place = ast.place(
       base,
       segments,
@@ -1051,7 +1178,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     }
     advance();
     const base = sname(nameTok.text, nameTok);
-    const segments = collectFieldSegments();
+    const segments = collectPostfixSegments();
     const place = ast.place(
       base,
       segments,

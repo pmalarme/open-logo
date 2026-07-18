@@ -1,0 +1,4 @@
+# A selector may be an assignment target in both assignment forms (spec/grammar.md:103-104):
+# a colon place with `=`, and a bare place after `set ... to`.
+:nums[1] = 9
+set grid[2] to 0
