@@ -41,7 +41,7 @@ a false positive — it counts internal-only code as shipped and covered.
 We need unit tests that:
 - Are **co-located beside the source** (easy to find, grow with the code).
 - Import **only the public API** (black-box; true consumer contract).
-- Stay out of the compiled `dist/` artifact (so they cannot bypass the public API or give false coverage).
+- Stay out of the compiled `dist/` artifact (avoiding compiled-test pollution and reinforcing the review convention that tests import only the public API).
 
 ## Decision
 
