@@ -1,0 +1,5 @@
+# Core `forever` with a short (bracketed) body.
+# `stop` is avoided here: it is a semantic-stage diagnostic (`ol-stop-outside-proc`,
+# spec/error-model.md:117) once used outside a procedure, and this fixture is scoped to
+# parse-stage behavior only.
+forever [ print 1 ]

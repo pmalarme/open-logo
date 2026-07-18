@@ -1,0 +1,6 @@
+{
+  "description": "Core `repeat` with a short (bracketed) body containing two statements parses with no diagnostics.",
+  "profiles": ["core-language"],
+  "events": [],
+  "diagnostics": []
+}

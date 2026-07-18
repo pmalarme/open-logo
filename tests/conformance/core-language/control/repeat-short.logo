@@ -1,0 +1,2 @@
+# Core `repeat` with a short (bracketed) body containing two statements.
+repeat 4 [ print 1 print 2 ]
