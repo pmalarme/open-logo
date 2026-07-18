@@ -1,0 +1,6 @@
+{
+  "description": "Core `define … end` with multiple parameters, a multi-statement body, and a multi-argument call parses with no diagnostics.",
+  "profiles": ["core-language"],
+  "events": [],
+  "diagnostics": []
+}

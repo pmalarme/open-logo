@@ -1,0 +1,7 @@
+# Core `define … end` with multiple `:param` binders, a multi-statement body with a
+# nested call, and a call site passing multiple arguments.
+define add3 :a :b :c
+  print :a
+  return :a + :b + :c
+end
+print add3 1 2 3

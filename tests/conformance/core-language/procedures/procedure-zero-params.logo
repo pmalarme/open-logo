@@ -1,0 +1,5 @@
+# Core `define … end` with zero parameters, then a call with no arguments.
+define greet
+  print "hello"
+end
+greet

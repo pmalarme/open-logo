@@ -1,0 +1,6 @@
+{
+  "description": "Core `define … end` with one required parameter and a `return` expression parses with no diagnostics.",
+  "profiles": ["core-language"],
+  "events": [],
+  "diagnostics": []
+}
