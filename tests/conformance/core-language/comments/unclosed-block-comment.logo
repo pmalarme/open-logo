@@ -1,0 +1,3 @@
+print 1
+/* this block comment is never closed
+print 2

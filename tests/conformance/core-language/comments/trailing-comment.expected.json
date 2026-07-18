@@ -1,0 +1,6 @@
+{
+  "description": "A trailing #, //, or /* */ comment after a statement is whitespace: each statement still parses with its own correct span and produces no diagnostics.",
+  "profiles": ["core-language"],
+  "events": [],
+  "diagnostics": []
+}

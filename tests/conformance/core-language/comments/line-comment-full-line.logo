@@ -1,0 +1,3 @@
+# a full-line hash comment
+// a full-line slash-slash comment
+print 1

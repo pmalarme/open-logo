@@ -1,0 +1,25 @@
+{
+  "description": "An unterminated /* block comment reaching end of file raises ol-unclosed-comment, and everything after the opener (including the would-be second statement) is swallowed as the comment.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unclosed-comment",
+      "source_span": {
+        "document": "core-language/comments/unclosed-block-comment",
+        "start": [2, 1],
+        "end": [2, 3]
+      },
+      "params": {
+        "opened_at": {
+          "document": "core-language/comments/unclosed-block-comment",
+          "start": [2, 1],
+          "end": [2, 3]
+        }
+      },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}
