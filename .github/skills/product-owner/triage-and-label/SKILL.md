@@ -120,6 +120,15 @@ List issues missing an `agent:*` or `type:*` and fix them:
 gh issue list --search 'no:label' --json number,title
 ```
 
+### 4. Audit epic Status on every pass
+
+**Every triage/dispatch/merge pass, also check every `type:epic` issue's board Status against its
+children:** any child (leaf slice, or nested sub-epic) that is `In Progress` or `Done` means the epic
+must be `In Progress` too; `Done` only once every child is `Done`. This is not a one-off cleanup — epic
+Status drifts constantly as leaf slices move, so re-check it every time you touch the board. Full
+mechanics (finding children, board field IDs) are in
+[`github-project`](../github-project/SKILL.md#epic-status-must-reflect-its-children).
+
 ## Checklist
 - [ ] `.github/labels.yml` is the single source; labels synced from it.
 - [ ] Every issue has exactly one `agent:*` + one `type:*`; extras added as applicable.
@@ -128,3 +137,5 @@ gh issue list --search 'no:label' --json number,title
 - [ ] Title prefix `[<type>]:` matches the `type:*` label (applied automatically by templates;
       manual for non-template creation).
 - [ ] No ad-hoc labels outside the manifest.
+- [ ] Every `type:epic` issue's Status reflects its children (any child In Progress/Done → epic
+      In Progress; all Done → epic Done).
