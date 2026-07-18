@@ -72,13 +72,44 @@ gh issue edit <n> --add-project "OpenLogo"
   thin, and `gh project` / `gh api …/milestones` / `gh label` are the most complete. The commands
   below use `gh` for that reason.
 
+## Epic Status must reflect its children
+
+An epic's board **Status** is a derived field, not an independent one — it must always agree with the
+Status of its child issues (child slices for a leaf epic, child sub-epics for a nesting epic like #43):
+
+- **Any child `In Progress` or `Done` → the epic is `In Progress`.** Even one active or completed leaf
+  is enough; don't wait for "most" children to move.
+- **All children `Done` → the epic is `Done`.**
+- **All children `Todo` (none started) → the epic stays `Todo`.**
+- This applies **recursively** through nested epics: a leaf slice moving to `In Progress` propagates up
+  through its immediate sub-epic to the top epic in the same pass.
+
+Run this check **every time you touch the board** — triage, dispatch, or merge — not just as a one-off
+sweep:
+
+```bash
+# 1. Find every type:epic issue and its children (child issues are listed in the epic body under
+#    "Child slices" / a nested sub-epic list — read the body, GitHub sub-issues API is not used here).
+gh issue list --label "type:epic" --state all --json number,title,body
+
+# 2. For each epic, check its children's Status on the board.
+gh project item-list 5 --owner pmalarme --limit 200 --format json > /tmp/proj.json
+jq '.items[] | {number: .content.number, status, title}' /tmp/proj.json
+
+# 3. Correct any epic whose Status doesn't match the rule above.
+gh project item-edit --id <epicItemId> --project-id <projectId> \
+  --field-id <StatusFieldId> --single-select-option-id <InProgressOptionId>
+```
+
 ## Critical rules
 
 - The board **reflects** the epic/story/milestone model — don't invent a parallel taxonomy here.
 - Milestones = profile-DAG points (`epics-and-milestones`); keep titles stable (M0–M6).
 - Do **not** auto-assign issues to the Copilot cloud agent without explicit owner approval.
+- **Epic Status always reflects its children** (see above) — check it on every board-touching pass.
 
 ## Checklist
 - [ ] Milestones M0–M6 exist; Project created with Agent + Profile fields.
 - [ ] Issues created from templates; milestone + labels + project set.
 - [ ] Board groups by milestone/agent; no cloud-agent assignment without go-ahead.
+- [ ] Every `type:epic` issue's Status matches the epic-Status-reflects-children rule.
