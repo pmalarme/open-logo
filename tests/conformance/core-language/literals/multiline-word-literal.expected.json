@@ -1,0 +1,7 @@
+{
+  "description": "Triple-quoted multi-line word literal normalizes per spec/grammar.md's worked example (drops the newline after the opening and before the closing delimiter, strips common leading whitespace)",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

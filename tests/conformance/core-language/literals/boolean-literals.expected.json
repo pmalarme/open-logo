@@ -1,0 +1,7 @@
+{
+  "description": "Boolean literals true and false parse cleanly",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

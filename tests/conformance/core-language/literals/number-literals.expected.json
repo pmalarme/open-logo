@@ -1,0 +1,7 @@
+{
+  "description": "Number literals: integer, negative integer, decimal, negative decimal, exponent, signed exponent, and negative-with-exponent all parse cleanly",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

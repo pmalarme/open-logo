@@ -1,0 +1,7 @@
+{
+  "description": "Single-line word literals, including \\\" and \\\\ escape sequences, parse cleanly",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}
