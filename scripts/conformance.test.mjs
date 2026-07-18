@@ -22,11 +22,7 @@ import {
 const TEMP_ROOT = ".temp-test-fixtures";
 
 function cleanup() {
-  try {
-    rmSync(TEMP_ROOT, { recursive: true, force: true });
-  } catch {
-    // ignore
-  }
+  rmSync(TEMP_ROOT, { recursive: true, force: true });
 }
 
 // Unit tests for individual functions
@@ -727,4 +723,24 @@ test("runHarness runs self-tests even with --profile filter", () => {
     recursive: true,
     force: true,
   });
+});
+
+test("runHarness skips fixtures when --profile filter doesn't match", () => {
+  cleanup();
+  // Create a fixture with profiles:["data"] (not in core-language closure)
+  mkdirSync(join(TEMP_ROOT, "data-only"), { recursive: true });
+  writeFileSync(join(TEMP_ROOT, "data-only", "data-only.logo"), "");
+  writeFileSync(
+    join(TEMP_ROOT, "data-only", "data-only.expected.json"),
+    JSON.stringify({
+      profiles: ["data"], // Not in core-language closure
+      events: [],
+      diagnostics: [],
+    }),
+  );
+
+  const exitCode = runHarness({ profile: "core-language", root: TEMP_ROOT });
+  assert.equal(exitCode, 0); // Should skip (not fail)
+
+  cleanup();
 });
