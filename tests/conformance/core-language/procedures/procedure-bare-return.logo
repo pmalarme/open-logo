@@ -1,0 +1,4 @@
+# `return` with no value expression before the end of the line is a genuine parse error.
+define f
+  return
+end

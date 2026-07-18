@@ -1,0 +1,6 @@
+{
+  "description": "Core `define … end` with an optional `( :name defaultValue )` parameter parses with no diagnostics.",
+  "profiles": ["core-language"],
+  "events": [],
+  "diagnostics": []
+}

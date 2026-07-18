@@ -1,0 +1,19 @@
+{
+  "description": "A bare `return` with no value expression before end of line reports ol-bad-token.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/procedures/procedure-bare-return",
+        "start": [3, 9],
+        "end": [4, 1]
+      },
+      "params": { "text": "end of line" },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

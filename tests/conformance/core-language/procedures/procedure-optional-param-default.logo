@@ -1,0 +1,5 @@
+# Core `define … end` with an optional parameter `( :name defaultValue )`.
+define greet2 (:name "world")
+  print :name
+end
+greet2

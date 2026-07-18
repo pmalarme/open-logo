@@ -1,0 +1,3 @@
+# A `define` whose body is never closed by `end` (or `[ ]`) is a genuine parse error.
+define f :n
+  return :n

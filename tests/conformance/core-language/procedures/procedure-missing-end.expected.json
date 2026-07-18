@@ -1,0 +1,22 @@
+{
+  "description": "A `define` whose body is never closed by `end` (or `[ ]`) reports ol-missing-end.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-missing-end",
+      "source_span": {
+        "document": "core-language/procedures/procedure-missing-end",
+        "start": [2, 1],
+        "end": [2, 7]
+      },
+      "params": {
+        "opener": "define",
+        "hint": "wrap the body in [ ] or close it with end."
+      },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

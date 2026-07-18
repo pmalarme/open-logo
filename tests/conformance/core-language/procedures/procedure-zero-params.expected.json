@@ -1,0 +1,6 @@
+{
+  "description": "Core `define … end` with zero parameters and a no-argument call parses with no diagnostics.",
+  "profiles": ["core-language"],
+  "events": [],
+  "diagnostics": []
+}

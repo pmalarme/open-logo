@@ -1,0 +1,5 @@
+# Core `define … end` with one required `:param` and a `return` expression.
+define square :n
+  return :n * :n
+end
+print square 5

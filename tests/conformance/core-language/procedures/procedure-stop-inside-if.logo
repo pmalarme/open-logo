@@ -1,0 +1,7 @@
+# Core `stop` used inside a procedure body (nested in an `if` short body), followed by
+# further statements in the same procedure.
+define maybe_stop :flag
+  if :flag [ stop ]
+  print "after"
+end
+maybe_stop true
