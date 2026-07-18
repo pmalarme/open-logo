@@ -183,10 +183,11 @@ export interface PlaceNode extends NodeBase {
  * (`form: "set"`). Both bind the same place; `form` preserves the surface spelling.
  *
  * A well-formed target is always a {@link PlaceNode} (even a bare `:x` grows into a zero-segment
- * place). The parser also accepts a non-place expression here — specifically a reporter/command
- * call such as `first :x = 5` — purely so the semantic checker can raise `ol-not-a-place`
- * (`spec/error-model.md`) at `stage: "semantic"` instead of a blunt parse error. The runtime only
- * ever sees a `Place`, because `check()` rejects every non-place target first.
+ * place). The parser also accepts a non-place expression here — a reporter/command call such as
+ * `first :x = 5`, or a bare literal/list such as `3 = 5`/`count :nums = 3` — purely so the
+ * semantic checker can raise `ol-not-a-place` (`spec/error-model.md`, `spec/tooling.md:213-219`)
+ * at `stage: "semantic"` instead of a blunt parse error. The runtime only ever sees a `Place`,
+ * because `check()` rejects every non-place target first.
  */
 export interface AssignNode extends NodeBase {
   readonly kind: "Assign";
@@ -560,7 +561,14 @@ export const ast = {
 /** A visitor invoked once per node during {@link walk}. */
 export type Visitor = (node: AnyNode) => void;
 
-function childrenOf(node: AnyNode): readonly AnyNode[] {
+/**
+ * The direct child nodes `walk` descends into for `node`, in source order. Exported (alongside
+ * `walk`) so a rule that needs scope-aware traversal — pushing/popping its own context around
+ * specific node kinds, e.g. `ol-undefined-var`'s procedure-frame/binder-scope walk — can still
+ * reuse this shared child list for every node kind it does *not* special-case, instead of
+ * duplicating (and risking drift from) this switch.
+ */
+export function childrenOf(node: AnyNode): readonly AnyNode[] {
   switch (node.kind) {
     case "Program":
     case "Block":

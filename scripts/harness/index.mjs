@@ -283,7 +283,7 @@ export function produce(
     const diagnostics =
       parseDiagnostics.length > 0
         ? parseDiagnostics
-        : check(program, { profiles }).diagnostics;
+        : check(program, { profiles, source }).diagnostics;
     validateDiagnostics(diagnostics);
     return { events: [], diagnostics };
   }

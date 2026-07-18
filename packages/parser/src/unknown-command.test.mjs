@@ -58,8 +58,11 @@ test("a correctly-spelled user-declared procedure call is never flagged", () => 
   assert.deepEqual(checkSource(source, ["core-language"]), []);
 });
 
-test("a bare variable read is never flagged (ol-undefined-var is a different rule's job)", () => {
-  assert.deepEqual(checkSource("print :x", ["core-language"]), []);
+test("a bare variable read is never flagged as ol-unknown-command (ol-undefined-var is a different rule's job)", () => {
+  const diagnostics = checkSource("print :x", ["core-language"]).filter(
+    (d) => d.code === "ol-unknown-command",
+  );
+  assert.deepEqual(diagnostics, []);
 });
 
 test("a typo of a reserved structural word is suggested (reserved words are candidates)", () => {

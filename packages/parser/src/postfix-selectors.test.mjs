@@ -211,7 +211,7 @@ test("a selector missing its close :nums[1 2] reports an unmatched bracket", () 
 });
 
 test("check() walks selector key expressions in a mixed chain without diagnostics", () => {
-  const { ast } = OL.parse(":a.b[1].c", doc);
+  const { ast } = OL.parse(":a = 0\n:a.b[1].c", doc);
   const { diagnostics } = OL.check(ast);
   assert.deepEqual(diagnostics, []);
 });
@@ -234,7 +234,7 @@ test("check() flags first :x = 5 with ol-not-a-place at stage semantic", () => {
   const [diag] = notAPlace;
   assert.equal(diag.stage, "semantic");
   assert.equal(diag.severity, "error");
-  assert.deepEqual(diag.params, { text: "first" });
+  assert.deepEqual(diag.params, { text: "first :x" });
 });
 
 test("a parenthesized reporter target (first :x) = 5 is flagged ol-not-a-place too", () => {

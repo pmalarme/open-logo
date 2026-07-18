@@ -1,0 +1,19 @@
+{
+  "description": "ol-undefined-var (issue #113): a procedure's own parameter lives only in its own lexical frame (spec/execution-model.md:317-327). Reading `:secret` inside `f`'s body (line 2) is fine — it is `f`'s own parameter — but reading `:secret` again at the top level after `f` returns (line 5) is a read with no visible declaration in the top-level scope chain, so it raises `ol-undefined-var` at that read's own span. This reproduces and locks in the fix for a genuine scoping bug in the rule's first draft, which used a flat whole-program declaration model that let a procedure's parameters leak to every other scope.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "core-language/check/undefined-var-procedure-frame-not-leaked",
+        "start": [5, 7],
+        "end": [5, 14]
+      },
+      "params": { "name": "secret" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

@@ -1,0 +1,3 @@
+define repeat :x
+  print :x
+end

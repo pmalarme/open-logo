@@ -1,0 +1,19 @@
+{
+  "description": "ol-undefined-var (issue #113): a `for` binder lives only within its own loop body, shadowing an outer binding of the same name and never leaking past the end of that body (spec/execution-model.md:317-327). Reading `:i` inside the loop (line 2) is fine, but reading `:i` again after `end` (line 4) is a read with no visible declaration in scope, so it raises `ol-undefined-var`. This locks in the fix for a genuine scoping bug in the rule's first draft, which treated every declaration as a whole-program-visible flat name.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "core-language/check/undefined-var-binder-not-leaked",
+        "start": [4, 7],
+        "end": [4, 9]
+      },
+      "params": { "name": "i" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

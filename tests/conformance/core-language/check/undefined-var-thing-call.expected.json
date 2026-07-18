@@ -1,0 +1,19 @@
+{
+  "description": "ol-undefined-var (issue #113): `thing \"missing\"` is the reserved-word/primitive spelling of a dynamic variable read (spec/error-model.md:101 — \"Reading `:name` or `thing` found no visible binding\"); its literal word argument is checked the same way a bare `:name` read is, since it statically names the same unbound variable. The diagnostic points at the word literal argument.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "core-language/check/undefined-var-thing-call",
+        "start": [1, 13],
+        "end": [1, 22]
+      },
+      "params": { "name": "missing" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

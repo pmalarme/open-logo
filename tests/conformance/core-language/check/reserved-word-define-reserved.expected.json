@@ -1,0 +1,19 @@
+{
+  "description": "ol-reserved-word (issue #113): `define repeat ... end` redefines `repeat`, a reserved structural word (C19 in spec/grammar.md), even though the reader accepts it lexically in name position here. The checker flags it with `namespace: \"reserved\"`.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "core-language/check/reserved-word-define-reserved",
+        "start": [1, 8],
+        "end": [1, 14]
+      },
+      "params": { "name": "repeat", "namespace": "reserved" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

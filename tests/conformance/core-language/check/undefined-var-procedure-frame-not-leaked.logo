@@ -1,0 +1,5 @@
+define f :secret
+  print :secret
+end
+f 1
+print :secret

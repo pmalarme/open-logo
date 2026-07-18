@@ -1,36 +1,208 @@
 /**
- * The `ol-not-a-place` semantic rule (issue #79): the target of `=` or `set … to` must be an
- * assignable place. The parser already keeps a well-formed target as a {@link PlaceNode}, but it
- * also structurally accepts a reporter/command call in target position — `first :x = 5` — so this
- * rule can explain the mistake instead of a blunt parse error (`spec/error-model.md`,
- * `spec/grammar.md:244-258`).
+ * The `ol-not-a-place` semantic rule (issues #79/#113): the target of `=` or `set … to` must be
+ * an assignable place. The parser keeps a well-formed target as a {@link PlaceNode}, but it also
+ * structurally accepts a reporter/command call or a bare literal/list in target position —
+ * `first :x = 5`, `count :nums = 3`, `3 = 5` — so this rule can explain the mistake with the exact
+ * shape the spec's worked example mandates instead of a blunt parse error
+ * (`spec/error-model.md`, `spec/tooling.md:213-219`).
  *
- * Scope boundary: this rule handles ONLY the clearly-syntactic case where the target is itself a
- * call node ({@link CallNode}/{@link ParenCallNode}), i.e. a reporter such as `first`, `count`, or
- * `keys` used as a place. Deeper name-resolution non-place cases (a bound procedure name, a
- * read-only binding) belong to the name/place-resolution slice #113, which lists `ol-not-a-place`
- * alongside `ol-undefined-var`/`ol-reserved-word`.
+ * `spec/tooling.md:213-219` mandates `count :nums = 3` → `ol-not-a-place`,
+ * `params: { text: "count :nums" }` — the FULL target surface text, not just the callee name.
+ *
+ * Two text-recovery paths, in priority order:
+ *
+ * 1. **Source slicing** ({@link sliceSourceSpan}) — when {@link check}'s caller supplies the
+ *    original `source` text (the conformance harness and every real production caller do), the
+ *    target's own `source_span` is sliced directly out of it. This is exact for *any* target
+ *    shape — nested `Place` arguments, parenthesized sub-expressions, infix operator calls such
+ *    as `1 + 2` (which parse as a `Call` with callee `"+"`, prefix-shaped in the AST but written
+ *    infix in source) — because it reads what the learner actually typed instead of
+ *    reconstructing it.
+ * 2. **AST reconstruction** ({@link renderNode}) — the fallback when no `source` is available
+ *    (e.g. a caller that only has a `ProgramNode`, as `check()`'s own pre-#113 unit tests did).
+ *    It handles every node kind the parser can build in target position, including a nested
+ *    {@link PlaceNode} argument. It also recognizes the fixed set of two-argument operator
+ *    callees the parser only ever builds infix (`+ - * / mod == != < > <= >=`/`and`/`or` —
+ *    `parser.ts`'s `parseOr`/`parseAnd`/`parseComparison`/`parseAdditive`/`parseMultiplicative`)
+ *    and renders those infix (`"1 + 2"`, not `"+ 1 2"`), and wraps a `ParenCall` target back in
+ *    its own parentheses (`"(first :x)"`), so both text-recovery paths agree exactly for every
+ *    target shape the parser can build — not just the ones that happen to already look the same
+ *    prefix or infix.
  */
 
-import type { Diagnostic } from "@openlogo/core";
-import type { AnyNode, AssignNode, ProgramNode } from "./ast.js";
+import type { Diagnostic, SourceSpan } from "@openlogo/core";
+import type {
+  AnyNode,
+  AssignNode,
+  BooleanLitNode,
+  CallNode,
+  ExpressionNode,
+  ListLitNode,
+  NumberLitNode,
+  ParenCallNode,
+  PlaceNode,
+  ProgramNode,
+  VarRefNode,
+  WordLitNode,
+} from "./ast.js";
 import { walk } from "./ast.js";
+import type { CheckProfile } from "./check.js";
 
 function isAssign(node: AnyNode): node is AssignNode {
   return node.kind === "Assign";
 }
 
-/** The learner-facing message template for a reporter/call used as an assignment target. */
-function messageFor(text: string): string {
-  return `${text} reports a value, it isn't a place you can assign to.`;
+/**
+ * Every expression kind the parser can build in non-place assignment-target position, or nest
+ * inside one as a call argument/list element/postfix selector key: `spec/grammar.md:244-258` and
+ * the `AssignNode` doc comment in `ast.ts` together close this to exactly these eight kinds — a
+ * comparison chain, `is`-predicate, or comprehension never appears there, so {@link renderNode}
+ * does not need to (and — for 100% branch/function coverage — must not) handle them.
+ */
+type RenderableNode =
+  | NumberLitNode
+  | WordLitNode
+  | BooleanLitNode
+  | VarRefNode
+  | PlaceNode
+  | ListLitNode
+  | CallNode
+  | ParenCallNode;
+
+/** Renders a nested expression (a call argument or a list element). See {@link RenderableNode}. */
+function renderChild(node: ExpressionNode): string {
+  return renderNode(node as RenderableNode);
 }
 
 /**
- * The `ol-not-a-place` rule: every assignment whose target is a call node (a reporter/command used
- * as a place) raises one diagnostic at the target's span, with the callee name carried as the
- * optional `text` param.
+ * The two-argument operator callees `parser.ts` only ever builds infix — `parseOr`/`parseAnd`
+ * (`and`/`or`), `parseComparison` (`== != < > <= >=`), `parseAdditive` (`+ -`), and
+ * `parseMultiplicative` (`* /`/`mod`). None of these names can also be a user-defined or Core
+ * primitive callee (the symbols are `op`-kind tokens, and `and`/`or`/`mod` are reserved words), so
+ * a two-argument `Call` with one of these callee names is unambiguously an infix operator and
+ * never a genuine prefix call that merely happens to take two arguments.
  */
-export function notAPlaceRule(program: ProgramNode): readonly Diagnostic[] {
+const INFIX_OPERATORS: ReadonlySet<string> = new Set([
+  "+",
+  "-",
+  "*",
+  "/",
+  "mod",
+  "==",
+  "!=",
+  "<",
+  ">",
+  "<=",
+  ">=",
+  "and",
+  "or",
+]);
+
+/** Whether a `Call` node is one of the fixed infix operator forms (see {@link INFIX_OPERATORS}). */
+function isInfixOperatorCall(node: CallNode): boolean {
+  return node.args.length === 2 && INFIX_OPERATORS.has(node.callee.name);
+}
+
+/** Renders a postfixed place `:base.field[key]` in its own surface spelling. */
+function renderPlace(node: PlaceNode): string {
+  const segments = node.segments
+    .map((segment) =>
+      segment.kind === "field"
+        ? `.${segment.name.name}`
+        : `[${renderChild(segment.key)}]`,
+    )
+    .join("");
+  return `:${node.base.name}${segments}`;
+}
+
+/** Renders a `Call`/`ParenCall`'s callee and arguments in prefix form: `name arg1 arg2`. */
+function renderPrefixCall(node: CallNode | ParenCallNode): string {
+  const args = node.args.map(renderChild).join(" ");
+  return args === "" ? node.callee.name : `${node.callee.name} ${args}`;
+}
+
+/**
+ * Reconstructs the surface text of a non-place assignment target, for the `text` param. This is
+ * the fallback path used only when {@link check} has no `source` text to slice from.
+ */
+function renderNode(node: RenderableNode): string {
+  switch (node.kind) {
+    case "NumberLit":
+      return String(node.value);
+    case "WordLit":
+      return `"${node.value}"`;
+    case "BooleanLit":
+      return String(node.value);
+    case "VarRef":
+      return `:${node.name}`;
+    case "Place":
+      return renderPlace(node);
+    case "ListLit":
+      return `[${node.elements.map(renderChild).join(" ")}]`;
+    case "Call":
+      // A two-argument call to one of the fixed infix operator names is always infix in
+      // source — see INFIX_OPERATORS — everything else (including a zero/one/three-or-more
+      // argument call) renders prefix.
+      if (isInfixOperatorCall(node)) {
+        const [left, right] = node.args as readonly [
+          ExpressionNode,
+          ExpressionNode,
+        ];
+        return `${renderChild(left)} ${node.callee.name} ${renderChild(right)}`;
+      }
+      return renderPrefixCall(node);
+    case "ParenCall":
+      // A ParenCall only ever comes from the explicitly parenthesized `( … )` surface form, so
+      // its rendering always re-wraps the parens the source had.
+      return `(${renderPrefixCall(node)})`;
+  }
+}
+
+/**
+ * Slices the exact text `span` covers out of `source`, using its 1-based, half-open
+ * `[start, end)` line/column range (`@openlogo/core`'s `SourceSpan`). Exact for any target shape,
+ * since it reads the learner's own surface spelling instead of reconstructing it from the AST.
+ */
+function sliceSourceSpan(source: string, span: SourceSpan): string {
+  const lines = source.split("\n");
+  const [startLine, startColumn] = span.start;
+  const [endLine, endColumn] = span.end;
+  // A span's line numbers are always within `[1, lines.length]` — `noUncheckedIndexedAccess`
+  // cannot correlate that invariant with an indexed access, so this documents it instead of
+  // adding an unreachable fallback that would fail the 100% branch-coverage gate.
+  const startText = lines[startLine - 1] as string;
+  if (startLine === endLine) {
+    return startText.slice(startColumn - 1, endColumn - 1);
+  }
+  const middle: string[] = [];
+  for (let line = startLine + 1; line < endLine; line += 1) {
+    middle.push(lines[line - 1] as string);
+  }
+  const endText = lines[endLine - 1] as string;
+  return [
+    startText.slice(startColumn - 1),
+    ...middle,
+    endText.slice(0, endColumn - 1),
+  ].join("\n");
+}
+
+/** The learner-facing message template for a non-place used as an assignment target. */
+function messageFor(text: string): string {
+  return `${text} is a value, not a place you can change.`;
+}
+
+/**
+ * The `ol-not-a-place` rule: every assignment whose target is not a `Place` raises one diagnostic
+ * at the target's span, with its exact surface text carried as the `text` param
+ * (`spec/tooling.md:213-219`). Prefers slicing `source` (exact for any shape); falls back to
+ * reconstructing the text from the AST when no `source` is available — see the module doc
+ * comment.
+ */
+export function notAPlaceRule(
+  program: ProgramNode,
+  _profiles: readonly CheckProfile[],
+  source?: string,
+): readonly Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
 
   walk(program, (node) => {
@@ -38,10 +210,16 @@ export function notAPlaceRule(program: ProgramNode): readonly Diagnostic[] {
       return;
     }
     const target = node.place;
-    if (target.kind !== "Call" && target.kind !== "ParenCall") {
+    if (target.kind === "Place") {
       return;
     }
-    const text = target.callee.name;
+    const text =
+      source !== undefined
+        ? sliceSourceSpan(source, target.source_span)
+        : // The parser only ever builds a non-place assignment target as one of
+          // `RenderableNode`'s kinds — see that type's doc comment — so this cast documents the
+          // invariant instead of widening `renderNode` to the full `ExpressionNode` union.
+          renderNode(target as RenderableNode);
     diagnostics.push({
       code: "ol-not-a-place",
       source_span: target.source_span,
