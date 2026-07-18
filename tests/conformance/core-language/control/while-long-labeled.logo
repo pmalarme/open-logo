@@ -1,0 +1,4 @@
+# Core `while` long `... end` form with a labeled `end while`.
+while :x < 10
+  set x to :x + 1
+end while

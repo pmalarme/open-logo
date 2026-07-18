@@ -1,0 +1,7 @@
+# Core `repeat` long `... end` form with a multi-statement body separated by a blank line,
+# closed with a labeled `end repeat`.
+repeat 2
+  print 1
+
+  print 2
+end repeat

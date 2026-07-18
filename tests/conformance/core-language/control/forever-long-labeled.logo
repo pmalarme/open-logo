@@ -1,0 +1,4 @@
+# Core `forever` long `... end` form with a labeled `end forever`.
+forever
+  print 1
+end forever

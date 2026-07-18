@@ -1,0 +1,4 @@
+# Core `for ... in` long `... end` form with a labeled `end for`.
+for item in :items
+  print :item
+end for

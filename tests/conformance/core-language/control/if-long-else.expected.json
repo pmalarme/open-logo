@@ -1,0 +1,6 @@
+{
+  "description": "Core `if` long `... end` form with both branches and a labeled `end if` parses with no diagnostics.",
+  "profiles": ["core-language"],
+  "events": [],
+  "diagnostics": []
+}

@@ -1,0 +1,6 @@
+{
+  "description": "Core `while` long `... end` form with a labeled `end while` parses with no diagnostics.",
+  "profiles": ["core-language"],
+  "events": [],
+  "diagnostics": []
+}

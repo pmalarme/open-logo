@@ -1,0 +1,6 @@
+{
+  "description": "Core `repeat` long `... end` form with a multi-statement body separated by a blank line, closed with a labeled `end repeat`, parses with no diagnostics.",
+  "profiles": ["core-language"],
+  "events": [],
+  "diagnostics": []
+}
