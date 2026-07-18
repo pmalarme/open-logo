@@ -1,0 +1,7 @@
+{
+  "description": "A bare place after set ... to parses as a set-form assignment with no diagnostics",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}
