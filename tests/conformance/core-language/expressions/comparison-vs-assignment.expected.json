@@ -1,0 +1,7 @@
+{
+  "description": "`:x = 1` assigns and `:x == 1` compares; both parse with no diagnostics.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

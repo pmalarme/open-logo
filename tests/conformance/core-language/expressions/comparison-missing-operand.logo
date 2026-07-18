@@ -1,0 +1,2 @@
+# A dangling `<` with no right-hand operand at end of file is a genuine parse error.
+print 1 <

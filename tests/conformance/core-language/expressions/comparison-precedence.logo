@@ -1,0 +1,9 @@
+# Comparison binds looser than additive/multiplicative (spec/grammar.md:178-180,185-186), so
+# `1 + 2 < 3 * 4` reads as `(1 + 2) < (3 * 4)`, and looser than `and`/`or` (spec/grammar.md:177-178),
+# so `:a == :b and :c < :d` reads as `(:a == :b) and (:c < :d)`.
+:a = 1
+:b = 1
+:c = 2
+:d = 3
+print 1 + 2 < 3 * 4
+print :a == :b and :c < :d

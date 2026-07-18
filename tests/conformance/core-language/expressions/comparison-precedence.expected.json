@@ -1,0 +1,7 @@
+{
+  "description": "Comparison binds looser than additive/multiplicative and tighter than and/or, with no diagnostics.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}
