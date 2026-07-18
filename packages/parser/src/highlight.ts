@@ -5,9 +5,26 @@
  * Owned by `@language-designer`; consumed by the studio editor, docs, and external editors.
  * The class set tracks the grammar version — a grammar change ships its highlighting update
  * in the same milestone.
+ *
+ * {@link highlight} is the grammar-derived LEXICAL first pass (issue #119): it reuses
+ * {@link tokenize} and {@link parse} (never re-lexing) to resolve every class and delimiter
+ * role decidable from tokens + grammatical position alone. `procedure-name`, `type-name`, and
+ * `field-name` need symbol discovery (which struct type a place's base resolves to, which
+ * calls resolve to user procedures) that this lexical pass does not have, so every otherwise
+ * unclassified bare name — call callees and declaration/binder names alike — is at minimum
+ * `primitive` for now, per `spec/tooling.md`'s "a highlighter MUST still produce grammar-safe
+ * lexical classes and MAY defer `procedure-name`, `type-name`, and `field-name` precision until
+ * after parsing and symbol discovery." #120 (semantic disambiguation) refines this bucket.
  */
 
-import type { SourceSpan } from "@openlogo/core";
+import { makeSpan } from "@openlogo/core";
+import type { Position, SourceSpan } from "@openlogo/core";
+import type { AnyNode, IsPredicateNode, NumberLitNode } from "./ast.js";
+import { walk } from "./ast.js";
+import { parse } from "./parser.js";
+import { isReservedWord } from "./reserved.js";
+import type { LexToken, LexTokenKind } from "./tokens.js";
+import { tokenize } from "./tokens.js";
 
 /**
  * The 15 normative token classes. Names are the spec's literal spellings (including the
@@ -35,9 +52,604 @@ export const OL_TOKEN_CLASSES = [
 /** One normative token class. */
 export type TokenClass = (typeof OL_TOKEN_CLASSES)[number];
 
+/**
+ * The 5 grammar-derived `[`/`]` delimiter roles from `spec/tooling.md`'s "Delimiter roles"
+ * table. A selector's brackets carry role `"selector"` but class `index/dot` (not `bracket`) —
+ * see {@link highlight}.
+ */
+export const OL_BRACKET_ROLES = [
+  "list",
+  "instruction-block",
+  "selector",
+  "pattern",
+  "field-list",
+] as const;
+
+/** One grammar-derived bracket delimiter role. */
+export type BracketRole = (typeof OL_BRACKET_ROLES)[number];
+
 /** A classified token: its class, its source text, and where it came from. */
 export interface Token {
   readonly class: TokenClass;
   readonly text: string;
   readonly source_span: SourceSpan;
+  /** Present only on the `[`/`]` of a list/instruction-block/selector/pattern/field-list. */
+  readonly role?: BracketRole;
+}
+
+/**
+ * Word-spelled operators (`spec/tooling.md:39`): reserved (`and`, `or`, `not`) or not
+ * (`mod`), but always `operator`, never `keyword`. Checked before the reserved-word lookup so
+ * `and`/`or`/`not` don't fall through to `keyword`.
+ */
+const WORD_OPERATORS = new Set(["and", "or", "not", "mod"]);
+
+/** Lexical token kinds that carry highlightable content — never `newline`/`eof`. */
+type ContentTokenKind = Exclude<LexTokenKind, "newline" | "eof">;
+
+/** A raw lexer token narrowed to a highlightable kind. */
+interface ContentToken extends LexToken {
+  readonly kind: ContentTokenKind;
+}
+
+function isContentToken(token: LexToken): token is ContentToken {
+  return token.kind !== "newline" && token.kind !== "eof";
+}
+
+/** `"line:column"` — a stable map key for a `Position` tuple. */
+function posKey(position: Position): string {
+  return `${position[0]}:${position[1]}`;
+}
+
+/** Is `a` at or before `b` in source order? */
+function isAtOrBefore(a: Position, b: Position): boolean {
+  return a[0] < b[0] || (a[0] === b[0] && a[1] <= b[1]);
+}
+
+/**
+ * Classify `source` into a flat, source-ordered `Token[]` — the grammar-derived lexical first
+ * pass. Reuses {@link tokenize} for the raw token stream and {@link parse} for the AST that
+ * resolves grammatical position (list/instruction-block/selector roles, dict-key selector
+ * literals, negative-literal merging, contextual `is`-predicate keywords); it never re-lexes.
+ * Malformed input still yields a best-effort token stream, matching {@link parse}'s own
+ * never-throw contract.
+ */
+export function highlight(source: string, document = "<input>"): Token[] {
+  const lex = tokenize(source, document).tokens;
+  const program = parse(source, document).ast;
+
+  // The synthetic `eof` token is zero-width (its start equals its end) and, whenever the source
+  // has no trailing newline, that position exactly matches the preceding real token's own end —
+  // colliding in `byEnd` and silently shadowing e.g. a closing `]`'s index. `eof` is never a
+  // bracket/paren/selector boundary itself, so it is simply excluded from both maps.
+  const byStart = new Map<string, number>();
+  const byEnd = new Map<string, number>();
+  lex.forEach((token, index) => {
+    if (token.kind === "eof") {
+      return;
+    }
+    byStart.set(posKey(token.source_span.start), index);
+    byEnd.set(posKey(token.source_span.end), index);
+  });
+
+  // `dict-key` (`spec/tooling.md:41`) has two grammatical sources: a selector's bare-word key
+  // (`:dict[key]`, handled by `markSelectorKey` below) and a dict-*literal*'s bare key before its
+  // `:` (`{ key: value }`). The literal form is not classifiable yet because `{ }` dict literals
+  // are not a parseable construct at all today — `parser.ts` has no brace-triggered production
+  // and `ast.ts` has no `DictLit` node (its own comment marks that as future Data-profile work),
+  // and the lexer's `:` handling (`tokens.ts`) only recognizes a `:name` variable prefix, emitting
+  // `ol-bad-token` and dropping any other `:` (so a literal's key-separator never becomes a real
+  // token to classify as `operator` either). This is a parser/lexer gap, not a highlighter one —
+  // tracked in issue #149 rather than guessed at here; only the selector-key half is implemented.
+  const roleByIndex = new Map<number, BracketRole>();
+  const dictKeyIndexes = new Set<number>();
+  const contextualKeywordIndexes = new Set<number>();
+  const negativeMergeStarts = new Set<number>();
+
+  /**
+   * Tag the `[`/`]` at `span`'s start/end (when they are lexer bracket tokens) with `role`.
+   * `spanBetween(open, close)` (the parser's span helper) always sets a `ListLit`/bracket-form
+   * `Block`/selector span's start/end to a real open/close bracket token's own start/end, so the
+   * `byStart`/`byEnd` lookup always lands on that exact token when the form is bracketed.
+   */
+  function markBracketPair(span: SourceSpan, role: BracketRole): void {
+    // Never override a role the positional `for [` / `struct <type> [` scan already assigned
+    // (it runs first, below): a `[` directly after `for`/`struct <type>` can only ever be a
+    // pattern/field-list grammatically, even when today's grammar has no binder/type production
+    // for it and the parser's error recovery mis-parses the bracket as an unrelated ListLit.
+    const openIndex = byStart.get(posKey(span.start));
+    if (
+      openIndex !== undefined &&
+      lex[openIndex]?.kind === "lbracket" &&
+      !roleByIndex.has(openIndex)
+    ) {
+      roleByIndex.set(openIndex, role);
+    }
+    const closeIndex = byEnd.get(posKey(span.end));
+    if (
+      closeIndex !== undefined &&
+      lex[closeIndex]?.kind === "rbracket" &&
+      !roleByIndex.has(closeIndex)
+    ) {
+      roleByIndex.set(closeIndex, role);
+    }
+  }
+
+  /** A selector's key that is a bare identifier (not a quoted `"word"`) is a `dict-key`. */
+  function markSelectorKey(key: {
+    readonly kind: string;
+    readonly source_span: SourceSpan;
+  }): void {
+    if (key.kind !== "WordLit") {
+      return;
+    }
+    const index = byStart.get(posKey(key.source_span.start));
+    if (index !== undefined && lex[index]?.kind === "name") {
+      dictKeyIndexes.add(index);
+    }
+  }
+
+  /**
+   * A `NumberLitNode` whose span starts at a `-` op token immediately followed by the numeral
+   * it merges with (`tryNegativeNumberLiteral` in the parser) is one `number` token, not a
+   * separate `operator` + `number` pair.
+   *
+   * A `NumberLitNode`'s span always starts at a real, non-`eof` token (either the merged `-` op
+   * or the numeral itself), so `byStart` always resolves it.
+   */
+  function markNegativeLiteral(node: NumberLitNode): void {
+    const startIndex = byStart.get(posKey(node.source_span.start)) as number;
+    const startToken = lex[startIndex];
+    const numberToken = lex[startIndex + 1];
+    if (
+      startToken?.kind === "op" &&
+      startToken.text === "-" &&
+      numberToken?.kind === "number" &&
+      numberToken.source_span.end[0] === node.source_span.end[0] &&
+      numberToken.source_span.end[1] === node.source_span.end[1]
+    ) {
+      negativeMergeStarts.add(startIndex);
+    }
+  }
+
+  /** Is the token at `index` the word `expected` (case-insensitive)? Tag it if so. */
+  function markContextualWord(index: number, expected: string): void {
+    const token = lex[index];
+    if (token?.kind === "name" && token.text.toLowerCase() === expected) {
+      contextualKeywordIndexes.add(index);
+    }
+  }
+
+  /**
+   * `empty`/`member`/`of`/`a` are keywords only right after `is` (`spec/tooling.md:96-98`); `is`
+   * itself, `between`, and `strictly` are already globally reserved. The grammar requires each
+   * word directly adjacent in the token stream (no `skipNewlines` between them), so once `is` is
+   * found the rest are just the following raw token indexes.
+   *
+   * `node.operand`'s span always ends at a real, non-`eof` token, and the parser only ever
+   * builds an `IsPredicateNode` when `is` is the literal next raw token after the operand
+   * (`isName` reads `current()` directly, with no `skipNewlines` between) — so `byEnd` always
+   * resolves and `isIndex` always lands on that `is` token.
+   */
+  function markIsPredicateKeywords(node: IsPredicateNode): void {
+    const operandEndIndex = byEnd.get(
+      posKey(node.operand.source_span.end),
+    ) as number;
+    const isIndex = operandEndIndex + 1;
+    switch (node.test.form) {
+      case "empty":
+        markContextualWord(isIndex + 1, "empty");
+        break;
+      case "member-of":
+        markContextualWord(isIndex + 1, "member");
+        markContextualWord(isIndex + 2, "of");
+        break;
+      case "a":
+        markContextualWord(isIndex + 1, "a");
+        break;
+      case "between":
+        break;
+    }
+  }
+
+  // Run the positional pattern/field-list scan first: a `[` directly after `for`/`struct
+  // <type>` is grammatically never a real list literal today, but the parser's error recovery
+  // can still misfile it as one (see markBracketPair's comment) — claiming the role here first
+  // means the later AST walk's `markBracketPair` calls simply no-op on those same indexes.
+  scanPositionalBracketRoles();
+
+  function visit(node: AnyNode): void {
+    switch (node.kind) {
+      case "ListLit":
+        markBracketPair(node.source_span, "list");
+        break;
+      case "If":
+        markBracketPair(node.thenBody.source_span, "instruction-block");
+        if (node.elseBody !== undefined) {
+          markBracketPair(node.elseBody.source_span, "instruction-block");
+        }
+        break;
+      case "While":
+      case "Repeat":
+      case "Forever":
+      case "ForIn":
+      case "ForRange":
+      case "Comprehension":
+      case "ProcedureDef":
+        markBracketPair(node.body.source_span, "instruction-block");
+        break;
+      case "Place":
+        for (const segment of node.segments) {
+          if (segment.kind === "index") {
+            markBracketPair(segment.source_span, "selector");
+            markSelectorKey(segment.key);
+          }
+        }
+        break;
+      case "NumberLit":
+        markNegativeLiteral(node);
+        break;
+      case "IsPredicate":
+        markIsPredicateKeywords(node);
+        break;
+      default:
+        break;
+    }
+  }
+  walk(program, visit);
+
+  /**
+   * `pattern` (`for [:x :y] in …`) and `field-list` (`struct <type> [ … ]`) have no AST support
+   * yet — destructuring binders and struct defs are later slices — so resolve these two roles
+   * purely from adjacent raw-token spellings, independent of whether the surrounding construct
+   * parses cleanly. #120/a future grammar slice can replace this with AST-driven marking once
+   * those node kinds exist.
+   */
+  function scanPositionalBracketRoles(): void {
+    for (let index = 0; index < lex.length; index += 1) {
+      const token = lex[index];
+      if (token?.kind !== "lbracket" || roleByIndex.has(index)) {
+        continue;
+      }
+      const prev = previousSignificant(index);
+      if (
+        prev?.token.kind === "name" &&
+        prev.token.text.toLowerCase() === "for"
+      ) {
+        applyPositionalRole(index, "pattern");
+        continue;
+      }
+      if (prev?.token.kind === "name") {
+        const beforePrev = previousSignificant(prev.index);
+        if (
+          beforePrev?.token.kind === "name" &&
+          beforePrev.token.text.toLowerCase() === "struct"
+        ) {
+          applyPositionalRole(index, "field-list");
+        }
+      }
+    }
+  }
+
+  function previousSignificant(
+    index: number,
+  ): { readonly index: number; readonly token: LexToken } | undefined {
+    let cursor = index - 1;
+    while (cursor >= 0 && lex[cursor]?.kind === "newline") {
+      cursor -= 1;
+    }
+    const token = cursor >= 0 ? lex[cursor] : undefined;
+    return token === undefined ? undefined : { index: cursor, token };
+  }
+
+  /** Tag `openIndex` and its depth-matched close bracket with `role`. */
+  function applyPositionalRole(openIndex: number, role: BracketRole): void {
+    roleByIndex.set(openIndex, role);
+    let depth = 1;
+    let index = openIndex + 1;
+    // Loop until the matching close brings `depth` back to 0 — a genuinely reachable exit hit
+    // by every properly-closed pattern/field-list bracket — or bail out early on `eof` for an
+    // unclosed one (`tokenize()` always appends a final `eof` token, so this always terminates).
+    while (depth > 0) {
+      const token = lex[index];
+      if (token?.kind === "lbracket") {
+        depth += 1;
+      } else if (token?.kind === "rbracket") {
+        depth -= 1;
+      } else if (token?.kind === "eof") {
+        return;
+      }
+      index += 1;
+    }
+    roleByIndex.set(index - 1, role);
+  }
+
+  // Comments live in the whitespace gaps `tokenize()` already skips; scan those gaps only, so
+  // string/name/number/operator tokens are never re-inspected (atomicity, spec/tooling.md:25-26).
+  const comments = collectComments(source, document, lex);
+
+  const mergedAway = new Set<number>();
+  for (const startIndex of negativeMergeStarts) {
+    mergedAway.add(startIndex + 1);
+  }
+
+  function classifyName(index: number, token: ContentToken): Token {
+    if (dictKeyIndexes.has(index)) {
+      return {
+        class: "dict-key",
+        text: token.text,
+        source_span: token.source_span,
+      };
+    }
+    if (contextualKeywordIndexes.has(index)) {
+      return {
+        class: "keyword",
+        text: token.text,
+        source_span: token.source_span,
+      };
+    }
+    const lower = token.text.toLowerCase();
+    if (WORD_OPERATORS.has(lower)) {
+      return {
+        class: "operator",
+        text: token.text,
+        source_span: token.source_span,
+      };
+    }
+    if (isReservedWord(lower)) {
+      return {
+        class: "keyword",
+        text: token.text,
+        source_span: token.source_span,
+      };
+    }
+    return {
+      class: "primitive",
+      text: token.text,
+      source_span: token.source_span,
+    };
+  }
+
+  function withRole(base: Token, role: BracketRole | undefined): Token {
+    return role === undefined ? base : { ...base, role };
+  }
+
+  function classifyToken(index: number, token: ContentToken): Token {
+    if (negativeMergeStarts.has(index)) {
+      const numberToken = lex[index + 1] as LexToken;
+      return {
+        class: "number",
+        text: token.text + numberToken.text,
+        source_span: makeSpan(
+          document,
+          token.source_span.start,
+          numberToken.source_span.end,
+        ),
+      };
+    }
+    switch (token.kind) {
+      case "number":
+        return {
+          class: "number",
+          text: token.text,
+          source_span: token.source_span,
+        };
+      case "word":
+        return {
+          class: "word/string",
+          text: token.text,
+          source_span: token.source_span,
+        };
+      case "variable":
+        return {
+          class: ":variable",
+          text: token.text,
+          source_span: token.source_span,
+        };
+      case "lbrace":
+      case "rbrace":
+        return {
+          class: "brace",
+          text: token.text,
+          source_span: token.source_span,
+        };
+      case "lparen":
+      case "rparen":
+        return {
+          class: "paren",
+          text: token.text,
+          source_span: token.source_span,
+        };
+      case "dot":
+        return {
+          class: "index/dot",
+          text: token.text,
+          source_span: token.source_span,
+        };
+      case "op":
+        return {
+          class: "operator",
+          text: token.text,
+          source_span: token.source_span,
+        };
+      case "lbracket":
+      case "rbracket": {
+        const role = roleByIndex.get(index);
+        const base: Token =
+          role === "selector"
+            ? {
+                class: "index/dot",
+                text: token.text,
+                source_span: token.source_span,
+              }
+            : {
+                class: "bracket",
+                text: token.text,
+                source_span: token.source_span,
+              };
+        return withRole(base, role);
+      }
+      case "name":
+        return classifyName(index, token);
+    }
+  }
+
+  const output: Token[] = [];
+  let commentCursor = 0;
+  // `tokenize()` always appends a synthetic `eof` token positioned at the true end of the
+  // source (`tokens.ts`), so every comment's start position is at/before the final loop
+  // iteration's `eof` token — the flush below always drains `comments` before the loop ends;
+  // there is no leftover to flush afterwards.
+  for (let index = 0; index < lex.length; index += 1) {
+    const token = lex[index] as LexToken;
+    while (
+      commentCursor < comments.length &&
+      isAtOrBefore(
+        (comments[commentCursor] as Token).source_span.start,
+        token.source_span.start,
+      )
+    ) {
+      output.push(comments[commentCursor] as Token);
+      commentCursor += 1;
+    }
+    if (!isContentToken(token) || mergedAway.has(index)) {
+      continue;
+    }
+    output.push(classifyToken(index, token));
+  }
+  return output;
+}
+
+/**
+ * Comments are pure whitespace to {@link tokenize} (`tokens.ts` skips `#`, `//`, and `/* ... *\/`
+ * without pushing a token or preserving their span/text anywhere) — by design, not oversight, so
+ * there is no comment data for `highlight` to "reuse" from the token stream. Recovering them is
+ * therefore necessarily a second scan, but a narrow one: it only walks the gaps *between*
+ * consecutive real tokens (any *successfully* tokenized content is never part of a gap) and only
+ * ever recognizes comment *start* markers (`#`, `//`, `/*`) plus their close, using the exact same
+ * marker rules and line/column bookkeeping {@link tokenize} itself uses (see
+ * {@link buildOffsetIndex}). It never re-tokenizes or re-classifies a string, name, number,
+ * bracket, or operator — those all still come from `lex`. The one caveat is an *unclosed*
+ * `"..."`/`"""..."""` string: `tokenize` still consumes its characters but pushes no `word` token
+ * for it (`tokens.ts`'s `"` branch only calls `push` when `closed` is true), so that content can
+ * land inside a gap too — `scanGap` below bails out the moment it sees a bare `"`, since that can
+ * only mean failed string content, never a real comment. Teaching {@link tokenize} itself to
+ * preserve comment (and unclosed-string) trivia would remove this scan entirely, but that is a
+ * shared, cross-cutting change to the lexer (used by the parser, runtime, and checker) outside
+ * this issue's declared write-set — left as a follow-up, not bundled here.
+ */
+function collectComments(
+  source: string,
+  document: string,
+  lex: readonly LexToken[],
+): Token[] {
+  const chars = [...source];
+  const offsetOf = buildOffsetIndex(chars);
+  const comments: Token[] = [];
+  let previousEnd: Position = [1, 1];
+  for (const token of lex) {
+    scanGap(previousEnd, token.source_span.start);
+    previousEnd = token.source_span.end;
+  }
+  return comments;
+
+  function scanGap(from: Position, to: Position): void {
+    const startOffset = offsetOf.get(posKey(from));
+    const endOffset = offsetOf.get(posKey(to));
+    if (
+      startOffset === undefined ||
+      endOffset === undefined ||
+      startOffset >= endOffset
+    ) {
+      return;
+    }
+    let index = startOffset;
+    let line = from[0];
+    let column = from[1];
+    // Every call site below only ever invokes `advanceOne` while `index` still addresses a real
+    // character: either `index < endOffset` (and `endOffset` is itself a real offset into
+    // `chars`) is checked first, or (for the 2-character `/*`/`*/` delimiters) the position was
+    // already read as a real, non-`undefined` character just before advancing past it.
+    const advanceOne = (): string => {
+      const ch = chars[index] as string;
+      index += 1;
+      if (ch === "\n") {
+        line += 1;
+        column = 1;
+      } else {
+        column += 1;
+      }
+      return ch;
+    };
+    while (index < endOffset) {
+      const ch = chars[index];
+      // An unclosed `"..."` or `"""..."""` string is consumed by `tokenize` (advancing its
+      // cursor) without ever pushing a `word` token (`tokens.ts`'s `"` branch only calls `push`
+      // when `closed` is true) — so its content silently lands inside a "gap" here too, breaking
+      // the "a gap holds only whitespace/comments" invariant. A bare `"` can only appear in a gap
+      // for this reason (any successfully closed string IS a real token, so its span is never
+      // part of a gap), so once one is seen the remainder of this gap is unclassifiable failed
+      // string content, not comments — stop scanning it immediately rather than risk misreading
+      // e.g. a `#`/`//` inside it as a real comment.
+      if (ch === '"') {
+        return;
+      }
+      if (ch === "#" || (ch === "/" && chars[index + 1] === "/")) {
+        const start: Position = [line, column];
+        let text = "";
+        while (index < endOffset && chars[index] !== "\n") {
+          text += advanceOne();
+        }
+        comments.push({
+          class: "comment",
+          text,
+          source_span: makeSpan(document, start, [line, column]),
+        });
+        continue;
+      }
+      if (ch === "/" && chars[index + 1] === "*") {
+        const start: Position = [line, column];
+        let text = advanceOne() + advanceOne();
+        while (
+          index < endOffset &&
+          !(chars[index] === "*" && chars[index + 1] === "/")
+        ) {
+          text += advanceOne();
+        }
+        if (index < endOffset) {
+          text += advanceOne();
+          text += advanceOne();
+        }
+        comments.push({
+          class: "comment",
+          text,
+          source_span: makeSpan(document, start, [line, column]),
+        });
+        continue;
+      }
+      advanceOne();
+    }
+  }
+}
+
+/** Map every `[line, column]` position in `chars` to its code-point offset, mirroring the
+ * exact `advance()` line/column bookkeeping {@link tokenize} uses (so gap lookups always hit). */
+function buildOffsetIndex(chars: readonly string[]): Map<string, number> {
+  const map = new Map<string, number>();
+  let line = 1;
+  let column = 1;
+  for (let index = 0; index <= chars.length; index += 1) {
+    map.set(posKey([line, column]), index);
+    if (index === chars.length) {
+      break;
+    }
+    const ch = chars[index];
+    if (ch === "\n") {
+      line += 1;
+      column = 1;
+    } else {
+      column += 1;
+    }
+  }
+  return map;
 }
