@@ -1,0 +1,56 @@
+{
+  "description": "`:count = 1` creates a global binding (no prior binding exists — assignment to an unbound name never fails, it creates one in the root frame); `set count to :count + 1` then mutates that same binding via the `set … to` spelling, reading it back through `:count` (issue #94).",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/assign-create-global",
+        "start": [1, 1],
+        "end": [1, 11]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/assign-create-global",
+        "start": [2, 1],
+        "end": [2, 24]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/assign-create-global",
+        "start": [3, 1],
+        "end": [3, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/assign-create-global",
+        "start": [3, 1],
+        "end": [3, 13]
+      },
+      "payload": {
+        "values": [2]
+      }
+    }
+  ],
+  "diagnostics": []
+}

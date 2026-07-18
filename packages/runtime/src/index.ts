@@ -24,17 +24,29 @@ import type {
 } from "@openlogo/core";
 import type { CallNode, ParenCallNode, StatementNode } from "@openlogo/parser";
 import { parse } from "@openlogo/parser";
-import { evaluate, isSupportedExpression } from "./evaluate.js";
+import {
+  createEnvironment,
+  evaluate,
+  executeAssign,
+  isSupportedExpression,
+} from "./evaluate.js";
 import { runtimeDiag } from "./errors.js";
 
 export {
+  createEnvironment,
   evaluate,
+  executeAssign,
   formatNumber,
   isSupportedExpression,
   printedForm,
   valuesEqual,
 } from "./evaluate.js";
-export type { EvalResult } from "./evaluate.js";
+export type {
+  AssignResult,
+  EvalResult,
+  Environment,
+  Frame,
+} from "./evaluate.js";
 
 /** Marker export so the M0 skeleton is a real ES module; kept alongside the real exports. */
 export const RUNTIME_PACKAGE = "@openlogo/runtime";
@@ -78,22 +90,33 @@ function isPrintCall(
  * program is not execution-valid, so no events are emitted and the parse diagnostics are
  * returned unchanged.
  *
+ * A single root {@link Environment} (issue #94) is created once per `execute()` call and threaded
+ * through every statement, so an assignment in one statement is visible to every later read in
+ * the same program (`spec/execution-model.md:316-327`) — procedure call frames land with #97.
+ *
+ * An `Assign` statement (`:place = value`, `set place to value`) is executed via
+ * {@link executeAssign}; it never emits its own event (there is no dedicated event kind for
+ * assignment in the trace/event registry) but a failure — `ol-not-a-place` for a reporter/call
+ * target, or a diagnostic propagated from evaluating the value/an intermediate postfix segment —
+ * stops execution exactly like a print failure does. A `.field`-bearing target is Data-profile
+ * and deferred: `executeAssign` leaves it silently un-executed rather than raising.
+ *
  * A `print` statement (`print value` or the parenthesized variadic `(print a b …)`) additionally
  * evaluates every operand, left to right, and — once all of them evaluate cleanly — emits a
  * `print` event carrying every value, but only when {@link isSupportedExpression} says this
  * issue's evaluator gives *each* operand a value; otherwise the whole statement is left
- * un-evaluated for a future slice (e.g. `print :x` — variable reads land with issue #94). A
- * zero-argument `print`/`(print)` raises `ol-not-enough-inputs` (issue #98): `execute()` runs
- * `parse()` only, so the semantic checker's static arity rule — which cannot itself catch an
- * open-variadic parenthesized under-supply, `packages/parser/src/checker-arity.ts` — never runs
- * here, and this is the only guard against silently treating a callee-only `print` as a no-op.
- * If evaluating an operand raises a runtime diagnostic (`ol-div-zero`, `ol-neg-sqrt`, `ol-type`),
- * execution stops there: the events emitted so far are kept and the diagnostic is returned,
- * exactly as a parse-stage failure returns diagnostics instead of a trace — later operands of
- * that same `print` are never evaluated. Statement kinds this issue does not give meaning to
- * (e.g. a bare arithmetic expression, or any command other than `print`) still emit their
- * `instruction` event but do not evaluate — that is each statement kind's own future slice to
- * add.
+ * un-evaluated for a future slice (e.g. `print :ages.tom` — dotted-field reads land with the
+ * Data profile). A zero-argument `print`/`(print)` raises `ol-not-enough-inputs` (issue #98):
+ * `execute()` runs `parse()` only, so the semantic checker's static arity rule — which cannot
+ * itself catch an open-variadic parenthesized under-supply, `packages/parser/src/checker-arity.ts`
+ * — never runs here, and this is the only guard against silently treating a callee-only `print`
+ * as a no-op. If evaluating an operand raises a runtime diagnostic (`ol-div-zero`, `ol-neg-sqrt`,
+ * `ol-type`, `ol-undefined-var`, `ol-range`), execution stops there: the events emitted so far are
+ * kept and the diagnostic is returned, exactly as a parse-stage failure returns diagnostics
+ * instead of a trace — later operands of that same `print` are never evaluated. Statement kinds
+ * this issue does not give meaning to (e.g. a bare arithmetic expression, or any command other
+ * than `print`) still emit their `instruction` event but do not evaluate — that is each statement
+ * kind's own future slice to add.
  */
 export function execute(source: string, document: string): ExecuteResult {
   const { ast: program, diagnostics } = parse(source, document);
@@ -101,6 +124,7 @@ export function execute(source: string, document: string): ExecuteResult {
     return { events: [], diagnostics };
   }
 
+  const env = createEnvironment();
   const events: TraceEvent[] = [];
   for (const statement of program.body) {
     events.push({
@@ -109,6 +133,14 @@ export function execute(source: string, document: string): ExecuteResult {
       source_span: statement.source_span,
       payload: { statement_kind: statement.kind } satisfies InstructionPayload,
     });
+
+    if (statement.kind === "Assign") {
+      const result = executeAssign(statement, env);
+      if (!result.ok) {
+        return { events, diagnostics: [result.diagnostic] };
+      }
+      continue;
+    }
 
     if (isPrintCall(statement)) {
       if (statement.args.length === 0) {
@@ -123,14 +155,14 @@ export function execute(source: string, document: string): ExecuteResult {
         };
       }
       // Only evaluate a `print` whose every operand is an expression kind this issue's
-      // evaluator gives meaning to (Core literals and arithmetic). `print :x`,
-      // `(print 1 :a)`, and similar still emit their `instruction` event but are left
+      // evaluator gives meaning to (Core literals, arithmetic, variable/place reads).
+      // `(print 1 :ages.tom)` and similar still emit their `instruction` event but are left
       // un-evaluated for the slice that implements the unsupported operand's expression kind.
       if (statement.args.every(isSupportedExpression)) {
         const values: OLValue[] = [];
         let failure: Diagnostic | undefined;
         for (const arg of statement.args) {
-          const result = evaluate(arg);
+          const result = evaluate(arg, env);
           if (!result.ok) {
             failure = result.diagnostic;
             break;

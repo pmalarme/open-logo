@@ -1,0 +1,44 @@
+{
+  "description": "`:nums[2]` reads the 1-based second element of a list place (issue #94's Core-scope postfix index selector, spec/execution-model.md:229-291).",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/index-read",
+        "start": [1, 1],
+        "end": [1, 19]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/index-read",
+        "start": [2, 1],
+        "end": [2, 15]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/index-read",
+        "start": [2, 1],
+        "end": [2, 15]
+      },
+      "payload": {
+        "values": [20]
+      }
+    }
+  ],
+  "diagnostics": []
+}

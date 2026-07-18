@@ -1,0 +1,2 @@
+:size = 50
+print :size

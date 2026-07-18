@@ -1,5 +1,7 @@
 // Unit tests for the expression evaluator — Core literals and arithmetic (`+ - * / mod` plus
 // `abs sqrt int round power`) per spec/execution-model.md and spec/commands.md (issue #93).
+// `isSupportedExpression`'s gate is extended for `:name` reads and index-only places by issue
+// #94; see variables-places.test.mjs for the dedicated variable/place/assignment test suite.
 // Most cases parse real source through @openlogo/parser and evaluate the resulting AST node,
 // exercising evaluate() exactly as @openlogo/runtime's execute() does. A handful of cases hand-
 // build a minimal AST node to exercise evaluator-internal invariants (an unimplemented node
@@ -194,27 +196,39 @@ test("raises ol-type when power's base or exponent is not a number", () => {
 
 const span = makeSpan(doc, [1, 1], [1, 1]);
 
-test("isSupportedExpression accepts every literal and arithmetic shape this issue implements", () => {
+test("isSupportedExpression accepts every literal, arithmetic, and place-read shape this issue implements", () => {
   assert.equal(isSupportedExpression(parseExpr("42")), true);
   assert.equal(isSupportedExpression(parseExpr('"red"')), true);
   assert.equal(isSupportedExpression(parseExpr("true")), true);
   assert.equal(isSupportedExpression(parseExpr("[1 2 3]")), true);
   assert.equal(isSupportedExpression(parseExpr("2 + 3 * 4")), true);
   assert.equal(isSupportedExpression(parseExpr("sqrt (power 2 3)")), true);
+  assert.equal(isSupportedExpression(parseExpr(":x")), true);
+  assert.equal(isSupportedExpression(parseExpr('thing "x"')), true);
+  assert.equal(isSupportedExpression(parseExpr(":nums[1]")), true);
+  assert.equal(isSupportedExpression(parseExpr(":nums[:i]")), true);
 });
 
 test("isSupportedExpression rejects expression kinds and callees this issue does not implement", () => {
-  assert.equal(isSupportedExpression(parseExpr(":x")), false);
+  // A dotted `.field` place segment is Data/record-profile and deferred (issue #94 covers only
+  // the `index` selector); a bare variable read (`:x`) and an `index`-only place are supported.
+  assert.equal(isSupportedExpression(parseExpr(":ages.tom")), false);
   assert.equal(isSupportedExpression(parseExpr("(forward 100)")), false);
   // A list containing an unsupported element is itself unsupported.
-  assert.equal(isSupportedExpression(parseExpr("[1 :x]")), false);
+  assert.equal(isSupportedExpression(parseExpr("[1 :ages.tom]")), false);
   // An arithmetic call with an unsupported operand is itself unsupported.
-  assert.equal(isSupportedExpression(parseExpr("1 + :x")), false);
+  assert.equal(isSupportedExpression(parseExpr("1 + :ages.tom")), false);
+  // A node kind this issue's evaluator does not implement yet falls through the switch's
+  // `default` branch — a real parse never produces one of these at expression position.
+  assert.equal(
+    isSupportedExpression({ kind: "IsPredicate", source_span: span }),
+    false,
+  );
 });
 
 test("throws for an expression node kind this issue does not implement yet", () => {
-  const varRef = { kind: "VarRef", source_span: span, name: "x" };
-  assert.throws(() => evaluate(varRef), /VarRef.*not implemented/);
+  const isPredicate = { kind: "IsPredicate", source_span: span };
+  assert.throws(() => evaluate(isPredicate), /IsPredicate.*not implemented/);
 });
 
 test("throws for a call to a callee this issue does not implement yet", () => {

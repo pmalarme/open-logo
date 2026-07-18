@@ -1,0 +1,48 @@
+{
+  "description": "`:nums[5]` indexes past the end of a 3-element list, raising `ol-range` (issue #94); execution halts before the `print` event is emitted.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/range-error",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/range-error",
+        "start": [2, 1],
+        "end": [2, 15]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-range",
+      "source_span": {
+        "document": "core-language/execution/range-error",
+        "start": [2, 12],
+        "end": [2, 15]
+      },
+      "params": {
+        "operation": "index",
+        "index": 5,
+        "length": 3
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

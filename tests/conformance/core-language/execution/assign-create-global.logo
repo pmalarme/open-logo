@@ -1,0 +1,3 @@
+:count = 1
+set count to :count + 1
+print :count

@@ -1,0 +1,34 @@
+{
+  "description": "Reading an unbound `:missing` raises `ol-undefined-var` (issue #94, params `{ name }`); execution halts at the failing statement so only its `instruction` event is kept.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/undefined-var",
+        "start": [1, 1],
+        "end": [1, 15]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "core-language/execution/undefined-var",
+        "start": [1, 7],
+        "end": [1, 15]
+      },
+      "params": {
+        "name": "missing"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}
