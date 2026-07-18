@@ -12,6 +12,7 @@ import {
   OL_STYLE_DIAGNOSTIC_CODES,
 } from "@openlogo/core";
 import { parse } from "@openlogo/parser";
+import { execute } from "@openlogo/runtime";
 
 export const ROOT = "tests/conformance";
 export const EXPECTED_SUFFIX = ".expected.json";
@@ -160,10 +161,18 @@ export function loadFixture(fixture) {
     // message is optional (prose, not identity)
   }
 
+  // "execute" is an opt-in flag (default false): only fixtures that opt in get their AST
+  // executed via @openlogo/runtime; every other fixture stays parse-only (per issue #90 — the
+  // parse-focused corpus is not all execution-valid, so execution must never run by default).
+  if (spec.execute !== undefined && typeof spec.execute !== "boolean") {
+    return { error: `"execute" must be a boolean when present` };
+  }
+
   const expected = {
     description: spec.description ?? "",
     profiles: spec.profiles,
     expect: spec.expect ?? "match",
+    execute: spec.execute ?? false,
     events: spec.events,
     diagnostics: spec.diagnostics,
   };
@@ -222,25 +231,31 @@ export function validateDiagnostics(diagnostics) {
 }
 
 /**
- * Execute source and collect the output. For M1, this calls the parser to collect diagnostics.
- * When the runtime lands, this will also execute and collect trace events.
+ * Execute source and collect the output.
  *
- * Note: Parser diagnostics already use `source_span` (underscore), which matches the fixture
- * contract per ADR-0007 and tests/conformance/README.md. Events will use `source-span` (hyphen)
- * when the runtime lands. No conversion needed at this stage.
+ * When `shouldExecute` is false (the default), this is parse-only: it calls the parser and
+ * collects parse diagnostics, returning an empty event stream — the behavior every existing
+ * parse-focused fixture in the corpus relies on. When `shouldExecute` is true (a fixture opted
+ * in via `"execute": true`), it calls `@openlogo/runtime`'s `execute()` instead, which parses
+ * internally and also returns the trace/event stream produced by walking the AST.
  *
- * @param {string} source - The OpenLogo source code to parse.
+ * Wire shape: both parse diagnostics and runtime events/diagnostics already use `source_span`
+ * (underscore) — the one field-name convention this harness uses throughout, for both events
+ * and diagnostics (see tests/conformance/README.md). There is no separate wire conversion step.
+ *
+ * @param {string} source - The OpenLogo source code to parse (and, if opted in, execute).
  * @param {string} document - The document identifier (fixture path) for diagnostic source_span.
+ * @param {boolean} shouldExecute - Whether this fixture opted into execution (default false).
  */
-export function produce(source, document) {
-  const { diagnostics } = parse(source, document);
+export function produce(source, document, shouldExecute = false) {
+  const { events, diagnostics } = shouldExecute
+    ? execute(source, document)
+    : { events: [], ...parse(source, document) };
 
-  // Validate actual diagnostics conform to spec (spec/error-model.md:28-38 requires message)
+  // Validate actual diagnostics conform to spec (spec/error-model.md:28-38 requires message).
   validateDiagnostics(diagnostics);
 
-  // Parser diagnostics are already in the correct wire format (source_span with underscore).
-  // No events yet — runtime doesn't exist at M1.
-  return { events: [], diagnostics };
+  return { events, diagnostics };
 }
 
 /** Order-insensitive structural equality for the plain JSON values in a fixture. */
@@ -403,7 +418,10 @@ export function runHarness(options = {}) {
 
     // Document name for parser = fixture path without .expected.json suffix
     const document = fixture.name.replace(/\.expected\.json$/, "");
-    const result = compare(expected, produce(source, document));
+    const result = compare(
+      expected,
+      produce(source, document, expected.execute),
+    );
 
     // Use expect field to determine comparison polarity
     const expectMatch = expected.expect === "match";

@@ -1,0 +1,28 @@
+{
+  "description": "End-to-end execution smoke fixture (issue #90): a tiny 2-statement program opts into execution and asserts the generic `instruction` start event emitted before each top-level statement, proving parse -> execute -> event-capture -> compare works. `print`'s own runtime semantics (an actual `print` event) land with issue #98 — this fixture only proves the harness's execution plumbing.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/two-print-statements",
+        "start": [1, 1],
+        "end": [1, 8]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/two-print-statements",
+        "start": [2, 1],
+        "end": [2, 8]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": []
+}

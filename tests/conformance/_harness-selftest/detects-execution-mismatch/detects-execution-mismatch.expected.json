@@ -1,0 +1,19 @@
+{
+  "description": "Self-test: opts into execution (\"execute\": true) and asserts a `move` event for a program that only ever emits `instruction` events, so the harness must report a mismatch on the execution path too, not just the parse-only path. expect=mismatch turns correct detection into a pass.",
+  "expect": "mismatch",
+  "profiles": [],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "move",
+      "source_span": {
+        "document": "detects-execution-mismatch.logo",
+        "start": [1, 1],
+        "end": [1, 1]
+      },
+      "payload": { "from": [0, 0], "to": [0, 100], "heading": 0 }
+    }
+  ],
+  "diagnostics": []
+}
