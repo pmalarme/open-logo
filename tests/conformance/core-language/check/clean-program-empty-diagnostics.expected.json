@@ -1,0 +1,7 @@
+{
+  "description": "End-to-end check-mode smoke fixture (issue #116): a tiny valid Core program opts into semantic checking (\"check\": true) and asserts an empty semantic-diagnostics list, proving parse -> check -> compare round-trips and that a clean pass is representable/fixturable. No Layer-2 rule exists yet (this is infrastructure only, per epic #108), so every document currently checks clean — the six rule slices (#117/#111/#113/#114/#112/#115) will add fixtures that assert real findings.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

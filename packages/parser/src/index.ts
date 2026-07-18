@@ -59,6 +59,9 @@ export type {
 export { parse } from "./parser.js";
 export type { ParseResult } from "./parser.js";
 
+export { check, DEFAULT_CHECK_PROFILES, OL_CHECK_PROFILES } from "./check.js";
+export type { CheckOptions, CheckProfile, CheckResult } from "./check.js";
+
 export { isReservedWord, OL_RESERVED_WORDS } from "./reserved.js";
 export type { ReservedWord } from "./reserved.js";
 
