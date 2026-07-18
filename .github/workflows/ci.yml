@@ -87,3 +87,17 @@ jobs:
       - run: npm run -s examples
       # TODO(@devops + @testing): add integration and a11y/pedagogy gates as those
       # suites land (DoD sections 5-9); wire them here so they block merge.
+
+  coverage:
+    name: Test coverage (100%)
+    needs: meta
+    if: ${{ needs.meta.outputs.has_toolchain == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci
+      - run: npm run -s coverage

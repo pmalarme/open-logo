@@ -85,12 +85,15 @@ A change is done only when, for the artifacts it touches:
 1. It builds and type-checks (TypeScript 7).
 2. Lint passes (including OpenLogo style-lint rules where relevant).
 3. Unit tests pass.
-4. **Conformance fixtures pass** — behavior is proven by stack-neutral `source → events/
+4. **Test coverage is 100%** — line, branch, and function coverage for all delivered code (enforced
+   by `npm run coverage`; only files loaded by tests are counted, so stub packages with no runtime
+   yet don't drag the number down — but any shipped code must be fully covered).
+5. **Conformance fixtures pass** — behavior is proven by stack-neutral `source → events/
    diagnostics` fixtures under `tests/conformance/`, extended for the new feature.
-5. Runnable `spec/examples/*.logo` and doc examples still parse and run.
-6. Accessibility and pedagogy checks pass where applicable (see §8–9).
-7. Docs and spec cross-links are updated in the same PR (no drift).
-8. **In-session self-review has passed** — before opening the PR the implementing agent ran the
+6. Runnable `spec/examples/*.logo` and doc examples still parse and run.
+7. Accessibility and pedagogy checks pass where applicable (see §8–9).
+8. Docs and spec cross-links are updated in the same PR (no drift).
+9. **In-session self-review has passed** — before opening the PR the implementing agent ran the
    [`shared/review-gate`](../skills/shared/review-gate/SKILL.md) checklist by dispatching **at least two
    non-author sub-agents** — the logic/spec reviewer (`rubber-duck`, or a named fallback when its model
    precondition isn't met) and **every** domain-adaptive **QA** expert (`@testing` and/or the changed

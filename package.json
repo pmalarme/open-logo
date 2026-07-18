@@ -19,6 +19,8 @@
     "format:check": "prettier --check .",
     "pretest": "npm run -s build",
     "test": "node --test",
+    "precoverage": "npm run -s build",
+    "coverage": "node --test --experimental-test-coverage --test-coverage-lines=100 --test-coverage-branches=100 --test-coverage-functions=100",
     "preconformance": "npm run -s build",
     "conformance": "node scripts/conformance.mjs",
     "examples": "node scripts/check-examples.mjs",

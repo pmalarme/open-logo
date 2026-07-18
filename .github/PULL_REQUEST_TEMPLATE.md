@@ -31,6 +31,7 @@ are serialized one PR at a time.
 - [ ] Builds and type-checks (TypeScript 7)
 - [ ] Lint + format pass (incl. OpenLogo style-lint where relevant)
 - [ ] Unit tests pass
+- [ ] Test coverage is 100% (line/branch/function — enforced by `npm run coverage`)
 - [ ] Conformance fixtures pass (extended for this feature)
 - [ ] Runnable `spec/examples/*.logo` and doc examples still parse and run
 - [ ] Accessibility / pedagogy checks pass where applicable
