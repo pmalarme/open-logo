@@ -1,0 +1,7 @@
+{
+  "description": "ol-unknown-type (issue #112): a worded `is a <type-word>` predicate naming a built-in Core type (number/word/list/boolean from spec/execution-model.md's type table) resolves and stays clean — the checker must not flag well-formed type predicates. Confirms the positive path of the type-word resolution rule.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

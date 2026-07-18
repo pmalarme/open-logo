@@ -19,6 +19,7 @@
 import type { Diagnostic } from "@openlogo/core";
 import type { ProgramNode } from "./ast.js";
 import { unknownCommandRule } from "./checker-unknown-command.js";
+import { unknownTypeRule } from "./checker-type-field.js";
 
 /**
  * Every OpenLogo conformance profile identifier from the spec's dependency DAG
@@ -84,7 +85,7 @@ type CheckRule = (
  * The ordered rule registry. Order is the order findings are reported in; a rule slice adds its
  * module and one entry here — see the module doc comment above.
  */
-const RULES: readonly CheckRule[] = [unknownCommandRule];
+const RULES: readonly CheckRule[] = [unknownCommandRule, unknownTypeRule];
 
 /** Dispatches `program`/`profiles` to every registered rule and concatenates their findings. */
 function findings(

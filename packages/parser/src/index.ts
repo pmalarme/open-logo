@@ -62,6 +62,9 @@ export type { ParseResult } from "./parser.js";
 export { check, DEFAULT_CHECK_PROFILES, OL_CHECK_PROFILES } from "./check.js";
 export type { CheckOptions, CheckProfile, CheckResult } from "./check.js";
 
+export { resolveRecordField } from "./checker-type-field.js";
+export type { RecordFieldAccess } from "./checker-type-field.js";
+
 export { isReservedWord, OL_RESERVED_WORDS } from "./reserved.js";
 export type { ReservedWord } from "./reserved.js";
 
