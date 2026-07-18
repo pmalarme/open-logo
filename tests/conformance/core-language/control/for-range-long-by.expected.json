@@ -1,0 +1,6 @@
+{
+  "description": "Core `for ... from ... to ... by` long `... end` form with a bare `end` (no label) parses with no diagnostics.",
+  "profiles": ["core-language"],
+  "events": [],
+  "diagnostics": []
+}

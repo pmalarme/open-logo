@@ -1,0 +1,6 @@
+{
+  "description": "Core `if` long `... end` form with only a then-body and a bare `end` (no label) parses with no diagnostics.",
+  "profiles": ["core-language"],
+  "events": [],
+  "diagnostics": []
+}

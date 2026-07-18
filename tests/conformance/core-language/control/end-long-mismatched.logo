@@ -1,0 +1,5 @@
+# Negative: a `repeat` long block closed with the wrong end label (`end while` instead of
+# `end repeat`) raises `ol-mismatched-end` at parse stage.
+repeat 3
+  print 1
+end while

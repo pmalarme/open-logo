@@ -1,0 +1,4 @@
+# Core `for ... from ... to ... by` long `... end` form with a bare `end` (no label).
+for i from 1 to 10 by 2
+  print :i
+end

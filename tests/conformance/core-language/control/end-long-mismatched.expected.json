@@ -1,0 +1,18 @@
+{
+  "description": "A `repeat` long block closed with a mismatched end label (`end while` instead of `end repeat`) raises `ol-mismatched-end` at parse stage.",
+  "profiles": ["core-language"],
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-mismatched-end",
+      "source_span": {
+        "document": "core-language/control/end-long-mismatched",
+        "start": [5, 5],
+        "end": [5, 10]
+      },
+      "params": { "expected": "repeat", "actual": "while" },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

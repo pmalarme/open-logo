@@ -1,0 +1,4 @@
+# Core `if` long `... end` form with only a then-body and a bare `end` (no label).
+if :x > 0
+  print 1
+end
