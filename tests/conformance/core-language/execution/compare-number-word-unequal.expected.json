@@ -1,0 +1,28 @@
+{
+  "description": "Number\u2194word equality is by the number's printed form, not by re-parsing the word: `5 == \"05\"` is `false` because `5` prints as `\"5\"`, not `\"05\"` (spec/execution-model.md:498-500). Issue #96.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/compare-number-word-unequal",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/compare-number-word-unequal",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": { "value": false }
+    }
+  ],
+  "diagnostics": []
+}

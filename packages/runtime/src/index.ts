@@ -26,7 +26,7 @@ import type {
 import { parse } from "@openlogo/parser";
 import { evaluate, isSupportedExpression } from "./evaluate.js";
 
-export { evaluate, isSupportedExpression } from "./evaluate.js";
+export { evaluate, isSupportedExpression, valuesEqual } from "./evaluate.js";
 export type { EvalResult } from "./evaluate.js";
 
 /** Marker export so the M0 skeleton is a real ES module; kept alongside the real exports. */

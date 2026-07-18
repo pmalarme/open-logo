@@ -34,6 +34,20 @@ export interface ArithmeticTypeErrorParams {
   readonly operation: string;
 }
 
+/**
+ * Params for an `ol-type` raised by an ordering comparison (`< > <= >=`). Same shape as
+ * {@link ArithmeticTypeErrorParams}, but `expected` widens to the ordering concepts: a mismatched
+ * operand names the other operand's concept (`"number"`/`"word"`), and a wholly non-orderable
+ * operand (boolean/list) names `"number or word"` — the two categories ordering is defined for
+ * (`spec/execution-model.md:508-510`).
+ */
+export interface OrderingTypeErrorParams {
+  readonly expected: "number" | "word" | "number or word";
+  readonly actual: string;
+  readonly value: OLValue;
+  readonly operation: string;
+}
+
 /** Runtime-stage diagnostics, one builder per `ol-*` code the evaluator can raise. */
 export const runtimeDiag = {
   divZero(source_span: SourceSpan, operation: "/" | "mod"): Diagnostic {
@@ -57,6 +71,18 @@ export const runtimeDiag = {
   typeMismatch(
     source_span: SourceSpan,
     params: ArithmeticTypeErrorParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-type",
+      source_span,
+      { ...params },
+      `${params.operation} needs a ${params.expected}, but got a ${params.actual}.`,
+    );
+  },
+
+  orderingType(
+    source_span: SourceSpan,
+    params: OrderingTypeErrorParams,
   ): Diagnostic {
     return runtimeError(
       "ol-type",

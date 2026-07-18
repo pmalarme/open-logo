@@ -1,0 +1,28 @@
+{
+  "description": "A chained comparison `1 < 5 < 10` evaluates as `1 < 5 and 5 < 10` (spec/execution-model.md:146-147): both links hold, so the result is `true`. Issue #96.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/compare-chain-true",
+        "start": [1, 1],
+        "end": [1, 17]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/compare-chain-true",
+        "start": [1, 1],
+        "end": [1, 17]
+      },
+      "payload": { "value": true }
+    }
+  ],
+  "diagnostics": []
+}

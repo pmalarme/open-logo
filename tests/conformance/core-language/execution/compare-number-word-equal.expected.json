@@ -1,0 +1,28 @@
+{
+  "description": "`==` compares a number and a word by the number's canonical printed form (spec/execution-model.md:498-500): `5 == \"5\"` is `true` because `5` prints as `\"5\"`. The comparison evaluates cleanly to a boolean carried on the `print` event (issue #96).",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/compare-number-word-equal",
+        "start": [1, 1],
+        "end": [1, 15]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/compare-number-word-equal",
+        "start": [1, 1],
+        "end": [1, 15]
+      },
+      "payload": { "value": true }
+    }
+  ],
+  "diagnostics": []
+}
