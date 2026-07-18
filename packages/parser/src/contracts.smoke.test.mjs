@@ -12,7 +12,7 @@ test("parser AST factory builds spanned, immutable nodes and walks them", () => 
   assert.deepEqual(distance.source_span.end, [1, 12]);
 
   const program = OL.ast.program(
-    [OL.ast.call("forward", [distance], span)],
+    [OL.ast.call({ name: "forward", source_span: span }, [distance], span)],
     span,
   );
   assert.ok(OL.OL_NODE_KINDS.includes(program.kind));

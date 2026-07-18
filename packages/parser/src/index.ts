@@ -21,23 +21,32 @@ export type {
   BlockNode,
   BooleanLitNode,
   CallNode,
+  ComparisonChainNode,
   ComprehensionNode,
   ExpressionNode,
+  FieldSegment,
   ForeverNode,
   ForInNode,
   ForRangeNode,
   IfNode,
+  IsPredicateNode,
+  IsTest,
   ListLitNode,
+  LocalNode,
+  MapFilterComprehensionNode,
   NodeBase,
   NodeKind,
   NumberLitNode,
   ParenCallNode,
   PlaceNode,
+  PlaceSegment,
   ProcedureDefNode,
   ProcedureParam,
   ProgramNode,
+  ReduceComprehensionNode,
   RepeatNode,
   ReturnNode,
+  SpannedName,
   StatementNode,
   StopNode,
   ThrowNode,
@@ -53,7 +62,7 @@ export type { ParseResult } from "./parser.js";
 export { isReservedWord, OL_RESERVED_WORDS } from "./reserved.js";
 export type { ReservedWord } from "./reserved.js";
 
-export { CORE_PRIMITIVE_ARITY, corePrimitiveArity } from "./signatures.js";
+export { corePrimitiveArity } from "./signatures.js";
 
 export { OL_TOKEN_CLASSES } from "./highlight.js";
 export type { Token, TokenClass } from "./highlight.js";

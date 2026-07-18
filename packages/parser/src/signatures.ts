@@ -20,8 +20,12 @@
  * productions, not this table.
  */
 
-/** Default arity of each Core primitive, keyed by its canonical lowercase name. */
-export const CORE_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
+/**
+ * Default arity of each Core primitive, keyed by its canonical lowercase name. Kept module-
+ * private so the table is immutable from outside — callers read it only through the pure
+ * {@link corePrimitiveArity} lookup, never a mutable `Map` reference.
+ */
+const CORE_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
   // Variables and output.
   ["thing", 1],
   ["print", 1],

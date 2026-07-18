@@ -73,6 +73,24 @@ export const parseDiag = {
     );
   },
 
+  unmatchedBrace(span: SourceSpan, delimiter: "{" | "}"): Diagnostic {
+    return parseError(
+      "ol-unmatched-brace",
+      span,
+      { delimiter },
+      `this ${delimiter} doesn't have a matching brace, and core openlogo has no use for { }.`,
+    );
+  },
+
+  missingTerminator(span: SourceSpan, text: string): Diagnostic {
+    return parseError(
+      "ol-bad-token",
+      span,
+      { text },
+      `each instruction needs a new line of its own. i didn't expect ${text} to keep going on this line.`,
+    );
+  },
+
   missingEnd(span: SourceSpan, opener: string): Diagnostic {
     const hint = "wrap the body in [ ] or close it with end.";
     return parseError(

@@ -27,11 +27,15 @@ test("lexes integer, decimal, and exponent number forms", () => {
 });
 
 test("stops a number before a non-exponent letter or a trailing dot", () => {
-  // `1e` with no exponent digit: number 1, then the bare name `e`.
+  // `1e` with no exponent digit: number 1, then the bare name `e` — two statements on one line,
+  // which now trips the run-on terminator rule.
   let r = parse("print 1e");
-  assert.deepEqual(r.diagnostics, []);
+  assert.deepEqual(
+    r.diagnostics.map((d) => d.code),
+    ["ol-bad-token"],
+  );
   assert.equal(r.ast.body[0].args[0].value, 1);
-  assert.equal(r.ast.body[1].callee, "e");
+  assert.equal(r.ast.body[1].callee.name, "e");
 
   // `3.x`: the dot is not a decimal point (no digit follows), so it is a stray dot token.
   r = parse("print 3.x");
@@ -47,8 +51,8 @@ test("stops a number before a non-exponent letter or a trailing dot", () => {
 // --- Lexer: names and variables --------------------------------------------
 
 test("lexes names and variables with ? and ! suffixes", () => {
-  assert.equal(parse("empty? [1]").ast.body[0].callee, "empty?");
-  assert.equal(firstArg("print reset!").callee, "reset!");
+  assert.equal(parse("empty? [1]").ast.body[0].callee.name, "empty?");
+  assert.equal(firstArg("print reset!").callee.name, "reset!");
 
   const q = firstArg("print :done?");
   assert.equal(q.kind, "VarRef");
@@ -93,8 +97,19 @@ test("reports bad tokens for stray characters and a bare colon", () => {
 });
 
 test("lexes braces even though the core parser has no use for them", () => {
-  // `{` has no primary; `}` closes nothing — each becomes a bad-token during recovery.
-  assert.deepEqual(codesOf("{ }"), ["ol-bad-token", "ol-bad-token"]);
+  // `{`/`}` are Data-profile dict delimiters with no Core production; each is an unmatched brace.
+  assert.deepEqual(codesOf("{ }"), [
+    "ol-unmatched-brace",
+    "ol-unmatched-brace",
+  ]);
+});
+
+test("treats a CRLF as a single statement terminator", () => {
+  const r = parse("print 1\r\nprint 2");
+  assert.deepEqual(r.diagnostics, []);
+  assert.equal(r.ast.body.length, 2);
+  // The second statement is reported on line 2, so the CRLF advanced the line once.
+  assert.deepEqual(r.ast.body[1].source_span.start, [2, 1]);
 });
 
 // --- Expressions: operators and precedence ---------------------------------
@@ -103,23 +118,29 @@ test("parses every comparison operator", () => {
   for (const op of ["==", "!=", "<", ">", "<=", ">="]) {
     const e = firstArg(`print 1 ${op} 2`);
     assert.equal(e.kind, "Call");
-    assert.equal(e.callee, op);
+    assert.equal(e.callee.name, op);
     assert.equal(e.args[0].value, 1);
     assert.equal(e.args[1].value, 2);
   }
 });
 
 test("parses or, and, not, subtraction, division, and mod", () => {
-  assert.equal(firstArg("print true or false").callee, "or");
-  assert.equal(firstArg("print true and false").callee, "and");
-  assert.equal(firstArg("print not true").callee, "not");
-  assert.equal(firstArg("print 5 - 2").callee, "-");
-  assert.equal(firstArg("print 6 / 2").callee, "/");
-  assert.equal(firstArg("print 7 mod 3").callee, "mod");
+  assert.equal(firstArg("print true or false").callee.name, "or");
+  assert.equal(firstArg("print true and false").callee.name, "and");
+  assert.equal(firstArg("print not true").callee.name, "not");
+  assert.equal(firstArg("print 5 - 2").callee.name, "-");
+  assert.equal(firstArg("print 6 / 2").callee.name, "/");
+  assert.equal(firstArg("print 7 mod 3").callee.name, "mod");
 
   // or/and fold left as the chain grows.
-  assert.equal(firstArg("print true or false or true").args[0].callee, "or");
-  assert.equal(firstArg("print true and false and true").args[0].callee, "and");
+  assert.equal(
+    firstArg("print true or false or true").args[0].callee.name,
+    "or",
+  );
+  assert.equal(
+    firstArg("print true and false and true").args[0].callee.name,
+    "and",
+  );
 });
 
 test("reports the operand missing after an operator", () => {
@@ -135,16 +156,22 @@ test("reports the operand missing after an operator", () => {
   }
 });
 
-test("labels the unexpected token as line end, file end, or its text", () => {
+test("labels the unexpected token as line end, file end, or a delimiter", () => {
   assert.equal(parse(":x =\n5").diagnostics[0].params.text, "end of line");
   assert.equal(parse(":x =").diagnostics[0].params.text, "end of file");
-  assert.equal(parse(":x = ]").diagnostics[0].params.text, "]");
+  // A stray close bracket routes to its own unmatched-bracket code, not a bare bad-token.
+  assert.equal(parse(":x = ]").diagnostics[0].code, "ol-unmatched-bracket");
+  assert.equal(parse(":x = ]").diagnostics[0].params.delimiter, "]");
 });
 
 test("reads a stray leading minus that is not a negative literal", () => {
   // `-` followed by a non-number is the minus operator with nothing to bind to.
   assert.deepEqual(codesOf("print -"), ["ol-bad-token"]);
   assert.deepEqual(codesOf("print - true"), ["ol-bad-token"]);
+  // A gap between `-` and the numeral (`- 3`) is not adjacency, so it is not a negative literal.
+  assert.deepEqual(codesOf("print - 3"), ["ol-bad-token"]);
+  // Adjacent `-3` after a binary operator still reads as a negative literal.
+  assert.equal(firstArg("print 4 * -2").args[1].value, -2);
 });
 
 // --- Lists ------------------------------------------------------------------
@@ -164,7 +191,8 @@ test("reads list literals: flat, multiline, nested, and empty", () => {
 
 test("recovers inside a list: unmatched bracket and a stuck element", () => {
   assert.deepEqual(codesOf("print [1 2"), ["ol-unmatched-bracket"]);
-  assert.deepEqual(codesOf("print [1 )]"), ["ol-bad-token"]);
+  // A stray close paren inside a list is reported as an unmatched paren, then recovery continues.
+  assert.deepEqual(codesOf("print [1 )]"), ["ol-unmatched-paren"]);
 });
 
 // --- Parenthesized calls and groups ----------------------------------------
@@ -172,11 +200,30 @@ test("recovers inside a list: unmatched bracket and a stuck element", () => {
 test("parses parenthesized calls and grouped expressions", () => {
   const pc = firstArg("print (sentence 1 2 3)");
   assert.equal(pc.kind, "ParenCall");
-  assert.equal(pc.callee, "sentence");
+  assert.equal(pc.callee.name, "sentence");
   assert.equal(pc.args.length, 3);
 
-  assert.equal(firstArg("print (1 + 2)").callee, "+");
+  assert.equal(firstArg("print (1 + 2)").callee.name, "+");
   assert.equal(firstArg("print (sentence\n1\n2)").args.length, 2);
+});
+
+test("parses the variadic (and …) and (or …) parenthesized forms", () => {
+  const conj = firstArg("print (and true false true)");
+  assert.equal(conj.kind, "ParenCall");
+  assert.equal(conj.callee.name, "and");
+  assert.equal(conj.args.length, 3);
+
+  const disj = firstArg("print (or false true)");
+  assert.equal(disj.kind, "ParenCall");
+  assert.equal(disj.callee.name, "or");
+  assert.equal(disj.args.length, 2);
+
+  // The head keeps its own span so the checker can point at exactly `and`/`or`.
+  assert.deepEqual(conj.callee.source_span, {
+    document: doc,
+    start: [1, 8],
+    end: [1, 11],
+  });
 });
 
 test("a paren head that is a literal or keyword falls back to a group", () => {
@@ -193,13 +240,15 @@ test("a paren head that is a literal or keyword falls back to a group", () => {
   );
   // `not` is a non-primary keyword, so it is not a paren callee; the group wraps the unary.
   const grouped = firstArg("print (not true)");
-  assert.equal(grouped.callee, "not");
+  assert.equal(grouped.callee.name, "not");
 });
 
-test("reports an unmatched ( for calls and groups", () => {
+test("reports an empty group and an unmatched ( for calls and groups", () => {
   assert.deepEqual(codesOf("print (sentence 1 2"), ["ol-unmatched-paren"]);
   assert.deepEqual(codesOf("print (1 2"), ["ol-unmatched-paren"]);
-  assert.deepEqual(codesOf("print (sentence ] 1 2)"), ["ol-bad-token"]);
+  assert.deepEqual(codesOf("print (sentence ] 1 2)"), ["ol-unmatched-bracket"]);
+  // An empty group `( )` has no operand — flagged rather than silently vanishing.
+  assert.deepEqual(codesOf("print ( )"), ["ol-bad-token"]);
 });
 
 // --- Comprehensions ---------------------------------------------------------
@@ -208,7 +257,7 @@ test("parses map, filter, and reduce comprehensions", () => {
   let c = firstArg("print map x in [1 2 3] [ :x ]");
   assert.equal(c.kind, "Comprehension");
   assert.equal(c.form, "map");
-  assert.equal(c.binder, "x");
+  assert.equal(c.binder.name, "x");
   assert.equal(c.iterable.kind, "ListLit");
   assert.equal(c.accumulator, undefined);
   assert.equal(c.initial, undefined);
@@ -217,7 +266,8 @@ test("parses map, filter, and reduce comprehensions", () => {
 
   c = firstArg("print reduce acc x in [1 2 3] from 0 [ :acc ]");
   assert.equal(c.form, "reduce");
-  assert.equal(c.accumulator, "acc");
+  assert.equal(c.accumulator.name, "acc");
+  assert.equal(c.binder.name, "x");
   assert.equal(c.initial.value, 0);
 });
 
@@ -229,13 +279,128 @@ test("reports comprehension syntax errors", () => {
   assert.deepEqual(codesOf("print reduce acc x in [1]"), ["ol-bad-token"]); // missing `from`
   assert.deepEqual(codesOf("print reduce acc x in [1] from"), ["ol-bad-token"]); // seed missing
   assert.deepEqual(codesOf("print map x in [1]"), ["ol-missing-end"]); // no bracket body
+  assert.deepEqual(codesOf("print reduce a n in [1] from 0"), [
+    "ol-missing-end",
+  ]); // seed present, no bracket body
+});
+
+// --- `is` predicates --------------------------------------------------------
+
+test("parses the worded is-predicate family", () => {
+  assert.equal(firstArg("print :x is empty").test.form, "empty");
+
+  let p = firstArg("print :x is member of [1 2 3]");
+  assert.equal(p.kind, "IsPredicate");
+  assert.equal(p.test.form, "member-of");
+  assert.equal(p.test.collection.kind, "ListLit");
+
+  p = firstArg('print :x is a "number"');
+  assert.equal(p.test.form, "a");
+  assert.equal(p.test.type.value, "number");
+
+  p = firstArg("print :x is between 1 and 10");
+  assert.equal(p.test.form, "between");
+  assert.equal(p.test.strict, false);
+  assert.equal(p.test.low.value, 1);
+  assert.equal(p.test.high.value, 10);
+
+  p = firstArg("print :x is strictly between 1 and 10");
+  assert.equal(p.test.form, "between");
+  assert.equal(p.test.strict, true);
+
+  // The operand is preserved (and walked once) whichever predicate follows.
+  const r = parse("print :x is empty");
+  let places = 0;
+  OL.walk(r.ast, (n) => {
+    if (n.kind === "VarRef") places += 1;
+  });
+  assert.equal(places, 1);
+});
+
+test("reports malformed is-predicates on every branch", () => {
+  // Unknown word after `is`, and `is` at end of input.
+  assert.deepEqual(codesOf("print :x is wibble"), ["ol-bad-token"]);
+  assert.deepEqual(codesOf("print :x is"), ["ol-bad-token"]);
+  // `member` without `of`, and `member of` with no collection.
+  assert.deepEqual(codesOf("print :x is member 5"), ["ol-bad-token"]);
+  assert.deepEqual(codesOf("print :x is member of"), ["ol-bad-token"]);
+  // `a` without a type word.
+  assert.deepEqual(codesOf("print :x is a 5"), ["ol-bad-token"]);
+  // `strictly` without `between`.
+  assert.deepEqual(codesOf("print :x is strictly 1 and 10"), ["ol-bad-token"]);
+  // `between` with a missing low, missing `and`, or missing high.
+  assert.deepEqual(codesOf("print :x is between"), ["ol-bad-token"]);
+  assert.deepEqual(codesOf("print :x is between 1 10"), ["ol-bad-token"]);
+  assert.deepEqual(codesOf("print :x is between 1 and"), ["ol-bad-token"]);
+  // The operand is returned unchanged on error, so recovery keeps parsing.
+  const r = parse("print :x is wibble");
+  assert.equal(r.ast.body[0].callee.name, "print");
 });
 
 // --- Assignment -------------------------------------------------------------
 
 test("parses a bare variable and a comparison that both start with a colon var", () => {
   assert.equal(parse(":x\nprint 1").ast.body[0].kind, "VarRef");
-  assert.equal(parse(":x < 1").ast.body[0].callee, "<");
+  assert.equal(parse(":x < 1").ast.body[0].callee.name, "<");
+});
+
+test("parses dotted places for reads and both assignment forms", () => {
+  // A dotted read grows the bare variable into a Place with spanned field segments.
+  const read = firstArg("print :a.b.c");
+  assert.equal(read.kind, "Place");
+  assert.equal(read.base.name, "a");
+  assert.equal(read.segments.length, 2);
+  assert.equal(read.segments[0].kind, "field");
+  assert.equal(read.segments[0].name.name, "b");
+  assert.equal(read.segments[1].name.name, "c");
+  assert.deepEqual(read.segments[0].name.source_span, {
+    document: doc,
+    start: [1, 10],
+    end: [1, 11],
+  });
+
+  // A plain `:a` with no dot stays a bare VarRef.
+  assert.equal(firstArg("print :a").kind, "VarRef");
+
+  // Colon-assignment onto a dotted target.
+  let assign = parse(":a.b = 1").ast.body[0];
+  assert.equal(assign.kind, "Assign");
+  assert.equal(assign.form, "equals");
+  assert.equal(assign.place.base.name, "a");
+  assert.equal(assign.place.segments[0].name.name, "b");
+
+  // `set … to` onto a dotted target.
+  assign = parse("set a.b to 1").ast.body[0];
+  assert.equal(assign.form, "set");
+  assert.equal(assign.place.base.name, "a");
+  assert.equal(assign.place.segments.length, 1);
+  assert.equal(assign.place.segments[0].name.name, "b");
+});
+
+test("parses local declarations in bare and parenthesized forms", () => {
+  let local = parse("local total").ast.body[0];
+  assert.equal(local.kind, "Local");
+  assert.equal(local.names.length, 1);
+  assert.equal(local.names[0].name, "total");
+  assert.deepEqual(local.names[0].source_span, {
+    document: doc,
+    start: [1, 7],
+    end: [1, 12],
+  });
+
+  local = parse("(local a b c)").ast.body[0];
+  assert.equal(local.kind, "Local");
+  assert.deepEqual(
+    local.names.map((n) => n.name),
+    ["a", "b", "c"],
+  );
+});
+
+test("reports malformed local declarations", () => {
+  assert.deepEqual(codesOf("local 5"), ["ol-bad-token"]); // name not an identifier
+  assert.deepEqual(codesOf("local"), ["ol-bad-token"]); // missing name at eof
+  assert.deepEqual(codesOf("(local)"), ["ol-bad-token"]); // no names in the group
+  assert.deepEqual(codesOf("(local a"), ["ol-unmatched-paren"]); // group never closed
 });
 
 test("reports assignment errors for both forms", () => {
@@ -256,10 +421,17 @@ test("parses control forms with both bracket and long-block bodies", () => {
 
   // A matching label after `end` is accepted and consumed.
   assert.deepEqual(parse("repeat 2\n print 1\nend repeat").diagnostics, []);
-  // A non-label name after `end` starts a new statement instead.
+  // A label that names a different open block is reported (P4b).
+  assert.deepEqual(codesOf("repeat 1\n print 1\nend if"), [
+    "ol-mismatched-end",
+  ]);
+  // A non-label name after `end` starts a new statement, and the run-on is flagged.
   const after = parse("repeat 2\n print 1\nend foo");
-  assert.deepEqual(after.diagnostics, []);
-  assert.equal(after.ast.body[1].callee, "foo");
+  assert.deepEqual(
+    after.diagnostics.map((d) => d.code),
+    ["ol-bad-token"],
+  );
+  assert.equal(after.ast.body[1].callee.name, "foo");
 });
 
 test("reports missing end and missing bodies for control forms", () => {
@@ -273,13 +445,13 @@ test("reports missing end and missing bodies for control forms", () => {
 });
 
 test("recovers from a stray token inside bracket and long blocks", () => {
-  assert.deepEqual(codesOf("repeat 2 [ ) ]"), ["ol-bad-token"]);
-  assert.deepEqual(codesOf("while true\n )\nend"), ["ol-bad-token"]);
+  assert.deepEqual(codesOf("repeat 2 [ ) ]"), ["ol-unmatched-paren"]);
+  assert.deepEqual(codesOf("while true\n )\nend"), ["ol-unmatched-paren"]);
   // A bracket block (a control body, not a list) that is never closed.
   assert.deepEqual(codesOf("repeat 3 [ print 1"), ["ol-unmatched-bracket"]);
   // A stray token in each arm of a long-form if resynchronizes.
-  assert.deepEqual(codesOf("if 1\n )\nend"), ["ol-bad-token"]);
-  assert.deepEqual(codesOf("if 1\n a\nelse\n )\nend"), ["ol-bad-token"]);
+  assert.deepEqual(codesOf("if 1\n )\nend"), ["ol-unmatched-paren"]);
+  assert.deepEqual(codesOf("if 1\n a\nelse\n )\nend"), ["ol-unmatched-paren"]);
 });
 
 // --- if / else --------------------------------------------------------------
@@ -302,7 +474,8 @@ test("parses if in bracket and long-block shapes, with and without else", () => 
 
 test("reports malformed if statements", () => {
   assert.deepEqual(codesOf("if"), ["ol-bad-token"]); // condition missing
-  assert.deepEqual(codesOf("if 1 [ ] else foo"), ["ol-bad-token"]); // else not a block
+  // else head is not a block; the run-on `foo` is suppressed as a cascade of the same bad line.
+  assert.deepEqual(codesOf("if 1 [ ] else foo"), ["ol-bad-token"]);
   assert.deepEqual(codesOf("if 1 foo"), ["ol-missing-end"]); // no block after condition
   assert.deepEqual(codesOf("if 1\n print 1"), ["ol-missing-end"]); // then hits eof
   assert.deepEqual(codesOf("if 1\n print 1\nelse\n print 2"), [
@@ -318,21 +491,31 @@ test("parses procedure definitions with required and optional params", () => {
   let def = r.ast.body[0];
   assert.equal(def.kind, "ProcedureDef");
   assert.equal(def.params.length, 2);
-  assert.equal(def.params[0].name, "a");
-  assert.equal(def.params[1].name, "b");
+  assert.equal(def.params[0].name.name, "a");
+  assert.equal(def.params[1].name.name, "b");
+  // Required params carry their own span for the checker to point at.
+  assert.deepEqual(def.params[0].name.source_span, {
+    document: doc,
+    start: [1, 12],
+    end: [1, 14],
+  });
 
   r = parse('define greet :name ( :greeting "hi" )\n print :greeting\nend');
   def = r.ast.body[0];
   assert.equal(def.params.length, 2);
-  assert.equal(def.params[1].name, "greeting");
+  assert.equal(def.params[1].name.name, "greeting");
   assert.equal(def.params[1].defaultValue.value, "hi");
 });
 
 test("handles procedure header edge cases", () => {
-  // Optional param with no default value.
+  // An optional param with no default value is accepted but flagged (a default is required).
   let r = parse("define f ( :x )\n stop\nend");
-  assert.equal(r.ast.body[0].params[0].name, "x");
+  assert.equal(r.ast.body[0].params[0].name.name, "x");
   assert.equal(r.ast.body[0].params[0].defaultValue, undefined);
+  assert.deepEqual(
+    r.diagnostics.map((d) => d.code),
+    ["ol-bad-token"],
+  );
 
   // Unmatched paren around an optional param.
   assert.ok(
@@ -351,10 +534,13 @@ test("handles procedure header edge cases", () => {
   // Header without a following newline.
   assert.deepEqual(codesOf("define f :a"), ["ol-missing-end"]);
 
-  // A non-label name after the closing `end`.
+  // A non-label name after the closing `end` starts a new statement, and the run-on is flagged.
   r = parse("define f\n stop\nend g");
-  assert.deepEqual(r.diagnostics, []);
-  assert.equal(r.ast.body[1].callee, "g");
+  assert.deepEqual(
+    r.diagnostics.map((d) => d.code),
+    ["ol-bad-token"],
+  );
+  assert.equal(r.ast.body[1].callee.name, "g");
 });
 
 // --- return / stop / throw --------------------------------------------------
@@ -397,7 +583,7 @@ test("reports a stray end or else that closes nothing", () => {
 test("parses for-in and for-range loops", () => {
   let r = parse("for x in [1 2] [ print :x ]");
   assert.equal(r.ast.body[0].kind, "ForIn");
-  assert.equal(r.ast.body[0].binder, "x");
+  assert.equal(r.ast.body[0].binder.name, "x");
 
   r = parse("for i from 1 to 5 [ print :i ]");
   assert.equal(r.ast.body[0].kind, "ForRange");
@@ -430,21 +616,21 @@ test("reports malformed for loops", () => {
 
 test("groups arguments by arity and treats unknown names as zero-arity", () => {
   const e = firstArg('print word "a" "b"');
-  assert.equal(e.callee, "word");
+  assert.equal(e.callee.name, "word");
   assert.equal(e.args.length, 2);
 
   let r = parse("wibble");
-  assert.equal(r.ast.body[0].callee, "wibble");
+  assert.equal(r.ast.body[0].callee.name, "wibble");
   assert.equal(r.ast.body[0].args.length, 0);
 
   r = parse("randomize");
-  assert.equal(r.ast.body[0].callee, "randomize");
+  assert.equal(r.ast.body[0].callee.name, "randomize");
   assert.equal(r.ast.body[0].args.length, 0);
 
   // A forward reference: the call precedes the define, but the pre-scan finds the arity.
   r = parse("double 5\ndefine double :n\n return :n + :n\nend");
   assert.deepEqual(r.diagnostics, []);
-  assert.equal(r.ast.body[0].callee, "double");
+  assert.equal(r.ast.body[0].callee.name, "double");
   assert.equal(r.ast.body[0].args.length, 1);
 });
 
@@ -461,17 +647,20 @@ test("exposes the core primitive arities", () => {
   assert.equal(OL.corePrimitiveArity("print"), 1);
   assert.equal(OL.corePrimitiveArity("PRINT"), 1);
   assert.equal(OL.corePrimitiveArity("wibble"), undefined);
-  assert.equal(OL.CORE_PRIMITIVE_ARITY.get("power"), 2);
+  assert.equal(OL.corePrimitiveArity("power"), 2);
 });
 
 // --- AST walker -------------------------------------------------------------
 
 const MEGA = [
   ":x = 1",
+  "local total",
   'print "a"',
   "print true",
   "print [1 2]",
   "print :x",
+  "print :x is empty",
+  "print 1 < :x < 10",
   "print (sentence 1 2)",
   "if :x [ print 1 ] else [ print 2 ]",
   "while :x [ print 1 ]",

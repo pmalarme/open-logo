@@ -53,8 +53,8 @@ export interface LexResult {
   readonly diagnostics: readonly Diagnostic[];
 }
 
-const IDENT_START = /[_A-Za-z]|\p{L}/u;
-const IDENT_CONTINUE = /[_A-Za-z0-9]|[\p{L}\p{N}]/u;
+const IDENT_START = /[_]|\p{XID_Start}/u;
+const IDENT_CONTINUE = /\p{XID_Continue}/u;
 
 function isDigit(ch: string): boolean {
   return ch >= "0" && ch <= "9";
@@ -78,7 +78,7 @@ function isHorizontalSpace(ch: string): boolean {
  * every non-blank line, matching the worked example in `spec/grammar.md`.
  */
 function normalizeMultiline(raw: string): string {
-  const lines = raw.split("\n");
+  const lines = raw.split(/\r?\n/);
   if (lines[0] === "") {
     lines.shift();
   }
@@ -147,15 +147,17 @@ export function tokenize(source: string, document: string): LexResult {
   while (i < chars.length) {
     const ch = at(0);
 
+    if (ch === "\r" && at(1) === "\n") {
+      const start = pos();
+      advance();
+      advance();
+      push("newline", "\r\n", start);
+      continue;
+    }
     if (ch === "\n") {
       const start = pos();
       advance();
-      tokens.push({
-        kind: "newline",
-        text: "\n",
-        value: "",
-        source_span: span(start, [start[0], start[1] + 1]),
-      });
+      push("newline", "\n", start);
       continue;
     }
     if (isHorizontalSpace(ch)) {

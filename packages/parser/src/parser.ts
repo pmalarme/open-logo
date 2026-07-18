@@ -12,10 +12,12 @@
  * Operators become {@link ast.call} nodes with the operator as callee, so the AST needs no
  * separate binary-expression kind.
  *
- * Scope for this slice is the Core surface. Postfix places (`:a.b`, `:a[i]`), dict/struct and
- * the other Data forms, the Heritage spellings (`make`/`to`/`output`/`op`/aliases), and the
- * `is`/`between` predicates are handled by their own later slices; until then those spellings
- * degrade to ordinary calls or a collected diagnostic rather than a crash.
+ * Scope for this slice is the Core surface: prefix calls, the precedence ladder, blocks,
+ * assignment, `local`, dotted places (`:a.b.c`), worded `is`-predicates, comparison chains, and
+ * the parenthesized variadic `(and …)`/`(or …)`. Index/key selectors (`:a[i]`), dict/struct and
+ * the other Data forms, and the Heritage spellings (`make`/`to`/`output`/`op`/aliases) are
+ * handled by their own later slices; until then those spellings degrade to ordinary calls or a
+ * collected diagnostic rather than a crash.
  */
 
 import { makeSpan } from "@openlogo/core";
@@ -24,8 +26,10 @@ import { ast } from "./ast.js";
 import type {
   BlockNode,
   ExpressionNode,
+  PlaceSegment,
   ProcedureParam,
   ProgramNode,
+  SpannedName,
   StatementNode,
 } from "./ast.js";
 import { parseDiag } from "./errors.js";
@@ -185,13 +189,94 @@ export function parse(source: string, document = "<input>"): ParseResult {
   }
 
   function unexpected(token: LexToken): Diagnostic {
-    const label =
-      token.kind === "newline"
-        ? "end of line"
-        : token.kind === "eof"
-          ? "end of file"
-          : token.text;
-    return parseDiag.badToken(token.source_span, label);
+    switch (token.kind) {
+      case "rbracket":
+        return parseDiag.unmatchedBracket(token.source_span, "]");
+      case "rparen":
+        return parseDiag.unmatchedParen(token.source_span, ")");
+      case "lbrace":
+        return parseDiag.unmatchedBrace(token.source_span, "{");
+      case "rbrace":
+        return parseDiag.unmatchedBrace(token.source_span, "}");
+      case "newline":
+        return parseDiag.badToken(token.source_span, "end of line");
+      case "eof":
+        return parseDiag.badToken(token.source_span, "end of file");
+      default:
+        return parseDiag.badToken(token.source_span, token.text);
+    }
+  }
+
+  /** Build a spanned name from the surface spelling `name` and a source token's span. */
+  function sname(name: string, token: LexToken): SpannedName {
+    return { name, source_span: token.source_span };
+  }
+
+  /**
+   * After a top-level or `end`-terminated statement, a new statement on the *same* line is a
+   * run-on: `print 1 print 2` must be flagged, not silently split. We fire only when the next
+   * token could actually begin a statement (a name, `:variable`, literal, `(` or `[`); block
+   * closers (`end`/`else`), newlines, end-of-input, and lexical garbage fall through so they keep
+   * their own diagnostic from {@link resync} or the next {@link parseStatement}.
+   */
+  /**
+   * After a top-level or long-block statement, require a newline (or a block/`end` boundary) before
+   * the next one, so `print 1 print 2` is flagged rather than silently read as two statements. The
+   * check is skipped when the statement already produced a diagnostic, so a single malformed line
+   * yields one error instead of a cascade of run-on reports on the tokens left behind by recovery.
+   */
+  function requireTerminator(diagnosticsBefore: number): void {
+    if (diagnostics.length !== diagnosticsBefore) {
+      return;
+    }
+    const token = current();
+    const startsStatement =
+      token.kind === "variable" ||
+      token.kind === "number" ||
+      token.kind === "word" ||
+      token.kind === "lparen" ||
+      token.kind === "lbracket" ||
+      (token.kind === "name" &&
+        token.text.toLowerCase() !== "end" &&
+        token.text.toLowerCase() !== "else");
+    if (startsStatement) {
+      diagnostics.push(
+        parseDiag.missingTerminator(token.source_span, token.text),
+      );
+    }
+  }
+
+  /**
+   * Consume an optional label after `end` and check it names the block that is actually open, so
+   * `repeat … end if` is reported rather than silently accepted. An absent label is fine.
+   */
+  function consumeEndLabel(opener: string): void {
+    const label = current();
+    if (label.kind === "name" && END_LABELS.has(label.text.toLowerCase())) {
+      const actual = label.text.toLowerCase();
+      if (actual !== opener) {
+        diagnostics.push(
+          parseDiag.mismatchedEnd(label.source_span, opener, actual),
+        );
+      }
+      advance();
+    }
+  }
+
+  /**
+   * Look past a `:variable` and any dotted `.field` segments to decide whether this is an
+   * assignment target (`:a.b = …`) rather than a bare place read used as an expression.
+   */
+  function colonAssignmentAhead(): boolean {
+    if (current().kind !== "variable") {
+      return false;
+    }
+    let k = 1;
+    while (peek(k).kind === "dot" && peek(k + 1).kind === "name") {
+      k += 2;
+    }
+    const token = peek(k);
+    return token.kind === "op" && token.text === "=";
   }
 
   function resync(): void {
@@ -244,13 +329,18 @@ export function parse(source: string, document = "<input>"): ParseResult {
       if (!isName("or")) {
         break;
       }
+      const opTok = current();
       advance();
       const right = parseAnd();
       if (right === undefined) {
         diagnostics.push(unexpected(current()));
         break;
       }
-      left = ast.call("or", [left, right], spanBetween(left, right));
+      left = ast.call(
+        sname("or", opTok),
+        [left, right],
+        spanBetween(left, right),
+      );
     }
     return left;
   }
@@ -264,13 +354,18 @@ export function parse(source: string, document = "<input>"): ParseResult {
       if (!isName("and")) {
         break;
       }
+      const opTok = current();
       advance();
       const right = parseComparison();
       if (right === undefined) {
         diagnostics.push(unexpected(current()));
         break;
       }
-      left = ast.call("and", [left, right], spanBetween(left, right));
+      left = ast.call(
+        sname("and", opTok),
+        [left, right],
+        spanBetween(left, right),
+      );
     }
     return left;
   }
@@ -292,10 +387,13 @@ export function parse(source: string, document = "<input>"): ParseResult {
     if (first === undefined) {
       return undefined;
     }
-    // Comparison chaining: `1 < :x < 10` desugars to `and(<(1, :x), <(:x, 10))`,
-    // folded left as each operator is read so no operand is indexed after the fact.
-    let previous = first;
-    let chain: ExpressionNode | undefined;
+    if (isName("is")) {
+      return parseIsPredicate(first);
+    }
+    // A single comparison stays a Call; two or more become one ComparisonChain that stores each
+    // operand exactly once, so a side-effecting middle operand is evaluated (and walked) once.
+    const operands: ExpressionNode[] = [first];
+    const operators: SpannedName[] = [];
     for (;;) {
       const token = current();
       if (!isCompareOp(token)) {
@@ -307,22 +405,105 @@ export function parse(source: string, document = "<input>"): ParseResult {
         diagnostics.push(unexpected(current()));
         break;
       }
-      const comparison = ast.call(
-        token.text,
-        [previous, right],
-        spanBetween(previous, right),
-      );
-      chain =
-        chain === undefined
-          ? comparison
-          : ast.call(
-              "and",
-              [chain, comparison],
-              spanBetween(chain, comparison),
-            );
-      previous = right;
+      operators.push(sname(token.text, token));
+      operands.push(right);
     }
-    return chain ?? first;
+    if (operators.length === 0) {
+      return first;
+    }
+    const last = operands[operands.length - 1] as ExpressionNode;
+    if (operators.length === 1) {
+      return ast.call(
+        operators[0] as SpannedName,
+        [first, last],
+        spanBetween(first, last),
+      );
+    }
+    return ast.comparisonChain(operands, operators, spanBetween(first, last));
+  }
+
+  function parseIsPredicate(operand: ExpressionNode): ExpressionNode {
+    advance(); // consume `is`
+    const start = operand.source_span.start;
+    const token = current();
+    if (token.kind === "name") {
+      const lower = token.text.toLowerCase();
+      if (lower === "empty") {
+        advance();
+        return ast.isPredicate(operand, { form: "empty" }, spanToHere(start));
+      }
+      if (lower === "member") {
+        advance();
+        if (isName("of")) {
+          advance();
+        } else {
+          diagnostics.push(unexpected(current()));
+        }
+        const collection = parseAdditive();
+        if (collection === undefined) {
+          diagnostics.push(unexpected(current()));
+          return operand;
+        }
+        return ast.isPredicate(
+          operand,
+          { form: "member-of", collection },
+          spanToHere(start),
+        );
+      }
+      if (lower === "a") {
+        advance();
+        const typeTok = current();
+        if (typeTok.kind !== "word") {
+          diagnostics.push(unexpected(typeTok));
+          return operand;
+        }
+        advance();
+        const type = ast.wordLit(typeTok.value, typeTok.source_span);
+        return ast.isPredicate(operand, { form: "a", type }, spanToHere(start));
+      }
+      if (lower === "between" || lower === "strictly") {
+        return parseBetween(operand, start, lower === "strictly");
+      }
+    }
+    diagnostics.push(unexpected(token));
+    return operand;
+  }
+
+  function parseBetween(
+    operand: ExpressionNode,
+    start: Position,
+    strict: boolean,
+  ): ExpressionNode {
+    advance(); // consume `between` or `strictly`
+    if (strict) {
+      if (isName("between")) {
+        advance();
+      } else {
+        diagnostics.push(unexpected(current()));
+        return operand;
+      }
+    }
+    const low = parseAdditive();
+    if (low === undefined) {
+      diagnostics.push(unexpected(current()));
+      return operand;
+    }
+    if (isName("and")) {
+      advance();
+    } else {
+      diagnostics.push(unexpected(current()));
+      return operand;
+    }
+    const high = parseAdditive();
+    if (high === undefined) {
+      diagnostics.push(unexpected(current()));
+      return operand;
+    }
+    return ast.isPredicate(
+      operand,
+      { form: "between", strict, low, high },
+      spanToHere(start),
+    );
   }
 
   function parseAdditive(): ExpressionNode | undefined {
@@ -343,7 +524,11 @@ export function parse(source: string, document = "<input>"): ParseResult {
         diagnostics.push(unexpected(current()));
         break;
       }
-      left = ast.call(token.text, [left, right], spanBetween(left, right));
+      left = ast.call(
+        sname(token.text, token),
+        [left, right],
+        spanBetween(left, right),
+      );
     }
     return left;
   }
@@ -368,7 +553,11 @@ export function parse(source: string, document = "<input>"): ParseResult {
         break;
       }
       const opName = isMod ? "mod" : token.text;
-      left = ast.call(opName, [left, right], spanBetween(left, right));
+      left = ast.call(
+        sname(opName, token),
+        [left, right],
+        spanBetween(left, right),
+      );
     }
     return left;
   }
@@ -382,12 +571,22 @@ export function parse(source: string, document = "<input>"): ParseResult {
         diagnostics.push(unexpected(current()));
         return undefined;
       }
-      return ast.call("not", [operand], spanBetween(token, operand));
+      return ast.call(
+        sname("not", token),
+        [operand],
+        spanBetween(token, operand),
+      );
     }
+    // A negative literal only when `-` sits directly against the numeral (`-3`, `* -2`); with a
+    // gap (`- 3`) the leading `-` is a stray minus with no left operand, per grammar.md. When the
+    // next token is a number it is on this same line (a newline would break the lookahead), so an
+    // equal column between the `-`'s end and the numeral's start means they are adjacent.
+    const after = peek(1);
     if (
       token.kind === "op" &&
       token.text === "-" &&
-      peek(1).kind === "number"
+      after.kind === "number" &&
+      token.source_span.end[1] === after.source_span.start[1]
     ) {
       advance();
       const numTok = current();
@@ -397,9 +596,45 @@ export function parse(source: string, document = "<input>"): ParseResult {
     return parsePostfix();
   }
 
+  function collectFieldSegments(): PlaceSegment[] {
+    const segments: PlaceSegment[] = [];
+    while (current().kind === "dot" && peek(1).kind === "name") {
+      const dot = current();
+      advance();
+      const field = current();
+      advance();
+      segments.push({
+        kind: "field",
+        name: sname(field.text, field),
+        source_span: makeSpan(
+          document,
+          dot.source_span.start,
+          field.source_span.end,
+        ),
+      });
+    }
+    return segments;
+  }
+
   function parsePostfix(): ExpressionNode | undefined {
-    // Postfix selectors and fields (`[i]`, `.field`) arrive with the places slice.
-    return parsePrimary();
+    const primary = parsePrimary();
+    if (primary === undefined) {
+      return undefined;
+    }
+    // A dotted read `:a.b.c` grows the bare variable into a place; a plain `:a` stays a VarRef.
+    if (
+      primary.kind === "VarRef" &&
+      current().kind === "dot" &&
+      peek(1).kind === "name"
+    ) {
+      const base: SpannedName = {
+        name: primary.name,
+        source_span: primary.source_span,
+      };
+      const segments = collectFieldSegments();
+      return ast.place(base, segments, spanToHere(primary.source_span.start));
+    }
+    return primary;
   }
 
   function parsePrimary(): ExpressionNode | undefined {
@@ -464,7 +699,11 @@ export function parse(source: string, document = "<input>"): ParseResult {
       args.push(arg);
     }
     const endNode = args.at(-1) ?? token;
-    return ast.call(token.text, args, spanBetween(token, endNode));
+    return ast.call(
+      sname(token.text, token),
+      args,
+      spanBetween(token, endNode),
+    );
   }
 
   function parseListLiteral(): ExpressionNode {
@@ -499,19 +738,29 @@ export function parse(source: string, document = "<input>"): ParseResult {
     advance();
     skipNewlines();
     const head = current();
-    if (head.kind === "name" && isCalleeName(head.text)) {
+    const lower = head.kind === "name" ? head.text.toLowerCase() : "";
+    // A parenthesized head that is a callable — including the variadic logic words `and`/`or`,
+    // which are not fixed-arity callees elsewhere — gathers every operand up to the `)`.
+    if (
+      head.kind === "name" &&
+      (isCalleeName(head.text) || lower === "and" || lower === "or")
+    ) {
       advance();
+      const callee =
+        lower === "and" || lower === "or"
+          ? sname(lower, head)
+          : sname(head.text, head);
       const args: ExpressionNode[] = [];
       for (;;) {
         skipNewlines();
         const token = current();
         if (token.kind === "rparen") {
           advance();
-          return ast.parenCall(head.text, args, spanBetween(open, token));
+          return ast.parenCall(callee, args, spanBetween(open, token));
         }
         if (token.kind === "eof") {
           diagnostics.push(parseDiag.unmatchedParen(open.source_span, "("));
-          return ast.parenCall(head.text, args, spanBetween(open, token));
+          return ast.parenCall(callee, args, spanBetween(open, token));
         }
         const before = pos;
         const arg = parseExpression();
@@ -526,6 +775,12 @@ export function parse(source: string, document = "<input>"): ParseResult {
     }
     const inner = parseExpression();
     skipNewlines();
+    if (inner === undefined && current().kind === "rparen") {
+      // `( )` closes with no operand for the group — flag it rather than vanishing silently.
+      diagnostics.push(
+        parseDiag.badToken(current().source_span, current().text),
+      );
+    }
     if (current().kind === "rparen") {
       advance();
     } else {
@@ -539,7 +794,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     form: "map" | "filter" | "reduce",
   ): ExpressionNode | undefined {
     advance();
-    let accumulator: string | undefined;
+    let accumulator: SpannedName | undefined;
     if (form === "reduce") {
       const accTok = current();
       if (accTok.kind !== "name") {
@@ -547,7 +802,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
         return undefined;
       }
       advance();
-      accumulator = accTok.text;
+      accumulator = sname(accTok.text, accTok);
     }
     const binderTok = current();
     if (binderTok.kind !== "name") {
@@ -555,7 +810,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
       return undefined;
     }
     advance();
-    const binder = binderTok.text;
+    const binder = sname(binderTok.text, binderTok);
     if (!isName("in")) {
       diagnostics.push(unexpected(current()));
       return undefined;
@@ -566,7 +821,6 @@ export function parse(source: string, document = "<input>"): ParseResult {
       diagnostics.push(unexpected(current()));
       return undefined;
     }
-    let initial: ExpressionNode | undefined;
     if (form === "reduce") {
       if (!isName("from")) {
         diagnostics.push(unexpected(current()));
@@ -578,15 +832,32 @@ export function parse(source: string, document = "<input>"): ParseResult {
         diagnostics.push(unexpected(current()));
         return undefined;
       }
-      initial = seed;
+      if (current().kind !== "lbracket") {
+        diagnostics.push(parseDiag.missingEnd(head.source_span, form));
+        return undefined;
+      }
+      const body = parseBracketBlock();
+      return ast.reduce(
+        {
+          accumulator: accumulator as SpannedName,
+          binder,
+          iterable,
+          initial: seed,
+          body,
+        },
+        spanFrom(head.source_span.start, body),
+      );
     }
     if (current().kind !== "lbracket") {
       diagnostics.push(parseDiag.missingEnd(head.source_span, form));
       return undefined;
     }
     const body = parseBracketBlock();
-    return ast.comprehension(
-      { form, binder, iterable, body, accumulator, initial },
+    return ast.mapFilter(
+      form,
+      binder,
+      iterable,
+      body,
       spanFrom(head.source_span.start, body),
     );
   }
@@ -632,18 +903,16 @@ export function parse(source: string, document = "<input>"): ParseResult {
       }
       if (token.kind === "name" && token.text.toLowerCase() === "end") {
         advance();
-        const label = current();
-        if (label.kind === "name" && END_LABELS.has(label.text.toLowerCase())) {
-          advance();
-        }
+        consumeEndLabel(opener);
         break;
       }
       const before = pos;
+      const diagsBefore = diagnostics.length;
       const statement = parseStatement();
       if (statement !== undefined) {
         body.push(statement);
-      }
-      if (pos === before) {
+        requireTerminator(diagsBefore);
+      } else if (pos === before) {
         resync();
       }
     }
@@ -669,14 +938,22 @@ export function parse(source: string, document = "<input>"): ParseResult {
 
   function parseStatement(): StatementNode | undefined {
     const token = current();
-    const next = peek(1);
-    if (token.kind === "variable" && next.kind === "op" && next.text === "=") {
+    if (colonAssignmentAhead()) {
       return parseColonAssignment();
+    }
+    if (
+      token.kind === "lparen" &&
+      peek(1).kind === "name" &&
+      peek(1).text.toLowerCase() === "local"
+    ) {
+      return parseParenLocal();
     }
     if (token.kind === "name") {
       switch (token.text.toLowerCase()) {
         case "set":
           return parseSetAssignment();
+        case "local":
+          return parseLocal();
         case "if":
           return parseIf();
         case "while":
@@ -702,10 +979,54 @@ export function parse(source: string, document = "<input>"): ParseResult {
     return parseExpression();
   }
 
+  function parseLocal(): StatementNode | undefined {
+    const localTok = current();
+    advance();
+    const nameTok = current();
+    if (nameTok.kind !== "name") {
+      diagnostics.push(unexpected(nameTok));
+      return undefined;
+    }
+    advance();
+    return ast.local(
+      [sname(nameTok.text, nameTok)],
+      spanToHere(localTok.source_span.start),
+    );
+  }
+
+  function parseParenLocal(): StatementNode | undefined {
+    const open = current();
+    advance();
+    advance();
+    const names: SpannedName[] = [];
+    while (current().kind === "name") {
+      const token = current();
+      advance();
+      names.push(sname(token.text, token));
+    }
+    if (names.length === 0) {
+      diagnostics.push(
+        parseDiag.badToken(current().source_span, current().text),
+      );
+    }
+    if (current().kind === "rparen") {
+      advance();
+    } else {
+      diagnostics.push(parseDiag.unmatchedParen(open.source_span, "("));
+    }
+    return ast.local(names, spanToHere(open.source_span.start));
+  }
+
   function parseColonAssignment(): StatementNode | undefined {
     const varTok = current();
     advance();
-    const place = ast.place(varTok.value, varTok.source_span);
+    const base = sname(varTok.value, varTok);
+    const segments = collectFieldSegments();
+    const place = ast.place(
+      base,
+      segments,
+      spanToHere(varTok.source_span.start),
+    );
     advance();
     const value = parseExpression();
     if (value === undefined) {
@@ -729,7 +1050,13 @@ export function parse(source: string, document = "<input>"): ParseResult {
       return undefined;
     }
     advance();
-    const place = ast.place(nameTok.text, nameTok.source_span);
+    const base = sname(nameTok.text, nameTok);
+    const segments = collectFieldSegments();
+    const place = ast.place(
+      base,
+      segments,
+      spanToHere(nameTok.source_span.start),
+    );
     if (!isName("to")) {
       diagnostics.push(unexpected(current()));
       return undefined;
@@ -792,17 +1119,16 @@ export function parse(source: string, document = "<input>"): ParseResult {
         }
         if (token.kind === "name" && token.text.toLowerCase() === "end") {
           advance();
-          if (isName("if")) {
-            advance();
-          }
+          consumeEndLabel("if");
           break;
         }
         const before = pos;
+        const diagsBefore = diagnostics.length;
         const statement = parseStatement();
         if (statement !== undefined) {
           thenStmts.push(statement);
-        }
-        if (pos === before) {
+          requireTerminator(diagsBefore);
+        } else if (pos === before) {
           resync();
         }
       }
@@ -822,17 +1148,16 @@ export function parse(source: string, document = "<input>"): ParseResult {
           }
           if (token.kind === "name" && token.text.toLowerCase() === "end") {
             advance();
-            if (isName("if")) {
-              advance();
-            }
+            consumeEndLabel("if");
             break;
           }
           const before = pos;
+          const diagsBefore = diagnostics.length;
           const statement = parseStatement();
           if (statement !== undefined) {
             elseStmts.push(statement);
-          }
-          if (pos === before) {
+            requireTerminator(diagsBefore);
+          } else if (pos === before) {
             resync();
           }
         }
@@ -894,7 +1219,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
       return undefined;
     }
     advance();
-    const variable = nameTok.text;
+    const variable = sname(nameTok.text, nameTok);
     if (isName("in")) {
       advance();
       const iterable = parseExpression();
@@ -956,7 +1281,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
       return undefined;
     }
     advance();
-    const name = nameTok.text;
+    const name = sname(nameTok.text, nameTok);
     const params: ProcedureParam[] = [];
     for (;;) {
       const param = current();
@@ -964,7 +1289,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
         break;
       }
       advance();
-      params.push({ name: param.value });
+      params.push({ name: sname(param.value, param) });
     }
     for (;;) {
       const open = current();
@@ -975,15 +1300,21 @@ export function parse(source: string, document = "<input>"): ParseResult {
       const nameParam = current();
       advance();
       const defaultValue = parseExpression();
+      if (defaultValue === undefined) {
+        // `define f (:x)` — an optional parameter must carry a default; flag the missing value.
+        diagnostics.push(
+          parseDiag.badToken(current().source_span, current().text),
+        );
+      }
       if (current().kind === "rparen") {
         advance();
       } else {
         diagnostics.push(parseDiag.unmatchedParen(open.source_span, "("));
       }
       if (defaultValue === undefined) {
-        params.push({ name: nameParam.value });
+        params.push({ name: sname(nameParam.value, nameParam) });
       } else {
-        params.push({ name: nameParam.value, defaultValue });
+        params.push({ name: sname(nameParam.value, nameParam), defaultValue });
       }
     }
     if (current().kind !== "newline") {
@@ -1035,11 +1366,12 @@ export function parse(source: string, document = "<input>"): ParseResult {
         break;
       }
       const before = pos;
+      const diagsBefore = diagnostics.length;
       const statement = parseStatement();
       if (statement !== undefined) {
         body.push(statement);
-      }
-      if (pos === before) {
+        requireTerminator(diagsBefore);
+      } else if (pos === before) {
         resync();
       }
     }
