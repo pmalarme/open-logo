@@ -148,6 +148,64 @@ test("the AST fallback renders a zero-argument callee target with just its name,
   assert.deepEqual(finding.params, { text: "pi" });
 });
 
+test("the AST fallback renders an infix-operator target INFIX, not in the AST's own prefix shape (rubber-duck finding: 1 + 2 = 3 must render as 1 + 2, never + 1 2)", () => {
+  const [finding] = checkNoSource("1 + 2 = 3").filter(isNotAPlace);
+  assert.deepEqual(finding.params, { text: "1 + 2" });
+});
+
+test("the AST fallback recognizes every fixed infix operator name, not just +", () => {
+  assert.deepEqual(checkNoSource("1 - 2 = 3").filter(isNotAPlace)[0].params, {
+    text: "1 - 2",
+  });
+  assert.deepEqual(checkNoSource("1 * 2 = 3").filter(isNotAPlace)[0].params, {
+    text: "1 * 2",
+  });
+  assert.deepEqual(checkNoSource("1 / 2 = 3").filter(isNotAPlace)[0].params, {
+    text: "1 / 2",
+  });
+  assert.deepEqual(checkNoSource("1 mod 2 = 3").filter(isNotAPlace)[0].params, {
+    text: "1 mod 2",
+  });
+  assert.deepEqual(checkNoSource("1 == 2 = 3").filter(isNotAPlace)[0].params, {
+    text: "1 == 2",
+  });
+  assert.deepEqual(checkNoSource("1 != 2 = 3").filter(isNotAPlace)[0].params, {
+    text: "1 != 2",
+  });
+  assert.deepEqual(checkNoSource("1 < 2 = 3").filter(isNotAPlace)[0].params, {
+    text: "1 < 2",
+  });
+  assert.deepEqual(checkNoSource("1 > 2 = 3").filter(isNotAPlace)[0].params, {
+    text: "1 > 2",
+  });
+  assert.deepEqual(checkNoSource("1 <= 2 = 3").filter(isNotAPlace)[0].params, {
+    text: "1 <= 2",
+  });
+  assert.deepEqual(checkNoSource("1 >= 2 = 3").filter(isNotAPlace)[0].params, {
+    text: "1 >= 2",
+  });
+  assert.deepEqual(
+    checkNoSource("true and false = 3").filter(isNotAPlace)[0].params,
+    { text: "true and false" },
+  );
+  assert.deepEqual(
+    checkNoSource("true or false = 3").filter(isNotAPlace)[0].params,
+    { text: "true or false" },
+  );
+});
+
+test("the AST fallback wraps a ParenCall target back in its own parentheses, e.g. (first :x) = 5 (rubber-duck finding: parens were dropped)", () => {
+  const [finding] = checkNoSource("(first :x) = 5").filter(isNotAPlace);
+  assert.deepEqual(finding.params, { text: "(first :x)" });
+});
+
+test("the AST fallback renders a genuine two-argument prefix call target in prefix form — a two-argument callee that is NOT one of the fixed infix operator names is never mistaken for one", () => {
+  const [finding] = checkNoSource(
+    "define add :a :b\n  print :a\nend\nadd 1 2 = 5\n",
+  ).filter(isNotAPlace);
+  assert.deepEqual(finding.params, { text: "add 1 2" });
+});
+
 // ── ol-undefined-var: static reads of an unbound `:name` ─────────────────────────────────────
 
 test("a bare :missing read with no declaration anywhere raises ol-undefined-var at the variable's span", () => {

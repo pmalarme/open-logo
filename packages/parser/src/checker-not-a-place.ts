@@ -21,10 +21,13 @@
  * 2. **AST reconstruction** ({@link renderNode}) — the fallback when no `source` is available
  *    (e.g. a caller that only has a `ProgramNode`, as `check()`'s own pre-#113 unit tests did).
  *    It handles every node kind the parser can build in target position, including a nested
- *    {@link PlaceNode} argument, but renders every call — including infix operators like `+` —
- *    in the AST's own prefix shape (`"+ 1 2"` rather than `"1 + 2"`). Callers who need exact
- *    surface text for every target shape should pass `source`; this fallback exists so `check()`
- *    still produces a *reasonable* (if not always literal) `text` when it cannot.
+ *    {@link PlaceNode} argument. It also recognizes the fixed set of two-argument operator
+ *    callees the parser only ever builds infix (`+ - * / mod == != < > <= >=`/`and`/`or` —
+ *    `parser.ts`'s `parseOr`/`parseAnd`/`parseComparison`/`parseAdditive`/`parseMultiplicative`)
+ *    and renders those infix (`"1 + 2"`, not `"+ 1 2"`), and wraps a `ParenCall` target back in
+ *    its own parentheses (`"(first :x)"`), so both text-recovery paths agree exactly for every
+ *    target shape the parser can build — not just the ones that happen to already look the same
+ *    prefix or infix.
  */
 
 import type { Diagnostic, SourceSpan } from "@openlogo/core";
@@ -71,6 +74,35 @@ function renderChild(node: ExpressionNode): string {
   return renderNode(node as RenderableNode);
 }
 
+/**
+ * The two-argument operator callees `parser.ts` only ever builds infix — `parseOr`/`parseAnd`
+ * (`and`/`or`), `parseComparison` (`== != < > <= >=`), `parseAdditive` (`+ -`), and
+ * `parseMultiplicative` (`* /`/`mod`). None of these names can also be a user-defined or Core
+ * primitive callee (the symbols are `op`-kind tokens, and `and`/`or`/`mod` are reserved words), so
+ * a two-argument `Call` with one of these callee names is unambiguously an infix operator and
+ * never a genuine prefix call that merely happens to take two arguments.
+ */
+const INFIX_OPERATORS: ReadonlySet<string> = new Set([
+  "+",
+  "-",
+  "*",
+  "/",
+  "mod",
+  "==",
+  "!=",
+  "<",
+  ">",
+  "<=",
+  ">=",
+  "and",
+  "or",
+]);
+
+/** Whether a `Call` node is one of the fixed infix operator forms (see {@link INFIX_OPERATORS}). */
+function isInfixOperatorCall(node: CallNode): boolean {
+  return node.args.length === 2 && INFIX_OPERATORS.has(node.callee.name);
+}
+
 /** Renders a postfixed place `:base.field[key]` in its own surface spelling. */
 function renderPlace(node: PlaceNode): string {
   const segments = node.segments
@@ -83,10 +115,15 @@ function renderPlace(node: PlaceNode): string {
   return `:${node.base.name}${segments}`;
 }
 
+/** Renders a `Call`/`ParenCall`'s callee and arguments in prefix form: `name arg1 arg2`. */
+function renderPrefixCall(node: CallNode | ParenCallNode): string {
+  const args = node.args.map(renderChild).join(" ");
+  return args === "" ? node.callee.name : `${node.callee.name} ${args}`;
+}
+
 /**
  * Reconstructs the surface text of a non-place assignment target, for the `text` param. This is
- * the fallback path used only when {@link check} has no `source` text to slice from — see the
- * module doc comment for its known limitation (infix operator calls render in prefix form).
+ * the fallback path used only when {@link check} has no `source` text to slice from.
  */
 function renderNode(node: RenderableNode): string {
   switch (node.kind) {
@@ -103,10 +140,21 @@ function renderNode(node: RenderableNode): string {
     case "ListLit":
       return `[${node.elements.map(renderChild).join(" ")}]`;
     case "Call":
-    case "ParenCall": {
-      const args = node.args.map(renderChild).join(" ");
-      return args === "" ? node.callee.name : `${node.callee.name} ${args}`;
-    }
+      // A two-argument call to one of the fixed infix operator names is always infix in
+      // source — see INFIX_OPERATORS — everything else (including a zero/one/three-or-more
+      // argument call) renders prefix.
+      if (isInfixOperatorCall(node)) {
+        const [left, right] = node.args as readonly [
+          ExpressionNode,
+          ExpressionNode,
+        ];
+        return `${renderChild(left)} ${node.callee.name} ${renderChild(right)}`;
+      }
+      return renderPrefixCall(node);
+    case "ParenCall":
+      // A ParenCall only ever comes from the explicitly parenthesized `( … )` surface form, so
+      // its rendering always re-wraps the parens the source had.
+      return `(${renderPrefixCall(node)})`;
   }
 }
 
