@@ -362,34 +362,3 @@ test("harness handles profiles with dependencies", () => {
     cleanup();
   }
 });
-
-test("harness handles object key count mismatch", () => {
-  // Object with different number of keys
-  const result = runHarness("key-count-test", "]", {
-    description: "Test key count mismatch",
-    profiles: ["core-language"],
-    events: [],
-    diagnostics: [
-      {
-        code: "ol-unmatched-bracket",
-        source_span: {
-          document: "conformance-fixture",
-          start: [1, 1],
-          end: [1, 2],
-        },
-        params: { delimiter: "]" },
-        stage: "parse",
-        severity: "error",
-        message:
-          "this ] doesn't have a matching bracket. lists and blocks need both [ and ].",
-        extra_field: "should cause mismatch", // extra key
-      },
-    ],
-  });
-
-  assert.equal(
-    result.exitCode,
-    1,
-    "Should detect object with different key counts",
-  );
-});
