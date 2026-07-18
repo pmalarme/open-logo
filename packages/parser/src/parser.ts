@@ -596,6 +596,31 @@ export function parse(source: string, document = "<input>"): ParseResult {
     return left;
   }
 
+  /**
+   * If the current token is a `-` sitting directly against a numeral (no gap), consume both and
+   * return the negative numeric literal — a leading `-` is part of the `number` in that position
+   * (`spec/grammar.md:17,58`). Returns `undefined` otherwise. Shared by {@link parseUnary} (where a
+   * negative literal may lead an expression) and {@link parseKeyTerm} (a selector key is a
+   * `number`). A gap (`- 3`) is a stray minus with no left operand, not a negative literal; the
+   * numeral is on the same line, so equal end/start columns means the two are adjacent.
+   */
+  function tryNegativeNumberLiteral(): ExpressionNode | undefined {
+    const token = current();
+    const after = peek(1);
+    if (
+      token.kind === "op" &&
+      token.text === "-" &&
+      after.kind === "number" &&
+      token.source_span.end[1] === after.source_span.start[1]
+    ) {
+      advance();
+      const numTok = current();
+      advance();
+      return ast.numberLit(-Number(numTok.text), spanBetween(token, numTok));
+    }
+    return undefined;
+  }
+
   function parseUnary(): ExpressionNode | undefined {
     const token = current();
     if (token.kind === "name" && token.text.toLowerCase() === "not") {
@@ -612,20 +637,10 @@ export function parse(source: string, document = "<input>"): ParseResult {
       );
     }
     // A negative literal only when `-` sits directly against the numeral (`-3`, `* -2`); with a
-    // gap (`- 3`) the leading `-` is a stray minus with no left operand, per grammar.md. When the
-    // next token is a number it is on this same line (a newline would break the lookahead), so an
-    // equal column between the `-`'s end and the numeral's start means they are adjacent.
-    const after = peek(1);
-    if (
-      token.kind === "op" &&
-      token.text === "-" &&
-      after.kind === "number" &&
-      token.source_span.end[1] === after.source_span.start[1]
-    ) {
-      advance();
-      const numTok = current();
-      advance();
-      return ast.numberLit(-Number(numTok.text), spanBetween(token, numTok));
+    // gap (`- 3`) the leading `-` is a stray minus with no left operand, per grammar.md.
+    const negative = tryNegativeNumberLiteral();
+    if (negative !== undefined) {
+      return negative;
     }
     return parsePostfix();
   }
@@ -642,12 +657,17 @@ export function parse(source: string, document = "<input>"): ParseResult {
   }
 
   /**
-   * Parse one `key-term` inside a selector `[ … ]` (`spec/grammar.md:111`): a `number`/word
-   * literal, a `:name` read, a bare identifier (a *literal word key*, never evaluated — reserved
-   * words are valid data here), or a parenthesized expression. Returns `undefined` for anything
-   * else so the caller can report the malformed selector.
+   * Parse one `key-term` inside a selector `[ … ]` (`spec/grammar.md:111`): a `number` (including a
+   * negative literal such as `[-1]`), a word literal, a `:name` read, a bare identifier (a *literal
+   * word key*, never evaluated — reserved words are valid data here), or a parenthesized
+   * expression. Returns `undefined` for anything else so the caller can report the malformed
+   * selector.
    */
   function parseKeyTerm(): ExpressionNode | undefined {
+    const negative = tryNegativeNumberLiteral();
+    if (negative !== undefined) {
+      return negative;
+    }
     const token = current();
     switch (token.kind) {
       case "number":

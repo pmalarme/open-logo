@@ -74,6 +74,27 @@ test("a parenthesized key :nums[(:i + 1)] evaluates the expression", () => {
   assert.equal(seg.key.callee.name, "+");
 });
 
+test("a negative numeric key :nums[-1] is a single negative NumberLit", () => {
+  const place = firstArg("print :nums[-1]");
+  const [seg] = place.segments;
+  assert.equal(seg.kind, "index");
+  assert.equal(seg.key.kind, "NumberLit");
+  assert.equal(seg.key.value, -1);
+});
+
+test("a negative numeric key is assignable: :nums[-1] = 9 targets the place", () => {
+  const { ast, diagnostics } = OL.parse(":nums[-1] = 9", doc);
+  assert.deepEqual(diagnostics, []);
+  const assign = ast.body[0];
+  assert.equal(assign.kind, "Assign");
+  assert.equal(assign.place.segments[0].key.value, -1);
+});
+
+test("a gapped minus inside a selector :nums[- 1] is not a negative literal and is rejected", () => {
+  const { diagnostics } = OL.parse("print :nums[- 1]", doc);
+  assert.ok(diagnostics.some((d) => d.code === "ol-bad-token"));
+});
+
 test("selectors and dotted fields interleave in source order for :a.b[1].c", () => {
   const place = firstArg("print :a.b[1].c");
   assert.equal(place.kind, "Place");
