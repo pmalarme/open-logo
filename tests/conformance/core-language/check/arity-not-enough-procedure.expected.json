@@ -1,0 +1,19 @@
+{
+  "description": "ol-not-enough-inputs (issue #111): a user procedure has an exact, non-variadic arity — here `f` requires two parameters. The bare call `f 1` supplies one, so the static arity check reports too-few counting the required-parameter floor, pointing at the callee. Complements the primitive case: user-procedure arity is known from the program's own `define`, not the primitive table.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-not-enough-inputs",
+      "source_span": {
+        "document": "core-language/check/arity-not-enough-procedure",
+        "start": [4, 1],
+        "end": [4, 2]
+      },
+      "params": { "callable": "f", "expected": 2, "actual": 1 },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

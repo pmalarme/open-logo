@@ -1,0 +1,19 @@
+{
+  "description": "ol-too-many-inputs (issue #111): `first` is a strictly fixed-arity-1 Core primitive with no variadic form. The reader caps a bare call at that arity, so the only way to over-supply a primitive is the parenthesized form — `(first 1 2)` explicitly groups two inputs. Because `first` has no alternate/variadic paren form (corePrimitiveArityRange gives max === min === 1), this raises too-many outside a variadic form (spec/tooling.md:182), pointing at the callee. Contrast arity-paren-variadic-ok, where `(print …)`/`(random a b)` do have such forms and are left alone.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-too-many-inputs",
+      "source_span": {
+        "document": "core-language/check/arity-too-many-primitive",
+        "start": [1, 2],
+        "end": [1, 7]
+      },
+      "params": { "callable": "first", "expected": 1, "actual": 2 },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

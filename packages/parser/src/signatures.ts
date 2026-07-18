@@ -80,7 +80,45 @@ const CORE_PRIMITIVE_NAMES: readonly string[] = Object.freeze(
   [...CORE_PRIMITIVE_ARITY.keys()].sort(),
 );
 
-/** The full list of Core primitive names, in sorted order. See {@link CORE_PRIMITIVE_NAMES}. */
+/**
+ * The full list of Core primitive names, in sorted order. See {@link CORE_PRIMITIVE_NAMES}. */
 export function corePrimitiveNames(): readonly string[] {
   return CORE_PRIMITIVE_NAMES;
+}
+
+/**
+ * Core primitives whose parenthesized call form accepts more inputs than their bare default
+ * arity, keyed by canonical lowercase name to the maximum the paren form accepts
+ * (`Number.POSITIVE_INFINITY` for an open variadic). Derived from the signatures in
+ * [`spec/commands.md`](../../../spec/commands.md): `(print …)`, `(word …)`, and `(sentence …)`
+ * are open variadic, while `(random a b)` and `(randomize seed)` are bounded alternates. A
+ * primitive absent here is strictly fixed-arity — its parenthesized form must supply exactly its
+ * default count. The bare default arity stays {@link corePrimitiveArity}; the reader still groups
+ * bare calls by that number and never consults this table.
+ */
+const CORE_PRIMITIVE_MAX_ARITY: ReadonlyMap<string, number> = new Map([
+  ["print", Number.POSITIVE_INFINITY],
+  ["word", Number.POSITIVE_INFINITY],
+  ["sentence", Number.POSITIVE_INFINITY],
+  ["random", 2],
+  ["randomize", 1],
+]);
+
+/**
+ * The inclusive input-count range a Core primitive accepts, or `undefined` when `name` is not a
+ * known Core primitive. `min` is the bare default arity ({@link corePrimitiveArity}); `max` is the
+ * most its parenthesized alternate/variadic form accepts ({@link CORE_PRIMITIVE_MAX_ARITY}) —
+ * `Number.POSITIVE_INFINITY` for an open variadic, and equal to `min` for a strictly fixed-arity
+ * primitive. The static arity checker (issue #111) uses this to tell a genuine variadic paren
+ * form (`(print …)`) from a fixed-arity primitive given too many inputs (`(first 1 2)`). Matching
+ * is case-insensitive.
+ */
+export function corePrimitiveArityRange(
+  name: string,
+): { readonly min: number; readonly max: number } | undefined {
+  const min = corePrimitiveArity(name);
+  if (min === undefined) {
+    return undefined;
+  }
+  return { min, max: CORE_PRIMITIVE_MAX_ARITY.get(name.toLowerCase()) ?? min };
 }

@@ -1,0 +1,8 @@
+define g :a (:b 5)
+  print 1
+end
+(print "x" 1)
+(word "a" "b" "c")
+(random 1 5)
+(g 1 2)
+g 1

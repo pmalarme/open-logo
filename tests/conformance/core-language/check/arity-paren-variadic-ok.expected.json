@@ -1,0 +1,7 @@
+{
+  "description": "No arity diagnostic (issue #111): the parenthesized alternate/variadic forms the static arity check must leave alone. `(print \"x\" 1)` and `(word \"a\" \"b\" \"c\")` are open variadic (corePrimitiveArityRange max is infinite); `(random 1 5)` is `random`'s bounded two-input alternate form (max 2). `g` has a required parameter and an optional (defaulted) one — its optional argument can only be supplied via the parenthesized form, so `(g 1 2)` is within [1, 2] and the bare `g 1` meets the required floor. All clean: an empty diagnostics stream.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

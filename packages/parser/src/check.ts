@@ -18,6 +18,7 @@
 
 import type { Diagnostic } from "@openlogo/core";
 import type { ProgramNode } from "./ast.js";
+import { arityRule } from "./checker-arity.js";
 import { unknownCommandRule } from "./checker-unknown-command.js";
 import { unknownTypeRule } from "./checker-type-field.js";
 
@@ -85,7 +86,11 @@ type CheckRule = (
  * The ordered rule registry. Order is the order findings are reported in; a rule slice adds its
  * module and one entry here — see the module doc comment above.
  */
-const RULES: readonly CheckRule[] = [unknownCommandRule, unknownTypeRule];
+const RULES: readonly CheckRule[] = [
+  unknownCommandRule,
+  unknownTypeRule,
+  arityRule,
+];
 
 /** Dispatches `program`/`profiles` to every registered rule and concatenates their findings. */
 function findings(
