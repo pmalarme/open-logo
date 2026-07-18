@@ -60,9 +60,11 @@ checked out in the shared main worktree — the error is harmless. Confirm the _
 ### 4. Reconcile every tracker
 
 - **Board (Projects v2):** set the issue's **Status** + **Agent** at dispatch (`In Progress` + owning
-  agent) and **Done** at merge; close the **milestone** when it reads `0 open`. Field/option IDs and
-  the `gh project item-edit` recipe live in `product-owner/github-project`. Watch for **drift** — an
-  issue closed on GitHub can still read "In Progress" on the board.
+  agent) and **Done** at merge; `0 open` on the milestone is necessary but **not sufficient** to close
+  it — close the **milestone** only once it also reads `0 open` **and** the milestone-completion audit
+  below is green. Field/option IDs and the `gh project item-edit` recipe live in
+  `product-owner/github-project`. Watch for **drift** — an issue closed on GitHub can still read
+  "In Progress" on the board.
 - **Branch hygiene:** merged-PR branches auto-delete; **closed (non-merged) PR branches do not —
   delete them** with `git push origin --delete <branch>` so the repo stays clean. **Never delete a
   branch that is the checked-out HEAD of a live session worktree** (`git worktree list`), including
