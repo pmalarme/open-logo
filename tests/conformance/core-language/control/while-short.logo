@@ -1,0 +1,3 @@
+# Core `while` with a short (bracketed) body.
+:x = 0
+while :x < 10 [ set x to :x + 1 ]

@@ -1,0 +1,6 @@
+{
+  "description": "Core `while` with a short (bracketed) body parses with no diagnostics.",
+  "profiles": ["core-language"],
+  "events": [],
+  "diagnostics": []
+}

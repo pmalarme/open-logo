@@ -1,0 +1,6 @@
+{
+  "description": "Core `if` with both a short (bracketed) then-body and else-body parses with no diagnostics.",
+  "profiles": ["core-language"],
+  "events": [],
+  "diagnostics": []
+}

@@ -1,0 +1,2 @@
+# Core `forever` with a short (bracketed) body that stops itself.
+forever [ stop ]
