@@ -1,0 +1,7 @@
+{
+  "description": "The parenthesized local-statement form (local name { name }) declares several local variables in one statement with no diagnostics, per spec/grammar.md:153",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

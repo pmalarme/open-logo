@@ -1,0 +1,7 @@
+{
+  "description": "A local declaration inside a procedure body is followed by a colon-place assignment and a return of the same name with no diagnostics",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

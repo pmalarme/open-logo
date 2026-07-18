@@ -1,0 +1,5 @@
+define compute
+  local x
+  :x = 1
+  return :x
+end

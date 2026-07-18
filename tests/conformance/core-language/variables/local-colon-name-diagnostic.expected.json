@@ -1,0 +1,19 @@
+{
+  "description": "local binds a bare name per spec/grammar.md:153 (local-statement ::= \"local\" name | ...), not a colon-place; writing local :x reports ol-bad-token at the colon-name token because the unparenthesized form only consumes one bare-name token",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/variables/local-colon-name-diagnostic",
+        "start": [1, 7],
+        "end": [1, 9]
+      },
+      "params": { "text": ":x" },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}
