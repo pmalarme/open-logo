@@ -158,7 +158,6 @@ test("validateDiagnostics throws when diagnostic missing message", () => {
   );
 });
 
-
 test("diffStream handles items with no keyField", () => {
   // Both items exist but neither has the keyField
   const expected = [{ other: "a" }, { other: "b" }];
