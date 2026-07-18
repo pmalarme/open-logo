@@ -7,7 +7,7 @@ description: >-
   Use when a dispatched slice opens a PR, when consolidating duplicate/superseded PRs, or when closing
   out a milestone.
 created: 2026-07-17T00:00
-updated: 2026-07-17T00:00
+updated: 2026-07-18T00:00
 ---
 
 ## Purpose
@@ -60,9 +60,11 @@ checked out in the shared main worktree — the error is harmless. Confirm the _
 ### 4. Reconcile every tracker
 
 - **Board (Projects v2):** set the issue's **Status** + **Agent** at dispatch (`In Progress` + owning
-  agent) and **Done** at merge; close the **milestone** when it reads `0 open`. Field/option IDs and
-  the `gh project item-edit` recipe live in `product-owner/github-project`. Watch for **drift** — an
-  issue closed on GitHub can still read "In Progress" on the board.
+  agent) and **Done** at merge; `0 open` on the milestone is necessary but **not sufficient** to close
+  it — close the **milestone** only once it also reads `0 open` **and** the milestone-completion audit
+  below is green. Field/option IDs and the `gh project item-edit` recipe live in
+  `product-owner/github-project`. Watch for **drift** — an issue closed on GitHub can still read
+  "In Progress" on the board.
 - **Branch hygiene:** merged-PR branches auto-delete; **closed (non-merged) PR branches do not —
   delete them** with `git push origin --delete <branch>` so the repo stays clean. **Never delete a
   branch that is the checked-out HEAD of a live session worktree** (`git worktree list`), including
@@ -85,6 +87,34 @@ retargeting re-introduces the abandoned commits. Instead:
    attached, and **close each superseded PR with a credit comment** to its author. Then delete the
    orphan branches (hygiene, above).
 
+## Milestone-completion audit
+
+A milestone (M0–M6) is a **profile-based synchronization point** (charter §12): it completes when its
+profile's conformance is green **across all domains**, not when one package finishes. `0 open issues`
+on the milestone is **necessary but not sufficient** — issues can close on thin or missing coverage.
+Before the orchestrator closes a milestone (and before a release tuple is tagged, from M2 onward), run
+a full **in-depth coverage audit** and attach it, written, to the milestone-closeout issue: map every
+profile requirement to **both** its implementation **and** its conformance fixture, across five
+dimensions:
+
+1. **Profile coverage** — every primitive / command / control-form / reporter in the milestone's
+   profile(s) (`spec/commands.md` C3 matrix, `spec/conformance.md`) is implemented **and** has a
+   conformance fixture.
+2. **Spec-area coverage** — every normative section for the profile (`spec/grammar.md` productions,
+   `spec/execution-model.md` behaviors, `spec/error-model.md` `ol-*` codes, `spec/rendering.md`,
+   `spec/tooling.md`) is reflected in code **and** tests.
+3. **Conformance** — the full profile-DAG fixture suite is green; negative / fuzz / regression
+   fixtures exist for the profile's diagnostics.
+4. **DoD across ALL domains** (not a single package) — build / typecheck / lint / test /
+   coverage(100%) / conformance / examples green repo-wide; docs + spec cross-links synced; a11y /
+   pedagogy checks where applicable.
+5. **Board / traceability** — every epic and story under the milestone is Done; feature-detection
+   metadata (`openlogo.version`, supported profiles, rendering targets) is correct.
+
+The release tuple is tagged **only** when the audit is 100% green on all five dimensions — see
+`devops/security-and-release` for the tagging mechanics and `docs/delivery.md` for the release +
+milestone strategy this audit gates.
+
 ## Checklist (per merged slice)
 
 - [ ] All non-author review-gate verdicts (≥2) recorded on the PR — logic/spec reviewer (`rubber-duck`, or a named fallback **+ reason**) + **every** domain QA expert, all ≠ author — each stamped with a SHA matching PR HEAD.
@@ -93,3 +123,4 @@ retargeting re-introduces the abandoned commits. Instead:
 - [ ] Board Status → Done + Agent set; milestone closed when `0 open`.
 - [ ] Closed-PR orphan branches deleted; no live-session worktree branch touched.
 - [ ] `plan.md` + todos updated; any superseded PRs closed with credit.
+- [ ] **At milestone close:** in-depth coverage audit green across all 5 dimensions (profile / spec-area / conformance / all-domain DoD / board-traceability) before the milestone is closed or a release tuple tagged.

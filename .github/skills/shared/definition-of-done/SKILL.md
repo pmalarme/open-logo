@@ -4,7 +4,7 @@ description: >-
   The OpenLogo Definition of Done — the CI-enforced checklist and PR expectations every change must
   meet before it can merge. Use to self-verify before opening or updating a pull request.
 created: 2025-06-01T00:00
-updated: 2025-06-01T00:00
+updated: 2026-07-18T00:00
 ---
 
 ## Purpose
@@ -41,6 +41,15 @@ the clean-tree DoD (verifying the build actually **emits** artifacts, not just a
 spec-fidelity, conformance fixtures, runnable examples, a11y/pedagogy, and instructions/skills/docs/
 spec drift. The author iterates until all return `pass`, attaches the verdicts, and opens the PR;
 `@orchestrator` (or a human) does the final verification and merge.
+
+## Milestone-level gate
+
+The 9-point DoD above is the **per-PR** gate; above it sits a **milestone-level** gate. When a
+milestone (M0–M6) is ready, `@orchestrator` runs the in-depth milestone-completion audit (see
+`orchestrator/integrate-and-merge` → Milestone-completion audit) verifying the milestone's whole
+profile is covered across **all** domains — every profile requirement has an implementation and a
+conformance fixture, conformance is green profile-wide, and docs/spec cross-links are synced. A
+release tuple is tagged only when that audit is 100% green.
 
 ## PR expectations
 
