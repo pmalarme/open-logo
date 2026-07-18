@@ -62,19 +62,23 @@ test("execute returns no events and the parse diagnostics for malformed source",
 test("execute assigns a monotonic seq starting at 0 across statement kinds", () => {
   const result = execute(":x = 1\nprint :x\nrepeat 1 [ print 1 ]", "main.logo");
   assert.equal(result.diagnostics.length, 0);
-  assert.equal(result.events.length, 3);
+  // `:x = 1` (Assign, no event beyond its instruction), `print :x` (instruction + print, since
+  // `:x` is now a supported read), `repeat 1 [ print 1 ]` (instruction only — repeat bodies are
+  // a later slice).
+  assert.equal(result.events.length, 4);
   assert.deepEqual(
     result.events.map((event) => event.seq),
-    [0, 1, 2],
+    [0, 1, 2, 3],
   );
   assert.deepEqual(
     result.events.map((event) => event.kind),
-    ["instruction", "instruction", "instruction"],
+    ["instruction", "instruction", "print", "instruction"],
   );
-  assert.deepEqual(
-    result.events.map((event) => event.payload.statement_kind),
-    ["Assign", "Call", "Repeat"],
-  );
+  assert.deepEqual(result.events[2].payload, { values: [1] });
+  const instructionKinds = result.events
+    .filter((event) => event.kind === "instruction")
+    .map((event) => event.payload.statement_kind);
+  assert.deepEqual(instructionKinds, ["Assign", "Call", "Repeat"]);
 });
 
 test("execute evaluates an arithmetic print argument, per issue #93", () => {
@@ -133,7 +137,9 @@ test("execute evaluates a parenthesized `(print value)` call the same as the pla
 });
 
 test("execute leaves an unsupported print argument un-evaluated, emitting no print event", () => {
-  const result = execute("print :x", "main.logo");
+  // A dotted `.field` place segment is Data/record-profile and deferred (issue #94 covers only
+  // the `index` selector), so `:ages.tom` stays unsupported the same way `:x` did before #94.
+  const result = execute("print :ages.tom", "main.logo");
   assert.equal(result.diagnostics.length, 0);
   assert.equal(result.events.length, 1);
   assert.equal(result.events[0].kind, "instruction");
@@ -155,10 +161,11 @@ test("execute carries a boolean and a list value on a print event", () => {
 });
 
 test("execute leaves a variadic print un-evaluated when any one operand is unsupported", () => {
-  // Every operand must be an expression kind this issue's evaluator supports — `:x` is not, so
-  // the whole `(print 1 :x)` statement stays un-evaluated (only its `instruction` event fires),
-  // even though its first operand (`1`) would evaluate cleanly on its own.
-  const result = execute("(print 1 :x)", "main.logo");
+  // Every operand must be an expression kind this issue's evaluator supports — `:ages.tom` (a
+  // dotted `.field` place, Data-profile and deferred) is not, so the whole `(print 1 :ages.tom)`
+  // statement stays un-evaluated (only its `instruction` event fires), even though its first
+  // operand (`1`) would evaluate cleanly on its own.
+  const result = execute("(print 1 :ages.tom)", "main.logo");
   assert.equal(result.diagnostics.length, 0);
   assert.equal(result.events.length, 1);
   assert.equal(result.events[0].kind, "instruction");
@@ -215,4 +222,31 @@ test("execute raises ol-not-enough-inputs for a parenthesized zero-argument `(pr
     stage: "runtime",
     severity: "error",
   });
+});
+
+test("execute dispatches an `Assign` statement, making its binding visible to a later statement", () => {
+  // `:x = 1` never emits its own event (issue #94: there is no dedicated event kind for
+  // assignment) — only its `instruction` event fires — but the binding it creates is visible to
+  // `print :x` in the very next statement, proving the root Environment is shared across
+  // statements within one `execute()` call.
+  const result = execute(":x = 1\nprint :x", "main.logo");
+  assert.equal(result.diagnostics.length, 0);
+  assert.equal(result.events.length, 3);
+  assert.deepEqual(
+    result.events.map((event) => event.kind),
+    ["instruction", "instruction", "print"],
+  );
+  assert.deepEqual(result.events[2].payload, { values: [1] });
+});
+
+test("execute halts on an Assign failure, keeping only the events emitted so far", () => {
+  // `first :nums = 1` assigns to a reporter call, not a place — `ol-not-a-place` — so execution
+  // stops there: the failing statement's own `instruction` event is kept, but the `print`
+  // statement after it never runs.
+  const result = execute('first :nums = 1\nprint "unreached"', "main.logo");
+  assert.equal(result.events.length, 1);
+  assert.equal(result.events[0].kind, "instruction");
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-not-a-place");
+  assert.deepEqual(result.diagnostics[0].params, { text: "first" });
 });

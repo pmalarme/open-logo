@@ -1,0 +1,34 @@
+{
+  "description": "`first :nums = 1` assigns to a reporter call, not a place, raising the runtime's own `ol-not-a-place` (issue #94, `stage: \"runtime\"` — this is the same defect the semantic checker's `checker-not-a-place.ts` rule from issue #113 also catches at `stage: \"semantic\"`, but `execute()` never runs `check()`). The structural check happens before any operand is evaluated, so `:nums` need not even be bound.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/not-a-place-runtime",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-not-a-place",
+      "source_span": {
+        "document": "core-language/execution/not-a-place-runtime",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "params": {
+        "text": "first"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

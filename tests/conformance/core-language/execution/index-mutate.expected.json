@@ -1,0 +1,56 @@
+{
+  "description": "`:nums[2] = 99` writes through a 1-based list-index place in place, so the later `print :nums` observes the mutation (issue #94).",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/index-mutate",
+        "start": [1, 1],
+        "end": [1, 19]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/index-mutate",
+        "start": [2, 1],
+        "end": [2, 14]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/index-mutate",
+        "start": [3, 1],
+        "end": [3, 12]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/index-mutate",
+        "start": [3, 1],
+        "end": [3, 12]
+      },
+      "payload": {
+        "values": [[10, 99, 30]]
+      }
+    }
+  ],
+  "diagnostics": []
+}

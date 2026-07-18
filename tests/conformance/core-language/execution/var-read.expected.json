@@ -1,0 +1,44 @@
+{
+  "description": "`:size` reads the value bound by `:size = 50` on the previous statement — the colon-place sugar for `thing \"size\"` (issue #94, spec/execution-model.md:316-327).",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/var-read",
+        "start": [1, 1],
+        "end": [1, 11]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/var-read",
+        "start": [2, 1],
+        "end": [2, 12]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/var-read",
+        "start": [2, 1],
+        "end": [2, 12]
+      },
+      "payload": {
+        "values": [50]
+      }
+    }
+  ],
+  "diagnostics": []
+}

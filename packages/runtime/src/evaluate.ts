@@ -6,7 +6,9 @@
  * [`spec/commands.md`](../../../spec/commands.md). {@link evaluate} is a plain recursive
  * dispatch over {@link ExpressionNode.kind} so the evaluator slices that follow (#94-#105 —
  * variables, comparisons, `is`-predicates, lists, comprehensions, …) each add one more `case`
- * without restructuring this function.
+ * without restructuring this function. Issue #94 adds the {@link Environment} binding model,
+ * `:name` reads (`VarRef`/`thing`), assignment (`executeAssign`), and Core-scope postfix list-
+ * index places (`Place` with `index` segments only — `.field` is Data-profile and deferred).
  *
  * `-3` is a negative *literal* (the reader already folds the sign into `NumberLitNode.value`,
  * per `spec/grammar.md:17,226`), never unary minus, so there is no negation case here — only
@@ -20,10 +22,13 @@
 import type { Diagnostic, OLValue, SourceSpan } from "@openlogo/core";
 import { typeNameOf } from "@openlogo/core";
 import type {
+  AssignNode,
   CallNode,
   ComparisonChainNode,
   ExpressionNode,
   ParenCallNode,
+  PlaceNode,
+  SelectorSegment,
 } from "@openlogo/parser";
 import { runtimeDiag } from "./errors.js";
 
@@ -38,6 +43,55 @@ function ok(value: OLValue): EvalResult {
 
 function fail(diagnostic: Diagnostic): EvalResult {
   return { ok: false, diagnostic };
+}
+
+// --- Environment: the variable binding model (spec/execution-model.md:316-327) --------------
+//
+// A frame is one lexical scope's name→value table. `Environment.frames` is nearest-first, and
+// the last frame is always the root/global frame — the top-level program runs directly in it.
+// Issue #94 only ever has the root frame; procedure call frames (issue #97) push additional
+// entries onto the front of `frames` without otherwise changing this shape.
+
+/** One lexical scope: a mutable name→value binding table. */
+export type Frame = Map<string, OLValue>;
+
+/** The evaluator's binding model: a nearest-first stack of frames, root last. */
+export interface Environment {
+  readonly frames: readonly Frame[];
+}
+
+/** A fresh environment holding just the root/global frame. */
+export function createEnvironment(): Environment {
+  return { frames: [new Map()] };
+}
+
+/** Look up `name` nearest frame to root; `undefined` when no frame binds it. */
+function lookupVar(env: Environment, name: string): OLValue | undefined {
+  for (const frame of env.frames) {
+    const value = frame.get(name);
+    if (value !== undefined) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * `:name = value` / `set name to value`: mutate the nearest existing binding, or create one in
+ * the root (last) frame when no frame binds `name` yet (`spec/execution-model.md:322-324`).
+ * Assignment to an unbound name never fails — it always creates a global. `createEnvironment` is
+ * the only way to build an {@link Environment} and always seeds at least the root frame, so the
+ * cast below (rather than a defensive throw no caller could ever trigger) is safe.
+ */
+function assignVar(env: Environment, name: string, value: OLValue): void {
+  for (const frame of env.frames) {
+    if (frame.has(name)) {
+      frame.set(name, value);
+      return;
+    }
+  }
+  const root = env.frames[env.frames.length - 1] as Frame;
+  root.set(name, value);
 }
 
 /**
@@ -138,23 +192,29 @@ function isComparisonOperator(name: string): name is ComparisonOperator {
 /**
  * Does {@link evaluate} give `node` a value in this issue's scope? `execute()` uses this guard
  * to decide whether to evaluate a `print` argument at all: expression kinds and callees this
- * issue does not implement yet (`:x` variable reads, `is`-predicates, comprehensions, calls to
- * any command other than the arithmetic operators, math builtins, and comparison operators
- * below) are left untouched for their own future slice (#94-#105), never reaching
- * {@link evaluate}'s internal "not implemented yet" invariant checks. As of issue #96 a
- * {@link ComparisonChainNode} and the six comparison-operator calls (`== != < > <= >=`) are in
- * scope, so a comparison whose operands are all themselves supported is evaluated.
+ * issue does not implement yet (`is`-predicates, comprehensions, a dotted `.field` place segment
+ * — Data-profile, deferred — and calls to any command other than the arithmetic operators, math
+ * builtins, comparison operators, and `thing` below) are left untouched for their own future
+ * slice (#94-#105), never reaching {@link evaluate}'s internal "not implemented yet" invariant
+ * checks. As of issue #96 a {@link ComparisonChainNode} and the six comparison-operator calls
+ * (`== != < > <= >=`) are in scope, so a comparison whose operands are all themselves supported
+ * is evaluated. As of issue #94 a `VarRef` (`:name`) is always supported, and a `Place` (`:l[i]`)
+ * is supported only when every postfix segment is an `index` selector with a supported key —
+ * `.field` segments stay unsupported since record/dict places are a later profile.
  */
 export function isSupportedExpression(node: ExpressionNode): boolean {
   switch (node.kind) {
     case "NumberLit":
     case "WordLit":
     case "BooleanLit":
+    case "VarRef":
       return true;
     case "ListLit":
       return node.elements.every(isSupportedExpression);
     case "ComparisonChain":
       return node.operands.every(isSupportedExpression);
+    case "Place":
+      return isSupportedPlace(node);
     case "Call":
     case "ParenCall": {
       const name = node.callee.name.toLowerCase();
@@ -162,7 +222,8 @@ export function isSupportedExpression(node: ExpressionNode): boolean {
         isBinaryArithmeticOperator(name) ||
         isUnaryMathBuiltin(name) ||
         isBinaryMathBuiltin(name) ||
-        isComparisonOperator(name);
+        isComparisonOperator(name) ||
+        name === "thing";
       return isKnownCallee && node.args.every(isSupportedExpression);
     }
     default:
@@ -170,8 +231,23 @@ export function isSupportedExpression(node: ExpressionNode): boolean {
   }
 }
 
+/**
+ * Is every postfix segment of `place` a Core-scope `index` selector (`:l[i]`) with a supported
+ * key expression? A dotted `.field` segment is Data/record-profile and deferred, so a place
+ * carrying one is unsupported regardless of its other segments. Vacuously `true` for a
+ * zero-segment place (a bare `:name` grown into a place only in assignment-target position).
+ */
+function isSupportedPlace(place: PlaceNode): boolean {
+  return place.segments.every(
+    (segment) => segment.kind === "index" && isSupportedExpression(segment.key),
+  );
+}
+
 /** Evaluate one Core expression node to a runtime {@link OLValue}. */
-export function evaluate(node: ExpressionNode): EvalResult {
+export function evaluate(
+  node: ExpressionNode,
+  env: Environment = createEnvironment(),
+): EvalResult {
   switch (node.kind) {
     case "NumberLit":
     case "WordLit":
@@ -180,7 +256,7 @@ export function evaluate(node: ExpressionNode): EvalResult {
     case "ListLit": {
       const values: OLValue[] = [];
       for (const element of node.elements) {
-        const result = evaluate(element);
+        const result = evaluate(element, env);
         if (!result.ok) {
           return result;
         }
@@ -188,33 +264,273 @@ export function evaluate(node: ExpressionNode): EvalResult {
       }
       return ok(values);
     }
+    case "VarRef": {
+      const value = lookupVar(env, node.name);
+      if (value === undefined) {
+        return fail(runtimeDiag.undefinedVar(node.source_span, node.name));
+      }
+      return ok(value);
+    }
+    case "Place":
+      return readPlace(node, env);
     case "Call":
     case "ParenCall":
-      return evaluateCall(node);
+      return evaluateCall(node, env);
     case "ComparisonChain":
-      return evaluateComparisonChain(node);
+      return evaluateComparisonChain(node, env);
     default:
-      // VarRef, Place, IsPredicate, and Comprehension evaluation land with their own slices
-      // (#94-#105); nothing in this issue's scope reaches them.
+      // IsPredicate and Comprehension evaluation land with their own slices (#94-#105); nothing
+      // in this issue's scope reaches them.
       throw new Error(
         `evaluate: "${node.kind}" is not implemented yet — it lands with its own evaluator slice`,
       );
   }
 }
 
-function evaluateCall(node: ArithmeticCallNode): EvalResult {
+/**
+ * Resolve a {@link PlaceNode} read (`:l[i]`, `:m[1][2]`): look up the base variable, then walk
+ * every postfix segment against the value so far. Only `index` segments are in this issue's
+ * scope (`isSupportedExpression` keeps a `.field`-bearing place from reaching evaluation from
+ * `print`/`execute()`); a segment kind this issue does not implement is an internal invariant
+ * violation, mirroring {@link evaluate}'s own "not implemented yet" checks.
+ */
+function readPlace(node: PlaceNode, env: Environment): EvalResult {
+  const base = lookupVar(env, node.base.name);
+  if (base === undefined) {
+    return fail(
+      runtimeDiag.undefinedVar(node.base.source_span, node.base.name),
+    );
+  }
+
+  let current: OLValue = base;
+  for (const segment of node.segments) {
+    if (segment.kind !== "index") {
+      throw new Error(
+        `evaluate: place segment kind "${segment.kind}" is not implemented yet — it lands with its own evaluator slice`,
+      );
+    }
+    const step = resolveIndexSegment(current, segment, env);
+    if (!step.ok) {
+      return step;
+    }
+    current = step.list[step.index] as OLValue;
+  }
+  return ok(current);
+}
+
+/** The outcome of resolving one `index` postfix segment against its container value. */
+type IndexResolution =
+  | {
+      readonly ok: true;
+      readonly list: readonly OLValue[];
+      readonly index: number;
+    }
+  | { readonly ok: false; readonly diagnostic: Diagnostic };
+
+/**
+ * Evaluate `segment.key` and validate it against `container`: the container must be a list
+ * (`ol-type`, `expected: "list"`), the key must read as a number (`ol-type`,
+ * `expected: "number"` — `spec/error-model.md:99` calls this `ol-type`, not `ol-range`), and the
+ * (1-based) key must be a whole number within `1..container.length` (`ol-range` otherwise).
+ * Returns the container (as a list) and the equivalent 0-based JS index so callers can either
+ * read or mutate the element in place.
+ */
+function resolveIndexSegment(
+  container: OLValue,
+  segment: SelectorSegment,
+  env: Environment,
+): IndexResolution {
+  const keyResult = evaluate(segment.key, env);
+  if (!keyResult.ok) {
+    return keyResult;
+  }
+  if (!Array.isArray(container)) {
+    return {
+      ok: false,
+      diagnostic: runtimeDiag.placeType(segment.source_span, {
+        expected: "list",
+        actual: typeNameOf(container),
+        value: container,
+        operation: "index",
+      }),
+    };
+  }
+  const key = keyResult.value;
+  const numericKey = asNumber(key);
+  if (numericKey === undefined) {
+    return {
+      ok: false,
+      diagnostic: runtimeDiag.placeType(segment.source_span, {
+        expected: "number",
+        actual: typeNameOf(key),
+        value: key,
+        operation: "index",
+      }),
+    };
+  }
+  if (
+    !Number.isInteger(numericKey) ||
+    numericKey < 1 ||
+    numericKey > container.length
+  ) {
+    return {
+      ok: false,
+      diagnostic: runtimeDiag.indexRange(segment.source_span, {
+        index: key,
+        length: container.length,
+      }),
+    };
+  }
+  return { ok: true, list: container, index: numericKey - 1 };
+}
+
+/**
+ * `thing "name"` — the reporter form of a variable read; `:name` is sugar for this
+ * (`spec/execution-model.md:326-327`). The argument must evaluate to a word (`ol-type`
+ * otherwise); an unbound name raises `ol-undefined-var`, same as a `:name` read.
+ */
+function evaluateThing(node: ArithmeticCallNode, env: Environment): EvalResult {
+  const argNode = arg(node, 0);
+  const argResult = evaluate(argNode, env);
+  if (!argResult.ok) {
+    return argResult;
+  }
+  if (typeof argResult.value !== "string") {
+    return fail(
+      runtimeDiag.placeType(argNode.source_span, {
+        expected: "word",
+        actual: typeNameOf(argResult.value),
+        value: argResult.value,
+        operation: "thing",
+      }),
+    );
+  }
+  const value = lookupVar(env, argResult.value);
+  if (value === undefined) {
+    return fail(runtimeDiag.undefinedVar(argNode.source_span, argResult.value));
+  }
+  return ok(value);
+}
+
+/**
+ * The target of `=`/`set … to` must be a supported place, per {@link isSupportedPlace}; anything
+ * else (a `.field` segment) is Data-profile and left un-executed rather than raised as an error,
+ * matching the existing convention for a statement kind this issue does not yet give meaning to.
+ */
+export type AssignResult =
+  | { readonly ok: true }
+  | { readonly ok: false; readonly diagnostic: Diagnostic };
+
+/**
+ * Execute one `Assign` statement (`:place = value`, `set place to value`): the runtime's own
+ * `ol-not-a-place` guard for a reporter/command call used as a target (issue #113's checker
+ * catches this too, at `stage: "semantic"`, but `execute()` never runs `check()`), then either
+ * `assignVar` for a bare place or {@link writeIndexedPlace} for a postfix (`:l[i] = v`) one. A
+ * `.field`-bearing place is silently left un-executed (Data-profile, deferred) — its value
+ * expression is never evaluated, matching `print`'s "unsupported operand" convention.
+ */
+export function executeAssign(
+  node: AssignNode,
+  env: Environment,
+): AssignResult {
+  if (node.place.kind === "Call" || node.place.kind === "ParenCall") {
+    return {
+      ok: false,
+      diagnostic: runtimeDiag.notAPlace(
+        node.place.source_span,
+        node.place.callee.name,
+      ),
+    };
+  }
+  if (node.place.kind !== "Place") {
+    // The grammar only ever builds an Assign target as a Place or a Call/ParenCall
+    // (`spec/grammar.md:244-258`); anything else is an internal invariant violation.
+    throw new Error(
+      `executeAssign: assignment target kind "${node.place.kind}" is not a place`,
+    );
+  }
+  const place = node.place;
+  if (!isSupportedPlace(place)) {
+    return { ok: true };
+  }
+
+  const valueResult = evaluate(node.value, env);
+  if (!valueResult.ok) {
+    return { ok: false, diagnostic: valueResult.diagnostic };
+  }
+
+  if (place.segments.length === 0) {
+    assignVar(env, place.base.name, valueResult.value);
+    return { ok: true };
+  }
+  return writeIndexedPlace(place, valueResult.value, env);
+}
+
+/**
+ * Write through a non-empty postfix place (`:l[i] = v`, `:m[1][2] = v`): the base variable must
+ * already exist (`ol-undefined-var` otherwise — unlike bare assignment, indexed assignment never
+ * creates a base), every intermediate segment resolves against the existing value with no
+ * auto-vivification (`ol-range`/`ol-type` per {@link resolveIndexSegment}), and only the final
+ * segment's slot is mutated in place — so an aliased reference to the same list observes the
+ * write (`spec/execution-model.md:276-287`). The caller ({@link executeAssign}) only reaches
+ * here after `isSupportedPlace` has confirmed every segment is `index`-kind, so the cast below
+ * is safe without a redundant runtime re-check.
+ */
+function writeIndexedPlace(
+  place: PlaceNode,
+  value: OLValue,
+  env: Environment,
+): AssignResult {
+  const base = lookupVar(env, place.base.name);
+  if (base === undefined) {
+    return {
+      ok: false,
+      diagnostic: runtimeDiag.undefinedVar(
+        place.base.source_span,
+        place.base.name,
+      ),
+    };
+  }
+
+  const segments = place.segments as readonly SelectorSegment[];
+  let container: OLValue = base;
+  for (let i = 0; i < segments.length - 1; i++) {
+    const step = resolveIndexSegment(
+      container,
+      segments[i] as SelectorSegment,
+      env,
+    );
+    if (!step.ok) {
+      return step;
+    }
+    container = step.list[step.index] as OLValue;
+  }
+
+  const lastSegment = segments[segments.length - 1] as SelectorSegment;
+  const step = resolveIndexSegment(container, lastSegment, env);
+  if (!step.ok) {
+    return step;
+  }
+  (step.list as OLValue[])[step.index] = value;
+  return { ok: true };
+}
+
+function evaluateCall(node: ArithmeticCallNode, env: Environment): EvalResult {
   const name = node.callee.name.toLowerCase();
   if (isBinaryArithmeticOperator(name)) {
-    return evaluateBinaryArithmetic(node, name);
+    return evaluateBinaryArithmetic(node, name, env);
   }
   if (isUnaryMathBuiltin(name)) {
-    return evaluateUnaryMath(node, name);
+    return evaluateUnaryMath(node, name, env);
   }
   if (isBinaryMathBuiltin(name)) {
-    return evaluateBinaryMath(node, name);
+    return evaluateBinaryMath(node, name, env);
   }
   if (isComparisonOperator(name)) {
-    return evaluateComparisonCall(node, name);
+    return evaluateComparisonCall(node, name, env);
+  }
+  if (name === "thing") {
+    return evaluateThing(node, env);
   }
   throw new Error(
     `evaluate: call to "${name}" is not implemented yet — it lands with its own evaluator slice`,
@@ -224,15 +540,16 @@ function evaluateCall(node: ArithmeticCallNode): EvalResult {
 function evaluateBinaryArithmetic(
   node: ArithmeticCallNode,
   operator: BinaryArithmeticOperator,
+  env: Environment,
 ): EvalResult {
   const leftNode = arg(node, 0);
   const rightNode = arg(node, 1);
 
-  const leftResult = evaluate(leftNode);
+  const leftResult = evaluate(leftNode, env);
   if (!leftResult.ok) {
     return leftResult;
   }
-  const rightResult = evaluate(rightNode);
+  const rightResult = evaluate(rightNode, env);
   if (!rightResult.ok) {
     return rightResult;
   }
@@ -273,9 +590,10 @@ function evaluateBinaryArithmetic(
 function evaluateUnaryMath(
   node: ArithmeticCallNode,
   builtin: UnaryMathBuiltin,
+  env: Environment,
 ): EvalResult {
   const argNode = arg(node, 0);
-  const argResult = evaluate(argNode);
+  const argResult = evaluate(argNode, env);
   if (!argResult.ok) {
     return argResult;
   }
@@ -302,15 +620,16 @@ function evaluateUnaryMath(
 function evaluateBinaryMath(
   node: ArithmeticCallNode,
   builtin: BinaryMathBuiltin,
+  env: Environment,
 ): EvalResult {
   const baseNode = arg(node, 0);
   const exponentNode = arg(node, 1);
 
-  const baseResult = evaluate(baseNode);
+  const baseResult = evaluate(baseNode, env);
   if (!baseResult.ok) {
     return baseResult;
   }
-  const exponentResult = evaluate(exponentNode);
+  const exponentResult = evaluate(exponentNode, env);
   if (!exponentResult.ok) {
     return exponentResult;
   }
@@ -580,15 +899,16 @@ function compareValues(
 function evaluateComparisonCall(
   node: ArithmeticCallNode,
   operator: ComparisonOperator,
+  env: Environment,
 ): EvalResult {
   const leftNode = arg(node, 0);
   const rightNode = arg(node, 1);
 
-  const leftResult = evaluate(leftNode);
+  const leftResult = evaluate(leftNode, env);
   if (!leftResult.ok) {
     return leftResult;
   }
-  const rightResult = evaluate(rightNode);
+  const rightResult = evaluate(rightNode, env);
   if (!rightResult.ok) {
     return rightResult;
   }
@@ -608,9 +928,12 @@ function evaluateComparisonCall(
  * every earlier link held. The shared middle operand is evaluated once and reused for both of
  * its links — the {@link ComparisonChainNode} stores it once, so single-evaluation is structural.
  */
-function evaluateComparisonChain(node: ComparisonChainNode): EvalResult {
+function evaluateComparisonChain(
+  node: ComparisonChainNode,
+  env: Environment,
+): EvalResult {
   const firstNode = node.operands[0] as ExpressionNode;
-  const firstResult = evaluate(firstNode);
+  const firstResult = evaluate(firstNode, env);
   if (!firstResult.ok) {
     return firstResult;
   }
@@ -619,7 +942,7 @@ function evaluateComparisonChain(node: ComparisonChainNode): EvalResult {
 
   for (let i = 0; i < node.operators.length; i++) {
     const rightNode = node.operands[i + 1] as ExpressionNode;
-    const rightResult = evaluate(rightNode);
+    const rightResult = evaluate(rightNode, env);
     if (!rightResult.ok) {
       return rightResult;
     }
