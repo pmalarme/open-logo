@@ -1,0 +1,7 @@
+{
+  "description": "A dotted bare place after set ... to parses with field segments and no diagnostics",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

@@ -1,0 +1,2 @@
+:people.tom.age = 9
+print :people.tom.age

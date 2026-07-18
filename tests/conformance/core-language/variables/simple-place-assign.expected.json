@@ -1,0 +1,7 @@
+{
+  "description": "A simple colon place :x = 5 parses as an equals-form assignment with no diagnostics",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}
