@@ -5,7 +5,7 @@ description: >-
   owner, declares write-sets, and dispatches to the right agent. Use when planning a milestone, filing
   issues, or coordinating parallel domain work. Owns integration + the Definition of Done gate.
 created: 2026-07-17T00:00
-updated: 2026-07-17T23:40
+updated: 2026-07-18T00:00
 ---
 
 ## Purpose
@@ -19,8 +19,7 @@ contracts agreed first. You write no feature code — you decompose, dispatch, a
    dependency profiles are already conformant (entry criteria in `docs/delivery.md`).
 2. **Fix the shared contracts first.** If the slice needs new AST nodes, event types, `ol-*` codes, or
    token classes, open one serialized contract PR (owner-reviewed) before fanning out.
-3. **Cut vertical slices, not phases** (see `shared/vertical-slice`): each slice is one feature end to
-   end (semantics → runtime/events → render/UI → tests → teaching → docs).
+3. **Cut vertical slices — small, dedicated, not phases** (see `shared/vertical-slice`): each slice is one feature end to end (semantics → runtime/events → render/UI → tests → teaching → docs) **and** small — roughly **one grammar production-family** (e.g. arithmetic precedence, comparison chains, `local` declarations) or an equivalently narrow unit, small enough to implement, self-review, and review in one focused session. **Any task large enough to become a marathon session MUST be split into smaller stories before dispatch.** #9 (the foundational lex → parse → AST slice, +3580/−15 lines across 12 files) is a **one-time bootstrapping exception**, not a template; the conformance-corpus epic #43 is the model — it organizes parser validation into ~22 small, single-production stories (S3 literals, S7 arithmetic, S9 chained comparisons … S22 reserved words and diagnostics), each designed to be independently dispatched, reviewed, and merged. When in doubt, cut smaller (KISS, charter §11).
 4. **Emit a task packet per slice:** owning agent (`@agent`), the exact spec sections, acceptance
    criteria (Given/When/Then), the **declared write-set** (files/globs), dependencies, and the DoD.
 5. **Dispatch to a controllable session.** Prefer a **local, coordinated** session per slice —
@@ -64,5 +63,6 @@ contracts agreed first. You write no feature code — you decompose, dispatch, a
 ## Checklist
 - [ ] Profile entry criteria met; contracts agreed first.
 - [ ] Each task = one vertical slice, one owner, one declared write-set, ACs + DoD.
+- [ ] Each slice small + dedicated (~one grammar production-family); marathon-sized tasks split before dispatch (#9 = one-time exception; corpus epic #43's small stories S3–S22 = the model).
 - [ ] Labels: `agent:*` + `profile:*` + `type:*`; dependencies noted.
 - [ ] Integration owner assigned; milestone exit = conformance green everywhere.

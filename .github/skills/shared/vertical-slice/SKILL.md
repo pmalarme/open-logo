@@ -5,13 +5,12 @@ description: >-
   @openlogo/* packages. Use whenever you implement a command, control form, reporter, or turtle
   behavior. Covers grammar → AST → runtime + events → render/UI → tests → teaching → docs.
 created: 2025-06-01T00:00
-updated: 2025-06-01T00:00
+updated: 2026-07-18T00:00
 ---
 
 ## Purpose
 
-Deliver one feature as a thin, working, end-to-end **vertical slice** instead of a horizontal layer.
-A slice touches every package it needs and lands green, so the product is always demonstrable.
+Deliver one feature as a **small**, thin, working, end-to-end **vertical slice** instead of a horizontal layer. A slice touches every package it needs and lands green, so the product is always demonstrable. "Vertical" is only half the rule: a slice is small **and** end-to-end — keep it to roughly one grammar production-family (or an equivalently narrow unit), and split anything large enough to become a marathon session **before** you start it (see `orchestrator/decompose-and-dispatch` for the sizing rule; #9 was the one-time bootstrapping exception). Smaller slices are easier to build, self-review, and land green (KISS, charter §11).
 
 ## When to use
 
@@ -67,6 +66,7 @@ turtle pose, emits `move`/`line` events → `@openlogo/turtle` draws the segment
 docs show the snippet. That one slice exercises every package boundary; build it first.
 
 ## Checklist
+- [ ] Slice is small + dedicated (~one grammar production-family), not a marathon (`orchestrator/decompose-and-dispatch`).
 - [ ] Cited the exact spec section(s); no invented behavior.
 - [ ] Grammar, AST, runtime, events, and (if visual) rendering all updated.
 - [ ] Canonical vocabulary only (`shared/spec-fidelity`).
