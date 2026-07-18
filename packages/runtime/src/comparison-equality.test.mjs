@@ -29,6 +29,25 @@ function boolOf(expr) {
   return result.value;
 }
 
+/**
+ * Build a `NumberLit`-shaped operand whose `value` getter counts each read, returning the node
+ * plus a `reads()` accessor. The getter body lives at this single source location, so the
+ * single-evaluation test covers it once and the short-circuit test can reuse the same helper while
+ * asserting the count stays at 0 (rather than duplicating an uncovered getter body per test).
+ */
+function makeCountingOperand(value, span) {
+  let reads = 0;
+  const node = {
+    kind: "NumberLit",
+    source_span: span,
+    get value() {
+      reads += 1;
+      return value;
+    },
+  };
+  return { node, reads: () => reads };
+}
+
 // --- Equality matrix: `==` / `!=` -----------------------------------------------------------
 
 test("number == number is numeric equality", () => {
@@ -274,21 +293,13 @@ test("a chain evaluates each operand exactly once (single-evaluation)", () => {
   // Not yet expressible through Core source (variable reads land with #94), so build the chain
   // `1 < <mid> < 10` directly with a middle operand that counts reads of its literal value.
   const span = makeSpan(doc, [1, 1], [1, 2]);
-  let reads = 0;
-  const countingMiddle = {
-    kind: "NumberLit",
-    source_span: span,
-    get value() {
-      reads += 1;
-      return 5;
-    },
-  };
+  const middle = makeCountingOperand(5, span);
   const chain = {
     kind: "ComparisonChain",
     source_span: span,
     operands: [
       { kind: "NumberLit", source_span: span, value: 1 },
-      countingMiddle,
+      middle.node,
       { kind: "NumberLit", source_span: span, value: 10 },
     ],
     operators: [
@@ -300,7 +311,7 @@ test("a chain evaluates each operand exactly once (single-evaluation)", () => {
   assert.equal(result.ok, true);
   assert.equal(result.value, true);
   assert.equal(
-    reads,
+    middle.reads(),
     1,
     "the shared middle operand must be evaluated exactly once",
   );
@@ -308,15 +319,7 @@ test("a chain evaluates each operand exactly once (single-evaluation)", () => {
 
 test("a chain does not evaluate operands past the short-circuit point", () => {
   const span = makeSpan(doc, [1, 1], [1, 2]);
-  let tailReads = 0;
-  const countingTail = {
-    kind: "NumberLit",
-    source_span: span,
-    get value() {
-      tailReads += 1;
-      return 10;
-    },
-  };
+  const tail = makeCountingOperand(10, span);
   // `5 < 3 < <tail>`: the first link `5 < 3` is false, so the tail is never evaluated.
   const chain = {
     kind: "ComparisonChain",
@@ -324,7 +327,7 @@ test("a chain does not evaluate operands past the short-circuit point", () => {
     operands: [
       { kind: "NumberLit", source_span: span, value: 5 },
       { kind: "NumberLit", source_span: span, value: 3 },
-      countingTail,
+      tail.node,
     ],
     operators: [
       { name: "<", source_span: span },
@@ -334,7 +337,11 @@ test("a chain does not evaluate operands past the short-circuit point", () => {
   const result = evaluate(chain);
   assert.equal(result.ok, true);
   assert.equal(result.value, false);
-  assert.equal(tailReads, 0, "a short-circuited operand must not be evaluated");
+  assert.equal(
+    tail.reads(),
+    0,
+    "a short-circuited operand must not be evaluated",
+  );
 });
 
 // --- Cycle-safe structural equality (valuesEqual on constructed OLValues) --------------------
