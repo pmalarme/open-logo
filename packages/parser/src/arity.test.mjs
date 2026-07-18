@@ -77,11 +77,31 @@ test("an open-variadic primitive is never flagged too-many, however many inputs 
   assert.deepEqual(checkSource('(word "a" "b" "c")'), []);
 });
 
-test("the lower bound of a parenthesized primitive call is left to the runtime (not flagged)", () => {
-  // A parenthesized under-supply (`(power 1)`, `(first)`) is the runtime arity check's job (#97):
-  // an open variadic's true minimum is not expressible in the default-arity table.
-  assert.deepEqual(checkSource("(power 1)"), []);
-  assert.deepEqual(checkSource("(first)"), []);
+test("a parenthesized under-supply of a strictly fixed-arity primitive raises too-few", () => {
+  // `first`/`power` have no variadic form (max === min), so their minimum is exact and a
+  // parenthesized under-supply is a statically-known mismatch.
+  const [firstFinding] = checkSource("(first)");
+  assert.equal(firstFinding.code, "ol-not-enough-inputs");
+  assert.deepEqual(firstFinding.params, {
+    callable: "first",
+    expected: 1,
+    actual: 0,
+  });
+  const [powerFinding] = checkSource("(power 1)");
+  assert.equal(powerFinding.code, "ol-not-enough-inputs");
+  assert.deepEqual(powerFinding.params, {
+    callable: "power",
+    expected: 2,
+    actual: 1,
+  });
+});
+
+test("a parenthesized under-supply of a variadic/alternate primitive is left to the runtime", () => {
+  // `random`'s minimum is not its bare default and `word` is open variadic, so their true floor
+  // is not expressible here — the lower bound is the runtime arity check's job (#97), not a
+  // static false positive.
+  assert.deepEqual(checkSource("(random)"), []);
+  assert.deepEqual(checkSource('(word "a")'), []);
 });
 
 test("a parenthesized primitive call in the alternate/variadic form is never flagged", () => {

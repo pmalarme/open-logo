@@ -186,10 +186,14 @@ export function arityRule(
     // Parenthesized form: the learner explicitly grouped the inputs, so this is the only place a
     // primitive can be over-supplied. A strictly fixed-arity primitive has `max === min`, so
     // `(first 1 2)` is too many; an open variadic (`max` is infinite, e.g. `(print …)`) never is.
-    // The lower bound of a parenthesized primitive call is left to the runtime arity check (#97):
-    // an open variadic's true minimum is not expressible in the single default-arity table.
+    // When the primitive is strictly fixed (`max === min`) its minimum is exact, so a
+    // parenthesized under-supply (`(first)`, `(power 1)`) is a statically-known too-few. For a
+    // bounded alternate (`random`) or an open variadic (`word`), the true minimum is not the bare
+    // default, so the lower bound is left to the runtime arity check (#97) to avoid false positives.
     if (actual > range.max) {
       diagnostics.push(tooManyDiagnostic(raw, range.max, actual, span));
+    } else if (range.max === range.min && actual < range.min) {
+      diagnostics.push(notEnoughDiagnostic(raw, range.min, actual, span));
     }
   });
 

@@ -1,0 +1,19 @@
+{
+  "description": "ol-not-enough-inputs (issue #111): a parenthesized under-supply of a strictly fixed-arity Core primitive. `first` has no variadic form (corePrimitiveArityRange gives min === max === 1), so its minimum is exact and `(first)` — zero inputs where exactly one is required — is a statically-known too-few (spec/tooling.md:181), pointing at the callee. Unlike bare calls (whose surplus becomes a parse-stage stray), the parenthesized form is where an over- or under-supply is explicit; the lower bound of a bounded-alternate/open-variadic primitive is instead left to the runtime arity check (#97), see arity-paren-variadic-ok.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-not-enough-inputs",
+      "source_span": {
+        "document": "core-language/check/arity-not-enough-paren-primitive",
+        "start": [1, 2],
+        "end": [1, 7]
+      },
+      "params": { "callable": "first", "expected": 1, "actual": 0 },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}
