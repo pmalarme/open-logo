@@ -1,0 +1,7 @@
+{
+  "description": "A dotted place binds tighter than comparison and nests inside a condition, a call argument, and a list literal element",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

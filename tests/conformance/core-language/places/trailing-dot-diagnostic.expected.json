@@ -1,0 +1,19 @@
+{
+  "description": "A trailing dot with no following field name after a colon-place read (:a.) is not a valid postfix and reports ol-bad-token at the dot, leaving the base :a a plain VarRef",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/places/trailing-dot-diagnostic",
+        "start": [1, 9],
+        "end": [1, 10]
+      },
+      "params": { "text": "." },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}
