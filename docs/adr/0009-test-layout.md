@@ -63,12 +63,10 @@ conformance fixtures** stay in the top-level `tests/conformance/` directory (unc
    `pretest` script). Each test imports the shipped public entry (`@openlogo/<pkg>`, which resolves
    to `dist/index.js`) — **black-box through the real API**.
 
-3. **Loaded-module coverage stays honest.** When `npm run coverage` runs, tests import the public
-   entry point (`dist/index.js`). Because tests live in `src/` (not `dist/`), they cannot use
-   relative imports to reach unexported modules — the test must go through the public API or it
-   cannot load the code at all. Combined with the loaded-module policy (only imported modules count),
-   this layout prevents the false-positive coverage described above: internal code that is not
-   re-exported from `src/index.ts` is not loaded and therefore not covered.
+3. **Source-tree tests stay separate from `dist/`.** Tests live in `src/` (not compiled into `dist/`),
+   so they are spatially separated from the runtime artifact. By review convention, tests import only
+   the public API (`@openlogo/<pkg>`), not relative paths like `../dist/internal.js`. This separation
+   makes it easier to maintain black-box discipline (though layout alone does not enforce it).
 
 4. **No compiled-test drift.** Because the test is **not** compiled, it cannot fall out of sync with
    the built output; it always imports the artifact CI and users see.
@@ -124,10 +122,10 @@ packages/
 - `npm run coverage` (from PR #41) runs `node --test --experimental-test-coverage` with
   `--test-coverage-lines=100 --test-coverage-branches=100 --test-coverage-functions=100`.
 - **Loaded-module policy** (from `testing/ci-and-conformance`): only files actually imported through
-  the test's execution (via the public API) contribute to coverage. Stub packages with no runtime yet
-  emit an empty `dist/index.js` and read as 100% covered (because no code is loaded). Shipped code
-  **must** be both exported from `src/index.ts` **and** covered by a test that imports the public API
-  — otherwise the coverage gate fails, making the 100% requirement honest.
+  the test's execution contribute to coverage. Stub packages with no runtime yet emit an empty
+  `dist/index.js` and read as 100% covered (because no code is loaded). When tests follow the review
+  convention and import only the public API, shipped code must be both exported from `src/index.ts`
+  and exercised by those tests to achieve 100% coverage.
 
 This layout was established by PR #23 (issue #7 contract stubs): `packages/core/src/contracts.smoke.test.mjs`
 and `packages/parser/src/contracts.smoke.test.mjs` both import their package public API, run via
@@ -143,14 +141,14 @@ discipline works end-to-end.
   events/diagnostics pairs, as defined in ADR-0007). The two test layers remain distinct: co-located
   unit tests verify package internals through the public API; conformance fixtures verify language
   behaviour against the spec.
-- **Black-box discipline is a review convention:** tests co-located in `src/` import only
-  `@openlogo/<pkg>` (the public entry), not relative paths to internals. This is enforced by code
-  review, not by the layout itself (a test in `src/` could technically import `./internal.js`, but
-  doing so violates the convention and would be caught in review).
-- **100% coverage is more honest:** the loaded-module policy + the `.test.mjs` layout + the coverage
-  gate together reduce false positives. Tests outside `dist/` cannot give coverage to unexported
-  internal modules via relative imports, so such modules remain uncovered (and the 100% gate will
-  fail if they contain any code).
+- **Black-box discipline is a review convention:** tests co-located in `src/` must import only
+  `@openlogo/<pkg>` (the public entry), not relative paths to internals or `dist/`. This is enforced
+  by code review, not by the layout itself (a test in `src/` could technically import `./internal.js`
+  or `../dist/internal.js`, but doing so violates the convention and would be caught in review).
+- **Coverage quality depends on the review convention:** when tests import only the public API (the
+  required convention), the 100% coverage gate measures what external consumers can reach. Tests that
+  violate the convention and import internals directly would give false coverage to unexported code
+  (the loaded-module policy includes any imported file, regardless of how it was imported).
 - **ADR-0005 note at lines 73-75 is superseded** by this decision. The `node:test` choice in ADR-0005
   remains Accepted; this ADR amends only the anticipated `.test.ts` extension.
 - Contributors writing new packages or features should follow the pattern in
