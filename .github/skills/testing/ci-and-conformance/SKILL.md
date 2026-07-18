@@ -18,15 +18,18 @@ through (`docs/delivery.md`); you own the harness and the CI that runs it.
 1. **Conformance harness:** load stack-neutral fixtures (`shared/conformance-fixture`) — `source` +
    expected `events`/`diagnostics` — and run them by **profile**, respecting the DAG so a profile is
    only "claimed" when it and its dependencies pass.
-2. **Negative + fuzz:** malformed programs assert the right `ol-*` code + span (not just "an error");
+2. **Coverage:** enforce 100% line/branch/function coverage for all delivered code (`npm run coverage`;
+   only files loaded by tests are counted, so stub packages with no runtime yet don't drag the number
+   down — but any shipped code must be fully covered).
+3. **Negative + fuzz:** malformed programs assert the right `ol-*` code + span (not just "an error");
    fuzz the reader/parser for stability.
-3. **Stability:** `repeat 10000 [ forward 1 ]` and nested `repeat` validate the **execution budget +
+4. **Stability:** `repeat 10000 [ forward 1 ]` and nested `repeat` validate the **execution budget +
    cancellation** at the event level (not frames) and stay within time/memory bounds.
-4. **Regression:** every fixed bug gains a fixture so it can't return.
-5. **CI (`shared/definition-of-done`):** wire `.github/workflows/` to run build, type-check/lint, unit,
-   **conformance**, runnable examples, and applicable a11y/pedagogy checks on every PR. Required checks
-   gate merges — the agent never merges.
-6. **Post-M0 maintenance:** optional scheduled nightly conformance/stability + grammar-vs-highlighter
+5. **Regression:** every fixed bug gains a fixture so it can't return.
+6. **CI (`shared/definition-of-done`):** wire `.github/workflows/` to run build, type-check/lint, unit,
+   **coverage**, **conformance**, runnable examples, and applicable a11y/pedagogy checks on every PR.
+   Required checks gate merges — the agent never merges.
+7. **Post-M0 maintenance:** optional scheduled nightly conformance/stability + grammar-vs-highlighter
    drift checks that auto-file issues on regression.
 
 ## Critical rules

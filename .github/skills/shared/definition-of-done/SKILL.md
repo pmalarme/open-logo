@@ -17,13 +17,16 @@ A change is "done" only when it is proven, documented, and green. This skill is 
 1. **Builds & type-checks** (TypeScript 7).
 2. **Lint passes**, including OpenLogo style-lint (`ol-style-*`) where relevant.
 3. **Unit tests pass** for the changed package(s).
-4. **Conformance fixtures pass** and were extended for the new/changed behavior
+4. **Test coverage is 100%** — line, branch, and function coverage (`npm run coverage`; only files
+   loaded by tests are counted, so stub packages with no runtime yet don't drag the number down —
+   but any shipped code must be fully covered).
+5. **Conformance fixtures pass** and were extended for the new/changed behavior
    (`shared/conformance-fixture`).
-5. **Runnable examples still run** — `spec/examples/*.logo` and doc snippets parse and execute.
-6. **Accessibility/pedagogy checks pass** where applicable (reduced-motion, keyboard, non-visual
+6. **Runnable examples still run** — `spec/examples/*.logo` and doc snippets parse and execute.
+7. **Accessibility/pedagogy checks pass** where applicable (reduced-motion, keyboard, non-visual
    descriptions; progressive hints / no-spoilers).
-7. **Docs & spec cross-links updated** in the same PR (no drift).
-8. **Self-review passed before the PR** — the implementing agent ran
+8. **Docs & spec cross-links updated** in the same PR (no drift).
+9. **Self-review passed before the PR** — the implementing agent ran
    [`shared/review-gate`](../review-gate/SKILL.md) in-session: at least two non-author sub-agents —
    the logic/spec reviewer (`rubber-duck`, or a named fallback) plus **every** domain-adaptive QA
    expert — each returned `pass`, and their verdicts are attached to the PR (reviewer ≠ author).
