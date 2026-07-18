@@ -1,0 +1,5 @@
+# Nested parenthesized expressions `((1))` collapse through the parenthesized-expression
+# primary with no dedicated wrapper node, per grammar.md:195,209. `arithmetic-parentheses.logo`
+# already covers `(1 + 2) * 3` grouping overriding precedence; this covers nesting depth.
+print ((1))
+print (((2 + 3)))

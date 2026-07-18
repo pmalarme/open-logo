@@ -1,0 +1,7 @@
+{
+  "description": "Nested parenthesized expressions `((1))` and `(((2 + 3)))` parse cleanly through the parenthesized-expression primary, per grammar.md:195,209.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

@@ -1,0 +1,5 @@
+# A bracketed LIST literal in expression position and a bracketed control BLOCK body reuse the
+# same `[ ... ]` delimiters but parse to different AST shapes (ListLit vs Block), per
+# grammar.md:189-193,204 (list-literal) and the block production covering control bodies.
+print [1 2 3]
+repeat 3 [ print 1 ]

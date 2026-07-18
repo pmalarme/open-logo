@@ -1,0 +1,4 @@
+# A parenthesized expression is usable as a fixed call's argument, per grammar.md:195,209-210
+# (parenthesized-expression is a primary, and a fixed-call argument is a full expression).
+print power (1 + 2) 3
+print abs (1 + 2)

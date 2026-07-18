@@ -1,0 +1,7 @@
+{
+  "description": "A parenthesized expression `(1 + 2)` parses cleanly as a fixed call's argument (`power`'s first input, `abs`'s sole input), per grammar.md:195,209-210.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

@@ -1,0 +1,3 @@
+# An empty list literal is a valid assignment value, per grammar.md:189-193,204,266.
+:x = []
+print :x

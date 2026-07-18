@@ -1,0 +1,7 @@
+{
+  "description": "A bracketed list literal in expression position (`print [1 2 3]`) and a bracketed control block body (`repeat 3 [ ... ]`) both parse cleanly, despite sharing `[ ... ]` delimiters for two different AST shapes.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}
