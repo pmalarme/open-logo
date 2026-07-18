@@ -1,0 +1,30 @@
+{
+  "description": "OpenLogo call arguments are whitespace-separated with no commas; a comma after the first argument to `print` raises ol-bad-token at the comma, and the following numeral raises a second ol-bad-token as an instruction is not expected to keep going on the same line.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/blocks/comma-not-an-arg-separator",
+        "start": [3, 8],
+        "end": [3, 9]
+      },
+      "params": { "text": "," },
+      "stage": "parse",
+      "severity": "error"
+    },
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/blocks/comma-not-an-arg-separator",
+        "start": [3, 10],
+        "end": [3, 11]
+      },
+      "params": { "text": "2" },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

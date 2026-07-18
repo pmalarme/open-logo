@@ -1,0 +1,19 @@
+{
+  "description": "OpenLogo has no comma statement separator; a comma between two instructions inside a bracketed block raises ol-bad-token at the comma.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/blocks/comma-not-a-statement-separator",
+        "start": [3, 19],
+        "end": [3, 20]
+      },
+      "params": { "text": "," },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

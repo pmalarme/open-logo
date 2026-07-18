@@ -1,0 +1,7 @@
+{
+  "description": "A bracketed control body with no statements: `repeat 4 [ ]` parses with an empty block and no diagnostics.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

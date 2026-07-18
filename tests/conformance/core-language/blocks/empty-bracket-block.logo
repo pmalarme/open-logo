@@ -1,0 +1,2 @@
+# A bracketed control body with no statements: `[ ]` is a valid, empty block.
+repeat 4 [ ]

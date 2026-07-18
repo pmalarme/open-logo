@@ -1,0 +1,3 @@
+# OpenLogo has no comma statement separator; a comma inside a bracketed block
+# is simply an unexpected token, not a delimiter between statements.
+repeat 4 [ print 1, print 2 ]

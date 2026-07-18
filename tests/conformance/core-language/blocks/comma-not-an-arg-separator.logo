@@ -1,0 +1,3 @@
+# A comma between call arguments is not fixed-arity separation either: OpenLogo
+# calls are whitespace-separated with no commas.
+print 1, 2

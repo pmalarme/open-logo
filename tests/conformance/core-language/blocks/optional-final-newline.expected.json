@@ -1,0 +1,7 @@
+{
+  "description": "A file whose final statement has no trailing newline still parses both top-level statements with no diagnostics: the newline after the last statement is optional.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}
