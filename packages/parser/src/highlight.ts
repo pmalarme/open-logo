@@ -6,20 +6,38 @@
  * The class set tracks the grammar version — a grammar change ships its highlighting update
  * in the same milestone.
  *
- * {@link highlight} is the grammar-derived LEXICAL first pass (issue #119): it reuses
- * {@link tokenize} and {@link parse} (never re-lexing) to resolve every class and delimiter
- * role decidable from tokens + grammatical position alone. `procedure-name`, `type-name`, and
- * `field-name` need symbol discovery (which struct type a place's base resolves to, which
- * calls resolve to user procedures) that this lexical pass does not have, so every otherwise
- * unclassified bare name — call callees and declaration/binder names alike — is at minimum
- * `primitive` for now, per `spec/tooling.md`'s "a highlighter MUST still produce grammar-safe
- * lexical classes and MAY defer `procedure-name`, `type-name`, and `field-name` precision until
- * after parsing and symbol discovery." #120 (semantic disambiguation) refines this bucket.
+ * {@link highlight} is the grammar-derived LEXICAL first pass (issue #119) plus the SEMANTIC
+ * disambiguation pass (issue #120): it reuses {@link tokenize} and {@link parse} (never
+ * re-lexing) to resolve every class and delimiter role decidable from tokens + grammatical
+ * position alone, then layers on a local symbol-discovery pass for `procedure-name`,
+ * `type-name`, and `field-name`.
+ *
+ * Symbol discovery is re-derived locally from the AST/token stream on every call — it does not
+ * import or share state with the semantic checker (`check.ts`/`checker-*.ts`), which owns a
+ * separate, authoritative symbol table for diagnostics. `define`/`to` procedure headers ARE real
+ * `ProcedureDefNode`s, so procedure names/calls are resolved via {@link walk}. `struct <type>
+ * [ field … ]` has no dedicated AST node yet (`ast.ts`'s comment marks it future Data-profile
+ * work; the parser's error recovery drops its tokens rather than building a node for them), so
+ * type/field names are resolved the same way #119 resolves the `field-list` bracket role itself:
+ * a positional token scan, independent of whether the declaration parses cleanly. `.field`
+ * access is classified `field-name` whenever the field's bare spelling matches ANY struct's
+ * declared field (there is no static place-to-type binding to narrow it further, per
+ * `spec/tooling.md`'s "MAY defer … precision" allowance) — this is a deliberate, best-effort
+ * heuristic, not full type inference. A bare name that resolves to neither a known procedure nor
+ * a known type stays `primitive` (or `keyword`/`operator` when reserved), matching #119's
+ * fallback and the spec's graceful-degradation requirement: unresolved symbols, mid-edit input,
+ * and malformed/unclosed constructs never throw and never misclassify a class name/field as a
+ * command or keyword.
  */
 
 import { makeSpan } from "@openlogo/core";
 import type { Position, SourceSpan } from "@openlogo/core";
-import type { AnyNode, IsPredicateNode, NumberLitNode } from "./ast.js";
+import type {
+  AnyNode,
+  IsPredicateNode,
+  NumberLitNode,
+  SpannedName,
+} from "./ast.js";
 import { walk } from "./ast.js";
 import { parse } from "./parser.js";
 import { isReservedWord } from "./reserved.js";
@@ -146,6 +164,27 @@ export function highlight(source: string, document = "<input>"): Token[] {
   const contextualKeywordIndexes = new Set<number>();
   const negativeMergeStarts = new Set<number>();
 
+  // Semantic symbol discovery (#120): re-derived locally on every call, never shared with the
+  // checker's own symbol table. `typeNames`/`fieldNames` (lowercased spellings) drive constructor
+  // calls and `.field` access; the `*Indexes` sets record which raw token indexes carry each
+  // resolved class once discovery is done.
+  const typeDeclIndexes = new Set<number>();
+  const fieldDeclIndexes = new Set<number>();
+  const typeNames = new Set<string>();
+  const fieldNames = new Set<string>();
+  const procDeclIndexes = new Set<number>();
+  const procCallIndexes = new Set<number>();
+  const typeCallIndexes = new Set<number>();
+  const fieldAccessIndexes = new Set<number>();
+
+  /** Tag the raw token starting at `name`'s span with `target`, when it is a real `name` token. */
+  function markNameIndex(name: SpannedName, target: Set<number>): void {
+    const index = byStart.get(posKey(name.source_span.start));
+    if (index !== undefined && lex[index]?.kind === "name") {
+      target.add(index);
+    }
+  }
+
   /**
    * Tag the `[`/`]` at `span`'s start/end (when they are lexer bracket tokens) with `role`.
    * `spanBetween(open, close)` (the parser's span helper) always sets a `ListLit`/bracket-form
@@ -255,8 +294,20 @@ export function highlight(source: string, document = "<input>"): Token[] {
   // Run the positional pattern/field-list scan first: a `[` directly after `for`/`struct
   // <type>` is grammatically never a real list literal today, but the parser's error recovery
   // can still misfile it as one (see markBracketPair's comment) — claiming the role here first
-  // means the later AST walk's `markBracketPair` calls simply no-op on those same indexes.
+  // means the later AST walk's `markBracketPair` calls simply no-op on those same indexes. It
+  // also discovers every `struct <type> [ field … ]`'s type/field names (#120): the declaration
+  // has no AST node to walk, so this positional scan is their only source of truth.
   scanPositionalBracketRoles();
+
+  // `define`/`to` procedure headers DO parse into real `ProcedureDefNode`s, so their names are
+  // discovered with a plain pre-pass walk — done before the main `visit` walk below so a call
+  // that appears lexically before its definition still resolves.
+  const procNames = new Set<string>();
+  walk(program, (node) => {
+    if (node.kind === "ProcedureDef") {
+      procNames.add(node.name.name.toLowerCase());
+    }
+  });
 
   function visit(node: AnyNode): void {
     switch (node.kind) {
@@ -275,14 +326,29 @@ export function highlight(source: string, document = "<input>"): Token[] {
       case "ForIn":
       case "ForRange":
       case "Comprehension":
-      case "ProcedureDef":
         markBracketPair(node.body.source_span, "instruction-block");
         break;
+      case "ProcedureDef":
+        markBracketPair(node.body.source_span, "instruction-block");
+        markNameIndex(node.name, procDeclIndexes);
+        break;
+      case "Call":
+      case "ParenCall": {
+        const lower = node.callee.name.toLowerCase();
+        if (procNames.has(lower)) {
+          markNameIndex(node.callee, procCallIndexes);
+        } else if (typeNames.has(lower)) {
+          markNameIndex(node.callee, typeCallIndexes);
+        }
+        break;
+      }
       case "Place":
         for (const segment of node.segments) {
           if (segment.kind === "index") {
             markBracketPair(segment.source_span, "selector");
             markSelectorKey(segment.key);
+          } else if (fieldNames.has(segment.name.name.toLowerCase())) {
+            markNameIndex(segment.name, fieldAccessIndexes);
           }
         }
         break;
@@ -299,11 +365,12 @@ export function highlight(source: string, document = "<input>"): Token[] {
   walk(program, visit);
 
   /**
-   * `pattern` (`for [:x :y] in …`) and `field-list` (`struct <type> [ … ]`) have no AST support
-   * yet — destructuring binders and struct defs are later slices — so resolve these two roles
-   * purely from adjacent raw-token spellings, independent of whether the surrounding construct
-   * parses cleanly. #120/a future grammar slice can replace this with AST-driven marking once
-   * those node kinds exist.
+   * `pattern` (`for [:x :y] in …`) has no AST support yet — destructuring binders are a later
+   * slice — so it resolves purely from adjacent raw-token spellings, independent of whether the
+   * surrounding construct parses cleanly. `field-list` (`struct <type> [ … ]`) is the same story
+   * for its bracket role, and #120 additionally discovers the declaration's type name (the name
+   * right before the bracket) and field names (every bare name between the brackets) from this
+   * same positional scan, since `struct` has no dedicated AST node to walk either.
    */
   function scanPositionalBracketRoles(): void {
     for (let index = 0; index < lex.length; index += 1) {
@@ -325,7 +392,31 @@ export function highlight(source: string, document = "<input>"): Token[] {
           beforePrev?.token.kind === "name" &&
           beforePrev.token.text.toLowerCase() === "struct"
         ) {
-          applyPositionalRole(index, "field-list");
+          typeDeclIndexes.add(prev.index);
+          typeNames.add(prev.token.text.toLowerCase());
+          const closeIndex = applyPositionalRole(index, "field-list");
+          if (closeIndex !== undefined) {
+            // The normative field list is bare names only (`struct <type> [ field1 field2 … ]`)
+            // — a nested `[ … ]` is not a field spelling, so depth-track past it rather than
+            // scooping up its own contents as bogus fields (e.g. `struct p [ x [ y ] z ]` must
+            // not treat `y` as a field of `p`).
+            let depth = 0;
+            for (
+              let fieldIndex = index + 1;
+              fieldIndex < closeIndex;
+              fieldIndex += 1
+            ) {
+              const fieldToken = lex[fieldIndex];
+              if (fieldToken?.kind === "lbracket") {
+                depth += 1;
+              } else if (fieldToken?.kind === "rbracket") {
+                depth -= 1;
+              } else if (depth === 0 && fieldToken?.kind === "name") {
+                fieldDeclIndexes.add(fieldIndex);
+                fieldNames.add(fieldToken.text.toLowerCase());
+              }
+            }
+          }
         }
       }
     }
@@ -342,8 +433,16 @@ export function highlight(source: string, document = "<input>"): Token[] {
     return token === undefined ? undefined : { index: cursor, token };
   }
 
-  /** Tag `openIndex` and its depth-matched close bracket with `role`. */
-  function applyPositionalRole(openIndex: number, role: BracketRole): void {
+  /**
+   * Tag `openIndex` and its depth-matched close bracket with `role`; returns the close bracket's
+   * index (or `undefined` when the bracket never closes) so callers that need to inspect what's
+   * between the pair — such as `struct <type> [ field … ]`'s field names (#120) — don't have to
+   * re-run their own depth-matching scan.
+   */
+  function applyPositionalRole(
+    openIndex: number,
+    role: BracketRole,
+  ): number | undefined {
     roleByIndex.set(openIndex, role);
     let depth = 1;
     let index = openIndex + 1;
@@ -357,11 +456,13 @@ export function highlight(source: string, document = "<input>"): Token[] {
       } else if (token?.kind === "rbracket") {
         depth -= 1;
       } else if (token?.kind === "eof") {
-        return;
+        return undefined;
       }
       index += 1;
     }
-    roleByIndex.set(index - 1, role);
+    const closeIndex = index - 1;
+    roleByIndex.set(closeIndex, role);
+    return closeIndex;
   }
 
   // Comments live in the whitespace gaps `tokenize()` already skips; scan those gaps only, so
@@ -384,6 +485,31 @@ export function highlight(source: string, document = "<input>"): Token[] {
     if (contextualKeywordIndexes.has(index)) {
       return {
         class: "keyword",
+        text: token.text,
+        source_span: token.source_span,
+      };
+    }
+    // Semantic disambiguation (#120): a name resolved by symbol discovery to a user procedure,
+    // struct type, or struct field takes priority over the plain reserved-word/primitive
+    // fallback below — this is exactly what lets a reserved-word-spelled field/procedure name
+    // (e.g. a field literally named `repeat`) stay its resolved class instead of `keyword`.
+    if (procDeclIndexes.has(index) || procCallIndexes.has(index)) {
+      return {
+        class: "procedure-name",
+        text: token.text,
+        source_span: token.source_span,
+      };
+    }
+    if (typeDeclIndexes.has(index) || typeCallIndexes.has(index)) {
+      return {
+        class: "type-name",
+        text: token.text,
+        source_span: token.source_span,
+      };
+    }
+    if (fieldDeclIndexes.has(index) || fieldAccessIndexes.has(index)) {
+      return {
+        class: "field-name",
         text: token.text,
         source_span: token.source_span,
       };
