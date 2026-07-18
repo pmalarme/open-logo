@@ -7,9 +7,6 @@
 
 import { parseArgs, runHarness } from "./harness/index.mjs";
 
-// Only run when invoked directly (not when imported for testing)
-if (import.meta.url === `file:///${process.argv[1].replace(/\\/g, "/")}`) {
-  const options = parseArgs(process.argv.slice(2));
-  const exitCode = runHarness(options);
-  process.exit(exitCode);
-}
+const options = parseArgs(process.argv.slice(2));
+const exitCode = runHarness(options);
+process.exit(exitCode);
