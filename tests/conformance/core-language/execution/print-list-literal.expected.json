@@ -1,0 +1,28 @@
+{
+  "description": "`print` of a list literal (issue #98) evaluates the whole list, including a nested list, and carries the raw value on the `print` trace event: `[1 [2 3]]` evaluates to the nested runtime list `[1, [2, 3]]`. The event carries the raw evaluated value (not pre-formatted text), matching every other effect payload — a consumer renders learner-visible text via the shared canonical-printed-form rule (`@openlogo/runtime`'s `printedForm`, unit-tested directly in `print-format.test.mjs` since bracketed list text is not itself an event-stream shape).",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/print-list-literal",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/print-list-literal",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": { "values": [[1, [2, 3]]] }
+    }
+  ],
+  "diagnostics": []
+}

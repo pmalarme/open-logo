@@ -1,5 +1,5 @@
 {
-  "description": "End-to-end execution smoke fixture (issue #90, extended by #93): a tiny 2-statement program opts into execution and asserts the generic `instruction` start event emitted before each top-level statement, plus the minimal `print` event issue #93 adds carrying the evaluated argument's value, proving parse -> execute -> evaluate -> event-capture -> compare works. Full `print` semantics (multiple operands, formatting, newlines) land with issue #98, extending the `print` event this fixture already exercises.",
+  "description": "End-to-end execution smoke fixture (issue #90, extended by #93 and #98): a tiny 2-statement program opts into execution and asserts the generic `instruction` start event emitted before each top-level statement, plus the `print` event carrying the evaluated argument's value in `values` (issue #98's variadic-ready payload shape), proving parse -> execute -> evaluate -> event-capture -> compare works.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [
@@ -21,7 +21,7 @@
         "start": [1, 1],
         "end": [1, 8]
       },
-      "payload": { "value": 1 }
+      "payload": { "values": [1] }
     },
     {
       "seq": 2,
@@ -41,7 +41,7 @@
         "start": [2, 1],
         "end": [2, 8]
       },
-      "payload": { "value": 2 }
+      "payload": { "values": [2] }
     }
   ],
   "diagnostics": []

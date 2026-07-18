@@ -340,20 +340,41 @@ function evaluateBinaryMath(
 // raise; ordering is defined only for two numbers or two words and raises `ol-type` otherwise.
 
 /**
- * The canonical printed form of a number, used by number↔word equality
- * (`spec/execution-model.md:19,498-500`): whole values print without a decimal, non-whole values
- * are trimmed to at most 10 significant digits. So `5 == "5"` is `true`, `5 == "05"` is `false`
- * (5 prints as `"5"`, not `"05"`), and a word carrying more than 10 significant digits cannot
- * equal the number it looks like. `toPrecision(10)` rounds a non-whole value to 10 significant
- * digits and re-parsing drops the trailing zeros it introduces; a whole value keeps its full
- * integer form. (Full `print` formatting is issue #98; when it lands it becomes the single source
- * of this rule.)
+ * The canonical printed form of a number (`spec/execution-model.md:19,498-500`): whole values
+ * print without a decimal, non-whole values are trimmed to at most 10 significant digits. So
+ * `5 == "5"` is `true`, `5 == "05"` is `false` (5 prints as `"5"`, not `"05"`), and a word
+ * carrying more than 10 significant digits cannot equal the number it looks like.
+ * `toPrecision(10)` rounds a non-whole value to 10 significant digits and re-parsing drops the
+ * trailing zeros it introduces; a whole value keeps its full integer form. This is the single
+ * source of the rule: number↔word equality ({@link valuesEqual}) and the `print` trace event's
+ * text ({@link printedForm}, issue #98) both use it.
  */
-function canonicalNumberWord(value: number): string {
+export function formatNumber(value: number): string {
   if (Number.isInteger(value)) {
     return String(value);
   }
   return String(Number(value.toPrecision(10)));
+}
+
+/**
+ * The canonical printed form of any Core value (`spec/execution-model.md:19` for numbers;
+ * `print`/`show` in `spec/commands.md:142-175` for the command surface). Used to render the
+ * `print value`/`(print …)` trace event as learner-visible text: numbers follow
+ * {@link formatNumber}; a word prints verbatim (no surrounding quotes); a boolean prints
+ * `true`/`false`; a list prints space-separated and bracketed, recursively, so a nested list
+ * renders as `[1 [2 3]]`.
+ */
+export function printedForm(value: OLValue): string {
+  if (typeof value === "number") {
+    return formatNumber(value);
+  }
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "boolean") {
+    return value ? "true" : "false";
+  }
+  return `[${value.map(printedForm).join(" ")}]`;
 }
 
 /**
@@ -378,7 +399,7 @@ function equalRec(
       return a === b;
     }
     if (typeof b === "string") {
-      return canonicalNumberWord(a) === b;
+      return formatNumber(a) === b;
     }
     return false;
   }
@@ -387,7 +408,7 @@ function equalRec(
       return a === b;
     }
     if (typeof b === "number") {
-      return canonicalNumberWord(b) === a;
+      return formatNumber(b) === a;
     }
     return false;
   }

@@ -78,12 +78,15 @@ export interface ClearPayload {
 }
 
 /**
- * Payload for a `print` event: the evaluated {@link OLValue}. This is the minimal shape for
- * issue #93 (one value, from `print value`); the multi-value `(print :a :b)` form and
- * value-specific formatting/newline semantics are issue #98's `print` slice.
+ * Payload for a `print` event: the evaluated {@link OLValue}s, in argument order — one element
+ * for the single-value `print value` form, two or more for the parenthesized variadic
+ * `(print a b …)` form (`spec/commands.md:142-158`). Values are carried raw, not pre-formatted
+ * text, matching every other effect payload here (e.g. `move`'s raw coordinates): a consumer
+ * renders learner-visible text from them via the shared canonical-printed-form rule
+ * (`@openlogo/runtime`'s `printedForm`, `spec/execution-model.md:19`).
  */
 export interface PrintPayload {
-  readonly value: OLValue;
+  readonly values: readonly OLValue[];
 }
 
 /**

@@ -1,0 +1,28 @@
+{
+  "description": "The parenthesized variadic `(print a b …)` form (spec/commands.md:142-158, issue #98) evaluates every operand, left to right, and carries all of them on one `print` trace event's `values`, in argument order — proving the multi-value form promised by `PrintPayload.values` beyond the single-value shape #93 first exercised.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/paren-print-variadic",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": { "statement_kind": "ParenCall" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/paren-print-variadic",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": { "values": ["a", "b"] }
+    }
+  ],
+  "diagnostics": []
+}

@@ -30,7 +30,7 @@ test("execute emits an instruction event, then a print event, per print statemen
       start: [1, 1],
       end: [1, 8],
     },
-    payload: { value: 1 },
+    payload: { values: [1] },
   });
   assert.deepEqual(result.events[2].payload, { statement_kind: "Call" });
   assert.equal(result.events[2].seq, 2);
@@ -42,7 +42,7 @@ test("execute emits an instruction event, then a print event, per print statemen
       start: [2, 1],
       end: [2, 8],
     },
-    payload: { value: 2 },
+    payload: { values: [2] },
   });
 });
 
@@ -86,7 +86,7 @@ test("execute evaluates an arithmetic print argument, per issue #93", () => {
     seq: 1,
     kind: "print",
     source_span: result.events[0].source_span,
-    payload: { value: 14 },
+    payload: { values: [14] },
   });
 });
 
@@ -128,7 +128,7 @@ test("execute evaluates a parenthesized `(print value)` call the same as the pla
       start: [1, 1],
       end: [1, 14],
     },
-    payload: { value: 3 },
+    payload: { values: [3] },
   });
 });
 
@@ -137,4 +137,82 @@ test("execute leaves an unsupported print argument un-evaluated, emitting no pri
   assert.equal(result.diagnostics.length, 0);
   assert.equal(result.events.length, 1);
   assert.equal(result.events[0].kind, "instruction");
+});
+
+test("execute evaluates the variadic `(print a b …)` form, carrying every value in order", () => {
+  const result = execute('(print "a" "b" "c")', "main.logo");
+  assert.equal(result.diagnostics.length, 0);
+  assert.equal(result.events.length, 2);
+  assert.equal(result.events[0].kind, "instruction");
+  assert.deepEqual(result.events[1].payload, { values: ["a", "b", "c"] });
+});
+
+test("execute carries a boolean and a list value on a print event", () => {
+  const result = execute("print true\nprint [1 [2 3]]", "main.logo");
+  assert.equal(result.diagnostics.length, 0);
+  assert.deepEqual(result.events[1].payload, { values: [true] });
+  assert.deepEqual(result.events[3].payload, { values: [[1, [2, 3]]] });
+});
+
+test("execute leaves a variadic print un-evaluated when any one operand is unsupported", () => {
+  // Every operand must be an expression kind this issue's evaluator supports — `:x` is not, so
+  // the whole `(print 1 :x)` statement stays un-evaluated (only its `instruction` event fires),
+  // even though its first operand (`1`) would evaluate cleanly on its own.
+  const result = execute("(print 1 :x)", "main.logo");
+  assert.equal(result.diagnostics.length, 0);
+  assert.equal(result.events.length, 1);
+  assert.equal(result.events[0].kind, "instruction");
+});
+
+test("execute stops mid-variadic-print when a later operand fails to evaluate", () => {
+  const result = execute('(print 1 (1 / 0) "unreached")', "main.logo");
+  // The `instruction` event fires (it always runs before its arguments are evaluated), but no
+  // `print` event is emitted since not every operand evaluated cleanly.
+  assert.equal(result.events.length, 1);
+  assert.equal(result.events[0].kind, "instruction");
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-div-zero");
+});
+
+test("execute raises ol-not-enough-inputs for a bare zero-argument `print`", () => {
+  // The static checker's arity rule (`ol-not-enough-inputs`) never runs inside `execute()` —
+  // it only calls `parse()` — so this is the sole runtime guard against silently treating a
+  // callee-only `print` as a no-op.
+  const result = execute("print", "main.logo");
+  assert.equal(result.events.length, 1);
+  assert.equal(result.events[0].kind, "instruction");
+  assert.equal(result.diagnostics.length, 1);
+  assert.deepEqual(result.diagnostics[0], {
+    code: "ol-not-enough-inputs",
+    source_span: {
+      document: "main.logo",
+      start: [1, 1],
+      end: [1, 6],
+    },
+    params: { callable: "print", expected: 1, actual: 0 },
+    message: "print needs one input.",
+    stage: "runtime",
+    severity: "error",
+  });
+});
+
+test("execute raises ol-not-enough-inputs for a parenthesized zero-argument `(print)`", () => {
+  // The checker's static arity rule cannot flag this either: `print`'s parenthesized ceiling is
+  // `Infinity` (an open variadic), so its lower bound is deliberately left to the runtime.
+  const result = execute("(print)", "main.logo");
+  assert.equal(result.events.length, 1);
+  assert.equal(result.events[0].kind, "instruction");
+  assert.equal(result.diagnostics.length, 1);
+  assert.deepEqual(result.diagnostics[0], {
+    code: "ol-not-enough-inputs",
+    source_span: {
+      document: "main.logo",
+      start: [1, 2],
+      end: [1, 7],
+    },
+    params: { callable: "print", expected: 1, actual: 0 },
+    message: "print needs one input.",
+    stage: "runtime",
+    severity: "error",
+  });
 });
