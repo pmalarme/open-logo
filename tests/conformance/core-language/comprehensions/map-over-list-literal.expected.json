@@ -1,0 +1,6 @@
+{
+  "description": "Core `map` over a list literal with a binder-referencing body (`:n * 2`) parses with no diagnostics.",
+  "profiles": ["core-language"],
+  "events": [],
+  "diagnostics": []
+}

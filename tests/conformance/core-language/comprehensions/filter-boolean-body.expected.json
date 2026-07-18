@@ -1,0 +1,6 @@
+{
+  "description": "Core `filter` over a variable with a boolean comparison body (`:n > 2`) parses with no diagnostics.",
+  "profiles": ["core-language"],
+  "events": [],
+  "diagnostics": []
+}
