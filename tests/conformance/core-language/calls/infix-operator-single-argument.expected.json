@@ -1,0 +1,7 @@
+{
+  "description": "Calls and arity (issue #63): an infix operator over a variable binds INSIDE a fixed-arity call's argument as one expression node. `print :n * 2` must gather exactly one argument — the whole `*` expression — never two arguments `:n` and `* 2`.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}
