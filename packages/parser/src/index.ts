@@ -74,4 +74,13 @@ export { corePrimitiveArity } from "./signatures.js";
 export { highlight, OL_BRACKET_ROLES, OL_TOKEN_CLASSES } from "./highlight.js";
 export type { BracketRole, Token, TokenClass } from "./highlight.js";
 
+export { OL_TOKEN_MODIFIERS, semanticTokens } from "./semantic-tokens.js";
+export type { SemanticToken, TokenModifier } from "./semantic-tokens.js";
+
+export {
+  assertGrammarVersionInSync,
+  OL_GRAMMAR_VERSION,
+} from "./grammar-version.js";
+
+export { OPENLOGO_VERSION } from "@openlogo/core";
 export type { Position, SourceSpan } from "@openlogo/core";

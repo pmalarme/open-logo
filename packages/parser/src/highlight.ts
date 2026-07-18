@@ -93,6 +93,14 @@ export interface Token {
   readonly source_span: SourceSpan;
   /** Present only on the `[`/`]` of a list/instruction-block/selector/pattern/field-list. */
   readonly role?: BracketRole;
+  /**
+   * Present only on the classes with a decidable declaration/reference split —
+   * `procedure-name`, `type-name`, `field-name`, and `:variable` (a procedure's own `:param`)
+   * — `true` at the binding site, `false` at every other (use/call) site. Consumed by
+   * `semantic-tokens.ts` (issue #121) to compute the LSP `declaration`/`reference` modifiers
+   * from `spec/tooling.md:277`; absent on classes with no such split (e.g. `keyword`, `number`).
+   */
+  readonly declaration?: boolean;
 }
 
 /**
@@ -176,11 +184,24 @@ export function highlight(source: string, document = "<input>"): Token[] {
   const procCallIndexes = new Set<number>();
   const typeCallIndexes = new Set<number>();
   const fieldAccessIndexes = new Set<number>();
+  // A procedure's own `:param` is the only `:variable` binding site the AST can resolve
+  // directly (issue #121): `local`/`for`/comprehension binders parse as bare `name` tokens
+  // (see `ast.ts`'s `ProcedureParam` vs. `ForInNode.binder`/`ComprehensionBase.binder`), so they
+  // never reach this `:variable`-classed set at all — only a real `variable`-kind token can.
+  const paramDeclIndexes = new Set<number>();
 
-  /** Tag the raw token starting at `name`'s span with `target`, when it is a real `name` token. */
-  function markNameIndex(name: SpannedName, target: Set<number>): void {
+  /**
+   * Tag the raw token starting at `name`'s span with `target`, when it is a real token of
+   * `kind` (`"name"` by default; pass `"variable"` for a colon-prefixed binder such as a
+   * procedure parameter).
+   */
+  function markNameIndex(
+    name: SpannedName,
+    target: Set<number>,
+    kind: LexTokenKind = "name",
+  ): void {
     const index = byStart.get(posKey(name.source_span.start));
-    if (index !== undefined && lex[index]?.kind === "name") {
+    if (index !== undefined && lex[index]?.kind === kind) {
       target.add(index);
     }
   }
@@ -331,6 +352,9 @@ export function highlight(source: string, document = "<input>"): Token[] {
       case "ProcedureDef":
         markBracketPair(node.body.source_span, "instruction-block");
         markNameIndex(node.name, procDeclIndexes);
+        for (const param of node.params) {
+          markNameIndex(param.name, paramDeclIndexes, "variable");
+        }
         break;
       case "Call":
       case "ParenCall": {
@@ -498,6 +522,7 @@ export function highlight(source: string, document = "<input>"): Token[] {
         class: "procedure-name",
         text: token.text,
         source_span: token.source_span,
+        declaration: procDeclIndexes.has(index),
       };
     }
     if (typeDeclIndexes.has(index) || typeCallIndexes.has(index)) {
@@ -505,6 +530,7 @@ export function highlight(source: string, document = "<input>"): Token[] {
         class: "type-name",
         text: token.text,
         source_span: token.source_span,
+        declaration: typeDeclIndexes.has(index),
       };
     }
     if (fieldDeclIndexes.has(index) || fieldAccessIndexes.has(index)) {
@@ -512,6 +538,7 @@ export function highlight(source: string, document = "<input>"): Token[] {
         class: "field-name",
         text: token.text,
         source_span: token.source_span,
+        declaration: fieldDeclIndexes.has(index),
       };
     }
     const lower = token.text.toLowerCase();
@@ -571,6 +598,7 @@ export function highlight(source: string, document = "<input>"): Token[] {
           class: ":variable",
           text: token.text,
           source_span: token.source_span,
+          declaration: paramDeclIndexes.has(index),
         };
       case "lbrace":
       case "rbrace":
