@@ -41,6 +41,7 @@ through (`docs/delivery.md`); you own the harness and the CI that runs it.
 
 ## Checklist
 - [ ] Fixtures run per profile along the DAG; claims gated by conformance.
+- [ ] Coverage enforced: 100% line/branch/function for all delivered code.
 - [ ] Negative asserts exact `ol-*` code + span; fuzz + regression covered.
 - [ ] Stability: budget + cancellation at event level within bounds.
 - [ ] CI enforces the full DoD; merges gated by required checks.

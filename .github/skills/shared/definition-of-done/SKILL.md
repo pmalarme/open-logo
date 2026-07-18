@@ -62,7 +62,7 @@ spec drift. The author iterates until all return `pass`, attaches the verdicts, 
 - packages/<pkg>/... , tests/conformance/<...> , docs/<...>
 
 ## Definition of Done
-- [ ] build + type-check   - [ ] lint (+ style)   - [ ] unit
+- [ ] build + type-check   - [ ] lint (+ style)   - [ ] unit   - [ ] 100% coverage (line/branch/function)
 - [ ] conformance fixtures extended + green
 - [ ] examples run   - [ ] a11y/pedagogy (if applicable)
 - [ ] docs + spec cross-links updated
