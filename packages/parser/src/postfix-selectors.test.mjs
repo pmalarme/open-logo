@@ -18,6 +18,12 @@ import * as OL from "@openlogo/parser";
 const doc = "selectors.logo";
 const span = (start, end) => ({ document: doc, start, end });
 
+// Shared, named predicate for the ol-not-a-place code. Reused by the positive check below (where the
+// diagnostics array is non-empty, so this is invoked) and the well-formed negative assertion (where
+// the array is empty). Naming it keeps the negative assertion callback-free at the call site while
+// still exercising the predicate exactly once, so function coverage stays at 100% on Node 22.
+const isNotAPlace = (d) => d.code === "ol-not-a-place";
+
 function firstArg(src) {
   const { ast, diagnostics } = OL.parse(src, doc);
   assert.deepEqual(diagnostics, []);
@@ -223,7 +229,7 @@ test("a reporter used as an assignment target first :x = 5 parses as an Assign w
 test("check() flags first :x = 5 with ol-not-a-place at stage semantic", () => {
   const { ast } = OL.parse("first :x = 5", doc);
   const { diagnostics } = OL.check(ast);
-  const notAPlace = diagnostics.filter((d) => d.code === "ol-not-a-place");
+  const notAPlace = diagnostics.filter(isNotAPlace);
   assert.equal(notAPlace.length, 1);
   const [diag] = notAPlace;
   assert.equal(diag.stage, "semantic");
@@ -237,7 +243,7 @@ test("a parenthesized reporter target (first :x) = 5 is flagged ol-not-a-place t
   assert.equal(assign.kind, "Assign");
   assert.equal(assign.place.kind, "ParenCall");
   const { diagnostics } = OL.check(ast);
-  assert.ok(diagnostics.some((d) => d.code === "ol-not-a-place"));
+  assert.ok(diagnostics.some(isNotAPlace));
 });
 
 test("a reporter target with no value first :x = reports a parse diagnostic and keeps the call", () => {
@@ -255,7 +261,7 @@ test("a reporter call without = stays a plain call statement, not an assignment"
 test("a well-formed selector assignment is not flagged ol-not-a-place", () => {
   const { ast } = OL.parse(":nums[1] = 9", doc);
   const { diagnostics } = OL.check(ast);
-  assert.ok(!diagnostics.some((d) => d.code === "ol-not-a-place"));
+  assert.ok(!diagnostics.some(isNotAPlace));
 });
 
 test("a bare numeric statement is neither an assignment nor a place", () => {
