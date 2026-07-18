@@ -20,12 +20,17 @@ branches, plan — so the repo stays clean and `main` stays green.
 
 When a dispatched owner reports a PR (they should, if you set `coordinate_with_creator: true`):
 
-### 1. Independent review gate — never skip, never self-review
+### 1. Verify the implementer's self-review — never skip, never self-review
 
-Run `shared/review-gate`: a **non-author** reviewer re-proves the Definition of Done. You are often
-the author of an _integration_ PR, so you must **not** review it yourself — spawn the reviewer as a
-sub-agent (`code-review` / `rubber-duck` / `@testing`) and **post its verdict as a PR comment** for
-the audit trail. Review the `git diff` against `origin/main`, not a stale local `main`.
+A dispatched slice arrives **already reviewed**: the owner ran `shared/review-gate` in-session and
+attached two non-author verdicts (`rubber-duck` + a domain **QA** expert). Your job is to **verify**
+them — both present, both from agents that are **not** the author, tied to this PR — plus green CI
+and a light diff sanity check against `origin/main` (not a stale local `main`). Do **not** re-run the
+whole gate round-by-round.
+
+When **you** authored the change (an _integration_ or governance PR), you must **not** review it
+yourself — run `shared/review-gate` here first: spawn the two non-author sub-agents (`rubber-duck` +
+a domain QA expert) and **post their verdicts as PR comments** before you merge.
 
 ### 2. Merge only on a recorded PASS + green CI
 
@@ -73,7 +78,7 @@ retargeting re-introduces the abandoned commits. Instead:
 
 ## Checklist (per merged slice)
 
-- [ ] Non-author review-gate verdict recorded on the PR (reviewer ≠ author).
+- [ ] Two non-author review-gate verdicts recorded on the PR (rubber-duck + domain QA, both ≠ author).
 - [ ] Merged only after PASS + green CI — delegated authority, never self-attested.
 - [ ] Merge verified via `gh pr view` + `git ls-remote`, not the `--delete-branch` exit code.
 - [ ] Board Status → Done + Agent set; milestone closed when `0 open`.

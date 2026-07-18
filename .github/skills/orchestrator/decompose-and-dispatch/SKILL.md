@@ -23,17 +23,20 @@ contracts agreed first. You write no feature code — you decompose, dispatch, a
    end (semantics → runtime/events → render/UI → tests → teaching → docs).
 4. **Emit a task packet per slice:** owning agent (`@agent`), the exact spec sections, acceptance
    criteria (Given/When/Then), the **declared write-set** (files/globs), dependencies, and the DoD.
-5. **Dispatch to a controllable session.** If the runtime passes the delegation smoke-test, invoke
-   subagents directly; otherwise emit the `@agent` calls for a human to run. Prefer a **local,
-   coordinated** session per slice — `open_issue_session` / `create_session` with the issue's
-   **owning custom agent**, `mode: autopilot`, and `coordinate_with_creator: true` so it reports its
-   PR back for the review gate (set `notify_on_idle`). **Avoid firing uncontrolled cloud agents at
-   parallel slices:** they are not messageable and branch off each other, which in M0 stacked
-   duplicate PRs off abandoned branches. Label issues by agent + profile so tracks pull in parallel.
-6. **Integrate per story** with `integrate-and-merge`: run the independent review gate, merge under
-   delegated authority, verify the merge, and reconcile the board/milestone/branches/plan. Hold the
-   **Definition of Done** gate (`shared/definition-of-done`); an integration issue closes each
-   milestone once conformance is green across all domains.
+5. **Dispatch to a controllable session.** Prefer a **local, coordinated** session per slice —
+   `open_issue_session` / `create_session` with the issue's **owning custom agent**, `mode:
+   autopilot`, and `coordinate_with_creator: true` (set `notify_on_idle`) so it reports its PR back.
+   **The kickoff must require in-session self-review** (`shared/review-gate`): before opening the PR
+   the owner dispatches two non-author sub-agents — `rubber-duck` + a domain-adaptive **QA** expert
+   (`@testing` and/or the changed area's owner) — and iterates until both `pass`, then opens an
+   already-green PR with both verdicts attached. **Avoid firing uncontrolled cloud agents at parallel
+   slices:** they are not messageable and branch off each other, which in M0 stacked duplicate PRs
+   off abandoned branches. Label issues by agent + profile so tracks pull in parallel.
+6. **Integrate per story** with `integrate-and-merge`: **verify** the owner's two attached non-author
+   verdicts (don't re-run the whole gate round-by-round), merge under delegated authority once CI is
+   green, then reconcile the board/milestone/branches/plan. Hold the **Definition of Done** gate
+   (`shared/definition-of-done`); an integration issue closes each milestone once conformance is
+   green across all domains.
 
 ## Critical rules
 
@@ -51,8 +54,9 @@ contracts agreed first. You write no feature code — you decompose, dispatch, a
   shared contract (interpreter-authored, language-designer-reviewed, grown one slice at a time). Never
   route the lex/parse/AST slice to `@language-designer` or the highlighter/checker slice to
   `@interpreter`.
-- You never merge on green alone — every merge needs an independent, non-author review-gate PASS
-  plus required CI; a human merges unless the maintainer has delegated it (see `integrate-and-merge`).
+- You never merge on green alone — every merge needs the two independent, non-author review-gate
+  verdicts (attached by the implementer) plus required CI; a human merges unless the maintainer has
+  delegated it (see `integrate-and-merge`).
 
 ## Checklist
 - [ ] Profile entry criteria met; contracts agreed first.

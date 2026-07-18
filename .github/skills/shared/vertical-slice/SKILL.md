@@ -51,11 +51,13 @@ mapping, and (for shapes) geometry reasoning.
 ### Step 7 — Docs (`docs/` + READMEs)
 Update the reference/tutorial and runnable examples in the **same PR** (`@documentation`). No drift.
 
-### Step 8 — Close out
-Run `shared/definition-of-done`, then hand the slice to `shared/review-gate` — an agent that did
-**not** author it runs the independent pre-merge review and records a pass verdict (reviewer ≠
-author). Open one PR with the declared write-set. Do not self-merge — a human merges by default, or a
-maintainer-delegated `@orchestrator` only on that non-author PASS.
+### Step 8 — Self-review, then open the PR
+Run `shared/definition-of-done`, then run `shared/review-gate` **without leaving the session**:
+dispatch two non-author review sub-agents — `rubber-duck` (logic/design/spec-fidelity) and a
+domain-adaptive **QA** expert (`@testing` by default, plus the owner of the changed area) — and
+**iterate until both return `pass`**. Only then open one PR with the declared write-set and both
+verdicts attached. Do not self-merge — `@orchestrator` does the final verification and merges (or a
+human does), never the author alone.
 
 ## Worked example — the walking skeleton
 
@@ -70,5 +72,5 @@ docs show the snippet. That one slice exercises every package boundary; build it
 - [ ] Canonical vocabulary only (`shared/spec-fidelity`).
 - [ ] Conformance + integration tests added and green.
 - [ ] Teaching hooks + docs updated in the same PR.
-- [ ] Independent review gate passed — `shared/review-gate`, reviewer ≠ author.
+- [ ] Self-review passed before the PR — `shared/review-gate`: `rubber-duck` + domain QA, both ≠ author.
 - [ ] One PR, declared write-set, shared files serialized.

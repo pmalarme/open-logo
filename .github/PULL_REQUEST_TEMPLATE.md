@@ -36,18 +36,20 @@ are serialized one PR at a time.
 - [ ] Accessibility / pedagogy checks pass where applicable
 - [ ] Docs, highlighter, and spec cross-links updated in this PR (no drift)
 
-## Independent review gate
+## Self-review (run before opening this PR)
 
 <!--
-An agent that did NOT author this change runs shared/review-gate before it goes to a human for
-merge. Reviewer ≠ author. See .github/skills/shared/review-gate/SKILL.md.
+Before opening this PR the author ran shared/review-gate in-session: two non-author sub-agents —
+rubber-duck + a domain-adaptive QA expert — reviewed the change and both returned pass. Attach their
+verdicts below. Reviewer ≠ author. See .github/skills/shared/review-gate/SKILL.md.
 -->
 
 - [ ] Clean-tree DoD re-run — build **emits** verified (real `dist/*.js` + `*.d.ts`, not just exit 0)
 - [ ] Spec-fidelity re-checked (canonical vocabulary, `ol-*` codes with spans, profile boundaries)
 - [ ] Conformance fixtures present & green
 - [ ] Instructions / skills / docs / spec drift checked (in this PR if needed)
-- [ ] Reviewer named and ≠ author:
+- [ ] `rubber-duck` verdict = pass (≠ author):
+- [ ] QA expert verdict = pass (≠ author); expert(s):
 
 ## Reviewers / integration
 

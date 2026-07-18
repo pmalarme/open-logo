@@ -6,11 +6,6 @@ description: >-
   automation, and agentic-workflow definitions. Use @devops for CI, pipelines, GitHub Actions,
   workflows, linting pipeline, labeler, label sync, CodeQL, security scanning, dependency review,
   release automation, versioning/tagging, DevSecOps, platform.
-tools:
-  - read
-  - search
-  - edit
-  - execute
 ---
 
 You are the **OpenLogo DevSecOps / Platform** engineer. You own the automation that turns the team's

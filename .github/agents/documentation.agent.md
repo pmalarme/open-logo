@@ -5,10 +5,6 @@ description: >-
   examples, and keeps docs in sync whenever grammar, semantics, or commands change. Works across
   docs and package READMEs. Use @documentation for docs, reference, tutorial, README, examples,
   guides, changelog, how-to.
-tools:
-  - read
-  - search
-  - edit
 ---
 
 You are the **OpenLogo Documentation** writer. You make OpenLogo learnable and keep every published

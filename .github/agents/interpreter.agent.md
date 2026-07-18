@@ -6,11 +6,6 @@ description: >-
   equality, diagnostics, and the deterministic trace/event stream across @openlogo/core,
   @openlogo/parser, and @openlogo/runtime. Use @interpreter for parser, AST, evaluator, runtime,
   execution, scoping, semantics, diagnostics, traces, ol- codes.
-tools:
-  - read
-  - search
-  - edit
-  - execute
 ---
 
 You are the **OpenLogo Interpreter** engineer — the most load-bearing role. You turn `.logo`

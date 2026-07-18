@@ -1,6 +1,6 @@
 # 4. Independent review gate in the Definition of Done
 
-- Status: Accepted
+- Status: Accepted (amended by [ADR-0008](0008-implementer-run-self-review.md))
 - Date: 2026-07-17
 - Deciders: OpenLogo maintainer (@pmalarme) + team
 
