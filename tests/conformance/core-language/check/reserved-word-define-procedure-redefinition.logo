@@ -1,0 +1,6 @@
+define f :a
+  print :a
+end
+define f :a
+  print :a
+end

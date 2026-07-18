@@ -1,0 +1,19 @@
+{
+  "description": "ol-reserved-word (issue #113): `thing` is the one name reachable in more than one collision category at once — it is both a reserved structural word and a Core primitive. `define thing ... end` reports `namespace: \"reserved\"`, confirming the checker's documented priority order (reserved word, then primitive, then existing procedure) rather than reporting `\"primitive\"`.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "core-language/check/reserved-word-priority-reserved-over-primitive",
+        "start": [1, 8],
+        "end": [1, 13]
+      },
+      "params": { "name": "thing", "namespace": "reserved" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "description": "ol-undefined-var (issue #113): a bare `:missing` read has no declaration anywhere in the program — no procedure parameter, `local`, assignment, or loop/comprehension binder ever introduces it — so the static checker flags it at the variable's own span, per spec/tooling.md:183 (\"point at the `:variable` token ... that reads an unbound value\").",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "core-language/check/undefined-var-read",
+        "start": [1, 7],
+        "end": [1, 15]
+      },
+      "params": { "name": "missing" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

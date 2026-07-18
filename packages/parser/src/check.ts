@@ -11,15 +11,18 @@
  * return contract. `findings()` dispatches over an ordered list of rule functions, each
  * `(program, profiles) => readonly Diagnostic[]`; a rule slice adds its module and one
  * registration line in {@link RULES}. #117's `ol-unknown-command` is the first rule registered
- * here; the remaining five rule slices (#111 arity, #113 name/place, #114 control-flow, #112
- * type/field, #115 style) each extend {@link RULES} the same way, one vertical slice at a time,
- * exactly as issue #90's `execute()` spine is filled in by the runtime evaluator slices.
+ * here; #113's `ol-undefined-var`/`ol-reserved-word` (alongside #79/#113's completed
+ * `ol-not-a-place`) are the third; the remaining two rule slices (#114 control-flow, #115 style)
+ * each extend {@link RULES} the same way, one vertical slice at a time, exactly as issue #90's
+ * `execute()` spine is filled in by the runtime evaluator slices.
  */
 
 import type { Diagnostic } from "@openlogo/core";
 import type { ProgramNode } from "./ast.js";
 import { arityRule } from "./checker-arity.js";
 import { notAPlaceRule } from "./checker-not-a-place.js";
+import { reservedWordRule } from "./checker-reserved-word.js";
+import { undefinedVarRule } from "./checker-undefined-var.js";
 import { unknownCommandRule } from "./checker-unknown-command.js";
 import { unknownTypeRule } from "./checker-type-field.js";
 
@@ -92,6 +95,8 @@ const RULES: readonly CheckRule[] = [
   unknownTypeRule,
   arityRule,
   notAPlaceRule,
+  undefinedVarRule,
+  reservedWordRule,
 ];
 
 /** Dispatches `program`/`profiles` to every registered rule and concatenates their findings. */

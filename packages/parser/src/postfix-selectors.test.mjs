@@ -234,7 +234,7 @@ test("check() flags first :x = 5 with ol-not-a-place at stage semantic", () => {
   const [diag] = notAPlace;
   assert.equal(diag.stage, "semantic");
   assert.equal(diag.severity, "error");
-  assert.deepEqual(diag.params, { text: "first" });
+  assert.deepEqual(diag.params, { text: "first :x" });
 });
 
 test("a parenthesized reporter target (first :x) = 5 is flagged ol-not-a-place too", () => {

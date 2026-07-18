@@ -1,0 +1,3 @@
+define first :x
+  print :x
+end

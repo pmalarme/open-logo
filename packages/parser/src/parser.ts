@@ -1106,14 +1106,24 @@ export function parse(source: string, document = "<input>"): ParseResult {
       }
     }
     const expr = parseExpression();
-    // A reporter/call used as an assignment target (`first :x = 5`) is not a place. Recognize the
-    // structure here so the semantic checker can flag it with `ol-not-a-place`; `=` is the only op
-    // that survives to this fall-through, so a bare `text === "="` guard is sufficient.
+    // A reporter/call or a bare literal used as an assignment target — `first :x = 5`,
+    // `count :nums = 3`, `3 = 5` — is not a place. Recognize the structure here so the semantic
+    // checker can flag it with `ol-not-a-place` (spec/tooling.md:213-219) instead of a blunt parse
+    // error; `=` is the only op that survives to this fall-through, so a bare `text === "="` guard
+    // is sufficient. A bare `:name` never reaches this fall-through (it is always routed through
+    // `colonAssignmentAhead()`/`parseColonAssignment()` into a proper `Place`), so `VarRef` is not
+    // one of the kinds recognized here.
     if (expr === undefined) {
       return undefined;
     }
-    const isCallTarget = expr.kind === "Call" || expr.kind === "ParenCall";
-    if (isCallTarget && current().text === "=") {
+    const isNonPlaceTarget =
+      expr.kind === "Call" ||
+      expr.kind === "ParenCall" ||
+      expr.kind === "NumberLit" ||
+      expr.kind === "WordLit" ||
+      expr.kind === "BooleanLit" ||
+      expr.kind === "ListLit";
+    if (isNonPlaceTarget && current().text === "=") {
       advance();
       const value = parseExpression();
       if (value === undefined) {

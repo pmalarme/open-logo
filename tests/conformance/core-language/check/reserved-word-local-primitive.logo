@@ -1,0 +1,4 @@
+define g :y
+  local first
+  print :y
+end

@@ -1,0 +1,19 @@
+{
+  "description": "ol-not-a-place (issue #113): `pi` is a zero-argument Core primitive, so its bare-call assignment target has no arguments to render — the reconstructed `text` is exactly the callee name with no trailing arguments, covering the zero-arg branch of the AST-to-text renderer.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-not-a-place",
+      "source_span": {
+        "document": "core-language/check/not-a-place-zero-arg-call",
+        "start": [1, 1],
+        "end": [1, 3]
+      },
+      "params": { "text": "pi" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

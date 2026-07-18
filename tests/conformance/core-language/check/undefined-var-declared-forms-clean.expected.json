@@ -1,0 +1,7 @@
+{
+  "description": "ol-undefined-var (issue #113), negative: every declaration form the rule recognizes — a procedure parameter (`:a`), a `local` name followed by its own assignment (`:y`), a `for ... in` binder (`:i`), a `for ... from ... to` binder (`:j`), and both comprehension binder forms including a `reduce` accumulator (`:n`, `:sum`) — is read only after being declared, so the whole-program declared-name model finds every read bound and reports nothing.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

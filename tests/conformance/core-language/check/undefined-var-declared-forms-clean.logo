@@ -1,0 +1,19 @@
+define f :a
+  print :a
+end
+f 1
+
+local y
+:y = 2
+print :y
+
+for i in [1 2 3]
+  print :i
+end
+
+for j from 1 to 3
+  print :j
+end
+
+:doubled = map n in [1 2 3] [ :n * 2 ]
+:total = reduce sum n in [1 2 3] from 0 [ :sum + :n ]
