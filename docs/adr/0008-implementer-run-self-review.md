@@ -47,8 +47,8 @@ This **amends** ADR-0004 in two ways:
 - It relocates the gate from "orchestrator-run after the PR" to "implementer-run before the PR."
 
 To make this possible, the delivery agents **drop their `tools:` allowlist** (`read/search/edit/
-execute`) so they receive the default toolset, which includes sub-agent dispatch (`task`). An
-explicit allowlist silently excluded it.
+execute`) so they receive the default toolset, which includes sub-agent dispatch (the sub-agent /
+`task` tool). An explicit allowlist silently excluded it.
 
 ## Consequences
 
@@ -60,5 +60,14 @@ explicit allowlist silently excluded it.
 - Delivery agents are no longer tool-restricted; they rely on the team charter + skills for scope
   rather than a frontmatter allowlist. `@documentation` also regains `execute`, which its old
   allowlist omitted, so it can run its own Definition of Done.
+- **Verdicts are bound to a reviewed commit.** The implementer reviews a clean, committed HEAD; each
+  reviewer names the head SHA it reviewed; any commit after a `pass` invalidates that `pass` (all
+  reviewers re-run on the new HEAD); and the orchestrator confirms the attested SHA matches PR HEAD
+  before merge — so every verdict describes the revision actually merged.
+- **`rubber-duck` has a model precondition.** It is available only when the implementing session runs
+  on a Claude or GPT large model (it runs a contrasting critic model). Sessions are pinned to a
+  compatible model; when it is unavailable the implementer substitutes a second non-author domain
+  agent, so there are always two independent reviews. Reviewers are **read-only** — one that edits the
+  branch becomes an author and voids its verdict.
 - ADR-0004 is **amended, not reversed**: the independent-non-author-review principle and the
   clean-tree / emit-verified checklist it introduced still hold.

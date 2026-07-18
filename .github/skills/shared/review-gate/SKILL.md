@@ -50,6 +50,14 @@ delivery agents). The agent doing the reviewing is **never the author**:
 - `rubber-duck` is a Copilot CLI built-in reviewer; the QA experts are the OpenLogo agents. Reuse
   them rather than inventing a new persona (KISS). What matters is the role: **two** independent,
   non-author reviews.
+- **`rubber-duck` needs a compatible session model.** It is a built-in critic that deliberately runs
+  on a _different_ model from the session, and is only available when the implementing session uses a
+  **Claude or GPT large model**. Run implementing sessions on such a model; if `rubber-duck` is
+  unavailable, substitute a **second non-author domain agent** for the logic/design/spec-fidelity
+  review so there are still **two** independent reviews.
+- **Reviewers never edit the branch.** `rubber-duck` is read-only by design; the QA experts _can_
+  edit but must not — a reviewer who changes the branch becomes an **author** and voids their own
+  verdict. Reviewers report findings; the **author** fixes them.
 
 ## The checklist
 
@@ -109,25 +117,30 @@ If yes, the update **must be in the same PR**. A behavior change that leaves its
 
 ## Output — iterate to green, then hand over
 
-- Each sub-agent records findings tied to the checklist item it fails and ends with an explicit
-  **verdict**: `pass` or `block` (with the specific items to fix).
-- On any `block`, the implementer **fixes and re-dispatches** that sub-agent until it returns `pass`.
-  The PR is opened only once **both** `rubber-duck` **and** the QA expert return `pass`.
-- **Attach both verdicts to the PR** (in the PR body or as comments) so the audit trail shows two
-  independent, non-author reviews.
-- **No self-merge.** The implementer does not merge. Once the PR is open with both verdicts and
-  required CI is green, the **`@orchestrator` does a final verification** — both verdicts present and
-  from non-authors, CI green, a light sanity check — and merges under maintainer-delegated authority
+- **Review a clean, committed HEAD.** Commit the work first (no uncommitted changes) so the reviewers
+  see exactly what the PR will contain. Each sub-agent records findings tied to the checklist item it
+  fails, **names the base + head commit SHA it reviewed**, and ends with an explicit **verdict**:
+  `pass` or `block` (with the specific items to fix).
+- On any `block`, the implementer **fixes, commits, and re-dispatches**. **Any new commit after a
+  `pass` invalidates that `pass`:** re-run **all** reviewers on the new HEAD so every verdict
+  describes the *same* final SHA. The PR is opened only once **every** reviewer — `rubber-duck` **and
+  each** dispatched QA expert — returns `pass` on that HEAD.
+- **Attach every verdict to the PR** (body or comments), each stamped with the reviewed head SHA, so
+  the audit trail shows two (or more) independent, non-author reviews of the revision being merged.
+- **No self-merge.** The implementer does not merge. Once the PR is open with every verdict and
+  required CI is green, the **`@orchestrator` does a final verification** — every verdict present,
+  from non-authors, and **stamped with a SHA matching PR HEAD** (a later commit voids an earlier
+  `pass`), CI green, a light sanity check — and merges under maintainer-delegated authority
   (team instructions §5), or a human merges. The gate itself never merges, and the implementer is
   never the sole attester.
 
 ## Checklist (record on the PR)
 
-- [ ] Two independent reviews run as sub-agents, both **≠ author**: `rubber-duck` + a domain QA expert.
+- [ ] Two+ independent reviews run as sub-agents, **all ≠ author**: `rubber-duck` (Claude/GPT large session model) + each domain QA expert; reviewers stayed read-only.
 - [ ] Clean-tree DoD re-run — build **emits** verified (no stale-`.tsbuildinfo` no-op; TS 7 confirmed).
 - [ ] Spec-fidelity — canonical vocabulary; `ol-*` codes with spans; profile boundaries.
 - [ ] Conformance fixtures present, green, and extended.
 - [ ] Runnable `spec/examples/*.logo` and doc snippets parse/run.
 - [ ] A11y / pedagogy checked where applicable.
 - [ ] Instructions / skills / docs / spec drift checked (in-PR if needed).
-- [ ] Both verdicts `pass` and attached to the PR; iterated to green before opening; no self-merge.
+- [ ] All verdicts `pass` on the **same final HEAD** (SHA-stamped) and attached; any later commit re-ran every reviewer; no self-merge.

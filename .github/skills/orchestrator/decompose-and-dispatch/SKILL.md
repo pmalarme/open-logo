@@ -28,8 +28,10 @@ contracts agreed first. You write no feature code — you decompose, dispatch, a
    autopilot`, and `coordinate_with_creator: true` (set `notify_on_idle`) so it reports its PR back.
    **The kickoff must require in-session self-review** (`shared/review-gate`): before opening the PR
    the owner dispatches two non-author sub-agents — `rubber-duck` + a domain-adaptive **QA** expert
-   (`@testing` and/or the changed area's owner) — and iterates until both `pass`, then opens an
-   already-green PR with both verdicts attached. **Avoid firing uncontrolled cloud agents at parallel
+   (`@testing` and/or the changed area's owner) — and iterates on a committed HEAD until both `pass`
+   on that SHA, then opens an already-green PR with both SHA-stamped verdicts attached. **Run the
+   session on a Claude or GPT large model** so `rubber-duck` is available; if it is not, the owner
+   substitutes a second non-author domain agent for that review. **Avoid firing uncontrolled cloud agents at parallel
    slices:** they are not messageable and branch off each other, which in M0 stacked duplicate PRs
    off abandoned branches. Label issues by agent + profile so tracks pull in parallel.
 6. **Integrate per story** with `integrate-and-merge`: **verify** the owner's two attached non-author

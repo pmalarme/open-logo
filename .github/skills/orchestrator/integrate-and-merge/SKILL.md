@@ -1,10 +1,11 @@
 ---
 name: integrate-and-merge
 description: >-
-  How @orchestrator runs the operational half of the loop after dispatch — driving each slice's PR
-  through the independent review gate, merging under maintainer-delegated authority, verifying the
-  merge, and keeping main, the board, milestones, branches, and the plan clean. Use when a dispatched
-  slice opens a PR, when consolidating duplicate/superseded PRs, or when closing out a milestone.
+  How @orchestrator runs the operational half of the loop after dispatch — verifying each slice's
+  in-session non-author self-review, merging under maintainer-delegated authority (or handing to a
+  human), verifying the merge, and keeping main, the board, milestones, branches, and the plan clean.
+  Use when a dispatched slice opens a PR, when consolidating duplicate/superseded PRs, or when closing
+  out a milestone.
 created: 2026-07-17T00:00
 updated: 2026-07-17T00:00
 ---
@@ -24,13 +25,16 @@ When a dispatched owner reports a PR (they should, if you set `coordinate_with_c
 
 A dispatched slice arrives **already reviewed**: the owner ran `shared/review-gate` in-session and
 attached two non-author verdicts (`rubber-duck` + a domain **QA** expert). Your job is to **verify**
-them — both present, both from agents that are **not** the author, tied to this PR — plus green CI
-and a light diff sanity check against `origin/main` (not a stale local `main`). Do **not** re-run the
-whole gate round-by-round.
+them — both present, both from agents that are **not** the author, and each **stamped with a head SHA
+that matches the current PR HEAD** (a commit after a `pass` voids it) — plus green CI and a light diff
+sanity check against `origin/main` (not a stale local `main`). Do **not** re-run the whole gate
+round-by-round.
 
-When **you** authored the change (an _integration_ or governance PR), you must **not** review it
-yourself — run `shared/review-gate` here first: spawn the two non-author sub-agents (`rubber-duck` +
-a domain QA expert) and **post their verdicts as PR comments** before you merge.
+When **you** authored the change (an _integration_ or governance PR), the same pre-open rule applies
+to you: you must **not** review it yourself, and you run `shared/review-gate` **before opening the
+PR** — spawn the two non-author sub-agents (`rubber-duck` + a domain QA expert), iterate to green on a
+committed HEAD, and open the PR with both SHA-stamped verdicts in its body. If a finding forces a new
+commit, re-run **both** reviewers so the attached verdicts match the final HEAD.
 
 ### 2. Merge only on a recorded PASS + green CI
 
@@ -72,13 +76,13 @@ retargeting re-introduces the abandoned commits. Instead:
    branch off `origin/main`** (`git cherry-pick --no-commit <sha>`).
 2. Resolve conflicts by hand — usually the package `index.ts` contract-marker exports: keep the real
    exports, drop throwaway placeholder markers.
-3. Re-run the clean-tree DoD, open the consolidated PR, run the review gate, and **close each
-   superseded PR with a credit comment** to its author. Then delete the orphan branches (hygiene,
-   above).
+3. Re-run the clean-tree DoD **and the review gate** (two non-author verdicts on the committed HEAD),
+   **then** open the consolidated PR with both verdicts attached, and **close each superseded PR with
+   a credit comment** to its author. Then delete the orphan branches (hygiene, above).
 
 ## Checklist (per merged slice)
 
-- [ ] Two non-author review-gate verdicts recorded on the PR (rubber-duck + domain QA, both ≠ author).
+- [ ] Two non-author review-gate verdicts recorded on the PR (rubber-duck + domain QA, both ≠ author), each stamped with a SHA matching PR HEAD.
 - [ ] Merged only after PASS + green CI — delegated authority, never self-attested.
 - [ ] Merge verified via `gh pr view` + `git ls-remote`, not the `--delete-branch` exit code.
 - [ ] Board Status → Done + Agent set; milestone closed when `0 open`.

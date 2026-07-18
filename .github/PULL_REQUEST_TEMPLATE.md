@@ -44,12 +44,13 @@ rubber-duck + a domain-adaptive QA expert — reviewed the change and both retur
 verdicts below. Reviewer ≠ author. See .github/skills/shared/review-gate/SKILL.md.
 -->
 
-- [ ] Clean-tree DoD re-run — build **emits** verified (real `dist/*.js` + `*.d.ts`, not just exit 0)
+- [ ] Clean-tree DoD re-run — build **emits** verified (real `dist/*.js` + `*.d.ts`, not just exit 0; **N/A for docs-only**)
 - [ ] Spec-fidelity re-checked (canonical vocabulary, `ol-*` codes with spans, profile boundaries)
 - [ ] Conformance fixtures present & green
 - [ ] Instructions / skills / docs / spec drift checked (in this PR if needed)
+- [ ] Reviews were run on this PR's head commit (SHA `________`); any later push re-runs **all** reviewers
 - [ ] `rubber-duck` verdict = pass (≠ author):
-- [ ] QA expert verdict = pass (≠ author); expert(s):
+- [ ] QA expert verdict(s) = pass (≠ author); expert(s):
 
 ## Reviewers / integration
 

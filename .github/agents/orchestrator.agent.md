@@ -58,7 +58,7 @@ Consult these playbooks before acting — they encode how the factory works.
 | Skill | Use it to |
 |---|---|
 | [decompose-and-dispatch](../skills/orchestrator/decompose-and-dispatch/SKILL.md) | Turn a milestone/spec area into vertical-slice task packets, assign owners, dispatch |
-| [integrate-and-merge](../skills/orchestrator/integrate-and-merge/SKILL.md) | Drive each PR through the review gate → merge → verify → reconcile board/milestone/branches/plan; consolidate duplicate PRs |
+| [integrate-and-merge](../skills/orchestrator/integrate-and-merge/SKILL.md) | Verify the implementer's non-author self-review → merge (delegated) → verify → reconcile board/milestone/branches/plan; consolidate duplicate PRs |
 | [shared/vertical-slice](../skills/shared/vertical-slice/SKILL.md) | Shape every task as one feature end to end |
 | [shared/definition-of-done](../skills/shared/definition-of-done/SKILL.md) | Hold the CI-enforced merge gate |
 | [shared/review-gate](../skills/shared/review-gate/SKILL.md) | Verify the implementer's two non-author review verdicts (rubber-duck + domain QA); run it yourself only for your own integration PRs |
