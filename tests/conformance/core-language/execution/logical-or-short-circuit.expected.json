@@ -1,0 +1,28 @@
+{
+  "description": "`true or :missing` short-circuits (spec/execution-model.md:142): `or` never evaluates its right operand once the left is `true`, so the `ol-undefined-var` reading `:missing` would raise is never reached. Result is `true`. Issue #95.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/logical-or-short-circuit",
+        "start": [1, 1],
+        "end": [1, 23]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/logical-or-short-circuit",
+        "start": [1, 1],
+        "end": [1, 23]
+      },
+      "payload": { "values": [true] }
+    }
+  ],
+  "diagnostics": []
+}

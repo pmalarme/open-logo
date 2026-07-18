@@ -171,6 +171,17 @@ type ComparisonOperator = (typeof COMPARISON_OPERATORS)[number];
 /** Ordering operators: a strict subset of {@link COMPARISON_OPERATORS} that need orderable operands. */
 type OrderingOperator = "<" | ">" | "<=" | ">=";
 
+/**
+ * `and`/`or` at precedence levels 6/7 (`spec/execution-model.md:137-138`): left-associative and
+ * short-circuit. The parser lowers both the infix form (`a and b`, nested binary `Call`s for
+ * three or more operands) and the parenthesized variadic form (`(and a b c)`, one `ParenCall`
+ * with every operand as an arg) to the same callee/args shape, so {@link evaluateLogical} just
+ * walks `node.args` left to right — that loop is correct for both a 2-arg binary call and an
+ * n-arg variadic one.
+ */
+const LOGICAL_OPERATORS = ["and", "or"] as const;
+type LogicalOperator = (typeof LOGICAL_OPERATORS)[number];
+
 function isBinaryArithmeticOperator(
   name: string,
 ): name is BinaryArithmeticOperator {
@@ -189,6 +200,10 @@ function isComparisonOperator(name: string): name is ComparisonOperator {
   return (COMPARISON_OPERATORS as readonly string[]).includes(name);
 }
 
+function isLogicalOperator(name: string): name is LogicalOperator {
+  return (LOGICAL_OPERATORS as readonly string[]).includes(name);
+}
+
 /**
  * Does {@link evaluate} give `node` a value in this issue's scope? `execute()` uses this guard
  * to decide whether to evaluate a `print` argument at all: expression kinds and callees this
@@ -200,7 +215,10 @@ function isComparisonOperator(name: string): name is ComparisonOperator {
  * (`== != < > <= >=`) are in scope, so a comparison whose operands are all themselves supported
  * is evaluated. As of issue #94 a `VarRef` (`:name`) is always supported, and a `Place` (`:l[i]`)
  * is supported only when every postfix segment is an `index` selector with a supported key —
- * `.field` segments stay unsupported since record/dict places are a later profile.
+ * `.field` segments stay unsupported since record/dict places are a later profile. As of issue
+ * #95 `and`/`or`/`not` calls are in scope; note this is a *shape* check only — a short-circuited
+ * operand such as `:missing` in `false and :missing` is still a supported `VarRef`, it is simply
+ * never reached by {@link evaluate}'s short-circuit at runtime.
  */
 export function isSupportedExpression(node: ExpressionNode): boolean {
   switch (node.kind) {
@@ -223,6 +241,8 @@ export function isSupportedExpression(node: ExpressionNode): boolean {
         isUnaryMathBuiltin(name) ||
         isBinaryMathBuiltin(name) ||
         isComparisonOperator(name) ||
+        isLogicalOperator(name) ||
+        name === "not" ||
         name === "thing";
       return isKnownCallee && node.args.every(isSupportedExpression);
     }
@@ -530,6 +550,12 @@ function evaluateCall(node: ArithmeticCallNode, env: Environment): EvalResult {
   if (isComparisonOperator(name)) {
     return evaluateComparisonCall(node, name, env);
   }
+  if (isLogicalOperator(name)) {
+    return evaluateLogical(node, name, env);
+  }
+  if (name === "not") {
+    return evaluateNot(node, env);
+  }
   if (name === "thing") {
     return evaluateThing(node, env);
   }
@@ -652,6 +678,113 @@ function evaluateBinaryMath(
     case "power":
       return ok(base.value ** exponent.value);
   }
+}
+
+// --- Logic: `not` (level 2), `and`/`or` (levels 6/7), no truthiness -------------------------
+//
+// spec/execution-model.md:133,137-144. There is no truthiness (spec/error-model.md:121): every
+// operand of `not`/`and`/`or` must itself be a boolean, or the operation raises `ol-not-boolean`
+// rather than coercing a number/word/list.
+
+type BooleanOrDiagnostic =
+  | { readonly ok: true; readonly value: boolean }
+  | { readonly ok: false; readonly diagnostic: Diagnostic };
+
+/** Require `value` to be a boolean, or `ol-not-boolean` — there is no truthiness. */
+function requireBoolean(
+  value: OLValue,
+  source_span: SourceSpan,
+  operation: string,
+): BooleanOrDiagnostic {
+  if (typeof value !== "boolean") {
+    return {
+      ok: false,
+      diagnostic: runtimeDiag.notBoolean(source_span, {
+        actual: typeNameOf(value),
+        operation,
+      }),
+    };
+  }
+  return { ok: true, value };
+}
+
+/**
+ * `not operand` — the boolean-only prefix operator (`spec/execution-model.md:133`). A leading
+ * `-` on a numeral is a negative *literal*, never unary minus, so `not` is the only prefix
+ * operator this evaluator handles.
+ */
+function evaluateNot(node: ArithmeticCallNode, env: Environment): EvalResult {
+  const operandNode = arg(node, 0);
+  const operandResult = evaluate(operandNode, env);
+  if (!operandResult.ok) {
+    return operandResult;
+  }
+  const operand = requireBoolean(
+    operandResult.value,
+    operandNode.source_span,
+    "not",
+  );
+  if (!operand.ok) {
+    return fail(operand.diagnostic);
+  }
+  return ok(!operand.value);
+}
+
+/**
+ * `and`/`or` — left-associative and short-circuit (`spec/execution-model.md:137-144`): `and`
+ * evaluates its next operand only while every earlier one was `true`, stopping (and reporting
+ * `false`) at the first `false`; `or` stops (reporting `true`) at the first `true`. The parser
+ * lowers both the infix form (nested binary `Call`s for three or more operands, left-associative)
+ * and the parenthesized variadic form (`(and a b c)`, one call with every operand as an arg) to
+ * the same callee/args shape, so walking `node.args` left to right gives identical semantics for
+ * both — a later operand, whether the right side of a nested binary call or a later variadic arg,
+ * is reached only when every earlier one demanded it. An operand is evaluated at most once, and a
+ * short-circuited operand is never evaluated at all — so a diagnostic it would have raised
+ * (`ol-undefined-var`, …) never fires.
+ *
+ * The bare infix form always supplies exactly two operands (the grammar itself guarantees it),
+ * but the parenthesized form's operand count is only bounded by the closing `)`
+ * (`packages/parser/src/parser.ts`'s `parseParenthesized` gathers every operand up to it) and the
+ * static checker never arity-checks a grammar operator callee (`checker-arity.ts`), so `(and)`
+ * and `(and :a)` parse clean with zero or one operand. `and`/`or`'s signature is `boolean and
+ * boolean` (`spec/commands.md:566,585`) — two operands minimum — so fewer than two would
+ * otherwise silently report the identity value (`true` for `and`, `false` for `or`) without ever
+ * checking a single operand's type; `execute()` runs `parse()` only, so this is the sole guard.
+ */
+function evaluateLogical(
+  node: ArithmeticCallNode,
+  operator: LogicalOperator,
+  env: Environment,
+): EvalResult {
+  if (node.args.length < 2) {
+    return fail(
+      runtimeDiag.notEnoughInputs(
+        node.callee.source_span,
+        operator,
+        2,
+        node.args.length,
+      ),
+    );
+  }
+  const shortCircuitValue = operator !== "and";
+  for (const operandNode of node.args) {
+    const operandResult = evaluate(operandNode, env);
+    if (!operandResult.ok) {
+      return operandResult;
+    }
+    const operand = requireBoolean(
+      operandResult.value,
+      operandNode.source_span,
+      operator,
+    );
+    if (!operand.ok) {
+      return fail(operand.diagnostic);
+    }
+    if (operand.value === shortCircuitValue) {
+      return ok(shortCircuitValue);
+    }
+  }
+  return ok(!shortCircuitValue);
 }
 
 // --- Comparisons: equality (`== !=`), ordering (`< > <= >=`), and chains --------------------

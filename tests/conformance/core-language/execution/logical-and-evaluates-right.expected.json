@@ -1,0 +1,32 @@
+{
+  "description": "Contrast with `logical-and-short-circuit`: `true and :missing` DOES evaluate the right operand since the left is `true`, so reading unbound `:missing` raises `ol-undefined-var` and no `print` event is emitted. Issue #95.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/logical-and-evaluates-right",
+        "start": [1, 1],
+        "end": [1, 24]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "core-language/execution/logical-and-evaluates-right",
+        "start": [1, 16],
+        "end": [1, 24]
+      },
+      "params": {
+        "name": "missing"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

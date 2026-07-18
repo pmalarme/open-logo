@@ -150,6 +150,8 @@ export function execute(source: string, document: string): ExecuteResult {
             runtimeDiag.notEnoughInputs(
               statement.callee.source_span,
               statement.callee.name,
+              1,
+              0,
             ),
           ],
         };

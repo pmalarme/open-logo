@@ -197,7 +197,7 @@ test("execute raises ol-not-enough-inputs for a bare zero-argument `print`", () 
       end: [1, 6],
     },
     params: { callable: "print", expected: 1, actual: 0 },
-    message: "print needs one input.",
+    message: "print needs one input, but got 0.",
     stage: "runtime",
     severity: "error",
   });
@@ -218,7 +218,7 @@ test("execute raises ol-not-enough-inputs for a parenthesized zero-argument `(pr
       end: [1, 7],
     },
     params: { callable: "print", expected: 1, actual: 0 },
-    message: "print needs one input.",
+    message: "print needs one input, but got 0.",
     stage: "runtime",
     severity: "error",
   });

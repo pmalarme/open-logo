@@ -1,0 +1,28 @@
+{
+  "description": "`false and :missing` short-circuits (spec/execution-model.md:141): `and` never evaluates its right operand once the left is `false`, so the `ol-undefined-var` reading `:missing` would raise is never reached. Result is `false`. Issue #95.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/logical-and-short-circuit",
+        "start": [1, 1],
+        "end": [1, 25]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/logical-and-short-circuit",
+        "start": [1, 1],
+        "end": [1, 25]
+      },
+      "payload": { "values": [false] }
+    }
+  ],
+  "diagnostics": []
+}
