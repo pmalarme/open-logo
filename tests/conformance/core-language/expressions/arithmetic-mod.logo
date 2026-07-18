@@ -1,0 +1,2 @@
+# The `mod` operator sits at the same precedence level as `*` and `/`, per grammar.md:186,220.
+print 7 mod 3

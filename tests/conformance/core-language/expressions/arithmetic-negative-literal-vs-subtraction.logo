@@ -1,0 +1,5 @@
+# A leading `-` on a numeral is a negative literal, not a unary operator: negating a variable
+# is written `0 - :x`, per grammar.md:226. Both forms parse with no diagnostics.
+:x = 5
+print -7
+print 0 - :x

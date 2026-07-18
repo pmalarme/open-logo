@@ -1,0 +1,19 @@
+{
+  "description": "A `-` separated from its numeral by whitespace is not a negative literal and has no left operand to be a subtraction, so it raises `ol-bad-token` at the stray `-` token.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/expressions/arithmetic-stray-minus",
+        "start": [4, 7],
+        "end": [4, 8]
+      },
+      "params": { "text": "-" },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

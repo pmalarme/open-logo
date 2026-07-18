@@ -1,0 +1,3 @@
+# Parenthesized grouping overrides default precedence: `(1 + 2) * 3` forces the addition to
+# happen before the multiplication, per grammar.md:195,209 (parenthesized-expression is a primary).
+print (1 + 2) * 3

@@ -1,0 +1,7 @@
+{
+  "description": "The worded `mod` operator parses with no diagnostics at the same precedence level as `*`/`/`.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

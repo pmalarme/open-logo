@@ -1,0 +1,4 @@
+# A `-` with a gap before the numeral (`- 3`) is NOT a negative literal (grammar.md:226 requires
+# the `-` sit directly against the numeral); with nothing to its left it is a stray, unreadable
+# token and raises `ol-bad-token`.
+print - 3

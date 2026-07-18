@@ -1,0 +1,7 @@
+{
+  "description": "A parenthesized addition grouped inside a multiplication parses with no diagnostics; the parenthesized-expression primary lets grouping override default precedence.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

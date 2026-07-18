@@ -1,0 +1,7 @@
+{
+  "description": "A negative numeric literal (`-7`) and an explicit subtraction-based negation (`0 - :x`) both parse with no diagnostics; the two forms are distinct per grammar.md:226 (proven distinct by the co-located unit test's AST assertions).",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}
