@@ -341,13 +341,19 @@ function evaluateBinaryMath(
 
 /**
  * The canonical printed form of a number, used by number↔word equality
- * (`spec/execution-model.md:498-500`): `5 == "5"` is `true`, `5 == "05"` is `false` because the
- * number `5` prints as `"5"`, not `"05"`. `String(n)` is that canonical form for the integer and
- * decimal literals Core produces (full `print` formatting is issue #98; when it lands it becomes
- * the single source of this rule).
+ * (`spec/execution-model.md:19,498-500`): whole values print without a decimal, non-whole values
+ * are trimmed to at most 10 significant digits. So `5 == "5"` is `true`, `5 == "05"` is `false`
+ * (5 prints as `"5"`, not `"05"`), and a word carrying more than 10 significant digits cannot
+ * equal the number it looks like. `toPrecision(10)` rounds a non-whole value to 10 significant
+ * digits and re-parsing drops the trailing zeros it introduces; a whole value keeps its full
+ * integer form. (Full `print` formatting is issue #98; when it lands it becomes the single source
+ * of this rule.)
  */
 function canonicalNumberWord(value: number): string {
-  return String(value);
+  if (Number.isInteger(value)) {
+    return String(value);
+  }
+  return String(Number(value.toPrecision(10)));
 }
 
 /**
@@ -470,6 +476,28 @@ function orderingHolds(operator: OrderingOperator, sign: number): boolean {
 }
 
 /**
+ * Compare two numbers with the ordering operator applied directly. Direct comparison (rather than
+ * deriving a sign from `left - right`) keeps equal non-finite operands correct: `Infinity - Infinity`
+ * is `NaN`, which would make `<=`/`>=` on two equal infinities wrongly report `false`.
+ */
+function numberOrdering(
+  operator: OrderingOperator,
+  left: number,
+  right: number,
+): boolean {
+  switch (operator) {
+    case "<":
+      return left < right;
+    case ">":
+      return left > right;
+    case "<=":
+      return left <= right;
+    case ">=":
+      return left >= right;
+  }
+}
+
+/**
  * Ordering (`< > <= >=`) is defined only for two numbers (compared numerically) or two words
  * (compared lexicographically); every other pair raises `ol-type`
  * (`spec/execution-model.md:508-510`). When the left operand is itself non-orderable
@@ -485,7 +513,7 @@ function evaluateOrdering(
   rightNode: ExpressionNode,
 ): EvalResult {
   if (typeof left === "number" && typeof right === "number") {
-    return ok(orderingHolds(operator, left - right));
+    return ok(numberOrdering(operator, left, right));
   }
   if (typeof left === "string" && typeof right === "string") {
     return ok(orderingHolds(operator, compareWords(left, right)));

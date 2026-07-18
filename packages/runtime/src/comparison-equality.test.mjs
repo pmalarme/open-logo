@@ -92,6 +92,19 @@ test("number == word inside a nested list uses the printed-form rule", () => {
   assert.equal(boolOf('[5] == ["05"]'), false);
 });
 
+test("number == word uses the spec canonical printed form (<=10 significant digits)", () => {
+  // Whole values print without a decimal; non-whole values trim to at most 10 significant
+  // digits (spec/execution-model.md:19). A word carrying more digits than the number prints
+  // cannot equal it.
+  assert.equal(boolOf('12345 == "12345"'), true); // whole, full integer form
+  assert.equal(boolOf('0.3333333333 == "0.3333333333"'), true); // exactly 10 sig digits
+  assert.equal(boolOf('0.33333333331 == "0.33333333331"'), false); // 11 digits -> trimmed
+  assert.equal(boolOf('1.234567890123 == "1.234567890123"'), false); // trims to 1.23456789
+  // Same rule reached directly through valuesEqual.
+  assert.equal(valuesEqual(1.234567890123, "1.234567890123"), false);
+  assert.equal(valuesEqual(1.234567890123, "1.23456789"), true);
+});
+
 // --- Ordering: `< > <= >=` ------------------------------------------------------------------
 
 test("numbers order numerically", () => {
@@ -123,6 +136,29 @@ test("words order by code point, not UTF-16 code unit, for astral characters", (
   // (0xD83D) is less than 0xFFFF — a code-unit comparison would get this backwards.
   assert.equal(boolOf('"\u{1F600}" > "\uFFFF"'), true);
   assert.equal(boolOf('"\uFFFF" < "\u{1F600}"'), true);
+});
+
+test("ordering two equal infinities compares directly, not by subtraction (no NaN)", () => {
+  // `power 10 1000` overflows to Infinity; `Infinity - Infinity` is NaN, so a sign-by-subtraction
+  // ordering would wrongly report `<=`/`>=` as false. Build the comparison over Infinity operands
+  // directly (overflow is reachable through `power`, but this pins the operand precisely).
+  const span = makeSpan(doc, [1, 1], [1, 2]);
+  const inf = {
+    kind: "NumberLit",
+    source_span: span,
+    value: Number.POSITIVE_INFINITY,
+  };
+  const order = (op) =>
+    evaluate({
+      kind: "Call",
+      source_span: span,
+      callee: { name: op, source_span: span },
+      args: [inf, inf],
+    });
+  assert.deepEqual(order("<="), { ok: true, value: true });
+  assert.deepEqual(order(">="), { ok: true, value: true });
+  assert.deepEqual(order("<"), { ok: true, value: false });
+  assert.deepEqual(order(">"), { ok: true, value: false });
 });
 
 test("ordering a non-orderable left operand raises ol-type naming 'number or word'", () => {
