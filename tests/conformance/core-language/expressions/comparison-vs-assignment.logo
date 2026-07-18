@@ -1,0 +1,4 @@
+# `=` assigns (spec/grammar.md:103) while `==` compares (spec/grammar.md:180); the two stay
+# distinct even back to back on the same variable.
+:x = 1
+print :x == 1

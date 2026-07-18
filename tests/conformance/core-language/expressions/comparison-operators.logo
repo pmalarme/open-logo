@@ -1,0 +1,8 @@
+# All six Core simple comparison operators (spec/grammar.md:180), one per print, each a lone
+# comparison so it stays a single Call rather than a ComparisonChain (issue #52 covers chains).
+print 1 == 1
+print 1 != 2
+print 1 < 2
+print 2 > 1
+print 1 <= 1
+print 1 >= 1

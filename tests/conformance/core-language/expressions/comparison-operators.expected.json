@@ -1,0 +1,7 @@
+{
+  "description": "Each Core simple comparison operator (==, !=, <, >, <=, >=) parses as a lone comparison with no diagnostics.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

@@ -1,0 +1,19 @@
+{
+  "description": "A comparison operator with no right-hand operand at end of file reports ol-bad-token.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/expressions/comparison-missing-operand",
+        "start": [2, 10],
+        "end": [3, 1]
+      },
+      "params": { "text": "end of line" },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}
