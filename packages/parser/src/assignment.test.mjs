@@ -187,15 +187,15 @@ test("a well-formed colon-place assignment is never flagged ol-not-a-place", () 
   assert.deepEqual(diagnostics, []);
 });
 
-test("a colon-place is not valid after `set ... to`: set :x to 100 rejects :x at the parse stage", () => {
-  const { ast, diagnostics } = OL.parse("set :x to 100", doc);
-  assert.ok(diagnostics.length > 0);
-  const [first] = diagnostics;
-  assert.equal(first.code, "ol-bad-token");
-  assert.equal(first.stage, "parse");
-  assert.equal(first.severity, "error");
-  assert.deepEqual(first.params, { text: ":x" });
-  assert.deepEqual(first.source_span, span([1, 5], [1, 7]));
+test("a colon-place is not valid after `set`: set :x rejects :x with a single parse-stage diagnostic", () => {
+  const { ast, diagnostics } = OL.parse("set :x", doc);
+  assert.equal(diagnostics.length, 1);
+  const [diag] = diagnostics;
+  assert.equal(diag.code, "ol-bad-token");
+  assert.equal(diag.stage, "parse");
+  assert.equal(diag.severity, "error");
+  assert.deepEqual(diag.params, { text: ":x" });
+  assert.deepEqual(diag.source_span, span([1, 5], [1, 7]));
   // Recovery re-parses the untouched `:x` as its own VarRef statement; `set` itself never
   // produces an Assign node here.
   assert.equal(ast.body[0].kind, "VarRef");

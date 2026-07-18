@@ -1,5 +1,5 @@
 {
-  "description": "A colon-place is INVALID after `set ... to` (spec/grammar.md:104 requires a bare-place): `set :x to 100` fails immediately because the token after `set` must be a bare name, not `:x`. Error recovery then re-parses `:x` as its own statement, flags the following `to` as a run-on (missing terminator) and then as an unreadable token, producing three parse-stage ol-bad-token diagnostics — the deterministic, verified recovery cascade for this rejection, not a bug.",
+  "description": "A colon-place is INVALID after `set` (spec/grammar.md:104 requires a bare-place): `set :x` fails immediately because the token after `set` must be a bare name, not `:x`, reporting a single ol-bad-token at the colon-place token.",
   "profiles": ["core-language"],
   "expect": "match",
   "events": [],
@@ -12,28 +12,6 @@
         "end": [3, 7]
       },
       "params": { "text": ":x" },
-      "stage": "parse",
-      "severity": "error"
-    },
-    {
-      "code": "ol-bad-token",
-      "source_span": {
-        "document": "core-language/assignment/set-colon-place-invalid",
-        "start": [3, 8],
-        "end": [3, 10]
-      },
-      "params": { "text": "to" },
-      "stage": "parse",
-      "severity": "error"
-    },
-    {
-      "code": "ol-bad-token",
-      "source_span": {
-        "document": "core-language/assignment/set-colon-place-invalid",
-        "start": [3, 8],
-        "end": [3, 10]
-      },
-      "params": { "text": "to" },
       "stage": "parse",
       "severity": "error"
     }
