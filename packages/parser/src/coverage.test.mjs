@@ -648,6 +648,49 @@ test("reports malformed for loops", () => {
   assert.deepEqual(codesOf("for x from 1 to 5 foo"), ["ol-missing-end"]); // no body
 });
 
+// Per spec/grammar.md:136-137,333-335: `for … in`'s binder may also be a destructuring
+// `[ :name { :name } ]` pattern, distinct from `for … from … to …`'s bare-name variable.
+test("parses a destructuring `for [:x :y] in <expr>` binder", () => {
+  let r = parse("for [:x :y] in [1] [ print :x ]");
+  assert.equal(r.ast.body[0].kind, "ForIn");
+  assert.equal(r.ast.body[0].binder.kind, "DestructuringBinder");
+  assert.deepEqual(
+    r.ast.body[0].binder.names.map((n) => n.name),
+    ["x", "y"],
+  );
+
+  // One-or-more: a single name is valid.
+  r = parse("for [:x] in [1] [ print :x ]");
+  assert.deepEqual(
+    r.ast.body[0].binder.names.map((n) => n.name),
+    ["x"],
+  );
+
+  // Long-block body works the same as the bare-name form.
+  assert.equal(
+    parse("for [:x :y] in :pts\n print :x\nend").ast.body[0].kind,
+    "ForIn",
+  );
+});
+
+test("reports malformed destructuring for-in binders", () => {
+  // No names inside the brackets at all (empty pattern) — reported at the closing `]`.
+  assert.equal(codesOf("for [] in [1] [ print 1 ]")[0], "ol-unmatched-bracket");
+  // A bare (non-colon) name inside the brackets isn't a valid destructuring name.
+  assert.equal(codesOf("for [x] in [1] [ print 1 ]")[0], "ol-bad-token");
+  // Unclosed pattern.
+  assert.equal(
+    codesOf("for [:x :y in [1] [ print 1 ]")[0],
+    "ol-unmatched-bracket",
+  );
+  // Missing `in` after a well-formed pattern.
+  assert.deepEqual(codesOf("for [:x] foo"), ["ol-bad-token"]);
+  // Missing iterable after `in`.
+  assert.deepEqual(codesOf("for [:x] in"), ["ol-bad-token"]);
+  // Missing body.
+  assert.deepEqual(codesOf("for [:x] in [1] foo"), ["ol-missing-end"]);
+});
+
 // --- Arity resolution -------------------------------------------------------
 
 test("groups arguments by arity and treats unknown names as zero-arity", () => {
@@ -703,6 +746,7 @@ const MEGA = [
   "repeat 3 [ print 1 ]",
   "forever [ stop ]",
   "for i in [1 2] [ print :i ]",
+  "for [:x :y] in [1 2] [ print :x ]",
   "for i from 1 to 5 by 2 [ print :i ]",
   "print map n in [1 2] [ :n ]",
   "print reduce a n in [1 2] from 0 [ :a ]",

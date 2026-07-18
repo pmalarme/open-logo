@@ -25,6 +25,7 @@ import type { Diagnostic, Position, SourceSpan } from "@openlogo/core";
 import { ast } from "./ast.js";
 import type {
   BlockNode,
+  DestructuringBinderNode,
   ExpressionNode,
   PlaceSegment,
   ProcedureParam,
@@ -1371,9 +1372,57 @@ export function parse(source: string, document = "<input>"): ParseResult {
     return ast.forever(body, spanToHere(token.source_span.start));
   }
 
+  /**
+   * A destructuring `for` binder: `"[" ":" name { ":" name } "]"` (`spec/grammar.md:136-137`).
+   * Only `for … in` accepts this form — `for … from … to …` keeps its single bare-name variable.
+   */
+  function parseDestructuringBinder(): DestructuringBinderNode | undefined {
+    const open = current();
+    advance();
+    const names: SpannedName[] = [];
+    while (current().kind === "variable") {
+      const token = current();
+      advance();
+      names.push(sname(token.value, token));
+    }
+    if (names.length === 0) {
+      diagnostics.push(unexpected(current()));
+      return undefined;
+    }
+    if (current().kind !== "rbracket") {
+      diagnostics.push(parseDiag.unmatchedBracket(open.source_span, "["));
+      return undefined;
+    }
+    const close = current();
+    advance();
+    return ast.destructuringBinder(names, spanBetween(open, close));
+  }
+
   function parseFor(): StatementNode | undefined {
     const forTok = current();
     advance();
+    if (current().kind === "lbracket") {
+      const binder = parseDestructuringBinder();
+      if (binder === undefined) {
+        return undefined;
+      }
+      if (!isName("in")) {
+        diagnostics.push(unexpected(current()));
+        return undefined;
+      }
+      advance();
+      const iterable = parseExpression();
+      if (iterable === undefined) {
+        diagnostics.push(unexpected(current()));
+        return undefined;
+      }
+      const body = parseControlBody("for", forTok.source_span);
+      if (body === undefined) {
+        return undefined;
+      }
+      const span = spanToHere(forTok.source_span.start);
+      return ast.forIn(binder, iterable, body, span);
+    }
     const nameTok = current();
     if (nameTok.kind !== "name") {
       diagnostics.push(unexpected(nameTok));

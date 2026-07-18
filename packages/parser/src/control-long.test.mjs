@@ -276,17 +276,67 @@ test("a mismatched end label on a long block raises `ol-mismatched-end` at parse
 });
 
 // Per spec/grammar.md:136-137, a `for … in` binder may be a bare `name` OR a destructuring
-// `[ :name { :name } ]` pattern (e.g. `for [:x :y] in :points`, spec/grammar.md:333-335). The
-// shipped parser's `parseFor` (packages/parser/src/parser.ts) only accepts a bare `name` token
-// and does not recognize `[` as the start of a destructuring binder: it raises `ol-bad-token`
-// for the `[`, then further `ol-bad-token`s cascade through `in`, and the block never closes
-// as a `ForIn` node. This is a genuine parser gap, not a fixture-authoring choice — tracked in
-// a separate bug issue rather than fixed here (validation-only slice, issue #58).
-test("a destructuring `for [:x :y] in …` binder does not parse as `ForIn` (documents a known parser gap)", () => {
+// `[ :name { :name } ]` pattern (e.g. `for [:x :y] in :points`, spec/grammar.md:333-335).
+// Fixed in issue #91 — the destructuring form now parses into a `ForIn` node whose `binder`
+// is a `DestructuringBinder` node carrying the ordered `:name` binders.
+test("parses `for [:x :y] in <expr>` destructuring binder as a `ForIn` node", () => {
   const source = "for [:x :y] in :points\n  print :x\nend for\n";
   const { ast, diagnostics } = OL.parse(source, doc);
 
-  assert.ok(diagnostics.length > 0);
+  assert.deepEqual(diagnostics, []);
+  const forNode = ast.body[0];
+  assert.equal(forNode.kind, "ForIn");
+  assert.deepEqual(forNode.source_span, span([1, 1], [3, 8]));
+
+  assert.equal(forNode.binder.kind, "DestructuringBinder");
+  assert.deepEqual(
+    forNode.binder.names.map((name) => name.name),
+    ["x", "y"],
+  );
+  assert.equal(forNode.iterable.kind, "VarRef");
+  assert.equal(forNode.iterable.name, "points");
+
+  assert.equal(forNode.body.kind, "Block");
+  assert.equal(forNode.body.body.length, 1);
+  assert.equal(forNode.body.body[0].callee.name, "print");
+});
+
+test("parses a single-element destructuring binder `for [:x] in <expr>`", () => {
+  const source = "for [:x] in :points\n  print :x\nend for\n";
+  const { ast, diagnostics } = OL.parse(source, doc);
+
+  assert.deepEqual(diagnostics, []);
+  const forNode = ast.body[0];
+  assert.equal(forNode.kind, "ForIn");
+  assert.equal(forNode.binder.kind, "DestructuringBinder");
+  assert.deepEqual(
+    forNode.binder.names.map((name) => name.name),
+    ["x"],
+  );
+});
+
+test("bare-name `for <name> in <expr>` binder is unchanged (still a plain SpannedName)", () => {
+  const source = "for item in :items\n  print :item\nend for\n";
+  const { ast, diagnostics } = OL.parse(source, doc);
+
+  assert.deepEqual(diagnostics, []);
+  const forNode = ast.body[0];
+  assert.equal(forNode.binder.name, "item");
+  assert.equal(forNode.binder.kind, undefined);
+});
+
+test("an unclosed destructuring binder `for [:x :y in …` raises `ol-unmatched-bracket`", () => {
+  const source = "for [:x :y in :points\n  print :x\nend for\n";
+  const { ast, diagnostics } = OL.parse(source, doc);
+
+  assert.ok(diagnostics.some((d) => d.code === "ol-unmatched-bracket"));
+  assert.ok(ast.body.every((node) => node.kind !== "ForIn"));
+});
+
+test("a destructuring binder with a bare (non-colon) name `for [x] in …` raises `ol-bad-token`", () => {
+  const source = "for [x] in :points\n  print 1\nend for\n";
+  const { ast, diagnostics } = OL.parse(source, doc);
+
   assert.ok(diagnostics.some((d) => d.code === "ol-bad-token"));
   assert.ok(ast.body.every((node) => node.kind !== "ForIn"));
 });

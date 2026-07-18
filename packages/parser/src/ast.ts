@@ -39,6 +39,7 @@ export const OL_NODE_KINDS = [
   "While",
   "Repeat",
   "Forever",
+  "DestructuringBinder",
   "ForIn",
   "ForRange",
   "Comprehension",
@@ -269,10 +270,23 @@ export interface ForeverNode extends NodeBase {
   readonly body: BlockNode;
 }
 
-/** `for binder in iterable <body>`. The destructuring binder form is a later slice. */
+/**
+ * A `for … in` / `map` / `filter` / `reduce` binder: either a bare `name`, or a destructuring
+ * `[ :name { :name } ]` pattern that binds one or more names positionally
+ * (`spec/grammar.md:136-137`).
+ */
+export interface DestructuringBinderNode extends NodeBase {
+  readonly kind: "DestructuringBinder";
+  readonly names: readonly SpannedName[];
+}
+
+/** A loop/comprehension binder: a bare name, or a destructuring pattern node. */
+export type Binder = SpannedName | DestructuringBinderNode;
+
+/** `for binder in iterable <body>`. */
 export interface ForInNode extends NodeBase {
   readonly kind: "ForIn";
-  readonly binder: SpannedName;
+  readonly binder: Binder;
   readonly iterable: ExpressionNode;
   readonly body: BlockNode;
 }
@@ -384,7 +398,7 @@ export type StatementNode =
   | ThrowNode;
 
 /** Any concrete AST node. */
-export type AnyNode = ProgramNode | StatementNode;
+export type AnyNode = ProgramNode | StatementNode | DestructuringBinderNode;
 
 /** Factory helpers that build immutable, spanned nodes. */
 export const ast = {
@@ -477,12 +491,18 @@ export const ast = {
     return { kind: "Forever", source_span: span, body };
   },
   forIn(
-    binder: SpannedName,
+    binder: Binder,
     iterable: ExpressionNode,
     body: BlockNode,
     span: SourceSpan,
   ): ForInNode {
     return { kind: "ForIn", source_span: span, binder, iterable, body };
+  },
+  destructuringBinder(
+    names: readonly SpannedName[],
+    span: SourceSpan,
+  ): DestructuringBinderNode {
+    return { kind: "DestructuringBinder", source_span: span, names };
   },
   forRange(
     variable: SpannedName,
@@ -609,8 +629,14 @@ export function childrenOf(node: AnyNode): readonly AnyNode[] {
       return [node.count, node.body];
     case "Forever":
       return [node.body];
+    case "DestructuringBinder":
+      // Its `names` are metadata SpannedNames (no `kind`), same as `Place`'s field segments —
+      // nothing further to walk.
+      return [];
     case "ForIn":
-      return [node.iterable, node.body];
+      return "kind" in node.binder
+        ? [node.binder, node.iterable, node.body]
+        : [node.iterable, node.body];
     case "ForRange":
       return node.by === undefined
         ? [node.from, node.to, node.body]

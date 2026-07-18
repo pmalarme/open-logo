@@ -1,0 +1,6 @@
+{
+  "description": "Core `for ... in` long `... end for` form with a destructuring `[ :x :y ]` binder (spec/grammar.md:127,136-137,333-335) parses with no diagnostics into a `ForIn` node whose binder is a `DestructuringBinder`.",
+  "profiles": ["core-language"],
+  "events": [],
+  "diagnostics": []
+}
