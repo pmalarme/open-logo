@@ -126,6 +126,29 @@ test("produce preserves nested params with underscores", () => {
   );
 });
 
+test("produce is parse-only by default: no events even for an executable program", () => {
+  const result = produce("print 1", "test-doc");
+  assert.deepEqual(result.events, []);
+  assert.deepEqual(result.diagnostics, []);
+});
+
+test("produce executes via @openlogo/runtime when opted in", () => {
+  const result = produce("print 1\nprint 2", "test-doc", true);
+  assert.equal(result.diagnostics.length, 0);
+  assert.equal(result.events.length, 2);
+  assert.equal(result.events[0].kind, "instruction");
+  assert.equal(result.events[0].seq, 0);
+  assert.equal(result.events[1].seq, 1);
+});
+
+test("produce returns runtime diagnostics with message when opted in on malformed source", () => {
+  const result = produce("]", "test-doc", true);
+  assert.deepEqual(result.events, []);
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-unmatched-bracket");
+  assert.ok(result.diagnostics[0].message);
+});
+
 test("validateDiagnostics passes for well-formed diagnostics", () => {
   const diagnostics = [
     {
@@ -578,6 +601,81 @@ test("loadFixture validates expect field", () => {
   cleanup();
 });
 
+test("loadFixture defaults execute to false when absent", () => {
+  cleanup();
+  mkdirSync(join(TEMP_ROOT, "no-execute"), { recursive: true });
+  writeFileSync(join(TEMP_ROOT, "no-execute", "no-execute.logo"), "");
+  writeFileSync(
+    join(TEMP_ROOT, "no-execute", "no-execute.expected.json"),
+    JSON.stringify({
+      profiles: ["core-language"],
+      events: [],
+      diagnostics: [],
+    }),
+  );
+
+  const loaded = loadFixture({
+    name: "no-execute/no-execute.expected.json",
+    expectedPath: join(TEMP_ROOT, "no-execute", "no-execute.expected.json"),
+    logoPath: join(TEMP_ROOT, "no-execute", "no-execute.logo"),
+  });
+
+  assert.equal(loaded.expected.execute, false);
+  cleanup();
+});
+
+test("loadFixture reads an explicit execute: true opt-in", () => {
+  cleanup();
+  mkdirSync(join(TEMP_ROOT, "with-execute"), { recursive: true });
+  writeFileSync(
+    join(TEMP_ROOT, "with-execute", "with-execute.logo"),
+    "print 1",
+  );
+  writeFileSync(
+    join(TEMP_ROOT, "with-execute", "with-execute.expected.json"),
+    JSON.stringify({
+      profiles: ["core-language"],
+      execute: true,
+      events: [],
+      diagnostics: [],
+    }),
+  );
+
+  const loaded = loadFixture({
+    name: "with-execute/with-execute.expected.json",
+    expectedPath: join(TEMP_ROOT, "with-execute", "with-execute.expected.json"),
+    logoPath: join(TEMP_ROOT, "with-execute", "with-execute.logo"),
+  });
+
+  assert.equal(loaded.expected.execute, true);
+  cleanup();
+});
+
+test("loadFixture rejects a non-boolean execute field", () => {
+  cleanup();
+  mkdirSync(join(TEMP_ROOT, "bad-execute"), { recursive: true });
+  writeFileSync(join(TEMP_ROOT, "bad-execute", "bad-execute.logo"), "");
+  writeFileSync(
+    join(TEMP_ROOT, "bad-execute", "bad-execute.expected.json"),
+    JSON.stringify({
+      profiles: ["core-language"],
+      execute: "yes",
+      events: [],
+      diagnostics: [],
+    }),
+  );
+
+  const loaded = loadFixture({
+    name: "bad-execute/bad-execute.expected.json",
+    expectedPath: join(TEMP_ROOT, "bad-execute", "bad-execute.expected.json"),
+    logoPath: join(TEMP_ROOT, "bad-execute", "bad-execute.logo"),
+  });
+
+  assert.ok(loaded.error);
+  assert.ok(loaded.error.includes('"execute" must be a boolean'));
+  cleanup();
+});
+
 test("loadFixture handles missing .expected.json file", () => {
   cleanup();
   mkdirSync(join(TEMP_ROOT, "no-expected"), { recursive: true });
@@ -1011,6 +1109,73 @@ test("runHarness skips fixtures when --profile filter doesn't match", () => {
 
   const exitCode = runHarness({ profile: "core-language", root: TEMP_ROOT });
   assert.equal(exitCode, 0); // Should skip (not fail)
+
+  cleanup();
+});
+
+test("runHarness runs an opted-in execution fixture end to end", () => {
+  cleanup();
+  mkdirSync(join(TEMP_ROOT, "executes"), { recursive: true });
+  writeFileSync(
+    join(TEMP_ROOT, "executes", "executes.logo"),
+    "print 1\nprint 2",
+  );
+  writeFileSync(
+    join(TEMP_ROOT, "executes", "executes.expected.json"),
+    JSON.stringify({
+      profiles: ["core-language"],
+      execute: true,
+      events: [
+        {
+          seq: 0,
+          kind: "instruction",
+          source_span: {
+            document: "executes/executes",
+            start: [1, 1],
+            end: [1, 8],
+          },
+          payload: { statement_kind: "Call" },
+        },
+        {
+          seq: 1,
+          kind: "instruction",
+          source_span: {
+            document: "executes/executes",
+            start: [2, 1],
+            end: [2, 8],
+          },
+          payload: { statement_kind: "Call" },
+        },
+      ],
+      diagnostics: [],
+    }),
+  );
+
+  const exitCode = runHarness({ root: TEMP_ROOT });
+  assert.equal(exitCode, 0);
+
+  cleanup();
+});
+
+test("runHarness reports a mismatch for an opted-in execution fixture with wrong events", () => {
+  cleanup();
+  mkdirSync(join(TEMP_ROOT, "executes-wrong"), { recursive: true });
+  writeFileSync(
+    join(TEMP_ROOT, "executes-wrong", "executes-wrong.logo"),
+    "print 1",
+  );
+  writeFileSync(
+    join(TEMP_ROOT, "executes-wrong", "executes-wrong.expected.json"),
+    JSON.stringify({
+      profiles: ["core-language"],
+      execute: true,
+      events: [], // Wrong: execution actually emits one instruction event
+      diagnostics: [],
+    }),
+  );
+
+  const exitCode = runHarness({ root: TEMP_ROOT });
+  assert.equal(exitCode, 1);
 
   cleanup();
 });

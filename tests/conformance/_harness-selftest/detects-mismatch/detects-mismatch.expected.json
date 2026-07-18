@@ -6,7 +6,7 @@
     {
       "seq": 1,
       "kind": "move",
-      "source-span": {
+      "source_span": {
         "document": "detects-mismatch.logo",
         "start": [1, 1],
         "end": [1, 1]

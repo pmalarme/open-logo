@@ -21,16 +21,20 @@ to execute fixtures against. Second, the acceptance criteria ask for both a pass
 "failing" one that demonstrates mismatch detection — but a genuinely failing fixture in the corpus
 would turn the CI gate red forever. The fixture format itself is already fixed by the
 `shared/conformance-fixture` skill (flat `<feature>.logo` + `<feature>.expected.json` pair, a
-`profiles` array, event `source-span` with a hyphen, diagnostic `source_span` with an underscore).
+`profiles` array).
 
 ## Decision
 
 Ship the harness (`scripts/conformance.mjs`) with real mechanics and a placeholder executor.
 
-1. **Fixture format follows the skill verbatim.** The runner discovers every `*.expected.json` under
-   `tests/conformance/**`, pairs it with the sibling `.logo`, and reads `{ description, profiles,
-   events, diagnostics }`. Events keep `source-span` (hyphen); diagnostics keep `source_span`
-   (underscore), matching the spec.
+1. **Fixture format follows the skill, with one resolved ambiguity.** The runner discovers every
+   `*.expected.json` under `tests/conformance/**`, pairs it with the sibling `.logo`, and reads
+   `{ description, profiles, events, diagnostics }`. Both events and diagnostics use `source_span`
+   (underscore) — the skill's draft anticipated a hyphenated `source-span` for events to match a
+   stale spec placeholder, but `spec/execution-model.md` never actually requires the hyphen, and
+   `@openlogo/core`'s `TraceEvent` envelope uses `source_span`. Issue #90 resolved this: one
+   field-name convention throughout, matching the core contract exactly, so there is no wire
+   conversion step between the in-memory `TraceEvent` and the fixture JSON.
 
 2. **Placeholder `produce()`.** With no runtime, `produce(source, profiles)` returns
    `{ events: [], diagnostics: [] }`. The one positive fixture asserts the empty-program base case
@@ -58,6 +62,17 @@ Ship the harness (`scripts/conformance.mjs`) with real mechanics and a placehold
    `"preconformance": "npm run -s build"` script makes `npm run conformance` self-contained on a fresh
    `npm ci` checkout (the same lesson as `pretest` in ADR-0006). This is npm-native; no CI workflow
    YAML changes.
+
+7. **Execution is opt-in per fixture (issue #90).** Once `@openlogo/runtime` existed, `produce()`
+   gained a `shouldExecute` parameter threaded from a new optional `"execute": true` fixture field
+   (default `false`). The 50+ existing fixtures are parse-focused, not all execution-valid (many
+   reference undefined variables or not-yet-implemented features), so execution must never run by
+   default — only a fixture that explicitly opts in gets its AST executed via `@openlogo/runtime`'s
+   `execute()`; every other fixture stays on the original parse-only path. `execute()` itself is the
+   minimal foundational spine: it emits one `instruction` start event per top-level statement and no
+   more — no arithmetic, variables, control flow, procedures, comprehensions, or `print` semantics.
+   Those land one evaluator vertical slice at a time (issues #93-#105), each fixture that exercises
+   them opting in the same way.
 
 ## Consequences
 

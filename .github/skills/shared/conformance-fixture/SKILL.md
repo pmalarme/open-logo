@@ -33,14 +33,15 @@ forward.expected.json
 ──────────────
 {
   "profiles": ["core-language", "turtle-rendering"],
+  "execute": true,
   "events": [
-    { "seq": 1, "kind": "instruction",
-      "source-span": { "document": "forward.logo", "start": [1, 1], "end": [1, 12] } },
-    { "seq": 2, "kind": "move",
-      "source-span": { "document": "forward.logo", "start": [1, 1], "end": [1, 12] },
+    { "seq": 0, "kind": "instruction",
+      "source_span": { "document": "forward.logo", "start": [1, 1], "end": [1, 12] } },
+    { "seq": 1, "kind": "move",
+      "source_span": { "document": "forward.logo", "start": [1, 1], "end": [1, 12] },
       "payload": { "from": [0, 0], "to": [0, 100], "heading": 0 } },
-    { "seq": 3, "kind": "draw-segment",
-      "source-span": { "document": "forward.logo", "start": [1, 1], "end": [1, 12] },
+    { "seq": 2, "kind": "draw-segment",
+      "source_span": { "document": "forward.logo", "start": [1, 1], "end": [1, 12] },
       "payload": { "from": [0, 0], "to": [0, 100], "color": "black", "width": 1 } }
   ],
   "turtle": { "x": 0, "y": 100, "heading": 0 },
@@ -48,15 +49,22 @@ forward.expected.json
 }
 ```
 
-Events use the normative envelope — `seq`, `kind`, `source-span`, optional `turtle-id`, `payload` —
+Events use the normative envelope — `seq`, `kind`, `source_span`, optional `turtle_id`, `payload` —
 and registered `kind` values (`instruction`, `move`, `draw-segment`, …) from
 `spec/execution-model.md`. Coordinate exact payloads with `@interpreter` and `@turtle-engine`; do not
 invent event shapes here.
 
+**`execute` is an opt-in flag (default `false`).** Set `"execute": true` only once the fixture's
+program is genuinely execution-valid — this asks the harness to run it through
+`@openlogo/runtime`'s `execute()` and capture the real trace/event stream, instead of the
+parse-only default (which always yields `events: []`). Most of the existing parse-focused corpus
+does not set this flag and must stay that way.
+
 ## Negative fixtures
 
-For invalid programs, assert the **exact diagnostic** (see `shared/diagnostics`). Note diagnostics use
-`source_span` (underscore) while events use `source-span` (hyphen) — match the spec exactly:
+For invalid programs, assert the **exact diagnostic** (see `shared/diagnostics`). Diagnostics use
+`source_span` (underscore) — the same field name events use, so there is one convention throughout
+the fixture contract:
 
 ```
 missing-arg.logo        →  forward
@@ -82,6 +90,7 @@ Include did-you-mean cases where `spec/error-model.md` defines them (e.g. `forwr
 ## Checklist
 - [ ] Positive + negative fixtures for the feature.
 - [ ] Event/field names match the `@openlogo/core` registry.
+- [ ] `execute: true` set once (and only once) the fixture's program is execution-valid.
 - [ ] Deterministic; no timing assertions.
 - [ ] Correct `profiles` tag so profile-scoped runs pick it up.
 - [ ] `ol-*` codes/spans asserted for every error case.
