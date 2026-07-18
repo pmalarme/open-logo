@@ -107,7 +107,9 @@ test("profile gating: when core-language is not active, Core primitives are not 
 });
 
 test("profile gating: when core-language is active, Core primitives are visible", () => {
-  assert.deepEqual(checkSource("print", ["core-language"]), []);
+  // A complete call: `print 1` exercises visibility without tripping the arity rule (#111),
+  // which — correctly — treats a bare zero-argument `print` as `ol-not-enough-inputs`.
+  assert.deepEqual(checkSource("print 1", ["core-language"]), []);
 });
 
 test("profile gating: user-declared procedures are visible regardless of active profiles", () => {

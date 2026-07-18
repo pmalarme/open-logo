@@ -1,0 +1,7 @@
+{
+  "description": "No arity diagnostic (issue #111): the forms the static arity check must leave alone. `(print \"x\" 1)` and `(word \"a\" \"b\" \"c\")` are parenthesized primitive calls — the alternate/variadic escape hatch the single-number arity table cannot describe, so the check stays conservative and never flags a parenthesized primitive call. `g` has a required parameter and an optional (defaulted) one; the optional argument can only be supplied via the parenthesized form, so `(g 1 2)` is within [1, 2] and the bare `g 1` meets the required floor. All clean: an empty diagnostics stream.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

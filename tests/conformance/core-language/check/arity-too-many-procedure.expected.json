@@ -1,0 +1,19 @@
+{
+  "description": "ol-too-many-inputs (issue #111): user procedures are never variadic, so their total-parameter ceiling is a hard maximum. `f` takes two parameters; the parenthesized call `(f 1 2 3)` supplies three, so the static arity check reports too-many with expected = the ceiling and actual = the supplied count. The reader caps a bare call at the procedure's arity (extra tokens become stray statements), so the over-arity case is only reachable through the parenthesized form.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-too-many-inputs",
+      "source_span": {
+        "document": "core-language/check/arity-too-many-procedure",
+        "start": [4, 2],
+        "end": [4, 3]
+      },
+      "params": { "callable": "f", "expected": 2, "actual": 3 },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}
