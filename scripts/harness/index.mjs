@@ -59,24 +59,54 @@ export function closureOf(profile) {
   return seen;
 }
 
-/** Discover every `*.expected.json` fixture under tests/conformance/, sorted by path. */
+/** Discover every `*.expected.json` fixture under tests/conformance/, sorted by path.
+ * Validates that each .logo file has a .expected.json sibling and vice versa (no orphans).
+ */
 export function discoverFixtures(root = ROOT) {
   if (!existsSync(root)) {
     return [];
   }
-  const fixtures = [];
+
+  const expectedFiles = new Set();
+  const logoFiles = new Set();
+
+  // Scan directory for both file types
   for (const entry of readdirSync(root, { recursive: true }).map(String)) {
-    if (!entry.endsWith(EXPECTED_SUFFIX)) {
-      continue;
+    if (entry.endsWith(EXPECTED_SUFFIX)) {
+      expectedFiles.add(entry.slice(0, -EXPECTED_SUFFIX.length));
+    } else if (entry.endsWith(".logo")) {
+      logoFiles.add(entry.slice(0, -".logo".length));
     }
+  }
+
+  // Check for orphans
+  const orphanExpected = [...expectedFiles].filter(
+    (stem) => !logoFiles.has(stem),
+  );
+  const orphanLogo = [...logoFiles].filter((stem) => !expectedFiles.has(stem));
+
+  if (orphanExpected.length > 0) {
+    throw new Error(
+      `Orphan .expected.json file(s) without .logo sibling:\n  ${orphanExpected.map((s) => s + EXPECTED_SUFFIX).join("\n  ")}`,
+    );
+  }
+  if (orphanLogo.length > 0) {
+    throw new Error(
+      `Orphan .logo file(s) without .expected.json sibling:\n  ${orphanLogo.map((s) => s + ".logo").join("\n  ")}`,
+    );
+  }
+
+  const fixtures = [];
+  for (const stem of expectedFiles) {
+    const entry = stem + EXPECTED_SUFFIX;
     const expectedPath = join(root, entry);
-    const stem = basename(entry).slice(0, -EXPECTED_SUFFIX.length);
     fixtures.push({
       name: entry.split(sep).join("/"),
       expectedPath,
-      logoPath: join(dirname(expectedPath), `${stem}.logo`),
+      logoPath: join(dirname(expectedPath), `${basename(stem)}.logo`),
     });
   }
+
   fixtures.sort((a, b) => a.name.localeCompare(b.name));
   return fixtures;
 }

@@ -493,6 +493,57 @@ test("CLI shell runs via subprocess", (t, done) => {
   });
 });
 
+// Additional tests for orphan file detection
+
+test("discoverFixtures throws on orphan .logo file", () => {
+  cleanup();
+  mkdirSync(join("tests", "conformance", "_temp-orphan-logo"), {
+    recursive: true,
+  });
+  writeFileSync(
+    join("tests", "conformance", "_temp-orphan-logo", "orphan.logo"),
+    "",
+  );
+  // No .expected.json sibling
+
+  assert.throws(
+    () => discoverFixtures("tests/conformance"),
+    /Orphan \.logo file\(s\) without \.expected\.json sibling/,
+  );
+
+  rmSync(join("tests", "conformance", "_temp-orphan-logo"), {
+    recursive: true,
+    force: true,
+  });
+});
+
+test("discoverFixtures throws on orphan .expected.json file", () => {
+  cleanup();
+  mkdirSync(join("tests", "conformance", "_temp-orphan-expected"), {
+    recursive: true,
+  });
+  writeFileSync(
+    join(
+      "tests",
+      "conformance",
+      "_temp-orphan-expected",
+      "orphan.expected.json",
+    ),
+    JSON.stringify({ profiles: [], events: [], diagnostics: [] }),
+  );
+  // No .logo sibling
+
+  assert.throws(
+    () => discoverFixtures("tests/conformance"),
+    /Orphan \.expected\.json file\(s\) without \.logo sibling/,
+  );
+
+  rmSync(join("tests", "conformance", "_temp-orphan-expected"), {
+    recursive: true,
+    force: true,
+  });
+});
+
 // Additional tests for uncovered branches in runHarness
 
 test("runHarness handles self-test that wrongly matches", () => {
