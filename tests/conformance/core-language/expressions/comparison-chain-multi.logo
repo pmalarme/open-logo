@@ -1,0 +1,10 @@
+# Three-or-more-link comparison chains stay one ComparisonChain node (issue #52), never desugaring
+# into nested `and` calls, so a side-effecting middle operand is evaluated/walked exactly once
+# (spec/grammar.md:180, spec/execution-model.md chained-comparison lowering). Covers a same-operator
+# chain, a mixed-operator chain, and a chain with variable/expression operands.
+print 1 < 2 < 3
+print 1 < 2 <= 3 < 4
+:a = 1
+:b = 1
+:c = 5
+print :a < :b + 1 < :c

@@ -1,0 +1,7 @@
+{
+  "description": "Three-or-more-link comparison chains (same-operator, mixed-operator, and variable/expression operands) parse clean with no diagnostics.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}
