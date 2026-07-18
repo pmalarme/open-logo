@@ -187,6 +187,76 @@ test("compare returns not matched with diff report", () => {
   assert.ok(result.report.includes("diagnostic mismatch"));
 });
 
+test("compare ignores diagnostic message field (prose not identity)", () => {
+  // Per spec/error-model.md:193-194, diagnostic identity = code+params, not prose
+  const expected = {
+    events: [],
+    diagnostics: [
+      {
+        code: "ol-test",
+        source_span: { document: "test", start: [1, 1], end: [1, 2] },
+        params: { foo: "bar" },
+        stage: "parse",
+        severity: "error",
+        message: "Expected prose A",
+      },
+    ],
+  };
+  const actual = {
+    events: [],
+    diagnostics: [
+      {
+        code: "ol-test",
+        source_span: { document: "test", start: [1, 1], end: [1, 2] },
+        params: { foo: "bar" },
+        stage: "parse",
+        severity: "error",
+        message: "Actual prose B (different)",
+      },
+    ],
+  };
+  const result = compare(expected, actual);
+  assert.ok(
+    result.matched,
+    "Diagnostics differing only in message should match",
+  );
+});
+
+test("compare matches diagnostic without message field", () => {
+  // Fixtures may omit message (canonical format per conformance-fixture skill)
+  const expected = {
+    events: [],
+    diagnostics: [
+      {
+        code: "ol-test",
+        source_span: { document: "test", start: [1, 1], end: [1, 2] },
+        params: {},
+        stage: "parse",
+        severity: "error",
+        // no message field
+      },
+    ],
+  };
+  const actual = {
+    events: [],
+    diagnostics: [
+      {
+        code: "ol-test",
+        source_span: { document: "test", start: [1, 1], end: [1, 2] },
+        params: {},
+        stage: "parse",
+        severity: "error",
+        message: "This message is ignored",
+      },
+    ],
+  };
+  const result = compare(expected, actual);
+  assert.ok(
+    result.matched,
+    "Expected without message should match actual with message",
+  );
+});
+
 test("parseArgs extracts --profile flag", () => {
   const result1 = parseArgs(["--profile", "core-language"]);
   assert.equal(result1.profile, "core-language");
@@ -372,7 +442,7 @@ test("loadFixture rejects malformed fixture schema", () => {
   assert.ok(loaded.error);
   assert.ok(loaded.error.includes('missing required field "severity"'));
 
-  // Diagnostic missing required field "message"
+  // Diagnostic with all required fields (message is optional)
   writeFileSync(
     join(TEMP_ROOT, "malformed", "malformed.expected.json"),
     JSON.stringify({
@@ -385,6 +455,7 @@ test("loadFixture rejects malformed fixture schema", () => {
           params: {},
           stage: "parse",
           severity: "error",
+          // message is optional per spec/error-model.md:193-194
         },
       ],
     }),
@@ -394,8 +465,10 @@ test("loadFixture rejects malformed fixture schema", () => {
     expectedPath: join(TEMP_ROOT, "malformed", "malformed.expected.json"),
     logoPath: join(TEMP_ROOT, "malformed", "malformed.logo"),
   });
-  assert.ok(loaded.error);
-  assert.ok(loaded.error.includes('missing required field "message"'));
+  assert.ok(
+    !loaded.error,
+    "Diagnostic without message should load (message is optional)",
+  );
 
   // Diagnostic missing required field "code" (first check)
   writeFileSync(

@@ -19,8 +19,7 @@
         }
       },
       "stage": "parse",
-      "severity": "error",
-      "message": "this word is missing its closing \". every \"word\" needs a quote on both ends."
+      "severity": "error"
     }
   ]
 }

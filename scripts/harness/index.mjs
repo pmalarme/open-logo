@@ -139,6 +139,7 @@ export function loadFixture(fixture) {
   }
 
   // Validate each diagnostic has required fields per spec/error-model.md:28-38
+  // Note: "message" is optional per error-model.md:193-194 (diagnostic identity = code+params, not prose)
   for (let i = 0; i < spec.diagnostics.length; i++) {
     const diag = spec.diagnostics[i];
     if (!diag.code) {
@@ -156,9 +157,7 @@ export function loadFixture(fixture) {
     if (!diag.severity) {
       return { error: `diagnostic[${i}] missing required field "severity"` };
     }
-    if (!diag.message) {
-      return { error: `diagnostic[${i}] missing required field "message"` };
-    }
+    // message is optional (prose, not identity)
   }
 
   const expected = {
@@ -273,9 +272,24 @@ export function diffStream(label, keyField, expected, actual) {
 
 /** Compare produced output against expected; `matched` is true when both streams agree. */
 export function compare(expected, actual) {
+  // Per spec/error-model.md:193-194, diagnostic identity = code+params, not prose.
+  // Exclude "message" from comparison (prose may change under localization/rewording).
+  const projectDiagnostic = (d) => ({
+    code: d.code,
+    source_span: d.source_span,
+    params: d.params,
+    stage: d.stage,
+    severity: d.severity,
+  });
+
   const reports = [
     diffStream("event", "seq", expected.events, actual.events),
-    diffStream("diagnostic", "code", expected.diagnostics, actual.diagnostics),
+    diffStream(
+      "diagnostic",
+      "code",
+      expected.diagnostics.map(projectDiagnostic),
+      actual.diagnostics.map(projectDiagnostic),
+    ),
   ].filter((report) => report !== null);
   return { matched: reports.length === 0, report: reports.join("\n") };
 }
