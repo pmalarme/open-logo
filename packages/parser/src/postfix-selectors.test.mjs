@@ -95,6 +95,13 @@ test("a gapped minus inside a selector :nums[- 1] is not a negative literal and 
   assert.ok(diagnostics.some((d) => d.code === "ol-bad-token"));
 });
 
+test("a block-comment gap between minus and numeral is not adjacency (line, not just column)", () => {
+  // The `-` ends line 1 and `1` starts line 2 at the same column; adjacency must compare the line
+  // too, so this is a stray minus, not the negative key `-1`.
+  const { diagnostics } = OL.parse("print :nums[-/*\n           */1]", doc);
+  assert.ok(diagnostics.some((d) => d.code === "ol-bad-token"));
+});
+
 test("selectors and dotted fields interleave in source order for :a.b[1].c", () => {
   const place = firstArg("print :a.b[1].c");
   assert.equal(place.kind, "Place");

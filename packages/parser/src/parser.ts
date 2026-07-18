@@ -601,17 +601,21 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * return the negative numeric literal — a leading `-` is part of the `number` in that position
    * (`spec/grammar.md:17,58`). Returns `undefined` otherwise. Shared by {@link parseUnary} (where a
    * negative literal may lead an expression) and {@link parseKeyTerm} (a selector key is a
-   * `number`). A gap (`- 3`) is a stray minus with no left operand, not a negative literal; the
-   * numeral is on the same line, so equal end/start columns means the two are adjacent.
+   * `number`). A gap (`- 3`, or a block comment between the two) is a stray minus with no left
+   * operand, not a negative literal, so the `-`'s end must equal the numeral's start on BOTH line
+   * and column — a block comment is whitespace and may span lines (`spec/grammar.md:32`).
    */
   function tryNegativeNumberLiteral(): ExpressionNode | undefined {
     const token = current();
     const after = peek(1);
+    const end = token.source_span.end;
+    const start = after.source_span.start;
     if (
       token.kind === "op" &&
       token.text === "-" &&
       after.kind === "number" &&
-      token.source_span.end[1] === after.source_span.start[1]
+      end[0] === start[0] &&
+      end[1] === start[1]
     ) {
       advance();
       const numTok = current();
