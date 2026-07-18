@@ -49,8 +49,8 @@ Replace the placeholder `produce()` with a real parser integration for M1.
 
 ## Consequences
 
-- `npm run conformance` now validates real parser behavior: 4 passing fixtures (empty-program,
-  unmatched-bracket, unterminated-string, and the wrongly-passes self-test), plus 2 self-tests,
+- `npm run conformance` now validates real parser behavior: 3 parser fixtures (assign-and-print,
+  empty-program, unterminated-string) plus 1 mismatch self-test (detects-mismatch), total 4 passed,
   exit 0. A real parser defect (wrong diagnostic code, missing span, etc.) exits non-zero with a
   diff.
 - The corpus can grow as production stories (#46–#65) add Core Language features: each story extends
