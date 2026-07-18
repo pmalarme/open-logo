@@ -340,3 +340,15 @@ test("a destructuring binder with a bare (non-colon) name `for [x] in …` raise
   assert.ok(diagnostics.some((d) => d.code === "ol-bad-token"));
   assert.ok(ast.body.every((node) => node.kind !== "ForIn"));
 });
+
+test("an empty destructuring binder `for [] in …` raises exactly one `ol-unmatched-bracket` (no duplicate)", () => {
+  const source = "for [] in :points\n  print 1\nend for\n";
+  const { ast, diagnostics } = OL.parse(source, doc);
+
+  const unmatchedBracketDiags = diagnostics.filter(
+    (d) => d.code === "ol-unmatched-bracket",
+  );
+  assert.equal(unmatchedBracketDiags.length, 1);
+  assert.deepEqual(unmatchedBracketDiags[0].source_span, span([1, 6], [1, 7]));
+  assert.ok(ast.body.every((node) => node.kind !== "ForIn"));
+});

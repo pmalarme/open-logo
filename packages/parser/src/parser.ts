@@ -1387,6 +1387,12 @@ export function parse(source: string, document = "<input>"): ParseResult {
     }
     if (names.length === 0) {
       diagnostics.push(unexpected(current()));
+      // Consume a stray closing bracket (e.g. `for []`) so error recovery
+      // doesn't re-diagnose the same `]` a second time as an unmatched top-
+      // level token.
+      if (current().kind === "rbracket") {
+        advance();
+      }
       return undefined;
     }
     if (current().kind !== "rbracket") {
