@@ -12,10 +12,11 @@
 `@openlogo/*` packages, but **deliberately deferred** the concrete toolchain — package manager,
 test runner, and the exact build/lint/format commands — to "own follow-up ADRs when decided." The
 M0 foundation (issue #5) is where those constraints become real: CI already encodes the Definition
-of Done as seven scripts (`build`, `typecheck`, `lint`, `format:check`, `test`, `conformance`,
-`examples`) and activates the code jobs the moment a root `package.json` lands. This ADR records
-the tools chosen to satisfy those gates, and — per the independent review gate ([ADR-0004](
-0004-independent-review-gate.md)) — the two toolchain traps a reviewer must know about.
+of Done as eight scripts (`build`, `typecheck`, `lint`, `format:check`, `test`, `coverage`,
+`conformance`, `examples`) and activates the code jobs the moment a root `package.json` lands. This
+ADR records the tools chosen to satisfy those gates, and — per the independent review gate ([ADR-0004](
+0004-independent-review-gate.md)) — the two toolchain traps a reviewer must know about, plus why the
+coverage gate is pinned to Node 22.
 
 ## Decision
 
@@ -62,9 +63,23 @@ AI adapter stay deferred to their own future ADRs.
    has zero dependencies, and cannot be blocked by a feed. We revisit Vitest only if we need richer
    matchers/coverage and the dependency is installable.
 
+### The coverage gate is Node-version-sensitive — pin dev Node to 22 (`.nvmrc`)
+
+`npm run coverage` runs `node --test --experimental-test-coverage --test-coverage-{lines,branches,functions}=100`.
+That coverage denominator is **not** stable across Node majors: **Node 22 counts `*.test.mjs` files**
+toward the 100% gate, while **Node 24+ excludes them**. Because `engines.node` is `>=22`, a
+contributor on a newer Node could see a green `coverage` run whose test files self-cover invisibly,
+then have CI (which pins Node 22) fail on an uninvoked helper inside a `*.test.mjs` — the same
+"local green, CI red" class the review gate exists to catch (this bit issues #96/#111). We fix it the
+KISS way: a committed [`.nvmrc`](../../.nvmrc) pins dev to **Node 22**, matching CI, so `nvm use`
+gives every contributor the same coverage denominator. We deliberately **do not** tighten
+`engines.node` to a hard upper bound or add `engine-strict` — that would break `npm install` on
+newer Node for no benefit; the `.nvmrc` + docs are advisory-but-sufficient, and CI remains the
+enforcing gate.
+
 ## Consequences
 
-- `npm ci` from a clean tree installs the whole workspace; the seven DoD scripts all run and
+- `npm ci` from a clean tree installs the whole workspace; the eight DoD scripts all run and
   `tsc -b` emits real `dist/*.js` + `*.d.ts` (verified from a clean tree per the review gate, not a
   stale-`.tsbuildinfo` no-op).
 - One committed `package-lock.json` makes CI installs deterministic.
