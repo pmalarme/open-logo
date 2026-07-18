@@ -1,0 +1,7 @@
+{
+  "description": "ol-unknown-command (issue #117): a correctly-spelled call to a user-declared procedure (`greet`, registered via `define ... end`) must never be flagged — the visible-name model includes every procedure declared in the program, not just Core primitives and reserved words.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

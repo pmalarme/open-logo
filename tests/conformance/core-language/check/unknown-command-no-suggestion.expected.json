@@ -1,0 +1,19 @@
+{
+  "description": "ol-unknown-command (issue #117): when no visible name is within Levenshtein distance 2, the finding omits `suggestion` entirely (spec/tooling.md's did-you-mean algorithm step 5) rather than forcing a low-quality guess.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "core-language/check/unknown-command-no-suggestion",
+        "start": [1, 1],
+        "end": [1, 10]
+      },
+      "params": { "name": "xyzxyzxyz" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

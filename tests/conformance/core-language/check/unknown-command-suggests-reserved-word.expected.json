@@ -1,0 +1,19 @@
+{
+  "description": "ol-unknown-command (issue #117): reserved structural words are part of the did-you-mean candidate set too, per spec/error-model.md:133-137 ('the visible callable and structural-word vocabulary'), so a learner typo of a keyword such as `repeat` still gets suggested even though `repeat` itself is never an ordinary call callee (it has its own grammar production).",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "core-language/check/unknown-command-suggests-reserved-word",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "params": { "name": "repaet", "suggestion": "repeat" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}
