@@ -243,29 +243,28 @@ test("fixtureErrors returns empty for valid fixture", () => {
   assert.equal(errors.length, 0);
 });
 
-test("loadFixture reads valid fixture", () => {
+test("loadFixture handles missing optional fields with defaults", () => {
   cleanup();
-  mkdirSync(join(TEMP_ROOT, "test-fixture"), { recursive: true });
-  writeFileSync(join(TEMP_ROOT, "test-fixture", "test-fixture.logo"), "");
+  // Create a fixture with minimal JSON (missing optional fields)
+  mkdirSync(join(TEMP_ROOT, "minimal"), { recursive: true });
+  writeFileSync(join(TEMP_ROOT, "minimal", "minimal.logo"), "");
   writeFileSync(
-    join(TEMP_ROOT, "test-fixture", "test-fixture.expected.json"),
-    JSON.stringify({
-      description: "Test",
-      profiles: ["core-language"],
-      events: [],
-      diagnostics: [],
-    }),
+    join(TEMP_ROOT, "minimal", "minimal.expected.json"),
+    JSON.stringify({}), // Empty object, all fields should default
   );
 
   const loaded = loadFixture({
-    name: "test-fixture/test-fixture.expected.json",
-    expectedPath: join(TEMP_ROOT, "test-fixture", "test-fixture.expected.json"),
-    logoPath: join(TEMP_ROOT, "test-fixture", "test-fixture.logo"),
+    name: "minimal/minimal.expected.json",
+    expectedPath: join(TEMP_ROOT, "minimal", "minimal.expected.json"),
+    logoPath: join(TEMP_ROOT, "minimal", "minimal.logo"),
   });
 
   assert.ok(!loaded.error);
-  assert.equal(loaded.expected.description, "Test");
-  assert.equal(loaded.source, "");
+  assert.equal(loaded.expected.description, ""); // ?? "" default
+  assert.deepEqual(loaded.expected.profiles, []); // ?? [] default
+  assert.equal(loaded.expected.expect, "match"); // ?? "match" default
+  assert.deepEqual(loaded.expected.events, []); // ?? [] default
+  assert.deepEqual(loaded.expected.diagnostics, []); // ?? [] default
   cleanup();
 });
 
