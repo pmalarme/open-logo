@@ -90,16 +90,19 @@ A change is done only when, for the artifacts it touches:
 5. Runnable `spec/examples/*.logo` and doc examples still parse and run.
 6. Accessibility and pedagogy checks pass where applicable (see §8–9).
 7. Docs and spec cross-links are updated in the same PR (no drift).
-8. **An independent pre-merge review has passed** — an agent that did **not** author the change ran
-   the [`shared/review-gate`](../skills/shared/review-gate/SKILL.md) checklist (a clean-tree DoD
-   re-run that verifies the build actually _emits_ artifacts, spec-fidelity, conformance, runnable
-   examples, and instructions/skills/docs/spec drift) and recorded a pass verdict. Reviewer ≠ author.
+8. **In-session self-review has passed** — before opening the PR the implementing agent ran the
+   [`shared/review-gate`](../skills/shared/review-gate/SKILL.md) checklist by dispatching **at least two
+   non-author sub-agents** — the logic/spec reviewer (`rubber-duck`, or a named fallback when its model
+   precondition isn't met) and **every** domain-adaptive **QA** expert (`@testing` and/or the changed
+   area's owner) that re-runs the clean-tree DoD (verifying the build actually _emits_ artifacts),
+   conformance, examples, and instructions/skills/docs/spec drift. Each returned `pass` and their
+   verdicts are attached to the PR. Reviewer ≠ author.
 
-Agents do not self-merge; an independent reviewer (not the author) records a pass verdict, then
+Agents do not self-merge; the implementer's non-author reviewers (at least two) record the pass verdicts, then
 humans and required CI checks (pipelines wired by `@devops`) gate `main` by default. The maintainer
-may delegate merge **execution** to `@orchestrator`, and only then — and only after that independent,
-non-author review-gate PASS (`shared/review-gate`) plus green required CI. The implementer is never
-the sole attester.
+may delegate merge **execution** to `@orchestrator`, which then does a final verification (all
+non-author verdicts attached — at least two, CI green) before merging (`shared/review-gate`, `integrate-and-merge`).
+The implementer is never the sole attester.
 
 ## 6. Spec fidelity — canonical OpenLogo, not classic Logo
 

@@ -1,10 +1,11 @@
 ---
 name: integrate-and-merge
 description: >-
-  How @orchestrator runs the operational half of the loop after dispatch — driving each slice's PR
-  through the independent review gate, merging under maintainer-delegated authority, verifying the
-  merge, and keeping main, the board, milestones, branches, and the plan clean. Use when a dispatched
-  slice opens a PR, when consolidating duplicate/superseded PRs, or when closing out a milestone.
+  How @orchestrator runs the operational half of the loop after dispatch — verifying each slice's
+  in-session non-author self-review, merging under maintainer-delegated authority (or handing to a
+  human), verifying the merge, and keeping main, the board, milestones, branches, and the plan clean.
+  Use when a dispatched slice opens a PR, when consolidating duplicate/superseded PRs, or when closing
+  out a milestone.
 created: 2026-07-17T00:00
 updated: 2026-07-17T00:00
 ---
@@ -12,20 +13,32 @@ updated: 2026-07-17T00:00
 ## Purpose
 
 `decompose-and-dispatch` gets a slice **built**; this skill gets it **landed without leaving mess.**
-The orchestrator writes no feature code, but it is the **integration owner**: it shepherds each PR
-through the review gate, records the merge, and reconciles every tracker — board, milestone,
+The orchestrator writes no feature code, but it is the **integration owner**: it **verifies each PR's
+non-author self-review**, records the merge, and reconciles every tracker — board, milestone,
 branches, plan — so the repo stays clean and `main` stays green.
 
 ## The per-PR run-loop
 
 When a dispatched owner reports a PR (they should, if you set `coordinate_with_creator: true`):
 
-### 1. Independent review gate — never skip, never self-review
+### 1. Verify the implementer's self-review — never skip, never self-review
 
-Run `shared/review-gate`: a **non-author** reviewer re-proves the Definition of Done. You are often
-the author of an _integration_ PR, so you must **not** review it yourself — spawn the reviewer as a
-sub-agent (`code-review` / `rubber-duck` / `@testing`) and **post its verdict as a PR comment** for
-the audit trail. Review the `git diff` against `origin/main`, not a stale local `main`.
+A dispatched slice arrives **already reviewed**: the owner ran `shared/review-gate` in-session and
+attached **all** its non-author verdicts — the **logic/spec reviewer** (`rubber-duck`, or a named
+fallback agent **with the reason it stood in**) **plus every** dispatched domain **QA** expert (at
+least two verdicts total). Your job is to **verify** them — all present, all from agents that are
+**not** the author (if a fallback replaced `rubber-duck`, its identity **and reason** are recorded),
+each **stamped with a head SHA that matches the current PR HEAD** (a commit after a `pass` voids it),
+and the reviewed base is the current `origin/main` tip (if `main` advanced under the branch, have the
+owner rebase and re-review) — plus green CI and a light diff sanity check against `origin/main` (not a
+stale local `main`). Do **not** re-run the whole gate round-by-round.
+
+When **you** authored the change (an _integration_ or governance PR), the same pre-open rule applies
+to you: you must **not** review it yourself, and you run `shared/review-gate` **before opening the
+PR** — spawn the non-author sub-agents (the **logic/spec reviewer** — `rubber-duck` or a named
+fallback — **plus every** domain QA expert the change needs), iterate to green on a committed HEAD,
+and open the PR with **all** SHA-stamped verdicts in its body. If a finding forces a new commit,
+re-run **all** reviewers so the attached verdicts match the final HEAD.
 
 ### 2. Merge only on a recorded PASS + green CI
 
@@ -67,13 +80,14 @@ retargeting re-introduces the abandoned commits. Instead:
    branch off `origin/main`** (`git cherry-pick --no-commit <sha>`).
 2. Resolve conflicts by hand — usually the package `index.ts` contract-marker exports: keep the real
    exports, drop throwaway placeholder markers.
-3. Re-run the clean-tree DoD, open the consolidated PR, run the review gate, and **close each
-   superseded PR with a credit comment** to its author. Then delete the orphan branches (hygiene,
-   above).
+3. Re-run the clean-tree DoD **and the review gate** (all non-author verdicts on the committed HEAD —
+   logic/spec reviewer + every QA expert), **then** open the consolidated PR with every verdict
+   attached, and **close each superseded PR with a credit comment** to its author. Then delete the
+   orphan branches (hygiene, above).
 
 ## Checklist (per merged slice)
 
-- [ ] Non-author review-gate verdict recorded on the PR (reviewer ≠ author).
+- [ ] All non-author review-gate verdicts (≥2) recorded on the PR — logic/spec reviewer (`rubber-duck`, or a named fallback **+ reason**) + **every** domain QA expert, all ≠ author — each stamped with a SHA matching PR HEAD.
 - [ ] Merged only after PASS + green CI — delegated authority, never self-attested.
 - [ ] Merge verified via `gh pr view` + `git ls-remote`, not the `--delete-branch` exit code.
 - [ ] Board Status → Done + Agent set; milestone closed when `0 open`.

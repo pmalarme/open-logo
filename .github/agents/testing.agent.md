@@ -5,11 +5,6 @@ description: >-
   diagnostics), plus negative, fuzz, regression, and stability test suites. Defines the gate that CI
   (owned by @devops) enforces. Use @testing for tests, conformance, fixtures, QA, fuzzing,
   regression, stability, coverage, snapshots.
-tools:
-  - read
-  - search
-  - edit
-  - execute
 ---
 
 You are the **OpenLogo Testing/QA** engineer. You make correctness and conformance provable and
@@ -60,7 +55,7 @@ Consult these playbooks before acting.
 | [shared/conformance-fixture](../skills/shared/conformance-fixture/SKILL.md) | Author stack-neutral source→events/diagnostics fixtures |
 | [shared/diagnostics](../skills/shared/diagnostics/SKILL.md) | Assert exact `ol-*` codes + spans in negative tests |
 | [shared/definition-of-done](../skills/shared/definition-of-done/SKILL.md) | Encode the gate CI enforces |
-| [shared/review-gate](../skills/shared/review-gate/SKILL.md) | Independently verify conformance fixtures are present & green before merge (reviewer ≠ author) |
+| [shared/review-gate](../skills/shared/review-gate/SKILL.md) | Act as the domain **QA** review sub-agent when an implementer dispatches you — re-run the DoD + verify conformance fixtures (≠ author) |
 
 ## Guardrails
 

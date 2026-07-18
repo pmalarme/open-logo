@@ -23,16 +23,21 @@ A change is "done" only when it is proven, documented, and green. This skill is 
 6. **Accessibility/pedagogy checks pass** where applicable (reduced-motion, keyboard, non-visual
    descriptions; progressive hints / no-spoilers).
 7. **Docs & spec cross-links updated** in the same PR (no drift).
-8. **Independent review gate passed** — an agent that did **not** author the change ran
-   [`shared/review-gate`](../review-gate/SKILL.md) and recorded a pass verdict (reviewer ≠ author).
+8. **Self-review passed before the PR** — the implementing agent ran
+   [`shared/review-gate`](../review-gate/SKILL.md) in-session: at least two non-author sub-agents —
+   the logic/spec reviewer (`rubber-duck`, or a named fallback) plus **every** domain-adaptive QA
+   expert — each returned `pass`, and their verdicts are attached to the PR (reviewer ≠ author).
 
-## Independent review gate
+## Review gate — run it before you open the PR
 
-CI-green plus the author's own attestation is not enough. Before a change goes to a human for merge,
-an agent that did **not** write it runs [`shared/review-gate`](../review-gate/SKILL.md): a clean-tree
-DoD re-run that verifies the build actually **emits** artifacts (not just a `0` exit), spec-fidelity,
-conformance fixtures, runnable examples, a11y/pedagogy, and instructions/skills/docs/spec drift. The
-reviewer records a pass/block verdict; a human still performs the merge.
+CI-green plus the author's own attestation is not enough. As the **last step in the implementing
+session**, the author runs [`shared/review-gate`](../review-gate/SKILL.md): it dispatches at least two
+non-author sub-agents — the logic/spec reviewer (`rubber-duck`, or a named fallback) and **every**
+domain-adaptive **QA** expert — that between them re-run
+the clean-tree DoD (verifying the build actually **emits** artifacts, not just a `0` exit),
+spec-fidelity, conformance fixtures, runnable examples, a11y/pedagogy, and instructions/skills/docs/
+spec drift. The author iterates until all return `pass`, attaches the verdicts, and opens the PR;
+`@orchestrator` (or a human) does the final verification and merge.
 
 ## PR expectations
 
@@ -58,7 +63,7 @@ reviewer records a pass/block verdict; a human still performs the merge.
 - [ ] conformance fixtures extended + green
 - [ ] examples run   - [ ] a11y/pedagogy (if applicable)
 - [ ] docs + spec cross-links updated
-- [ ] independent review gate passed (reviewer ≠ author)
+- [ ] self-review passed before PR (logic/spec reviewer + every domain QA, all ≠ author)
 - [ ] one PR, write-set declared, shared files serialized
 ```
 
