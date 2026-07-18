@@ -82,6 +82,42 @@ test("reads triple-quoted words and normalizes indentation", () => {
   assert.equal(firstArg(String.raw`print """a\"b\\c\d"""`).value, 'a"b\\c\\d');
 });
 
+test("normalizes an indented closing triple-quote delimiter (grammar.md §21)", () => {
+  // The newline immediately before the closing `"""` is dropped, and "the indentation of the
+  // closing `"""` does not affect the result", so an indented closing delimiter must not leave a
+  // spurious trailing newline. Every other multi-line case above closes flush-left; this pins the
+  // indented-close path (LF and CRLF) — a language-coverage gap that 100% line coverage masked.
+  assert.equal(
+    firstArg('print """\n  hello\n  world\n  """').value,
+    "hello\nworld",
+  );
+  assert.equal(
+    firstArg('print """\r\n  hello\r\n  world\r\n  """').value,
+    "hello\nworld",
+  );
+  // The worked example from grammar.md, closed both flush-left and indented — identical result.
+  assert.equal(
+    firstArg('print """\n    Hello\n  World\n"""').value,
+    "  Hello\nWorld",
+  );
+  assert.equal(
+    firstArg('print """\n    Hello\n  World\n  """').value,
+    "  Hello\nWorld",
+  );
+});
+
+test("keeps a word token's raw source slice as its text (escapes preserved)", () => {
+  // `LexToken.text` is the verbatim source slice, not a reconstruction of the decoded value, so an
+  // escaped quote or backslash survives round-trip. A run-on surfaces the offending token's raw
+  // `text` in the diagnostic params, which is how this internal lexer field is proven end to end.
+  const single = parse(String.raw`print 1 "a\"b\\c"`).diagnostics[0];
+  assert.equal(single.code, "ol-bad-token");
+  assert.equal(single.params.text, String.raw`"a\"b\\c"`);
+  const triple = parse(String.raw`print 1 """a\"b"""`).diagnostics[0];
+  assert.equal(triple.code, "ol-bad-token");
+  assert.equal(triple.params.text, String.raw`"""a\"b"""`);
+});
+
 test("reports unclosed strings and comments", () => {
   assert.deepEqual(codesOf('print "abc'), ["ol-unclosed-string"]);
   assert.deepEqual(codesOf('print "abc\nmore'), ["ol-unclosed-string"]);

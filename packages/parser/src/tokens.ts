@@ -76,13 +76,19 @@ function isHorizontalSpace(ch: string): boolean {
  * Normalize a triple-quoted literal's raw content: drop the newline right after the opening
  * `"""` and right before the closing `"""`, then remove the common leading whitespace shared by
  * every non-blank line, matching the worked example in `spec/grammar.md`.
+ *
+ * The trailing line is whatever text sits between the last content newline and the closing
+ * `"""`. Per `spec/grammar.md` the newline before the closing delimiter is dropped and "the
+ * indentation of the closing `"""` does not affect the result", so a whitespace-only trailing
+ * line (the idiomatic indented close inside a procedure body) is removed, not kept as content.
  */
 function normalizeMultiline(raw: string): string {
   const lines = raw.split(/\r?\n/);
   if (lines[0] === "") {
     lines.shift();
   }
-  if (lines[lines.length - 1] === "") {
+  const last = lines[lines.length - 1];
+  if (last !== undefined && last.trim() === "") {
     lines.pop();
   }
   let common = Number.POSITIVE_INFINITY;
@@ -243,6 +249,7 @@ export function tokenize(source: string, document: string): LexResult {
     }
 
     if (ch === '"') {
+      const wordStart = i;
       if (at(1) === '"' && at(2) === '"') {
         advance();
         advance();
@@ -269,7 +276,12 @@ export function tokenize(source: string, document: string): LexResult {
             parseDiag.unclosedString(span(start, [start[0], start[1] + 3])),
           );
         } else {
-          push("word", `"""${raw}"""`, start, normalizeMultiline(raw));
+          push(
+            "word",
+            chars.slice(wordStart, i).join(""),
+            start,
+            normalizeMultiline(raw),
+          );
         }
       } else {
         advance();
@@ -297,7 +309,7 @@ export function tokenize(source: string, document: string): LexResult {
             parseDiag.unclosedString(span(start, [start[0], start[1] + 1])),
           );
         } else {
-          push("word", `"${value}"`, start, value);
+          push("word", chars.slice(wordStart, i).join(""), start, value);
         }
       }
       continue;
