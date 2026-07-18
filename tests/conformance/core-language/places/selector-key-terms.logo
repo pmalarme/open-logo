@@ -1,0 +1,11 @@
+# Bracketed `[ key-term ]` selectors (spec/grammar.md:109-111). Every key-term form parses:
+# a number (including a negative literal), a bare identifier (a literal word key), a `:name` read,
+# a word literal, and a parenthesized expression — plus a chain that interleaves a selector with
+# dotted fields.
+print :nums[1]
+print :nums[-1]
+print :ages[tom]
+print :ages[:who]
+print :ages["tom"]
+print :nums[(:i + 1)]
+print :a.b[1].c

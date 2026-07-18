@@ -136,9 +136,9 @@ export interface ParenCallNode extends NodeBase {
 }
 
 /**
- * One postfix segment of a place. Core parses dotted field access (`.field`); index/key
- * selectors (`[i]`) join with the Data profile as a second `kind`, so the shape is fixed now to
- * keep that a non-breaking extension.
+ * One postfix segment of a place written as `.identifier`: a literal field or key that is never
+ * evaluated (`spec/grammar.md:109,256`). Its sibling {@link SelectorSegment} covers the bracketed
+ * `[ key-term ]` form.
  */
 export interface FieldSegment {
   readonly kind: "field";
@@ -146,8 +146,25 @@ export interface FieldSegment {
   readonly source_span: SourceSpan;
 }
 
-/** A postfix place segment. Only `field` in Core; `index` selectors arrive with Data. */
-export type PlaceSegment = FieldSegment;
+/**
+ * One postfix segment of a place written as a bracketed selector `[ key-term ]`
+ * (`spec/grammar.md:110-111`). Unlike a {@link FieldSegment}, the key is a first-class
+ * expression: a `number`/`word` literal, a `:name` read ({@link VarRefNode}), a bare identifier
+ * (a literal word key, carried as a {@link WordLitNode}), or a parenthesized expression. It
+ * carries its own span so tooling can point at exactly the `[ … ]`.
+ */
+export interface SelectorSegment {
+  readonly kind: "index";
+  readonly key: ExpressionNode;
+  readonly source_span: SourceSpan;
+}
+
+/**
+ * A postfix place segment: a dotted `.field` ({@link FieldSegment}) or a bracketed `[ key-term ]`
+ * selector ({@link SelectorSegment}). The two interleave in source order on one place, so
+ * `:a.b[1].c` carries a field, then a selector, then a field.
+ */
+export type PlaceSegment = FieldSegment | SelectorSegment;
 
 /**
  * An assignable place: a base variable plus zero or more postfix segments, so `:count` reads as
@@ -164,10 +181,16 @@ export interface PlaceNode extends NodeBase {
 /**
  * An assignment: `:place = value` (`form: "equals"`) or `set place to value`
  * (`form: "set"`). Both bind the same place; `form` preserves the surface spelling.
+ *
+ * A well-formed target is always a {@link PlaceNode} (even a bare `:x` grows into a zero-segment
+ * place). The parser also accepts a non-place expression here — specifically a reporter/command
+ * call such as `first :x = 5` — purely so the semantic checker can raise `ol-not-a-place`
+ * (`spec/error-model.md`) at `stage: "semantic"` instead of a blunt parse error. The runtime only
+ * ever sees a `Place`, because `check()` rejects every non-place target first.
  */
 export interface AssignNode extends NodeBase {
   readonly kind: "Assign";
-  readonly place: PlaceNode;
+  readonly place: ExpressionNode;
   readonly value: ExpressionNode;
   readonly form: "equals" | "set";
 }
@@ -407,7 +430,7 @@ export const ast = {
     return { kind: "Place", source_span: span, base, segments };
   },
   assign(
-    place: PlaceNode,
+    place: ExpressionNode,
     value: ExpressionNode,
     form: AssignNode["form"],
     span: SourceSpan,
@@ -562,6 +585,12 @@ function childrenOf(node: AnyNode): readonly AnyNode[] {
       }
     case "Assign":
       return [node.place, node.value];
+    case "Place":
+      // Field segments are metadata (a SpannedName, no `kind`); only bracketed selectors carry a
+      // walkable key expression, so a dotted-only place still has no expression children.
+      return node.segments.flatMap((segment) =>
+        segment.kind === "index" ? [segment.key] : [],
+      );
     case "If":
       return node.elseBody === undefined
         ? [node.condition, node.thenBody]

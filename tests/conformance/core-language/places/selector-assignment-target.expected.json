@@ -1,0 +1,7 @@
+{
+  "description": "A `[ key-term ]` selector is a valid assignment target in both forms (issue #79): the colon place `:nums[1] = 9` and the bare place `set grid[2] to 0` each parse to an Assign whose target carries the selector segment.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

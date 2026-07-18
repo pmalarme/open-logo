@@ -5,12 +5,10 @@
 // the actual (verified against the built parser) diagnostic behavior for a malformed postfix
 // (a trailing dot with no following field name).
 //
-// IMPORTANT — genuine spec-vs-parser gap found while authoring this slice: spec/grammar.md:109-111
-// defines a postfix as `selector | "." identifier` where `selector ::= "[" key-term "]"`, but the
-// merged parser (packages/parser/src/parser.ts collectFieldSegments/parsePostfix) only recognizes
-// the `.identifier` field form — it never looks at `[`. Filed as a bug (see PR body); the cases
-// below intentionally cover only the dotted-field postfix, which is what the shipped parser
-// actually implements.
+// This file targets the dotted `.identifier` postfix form (issue #49); the bracketed
+// `[ key-term ]` selector form (`spec/grammar.md:109-111`, `selector ::= "[" key-term "]"`) is
+// implemented and covered separately in postfix-selectors.test.mjs (issue #79). The cases below
+// exercise the dotted-field postfix and its interaction with precedence and diagnostics.
 //
 // Runs under `node --test` against the built `@openlogo/parser` package, exercising only its
 // public `parse` surface.

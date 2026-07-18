@@ -46,6 +46,7 @@ export type {
   ReduceComprehensionNode,
   RepeatNode,
   ReturnNode,
+  SelectorSegment,
   SpannedName,
   StatementNode,
   StopNode,

@@ -19,6 +19,7 @@
 import type { Diagnostic } from "@openlogo/core";
 import type { ProgramNode } from "./ast.js";
 import { arityRule } from "./checker-arity.js";
+import { notAPlaceRule } from "./checker-not-a-place.js";
 import { unknownCommandRule } from "./checker-unknown-command.js";
 import { unknownTypeRule } from "./checker-type-field.js";
 
@@ -90,6 +91,7 @@ const RULES: readonly CheckRule[] = [
   unknownCommandRule,
   unknownTypeRule,
   arityRule,
+  notAPlaceRule,
 ];
 
 /** Dispatches `program`/`profiles` to every registered rule and concatenates their findings. */
