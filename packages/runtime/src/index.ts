@@ -25,6 +25,7 @@ import type {
 import type { CallNode, ParenCallNode, StatementNode } from "@openlogo/parser";
 import { parse } from "@openlogo/parser";
 import { evaluate, isSupportedExpression } from "./evaluate.js";
+import { runtimeDiag } from "./errors.js";
 
 export {
   evaluate,
@@ -54,19 +55,20 @@ export interface ExecuteResult {
 }
 
 /**
- * Is `statement` a `print` call — the single-value `print value` form or the parenthesized
- * variadic `(print a b …)` form (`spec/commands.md:142-158`, at least one argument either way;
- * the reader/checker already reject a zero-argument `print`)? Accepts both the plain infix
+ * Is `statement` a call to `print` — the single-value `print value` form or the parenthesized
+ * variadic `(print a b …)` form (`spec/commands.md:142-158`)? Accepts both the plain infix
  * `Call` form (`print 1`) and the explicit-parentheses `ParenCall` form (`(print 1 2)`) — both
- * share the same callee/args shape (see `evaluate.ts`'s `ArithmeticCallNode`).
+ * share the same callee/args shape (see `evaluate.ts`'s `ArithmeticCallNode`). Matches
+ * regardless of argument count: a zero-argument `print`/`(print)` is handled separately in
+ * {@link execute}, since `execute()` runs `parse()` only (not the semantic checker), so the
+ * checker's static `ol-not-enough-inputs` rule never sees it here.
  */
 function isPrintCall(
   statement: StatementNode,
 ): statement is CallNode | ParenCallNode {
   return (
     (statement.kind === "Call" || statement.kind === "ParenCall") &&
-    statement.callee.name.toLowerCase() === "print" &&
-    statement.args.length >= 1
+    statement.callee.name.toLowerCase() === "print"
   );
 }
 
@@ -80,8 +82,12 @@ function isPrintCall(
  * evaluates every operand, left to right, and — once all of them evaluate cleanly — emits a
  * `print` event carrying every value, but only when {@link isSupportedExpression} says this
  * issue's evaluator gives *each* operand a value; otherwise the whole statement is left
- * un-evaluated for a future slice (e.g. `print :x` — variable reads land with issue #94). If
- * evaluating an operand raises a runtime diagnostic (`ol-div-zero`, `ol-neg-sqrt`, `ol-type`),
+ * un-evaluated for a future slice (e.g. `print :x` — variable reads land with issue #94). A
+ * zero-argument `print`/`(print)` raises `ol-not-enough-inputs` (issue #98): `execute()` runs
+ * `parse()` only, so the semantic checker's static arity rule — which cannot itself catch an
+ * open-variadic parenthesized under-supply, `packages/parser/src/checker-arity.ts` — never runs
+ * here, and this is the only guard against silently treating a callee-only `print` as a no-op.
+ * If evaluating an operand raises a runtime diagnostic (`ol-div-zero`, `ol-neg-sqrt`, `ol-type`),
  * execution stops there: the events emitted so far are kept and the diagnostic is returned,
  * exactly as a parse-stage failure returns diagnostics instead of a trace — later operands of
  * that same `print` are never evaluated. Statement kinds this issue does not give meaning to
@@ -105,6 +111,17 @@ export function execute(source: string, document: string): ExecuteResult {
     });
 
     if (isPrintCall(statement)) {
+      if (statement.args.length === 0) {
+        return {
+          events,
+          diagnostics: [
+            runtimeDiag.notEnoughInputs(
+              statement.callee.source_span,
+              statement.callee.name,
+            ),
+          ],
+        };
+      }
       // Only evaluate a `print` whose every operand is an expression kind this issue's
       // evaluator gives meaning to (Core literals and arithmetic). `print :x`,
       // `(print 1 :a)`, and similar still emit their `instruction` event but are left

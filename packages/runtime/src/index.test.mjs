@@ -173,3 +173,46 @@ test("execute stops mid-variadic-print when a later operand fails to evaluate", 
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-div-zero");
 });
+
+test("execute raises ol-not-enough-inputs for a bare zero-argument `print`", () => {
+  // The static checker's arity rule (`ol-not-enough-inputs`) never runs inside `execute()` —
+  // it only calls `parse()` — so this is the sole runtime guard against silently treating a
+  // callee-only `print` as a no-op.
+  const result = execute("print", "main.logo");
+  assert.equal(result.events.length, 1);
+  assert.equal(result.events[0].kind, "instruction");
+  assert.equal(result.diagnostics.length, 1);
+  assert.deepEqual(result.diagnostics[0], {
+    code: "ol-not-enough-inputs",
+    source_span: {
+      document: "main.logo",
+      start: [1, 1],
+      end: [1, 6],
+    },
+    params: { callable: "print", expected: 1, actual: 0 },
+    message: "print needs one input.",
+    stage: "runtime",
+    severity: "error",
+  });
+});
+
+test("execute raises ol-not-enough-inputs for a parenthesized zero-argument `(print)`", () => {
+  // The checker's static arity rule cannot flag this either: `print`'s parenthesized ceiling is
+  // `Infinity` (an open variadic), so its lower bound is deliberately left to the runtime.
+  const result = execute("(print)", "main.logo");
+  assert.equal(result.events.length, 1);
+  assert.equal(result.events[0].kind, "instruction");
+  assert.equal(result.diagnostics.length, 1);
+  assert.deepEqual(result.diagnostics[0], {
+    code: "ol-not-enough-inputs",
+    source_span: {
+      document: "main.logo",
+      start: [1, 2],
+      end: [1, 7],
+    },
+    params: { callable: "print", expected: 1, actual: 0 },
+    message: "print needs one input.",
+    stage: "runtime",
+    severity: "error",
+  });
+});

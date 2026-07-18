@@ -1,0 +1,30 @@
+{
+  "description": "A parenthesized `(print)` with zero arguments raises `ol-not-enough-inputs`: the static checker's arity rule cannot itself flag this (an open-variadic parenthesized call's true minimum is left to the runtime, per `checker-arity.ts`), so `execute()` guards it directly — only the statement's `instruction` event is kept, per issue #98.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/print-missing-argument",
+        "start": [1, 1],
+        "end": [1, 8]
+      },
+      "payload": { "statement_kind": "ParenCall" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-not-enough-inputs",
+      "source_span": {
+        "document": "core-language/execution/print-missing-argument",
+        "start": [1, 2],
+        "end": [1, 7]
+      },
+      "params": { "callable": "print", "expected": 1, "actual": 0 },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

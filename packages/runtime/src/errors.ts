@@ -2,7 +2,9 @@
  * Builders for the runtime-stage `ol-*` diagnostics the evaluator raises — `ol-div-zero`,
  * `ol-neg-sqrt`, and `ol-type` for arithmetic (per
  * [`spec/error-model.md`](../../../spec/error-model.md) and
- * [`spec/execution-model.md`](../../../spec/execution-model.md)'s "Numbers and math" section).
+ * [`spec/execution-model.md`](../../../spec/execution-model.md)'s "Numbers and math" section) —
+ * plus `ol-not-enough-inputs` for the runtime-only arity gap `execute()` must guard itself
+ * (issue #98): a parenthesized open-variadic primitive call supplied zero arguments.
  * Mirrors the parser's `errors.ts` pattern: every finding is a stable code from the
  * `@openlogo/core` registry with structured `params` (the diagnostic identity) plus warm,
  * lowercase learner prose derived from them — prose is presentation only.
@@ -50,6 +52,23 @@ export interface OrderingTypeErrorParams {
 
 /** Runtime-stage diagnostics, one builder per `ol-*` code the evaluator can raise. */
 export const runtimeDiag = {
+  /**
+   * `ol-not-enough-inputs` for the one arity gap the static checker's `arityRule` cannot itself
+   * catch: a parenthesized open-variadic primitive (`(print)`, whose arity ceiling is `Infinity`)
+   * supplied zero arguments. `execute()` runs `parse()` only, not the semantic checker, so this
+   * is also the sole guard against a bare zero-argument call (`print`) reaching evaluation.
+   * Scoped to `print`'s current minimum of one argument — the only case this issue's evaluator
+   * needs — rather than a general arity-message builder no caller yet uses.
+   */
+  notEnoughInputs(source_span: SourceSpan, callable: string): Diagnostic {
+    return runtimeError(
+      "ol-not-enough-inputs",
+      source_span,
+      { callable, expected: 1, actual: 0 },
+      `${callable} needs one input.`,
+    );
+  },
+
   divZero(source_span: SourceSpan, operation: "/" | "mod"): Diagnostic {
     return runtimeError(
       "ol-div-zero",
