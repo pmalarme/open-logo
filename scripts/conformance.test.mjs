@@ -3,7 +3,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
@@ -12,6 +12,7 @@ import {
   closureOf,
   deepEqual,
   produce,
+  validateDiagnostics,
   discoverFixtures,
   loadFixture,
   fixtureErrors,
@@ -114,11 +115,49 @@ test("produce calls real parser and returns diagnostics", () => {
 });
 
 test("produce preserves nested params with underscores", () => {
-  const result = produce('"unclosed', ["core-language"]);
+  const result = produce('"unclosed', "test-doc");
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-unclosed-string");
   assert.ok(result.diagnostics[0].params.opened_at); // underscore!
+  // Also verify spec-required message field is present (spec/error-model.md:28-38)
+  assert.ok(
+    result.diagnostics[0].message,
+    "Actual diagnostic must have message field per spec",
+  );
 });
+
+test("validateDiagnostics passes for well-formed diagnostics", () => {
+  const diagnostics = [
+    {
+      code: "ol-test",
+      message: "Test message",
+      source_span: { document: "test", start: [1, 1], end: [1, 2] },
+      params: {},
+      stage: "parse",
+      severity: "error",
+    },
+  ];
+  // Should not throw
+  assert.doesNotThrow(() => validateDiagnostics(diagnostics));
+});
+
+test("validateDiagnostics throws when diagnostic missing message", () => {
+  const diagnostics = [
+    {
+      code: "ol-test",
+      // missing message field
+      source_span: { document: "test", start: [1, 1], end: [1, 2] },
+      params: {},
+      stage: "parse",
+      severity: "error",
+    },
+  ];
+  assert.throws(
+    () => validateDiagnostics(diagnostics),
+    /actual diagnostic\[0\] missing required "message" field/,
+  );
+});
+
 
 test("diffStream handles items with no keyField", () => {
   // Both items exist but neither has the keyField

@@ -92,7 +92,7 @@ export function discoverFixtures(root = ROOT) {
   }
   if (orphanLogo.length > 0) {
     throw new Error(
-      `Orphan .logo file(s) without .expected.json sibling:\n  ${orphanLogo.map((s) => s + ".logo").join("\n  ")}`,
+      `Orphan .logo file(s) without .expected.json sibling:\n  ${orphanLogo.map((s) => `${s}.logo`).join("\n  ")}`,
     );
   }
 
@@ -205,6 +205,23 @@ export function fixtureErrors(expected) {
 }
 
 /**
+ * Validate that diagnostics conform to the spec shape.
+ * Per spec/error-model.md:28-38, every diagnostic must have a message field.
+ * @param {Array} diagnostics - The diagnostics to validate.
+ * @throws {Error} If any diagnostic is missing the message field.
+ */
+export function validateDiagnostics(diagnostics) {
+  for (let i = 0; i < diagnostics.length; i++) {
+    const diag = diagnostics[i];
+    if (!diag.message) {
+      throw new Error(
+        `produce(): actual diagnostic[${i}] missing required "message" field (spec/error-model.md:28-38)`,
+      );
+    }
+  }
+}
+
+/**
  * Execute source and collect the output. For M1, this calls the parser to collect diagnostics.
  * When the runtime lands, this will also execute and collect trace events.
  *
@@ -217,6 +234,9 @@ export function fixtureErrors(expected) {
  */
 export function produce(source, document) {
   const { diagnostics } = parse(source, document);
+
+  // Validate actual diagnostics conform to spec (spec/error-model.md:28-38 requires message)
+  validateDiagnostics(diagnostics);
 
   // Parser diagnostics are already in the correct wire format (source_span with underscore).
   // No events yet — runtime doesn't exist at M1.
