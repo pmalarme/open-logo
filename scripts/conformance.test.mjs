@@ -6,6 +6,8 @@ import { test } from "node:test";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
+import { once } from "node:events";
+import { text } from "node:stream/consumers";
 import {
   closureOf,
   deepEqual,
@@ -465,28 +467,26 @@ test("runHarness handles self-test fixtures correctly", () => {
 });
 
 // Subprocess integration test for the CLI shell
-test("CLI shell runs via subprocess", (t, done) => {
+test("CLI shell runs via subprocess", async () => {
   const proc = spawn("node", ["scripts/conformance.mjs"], {
     stdio: ["ignore", "pipe", "pipe"],
   });
 
-  let stdout = "";
-  let stderr = "";
-  proc.stdout.on("data", (data) => (stdout += data));
-  proc.stderr.on("data", (data) => (stderr += data));
+  // Attach close listener BEFORE consuming streams to avoid missing the event
+  const closed = once(proc, "close");
 
-  proc.on("close", (code) => {
-    try {
-      assert.equal(code, 0, `CLI should exit 0; stderr: ${stderr}`);
-      assert.ok(
-        stdout.includes("conformance:"),
-        "Should print conformance summary",
-      );
-      done();
-    } catch (err) {
-      done(err);
-    }
-  });
+  // Consume streams (always reads, whether data arrives or not)
+  const [stdout, stderr] = await Promise.all([
+    text(proc.stdout),
+    text(proc.stderr),
+  ]);
+
+  const [code] = await closed;
+  assert.equal(code, 0, `CLI should exit 0; stderr: ${stderr}`);
+  assert.ok(
+    stdout.includes("conformance:"),
+    "Should print conformance summary",
+  );
 });
 
 // Additional tests for orphan file detection
