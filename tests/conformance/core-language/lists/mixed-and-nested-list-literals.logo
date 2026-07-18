@@ -1,0 +1,5 @@
+# A multi-element, space-separated list literal with mixed value types (number, word, boolean)
+# and nested list elements, per grammar.md:189-193,204,310 (SPACE-separated, no commas).
+print [1 2 3]
+print [1 "red" true]
+print [[1 2] [3 4]]

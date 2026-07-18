@@ -1,0 +1,7 @@
+{
+  "description": "A list literal may hold variable-read (`:x`) and dotted-place (`:people.tom.age`) elements alongside literals, per grammar.md:189-193,204.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

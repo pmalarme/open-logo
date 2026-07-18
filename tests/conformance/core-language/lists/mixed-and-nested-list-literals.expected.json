@@ -1,0 +1,7 @@
+{
+  "description": "List literals with SPACE-separated, mixed-type elements (number/word/boolean) and nested list elements all parse cleanly, per grammar.md:189-193,204,310.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

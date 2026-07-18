@@ -1,0 +1,4 @@
+# Empty and single-element list literals in expression position, per grammar.md:189-193,204
+# (list-literal is a primary; brackets may hold zero or one expression).
+print []
+print [1]
