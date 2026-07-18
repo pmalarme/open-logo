@@ -1,0 +1,6 @@
+{
+  "description": "Comment markers (#, //, /* */) inside a word literal are literal text, not comments, and do not affect parsing.",
+  "profiles": ["core-language"],
+  "events": [],
+  "diagnostics": []
+}

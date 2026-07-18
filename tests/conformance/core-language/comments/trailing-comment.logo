@@ -1,0 +1,3 @@
+print 1 # trailing hash comment
+print 2 // trailing slash comment
+print 3 /* trailing block comment */

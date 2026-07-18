@@ -1,0 +1,6 @@
+{
+  "description": "Blank lines and a full-line comment interleaved between two statements do not disturb the following statement's source span.",
+  "profiles": ["core-language"],
+  "events": [],
+  "diagnostics": []
+}

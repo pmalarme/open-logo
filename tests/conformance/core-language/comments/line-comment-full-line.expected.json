@@ -1,0 +1,6 @@
+{
+  "description": "A full-line # comment and a full-line // comment are whitespace and do not disturb the statement that follows.",
+  "profiles": ["core-language"],
+  "events": [],
+  "diagnostics": []
+}
