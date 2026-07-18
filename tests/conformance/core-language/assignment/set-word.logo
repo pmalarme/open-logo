@@ -1,0 +1,2 @@
+# The bare-place `set ... to` form with a word value (`"red"`), per spec/grammar.md:104.
+set color to "red"

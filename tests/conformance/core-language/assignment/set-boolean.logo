@@ -1,0 +1,2 @@
+# The bare-place `set ... to` form with a boolean value (`true`), per spec/grammar.md:104.
+set flag to true

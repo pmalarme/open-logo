@@ -1,0 +1,2 @@
+# The bare-place `set ... to` form with a list value (`[ 1 2 3 ]`), per spec/grammar.md:104.
+set nums to [ 1 2 3 ]

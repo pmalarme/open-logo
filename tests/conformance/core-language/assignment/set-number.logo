@@ -1,0 +1,3 @@
+# The bare-place `set ... to` form (spec/grammar.md:104 set-assignment ::= "set" bare-place
+# "to" expression) with a number value.
+set x to 100

@@ -1,0 +1,20 @@
+{
+  "description": "A bare place is INVALID on the left of `=` (spec/grammar.md:103 requires a colon-place): `repcount = 100` parses as an Assign whose target is the Call `repcount`, which check() rejects with ol-not-a-place because a reporter call is not an assignable place.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-not-a-place",
+      "source_span": {
+        "document": "core-language/assignment/bare-place-invalid",
+        "start": [4, 1],
+        "end": [4, 9]
+      },
+      "params": { "text": "repcount" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

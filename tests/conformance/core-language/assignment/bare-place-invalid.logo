@@ -1,0 +1,4 @@
+# CRITICAL asymmetry (spec/grammar.md:103): `=` requires a colon-place. A bare place read as
+# a reporter call target — repcount (a 0-arg Core reporter, so this is clean of
+# ol-unknown-command noise) — is not a place, so `check()` flags it ol-not-a-place.
+repcount = 100
