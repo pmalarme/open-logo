@@ -53,9 +53,9 @@ Update the reference/tutorial and runnable examples in the **same PR** (`@docume
 
 ### Step 8 — Self-review, then open the PR
 Run `shared/definition-of-done`, then run `shared/review-gate` **without leaving the session**:
-dispatch two non-author review sub-agents — `rubber-duck` (logic/design/spec-fidelity) and a
-domain-adaptive **QA** expert (`@testing` by default, plus the owner of the changed area) — and
-**iterate until both return `pass`**. Only then open one PR with the declared write-set and both
+dispatch at least two non-author review sub-agents — the logic/spec reviewer (`rubber-duck`, or a
+named fallback) and **every** domain-adaptive **QA** expert (`@testing` by default, plus the owner of
+the changed area) — and **iterate until each returns `pass`**. Only then open one PR with the declared write-set and all
 verdicts attached. Do not self-merge — `@orchestrator` does the final verification and merges (or a
 human does), never the author alone.
 
@@ -72,5 +72,5 @@ docs show the snippet. That one slice exercises every package boundary; build it
 - [ ] Canonical vocabulary only (`shared/spec-fidelity`).
 - [ ] Conformance + integration tests added and green.
 - [ ] Teaching hooks + docs updated in the same PR.
-- [ ] Self-review passed before the PR — `shared/review-gate`: `rubber-duck` + domain QA, both ≠ author.
+- [ ] Self-review passed before the PR — `shared/review-gate`: logic/spec reviewer + every domain QA, all ≠ author.
 - [ ] One PR, declared write-set, shared files serialized.

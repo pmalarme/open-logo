@@ -39,9 +39,11 @@ are serialized one PR at a time.
 ## Self-review (run before opening this PR)
 
 <!--
-Before opening this PR the author ran shared/review-gate in-session: two non-author sub-agents —
-rubber-duck + a domain-adaptive QA expert — reviewed the change and both returned pass. Attach their
-verdicts below. Reviewer ≠ author. See .github/skills/shared/review-gate/SKILL.md.
+Before opening this PR the author ran shared/review-gate in-session: at least two non-author
+sub-agents — the logic/spec reviewer (rubber-duck, or a named fallback agent when rubber-duck's
+model precondition isn't met) plus every dispatched domain-adaptive QA expert — reviewed the change
+and all returned pass on this PR's head SHA. Attach their verdicts below. Reviewer ≠ author.
+See .github/skills/shared/review-gate/SKILL.md.
 -->
 
 - [ ] Clean-tree DoD re-run — build **emits** verified (real `dist/*.js` + `*.d.ts`, not just exit 0; **N/A for docs-only**)
@@ -49,8 +51,8 @@ verdicts below. Reviewer ≠ author. See .github/skills/shared/review-gate/SKILL
 - [ ] Conformance fixtures present & green
 - [ ] Instructions / skills / docs / spec drift checked (in this PR if needed)
 - [ ] Reviews were run on this PR's head commit (SHA `________`); any later push re-runs **all** reviewers
-- [ ] `rubber-duck` verdict = pass (≠ author):
-- [ ] QA expert verdict(s) = pass (≠ author); expert(s):
+- [ ] Logic/spec reviewer verdict = pass (≠ author) — `rubber-duck`, or named fallback + why:
+- [ ] Every QA expert verdict = pass (≠ author); expert(s):
 
 ## Reviewers / integration
 

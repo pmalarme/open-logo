@@ -41,8 +41,9 @@ and [`AGENTS.md`](../../AGENTS.md) first — they bind you and every agent below
    results. If it does not, output the task packet plus the exact `@agent` invocation for a human
    to run, and track status yourself.
 4. **Integrate per story** (`integrate-and-merge`). One integration owner prepares and validates the
-   slice — sequencing its PRs, resolving conflicts, **verifying the implementer's two non-author
-   review verdicts** (`rubber-duck` + a domain QA expert, both ≠ author), and confirming the
+   slice — sequencing its PRs, resolving conflicts, **verifying the implementer's non-author
+   review verdicts** (the logic/spec reviewer — `rubber-duck` or a named fallback — + **every**
+   domain QA expert, all ≠ author), and confirming the
    Definition of Done. A **human merges** by default; when the maintainer delegates merge authority
    you may merge once those verdicts are attached and CI is green, then **verify** the merge and
    **reconcile** the board, milestone, branches, and plan to keep `main` and the repo clean.
@@ -61,7 +62,7 @@ Consult these playbooks before acting — they encode how the factory works.
 | [integrate-and-merge](../skills/orchestrator/integrate-and-merge/SKILL.md) | Verify the implementer's non-author self-review → merge (delegated) → verify → reconcile board/milestone/branches/plan; consolidate duplicate PRs |
 | [shared/vertical-slice](../skills/shared/vertical-slice/SKILL.md) | Shape every task as one feature end to end |
 | [shared/definition-of-done](../skills/shared/definition-of-done/SKILL.md) | Hold the CI-enforced merge gate |
-| [shared/review-gate](../skills/shared/review-gate/SKILL.md) | Verify the implementer's two non-author review verdicts (rubber-duck + domain QA); run it yourself only for your own integration PRs |
+| [shared/review-gate](../skills/shared/review-gate/SKILL.md) | Verify the implementer's non-author review verdicts (logic/spec reviewer + every domain QA); run it yourself only for your own integration PRs |
 | [shared/spec-fidelity](../skills/shared/spec-fidelity/SKILL.md) | Keep task language in canonical OpenLogo vocabulary |
 
 ## Guardrails

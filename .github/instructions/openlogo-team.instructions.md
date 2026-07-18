@@ -91,13 +91,14 @@ A change is done only when, for the artifacts it touches:
 6. Accessibility and pedagogy checks pass where applicable (see §8–9).
 7. Docs and spec cross-links are updated in the same PR (no drift).
 8. **In-session self-review has passed** — before opening the PR the implementing agent ran the
-   [`shared/review-gate`](../skills/shared/review-gate/SKILL.md) checklist by dispatching **two
-   non-author sub-agents** — `rubber-duck` (logic/design/spec-fidelity) and a domain-adaptive **QA**
-   expert (`@testing` and/or the changed area's owner) that re-runs the clean-tree DoD (verifying the
-   build actually _emits_ artifacts), conformance, examples, and instructions/skills/docs/spec drift.
-   Both returned `pass` and their verdicts are attached to the PR. Reviewer ≠ author.
+   [`shared/review-gate`](../skills/shared/review-gate/SKILL.md) checklist by dispatching **at least two
+   non-author sub-agents** — the logic/spec reviewer (`rubber-duck`, or a named fallback when its model
+   precondition isn't met) and **every** domain-adaptive **QA** expert (`@testing` and/or the changed
+   area's owner) that re-runs the clean-tree DoD (verifying the build actually _emits_ artifacts),
+   conformance, examples, and instructions/skills/docs/spec drift. Each returned `pass` and their
+   verdicts are attached to the PR. Reviewer ≠ author.
 
-Agents do not self-merge; the implementer's two non-author reviewers record the pass verdicts, then
+Agents do not self-merge; the implementer's non-author reviewers (at least two) record the pass verdicts, then
 humans and required CI checks (pipelines wired by `@devops`) gate `main` by default. The maintainer
 may delegate merge **execution** to `@orchestrator`, which then does a final verification (both
 non-author verdicts attached, CI green) before merging (`shared/review-gate`, `integrate-and-merge`).

@@ -24,9 +24,9 @@ A change is "done" only when it is proven, documented, and green. This skill is 
    descriptions; progressive hints / no-spoilers).
 7. **Docs & spec cross-links updated** in the same PR (no drift).
 8. **Self-review passed before the PR** — the implementing agent ran
-   [`shared/review-gate`](../review-gate/SKILL.md) in-session: two non-author sub-agents
-   (`rubber-duck` + a domain-adaptive QA expert) both returned `pass`, and their verdicts are
-   attached to the PR (reviewer ≠ author).
+   [`shared/review-gate`](../review-gate/SKILL.md) in-session: at least two non-author sub-agents —
+   the logic/spec reviewer (`rubber-duck`, or a named fallback) plus **every** domain-adaptive QA
+   expert — each returned `pass`, and their verdicts are attached to the PR (reviewer ≠ author).
 
 ## Review gate — run it before you open the PR
 
@@ -35,7 +35,7 @@ session**, the author runs [`shared/review-gate`](../review-gate/SKILL.md): it d
 non-author sub-agents — `rubber-duck` and a domain-adaptive **QA** expert — that between them re-run
 the clean-tree DoD (verifying the build actually **emits** artifacts, not just a `0` exit),
 spec-fidelity, conformance fixtures, runnable examples, a11y/pedagogy, and instructions/skills/docs/
-spec drift. The author iterates until both return `pass`, attaches the verdicts, and opens the PR;
+spec drift. The author iterates until all return `pass`, attaches the verdicts, and opens the PR;
 `@orchestrator` (or a human) does the final verification and merge.
 
 ## PR expectations
@@ -62,7 +62,7 @@ spec drift. The author iterates until both return `pass`, attaches the verdicts,
 - [ ] conformance fixtures extended + green
 - [ ] examples run   - [ ] a11y/pedagogy (if applicable)
 - [ ] docs + spec cross-links updated
-- [ ] self-review passed before PR (rubber-duck + domain QA, both ≠ author)
+- [ ] self-review passed before PR (logic/spec reviewer + every domain QA, all ≠ author)
 - [ ] one PR, write-set declared, shared files serialized
 ```
 

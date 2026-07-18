@@ -27,9 +27,10 @@ contracts agreed first. You write no feature code — you decompose, dispatch, a
    `open_issue_session` / `create_session` with the issue's **owning custom agent**, `mode:
    autopilot`, and `coordinate_with_creator: true` (set `notify_on_idle`) so it reports its PR back.
    **The kickoff must require in-session self-review** (`shared/review-gate`): before opening the PR
-   the owner dispatches two non-author sub-agents — `rubber-duck` + a domain-adaptive **QA** expert
-   (`@testing` and/or the changed area's owner) — and iterates on a committed HEAD until both `pass`
-   on that SHA, then opens an already-green PR with both SHA-stamped verdicts attached. **Run the
+   the owner dispatches at least two non-author sub-agents — the **logic/spec reviewer** (`rubber-duck`)
+   + **every** domain-adaptive **QA** expert (`@testing` and/or the changed area's owner) — and iterates
+   on a committed HEAD until **each** returns `pass` on that SHA, then opens an already-green PR with all
+   SHA-stamped verdicts attached. **Run the
    session on a Claude or GPT large model** so `rubber-duck` is available; if it is not, the owner
    substitutes a second non-author domain agent for that review. **Avoid firing uncontrolled cloud agents at parallel
    slices:** they are not messageable and branch off each other, which in M0 stacked duplicate PRs
@@ -56,8 +57,8 @@ contracts agreed first. You write no feature code — you decompose, dispatch, a
   shared contract (interpreter-authored, language-designer-reviewed, grown one slice at a time). Never
   route the lex/parse/AST slice to `@language-designer` or the highlighter/checker slice to
   `@interpreter`.
-- You never merge on green alone — every merge needs the two independent, non-author review-gate
-  verdicts (attached by the implementer) plus required CI; a human merges unless the maintainer has
+- You never merge on green alone — every merge needs all the independent, non-author review-gate
+  verdicts (≥2, attached by the implementer) plus required CI; a human merges unless the maintainer has
   delegated it (see `integrate-and-merge`).
 
 ## Checklist
