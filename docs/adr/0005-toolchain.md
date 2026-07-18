@@ -12,10 +12,11 @@
 `@openlogo/*` packages, but **deliberately deferred** the concrete toolchain — package manager,
 test runner, and the exact build/lint/format commands — to "own follow-up ADRs when decided." The
 M0 foundation (issue #5) is where those constraints become real: CI already encodes the Definition
-of Done as seven scripts (`build`, `typecheck`, `lint`, `format:check`, `test`, `conformance`,
-`examples`) and activates the code jobs the moment a root `package.json` lands. This ADR records
-the tools chosen to satisfy those gates, and — per the independent review gate ([ADR-0004](
-0004-independent-review-gate.md)) — the two toolchain traps a reviewer must know about.
+of Done as eight scripts (`build`, `typecheck`, `lint`, `format:check`, `test`, `coverage`,
+`conformance`, `examples`) and activates the code jobs the moment a root `package.json` lands. This
+ADR records the tools chosen to satisfy those gates, and — per the independent review gate ([ADR-0004](
+0004-independent-review-gate.md)) — the two toolchain traps a reviewer must know about, plus why the
+coverage gate is pinned to Node 22.
 
 ## Decision
 
@@ -78,7 +79,7 @@ enforcing gate.
 
 ## Consequences
 
-- `npm ci` from a clean tree installs the whole workspace; the seven DoD scripts all run and
+- `npm ci` from a clean tree installs the whole workspace; the eight DoD scripts all run and
   `tsc -b` emits real `dist/*.js` + `*.d.ts` (verified from a clean tree per the review gate, not a
   stale-`.tsbuildinfo` no-op).
 - One committed `package-lock.json` makes CI installs deterministic.
