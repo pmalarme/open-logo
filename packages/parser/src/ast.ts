@@ -561,7 +561,14 @@ export const ast = {
 /** A visitor invoked once per node during {@link walk}. */
 export type Visitor = (node: AnyNode) => void;
 
-function childrenOf(node: AnyNode): readonly AnyNode[] {
+/**
+ * The direct child nodes `walk` descends into for `node`, in source order. Exported (alongside
+ * `walk`) so a rule that needs scope-aware traversal — pushing/popping its own context around
+ * specific node kinds, e.g. `ol-undefined-var`'s procedure-frame/binder-scope walk — can still
+ * reuse this shared child list for every node kind it does *not* special-case, instead of
+ * duplicating (and risking drift from) this switch.
+ */
+export function childrenOf(node: AnyNode): readonly AnyNode[] {
   switch (node.kind) {
     case "Program":
     case "Block":

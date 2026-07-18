@@ -211,7 +211,7 @@ test("a selector missing its close :nums[1 2] reports an unmatched bracket", () 
 });
 
 test("check() walks selector key expressions in a mixed chain without diagnostics", () => {
-  const { ast } = OL.parse(":a.b[1].c", doc);
+  const { ast } = OL.parse(":a = 0\n:a.b[1].c", doc);
   const { diagnostics } = OL.check(ast);
   assert.deepEqual(diagnostics, []);
 });

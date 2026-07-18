@@ -1,5 +1,5 @@
 {
-  "description": "ol-not-a-place (issue #113): the spec's own worked example (spec/tooling.md:213-219) — `count :nums = 3` treats the reporter call `count :nums` as an assignment target. The diagnostic's `text` param carries the FULL target surface text reconstructed from the AST, matching the spec's exact wording byte-for-byte. The first line declares `:nums` so this fixture stays focused on `ol-not-a-place` alone, without also tripping `ol-undefined-var` on the same `:nums` read.",
+  "description": "ol-not-a-place (issue #113): the spec's own worked example (spec/tooling.md:213-219) — `count :nums = 3` treats the reporter call `count :nums` as an assignment target. The diagnostic's `text` param carries the FULL target surface text sliced verbatim from the source span (the harness threads the fixture's own source into `check()`), matching the spec's exact wording byte-for-byte. The first line declares `:nums` so this fixture stays focused on `ol-not-a-place` alone, without also tripping `ol-undefined-var` on the same `:nums` read.",
   "profiles": ["core-language"],
   "check": true,
   "events": [],

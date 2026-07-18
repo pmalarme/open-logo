@@ -17,6 +17,22 @@ function checkSource(source, profiles = ["core-language"]) {
     [],
     `expected a clean parse for ${JSON.stringify(source)}`,
   );
+  return OL.check(ast, { profiles, source }).diagnostics;
+}
+
+/**
+ * Like {@link checkSource}, but calls `check()` WITHOUT a `source` string — exercising
+ * `checker-not-a-place.ts`'s AST-reconstruction fallback path ({@link renderNode}/
+ * {@link renderPlace}) instead of the primary source-slicing path. A caller with only a
+ * `ProgramNode` (no original text) is exactly `postfix-selectors.test.mjs`'s pre-#113 shape.
+ */
+function checkNoSource(source, profiles = ["core-language"]) {
+  const { ast, diagnostics: parseDiagnostics } = OL.parse(source, "unit.logo");
+  assert.deepEqual(
+    parseDiagnostics,
+    [],
+    `expected a clean parse for ${JSON.stringify(source)}`,
+  );
   return OL.check(ast, { profiles }).diagnostics;
 }
 
@@ -74,6 +90,64 @@ test("a well-formed place target is never flagged ol-not-a-place", () => {
   assert.deepEqual(checkSource(":x = 1\nprint :x\n").filter(isNotAPlace), []);
 });
 
+test("check() renders the EXACT source text for a nested Place argument target, e.g. count :nums[1] = 3 (reconciling #79's AST-only renderer, which dropped Place arguments)", () => {
+  const [finding] = checkSource(":nums = [1 2 3]\ncount :nums[1] = 3").filter(
+    isNotAPlace,
+  );
+  assert.deepEqual(finding.params, { text: "count :nums[1]" });
+});
+
+test("check() renders the EXACT source text for an infix-operator target, e.g. 1 + 2 = 3 (reconciling #79's AST-only renderer, which rendered infix operators in prefix form)", () => {
+  const [finding] = checkSource("1 + 2 = 3").filter(isNotAPlace);
+  assert.deepEqual(finding.params, { text: "1 + 2" });
+});
+
+test("check() slices a target spanning MULTIPLE source lines verbatim, including the lines strictly between its start and end", () => {
+  const source = "(first\n  :x\n  :y) = 5\n";
+  const [finding] = checkSource(source).filter(isNotAPlace);
+  assert.deepEqual(finding.params, { text: "(first\n  :x\n  :y)" });
+});
+
+// ── ol-not-a-place's AST-reconstruction fallback (no `source` supplied to check()) ───────────
+//
+// checker-not-a-place.ts prefers slicing `source` when available, but falls back to
+// reconstructing the target's text from the AST when it is not (e.g. a caller that only has a
+// `ProgramNode`, matching postfix-selectors.test.mjs's pre-#113 `OL.check(ast)` call shape).
+// These cases happen to render identically to their source text, but they exercise a materially
+// different code path (`renderNode`/`renderPlace`), so they are asserted separately.
+
+test("the AST fallback renders every bare literal target kind verbatim when no source is supplied", () => {
+  assert.deepEqual(checkNoSource("3 = 5").filter(isNotAPlace)[0].params, {
+    text: "3",
+  });
+  assert.deepEqual(checkNoSource('"red" = 5').filter(isNotAPlace)[0].params, {
+    text: '"red"',
+  });
+  assert.deepEqual(checkNoSource("true = 5").filter(isNotAPlace)[0].params, {
+    text: "true",
+  });
+  assert.deepEqual(checkNoSource("[1 2] = 5").filter(isNotAPlace)[0].params, {
+    text: "[1 2]",
+  });
+});
+
+test("the AST fallback renders a nested Place call argument via renderPlace, e.g. count :nums[1] = 3 (reconciling #79's renderer, which dropped Place arguments entirely)", () => {
+  const [finding] = checkNoSource(":nums = [1 2 3]\ncount :nums[1] = 3").filter(
+    isNotAPlace,
+  );
+  assert.deepEqual(finding.params, { text: "count :nums[1]" });
+});
+
+test("the AST fallback renders a field-selector Place call argument via renderPlace, e.g. count :point.x = 5", () => {
+  const [finding] = checkNoSource("count :point.x = 5").filter(isNotAPlace);
+  assert.deepEqual(finding.params, { text: "count :point.x" });
+});
+
+test("the AST fallback renders a zero-argument callee target with just its name, no trailing space", () => {
+  const [finding] = checkNoSource("pi = 5").filter(isNotAPlace);
+  assert.deepEqual(finding.params, { text: "pi" });
+});
+
 // ── ol-undefined-var: static reads of an unbound `:name` ─────────────────────────────────────
 
 test("a bare :missing read with no declaration anywhere raises ol-undefined-var at the variable's span", () => {
@@ -88,7 +162,7 @@ test('thing "missing" is checked the same way a bare read is (spec/error-model.m
   assert.deepEqual(finding.params, { name: "missing" });
 });
 
-test("a parameter, local+assign, for, and both comprehension binder forms are all declarations, never flagged", () => {
+test("a parameter, local+assign, for (with and without by), and both comprehension binder forms are all declarations, never flagged", () => {
   const source = [
     "define f :a",
     "  print :a",
@@ -107,6 +181,10 @@ test("a parameter, local+assign, for, and both comprehension binder forms are al
     "  print :j",
     "end",
     "",
+    "for k from 1 to 10 by 2",
+    "  print :k",
+    "end",
+    "",
     ":doubled = map n in [1 2 3] [ :n * 2 ]",
     ":total = reduce sum n in [1 2 3] from 0 [ :sum + :n ]",
     "",
@@ -117,6 +195,13 @@ test("a parameter, local+assign, for, and both comprehension binder forms are al
 test("assigning an undeclared name always declares it — a later read is never flagged (spec/execution-model.md:322-327)", () => {
   assert.deepEqual(
     checkSource(":brandNew = 1\nprint :brandNew").filter(isUndefinedVar),
+    [],
+  );
+});
+
+test("reading a global BEFORE its (later, textual) assignment is accepted — this rule does not simulate control-flow order (see the module doc comment's deliberate scope boundary)", () => {
+  assert.deepEqual(
+    checkSource("print :later\n:later = 1\n").filter(isUndefinedVar),
     [],
   );
 });
@@ -137,6 +222,116 @@ test("thing of a variable (not a literal word) is not read as a name lookup", ()
     checkSource("local y\nprint thing :y").filter(isUndefinedVar),
     [],
   );
+});
+
+test('thing "declared" naming an already-declared global is not flagged', () => {
+  assert.deepEqual(
+    checkSource(':declared = 1\nprint thing "declared"').filter(isUndefinedVar),
+    [],
+  );
+});
+
+// ── Lexical frame scoping regressions (rubber-duck findings on the first rewrite) ────────────
+
+test("a procedure's own parameter is invisible outside its frame — reading it inside the body is fine, but a top-level read of the same name is flagged", () => {
+  const diagnostics = checkSource(
+    "define f :secret\n  print :secret\nend\nf 1\nprint :secret\n",
+  );
+  const findings = diagnostics.filter(isUndefinedVar);
+  assert.equal(findings.length, 1);
+  assert.deepEqual(findings[0].params, { name: "secret" });
+});
+
+test("a procedure's own local is invisible outside its frame", () => {
+  const diagnostics = checkSource(
+    "define g\n  local temp\n  :temp = 1\n  print :temp\nend\ng\nprint :temp\n",
+  );
+  const findings = diagnostics.filter(isUndefinedVar);
+  assert.equal(findings.length, 1);
+  assert.deepEqual(findings[0].params, { name: "temp" });
+});
+
+test("two different procedures' own parameters do not leak into each other's frame", () => {
+  const diagnostics = checkSource(
+    "define f :a\n  print :a\nend\ndefine g :b\n  print :a\nend\nf 1\ng 2\n",
+  );
+  const findings = diagnostics.filter(isUndefinedVar);
+  assert.equal(findings.length, 1);
+  assert.deepEqual(findings[0].params, { name: "a" });
+});
+
+test("a nested procedure definition does not inherit its enclosing procedure's frame or locals (no closures) — reconciling the flat whole-program model this rule replaced", () => {
+  const source = [
+    "define outer :a",
+    "  define inner",
+    "    local secret",
+    "    :secret = 1",
+    "    print :secret",
+    "  end",
+    "  inner",
+    "  print :secret",
+    "end",
+    "outer 1",
+  ].join("\n");
+  const diagnostics = checkSource(source);
+  const findings = diagnostics.filter(isUndefinedVar);
+  assert.equal(findings.length, 1);
+  assert.deepEqual(findings[0].params, { name: "secret" });
+});
+
+test("a for binder is invisible after its own loop body ends (no scope leakage past the block)", () => {
+  const diagnostics = checkSource(
+    "for i in [1 2 3]\n  print :i\nend\nprint :i\n",
+  );
+  const findings = diagnostics.filter(isUndefinedVar);
+  assert.equal(findings.length, 1);
+  assert.deepEqual(findings[0].params, { name: "i" });
+});
+
+test("a reduce comprehension's accumulator binder is invisible after its own body ends", () => {
+  const diagnostics = checkSource(
+    ":total = reduce sum n in [1 2 3] from 0 [ :sum + :n ]\nprint :sum\n",
+  );
+  const findings = diagnostics.filter(isUndefinedVar);
+  assert.equal(findings.length, 1);
+  assert.deepEqual(findings[0].params, { name: "sum" });
+});
+
+test("a postfixed read of an unbound Place base raises ol-undefined-var at the base (rubber-duck finding: bases were never checked as reads)", () => {
+  const [finding] = checkSource("print :missing.field").filter(isUndefinedVar);
+  assert.deepEqual(finding.params, { name: "missing" });
+});
+
+test("a segmented assignment target's base must already be bound — no auto-vivification (spec/execution-model.md:251-291)", () => {
+  const [finding] = checkSource(":missing.field = 1").filter(isUndefinedVar);
+  assert.deepEqual(finding.params, { name: "missing" });
+});
+
+test("a segmented assignment target's base is accepted once declared, and the index/key expression is itself checked as a read", () => {
+  assert.deepEqual(
+    checkSource(":people = 1\n:people.tom = 1\n").filter(isUndefinedVar),
+    [],
+  );
+  const [finding] = checkSource(":people = 1\n:people[:missing] = 1\n").filter(
+    isUndefinedVar,
+  );
+  assert.deepEqual(finding.params, { name: "missing" });
+});
+
+test("a parameter default value can reference an earlier parameter of the same procedure frame", () => {
+  assert.deepEqual(
+    checkSource(
+      "define f :a (:b :a)\n  print :a\n  print :b\nend\nf 1\n",
+    ).filter(isUndefinedVar),
+    [],
+  );
+});
+
+test("a parameter default value referencing an undeclared name is flagged the same as any other read", () => {
+  const [finding] = checkSource(
+    "define f (:b :missing)\n  print :b\nend\nf\n",
+  ).filter(isUndefinedVar);
+  assert.deepEqual(finding.params, { name: "missing" });
 });
 
 // ── ol-reserved-word: define/local registrations colliding with an existing name ─────────────

@@ -1,0 +1,30 @@
+{
+  "description": "ol-undefined-var (issue #113): a postfixed Place's base is always checked as a read, whether the Place is used as a value (`print :missing.field`, line 1) or as a segmented assignment target (`:absent.count = 1`, line 2) — spec/execution-model.md:251-291 is explicit that there is no auto-vivification, so a segmented target's base must already be a bound variable. Both bases here are never declared, so each raises `ol-undefined-var` at the base's own span. This locks in the fix for a genuine bug in the rule's first draft, which never checked a Place base as a read at all.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "core-language/check/undefined-var-place-base-read",
+        "start": [1, 7],
+        "end": [1, 15]
+      },
+      "params": { "name": "missing" },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "core-language/check/undefined-var-place-base-read",
+        "start": [2, 1],
+        "end": [2, 8]
+      },
+      "params": { "name": "absent" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

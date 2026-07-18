@@ -51,10 +51,16 @@ export type CheckProfile = (typeof OL_CHECK_PROFILES)[number];
 /**
  * Options controlling {@link check}. `profiles` is the active conformance profile set a rule
  * MUST consult when deciding which primitives, block-heads, and reserved words are visible;
- * it defaults to Core Language only — never every optional profile.
+ * it defaults to Core Language only — never every optional profile. `source` is the original
+ * source text the program was parsed from — optional, since `check()`'s existing unit tests and
+ * some callers only have a `ProgramNode` — but when present it lets a rule recover exact surface
+ * text (e.g. `ol-not-a-place`'s `text` param) by slicing the source instead of reconstructing it
+ * from the AST, which is exact for every expression shape rather than only the ones a
+ * hand-written AST renderer enumerates.
  */
 export interface CheckOptions {
   readonly profiles?: readonly CheckProfile[];
+  readonly source?: string;
 }
 
 /** The result of {@link check}: the ordered semantic/style diagnostics it found. */
@@ -77,13 +83,19 @@ export function check(
   options: CheckOptions = {},
 ): CheckResult {
   const profiles = options.profiles ?? DEFAULT_CHECK_PROFILES;
-  return { diagnostics: findings(program, profiles) };
+  return { diagnostics: findings(program, profiles, options.source) };
 }
 
-/** A single checker rule: given the program and active profiles, returns its findings. */
+/**
+ * A single checker rule: given the program, active profiles, and (optionally) the original
+ * source text, returns its findings. `source` is undefined unless the caller passed one to
+ * {@link check} — most rules ignore it; {@link notAPlaceRule} uses it, when present, to recover
+ * exact target surface text instead of reconstructing it from the AST.
+ */
 type CheckRule = (
   program: ProgramNode,
   profiles: readonly CheckProfile[],
+  source?: string,
 ) => readonly Diagnostic[];
 
 /**
@@ -99,10 +111,11 @@ const RULES: readonly CheckRule[] = [
   reservedWordRule,
 ];
 
-/** Dispatches `program`/`profiles` to every registered rule and concatenates their findings. */
+/** Dispatches `program`/`profiles`/`source` to every registered rule and concatenates their findings. */
 function findings(
   program: ProgramNode,
   profiles: readonly CheckProfile[],
+  source: string | undefined,
 ): readonly Diagnostic[] {
-  return RULES.flatMap((rule) => rule(program, profiles));
+  return RULES.flatMap((rule) => rule(program, profiles, source));
 }
