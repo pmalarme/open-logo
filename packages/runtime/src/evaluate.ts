@@ -426,8 +426,9 @@ export type AssignResult =
  * `ol-not-a-place` guard for a reporter/command call used as a target (issue #113's checker
  * catches this too, at `stage: "semantic"`, but `execute()` never runs `check()`), then either
  * `assignVar` for a bare place or {@link writeIndexedPlace} for a postfix (`:l[i] = v`) one. A
- * `.field`-bearing place is silently left un-executed (Data-profile, deferred) — its value
- * expression is never evaluated, matching `print`'s "unsupported operand" convention.
+ * `.field`-bearing place — or a `.field`-bearing (or otherwise unsupported) value expression, e.g.
+ * `:x = :ages.tom` — is silently left un-executed (Data-profile, deferred): neither the place nor
+ * the value is evaluated, matching `print`'s "unsupported operand" convention.
  */
 export function executeAssign(
   node: AssignNode,
@@ -450,7 +451,7 @@ export function executeAssign(
     );
   }
   const place = node.place;
-  if (!isSupportedPlace(place)) {
+  if (!isSupportedPlace(place) || !isSupportedExpression(node.value)) {
     return { ok: true };
   }
 

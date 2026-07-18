@@ -242,6 +242,13 @@ test("leaves a dotted `.field` assignment target silently un-executed (Data-prof
   assert.equal(env.frames[env.frames.length - 1].has("ages"), false);
 });
 
+test("leaves an assignment with a dotted `.field` value expression silently un-executed", () => {
+  const env = envWith("ages", [1]);
+  const result = executeAssign(parseStatement(":x = :ages.tom"), env);
+  assert.deepEqual(result, { ok: true });
+  assert.equal(env.frames[env.frames.length - 1].has("x"), false);
+});
+
 // --- Assignment: postfix index places ---------------------------------------------------------
 
 test("writes a single-segment index place in place, preserving aliasing", () => {
