@@ -241,28 +241,187 @@ test("fixtureErrors returns empty for valid fixture", () => {
   assert.equal(errors.length, 0);
 });
 
-test("loadFixture handles missing optional fields with defaults", () => {
+test("loadFixture rejects malformed fixture schema", () => {
   cleanup();
-  // Create a fixture with minimal JSON (missing optional fields)
-  mkdirSync(join(TEMP_ROOT, "minimal"), { recursive: true });
-  writeFileSync(join(TEMP_ROOT, "minimal", "minimal.logo"), "");
+  // Create fixtures with missing required array fields
+  mkdirSync(join(TEMP_ROOT, "malformed"), { recursive: true });
+  writeFileSync(join(TEMP_ROOT, "malformed", "malformed.logo"), "");
+
+  // Missing profiles array
   writeFileSync(
-    join(TEMP_ROOT, "minimal", "minimal.expected.json"),
-    JSON.stringify({}), // Empty object, all fields should default
+    join(TEMP_ROOT, "malformed", "malformed.expected.json"),
+    JSON.stringify({ events: [], diagnostics: [] }),
   );
-
-  const loaded = loadFixture({
-    name: "minimal/minimal.expected.json",
-    expectedPath: join(TEMP_ROOT, "minimal", "minimal.expected.json"),
-    logoPath: join(TEMP_ROOT, "minimal", "minimal.logo"),
+  let loaded = loadFixture({
+    name: "malformed/malformed.expected.json",
+    expectedPath: join(TEMP_ROOT, "malformed", "malformed.expected.json"),
+    logoPath: join(TEMP_ROOT, "malformed", "malformed.logo"),
   });
+  assert.ok(loaded.error);
+  assert.ok(loaded.error.includes('"profiles" must be an array'));
 
-  assert.ok(!loaded.error);
-  assert.equal(loaded.expected.description, ""); // ?? "" default
-  assert.deepEqual(loaded.expected.profiles, []); // ?? [] default
-  assert.equal(loaded.expected.expect, "match"); // ?? "match" default
-  assert.deepEqual(loaded.expected.events, []); // ?? [] default
-  assert.deepEqual(loaded.expected.diagnostics, []); // ?? [] default
+  // Missing events array
+  writeFileSync(
+    join(TEMP_ROOT, "malformed", "malformed.expected.json"),
+    JSON.stringify({ profiles: [], diagnostics: [] }),
+  );
+  loaded = loadFixture({
+    name: "malformed/malformed.expected.json",
+    expectedPath: join(TEMP_ROOT, "malformed", "malformed.expected.json"),
+    logoPath: join(TEMP_ROOT, "malformed", "malformed.logo"),
+  });
+  assert.ok(loaded.error);
+  assert.ok(loaded.error.includes('"events" must be an array'));
+
+  // Missing diagnostics array
+  writeFileSync(
+    join(TEMP_ROOT, "malformed", "malformed.expected.json"),
+    JSON.stringify({ profiles: [], events: [] }),
+  );
+  loaded = loadFixture({
+    name: "malformed/malformed.expected.json",
+    expectedPath: join(TEMP_ROOT, "malformed", "malformed.expected.json"),
+    logoPath: join(TEMP_ROOT, "malformed", "malformed.logo"),
+  });
+  assert.ok(loaded.error);
+  assert.ok(loaded.error.includes('"diagnostics" must be an array'));
+
+  // Diagnostic missing required field "source_span"
+  writeFileSync(
+    join(TEMP_ROOT, "malformed", "malformed.expected.json"),
+    JSON.stringify({
+      profiles: [],
+      events: [],
+      diagnostics: [{ code: "ol-test" }], // Missing source_span, params, stage, severity, message
+    }),
+  );
+  loaded = loadFixture({
+    name: "malformed/malformed.expected.json",
+    expectedPath: join(TEMP_ROOT, "malformed", "malformed.expected.json"),
+    logoPath: join(TEMP_ROOT, "malformed", "malformed.logo"),
+  });
+  assert.ok(loaded.error);
+  assert.ok(loaded.error.includes('missing required field "source_span"'));
+
+  // Diagnostic missing required field "params"
+  writeFileSync(
+    join(TEMP_ROOT, "malformed", "malformed.expected.json"),
+    JSON.stringify({
+      profiles: [],
+      events: [],
+      diagnostics: [
+        {
+          code: "ol-test",
+          source_span: { document: "test", start: [1, 1], end: [1, 1] },
+        },
+      ],
+    }),
+  );
+  loaded = loadFixture({
+    name: "malformed/malformed.expected.json",
+    expectedPath: join(TEMP_ROOT, "malformed", "malformed.expected.json"),
+    logoPath: join(TEMP_ROOT, "malformed", "malformed.logo"),
+  });
+  assert.ok(loaded.error);
+  assert.ok(loaded.error.includes('missing required field "params"'));
+
+  // Diagnostic missing required field "stage"
+  writeFileSync(
+    join(TEMP_ROOT, "malformed", "malformed.expected.json"),
+    JSON.stringify({
+      profiles: [],
+      events: [],
+      diagnostics: [
+        {
+          code: "ol-test",
+          source_span: { document: "test", start: [1, 1], end: [1, 1] },
+          params: {},
+        },
+      ],
+    }),
+  );
+  loaded = loadFixture({
+    name: "malformed/malformed.expected.json",
+    expectedPath: join(TEMP_ROOT, "malformed", "malformed.expected.json"),
+    logoPath: join(TEMP_ROOT, "malformed", "malformed.logo"),
+  });
+  assert.ok(loaded.error);
+  assert.ok(loaded.error.includes('missing required field "stage"'));
+
+  // Diagnostic missing required field "severity"
+  writeFileSync(
+    join(TEMP_ROOT, "malformed", "malformed.expected.json"),
+    JSON.stringify({
+      profiles: [],
+      events: [],
+      diagnostics: [
+        {
+          code: "ol-test",
+          source_span: { document: "test", start: [1, 1], end: [1, 1] },
+          params: {},
+          stage: "parse",
+        },
+      ],
+    }),
+  );
+  loaded = loadFixture({
+    name: "malformed/malformed.expected.json",
+    expectedPath: join(TEMP_ROOT, "malformed", "malformed.expected.json"),
+    logoPath: join(TEMP_ROOT, "malformed", "malformed.logo"),
+  });
+  assert.ok(loaded.error);
+  assert.ok(loaded.error.includes('missing required field "severity"'));
+
+  // Diagnostic missing required field "message"
+  writeFileSync(
+    join(TEMP_ROOT, "malformed", "malformed.expected.json"),
+    JSON.stringify({
+      profiles: [],
+      events: [],
+      diagnostics: [
+        {
+          code: "ol-test",
+          source_span: { document: "test", start: [1, 1], end: [1, 1] },
+          params: {},
+          stage: "parse",
+          severity: "error",
+        },
+      ],
+    }),
+  );
+  loaded = loadFixture({
+    name: "malformed/malformed.expected.json",
+    expectedPath: join(TEMP_ROOT, "malformed", "malformed.expected.json"),
+    logoPath: join(TEMP_ROOT, "malformed", "malformed.logo"),
+  });
+  assert.ok(loaded.error);
+  assert.ok(loaded.error.includes('missing required field "message"'));
+
+  // Diagnostic missing required field "code" (first check)
+  writeFileSync(
+    join(TEMP_ROOT, "malformed", "malformed.expected.json"),
+    JSON.stringify({
+      profiles: [],
+      events: [],
+      diagnostics: [
+        {
+          source_span: { document: "test", start: [1, 1], end: [1, 1] },
+          params: {},
+          stage: "parse",
+          severity: "error",
+          message: "test",
+        },
+      ],
+    }),
+  );
+  loaded = loadFixture({
+    name: "malformed/malformed.expected.json",
+    expectedPath: join(TEMP_ROOT, "malformed", "malformed.expected.json"),
+    logoPath: join(TEMP_ROOT, "malformed", "malformed.logo"),
+  });
+  assert.ok(loaded.error);
+  assert.ok(loaded.error.includes('missing required field "code"'));
+
   cleanup();
 });
 

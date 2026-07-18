@@ -127,12 +127,46 @@ export function loadFixture(fixture) {
   } catch (err) {
     return { error: `invalid JSON: ${err.message}` };
   }
+  // Validate fixture schema (per spec/error-model.md - reject malformed JSON)
+  if (!Array.isArray(spec.profiles)) {
+    return { error: `"profiles" must be an array` };
+  }
+  if (!Array.isArray(spec.events)) {
+    return { error: `"events" must be an array` };
+  }
+  if (!Array.isArray(spec.diagnostics)) {
+    return { error: `"diagnostics" must be an array` };
+  }
+
+  // Validate each diagnostic has required fields per spec/error-model.md:28-38
+  for (let i = 0; i < spec.diagnostics.length; i++) {
+    const diag = spec.diagnostics[i];
+    if (!diag.code) {
+      return { error: `diagnostic[${i}] missing required field "code"` };
+    }
+    if (!diag.source_span) {
+      return { error: `diagnostic[${i}] missing required field "source_span"` };
+    }
+    if (!diag.params) {
+      return { error: `diagnostic[${i}] missing required field "params"` };
+    }
+    if (!diag.stage) {
+      return { error: `diagnostic[${i}] missing required field "stage"` };
+    }
+    if (!diag.severity) {
+      return { error: `diagnostic[${i}] missing required field "severity"` };
+    }
+    if (!diag.message) {
+      return { error: `diagnostic[${i}] missing required field "message"` };
+    }
+  }
+
   const expected = {
     description: spec.description ?? "",
-    profiles: spec.profiles ?? [],
+    profiles: spec.profiles,
     expect: spec.expect ?? "match",
-    events: spec.events ?? [],
-    diagnostics: spec.diagnostics ?? [],
+    events: spec.events,
+    diagnostics: spec.diagnostics,
   };
 
   // Validate expect field
@@ -178,9 +212,12 @@ export function fixtureErrors(expected) {
  * Note: Parser diagnostics already use `source_span` (underscore), which matches the fixture
  * contract per ADR-0007 and tests/conformance/README.md. Events will use `source-span` (hyphen)
  * when the runtime lands. No conversion needed at this stage.
+ *
+ * @param {string} source - The OpenLogo source code to parse.
+ * @param {string} document - The document identifier (fixture path) for diagnostic source_span.
  */
-export function produce(source, _profiles) {
-  const { diagnostics } = parse(source, "conformance-fixture");
+export function produce(source, document) {
+  const { diagnostics } = parse(source, document);
 
   // Parser diagnostics are already in the correct wire format (source_span with underscore).
   // No events yet — runtime doesn't exist at M1.
@@ -330,7 +367,9 @@ export function runHarness(options = {}) {
       }
     }
 
-    const result = compare(expected, produce(source, expected.profiles));
+    // Document name for parser = fixture path without .expected.json suffix
+    const document = fixture.name.replace(/\.expected\.json$/, "");
+    const result = compare(expected, produce(source, document));
 
     // Use expect field to determine comparison polarity
     const expectMatch = expected.expect === "match";
