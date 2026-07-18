@@ -1,0 +1,20 @@
+{
+  "description": "Calls and arity (issue #63), the #9 callee-span finding: `ol-unknown-command`'s source_span must cover ONLY the callee token `fowad`, not the whole parenthesized call or its argument `100`. `forward` is a Turtle & Rendering primitive not yet registered with the checker at core-language-only (see unknown-command.test.mjs), so `fowad` is unknown with no suggestion.",
+  "profiles": ["core-language"],
+  "check": true,
+  "expect": "match",
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "core-language/calls/unknown-callee-span",
+        "start": [1, 2],
+        "end": [1, 7]
+      },
+      "params": { "name": "fowad" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

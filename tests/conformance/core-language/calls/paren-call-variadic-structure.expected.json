@@ -1,0 +1,7 @@
+{
+  "description": "Calls and arity (issue #63): the parenthesized variadic call form `(print 1 2 3)` gathers every written argument (three, here) rather than being capped at `print`'s bare default arity of one. Parse-structure focused, distinct from the execution-side paren-print fixtures under execution/.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

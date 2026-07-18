@@ -1,0 +1,7 @@
+{
+  "description": "Calls and arity (issue #63): a nested reporter call fills an outer fixed-arity call's argument slot. `power` has default arity 2, so `print power 2 3` reads as `print (power 2 3)` — the outer call gathers exactly one argument, itself a call, rather than three flattened arguments.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}
