@@ -25,11 +25,12 @@ When a dispatched owner reports a PR (they should, if you set `coordinate_with_c
 
 A dispatched slice arrives **already reviewed**: the owner ran `shared/review-gate` in-session and
 attached **all** its non-author verdicts — the **logic/spec reviewer** (`rubber-duck`, or a named
-fallback agent) **plus every** dispatched domain **QA** expert (at least two verdicts total). Your
-job is to **verify** them — all present, all from agents that are **not** the author, each **stamped
-with a head SHA that matches the current PR HEAD** (a commit after a `pass` voids it), and the
-reviewed base is the current `origin/main` tip (if `main` advanced under the branch, have the owner
-rebase and re-review) — plus green CI and a light diff sanity check against `origin/main` (not a
+fallback agent **with the reason it stood in**) **plus every** dispatched domain **QA** expert (at
+least two verdicts total). Your job is to **verify** them — all present, all from agents that are
+**not** the author (if a fallback replaced `rubber-duck`, its identity **and reason** are recorded),
+each **stamped with a head SHA that matches the current PR HEAD** (a commit after a `pass` voids it),
+and the reviewed base is the current `origin/main` tip (if `main` advanced under the branch, have the
+owner rebase and re-review) — plus green CI and a light diff sanity check against `origin/main` (not a
 stale local `main`). Do **not** re-run the whole gate round-by-round.
 
 When **you** authored the change (an _integration_ or governance PR), the same pre-open rule applies
@@ -86,7 +87,7 @@ retargeting re-introduces the abandoned commits. Instead:
 
 ## Checklist (per merged slice)
 
-- [ ] All non-author review-gate verdicts (≥2) recorded on the PR — logic/spec reviewer (`rubber-duck` or a named fallback) + **every** domain QA expert, all ≠ author — each stamped with a SHA matching PR HEAD.
+- [ ] All non-author review-gate verdicts (≥2) recorded on the PR — logic/spec reviewer (`rubber-duck`, or a named fallback **+ reason**) + **every** domain QA expert, all ≠ author — each stamped with a SHA matching PR HEAD.
 - [ ] Merged only after PASS + green CI — delegated authority, never self-attested.
 - [ ] Merge verified via `gh pr view` + `git ls-remote`, not the `--delete-branch` exit code.
 - [ ] Board Status → Done + Agent set; milestone closed when `0 open`.

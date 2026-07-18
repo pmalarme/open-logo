@@ -43,8 +43,9 @@ and merges under maintainer-delegated authority (or a human merges).
 
 This **amends** ADR-0004 in two ways:
 
-- It replaces the fixed three-reviewer list (`rubber-duck` / `code-review` / `@testing`) with
-  `rubber-duck` + a **domain-adaptive QA** expert.
+- It replaces the fixed three-reviewer list (`rubber-duck` / `code-review` / `@testing`) with a
+  **logic/spec reviewer** (`rubber-duck`, or a named non-author fallback) + a **domain-adaptive QA**
+  expert (one or more).
 - It relocates the gate from "orchestrator-run after the PR" to "implementer-run before the PR."
 
 To make this possible, the delivery agents **drop their `tools:` allowlist** (`read/search/edit/
@@ -55,7 +56,7 @@ execute`) so they receive the default toolset, which includes sub-agent dispatch
 
 - One review happens in one session, in a tight fix-and-recheck loop — no round-by-round
   cross-session relay of `block` verdicts.
-- The "implementer is never the sole attester" guarantee is preserved: the two reviewers are **not**
+- The "implementer is never the sole attester" guarantee is preserved: the reviewers are **not**
   the author, and the orchestrator still verifies before merge.
 - QA is now **domain-aware** — the right expert reviews the right change, instead of a fixed list.
 - Delivery agents are no longer tool-restricted; they rely on the team charter + skills for scope

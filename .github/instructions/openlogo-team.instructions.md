@@ -100,8 +100,8 @@ A change is done only when, for the artifacts it touches:
 
 Agents do not self-merge; the implementer's non-author reviewers (at least two) record the pass verdicts, then
 humans and required CI checks (pipelines wired by `@devops`) gate `main` by default. The maintainer
-may delegate merge **execution** to `@orchestrator`, which then does a final verification (both
-non-author verdicts attached, CI green) before merging (`shared/review-gate`, `integrate-and-merge`).
+may delegate merge **execution** to `@orchestrator`, which then does a final verification (all
+non-author verdicts attached — at least two, CI green) before merging (`shared/review-gate`, `integrate-and-merge`).
 The implementer is never the sole attester.
 
 ## 6. Spec fidelity — canonical OpenLogo, not classic Logo

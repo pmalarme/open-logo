@@ -27,16 +27,16 @@ contracts agreed first. You write no feature code — you decompose, dispatch, a
    `open_issue_session` / `create_session` with the issue's **owning custom agent**, `mode:
    autopilot`, and `coordinate_with_creator: true` (set `notify_on_idle`) so it reports its PR back.
    **The kickoff must require in-session self-review** (`shared/review-gate`): before opening the PR
-   the owner dispatches at least two non-author sub-agents — the **logic/spec reviewer** (`rubber-duck`)
+   the owner dispatches at least two non-author sub-agents — the **logic/spec reviewer** (`rubber-duck`, or a named fallback)
    + **every** domain-adaptive **QA** expert (`@testing` and/or the changed area's owner) — and iterates
    on a committed HEAD until **each** returns `pass` on that SHA, then opens an already-green PR with all
    SHA-stamped verdicts attached. **Run the
    session on a Claude or GPT large model** so `rubber-duck` is available; if it is not, the owner
-   substitutes a second non-author domain agent for that review. **Avoid firing uncontrolled cloud agents at parallel
+   substitutes a named second non-author domain agent for that review and records which agent stood in and why. **Avoid firing uncontrolled cloud agents at parallel
    slices:** they are not messageable and branch off each other, which in M0 stacked duplicate PRs
    off abandoned branches. Label issues by agent + profile so tracks pull in parallel.
-6. **Integrate per story** with `integrate-and-merge`: **verify** the owner's two attached non-author
-   verdicts (don't re-run the whole gate round-by-round), merge under delegated authority once CI is
+6. **Integrate per story** with `integrate-and-merge`: **verify** the owner's attached non-author
+   verdicts (≥2 — logic/spec reviewer + every QA expert; don't re-run the whole gate round-by-round), merge under delegated authority once CI is
    green, then reconcile the board/milestone/branches/plan. Hold the **Definition of Done** gate
    (`shared/definition-of-done`); an integration issue closes each milestone once conformance is
    green across all domains.

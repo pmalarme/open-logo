@@ -62,8 +62,9 @@ delivery agents). The agent doing the reviewing is **never the author**:
 
 ## The checklist
 
-`rubber-duck` owns logic, design, and spec-fidelity; the **QA** sub-agent re-proves items (a)–(f)
-below from a clean tree. Together they must clear every item before the PR is opened.
+The **logic/spec reviewer** (`rubber-duck`, or a named fallback) owns logic, design, and
+spec-fidelity; the **QA** sub-agent(s) re-prove items (a)–(f) below from a clean tree. Every
+dispatched reviewer must clear every item before the PR is opened.
 
 ### (a) Clean-tree Definition-of-Done re-run
 

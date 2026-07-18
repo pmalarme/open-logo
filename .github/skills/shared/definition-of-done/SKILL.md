@@ -31,8 +31,9 @@ A change is "done" only when it is proven, documented, and green. This skill is 
 ## Review gate — run it before you open the PR
 
 CI-green plus the author's own attestation is not enough. As the **last step in the implementing
-session**, the author runs [`shared/review-gate`](../review-gate/SKILL.md): it dispatches two
-non-author sub-agents — `rubber-duck` and a domain-adaptive **QA** expert — that between them re-run
+session**, the author runs [`shared/review-gate`](../review-gate/SKILL.md): it dispatches at least two
+non-author sub-agents — the logic/spec reviewer (`rubber-duck`, or a named fallback) and **every**
+domain-adaptive **QA** expert — that between them re-run
 the clean-tree DoD (verifying the build actually **emits** artifacts, not just a `0` exit),
 spec-fidelity, conformance fixtures, runnable examples, a11y/pedagogy, and instructions/skills/docs/
 spec drift. The author iterates until all return `pass`, attaches the verdicts, and opens the PR;
