@@ -1,5 +1,6 @@
-// Unit tests for `highlight()` (issue #119), the grammar-derived LEXICAL first pass of the
-// syntax-highlighting classifier. These are the primary proof of behavior for this slice — the
+// Unit tests for `highlight()` (issues #119 and #120), the grammar-derived syntax-highlighting
+// classifier: #119's lexical first pass plus #120's semantic disambiguation pass (procedure-name,
+// type-name, field-name). These are the primary proof of behavior for this slice — the
 // conformance harness has parse/execute/check modes but not a highlight mode. Coverage mirrors
 // spec/tooling.md's normative token-class table (lines 28-44) and delimiter-role table
 // (lines 71-81):
@@ -9,11 +10,12 @@
 //   * contextual reserved words in/out of `is`-predicate position (spec/tooling.md:96-98);
 //   * comment/string atomicity (spec/tooling.md:25-26);
 //   * negative-literal-as-number merging vs. genuine binary subtraction; and
-//   * the deferred procedure-name/type-name/field-name bucket staying `primitive` for now.
+//   * the semantic bucket (#120): procedure-name (declaration + resolved calls), type-name
+//     (struct declaration + constructor calls), and field-name (field-list declaration + known
+//     `.field` access) — plus graceful degradation to `primitive` for unresolved names.
 //
-// `procedure-name`, `type-name`, and `field-name` are NOT asserted as ever-produced here — #119
-// explicitly defers them to #120 (semantic disambiguation); every name that would eventually
-// carry one of those classes is asserted to be `primitive` today.
+// The dict-*literal* half of `dict-key` (`{ key: value }`) is still deferred to #149: `{ }` has
+// no parser production at all yet, so there is nothing to disambiguate there.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -497,41 +499,153 @@ test("number: binary subtraction with no surrounding spaces is still NOT merged"
   ]);
 });
 
-// --- Deferred bucket: procedure-name/type-name/field-name -> primitive for now (#120) ------
+// --- Semantic bucket: procedure-name/type-name/field-name (#120) --------------------------
 
-test("deferred: a user procedure's declared name is primitive for now, not procedure-name", () => {
+test("procedure-name: a user procedure's declared name classifies as procedure-name", () => {
   const tokens = OL.highlight("define square :n\n  return :n * :n\nend", doc);
   const name = tokens.find((token) => token.text === "square");
-  assert.equal(name.class, "primitive");
+  assert.equal(name.class, "procedure-name");
 });
 
-test("deferred: a user procedure call callee is primitive for now, not procedure-name", () => {
+test("procedure-name: a call resolved to a user procedure classifies as procedure-name", () => {
   const tokens = OL.highlight(
     "define square :n\n  return :n\nend\nsquare 5",
     doc,
   );
   const callee = tokens.filter((token) => token.text === "square").at(-1);
+  assert.equal(callee.class, "procedure-name");
+});
+
+test("procedure-name: a call resolves even when it appears lexically before the definition", () => {
+  const tokens = OL.highlight(
+    "square 5\ndefine square :n\n  return :n\nend",
+    doc,
+  );
+  const [callee, declared] = tokens.filter((token) => token.text === "square");
+  assert.equal(callee.class, "procedure-name");
+  assert.equal(declared.class, "procedure-name");
+});
+
+test("procedure-name: an unresolved call callee stays primitive, not procedure-name", () => {
+  const tokens = OL.highlight("set_xy 1 2", doc);
+  const callee = tokens.find((token) => token.text === "set_xy");
   assert.equal(callee.class, "primitive");
 });
 
-test("deferred: a struct type name is primitive for now, not type-name", () => {
+test("type-name: a struct's declared type name classifies as type-name", () => {
   const tokens = OL.highlight("struct point [ x y ]", doc);
   const typeName = tokens.find((token) => token.text === "point");
-  assert.equal(typeName.class, "primitive");
+  assert.equal(typeName.class, "type-name");
 });
 
-test("deferred: struct field names are primitive for now, not field-name", () => {
+test("type-name: a constructor call resolved to a known struct type classifies as type-name", () => {
+  const tokens = OL.highlight("struct point [ x y ]\npoint 1 2", doc);
+  const callee = tokens.filter((token) => token.text === "point").at(-1);
+  assert.equal(callee.class, "type-name");
+});
+
+test("type-name: a call to an unknown name is not misclassified as type-name", () => {
+  const tokens = OL.highlight("triangle 1 2 3", doc);
+  const callee = tokens.find((token) => token.text === "triangle");
+  assert.equal(callee.class, "primitive");
+});
+
+test("field-name: struct field-list declared names classify as field-name", () => {
   const tokens = OL.highlight("struct point [ x y ]", doc);
   const fieldNames = tokens.filter(
     (token) => token.text === "x" || token.text === "y",
   );
   assert.equal(fieldNames.length, 2);
   for (const field of fieldNames) {
+    assert.equal(field.class, "field-name");
+  }
+});
+
+test("field-name: `.field` access classifies as field-name once the field is known from a struct declaration", () => {
+  const tokens = OL.highlight(
+    "struct point [ x y ]\ndefine move_to_point :p\n  set_xy :p.x :p.y\nend",
+    doc,
+  );
+  const fieldAccesses = tokens.filter(
+    (token) =>
+      token.class === "field-name" &&
+      (token.text === "x" || token.text === "y"),
+  );
+  // Two from the field-list declaration, plus one `.x` and one `.y` access.
+  assert.equal(fieldAccesses.length, 4);
+});
+
+test("field-name: an unknown `.field` access is not misclassified as field-name", () => {
+  const tokens = OL.highlight("print :thing.unknown_field", doc);
+  const field = tokens.find((token) => token.text === "unknown_field");
+  assert.equal(field.class, "primitive");
+});
+
+test("field-name: a reserved-word-spelled field is field-name, not keyword", () => {
+  const tokens = OL.highlight("struct box [ repeat ]\nprint :b.repeat", doc);
+  const fields = tokens.filter((token) => token.text === "repeat");
+  assert.equal(fields.length, 2);
+  for (const field of fields) {
+    assert.equal(field.class, "field-name");
+  }
+});
+
+test("semantic: the spec's worked example disambiguates every identifier as documented (spec/tooling.md's Disambiguating identifiers)", () => {
+  const source =
+    "struct point [ x y ]\n" +
+    "define move_to_point :p\n" +
+    "  set_xy :p.x :p.y\n" +
+    "end";
+  const tokens = OL.highlight(source, doc);
+  const classOf = (text, occurrence = 0) =>
+    tokens.filter((token) => token.text === text)[occurrence].class;
+  assert.equal(classOf("struct"), "keyword");
+  assert.equal(classOf("define"), "keyword");
+  assert.equal(classOf("end"), "keyword");
+  assert.equal(classOf("point"), "type-name");
+  assert.equal(classOf("move_to_point"), "procedure-name");
+  assert.equal(classOf("set_xy"), "primitive");
+  assert.equal(classOf("x", 0), "field-name"); // field-list declaration
+  assert.equal(classOf("y", 0), "field-name"); // field-list declaration
+  assert.equal(classOf("x", 1), "field-name"); // `.x` access
+  assert.equal(classOf("y", 1), "field-name"); // `.y` access
+});
+
+test("semantic: malformed/unclosed struct input does not throw and still degrades gracefully", () => {
+  assert.doesNotThrow(() => OL.highlight("struct point [ x y", doc));
+  const tokens = OL.highlight("struct point [ x y", doc);
+  // The type name itself needs no closed bracket to resolve (it is discovered from
+  // `struct <name> [`, before the bracket's matching close is even sought), so `point` still
+  // classifies as type-name. Its fields, however, are gathered only up to a resolved close
+  // index — the unclosed bracket never yields one, so `x`/`y` are deferred rather than guessed
+  // at, staying `primitive` per the never-misclassify graceful-degradation contract.
+  const typeName = tokens.find((token) => token.text === "point");
+  assert.equal(typeName.class, "type-name");
+  const fields = tokens.filter(
+    (token) => token.text === "x" || token.text === "y",
+  );
+  for (const field of fields) {
     assert.equal(field.class, "primitive");
   }
 });
 
-test("deferred: OL_TOKEN_CLASSES still lists procedure-name/type-name/field-name for the shared vocabulary, even though #119 never emits them", () => {
+test("semantic: a nested bracket inside a field-list is depth-tracked, not swept up as a bogus field", () => {
+  const tokens = OL.highlight("struct p [ x [ y ] z ]", doc);
+  const nested = tokens.find((token) => token.text === "y");
+  // `y` sits inside the nested `[ … ]`, which is not part of the normative field-list grammar
+  // (bare names only) — it must not become field-name just because it's textually between the
+  // outer struct brackets.
+  assert.notEqual(nested.class, "field-name");
+  const outerFields = tokens.filter(
+    (token) => token.text === "x" || token.text === "z",
+  );
+  assert.equal(outerFields.length, 2);
+  for (const field of outerFields) {
+    assert.equal(field.class, "field-name");
+  }
+});
+
+test("OL_TOKEN_CLASSES lists procedure-name/type-name/field-name for the shared vocabulary", () => {
   assert.ok(OL.OL_TOKEN_CLASSES.includes("procedure-name"));
   assert.ok(OL.OL_TOKEN_CLASSES.includes("type-name"));
   assert.ok(OL.OL_TOKEN_CLASSES.includes("field-name"));
