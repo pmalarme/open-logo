@@ -1,0 +1,7 @@
+print 42
+print -7
+print 3.14
+print -0.5
+print 2e3
+print 1.5e-2
+print -1e2

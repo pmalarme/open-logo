@@ -1,0 +1,5 @@
+:poem = """
+    Hello
+  World
+"""
+print :poem

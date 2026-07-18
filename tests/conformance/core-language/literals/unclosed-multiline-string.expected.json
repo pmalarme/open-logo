@@ -1,0 +1,25 @@
+{
+  "description": "A triple-quoted word literal that reaches end of file before its closing \"\"\" raises ol-unclosed-string with the wider (+3) span variant, anchored at the opening delimiter",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unclosed-string",
+      "source_span": {
+        "document": "core-language/literals/unclosed-multiline-string",
+        "start": [1, 7],
+        "end": [1, 10]
+      },
+      "params": {
+        "opened_at": {
+          "document": "core-language/literals/unclosed-multiline-string",
+          "start": [1, 7],
+          "end": [1, 10]
+        }
+      },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "description": "An escaped quote (\\\") does not close a single-line word literal; the string still reaches the newline unclosed and raises ol-unclosed-string, anchored at the opening quote",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unclosed-string",
+      "source_span": {
+        "document": "core-language/literals/unclosed-string-with-escape",
+        "start": [1, 7],
+        "end": [1, 8]
+      },
+      "params": {
+        "opened_at": {
+          "document": "core-language/literals/unclosed-string-with-escape",
+          "start": [1, 7],
+          "end": [1, 8]
+        }
+      },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}
