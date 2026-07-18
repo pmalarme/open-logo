@@ -1,0 +1,7 @@
+{
+  "description": "The is-predicate's contextual keywords (empty, member, of, a) are not globally reserved, so they parse as an ordinary variable read, call name, and assignment target with no diagnostics when not immediately following `is`.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

@@ -1,0 +1,7 @@
+# All four Core worded is-predicate forms (spec/grammar.md:181-184), each a lone comparison-level
+# expression so it stays a single IsPredicate node. Operand-first, matching the grammar.
+print :x is empty
+print :x is member of [1 2 3]
+print :x is a "number"
+print :x is between 1 and 10
+print :x is strictly between 1 and 10

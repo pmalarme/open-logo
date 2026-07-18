@@ -1,0 +1,6 @@
+# An is-predicate is usable anywhere a comparison-level expression is: as an `if` condition, as
+# the value of a `:place = value` assignment, and combined with `and` (spec/grammar.md:230 —
+# the predicate sits at the comparison level, tighter than `and`/`or`).
+if :x is empty [ print "yes" ]
+:result = :x is member of [1 2 3]
+print (5 is between 1 and 10) and (5 is a "number")

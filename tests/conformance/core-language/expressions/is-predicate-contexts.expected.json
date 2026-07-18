@@ -1,0 +1,7 @@
+{
+  "description": "A worded is-predicate parses as an `if` condition, as an assignment value, and combined with `and` across two parenthesized predicates, with no diagnostics.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

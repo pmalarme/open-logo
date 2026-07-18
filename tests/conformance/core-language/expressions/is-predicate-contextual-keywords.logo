@@ -1,0 +1,8 @@
+# The contextual keywords `empty`, `member`, `of`, and `a` are recognized as predicate words only
+# immediately after `is` (spec/grammar.md:230); elsewhere they remain ordinary names. None of them
+# are in the reserved-word set, so they are usable as a variable name, a call name, or an
+# assignment target with no diagnostics.
+print :empty
+print member
+print of
+:a = 5

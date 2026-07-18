@@ -1,0 +1,3 @@
+# `is` followed by a word that is not one of the four recognized predicate forms (empty, member,
+# a, [strictly] between) is unreadable at that point and raises `ol-bad-token`.
+print :x is wibble
