@@ -1,5 +1,5 @@
 {
-  "description": "Ordering two words compares them lexicographically by Unicode code point (spec/execution-model.md:509): `\"apple\" < \"banana\"` is `true`. Issue #96.",
+  "description": "`print` of a boolean literal (issue #98) carries the raw `true`/`false` value on the `print` trace event.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [
@@ -7,9 +7,9 @@
       "seq": 0,
       "kind": "instruction",
       "source_span": {
-        "document": "core-language/execution/compare-word-lex",
+        "document": "core-language/execution/print-boolean",
         "start": [1, 1],
-        "end": [1, 25]
+        "end": [1, 11]
       },
       "payload": { "statement_kind": "Call" }
     },
@@ -17,9 +17,9 @@
       "seq": 1,
       "kind": "print",
       "source_span": {
-        "document": "core-language/execution/compare-word-lex",
+        "document": "core-language/execution/print-boolean",
         "start": [1, 1],
-        "end": [1, 25]
+        "end": [1, 11]
       },
       "payload": { "values": [true] }
     }

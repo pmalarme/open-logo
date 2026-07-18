@@ -21,7 +21,7 @@
         "start": [1, 1],
         "end": [1, 16]
       },
-      "payload": { "value": false }
+      "payload": { "values": [false] }
     }
   ],
   "diagnostics": []

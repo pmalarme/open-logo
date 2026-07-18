@@ -6,27 +6,33 @@
  * {@link execute} is the foundational execution entry point (issue #90): it parses a source
  * document and walks the program's top-level statements, emitting one `instruction` start event
  * per statement (`spec/execution-model.md:559-600` — the `instruction` event is the unit of
- * "one step"). Issue #93 gives Core literals and arithmetic (`+ - * / mod` plus
- * `abs sqrt int round power`) a runtime value via {@link evaluate} and adds the minimal `print`
- * event: when a `print value` statement's argument evaluates cleanly, its value is carried on a
- * `print` event emitted right after that statement's `instruction` event. Full `print` semantics
- * (multiple operands, formatting, newlines) is issue #98, extending the handler below. Variables,
- * control flow, procedures, and comprehensions land one vertical slice at a time (issues
- * #94-#105), each adding its own statement handling and, where the spec calls for it, runtime
- * `ol-*` diagnostics.
+ * "one step"). Issue #93 gave Core literals and arithmetic (`+ - * / mod` plus
+ * `abs sqrt int round power`) a runtime value via {@link evaluate} and added a minimal `print`
+ * event. Issue #98 completes `print`: the single-value `print value` form and the parenthesized
+ * variadic `(print a b …)` form (`spec/commands.md:142-158`) both evaluate every operand, in
+ * order, and — once all of them evaluate cleanly — emit one `print` event carrying every value
+ * (`PrintPayload.values`) right after that statement's `instruction` event. Variables, control
+ * flow, procedures, and comprehensions land one vertical slice at a time (issues #94-#105), each
+ * adding its own statement handling and, where the spec calls for it, runtime `ol-*` diagnostics.
  */
 
-import type { Diagnostic, PrintPayload, TraceEvent } from "@openlogo/core";
 import type {
-  CallNode,
-  ExpressionNode,
-  ParenCallNode,
-  StatementNode,
-} from "@openlogo/parser";
+  Diagnostic,
+  OLValue,
+  PrintPayload,
+  TraceEvent,
+} from "@openlogo/core";
+import type { CallNode, ParenCallNode, StatementNode } from "@openlogo/parser";
 import { parse } from "@openlogo/parser";
 import { evaluate, isSupportedExpression } from "./evaluate.js";
 
-export { evaluate, isSupportedExpression, valuesEqual } from "./evaluate.js";
+export {
+  evaluate,
+  formatNumber,
+  isSupportedExpression,
+  printedForm,
+  valuesEqual,
+} from "./evaluate.js";
 export type { EvalResult } from "./evaluate.js";
 
 /** Marker export so the M0 skeleton is a real ES module; kept alongside the real exports. */
@@ -48,10 +54,11 @@ export interface ExecuteResult {
 }
 
 /**
- * Is `statement` a single-argument `print value` call (the multi-value form is issue #98)?
- * Accepts both the plain infix `Call` form (`print 1`) and the explicit-parentheses `ParenCall`
- * form (`(print 1)`) — both share the same callee/args shape (see `evaluate.ts`'s
- * `ArithmeticCallNode`).
+ * Is `statement` a `print` call — the single-value `print value` form or the parenthesized
+ * variadic `(print a b …)` form (`spec/commands.md:142-158`, at least one argument either way;
+ * the reader/checker already reject a zero-argument `print`)? Accepts both the plain infix
+ * `Call` form (`print 1`) and the explicit-parentheses `ParenCall` form (`(print 1 2)`) — both
+ * share the same callee/args shape (see `evaluate.ts`'s `ArithmeticCallNode`).
  */
 function isPrintCall(
   statement: StatementNode,
@@ -59,7 +66,7 @@ function isPrintCall(
   return (
     (statement.kind === "Call" || statement.kind === "ParenCall") &&
     statement.callee.name.toLowerCase() === "print" &&
-    statement.args.length === 1
+    statement.args.length >= 1
   );
 }
 
@@ -69,15 +76,18 @@ function isPrintCall(
  * program is not execution-valid, so no events are emitted and the parse diagnostics are
  * returned unchanged.
  *
- * A `print value` statement additionally evaluates `value` and, if that succeeds, emits a
- * `print` event carrying the result — but only when {@link isSupportedExpression} says this
- * issue's evaluator gives `value` a value; otherwise the argument is left un-evaluated for its
- * own future slice. If evaluation raises a runtime diagnostic (`ol-div-zero`, `ol-neg-sqrt`,
- * `ol-type`), execution stops there: the events emitted so far are kept and the diagnostic is
- * returned, exactly as a parse-stage failure returns diagnostics instead of a trace. Statement
- * kinds this issue does not give meaning to (e.g. a bare arithmetic expression, or any command
- * other than `print`) still emit their `instruction` event but do not evaluate — that is each
- * statement kind's own future slice to add.
+ * A `print` statement (`print value` or the parenthesized variadic `(print a b …)`) additionally
+ * evaluates every operand, left to right, and — once all of them evaluate cleanly — emits a
+ * `print` event carrying every value, but only when {@link isSupportedExpression} says this
+ * issue's evaluator gives *each* operand a value; otherwise the whole statement is left
+ * un-evaluated for a future slice (e.g. `print :x` — variable reads land with issue #94). If
+ * evaluating an operand raises a runtime diagnostic (`ol-div-zero`, `ol-neg-sqrt`, `ol-type`),
+ * execution stops there: the events emitted so far are kept and the diagnostic is returned,
+ * exactly as a parse-stage failure returns diagnostics instead of a trace — later operands of
+ * that same `print` are never evaluated. Statement kinds this issue does not give meaning to
+ * (e.g. a bare arithmetic expression, or any command other than `print`) still emit their
+ * `instruction` event but do not evaluate — that is each statement kind's own future slice to
+ * add.
  */
 export function execute(source: string, document: string): ExecuteResult {
   const { ast: program, diagnostics } = parse(source, document);
@@ -95,23 +105,29 @@ export function execute(source: string, document: string): ExecuteResult {
     });
 
     if (isPrintCall(statement)) {
-      // `isPrintCall` already checked `args.length === 1`, so this index is always present —
-      // a non-null assertion here (rather than a defensive branch) avoids an untestable
-      // unreachable-code path under the 100%-coverage gate.
-      const value = statement.args[0] as ExpressionNode;
-      // Only evaluate arguments this issue's evaluator gives meaning to (Core literals and
-      // arithmetic). `print :x`, `print (:a == :b)`, and similar still emit their `instruction`
-      // event but are left un-evaluated for the slice that implements that expression kind.
-      if (isSupportedExpression(value)) {
-        const result = evaluate(value);
-        if (!result.ok) {
-          return { events, diagnostics: [result.diagnostic] };
+      // Only evaluate a `print` whose every operand is an expression kind this issue's
+      // evaluator gives meaning to (Core literals and arithmetic). `print :x`,
+      // `(print 1 :a)`, and similar still emit their `instruction` event but are left
+      // un-evaluated for the slice that implements the unsupported operand's expression kind.
+      if (statement.args.every(isSupportedExpression)) {
+        const values: OLValue[] = [];
+        let failure: Diagnostic | undefined;
+        for (const arg of statement.args) {
+          const result = evaluate(arg);
+          if (!result.ok) {
+            failure = result.diagnostic;
+            break;
+          }
+          values.push(result.value);
+        }
+        if (failure) {
+          return { events, diagnostics: [failure] };
         }
         events.push({
           seq: events.length,
           kind: "print",
           source_span: statement.source_span,
-          payload: { value: result.value } satisfies PrintPayload,
+          payload: { values } satisfies PrintPayload,
         });
       }
     }

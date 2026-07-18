@@ -1252,7 +1252,7 @@ test("runHarness runs an opted-in execution fixture end to end", () => {
             start: [1, 1],
             end: [1, 8],
           },
-          payload: { value: 1 },
+          payload: { values: [1] },
         },
         {
           seq: 2,
@@ -1272,7 +1272,7 @@ test("runHarness runs an opted-in execution fixture end to end", () => {
             start: [2, 1],
             end: [2, 8],
           },
-          payload: { value: 2 },
+          payload: { values: [2] },
         },
       ],
       diagnostics: [],

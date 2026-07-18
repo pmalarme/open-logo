@@ -1,5 +1,5 @@
 {
-  "description": "The explicit-parentheses command form `(print value)` (issue #93) is handled identically to the plain infix form `print value`: it parses as a top-level `ParenCall` node (not `Call`), and its argument still evaluates and reaches a `print` trace event: 1 + 2 = 3.",
+  "description": "The explicit-parentheses command form `(print value)` (issue #93) is handled identically to the plain infix form `print value`: it parses as a top-level `ParenCall` node (not `Call`), and its argument still evaluates and reaches a `print` trace event carrying the value in `values` (issue #98's variadic-ready payload shape): 1 + 2 = 3.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [
@@ -21,7 +21,7 @@
         "start": [1, 1],
         "end": [1, 14]
       },
-      "payload": { "value": 3 }
+      "payload": { "values": [3] }
     }
   ],
   "diagnostics": []
