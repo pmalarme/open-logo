@@ -68,11 +68,8 @@ Ship the harness (`scripts/conformance.mjs`) with real mechanics and a placehold
   self-test, exit 0; a real mismatch (or off-contract fixture) exits non-zero with the offending
   `seq`/`code` and a diff.
 - `@testing` extends the corpus as features land by swapping `produce()` for a runtime call and adding
-  positive + negative fixtures per behaviour; the harness itself should not need to change.
-  
-  **Update (ADR-0010, 2026-07-18):** `produce()` now calls the real `@openlogo/parser`. The corpus
-  has grown to 3 parser fixtures (assign-and-print, empty-program, unterminated-string) plus 1
-  mismatch self-test, total 4 passed.
+  positive + negative fixtures per behaviour; the harness itself should not need to change. (Decision
+  #2 superseded by ADR-0010, 2026-07-18.)
 - The `expect: "mismatch"` convention is harness-specific; real behavioural fixtures never use it. A
   future fuzz/stability layer (per `testing/ci-and-conformance`) builds on this runner.
 - The harness stays `.mjs` alongside the other gate scripts; if `@testing` later prefers a typed
