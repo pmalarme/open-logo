@@ -1,0 +1,28 @@
+{
+  "description": "`(or false true :missing)` — the parenthesized variadic form — left-associates and short-circuits exactly like the infix form: it stops at the second (`true`) operand, so `:missing` is never evaluated and no `ol-undefined-var` fires. Issue #95.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/logical-or-variadic-short-circuit",
+        "start": [1, 1],
+        "end": [1, 31]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/logical-or-variadic-short-circuit",
+        "start": [1, 1],
+        "end": [1, 31]
+      },
+      "payload": { "values": [true] }
+    }
+  ],
+  "diagnostics": []
+}

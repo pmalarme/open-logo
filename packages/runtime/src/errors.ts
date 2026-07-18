@@ -10,7 +10,8 @@
  * the same name from issue #113, at `stage: "runtime"` since `execute()` never runs `check()`),
  * `ol-range` (a list index outside `1..length`), and a reuse of `ol-type` for a non-list base or
  * non-number key on a postfix index selector (`spec/error-model.md:99` calls out "list indexing
- * with a non-number key" as `ol-type`, not `ol-range`).
+ * with a non-number key" as `ol-type`, not `ol-range`). Issue #95 adds `ol-not-boolean` for a
+ * `not`/`and`/`or` operand that is not `true`/`false` — there is no truthiness.
  * Mirrors the parser's `errors.ts` pattern: every finding is a stable code from the
  * `@openlogo/core` registry with structured `params` (the diagnostic identity) plus warm,
  * lowercase learner prose derived from them — prose is presentation only.
@@ -74,22 +75,38 @@ export interface IndexRangeParams {
   readonly length: number;
 }
 
+/**
+ * Params for `ol-not-boolean`: a `not`/`and`/`or` operand (or any other boolean-only condition)
+ * was not `true`/`false` (`spec/error-model.md:121`). There is no truthiness — a number, word, or
+ * list operand is never coerced, regardless of how "truthy" it might look.
+ */
+export interface NotBooleanErrorParams {
+  readonly actual: string;
+  readonly operation: string;
+}
+
 /** Runtime-stage diagnostics, one builder per `ol-*` code the evaluator can raise. */
 export const runtimeDiag = {
   /**
-   * `ol-not-enough-inputs` for the one arity gap the static checker's `arityRule` cannot itself
+   * `ol-not-enough-inputs` for the arity gaps the static checker's `arityRule` cannot itself
    * catch: a parenthesized open-variadic primitive (`(print)`, whose arity ceiling is `Infinity`)
-   * supplied zero arguments. `execute()` runs `parse()` only, not the semantic checker, so this
-   * is also the sole guard against a bare zero-argument call (`print`) reaching evaluation.
-   * Scoped to `print`'s current minimum of one argument — the only case this issue's evaluator
-   * needs — rather than a general arity-message builder no caller yet uses.
+   * or a parenthesized `and`/`or` (`(and)`, `(and :a)`) supplied fewer than its required minimum
+   * (`checker-arity.ts` never arity-checks a grammar operator callee, since bare `and`/`or` can
+   * only ever have exactly two operands from the grammar itself — only the parenthesized form
+   * can under-supply). `execute()` runs `parse()` only, not the semantic checker, so this is also
+   * the sole guard against a too-few call reaching evaluation at all.
    */
-  notEnoughInputs(source_span: SourceSpan, callable: string): Diagnostic {
+  notEnoughInputs(
+    source_span: SourceSpan,
+    callable: string,
+    expected: number,
+    actual: number,
+  ): Diagnostic {
     return runtimeError(
       "ol-not-enough-inputs",
       source_span,
-      { callable, expected: 1, actual: 0 },
-      `${callable} needs one input.`,
+      { callable, expected, actual },
+      `${callable} needs ${expected === 1 ? "one input" : `${expected} inputs`}, but got ${actual}.`,
     );
   },
 
@@ -185,6 +202,22 @@ export const runtimeDiag = {
       source_span,
       { ...params },
       `${params.operation} needs a ${params.expected}, but got a ${params.actual}.`,
+    );
+  },
+
+  /**
+   * `ol-not-boolean`: a `not`/`and`/`or` operand was not `true`/`false`. There is no truthiness
+   * (`spec/error-model.md:121`) — a number, word, or list operand never coerces.
+   */
+  notBoolean(
+    source_span: SourceSpan,
+    params: NotBooleanErrorParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-not-boolean",
+      source_span,
+      { ...params },
+      `${params.operation} needs a boolean (true or false), but got a ${params.actual}.`,
     );
   },
 } as const;

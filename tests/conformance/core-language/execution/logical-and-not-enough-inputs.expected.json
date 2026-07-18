@@ -1,0 +1,30 @@
+{
+  "description": "`(and)` — the parenthesized variadic form with zero operands — parses clean (the grammar imposes no minimum, and the static checker never arity-checks a grammar operator callee) but the runtime raises `ol-not-enough-inputs` rather than silently reporting the vacuous identity value `true`. Issue #95.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/logical-and-not-enough-inputs",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-not-enough-inputs",
+      "source_span": {
+        "document": "core-language/execution/logical-and-not-enough-inputs",
+        "start": [1, 8],
+        "end": [1, 11]
+      },
+      "params": { "callable": "and", "expected": 2, "actual": 0 },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}
