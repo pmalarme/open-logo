@@ -6,11 +6,11 @@ test("RUNTIME_PACKAGE marker export is still present", () => {
   assert.equal(RUNTIME_PACKAGE, "@openlogo/runtime");
 });
 
-test("execute emits one instruction event per top-level statement", () => {
+test("execute emits an instruction event, then a print event, per print statement", () => {
   const result = execute("print 1\nprint 2", "main.logo");
 
   assert.equal(result.diagnostics.length, 0);
-  assert.equal(result.events.length, 2);
+  assert.equal(result.events.length, 4);
 
   assert.deepEqual(result.events[0], {
     seq: 0,
@@ -22,8 +22,28 @@ test("execute emits one instruction event per top-level statement", () => {
     },
     payload: { statement_kind: "Call" },
   });
-  assert.deepEqual(result.events[1].payload, { statement_kind: "Call" });
-  assert.equal(result.events[1].seq, 1);
+  assert.deepEqual(result.events[1], {
+    seq: 1,
+    kind: "print",
+    source_span: {
+      document: "main.logo",
+      start: [1, 1],
+      end: [1, 8],
+    },
+    payload: { value: 1 },
+  });
+  assert.deepEqual(result.events[2].payload, { statement_kind: "Call" });
+  assert.equal(result.events[2].seq, 2);
+  assert.deepEqual(result.events[3], {
+    seq: 3,
+    kind: "print",
+    source_span: {
+      document: "main.logo",
+      start: [2, 1],
+      end: [2, 8],
+    },
+    payload: { value: 2 },
+  });
 });
 
 test("execute emits no events for an empty program", () => {
@@ -55,4 +75,38 @@ test("execute assigns a monotonic seq starting at 0 across statement kinds", () 
     result.events.map((event) => event.payload.statement_kind),
     ["Assign", "Call", "Repeat"],
   );
+});
+
+test("execute evaluates an arithmetic print argument, per issue #93", () => {
+  const result = execute("print 2 + 3 * 4", "main.logo");
+  assert.equal(result.diagnostics.length, 0);
+  assert.equal(result.events.length, 2);
+  assert.equal(result.events[0].kind, "instruction");
+  assert.deepEqual(result.events[1], {
+    seq: 1,
+    kind: "print",
+    source_span: result.events[0].source_span,
+    payload: { value: 14 },
+  });
+});
+
+test("execute stops and returns the diagnostic when a print argument fails to evaluate", () => {
+  const result = execute("print 1\nprint 1 / 0\nprint 3", "main.logo");
+  // The first print's instruction + print events are kept; the second statement's instruction
+  // event is kept too (it always runs before its argument is evaluated), but evaluation halts
+  // there — no third print event, no third statement's events, and the diagnostic is returned.
+  assert.equal(result.events.length, 3);
+  assert.deepEqual(
+    result.events.map((event) => event.kind),
+    ["instruction", "print", "instruction"],
+  );
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-div-zero");
+});
+
+test("execute leaves an unsupported print argument un-evaluated, emitting no print event", () => {
+  const result = execute("print :x", "main.logo");
+  assert.equal(result.diagnostics.length, 0);
+  assert.equal(result.events.length, 1);
+  assert.equal(result.events[0].kind, "instruction");
 });

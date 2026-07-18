@@ -1,0 +1,30 @@
+{
+  "description": "`mod` by zero also raises `ol-div-zero` (with `operation: \"mod\"`), matching `/`'s treatment of division by zero per spec/error-model.md, per issue #93.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/mod-by-zero",
+        "start": [1, 1],
+        "end": [1, 14]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-div-zero",
+      "source_span": {
+        "document": "core-language/execution/mod-by-zero",
+        "start": [1, 7],
+        "end": [1, 14]
+      },
+      "params": { "operation": "mod" },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

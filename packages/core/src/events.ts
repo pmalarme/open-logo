@@ -8,6 +8,7 @@
  */
 
 import type { SourceSpan } from "./spans.js";
+import type { OLValue } from "./values.js";
 
 /** A 2-D point `[x, y]` in turtle space. */
 export type Point = readonly [x: number, y: number];
@@ -74,6 +75,15 @@ export interface TurnPayload {
 /** Payload for a `clear` event. */
 export interface ClearPayload {
   readonly mode: "clear_screen" | "clean";
+}
+
+/**
+ * Payload for a `print` event: the evaluated {@link OLValue}. This is the minimal shape for
+ * issue #93 (one value, from `print value`); the multi-value `(print :a :b)` form and
+ * value-specific formatting/newline semantics are issue #98's `print` slice.
+ */
+export interface PrintPayload {
+  readonly value: OLValue;
 }
 
 /**

@@ -1,0 +1,35 @@
+{
+  "description": "A non-number operand to `+` raises `ol-type` (expected concept \"number\"), carrying the offending `value`, its `actual` type name, and the `operation`, per issue #93 and spec/error-model.md.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/arithmetic-type-error",
+        "start": [1, 1],
+        "end": [1, 15]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "core-language/execution/arithmetic-type-error",
+        "start": [1, 7],
+        "end": [1, 11]
+      },
+      "params": {
+        "expected": "number",
+        "actual": "boolean",
+        "value": true,
+        "operation": "+"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "description": "Arithmetic reaches `print` end to end (issue #93): a precedence chain mixing `+ - * / mod` evaluates left-to-right within each tier (`*`/`/`/`mod` bind tighter than `+`/`-`) and its value is carried on the `print` trace event: 2 + (3*4) - ((6/2) mod 4) = 2 + 12 - 3 = 11.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/arithmetic-precedence-print",
+        "start": [1, 1],
+        "end": [1, 30]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/arithmetic-precedence-print",
+        "start": [1, 1],
+        "end": [1, 30]
+      },
+      "payload": { "value": 11 }
+    }
+  ],
+  "diagnostics": []
+}
