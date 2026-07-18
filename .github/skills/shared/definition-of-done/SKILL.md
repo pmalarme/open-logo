@@ -19,7 +19,10 @@ A change is "done" only when it is proven, documented, and green. This skill is 
 3. **Unit tests pass** for the changed package(s).
 4. **Test coverage is 100%** — line, branch, and function coverage (`npm run coverage`; only files
    loaded by tests are counted, so stub packages with no runtime yet don't drag the number down —
-   but any shipped code must be fully covered).
+   but any shipped code must be fully covered). **Verify on Node 22** (the version in `.nvmrc` that
+   CI pins; `nvm use` before running): Node 22's `--experimental-test-coverage` counts `*.test.mjs`
+   files toward the gate while Node 24+ excludes them, so a newer Node can report a false-green that
+   CI then fails.
 5. **Conformance fixtures pass** and were extended for the new/changed behavior
    (`shared/conformance-fixture`).
 6. **Runnable examples still run** — `spec/examples/*.logo` and doc snippets parse and execute.

@@ -88,7 +88,11 @@ in [`.github/ISSUE_TEMPLATE/`](.github/ISSUE_TEMPLATE) (labels come from
 
 ## Build & test
 
-The workspace uses **npm workspaces** (Node `>=22`). From the repo root:
+The workspace uses **npm workspaces** (Node `>=22`). Develop on **Node 22** — the version in
+[`.nvmrc`](.nvmrc) and the one CI pins — so local results match CI (`nvm use` reads `.nvmrc`).
+This matters most for `npm run coverage`: Node 22's `--experimental-test-coverage` **counts**
+`*.test.mjs` files toward the 100% gate, while Node 24+ silently **excludes** them, so a newer Node
+can report a false-green that CI (Node 22) then fails. From the repo root:
 
 ```bash
 npm ci               # restore the workspace from the committed lockfile
@@ -97,15 +101,16 @@ npm run typecheck    # tsc -b type-check
 npm run lint         # Biome
 npm run format:check # Prettier
 npm run test         # node:test
+npm run coverage     # node:test 100% line/branch/function gate — verify on Node 22 (see .nvmrc)
 npm run conformance  # stack-neutral fixtures (placeholder until issue #6)
 npm run examples     # verify every spec/examples/*.logo is present and non-empty
 ```
 
-These seven scripts are the CI-enforced Definition of Done; see
+These eight scripts are the CI-enforced Definition of Done; see
 [`docs/adr/0005-toolchain.md`](docs/adr/0005-toolchain.md) for why each tool was chosen (npm
-workspaces, `tsc -b`, Prettier, Biome, `node:test`) and the `typescript-eslint`/Vitest traps it
-avoids. Work in small, reviewable PRs and keep this file and the ADRs in sync as the toolchain
-evolves.
+workspaces, `tsc -b`, Prettier, Biome, `node:test`), why coverage is pinned to Node 22, and the
+`typescript-eslint`/Vitest traps it avoids. Work in small, reviewable PRs and keep this file and the
+ADRs in sync as the toolchain evolves.
 
 ## The agent team
 
