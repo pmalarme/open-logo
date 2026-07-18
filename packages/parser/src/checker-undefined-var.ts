@@ -47,6 +47,7 @@
 import type { Diagnostic } from "@openlogo/core";
 import type {
   AnyNode,
+  Binder,
   CallNode,
   ExpressionNode,
   ParenCallNode,
@@ -57,6 +58,18 @@ import type {
 } from "./ast.js";
 import { childrenOf } from "./ast.js";
 import type { CheckProfile } from "./check.js";
+
+/**
+ * The lowercase name(s) a `for … in` binder introduces: one for a bare `name`, or one per
+ * `:name` in a destructuring `[ :x :y ]` pattern (`spec/grammar.md:136-137`). Resolving which
+ * destructured name a given read maps to is out of scope here (#114); every destructured name
+ * is simply visible throughout the loop body, same as today's single bare-name binder.
+ */
+function binderNames(binder: Binder): string[] {
+  return "kind" in binder
+    ? binder.names.map((name) => name.name.toLowerCase())
+    : [binder.name.toLowerCase()];
+}
 
 /**
  * The scope chain in effect at a point in the program: the enclosing procedure's own frame (its
@@ -192,7 +205,7 @@ function collectGlobalsIn(
     }
     case "ForIn": {
       collectGlobalsIn(node.iterable, ctx, globals);
-      const binder = new Set([node.binder.name.toLowerCase()]);
+      const binder = new Set(binderNames(node.binder));
       collectGlobalsIn(node.body, pushBinder(ctx, binder), globals);
       return;
     }
@@ -352,7 +365,7 @@ function checkReadsIn(
     }
     case "ForIn": {
       checkReadsIn(node.iterable, ctx, globals, diagnostics);
-      const binder = new Set([node.binder.name.toLowerCase()]);
+      const binder = new Set(binderNames(node.binder));
       checkReadsIn(node.body, pushBinder(ctx, binder), globals, diagnostics);
       return;
     }

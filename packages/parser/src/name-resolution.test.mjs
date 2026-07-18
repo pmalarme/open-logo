@@ -346,6 +346,31 @@ test("a for binder is invisible after its own loop body ends (no scope leakage p
   assert.deepEqual(findings[0].params, { name: "i" });
 });
 
+// Issue #91: a destructuring `for [:x :y] in …` binder introduces every named binder as a
+// declaration within its body, same as a bare-name binder — and none of them leak past the end.
+test("a destructuring for-in binder's names are all declarations, never flagged, within the body", () => {
+  const source = [
+    "for [:x :y] in [1 2 3]",
+    "  print :x",
+    "  print :y",
+    "end",
+    "",
+  ].join("\n");
+  assert.deepEqual(checkSource(source).filter(isUndefinedVar), []);
+});
+
+test("a destructuring for-in binder's names are invisible after the loop body ends (no scope leakage)", () => {
+  const diagnostics = checkSource(
+    "for [:x :y] in [1 2 3]\n  print :x\nend\nprint :x\nprint :y\n",
+  );
+  const findings = diagnostics.filter(isUndefinedVar);
+  assert.equal(findings.length, 2);
+  assert.deepEqual(
+    findings.map((f) => f.params),
+    [{ name: "x" }, { name: "y" }],
+  );
+});
+
 test("a reduce comprehension's accumulator binder is invisible after its own body ends", () => {
   const diagnostics = checkSource(
     ":total = reduce sum n in [1 2 3] from 0 [ :sum + :n ]\nprint :sum\n",

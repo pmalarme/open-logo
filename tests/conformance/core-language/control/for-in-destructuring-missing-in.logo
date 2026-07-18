@@ -1,0 +1,3 @@
+# Negative: a destructuring `for` binder not followed by `in` raises `ol-bad-token` at parse
+# stage (spec/grammar.md:127 requires "for" binder "in" expression control-body).
+for [:x] print :x
