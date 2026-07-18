@@ -68,3 +68,19 @@ const CORE_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
 export function corePrimitiveArity(name: string): number | undefined {
   return CORE_PRIMITIVE_ARITY.get(name.toLowerCase());
 }
+
+/**
+ * Every Core primitive's canonical lowercase name, sorted for deterministic iteration. This is
+ * the enumerable counterpart to {@link corePrimitiveArity}: the checker's unknown-command rule
+ * (issue #117) needs the full name *list* to build its did-you-mean candidate set, not just a
+ * single-name arity lookup. Kept as a frozen array computed once so callers cannot mutate the
+ * shared table.
+ */
+const CORE_PRIMITIVE_NAMES: readonly string[] = Object.freeze(
+  [...CORE_PRIMITIVE_ARITY.keys()].sort(),
+);
+
+/** The full list of Core primitive names, in sorted order. See {@link CORE_PRIMITIVE_NAMES}. */
+export function corePrimitiveNames(): readonly string[] {
+  return CORE_PRIMITIVE_NAMES;
+}

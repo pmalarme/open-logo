@@ -1,0 +1,5 @@
+define greet
+  print 1
+end
+
+greet

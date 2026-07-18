@@ -156,8 +156,14 @@ test("produce runs check() and returns an empty diagnostics list for a clean pro
 });
 
 test("produce defaults the check profiles to an empty array when not given", () => {
+  // With no profiles passed, `produce()`'s default parameter is `[]` (no active profile), so
+  // `check()` sees no active profile and treats `print` as not visible — proving the default is
+  // genuinely `[]`, not e.g. `["core-language"]` (issue #117 gave `check()` its first real rule,
+  // so this is now an observable behavior rather than a default that happened not to matter).
   const result = produce("print 1", "test-doc", false, true);
-  assert.deepEqual(result.diagnostics, []);
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-unknown-command");
+  assert.deepEqual(result.diagnostics[0].params, { name: "print" });
 });
 
 test("produce short-circuits check() and returns parse diagnostics on a parse failure", () => {

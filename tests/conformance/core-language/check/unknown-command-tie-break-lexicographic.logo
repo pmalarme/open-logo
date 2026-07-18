@@ -1,0 +1,13 @@
+define cat
+  print 1
+end
+
+define hat
+  print 1
+end
+
+define bat
+  print 1
+end
+
+xat

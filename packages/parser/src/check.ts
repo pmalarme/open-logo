@@ -8,15 +8,17 @@
  * This is the M1 infrastructure skeleton for epic #108: it stands up the entry point's shape,
  * the active-profile-set plumbing every rule MUST consult for name/form visibility
  * (`spec/tooling.md:175-176` — never a hardcoded "every optional profile active"), and the
- * return contract. It deliberately implements **no rule yet** — every document, including one a
- * future rule would flag, currently checks clean. The six rule slices (#117 unknown-command,
- * #111 arity, #113 name/place, #114 control-flow, #112 type/field, #115 style) each extend this
- * function with their own findings, one vertical slice at a time, exactly as issue #90's
- * `execute()` spine is filled in by the runtime evaluator slices.
+ * return contract. `findings()` dispatches over an ordered list of rule functions, each
+ * `(program, profiles) => readonly Diagnostic[]`; a rule slice adds its module and one
+ * registration line in {@link RULES}. #117's `ol-unknown-command` is the first rule registered
+ * here; the remaining five rule slices (#111 arity, #113 name/place, #114 control-flow, #112
+ * type/field, #115 style) each extend {@link RULES} the same way, one vertical slice at a time,
+ * exactly as issue #90's `execute()` spine is filled in by the runtime evaluator slices.
  */
 
 import type { Diagnostic } from "@openlogo/core";
 import type { ProgramNode } from "./ast.js";
+import { unknownCommandRule } from "./checker-unknown-command.js";
 
 /**
  * Every OpenLogo conformance profile identifier from the spec's dependency DAG
@@ -61,24 +63,33 @@ export const DEFAULT_CHECK_PROFILES: readonly CheckProfile[] = [
 
 /**
  * Run the Layer-2/Layer-3 static checks over `program`, consulting `options.profiles` (default
- * {@link DEFAULT_CHECK_PROFILES}) for name/form visibility. Returns an empty diagnostics list
- * until a rule slice extends this function — see the module doc comment above.
+ * {@link DEFAULT_CHECK_PROFILES}) for name/form visibility. Returns every registered rule's
+ * findings, concatenated in registration order — see {@link RULES}.
  */
 export function check(
   program: ProgramNode,
   options: CheckOptions = {},
 ): CheckResult {
   const profiles = options.profiles ?? DEFAULT_CHECK_PROFILES;
-
-  // No Layer-2/Layer-3 rule is implemented yet; `program` and `profiles` are the plumbing the
-  // rule slices will consult (spec/tooling.md:172-177), not dead parameters.
   return { diagnostics: findings(program, profiles) };
 }
 
-/** Placeholder rule dispatch: no rule is registered yet, so every check is clean. */
+/** A single checker rule: given the program and active profiles, returns its findings. */
+type CheckRule = (
+  program: ProgramNode,
+  profiles: readonly CheckProfile[],
+) => readonly Diagnostic[];
+
+/**
+ * The ordered rule registry. Order is the order findings are reported in; a rule slice adds its
+ * module and one entry here — see the module doc comment above.
+ */
+const RULES: readonly CheckRule[] = [unknownCommandRule];
+
+/** Dispatches `program`/`profiles` to every registered rule and concatenates their findings. */
 function findings(
-  _program: ProgramNode,
-  _profiles: readonly CheckProfile[],
+  program: ProgramNode,
+  profiles: readonly CheckProfile[],
 ): readonly Diagnostic[] {
-  return [];
+  return RULES.flatMap((rule) => rule(program, profiles));
 }

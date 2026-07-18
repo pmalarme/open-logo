@@ -1,0 +1,19 @@
+{
+  "description": "ol-unknown-command (issue #117): deterministic tie-break when multiple candidates share the lowest Levenshtein distance. `xat` is distance 1 from the declared procedures `cat`, `hat`, and `bat`, and from the reserved word `at` too; the rule's tie-break (lowest distance, then lexicographic order) picks `at` over `bat`/`cat`/`hat`, proving suggestion choice is deterministic rather than iteration-order-dependent.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "core-language/check/unknown-command-tie-break-lexicographic",
+        "start": [13, 1],
+        "end": [13, 4]
+      },
+      "params": { "name": "xat", "suggestion": "at" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

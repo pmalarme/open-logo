@@ -1,0 +1,19 @@
+{
+  "description": "ol-unknown-command (issue #117): a callee that isn't visible (not a Core primitive, reserved word, or declared procedure) raises ol-unknown-command with a Levenshtein did-you-mean suggestion when a visible candidate is within edit distance 2. Uses the parenthesized variadic form `(prnt 5)` so the misspelled zero-arity-unknown callee still parses cleanly (an unrecognized bare callee otherwise falls back to arity 0 and leaves its argument as a stray token, which is itself a parse-stage ol-bad-token, not this rule's concern).",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "core-language/check/unknown-command-suggests-primitive",
+        "start": [1, 2],
+        "end": [1, 6]
+      },
+      "params": { "name": "prnt", "suggestion": "print" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}
