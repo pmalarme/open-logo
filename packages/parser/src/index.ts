@@ -71,7 +71,7 @@ export type { ReservedWord } from "./reserved.js";
 
 export { corePrimitiveArity } from "./signatures.js";
 
-export { OL_TOKEN_CLASSES } from "./highlight.js";
-export type { Token, TokenClass } from "./highlight.js";
+export { highlight, OL_BRACKET_ROLES, OL_TOKEN_CLASSES } from "./highlight.js";
+export type { BracketRole, Token, TokenClass } from "./highlight.js";
 
 export type { Position, SourceSpan } from "@openlogo/core";
