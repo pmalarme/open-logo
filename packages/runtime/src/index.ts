@@ -17,7 +17,12 @@
  */
 
 import type { Diagnostic, PrintPayload, TraceEvent } from "@openlogo/core";
-import type { CallNode, ExpressionNode, StatementNode } from "@openlogo/parser";
+import type {
+  CallNode,
+  ExpressionNode,
+  ParenCallNode,
+  StatementNode,
+} from "@openlogo/parser";
 import { parse } from "@openlogo/parser";
 import { evaluate, isSupportedExpression } from "./evaluate.js";
 
@@ -42,10 +47,17 @@ export interface ExecuteResult {
   readonly diagnostics: readonly Diagnostic[];
 }
 
-/** Is `statement` a single-argument `print value` call (the multi-value form is issue #98)? */
-function isPrintCall(statement: StatementNode): statement is CallNode {
+/**
+ * Is `statement` a single-argument `print value` call (the multi-value form is issue #98)?
+ * Accepts both the plain infix `Call` form (`print 1`) and the explicit-parentheses `ParenCall`
+ * form (`(print 1)`) — both share the same callee/args shape (see `evaluate.ts`'s
+ * `ArithmeticCallNode`).
+ */
+function isPrintCall(
+  statement: StatementNode,
+): statement is CallNode | ParenCallNode {
   return (
-    statement.kind === "Call" &&
+    (statement.kind === "Call" || statement.kind === "ParenCall") &&
     statement.callee.name.toLowerCase() === "print" &&
     statement.args.length === 1
   );

@@ -104,6 +104,34 @@ test("execute stops and returns the diagnostic when a print argument fails to ev
   assert.equal(result.diagnostics[0].code, "ol-div-zero");
 });
 
+test("execute evaluates a parenthesized `(print value)` call the same as the plain form", () => {
+  // `(print 1 + 2)` parses as a top-level `ParenCall`, not `Call` — the parenthesized command
+  // form must be handled identically to the plain infix form (`print 1 + 2`).
+  const result = execute("(print 1 + 2)", "main.logo");
+  assert.equal(result.diagnostics.length, 0);
+  assert.equal(result.events.length, 2);
+  assert.deepEqual(result.events[0], {
+    seq: 0,
+    kind: "instruction",
+    source_span: {
+      document: "main.logo",
+      start: [1, 1],
+      end: [1, 14],
+    },
+    payload: { statement_kind: "ParenCall" },
+  });
+  assert.deepEqual(result.events[1], {
+    seq: 1,
+    kind: "print",
+    source_span: {
+      document: "main.logo",
+      start: [1, 1],
+      end: [1, 14],
+    },
+    payload: { value: 3 },
+  });
+});
+
 test("execute leaves an unsupported print argument un-evaluated, emitting no print event", () => {
   const result = execute("print :x", "main.logo");
   assert.equal(result.diagnostics.length, 0);
