@@ -134,45 +134,19 @@ function fixtureErrors(expected) {
 }
 
 /**
- * Convert a diagnostic from the parser's TS underscore format to the wire hyphen format.
- * The spec and fixtures use `source-span` (hyphen), but TypeScript fields use `source_span`
- * (underscore). Other nested keys follow the same convention: `turtle_id` → `turtle-id`, etc.
- */
-function convertDiagnosticToWireFormat(diagnostic) {
-  const converted = { ...diagnostic };
-  
-  // Rename source_span to source-span
-  if (converted.source_span !== undefined) {
-    converted["source-span"] = converted.source_span;
-    delete converted.source_span;
-  }
-  
-  // Convert nested params if they have underscored keys
-  if (converted.params && typeof converted.params === "object") {
-    const convertedParams = {};
-    for (const [key, value] of Object.entries(converted.params)) {
-      // Convert snake_case to kebab-case for all param keys
-      const hyphenKey = key.replace(/_/g, "-");
-      convertedParams[hyphenKey] = value;
-    }
-    converted.params = convertedParams;
-  }
-  
-  return converted;
-}
-
-/**
  * Execute source and collect the output. For M1, this calls the parser to collect diagnostics.
  * When the runtime lands, this will also execute and collect trace events.
+ *
+ * Note: Parser diagnostics already use `source_span` (underscore), which matches the fixture
+ * contract per ADR-0007 and tests/conformance/README.md. Events will use `source-span` (hyphen)
+ * when the runtime lands. No conversion needed at this stage.
  */
 function produce(source, _profiles) {
   const { diagnostics } = parse(source, "conformance-fixture");
-  
-  // Convert diagnostics from TS underscore format to wire hyphen format
-  const wireDiagnostics = diagnostics.map(convertDiagnosticToWireFormat);
-  
-  // No events yet — runtime doesn't exist at M1
-  return { events: [], diagnostics: wireDiagnostics };
+
+  // Parser diagnostics are already in the correct wire format (source_span with underscore).
+  // No events yet — runtime doesn't exist at M1.
+  return { events: [], diagnostics };
 }
 
 /** Order-insensitive structural equality for the plain JSON values in a fixture. */

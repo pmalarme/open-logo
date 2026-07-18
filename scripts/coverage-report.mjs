@@ -237,7 +237,7 @@ const CONFORMANCE_MATRIX = {
   },
 };
 
-/** Discover fixture stems under tests/conformance/. */
+/** Discover fixture stems under tests/conformance/. Exclude _harness-selftest/. */
 function discoverFixtures() {
   if (!existsSync(ROOT)) {
     return [];
@@ -245,6 +245,10 @@ function discoverFixtures() {
   const stems = [];
   for (const entry of readdirSync(ROOT, { recursive: true }).map(String)) {
     if (!entry.endsWith(EXPECTED_SUFFIX)) {
+      continue;
+    }
+    // Skip harness self-tests
+    if (entry.startsWith("_harness-selftest")) {
       continue;
     }
     const stem = basename(entry).slice(0, -EXPECTED_SUFFIX.length);
@@ -301,14 +305,23 @@ function main() {
     if (missing.length > 0 && missing.length <= 10) {
       console.log(`  Missing: ${missing.join(", ")}`);
     } else if (missing.length > 10) {
-      console.log(`  Missing: ${missing.slice(0, 10).join(", ")} … (${missing.length - 10} more)`);
+      console.log(
+        `  Missing: ${missing.slice(0, 10).join(", ")} … (${missing.length - 10} more)`,
+      );
     }
 
-    storyCoverage.push({ storyId, covered: covered.length, total: story.rows.length });
+    storyCoverage.push({
+      storyId,
+      covered: covered.length,
+      total: story.rows.length,
+    });
   }
 
-  const overallPct = totalRows === 0 ? 100 : ((coveredRows / totalRows) * 100).toFixed(1);
-  console.log(`\nOverall: ${coveredRows}/${totalRows} rows covered (${overallPct}%)`);
+  const overallPct =
+    totalRows === 0 ? 100 : ((coveredRows / totalRows) * 100).toFixed(1);
+  console.log(
+    `\nOverall: ${coveredRows}/${totalRows} rows covered (${overallPct}%)`,
+  );
 
   if (overallPct < 100) {
     console.log(

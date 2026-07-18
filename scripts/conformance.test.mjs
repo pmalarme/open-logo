@@ -1,7 +1,6 @@
-// Unit tests for the conformance harness wire-format conversion. Per ADR-0009, these are
-// black-box tests that validate the harness behavior through its public interface (running
-// fixtures). We don't test the private conversion function directly; instead we create minimal
-// fixtures and verify the harness correctly converts parser output to wire format.
+// Unit tests for the conformance harness. Per ADR-0009, these are black-box tests that validate
+// the harness behavior through its public interface (running fixtures). The wire format uses
+// source_span (underscore) for diagnostics and source-span (hyphen) for events per ADR-0007.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -24,7 +23,10 @@ function cleanup() {
 function runHarness(fixtureName, logoSource, expected) {
   cleanup();
   mkdirSync(join(TEMP_ROOT, fixtureName), { recursive: true });
-  writeFileSync(join(TEMP_ROOT, fixtureName, `${fixtureName}.logo`), logoSource);
+  writeFileSync(
+    join(TEMP_ROOT, fixtureName, `${fixtureName}.logo`),
+    logoSource,
+  );
   writeFileSync(
     join(TEMP_ROOT, fixtureName, `${fixtureName}.expected.json`),
     JSON.stringify(expected, null, 2),
@@ -40,106 +42,94 @@ function runHarness(fixtureName, logoSource, expected) {
   }
 }
 
-test("harness converts parser diagnostics from source_span to source-span", () => {
-  // Parser emits diagnostics with source_span (underscore); wire format needs source-span (hyphen).
-  // Use a source that triggers a parse diagnostic.
-  const result = runHarness(
-    "wire-format-test",
-    "]",  // unmatched bracket
-    {
-      description: "Test that harness converts source_span to source-span",
-      profiles: ["core-language"],
-      events: [],
-      diagnostics: [
-        {
-          code: "ol-unmatched-bracket",
-          "source-span": {
-            document: "conformance-fixture",
-            start: [1, 1],
-            end: [1, 2],
-          },
-          params: { delimiter: "]" },
-          stage: "parse",
-          severity: "error",
-          message: "this ] doesn't have a matching bracket. lists and blocks need both [ and ].",
+test("harness preserves parser diagnostics source_span (underscore)", () => {
+  // Parser emits diagnostics with source_span (underscore), which is the correct wire format
+  // per ADR-0007 and tests/conformance/README.md. No conversion needed.
+  const result = runHarness("wire-format-test", "]", {
+    description:
+      "Test that harness preserves source_span as underscore for diagnostics",
+    profiles: ["core-language"],
+    events: [],
+    diagnostics: [
+      {
+        code: "ol-unmatched-bracket",
+        source_span: {
+          document: "conformance-fixture",
+          start: [1, 1],
+          end: [1, 2],
         },
-      ],
-    },
-  );
+        params: { delimiter: "]" },
+        stage: "parse",
+        severity: "error",
+        message:
+          "this ] doesn't have a matching bracket. lists and blocks need both [ and ].",
+      },
+    ],
+  });
 
-  // If the harness correctly converts, the fixture should match and exit 0
   assert.equal(
     result.exitCode,
     0,
-    `Harness should convert source_span to source-span and match; got:\n${result.output || "(no output)"}`,
+    `Harness should preserve source_span as underscore; got:\n${result.output || "(no output)"}`,
   );
 });
 
-test("harness converts nested params from snake_case to kebab-case", () => {
-  // Some diagnostics have params with underscored keys that need conversion.
-  // The ol-unclosed-string diagnostic has an opened_at param.
-  const result = runHarness(
-    "params-conversion-test",
-    '"unclosed',  // unclosed string
-    {
-      description: "Test that harness converts params keys from snake_case to kebab-case",
-      profiles: ["core-language"],
-      events: [],
-      diagnostics: [
-        {
-          code: "ol-unclosed-string",
-          "source-span": {
+test("harness preserves nested params with underscores", () => {
+  // Diagnostic params use underscored keys (source_span, opened_at) per the spec.
+  const result = runHarness("params-test", '"unclosed', {
+    description: "Test that harness preserves params keys with underscores",
+    profiles: ["core-language"],
+    events: [],
+    diagnostics: [
+      {
+        code: "ol-unclosed-string",
+        source_span: {
+          document: "conformance-fixture",
+          start: [1, 1],
+          end: [1, 2],
+        },
+        params: {
+          opened_at: {
             document: "conformance-fixture",
             start: [1, 1],
             end: [1, 2],
           },
-          params: {
-            "opened-at": {
-              document: "conformance-fixture",
-              start: [1, 1],
-              end: [1, 2],
-            },
-          },
-          stage: "parse",
-          severity: "error",
-          message: 'this word is missing its closing ". every "word" needs a quote on both ends.',
         },
-      ],
-    },
-  );
+        stage: "parse",
+        severity: "error",
+        message:
+          'this word is missing its closing ". every "word" needs a quote on both ends.',
+      },
+    ],
+  });
 
   assert.equal(
     result.exitCode,
     0,
-    `Harness should convert params keys to kebab-case and match; got:\n${result.output || "(no output)"}`,
+    `Harness should preserve params with underscores; got:\n${result.output || "(no output)"}`,
   );
 });
 
 test("harness detects mismatch when diagnostic differs", () => {
-  // Verify that if the expected diagnostic doesn't match, the harness exits non-zero.
-  const result = runHarness(
-    "mismatch-test",
-    "]",  // unmatched bracket
-    {
-      description: "Test that harness detects mismatch",
-      profiles: ["core-language"],
-      events: [],
-      diagnostics: [
-        {
-          code: "ol-bad-token",  // wrong code - parser emits ol-unmatched-bracket
-          "source-span": {
-            document: "conformance-fixture",
-            start: [1, 1],
-            end: [1, 2],
-          },
-          params: { text: "]" },
-          stage: "parse",
-          severity: "error",
-          message: "Wrong",
+  const result = runHarness("mismatch-test", "]", {
+    description: "Test that harness detects mismatch",
+    profiles: ["core-language"],
+    events: [],
+    diagnostics: [
+      {
+        code: "ol-bad-token", // wrong code
+        source_span: {
+          document: "conformance-fixture",
+          start: [1, 1],
+          end: [1, 2],
         },
-      ],
-    },
-  );
+        params: { text: "]" },
+        stage: "parse",
+        severity: "error",
+        message: "Wrong",
+      },
+    ],
+  });
 
   assert.equal(
     result.exitCode,
@@ -149,30 +139,25 @@ test("harness detects mismatch when diagnostic differs", () => {
 });
 
 test("harness validates diagnostic codes against registry", () => {
-  // A fixture with an off-contract diagnostic code should fail validation.
-  const result = runHarness(
-    "invalid-code-test",
-    "",  // empty program
-    {
-      description: "Test that harness validates diagnostic codes",
-      profiles: ["core-language"],
-      events: [],
-      diagnostics: [
-        {
-          code: "ol-not-a-real-code",
-          "source-span": {
-            document: "conformance-fixture",
-            start: [1, 1],
-            end: [1, 1],
-          },
-          params: {},
-          stage: "parse",
-          severity: "error",
-          message: "Fake",
+  const result = runHarness("invalid-code-test", "", {
+    description: "Test that harness validates diagnostic codes",
+    profiles: ["core-language"],
+    events: [],
+    diagnostics: [
+      {
+        code: "ol-not-a-real-code",
+        source_span: {
+          document: "conformance-fixture",
+          start: [1, 1],
+          end: [1, 1],
         },
-      ],
-    },
-  );
+        params: {},
+        stage: "parse",
+        severity: "error",
+        message: "Fake",
+      },
+    ],
+  });
 
   assert.equal(
     result.exitCode,
@@ -187,28 +172,23 @@ test("harness validates diagnostic codes against registry", () => {
 });
 
 test("harness validates event kinds against registry", () => {
-  // A fixture with an off-contract event kind should fail validation.
-  const result = runHarness(
-    "invalid-event-test",
-    "",  // empty program
-    {
-      description: "Test that harness validates event kinds",
-      profiles: ["core-language"],
-      events: [
-        {
-          seq: 1,
-          kind: "not-a-real-event-kind",
-          "source-span": {
-            document: "conformance-fixture",
-            start: [1, 1],
-            end: [1, 1],
-          },
-          payload: {},
+  const result = runHarness("invalid-event-test", "", {
+    description: "Test that harness validates event kinds",
+    profiles: ["core-language"],
+    events: [
+      {
+        seq: 1,
+        kind: "not-a-real-event-kind",
+        "source-span": {
+          document: "conformance-fixture",
+          start: [1, 1],
+          end: [1, 1],
         },
-      ],
-      diagnostics: [],
-    },
-  );
+        payload: {},
+      },
+    ],
+    diagnostics: [],
+  });
 
   assert.equal(
     result.exitCode,
@@ -223,17 +203,12 @@ test("harness validates event kinds against registry", () => {
 });
 
 test("harness validates profile names against known profiles", () => {
-  // A fixture with an unknown profile should fail validation.
-  const result = runHarness(
-    "invalid-profile-test",
-    "",  // empty program
-    {
-      description: "Test that harness validates profile names",
-      profiles: ["not-a-real-profile"],
-      events: [],
-      diagnostics: [],
-    },
-  );
+  const result = runHarness("invalid-profile-test", "", {
+    description: "Test that harness validates profile names",
+    profiles: ["not-a-real-profile"],
+    events: [],
+    diagnostics: [],
+  });
 
   assert.equal(
     result.exitCode,
@@ -248,7 +223,6 @@ test("harness validates profile names against known profiles", () => {
 });
 
 test("harness reports invalid JSON in fixture", () => {
-  // A fixture with malformed JSON should fail gracefully.
   cleanup();
   mkdirSync(join(TEMP_ROOT, "bad-json-test"), { recursive: true });
   writeFileSync(join(TEMP_ROOT, "bad-json-test", "bad-json-test.logo"), "");
@@ -270,4 +244,152 @@ test("harness reports invalid JSON in fixture", () => {
   } finally {
     cleanup();
   }
+});
+
+test("harness supports --profile flag to select fixtures", () => {
+  cleanup();
+  mkdirSync(join(TEMP_ROOT, "profile-test"), { recursive: true });
+  writeFileSync(join(TEMP_ROOT, "profile-test", "profile-test.logo"), "");
+  writeFileSync(
+    join(TEMP_ROOT, "profile-test", "profile-test.expected.json"),
+    JSON.stringify(
+      {
+        description: "Test profile selection",
+        profiles: ["turtle-rendering"],
+        events: [],
+        diagnostics: [],
+      },
+      null,
+      2,
+    ),
+  );
+
+  try {
+    const output = execSync(
+      "node scripts/conformance.mjs --profile core-language",
+      { encoding: "utf8" },
+    );
+    assert.match(output, /skipped/, "Should report skipped fixtures");
+  } finally {
+    cleanup();
+  }
+});
+
+test("harness rejects unknown profile name", () => {
+  try {
+    execSync("node scripts/conformance.mjs --profile not-a-real-profile", {
+      encoding: "utf8",
+    });
+    assert.fail("Harness should reject unknown profile");
+  } catch (err) {
+    assert.equal(err.status, 2, "Should exit with code 2 for invalid args");
+    assert.match(
+      err.stdout + err.stderr,
+      /unknown profile/,
+      "Error message should mention unknown profile",
+    );
+  }
+});
+
+test("harness continues when one fixture exists", () => {
+  const result = runHarness("single-test", "", {
+    description: "Single test",
+    profiles: ["core-language"],
+    events: [],
+    diagnostics: [],
+  });
+
+  assert.equal(result.exitCode, 0);
+});
+
+test("harness compares deep objects and arrays", () => {
+  // Mismatched object - wrong nested value in source_span
+  const result1 = runHarness("deep-obj-test", "]", {
+    description: "Test deep object comparison",
+    profiles: ["core-language"],
+    events: [],
+    diagnostics: [
+      {
+        code: "ol-unmatched-bracket",
+        source_span: {
+          document: "conformance-fixture",
+          start: [1, 1],
+          end: [99, 99], // wrong end position
+        },
+        params: { delimiter: "]" },
+        stage: "parse",
+        severity: "error",
+        message:
+          "this ] doesn't have a matching bracket. lists and blocks need both [ and ].",
+      },
+    ],
+  });
+
+  assert.equal(
+    result1.exitCode,
+    1,
+    "Should detect deep object value mismatch in diagnostics",
+  );
+});
+
+test("harness handles profiles with dependencies", () => {
+  cleanup();
+  mkdirSync(join(TEMP_ROOT, "profile-deps-test"), { recursive: true });
+  writeFileSync(
+    join(TEMP_ROOT, "profile-deps-test", "profile-deps-test.logo"),
+    "",
+  );
+  writeFileSync(
+    join(TEMP_ROOT, "profile-deps-test", "profile-deps-test.expected.json"),
+    JSON.stringify(
+      {
+        description: "Test profile with dependencies",
+        profiles: ["turtle-rendering"], // depends on core-language
+        events: [],
+        diagnostics: [],
+      },
+      null,
+      2,
+    ),
+  );
+
+  try {
+    const output = execSync("node scripts/conformance.mjs", {
+      encoding: "utf8",
+    });
+    assert.match(output, /passed/, "Should handle profile dependencies");
+  } finally {
+    cleanup();
+  }
+});
+
+test("harness handles object key count mismatch", () => {
+  // Object with different number of keys
+  const result = runHarness("key-count-test", "]", {
+    description: "Test key count mismatch",
+    profiles: ["core-language"],
+    events: [],
+    diagnostics: [
+      {
+        code: "ol-unmatched-bracket",
+        source_span: {
+          document: "conformance-fixture",
+          start: [1, 1],
+          end: [1, 2],
+        },
+        params: { delimiter: "]" },
+        stage: "parse",
+        severity: "error",
+        message:
+          "this ] doesn't have a matching bracket. lists and blocks need both [ and ].",
+        extra_field: "should cause mismatch", // extra key
+      },
+    ],
+  });
+
+  assert.equal(
+    result.exitCode,
+    1,
+    "Should detect object with different key counts",
+  );
 });
