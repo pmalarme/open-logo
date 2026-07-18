@@ -11,7 +11,7 @@ import {
   OL_EVENT_KINDS,
   OL_STYLE_DIAGNOSTIC_CODES,
 } from "@openlogo/core";
-import { parse } from "@openlogo/parser";
+import { check, parse } from "@openlogo/parser";
 import { execute } from "@openlogo/runtime";
 
 export const ROOT = "tests/conformance";
@@ -168,11 +168,20 @@ export function loadFixture(fixture) {
     return { error: `"execute" must be a boolean when present` };
   }
 
+  // "check" is an opt-in flag (default false), mirroring "execute": only fixtures that opt in
+  // get their AST run through @openlogo/parser's check() semantic checker (per issue #116);
+  // every other fixture stays parse-only (or execute-only), since the parse-focused corpus is
+  // not all semantic-check-valid.
+  if (spec.check !== undefined && typeof spec.check !== "boolean") {
+    return { error: `"check" must be a boolean when present` };
+  }
+
   const expected = {
     description: spec.description ?? "",
     profiles: spec.profiles,
     expect: spec.expect ?? "match",
     execute: spec.execute ?? false,
+    check: spec.check ?? false,
     events: spec.events,
     diagnostics: spec.diagnostics,
   };
@@ -231,23 +240,54 @@ export function validateDiagnostics(diagnostics) {
 }
 
 /**
- * Execute source and collect the output.
+ * Parse (and, if opted in, execute or check) source and collect the output.
  *
- * When `shouldExecute` is false (the default), this is parse-only: it calls the parser and
- * collects parse diagnostics, returning an empty event stream — the behavior every existing
- * parse-focused fixture in the corpus relies on. When `shouldExecute` is true (a fixture opted
- * in via `"execute": true`), it calls `@openlogo/runtime`'s `execute()` instead, which parses
- * internally and also returns the trace/event stream produced by walking the AST.
+ * When both `shouldExecute` and `shouldCheck` are false (the default), this is parse-only: it
+ * calls the parser and collects parse diagnostics, returning an empty event stream — the
+ * behavior every existing parse-focused fixture in the corpus relies on.
  *
- * Wire shape: both parse diagnostics and runtime events/diagnostics already use `source_span`
- * (underscore) — the one field-name convention this harness uses throughout, for both events
- * and diagnostics (see tests/conformance/README.md). There is no separate wire conversion step.
+ * When `shouldCheck` is true (a fixture opted in via `"check": true`), it calls `parse()` and,
+ * if parsing produced no diagnostic, feeds the resulting AST to `@openlogo/parser`'s `check()`
+ * (issue #116) along with the fixture's active `profiles`, returning the semantic/style
+ * diagnostics `check()` found (an empty list is a clean pass). If parsing itself failed, the
+ * document is not check-valid, so the parse diagnostics are returned unchanged and `check()`
+ * never runs — mirroring how `shouldExecute` already treats a parse failure as terminal.
  *
- * @param {string} source - The OpenLogo source code to parse (and, if opted in, execute).
+ * Otherwise, when `shouldExecute` is true (a fixture opted in via `"execute": true`), it calls
+ * `@openlogo/runtime`'s `execute()` instead, which parses internally and also returns the
+ * trace/event stream produced by walking the AST.
+ *
+ * Wire shape: parse diagnostics, runtime events/diagnostics, and check() diagnostics all already
+ * use `source_span` (underscore) — the one field-name convention this harness uses throughout,
+ * for both events and diagnostics (see tests/conformance/README.md). There is no separate wire
+ * conversion step.
+ *
+ * @param {string} source - The OpenLogo source code to parse (and, if opted in, execute/check).
  * @param {string} document - The document identifier (fixture path) for diagnostic source_span.
  * @param {boolean} shouldExecute - Whether this fixture opted into execution (default false).
+ * @param {boolean} shouldCheck - Whether this fixture opted into semantic checking (default false).
+ * @param {string[]} profiles - The fixture's active profile set, passed to check() (default []).
  */
-export function produce(source, document, shouldExecute = false) {
+export function produce(
+  source,
+  document,
+  shouldExecute = false,
+  shouldCheck = false,
+  profiles = [],
+) {
+  if (shouldCheck) {
+    const { ast: program, diagnostics: parseDiagnostics } = parse(
+      source,
+      document,
+    );
+    const diagnostics =
+      parseDiagnostics.length > 0
+        ? parseDiagnostics
+        : check(program, { profiles }).diagnostics;
+    validateDiagnostics(diagnostics);
+    return { events: [], diagnostics };
+  }
+
   const { events, diagnostics } = shouldExecute
     ? execute(source, document)
     : { events: [], ...parse(source, document) };
@@ -420,7 +460,13 @@ export function runHarness(options = {}) {
     const document = fixture.name.replace(/\.expected\.json$/, "");
     const result = compare(
       expected,
-      produce(source, document, expected.execute),
+      produce(
+        source,
+        document,
+        expected.execute,
+        expected.check,
+        expected.profiles,
+      ),
     );
 
     // Use expect field to determine comparison polarity

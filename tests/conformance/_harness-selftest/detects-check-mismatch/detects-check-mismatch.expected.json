@@ -1,0 +1,20 @@
+{
+  "description": "Self-test: opts into semantic checking (\"check\": true) and asserts an `ol-unknown-command` diagnostic for a program `check()` currently never flags (no Layer-2 rule exists yet — issue #116 is infrastructure only), so the harness must report a mismatch on the check path too, not just the parse-only and execute-only paths. expect=mismatch turns correct detection into a pass.",
+  "expect": "mismatch",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "detects-check-mismatch.logo",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "params": { "name": "print" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

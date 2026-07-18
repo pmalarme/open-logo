@@ -41,6 +41,13 @@ profile or the whole DAG. The runner discovers every `*.expected.json` and pairs
   `execute()` instead, which parses internally and also walks the AST, so `events` and
   `diagnostics` reflect real execution. Only opt a fixture in once its source is genuinely
   execution-valid.
+- **`check` (optional, default `false`)** opts a fixture into semantic checking. When `true`,
+  `produce()` calls `parse()` and, if parsing produced no diagnostic, feeds the resulting AST and
+  the fixture's `profiles` to `@openlogo/parser`'s `check()` (issue #116), returning the
+  semantic/style diagnostics it found — `events` stays `[]`. `check` and `execute` are mutually
+  exclusive per fixture; `check` takes precedence if both are set. Diagnostics from `check()` use
+  `stage: "semantic"` (or `"parse"`/`ol-style-*` where applicable), same C10 shape as everywhere
+  else.
 - Keep results **deterministic**: assert semantic events and final state, never timing or frames.
 
 The harness validates every `kind`, `code`, and `profiles` tag against the `@openlogo/core`
@@ -73,3 +80,10 @@ semantics yet (no arithmetic, variables, control flow, procedures, comprehension
 `produce()` is parse-only by default; a fixture opts into calling `execute()` with
 `"execute": true` (see "Fixture shape" above). The corpus grows one behavior at a time as each
 evaluator slice (issues #93-#105) lands, adding positive and negative fixtures per feature.
+
+`@openlogo/parser` now also exposes a `check(program, options)` entry point (issue #116): the
+Layer-2/Layer-3 static-analysis skeleton that epic #108's six rule slices (#117 unknown-command,
+#111 arity, #113 name/place, #114 control-flow, #112 type/field, #115 style) extend one at a time.
+It consults `options.profiles` (default Core Language only) for name/form visibility but
+implements no rule yet, so every document currently checks clean. A fixture opts into calling it
+with `"check": true` (see "Fixture shape" above).

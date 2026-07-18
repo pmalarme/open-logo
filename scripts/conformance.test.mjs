@@ -149,6 +149,31 @@ test("produce returns runtime diagnostics with message when opted in on malforme
   assert.ok(result.diagnostics[0].message);
 });
 
+test("produce runs check() and returns an empty diagnostics list for a clean program", () => {
+  const result = produce("print 1", "test-doc", false, true, ["core-language"]);
+  assert.deepEqual(result.events, []);
+  assert.deepEqual(result.diagnostics, []);
+});
+
+test("produce defaults the check profiles to an empty array when not given", () => {
+  const result = produce("print 1", "test-doc", false, true);
+  assert.deepEqual(result.diagnostics, []);
+});
+
+test("produce short-circuits check() and returns parse diagnostics on a parse failure", () => {
+  const result = produce("]", "test-doc", false, true, ["core-language"]);
+  assert.deepEqual(result.events, []);
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-unmatched-bracket");
+  assert.ok(result.diagnostics[0].message);
+});
+
+test("produce prefers check-mode over execute-mode when both are opted in", () => {
+  const result = produce("print 1", "test-doc", true, true, ["core-language"]);
+  assert.deepEqual(result.events, []);
+  assert.deepEqual(result.diagnostics, []);
+});
+
 test("validateDiagnostics passes for well-formed diagnostics", () => {
   const diagnostics = [
     {
@@ -676,6 +701,78 @@ test("loadFixture rejects a non-boolean execute field", () => {
   cleanup();
 });
 
+test("loadFixture defaults check to false when absent", () => {
+  cleanup();
+  mkdirSync(join(TEMP_ROOT, "no-check"), { recursive: true });
+  writeFileSync(join(TEMP_ROOT, "no-check", "no-check.logo"), "");
+  writeFileSync(
+    join(TEMP_ROOT, "no-check", "no-check.expected.json"),
+    JSON.stringify({
+      profiles: ["core-language"],
+      events: [],
+      diagnostics: [],
+    }),
+  );
+
+  const loaded = loadFixture({
+    name: "no-check/no-check.expected.json",
+    expectedPath: join(TEMP_ROOT, "no-check", "no-check.expected.json"),
+    logoPath: join(TEMP_ROOT, "no-check", "no-check.logo"),
+  });
+
+  assert.equal(loaded.expected.check, false);
+  cleanup();
+});
+
+test("loadFixture reads an explicit check: true opt-in", () => {
+  cleanup();
+  mkdirSync(join(TEMP_ROOT, "with-check"), { recursive: true });
+  writeFileSync(join(TEMP_ROOT, "with-check", "with-check.logo"), "print 1");
+  writeFileSync(
+    join(TEMP_ROOT, "with-check", "with-check.expected.json"),
+    JSON.stringify({
+      profiles: ["core-language"],
+      check: true,
+      events: [],
+      diagnostics: [],
+    }),
+  );
+
+  const loaded = loadFixture({
+    name: "with-check/with-check.expected.json",
+    expectedPath: join(TEMP_ROOT, "with-check", "with-check.expected.json"),
+    logoPath: join(TEMP_ROOT, "with-check", "with-check.logo"),
+  });
+
+  assert.equal(loaded.expected.check, true);
+  cleanup();
+});
+
+test("loadFixture rejects a non-boolean check field", () => {
+  cleanup();
+  mkdirSync(join(TEMP_ROOT, "bad-check"), { recursive: true });
+  writeFileSync(join(TEMP_ROOT, "bad-check", "bad-check.logo"), "");
+  writeFileSync(
+    join(TEMP_ROOT, "bad-check", "bad-check.expected.json"),
+    JSON.stringify({
+      profiles: ["core-language"],
+      check: "yes",
+      events: [],
+      diagnostics: [],
+    }),
+  );
+
+  const loaded = loadFixture({
+    name: "bad-check/bad-check.expected.json",
+    expectedPath: join(TEMP_ROOT, "bad-check", "bad-check.expected.json"),
+    logoPath: join(TEMP_ROOT, "bad-check", "bad-check.logo"),
+  });
+
+  assert.ok(loaded.error);
+  assert.ok(loaded.error.includes('"check" must be a boolean'));
+  cleanup();
+});
+
 test("loadFixture handles missing .expected.json file", () => {
   cleanup();
   mkdirSync(join(TEMP_ROOT, "no-expected"), { recursive: true });
@@ -1171,6 +1268,61 @@ test("runHarness reports a mismatch for an opted-in execution fixture with wrong
       execute: true,
       events: [], // Wrong: execution actually emits one instruction event
       diagnostics: [],
+    }),
+  );
+
+  const exitCode = runHarness({ root: TEMP_ROOT });
+  assert.equal(exitCode, 1);
+
+  cleanup();
+});
+
+test("runHarness runs an opted-in check fixture end to end (clean pass)", () => {
+  cleanup();
+  mkdirSync(join(TEMP_ROOT, "checks"), { recursive: true });
+  writeFileSync(join(TEMP_ROOT, "checks", "checks.logo"), "print 1");
+  writeFileSync(
+    join(TEMP_ROOT, "checks", "checks.expected.json"),
+    JSON.stringify({
+      profiles: ["core-language"],
+      check: true,
+      events: [],
+      diagnostics: [],
+    }),
+  );
+
+  const exitCode = runHarness({ root: TEMP_ROOT });
+  assert.equal(exitCode, 0);
+
+  cleanup();
+});
+
+test("runHarness reports a mismatch for an opted-in check fixture with wrong diagnostics", () => {
+  cleanup();
+  mkdirSync(join(TEMP_ROOT, "checks-wrong"), { recursive: true });
+  writeFileSync(
+    join(TEMP_ROOT, "checks-wrong", "checks-wrong.logo"),
+    "print 1",
+  );
+  writeFileSync(
+    join(TEMP_ROOT, "checks-wrong", "checks-wrong.expected.json"),
+    JSON.stringify({
+      profiles: ["core-language"],
+      check: true,
+      events: [],
+      diagnostics: [
+        {
+          code: "ol-unknown-command",
+          source_span: {
+            document: "checks-wrong/checks-wrong",
+            start: [1, 1],
+            end: [1, 6],
+          },
+          params: { name: "print" },
+          stage: "semantic",
+          severity: "error",
+        },
+      ], // Wrong: check() emits no findings yet (issue #116 is infrastructure only)
     }),
   );
 
