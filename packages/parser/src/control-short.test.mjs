@@ -105,15 +105,17 @@ test("parses `repeat <n> [ … ]` with a bracketed body of multiple statements",
 });
 
 test("parses `forever [ … ]` with a bracketed body", () => {
-  const { ast, diagnostics } = OL.parse("forever [ stop ]", doc);
+  const { ast, diagnostics } = OL.parse("forever [ print 1 ]", doc);
 
   assert.deepEqual(diagnostics, []);
   const foreverNode = ast.body[0];
   assert.equal(foreverNode.kind, "Forever");
-  assert.deepEqual(foreverNode.source_span, span([1, 1], [1, 17]));
+  assert.deepEqual(foreverNode.source_span, span([1, 1], [1, 20]));
 
   assert.equal(foreverNode.body.kind, "Block");
-  assert.deepEqual(foreverNode.body.source_span, span([1, 9], [1, 17]));
+  assert.deepEqual(foreverNode.body.source_span, span([1, 9], [1, 20]));
   assert.equal(foreverNode.body.body.length, 1);
-  assert.equal(foreverNode.body.body[0].kind, "Stop");
+  assert.equal(foreverNode.body.body[0].kind, "Call");
+  assert.equal(foreverNode.body.body[0].callee.name, "print");
+  assert.equal(foreverNode.body.body[0].args[0].value, 1);
 });
