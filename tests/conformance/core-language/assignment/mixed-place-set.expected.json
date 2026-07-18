@@ -1,0 +1,7 @@
+{
+  "description": "A mixed field/selector/field bare place chain (a.b[1].c) is a valid set-form assignment target and parses cleanly with no diagnostics.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

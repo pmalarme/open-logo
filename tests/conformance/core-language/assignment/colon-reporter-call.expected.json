@@ -1,0 +1,7 @@
+{
+  "description": "A colon-place assignment (spec/grammar.md:103) whose value is a reporter call (`first :xs`) rather than a literal parses cleanly with no diagnostics.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

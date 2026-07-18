@@ -1,0 +1,2 @@
+# The colon-place form with a word value (`"red"`), per spec/grammar.md:103.
+:color = "red"

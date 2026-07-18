@@ -1,0 +1,7 @@
+{
+  "description": "A colon-place assignment (spec/grammar.md:103) with a number value parses cleanly with no diagnostics.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

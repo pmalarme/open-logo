@@ -1,0 +1,19 @@
+{
+  "description": "A colon-place is INVALID after `set` (spec/grammar.md:104 requires a bare-place): `set :x` fails immediately because the token after `set` must be a bare name, not `:x`, reporting a single ol-bad-token at the colon-place token.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/assignment/set-colon-place-invalid",
+        "start": [3, 5],
+        "end": [3, 7]
+      },
+      "params": { "text": ":x" },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

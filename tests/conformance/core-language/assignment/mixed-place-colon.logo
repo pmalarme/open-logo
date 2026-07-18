@@ -1,0 +1,4 @@
+# A mixed place chain — field, selector, field — as a colon-form assignment target
+# (spec/grammar.md:103,107-111): :a.b[1].c interleaves a dotted field, a bracketed selector,
+# and another dotted field before the `=`.
+:a.b[1].c = 9

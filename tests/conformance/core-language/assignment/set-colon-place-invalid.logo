@@ -1,0 +1,3 @@
+# CRITICAL asymmetry (spec/grammar.md:104): `set ... to` requires a bare place, not a
+# colon-place. `set :x` is INVALID: the token after `set` must be a bare name (issue #55).
+set :x

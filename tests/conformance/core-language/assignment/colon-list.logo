@@ -1,0 +1,2 @@
+# The colon-place form with a list value (`[ 1 2 3 ]`), per spec/grammar.md:103.
+:nums = [ 1 2 3 ]

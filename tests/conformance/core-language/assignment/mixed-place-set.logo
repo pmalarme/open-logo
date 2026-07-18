@@ -1,0 +1,3 @@
+# The same mixed field/selector/field place chain as a bare place after `set ... to`
+# (spec/grammar.md:104,108): set a.b[1].c to 9.
+set a.b[1].c to 9

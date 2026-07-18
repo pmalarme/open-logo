@@ -1,0 +1,3 @@
+# The colon-place form with a reporter-call value (spec/grammar.md:103 expression on the
+# right-hand side is not restricted to literals — `first :xs` is a Core Call reporter).
+:first_item = first :xs

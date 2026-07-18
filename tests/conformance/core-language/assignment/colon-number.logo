@@ -1,0 +1,3 @@
+# The colon-place form (spec/grammar.md:103 assignment ::= colon-place "=" expression)
+# with a number value — the simplest Core value kind.
+:x = 100

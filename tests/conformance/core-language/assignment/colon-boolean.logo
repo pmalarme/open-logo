@@ -1,0 +1,3 @@
+# The colon-place form with boolean values (`true`/`false`), per spec/grammar.md:103.
+:flag = true
+:other = false

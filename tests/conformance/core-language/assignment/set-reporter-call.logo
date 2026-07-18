@@ -1,0 +1,3 @@
+# The bare-place `set ... to` form whose value is a reporter call (`first :xs`), per
+# spec/grammar.md:104 — the right-hand side is not restricted to literals here either.
+set first_item to first :xs

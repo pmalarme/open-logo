@@ -1,0 +1,7 @@
+{
+  "description": "A set ... to assignment (spec/grammar.md:104) whose value is a reporter call (`first :xs`) rather than a literal parses cleanly with no diagnostics.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}
