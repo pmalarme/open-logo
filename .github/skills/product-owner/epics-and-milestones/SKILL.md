@@ -5,7 +5,7 @@ description: >-
   maps them onto the spec's profile DAG and 8 learner levels. Use when planning the backlog, defining
   a milestone, or deciding what an epic is. Pairs with github-project (ops) and triage-and-label.
 created: 2026-07-17T00:00
-updated: 2026-07-17T00:00
+updated: 2026-07-18T00:00
 ---
 
 ## Purpose
@@ -69,7 +69,8 @@ The **8 learner levels** (`spec/educational-model.md`) drive curriculum epics/st
 2. Break the epic into **feature slices** with Given/When/Then ACs (`product-owner/write-a-user-story`).
 3. Assign each item to the **milestone** whose profile it belongs to; note cross-item dependencies.
 4. Open the milestone **contract-first** (AST/events/diagnostics/token-classes) before slices fan out.
-5. Hand the structure to `github-project` to create it and `triage-and-label` to label it.
+5. Hand the structure to `github-project` to create it and **`triage-and-label`** to apply the full
+   triage checklist (labels + milestone + board membership + title prefix).
 
 ## Checklist
 - [ ] Epics map to profiles/major features; slices are one end-to-end behavior.
