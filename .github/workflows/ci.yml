@@ -26,6 +26,8 @@ jobs:
       - run: pip install pyyaml
       - name: Validate metadata
         run: python .github/scripts/validate-meta.py
+      - name: Self-test the frontmatter check
+        run: python .github/scripts/test-validate-meta.py
       - id: detect
         name: Detect toolchain
         # hashFiles() is unreliable in a job-level `if` (it runs before checkout), so we
