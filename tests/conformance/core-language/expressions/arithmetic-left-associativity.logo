@@ -1,0 +1,4 @@
+# Left-associativity of subtraction and division: repeated same-precedence operators group to
+# the left, per grammar.md:185-187,226 (`additive` / `multiplicative` are left-recursive).
+print 10 - 2 - 3
+print 20 / 4 / 5

@@ -1,0 +1,7 @@
+{
+  "description": "Repeated `-` and `/` chains parse with no diagnostics (left-associative grouping is an AST-shape concern, proven by the co-located unit test, not by this fixture's events/diagnostics).",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

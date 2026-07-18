@@ -1,0 +1,7 @@
+{
+  "description": "A complex arithmetic chain mixing `+ - * / mod` parses with no diagnostics: `*`, `/`, and `mod` bind tighter than `+`/`-`, and each level is left-associative.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}
