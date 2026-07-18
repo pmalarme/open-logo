@@ -32,11 +32,12 @@ Ship the harness (`scripts/conformance.mjs`) with real mechanics and a placehold
    events, diagnostics }`. Events keep `source-span` (hyphen); diagnostics keep `source_span`
    (underscore), matching the spec.
 
-2. **Placeholder `produce()`.** With no runtime, `produce(source, profiles)` returns
-   `{ events: [], diagnostics: [] }`. The one positive fixture asserts the empty-program base case
-   (no events, no diagnostics — genuinely true). When the evaluator lands, `produce()` becomes a real
-   runtime call and the corpus grows per behaviour. Everything else — discovery, selection, contract
-   validation, diffing, exit codes — is real now.
+2. **`produce()` integration at M1 (issue #44).** After parser delivery (#9, main tip 55695b8),
+   `produce(source, profiles)` calls `@openlogo/parser` and returns `{ events: [], diagnostics }` —
+   real parser diagnostics with `source_span` (underscore) per `spec/error-model.md`, and no runtime
+   events yet. The wire format passes through as-is (no conversion); parser diagnostics already match
+   the fixture contract. When the evaluator lands, `produce()` will also populate `events` with runtime
+   trace. Everything else — discovery, selection, contract validation, diffing, exit codes — is real now.
 
 3. **Self-verifying negative path via `expect: "mismatch"`.** Fixtures under `_harness-selftest/`
    assert output that execution can never produce (a `move` event from an empty program) and set

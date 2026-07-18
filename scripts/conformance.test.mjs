@@ -271,6 +271,7 @@ test("loadFixture handles missing optional fields with defaults", () => {
 test("loadFixture handles invalid JSON", () => {
   cleanup();
   mkdirSync(join(TEMP_ROOT, "bad-json"), { recursive: true });
+  writeFileSync(join(TEMP_ROOT, "bad-json", "bad.logo"), ""); // Add .logo file
   writeFileSync(join(TEMP_ROOT, "bad-json", "bad.expected.json"), "{invalid}");
 
   const loaded = loadFixture({
@@ -281,6 +282,47 @@ test("loadFixture handles invalid JSON", () => {
 
   assert.ok(loaded.error);
   assert.ok(loaded.error.includes("invalid JSON"));
+  cleanup();
+});
+
+test("loadFixture validates expect field", () => {
+  cleanup();
+  mkdirSync(join(TEMP_ROOT, "bad-expect"), { recursive: true });
+  writeFileSync(join(TEMP_ROOT, "bad-expect", "bad.logo"), "");
+  writeFileSync(
+    join(TEMP_ROOT, "bad-expect", "bad.expected.json"),
+    JSON.stringify({
+      expect: "invalid-value",
+      profiles: ["core-language"],
+      events: [],
+      diagnostics: [],
+    }),
+  );
+
+  const loaded = loadFixture({
+    name: "bad-expect/bad.expected.json",
+    expectedPath: join(TEMP_ROOT, "bad-expect", "bad.expected.json"),
+    logoPath: join(TEMP_ROOT, "bad-expect", "bad.logo"),
+  });
+
+  assert.ok(loaded.error);
+  assert.ok(loaded.error.includes("invalid expect field"));
+  cleanup();
+});
+
+test("loadFixture handles missing .expected.json file", () => {
+  cleanup();
+  mkdirSync(join(TEMP_ROOT, "no-expected"), { recursive: true });
+  writeFileSync(join(TEMP_ROOT, "no-expected", "test.logo"), "");
+
+  const loaded = loadFixture({
+    name: "no-expected/test.expected.json",
+    expectedPath: join(TEMP_ROOT, "no-expected", "test.expected.json"),
+    logoPath: join(TEMP_ROOT, "no-expected", "test.logo"),
+  });
+
+  assert.ok(loaded.error);
+  assert.ok(loaded.error.includes("missing expected file"));
   cleanup();
 });
 
@@ -302,8 +344,8 @@ test("loadFixture handles missing .logo file", () => {
     logoPath: join(TEMP_ROOT, "no-logo", "test.logo"),
   });
 
-  assert.ok(!loaded.error);
-  assert.equal(loaded.source, ""); // empty source when .logo missing
+  assert.ok(loaded.error);
+  assert.ok(loaded.error.includes("missing source file"));
   cleanup();
 });
 
@@ -479,7 +521,8 @@ test("runHarness handles self-test that wrongly matches", () => {
       "wrongly-passes.expected.json",
     ),
     JSON.stringify({
-      profiles: ["core-language"],
+      expect: "mismatch",
+      profiles: [],
       events: [],
       diagnostics: [], // Will match empty program, which should FAIL in self-test
     }),
@@ -548,6 +591,88 @@ test("runHarness handles off-contract fixtures", () => {
 
   // Cleanup
   rmSync(join("tests", "conformance", "_temp-offcontract"), {
+    recursive: true,
+    force: true,
+  });
+});
+
+test("runHarness requires self-tests to declare expect mismatch", () => {
+  cleanup();
+  // Create a self-test without expect: "mismatch"
+  mkdirSync(join("tests", "conformance", "_harness-selftest", "bad-expect"), {
+    recursive: true,
+  });
+  writeFileSync(
+    join(
+      "tests",
+      "conformance",
+      "_harness-selftest",
+      "bad-expect",
+      "bad-expect.logo",
+    ),
+    "",
+  );
+  writeFileSync(
+    join(
+      "tests",
+      "conformance",
+      "_harness-selftest",
+      "bad-expect",
+      "bad-expect.expected.json",
+    ),
+    JSON.stringify({
+      expect: "match", // Wrong - should be "mismatch"
+      profiles: [],
+      events: [],
+      diagnostics: [],
+    }),
+  );
+
+  const exitCode = runHarness({});
+  assert.equal(exitCode, 1); // Should fail
+
+  rmSync(join("tests", "conformance", "_harness-selftest", "bad-expect"), {
+    recursive: true,
+    force: true,
+  });
+});
+
+test("runHarness runs self-tests even with --profile filter", () => {
+  cleanup();
+  // Self-test with profiles:[] should still run when --profile is set
+  mkdirSync(join("tests", "conformance", "_harness-selftest", "profile-test"), {
+    recursive: true,
+  });
+  writeFileSync(
+    join(
+      "tests",
+      "conformance",
+      "_harness-selftest",
+      "profile-test",
+      "profile-test.logo",
+    ),
+    "]", // Parse error
+  );
+  writeFileSync(
+    join(
+      "tests",
+      "conformance",
+      "_harness-selftest",
+      "profile-test",
+      "profile-test.expected.json",
+    ),
+    JSON.stringify({
+      expect: "mismatch",
+      profiles: [], // No profiles - would be skipped if not a self-test
+      events: [],
+      diagnostics: [], // Expects no diagnostics, but will get ol-unmatched-bracket
+    }),
+  );
+
+  const exitCode = runHarness({ profile: "core-language" });
+  assert.equal(exitCode, 0); // Self-test should pass (mismatch correctly detected)
+
+  rmSync(join("tests", "conformance", "_harness-selftest", "profile-test"), {
     recursive: true,
     force: true,
   });

@@ -1,53 +1,68 @@
-// OpenLogo language coverage report — compares present conformance fixtures against the Core
-// Language conformance matrix (S1-S22 stories from conformance-matrix-v2.md) and reports which
-// production rows are covered. This is LANGUAGE coverage (every grammar production/variant is
-// proven by a fixture), distinct from LINE coverage (every TS line is hit by a test).
+// OpenLogo language coverage report — discovers conformance fixtures and reports which are present.
+// This is LANGUAGE coverage (every grammar production/variant is proven by a fixture), distinct
+// from LINE coverage (every TS line is hit by a test).
 //
 // Usage: node scripts/coverage-report.mjs
-// Exits 0 (report only, no enforcement yet); when S3-S22 land, this becomes a gate.
+// Exits 0 (report only, no enforcement yet). As S3-S22 stories land, fixtures will declare their
+// story/row metadata and this report will compute coverage from discovered fixtures.
 
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { basename, join, sep } from "node:path";
+import { existsSync, readdirSync } from "node:fs";
+import { basename, sep } from "node:path";
 
 const ROOT = "tests/conformance";
 const EXPECTED_SUFFIX = ".expected.json";
 
-// Core Language conformance matrix from conformance-matrix-v2.md. This is the authoritative
-// enumeration of Core productions we must prove via fixtures. S1 (INFRA) has no production rows;
-// S2 (ADR-0009) is docs only. S3-S22 are grammar/semantic productions (20 production stories).
-const CONFORMANCE_MATRIX = {
-  S1: {
-    name: "INFRA — Conformance Harness + Fixture Format",
-    rows: [],
-    owner: "@testing",
-  },
-  S2: {
-    name: "ADR-0009 Test Layout Convention",
-    rows: [],
-    owner: "@testing",
-  },
-  S3: {
-    name: "Literals — Numbers, Words, Booleans",
-    rows: [
-      "integer-literal",
-      "negative-integer",
-      "decimal-literal",
-      "scientific-notation",
-      "single-line-string",
-      "multi-line-string",
-      "string-escapes",
-      "boolean-true-false",
-      "negative:unclosed-single-line-string",
-      "negative:unclosed-multi-line-string",
-    ],
-    owner: "@interpreter",
-  },
-  S4: {
-    name: "List Literals and Parenthesized Expressions",
-    rows: [
-      "empty-list",
-      "non-empty-list",
-      "nested-lists",
+/** Discover fixture stems under tests/conformance/, excluding _harness-selftest/. */
+function discoverFixtures() {
+  if (!existsSync(ROOT)) {
+    return [];
+  }
+  const stems = new Set();
+  for (const entry of readdirSync(ROOT, { recursive: true }).map(String)) {
+    if (!entry.endsWith(EXPECTED_SUFFIX)) {
+      continue;
+    }
+    // Skip harness self-tests
+    if (entry.startsWith("_harness-selftest")) {
+      continue;
+    }
+    // Group by profile directory (e.g., "core-language")
+    const parts = entry.split(sep);
+    const profile = parts[0];
+    const stem = basename(entry).slice(0, -EXPECTED_SUFFIX.length);
+    stems.add(`${profile}/${stem}`);
+  }
+  return Array.from(stems).sort();
+}
+
+function main() {
+  const fixtures = discoverFixtures();
+
+  console.log("Language Coverage Report");
+  console.log("========================\n");
+  console.log(`Discovered ${fixtures.length} conformance fixture(s):\n`);
+
+  if (fixtures.length === 0) {
+    console.log("  (none)\n");
+  } else {
+    for (const fixture of fixtures) {
+      console.log(`  ✓ ${fixture}`);
+    }
+    console.log("");
+  }
+
+  console.log(
+    "Note: As S3-S22 production stories land, fixtures will declare story/row metadata",
+  );
+  console.log(
+    "and this report will compute grammar coverage. For M1 (harness infra only),",
+  );
+  console.log("we report fixtures present without mapping to production rows.");
+
+  return 0;
+}
+
+process.exit(main());
       "parenthesized-expression",
       "negative:unmatched-bracket",
       "negative:unmatched-paren",

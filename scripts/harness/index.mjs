@@ -81,8 +81,16 @@ export function discoverFixtures(root = ROOT) {
   return fixtures;
 }
 
-/** Parse and normalise a fixture; returns `{ error }` on malformed JSON. */
+/** Parse and normalise a fixture; returns `{ error }` on malformed JSON or missing source. */
 export function loadFixture(fixture) {
+  // Validate that both .logo and .expected.json exist
+  if (!existsSync(fixture.logoPath)) {
+    return { error: `missing source file ${fixture.logoPath}` };
+  }
+  if (!existsSync(fixture.expectedPath)) {
+    return { error: `missing expected file ${fixture.expectedPath}` };
+  }
+
   let spec;
   try {
     spec = JSON.parse(readFileSync(fixture.expectedPath, "utf8"));
@@ -96,9 +104,15 @@ export function loadFixture(fixture) {
     events: spec.events ?? [],
     diagnostics: spec.diagnostics ?? [],
   };
-  const source = existsSync(fixture.logoPath)
-    ? readFileSync(fixture.logoPath, "utf8")
-    : "";
+
+  // Validate expect field
+  if (expected.expect !== "match" && expected.expect !== "mismatch") {
+    return {
+      error: `invalid expect field: "${expected.expect}" (must be "match" or "mismatch")`,
+    };
+  }
+
+  const source = readFileSync(fixture.logoPath, "utf8");
   return { expected, source };
 }
 
@@ -264,8 +278,20 @@ export function runHarness(options = {}) {
       continue;
     }
 
-    // Filter by profile if --profile was given
-    if (selectedProfile) {
+    // Identify self-tests early (before profile filtering) so they always run
+    const isSelfTest = fixture.name.startsWith("_harness-selftest/");
+
+    // Self-tests must declare expect: "mismatch"
+    if (isSelfTest && expected.expect !== "mismatch") {
+      failed++;
+      failures.push(
+        `FAIL ${fixture.name} (self-test must declare expect: "mismatch")`,
+      );
+      continue;
+    }
+
+    // Filter by profile if --profile was given (but always run self-tests)
+    if (selectedProfile && !isSelfTest) {
       const closure = closureOf(selectedProfile);
       const isIncluded = expected.profiles.some((p) => closure.has(p));
       if (!isIncluded) {
@@ -276,27 +302,28 @@ export function runHarness(options = {}) {
 
     const result = compare(expected, produce(source, expected.profiles));
 
-    const isSelfTest = fixture.name.startsWith("_harness-selftest/");
-    if (isSelfTest) {
-      if (result.matched) {
-        failed++;
-        failures.push(
-          `FAIL ${fixture.name} (self-test expected a mismatch but the produced stream matched)`,
-        );
-      } else {
-        passed++;
+    // Use expect field to determine comparison polarity
+    const expectMatch = expected.expect === "match";
+    const success = expectMatch ? result.matched : !result.matched;
+
+    if (success) {
+      passed++;
+      if (isSelfTest) {
         console.log(
           `ok   ${fixture.name} — self-test: mismatch correctly detected`,
         );
         console.log(result.report);
+      } else {
+        console.log(`ok   ${fixture.name}`);
       }
     } else {
-      if (result.matched) {
-        passed++;
-        console.log(`ok   ${fixture.name}`);
-      } else {
-        failed++;
+      failed++;
+      if (expectMatch) {
         failures.push(`FAIL ${fixture.name}\n${result.report}`);
+      } else {
+        failures.push(
+          `FAIL ${fixture.name} (expected mismatch but streams matched)`,
+        );
       }
     }
   }
