@@ -5,10 +5,8 @@
 // diagnostic `code`s are validated against the @openlogo/core registries, so a fixture can never
 // assert an off-contract shape. See docs/adr/0007-conformance-harness.md.
 //
-// M0 note: there is no @openlogo/runtime yet, so `produce()` is a deterministic placeholder that
-// emits nothing. The harness mechanics — discovery, profile selection, contract validation, diff
-// reporting, self-tests, and exit codes — are real; swap `produce()` for a runtime call when the
-// evaluator lands.
+// M1 note: `produce()` now calls the real parser (@openlogo/parser.parse) and collects
+// diagnostics. When @openlogo/runtime lands, it will also execute and collect trace events.
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, dirname, join, sep } from "node:path";
@@ -17,6 +15,7 @@ import {
   OL_EVENT_KINDS,
   OL_STYLE_DIAGNOSTIC_CODES,
 } from "@openlogo/core";
+import { parse } from "@openlogo/parser";
 
 const ROOT = "tests/conformance";
 const EXPECTED_SUFFIX = ".expected.json";
@@ -134,11 +133,46 @@ function fixtureErrors(expected) {
   return errors;
 }
 
-// M0 placeholder: there is no runtime yet, so nothing is produced. Replace with an
-// @openlogo/runtime execution returning the real { events, diagnostics } for `source` under the
-// fixture's `profiles`.
-function produce(_source, _profiles) {
-  return { events: [], diagnostics: [] };
+/**
+ * Convert a diagnostic from the parser's TS underscore format to the wire hyphen format.
+ * The spec and fixtures use `source-span` (hyphen), but TypeScript fields use `source_span`
+ * (underscore). Other nested keys follow the same convention: `turtle_id` → `turtle-id`, etc.
+ */
+function convertDiagnosticToWireFormat(diagnostic) {
+  const converted = { ...diagnostic };
+  
+  // Rename source_span to source-span
+  if (converted.source_span !== undefined) {
+    converted["source-span"] = converted.source_span;
+    delete converted.source_span;
+  }
+  
+  // Convert nested params if they have underscored keys
+  if (converted.params && typeof converted.params === "object") {
+    const convertedParams = {};
+    for (const [key, value] of Object.entries(converted.params)) {
+      // Convert snake_case to kebab-case for all param keys
+      const hyphenKey = key.replace(/_/g, "-");
+      convertedParams[hyphenKey] = value;
+    }
+    converted.params = convertedParams;
+  }
+  
+  return converted;
+}
+
+/**
+ * Execute source and collect the output. For M1, this calls the parser to collect diagnostics.
+ * When the runtime lands, this will also execute and collect trace events.
+ */
+function produce(source, _profiles) {
+  const { diagnostics } = parse(source, "conformance-fixture");
+  
+  // Convert diagnostics from TS underscore format to wire hyphen format
+  const wireDiagnostics = diagnostics.map(convertDiagnosticToWireFormat);
+  
+  // No events yet — runtime doesn't exist at M1
+  return { events: [], diagnostics: wireDiagnostics };
 }
 
 /** Order-insensitive structural equality for the plain JSON values in a fixture. */
