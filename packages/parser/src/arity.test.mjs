@@ -123,22 +123,12 @@ test("an unknown callee is left entirely to ol-unknown-command (no arity finding
 });
 
 test("grammar operator calls carry no table arity, so are never flagged", () => {
-  for (const source of [
-    "print 1 + 2",
-    "print 5 mod 2",
-    "print true and false",
-    "print not true",
-    "print 1 < 2",
-  ]) {
-    const diagnostics = checkSource(source);
-    assert.ok(
-      diagnostics.every(
-        (d) =>
-          d.code !== "ol-not-enough-inputs" && d.code !== "ol-too-many-inputs",
-      ),
-      `expected no arity finding for ${JSON.stringify(source)}`,
-    );
-  }
+  // Operator forms are valid complete programs — the arity rule leaves them entirely alone.
+  assert.deepEqual(checkSource("print 1 + 2"), []);
+  assert.deepEqual(checkSource("print 5 mod 2"), []);
+  assert.deepEqual(checkSource("print true and false"), []);
+  assert.deepEqual(checkSource("print not true"), []);
+  assert.deepEqual(checkSource("print 1 < 2"), []);
 });
 
 test("a user procedure called with fewer than its required parameters raises too-few", () => {
