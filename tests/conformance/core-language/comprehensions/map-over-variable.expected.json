@@ -1,0 +1,6 @@
+{
+  "description": "Core `map` over a variable holding a list (`:nums`) rather than a list literal parses with no diagnostics.",
+  "profiles": ["core-language"],
+  "events": [],
+  "diagnostics": []
+}

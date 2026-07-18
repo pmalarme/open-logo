@@ -1,0 +1,18 @@
+{
+  "description": "A `reduce` whose `from` seed expression is missing (end of input right after `from`) reports ol-bad-token at end of file; the outer `print` call still parses with zero arguments.",
+  "profiles": ["core-language"],
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/comprehensions/reduce-missing-seed-diagnostic",
+        "start": [1, 35],
+        "end": [1, 35]
+      },
+      "params": { "text": "end of file" },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

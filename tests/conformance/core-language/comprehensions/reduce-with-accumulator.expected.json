@@ -1,0 +1,6 @@
+{
+  "description": "Core `reduce` with an accumulator (`sum`), item binder (`n`), a list-literal source, and a `from 0` seed parses with no diagnostics.",
+  "profiles": ["core-language"],
+  "events": [],
+  "diagnostics": []
+}

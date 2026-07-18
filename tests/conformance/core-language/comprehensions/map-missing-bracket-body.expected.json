@@ -1,0 +1,21 @@
+{
+  "description": "A `map` comprehension whose iterable is followed by end of input instead of a bracketed body (`[ ... ]`) reports ol-missing-end at the `map` keyword.",
+  "profiles": ["core-language"],
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-missing-end",
+      "source_span": {
+        "document": "core-language/comprehensions/map-missing-bracket-body",
+        "start": [1, 7],
+        "end": [1, 10]
+      },
+      "params": {
+        "opener": "map",
+        "hint": "wrap the body in [ ] or close it with end."
+      },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}
