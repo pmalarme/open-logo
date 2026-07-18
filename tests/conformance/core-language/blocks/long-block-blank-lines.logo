@@ -1,0 +1,8 @@
+# Blank lines are insignificant separators inside a long `... end` block too.
+repeat 4
+
+  print 1
+
+  print 2
+
+end repeat

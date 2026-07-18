@@ -1,0 +1,7 @@
+{
+  "description": "Blank lines around and between statements inside a long `... end` block are insignificant separators and produce no diagnostics.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

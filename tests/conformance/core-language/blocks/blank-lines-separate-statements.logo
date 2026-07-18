@@ -1,0 +1,8 @@
+# Statements separated by a run of blank lines still form a single separator;
+# consecutive newlines collapse and blank lines may appear anywhere.
+print 1
+
+print 2
+
+
+print 3

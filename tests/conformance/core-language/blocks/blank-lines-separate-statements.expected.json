@@ -1,0 +1,7 @@
+{
+  "description": "Three top-level statements separated by runs of one and two blank lines parse as three statements with no diagnostics: consecutive newlines collapse into a single separator.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}
