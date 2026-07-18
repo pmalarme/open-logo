@@ -1,0 +1,38 @@
+{
+  "description": "The long-form `if <cond> ... end if` body (`spec/grammar.md:119-124`) parses to the same `BlockNode` shape as a bracketed body, so it executes identically: compare with `if-then-true` — both emit an `If` instruction, then the then-branch's `Call`/`print` events. Issue #100.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/if-long-form",
+        "start": [1, 1],
+        "end": [3, 7]
+      },
+      "payload": { "statement_kind": "If" }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/if-long-form",
+        "start": [2, 3],
+        "end": [2, 10]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/if-long-form",
+        "start": [2, 3],
+        "end": [2, 10]
+      },
+      "payload": { "values": [1] }
+    }
+  ],
+  "diagnostics": []
+}

@@ -1,0 +1,38 @@
+{
+  "description": "The long-form `if <cond> ... else ... end if` (`spec/grammar.md:119-124`) with a `false` condition runs the else-branch, identically to the bracketed `if-then-false-with-else` fixture. Issue #100.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/if-long-form-else",
+        "start": [1, 1],
+        "end": [5, 7]
+      },
+      "payload": { "statement_kind": "If" }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/if-long-form-else",
+        "start": [4, 3],
+        "end": [4, 10]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/if-long-form-else",
+        "start": [4, 3],
+        "end": [4, 10]
+      },
+      "payload": { "values": [2] }
+    }
+  ],
+  "diagnostics": []
+}

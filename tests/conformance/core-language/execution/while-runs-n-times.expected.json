@@ -1,0 +1,118 @@
+{
+  "description": "`while :i < 3 [ print :i ; :i = :i + 1 ]` starting at `:i = 0` re-evaluates the condition before every pass, including the first (`spec/execution-model.md:365-369`): the body runs for `:i` = 0, 1, 2 (three `print` events), then the fourth condition check (`3 < 3`) is `false` and the loop stops without a fourth pass. Issue #100.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/while-runs-n-times",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "payload": { "statement_kind": "Assign" }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/while-runs-n-times",
+        "start": [2, 1],
+        "end": [5, 2]
+      },
+      "payload": { "statement_kind": "While" }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/while-runs-n-times",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/while-runs-n-times",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": { "values": [0] }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/while-runs-n-times",
+        "start": [4, 3],
+        "end": [4, 14]
+      },
+      "payload": { "statement_kind": "Assign" }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/while-runs-n-times",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 6,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/while-runs-n-times",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": { "values": [1] }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/while-runs-n-times",
+        "start": [4, 3],
+        "end": [4, 14]
+      },
+      "payload": { "statement_kind": "Assign" }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/while-runs-n-times",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 9,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/while-runs-n-times",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": { "values": [2] }
+    },
+    {
+      "seq": 10,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/while-runs-n-times",
+        "start": [4, 3],
+        "end": [4, 14]
+      },
+      "payload": { "statement_kind": "Assign" }
+    }
+  ],
+  "diagnostics": []
+}

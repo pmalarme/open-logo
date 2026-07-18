@@ -11,9 +11,14 @@
  * event. Issue #98 completes `print`: the single-value `print value` form and the parenthesized
  * variadic `(print a b …)` form (`spec/commands.md:142-158`) both evaluate every operand, in
  * order, and — once all of them evaluate cleanly — emit one `print` event carrying every value
- * (`PrintPayload.values`) right after that statement's `instruction` event. Variables, control
- * flow, procedures, and comprehensions land one vertical slice at a time (issues #94-#105), each
- * adding its own statement handling and, where the spec calls for it, runtime `ol-*` diagnostics.
+ * (`PrintPayload.values`) right after that statement's `instruction` event. Issue #100 gives `if`
+ * (with an optional `else`) and `while` their runtime meaning (`spec/execution-model.md:365-369`):
+ * both require a boolean condition (`ol-not-boolean` otherwise, reusing the builder issue #95
+ * added for `and`/`or`/`not`), `if` runs exactly one branch (or none, with no `else`), and `while`
+ * re-evaluates its condition before every pass — including the first — running the body each time
+ * the condition holds. Variables, procedures, and comprehensions land one vertical slice at a
+ * time (issues #94-#105), each adding its own statement handling and, where the spec calls for
+ * it, runtime `ol-*` diagnostics.
  */
 
 import type {
@@ -22,13 +27,20 @@ import type {
   PrintPayload,
   TraceEvent,
 } from "@openlogo/core";
-import type { CallNode, ParenCallNode, StatementNode } from "@openlogo/parser";
+import { typeNameOf } from "@openlogo/core";
+import type {
+  CallNode,
+  ExpressionNode,
+  ParenCallNode,
+  StatementNode,
+} from "@openlogo/parser";
 import { parse } from "@openlogo/parser";
 import {
   createEnvironment,
   evaluate,
   executeAssign,
   isSupportedExpression,
+  type Environment,
 } from "./evaluate.js";
 import { runtimeDiag } from "./errors.js";
 
@@ -85,14 +97,44 @@ function isPrintCall(
 }
 
 /**
- * Parse `source` and execute its top-level statements, emitting one `instruction` event per
- * statement with a monotonic `seq` starting at 0. If parsing produced any diagnostic the
- * program is not execution-valid, so no events are emitted and the parse diagnostics are
- * returned unchanged.
- *
- * A single root {@link Environment} (issue #94) is created once per `execute()` call and threaded
- * through every statement, so an assignment in one statement is visible to every later read in
- * the same program (`spec/execution-model.md:316-327`) — procedure call frames land with #97.
+ * Evaluate an `if`/`while` condition and require it to be a boolean — there is no truthiness
+ * (`spec/execution-model.md:365-369`, `spec/error-model.md:121`). `operation` names the leading
+ * form (`"if"`/`"while"`) for the `ol-not-boolean` diagnostic's `params.operation`, reusing the
+ * `runtimeDiag.notBoolean` builder issue #95 added for `and`/`or`/`not` rather than duplicating it.
+ * Returns the propagated evaluation failure, the `ol-not-boolean` diagnostic, or the boolean.
+ */
+function evaluateCondition(
+  condition: ExpressionNode,
+  env: Environment,
+  operation: "if" | "while",
+):
+  | { readonly ok: true; readonly value: boolean }
+  | { readonly ok: false; readonly diagnostic: Diagnostic } {
+  const result = evaluate(condition, env);
+  if (!result.ok) {
+    return result;
+  }
+  if (typeof result.value !== "boolean") {
+    return {
+      ok: false,
+      diagnostic: runtimeDiag.notBoolean(condition.source_span, {
+        actual: typeNameOf(result.value),
+        operation,
+      }),
+    };
+  }
+  return { ok: true, value: result.value };
+}
+
+/**
+ * Execute `statements` in order, mutating `events` in place with one `instruction` event per
+ * statement plus whatever effect events that statement's kind produces, and returns the
+ * diagnostic that stopped execution, or `undefined` on a clean run through every statement. This
+ * is the shared statement-execution core for both the top-level program body ({@link execute})
+ * and a control form's block body ({@link execute}'s `If`/`While` handling below) — a block is
+ * just another list of statements run against the same threaded {@link Environment}
+ * (`spec/execution-model.md:316-327`), so nested control forms and further-nested blocks recurse
+ * through this same function without their own copy of the dispatch logic.
  *
  * An `Assign` statement (`:place = value`, `set place to value`) is executed via
  * {@link executeAssign}; it never emits its own event (there is no dedicated event kind for
@@ -113,20 +155,36 @@ function isPrintCall(
  * as a no-op. If evaluating an operand raises a runtime diagnostic (`ol-div-zero`, `ol-neg-sqrt`,
  * `ol-type`, `ol-undefined-var`, `ol-range`), execution stops there: the events emitted so far are
  * kept and the diagnostic is returned, exactly as a parse-stage failure returns diagnostics
- * instead of a trace — later operands of that same `print` are never evaluated. Statement kinds
- * this issue does not give meaning to (e.g. a bare arithmetic expression, or any command other
- * than `print`) still emit their `instruction` event but do not evaluate — that is each statement
- * kind's own future slice to add.
+ * instead of a trace — later operands of that same `print` are never evaluated.
+ *
+ * An `If` statement (issue #100) evaluates `condition` — requiring a boolean, `ol-not-boolean`
+ * otherwise (`spec/execution-model.md:365-369`) — and runs exactly one branch: `thenBody` when
+ * `condition` is `true`, `elseBody` when it is `false` and present, or neither (no further events)
+ * when it is `false` and there is no `else`. Both the bracketed and long-form `… end` bodies parse
+ * to the identical `BlockNode` shape, so they execute identically — there is nothing here that
+ * distinguishes them. Per the block-result rule (`spec/execution-model.md:214-227`), a bracketed
+ * `if`/`while` body runs for effect only: a trailing bare-value expression's value is silently
+ * discarded (no value-producing event, no diagnostic) — which already falls out of this function,
+ * since a statement kind this issue does not evaluate (a bare arithmetic expression, a call to
+ * anything other than `print`) still emits its `instruction` event but never reaches a branch that
+ * evaluates or emits a value for it.
+ *
+ * A `While` statement (issue #100) re-evaluates `condition` before every pass — including the
+ * first — running `body` each time it holds and stopping the moment it is `false`
+ * (`spec/execution-model.md:365-369`); a condition that never becomes `false` runs forever, same
+ * as any other unbounded loop in this issue's scope (the cancellable execution budget is a later,
+ * separate slice).
+ *
+ * Statement kinds this issue does not give meaning to (e.g. a bare arithmetic expression, or any
+ * command other than `print`) still emit their `instruction` event but do not evaluate — that is
+ * each statement kind's own future slice to add.
  */
-export function execute(source: string, document: string): ExecuteResult {
-  const { ast: program, diagnostics } = parse(source, document);
-  if (diagnostics.length > 0) {
-    return { events: [], diagnostics };
-  }
-
-  const env = createEnvironment();
-  const events: TraceEvent[] = [];
-  for (const statement of program.body) {
+function executeStatements(
+  statements: readonly StatementNode[],
+  env: Environment,
+  events: TraceEvent[],
+): Diagnostic | undefined {
+  for (const statement of statements) {
     events.push({
       seq: events.length,
       kind: "instruction",
@@ -137,24 +195,19 @@ export function execute(source: string, document: string): ExecuteResult {
     if (statement.kind === "Assign") {
       const result = executeAssign(statement, env);
       if (!result.ok) {
-        return { events, diagnostics: [result.diagnostic] };
+        return result.diagnostic;
       }
       continue;
     }
 
     if (isPrintCall(statement)) {
       if (statement.args.length === 0) {
-        return {
-          events,
-          diagnostics: [
-            runtimeDiag.notEnoughInputs(
-              statement.callee.source_span,
-              statement.callee.name,
-              1,
-              0,
-            ),
-          ],
-        };
+        return runtimeDiag.notEnoughInputs(
+          statement.callee.source_span,
+          statement.callee.name,
+          1,
+          0,
+        );
       }
       // Only evaluate a `print` whose every operand is an expression kind this issue's
       // evaluator gives meaning to (Core literals, arithmetic, variable/place reads).
@@ -172,7 +225,7 @@ export function execute(source: string, document: string): ExecuteResult {
           values.push(result.value);
         }
         if (failure) {
-          return { events, diagnostics: [failure] };
+          return failure;
         }
         events.push({
           seq: events.length,
@@ -181,8 +234,70 @@ export function execute(source: string, document: string): ExecuteResult {
           payload: { values } satisfies PrintPayload,
         });
       }
+      continue;
+    }
+
+    if (statement.kind === "If") {
+      if (!isSupportedExpression(statement.condition)) {
+        continue;
+      }
+      const condition = evaluateCondition(statement.condition, env, "if");
+      if (!condition.ok) {
+        return condition.diagnostic;
+      }
+      const branch = condition.value
+        ? statement.thenBody.body
+        : (statement.elseBody?.body ?? []);
+      const diagnostic = executeStatements(branch, env, events);
+      if (diagnostic) {
+        return diagnostic;
+      }
+      continue;
+    }
+
+    if (statement.kind === "While") {
+      if (!isSupportedExpression(statement.condition)) {
+        continue;
+      }
+      for (;;) {
+        const condition = evaluateCondition(statement.condition, env, "while");
+        if (!condition.ok) {
+          return condition.diagnostic;
+        }
+        if (!condition.value) {
+          break;
+        }
+        const diagnostic = executeStatements(statement.body.body, env, events);
+        if (diagnostic) {
+          return diagnostic;
+        }
+      }
     }
   }
 
-  return { events, diagnostics: [] };
+  return undefined;
+}
+
+/**
+ * Parse `source` and execute its top-level statements, emitting one `instruction` event per
+ * statement with a monotonic `seq` starting at 0. If parsing produced any diagnostic the
+ * program is not execution-valid, so no events are emitted and the parse diagnostics are
+ * returned unchanged.
+ *
+ * A single root {@link Environment} (issue #94) is created once per `execute()` call and threaded
+ * through every statement, so an assignment in one statement is visible to every later read in
+ * the same program (`spec/execution-model.md:316-327`) — procedure call frames land with #97. The
+ * actual per-statement dispatch (including recursing into `if`/`while` block bodies) lives in
+ * {@link executeStatements}.
+ */
+export function execute(source: string, document: string): ExecuteResult {
+  const { ast: program, diagnostics } = parse(source, document);
+  if (diagnostics.length > 0) {
+    return { events: [], diagnostics };
+  }
+
+  const env = createEnvironment();
+  const events: TraceEvent[] = [];
+  const diagnostic = executeStatements(program.body, env, events);
+  return { events, diagnostics: diagnostic ? [diagnostic] : [] };
 }

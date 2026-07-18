@@ -1,0 +1,38 @@
+{
+  "description": "`if false [ print 1 ]` with no `else`: the then-branch never runs (no `Call`/`print` events for it), execution just continues with the following `print 2`. Issue #100.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/if-then-false-no-else",
+        "start": [1, 1],
+        "end": [2, 1]
+      },
+      "payload": { "statement_kind": "If" }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/if-then-false-no-else",
+        "start": [2, 1],
+        "end": [2, 8]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/if-then-false-no-else",
+        "start": [2, 1],
+        "end": [2, 8]
+      },
+      "payload": { "values": [2] }
+    }
+  ],
+  "diagnostics": []
+}

@@ -1,0 +1,38 @@
+{
+  "description": "`while false [ print 1 ]` never runs the body — the condition is re-evaluated before every pass, including the first (`spec/execution-model.md:365-369`), so a `false` condition on the first check runs the loop zero times. Execution continues with the following `print 2`. Issue #100.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/while-zero-times",
+        "start": [1, 1],
+        "end": [1, 24]
+      },
+      "payload": { "statement_kind": "While" }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/while-zero-times",
+        "start": [2, 1],
+        "end": [2, 8]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/while-zero-times",
+        "start": [2, 1],
+        "end": [2, 8]
+      },
+      "payload": { "values": [2] }
+    }
+  ],
+  "diagnostics": []
+}
