@@ -1,0 +1,35 @@
+{
+  "description": "Ordering (`<`) is defined only for two numbers or two words; a boolean operand raises `ol-type` naming the expected concept \"number or word\" (spec/execution-model.md:508-510, error-model.md `ol-type`). Execution halts at the failing statement, so only its `instruction` event is kept \u2014 no `print` event. Issue #96.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/compare-boolean-order-type-error",
+        "start": [1, 1],
+        "end": [1, 19]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "core-language/execution/compare-boolean-order-type-error",
+        "start": [1, 7],
+        "end": [1, 11]
+      },
+      "params": {
+        "expected": "number or word",
+        "actual": "boolean",
+        "value": true,
+        "operation": "<"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

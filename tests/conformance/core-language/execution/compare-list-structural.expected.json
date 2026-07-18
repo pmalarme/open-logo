@@ -1,0 +1,28 @@
+{
+  "description": "List `==` is structural: same length and pairwise `==` (spec/execution-model.md:493), so `[1 2] == [1 2]` is `true`. Issue #96.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/compare-list-structural",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/compare-list-structural",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": { "value": true }
+    }
+  ],
+  "diagnostics": []
+}
