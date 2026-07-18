@@ -1,0 +1,7 @@
+# Prefix `not` is right-associative unary (spec/grammar.md:187, `unary ::= "not" unary | ...`),
+# so `not not :a` nests two Call nodes, and a parenthesized single operand `(not :a)` is read as
+# a plain grouped expression (no ParenCall) because `not` is not one of the paren-variadic heads.
+:a = true
+print not :a
+print not not :a
+print (not :a)

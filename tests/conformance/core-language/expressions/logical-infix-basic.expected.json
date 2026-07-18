@@ -1,0 +1,7 @@
+{
+  "description": "Infix `and`/`or` are binary, left-associative calls; a three-term chain (`:a or :b or :c`, `:a and :b and :c`) parses clean with no diagnostics.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

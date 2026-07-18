@@ -1,0 +1,19 @@
+{
+  "description": "An infix `and` with no right-hand operand at end of file reports ol-bad-token, matching the existing comparison-missing-operand fixture's failure shape.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/expressions/logical-and-missing-operand",
+        "start": [3, 13],
+        "end": [4, 1]
+      },
+      "params": { "text": "end of line" },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

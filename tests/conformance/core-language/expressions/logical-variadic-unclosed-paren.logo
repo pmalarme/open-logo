@@ -1,0 +1,3 @@
+# An unclosed parenthesized variadic `(and ...)` reaching end of file raises ol-unmatched-paren,
+# same as any other unbalanced `(`.
+print (and :a :b

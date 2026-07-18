@@ -1,0 +1,11 @@
+# The parenthesized `(and ...)`/`(or ...)` forms are the variadic/alternate-arity call per
+# spec/grammar.md:165 ("a variadic or alternate-arity call must be wrapped in parentheses");
+# the parser's parenthesized-call reader special-cases `and`/`or` so they gather every operand
+# up to the closing `)` into one ParenCall node, rather than requiring exactly two like the
+# infix form (packages/parser/src/parser.ts parseParenthesized).
+:a = true
+:b = false
+:c = true
+print (and :a :b :c)
+print (or :a :b)
+print (and :a)

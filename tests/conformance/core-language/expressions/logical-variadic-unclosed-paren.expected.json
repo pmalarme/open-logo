@@ -1,0 +1,19 @@
+{
+  "description": "An unclosed parenthesized variadic `(and ...)` reaching end of file raises ol-unmatched-paren.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unmatched-paren",
+      "source_span": {
+        "document": "core-language/expressions/logical-variadic-unclosed-paren",
+        "start": [3, 7],
+        "end": [3, 8]
+      },
+      "params": { "delimiter": "(" },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}
