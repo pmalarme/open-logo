@@ -1,0 +1,19 @@
+{
+  "description": "`is` followed by a word that is none of the recognized predicate forms (empty, member, a, between, strictly) raises ol-bad-token at that word; the operand is recovered as a plain expression.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/expressions/is-predicate-unrecognized-word",
+        "start": [3, 13],
+        "end": [3, 19]
+      },
+      "params": { "text": "wibble" },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

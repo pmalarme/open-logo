@@ -1,0 +1,7 @@
+{
+  "description": "All four Core worded is-predicate forms (empty, member of, a <type>, [strictly] between ... and ...) parse as IsPredicate expressions with no diagnostics.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}
