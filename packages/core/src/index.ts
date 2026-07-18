@@ -36,7 +36,11 @@ export type {
   EventKind,
   MovePayload,
   Point,
+  PrintPayload,
   TraceEvent,
   TurnPayload,
   TurtleId,
 } from "./events.js";
+
+export { typeNameOf } from "./values.js";
+export type { OLTypeName, OLValue } from "./values.js";

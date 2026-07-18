@@ -135,10 +135,15 @@ test("produce is parse-only by default: no events even for an executable program
 test("produce executes via @openlogo/runtime when opted in", () => {
   const result = produce("print 1\nprint 2", "test-doc", true);
   assert.equal(result.diagnostics.length, 0);
-  assert.equal(result.events.length, 2);
+  assert.equal(result.events.length, 4);
   assert.equal(result.events[0].kind, "instruction");
   assert.equal(result.events[0].seq, 0);
+  assert.equal(result.events[1].kind, "print");
   assert.equal(result.events[1].seq, 1);
+  assert.equal(result.events[2].kind, "instruction");
+  assert.equal(result.events[2].seq, 2);
+  assert.equal(result.events[3].kind, "print");
+  assert.equal(result.events[3].seq, 3);
 });
 
 test("produce returns runtime diagnostics with message when opted in on malformed source", () => {
@@ -1235,6 +1240,16 @@ test("runHarness runs an opted-in execution fixture end to end", () => {
         },
         {
           seq: 1,
+          kind: "print",
+          source_span: {
+            document: "executes/executes",
+            start: [1, 1],
+            end: [1, 8],
+          },
+          payload: { value: 1 },
+        },
+        {
+          seq: 2,
           kind: "instruction",
           source_span: {
             document: "executes/executes",
@@ -1242,6 +1257,16 @@ test("runHarness runs an opted-in execution fixture end to end", () => {
             end: [2, 8],
           },
           payload: { statement_kind: "Call" },
+        },
+        {
+          seq: 3,
+          kind: "print",
+          source_span: {
+            document: "executes/executes",
+            start: [2, 1],
+            end: [2, 8],
+          },
+          payload: { value: 2 },
         },
       ],
       diagnostics: [],

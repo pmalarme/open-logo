@@ -1,0 +1,30 @@
+{
+  "description": "`sqrt` of a negative number raises `ol-neg-sqrt` (never a complex/NaN result), carrying the offending `value` in params, per issue #93 and spec/error-model.md.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/negative-sqrt",
+        "start": [1, 1],
+        "end": [1, 14]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-neg-sqrt",
+      "source_span": {
+        "document": "core-language/execution/negative-sqrt",
+        "start": [1, 7],
+        "end": [1, 14]
+      },
+      "params": { "value": -4 },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

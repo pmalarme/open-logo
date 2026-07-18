@@ -1,0 +1,30 @@
+{
+  "description": "`/` by zero raises `ol-div-zero` (never Infinity/NaN): execution halts at the failing statement, so only that statement's `instruction` event is kept — no `print` event, per issue #93.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/division-by-zero",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-div-zero",
+      "source_span": {
+        "document": "core-language/execution/division-by-zero",
+        "start": [1, 7],
+        "end": [1, 12]
+      },
+      "params": { "operation": "/" },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}
