@@ -1,0 +1,7 @@
+{
+  "description": "A deeply (3+ level) dotted place :a.b.c.d parses on a colon-form assignment, a read, and a bare-place set...to form",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}
