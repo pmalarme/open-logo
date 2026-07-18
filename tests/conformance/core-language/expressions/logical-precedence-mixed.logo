@@ -1,0 +1,11 @@
+# Precedence ladder mixes comparison, prefix `not`, and infix `and`/`or`, per spec/grammar.md:218-226:
+# `not` binds tighter than comparison, comparison binds tighter than `and`, and `and` binds tighter
+# than `or`, so no extra parentheses are needed to read these the way they group.
+:a = 1
+:b = 2
+:c = 3
+:d = 4
+print :a == :b and :c == :d
+print :a < :b or :c < :d
+print not :a == :b
+print :a or :b and :c

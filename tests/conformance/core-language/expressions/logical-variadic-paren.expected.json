@@ -1,0 +1,7 @@
+{
+  "description": "The parenthesized variadic `(and ...)`/`(or ...)` forms gather any number of operands (three, two, or one) up to the closing `)` and parse clean.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

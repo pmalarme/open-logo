@@ -1,0 +1,7 @@
+{
+  "description": "Prefix `not` is right-associative unary and nests (`not not :a`); a parenthesized single operand `(not :a)` parses clean as an ordinary grouped expression.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

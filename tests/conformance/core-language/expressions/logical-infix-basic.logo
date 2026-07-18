@@ -1,0 +1,9 @@
+# Infix `and`/`or` are binary, left-associative Call nodes (callee "and"/"or"), never a variadic
+# collection: a three-term chain desugars as two nested Call nodes, per spec/grammar.md:177-178,223-224.
+:a = true
+:b = false
+:c = true
+print :a and :b
+print :a or :b
+print :a or :b or :c
+print :a and :b and :c

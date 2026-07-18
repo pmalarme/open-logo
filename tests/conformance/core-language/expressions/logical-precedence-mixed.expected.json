@@ -1,0 +1,7 @@
+{
+  "description": "The precedence ladder (not > comparison > and > or) lets comparison, prefix `not`, and infix `and`/`or` mix without extra parentheses; all four lines parse clean.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

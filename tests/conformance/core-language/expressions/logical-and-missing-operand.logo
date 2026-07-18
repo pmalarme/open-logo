@@ -1,0 +1,3 @@
+# A dangling `and` with no right-hand operand at end of file is a genuine parse error, matching
+# the existing comparison-missing-operand fixture's shape for the same failure mode.
+print :a and
