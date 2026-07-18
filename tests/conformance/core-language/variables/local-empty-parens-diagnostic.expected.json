@@ -1,0 +1,19 @@
+{
+  "description": "The parenthesized local form (local) with zero names has no name to bind, so the parser reports ol-bad-token at the closing paren instead of accepting an empty binder list",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/variables/local-empty-parens-diagnostic",
+        "start": [1, 7],
+        "end": [1, 8]
+      },
+      "params": { "text": ")" },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}
