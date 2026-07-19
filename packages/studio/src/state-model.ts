@@ -1,0 +1,135 @@
+/**
+ * The single studio state model — the sole source of truth for the learner's document text,
+ * cursor/selection, run status, diagnostics list, and lesson context. Every pane (#124 editor,
+ * #125 diagnostics, #126 run/stop, #127 lesson, #128 persistence, #129 a11y) reads from and
+ * updates through **one** {@link StudioStateStore} instance; nothing forks or copies the state
+ * independently, so two panes can never desync.
+ *
+ * ## Shape
+ * - `source` — the current document text.
+ * - `selection` — the cursor/selection range, expressed as {@link Position} anchor/head pairs
+ *   (reusing `@openlogo/core`'s 1-based `[line, column]` positions — the same primitive
+ *   diagnostics and the AST use, so panes never invent a second coordinate system).
+ * - `runStatus` — `"idle" | "running" | "stopped"`, driven later by the run controller (#126)
+ *   over the runtime's execution budget.
+ * - `diagnostics` — the current `ol-*` {@link Diagnostic} list from `@openlogo/core`, as produced
+ *   by `@openlogo/parser`/`@openlogo/runtime`. Studio never invents its own diagnostic shape.
+ * - `lesson` — the active lesson context (id + title) for the lesson pane (#127); content itself
+ *   is pulled from `@openlogo/edu`, never authored here.
+ *
+ * ## Update contract
+ * - State changes **only** through the store's `set*` methods below; the object returned by
+ *   {@link StudioStateStore.getState} is the current snapshot and MUST NOT be mutated in place.
+ * - `getState()` returns the **same object reference** until the next `set*` call, so any two
+ *   consumers holding the same store instance always observe the same values — there is no
+ *   per-pane copy to fall out of sync.
+ * - After any `set*` call every listener registered via {@link StudioStateStore.subscribe} is
+ *   notified synchronously with the new snapshot; `subscribe` returns an unsubscribe function.
+ */
+
+import type { Diagnostic, Position } from "@openlogo/core";
+
+/** The learner's run state, driven later by the run controller (#126) over the runtime budget. */
+export type RunStatus = "idle" | "running" | "stopped";
+
+/** A cursor/selection range using `@openlogo/core`'s 1-based `[line, column]` positions. */
+export interface Selection {
+  readonly anchor: Position;
+  readonly head: Position;
+}
+
+/** The active lesson context for the lesson pane (#127); content is pulled from `@openlogo/edu`. */
+export interface LessonContext {
+  readonly lessonId: string | null;
+  readonly title: string | null;
+}
+
+/** The single source-of-truth snapshot every studio pane renders from. */
+export interface StudioState {
+  readonly source: string;
+  readonly selection: Selection;
+  readonly runStatus: RunStatus;
+  readonly diagnostics: readonly Diagnostic[];
+  readonly lesson: LessonContext;
+}
+
+/** A subscriber notified with the new snapshot after every state change. */
+export type StudioStateListener = (state: StudioState) => void;
+
+/** Unsubscribe function returned by {@link StudioStateStore.subscribe}. */
+export type Unsubscribe = () => void;
+
+/**
+ * The single state model store. Construct exactly one instance per studio session
+ * ({@link createStudioState}) and share that instance across every pane.
+ */
+export interface StudioStateStore {
+  /** The current snapshot; stable by reference between state changes. */
+  getState(): StudioState;
+  /** Register a listener notified synchronously after every state change. */
+  subscribe(listener: StudioStateListener): Unsubscribe;
+  /** Replace the document text. */
+  setSource(source: string): void;
+  /** Replace the cursor/selection. */
+  setSelection(selection: Selection): void;
+  /** Replace the run status. */
+  setRunStatus(runStatus: RunStatus): void;
+  /** Replace the diagnostics list. */
+  setDiagnostics(diagnostics: readonly Diagnostic[]): void;
+  /** Replace the lesson context. */
+  setLesson(lesson: LessonContext): void;
+}
+
+const INITIAL_POSITION: Position = [1, 1];
+const INITIAL_SELECTION: Selection = {
+  anchor: INITIAL_POSITION,
+  head: INITIAL_POSITION,
+};
+const INITIAL_LESSON: LessonContext = { lessonId: null, title: null };
+
+/** Construct the single {@link StudioStateStore} for a studio session. */
+export function createStudioState(
+  initial?: Partial<StudioState>,
+): StudioStateStore {
+  let state: StudioState = {
+    source: initial?.source ?? "",
+    selection: initial?.selection ?? INITIAL_SELECTION,
+    runStatus: initial?.runStatus ?? "idle",
+    diagnostics: initial?.diagnostics ?? [],
+    lesson: initial?.lesson ?? INITIAL_LESSON,
+  };
+
+  const listeners = new Set<StudioStateListener>();
+
+  function commit(patch: Partial<StudioState>): void {
+    state = { ...state, ...patch };
+    for (const listener of listeners) {
+      listener(state);
+    }
+  }
+
+  return {
+    getState: () => state,
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    setSource(source) {
+      commit({ source });
+    },
+    setSelection(selection) {
+      commit({ selection });
+    },
+    setRunStatus(runStatus) {
+      commit({ runStatus });
+    },
+    setDiagnostics(diagnostics) {
+      commit({ diagnostics });
+    },
+    setLesson(lesson) {
+      commit({ lesson });
+    },
+  };
+}
