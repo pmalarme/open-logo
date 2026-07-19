@@ -1,0 +1,30 @@
+{
+  "description": "issue #204: `clear_screen`/`clean` take no arguments; the parenthesized form `(clear_screen 1)` supplies one, raising `ol-too-many-inputs` at runtime (the bare form's extra tokens would instead fail at parse time as a stray-token diagnostic, since clear_screen/clean's registered arity is 0 - see packages/parser/src/signatures.ts).",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/screen/clear-screen-too-many-inputs",
+        "start": [1, 1],
+        "end": [1, 17]
+      },
+      "payload": { "statement_kind": "ParenCall" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-too-many-inputs",
+      "source_span": {
+        "document": "turtle-rendering/screen/clear-screen-too-many-inputs",
+        "start": [1, 2],
+        "end": [1, 14]
+      },
+      "params": { "callable": "clear_screen", "expected": 0, "actual": 1 },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}
