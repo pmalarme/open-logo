@@ -149,13 +149,16 @@ export interface FillPayload {
 }
 
 /**
- * Payload for a `stamp` event: the position, heading, and shape word of the turtle avatar
- * stamped into the retained scene (`spec/rendering.md`'s "Turtle avatar and shapes" section).
+ * Payload for a `stamp` event: the position, heading, shape word, and pen color of the turtle
+ * avatar stamped into the retained scene (`spec/rendering.md`'s "Turtle avatar and shapes"
+ * section, and its "Color" section: "a segment, fill, or stamp captures the color at the
+ * moment its event is applied").
  */
 export interface StampPayload {
   readonly position: Point;
   readonly heading: number;
   readonly shape: string;
+  readonly color: string;
 }
 
 /**

@@ -94,16 +94,22 @@ test("fill payload carries the fill color used", () => {
   assert.equal(event.payload.color, "green");
 });
 
-test("stamp payload carries position, heading, and shape stamped", () => {
+test("stamp payload carries position, heading, shape, and color stamped", () => {
   const event = {
     seq: 8,
     kind: "stamp",
     source_span: makeSpan(),
     turtle_id: 0,
-    payload: { position: [10, 20], heading: 90, shape: "triangle" },
+    payload: {
+      position: [10, 20],
+      heading: 90,
+      shape: "triangle",
+      color: "red",
+    },
   };
   assert.ok(OL.isEventKind(event.kind));
   assert.deepEqual(event.payload.position, [10, 20]);
   assert.equal(event.payload.heading, 90);
   assert.equal(event.payload.shape, "triangle");
+  assert.equal(event.payload.color, "red");
 });
