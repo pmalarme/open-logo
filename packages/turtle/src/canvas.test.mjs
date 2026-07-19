@@ -92,6 +92,23 @@ test("worldToTarget defaults scale to 1 when omitted", () => {
   );
 });
 
+test("paintScene maps segment pen width through the viewport scale, same as coordinates", () => {
+  const { target, calls } = makeRecordingTarget();
+  const scaledViewport = { width: 400, height: 300, scale: 2 };
+  const scene = {
+    background: "white",
+    items: [
+      {
+        kind: "segment",
+        segment: { from: [0, 0], to: [0, 0], color: "red", width: 3 },
+      },
+    ],
+  };
+  OL.paintScene(target, scene, scaledViewport);
+  const lineWidthWrite = calls.find((call) => call[0] === "set lineWidth");
+  assert.deepEqual(lineWidthWrite, ["set lineWidth", 6]);
+});
+
 test("paintScene draws the background before any items", () => {
   const { target, calls } = makeRecordingTarget();
   const scene = { background: "yellow", items: [] };

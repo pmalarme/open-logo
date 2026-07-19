@@ -6,10 +6,9 @@
  *
  * This module never touches the DOM or a real `CanvasRenderingContext2D` directly. It draws
  * through {@link RenderTarget}, a minimal structural subset of the Canvas 2D drawing API, so the
- * renderer stays headless and dependency-injectable: production code passes a real canvas
- * context (which structurally satisfies {@link RenderTarget}); tests pass a small recording
- * fake and assert the exact draw-call sequence. No `lib.dom` types and no `node-canvas`
- * dependency are introduced.
+ * renderer stays headless and dependency-injectable: production code passes a thin adapter over
+ * a real canvas context; tests pass a small recording fake and assert the exact draw-call
+ * sequence. No `lib.dom` types and no `node-canvas` dependency are introduced.
  *
  * Repainting always happens from the retained scene alone — the program is never re-run
  * (`spec/rendering.md`'s "Drawing model": "Repainting a target MUST be possible from retained
@@ -23,9 +22,13 @@ import type { SceneItem, TurtleScene } from "./scene.js";
 import type { TurtleState } from "./state.js";
 
 /**
- * The minimal structural subset of the Canvas 2D drawing API this renderer needs. A real
- * `CanvasRenderingContext2D` satisfies this interface structurally; tests supply a recording
- * fake instead of a DOM canvas.
+ * The minimal structural subset of the Canvas 2D drawing API this renderer needs. This package
+ * has no `dom` lib and no `node-canvas` dependency, so `RenderTarget` is our own hand-written
+ * interface rather than `CanvasRenderingContext2D` — production integrations (Studio) pass a
+ * thin adapter over a real 2-D context (a later slice, since `CanvasRenderingContext2D.fillStyle`
+ * / `strokeStyle` accept `CanvasGradient`/`CanvasPattern` in addition to `string`, so a real
+ * context is not directly assignable without narrowing); tests supply a recording fake that
+ * implements this interface exactly, with no DOM at all.
  */
 export interface RenderTarget {
   fillStyle: string;
@@ -61,7 +64,9 @@ export interface RenderTarget {
 export interface Viewport {
   readonly width: number;
   readonly height: number;
-  /** World units per target pixel; defaults to `1`. */
+  /** World units per target pixel; defaults to `1`. Also applied to pen width, per
+   * `spec/rendering.md`: "A target maps width through the same viewport scale used for
+   * coordinates." */
   readonly scale?: number;
 }
 
@@ -230,7 +235,7 @@ export function paintScene(
       const [fromX, fromY] = worldToTarget(item.segment.from, viewport);
       const [toX, toY] = worldToTarget(item.segment.to, viewport);
       target.strokeStyle = item.segment.color;
-      target.lineWidth = item.segment.width;
+      target.lineWidth = item.segment.width * (viewport.scale ?? DEFAULT_SCALE);
       target.beginPath();
       target.moveTo(fromX, fromY);
       target.lineTo(toX, toY);
