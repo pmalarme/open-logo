@@ -1,0 +1,28 @@
+{
+  "description": "`reverse` returns a fresh list in the opposite order (bare-call form, spec/commands.md \"reverse\"). Issue #101.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/list-reverse-list",
+        "start": [1, 1],
+        "end": [1, 22]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/list-reverse-list",
+        "start": [1, 1],
+        "end": [1, 22]
+      },
+      "payload": { "values": [[3, 2, 1]] }
+    }
+  ],
+  "diagnostics": []
+}

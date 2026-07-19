@@ -120,6 +120,7 @@ test("gathers the exact input count for every core word/list reporter", () => {
     "butfirst", // new
     "butlast", // new
     "count", // new
+    "reverse", // new
     "uppercase", // new
     "lowercase", // new
   ];
