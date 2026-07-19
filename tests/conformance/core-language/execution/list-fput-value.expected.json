@@ -1,0 +1,28 @@
+{
+  "description": "`fput` prepends a value to a fresh list, never mutating the argument list (spec/commands.md \"fput\"; spec/execution-model.md:447-482). Issue #101.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/list-fput-value",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/list-fput-value",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": { "values": [[0, 1, 2, 3]] }
+    }
+  ],
+  "diagnostics": []
+}

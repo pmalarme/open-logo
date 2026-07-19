@@ -1,0 +1,30 @@
+{
+  "description": "`last` on an empty word raises `ol-range` (spec/error-model.md \"an empty first or last\"). Execution halts, so only the `instruction` event is kept. Issue #101.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/list-last-empty-error",
+        "start": [1, 1],
+        "end": [1, 14]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-range",
+      "source_span": {
+        "document": "core-language/execution/list-last-empty-error",
+        "start": [1, 12],
+        "end": [1, 14]
+      },
+      "params": { "operation": "last", "value": "" },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "description": "`first` on an empty list raises `ol-range` (spec/error-model.md \"an empty first or last\"). Execution halts, so only the `instruction` event is kept. Issue #101.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/list-first-empty-error",
+        "start": [1, 1],
+        "end": [1, 15]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-range",
+      "source_span": {
+        "document": "core-language/execution/list-first-empty-error",
+        "start": [1, 13],
+        "end": [1, 15]
+      },
+      "params": { "operation": "first", "value": [] },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

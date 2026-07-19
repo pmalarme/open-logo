@@ -1,0 +1,2 @@
+print butlast [1 2 3]
+

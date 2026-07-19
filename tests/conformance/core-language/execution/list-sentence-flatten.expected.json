@@ -1,0 +1,28 @@
+{
+  "description": "`sentence`'s parenthesized variadic form flattens list arguments one level, mixed with non-list arguments as single elements (spec/commands.md \"sentence\"). Issue #101.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/list-sentence-flatten",
+        "start": [1, 1],
+        "end": [1, 31]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/list-sentence-flatten",
+        "start": [1, 1],
+        "end": [1, 31]
+      },
+      "payload": { "values": [[1, 2, 3, 4, 5]] }
+    }
+  ],
+  "diagnostics": []
+}

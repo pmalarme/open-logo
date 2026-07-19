@@ -1,0 +1,28 @@
+{
+  "description": "`first` on a list reports its first element (spec/commands.md \"first\"). Issue #101.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/list-first-value",
+        "start": [1, 1],
+        "end": [1, 20]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/list-first-value",
+        "start": [1, 1],
+        "end": [1, 20]
+      },
+      "payload": { "values": [1] }
+    }
+  ],
+  "diagnostics": []
+}

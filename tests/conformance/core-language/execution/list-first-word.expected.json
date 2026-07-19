@@ -1,0 +1,28 @@
+{
+  "description": "`first` on a word reports its first character as a one-character word (spec/commands.md \"first\"). Issue #101.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/list-first-word",
+        "start": [1, 1],
+        "end": [1, 17]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/list-first-word",
+        "start": [1, 1],
+        "end": [1, 17]
+      },
+      "payload": { "values": ["h"] }
+    }
+  ],
+  "diagnostics": []
+}

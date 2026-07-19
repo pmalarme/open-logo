@@ -1,0 +1,28 @@
+{
+  "description": "`count` on a word reports its character count (spec/commands.md \"count\" — count works for both list AND word, issue #101's acceptance criterion). Issue #101.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/list-count-word",
+        "start": [1, 1],
+        "end": [1, 20]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/list-count-word",
+        "start": [1, 1],
+        "end": [1, 20]
+      },
+      "payload": { "values": [5] }
+    }
+  ],
+  "diagnostics": []
+}

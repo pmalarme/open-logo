@@ -41,6 +41,9 @@
  * `is_a?` type-argument operand; and `ol-unknown-type` for an unrecognized type word in `is a
  * <type-word>`/`is_a?` — the runtime's own copy of the checker's `unknownTypeRule` (issue #112's
  * `checker-type-field.ts`), at `stage: "runtime"` for the same reason as the others above.
+ * Issue #101 adds the Core list reporters' diagnostics: `ol-type` for a wrong-typed
+ * `first`/`last`/`butfirst`/`butlast`/`count`/`fput`/`lput` argument, and `ol-range` for
+ * `first`/`last`/`butfirst`/`butlast` given an empty word or list (`spec/error-model.md:100`).
  * Mirrors the parser's `errors.ts` pattern: every finding is a stable code from the
  * `@openlogo/core` registry with structured `params` (the diagnostic identity) plus warm,
  * lowercase learner prose derived from them — prose is presentation only.
@@ -208,6 +211,31 @@ export interface IsPredicateTypeErrorParams {
   readonly actual: string;
   readonly value: OLValue;
   readonly operation: string;
+}
+
+/**
+ * Params for an `ol-type` raised by a Core list reporter's wrong-typed argument
+ * (`spec/commands.md` — `first`/`last`/`butfirst`/`butlast`/`count` accept a word or list; `fput`/
+ * `lput` require their second argument to be a list). Same `{expected, actual, value, operation}`
+ * shape as {@link IsPredicateTypeErrorParams}/{@link OrderingTypeErrorParams} — `operation` names
+ * the offending reporter for the message.
+ */
+export interface ListReporterTypeErrorParams {
+  readonly expected: "word or list" | "list";
+  readonly actual: string;
+  readonly value: OLValue;
+  readonly operation: string;
+}
+
+/**
+ * Params for an `ol-range` raised by `first`/`last`/`butfirst`/`butlast` on an empty word or list
+ * (`spec/error-model.md:100` — "an empty `first` or `last`"; `spec/commands.md` extends the same
+ * rule to `butfirst`/`butlast`). `value` is the empty word/list itself, matching how
+ * {@link NegativeCountParams} carries the offending `value` rather than just its type name.
+ */
+export interface EmptyInputRangeParams {
+  readonly operation: "first" | "last" | "butfirst" | "butlast";
+  readonly value: OLValue;
 }
 
 /** Runtime-stage diagnostics, one builder per `ol-*` code the evaluator can raise. */
@@ -684,6 +712,38 @@ export const runtimeDiag = {
       source_span,
       { name },
       `i don't know a type called "${name}" — try number, word, list, or boolean.`,
+    );
+  },
+
+  /**
+   * `ol-type` for a Core list reporter's wrong-typed argument (issue #101) — see
+   * {@link ListReporterTypeErrorParams}.
+   */
+  listReporterType(
+    source_span: SourceSpan,
+    params: ListReporterTypeErrorParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-type",
+      source_span,
+      { ...params },
+      `${params.operation} needs a ${params.expected}, but got a ${params.actual}.`,
+    );
+  },
+
+  /**
+   * `ol-range` for `first`/`last`/`butfirst`/`butlast` given an empty word or list (issue #101) —
+   * see {@link EmptyInputRangeParams}.
+   */
+  emptyInput(
+    source_span: SourceSpan,
+    params: EmptyInputRangeParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-range",
+      source_span,
+      { ...params },
+      `${params.operation} needs a non-empty word or list, but got an empty one.`,
     );
   },
 } as const;

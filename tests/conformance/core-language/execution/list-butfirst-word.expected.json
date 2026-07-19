@@ -1,0 +1,28 @@
+{
+  "description": "`butfirst` on a word reports the remaining characters as a word, preserving the word type (spec/commands.md \"butfirst\"). Issue #101.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/list-butfirst-word",
+        "start": [1, 1],
+        "end": [1, 20]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/list-butfirst-word",
+        "start": [1, 1],
+        "end": [1, 20]
+      },
+      "payload": { "values": ["i"] }
+    }
+  ],
+  "diagnostics": []
+}
