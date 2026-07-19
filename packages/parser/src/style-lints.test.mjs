@@ -212,6 +212,16 @@ test("ol-style-name-case: bad map/reduce comprehension binder and accumulator na
   assert.ok(reduceDiagnostics.some((d) => d.params.name === "badSum"));
 });
 
+test("ol-style-name-case: a bad map destructuring binder name is flagged at its declaration and each read (not silently skipped)", () => {
+  const diagnostics = checkStyle(
+    ":pairs = [[1 2]]\n:ys = map [:badX :y] in :pairs [ :badX + :y ]",
+  ).filter((d) => d.code === "ol-style-name-case");
+  // One finding at the destructuring binder's own declaration, one at its later read — mirroring
+  // how a plain camelCase variable is flagged at both its assignment and its read.
+  assert.equal(diagnostics.length, 2);
+  assert.ok(diagnostics.every((d) => d.params.name === "badX"));
+});
+
 test("ol-style-name-case: a short lowercase loop binder like `i` is clean", () => {
   const diagnostics = checkStyle("for i from 1 to 4 [ print :i ]");
   assert.deepEqual(diagnostics, []);

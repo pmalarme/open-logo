@@ -280,7 +280,12 @@ function checkNamesIn(node: AnyNode, diagnostics: Diagnostic[]): void {
       checkNameCase(node.variable, diagnostics);
       return;
     case "Comprehension": {
-      checkNameCase(node.binder, diagnostics);
+      // Same reasoning as "ForIn": a destructuring binder is its own walked "DestructuringBinder"
+      // node (per `childrenOf`) and is checked there; a bare binder is metadata, only reachable
+      // here.
+      if (!("kind" in node.binder)) {
+        checkNameCase(node.binder, diagnostics);
+      }
       if (node.form === "reduce") {
         checkNameCase(node.accumulator, diagnostics);
       }
