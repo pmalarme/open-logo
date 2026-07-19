@@ -1,0 +1,5 @@
+# A reporter procedure (reaches `return`) called in expression position (spec/execution-model.md:316-364).
+define square :n
+  return :n * :n
+end
+print square 5

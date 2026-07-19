@@ -21,6 +21,13 @@
  * for a repeated name in a `for [:x :x] in ...` pattern — the runtime's own copy of the
  * semantic checker's rule of the same name (issue #114's `checker-control-flow.ts`), at
  * `stage: "runtime"` since `execute()` never runs `check()`.
+ * Issue #97 adds procedure-call diagnostics: `ol-too-many-inputs` (a fixed-arity call —
+ * including the parenthesized form of a user procedure — supplied too many inputs), reusing
+ * `ol-not-enough-inputs`'s `{callable, expected, actual}` param shape so both share it with the
+ * static checker's `checker-arity.ts` (issue #111); `ol-no-output` (a command procedure used
+ * where a value is required, raised at the call site); `ol-user-error` (`throw <value>`); and
+ * the runtime's own copies of the checker's `ol-return-outside-proc`/`ol-stop-outside-proc`
+ * (issue #114's `checker-control-flow.ts`) for the same reason as `ol-not-a-place` above.
  * Mirrors the parser's `errors.ts` pattern: every finding is a stable code from the
  * `@openlogo/core` registry with structured `params` (the diagnostic identity) plus warm,
  * lowercase learner prose derived from them — prose is presentation only.
@@ -388,6 +395,84 @@ export const runtimeDiag = {
       source_span,
       { name, form: "destructuring" },
       `the binder ${name} is used twice here. give each binder a different name.`,
+    );
+  },
+
+  /**
+   * `ol-too-many-inputs`: a fixed-arity call was given more inputs than it accepts
+   * (`spec/error-model.md:98`). Same `{callable, expected, actual}` shape as
+   * {@link runtimeDiag.notEnoughInputs} and the static checker's `checker-arity.ts` (issue #111)
+   * so both stages agree on identity — `expected` is the callee's ceiling (its total parameter
+   * count for a user procedure), not the floor {@link notEnoughInputs} reports.
+   */
+  tooManyInputs(
+    source_span: SourceSpan,
+    callable: string,
+    expected: number,
+    actual: number,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-too-many-inputs",
+      source_span,
+      { callable, expected, actual },
+      `${callable} takes ${expected === 1 ? "one input" : `${expected} inputs`}, but got ${actual}.`,
+    );
+  },
+
+  /**
+   * `ol-no-output`: a procedure was called where a value is required, but the invocation reached
+   * the end of its body (or `stop`) without ever executing `return`/`output`/`op`
+   * (`spec/execution-model.md:346-349`, `spec/error-model.md:112`). Raised at the CALL site, not
+   * inside the procedure's own body — the procedure itself ran to completion without error.
+   */
+  noOutput(source_span: SourceSpan, procedure: string): Diagnostic {
+    return runtimeError(
+      "ol-no-output",
+      source_span,
+      { procedure },
+      `${procedure} doesn't report a value here — it never reaches return.`,
+    );
+  },
+
+  /**
+   * `ol-user-error`: `throw <value>` halted execution with a learner-facing message
+   * (`spec/error-model.md:120`). `message` is the thrown word itself, or — when the thrown value
+   * is not a word — its canonical printed form, exactly as `print` would show it.
+   */
+  userError(source_span: SourceSpan, message: string): Diagnostic {
+    return runtimeError("ol-user-error", source_span, { message }, message);
+  },
+
+  /**
+   * `ol-return-outside-proc`: `return`/`output`/`op` reached the top level with no enclosing
+   * procedure to return from. Same `{keyword}` params shape as the parser's
+   * `checker-control-flow.ts` semantic rule (issue #114) so both stages agree on identity — this
+   * copy exists because `execute()` runs `parse()` only, not `check()`.
+   */
+  returnOutsideProc(
+    source_span: SourceSpan,
+    keyword: "return" | "output" | "op",
+  ): Diagnostic {
+    return runtimeError(
+      "ol-return-outside-proc",
+      source_span,
+      { keyword },
+      `${keyword} only reports a value from inside a procedure. put it between 'define' and 'end'.`,
+    );
+  },
+
+  /**
+   * `ol-stop-outside-proc`: `stop` reached the top level with no enclosing procedure to leave.
+   * Same (empty) params shape as the parser's `checker-control-flow.ts` semantic rule (issue
+   * #114) so both stages agree on identity — this copy exists because `execute()` runs `parse()`
+   * only, not `check()`.
+   */
+  stopOutsideProc(source_span: SourceSpan): Diagnostic {
+    return runtimeError(
+      "ol-stop-outside-proc",
+      source_span,
+      {},
+      "stop only leaves a procedure, so it belongs between 'define' and 'end'.",
     );
   },
 } as const;

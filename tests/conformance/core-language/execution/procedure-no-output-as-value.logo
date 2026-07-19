@@ -1,0 +1,6 @@
+# A command procedure (finishes without reaching `return`) used in a value-required expression
+# position raises `ol-no-output` at the CALL site, not inside the procedure body.
+define shout
+  print "hi"
+end
+print shout

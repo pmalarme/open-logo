@@ -1,0 +1,4 @@
+# `return` outside any procedure is `ol-return-outside-proc`, raised by the runtime at call time
+# (`execute()` never runs the checker, so this mirrors #114's semantic-stage rule at
+# stage:"runtime" — the established #94/#104 convention, no double-report).
+return 1

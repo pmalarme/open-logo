@@ -1,0 +1,32 @@
+{
+  "description": "stop outside any procedure raises ol-stop-outside-proc at the runtime stage, mirroring #114's semantic-stage rule per the same #94/#104 convention. Issue #97.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-stop-outside-proc",
+        "start": [3, 1],
+        "end": [3, 5]
+      },
+      "payload": {
+        "statement_kind": "Stop"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-stop-outside-proc",
+      "source_span": {
+        "document": "core-language/execution/procedure-stop-outside-proc",
+        "start": [3, 1],
+        "end": [3, 5]
+      },
+      "params": {},
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

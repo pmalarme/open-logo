@@ -1,0 +1,48 @@
+{
+  "description": "A parenthesized call site with too few arguments for a user procedure raises ol-not-enough-inputs at the callee span, checked at runtime call time (execute() never runs check()); shares the callable/expected/actual param shape with #111's static rule (spec/error-model.md). Issue #97.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-arity-not-enough-inputs",
+        "start": [3, 1],
+        "end": [5, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-arity-not-enough-inputs",
+        "start": [6, 1],
+        "end": [6, 17]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-not-enough-inputs",
+      "source_span": {
+        "document": "core-language/execution/procedure-arity-not-enough-inputs",
+        "start": [6, 8],
+        "end": [6, 14]
+      },
+      "params": {
+        "callable": "double",
+        "expected": 2,
+        "actual": 1
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

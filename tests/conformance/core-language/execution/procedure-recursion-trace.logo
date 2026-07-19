@@ -1,0 +1,12 @@
+# The spec's worked recursive-call trace (spec/execution-model.md:606-648), reproduced verbatim:
+# each recursive invocation gets its own frame, and `procedure-enter`/`return`/`procedure-exit`
+# events nest as the recursion unwinds.
+define countdown :n
+  if :n == 0
+    return 0
+  end
+  print :n
+  return countdown :n - 1
+end
+
+print countdown 2

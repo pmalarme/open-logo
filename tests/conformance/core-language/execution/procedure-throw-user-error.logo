@@ -1,0 +1,5 @@
+# `throw "msg"` halts execution with `ol-user-error` carrying that message.
+define fail
+  throw "something broke"
+end
+fail
