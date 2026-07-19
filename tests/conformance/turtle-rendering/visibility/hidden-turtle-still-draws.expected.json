@@ -1,0 +1,58 @@
+{
+  "description": "issue #207: a hidden turtle still moves, turns, and draws exactly as when visible - `hide_turtle` only emits `visibility-change` (display-only), then `forward 50` with the pen down (the default, issue #200) still emits `move` and `draw-segment` unaffected by visibility (spec/rendering.md's \"Turtle avatar and shapes\" section: \"A hidden turtle still moves, turns, draws when the pen is down, and reports its state normally.\").",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/visibility/hidden-turtle-still-draws",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "visibility-change",
+      "source_span": {
+        "document": "turtle-rendering/visibility/hidden-turtle-still-draws",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": { "from": true, "to": false }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/visibility/hidden-turtle-still-draws",
+        "start": [2, 1],
+        "end": [2, 11]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 3,
+      "kind": "move",
+      "source_span": {
+        "document": "turtle-rendering/visibility/hidden-turtle-still-draws",
+        "start": [2, 1],
+        "end": [2, 11]
+      },
+      "payload": { "from": [0, 0], "to": [0, 50], "heading": 0 }
+    },
+    {
+      "seq": 4,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "turtle-rendering/visibility/hidden-turtle-still-draws",
+        "start": [2, 1],
+        "end": [2, 11]
+      },
+      "payload": { "from": [0, 0], "to": [0, 50], "color": "black", "width": 1 }
+    }
+  ],
+  "diagnostics": []
+}
