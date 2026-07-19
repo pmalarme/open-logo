@@ -97,6 +97,27 @@ test("first propagates an operand evaluation failure instead of evaluating", () 
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
 });
 
+test("(first) with no input raises ol-not-enough-inputs", () => {
+  const result = execute("print (first)", doc);
+  assert.equal(result.diagnostics.length, 1);
+  assert.deepEqual(result.diagnostics[0].code, "ol-not-enough-inputs");
+  assert.deepEqual(result.diagnostics[0].params, {
+    callable: "first",
+    expected: 1,
+    actual: 0,
+  });
+});
+
+test("(last) with no input raises ol-not-enough-inputs", () => {
+  const result = execute("print (last)", doc);
+  assert.equal(result.diagnostics.length, 1);
+  assert.deepEqual(result.diagnostics[0].params, {
+    callable: "last",
+    expected: 1,
+    actual: 0,
+  });
+});
+
 // --- butfirst / butlast ----------------------------------------------------------------------
 
 test("butfirst returns every element but the first, as a fresh list", () => {
@@ -168,6 +189,27 @@ test("butfirst never mutates its list argument", () => {
   assert.deepEqual(printedValues(result), [[1, 2, 3]]);
 });
 
+test("(butfirst) with no input raises ol-not-enough-inputs", () => {
+  const result = execute("print (butfirst)", doc);
+  assert.equal(result.diagnostics.length, 1);
+  assert.deepEqual(result.diagnostics[0].code, "ol-not-enough-inputs");
+  assert.deepEqual(result.diagnostics[0].params, {
+    callable: "butfirst",
+    expected: 1,
+    actual: 0,
+  });
+});
+
+test("(butlast) with no input raises ol-not-enough-inputs", () => {
+  const result = execute("print (butlast)", doc);
+  assert.equal(result.diagnostics.length, 1);
+  assert.deepEqual(result.diagnostics[0].params, {
+    callable: "butlast",
+    expected: 1,
+    actual: 0,
+  });
+});
+
 // --- fput / lput ------------------------------------------------------------------------------
 
 test("fput prepends a value to a fresh list", () => {
@@ -226,6 +268,27 @@ test("lput propagates a list-evaluation failure", () => {
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
 });
 
+test("(fput 1) with only one input raises ol-not-enough-inputs", () => {
+  const result = execute("print (fput 1)", doc);
+  assert.equal(result.diagnostics.length, 1);
+  assert.deepEqual(result.diagnostics[0].code, "ol-not-enough-inputs");
+  assert.deepEqual(result.diagnostics[0].params, {
+    callable: "fput",
+    expected: 2,
+    actual: 1,
+  });
+});
+
+test("(lput) with no inputs raises ol-not-enough-inputs", () => {
+  const result = execute("print (lput)", doc);
+  assert.equal(result.diagnostics.length, 1);
+  assert.deepEqual(result.diagnostics[0].params, {
+    callable: "lput",
+    expected: 2,
+    actual: 0,
+  });
+});
+
 // --- sentence -----------------------------------------------------------------------------
 
 test("sentence combines two words into a fresh list", () => {
@@ -261,6 +324,27 @@ test("sentence propagates an argument evaluation failure", () => {
   const result = execute("print sentence :missing [1]", doc);
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
+});
+
+test("(sentence) with no inputs raises ol-not-enough-inputs", () => {
+  const result = execute("print (sentence)", doc);
+  assert.equal(result.diagnostics.length, 1);
+  assert.deepEqual(result.diagnostics[0].code, "ol-not-enough-inputs");
+  assert.deepEqual(result.diagnostics[0].params, {
+    callable: "sentence",
+    expected: 2,
+    actual: 0,
+  });
+});
+
+test("(sentence 1) with only one input raises ol-not-enough-inputs", () => {
+  const result = execute("print (sentence 1)", doc);
+  assert.equal(result.diagnostics.length, 1);
+  assert.deepEqual(result.diagnostics[0].params, {
+    callable: "sentence",
+    expected: 2,
+    actual: 1,
+  });
 });
 
 // --- count ----------------------------------------------------------------------------------
@@ -310,4 +394,15 @@ test("count propagates an operand evaluation failure instead of evaluating", () 
   const result = execute("print count :missing", doc);
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
+});
+
+test("(count) with no input raises ol-not-enough-inputs", () => {
+  const result = execute("print (count)", doc);
+  assert.equal(result.diagnostics.length, 1);
+  assert.deepEqual(result.diagnostics[0].code, "ol-not-enough-inputs");
+  assert.deepEqual(result.diagnostics[0].params, {
+    callable: "count",
+    expected: 1,
+    actual: 0,
+  });
 });

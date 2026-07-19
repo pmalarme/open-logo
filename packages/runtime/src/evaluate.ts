@@ -1855,6 +1855,31 @@ function isWordOrList(value: OLValue): value is string | readonly OLValue[] {
 }
 
 /**
+ * Guards a list reporter's parenthesized-call under-supply the same way {@link evaluateLogical}
+ * guards `and`/`or`: `checker-arity.ts` (issue #111) only statically catches a strictly-fixed-arity
+ * primitive's under-supply (`max === min`); for these reporters the parenthesized form's true
+ * ceiling is looser than the bare-call default arity (`sentence`) or the checker simply defers the
+ * lower bound to the runtime, per its own documented convention ("the lower bound is left to the
+ * runtime arity check (#97)"). Since `execute()` runs `parse()` only — never `check()` — the
+ * runtime is the sole enforcement point for every one of these, not just the open-variadic ones.
+ */
+function requireMinArgs(
+  node: ArithmeticCallNode,
+  name: string,
+  min: number,
+): Diagnostic | undefined {
+  if (node.args.length < min) {
+    return runtimeDiag.notEnoughInputs(
+      node.callee.source_span,
+      name,
+      min,
+      node.args.length,
+    );
+  }
+  return undefined;
+}
+
+/**
  * `first`/`last` — the first/last element of a list, or first/last character of a word, as a
  * one-character word (`spec/commands.md` "first"/"last"). Empty input raises `ol-range`; a
  * non-word/non-list input raises `ol-type`.
@@ -1864,6 +1889,10 @@ function evaluateFirstOrLast(
   env: Environment,
   which: "first" | "last",
 ): EvalResult {
+  const arityDiagnostic = requireMinArgs(node, which, 1);
+  if (arityDiagnostic) {
+    return fail(arityDiagnostic);
+  }
   const inputNode = arg(node, 0);
   const inputResult = evaluate(inputNode, env);
   if (!inputResult.ok) {
@@ -1910,6 +1939,10 @@ function evaluateButfirstOrButlast(
   env: Environment,
   which: "butfirst" | "butlast",
 ): EvalResult {
+  const arityDiagnostic = requireMinArgs(node, which, 1);
+  if (arityDiagnostic) {
+    return fail(arityDiagnostic);
+  }
   const inputNode = arg(node, 0);
   const inputResult = evaluate(inputNode, env);
   if (!inputResult.ok) {
@@ -1963,6 +1996,10 @@ function evaluateFputOrLput(
   env: Environment,
   which: "fput" | "lput",
 ): EvalResult {
+  const arityDiagnostic = requireMinArgs(node, which, 2);
+  if (arityDiagnostic) {
+    return fail(arityDiagnostic);
+  }
   const valueNode = arg(node, 0);
   const listNode = arg(node, 1);
   const valueResult = evaluate(valueNode, env);
@@ -2012,6 +2049,10 @@ function evaluateSentence(
   node: ArithmeticCallNode,
   env: Environment,
 ): EvalResult {
+  const arityDiagnostic = requireMinArgs(node, "sentence", 2);
+  if (arityDiagnostic) {
+    return fail(arityDiagnostic);
+  }
   const result: OLValue[] = [];
   for (const argNode of node.args) {
     const argResult = evaluate(argNode, env);
@@ -2030,8 +2071,17 @@ function evaluateSentence(
 /**
  * `count` — the number of elements in a list, or characters in a word
  * (`spec/commands.md` "count"). A non-word/non-list input raises `ol-type`.
+ *
+ * `spec/commands.md`'s literal `count` signature also accepts a dict argument, but `OLValue`
+ * (`packages/core/src/values.ts`) has no dict representation at all yet — this is the same
+ * genuine, currently-unimplementable gap `CORE_IS_A_TYPE_WORDS` already documents for `is a
+ * "dict"`, deferred rather than invented here.
  */
 function evaluateCount(node: ArithmeticCallNode, env: Environment): EvalResult {
+  const arityDiagnostic = requireMinArgs(node, "count", 1);
+  if (arityDiagnostic) {
+    return fail(arityDiagnostic);
+  }
   const inputNode = arg(node, 0);
   const inputResult = evaluate(inputNode, env);
   if (!inputResult.ok) {
