@@ -2,7 +2,7 @@
 
 Every other page in this series shows you one *machine* — the lexer, the tree, the interpreter, the
 checker. This page zooms out: forget how it works — **what does OpenLogo actually have, right now,
-that you could run?** Think school report card: not "how did you study," but "what did you learn."
+that you could run?** Think school report card: not "how did you study," but "what you learned."
 
 ## Milestones so far
 
@@ -28,7 +28,7 @@ Before you build a language, you need a workshop. M0 built one:
   like lumber into finished boards.
 - **CI** ("continuous integration") — a robot checking every proposed change instantly, enforcing our
   **Definition of Done**: building, type-checking, style, and tests must pass before a change joins
-  the shared code, like an inspector who won't let an unchecked part onto the line.
+  shared code, like an inspector who won't let an unchecked part onto the line.
 - **The conformance harness** — runs **conformance fixtures**: tiny examples saying "run *this*
   program, see *exactly* these results" — an answer key checked automatically, forever, instead of
   once by a teacher.
@@ -74,13 +74,13 @@ more. This checkpoint has its own name: **`0.1.0-core`**.
 procedures, every control form, all three comprehensions, and the full Core reporter set, proven by
 real fixtures, runnable in the studio REPL.
 
-✅ **The turtle draws too** — `forward`/`right`/pen/color aren't Core (they're their own milestone,
-M2 Turtle & Rendering), but M2 has since shipped and is conformance-green too — the turtle came
-next, so OpenLogo really draws today.
+✅ **The turtle draws too** — `forward`/`right`/pen/color aren't Core (their own milestone, M2
+Turtle & Rendering), but M2 has since shipped and is conformance-green too — the turtle came next,
+so OpenLogo really draws today.
 
 ## Try it yourself
 
-Open `tests/conformance/core-language/` in the OpenLogo repository and count the folders — each is a
+Open `tests/conformance/core-language/` in the OpenLogo repo and count the folders — each is a
 different piece of Core. Open a `.logo` file next to its `.expected.json` match to see a real proof.
 
 **Next up →** check the [series map](README.md) for the full list.
