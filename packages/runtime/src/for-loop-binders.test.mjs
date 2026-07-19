@@ -179,3 +179,18 @@ test("a fractional step whose running total would drift past a floating-point-in
   // that the printed number is the exact decimal `0.3`.
   assert.ok(Math.abs(printedValues[3] - 0.3) < 1e-9);
 });
+
+test("the boundary tolerance does not admit a pass genuinely beyond a fractional end", () => {
+  // `to` is a hair short of `1` — the boundary tolerance (scaled to `current`/`to`'s own ULPs)
+  // must not be so generous that it treats a whole step past `to` as still in range: only the
+  // `0` pass should run, never `1`.
+  const result = execute(
+    "for i from 0 to 0.9999999995 by 1 [\n  print :i\n]",
+    doc,
+  );
+  assert.deepEqual(result.diagnostics, []);
+  const printedValues = result.events
+    .filter((event) => event.kind === "print")
+    .map((event) => event.payload.values[0]);
+  assert.deepEqual(printedValues, [0]);
+});
