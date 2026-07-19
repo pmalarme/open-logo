@@ -85,19 +85,6 @@ export interface ExecuteResult {
   readonly diagnostics: readonly Diagnostic[];
 }
 
-/** Options for {@link execute}. */
-export interface ExecuteOptions {
-  /**
-   * **Test-only.** Caps how many passes any `forever` loop in this program runs before stopping
-   * on its own (with no diagnostic), so unit tests can exercise `forever`'s loop mechanics without
-   * hanging the test process. `forever` has no cancellation or execution-budget semantics in this
-   * issue's scope (`spec/execution-model.md:370`, `:556-557` — that lands with #102), so this MUST
-   * NOT become a silent production cap: no real caller ever supplies it, leaving every `forever`
-   * genuinely unbounded, exactly as the spec requires.
-   */
-  readonly foreverIterationLimit?: number;
-}
-
 /**
  * Is `statement` a call to `print` — the single-value `print value` form or the parenthesized
  * variadic `(print a b …)` form (`spec/commands.md:142-158`)? Accepts both the plain infix
@@ -206,7 +193,8 @@ function evaluateCondition(
  *
  * A `Forever` statement (issue #104) repeats `body` without bound — cancellation and the
  * execution budget are a later, separate slice (#102) — up to `foreverIterationLimit` passes when
- * one is supplied. That limit is a **test-only** knob (see {@link ExecuteOptions}); no production
+ * one is supplied. That limit is a **test-only** knob only reachable via
+ * {@link __executeWithForeverIterationLimitForTests}, never via {@link execute}; no production
  * caller ever passes it, so every real `forever` genuinely never terminates, same as an
  * always-`true` `while`.
  *
@@ -383,21 +371,15 @@ function executeStatements(
 }
 
 /**
- * Parse `source` and execute its top-level statements, emitting one `instruction` event per
- * statement with a monotonic `seq` starting at 0. If parsing produced any diagnostic the
- * program is not execution-valid, so no events are emitted and the parse diagnostics are
- * returned unchanged.
- *
- * A single root {@link Environment} (issue #94) is created once per `execute()` call and threaded
- * through every statement, so an assignment in one statement is visible to every later read in
- * the same program (`spec/execution-model.md:316-327`) — procedure call frames land with #97. The
- * actual per-statement dispatch (including recursing into `if`/`while`/`repeat`/`forever` block
- * bodies) lives in {@link executeStatements}.
+ * Parse `source` and run it, sharing {@link execute}'s and
+ * {@link __executeWithForeverIterationLimitForTests}'s logic. `foreverIterationLimit` is
+ * `undefined` for every real `execute()` call — see {@link execute}'s doc comment — so a
+ * `forever` loop is genuinely unbounded there; only the test-only entry point ever supplies it.
  */
-export function execute(
+function runProgram(
   source: string,
   document: string,
-  options: ExecuteOptions = {},
+  foreverIterationLimit: number | undefined,
 ): ExecuteResult {
   const { ast: program, diagnostics } = parse(source, document);
   if (diagnostics.length > 0) {
@@ -410,7 +392,43 @@ export function execute(
     program.body,
     env,
     events,
-    options.foreverIterationLimit,
+    foreverIterationLimit,
   );
   return { events, diagnostics: diagnostic ? [diagnostic] : [] };
+}
+
+/**
+ * Parse `source` and execute its top-level statements, emitting one `instruction` event per
+ * statement with a monotonic `seq` starting at 0. If parsing produced any diagnostic the
+ * program is not execution-valid, so no events are emitted and the parse diagnostics are
+ * returned unchanged.
+ *
+ * A single root {@link Environment} (issue #94) is created once per `execute()` call and threaded
+ * through every statement, so an assignment in one statement is visible to every later read in
+ * the same program (`spec/execution-model.md:316-327`) — procedure call frames land with #97. The
+ * actual per-statement dispatch (including recursing into `if`/`while`/`repeat`/`forever` block
+ * bodies) lives in {@link executeStatements}. This is the only production entry point: it takes
+ * no options and never bounds a `forever` loop (`spec/execution-model.md:370`, `:556-557` —
+ * cancellation/the execution budget land with #102), so every `forever` here is genuinely
+ * unbounded, exactly as the spec requires for this issue's scope.
+ */
+export function execute(source: string, document: string): ExecuteResult {
+  return runProgram(source, document, undefined);
+}
+
+/**
+ * **Test-only.** Identical to {@link execute} except a `forever` loop in `source` stops on its
+ * own (with no diagnostic) after `foreverIterationLimit` passes, so a unit test can exercise
+ * `forever`'s loop mechanics without hanging the test process. This is deliberately a separate,
+ * distinctly-named entry point — not an optional parameter on {@link execute} — so the bound can
+ * never leak into a real caller's `execute()` invocation; `forever` has no cancellation or
+ * execution-budget semantics in this issue's scope (that lands with #102). Not part of the
+ * package's production API surface: only this package's own tests import it.
+ */
+export function __executeWithForeverIterationLimitForTests(
+  source: string,
+  document: string,
+  foreverIterationLimit: number,
+): ExecuteResult {
+  return runProgram(source, document, foreverIterationLimit);
 }

@@ -9,15 +9,18 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { execute } from "@openlogo/runtime";
+import {
+  execute,
+  __executeWithForeverIterationLimitForTests as executeWithForeverLimit,
+} from "@openlogo/runtime";
 
 const doc = "acceptance.logo";
 
 test("forever runs its body repeatedly, stopping at the test-only foreverIterationLimit", () => {
-  const result = execute(
+  const result = executeWithForeverLimit(
     ":i = 0\nforever [\n  :i = :i + 1\n  print :i\n]",
     doc,
-    { foreverIterationLimit: 3 },
+    3,
   );
   assert.deepEqual(result.diagnostics, []);
   const printedValues = result.events
@@ -27,9 +30,7 @@ test("forever runs its body repeatedly, stopping at the test-only foreverIterati
 });
 
 test("forever with foreverIterationLimit: 0 runs its body zero times", () => {
-  const result = execute("forever [\n  print 1\n]", doc, {
-    foreverIterationLimit: 0,
-  });
+  const result = executeWithForeverLimit("forever [\n  print 1\n]", doc, 0);
   assert.deepEqual(result.diagnostics, []);
   assert.equal(
     result.events.filter((event) => event.kind === "print").length,
@@ -47,9 +48,7 @@ test("forever with foreverIterationLimit: 0 runs its body zero times", () => {
 });
 
 test("forever stops at the first diagnostic raised inside its body, even under a limit", () => {
-  const result = execute("forever [\n  print 1 / 0\n]", doc, {
-    foreverIterationLimit: 5,
-  });
+  const result = executeWithForeverLimit("forever [\n  print 1 / 0\n]", doc, 5);
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-div-zero");
   // Only the first pass's events are kept: the `Forever` instruction, the body's own
@@ -61,19 +60,21 @@ test("forever stops at the first diagnostic raised inside its body, even under a
   );
 });
 
-test("execute() with no options argument behaves identically to passing {} explicitly", () => {
-  // Regression guard for "no silent production cap": the two-argument call form (what every real
-  // caller uses) must resolve `foreverIterationLimit` to `undefined`, exactly like passing `{}`
-  // explicitly — neither ever bounds a `forever` loop on its own. We cannot literally run an
-  // unbounded `forever` in a test, so this compares the two call forms on an ordinary (non-
-  // `forever`) program instead, where both must produce byte-identical results.
-  const twoArgs = execute("repeat 3 [\n  print repcount\n]", doc);
-  const explicitEmptyOptions = execute(
+test("a real forever loop is never bounded by execute() itself — only the distinct test-only entry point accepts a limit", () => {
+  // Regression guard for "no silent production cap": `execute()` takes no options at all (it is
+  // a plain two-argument function), so there is no way for a real caller to bound a `forever`
+  // loop through it — only `__executeWithForeverIterationLimitForTests` (a separate, distinctly
+  // named function this package's own tests import) ever accepts a limit. We cannot literally
+  // run an unbounded `forever` here, so this asserts `execute` and the limited entry point agree
+  // on an ordinary (non-`forever`) program, proving they share the same evaluation logic and
+  // differ only in whether a limit can be supplied.
+  const viaExecute = execute("repeat 3 [\n  print repcount\n]", doc);
+  const viaLimitedEntryPoint = executeWithForeverLimit(
     "repeat 3 [\n  print repcount\n]",
     doc,
-    {},
+    100,
   );
-  assert.deepEqual(twoArgs, explicitEmptyOptions);
+  assert.deepEqual(viaExecute, viaLimitedEntryPoint);
 });
 
 test("repcount reports the nearest-enclosing repeat's current 1-based turn", () => {
