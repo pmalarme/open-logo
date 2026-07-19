@@ -1,0 +1,20 @@
+{
+  "description": "ol-style-name-case (issue #115): a `return` statement written non-lowercase (`RETURN`) is flagged the same way a non-lowercase control keyword is. `ReturnNode.keyword` itself only ever stores the canonical `\"return\"` spelling the parser normalizes to (never the literal source casing), so this check works by slicing `source` at the node's own span start, exactly like the control-keyword case.",
+  "profiles": ["core-language"],
+  "check": true,
+  "style": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-style-name-case",
+      "source_span": {
+        "document": "core-language/style/name-case-uppercase-return-keyword",
+        "start": [2, 3],
+        "end": [2, 9]
+      },
+      "params": { "name": "RETURN" },
+      "stage": "semantic",
+      "severity": "warning"
+    }
+  ]
+}

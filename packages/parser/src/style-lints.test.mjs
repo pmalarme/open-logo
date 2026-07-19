@@ -264,7 +264,8 @@ test("ol-style-name-case: a known Core primitive/command callee IS checked for n
 test("ol-style-name-case: a non-lowercase structural keyword is flagged for every control/define form", () => {
   // `spec/style-guide.md` "Keywords are lowercase" explicitly names `REPEAT`/`Define` as the
   // avoided spelling in its own quick-checklist row, checked by this same code. One fixture per
-  // `STRUCTURAL_KEYWORD` entry: If, While, Repeat, Forever, ForIn, ForRange, ProcedureDef.
+  // `STRUCTURAL_KEYWORD` entry (If, While, Repeat, Forever, ForIn, ForRange, ProcedureDef, Return,
+  // Stop, Throw), plus one per `map`/`filter`/`reduce` comprehension form.
   const cases = [
     ["IF 1 == 1 [ print 1 ]", "IF"],
     ["WHILE 1 == 1 [ stop ]", "WHILE"],
@@ -274,6 +275,15 @@ test("ol-style-name-case: a non-lowercase structural keyword is flagged for ever
     ["FOR i in [ 1 2 3 ] [ print :i ]", "FOR"],
     ["For i from 1 to 4 [ print :i ]", "For"],
     ["DEFINE f\n  return 1\nend", "DEFINE"],
+    ["define f\n  RETURN 1\nend", "RETURN"],
+    ["define f\n  STOP\nend", "STOP"],
+    ["define f\n  THROW 1\nend", "THROW"],
+    [":xs = [1 2 3]\n:ys = MAP n in :xs [ :n ]", "MAP"],
+    [":xs = [1 2 3]\n:ys = FILTER n in :xs [ :n ]", "FILTER"],
+    [
+      ":xs = [1 2 3]\n:total = REDUCE acc n in :xs from 0 [ :acc + :n ]",
+      "REDUCE",
+    ],
   ];
   for (const [source, expectedName] of cases) {
     const { ast: program, diagnostics: parseDiagnostics } = OL.parse(
@@ -315,6 +325,33 @@ test("ol-style-name-case: keyword casing is silently skipped when no source text
     style: true,
   }).diagnostics;
   assert.deepEqual(diagnostics, []);
+});
+
+test("ol-style-name-case: local's own keyword casing is deliberately not checked (bare or paren form)", () => {
+  // `local` is excluded from `STRUCTURAL_KEYWORD` on purpose: its node span starts at the `local`
+  // token in the bare form but at the *opening paren* in `(local name …)`, and the AST does not
+  // record which surface form was parsed — so a blind span-start slice could misread the paren
+  // form. Both forms below are proven silently clean (not a false positive), and the gap is
+  // tracked in the #115 follow-up rather than guessed at.
+  for (const source of ["LOCAL badName\nprint 1", "(LOCAL badName)\nprint 1"]) {
+    const { ast: program, diagnostics: parseDiagnostics } = OL.parse(
+      source,
+      doc,
+    );
+    assert.deepEqual(parseDiagnostics, [], `expected ${source} to parse clean`);
+    const diagnostics = OL.check(program, {
+      profiles: ["core-language"],
+      source,
+      style: true,
+    }).diagnostics.filter((d) => d.code === "ol-style-name-case");
+    // `badName` is still flagged as a user identifier (checkNamesIn's "Local" case); only the
+    // keyword's own casing is out of scope here.
+    assert.deepEqual(
+      diagnostics.map((d) => d.params.name),
+      ["badName"],
+      `expected only the user name to be flagged in: ${source}`,
+    );
+  }
 });
 
 // --- opt-in gating -------------------------------------------------------------------------
