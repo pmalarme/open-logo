@@ -31,6 +31,7 @@ import type {
   ProcedureExitPayload,
   ReturnPayload,
   SourceSpan,
+  TurnPayload,
 } from "@openlogo/core";
 import { typeNameOf } from "@openlogo/core";
 import type {
@@ -228,6 +229,128 @@ function executeTurtleMoveCall(
   const signedDistance =
     callableName.toLowerCase() === "back" ? -distance.value : distance.value;
   moveTurtle(env, signedDistance, moveCall.source_span);
+  return undefined;
+}
+
+/**
+ * Is `statement` a call to `left`/`right` (issue #201, Core Turtle turning — the Heritage
+ * `lt`/`rt` aliases are a separate M5 slice)? Same shape/convention as {@link isTurtleMoveCall}:
+ * accepts both the plain infix `Call` form (`right 90`) and the explicit-parentheses `ParenCall`
+ * form (`(right 90)`), and is a plain `boolean` rather than a type predicate for the same
+ * type-narrowing reason documented on {@link isTurtleMoveCall}.
+ */
+function isTurtleTurnCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  const name = statement.callee.name.toLowerCase();
+  return name === "left" || name === "right";
+}
+
+/**
+ * Turn the turtle by `deltaDegrees` (positive turns clockwise, i.e. `right`; negative turns
+ * counter-clockwise, i.e. `left` — `spec/execution-model.md:537`) and emit the `turn` effect-event
+ * `spec/execution-model.md:594` requires (`{from, to}`, both headings in degrees). The new heading
+ * is normalized to `[0,360)` (`spec/execution-model.md:538`) — never left negative or `>= 360`.
+ *
+ * Turning has no `move`/`draw-segment` counterpart: it only rotates, never translates, so no
+ * position or drawing event follows it.
+ */
+function turnTurtle(
+  env: Environment,
+  deltaDegrees: number,
+  source_span: SourceSpan,
+): void {
+  const { turtle } = env;
+  const from = turtle.heading;
+  const to = normalizeHeading(from + deltaDegrees);
+  turtle.heading = to;
+  env.events.push({
+    seq: env.events.length,
+    kind: "turn",
+    source_span,
+    payload: { from, to } satisfies TurnPayload,
+  });
+}
+
+/**
+ * Normalize `degrees` to `[0,360)` (`spec/execution-model.md:538`). Guards against returning `-0`
+ * (e.g. `normalizeHeading(-360)` would otherwise compute `-360 % 360 === -0`) so a heading of
+ * exactly `0` always serializes/compares as plain `0`, not `-0`.
+ */
+function normalizeHeading(degrees: number): number {
+  const normalized = degrees % 360;
+  if (normalized === 0) {
+    return 0;
+  }
+  return normalized < 0 ? normalized + 360 : normalized;
+}
+
+/**
+ * Validate and run a `left`/`right` statement matched by {@link isTurtleTurnCall}: exactly one
+ * numeric argument (`ol-not-enough-inputs`/`ol-too-many-inputs`/`ol-type` otherwise, via
+ * {@link requireNumber}), negated for `left` (turning counter-clockwise is a negative heading
+ * delta, since `right`/clockwise is positive — `spec/execution-model.md:537`), then delegated to
+ * {@link turnTurtle}. Returns an {@link ExecSignal} to halt on, or `undefined` for
+ * {@link executeStatements} to `continue` on success (including the "left un-evaluated" case for
+ * an unsupported argument expression, mirroring `forward`/`back`'s handling).
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeTurtleTurnCall(
+  turnCall: CallNode | ParenCallNode,
+  env: Environment,
+): ExecSignal | undefined {
+  const callableName = turnCall.callee.name;
+  if (turnCall.args.length !== 1) {
+    return halt(
+      turnCall.args.length < 1
+        ? runtimeDiag.notEnoughInputs(
+            turnCall.callee.source_span,
+            callableName,
+            1,
+            turnCall.args.length,
+          )
+        : runtimeDiag.tooManyInputs(
+            turnCall.callee.source_span,
+            callableName,
+            1,
+            turnCall.args.length,
+          ),
+    );
+  }
+  const [arg] = turnCall.args as [ExpressionNode];
+  if (!isSupportedExpression(arg, env.procedures)) {
+    return undefined;
+  }
+  const argResult = evaluate(arg, env);
+  if (!argResult.ok) {
+    return halt(argResult.diagnostic);
+  }
+  const angle = requireNumber(
+    argResult.value,
+    arg.source_span,
+    callableName.toLowerCase(),
+  );
+  if (!angle.ok) {
+    return halt(angle.diagnostic);
+  }
+  if (!Number.isFinite(angle.value)) {
+    // Same rationale as `executeTurtleMoveCall`'s non-finite-distance guard: `requireNumber`
+    // accepts `Infinity`/`-Infinity` (reachable via arithmetic overflow), but `Infinity % 360` is
+    // `NaN`, which would otherwise corrupt the turtle's heading instead of raising a diagnostic
+    // (`spec/execution-model.md:517`).
+    return halt(
+      runtimeDiag.nonFiniteAngle(arg.source_span, {
+        operation: callableName.toLowerCase() as "left" | "right",
+        value: String(angle.value),
+      }),
+    );
+  }
+  const signedAngle =
+    callableName.toLowerCase() === "left" ? -angle.value : angle.value;
+  turnTurtle(env, signedAngle, turnCall.source_span);
   return undefined;
 }
 
@@ -744,6 +867,17 @@ function executeStatements(
 
     if (isTurtleMoveCall(statement)) {
       const outcome = executeTurtleMoveCall(
+        statement as unknown as CallNode | ParenCallNode,
+        env,
+      );
+      if (outcome) {
+        return outcome;
+      }
+      continue;
+    }
+
+    if (isTurtleTurnCall(statement)) {
+      const outcome = executeTurtleTurnCall(
         statement as unknown as CallNode | ParenCallNode,
         env,
       );

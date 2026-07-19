@@ -1,0 +1,28 @@
+{
+  "description": "issue #201: `left 90` turns the turtle counter-clockwise from the default heading `0`, wrapping around to `270` (a negative heading delta normalized into `[0,360)`) — spec/execution-model.md:537-538's counter-clockwise convention and normalization requirement.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/movement/left-90-wraparound",
+        "start": [1, 1],
+        "end": [1, 8]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "turn",
+      "source_span": {
+        "document": "turtle-rendering/movement/left-90-wraparound",
+        "start": [1, 1],
+        "end": [1, 8]
+      },
+      "payload": { "from": 0, "to": 270 }
+    }
+  ],
+  "diagnostics": []
+}

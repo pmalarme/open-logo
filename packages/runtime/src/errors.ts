@@ -154,6 +154,17 @@ export interface NonFiniteDistanceParams {
 }
 
 /**
+ * Params for an `ol-range` raised by a `left`/`right` turn angle that is not finite. Sibling of
+ * {@link NonFiniteDistanceParams} (same rationale, same `String(value)` JSON-safety reasoning) —
+ * kept as a separate interface/builder rather than generalizing the two into one, so this slice
+ * does not have to re-touch #200's already-reviewed `forward`/`back` diagnostic shape.
+ */
+export interface NonFiniteAngleParams {
+  readonly operation: "left" | "right";
+  readonly value: string;
+}
+
+/**
  * Params for an `ol-type` raised by a `for ... in` iterable that is not a list
  * (`spec/execution-model.md:375-376` — Core `for ... in` is list-only; dict iteration is a later
  * profile).
@@ -445,6 +456,25 @@ export const runtimeDiag = {
       source_span,
       { ...params },
       `${params.operation} needs a finite distance, but got ${params.value}.`,
+    );
+  },
+
+  /**
+   * `ol-range`: a `left`/`right` turn angle is `Infinity`/`-Infinity` (reachable via arithmetic
+   * overflow, e.g. `right power 10 1000` — `spec/execution-model.md:517`, same rationale as
+   * {@link nonFiniteDistance}: `Infinity % 360` is `NaN`, which would otherwise corrupt the
+   * turtle's heading instead of raising a diagnostic). Only reached once {@link requireNumber} has
+   * already confirmed the value is a number; a finite `angle` never reaches this check.
+   */
+  nonFiniteAngle(
+    source_span: SourceSpan,
+    params: NonFiniteAngleParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-range",
+      source_span,
+      { ...params },
+      `${params.operation} needs a finite angle, but got ${params.value}.`,
     );
   },
 
