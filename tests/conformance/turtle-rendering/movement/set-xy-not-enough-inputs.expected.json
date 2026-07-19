@@ -1,0 +1,30 @@
+{
+  "description": "issue #202: a parenthesized one-argument `(set_xy 1)` raises `ol-not-enough-inputs` — `set_xy` needs 2 arguments (x and y).",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/movement/set-xy-not-enough-inputs",
+        "start": [1, 1],
+        "end": [1, 11]
+      },
+      "payload": { "statement_kind": "ParenCall" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-not-enough-inputs",
+      "source_span": {
+        "document": "turtle-rendering/movement/set-xy-not-enough-inputs",
+        "start": [1, 2],
+        "end": [1, 8]
+      },
+      "params": { "callable": "set_xy", "expected": 2, "actual": 1 },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

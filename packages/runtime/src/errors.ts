@@ -165,6 +165,33 @@ export interface NonFiniteAngleParams {
 }
 
 /**
+ * Params for an `ol-range` raised by a `set_heading` angle that is not finite. Sibling of
+ * {@link NonFiniteAngleParams} (same `Infinity % 360 === NaN` rationale — `set_heading` normalizes
+ * its argument to `[0,360)` the same way `left`/`right` do), kept as its own interface/builder
+ * rather than widening `NonFiniteAngleParams.operation`'s union, so this slice does not have to
+ * re-touch #201's already-reviewed `left`/`right` diagnostic shape.
+ */
+export interface NonFiniteHeadingParams {
+  readonly operation: "set_heading";
+  readonly value: string;
+}
+
+/**
+ * Params for an `ol-range` raised by a `set_xy` `x`/`y` argument that is not finite
+ * (`Infinity`/`-Infinity`, reachable via arithmetic overflow). Unlike {@link NonFiniteDistanceParams}
+ * (where a finite distance can still corrupt movement math via `0 · Infinity === NaN`), a
+ * non-finite `set_xy` coordinate is set directly onto the turtle's position with no arithmetic in
+ * between — but `spec/execution-model.md:517` ("OpenLogo never exposes NaN or Infinity as
+ * learner-facing results") still forbids handing the turtle an infinite position outright, so the
+ * guard is the same. `axis` names which argument was non-finite for the diagnostic's `params`.
+ */
+export interface NonFiniteCoordinateParams {
+  readonly operation: "set_xy";
+  readonly axis: "x" | "y";
+  readonly value: string;
+}
+
+/**
  * Params for an `ol-type` raised by a `for ... in` iterable that is not a list
  * (`spec/execution-model.md:375-376` — Core `for ... in` is list-only; dict iteration is a later
  * profile).
@@ -475,6 +502,44 @@ export const runtimeDiag = {
       source_span,
       { ...params },
       `${params.operation} needs a finite angle, but got ${params.value}.`,
+    );
+  },
+
+  /**
+   * `ol-range`: a `set_heading` angle is `Infinity`/`-Infinity` (reachable via arithmetic
+   * overflow, e.g. `set_heading power 10 1000` — `spec/execution-model.md:517`, same rationale as
+   * {@link nonFiniteAngle}: `Infinity % 360` is `NaN`, which would otherwise corrupt the turtle's
+   * heading instead of raising a diagnostic). Only reached once {@link requireNumber} has already
+   * confirmed the value is a number; a finite `angle` never reaches this check.
+   */
+  nonFiniteHeading(
+    source_span: SourceSpan,
+    params: NonFiniteHeadingParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-range",
+      source_span,
+      { ...params },
+      `${params.operation} needs a finite angle, but got ${params.value}.`,
+    );
+  },
+
+  /**
+   * `ol-range`: a `set_xy` `x`/`y` argument is `Infinity`/`-Infinity` (reachable via arithmetic
+   * overflow, e.g. `set_xy power 10 1000 0`). Unlike {@link nonFiniteDistance}, no arithmetic
+   * turns this into `NaN` — the coordinate is set directly — but `spec/execution-model.md:517`
+   * still forbids an infinite learner-facing position. Only reached once {@link requireNumber}
+   * has already confirmed the value is a number; a finite coordinate never reaches this check.
+   */
+  nonFiniteCoordinate(
+    source_span: SourceSpan,
+    params: NonFiniteCoordinateParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-range",
+      source_span,
+      { ...params },
+      `${params.operation} needs a finite ${params.axis}, but got ${params.value}.`,
     );
   },
 

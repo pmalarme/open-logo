@@ -1,0 +1,48 @@
+{
+  "description": "issue #202: `set_xy` while the pen is up still emits `move` (position always updates) but no `draw-segment` — reuses the same pen-gating as `forward`/`back` (issue #200/#206).",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/movement/set-xy-pen-up",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "pen-change",
+      "source_span": {
+        "document": "turtle-rendering/movement/set-xy-pen-up",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "payload": { "from": "down", "to": "up" }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/movement/set-xy-pen-up",
+        "start": [2, 1],
+        "end": [2, 13]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 3,
+      "kind": "move",
+      "source_span": {
+        "document": "turtle-rendering/movement/set-xy-pen-up",
+        "start": [2, 1],
+        "end": [2, 13]
+      },
+      "payload": { "from": [0, 0], "to": [50, 25], "heading": 0 }
+    }
+  ],
+  "diagnostics": []
+}

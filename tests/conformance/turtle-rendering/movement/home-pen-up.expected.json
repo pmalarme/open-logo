@@ -1,0 +1,78 @@
+{
+  "description": "issue #202: `home` while the pen is up still emits a `move` (position always updates) and a `turn` (heading always updates) but no `draw-segment` — home reuses the same pen-gating `moveTurtleTo` applies to every absolute move (issue #206's pen-aware `moveTurtle`/`dispatchTurtleCommand` pattern).",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/movement/home-pen-up",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "pen-change",
+      "source_span": {
+        "document": "turtle-rendering/movement/home-pen-up",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "payload": { "from": "down", "to": "up" }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/movement/home-pen-up",
+        "start": [2, 1],
+        "end": [2, 11]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 3,
+      "kind": "move",
+      "source_span": {
+        "document": "turtle-rendering/movement/home-pen-up",
+        "start": [2, 1],
+        "end": [2, 11]
+      },
+      "payload": { "from": [0, 0], "to": [0, 30], "heading": 0 }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/movement/home-pen-up",
+        "start": [3, 1],
+        "end": [3, 5]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 5,
+      "kind": "move",
+      "source_span": {
+        "document": "turtle-rendering/movement/home-pen-up",
+        "start": [3, 1],
+        "end": [3, 5]
+      },
+      "payload": { "from": [0, 30], "to": [0, 0], "heading": 0 }
+    },
+    {
+      "seq": 6,
+      "kind": "turn",
+      "source_span": {
+        "document": "turtle-rendering/movement/home-pen-up",
+        "start": [3, 1],
+        "end": [3, 5]
+      },
+      "payload": { "from": 0, "to": 0 }
+    }
+  ],
+  "diagnostics": []
+}
