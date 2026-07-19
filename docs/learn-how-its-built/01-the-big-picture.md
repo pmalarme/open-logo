@@ -25,12 +25,9 @@ Here's what each machine does, in plain words:
    splitting a sentence into words before you can understand it. A future page in this series digs
    into tokens in detail.
 2. **The reader** takes that flat list of tokens and builds a **tree** out of it — showing which
-   pieces belong together. Take `repeat 4 [ … ]`: the reader groups the `4` and the block together
-   as "repeat this many times, this block." This tree has a real name: the **AST** (Abstract Syntax
-   Tree). Think of it like an outline for an essay — it shows what's nested inside what. Right now,
-   `forward 100` itself is still two separate lines in that outline instead of one grouped
-   instruction — teaching the reader to fold turtle commands and their numbers together is part of
-   the next big step we're building.
+   pieces belong together. `forward 100` becomes one instruction: "move forward, and the amount is
+   100." This tree has a real name: the **AST** (Abstract Syntax Tree). Think of it like an outline
+   for an essay — it shows what's nested inside what.
 3. **The interpreter** walks the tree branch by branch and actually *does* what each part says.
    Think of it like a cook following a recipe: it reads one step, does exactly that step, then
    moves to the next — never skipping ahead. The engine that runs your program this way is called
@@ -40,16 +37,18 @@ Here's what each machine does, in plain words:
 
 ## What's real today, and what's next
 
-We can already prove step 1 works, for real, on the actual OpenLogo code: our square example
-tokenizes cleanly with zero errors. Step 2 also builds a real tree for the whole line with zero
-*parsing* errors — but if you ask OpenLogo's checker (the part that double-checks your code makes
-sense) about this exact line today, it will point out that it doesn't recognize `forward` or
-`right` yet, the same friendly way it flags a typo. Step 3 (the interpreter) already runs real
-OpenLogo programs — printing text, doing math, running loops, calling your own procedures.
+We can already prove steps 1 and 2 work, for real, on the actual OpenLogo code: our square example
+tokenizes cleanly and the reader builds the correct tree, grouping `forward` with `100` and `right`
+with `90` exactly like it groups `repeat` with its count and block. Step 3 (the interpreter) already
+runs real OpenLogo programs — printing text, doing math, running loops, calling your own
+procedures.
 
-Teaching OpenLogo's reader and checker to understand turtle commands like `forward` and `right`,
-and then teaching the interpreter to actually move the **turtle** in step 4, is the next big step
-we're building — that's the payoff this whole pipeline has been built for.
+There's one more machine we haven't met yet: the **checker**, which double-checks your tree makes
+sense before anything runs — the same way a teacher checks your outline before you start writing.
+Right now, the checker doesn't recognize turtle words like `forward` and `right` yet, so it flags
+them the same friendly way it flags a typo. Teaching the checker the turtle's vocabulary, and
+teaching the interpreter to actually move the **turtle** in step 4, is the next big step we're
+building — that's the payoff this whole pipeline has been built for.
 
 ## Try it yourself
 
