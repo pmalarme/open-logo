@@ -2,9 +2,10 @@
 // harness module directly to achieve 100% coverage, plus one subprocess test for the CLI shell.
 
 import assert from "node:assert/strict";
-import { test } from "node:test";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { afterEach, beforeEach, test } from "node:test";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { text } from "node:stream/consumers";
@@ -22,11 +23,21 @@ import {
   runHarness,
 } from "./harness/index.mjs";
 
-const TEMP_ROOT = ".temp-test-fixtures";
+// Each self-test gets its own fresh, uniquely-named OS temp directory (fs.mkdtempSync) — never a
+// shared or relative fixture path (issue #140). Previously many self-tests shared a single
+// ".temp-test-fixtures" directory, and several wrote fixtures directly into the real,
+// git-tracked tests/conformance/ tree, then removed them again — safe only as long as every test
+// ran to completion in strict sequence. `afterEach` runs even when a test fails, so cleanup can
+// never be skipped and leak state into a later test.
+let TEMP_ROOT;
 
-function cleanup() {
+beforeEach(() => {
+  TEMP_ROOT = mkdtempSync(join(tmpdir(), "ol-conformance-"));
+});
+
+afterEach(() => {
   rmSync(TEMP_ROOT, { recursive: true, force: true });
-}
+});
 
 // Unit tests for individual functions
 
@@ -204,6 +215,71 @@ test("produce threads shouldStyle through to check()'s Layer-3 style lints", () 
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-style-name-case");
   assert.deepEqual(result.diagnostics[0].params, { name: "X" });
+});
+
+// Coverage-anchor tests (issue #140 follow-up): `for ... from ... to ... by` (issue #103) has four
+// error-propagation branches — a failing `from`/`to`/`by` expression, and a failing loop-body
+// statement — that no corpus fixture or `@openlogo/runtime` unit test exercises today (its own
+// for-loop-binders.test.mjs only covers the *unsupported-expression* skip branch, a different code
+// path). Coverage of these branches was previously an accident of merged coverage across the whole
+// `node --test` run, which made it flaky (sometimes ~90% present, sometimes not, independent of
+// this file's own isolation fix). Calling `produce(..., true)` here exercises `@openlogo/runtime`'s
+// `execute()` directly and deterministically, so these branches are covered on every run.
+test("produce/execute propagates a failing `for` `from` expression's diagnostic", () => {
+  const result = produce(
+    "for i from :undef to 5 [\n  print :i\n]",
+    "test-doc",
+    true,
+  );
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-undefined-var");
+  assert.deepEqual(
+    result.events.filter((event) => event.kind === "print"),
+    [],
+  );
+});
+
+test("produce/execute propagates a failing `for` `to` expression's diagnostic", () => {
+  const result = produce(
+    "for i from 1 to :undef [\n  print :i\n]",
+    "test-doc",
+    true,
+  );
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-undefined-var");
+  assert.deepEqual(
+    result.events.filter((event) => event.kind === "print"),
+    [],
+  );
+});
+
+test("produce/execute propagates a failing `for` `by` expression's diagnostic", () => {
+  const result = produce(
+    "for i from 1 to 5 by :undef [\n  print :i\n]",
+    "test-doc",
+    true,
+  );
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-undefined-var");
+  assert.deepEqual(
+    result.events.filter((event) => event.kind === "print"),
+    [],
+  );
+});
+
+test("produce/execute propagates a failing statement inside a `for` range body, stopping the loop", () => {
+  const result = produce(
+    "for i from 1 to 5 [\n  print :undef\n]",
+    "test-doc",
+    true,
+  );
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-undefined-var");
+  // The loop stopped on its first pass: no print event ever completed.
+  assert.deepEqual(
+    result.events.filter((event) => event.kind === "print"),
+    [],
+  );
 });
 
 test("validateDiagnostics passes for well-formed diagnostics", () => {
@@ -430,7 +506,6 @@ test("fixtureErrors returns empty for valid fixture", () => {
 });
 
 test("loadFixture rejects malformed fixture schema", () => {
-  cleanup();
   // Create fixtures with missing required array fields
   mkdirSync(join(TEMP_ROOT, "malformed"), { recursive: true });
   writeFileSync(join(TEMP_ROOT, "malformed", "malformed.logo"), "");
@@ -612,12 +687,9 @@ test("loadFixture rejects malformed fixture schema", () => {
   });
   assert.ok(loaded.error);
   assert.ok(loaded.error.includes('missing required field "code"'));
-
-  cleanup();
 });
 
 test("loadFixture handles invalid JSON", () => {
-  cleanup();
   mkdirSync(join(TEMP_ROOT, "bad-json"), { recursive: true });
   writeFileSync(join(TEMP_ROOT, "bad-json", "bad.logo"), ""); // Add .logo file
   writeFileSync(join(TEMP_ROOT, "bad-json", "bad.expected.json"), "{invalid}");
@@ -630,11 +702,9 @@ test("loadFixture handles invalid JSON", () => {
 
   assert.ok(loaded.error);
   assert.ok(loaded.error.includes("invalid JSON"));
-  cleanup();
 });
 
 test("loadFixture validates expect field", () => {
-  cleanup();
   mkdirSync(join(TEMP_ROOT, "bad-expect"), { recursive: true });
   writeFileSync(join(TEMP_ROOT, "bad-expect", "bad.logo"), "");
   writeFileSync(
@@ -655,11 +725,9 @@ test("loadFixture validates expect field", () => {
 
   assert.ok(loaded.error);
   assert.ok(loaded.error.includes("invalid expect field"));
-  cleanup();
 });
 
 test("loadFixture defaults execute to false when absent", () => {
-  cleanup();
   mkdirSync(join(TEMP_ROOT, "no-execute"), { recursive: true });
   writeFileSync(join(TEMP_ROOT, "no-execute", "no-execute.logo"), "");
   writeFileSync(
@@ -678,11 +746,9 @@ test("loadFixture defaults execute to false when absent", () => {
   });
 
   assert.equal(loaded.expected.execute, false);
-  cleanup();
 });
 
 test("loadFixture reads an explicit execute: true opt-in", () => {
-  cleanup();
   mkdirSync(join(TEMP_ROOT, "with-execute"), { recursive: true });
   writeFileSync(
     join(TEMP_ROOT, "with-execute", "with-execute.logo"),
@@ -705,11 +771,9 @@ test("loadFixture reads an explicit execute: true opt-in", () => {
   });
 
   assert.equal(loaded.expected.execute, true);
-  cleanup();
 });
 
 test("loadFixture rejects a non-boolean execute field", () => {
-  cleanup();
   mkdirSync(join(TEMP_ROOT, "bad-execute"), { recursive: true });
   writeFileSync(join(TEMP_ROOT, "bad-execute", "bad-execute.logo"), "");
   writeFileSync(
@@ -730,11 +794,9 @@ test("loadFixture rejects a non-boolean execute field", () => {
 
   assert.ok(loaded.error);
   assert.ok(loaded.error.includes('"execute" must be a boolean'));
-  cleanup();
 });
 
 test("loadFixture defaults check to false when absent", () => {
-  cleanup();
   mkdirSync(join(TEMP_ROOT, "no-check"), { recursive: true });
   writeFileSync(join(TEMP_ROOT, "no-check", "no-check.logo"), "");
   writeFileSync(
@@ -753,11 +815,9 @@ test("loadFixture defaults check to false when absent", () => {
   });
 
   assert.equal(loaded.expected.check, false);
-  cleanup();
 });
 
 test("loadFixture reads an explicit check: true opt-in", () => {
-  cleanup();
   mkdirSync(join(TEMP_ROOT, "with-check"), { recursive: true });
   writeFileSync(join(TEMP_ROOT, "with-check", "with-check.logo"), "print 1");
   writeFileSync(
@@ -777,11 +837,9 @@ test("loadFixture reads an explicit check: true opt-in", () => {
   });
 
   assert.equal(loaded.expected.check, true);
-  cleanup();
 });
 
 test("loadFixture rejects a non-boolean check field", () => {
-  cleanup();
   mkdirSync(join(TEMP_ROOT, "bad-check"), { recursive: true });
   writeFileSync(join(TEMP_ROOT, "bad-check", "bad-check.logo"), "");
   writeFileSync(
@@ -802,11 +860,9 @@ test("loadFixture rejects a non-boolean check field", () => {
 
   assert.ok(loaded.error);
   assert.ok(loaded.error.includes('"check" must be a boolean'));
-  cleanup();
 });
 
 test("loadFixture defaults style to false when not present", () => {
-  cleanup();
   mkdirSync(join(TEMP_ROOT, "no-style"), { recursive: true });
   writeFileSync(join(TEMP_ROOT, "no-style", "no-style.logo"), "print 1");
   writeFileSync(
@@ -826,11 +882,9 @@ test("loadFixture defaults style to false when not present", () => {
   });
 
   assert.equal(loaded.expected.style, false);
-  cleanup();
 });
 
 test("loadFixture reads an explicit style: true opt-in", () => {
-  cleanup();
   mkdirSync(join(TEMP_ROOT, "with-style"), { recursive: true });
   writeFileSync(join(TEMP_ROOT, "with-style", "with-style.logo"), "print 1");
   writeFileSync(
@@ -851,11 +905,9 @@ test("loadFixture reads an explicit style: true opt-in", () => {
   });
 
   assert.equal(loaded.expected.style, true);
-  cleanup();
 });
 
 test("loadFixture rejects a non-boolean style field", () => {
-  cleanup();
   mkdirSync(join(TEMP_ROOT, "bad-style"), { recursive: true });
   writeFileSync(join(TEMP_ROOT, "bad-style", "bad-style.logo"), "");
   writeFileSync(
@@ -877,11 +929,9 @@ test("loadFixture rejects a non-boolean style field", () => {
 
   assert.ok(loaded.error);
   assert.ok(loaded.error.includes('"style" must be a boolean'));
-  cleanup();
 });
 
 test("loadFixture handles missing .expected.json file", () => {
-  cleanup();
   mkdirSync(join(TEMP_ROOT, "no-expected"), { recursive: true });
   writeFileSync(join(TEMP_ROOT, "no-expected", "test.logo"), "");
 
@@ -893,11 +943,9 @@ test("loadFixture handles missing .expected.json file", () => {
 
   assert.ok(loaded.error);
   assert.ok(loaded.error.includes("missing expected file"));
-  cleanup();
 });
 
 test("loadFixture handles missing .logo file", () => {
-  cleanup();
   mkdirSync(join(TEMP_ROOT, "no-logo"), { recursive: true });
   writeFileSync(
     join(TEMP_ROOT, "no-logo", "test.expected.json"),
@@ -916,7 +964,6 @@ test("loadFixture handles missing .logo file", () => {
 
   assert.ok(loaded.error);
   assert.ok(loaded.error.includes("missing source file"));
-  cleanup();
 });
 
 test("discoverFixtures finds fixtures recursively", () => {
@@ -932,37 +979,24 @@ test("discoverFixtures returns empty when root doesn't exist", () => {
 });
 
 test("runHarness handles empty fixture directory", () => {
-  cleanup();
-  // Create an empty temp directory and test with it
-  const emptyRoot = ".temp-empty-fixtures";
-  mkdirSync(emptyRoot, { recursive: true });
-
-  const exitCode = runHarness({ root: emptyRoot });
+  // TEMP_ROOT is a fresh, empty directory from beforeEach — nothing to run.
+  const exitCode = runHarness({ root: TEMP_ROOT });
   assert.equal(exitCode, 0); // No fixtures = success (nothing to fail)
-
-  rmSync(emptyRoot, { recursive: true, force: true });
 });
 
 test("runHarness handles fixture with load error", () => {
-  cleanup();
   // Create a fixture with bad JSON
-  mkdirSync(join("tests", "conformance", "_temp-bad-json"), {
+  mkdirSync(join(TEMP_ROOT, "bad-json-load"), {
     recursive: true,
   });
-  writeFileSync(join("tests", "conformance", "_temp-bad-json", "bad.logo"), "");
+  writeFileSync(join(TEMP_ROOT, "bad-json-load", "bad.logo"), "");
   writeFileSync(
-    join("tests", "conformance", "_temp-bad-json", "bad.expected.json"),
+    join(TEMP_ROOT, "bad-json-load", "bad.expected.json"),
     "{not valid json",
   );
 
-  const exitCode = runHarness({});
+  const exitCode = runHarness({ root: TEMP_ROOT });
   assert.equal(exitCode, 1); // Should fail
-
-  // Cleanup
-  rmSync(join("tests", "conformance", "_temp-bad-json"), {
-    recursive: true,
-    force: true,
-  });
 });
 
 test("runHarness exits 0 for passing fixtures", () => {
@@ -982,7 +1016,6 @@ test("runHarness filters fixtures by profile", () => {
 });
 
 test("runHarness detects fixture mismatches", () => {
-  cleanup();
   mkdirSync(join(TEMP_ROOT, "mismatch"), { recursive: true });
   writeFileSync(join(TEMP_ROOT, "mismatch", "mismatch.logo"), "]");
   writeFileSync(
@@ -995,7 +1028,7 @@ test("runHarness detects fixture mismatches", () => {
   );
 
   // discoverFixtures() uses ROOT which is tests/conformance/, so this fixture
-  // at .temp-test-fixtures/ won't be discovered. We need to test compare() directly instead:
+  // at TEMP_ROOT won't be discovered. We need to test compare() directly instead:
   const expected = {
     profiles: ["core-language"],
     events: [],
@@ -1006,11 +1039,9 @@ test("runHarness detects fixture mismatches", () => {
 
   assert.ok(!result.matched, "Expected mismatch but got match");
   assert.ok(result.report.length > 0, "Expected non-empty diff report");
-  cleanup();
 });
 
 test("runHarness handles self-test fixtures correctly", () => {
-  cleanup();
   mkdirSync(join(TEMP_ROOT, "_harness-selftest", "should-fail"), {
     recursive: true,
   });
@@ -1026,16 +1057,24 @@ test("runHarness handles self-test fixtures correctly", () => {
       "should-fail.expected.json",
     ),
     JSON.stringify({
+      expect: "mismatch", // self-tests must declare expect: "mismatch"
       profiles: ["core-language"],
       events: [],
-      diagnostics: [{ code: "ol-undefined-var" }], // expect a diagnostic that won't be there
+      diagnostics: [
+        {
+          code: "ol-undefined-var",
+          source_span: { document: "test", start: [1, 1], end: [1, 1] },
+          params: {},
+          stage: "semantic",
+          severity: "error",
+        }, // expect a diagnostic that won't be there
+      ],
     }),
   );
 
-  const exitCode = runHarness({});
+  const exitCode = runHarness({ root: TEMP_ROOT });
   // Self-test that doesn't match (as expected) should pass → exit 0
   assert.equal(exitCode, 0);
-  cleanup();
 });
 
 // Subprocess integration test for the CLI shell
@@ -1064,67 +1103,38 @@ test("CLI shell runs via subprocess", async () => {
 // Additional tests for orphan file detection
 
 test("discoverFixtures throws on orphan .logo file", () => {
-  cleanup();
-  mkdirSync(join("tests", "conformance", "_temp-orphan-logo"), {
-    recursive: true,
-  });
-  writeFileSync(
-    join("tests", "conformance", "_temp-orphan-logo", "orphan.logo"),
-    "",
-  );
+  writeFileSync(join(TEMP_ROOT, "orphan.logo"), "");
   // No .expected.json sibling
 
   assert.throws(
-    () => discoverFixtures("tests/conformance"),
+    () => discoverFixtures(TEMP_ROOT),
     /Orphan \.logo file\(s\) without \.expected\.json sibling/,
   );
-
-  rmSync(join("tests", "conformance", "_temp-orphan-logo"), {
-    recursive: true,
-    force: true,
-  });
 });
 
 test("discoverFixtures throws on orphan .expected.json file", () => {
-  cleanup();
-  mkdirSync(join("tests", "conformance", "_temp-orphan-expected"), {
-    recursive: true,
-  });
   writeFileSync(
-    join(
-      "tests",
-      "conformance",
-      "_temp-orphan-expected",
-      "orphan.expected.json",
-    ),
+    join(TEMP_ROOT, "orphan.expected.json"),
     JSON.stringify({ profiles: [], events: [], diagnostics: [] }),
   );
   // No .logo sibling
 
   assert.throws(
-    () => discoverFixtures("tests/conformance"),
+    () => discoverFixtures(TEMP_ROOT),
     /Orphan \.expected\.json file\(s\) without \.logo sibling/,
   );
-
-  rmSync(join("tests", "conformance", "_temp-orphan-expected"), {
-    recursive: true,
-    force: true,
-  });
 });
 
 // Additional tests for uncovered branches in runHarness
 
 test("runHarness handles self-test that wrongly matches", () => {
-  cleanup();
   // Create a self-test fixture that will match (which should fail)
-  mkdirSync(
-    join("tests", "conformance", "_harness-selftest", "wrongly-passes"),
-    { recursive: true },
-  );
+  mkdirSync(join(TEMP_ROOT, "_harness-selftest", "wrongly-passes"), {
+    recursive: true,
+  });
   writeFileSync(
     join(
-      "tests",
-      "conformance",
+      TEMP_ROOT,
       "_harness-selftest",
       "wrongly-passes",
       "wrongly-passes.logo",
@@ -1133,8 +1143,7 @@ test("runHarness handles self-test that wrongly matches", () => {
   );
   writeFileSync(
     join(
-      "tests",
-      "conformance",
+      TEMP_ROOT,
       "_harness-selftest",
       "wrongly-passes",
       "wrongly-passes.expected.json",
@@ -1147,57 +1156,46 @@ test("runHarness handles self-test that wrongly matches", () => {
     }),
   );
 
-  const exitCode = runHarness({});
+  const exitCode = runHarness({ root: TEMP_ROOT });
   assert.equal(exitCode, 1); // Should fail because self-test matched
-
-  // Cleanup the temp self-test fixture
-  rmSync(join("tests", "conformance", "_harness-selftest", "wrongly-passes"), {
-    recursive: true,
-    force: true,
-  });
 });
 
 test("runHarness handles normal fixture failure", () => {
-  cleanup();
-  // Create a normal fixture that will fail
-  mkdirSync(join("tests", "conformance", "_temp-fail-test"), {
+  // Create a normal fixture that will fail on a genuine comparison mismatch
+  // (not an off-contract schema error — the diagnostic below is schema-valid).
+  mkdirSync(join(TEMP_ROOT, "fail-test"), {
     recursive: true,
   });
+  writeFileSync(join(TEMP_ROOT, "fail-test", "fail.logo"), "]");
   writeFileSync(
-    join("tests", "conformance", "_temp-fail-test", "fail.logo"),
-    "]",
-  );
-  writeFileSync(
-    join("tests", "conformance", "_temp-fail-test", "fail.expected.json"),
+    join(TEMP_ROOT, "fail-test", "fail.expected.json"),
     JSON.stringify({
       profiles: ["core-language"],
       events: [],
-      diagnostics: [{ code: "ol-undefined-var" }], // Wrong diagnostic
+      diagnostics: [
+        {
+          code: "ol-undefined-var", // Wrong diagnostic — actual is ol-bad-token
+          source_span: { document: "test", start: [1, 1], end: [1, 1] },
+          params: {},
+          stage: "semantic",
+          severity: "error",
+        },
+      ],
     }),
   );
 
-  const exitCode = runHarness({});
+  const exitCode = runHarness({ root: TEMP_ROOT });
   assert.equal(exitCode, 1); // Should fail
-
-  // Cleanup
-  rmSync(join("tests", "conformance", "_temp-fail-test"), {
-    recursive: true,
-    force: true,
-  });
 });
 
 test("runHarness handles off-contract fixtures", () => {
-  cleanup();
   // Create an off-contract fixture (invalid profile)
-  mkdirSync(join("tests", "conformance", "_temp-offcontract"), {
+  mkdirSync(join(TEMP_ROOT, "offcontract"), {
     recursive: true,
   });
+  writeFileSync(join(TEMP_ROOT, "offcontract", "bad.logo"), "");
   writeFileSync(
-    join("tests", "conformance", "_temp-offcontract", "bad.logo"),
-    "",
-  );
-  writeFileSync(
-    join("tests", "conformance", "_temp-offcontract", "bad.expected.json"),
+    join(TEMP_ROOT, "offcontract", "bad.expected.json"),
     JSON.stringify({
       profiles: ["not-a-real-profile"],
       events: [],
@@ -1205,36 +1203,22 @@ test("runHarness handles off-contract fixtures", () => {
     }),
   );
 
-  const exitCode = runHarness({});
+  const exitCode = runHarness({ root: TEMP_ROOT });
   assert.equal(exitCode, 1); // Should fail
-
-  // Cleanup
-  rmSync(join("tests", "conformance", "_temp-offcontract"), {
-    recursive: true,
-    force: true,
-  });
 });
 
 test("runHarness requires self-tests to declare expect mismatch", () => {
-  cleanup();
   // Create a self-test without expect: "mismatch"
-  mkdirSync(join("tests", "conformance", "_harness-selftest", "bad-expect"), {
+  mkdirSync(join(TEMP_ROOT, "_harness-selftest", "bad-expect"), {
     recursive: true,
   });
   writeFileSync(
-    join(
-      "tests",
-      "conformance",
-      "_harness-selftest",
-      "bad-expect",
-      "bad-expect.logo",
-    ),
+    join(TEMP_ROOT, "_harness-selftest", "bad-expect", "bad-expect.logo"),
     "",
   );
   writeFileSync(
     join(
-      "tests",
-      "conformance",
+      TEMP_ROOT,
       "_harness-selftest",
       "bad-expect",
       "bad-expect.expected.json",
@@ -1247,35 +1231,22 @@ test("runHarness requires self-tests to declare expect mismatch", () => {
     }),
   );
 
-  const exitCode = runHarness({});
+  const exitCode = runHarness({ root: TEMP_ROOT });
   assert.equal(exitCode, 1); // Should fail
-
-  rmSync(join("tests", "conformance", "_harness-selftest", "bad-expect"), {
-    recursive: true,
-    force: true,
-  });
 });
 
 test("runHarness runs self-tests even with --profile filter", () => {
-  cleanup();
   // Self-test with profiles:[] should still run when --profile is set
-  mkdirSync(join("tests", "conformance", "_harness-selftest", "profile-test"), {
+  mkdirSync(join(TEMP_ROOT, "_harness-selftest", "profile-test"), {
     recursive: true,
   });
   writeFileSync(
-    join(
-      "tests",
-      "conformance",
-      "_harness-selftest",
-      "profile-test",
-      "profile-test.logo",
-    ),
+    join(TEMP_ROOT, "_harness-selftest", "profile-test", "profile-test.logo"),
     "]", // Parse error
   );
   writeFileSync(
     join(
-      "tests",
-      "conformance",
+      TEMP_ROOT,
       "_harness-selftest",
       "profile-test",
       "profile-test.expected.json",
@@ -1288,17 +1259,11 @@ test("runHarness runs self-tests even with --profile filter", () => {
     }),
   );
 
-  const exitCode = runHarness({ profile: "core-language" });
+  const exitCode = runHarness({ profile: "core-language", root: TEMP_ROOT });
   assert.equal(exitCode, 0); // Self-test should pass (mismatch correctly detected)
-
-  rmSync(join("tests", "conformance", "_harness-selftest", "profile-test"), {
-    recursive: true,
-    force: true,
-  });
 });
 
 test("runHarness skips fixtures when --profile filter doesn't match", () => {
-  cleanup();
   // Create a fixture with profiles:["data"] (not in core-language closure)
   mkdirSync(join(TEMP_ROOT, "data-only"), { recursive: true });
   writeFileSync(join(TEMP_ROOT, "data-only", "data-only.logo"), "");
@@ -1313,12 +1278,9 @@ test("runHarness skips fixtures when --profile filter doesn't match", () => {
 
   const exitCode = runHarness({ profile: "core-language", root: TEMP_ROOT });
   assert.equal(exitCode, 0); // Should skip (not fail)
-
-  cleanup();
 });
 
 test("runHarness runs an opted-in execution fixture end to end", () => {
-  cleanup();
   mkdirSync(join(TEMP_ROOT, "executes"), { recursive: true });
   writeFileSync(
     join(TEMP_ROOT, "executes", "executes.logo"),
@@ -1377,12 +1339,9 @@ test("runHarness runs an opted-in execution fixture end to end", () => {
 
   const exitCode = runHarness({ root: TEMP_ROOT });
   assert.equal(exitCode, 0);
-
-  cleanup();
 });
 
 test("runHarness reports a mismatch for an opted-in execution fixture with wrong events", () => {
-  cleanup();
   mkdirSync(join(TEMP_ROOT, "executes-wrong"), { recursive: true });
   writeFileSync(
     join(TEMP_ROOT, "executes-wrong", "executes-wrong.logo"),
@@ -1400,12 +1359,9 @@ test("runHarness reports a mismatch for an opted-in execution fixture with wrong
 
   const exitCode = runHarness({ root: TEMP_ROOT });
   assert.equal(exitCode, 1);
-
-  cleanup();
 });
 
 test("runHarness runs an opted-in check fixture end to end (clean pass)", () => {
-  cleanup();
   mkdirSync(join(TEMP_ROOT, "checks"), { recursive: true });
   writeFileSync(join(TEMP_ROOT, "checks", "checks.logo"), "print 1");
   writeFileSync(
@@ -1420,12 +1376,9 @@ test("runHarness runs an opted-in check fixture end to end (clean pass)", () => 
 
   const exitCode = runHarness({ root: TEMP_ROOT });
   assert.equal(exitCode, 0);
-
-  cleanup();
 });
 
 test("runHarness reports a mismatch for an opted-in check fixture with wrong diagnostics", () => {
-  cleanup();
   mkdirSync(join(TEMP_ROOT, "checks-wrong"), { recursive: true });
   writeFileSync(
     join(TEMP_ROOT, "checks-wrong", "checks-wrong.logo"),
@@ -1455,6 +1408,4 @@ test("runHarness reports a mismatch for an opted-in check fixture with wrong dia
 
   const exitCode = runHarness({ root: TEMP_ROOT });
   assert.equal(exitCode, 1);
-
-  cleanup();
 });
