@@ -1,0 +1,20 @@
+{
+  "description": "ol-style-predicate-name (issue #169): a procedure (is_ready) whose only return value is provably boolean (a chained equality comparison) but whose name does not end in ? is flagged for a missing predicate suffix.",
+  "profiles": ["core-language"],
+  "check": true,
+  "style": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-style-predicate-name",
+      "source_span": {
+        "document": "core-language/style/predicate-name-missing-suffix",
+        "start": [1, 8],
+        "end": [1, 16]
+      },
+      "params": { "name": "is_ready", "problem": "missing-suffix" },
+      "stage": "semantic",
+      "severity": "warning"
+    }
+  ]
+}

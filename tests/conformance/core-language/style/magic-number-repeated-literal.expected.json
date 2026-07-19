@@ -1,0 +1,31 @@
+{
+  "description": "ol-style-magic-number (issue #169): a bare numeric literal (37) outside the safe/idiomatic set (0, 1, 2, 4, 90, 120, 360) that occurs twice, unexplained by a variable name, is flagged at every occurrence.",
+  "profiles": ["core-language"],
+  "check": true,
+  "style": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-style-magic-number",
+      "source_span": {
+        "document": "core-language/style/magic-number-repeated-literal",
+        "start": [1, 7],
+        "end": [1, 9]
+      },
+      "params": { "value": 37 },
+      "stage": "semantic",
+      "severity": "warning"
+    },
+    {
+      "code": "ol-style-magic-number",
+      "source_span": {
+        "document": "core-language/style/magic-number-repeated-literal",
+        "start": [2, 7],
+        "end": [2, 9]
+      },
+      "params": { "value": 37 },
+      "stage": "semantic",
+      "severity": "warning"
+    }
+  ]
+}

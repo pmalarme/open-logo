@@ -1,0 +1,3 @@
+define draw?
+  print 1
+end

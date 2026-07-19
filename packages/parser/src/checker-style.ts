@@ -1,5 +1,5 @@
 /**
- * The Layer-3 style-lint rules (issue #115, slice 1 of the 13-code `ol-style-*` family
+ * The Layer-3 style-lint rules (issue #115, slices 1 and 2a of the 13-code `ol-style-*` family
  * `spec/tooling.md:237-251` registers, sourced from `spec/style-guide.md`). Every finding here
  * reuses the C10 diagnostic shape with `severity: "warning"` and `stage: "semantic"` — a style
  * lint never changes program meaning, unlike a Layer-2 `ol-*` error.
@@ -8,8 +8,8 @@
  * `{ style: true }`, so every existing Layer-2-only caller and conformance fixture is unaffected
  * (`check.ts`'s module doc explains why unconditional style-checking is unsafe).
  *
- * This slice implements exactly three of the thirteen registered codes; the rest are tracked in
- * the #115 follow-up issue:
+ * These two slices implement five of the thirteen registered codes; the rest are tracked in
+ * the #169 follow-up issue:
  *
  * - `ol-style-useless-value` — a control block (`if`/`while`/`repeat`/`forever`/`for … in`/
  *   `for … from … to`) whose body's final statement statically produces a value that the block
@@ -21,14 +21,15 @@
  *   (`spec/tooling.md:254-262`): `repeat 4 [ :side * 2 ]` → `ol-style-useless-value
  *   { form: "repeat" }`.
  * - `ol-style-equality-confusion` — a standalone top-level comparison statement (a
- *   `ComparisonChain`, or a `Call`/`ParenCall` whose callee is `==`/`!=`) whose boolean result is
- *   discarded — usually a slip where the learner meant to assign with `=`
- *   (`spec/style-guide.md` "Keep assignment and comparison visually distinct"). `=` written where
- *   a condition belongs is a *parse* error (`ol-missing-end`), never reaching this rule; only the
- *   opposite slip — a bare `==`/`!=` on its own — is a style warning here. Other comparison
- *   operators (`<`, `>`, `<=`, `>=`) as a single `Call` are not flagged as equality confusion
- *   (the code name is specific to `=`/`==` mix-ups), but any multi-operator `ComparisonChain` at
- *   statement position is, since a chain can never itself be a valid statement-level effect.
+ *   `ComparisonChain` containing at least one `==`/`!=`, or a `Call`/`ParenCall` whose callee is
+ *   `==`/`!=`) whose boolean result is discarded — usually a slip where the learner meant to
+ *   assign with `=` (`spec/style-guide.md` "Keep assignment and comparison visually distinct").
+ *   `=` written where a condition belongs is a *parse* error (`ol-missing-end`), never reaching
+ *   this rule; only the opposite slip — a bare `==`/`!=` on its own — is a style warning here.
+ *   Other comparison operators (`<`, `>`, `<=`, `>=`) as a single `Call` are not flagged as
+ *   equality confusion (the code name is specific to `=`/`==` mix-ups); a purely relational
+ *   `ComparisonChain` (e.g. `1 < 2 < 3`) is likewise never flagged, since it contains no equality
+ *   operator that could have been an `=` typo — only a chain containing at least one `==`/`!=` is.
  * - `ol-style-name-case` — a user identifier (variable, place base/field, procedure name,
  *   parameter, loop/comprehension binder) that is not lowercase snake_case with an optional
  *   trailing `?`/`!` (`spec/style-guide.md` "Names use `snake_case`"), checked against
@@ -51,23 +52,64 @@
  *     deliberately excluded — its node span starts at the opening paren, not the keyword, in the
  *     `(local name …)` surface form, so a single span-start slice cannot safely tell that form
  *     apart from bare `local name` (see {@link STRUCTURAL_KEYWORD}'s doc comment) — deferred to
- *     the #115 follow-up. The trailing closing keyword (`end repeat`, `end if`, …) is **not**
+ *     the #169 follow-up. The trailing closing keyword (`end repeat`, `end if`, …) is **not**
  *     checked either: `ast.ts`'s `BlockNode` records only the body statements, not the closing
  *     keyword's own span, so there is nothing to slice `source` against for it; that narrower
- *     sub-case is likewise deferred to the #115 follow-up. Struct/field type names have no Core
+ *     sub-case is likewise deferred to the #169 follow-up. Struct/field type names have no Core
  *     AST node yet (Data profile), so they are out of scope for the same reason
  *     `checker-reserved-word.ts` documents.
+ * - `ol-style-magic-number` — a numeric literal, outside a small safe/idiomatic set
+ *   (`spec/style-guide.md`'s own list: `0`, `1`, `2`, `4`, `90`, `120`, `360`), that occurs two or
+ *   more times as a bare literal anywhere in the program ("Repeated unexplained numeric literals
+ *   should be named with a variable"). A literal used directly as an assignment's right-hand side
+ *   (`:name = 37`, `set name to 37`) is already named by that assignment and is excluded from both
+ *   the repetition count and the finding — the learner has already done the thing this lint asks
+ *   for at that occurrence. See {@link magicNumberRule}.
+ * - `ol-style-predicate-name` — a **narrow, conservative** two-directional heuristic, since Core
+ *   has no static type system to decide a procedure's return type in general:
+ *   - A procedure whose name does not end in `?`, but whose *every* `return` statement's value is
+ *     a syntactically-obvious boolean-producing expression (a `true`/`false` literal, a
+ *     `ComparisonChain`, an `==`/`!=` `Call`/`ParenCall`, `and`/`or`/`not`, or an `is`-predicate),
+ *     is flagged as missing the `?` suffix.
+ *   - A procedure whose name *does* end in `?`, but which either has no `return` statement at all
+ *     (a pure command can never report a boolean) or has at least one `return` whose value is a
+ *     syntactically-obvious *non*-boolean literal (`NumberLit`/`WordLit`/`ListLit`), is flagged
+ *     for a misleading `?` suffix.
+ *   Anything the heuristic cannot classify either way (a `return`ed `VarRef`, a call to another
+ *   user procedure, a mix it cannot prove one way or the other) is left unflagged rather than
+ *   guessed at — see {@link isBooleanProducing}/{@link isDefinitelyNonBoolean}'s doc comments.
+ *   `Return`s belonging to a *nested* `ProcedureDef` are never attributed to the outer one (see
+ *   {@link collectOwnReturns}).
+ *
+ * Two candidates from the #169 remainder were assessed and deliberately **not** attempted in this
+ * slice, each for a concrete write-set/infrastructure reason (not merely difficulty):
+ *
+ * - `ol-style-comment-style` needs comment *trivia* to exist somewhere in the token/AST stream to
+ *   inspect at all. `tokens.ts`'s lexer treats every `#`/`//`/`/* … *\/` comment as pure whitespace
+ *   and discards its text entirely before the parser ever sees a token — there is nothing for an
+ *   additive `checker-style.ts` rule to read. Doing this would require the reader/lexer to start
+ *   retaining comment spans, which is out of this slice's additive-only write-set; tracked as a
+ *   blocker in the #169 follow-up rather than worked around here.
+ * - `ol-style-procedure-name`'s normatively-decidable parts (non-snake-case naming; the `is_*?`/
+ *   `*?` predicate-suffix pattern) are already fully covered by `ol-style-name-case` and
+ *   `ol-style-predicate-name` above — implementing it separately would either duplicate those two
+ *   findings verbatim or require inventing an un-normative "vague verb" word list the spec never
+ *   supplies (`spec/style-guide.md` gives no such list, only illustrative examples like `do_it`).
+ *   Left to the #169 follow-up pending that clarification.
  */
 
 import type { Diagnostic, Position } from "@openlogo/core";
 import { makeSpan } from "@openlogo/core";
 import type {
   AnyNode,
+  ExpressionNode,
+  NumberLitNode,
   ProgramNode,
+  ReturnNode,
   SpannedName,
   StatementNode,
 } from "./ast.js";
-import { walk } from "./ast.js";
+import { childrenOf, walk } from "./ast.js";
 import type { CheckProfile, CheckRule } from "./check.js";
 import { CORE_COMMANDS, producesValue } from "./checker-control-flow.js";
 import { corePrimitiveNames } from "./signatures.js";
@@ -480,12 +522,205 @@ export function nameCaseRule(
 }
 
 /**
+ * Numeric literals small/idiomatic enough that a repeated bare occurrence is never "magic" —
+ * `spec/style-guide.md`'s own list, verbatim: "small obvious values such as `0`, `1`, `2`, `4`,
+ * `90`, `120`, and `360`".
+ */
+const MAGIC_NUMBER_SAFE_VALUES: ReadonlySet<number> = new Set([
+  0, 1, 2, 4, 90, 120, 360,
+]);
+
+/** Build an `ol-style-magic-number` at `node`'s own span. */
+function magicNumberDiagnostic(node: NumberLitNode): Diagnostic {
+  return {
+    code: "ol-style-magic-number",
+    source_span: node.source_span,
+    params: { value: node.value },
+    message: `${node.value} appears more than once unexplained — name it with a variable.`,
+    stage: "semantic",
+    severity: "warning",
+  };
+}
+
+/**
+ * `ol-style-magic-number` (issue #169): a bare numeric literal, outside
+ * {@link MAGIC_NUMBER_SAFE_VALUES}, that occurs two or more times anywhere in the program
+ * ("Repeated unexplained numeric literals should be named with a variable",
+ * `spec/style-guide.md` "Magic numbers"). A literal used directly as an assignment's right-hand
+ * side (`:name = 37`, `set name to 37`) is already named by that assignment, so it is excluded
+ * from both the repetition count and the finding — walking `Assign` nodes pre-order (via `walk`)
+ * always visits the `Assign` itself before its `value` child, so marking that child here always
+ * runs before the child's own visit in the same traversal.
+ */
+export function magicNumberRule(program: ProgramNode): readonly Diagnostic[] {
+  const excludedAsAssignmentRhs = new Set<ExpressionNode>();
+  const occurrencesByValue = new Map<number, NumberLitNode[]>();
+
+  walk(program, (node) => {
+    if (node.kind === "Assign" && node.value.kind === "NumberLit") {
+      excludedAsAssignmentRhs.add(node.value);
+      return;
+    }
+    if (
+      node.kind !== "NumberLit" ||
+      excludedAsAssignmentRhs.has(node) ||
+      MAGIC_NUMBER_SAFE_VALUES.has(node.value)
+    ) {
+      return;
+    }
+    const occurrences = occurrencesByValue.get(node.value);
+    if (occurrences === undefined) {
+      occurrencesByValue.set(node.value, [node]);
+    } else {
+      occurrences.push(node);
+    }
+  });
+
+  const diagnostics: Diagnostic[] = [];
+  for (const occurrences of occurrencesByValue.values()) {
+    if (occurrences.length < 2) {
+      continue;
+    }
+    for (const occurrence of occurrences) {
+      diagnostics.push(magicNumberDiagnostic(occurrence));
+    }
+  }
+  return diagnostics;
+}
+
+/**
+ * Is `expr` a syntactically-obvious boolean-producing expression? A conservative, Core-only
+ * heuristic — Core has no static type system, so this can never be exhaustive; it only
+ * recognizes the shapes that *always* report a boolean regardless of operands: a `true`/`false`
+ * literal, a comparison (`ComparisonChain`, or a lone `==`/`!=`/`<`/`>`/`<=`/`>=` `Call`/
+ * `ParenCall`), a worded `is`-predicate, and the boolean connectives `and`/`or`/`not`. Anything
+ * else (a `VarRef`, a call to another user procedure, a number/word/list literal, …) returns
+ * `false` — meaning "not provably boolean", not "provably non-boolean"; see
+ * {@link isDefinitelyNonBoolean} for that opposite, narrower question.
+ */
+function isBooleanProducing(expr: ExpressionNode): boolean {
+  switch (expr.kind) {
+    case "BooleanLit":
+    case "ComparisonChain":
+    case "IsPredicate":
+      return true;
+    case "Call":
+    case "ParenCall":
+      return BOOLEAN_CALLEE_NAMES.has(expr.callee.name);
+    default:
+      return false;
+  }
+}
+
+/** Callee spellings whose call always reports a boolean, for {@link isBooleanProducing}. */
+const BOOLEAN_CALLEE_NAMES: ReadonlySet<string> = new Set([
+  "==",
+  "!=",
+  "<",
+  ">",
+  "<=",
+  ">=",
+  "and",
+  "or",
+  "not",
+]);
+
+/**
+ * Is `expr` *definitely* not boolean? Narrower and much more conservative than the negation of
+ * {@link isBooleanProducing}: only a literal number/word/list is unambiguous proof, since a
+ * `VarRef` or a call to another procedure could still resolve to a boolean at runtime and this
+ * rule must never guess.
+ */
+function isDefinitelyNonBoolean(expr: ExpressionNode): boolean {
+  return (
+    expr.kind === "NumberLit" ||
+    expr.kind === "WordLit" ||
+    expr.kind === "ListLit"
+  );
+}
+
+/**
+ * Collect every `Return` node inside `node` that belongs to *this* procedure body — i.e. does not
+ * cross into a nested `ProcedureDef`'s own body. `walk` alone cannot express this (it always
+ * descends into every child, including a nested procedure's), so this is a small dedicated
+ * traversal built directly on {@link childrenOf} instead.
+ */
+function collectOwnReturns(node: AnyNode, out: ReturnNode[]): void {
+  if (node.kind === "Return") {
+    out.push(node);
+    return;
+  }
+  if (node.kind === "ProcedureDef") {
+    return;
+  }
+  for (const child of childrenOf(node)) {
+    collectOwnReturns(child, out);
+  }
+}
+
+/** Build an `ol-style-predicate-name` at `name`'s own span. */
+function predicateNameDiagnostic(
+  name: SpannedName,
+  problem: "missing-suffix" | "misleading-suffix",
+): Diagnostic {
+  const message =
+    problem === "missing-suffix"
+      ? `${name.name} reports a boolean, so its name should end in ? like a question.`
+      : `${name.name} ends in ? but does not report a boolean — drop the ? or return one.`;
+  return {
+    code: "ol-style-predicate-name",
+    source_span: name.source_span,
+    params: { name: name.name, problem },
+    message,
+    stage: "semantic",
+    severity: "warning",
+  };
+}
+
+/**
+ * `ol-style-predicate-name` (issue #169): flags a procedure name that disagrees with whether its
+ * body provably reports a boolean, in either direction (`spec/style-guide.md` "Name predicates
+ * with `?`"). See this file's module doc comment for the full heuristic and its deliberate
+ * conservatism — anything the heuristic cannot prove one way or the other is left unflagged.
+ */
+export function predicateNameRule(program: ProgramNode): readonly Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  walk(program, (node) => {
+    if (node.kind !== "ProcedureDef") {
+      return;
+    }
+    const returns: ReturnNode[] = [];
+    collectOwnReturns(node.body, returns);
+    const endsWithQuestion = node.name.name.endsWith("?");
+
+    if (
+      !endsWithQuestion &&
+      returns.length > 0 &&
+      returns.every((r) => isBooleanProducing(r.value))
+    ) {
+      diagnostics.push(predicateNameDiagnostic(node.name, "missing-suffix"));
+      return;
+    }
+    if (
+      endsWithQuestion &&
+      (returns.length === 0 ||
+        returns.some((r) => isDefinitelyNonBoolean(r.value)))
+    ) {
+      diagnostics.push(predicateNameDiagnostic(node.name, "misleading-suffix"));
+    }
+  });
+  return diagnostics;
+}
+
+/**
  * The opt-in Layer-3 style-rule registry (issue #115), run by `check()` only when
- * `options.style === true`. Order is the order findings are reported in; a later #115 slice
+ * `options.style === true`. Order is the order findings are reported in; a later #169 slice
  * appends its rule(s) here the same way {@link RULES} in `check.ts` grows for Layer-2.
  */
 export const STYLE_RULES: readonly CheckRule[] = [
   uselessValueRule,
   equalityConfusionRule,
   nameCaseRule,
+  magicNumberRule,
+  predicateNameRule,
 ];
