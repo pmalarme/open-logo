@@ -164,7 +164,9 @@ export interface RunController {
    * snapshot, repainting the Canvas view if one was supplied. A no-op before the first `run()` or
    * once the animation is exhausted (`TurtleAnimationController.step()`'s own guard) — see this
    * module's doc comment ("#228") for why this replays the already-complete event stream rather
-   * than stepping the runtime, which exposes no per-instruction pause/resume API.
+   * than stepping the runtime, which exposes no per-instruction pause/resume API. `runStatus`
+   * stays `"stopped"` if the learner already called `stop()`, even once stepping exhausts the
+   * animation — `step()` never silently reverts an explicit stop back to a completed-run status.
    */
   step(): void;
 }
@@ -198,9 +200,13 @@ export function createRunController(
   // trace-event stream; null before the first run() and after reset(). `finalRunStatus` is the
   // runStatus run() would already have committed pre-#228 (derived from the run's diagnostics),
   // deferred here until the animation actually finishes so a still-paced Canvas view is never
-  // reported as idle/stopped early (see this module's doc comment, "#228").
+  // reported as idle/stopped early (see this module's doc comment, "#228"). `userStopped` latches
+  // once `stop()` is called and is only cleared by `run()`/`reset()` — it prevents a later
+  // `step()` from silently overwriting an explicit stop back to `finalRunStatus` once the learner
+  // finishes manually stepping through the rest of an already-stopped animation.
   let animation: TurtleAnimationController | null = null;
   let finalRunStatus: RunStatus = "idle";
+  let userStopped = false;
 
   /** Push `current`'s folded state/scene into the shared store and repaint (never called with a
    * null animation — callers only invoke this once `animation` has been assigned). */
@@ -211,15 +217,20 @@ export function createRunController(
     options?.canvasView?.repaint();
   }
 
-  /** Commit `finalRunStatus` once `current` has actually reached `"done"`. */
+  /**
+   * Commit `finalRunStatus` once `current` has actually reached `"done"` — unless the learner
+   * already called `stop()`, in which case `runStatus` stays `"stopped"` even if a subsequent
+   * manual `step()` exhausts the animation (see `userStopped`'s doc comment above).
+   */
   function maybeSettleRunStatus(current: TurtleAnimationController): void {
-    if (current.getSnapshot().status === "done") {
+    if (!userStopped && current.getSnapshot().status === "done") {
       state.setRunStatus(finalRunStatus);
     }
   }
 
   function run(): void {
     state.setRunStatus("running");
+    userStopped = false;
 
     const execOptions: ExecuteOptions = {
       signal,
@@ -261,12 +272,14 @@ export function createRunController(
 
   function stop(): void {
     signal.aborted = true;
+    userStopped = true;
     animation?.pause();
     state.setRunStatus("stopped");
   }
 
   function reset(): void {
     signal.aborted = false;
+    userStopped = false;
     state.setOutput([]);
     state.setDiagnostics([]);
     animation?.reset();

@@ -329,6 +329,27 @@ test("step() before any run() remains a documented no-op even with a canvasView 
   assert.equal(fake.repaintCount(), 0);
 });
 
+test("step()ping through the rest of the animation after stop() never reverts runStatus away from 'stopped'", () => {
+  const store = OL.createStudioState({
+    source: "forward 100\nright 90",
+  });
+  const manual = createManualScheduler();
+  const controller = OL.createRunController(store, {
+    scheduler: manual.scheduler,
+  });
+
+  controller.run();
+  controller.stop();
+  assert.equal(store.getState().runStatus, "stopped");
+
+  // Manually stepping through to exhaustion must not silently report the stopped run as "idle".
+  controller.step();
+  controller.step();
+  controller.step();
+
+  assert.equal(store.getState().runStatus, "stopped");
+});
+
 test("reset() clears the turtle state/scene back to program-start defaults and repaints", () => {
   const store = OL.createStudioState({ source: "forward 100\nright 90" });
   const fake = createFakeCanvasView();
