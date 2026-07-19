@@ -1,0 +1,35 @@
+{
+  "description": "`first` on a number raises `ol-type` naming the expected concept \"word or list\" (spec/commands.md \"first\"; error-model.md `ol-type`). Execution halts, so only the `instruction` event is kept. Issue #101.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/list-first-type-error",
+        "start": [1, 1],
+        "end": [1, 14]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "core-language/execution/list-first-type-error",
+        "start": [1, 13],
+        "end": [1, 14]
+      },
+      "params": {
+        "expected": "word or list",
+        "actual": "number",
+        "value": 5,
+        "operation": "first"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

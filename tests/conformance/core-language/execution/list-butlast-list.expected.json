@@ -1,0 +1,28 @@
+{
+  "description": "`butlast` on a list reports a fresh list with every element but the last (spec/commands.md \"butlast\"; spec/execution-model.md:447-482 — never mutates the input). Issue #101.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/list-butlast-list",
+        "start": [1, 1],
+        "end": [1, 22]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/list-butlast-list",
+        "start": [1, 1],
+        "end": [1, 22]
+      },
+      "payload": { "values": [[1, 2]] }
+    }
+  ],
+  "diagnostics": []
+}

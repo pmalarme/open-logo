@@ -1,0 +1,35 @@
+{
+  "description": "`fput`'s second argument must be a list; a word argument raises `ol-type` naming the expected concept \"list\" (spec/commands.md \"fput\"; error-model.md `ol-type`). Execution halts, so only the `instruction` event is kept. Issue #101.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/list-fput-type-error",
+        "start": [1, 1],
+        "end": [1, 18]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "core-language/execution/list-fput-type-error",
+        "start": [1, 14],
+        "end": [1, 18]
+      },
+      "params": {
+        "expected": "list",
+        "actual": "word",
+        "value": "hi",
+        "operation": "fput"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

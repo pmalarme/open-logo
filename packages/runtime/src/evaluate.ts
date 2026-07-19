@@ -522,7 +522,9 @@ function isLogicalOperator(name: string): name is LogicalOperator {
  * {@link IsPredicateNode} is in scope when its `operand` (and, per `test.form`, its `collection`
  * or `low`/`high`) are themselves supported — `test.form === "a"`'s type word is a parse-time
  * literal, never evaluated, so it needs no check of its own — and the prefix `empty?`/`member?`/
- * `is_a?` callees join the known-callee list above.
+ * `is_a?` callees join the known-callee list above. As of issue #101 the Core list reporters
+ * `first`/`last`/`butfirst`/`butlast`/`fput`/`lput`/`sentence`/`count` join the known-callee list
+ * too.
  */
 export function isSupportedExpression(
   node: ExpressionNode,
@@ -561,6 +563,14 @@ export function isSupportedExpression(
         name === "empty?" ||
         name === "member?" ||
         name === "is_a?" ||
+        name === "first" ||
+        name === "last" ||
+        name === "butfirst" ||
+        name === "butlast" ||
+        name === "fput" ||
+        name === "lput" ||
+        name === "sentence" ||
+        name === "count" ||
         procedures.has(name);
       return (
         isKnownCallee &&
@@ -947,6 +957,30 @@ function evaluateCall(node: ArithmeticCallNode, env: Environment): EvalResult {
   }
   if (name === "is_a?") {
     return evaluatePrefixIsA(node, env);
+  }
+  if (name === "first") {
+    return evaluateFirst(node, env);
+  }
+  if (name === "last") {
+    return evaluateLast(node, env);
+  }
+  if (name === "butfirst") {
+    return evaluateButfirst(node, env);
+  }
+  if (name === "butlast") {
+    return evaluateButlast(node, env);
+  }
+  if (name === "fput") {
+    return evaluateFput(node, env);
+  }
+  if (name === "lput") {
+    return evaluateLput(node, env);
+  }
+  if (name === "sentence") {
+    return evaluateSentence(node, env);
+  }
+  if (name === "count") {
+    return evaluateCount(node, env);
   }
   if (env.procedures.has(name)) {
     return env.callProcedure(node, env);
@@ -1803,6 +1837,218 @@ function evaluatePrefixIsA(
     typeResult.value,
     typeNode.source_span,
   );
+}
+
+// --- Core list reporters: first/last/butfirst/butlast/fput/lput/sentence/count (issue #101,
+// spec/commands.md "Words and lists", spec/execution-model.md:447-482) --------------------------
+//
+// Every reporter below is a plain `Call`/`ParenCall` — no dedicated AST node — dispatched by
+// lowercased callee name, same as the is-predicates above. `fput`/`lput`/`sentence` always
+// return a *fresh* array (never mutate an argument list in place); nested element references
+// are shared, only the outer array is copied (`spec/execution-model.md:447-482`'s
+// mutation-vs-copy distinction). `reverse`/`pick`/`sort` are Data-profile derived reporters
+// (`spec/data-structures.md:125-129`), not Core, so they are intentionally absent here.
+
+/** A word (string) or list (array) — the shared input type of `first`/`last`/`butfirst`/`butlast`/`count`. */
+function isWordOrList(value: OLValue): value is string | readonly OLValue[] {
+  return typeof value === "string" || Array.isArray(value);
+}
+
+/**
+ * `first`/`last` — the first/last element of a list, or first/last character of a word, as a
+ * one-character word (`spec/commands.md` "first"/"last"). Empty input raises `ol-range`; a
+ * non-word/non-list input raises `ol-type`.
+ */
+function evaluateFirstOrLast(
+  node: ArithmeticCallNode,
+  env: Environment,
+  which: "first" | "last",
+): EvalResult {
+  const inputNode = arg(node, 0);
+  const inputResult = evaluate(inputNode, env);
+  if (!inputResult.ok) {
+    return inputResult;
+  }
+  const value = inputResult.value;
+  if (!isWordOrList(value)) {
+    return fail(
+      runtimeDiag.listReporterType(inputNode.source_span, {
+        expected: "word or list",
+        actual: typeNameOf(value),
+        value,
+        operation: which,
+      }),
+    );
+  }
+  if (value.length === 0) {
+    return fail(
+      runtimeDiag.emptyInput(inputNode.source_span, {
+        operation: which,
+        value,
+      }),
+    );
+  }
+  const index = which === "first" ? 0 : value.length - 1;
+  return ok(value[index] as OLValue);
+}
+
+function evaluateFirst(node: ArithmeticCallNode, env: Environment): EvalResult {
+  return evaluateFirstOrLast(node, env, "first");
+}
+
+function evaluateLast(node: ArithmeticCallNode, env: Environment): EvalResult {
+  return evaluateFirstOrLast(node, env, "last");
+}
+
+/**
+ * `butfirst`/`butlast` — every element/character except the first/last, preserving the word-vs-
+ * list type (`spec/commands.md` "butfirst"/"butlast"). Empty input raises `ol-range`; a
+ * non-word/non-list input raises `ol-type`.
+ */
+function evaluateButfirstOrButlast(
+  node: ArithmeticCallNode,
+  env: Environment,
+  which: "butfirst" | "butlast",
+): EvalResult {
+  const inputNode = arg(node, 0);
+  const inputResult = evaluate(inputNode, env);
+  if (!inputResult.ok) {
+    return inputResult;
+  }
+  const value = inputResult.value;
+  if (!isWordOrList(value)) {
+    return fail(
+      runtimeDiag.listReporterType(inputNode.source_span, {
+        expected: "word or list",
+        actual: typeNameOf(value),
+        value,
+        operation: which,
+      }),
+    );
+  }
+  if (value.length === 0) {
+    return fail(
+      runtimeDiag.emptyInput(inputNode.source_span, {
+        operation: which,
+        value,
+      }),
+    );
+  }
+  const rest =
+    which === "butfirst" ? value.slice(1) : value.slice(0, value.length - 1);
+  return ok(typeof value === "string" ? (rest as string) : [...rest]);
+}
+
+function evaluateButfirst(
+  node: ArithmeticCallNode,
+  env: Environment,
+): EvalResult {
+  return evaluateButfirstOrButlast(node, env, "butfirst");
+}
+
+function evaluateButlast(
+  node: ArithmeticCallNode,
+  env: Environment,
+): EvalResult {
+  return evaluateButfirstOrButlast(node, env, "butlast");
+}
+
+/**
+ * `fput`/`lput` — a *fresh* list with `value` prepended/appended to `list`
+ * (`spec/commands.md` "fput"/"lput"; `spec/execution-model.md:447-482` — never mutates `list`).
+ * A non-list second argument raises `ol-type`.
+ */
+function evaluateFputOrLput(
+  node: ArithmeticCallNode,
+  env: Environment,
+  which: "fput" | "lput",
+): EvalResult {
+  const valueNode = arg(node, 0);
+  const listNode = arg(node, 1);
+  const valueResult = evaluate(valueNode, env);
+  if (!valueResult.ok) {
+    return valueResult;
+  }
+  const listResult = evaluate(listNode, env);
+  if (!listResult.ok) {
+    return listResult;
+  }
+  const list = listResult.value;
+  if (!Array.isArray(list)) {
+    return fail(
+      runtimeDiag.listReporterType(listNode.source_span, {
+        expected: "list",
+        actual: typeNameOf(list),
+        value: list,
+        operation: which,
+      }),
+    );
+  }
+  return ok(
+    which === "fput"
+      ? [valueResult.value, ...list]
+      : [...list, valueResult.value],
+  );
+}
+
+function evaluateFput(node: ArithmeticCallNode, env: Environment): EvalResult {
+  return evaluateFputOrLput(node, env, "fput");
+}
+
+function evaluateLput(node: ArithmeticCallNode, env: Environment): EvalResult {
+  return evaluateFputOrLput(node, env, "lput");
+}
+
+/**
+ * `sentence` — a *fresh* list combining every argument as sentence items (`spec/commands.md`
+ * "sentence"; `spec/data-structures.md`'s combine-as-sentence description): a list-typed
+ * argument's own elements flatten one level into the result, a non-list argument becomes a
+ * single element. `sentence` places no type restriction on its arguments — this flattening rule
+ * is the interpretive reading of the spec's "items participate as sentence items" phrasing,
+ * following classic Logo's `sentence` semantics, since the spec has no separate normative
+ * "sequence rules" section spelling this out.
+ */
+function evaluateSentence(
+  node: ArithmeticCallNode,
+  env: Environment,
+): EvalResult {
+  const result: OLValue[] = [];
+  for (const argNode of node.args) {
+    const argResult = evaluate(argNode, env);
+    if (!argResult.ok) {
+      return argResult;
+    }
+    if (Array.isArray(argResult.value)) {
+      result.push(...argResult.value);
+    } else {
+      result.push(argResult.value);
+    }
+  }
+  return ok(result);
+}
+
+/**
+ * `count` — the number of elements in a list, or characters in a word
+ * (`spec/commands.md` "count"). A non-word/non-list input raises `ol-type`.
+ */
+function evaluateCount(node: ArithmeticCallNode, env: Environment): EvalResult {
+  const inputNode = arg(node, 0);
+  const inputResult = evaluate(inputNode, env);
+  if (!inputResult.ok) {
+    return inputResult;
+  }
+  const value = inputResult.value;
+  if (!isWordOrList(value)) {
+    return fail(
+      runtimeDiag.listReporterType(inputNode.source_span, {
+        expected: "word or list",
+        actual: typeNameOf(value),
+        value,
+        operation: "count",
+      }),
+    );
+  }
+  return ok(value.length);
 }
 
 // --- Comprehensions: map / filter / reduce (spec/execution-model.md:380-479, issue #105) ------

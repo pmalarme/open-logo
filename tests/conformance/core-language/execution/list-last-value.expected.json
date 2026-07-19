@@ -1,0 +1,28 @@
+{
+  "description": "`last` on a list reports its last element (spec/commands.md \"last\"). Issue #101.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/list-last-value",
+        "start": [1, 1],
+        "end": [1, 19]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/list-last-value",
+        "start": [1, 1],
+        "end": [1, 19]
+      },
+      "payload": { "values": [3] }
+    }
+  ],
+  "diagnostics": []
+}
