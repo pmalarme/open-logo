@@ -25,6 +25,7 @@ import type {
   DrawSegmentPayload,
   MovePayload,
   OLValue,
+  PenChangePayload,
   Point,
   PrintPayload,
   ProcedureEnterPayload,
@@ -106,21 +107,19 @@ function isTurtleMoveCall(statement: StatementNode): boolean {
 }
 
 /**
- * Move the turtle `distance` units along its current heading and emit the `move`/`draw-segment`
- * effect-event pair `spec/execution-model.md:592-593` requires — a `move` reporting the position
- * change and heading, followed by a `draw-segment` reporting the same endpoints plus the pen
- * color/width active at the moment the segment is created (`spec/rendering.md`'s "Line segments"
- * section). `distance` is negative for `back` (`back n` == `forward -n`,
- * `spec/commands.md:1215`), positive for `forward`.
+ * Move the turtle `distance` units along its current heading and emit the `move` effect-event
+ * `spec/execution-model.md:592-593` requires, reporting the position change and heading. A
+ * `draw-segment` reporting the same endpoints plus the pen color/width active at the moment the
+ * segment is created (`spec/rendering.md`'s "Line segments" section) follows it **only while the
+ * pen is down** (`env.turtle.penDown`) — `spec/rendering.md`'s "Line segments" section: a segment
+ * is drawn only while the pen is down; while up, the turtle still moves (and still emits `move`)
+ * but leaves no trail (issue #206, `pen_up`/`pen_down`). `distance` is negative for `back`
+ * (`back n` == `forward -n`, `spec/commands.md:1215`), positive for `forward`.
  *
  * Movement math is `spec/execution-model.md:545-546`'s `(x + d·sin h, y + d·cos h)`: heading `0`
  * points up (`+y`), and `right` turns clockwise, so increasing heading rotates the direction of
  * travel clockwise from up — exactly what `Math.sin`/`Math.cos` of a heading measured clockwise
  * from the `+y` axis produce once converted from degrees to radians.
- *
- * This slice's turtle is always pen-down (pen mutability is issue #206), so a `draw-segment` is
- * always emitted alongside `move` here; the future pen-up branch (move with no draw-segment) is
- * added once `pen_up`/`pen_down` exist to actually reach it.
  */
 function moveTurtle(
   env: Environment,
@@ -143,17 +142,19 @@ function moveTurtle(
     source_span,
     payload: { from, to, heading } satisfies MovePayload,
   });
-  env.events.push({
-    seq: env.events.length,
-    kind: "draw-segment",
-    source_span,
-    payload: {
-      from,
-      to,
-      color: turtle.color,
-      width: turtle.width,
-    } satisfies DrawSegmentPayload,
-  });
+  if (turtle.penDown) {
+    env.events.push({
+      seq: env.events.length,
+      kind: "draw-segment",
+      source_span,
+      payload: {
+        from,
+        to,
+        color: turtle.color,
+        width: turtle.width,
+      } satisfies DrawSegmentPayload,
+    });
+  }
 }
 
 /**
@@ -352,6 +353,125 @@ function executeTurtleTurnCall(
     callableName.toLowerCase() === "left" ? -angle.value : angle.value;
   turnTurtle(env, signedAngle, turnCall.source_span);
   return undefined;
+}
+
+/**
+ * Is `statement` a call to `pen_up`/`pen_down` (issue #206, Core pen state — the Heritage `pu`/
+ * `pd` aliases are a separate M5 slice)? Same shape/convention as {@link isTurtleMoveCall}/
+ * {@link isTurtleTurnCall}: accepts both the plain infix `Call` form (`pen_up`) and the
+ * explicit-parentheses `ParenCall` form (`(pen_up)`), and is a plain `boolean` rather than a type
+ * predicate for the same type-narrowing reason documented on {@link isTurtleMoveCall}.
+ */
+function isTurtlePenCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  const name = statement.callee.name.toLowerCase();
+  return name === "pen_up" || name === "pen_down";
+}
+
+/**
+ * Set the turtle's pen state and emit the `pen-change` effect-event `spec/rendering.md`'s "Line
+ * segments" section requires (`{from, to}`, both `"up"`/`"down"`) — mirrors {@link turnTurtle}'s
+ * `{from, to}` shape. Always emits the event, even when the pen was already in the requested state
+ * (calling `pen_down` twice in a row is not an error, and the learner still gets a confirming
+ * event each time — the same "unconditional emit" choice {@link turnTurtle} makes).
+ *
+ * Setting has no `move`/`draw-segment` counterpart: it never moves or turns the turtle, so no
+ * position or heading event follows it. It is, however, the reason {@link moveTurtle}'s
+ * `draw-segment` is now conditional on `env.turtle.penDown`.
+ */
+function setPen(
+  env: Environment,
+  penDown: boolean,
+  source_span: SourceSpan,
+): void {
+  const { turtle } = env;
+  const from = turtle.penDown ? "down" : "up";
+  const to = penDown ? "down" : "up";
+  turtle.penDown = penDown;
+  env.events.push({
+    seq: env.events.length,
+    kind: "pen-change",
+    source_span,
+    payload: { from, to } satisfies PenChangePayload,
+  });
+}
+
+/**
+ * Validate and run a `pen_up`/`pen_down` statement matched by {@link isTurtlePenCall}: exactly
+ * zero arguments (`ol-too-many-inputs` otherwise — `pen_up`/`pen_down`'s registered arity is `0`,
+ * `packages/parser/src/signatures.ts`, so a call can never be parsed with fewer than zero
+ * arguments, only more via the parenthesized form, e.g. `(pen_up 1)`), then delegated to
+ * {@link setPen}. Returns an {@link ExecSignal} to halt on, or `undefined` for
+ * {@link executeStatements} to `continue` on success.
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeTurtlePenCall(
+  penCall: CallNode | ParenCallNode,
+  env: Environment,
+): ExecSignal | undefined {
+  const callableName = penCall.callee.name;
+  if (penCall.args.length !== 0) {
+    return halt(
+      runtimeDiag.tooManyInputs(
+        penCall.callee.source_span,
+        callableName,
+        0,
+        penCall.args.length,
+      ),
+    );
+  }
+  setPen(env, callableName.toLowerCase() === "pen_down", penCall.source_span);
+  return undefined;
+}
+
+/**
+ * Sentinel `dispatchTurtleCommand` returns when `statement` isn't any recognized turtle command,
+ * so {@link executeStatements} can fall through to its other statement-kind checks. Distinct from
+ * `undefined`, which `dispatchTurtleCommand` returns when a turtle command ran successfully (the
+ * same "handled, continue" meaning every `executeTurtle*Call` helper already uses).
+ */
+const NOT_A_TURTLE_COMMAND = Symbol("not-a-turtle-command");
+
+/**
+ * Single entry point {@link executeStatements} calls to try every turtle command in one step.
+ * Each new turtle command (`#202`/`#204`/`#207`-`#210`, …) should add its `isTurtleXCall`/
+ * `executeTurtleXCall` pair and one more branch **here**, not in `executeStatements` itself:
+ * `executeStatements` recurses once per procedure call (via `runProcedureBody`/`runProcedure`),
+ * so every local variable/branch added directly to its body grows *every* stack frame in a deep
+ * recursive program. Growing this dispatcher instead keeps `executeStatements`'s own frame size
+ * fixed regardless of how many turtle commands exist — confirmed necessary when adding the
+ * `pen_up`/`pen_down` branch here (issue #206) pushed a 600-deep `recursionDepthLimit: 1000`
+ * regression test (`execution-budget.test.mjs`) over the native call-stack limit until the three
+ * previously-inline branches (`forward`/`back`, `left`/`right`, `pen_up`/`pen_down`) were
+ * consolidated into this single call.
+ */
+function dispatchTurtleCommand(
+  statement: StatementNode,
+  env: Environment,
+): ExecSignal | undefined | typeof NOT_A_TURTLE_COMMAND {
+  if (isTurtleMoveCall(statement)) {
+    return executeTurtleMoveCall(
+      statement as unknown as CallNode | ParenCallNode,
+      env,
+    );
+  }
+  if (isTurtleTurnCall(statement)) {
+    return executeTurtleTurnCall(
+      statement as unknown as CallNode | ParenCallNode,
+      env,
+    );
+  }
+  if (isTurtlePenCall(statement)) {
+    return executeTurtlePenCall(
+      statement as unknown as CallNode | ParenCallNode,
+      env,
+    );
+  }
+  return NOT_A_TURTLE_COMMAND;
 }
 
 /**
@@ -865,24 +985,10 @@ function executeStatements(
       continue;
     }
 
-    if (isTurtleMoveCall(statement)) {
-      const outcome = executeTurtleMoveCall(
-        statement as unknown as CallNode | ParenCallNode,
-        env,
-      );
-      if (outcome) {
-        return outcome;
-      }
-      continue;
-    }
-
-    if (isTurtleTurnCall(statement)) {
-      const outcome = executeTurtleTurnCall(
-        statement as unknown as CallNode | ParenCallNode,
-        env,
-      );
-      if (outcome) {
-        return outcome;
+    const turtleOutcome = dispatchTurtleCommand(statement, env);
+    if (turtleOutcome !== NOT_A_TURTLE_COMMAND) {
+      if (turtleOutcome) {
+        return turtleOutcome;
       }
       continue;
     }
