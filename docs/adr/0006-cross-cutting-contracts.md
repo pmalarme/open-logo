@@ -38,8 +38,10 @@ no cycles):
     `ol-style-*` codes, and the `Diagnostic` shape (`code`, `source_span`, `params`,
     `message`, `stage`, `severity`, optional `debug`).
   - `events.ts` — the `TraceEvent` envelope (`seq`, `kind`, `source_span`, optional
-    `turtle_id`, `payload`) and the `OL_EVENT_KINDS` registry, with typed payloads for the
-    rendering-relevant kinds the spec calls out.
+    `turtle_id`, `payload`) and the `OL_EVENT_KINDS` registry, with typed payloads for every
+    Turtle & Rendering kind (`move`, `turn`, `pen-change`, `width-change`, `color-change`,
+    `background-change`, `draw-segment`, `fill`, `stamp`, `shape-change`,
+    `visibility-change`, `clear`) plus `print`/`procedure-enter`/`procedure-exit`/`return`.
 - **`@openlogo/parser`**
   - `ast.ts` — the `OL_NODE_KINDS` vocabulary, a `NodeBase` carrying `source_span`,
     immutable (`readonly`) node interfaces for a representative Core subset, a factory
@@ -71,8 +73,9 @@ an event, and a diagnostic and reads them back against the registries.
 - Downstream slices import stable contracts from `core`/`parser` and can be built
   concurrently; a change to any contract is a serialized, owner-reviewed PR (architecture
   §4), and — per ADR-0004 — reviewed by a non-author before merge.
-- These are **stubs**: the registries are complete, but node payloads and per-kind event
-  payloads are intentionally minimal and fill in with each feature's vertical slice. Adding
+- These are **stubs**: the registries are complete, and every Turtle & Rendering event kind
+  now has a typed payload (issue #205); other kinds (e.g. `overlay`, `sound`, `spawn-turtle`,
+  `primitive`, `error`) still fill in their payload with each feature's vertical slice. Adding
   a node/kind/code later is a normal contract change, not a redesign.
 - The `node --test` runner discovers `*.test.mjs` files, so the smoke tests are authored in
   `.mjs` and run against each package's built public API; a `pretest` hook (`npm run build`)
