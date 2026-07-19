@@ -20,8 +20,9 @@ Every pane composes over **one** shared instance — never a per-pane copy:
 
 - `createStudioState()` (`src/state-model.ts`) — the single source of truth: `source`
   (document text), `selection` (cursor/selection), `runStatus`
-  (`"idle" | "running" | "stopped"`), `diagnostics` (`@openlogo/core` `Diagnostic[]`), and
-  `lesson` (lesson context for `@openlogo/edu` content). State changes only through its `set*`
+  (`"idle" | "running" | "stopped"`), `diagnostics` (`@openlogo/core` `Diagnostic[]`), `lesson`
+  (lesson context for `@openlogo/edu` content), and `notice` (a non-fatal, learner-visible status
+  set by e.g. #128 persistence when it degrades gracefully). State changes only through its `set*`
   methods; `getState()` is stable by reference between changes, and `subscribe` notifies
   listeners synchronously after every change — see the doc comment in `state-model.ts` for the
   full contract.
@@ -50,4 +51,22 @@ slice may swap in a real renderer without changing this contract.
 - See `editor.ts`'s doc comment for the DOM/mount integration contract a later real-widget slice
   (e.g. a `<textarea>`/CodeMirror/Monaco host) should follow to stay headless-first and avoid
   ever forking the document text or regressing keyboard operability.
+
+## Persistence (#128)
+
+- `attachPersistence(state, options?)` (`src/persistence.ts`) — the smallest mechanism that
+  satisfies "a learner's document text survives a reload." It restores `source` from a
+  `StorageAdapter` once at creation, then re-saves it on every change (skipping saves when
+  `source` is unchanged), always through the shared state model — no forked copy of the text.
+- `StorageAdapter` (`save`/`load`/`clear`) is the pluggable backend seam, matching the #123/#124
+  headless-first approach: `createInMemoryStorageAdapter()` is the default, fully `node:test`-able
+  implementation. A real `localStorage`-backed adapter plugs into the same three synchronous
+  methods later — nothing here needs to change to support that.
+- **Graceful degradation:** if the adapter throws on restore, save, or clear (quota exceeded,
+  storage disabled, etc.), `attachPersistence` never lets the failure crash the session or lose
+  work silently — it catches the error and calls `state.setNotice({ level: "warning", message })`,
+  so a later pane can render a visible notice. The learner keeps working either way.
+- `attachPersistence(...).dispose()` stops persisting further changes;
+  `attachPersistence(...).clearPersisted()` removes the stored value (also degrading gracefully).
+
 
