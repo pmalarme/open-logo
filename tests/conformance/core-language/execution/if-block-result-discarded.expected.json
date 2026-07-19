@@ -1,0 +1,48 @@
+{
+  "description": "The block-result rule (`spec/execution-model.md:214-227`): an `if` body runs for effect only, so `if true [ 1 + 1 ]`'s trailing bare-value expression is silently discarded — no value-producing event, no diagnostic. Only the `If` and the bare-expression's own `Call` `instruction` events appear (the arithmetic itself is never evaluated, since a bare expression statement is not `print`), then execution continues with `print 2`. Issue #100.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/if-block-result-discarded",
+        "start": [1, 1],
+        "end": [2, 1]
+      },
+      "payload": { "statement_kind": "If" }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/if-block-result-discarded",
+        "start": [1, 11],
+        "end": [1, 16]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/if-block-result-discarded",
+        "start": [2, 1],
+        "end": [2, 8]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/if-block-result-discarded",
+        "start": [2, 1],
+        "end": [2, 8]
+      },
+      "payload": { "values": [2] }
+    }
+  ],
+  "diagnostics": []
+}

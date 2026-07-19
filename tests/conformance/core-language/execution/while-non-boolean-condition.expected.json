@@ -1,0 +1,33 @@
+{
+  "description": "`while 5 [ print 1 ]` raises `ol-not-boolean` (`spec/execution-model.md:365-369`, `spec/error-model.md:121`): there is no truthiness, so a number condition is never coerced, and the loop body never runs even once. Issue #100.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/while-non-boolean-condition",
+        "start": [1, 1],
+        "end": [1, 20]
+      },
+      "payload": { "statement_kind": "While" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-not-boolean",
+      "source_span": {
+        "document": "core-language/execution/while-non-boolean-condition",
+        "start": [1, 7],
+        "end": [1, 8]
+      },
+      "params": {
+        "actual": "number",
+        "operation": "while"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

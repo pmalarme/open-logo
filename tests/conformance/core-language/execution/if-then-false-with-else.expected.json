@@ -1,0 +1,38 @@
+{
+  "description": "`if false [ print 1 ] else [ print 2 ]` runs the else-branch when the condition is `false` (`spec/execution-model.md:365-369`): only the else-branch's `Call`/`print` events appear. Issue #100.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/if-then-false-with-else",
+        "start": [1, 1],
+        "end": [1, 38]
+      },
+      "payload": { "statement_kind": "If" }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/if-then-false-with-else",
+        "start": [1, 29],
+        "end": [1, 36]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/if-then-false-with-else",
+        "start": [1, 29],
+        "end": [1, 36]
+      },
+      "payload": { "values": [2] }
+    }
+  ],
+  "diagnostics": []
+}

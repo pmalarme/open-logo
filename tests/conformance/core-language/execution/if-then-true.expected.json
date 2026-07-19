@@ -1,0 +1,58 @@
+{
+  "description": "`if true [ print 1 ]` runs the then-branch (`spec/execution-model.md:365-369`): the `If` statement's own `instruction` event is followed by the branch's `Call`/`print` events, then execution continues with the following `print 2`. Issue #100.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/if-then-true",
+        "start": [1, 1],
+        "end": [2, 1]
+      },
+      "payload": { "statement_kind": "If" }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/if-then-true",
+        "start": [1, 11],
+        "end": [1, 18]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/if-then-true",
+        "start": [1, 11],
+        "end": [1, 18]
+      },
+      "payload": { "values": [1] }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/if-then-true",
+        "start": [2, 1],
+        "end": [2, 8]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 4,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/if-then-true",
+        "start": [2, 1],
+        "end": [2, 8]
+      },
+      "payload": { "values": [2] }
+    }
+  ],
+  "diagnostics": []
+}
