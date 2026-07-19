@@ -10,7 +10,8 @@ played with turtle commands already.
 flowchart LR
   A["📝 Your text<br/>repeat 4 [ forward 100 right 90 ]"] --> B["🔤 Lexer<br/>chops it into tokens"]
   B --> C["🌳 Reader<br/>builds a tree (the AST)"]
-  C --> D["🏃 Interpreter<br/>walks the tree, one step at a time"]
+  C --> F["🔍 Checker<br/>double-checks the tree"]
+  F --> D["🏃 Interpreter<br/>walks the tree, one step at a time"]
   D --> E["🐢 Turtle<br/>moves and draws"]
 ```
 
