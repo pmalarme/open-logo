@@ -1,0 +1,21 @@
+# The contextual keywords `empty`, `member`, `of`, and `a` are NOT in the reserved-word set
+# (spec/grammar.md:352-365): they act as keywords only immediately after `is`, and stay ordinary
+# names everywhere else. So each is a legal procedure name in the callable namespace, and calling
+# it resolves cleanly. This is the mirror of the reserved-word fixtures (issue #113): where
+# `define repeat ... end` raises `ol-reserved-word`, `define empty ... end` produces no diagnostic.
+define empty :x
+  print :x
+end
+define member :x
+  print :x
+end
+define of :x
+  print :x
+end
+define a :x
+  print :x
+end
+empty 1
+member 2
+of 3
+a 4
