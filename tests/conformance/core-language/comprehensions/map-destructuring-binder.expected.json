@@ -1,0 +1,7 @@
+{
+  "description": "Core `map` with a destructuring `[:x :y]` item binder (spec/grammar.md:136-137) over a list of pairs parses with no diagnostics, and `check()` resolves both `:x`/`:y` reads inside the comprehension body cleanly.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

@@ -227,6 +227,17 @@ test("accepts a `reduce` whose accumulator and item binder differ", () => {
   assert.deepEqual(diagnostics, []);
 });
 
+test("accepts a `reduce` whose item binder destructures (issue #72)", () => {
+  // The accumulator/item-binder duplicate check only applies to a bare-name item binder; a
+  // destructuring item binder (`[:x :y]`) never triggers the reduce-specific `ol-duplicate-binder`
+  // check here — a same-named collision against one of the destructured names is #162/#114's
+  // future territory, not this rule's.
+  const diagnostics = controlFlowFindings(
+    "print reduce acc [:x :y] in :pairs from 0 [ :acc ]",
+  );
+  assert.deepEqual(diagnostics, []);
+});
+
 test("flags a repeated name inside a `for … in` destructuring pattern", () => {
   const diagnostics = controlFlowFindings("for [:x :x] in :pairs [ print :x ]");
   assert.equal(diagnostics.length, 1);

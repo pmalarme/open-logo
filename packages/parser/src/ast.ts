@@ -307,7 +307,7 @@ export interface ForRangeNode extends NodeBase {
  */
 interface ComprehensionBase extends NodeBase {
   readonly kind: "Comprehension";
-  readonly binder: SpannedName;
+  readonly binder: Binder;
   readonly iterable: ExpressionNode;
   readonly body: BlockNode;
 }
@@ -524,7 +524,7 @@ export const ast = {
   },
   mapFilter(
     form: "map" | "filter",
-    binder: SpannedName,
+    binder: Binder,
     iterable: ExpressionNode,
     body: BlockNode,
     span: SourceSpan,
@@ -541,7 +541,7 @@ export const ast = {
   reduce(
     fields: {
       readonly accumulator: SpannedName;
-      readonly binder: SpannedName;
+      readonly binder: Binder;
       readonly iterable: ExpressionNode;
       readonly initial: ExpressionNode;
       readonly body: BlockNode;
@@ -641,10 +641,12 @@ export function childrenOf(node: AnyNode): readonly AnyNode[] {
       return node.by === undefined
         ? [node.from, node.to, node.body]
         : [node.from, node.to, node.by, node.body];
-    case "Comprehension":
+    case "Comprehension": {
+      const binderChildren = "kind" in node.binder ? [node.binder] : [];
       return node.form === "reduce"
-        ? [node.iterable, node.initial, node.body]
-        : [node.iterable, node.body];
+        ? [...binderChildren, node.iterable, node.initial, node.body]
+        : [...binderChildren, node.iterable, node.body];
+    }
     case "ProcedureDef":
       return [
         ...node.params.flatMap((param) =>
