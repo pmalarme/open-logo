@@ -11,7 +11,7 @@ import type { Diagnostic } from "@openlogo/core";
 import type { AnyNode, CallNode, ParenCallNode, ProgramNode } from "./ast.js";
 import { walk } from "./ast.js";
 import type { CheckProfile } from "./check.js";
-import { collectVisibleNames } from "./checker-names.js";
+import { collectVisibleNames, isOptionalProfileName } from "./checker-names.js";
 import { levenshteinDistance } from "./levenshtein.js";
 
 /**
@@ -47,11 +47,11 @@ function isCallSite(node: AnyNode): node is CallNode | ParenCallNode {
 
 /**
  * The best did-you-mean candidate for `name` among `candidates`, or `undefined` when none is
- * within {@link MAX_SUGGESTION_DISTANCE}. Deterministic tie-break: lowest Levenshtein distance
- * first, then lexicographic order — the checker has only one candidate category (Core Language)
- * today, so the spec's fuller "Core over optional-profile, then full name over alias" tie-break
- * (`spec/error-model.md:145-146`) currently collapses to this; a later profile/alias-aware slice
- * extends the comparator, not this function's contract.
+ * within {@link MAX_SUGGESTION_DISTANCE}. Deterministic tie-break per `spec/error-model.md:145-146`:
+ * lowest Levenshtein distance first; on a distance tie, a Core Language candidate outranks an
+ * optional-profile one ({@link isOptionalProfileName}); ties within the same tier fall back to
+ * lexicographic order. (The spec's further "full canonical names over short aliases" tie-break
+ * step does not yet apply — no alias candidates exist in the visible-name set today.)
  */
 function bestSuggestion(
   name: string,
@@ -65,16 +65,31 @@ function bestSuggestion(
     if (distance > MAX_SUGGESTION_DISTANCE) {
       continue;
     }
-    const better =
-      distance < bestDistance ||
-      (distance === bestDistance && best !== undefined && candidate < best);
-    if (better || best === undefined) {
+    if (best === undefined || distance < bestDistance) {
       best = candidate;
       bestDistance = distance;
+      continue;
+    }
+    if (distance === bestDistance && isBetterTie(candidate, best)) {
+      best = candidate;
     }
   }
 
   return best;
+}
+
+/**
+ * Whether `candidate` should replace `current` as the did-you-mean pick when both are tied at the
+ * same Levenshtein distance: a Core Language word beats an optional-profile word regardless of
+ * spelling, and within the same tier the lexicographically earlier name wins.
+ */
+function isBetterTie(candidate: string, current: string): boolean {
+  const candidateIsOptionalProfile = isOptionalProfileName(candidate);
+  const currentIsOptionalProfile = isOptionalProfileName(current);
+  if (candidateIsOptionalProfile !== currentIsOptionalProfile) {
+    return !candidateIsOptionalProfile;
+  }
+  return candidate < current;
 }
 
 /** The learner-facing message template from `spec/error-model.md:96`. */

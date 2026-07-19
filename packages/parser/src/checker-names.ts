@@ -16,6 +16,12 @@
  * assume any profile is always present — see the module's own unit test for the gating shape. A
  * future profile slice registers its own name table here, following the same
  * `if (active.has(<profile>)) { … }` shape.
+ *
+ * {@link isOptionalProfileName} is this module's companion export for `ol-unknown-command`'s
+ * did-you-mean tie-break (`spec/error-model.md:145-146`: "prefer Core words over optional-profile
+ * words" on a distance tie) — now that an optional profile (Turtle & Rendering) contributes real
+ * candidates, a tie between a Core name and an optional-profile name is reachable and MUST resolve
+ * in Core's favor, not by lexicographic order alone.
  */
 
 import type { CheckProfile } from "./check.js";
@@ -23,6 +29,29 @@ import type { ProgramNode } from "./ast.js";
 import { walk } from "./ast.js";
 import { OL_RESERVED_WORDS } from "./reserved.js";
 import { corePrimitiveNames, turtlePrimitiveNames } from "./signatures.js";
+
+/**
+ * Every canonical lowercase name contributed by an optional (non-Core) conformance profile's
+ * primitive table — currently just Turtle & Rendering's. Computed once as a frozen union so
+ * {@link isOptionalProfileName} stays a pure, allocation-free lookup; a future optional-profile
+ * table (Data, Geometry, …) adds its `...someProfileNames()` spread here alongside Turtle &
+ * Rendering's, exactly mirroring how {@link collectVisibleNames} itself is extended one profile
+ * at a time.
+ */
+const OPTIONAL_PROFILE_NAMES: ReadonlySet<string> = new Set(
+  turtlePrimitiveNames(),
+);
+
+/**
+ * Whether `name` (already lowercased) belongs to an optional conformance profile's primitive
+ * table rather than Core Language. Used only for the did-you-mean tie-break — it answers "is this
+ * candidate an optional-profile word?" independent of which profiles are currently active, since
+ * a name only reaches the did-you-mean candidate set at all when its owning profile is active
+ * (see {@link collectVisibleNames}).
+ */
+export function isOptionalProfileName(name: string): boolean {
+  return OPTIONAL_PROFILE_NAMES.has(name);
+}
 
 /**
  * Every name visible to a call site in `program` under the active `profiles`, lowercased to

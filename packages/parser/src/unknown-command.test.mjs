@@ -124,6 +124,19 @@ test("issue #136 / spec/tooling.md:198-205 worked example: with turtle-rendering
   );
 });
 
+test("did-you-mean tie-break (spec/error-model.md:145-146): a Core word beats an optional-profile word at the same edit distance", () => {
+  // "clea" is Levenshtein distance 1 from BOTH the reserved word "clear" (Core) and the Turtle &
+  // Rendering primitive "clean" (optional profile) — a genuine tie now that turtle names are
+  // registered (issue #136). The spec requires Core to win the tie, never lexicographic order
+  // alone (which would otherwise pick "clean" over "clear").
+  const [finding] = checkSource("(clea)", [
+    "core-language",
+    "turtle-rendering",
+  ]);
+  assert.equal(finding.code, "ol-unknown-command");
+  assert.deepEqual(finding.params, { name: "clea", suggestion: "clear" });
+});
+
 test("profile gating: when core-language is not active, Core primitives are not visible", () => {
   const diagnostics = checkSource("print", []);
   assert.equal(diagnostics.length, 1);
