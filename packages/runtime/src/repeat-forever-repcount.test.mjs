@@ -9,10 +9,12 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import {
-  execute,
-  __executeWithForeverIterationLimitForTests as executeWithForeverLimit,
-} from "@openlogo/runtime";
+import { execute } from "@openlogo/runtime";
+// **Not** imported via the `"@openlogo/runtime"` package specifier: `execute-internal.js` is
+// never re-exported by `index.ts`, so this deep relative import into the package's own build
+// output is the only way to reach the test-only `forever` iteration limit — see
+// `execute-internal.ts`'s header comment for why this is architected this way.
+import { executeWithForeverIterationLimitForTests as executeWithForeverLimit } from "../dist/execute-internal.js";
 
 const doc = "acceptance.logo";
 
@@ -60,14 +62,16 @@ test("forever stops at the first diagnostic raised inside its body, even under a
   );
 });
 
-test("a real forever loop is never bounded by execute() itself — only the distinct test-only entry point accepts a limit", () => {
+test("a real forever loop is never bounded by execute() itself — only the internal test-only entry point accepts a limit", () => {
   // Regression guard for "no silent production cap": `execute()` takes no options at all (it is
   // a plain two-argument function), so there is no way for a real caller to bound a `forever`
-  // loop through it — only `__executeWithForeverIterationLimitForTests` (a separate, distinctly
-  // named function this package's own tests import) ever accepts a limit. We cannot literally
-  // run an unbounded `forever` here, so this asserts `execute` and the limited entry point agree
-  // on an ordinary (non-`forever`) program, proving they share the same evaluation logic and
-  // differ only in whether a limit can be supplied.
+  // loop through it — only `executeWithForeverIterationLimitForTests`, reachable only via a
+  // relative import straight into this package's own `dist/execute-internal.js` build output
+  // (never through the `"@openlogo/runtime"` package specifier — see this file's import
+  // comment), ever accepts a limit. We cannot literally run an unbounded `forever` here, so this
+  // asserts `execute` and the limited entry point agree on an ordinary (non-`forever`) program,
+  // proving they share the same evaluation logic and differ only in whether a limit can be
+  // supplied.
   const viaExecute = execute("repeat 3 [\n  print repcount\n]", doc);
   const viaLimitedEntryPoint = executeWithForeverLimit(
     "repeat 3 [\n  print repcount\n]",
