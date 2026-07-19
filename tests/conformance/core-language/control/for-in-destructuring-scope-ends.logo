@@ -1,0 +1,9 @@
+# A destructuring `for [:x :y] in <expr>` binder lives only within its own loop body: reads of
+# `:x`/`:y` inside the body (lines 2-3) resolve cleanly, but a read of `:x` after `end for`
+# (line 5) has no visible declaration in scope (spec/grammar.md:127,136-137;
+# spec/execution-model.md:317-327).
+for [:x :y] in [[1 2] [3 4]]
+  print :x
+  print :y
+end for
+print :x

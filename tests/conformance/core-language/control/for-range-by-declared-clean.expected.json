@@ -1,0 +1,7 @@
+{
+  "description": "Core `for <name> from <expr> to <expr> by <expr>` long form (spec/grammar.md:142-143): the `by` step clause parses and the loop variable `:i` reads cleanly inside the body with zero `check()` diagnostics — the `by` clause does not disturb the loop-variable binder scope. `core-language/check/undefined-var-declared-forms-clean` covers the no-`by` `for ... from ... to` form but not this `by`-step variant.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}
