@@ -22,10 +22,13 @@ Every pane composes over **one** shared instance — never a per-pane copy:
   (document text), `selection` (cursor/selection), `runStatus`
   (`"idle" | "running" | "stopped"`), `diagnostics` (`@openlogo/core` `Diagnostic[]`), `output`
   (learner-visible printed lines from the most recent run, #126), `lesson` (lesson context for
-  `@openlogo/edu` content), and `notice` (a non-fatal, learner-visible status set by e.g. #128
-  persistence when it degrades gracefully). State changes only through its `set*` methods;
-  `getState()` is stable by reference between changes, and `subscribe` notifies listeners
-  synchronously after every change — see the doc comment in `state-model.ts` for the full contract.
+  `@openlogo/edu` content), `notice` (a non-fatal, learner-visible status set by e.g. #128
+  persistence when it degrades gracefully), and `turtleState`/`turtleScene` (the Canvas view's
+  turtle avatar state + retained scene, #218 — `@openlogo/turtle`'s own types, defaulted to its
+  program-start `INITIAL_TURTLE_STATE`/`INITIAL_TURTLE_SCENE`). State changes only through its
+  `set*` methods; `getState()` is stable by reference between changes, and `subscribe` notifies
+  listeners synchronously after every change — see the doc comment in `state-model.ts` for the full
+  contract.
 - `createAppShell(state)` (`src/app-shell.ts`) — a composable region registry (`editor`,
   `turtle`, `diagnostics`, `lesson`, `repl`), each starting as an empty placeholder. Later panes
   (#124 editor, #125 diagnostics, #126 run/stop, #127 lesson, #128 persistence, #129 a11y) call
@@ -150,4 +153,30 @@ attributes 1:1 — there is no DOM here to regress.
   single-source-of-truth contract, once again).
 - No shell region/mount function is added for the announcer itself — it is a cross-cutting service
   over the existing store, not a pane with its own visible content.
+
+## Turtle Canvas view (#218)
+
+**Static composition only** — the initial default turtle state/scene, painted once at mount. The
+dynamic run-loop repaint (updating `turtleState`/`turtleScene` after each run and repainting live)
+is #228.
+
+- `state-model.ts` gains `turtleState`/`turtleScene` on `StudioState`, reusing `@openlogo/turtle`'s
+  own `TurtleState`/`TurtleScene` types verbatim (never a studio-invented fork) and defaulting to
+  its program-start `INITIAL_TURTLE_STATE`/`INITIAL_TURTLE_SCENE` — origin, heading `0`, pen down,
+  color `"black"`, width `1`, visible, background `"white"`, no drawing items.
+- **The DOM ownership boundary**: `@openlogo/turtle` is deliberately DOM-free — its `RenderTarget`
+  is a hand-written minimal structural subset of the real Canvas 2D drawing API (this monorepo has
+  no `lib.dom` and no `node-canvas` dependency). `src/canvas-view.ts`'s
+  `Canvas2DContextLike` names that same subset from the studio side, and
+  `createCanvasRenderTarget(context)` adapts a real (or fake, for tests) 2-D context into
+  `@openlogo/turtle`'s `RenderTarget` — the DOM canvas lives in studio, never in
+  `@openlogo/turtle`.
+- `createCanvasViewController(state, { target, viewport })` reads `state.getState().turtleState`/
+  `.turtleScene` and paints them through `@openlogo/turtle`'s `paintTurtle` — never re-deriving
+  turtle coordinates, colors, or scene items itself. `repaint()` always reads the *current* store
+  snapshot, so it never goes stale relative to whichever pane last wrote `turtleState`/
+  `turtleScene`.
+- `mountCanvasView(shell, controller)` composes the controller into the app shell's existing
+  `turtle` region (seeded by #123) and calls `repaint()` immediately, so the pane never shows a
+  blank/stale target the moment it mounts.
 
