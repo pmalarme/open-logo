@@ -1,0 +1,36 @@
+{
+  "description": "issue #209: `set_width 0` fails the \"MUST be a positive number\" requirement (spec/commands.md's `set_width` entry) and raises `ol-range` - the turtle's width is left unchanged (no `width-change` event).",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/pen/set-width-not-positive",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-range",
+      "source_span": {
+        "document": "turtle-rendering/pen/set-width-not-positive",
+        "start": [1, 11],
+        "end": [1, 12]
+      },
+      "params": {
+        "operation": "set_width",
+        "value": "0"
+      },
+      "message": "set_width needs a positive width, but got 0.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

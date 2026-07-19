@@ -37,6 +37,7 @@ import type {
   SourceSpan,
   TurnPayload,
   VisibilityChangePayload,
+  WidthChangePayload,
 } from "@openlogo/core";
 import { typeNameOf } from "@openlogo/core";
 import type {
@@ -751,6 +752,93 @@ function executeTurtleBackgroundCall(
 }
 
 /**
+ * Is `statement` a call to `set_width` or its Turtle & Rendering-profile alias `setwidth` (issue
+ * #209; `spec/commands.md:1556`). Not Heritage — same rationale as {@link isTurtlePositionCall}'s
+ * `setxy`. Same shape/convention as {@link isTurtleColorCall}.
+ */
+function isTurtleWidthCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  const name = statement.callee.name.toLowerCase();
+  return name === "set_width" || name === "setwidth";
+}
+
+/**
+ * Validate and run a `set_width`/`setwidth` statement matched by {@link isTurtleWidthCall}: exactly
+ * one numeric argument (`ol-not-enough-inputs`/`ol-too-many-inputs`/`ol-type` otherwise, via
+ * {@link requireNumber}), which must additionally be positive and finite
+ * (`spec/commands.md`'s `set_width` entry: "The width MUST be a positive number") or
+ * `runtimeDiag.nonPositiveWidth` raises `ol-range` — folding `Infinity` into the same guard as `0`/
+ * negative widths for the same "never expose Infinity to a learner" reason documented on
+ * {@link executeTurtleMoveCall}'s `nonFiniteDistance` check. On success, sets `turtle.width` and
+ * emits a `width-change` event (`{from, to}`, mirroring {@link executeTurtleColorCall}'s
+ * `color-change` shape — `spec/rendering.md`'s "Width" section). Like color, there is no
+ * `move`/`draw-segment` interaction: changing the pen width affects only *future* segments, which
+ * already capture `turtle.width` at draw time (see {@link moveTurtle}/{@link moveTurtleTo}'s
+ * `DrawSegmentPayload`). Returns an {@link ExecSignal} to halt on, or `undefined` for
+ * {@link executeStatements} to `continue` on success (including the "left un-evaluated" case for
+ * an unsupported argument expression, mirroring {@link executeTurtleColorCall}'s handling).
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeTurtleWidthCall(
+  widthCall: CallNode | ParenCallNode,
+  env: Environment,
+): ExecSignal | undefined {
+  const callableName = widthCall.callee.name;
+  if (widthCall.args.length !== 1) {
+    return halt(
+      widthCall.args.length < 1
+        ? runtimeDiag.notEnoughInputs(
+            widthCall.callee.source_span,
+            callableName,
+            1,
+            widthCall.args.length,
+          )
+        : runtimeDiag.tooManyInputs(
+            widthCall.callee.source_span,
+            callableName,
+            1,
+            widthCall.args.length,
+          ),
+    );
+  }
+  const [arg] = widthCall.args as [ExpressionNode];
+  if (!isSupportedExpression(arg, env.procedures)) {
+    return undefined;
+  }
+  const argResult = evaluate(arg, env);
+  if (!argResult.ok) {
+    return halt(argResult.diagnostic);
+  }
+  const operation = callableName.toLowerCase() as "set_width" | "setwidth";
+  const width = requireNumber(argResult.value, arg.source_span, operation);
+  if (!width.ok) {
+    return halt(width.diagnostic);
+  }
+  if (!Number.isFinite(width.value) || width.value <= 0) {
+    return halt(
+      runtimeDiag.nonPositiveWidth(arg.source_span, {
+        operation,
+        value: String(width.value),
+      }),
+    );
+  }
+  const { turtle } = env;
+  const from = turtle.width;
+  turtle.width = width.value;
+  env.events.push({
+    seq: env.events.length,
+    kind: "width-change",
+    source_span: widthCall.source_span,
+    payload: { from, to: width.value } satisfies WidthChangePayload,
+  });
+  return undefined;
+}
+
+/**
  * Is `statement` a call to `home`/`set_xy` or `set_xy`'s Turtle & Rendering-profile alias `setxy`
  * (issue #202, Core absolute positioning; `spec/commands.md:1279`). Unlike `forward`'s `fd`,
  * `setxy`/`seth` are **not** Heritage — `spec/conformance.md:105-117`'s Heritage short-alias list
@@ -1011,9 +1099,10 @@ const NOT_A_TURTLE_COMMAND = Symbol("not-a-turtle-command");
 
 /**
  * Single entry point {@link executeStatements} calls to try every turtle command in one step.
- * Each new turtle command (`#202`/`#204`/`#207`-`#210`, …) should add its `isTurtleXCall`/
+ * Each new turtle command (`#202`/`#204`/`#207`/`#210`, …) should add its `isTurtleXCall`/
  * `executeTurtleXCall` pair and one more branch **here**, not in `executeStatements` itself
- * (issue #208 added the `set_color`/`set_background` branches this way):
+ * (issue #209 added the `set_width` branch this way, following issue #208's `set_color`/
+ * `set_background` branches):
  * `executeStatements` recurses once per procedure call (via `runProcedureBody`/`runProcedure`),
  * so every local variable/branch added directly to its body grows *every* stack frame in a deep
  * recursive program. Growing this dispatcher instead keeps `executeStatements`'s own frame size
@@ -1077,6 +1166,12 @@ function dispatchTurtleCommand(
   }
   if (isTurtleBackgroundCall(statement)) {
     return executeTurtleBackgroundCall(
+      statement as unknown as CallNode | ParenCallNode,
+      env,
+    );
+  }
+  if (isTurtleWidthCall(statement)) {
+    return executeTurtleWidthCall(
       statement as unknown as CallNode | ParenCallNode,
       env,
     );

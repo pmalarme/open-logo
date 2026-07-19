@@ -1,0 +1,33 @@
+{
+  "description": "issue #209: `setwidth` is a Turtle & Rendering-profile alias of `set_width` (spec/commands.md:1556, not Heritage - the closed Heritage short-alias list at spec/conformance.md:105-117 excludes it) and behaves identically, emitting the same `width-change` event.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/pen/setwidth-alias",
+        "start": [1, 1],
+        "end": [1, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "width-change",
+      "source_span": {
+        "document": "turtle-rendering/pen/setwidth-alias",
+        "start": [1, 1],
+        "end": [1, 11]
+      },
+      "payload": {
+        "from": 1,
+        "to": 4
+      }
+    }
+  ],
+  "diagnostics": []
+}

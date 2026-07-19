@@ -46,6 +46,9 @@
  * `first`/`last`/`butfirst`/`butlast` given an empty word or list (`spec/error-model.md:100`).
  * Issue #208 adds `ol-bad-color` for a `set_color`/`set_background` (or `setcolor`/`setbg`)
  * argument that is not one of the three accepted color forms (`spec/error-model.md:122`).
+ * Issue #209 adds a reuse of `ol-range` for a `set_width`/`setwidth` argument that is a number but
+ * not positive and finite (`spec/commands.md`'s `set_width` entry) — the ordinary non-number case
+ * reuses `requireNumber`'s existing `ol-type`, so no new type-error builder is needed here.
  * Mirrors the parser's `errors.ts` pattern: every finding is a stable code from the
  * `@openlogo/core` registry with structured `params` (the diagnostic identity) plus warm,
  * lowercase learner prose derived from them — prose is presentation only.
@@ -309,6 +312,23 @@ export interface EmptyInputRangeParams {
 export interface BadColorParams {
   readonly value: OLValue;
   readonly operation: "set_color" | "setcolor" | "set_background" | "setbg";
+}
+
+/**
+ * Params for an `ol-range` raised by `set_width`/`setwidth` (issue #209) when the argument is a
+ * number that is not a positive finite value — `spec/commands.md`'s `set_width` entry: "The width
+ * MUST be a positive number." `0`/negative widths fail that requirement directly; `Infinity`
+ * technically satisfies "positive" but would hand `@openlogo/turtle`'s reducer/renderer an
+ * infinite stroke width for every subsequent `draw-segment` (`spec/execution-model.md:517` —
+ * "OpenLogo never exposes NaN or Infinity as learner-facing results"), so it is folded into the
+ * same `ol-range` guard rather than treated as valid. Only reached once {@link requireNumber} has
+ * already confirmed the argument is a number at all (a non-number raises `ol-type` first, per
+ * {@link executeTurtleWidthCall}). `value` is rendered as `String(value)` for the same JSON-safety
+ * reason as {@link NonFiniteDistanceParams}.
+ */
+export interface NonPositiveWidthParams {
+  readonly operation: "set_width" | "setwidth";
+  readonly value: string;
 }
 
 /** Runtime-stage diagnostics, one builder per `ol-*` code the evaluator can raise. */
@@ -907,6 +927,23 @@ export const runtimeDiag = {
       source_span,
       { ...params },
       `${params.operation} needs a color word, an [r g b] list, or a "#rrggbb" hex word, but got ${params.value}.`,
+    );
+  },
+
+  /**
+   * `ol-range` (issue #209) — `set_width`/`setwidth`'s argument is a number but not positive and
+   * finite (`spec/commands.md`'s `set_width` entry: "The width MUST be a positive number."). See
+   * {@link NonPositiveWidthParams}.
+   */
+  nonPositiveWidth(
+    source_span: SourceSpan,
+    params: NonPositiveWidthParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-range",
+      source_span,
+      { ...params },
+      `${params.operation} needs a positive width, but got ${params.value}.`,
     );
   },
 } as const;
