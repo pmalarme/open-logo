@@ -72,9 +72,12 @@ export function corePrimitiveArity(name: string): number | undefined {
 /**
  * Default arities for the **Turtle & Rendering** profile's Core-spelled primitives (issue #193),
  * derived from the Turtle movement / Pen and screen tables in
- * [`spec/commands.md`](../../../spec/commands.md). Only the canonical underscored names are
- * registered here — `fd`/`bk`/`lt`/`rt`/`pu`/`pd`/`st`/`ht`/`cs`/`setxy`/`seth`/`setcolor`/
- * `setbg`/`setwidth` are **Heritage**-profile aliases (M5) and stay out of this table. Kept as a
+ * [`spec/commands.md`](../../../spec/commands.md). Registers the canonical underscored names plus
+ * the small set of Turtle & Rendering (not Heritage) aliases the spec documents inline —
+ * `setxy`/`seth` (issue #202; `spec/commands.md:1279,1296`). `fd`/`bk`/`lt`/`rt`/`pu`/`pd`/`st`/
+ * `ht`/`cs`/`setcolor`/`setbg`/`setwidth` remain **Heritage**-profile (M5) and stay out of this
+ * table — the Heritage profile's short-alias list is closed by `spec/conformance.md:105-117`, and
+ * `setxy`/`seth` are not members of it (unlike `setcolor`/`setbg`/`setwidth`, which are). Kept as a
  * separate table from {@link CORE_PRIMITIVE_ARITY} (rather than merged into it) because the two
  * profiles have independent visibility: the Layer-2 checker gates each on its own active profile
  * (`spec/tooling.md:175-176`), while the reader (this table's only consumer, via
@@ -89,7 +92,9 @@ const TURTLE_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
   ["right", 1],
   ["home", 0],
   ["set_xy", 2],
+  ["setxy", 2], // Turtle & Rendering alias of `set_xy` (spec/commands.md:1279), not Heritage.
   ["set_heading", 1],
+  ["seth", 1], // Turtle & Rendering alias of `set_heading` (spec/commands.md:1296), not Heritage.
   ["xcor", 0],
   ["ycor", 0],
   ["heading", 0],

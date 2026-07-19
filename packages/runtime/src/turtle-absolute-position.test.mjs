@@ -4,6 +4,9 @@
 // position and heading, so it emits `move`/conditional `draw-segment` (like `forward`/`back`,
 // issue #200) followed by `turn` (like `left`/`right`, issue #201); `set_xy` only emits
 // `move`/`draw-segment` (heading untouched); `set_heading` only emits `turn` (position untouched).
+// `setxy`/`seth` are Turtle & Rendering-profile aliases of `set_xy`/`set_heading` (not Heritage —
+// spec/conformance.md:105-117's closed Heritage short-alias list does not include them) and behave
+// identically; see the alias-specific tests below.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -127,6 +130,32 @@ test("execute accepts the parenthesized call form for a two-argument set_xy", ()
   });
 });
 
+test("execute treats the setxy alias identically to set_xy (issue #202, Turtle & Rendering-profile alias, not Heritage)", () => {
+  const result = execute("setxy 50 25", "main.logo");
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(
+    result.events.map((event) => event.kind),
+    ["instruction", "move", "draw-segment"],
+  );
+  assert.deepEqual(result.events[1].payload, {
+    from: [0, 0],
+    to: [50, 25],
+    heading: 0,
+  });
+});
+
+test("execute raises ol-not-enough-inputs for a parenthesized one-argument setxy alias", () => {
+  const result = execute("(setxy 1)", "main.logo");
+  assert.equal(result.events.length, 1);
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-not-enough-inputs");
+  assert.deepEqual(result.diagnostics[0].params, {
+    callable: "setxy",
+    expected: 2,
+    actual: 1,
+  });
+});
+
 test("execute raises ol-not-enough-inputs for a parenthesized one-argument set_xy", () => {
   const result = execute("(set_xy 1)", "main.logo");
   assert.equal(result.events.length, 1);
@@ -241,6 +270,28 @@ test("execute accepts the parenthesized call form for a single-argument set_head
   const result = execute("(set_heading 180)", "main.logo");
   assert.deepEqual(result.diagnostics, []);
   assert.deepEqual(result.events[1].payload, { from: 0, to: 180 });
+});
+
+test("execute treats the seth alias identically to set_heading, including normalization (issue #202, Turtle & Rendering-profile alias, not Heritage)", () => {
+  const result = execute("seth 450", "main.logo");
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(
+    result.events.map((event) => event.kind),
+    ["instruction", "turn"],
+  );
+  assert.deepEqual(result.events[1].payload, { from: 0, to: 90 });
+});
+
+test("execute raises ol-too-many-inputs for a parenthesized two-argument seth alias", () => {
+  const result = execute("(seth 1 2)", "main.logo");
+  assert.equal(result.events.length, 1);
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");
+  assert.deepEqual(result.diagnostics[0].params, {
+    callable: "seth",
+    expected: 1,
+    actual: 2,
+  });
 });
 
 test("execute raises ol-not-enough-inputs for a bare zero-argument set_heading", () => {

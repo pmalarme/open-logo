@@ -429,17 +429,19 @@ function executeTurtlePenCall(
 }
 
 /**
- * Is `statement` a call to `home`/`set_xy` (issue #202, Core absolute positioning — the Heritage
- * `setxy` alias is a separate M5 slice; `spec/commands.md`'s `Aliases:` field lists it identically
- * to `forward`'s `fd`, which #200 already deferred to Heritage, so this follows the same
- * established convention). Same shape/convention as {@link isTurtleMoveCall}.
+ * Is `statement` a call to `home`/`set_xy` or `set_xy`'s Turtle & Rendering-profile alias `setxy`
+ * (issue #202, Core absolute positioning; `spec/commands.md:1279`). Unlike `forward`'s `fd`,
+ * `setxy`/`seth` are **not** Heritage — `spec/conformance.md:105-117`'s Heritage short-alias list
+ * is closed and does not include them, so they are registered (with `set_xy`'s arity) in
+ * `packages/parser/src/signatures.ts` and dispatched identically here. Same shape/convention as
+ * {@link isTurtleMoveCall}.
  */
 function isTurtlePositionCall(statement: StatementNode): boolean {
   if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
     return false;
   }
   const name = statement.callee.name.toLowerCase();
-  return name === "home" || name === "set_xy";
+  return name === "home" || name === "set_xy" || name === "setxy";
 }
 
 /**
@@ -505,12 +507,12 @@ function setHeadingTo(
 }
 
 /**
- * Validate and run a `home`/`set_xy` statement matched by {@link isTurtlePositionCall}. `home`
- * takes zero arguments and resets both position (to `(0,0)`) and heading (to `0`) — it is a move
- * like any other, so it emits `move`/conditional `draw-segment` (via {@link moveTurtleTo})
- * followed by `turn` (via {@link setHeadingTo}) (`spec/commands.md:1259-1274`). `set_xy` takes
- * exactly two numeric arguments and moves the turtle to that absolute position, leaving heading
- * untouched (`spec/commands.md:1276-1291`). Diagnostics: `ol-not-enough-inputs`/
+ * Validate and run a `home`/`set_xy`/`setxy` statement matched by {@link isTurtlePositionCall}.
+ * `home` takes zero arguments and resets both position (to `(0,0)`) and heading (to `0`) — it is a
+ * move like any other, so it emits `move`/conditional `draw-segment` (via {@link moveTurtleTo})
+ * followed by `turn` (via {@link setHeadingTo}) (`spec/commands.md:1259-1274`). `set_xy`/`setxy`
+ * takes exactly two numeric arguments and moves the turtle to that absolute position, leaving
+ * heading untouched (`spec/commands.md:1276-1291`). Diagnostics: `ol-not-enough-inputs`/
  * `ol-too-many-inputs` for the wrong argument count, `ol-type` for a non-number `set_xy` argument
  * (via {@link requireNumber}), `ol-range` ({@link runtimeDiag.nonFiniteCoordinate}) for a
  * `set_xy` argument that is `Infinity`/`-Infinity` (same "never expose a non-finite learner-facing
@@ -597,19 +599,20 @@ function executeTurtlePositionCall(
 }
 
 /**
- * Is `statement` a call to `set_heading` (issue #202, Core absolute heading — the Heritage `seth`
- * alias is a separate M5 slice, same convention as {@link isTurtlePositionCall}'s `setxy`). Same
- * shape/convention as {@link isTurtleMoveCall}.
+ * Is `statement` a call to `set_heading` or its Turtle & Rendering-profile alias `seth`
+ * (issue #202; `spec/commands.md:1296`). Not Heritage — same rationale as
+ * {@link isTurtlePositionCall}'s `setxy`. Same shape/convention as {@link isTurtleMoveCall}.
  */
 function isTurtleHeadingCall(statement: StatementNode): boolean {
   if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
     return false;
   }
-  return statement.callee.name.toLowerCase() === "set_heading";
+  const name = statement.callee.name.toLowerCase();
+  return name === "set_heading" || name === "seth";
 }
 
 /**
- * Validate and run a `set_heading` statement matched by {@link isTurtleHeadingCall}: exactly one
+ * Validate and run a `set_heading`/`seth` statement matched by {@link isTurtleHeadingCall}: exactly one
  * numeric argument (`ol-not-enough-inputs`/`ol-too-many-inputs`/`ol-type` otherwise, via
  * {@link requireNumber}), normalized to `[0,360)` (the same {@link normalizeHeading} `left`/
  * `right` use — `spec/commands.md:1300`, "Implementations normalize headings to [0,360)"), then
