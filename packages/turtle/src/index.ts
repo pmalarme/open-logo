@@ -49,11 +49,13 @@ export type {
 export {
   paintScene,
   paintTurtle,
+  playWithMotionPreference,
   renderFrame,
   worldToTarget,
 } from "./canvas.js";
 export type {
   MotionPreference,
+  MotionPreferencePlayer,
   ReducedMotionSource,
   RenderTarget,
   Viewport,

@@ -301,12 +301,21 @@ export function paintTurtle(
 
 /**
  * A minimal source of the current frame to paint — anything that can produce an
- * {@link AnimationSnapshot} and, when asked, drain the whole remaining stream instantly. Kept as
- * a structural subset (not the concrete `TurtleAnimationController` type) so a test double needs
- * only these two members, matching the same dependency-injection style as {@link RenderTarget}.
+ * {@link AnimationSnapshot}. Kept as a structural subset (not the concrete
+ * `TurtleAnimationController` type) so a test double needs only this one member, matching the
+ * same dependency-injection style as {@link RenderTarget}.
  */
 export interface ReducedMotionSource {
   getSnapshot(): AnimationSnapshot;
+}
+
+/**
+ * The subset of {@link TurtleAnimationController} that {@link playWithMotionPreference} drives
+ * to START (or resume) playback: paced (`run`) or instant (`seekToEnd`). Kept structural for the
+ * same reason as {@link ReducedMotionSource} — a test double needs only these two members.
+ */
+export interface MotionPreferencePlayer {
+  run(): void;
   seekToEnd(): void;
 }
 
@@ -317,41 +326,56 @@ export interface ReducedMotionSource {
  * DOM-free (`spec/rendering.md#reduced-motion`).
  */
 export interface MotionPreference {
-  /** When `true`, {@link renderFrame} paints the scene instantly instead of the caller's own
-   * paced tick loop. */
+  /** When `true`, {@link playWithMotionPreference} starts playback instantly instead of paced. */
   readonly reducedMotion: boolean;
 }
 
 /**
- * Paints one frame from an animation source, honoring a reduced-motion preference
- * (`spec/rendering.md#reduced-motion`): "In reduced-motion mode, the renderer MUST avoid
- * continuous animated movement by default. It SHOULD present instant drawing … Step and pause
- * controls MUST remain available."
- *
- * - `reducedMotion: true` — drains the WHOLE remaining event stream instantly
- *   ({@link ReducedMotionSource.seekToEnd}) before painting once, instead of the caller pacing
- *   continuous per-step repaints. `step()`/`pause()` on the underlying controller are entirely
- *   unaffected by this call — a learner can still step through or pause the very same
- *   controller afterward; reduced motion changes only how eagerly *this* repaint request drains
- *   the stream before drawing, never the controls available on the controller itself.
- * - `reducedMotion: false` — paints exactly the source's CURRENT snapshot, unmodified; the
- *   caller is responsible for its own pacing (e.g. calling this once per `run()`/`step()` tick).
- *
- * Either way, painting always goes through {@link paintTurtle} from the retained scene alone
- * (never re-running the program), so reduced motion changes only how many events are consumed
- * before this particular paint, never the event stream, final scene, turtle state, or export
- * output — the determinism invariant `spec/rendering.md#reduced-motion` requires ("Reduced-motion
- * mode MUST NOT change the event stream, final scene, turtle state, or export output").
+ * Paints one frame from an animation source: exactly the source's CURRENT snapshot, unmodified.
+ * Rendering never advances, drains, or otherwise mutates the source's cursor — it only reads
+ * whatever has already been consumed — so painting a paused, idle, or mid-run frame can never
+ * change playback status or skip ahead. Painting always goes through {@link paintTurtle} from
+ * the retained scene alone (never re-running the program).
  */
 export function renderFrame(
   target: RenderTarget,
   source: ReducedMotionSource,
   viewport: Viewport,
+): void {
+  const { state, scene } = source.getSnapshot();
+  paintTurtle(target, scene, state, viewport);
+}
+
+/**
+ * Starts (or resumes) playback on `player`, honoring a reduced-motion preference
+ * (`spec/rendering.md#reduced-motion`): "In reduced-motion mode, the renderer MUST avoid
+ * continuous animated movement by default. It SHOULD present instant drawing … Step and pause
+ * controls MUST remain available."
+ *
+ * - `reducedMotion: true` — drains the WHOLE remaining event stream instantly
+ *   ({@link MotionPreferencePlayer.seekToEnd}) instead of pacing continuous per-step ticks.
+ * - `reducedMotion: false` — starts the player's own paced tick loop ({@link
+ *   MotionPreferencePlayer.run}).
+ *
+ * This is the ONLY place a motion preference has any effect — it is a decision about how a
+ * caller-initiated "start playback" action behaves, never something {@link renderFrame} or any
+ * other paint call performs implicitly. In particular this function is never invoked merely to
+ * repaint an already-paused or already-idle controller: the caller decides when playback starts,
+ * and `step()`/`pause()` on the same controller remain entirely independent controls, unaffected
+ * by (and available before, during, and after) a reduced-motion run — a learner can still step
+ * through or pause partway even though the run itself proceeds instantly. Either branch still
+ * folds the identical event stream through the identical reducers, so reduced motion changes only
+ * how eagerly playback proceeds, never the event stream, final scene, turtle state, or export
+ * output — the determinism invariant `spec/rendering.md#reduced-motion` requires ("Reduced-motion
+ * mode MUST NOT change the event stream, final scene, turtle state, or export output").
+ */
+export function playWithMotionPreference(
+  player: MotionPreferencePlayer,
   preference: MotionPreference,
 ): void {
   if (preference.reducedMotion) {
-    source.seekToEnd();
+    player.seekToEnd();
+  } else {
+    player.run();
   }
-  const { state, scene } = source.getSnapshot();
-  paintTurtle(target, scene, state, viewport);
 }
