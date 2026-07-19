@@ -27,6 +27,31 @@ test("a procedure is callable before its textual definition (whole-program hoist
   assert.deepEqual(printed, ["hi"]);
 });
 
+test("unbounded recursion raises a friendly ol-limit diagnostic instead of a host stack overflow (spec/execution-model.md:551-557)", () => {
+  const result = execute(
+    "define loop_forever\n  loop_forever\nend\nloop_forever",
+    doc,
+  );
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-limit");
+  assert.deepEqual(result.diagnostics[0].params, {
+    limit: "recursion-depth",
+    value: 500,
+  });
+});
+
+test("recursion within the depth limit still completes normally and returns the right value", () => {
+  const result = execute(
+    "define countdown :n\n  if :n == 0 [\n    return 0\n  ]\n  return countdown :n - 1\nend\nprint countdown 100",
+    doc,
+  );
+  assert.deepEqual(result.diagnostics, []);
+  const printed = result.events
+    .filter((event) => event.kind === "print")
+    .map((event) => event.payload.values[0]);
+  assert.deepEqual(printed, [0]);
+});
+
 test("a later define of the same name wins over an earlier one (redefinition, matches the static checker)", () => {
   const result = execute(
     "define f\n  return 1\nend\ndefine f\n  return 2\nend\nprint f",

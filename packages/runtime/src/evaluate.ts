@@ -88,12 +88,17 @@ export type ProcedureRegistry = ReadonlyMap<string, ProcedureDefNode>;
  * Issue #97 adds the whole-program {@link ProcedureRegistry} (`procedures`), the shared,
  * mutable trace-event sink (`events`) every emitting site now pushes onto directly instead of
  * threading a separate `events` parameter, the whole-program `forever` iteration test cap
- * (`foreverIterationLimit`, also promoted from a separate parameter for the same reason), and
+ * (`foreverIterationLimit`, also promoted from a separate parameter for the same reason),
  * `callProcedure` — a callback into `execute-internal.ts`'s procedure-call mechanics that lets
  * `evaluateCall` (expression/reporter position, e.g. `print area :r`) invoke a user procedure
  * without this module importing `execute-internal.ts` (which already imports this one, so a
  * direct import here would be a cycle). Statement-position calls (`star 5 100`) instead call
- * `execute-internal.ts`'s `runProcedure` directly — same module, no indirection needed.
+ * `execute-internal.ts`'s `runProcedure` directly — same module, no indirection needed. It also
+ * adds `callDepth`, a mutable stack `runProcedure` pushes onto before running a callee's body and
+ * pops after (mirroring `repeatTurns`'s push/pop-around-a-pass shape): its length is the current
+ * procedure-call nesting depth, checked against a fixed ceiling before every call so unbounded
+ * recursion raises a friendly `ol-limit` diagnostic (`spec/execution-model.md:551-557`) instead of
+ * overflowing the host's own call stack.
  */
 export interface Environment {
   readonly frames: readonly Frame[];
@@ -101,6 +106,7 @@ export interface Environment {
   readonly procedures: ProcedureRegistry;
   readonly events: TraceEvent[];
   readonly foreverIterationLimit?: number;
+  readonly callDepth: number[];
   readonly callProcedure: (
     node: CallNode | ParenCallNode,
     env: Environment,
@@ -123,6 +129,7 @@ export function createEnvironment(): Environment {
     repeatTurns: [],
     procedures: EMPTY_PROCEDURES,
     events: [],
+    callDepth: [],
     callProcedure: () => {
       throw new Error(
         "callProcedure is unreachable on a bare createEnvironment() — it has no procedures",

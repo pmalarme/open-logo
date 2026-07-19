@@ -27,7 +27,10 @@
  * static checker's `checker-arity.ts` (issue #111); `ol-no-output` (a command procedure used
  * where a value is required, raised at the call site); `ol-user-error` (`throw <value>`); and
  * the runtime's own copies of the checker's `ol-return-outside-proc`/`ol-stop-outside-proc`
- * (issue #114's `checker-control-flow.ts`) for the same reason as `ol-not-a-place` above.
+ * (issue #114's `checker-control-flow.ts`) for the same reason as `ol-not-a-place` above; and
+ * `ol-limit` for a procedure call nested past a configured recursion-depth threshold
+ * (`spec/execution-model.md:551-557`), so unbounded recursion raises a friendly diagnostic instead
+ * of a raw host stack overflow.
  * Mirrors the parser's `errors.ts` pattern: every finding is a stable code from the
  * `@openlogo/core` registry with structured `params` (the diagnostic identity) plus warm,
  * lowercase learner prose derived from them — prose is presentation only.
@@ -473,6 +476,23 @@ export const runtimeDiag = {
       source_span,
       {},
       "stop only leaves a procedure, so it belongs between 'define' and 'end'.",
+    );
+  },
+
+  /**
+   * `ol-limit`: a configurable safety limit was reached — here, the procedure-call recursion
+   * depth (`spec/execution-model.md:551-557`, `spec/error-model.md:119`). Raised at the call site
+   * that would have pushed one frame past `limit`, instead of letting the host's own call stack
+   * overflow and expose a raw stack-trace crash. `params.limit` names which limit this is
+   * (`"recursion-depth"`, matching the spec's example) and `params.value` is the configured
+   * threshold, per `ol-limit`'s `{limit, optional value}` param shape.
+   */
+  recursionLimit(source_span: SourceSpan, value: number): Diagnostic {
+    return runtimeError(
+      "ol-limit",
+      source_span,
+      { limit: "recursion-depth", value },
+      `this call is nested ${value} procedure calls deep, which is too deep — check for a recursive procedure that never stops calling itself.`,
     );
   },
 } as const;

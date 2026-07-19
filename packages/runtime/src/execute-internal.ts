@@ -305,8 +305,41 @@ type ProcedureOutcome =
  * existing convention that a diagnostic stops the trace with no further events at all). This
  * ordering reproduces the spec's worked recursive-call trace exactly
  * (`spec/execution-model.md:606-648`).
+ *
+ * Before any of that, the call is checked against `env.callDepth`'s length — the current
+ * procedure-call nesting depth — against {@link MAX_PROCEDURE_CALL_DEPTH}: exceeding it raises
+ * `ol-limit` at the callee span instead of recursing further, so an unbounded recursive procedure
+ * degrades to a friendly diagnostic rather than a host `RangeError: Maximum call stack size
+ * exceeded` (`spec/execution-model.md:551-557`). A depth marker is pushed once the check passes
+ * and popped in a `finally` covering the rest of this function, so it is removed on every exit
+ * path — a clean return, a `stop`, or a diagnostic partway through argument/default evaluation or
+ * the body itself.
  */
+const MAX_PROCEDURE_CALL_DEPTH = 500;
+
 function runProcedure(
+  node: CallNode | ParenCallNode,
+  env: Environment,
+): ProcedureOutcome {
+  if (env.callDepth.length >= MAX_PROCEDURE_CALL_DEPTH) {
+    return {
+      ok: false,
+      diagnostic: runtimeDiag.recursionLimit(
+        node.callee.source_span,
+        MAX_PROCEDURE_CALL_DEPTH,
+      ),
+    };
+  }
+  env.callDepth.push(env.callDepth.length + 1);
+  try {
+    return runProcedureBody(node, env);
+  } finally {
+    env.callDepth.pop();
+  }
+}
+
+/** The body of {@link runProcedure}, run once the recursion-depth check and push have happened. */
+function runProcedureBody(
   node: CallNode | ParenCallNode,
   env: Environment,
 ): ProcedureOutcome {
@@ -882,7 +915,8 @@ function executeStatements(
  * Build a fresh execution environment for running `program` from the top: the root/global frame,
  * no active `repeat` turn, `program`'s whole-program {@link ProcedureRegistry}
  * ({@link collectProcedures}), an empty event sink, `foreverIterationLimit` threaded through
- * unchanged, and `callProcedure` wired to {@link callProcedureAsValue} — unlike
+ * unchanged, an empty `callDepth` stack ({@link runProcedure} checks and pushes/pops it), and
+ * `callProcedure` wired to {@link callProcedureAsValue} — unlike
  * `evaluate.ts`'s bare `createEnvironment()` (whose `callProcedure` stub is intentionally
  * unreachable, for expression-only tests with no procedures in scope), this is the environment
  * every real statement/expression in `program` actually runs against.
@@ -897,6 +931,7 @@ function createExecutionEnvironment(
     procedures: collectProcedures(program),
     events: [],
     foreverIterationLimit,
+    callDepth: [],
     callProcedure: callProcedureAsValue,
   };
 }
