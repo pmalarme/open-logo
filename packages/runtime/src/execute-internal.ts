@@ -523,9 +523,24 @@ function executeStatements(
         }
         step = by.value;
       }
-      const continues = (current: number): boolean =>
-        step > 0 ? current <= to.value : current >= to.value;
-      for (let current = from.value; continues(current); current += step) {
+      // Recompute each pass's value from `from` and the pass count (rather than repeatedly
+      // adding `step` to a running total) so IEEE-754 rounding cannot drift the running value
+      // away from its true multiple of `step` over many passes. A step whose exact decimal
+      // value cannot be represented exactly in binary floating point (e.g. `0.1`) would
+      // otherwise sometimes land a hair past `to` — silently dropping the inclusive endpoint
+      // (`from 0 to 0.3 by 0.1` would stop at `0.2`, since the fourth running total is
+      // `0.30000000000000004`, not `0.3`). `epsilon`, scaled to `step`'s own magnitude, absorbs
+      // that per-pass rounding error without weakening the boundary for a whole-number step.
+      const epsilon = Math.abs(step) * 1e-9;
+      const withinBound = (current: number): boolean =>
+        step > 0
+          ? current <= to.value + epsilon
+          : current >= to.value - epsilon;
+      for (let turn = 0; ; turn += 1) {
+        const current = from.value + turn * step;
+        if (!withinBound(current)) {
+          break;
+        }
         const diagnostic = executeStatements(
           statement.body.body,
           pushLoopFrame(env, new Map([[statement.variable.name, current]])),

@@ -165,3 +165,17 @@ test("for ... from ... to accepts a fractional step (not restricted to whole num
     .map((event) => event.payload.values[0]);
   assert.deepEqual(printedValues, [1, 1.5, 2]);
 });
+
+test("a fractional step whose running total would drift past a floating-point-inexact end (0.1 * 3 !== 0.3) still reaches the inclusive endpoint", () => {
+  const result = execute("for i from 0 to 0.3 by 0.1 [\n  print :i\n]", doc);
+  assert.deepEqual(result.diagnostics, []);
+  const printedValues = result.events
+    .filter((event) => event.kind === "print")
+    .map((event) => event.payload.values[0]);
+  assert.equal(printedValues.length, 4);
+  // The reported value is `from + turn * step`, so the fourth turn is the same
+  // floating-point-inexact `0.30000000000000004` a naive running total would also produce —
+  // this test asserts the LOOP still runs that fourth turn (the endpoint is not dropped), not
+  // that the printed number is the exact decimal `0.3`.
+  assert.ok(Math.abs(printedValues[3] - 0.3) < 1e-9);
+});
