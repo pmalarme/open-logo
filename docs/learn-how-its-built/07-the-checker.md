@@ -93,4 +93,4 @@ knows Core words; `forward`/`right` typos only get suggested once the turtle voc
 Deliberately misspell a command you use often — try `prnt` instead of `print` — and see the
 checker's suggestion for yourself.
 
-**Next up →** check the [series map](README.md) for the full list.
+**Next up →** [08 · How we built it](08-how-we-built-it.md)

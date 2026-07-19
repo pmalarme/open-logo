@@ -23,13 +23,14 @@ real OpenLogo code and the actual code that runs inside OpenLogo today.
 | Page | What you'll learn |
 |---|---|
 | [01 · The big picture](01-the-big-picture.md) | The whole journey, zoomed out |
-| 02 · Tokens | *(coming soon)* Chopping your code into little labeled words |
-| 03 · The lexer | *(coming soon)* The machine that does the chopping |
-| 04 · The AST | *(coming soon)* Turning tokens into a tree |
-| 05 · The interpreter & runtime | *(coming soon)* Walking the tree to make things happen |
-| 06 · Syntax highlighting | *(coming soon)* Why keywords turn colors |
-| 07 · When something is wrong | *(coming soon)* How OpenLogo says "oops," kindly |
-| 08 · How we built it | *(coming soon)* The human side — how a team builds a language |
+| [02 · Tokens](02-tokens.md) | Chopping your code into little labeled words |
+| [03 · The lexer](03-the-lexer.md) | The machine that does the chopping |
+| [04 · The AST](04-the-ast.md) | Turning tokens into a tree |
+| [05 · The interpreter & runtime](05-the-interpreter-and-runtime.md) | Walking the tree to make things happen |
+| [06 · Highlighting](06-highlighting.md) | Why keywords turn colors |
+| [07 · The checker](07-the-checker.md) | How OpenLogo says "oops," kindly |
+| [08 · How we built it](08-how-we-built-it.md) | The human side — how a team builds a language |
+| [09 · What we shipped](09-what-we-shipped.md) | What the whole series adds up to, all together |
 
 Read them in order the first time through — each page builds on the last.
 

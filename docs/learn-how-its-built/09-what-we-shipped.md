@@ -85,4 +85,4 @@ conformance suite is already green.
 Open `tests/conformance/core-language/` in the OpenLogo repo and count the folders — each is a
 different piece of Core. Open a `.logo` file next to its `.expected.json` match to see a real proof.
 
-**Next up →** check the [series map](README.md) for the full list.
+**Next up →** You've finished the series! Head back to the [series map](README.md) to revisit any page.
