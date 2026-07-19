@@ -1,0 +1,44 @@
+{
+  "description": "reduce over an empty list returns `from` unchanged, without invoking the body (spec/execution-model.md:402). Issue #105.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/comprehensions/reduce-empty-list-returns-seed",
+        "start": [1, 1],
+        "end": [1, 50]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/comprehensions/reduce-empty-list-returns-seed",
+        "start": [2, 1],
+        "end": [2, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/comprehensions/reduce-empty-list-returns-seed",
+        "start": [2, 1],
+        "end": [2, 13]
+      },
+      "payload": {
+        "values": [42]
+      }
+    }
+  ],
+  "diagnostics": []
+}

@@ -30,7 +30,13 @@
  * (issue #114's `checker-control-flow.ts`) for the same reason as `ol-not-a-place` above; and
  * `ol-limit` for a procedure call nested past a configured recursion-depth threshold
  * (`spec/execution-model.md:551-557`), so unbounded recursion raises a friendly diagnostic instead
- * of a raw host stack overflow.
+ * of a raw host stack overflow. Issue #105 adds comprehension diagnostics: `ol-type` for a
+ * `map`/`filter`/`reduce` iterable that is not a list; `ol-no-value` for a comprehension body
+ * whose last statement produces no value; `ol-return-in-comprehension` for a `return`/`stop`
+ * reached inside a comprehension body; and widens `duplicateBinder` to also cover a `reduce`
+ * accumulator/item-binder name collision — the runtime's own copies of the semantic checker's
+ * rules of the same names (issue #114's `checker-control-flow.ts`), at `stage: "runtime"` since
+ * `execute()` never runs `check()`.
  * Mirrors the parser's `errors.ts` pattern: every finding is a stable code from the
  * `@openlogo/core` registry with structured `params` (the diagnostic identity) plus warm,
  * lowercase learner prose derived from them — prose is presentation only.
@@ -150,6 +156,40 @@ export interface PatternLengthMismatchParams {
   readonly operation: "destructuring";
   readonly value: number;
   readonly length: number;
+}
+
+/**
+ * Params for an `ol-type` raised by a comprehension (`map`/`filter`/`reduce`) iterable that is
+ * not a list (`spec/execution-model.md:380-384` — every comprehension form ranges over a list).
+ * Same shape as {@link ForInNotListParams} plus the comprehension's own `form`, since `ol-type`'s
+ * `operation` names the offending construct.
+ */
+export interface ComprehensionNotListParams {
+  readonly actual: string;
+  readonly value: OLValue;
+  readonly operation: "map" | "filter" | "reduce";
+}
+
+/**
+ * Params for `ol-no-value`: a comprehension body's last statement does not produce a value
+ * (`spec/execution-model.md:225` — the block-result rule). Same `{form}` shape as the parser's
+ * `checker-control-flow.ts` semantic rule (issue #114) so both stages agree on identity.
+ */
+export interface NoValueParams {
+  readonly form: "map" | "filter" | "reduce";
+}
+
+/**
+ * Params for `ol-return-in-comprehension`: a `return`/`output`/`op`/`stop` reached inside a
+ * comprehension body (`spec/execution-model.md:226-227`) — a comprehension reports its last
+ * expression, never an explicit `return`/`stop`. Same `{keyword, form}` shape as the parser's
+ * `checker-control-flow.ts` semantic rule (issue #114) so both stages agree on identity; `keyword`
+ * is the literal string `"stop"` for a `Stop` node (which has no `keyword` field of its own),
+ * matching the checker's own synthesis.
+ */
+export interface ReturnInComprehensionParams {
+  readonly keyword: "return" | "output" | "op" | "stop";
+  readonly form: "map" | "filter" | "reduce";
 }
 
 /** Runtime-stage diagnostics, one builder per `ol-*` code the evaluator can raise. */
@@ -356,6 +396,23 @@ export const runtimeDiag = {
   },
 
   /**
+   * `ol-type`: a `map`/`filter`/`reduce` iterable is not a list
+   * (`spec/execution-model.md:380-384` — every comprehension form ranges over a list, same
+   * restriction as `ForIn`). `params.operation` names the specific comprehension form.
+   */
+  comprehensionNotList(
+    source_span: SourceSpan,
+    params: ComprehensionNotListParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-type",
+      source_span,
+      { expected: "list", ...params },
+      `${params.operation} needs a list, but got a ${params.actual}.`,
+    );
+  },
+
+  /**
    * `ol-range`: `for ... from ... to ... by 0` — a step of `0` never reaches `end`
    * (`spec/execution-model.md:374-375`), unlike a step merely pointing away from `end` (which
    * simply runs the body zero times, no diagnostic).
@@ -387,16 +444,22 @@ export const runtimeDiag = {
   },
 
   /**
-   * `ol-duplicate-binder`: a repeated name in a `for [:x :x] in ...` destructuring pattern. Same
-   * `{ name, form }` params shape as the parser's `checker-control-flow.ts` semantic rule (issue
-   * #114) so both stages agree on identity — this copy exists because `execute()` runs `parse()`
-   * only, not `check()`.
+   * `ol-duplicate-binder`: a repeated name in a `for [:x :x] in ...` destructuring pattern, or —
+   * issue #105 — a comprehension whose accumulator/item-binder names collide (`form: "reduce"`)
+   * or whose destructuring item binder repeats a name (`form: "destructuring"`, the default, kept
+   * for `ForIn`'s pre-#105 2-arg call sites). Same `{ name, form }` params shape as the parser's
+   * `checker-control-flow.ts` semantic rule (issue #114) so both stages agree on identity — this
+   * copy exists because `execute()` runs `parse()` only, not `check()`.
    */
-  duplicateBinder(source_span: SourceSpan, name: string): Diagnostic {
+  duplicateBinder(
+    source_span: SourceSpan,
+    name: string,
+    form: "reduce" | "destructuring" = "destructuring",
+  ): Diagnostic {
     return runtimeError(
       "ol-duplicate-binder",
       source_span,
-      { name, form: "destructuring" },
+      { name, form },
       `the binder ${name} is used twice here. give each binder a different name.`,
     );
   },
@@ -493,6 +556,47 @@ export const runtimeDiag = {
       source_span,
       { limit: "recursion-depth", value },
       `this call is nested ${value} procedure calls deep, which is too deep — check for a recursive procedure that never stops calling itself.`,
+    );
+  },
+
+  /**
+   * `ol-no-value`: a `map`/`filter`/`reduce` body's last statement does not produce a value
+   * (`spec/execution-model.md:225`, worked example `map num in :nums [ print :num ]`). Same
+   * `{form}` params shape as the parser's `checker-control-flow.ts` semantic rule (issue #114) so
+   * both stages agree on identity — this copy exists because `execute()` runs `parse()` only, not
+   * `check()`.
+   */
+  noValue(
+    source_span: SourceSpan,
+    form: "map" | "filter" | "reduce",
+  ): Diagnostic {
+    return runtimeError(
+      "ol-no-value",
+      source_span,
+      { form },
+      `${form} needs the last instruction in its block to make a value.`,
+    );
+  },
+
+  /**
+   * `ol-return-in-comprehension`: `return`/`output`/`op`/`stop` reached inside a comprehension
+   * body (`spec/execution-model.md:226-227`) — a comprehension reports its last expression, never
+   * an explicit `return`/`stop`. Same `{keyword, form}` params shape as the parser's
+   * `checker-control-flow.ts` semantic rule (issue #114) so both stages agree on identity — this
+   * copy exists because `execute()` runs `parse()` only, not `check()`. Takes priority over
+   * `ol-return-outside-proc`/`ol-stop-outside-proc` whenever the escape is lexically inside a
+   * comprehension body, even when that comprehension is itself inside a procedure.
+   */
+  returnInComprehension(
+    source_span: SourceSpan,
+    keyword: "return" | "output" | "op" | "stop",
+    form: "map" | "filter" | "reduce",
+  ): Diagnostic {
+    return runtimeError(
+      "ol-return-in-comprehension",
+      source_span,
+      { keyword, form },
+      `${keyword} doesn't belong in a ${form} — a ${form} reports its last expression instead.`,
     );
   },
 } as const;

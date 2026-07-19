@@ -1,0 +1,2 @@
+:out = map n in 5 [ :n ]
+print :out

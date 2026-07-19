@@ -1,0 +1,56 @@
+{
+  "description": "A destructuring item binder destructures each element positionally in map, reusing #103's ForIn binder machinery (spec/execution-model.md:411-445). Issue #105.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/comprehensions/map-destructuring-item-execute",
+        "start": [1, 1],
+        "end": [1, 25]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/comprehensions/map-destructuring-item-execute",
+        "start": [2, 1],
+        "end": [2, 37]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/comprehensions/map-destructuring-item-execute",
+        "start": [3, 1],
+        "end": [3, 10]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/comprehensions/map-destructuring-item-execute",
+        "start": [3, 1],
+        "end": [3, 10]
+      },
+      "payload": {
+        "values": [[1, 3]]
+      }
+    }
+  ],
+  "diagnostics": []
+}
