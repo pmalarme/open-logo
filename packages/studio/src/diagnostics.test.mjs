@@ -142,7 +142,7 @@ test("styleCheck: true has no effect when semanticCheck is false (default)", () 
   state.setSource("define MyProc\nend");
 
   const view = toDiagnosticsView(state.getState().diagnostics);
-  assert.ok(!view.items.some((item) => item.code === "ol-style-name-case"));
+  assert.equal(view.items.length, 0);
 });
 
 test("refresh() is a no-op guard when source hasn't changed (subscribe doesn't clobber itself)", () => {
