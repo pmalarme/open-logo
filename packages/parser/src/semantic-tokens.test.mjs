@@ -96,6 +96,21 @@ test("readonly: a `reduce` accumulator read inside its own body is readonly", ()
   assert.deepEqual(find(tokens, ":num").modifiers, ["reference", "readonly"]);
 });
 
+test("readonly: every name in a `map` destructuring `[:x :y]` binder read inside its own body is readonly (issue #72)", () => {
+  const tokens = OL.semanticTokens(
+    ":sums = map [:x :y] in :pairs [ :x + :y ]",
+    doc,
+  );
+  // Each name appears twice: once inside the `[:x :y]` binder pattern itself (not a body read,
+  // so no `readonly`), and once as a read inside the comprehension's own body.
+  const xTokens = tokens.filter((token) => token.text === ":x");
+  const yTokens = tokens.filter((token) => token.text === ":y");
+  assert.deepEqual(xTokens[0].modifiers, ["reference"]);
+  assert.deepEqual(xTokens[1].modifiers, ["reference", "readonly"]);
+  assert.deepEqual(yTokens[0].modifiers, ["reference"]);
+  assert.deepEqual(yTokens[1].modifiers, ["reference", "readonly"]);
+});
+
 test("readonly: a binder read through a place (`.field`/`[index]`) is also readonly, not just a bare `:name` read", () => {
   const tokens = OL.semanticTokens(
     "struct point [ x y ]\n:xs = map p in :points [ :p.x ]",

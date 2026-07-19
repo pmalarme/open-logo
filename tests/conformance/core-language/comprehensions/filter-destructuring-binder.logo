@@ -1,0 +1,2 @@
+:pairs = [[1 2] [3 4]]
+:evens = filter [:x :y] in :pairs [ :x > :y ]

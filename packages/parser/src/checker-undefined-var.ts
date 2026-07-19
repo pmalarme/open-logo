@@ -60,10 +60,11 @@ import { childrenOf } from "./ast.js";
 import type { CheckProfile } from "./check.js";
 
 /**
- * The lowercase name(s) a `for … in` binder introduces: one for a bare `name`, or one per
- * `:name` in a destructuring `[ :x :y ]` pattern (`spec/grammar.md:136-137`). Resolving which
- * destructured name a given read maps to is out of scope here (#114); every destructured name
- * is simply visible throughout the loop body, same as today's single bare-name binder.
+ * The lowercase name(s) a `for … in` / `map`/`filter`/`reduce` binder introduces: one for a bare
+ * `name`, or one per `:name` in a destructuring `[ :x :y ]` pattern (`spec/grammar.md:136-137`).
+ * Resolving which destructured name a given read maps to is out of scope here (#114); every
+ * destructured name is simply visible throughout the loop/comprehension body, same as today's
+ * single bare-name binder.
  */
 function binderNames(binder: Binder): string[] {
   return "kind" in binder
@@ -221,16 +222,12 @@ function collectGlobalsIn(
     }
     case "Comprehension": {
       collectGlobalsIn(node.iterable, ctx, globals);
-      const binderNames = [node.binder.name.toLowerCase()];
+      const names = binderNames(node.binder);
       if (node.form === "reduce") {
         collectGlobalsIn(node.initial, ctx, globals);
-        binderNames.push(node.accumulator.name.toLowerCase());
+        names.push(node.accumulator.name.toLowerCase());
       }
-      collectGlobalsIn(
-        node.body,
-        pushBinder(ctx, new Set(binderNames)),
-        globals,
-      );
+      collectGlobalsIn(node.body, pushBinder(ctx, new Set(names)), globals);
       return;
     }
     default:
@@ -381,14 +378,14 @@ function checkReadsIn(
     }
     case "Comprehension": {
       checkReadsIn(node.iterable, ctx, globals, diagnostics);
-      const binderNames = [node.binder.name.toLowerCase()];
+      const names = binderNames(node.binder);
       if (node.form === "reduce") {
         checkReadsIn(node.initial, ctx, globals, diagnostics);
-        binderNames.push(node.accumulator.name.toLowerCase());
+        names.push(node.accumulator.name.toLowerCase());
       }
       checkReadsIn(
         node.body,
-        pushBinder(ctx, new Set(binderNames)),
+        pushBinder(ctx, new Set(names)),
         globals,
         diagnostics,
       );

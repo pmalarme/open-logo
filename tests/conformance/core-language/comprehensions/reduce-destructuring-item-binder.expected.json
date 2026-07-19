@@ -1,0 +1,7 @@
+{
+  "description": "Core `reduce` keeps its bare-name accumulator (`sum`) while its item binder destructures (`[:x :y]`, spec/grammar.md:136-137) over a list of pairs, with a `from 0` seed. Parses with no diagnostics, and `check()` resolves the accumulator plus both destructured names inside the body cleanly.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

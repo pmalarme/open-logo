@@ -16,8 +16,10 @@
  *  - `:variable` — the only binding site the AST can resolve directly is a procedure's own
  *    `:param` (`highlight.ts`'s `paramDeclIndexes`, exposed the same way via `declaration`);
  *    every other `:variable` token is a `reference` (a read, or an assignment/place target).
- *    `local`/`for`/comprehension binders parse as bare `name` tokens (see `ast.ts`), so they
- *    never surface as `:variable` tokens at all — there is nothing else to resolve here.
+ *    `local`/`for`/comprehension binders parse as bare `name` tokens, or — for a destructuring
+ *    `[ :x :y ]` pattern (`spec/grammar.md:136-137`) — as `:variable` tokens with no dedicated
+ *    binding-site resolution here (see `ast.ts`'s `Binder`), so a destructured name's own `:x`
+ *    token still surfaces only as a `reference`, never a `declaration`.
  *  - `:variable` reads of a `map`/`filter`/`reduce` binder or `reduce` accumulator inside that
  *    comprehension's own body additionally get `readonly`: a comprehension body is a bracketed
  *    *expression*-block only (`spec/execution-model.md`: "Comprehension bodies are bracketed
@@ -39,7 +41,7 @@
  */
 
 import type { Position } from "@openlogo/core";
-import type { AnyNode, ProgramNode } from "./ast.js";
+import type { AnyNode, Binder, ProgramNode } from "./ast.js";
 import { walk } from "./ast.js";
 import { parse } from "./parser.js";
 import type { BracketRole, Token, TokenClass } from "./highlight.js";
@@ -131,9 +133,21 @@ function modifiersFor(
 }
 
 /**
+ * The lowercase name(s) a comprehension binder introduces: one for a bare `name`, or one per
+ * `:name` in a destructuring `[ :x :y ]` pattern (`spec/grammar.md:136-137`, mirroring
+ * `checker-undefined-var.ts`'s own `binderNames` helper for `for … in`/comprehension binders).
+ */
+function namesOf(binder: Binder): string[] {
+  return "kind" in binder
+    ? binder.names.map((name) => name.name.toLowerCase())
+    : [binder.name.toLowerCase()];
+}
+
+/**
  * Every `:name` read (a `VarRef`, or a `Place`'s base) inside a `map`/`filter`/`reduce`
- * comprehension's own body that spells the same name as that comprehension's binder (or, for
- * `reduce`, its accumulator) — see the module doc comment for why that makes the read `readonly`.
+ * comprehension's own body that spells the same name as one of that comprehension's binder
+ * names (a bare binder, or each name in a destructuring `[ :x :y ]` pattern) or, for `reduce`,
+ * its accumulator — see the module doc comment for why that makes the read `readonly`.
  */
 function collectComprehensionBinderReads(program: ProgramNode): Set<string> {
   const reads = new Set<string>();
@@ -141,7 +155,7 @@ function collectComprehensionBinderReads(program: ProgramNode): Set<string> {
     if (node.kind !== "Comprehension") {
       return;
     }
-    const binderNames = new Set<string>([node.binder.name.toLowerCase()]);
+    const binderNames = new Set<string>(namesOf(node.binder));
     if (node.form === "reduce") {
       binderNames.add(node.accumulator.name.toLowerCase());
     }

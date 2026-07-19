@@ -113,10 +113,18 @@ function duplicateBinderDiagnostic(
   };
 }
 
-/** A `reduce` whose accumulator and item binder are the same name raises one duplicate-binder. */
+/**
+ * A `reduce` whose accumulator and item binder are the same bare name raises one duplicate-binder.
+ * The item binder may also be a destructuring pattern (issue #72) — diagnosing an accumulator that
+ * collides with one of *those* names is #162/#114's future territory, not this check's; only the
+ * bare-name-vs-bare-name collision this rule always covered is reported here.
+ */
 function reduceDuplicateDiagnostic(
   node: ReduceComprehensionNode,
 ): Diagnostic | undefined {
+  if ("kind" in node.binder) {
+    return undefined;
+  }
   if (node.accumulator.name.toLowerCase() !== node.binder.name.toLowerCase()) {
     return undefined;
   }

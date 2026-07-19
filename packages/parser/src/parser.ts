@@ -24,6 +24,7 @@ import { makeSpan } from "@openlogo/core";
 import type { Diagnostic, Position, SourceSpan } from "@openlogo/core";
 import { ast } from "./ast.js";
 import type {
+  Binder,
   BlockNode,
   DestructuringBinderNode,
   ExpressionNode,
@@ -934,13 +935,22 @@ export function parse(source: string, document = "<input>"): ParseResult {
       advance();
       accumulator = sname(accTok.text, accTok);
     }
-    const binderTok = current();
-    if (binderTok.kind !== "name") {
-      diagnostics.push(unexpected(binderTok));
-      return undefined;
+    let binder: Binder;
+    if (current().kind === "lbracket") {
+      const destructured = parseDestructuringBinder();
+      if (destructured === undefined) {
+        return undefined;
+      }
+      binder = destructured;
+    } else {
+      const binderTok = current();
+      if (binderTok.kind !== "name") {
+        diagnostics.push(unexpected(binderTok));
+        return undefined;
+      }
+      advance();
+      binder = sname(binderTok.text, binderTok);
     }
-    advance();
-    const binder = sname(binderTok.text, binderTok);
     if (!isName("in")) {
       diagnostics.push(unexpected(current()));
       return undefined;
