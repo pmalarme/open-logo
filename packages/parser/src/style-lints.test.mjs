@@ -101,12 +101,19 @@ test("ol-style-equality-confusion: a standalone != statement is flagged", () => 
   assert.deepEqual(diagnostics[0].params, { operators: ["!="] });
 });
 
-test("ol-style-equality-confusion: a standalone multi-operator ComparisonChain is flagged", () => {
-  const diagnostics = checkStyle("1 < 2 < 3").filter(
+test("ol-style-equality-confusion: a ComparisonChain mixing relational and == is flagged, reporting only the == operator", () => {
+  const diagnostics = checkStyle("1 < 2 == 2").filter(
     (d) => d.code === "ol-style-equality-confusion",
   );
   assert.equal(diagnostics.length, 1);
-  assert.deepEqual(diagnostics[0].params, { operators: ["<", "<"] });
+  assert.deepEqual(diagnostics[0].params, { operators: ["=="] });
+});
+
+test("ol-style-equality-confusion: a standalone purely-relational ComparisonChain (no ==/!=) is not flagged", () => {
+  // `1 < 2 < 3` cannot plausibly be an `=` assignment typo -- there is no equality operator
+  // to have been mistyped, so this must not suggest "did you mean to assign with =?".
+  const diagnostics = checkStyle("1 < 2 < 3");
+  assert.deepEqual(diagnostics, []);
 });
 
 test("ol-style-equality-confusion: == used correctly as a condition is not flagged", () => {

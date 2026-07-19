@@ -185,19 +185,27 @@ function equalityConfusionDiagnostic(
   };
 }
 
+/** Operator spellings this lint treats as the `=`-vs-`==` confusion (never plain relational ops). */
+const EQUALITY_OPERATORS: ReadonlySet<string> = new Set(["==", "!="]);
+
 /** The `ol-style-equality-confusion` finding for one statement-position node, if any. */
 function equalityConfusionDiagnosticFor(
   statement: StatementNode,
 ): Diagnostic | undefined {
   if (statement.kind === "ComparisonChain") {
-    return equalityConfusionDiagnostic(
-      statement,
-      statement.operators.map((operator) => operator.name),
-    );
+    const operators = statement.operators
+      .map((operator) => operator.name)
+      .filter((name) => EQUALITY_OPERATORS.has(name));
+    // A chain of purely relational operators (e.g. `1 < 2 < 3`) can never be an `=`
+    // assignment typo -- only flag chains that contain at least one `==`/`!=`.
+    if (operators.length === 0) {
+      return undefined;
+    }
+    return equalityConfusionDiagnostic(statement, operators);
   }
   if (statement.kind === "Call" || statement.kind === "ParenCall") {
     const name = statement.callee.name;
-    if (name === "==" || name === "!=") {
+    if (EQUALITY_OPERATORS.has(name)) {
       return equalityConfusionDiagnostic(statement, [name]);
     }
   }
@@ -205,9 +213,11 @@ function equalityConfusionDiagnosticFor(
 }
 
 /**
- * `ol-style-equality-confusion` (issue #115): every statement-position `ComparisonChain` or
- * `==`/`!=` `Call`/`ParenCall` — i.e. an element of a `Program`/`Block`'s own `body` array,
- * never a nested sub-expression — whose discarded boolean usually means the learner meant `=`.
+ * `ol-style-equality-confusion` (issue #115): every statement-position `ComparisonChain`
+ * containing at least one `==`/`!=` operator, or `==`/`!=` `Call`/`ParenCall` -- i.e. an element
+ * of a `Program`/`Block`'s own `body` array, never a nested sub-expression -- whose discarded
+ * boolean usually means the learner meant `=`. Chains made up only of relational operators
+ * (`<`, `>`, `<=`, `>=`) are never flagged: `1 < 2 < 3` cannot plausibly be an `=` assignment typo.
  */
 export function equalityConfusionRule(
   program: ProgramNode,
