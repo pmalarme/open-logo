@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as OL from "@openlogo/studio";
 
-test("REPL_FOCUS_ORDER covers every REPL region with unique, stable ids", () => {
+test("REPL_FOCUS_ORDER covers every studio region with unique, stable ids", () => {
   const order = OL.REPL_FOCUS_ORDER;
   assert.ok(order.length > 0);
 
@@ -16,8 +16,8 @@ test("REPL_FOCUS_ORDER covers every REPL region with unique, stable ids", () => 
   const regions = new Set(order.map((stop) => stop.region));
   assert.deepEqual(
     [...regions].sort(),
-    ["diagnostics", "editor", "repl"].sort(),
-    "focus order must span exactly the editor, repl, and diagnostics regions",
+    ["diagnostics", "editor", "repl", "turtle"].sort(),
+    "focus order must span exactly the editor, repl, turtle, and diagnostics regions",
   );
 
   for (const stop of order) {
@@ -28,7 +28,7 @@ test("REPL_FOCUS_ORDER covers every REPL region with unique, stable ids", () => 
   }
 });
 
-test("REPL_FOCUS_ORDER puts the editor first and diagnostics last, with Run/Stop/Reset in between", () => {
+test("REPL_FOCUS_ORDER puts the editor first and diagnostics last, with Run/Stop/Reset/Step and the canvas in between", () => {
   const order = OL.REPL_FOCUS_ORDER;
   assert.equal(order[0]?.id, "editor");
   assert.equal(order[order.length - 1]?.id, "diagnostics-list");
@@ -36,11 +36,16 @@ test("REPL_FOCUS_ORDER puts the editor first and diagnostics last, with Run/Stop
   const replStops = order.filter((stop) => stop.region === "repl");
   assert.deepEqual(
     replStops.map((stop) => stop.label),
-    ["Run", "Stop", "Reset"],
+    ["Run", "Stop", "Reset", "Step"],
   );
   for (const stop of replStops) {
     assert.equal(stop.role, "button");
   }
+
+  const canvasStop = order.find((stop) => stop.id === "canvas");
+  assert.ok(canvasStop, "the canvas must be a focus stop");
+  assert.equal(canvasStop.region, "turtle");
+  assert.equal(canvasStop.role, "img");
 });
 
 test("nextFocusStop cycles forward through every stop with no trap", () => {
@@ -90,18 +95,23 @@ test("nextFocusStop/previousFocusStop throw for an id outside the given order", 
   assert.throws(() => OL.previousFocusStop(order, "not-a-stop"), RangeError);
 });
 
-test("REPL_LANDMARK_ROLES declares one landmark per REPL region with a role and label", () => {
+test("REPL_LANDMARK_ROLES declares landmarks for every studio region with a role and label", () => {
   const landmarks = OL.REPL_LANDMARK_ROLES;
   assert.deepEqual(
     landmarks.map((landmark) => landmark.region).sort(),
-    ["diagnostics", "editor", "repl"].sort(),
+    ["diagnostics", "editor", "repl", "turtle", "turtle"].sort(),
   );
   const byRegion = new Map(
-    landmarks.map((landmark) => [landmark.region, landmark]),
+    landmarks.map((landmark) => [
+      `${landmark.region}:${landmark.role}`,
+      landmark,
+    ]),
   );
-  assert.equal(byRegion.get("editor")?.role, "textbox");
-  assert.equal(byRegion.get("repl")?.role, "toolbar");
-  assert.equal(byRegion.get("diagnostics")?.role, "log");
+  assert.equal(byRegion.get("editor:textbox")?.role, "textbox");
+  assert.equal(byRegion.get("repl:toolbar")?.role, "toolbar");
+  assert.equal(byRegion.get("turtle:img")?.role, "img");
+  assert.equal(byRegion.get("turtle:status")?.role, "status");
+  assert.equal(byRegion.get("diagnostics:log")?.role, "log");
   for (const landmark of landmarks) {
     assert.ok(landmark.label.length > 0);
   }
@@ -310,4 +320,142 @@ test("createA11yAnnouncer composes with the real editor/run/diagnostics controll
   // does not spam a redundant "No diagnostics." announcement.
   const messages = announcer.getAnnouncements().map((a) => a.message);
   assert.deepEqual(messages, ["Run started.", "Ready."]);
+});
+
+test("createTurtleStateRegion.getText describes the initial default turtle state immediately, via describeTurtleState", () => {
+  const state = OL.createStudioState();
+  const region = OL.createTurtleStateRegion(state);
+  assert.equal(
+    region.getText(),
+    "turtle at x 0 y 0 heading 0 degrees pen down color black width 1",
+  );
+});
+
+test("createTurtleStateRegion.state is the exact same store instance passed in, not a copy", () => {
+  const state = OL.createStudioState();
+  const region = OL.createTurtleStateRegion(state);
+  assert.equal(region.state, state);
+});
+
+test("createTurtleStateRegion.getText updates when turtleState changes", () => {
+  const state = OL.createStudioState();
+  const region = OL.createTurtleStateRegion(state);
+
+  state.setTurtleState({
+    position: [100, 0],
+    heading: 90,
+    penDown: true,
+    color: "black",
+    width: 1,
+    shape: "turtle",
+    visible: true,
+  });
+
+  assert.equal(
+    region.getText(),
+    "turtle at x 100 y 0 heading 90 degrees pen down color black width 1",
+  );
+});
+
+test("createTurtleStateRegion does not notify for a same-reference re-set (no-op for the store's own change detection)", () => {
+  const state = OL.createStudioState();
+  const region = OL.createTurtleStateRegion(state);
+  const texts = [];
+  region.subscribeText((text) => texts.push(text));
+
+  const { turtleState } = state.getState();
+  state.setTurtleState(turtleState);
+  assert.deepEqual(texts, []);
+
+  // A genuine change is still delivered to the same listener.
+  state.setTurtleState({ ...turtleState, heading: 90 });
+  assert.deepEqual(texts, [region.getText()]);
+});
+
+test("createTurtleStateRegion does not notify for a genuine no-op turtle event that still produces a fresh (but text-identical) turtleState object", () => {
+  // @openlogo/turtle's reduceTurtleState always spreads a new object for any state-bearing trace
+  // event, even a no-op like a repeated pen_down while the pen is already down (the runtime emits
+  // these; see execute-internal.ts's pen-change events). A reference-equality check alone would
+  // wrongly re-notify identical text on every such tick during a long animation — this proves the
+  // region instead compares the rendered text, matching diagnosticsKey's precedent above.
+  const state = OL.createStudioState();
+  const region = OL.createTurtleStateRegion(state);
+  const texts = [];
+  region.subscribeText((text) => texts.push(text));
+
+  const { turtleState } = state.getState();
+  assert.equal(turtleState.penDown, true, "the default turtle starts pen down");
+  // A fresh object with the exact same field values as the current state — as a no-op pen_down/
+  // set_color/etc. trace event's reducer output would be — must not be treated as a "change".
+  state.setTurtleState({ ...turtleState });
+  assert.deepEqual(texts, []);
+
+  // A genuine change afterward is still delivered.
+  state.setTurtleState({ ...turtleState, penDown: false });
+  assert.deepEqual(texts, [region.getText()]);
+});
+
+test("createTurtleStateRegion.subscribeText only notifies listeners of changes after subscription, and unsubscribe stops delivery", () => {
+  const state = OL.createStudioState();
+  const region = OL.createTurtleStateRegion(state);
+  const texts = [];
+  const unsubscribe = region.subscribeText((text) => texts.push(text));
+
+  state.setTurtleState({
+    ...state.getState().turtleState,
+    position: [10, 0],
+  });
+  assert.deepEqual(texts, [
+    "turtle at x 10 y 0 heading 0 degrees pen down color black width 1",
+  ]);
+
+  unsubscribe();
+  state.setTurtleState({
+    ...state.getState().turtleState,
+    position: [20, 0],
+  });
+  // Unsubscribed, so no further notifications, even though getText() keeps tracking the change.
+  assert.deepEqual(texts, [
+    "turtle at x 10 y 0 heading 0 degrees pen down color black width 1",
+  ]);
+  assert.equal(
+    region.getText(),
+    "turtle at x 20 y 0 heading 0 degrees pen down color black width 1",
+  );
+});
+
+test("two independent consumers of the same turtle-state region observe identical text (single source of truth)", () => {
+  const state = OL.createStudioState();
+  const region = OL.createTurtleStateRegion(state);
+
+  const consumerA = [];
+  const consumerB = [];
+  region.subscribeText((text) => consumerA.push(text));
+  region.subscribeText((text) => consumerB.push(text));
+
+  state.setTurtleState({
+    ...state.getState().turtleState,
+    heading: 45,
+  });
+
+  assert.deepEqual(consumerA, consumerB);
+  assert.deepEqual(consumerA, [region.getText()]);
+});
+
+test("createTurtleStateRegion composes with the real run controller end to end, in lockstep with the canvas turtle state", () => {
+  const state = OL.createStudioState();
+  const shell = OL.createAppShell(state);
+  const editor = OL.createEditorController(state);
+  OL.mountEditorPane(shell, editor);
+  const runController = OL.createRunController(state);
+  OL.mountRunController(shell, runController);
+  const region = OL.createTurtleStateRegion(state);
+
+  editor.setText("forward 100");
+  runController.run();
+
+  assert.equal(
+    region.getText(),
+    "turtle at x 0 y 100 heading 0 degrees pen down color black width 1",
+  );
 });

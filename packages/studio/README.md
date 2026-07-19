@@ -150,23 +150,29 @@ slice may swap in a real renderer without changing this contract.
 - `mountDiagnosticsPane(shell, controller)` composes the controller into the shell's `diagnostics`
   region.
 
-## REPL keyboard + screen-reader accessibility (#129)
+## Studio keyboard + screen-reader accessibility (#129, extended in #229 to the Canvas pane)
 
-Scope: the three REPL surfaces — editor (#124), run controls (#126, mounted in the `repl` region),
-and diagnostics (#125). Lesson-pane a11y is a separate slice (#127/M3). Like every prior slice,
-ADR-0001 leaves the DOM/framework choice open, so this is a **headless, `node:test`-able a11y
-contract/view-model layer** (`src/a11y.ts`) that a later real renderer maps onto actual DOM
-attributes 1:1 — there is no DOM here to regress.
+Scope: every studio surface — editor (#124), run controls (#126/#228, mounted in the `repl`
+region), the turtle Canvas pane (#218/#228, mounted in the `turtle` region), and diagnostics
+(#125). Lesson-pane a11y is a separate slice (#127/M3). Like every prior slice, ADR-0001 leaves the
+DOM/framework choice open, so this is a **headless, `node:test`-able a11y contract/view-model
+layer** (`src/a11y.ts`) that a later real renderer maps onto actual DOM attributes 1:1 — there is
+no DOM here to regress.
 
 - **Keyboard operability** — `REPL_FOCUS_ORDER` is a static, ordered list of every focusable stop
-  across the three panes: the editor (one `textbox` stop), Run/Stop/Reset (three `button` stops,
-  matching `run-controller.ts`'s `run()`/`stop()`/`reset()`), and the diagnostics list (one `log`
-  stop). `nextFocusStop`/`previousFocusStop` cycle through it, wrapping at both ends — proof there
-  is no keyboard trap: from any stop you can always reach every other stop moving forward or
-  backward.
+  across the studio: the editor (one `textbox` stop), Run/Stop/Reset/Step (four `button` stops,
+  matching `run-controller.ts`'s `run()`/`stop()`/`reset()`/`step()`), the turtle Canvas (one `img`
+  stop), and the diagnostics list (one `log` stop). `nextFocusStop`/`previousFocusStop` cycle
+  through it, wrapping at both ends — proof there is no keyboard trap: from any stop you can always
+  reach every other stop moving forward or backward. `run-controller.ts` has no `speed`/`export`
+  control yet (`@openlogo/turtle` exposes `exportTurtleSvg`/`exportTurtlePng` and an animation
+  `stepsPerSecond` option, but studio does not wire either into a learner-facing action today), so
+  this module deliberately adds no focus stop for an action that does not exist — the same
+  "document the honest gap, never fake it" precedent #126/#228 set for `step()`/`stop()`.
 - **Semantic structure** — `REPL_LANDMARK_ROLES` declares each pane's container-level ARIA role +
-  label (editor≈`textbox`, run controls≈`toolbar` "Run controls", diagnostics≈`log` "Diagnostics"),
-  for a renderer to map onto real `role`/`aria-label` attributes.
+  label (editor≈`textbox`, run controls≈`toolbar` "Run controls", the Canvas≈`img` "Turtle canvas",
+  its non-visual state text≈`status` "Turtle state", diagnostics≈`log` "Diagnostics"), for a
+  renderer to map onto real `role`/`aria-label` attributes.
 - **Screen-reader announcements** — `createA11yAnnouncer(state)` subscribes to the shared #123
   store (never a copy) and emits an `Announcement` (`{ politeness, message }`) whenever
   `runStatus` or `diagnostics` changes: run-status transitions ("Run started."/"Run stopped."/
@@ -177,8 +183,17 @@ attributes 1:1 — there is no DOM here to regress.
   `diagnostics.ts`. `getAnnouncements()` returns the full history; `subscribeAnnouncements(...)`
   notifies every listener with the same events, so multiple consumers never desync (the #123
   single-source-of-truth contract, once again).
-- No shell region/mount function is added for the announcer itself — it is a cross-cutting service
-  over the existing store, not a pane with its own visible content.
+- **Non-visual turtle state (#229)** — `createTurtleStateRegion(state)` is a single, always-current
+  `status`/`aria-live="polite"` text region over the shared store's `turtleState` slot (the same
+  one #218 paints from and #228 pushes into on every run tick/`step()`/`reset()`), rendered via
+  `@openlogo/turtle`'s published `describeTurtleState` — this module never re-derives
+  position/heading/pen wording itself. Unlike the announcer's growing log, `getText()` always
+  returns the *current* description (available immediately, even before any run), and
+  `subscribeText(listener)` notifies every listener with the new text whenever `turtleState`
+  changes — so the region reads in lockstep with the Canvas view as a program runs, and multiple
+  consumers never desync.
+- No shell region/mount function is added for the announcer or the turtle-state region — both are
+  cross-cutting services over the existing store, not panes with their own mount lifecycle.
 
 ## Turtle Canvas view (#218, driven live by Run/Stop/Reset/Step in #228)
 
