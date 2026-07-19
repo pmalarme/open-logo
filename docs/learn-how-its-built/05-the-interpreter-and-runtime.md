@@ -30,9 +30,11 @@ flowchart LR
 ## How the turtle finds out what to draw
 
 Every time the interpreter does a step that matters — moving, turning, changing the pen — the
-runtime writes down exactly what happened as one **event**, in order. This ordered list is called
-the **event stream** (or trace), and it's the *only* way the turtle knows what to draw. The turtle
-never looks at your code directly — it just plays back the event stream, one event at a time.
+runtime writes down exactly what happened as one **event**, in order — like a flight recorder or
+an old cassette tape, capturing each moment so it can be played back later. This ordered list is
+called the **event stream** (or trace), and it's the *only* way the turtle knows what to draw. The
+turtle never looks at your code directly — it just plays back the event stream, one event at a
+time.
 
 Run our square today and here's the real event stream OpenLogo produces (trimmed to the first
 lap around the loop):
@@ -49,7 +51,7 @@ lap around the loop):
 Notice the pattern: `forward 100` alone produces *two* events, not one — a `move` event (the
 turtle's position changed) and a separate `draw-segment` event (a line got drawn), because the
 pen could be up, in which case only `move` would fire and nothing would be drawn. Then `right 90`
-produces one `turn` event. The interpreter repeats this exact four-step dance (`instruction` →
+produces one `turn` event. The interpreter repeats this exact five-step dance (`instruction` →
 `move` → `draw-segment` → `instruction` → `turn`) four times for `repeat 4 [ … ]`, tracing a real
 square.
 
