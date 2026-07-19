@@ -1,0 +1,36 @@
+{
+  "description": "issue #208: `set_background \"reddish\"` is not one of the three accepted color forms, so it raises `ol-bad-color` (spec/error-model.md:122) instead of emitting a `background-change` event.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/color/set-background-bad-color",
+        "start": [1, 1],
+        "end": [1, 25]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-bad-color",
+      "source_span": {
+        "document": "turtle-rendering/color/set-background-bad-color",
+        "start": [1, 16],
+        "end": [1, 25]
+      },
+      "params": {
+        "operation": "set_background",
+        "value": "reddish"
+      },
+      "message": "set_background needs a color word, an [r g b] list, or a \"#rrggbb\" hex word, but got reddish.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

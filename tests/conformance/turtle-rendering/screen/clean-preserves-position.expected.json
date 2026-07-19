@@ -1,0 +1,78 @@
+{
+  "description": "issue #204: `clean` clears the drawing only - it emits a single `clear{mode:\"clean\"}` event and leaves the turtle's position and heading unchanged (spec/rendering.md's \"Clear operations\" table: `clean` clears drawing only, position/heading unchanged). Unlike `clear_screen`, no internal homing happens.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/screen/clean-preserves-position",
+        "start": [1, 1],
+        "end": [1, 11]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "move",
+      "source_span": {
+        "document": "turtle-rendering/screen/clean-preserves-position",
+        "start": [1, 1],
+        "end": [1, 11]
+      },
+      "payload": { "from": [0, 0], "to": [0, 30], "heading": 0 }
+    },
+    {
+      "seq": 2,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "turtle-rendering/screen/clean-preserves-position",
+        "start": [1, 1],
+        "end": [1, 11]
+      },
+      "payload": { "from": [0, 0], "to": [0, 30], "color": "black", "width": 1 }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/screen/clean-preserves-position",
+        "start": [2, 1],
+        "end": [2, 9]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 4,
+      "kind": "turn",
+      "source_span": {
+        "document": "turtle-rendering/screen/clean-preserves-position",
+        "start": [2, 1],
+        "end": [2, 9]
+      },
+      "payload": { "from": 0, "to": 90 }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/screen/clean-preserves-position",
+        "start": [3, 1],
+        "end": [3, 6]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 6,
+      "kind": "clear",
+      "source_span": {
+        "document": "turtle-rendering/screen/clean-preserves-position",
+        "start": [3, 1],
+        "end": [3, 6]
+      },
+      "payload": { "mode": "clean" }
+    }
+  ],
+  "diagnostics": []
+}

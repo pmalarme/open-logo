@@ -1,0 +1,32 @@
+{
+  "description": "issue #208: `set_background \"green\"` validates the color and emits a `background-change` event carrying only the new color ({color: \"green\"}) - unlike `color-change`, there is no `from` field, since the background is a scene property rather than turtle state (spec/rendering.md's \"Background\" section), and no turtle state is touched at all.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/color/set-background-basic",
+        "start": [1, 1],
+        "end": [1, 23]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "background-change",
+      "source_span": {
+        "document": "turtle-rendering/color/set-background-basic",
+        "start": [1, 1],
+        "end": [1, 23]
+      },
+      "payload": {
+        "color": "green"
+      }
+    }
+  ],
+  "diagnostics": []
+}

@@ -1,0 +1,33 @@
+{
+  "description": "issue #208: `set_color \"#3366FF\"` accepts a `#rrggbb` hex word (spec/commands.md's \"Colors\" section) and normalizes it to lowercase in the emitted `color-change` event's `to` field.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/color/set-color-hex",
+        "start": [1, 1],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "color-change",
+      "source_span": {
+        "document": "turtle-rendering/color/set-color-hex",
+        "start": [1, 1],
+        "end": [1, 20]
+      },
+      "payload": {
+        "from": "black",
+        "to": "#3366ff"
+      }
+    }
+  ],
+  "diagnostics": []
+}

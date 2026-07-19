@@ -1,0 +1,19 @@
+{
+  "description": "issue #136 / spec/tooling.md:198-205's flagship worked example: with turtle-rendering active, forward is a visible Turtle & Rendering primitive, so the typo `fowad` raises ol-unknown-command with a did-you-mean suggesting it — reproducing the spec's exact finding shape (name: 'fowad', suggestion: 'forward'). Parenthesized form: an unrecognized bare callee's arity falls back to 0 in the reader, so a bare `fowad 100` would leave `100` as a stray second statement on the line (a parse-stage ol-bad-token, orthogonal to this rule) — `(fowad 100)` groups the argument explicitly, isolating the semantic finding.",
+  "profiles": ["core-language", "turtle-rendering"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "turtle-rendering/check/fowad-suggests-forward",
+        "start": [1, 2],
+        "end": [1, 7]
+      },
+      "params": { "name": "fowad", "suggestion": "forward" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

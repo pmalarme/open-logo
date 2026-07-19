@@ -22,6 +22,13 @@
  * - `notice` — a non-fatal, learner-visible status (e.g. "your work could not be saved"), set by
  *   #128 persistence when a storage operation degrades gracefully instead of crashing or silently
  *   losing data. `null` means there is nothing to show.
+ * - `turtleState`/`turtleScene` — the turtle avatar state and retained drawing scene the Canvas
+ *   view (#218) paints, reusing `@openlogo/turtle`'s own {@link TurtleState}/{@link TurtleScene}
+ *   types verbatim (never a studio-invented fork). Both start at `@openlogo/turtle`'s program-start
+ *   defaults (`INITIAL_TURTLE_STATE`/`INITIAL_TURTLE_SCENE`) and are replaced wholesale by
+ *   `@openlogo/turtle`'s own reducers — studio never re-derives turtle coordinates or scene items
+ *   itself. This slice (#218) only composes the *initial* defaults; wiring a run's trace-event
+ *   stream through `reduceTurtleState`/`reduceTurtleScene` to keep them live is #228.
  *
  * ## Update contract
  * - State changes **only** through the store's `set*` methods below; the object returned by
@@ -34,6 +41,8 @@
  */
 
 import type { Diagnostic, Position } from "@openlogo/core";
+import type { TurtleScene, TurtleState } from "@openlogo/turtle";
+import { INITIAL_TURTLE_SCENE, INITIAL_TURTLE_STATE } from "@openlogo/turtle";
 
 /** The learner's run state, driven by the run controller (#126) over the runtime budget. */
 export type RunStatus = "idle" | "running" | "stopped";
@@ -68,6 +77,8 @@ export interface StudioState {
   readonly output: readonly string[];
   readonly lesson: LessonContext;
   readonly notice: Notice | null;
+  readonly turtleState: TurtleState;
+  readonly turtleScene: TurtleScene;
 }
 
 /** A subscriber notified with the new snapshot after every state change. */
@@ -99,6 +110,10 @@ export interface StudioStateStore {
   setLesson(lesson: LessonContext): void;
   /** Replace the visible notice; pass `null` to clear it. */
   setNotice(notice: Notice | null): void;
+  /** Replace the turtle avatar state the Canvas view (#218) paints. */
+  setTurtleState(turtleState: TurtleState): void;
+  /** Replace the retained turtle drawing scene the Canvas view (#218) paints. */
+  setTurtleScene(turtleScene: TurtleScene): void;
 }
 
 const INITIAL_POSITION: Position = [1, 1];
@@ -120,6 +135,8 @@ export function createStudioState(
     output: initial?.output ?? [],
     lesson: initial?.lesson ?? INITIAL_LESSON,
     notice: initial?.notice ?? null,
+    turtleState: initial?.turtleState ?? INITIAL_TURTLE_STATE,
+    turtleScene: initial?.turtleScene ?? INITIAL_TURTLE_SCENE,
   };
 
   const listeners = new Set<StudioStateListener>();
@@ -159,6 +176,12 @@ export function createStudioState(
     },
     setNotice(notice) {
       commit({ notice });
+    },
+    setTurtleState(turtleState) {
+      commit({ turtleState });
+    },
+    setTurtleScene(turtleScene) {
+      commit({ turtleScene });
     },
   };
 }

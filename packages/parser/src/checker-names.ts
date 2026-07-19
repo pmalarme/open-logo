@@ -8,25 +8,58 @@
  * conformance profile set when deciding which primitives and profile block-heads are
  * available"), never a hardcoded "every optional profile active".
  *
- * Only Core Language contributes a name table today; optional-profile primitive/block-head
- * tables (Turtle & Rendering, Data, …) do not exist yet in this package, so this function is
- * intentionally written to *gate* on `profiles` rather than to assume Core is always present —
- * see the module's own unit test for the gating shape. A future profile slice registers its own
- * name table here, following the same `if (active.has(<profile>)) { … }` shape.
+ * Core Language and Turtle & Rendering each contribute a name table today (issue #136 added the
+ * latter, sourced from `signatures.ts`'s `TURTLE_PRIMITIVE_ARITY` — the profile's single
+ * source-of-truth table — so this module never keeps a second, duplicate turtle name list); later
+ * optional-profile primitive/block-head tables (Data, Geometry, …) do not exist yet in this
+ * package, so this function is intentionally written to *gate* on `profiles` rather than to
+ * assume any profile is always present — see the module's own unit test for the gating shape. A
+ * future profile slice registers its own name table here, following the same
+ * `if (active.has(<profile>)) { … }` shape.
+ *
+ * {@link isOptionalProfileName} is this module's companion export for `ol-unknown-command`'s
+ * did-you-mean tie-break (`spec/error-model.md:145-146`: "prefer Core words over optional-profile
+ * words" on a distance tie) — now that an optional profile (Turtle & Rendering) contributes real
+ * candidates, a tie between a Core name and an optional-profile name is reachable and MUST resolve
+ * in Core's favor, not by lexicographic order alone.
  */
 
 import type { CheckProfile } from "./check.js";
 import type { ProgramNode } from "./ast.js";
 import { walk } from "./ast.js";
 import { OL_RESERVED_WORDS } from "./reserved.js";
-import { corePrimitiveNames } from "./signatures.js";
+import { corePrimitiveNames, turtlePrimitiveNames } from "./signatures.js";
+
+/**
+ * Every canonical lowercase name contributed by an optional (non-Core) conformance profile's
+ * primitive table — currently just Turtle & Rendering's. Computed once as a frozen union so
+ * {@link isOptionalProfileName} stays a pure, allocation-free lookup; a future optional-profile
+ * table (Data, Geometry, …) adds its `...someProfileNames()` spread here alongside Turtle &
+ * Rendering's, exactly mirroring how {@link collectVisibleNames} itself is extended one profile
+ * at a time.
+ */
+const OPTIONAL_PROFILE_NAMES: ReadonlySet<string> = new Set(
+  turtlePrimitiveNames(),
+);
+
+/**
+ * Whether `name` (already lowercased) belongs to an optional conformance profile's primitive
+ * table rather than Core Language. Used only for the did-you-mean tie-break — it answers "is this
+ * candidate an optional-profile word?" independent of which profiles are currently active, since
+ * a name only reaches the did-you-mean candidate set at all when its owning profile is active
+ * (see {@link collectVisibleNames}).
+ */
+export function isOptionalProfileName(name: string): boolean {
+  return OPTIONAL_PROFILE_NAMES.has(name);
+}
 
 /**
  * Every name visible to a call site in `program` under the active `profiles`, lowercased to
  * OpenLogo's canonical spelling (identifiers are case-insensitive). Includes Core primitives and
- * reserved structural words only when `"core-language"` is active, plus every procedure declared
- * anywhere in `program` (declaration order and position do not matter — OpenLogo procedures are
- * available program-wide, not just after their `define`).
+ * reserved structural words only when `"core-language"` is active, Turtle & Rendering primitives
+ * only when `"turtle-rendering"` is active, plus every procedure declared anywhere in `program`
+ * (declaration order and position do not matter — OpenLogo procedures are available program-wide,
+ * not just after their `define`).
  */
 export function collectVisibleNames(
   program: ProgramNode,
@@ -44,9 +77,14 @@ export function collectVisibleNames(
     }
   }
 
-  // Future optional-profile primitive/block-head tables register here, gated the same way,
-  // e.g. `if (active.has("turtle-rendering")) { for (const name of turtlePrimitiveNames()) ... }`
-  // once that table exists (see issue #117's follow-up issue).
+  if (active.has("turtle-rendering")) {
+    for (const name of turtlePrimitiveNames()) {
+      names.add(name);
+    }
+  }
+
+  // Future optional-profile primitive/block-head tables (Data, Geometry, …) register here,
+  // gated the same way, once their tables exist (see issue #117's follow-up issue).
 
   walk(program, (node) => {
     if (node.kind === "ProcedureDef") {

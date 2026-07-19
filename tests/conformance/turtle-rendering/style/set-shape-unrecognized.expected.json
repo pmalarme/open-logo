@@ -1,0 +1,38 @@
+{
+  "description": "issue #210: `set_shape \"not-a-shape\"` - a word that names no recognized shape also raises `ol-type`, but with `expected: \"shape\"` instead of `expected: \"word\"`, since `spec/commands.md`'s `set_shape` entry specifies no dedicated code and the shape set is open/implementation-defined (unlike `set_color`'s closed palette) - a diagnostic identity distinct from the non-word case.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/style/set-shape-unrecognized",
+        "start": [1, 1],
+        "end": [1, 24]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "turtle-rendering/style/set-shape-unrecognized",
+        "start": [1, 11],
+        "end": [1, 24]
+      },
+      "params": {
+        "expected": "shape",
+        "actual": "word",
+        "value": "not-a-shape",
+        "operation": "set_shape"
+      },
+      "message": "i don't know the shape \"not-a-shape\". try a shape like \"turtle\", \"triangle\", \"arrow\", or \"circle\".",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

@@ -1,0 +1,101 @@
+{
+  "description": "issue #210: `forward 10` then `right 90` then `stamp` emits a `stamp` event snapshotting the turtle's position ([0, 10]), heading (90), shape (\"turtle\"), and pen color (\"black\") - no turtle-state change (spec/rendering.md's \"Turtle avatar and shapes\" section).",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/style/stamp-basic",
+        "start": [1, 1],
+        "end": [1, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "move",
+      "source_span": {
+        "document": "turtle-rendering/style/stamp-basic",
+        "start": [1, 1],
+        "end": [1, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "turtle-rendering/style/stamp-basic",
+        "start": [1, 1],
+        "end": [1, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/style/stamp-basic",
+        "start": [2, 1],
+        "end": [2, 9]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "turn",
+      "source_span": {
+        "document": "turtle-rendering/style/stamp-basic",
+        "start": [2, 1],
+        "end": [2, 9]
+      },
+      "payload": {
+        "from": 0,
+        "to": 90
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/style/stamp-basic",
+        "start": [3, 1],
+        "end": [3, 6]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "stamp",
+      "source_span": {
+        "document": "turtle-rendering/style/stamp-basic",
+        "start": [3, 1],
+        "end": [3, 6]
+      },
+      "payload": {
+        "position": [0, 10],
+        "heading": 90,
+        "shape": "turtle",
+        "color": "black"
+      }
+    }
+  ],
+  "diagnostics": []
+}

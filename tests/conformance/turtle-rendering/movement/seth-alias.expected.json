@@ -1,0 +1,28 @@
+{
+  "description": "issue #202: `seth` is a Turtle & Rendering-profile alias of `set_heading` (spec/commands.md:1296) -- not Heritage, same rationale as `setxy`. `seth 450` behaves identically to `set_heading 450`, including normalization into [0,360) (450 -> 90).",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/movement/seth-alias",
+        "start": [1, 1],
+        "end": [1, 9]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "turn",
+      "source_span": {
+        "document": "turtle-rendering/movement/seth-alias",
+        "start": [1, 1],
+        "end": [1, 9]
+      },
+      "payload": { "from": 0, "to": 90 }
+    }
+  ],
+  "diagnostics": []
+}

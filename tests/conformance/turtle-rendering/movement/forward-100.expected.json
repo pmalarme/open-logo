@@ -1,0 +1,43 @@
+{
+  "description": "issue #200: `forward 100` moves the turtle from the default `(0,0)` heading-`0` (pointing up) origin to `(0,100)`, emitting a `move` event (position + heading) followed by a `draw-segment` event carrying the default pen state (color \"black\", width 1) — spec/execution-model.md's turtle-command trace-event stream and spec/rendering.md's \"Line segments\" section.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/movement/forward-100",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "move",
+      "source_span": {
+        "document": "turtle-rendering/movement/forward-100",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": { "from": [0, 0], "to": [0, 100], "heading": 0 }
+    },
+    {
+      "seq": 2,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "turtle-rendering/movement/forward-100",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 100],
+        "color": "black",
+        "width": 1
+      }
+    }
+  ],
+  "diagnostics": []
+}

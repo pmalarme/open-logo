@@ -1,0 +1,30 @@
+{
+  "description": "issue #201: a `right` angle that overflows to `Infinity` (via arithmetic overflow, e.g. `power 10 1000`) raises `ol-range` instead of corrupting the turtle's heading (`Infinity % 360` is `NaN`) — spec/execution-model.md:517's prohibition on learner-facing `NaN`/`Infinity`, same pattern as issue #200's `nonFiniteDistance` guard. The diagnostic's `value` param is JSON-safe (a string, not a raw `Infinity` number).",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/movement/right-non-finite-angle",
+        "start": [1, 1],
+        "end": [1, 20]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-range",
+      "source_span": {
+        "document": "turtle-rendering/movement/right-non-finite-angle",
+        "start": [1, 7],
+        "end": [1, 20]
+      },
+      "params": { "operation": "right", "value": "Infinity" },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

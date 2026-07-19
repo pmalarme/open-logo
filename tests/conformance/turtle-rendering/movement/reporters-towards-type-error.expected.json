@@ -1,0 +1,38 @@
+{
+  "description": "issue #203: a non-number `towards` argument raises `ol-type` instead of reporting a heading.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/movement/reporters-towards-type-error",
+        "start": [1, 1],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "turtle-rendering/movement/reporters-towards-type-error",
+        "start": [1, 15],
+        "end": [1, 18]
+      },
+      "params": {
+        "expected": "number",
+        "actual": "word",
+        "value": "a",
+        "operation": "towards"
+      },
+      "message": "towards needs a number, but got a word.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

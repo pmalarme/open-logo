@@ -44,6 +44,11 @@
  * Issue #101 adds the Core list reporters' diagnostics: `ol-type` for a wrong-typed
  * `first`/`last`/`butfirst`/`butlast`/`count`/`fput`/`lput` argument, and `ol-range` for
  * `first`/`last`/`butfirst`/`butlast` given an empty word or list (`spec/error-model.md:100`).
+ * Issue #208 adds `ol-bad-color` for a `set_color`/`set_background` (or `setcolor`/`setbg`)
+ * argument that is not one of the three accepted color forms (`spec/error-model.md:122`).
+ * Issue #209 adds a reuse of `ol-range` for a `set_width`/`setwidth` argument that is a number but
+ * not positive and finite (`spec/commands.md`'s `set_width` entry) — the ordinary non-number case
+ * reuses `requireNumber`'s existing `ol-type`, so no new type-error builder is needed here.
  * Mirrors the parser's `errors.ts` pattern: every finding is a stable code from the
  * `@openlogo/core` registry with structured `params` (the diagnostic identity) plus warm,
  * lowercase learner prose derived from them — prose is presentation only.
@@ -101,6 +106,12 @@ export interface PlaceTypeErrorParams {
   readonly operation: string;
 }
 
+/** Params for an `ol-type` raised by `set_shape` given a word that names no recognized shape. */
+export interface ShapeTypeErrorParams {
+  readonly value: string;
+  readonly operation: string;
+}
+
 /** Params for an `ol-range` raised by an out-of-bounds 1-based list index. */
 export interface IndexRangeParams {
   readonly index: OLValue;
@@ -131,6 +142,64 @@ export interface WholeNumberTypeErrorParams {
 export interface NegativeCountParams {
   readonly operation: string;
   readonly value: number;
+}
+
+/**
+ * Params for an `ol-range` raised by a `forward`/`back` distance that is not finite
+ * (`Infinity`/`-Infinity`, reachable via arithmetic overflow — e.g. `power 10 1000` —
+ * `spec/execution-model.md:517` — "OpenLogo never exposes NaN or Infinity as learner-facing
+ * results"). Movement math (`x + d·sin h`) would otherwise silently corrupt the turtle's
+ * position with a non-finite or `NaN` coordinate (`0 · Infinity` is `NaN` in IEEE 754) instead of
+ * raising a diagnostic.
+ */
+export interface NonFiniteDistanceParams {
+  readonly operation: "forward" | "back";
+  /**
+   * `Infinity`/`-Infinity`/`NaN` rendered as its `String(value)` spelling (e.g. `"Infinity"`).
+   * `params` is a diagnostic-identity payload that MUST survive a JSON round-trip
+   * (`spec/error-model.md:34` — "used for identity, repair, telemetry, and localization"), but
+   * `JSON.stringify` silently turns a non-finite `number` into `null`; a string keeps the value
+   * legible and stable across API and serialized consumers.
+   */
+  readonly value: string;
+}
+
+/**
+ * Params for an `ol-range` raised by a `left`/`right` turn angle that is not finite. Sibling of
+ * {@link NonFiniteDistanceParams} (same rationale, same `String(value)` JSON-safety reasoning) —
+ * kept as a separate interface/builder rather than generalizing the two into one, so this slice
+ * does not have to re-touch #200's already-reviewed `forward`/`back` diagnostic shape.
+ */
+export interface NonFiniteAngleParams {
+  readonly operation: "left" | "right";
+  readonly value: string;
+}
+
+/**
+ * Params for an `ol-range` raised by a `set_heading` angle that is not finite. Sibling of
+ * {@link NonFiniteAngleParams} (same `Infinity % 360 === NaN` rationale — `set_heading` normalizes
+ * its argument to `[0,360)` the same way `left`/`right` do), kept as its own interface/builder
+ * rather than widening `NonFiniteAngleParams.operation`'s union, so this slice does not have to
+ * re-touch #201's already-reviewed `left`/`right` diagnostic shape.
+ */
+export interface NonFiniteHeadingParams {
+  readonly operation: "set_heading" | "seth";
+  readonly value: string;
+}
+
+/**
+ * Params for an `ol-range` raised by a `set_xy` `x`/`y` argument that is not finite
+ * (`Infinity`/`-Infinity`, reachable via arithmetic overflow). Unlike {@link NonFiniteDistanceParams}
+ * (where a finite distance can still corrupt movement math via `0 · Infinity === NaN`), a
+ * non-finite `set_xy` coordinate is set directly onto the turtle's position with no arithmetic in
+ * between — but `spec/execution-model.md:517` ("OpenLogo never exposes NaN or Infinity as
+ * learner-facing results") still forbids handing the turtle an infinite position outright, so the
+ * guard is the same. `axis` names which argument was non-finite for the diagnostic's `params`.
+ */
+export interface NonFiniteCoordinateParams {
+  readonly operation: "set_xy" | "setxy";
+  readonly axis: "x" | "y";
+  readonly value: string;
 }
 
 /**
@@ -236,6 +305,36 @@ export interface ListReporterTypeErrorParams {
 export interface EmptyInputRangeParams {
   readonly operation: "first" | "last" | "butfirst" | "butlast";
   readonly value: OLValue;
+}
+
+/**
+ * Params for an `ol-bad-color` raised by `set_color`/`set_background` (and their `setcolor`/
+ * `setbg` aliases, issue #208) when the argument is not one of the three accepted color forms
+ * (`spec/error-model.md:122`, `spec/commands.md`'s "Colors" section). `value` is the offending
+ * argument itself (matching {@link EmptyInputRangeParams}'s convention of carrying the offending
+ * value rather than just its type name); `operation` names the invoked alias for identity, same
+ * convention as {@link ListReporterTypeErrorParams}.
+ */
+export interface BadColorParams {
+  readonly value: OLValue;
+  readonly operation: "set_color" | "setcolor" | "set_background" | "setbg";
+}
+
+/**
+ * Params for an `ol-range` raised by `set_width`/`setwidth` (issue #209) when the argument is a
+ * number that is not a positive finite value — `spec/commands.md`'s `set_width` entry: "The width
+ * MUST be a positive number." `0`/negative widths fail that requirement directly; `Infinity`
+ * technically satisfies "positive" but would hand `@openlogo/turtle`'s reducer/renderer an
+ * infinite stroke width for every subsequent `draw-segment` (`spec/execution-model.md:517` —
+ * "OpenLogo never exposes NaN or Infinity as learner-facing results"), so it is folded into the
+ * same `ol-range` guard rather than treated as valid. Only reached once {@link requireNumber} has
+ * already confirmed the argument is a number at all (a non-number raises `ol-type` first, per
+ * {@link executeTurtleWidthCall}). `value` is rendered as `String(value)` for the same JSON-safety
+ * reason as {@link NonFiniteDistanceParams}.
+ */
+export interface NonPositiveWidthParams {
+  readonly operation: "set_width" | "setwidth";
+  readonly value: string;
 }
 
 /** Runtime-stage diagnostics, one builder per `ol-*` code the evaluator can raise. */
@@ -407,6 +506,81 @@ export const runtimeDiag = {
       source_span,
       { ...params },
       `${params.operation} needs a count of 0 or greater, but got ${params.value}.`,
+    );
+  },
+
+  /**
+   * `ol-range`: a `forward`/`back` distance is `Infinity`/`-Infinity` (reachable via arithmetic
+   * overflow, e.g. `forward power 10 1000` — `spec/execution-model.md:517`). Only reached once
+   * {@link requireNumber} has already confirmed the value is a number; a finite `distance` never
+   * reaches this check.
+   */
+  nonFiniteDistance(
+    source_span: SourceSpan,
+    params: NonFiniteDistanceParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-range",
+      source_span,
+      { ...params },
+      `${params.operation} needs a finite distance, but got ${params.value}.`,
+    );
+  },
+
+  /**
+   * `ol-range`: a `left`/`right` turn angle is `Infinity`/`-Infinity` (reachable via arithmetic
+   * overflow, e.g. `right power 10 1000` — `spec/execution-model.md:517`, same rationale as
+   * {@link nonFiniteDistance}: `Infinity % 360` is `NaN`, which would otherwise corrupt the
+   * turtle's heading instead of raising a diagnostic). Only reached once {@link requireNumber} has
+   * already confirmed the value is a number; a finite `angle` never reaches this check.
+   */
+  nonFiniteAngle(
+    source_span: SourceSpan,
+    params: NonFiniteAngleParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-range",
+      source_span,
+      { ...params },
+      `${params.operation} needs a finite angle, but got ${params.value}.`,
+    );
+  },
+
+  /**
+   * `ol-range`: a `set_heading` angle is `Infinity`/`-Infinity` (reachable via arithmetic
+   * overflow, e.g. `set_heading power 10 1000` — `spec/execution-model.md:517`, same rationale as
+   * {@link nonFiniteAngle}: `Infinity % 360` is `NaN`, which would otherwise corrupt the turtle's
+   * heading instead of raising a diagnostic). Only reached once {@link requireNumber} has already
+   * confirmed the value is a number; a finite `angle` never reaches this check.
+   */
+  nonFiniteHeading(
+    source_span: SourceSpan,
+    params: NonFiniteHeadingParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-range",
+      source_span,
+      { ...params },
+      `${params.operation} needs a finite angle, but got ${params.value}.`,
+    );
+  },
+
+  /**
+   * `ol-range`: a `set_xy` `x`/`y` argument is `Infinity`/`-Infinity` (reachable via arithmetic
+   * overflow, e.g. `set_xy power 10 1000 0`). Unlike {@link nonFiniteDistance}, no arithmetic
+   * turns this into `NaN` — the coordinate is set directly — but `spec/execution-model.md:517`
+   * still forbids an infinite learner-facing position. Only reached once {@link requireNumber}
+   * has already confirmed the value is a number; a finite coordinate never reaches this check.
+   */
+  nonFiniteCoordinate(
+    source_span: SourceSpan,
+    params: NonFiniteCoordinateParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-range",
+      source_span,
+      { ...params },
+      `${params.operation} needs a finite ${params.axis}, but got ${params.value}.`,
     );
   },
 
@@ -744,6 +918,65 @@ export const runtimeDiag = {
       source_span,
       { ...params },
       `${params.operation} needs a non-empty word or list, but got an empty one.`,
+    );
+  },
+
+  /**
+   * `ol-bad-color` (issue #208) — `set_color`/`set_background`'s argument is not one of the three
+   * accepted color forms (`spec/error-model.md:122`): an unknown color word, an `[r g b]` list of
+   * the wrong length or with an out-of-range component, or a malformed hex word. See
+   * {@link BadColorParams}.
+   */
+  badColor(source_span: SourceSpan, params: BadColorParams): Diagnostic {
+    return runtimeError(
+      "ol-bad-color",
+      source_span,
+      { ...params },
+      `${params.operation} needs a color word, an [r g b] list, or a "#rrggbb" hex word, but got ${params.value}.`,
+    );
+  },
+
+  /**
+   * `ol-range` (issue #209) — `set_width`/`setwidth`'s argument is a number but not positive and
+   * finite (`spec/commands.md`'s `set_width` entry: "The width MUST be a positive number."). See
+   * {@link NonPositiveWidthParams}.
+   */
+  nonPositiveWidth(
+    source_span: SourceSpan,
+    params: NonPositiveWidthParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-range",
+      source_span,
+      { ...params },
+      `${params.operation} needs a positive width, but got ${params.value}.`,
+    );
+  },
+
+  /**
+   * `ol-type` (issue #210) — `set_shape`'s argument is a word, but names no recognized shape
+   * (`packages/runtime/src/shape.ts`'s `isRecognizedShape`). `spec/commands.md`'s `set_shape`
+   * entry defines no dedicated code ("Possible errors: none specified in C3 beyond general type
+   * and arity diagnostics") because the shape set is open/implementation-defined
+   * (`spec/rendering.md`'s "Turtle avatar and shapes" section), unlike `set_color`'s closed
+   * palette — so this stays `ol-type` with `expected: "shape"`, a diagnostic identity distinct
+   * from a non-word argument's `expected: "word"` (`error-model.md` treats `params` as part of a
+   * diagnostic's identity). See {@link ShapeTypeErrorParams}.
+   */
+  unknownShape(
+    source_span: SourceSpan,
+    params: ShapeTypeErrorParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-type",
+      source_span,
+      {
+        expected: "shape",
+        actual: "word",
+        value: params.value,
+        operation: params.operation,
+      },
+      `i don't know the shape "${params.value}". try a shape like "turtle", "triangle", "arrow", or "circle".`,
     );
   },
 } as const;

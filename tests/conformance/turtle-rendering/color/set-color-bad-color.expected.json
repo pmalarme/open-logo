@@ -1,0 +1,36 @@
+{
+  "description": "issue #208: `set_color \"reddish\"` is not one of the three accepted color forms (an unknown palette word), so it raises `ol-bad-color` (spec/error-model.md:122) instead of emitting a `color-change` event.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/color/set-color-bad-color",
+        "start": [1, 1],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-bad-color",
+      "source_span": {
+        "document": "turtle-rendering/color/set-color-bad-color",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "params": {
+        "operation": "set_color",
+        "value": "reddish"
+      },
+      "message": "set_color needs a color word, an [r g b] list, or a \"#rrggbb\" hex word, but got reddish.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

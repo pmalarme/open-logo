@@ -1,0 +1,35 @@
+{
+  "description": "issue #202: a non-number `set_xy` x argument raises `ol-type` (expected concept \"number\") instead of moving the turtle.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/movement/set-xy-type-error",
+        "start": [1, 1],
+        "end": [1, 13]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "turtle-rendering/movement/set-xy-type-error",
+        "start": [1, 8],
+        "end": [1, 11]
+      },
+      "params": {
+        "expected": "number",
+        "actual": "word",
+        "value": "a",
+        "operation": "set_xy"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

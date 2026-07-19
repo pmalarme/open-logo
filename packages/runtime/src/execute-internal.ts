@@ -21,13 +21,26 @@
  */
 
 import type {
+  BackgroundChangePayload,
+  ClearPayload,
+  ColorChangePayload,
   Diagnostic,
+  DrawSegmentPayload,
+  FillPayload,
+  MovePayload,
   OLValue,
+  PenChangePayload,
+  Point,
   PrintPayload,
   ProcedureEnterPayload,
   ProcedureExitPayload,
   ReturnPayload,
+  ShapeChangePayload,
   SourceSpan,
+  StampPayload,
+  TurnPayload,
+  VisibilityChangePayload,
+  WidthChangePayload,
 } from "@openlogo/core";
 import { typeNameOf } from "@openlogo/core";
 import type {
@@ -39,9 +52,12 @@ import type {
   StatementNode,
 } from "@openlogo/parser";
 import { parse, walk } from "@openlogo/parser";
+import { normalizeColor } from "./color.js";
+import { isRecognizedShape, normalizeShape } from "./shape.js";
 import {
   bindElement,
   checkExecutionLimits,
+  createDefaultTurtleState,
   evaluate,
   executeAssign,
   findDuplicateBinderName,
@@ -61,6 +77,7 @@ import type {
   ExecuteResult,
   InstructionPayload,
 } from "./index.js";
+import { normalizeHeading } from "./turtle-math.js";
 
 /**
  * Is `statement` a call to `print` — the single-value `print value` form or the parenthesized
@@ -78,6 +95,1302 @@ function isPrintCall(
     (statement.kind === "Call" || statement.kind === "ParenCall") &&
     statement.callee.name.toLowerCase() === "print"
   );
+}
+
+/**
+ * Is `statement` a call to `forward`/`back` (issue #200, Core Turtle movement — the Heritage
+ * `fd`/`bk` aliases are a separate M5 slice)? Accepts both the plain infix `Call` form
+ * (`forward 100`) and the explicit-parentheses `ParenCall` form (`(forward 100)`). A plain
+ * `boolean` — not a `statement is CallNode | ParenCallNode` type predicate — matching
+ * {@link isProcedureCallStatement}'s convention rather than {@link isPrintCall}'s: `execute-
+ * Statements` already narrowed `statement` away from `CallNode | ParenCallNode` entirely once
+ * `isPrintCall`'s (unsound, since it covers only `print`) type predicate's negative branch was
+ * taken above, so a second full type-predicate guard over the same node kinds would narrow to
+ * `never` here instead. The call site casts back to `CallNode | ParenCallNode` explicitly, same
+ * as {@link isProcedureCallStatement}'s caller does.
+ */
+function isTurtleMoveCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  const name = statement.callee.name.toLowerCase();
+  return name === "forward" || name === "back";
+}
+
+/**
+ * Move the turtle `distance` units along its current heading and emit the `move` effect-event
+ * `spec/execution-model.md:592-593` requires, reporting the position change and heading. A
+ * `draw-segment` reporting the same endpoints plus the pen color/width active at the moment the
+ * segment is created (`spec/rendering.md`'s "Line segments" section) follows it **only while the
+ * pen is down** (`env.turtle.penDown`) — `spec/rendering.md`'s "Line segments" section: a segment
+ * is drawn only while the pen is down; while up, the turtle still moves (and still emits `move`)
+ * but leaves no trail (issue #206, `pen_up`/`pen_down`). `distance` is negative for `back`
+ * (`back n` == `forward -n`, `spec/commands.md:1215`), positive for `forward`.
+ *
+ * Movement math is `spec/execution-model.md:545-546`'s `(x + d·sin h, y + d·cos h)`: heading `0`
+ * points up (`+y`), and `right` turns clockwise, so increasing heading rotates the direction of
+ * travel clockwise from up — exactly what `Math.sin`/`Math.cos` of a heading measured clockwise
+ * from the `+y` axis produce once converted from degrees to radians.
+ */
+function moveTurtle(
+  env: Environment,
+  distance: number,
+  source_span: SourceSpan,
+): void {
+  const { turtle } = env;
+  const heading = turtle.heading;
+  const radians = (heading * Math.PI) / 180;
+  const from: Point = [turtle.x, turtle.y];
+  const to: Point = [
+    turtle.x + distance * Math.sin(radians),
+    turtle.y + distance * Math.cos(radians),
+  ];
+  turtle.x = to[0];
+  turtle.y = to[1];
+  env.events.push({
+    seq: env.events.length,
+    kind: "move",
+    source_span,
+    payload: { from, to, heading } satisfies MovePayload,
+  });
+  if (turtle.penDown) {
+    env.events.push({
+      seq: env.events.length,
+      kind: "draw-segment",
+      source_span,
+      payload: {
+        from,
+        to,
+        color: turtle.color,
+        width: turtle.width,
+      } satisfies DrawSegmentPayload,
+    });
+  }
+}
+
+/**
+ * Validate and run a `forward`/`back` statement matched by {@link isTurtleMoveCall}: exactly one
+ * numeric argument (`ol-not-enough-inputs`/`ol-too-many-inputs`/`ol-type` otherwise, via
+ * {@link requireNumber}), negated for `back` (`back n` == `forward -n`), then delegated to
+ * {@link moveTurtle}. Returns an {@link ExecSignal} to halt on, or `undefined` for
+ * {@link executeStatements} to `continue` on success (including the "left un-evaluated" case for
+ * an unsupported argument expression, mirroring `print`'s handling).
+ *
+ * Deliberately a separate, non-inlined function rather than inline logic inside
+ * {@link executeStatements}: `executeStatements` recurses (through {@link runProcedureBody} /
+ * {@link runProcedure} / {@link evaluate}'s `callProcedure` callback) once per nested procedure
+ * call, so every local variable declared directly in its body adds to the native stack frame
+ * reserved on *every* recursive level — even for recursion that never touches `forward`/`back`.
+ * Keeping this branch's locals in their own (non-recursive) function keeps `executeStatements`'s
+ * own frame small, which is what lets `execution-budget.test.mjs`'s 1000-deep
+ * `recursionDepthLimit` override actually complete without hitting the real (V8) native stack
+ * limit first.
+ */
+function executeTurtleMoveCall(
+  moveCall: CallNode | ParenCallNode,
+  env: Environment,
+): ExecSignal | undefined {
+  const callableName = moveCall.callee.name;
+  if (moveCall.args.length !== 1) {
+    return halt(
+      moveCall.args.length < 1
+        ? runtimeDiag.notEnoughInputs(
+            moveCall.callee.source_span,
+            callableName,
+            1,
+            moveCall.args.length,
+          )
+        : runtimeDiag.tooManyInputs(
+            moveCall.callee.source_span,
+            callableName,
+            1,
+            moveCall.args.length,
+          ),
+    );
+  }
+  const [arg] = moveCall.args as [ExpressionNode];
+  if (!isSupportedExpression(arg, env.procedures)) {
+    return undefined;
+  }
+  const argResult = evaluate(arg, env);
+  if (!argResult.ok) {
+    return halt(argResult.diagnostic);
+  }
+  const distance = requireNumber(
+    argResult.value,
+    arg.source_span,
+    callableName.toLowerCase(),
+  );
+  if (!distance.ok) {
+    return halt(distance.diagnostic);
+  }
+  if (!Number.isFinite(distance.value)) {
+    // `requireNumber` accepts `Infinity`/`-Infinity` (reachable via arithmetic overflow, e.g.
+    // `power 10 1000` — see `comparison-equality.test.mjs`), but `moveTurtle`'s `d·sin h`/`d·cos h`
+    // can turn that into `NaN` whenever `sin`/`cos` of the heading is exactly `0` (IEEE 754
+    // `0 * Infinity` is `NaN`), silently corrupting the emitted position instead of raising a
+    // diagnostic (`spec/execution-model.md:517` — "OpenLogo never exposes NaN or Infinity as
+    // learner-facing results").
+    return halt(
+      runtimeDiag.nonFiniteDistance(arg.source_span, {
+        operation: callableName.toLowerCase() as "forward" | "back",
+        value: String(distance.value),
+      }),
+    );
+  }
+  const signedDistance =
+    callableName.toLowerCase() === "back" ? -distance.value : distance.value;
+  moveTurtle(env, signedDistance, moveCall.source_span);
+  return undefined;
+}
+
+/**
+ * Is `statement` a call to `left`/`right` (issue #201, Core Turtle turning — the Heritage
+ * `lt`/`rt` aliases are a separate M5 slice)? Same shape/convention as {@link isTurtleMoveCall}:
+ * accepts both the plain infix `Call` form (`right 90`) and the explicit-parentheses `ParenCall`
+ * form (`(right 90)`), and is a plain `boolean` rather than a type predicate for the same
+ * type-narrowing reason documented on {@link isTurtleMoveCall}.
+ */
+function isTurtleTurnCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  const name = statement.callee.name.toLowerCase();
+  return name === "left" || name === "right";
+}
+
+/**
+ * Turn the turtle by `deltaDegrees` (positive turns clockwise, i.e. `right`; negative turns
+ * counter-clockwise, i.e. `left` — `spec/execution-model.md:537`) and emit the `turn` effect-event
+ * `spec/execution-model.md:594` requires (`{from, to}`, both headings in degrees). The new heading
+ * is normalized to `[0,360)` (`spec/execution-model.md:538`) — never left negative or `>= 360`.
+ *
+ * Turning has no `move`/`draw-segment` counterpart: it only rotates, never translates, so no
+ * position or drawing event follows it.
+ */
+function turnTurtle(
+  env: Environment,
+  deltaDegrees: number,
+  source_span: SourceSpan,
+): void {
+  const { turtle } = env;
+  const from = turtle.heading;
+  const to = normalizeHeading(from + deltaDegrees);
+  turtle.heading = to;
+  env.events.push({
+    seq: env.events.length,
+    kind: "turn",
+    source_span,
+    payload: { from, to } satisfies TurnPayload,
+  });
+}
+
+/**
+ * Validate and run a `left`/`right` statement matched by {@link isTurtleTurnCall}: exactly one
+ * numeric argument (`ol-not-enough-inputs`/`ol-too-many-inputs`/`ol-type` otherwise, via
+ * {@link requireNumber}), negated for `left` (turning counter-clockwise is a negative heading
+ * delta, since `right`/clockwise is positive — `spec/execution-model.md:537`), then delegated to
+ * {@link turnTurtle}. Returns an {@link ExecSignal} to halt on, or `undefined` for
+ * {@link executeStatements} to `continue` on success (including the "left un-evaluated" case for
+ * an unsupported argument expression, mirroring `forward`/`back`'s handling).
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeTurtleTurnCall(
+  turnCall: CallNode | ParenCallNode,
+  env: Environment,
+): ExecSignal | undefined {
+  const callableName = turnCall.callee.name;
+  if (turnCall.args.length !== 1) {
+    return halt(
+      turnCall.args.length < 1
+        ? runtimeDiag.notEnoughInputs(
+            turnCall.callee.source_span,
+            callableName,
+            1,
+            turnCall.args.length,
+          )
+        : runtimeDiag.tooManyInputs(
+            turnCall.callee.source_span,
+            callableName,
+            1,
+            turnCall.args.length,
+          ),
+    );
+  }
+  const [arg] = turnCall.args as [ExpressionNode];
+  if (!isSupportedExpression(arg, env.procedures)) {
+    return undefined;
+  }
+  const argResult = evaluate(arg, env);
+  if (!argResult.ok) {
+    return halt(argResult.diagnostic);
+  }
+  const angle = requireNumber(
+    argResult.value,
+    arg.source_span,
+    callableName.toLowerCase(),
+  );
+  if (!angle.ok) {
+    return halt(angle.diagnostic);
+  }
+  if (!Number.isFinite(angle.value)) {
+    // Same rationale as `executeTurtleMoveCall`'s non-finite-distance guard: `requireNumber`
+    // accepts `Infinity`/`-Infinity` (reachable via arithmetic overflow), but `Infinity % 360` is
+    // `NaN`, which would otherwise corrupt the turtle's heading instead of raising a diagnostic
+    // (`spec/execution-model.md:517`).
+    return halt(
+      runtimeDiag.nonFiniteAngle(arg.source_span, {
+        operation: callableName.toLowerCase() as "left" | "right",
+        value: String(angle.value),
+      }),
+    );
+  }
+  const signedAngle =
+    callableName.toLowerCase() === "left" ? -angle.value : angle.value;
+  turnTurtle(env, signedAngle, turnCall.source_span);
+  return undefined;
+}
+
+/**
+ * Is `statement` a call to `pen_up`/`pen_down` (issue #206, Core pen state — the Heritage `pu`/
+ * `pd` aliases are a separate M5 slice)? Same shape/convention as {@link isTurtleMoveCall}/
+ * {@link isTurtleTurnCall}: accepts both the plain infix `Call` form (`pen_up`) and the
+ * explicit-parentheses `ParenCall` form (`(pen_up)`), and is a plain `boolean` rather than a type
+ * predicate for the same type-narrowing reason documented on {@link isTurtleMoveCall}.
+ */
+function isTurtlePenCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  const name = statement.callee.name.toLowerCase();
+  return name === "pen_up" || name === "pen_down";
+}
+
+/**
+ * Set the turtle's pen state and emit the `pen-change` effect-event `spec/rendering.md`'s "Line
+ * segments" section requires (`{from, to}`, both `"up"`/`"down"`) — mirrors {@link turnTurtle}'s
+ * `{from, to}` shape. Always emits the event, even when the pen was already in the requested state
+ * (calling `pen_down` twice in a row is not an error, and the learner still gets a confirming
+ * event each time — the same "unconditional emit" choice {@link turnTurtle} makes).
+ *
+ * Setting has no `move`/`draw-segment` counterpart: it never moves or turns the turtle, so no
+ * position or heading event follows it. It is, however, the reason {@link moveTurtle}'s
+ * `draw-segment` is now conditional on `env.turtle.penDown`.
+ */
+function setPen(
+  env: Environment,
+  penDown: boolean,
+  source_span: SourceSpan,
+): void {
+  const { turtle } = env;
+  const from = turtle.penDown ? "down" : "up";
+  const to = penDown ? "down" : "up";
+  turtle.penDown = penDown;
+  env.events.push({
+    seq: env.events.length,
+    kind: "pen-change",
+    source_span,
+    payload: { from, to } satisfies PenChangePayload,
+  });
+}
+
+/**
+ * Validate and run a `pen_up`/`pen_down` statement matched by {@link isTurtlePenCall}: exactly
+ * zero arguments (`ol-too-many-inputs` otherwise — `pen_up`/`pen_down`'s registered arity is `0`,
+ * `packages/parser/src/signatures.ts`, so a call can never be parsed with fewer than zero
+ * arguments, only more via the parenthesized form, e.g. `(pen_up 1)`), then delegated to
+ * {@link setPen}. Returns an {@link ExecSignal} to halt on, or `undefined` for
+ * {@link executeStatements} to `continue` on success.
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeTurtlePenCall(
+  penCall: CallNode | ParenCallNode,
+  env: Environment,
+): ExecSignal | undefined {
+  const callableName = penCall.callee.name;
+  if (penCall.args.length !== 0) {
+    return halt(
+      runtimeDiag.tooManyInputs(
+        penCall.callee.source_span,
+        callableName,
+        0,
+        penCall.args.length,
+      ),
+    );
+  }
+  setPen(env, callableName.toLowerCase() === "pen_down", penCall.source_span);
+  return undefined;
+}
+
+/**
+ * Is `statement` a call to `show_turtle`/`hide_turtle` (issue #207, Core turtle-avatar
+ * visibility — the Heritage `st`/`ht` aliases are a separate M5 slice)? Same shape/convention as
+ * {@link isTurtlePenCall}.
+ */
+function isTurtleVisibilityCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  const name = statement.callee.name.toLowerCase();
+  return name === "show_turtle" || name === "hide_turtle";
+}
+
+/**
+ * Set the turtle's visibility and emit the `visibility-change` effect-event
+ * `spec/rendering.md`'s "Turtle avatar and shapes" section requires (`{from, to}`, both
+ * `boolean`) — mirrors {@link setPen}'s `{from, to}` shape. Always emits the event, even when the
+ * turtle was already in the requested visibility (calling `show_turtle` twice in a row is not an
+ * error, and the learner still gets a confirming event each time — the same "unconditional emit"
+ * choice {@link turnTurtle}/{@link setPen} make).
+ *
+ * Unlike {@link setPen}, visibility has no `move`/`draw-segment` interaction at all: a hidden
+ * turtle still moves, turns, and draws exactly as when visible (`spec/rendering.md`'s "Turtle
+ * avatar and shapes" section) — `visible` is purely a display flag for the renderer, never a
+ * gate `moveTurtle` checks.
+ */
+function setVisibility(
+  env: Environment,
+  visible: boolean,
+  source_span: SourceSpan,
+): void {
+  const { turtle } = env;
+  const from = turtle.visible;
+  turtle.visible = visible;
+  env.events.push({
+    seq: env.events.length,
+    kind: "visibility-change",
+    source_span,
+    payload: { from, to: visible } satisfies VisibilityChangePayload,
+  });
+}
+
+/**
+ * Validate and run a `show_turtle`/`hide_turtle` statement matched by
+ * {@link isTurtleVisibilityCall}: exactly zero arguments (`ol-too-many-inputs` otherwise —
+ * `show_turtle`/`hide_turtle`'s registered arity is `0`, `packages/parser/src/signatures.ts`, so a
+ * call can never be parsed with fewer than zero arguments, only more via the parenthesized form,
+ * e.g. `(show_turtle 1)`), then delegated to {@link setVisibility}. Returns an {@link ExecSignal}
+ * to halt on, or `undefined` for {@link executeStatements} to `continue` on success.
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeTurtleVisibilityCall(
+  visibilityCall: CallNode | ParenCallNode,
+  env: Environment,
+): ExecSignal | undefined {
+  const callableName = visibilityCall.callee.name;
+  if (visibilityCall.args.length !== 0) {
+    return halt(
+      runtimeDiag.tooManyInputs(
+        visibilityCall.callee.source_span,
+        callableName,
+        0,
+        visibilityCall.args.length,
+      ),
+    );
+  }
+  setVisibility(
+    env,
+    callableName.toLowerCase() === "show_turtle",
+    visibilityCall.source_span,
+  );
+  return undefined;
+}
+
+/**
+ * Is `statement` a call to `clear_screen`/`clean` (issue #204, Core drawing/turtle reset — the
+ * Heritage `cs` alias is a separate M5 slice, deliberately left unregistered so it still raises
+ * `ol-unknown-command` at this milestone). Same shape/convention as {@link isTurtleVisibilityCall}.
+ */
+function isTurtleClearCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  const name = statement.callee.name.toLowerCase();
+  return name === "clear_screen" || name === "clean";
+}
+
+/**
+ * Clear the drawing and, for `clear_screen` only, silently home the turtle's position and
+ * heading — emitting exactly one `clear` event (`spec/rendering.md`'s "Clear operations" table:
+ * `clean` clears drawing only, `clear_screen` clears drawing and homes position+heading; both
+ * leave pen state, color, width, visibility, and background unchanged).
+ *
+ * `clear_screen`'s homing is deliberately a *silent* internal state reset — no `move`/`turn`
+ * event fires alongside it. `@openlogo/turtle`'s scene/state reducers (issues #211/#213, already
+ * merged) fold a `clear{mode:"clear_screen"}` event into a position/heading reset themselves, so
+ * emitting `move`/`turn` here as well would double-home the reducer's turtle state. This mirrors
+ * how {@link setVisibility}/{@link setPen} emit only their own single event, not a compound one.
+ */
+function clearScreen(
+  env: Environment,
+  mode: "clear_screen" | "clean",
+  source_span: SourceSpan,
+): void {
+  const { turtle } = env;
+  if (mode === "clear_screen") {
+    turtle.x = 0;
+    turtle.y = 0;
+    turtle.heading = 0;
+  }
+  env.events.push({
+    seq: env.events.length,
+    kind: "clear",
+    source_span,
+    payload: { mode } satisfies ClearPayload,
+  });
+}
+
+/**
+ * Validate and run a `clear_screen`/`clean` statement matched by {@link isTurtleClearCall}:
+ * exactly zero arguments (`ol-too-many-inputs` otherwise), then delegated to
+ * {@link clearScreen}. Returns an {@link ExecSignal} to halt on, or `undefined` for
+ * {@link executeStatements} to `continue` on success.
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeTurtleClearCall(
+  clearCall: CallNode | ParenCallNode,
+  env: Environment,
+): ExecSignal | undefined {
+  const callableName = clearCall.callee.name;
+  if (clearCall.args.length !== 0) {
+    return halt(
+      runtimeDiag.tooManyInputs(
+        clearCall.callee.source_span,
+        callableName,
+        0,
+        clearCall.args.length,
+      ),
+    );
+  }
+  clearScreen(
+    env,
+    callableName.toLowerCase() === "clear_screen" ? "clear_screen" : "clean",
+    clearCall.source_span,
+  );
+  return undefined;
+}
+
+/**
+ * Is `statement` a call to `set_color` or its Turtle & Rendering-profile alias `setcolor` (issue
+ * #208; `spec/commands.md:1521`). Not Heritage — same rationale as {@link isTurtlePositionCall}'s
+ * `setxy`. Same shape/convention as {@link isTurtleVisibilityCall}.
+ */
+function isTurtleColorCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  const name = statement.callee.name.toLowerCase();
+  return name === "set_color" || name === "setcolor";
+}
+
+/**
+ * Validate and run a `set_color`/`setcolor` statement matched by {@link isTurtleColorCall}:
+ * exactly one argument (`ol-not-enough-inputs`/`ol-too-many-inputs` otherwise), validated by
+ * {@link normalizeColor} against the three accepted color forms
+ * (`spec/commands.md`'s "Colors" section) — an unknown word, a wrong-length or out-of-range-
+ * component `[r g b]` list, or a malformed hex word all raise `ol-bad-color`
+ * (`runtimeDiag.badColor`). On success, sets `turtle.color` and emits a `color-change` event
+ * (`{from, to}`, mirroring {@link turnTurtle}'s shape — `spec/rendering.md`'s "Color" section:
+ * "Color state is part of turtle state"). Unlike {@link moveTurtle}, there is no `move`/
+ * `draw-segment` interaction: changing the pen color affects only *future* segments, which already
+ * capture `turtle.color` at draw time (see {@link moveTurtle}/{@link moveTurtleTo}'s
+ * `DrawSegmentPayload`) — no zero-length segment is drawn for the color change itself. Returns an
+ * {@link ExecSignal} to halt on, or `undefined` for {@link executeStatements} to `continue` on
+ * success (including the "left un-evaluated" case for an unsupported argument expression,
+ * mirroring `set_heading`/`seth`'s handling).
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeTurtleColorCall(
+  colorCall: CallNode | ParenCallNode,
+  env: Environment,
+): ExecSignal | undefined {
+  const callableName = colorCall.callee.name;
+  if (colorCall.args.length !== 1) {
+    return halt(
+      colorCall.args.length < 1
+        ? runtimeDiag.notEnoughInputs(
+            colorCall.callee.source_span,
+            callableName,
+            1,
+            colorCall.args.length,
+          )
+        : runtimeDiag.tooManyInputs(
+            colorCall.callee.source_span,
+            callableName,
+            1,
+            colorCall.args.length,
+          ),
+    );
+  }
+  const [arg] = colorCall.args as [ExpressionNode];
+  if (!isSupportedExpression(arg, env.procedures)) {
+    return undefined;
+  }
+  const argResult = evaluate(arg, env);
+  if (!argResult.ok) {
+    return halt(argResult.diagnostic);
+  }
+  const operation = callableName.toLowerCase() as "set_color" | "setcolor";
+  const color = normalizeColor(argResult.value);
+  if (color === undefined) {
+    return halt(
+      runtimeDiag.badColor(arg.source_span, {
+        operation,
+        value: argResult.value,
+      }),
+    );
+  }
+  const { turtle } = env;
+  const from = turtle.color;
+  turtle.color = color;
+  env.events.push({
+    seq: env.events.length,
+    kind: "color-change",
+    source_span: colorCall.source_span,
+    payload: { from, to: color } satisfies ColorChangePayload,
+  });
+  return undefined;
+}
+
+/**
+ * Is `statement` a call to `set_background` or its Turtle & Rendering-profile alias `setbg` (issue
+ * #208; `spec/commands.md:1539`). Not Heritage — same rationale as {@link isTurtlePositionCall}'s
+ * `setxy`. Same shape/convention as {@link isTurtleColorCall}.
+ */
+function isTurtleBackgroundCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  const name = statement.callee.name.toLowerCase();
+  return name === "set_background" || name === "setbg";
+}
+
+/**
+ * Validate and run a `set_background`/`setbg` statement matched by
+ * {@link isTurtleBackgroundCall}: exactly one argument (`ol-not-enough-inputs`/
+ * `ol-too-many-inputs` otherwise), validated by {@link normalizeColor} the same way
+ * {@link executeTurtleColorCall} does (`ol-bad-color` on an unaccepted form). On success, emits a
+ * `background-change` event carrying only the new color (`spec/rendering.md`'s "Background"
+ * section: "The background is a scene property, not a segment" — there is no prior-value pairing
+ * to report, unlike {@link ColorChangePayload}'s `{from, to}`). The runtime does not track
+ * background as turtle state at all: `clear_screen`/`clean` leave it unchanged
+ * (`spec/rendering.md`'s "Clear operations" table), and no other command reads it back, so there
+ * is nothing for a runtime-side field to serve — the scene's background is `@openlogo/turtle`'s
+ * own reducer state, folded from this event. Returns an {@link ExecSignal} to halt on, or
+ * `undefined` for {@link executeStatements} to `continue` on success (including the "left
+ * un-evaluated" case for an unsupported argument expression, mirroring
+ * {@link executeTurtleColorCall}'s handling).
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeTurtleBackgroundCall(
+  backgroundCall: CallNode | ParenCallNode,
+  env: Environment,
+): ExecSignal | undefined {
+  const callableName = backgroundCall.callee.name;
+  if (backgroundCall.args.length !== 1) {
+    return halt(
+      backgroundCall.args.length < 1
+        ? runtimeDiag.notEnoughInputs(
+            backgroundCall.callee.source_span,
+            callableName,
+            1,
+            backgroundCall.args.length,
+          )
+        : runtimeDiag.tooManyInputs(
+            backgroundCall.callee.source_span,
+            callableName,
+            1,
+            backgroundCall.args.length,
+          ),
+    );
+  }
+  const [arg] = backgroundCall.args as [ExpressionNode];
+  if (!isSupportedExpression(arg, env.procedures)) {
+    return undefined;
+  }
+  const argResult = evaluate(arg, env);
+  if (!argResult.ok) {
+    return halt(argResult.diagnostic);
+  }
+  const operation = callableName.toLowerCase() as "set_background" | "setbg";
+  const color = normalizeColor(argResult.value);
+  if (color === undefined) {
+    return halt(
+      runtimeDiag.badColor(arg.source_span, {
+        operation,
+        value: argResult.value,
+      }),
+    );
+  }
+  env.events.push({
+    seq: env.events.length,
+    kind: "background-change",
+    source_span: backgroundCall.source_span,
+    payload: { color } satisfies BackgroundChangePayload,
+  });
+  return undefined;
+}
+
+/**
+ * Is `statement` a call to `set_width` or its Turtle & Rendering-profile alias `setwidth` (issue
+ * #209; `spec/commands.md:1556`). Not Heritage — same rationale as {@link isTurtlePositionCall}'s
+ * `setxy`. Same shape/convention as {@link isTurtleColorCall}.
+ */
+function isTurtleWidthCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  const name = statement.callee.name.toLowerCase();
+  return name === "set_width" || name === "setwidth";
+}
+
+/**
+ * Validate and run a `set_width`/`setwidth` statement matched by {@link isTurtleWidthCall}: exactly
+ * one numeric argument (`ol-not-enough-inputs`/`ol-too-many-inputs`/`ol-type` otherwise, via
+ * {@link requireNumber}), which must additionally be positive and finite
+ * (`spec/commands.md`'s `set_width` entry: "The width MUST be a positive number") or
+ * `runtimeDiag.nonPositiveWidth` raises `ol-range` — folding `Infinity` into the same guard as `0`/
+ * negative widths for the same "never expose Infinity to a learner" reason documented on
+ * {@link executeTurtleMoveCall}'s `nonFiniteDistance` check. On success, sets `turtle.width` and
+ * emits a `width-change` event (`{from, to}`, mirroring {@link executeTurtleColorCall}'s
+ * `color-change` shape — `spec/rendering.md`'s "Width" section). Like color, there is no
+ * `move`/`draw-segment` interaction: changing the pen width affects only *future* segments, which
+ * already capture `turtle.width` at draw time (see {@link moveTurtle}/{@link moveTurtleTo}'s
+ * `DrawSegmentPayload`). Returns an {@link ExecSignal} to halt on, or `undefined` for
+ * {@link executeStatements} to `continue` on success (including the "left un-evaluated" case for
+ * an unsupported argument expression, mirroring {@link executeTurtleColorCall}'s handling).
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeTurtleWidthCall(
+  widthCall: CallNode | ParenCallNode,
+  env: Environment,
+): ExecSignal | undefined {
+  const callableName = widthCall.callee.name;
+  if (widthCall.args.length !== 1) {
+    return halt(
+      widthCall.args.length < 1
+        ? runtimeDiag.notEnoughInputs(
+            widthCall.callee.source_span,
+            callableName,
+            1,
+            widthCall.args.length,
+          )
+        : runtimeDiag.tooManyInputs(
+            widthCall.callee.source_span,
+            callableName,
+            1,
+            widthCall.args.length,
+          ),
+    );
+  }
+  const [arg] = widthCall.args as [ExpressionNode];
+  if (!isSupportedExpression(arg, env.procedures)) {
+    return undefined;
+  }
+  const argResult = evaluate(arg, env);
+  if (!argResult.ok) {
+    return halt(argResult.diagnostic);
+  }
+  const operation = callableName.toLowerCase() as "set_width" | "setwidth";
+  const width = requireNumber(argResult.value, arg.source_span, operation);
+  if (!width.ok) {
+    return halt(width.diagnostic);
+  }
+  if (!Number.isFinite(width.value) || width.value <= 0) {
+    return halt(
+      runtimeDiag.nonPositiveWidth(arg.source_span, {
+        operation,
+        value: String(width.value),
+      }),
+    );
+  }
+  const { turtle } = env;
+  const from = turtle.width;
+  turtle.width = width.value;
+  env.events.push({
+    seq: env.events.length,
+    kind: "width-change",
+    source_span: widthCall.source_span,
+    payload: { from, to: width.value } satisfies WidthChangePayload,
+  });
+  return undefined;
+}
+
+/**
+ * Is `statement` a call to `fill` (issue #210; `spec/rendering.md`'s "Fill" section). Same
+ * shape/convention as {@link isTurtleClearCall} — a bare 0-arity turtle command with no Turtle &
+ * Rendering-profile alias.
+ */
+function isTurtleFillCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  return statement.callee.name.toLowerCase() === "fill";
+}
+
+/**
+ * Validate and run a `fill` statement matched by {@link isTurtleFillCall}: exactly zero arguments
+ * (`ol-too-many-inputs` otherwise), then emit a `fill` event carrying the current pen color
+ * (`spec/rendering.md`'s "Fill" section — the current pen color unless a vendor extension exposes
+ * a separate fill color; `spec/rendering.md`'s "Color" section: "a segment, fill, or stamp
+ * captures the color at the moment its event is applied"). No turtle-state change: `fill` affects
+ * only the retained scene, which is `@openlogo/turtle`'s reducer's job (issue #213) — the runtime
+ * only emits the one event. Returns an {@link ExecSignal} to halt on, or `undefined` for
+ * {@link executeStatements} to `continue` on success.
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeTurtleFillCall(
+  fillCall: CallNode | ParenCallNode,
+  env: Environment,
+): ExecSignal | undefined {
+  const callableName = fillCall.callee.name;
+  if (fillCall.args.length !== 0) {
+    return halt(
+      runtimeDiag.tooManyInputs(
+        fillCall.callee.source_span,
+        callableName,
+        0,
+        fillCall.args.length,
+      ),
+    );
+  }
+  env.events.push({
+    seq: env.events.length,
+    kind: "fill",
+    source_span: fillCall.source_span,
+    payload: { color: env.turtle.color } satisfies FillPayload,
+  });
+  return undefined;
+}
+
+/**
+ * Is `statement` a call to `stamp` (issue #210; `spec/rendering.md`'s "Turtle avatar and shapes"
+ * section). Same shape/convention as {@link isTurtleFillCall}.
+ */
+function isTurtleStampCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  return statement.callee.name.toLowerCase() === "stamp";
+}
+
+/**
+ * Validate and run a `stamp` statement matched by {@link isTurtleStampCall}: exactly zero
+ * arguments (`ol-too-many-inputs` otherwise), then emit a `stamp` event snapshotting the turtle
+ * avatar's current position, heading, shape, and pen color (`spec/rendering.md`'s "Turtle avatar
+ * and shapes" section) into the retained scene. Independent of pen state — a stamp is recorded
+ * even with the pen up, unlike {@link moveTurtle}'s `draw-segment`, since stamping the avatar is
+ * not drawing a line (`spec/rendering.md`'s "Turtle avatar and shapes" section: the avatar and its
+ * stamps are separate from the pen's drawn path). No turtle-state change: the runtime only emits
+ * the one event. Returns an {@link ExecSignal} to halt on, or `undefined` for
+ * {@link executeStatements} to `continue` on success.
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeTurtleStampCall(
+  stampCall: CallNode | ParenCallNode,
+  env: Environment,
+): ExecSignal | undefined {
+  const callableName = stampCall.callee.name;
+  if (stampCall.args.length !== 0) {
+    return halt(
+      runtimeDiag.tooManyInputs(
+        stampCall.callee.source_span,
+        callableName,
+        0,
+        stampCall.args.length,
+      ),
+    );
+  }
+  const { turtle } = env;
+  env.events.push({
+    seq: env.events.length,
+    kind: "stamp",
+    source_span: stampCall.source_span,
+    payload: {
+      position: [turtle.x, turtle.y],
+      heading: turtle.heading,
+      shape: turtle.shape,
+      color: turtle.color,
+    } satisfies StampPayload,
+  });
+  return undefined;
+}
+
+/**
+ * Is `statement` a call to `set_shape` (issue #210; `spec/commands.md:1573`). Same
+ * shape/convention as {@link isTurtleColorCall} — no Turtle & Rendering-profile alias is
+ * registered for `set_shape` (unlike `set_color`/`set_width`/`set_xy`/`set_heading`, which each
+ * have a one-word alias).
+ */
+function isTurtleShapeCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  return statement.callee.name.toLowerCase() === "set_shape";
+}
+
+/**
+ * Validate and run a `set_shape` statement matched by {@link isTurtleShapeCall}: exactly one
+ * argument (`ol-not-enough-inputs`/`ol-too-many-inputs` otherwise), which must be a word
+ * (`ol-type`, `expected: "word"`, otherwise — mirrors `evaluate.ts`'s `evaluateThing`'s
+ * non-word check) naming one of the recognized shapes (`packages/runtime/src/shape.ts`'s
+ * {@link isRecognizedShape}) — an unrecognized shape word is *also* `ol-type`, but with
+ * `expected: "shape"` instead of `expected: "word"`: `spec/commands.md`'s `set_shape` entry
+ * specifies no dedicated code ("Possible errors: none specified in C3 beyond general type and
+ * arity diagnostics"), because the shape set is open/implementation-defined
+ * (`spec/rendering.md`'s "Turtle avatar and shapes" section: MUST support the default, SHOULD
+ * support the portable set, MAY support more) rather than the closed palette `set_color` has —
+ * so there is no enumerable `value` set to anchor a dedicated `ol-bad-shape` code the way
+ * `ol-bad-color` anchors `set_color`'s. `error-model.md` treats `params` as part of a diagnostic's
+ * identity, so these are two distinct `ol-type` identities differentiated by `expected`/`value`,
+ * not one code overloaded ambiguously.
+ *
+ * On success, sets `turtle.shape` and emits a `shape-change` event (`{from, to}`, mirroring
+ * {@link executeTurtleColorCall}'s `color-change` shape). No `move`/`draw-segment` interaction:
+ * changing the shape affects only how the avatar is drawn/stamped going forward, not the drawn
+ * path. Returns an {@link ExecSignal} to halt on, or `undefined` for {@link executeStatements} to
+ * `continue` on success (including the "left un-evaluated" case for an unsupported argument
+ * expression, mirroring {@link executeTurtleColorCall}'s handling).
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeTurtleShapeCall(
+  shapeCall: CallNode | ParenCallNode,
+  env: Environment,
+): ExecSignal | undefined {
+  const callableName = shapeCall.callee.name;
+  if (shapeCall.args.length !== 1) {
+    return halt(
+      shapeCall.args.length < 1
+        ? runtimeDiag.notEnoughInputs(
+            shapeCall.callee.source_span,
+            callableName,
+            1,
+            shapeCall.args.length,
+          )
+        : runtimeDiag.tooManyInputs(
+            shapeCall.callee.source_span,
+            callableName,
+            1,
+            shapeCall.args.length,
+          ),
+    );
+  }
+  const [arg] = shapeCall.args as [ExpressionNode];
+  if (!isSupportedExpression(arg, env.procedures)) {
+    return undefined;
+  }
+  const argResult = evaluate(arg, env);
+  if (!argResult.ok) {
+    return halt(argResult.diagnostic);
+  }
+  if (typeof argResult.value !== "string") {
+    return halt(
+      runtimeDiag.placeType(arg.source_span, {
+        expected: "word",
+        actual: typeNameOf(argResult.value),
+        value: argResult.value,
+        operation: "set_shape",
+      }),
+    );
+  }
+  if (!isRecognizedShape(argResult.value)) {
+    return halt(
+      runtimeDiag.unknownShape(arg.source_span, {
+        value: argResult.value,
+        operation: "set_shape",
+      }),
+    );
+  }
+  const shape = normalizeShape(argResult.value);
+  const { turtle } = env;
+  const from = turtle.shape;
+  turtle.shape = shape;
+  env.events.push({
+    seq: env.events.length,
+    kind: "shape-change",
+    source_span: shapeCall.source_span,
+    payload: { from, to: shape } satisfies ShapeChangePayload,
+  });
+  return undefined;
+}
+
+/**
+ * Is `statement` a call to `home`/`set_xy` or `set_xy`'s Turtle & Rendering-profile alias `setxy`
+ * (issue #202, Core absolute positioning; `spec/commands.md:1279`). Unlike `forward`'s `fd`,
+ * `setxy`/`seth` are **not** Heritage — `spec/conformance.md:105-117`'s Heritage short-alias list
+ * is closed and does not include them, so they are registered (with `set_xy`'s arity) in
+ * `packages/parser/src/signatures.ts` and dispatched identically here. Same shape/convention as
+ * {@link isTurtleMoveCall}.
+ */
+function isTurtlePositionCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  const name = statement.callee.name.toLowerCase();
+  return name === "home" || name === "set_xy" || name === "setxy";
+}
+
+/**
+ * Move the turtle directly to an absolute `to` position (as opposed to {@link moveTurtle}'s
+ * relative distance-along-the-current-heading move) and emit the same `move`/conditional
+ * `draw-segment` pair `moveTurtle` does — `home`'s jump to `(0,0)` and `set_xy`'s jump to an
+ * arbitrary point are both "the turtle moved from A to B", just computed differently. Heading is
+ * unaffected (the `move` event's `heading` field reports the turtle's current heading, unchanged
+ * by a position-only move — `set_heading`/`home`'s own heading reset is a separate `turn` event
+ * via {@link setHeadingTo}).
+ */
+function moveTurtleTo(
+  env: Environment,
+  to: Point,
+  source_span: SourceSpan,
+): void {
+  const { turtle } = env;
+  const from: Point = [turtle.x, turtle.y];
+  turtle.x = to[0];
+  turtle.y = to[1];
+  env.events.push({
+    seq: env.events.length,
+    kind: "move",
+    source_span,
+    payload: { from, to, heading: turtle.heading } satisfies MovePayload,
+  });
+  if (turtle.penDown) {
+    env.events.push({
+      seq: env.events.length,
+      kind: "draw-segment",
+      source_span,
+      payload: {
+        from,
+        to,
+        color: turtle.color,
+        width: turtle.width,
+      } satisfies DrawSegmentPayload,
+    });
+  }
+}
+
+/**
+ * Set the turtle's heading directly to an absolute, already-normalized `to` value (as opposed to
+ * {@link turnTurtle}'s relative delta turn) and emit the same `turn` event `turnTurtle` does. `to`
+ * must already be normalized to `[0,360)` (via {@link normalizeHeading}) — this helper does not
+ * normalize again, matching {@link turnTurtle}'s own division of labor (it normalizes, this
+ * doesn't need to since both its callers already have).
+ */
+function setHeadingTo(
+  env: Environment,
+  to: number,
+  source_span: SourceSpan,
+): void {
+  const { turtle } = env;
+  const from = turtle.heading;
+  turtle.heading = to;
+  env.events.push({
+    seq: env.events.length,
+    kind: "turn",
+    source_span,
+    payload: { from, to } satisfies TurnPayload,
+  });
+}
+
+/**
+ * Validate and run a `home`/`set_xy`/`setxy` statement matched by {@link isTurtlePositionCall}.
+ * `home` takes zero arguments and resets both position (to `(0,0)`) and heading (to `0`) — it is a
+ * move like any other, so it emits `move`/conditional `draw-segment` (via {@link moveTurtleTo})
+ * followed by `turn` (via {@link setHeadingTo}) (`spec/commands.md:1259-1274`). `set_xy`/`setxy`
+ * takes exactly two numeric arguments and moves the turtle to that absolute position, leaving
+ * heading untouched (`spec/commands.md:1276-1291`). Diagnostics: `ol-not-enough-inputs`/
+ * `ol-too-many-inputs` for the wrong argument count, `ol-type` for a non-number `set_xy` argument
+ * (via {@link requireNumber}), `ol-range` ({@link runtimeDiag.nonFiniteCoordinate}) for a
+ * `set_xy` argument that is `Infinity`/`-Infinity` (same "never expose a non-finite learner-facing
+ * result" rationale as {@link executeTurtleMoveCall}'s non-finite-distance guard —
+ * `spec/execution-model.md:517`). Returns an {@link ExecSignal} to halt on, or `undefined` for
+ * {@link executeStatements} to `continue` on success (including the "left un-evaluated" case for
+ * an unsupported argument expression, mirroring `forward`/`back`'s handling).
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeTurtlePositionCall(
+  positionCall: CallNode | ParenCallNode,
+  env: Environment,
+): ExecSignal | undefined {
+  const callableName = positionCall.callee.name;
+  const isHome = callableName.toLowerCase() === "home";
+  const expectedArgs = isHome ? 0 : 2;
+  if (positionCall.args.length !== expectedArgs) {
+    return halt(
+      positionCall.args.length < expectedArgs
+        ? runtimeDiag.notEnoughInputs(
+            positionCall.callee.source_span,
+            callableName,
+            expectedArgs,
+            positionCall.args.length,
+          )
+        : runtimeDiag.tooManyInputs(
+            positionCall.callee.source_span,
+            callableName,
+            expectedArgs,
+            positionCall.args.length,
+          ),
+    );
+  }
+  if (isHome) {
+    moveTurtleTo(env, [0, 0], positionCall.source_span);
+    setHeadingTo(env, 0, positionCall.source_span);
+    return undefined;
+  }
+  const [xArg, yArg] = positionCall.args as [ExpressionNode, ExpressionNode];
+  if (
+    !isSupportedExpression(xArg, env.procedures) ||
+    !isSupportedExpression(yArg, env.procedures)
+  ) {
+    return undefined;
+  }
+  const xResult = evaluate(xArg, env);
+  if (!xResult.ok) {
+    return halt(xResult.diagnostic);
+  }
+  const yResult = evaluate(yArg, env);
+  if (!yResult.ok) {
+    return halt(yResult.diagnostic);
+  }
+  const operation = callableName.toLowerCase() as "set_xy" | "setxy";
+  const x = requireNumber(xResult.value, xArg.source_span, operation);
+  if (!x.ok) {
+    return halt(x.diagnostic);
+  }
+  const y = requireNumber(yResult.value, yArg.source_span, operation);
+  if (!y.ok) {
+    return halt(y.diagnostic);
+  }
+  if (!Number.isFinite(x.value)) {
+    return halt(
+      runtimeDiag.nonFiniteCoordinate(xArg.source_span, {
+        operation,
+        axis: "x",
+        value: String(x.value),
+      }),
+    );
+  }
+  if (!Number.isFinite(y.value)) {
+    return halt(
+      runtimeDiag.nonFiniteCoordinate(yArg.source_span, {
+        operation,
+        axis: "y",
+        value: String(y.value),
+      }),
+    );
+  }
+  moveTurtleTo(env, [x.value, y.value], positionCall.source_span);
+  return undefined;
+}
+
+/**
+ * Is `statement` a call to `set_heading` or its Turtle & Rendering-profile alias `seth`
+ * (issue #202; `spec/commands.md:1296`). Not Heritage — same rationale as
+ * {@link isTurtlePositionCall}'s `setxy`. Same shape/convention as {@link isTurtleMoveCall}.
+ */
+function isTurtleHeadingCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  const name = statement.callee.name.toLowerCase();
+  return name === "set_heading" || name === "seth";
+}
+
+/**
+ * Validate and run a `set_heading`/`seth` statement matched by {@link isTurtleHeadingCall}: exactly one
+ * numeric argument (`ol-not-enough-inputs`/`ol-too-many-inputs`/`ol-type` otherwise, via
+ * {@link requireNumber}), normalized to `[0,360)` (the same {@link normalizeHeading} `left`/
+ * `right` use — `spec/commands.md:1300`, "Implementations normalize headings to [0,360)"), then
+ * delegated to {@link setHeadingTo}. Unlike `left`/`right`, the argument is the turtle's new
+ * *absolute* heading, not a delta — so it is normalized directly rather than added to the current
+ * heading first. Returns an {@link ExecSignal} to halt on, or `undefined` for
+ * {@link executeStatements} to `continue` on success (including the "left un-evaluated" case for
+ * an unsupported argument expression, mirroring `left`/`right`'s handling).
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeTurtleHeadingCall(
+  headingCall: CallNode | ParenCallNode,
+  env: Environment,
+): ExecSignal | undefined {
+  const callableName = headingCall.callee.name;
+  if (headingCall.args.length !== 1) {
+    return halt(
+      headingCall.args.length < 1
+        ? runtimeDiag.notEnoughInputs(
+            headingCall.callee.source_span,
+            callableName,
+            1,
+            headingCall.args.length,
+          )
+        : runtimeDiag.tooManyInputs(
+            headingCall.callee.source_span,
+            callableName,
+            1,
+            headingCall.args.length,
+          ),
+    );
+  }
+  const [arg] = headingCall.args as [ExpressionNode];
+  if (!isSupportedExpression(arg, env.procedures)) {
+    return undefined;
+  }
+  const argResult = evaluate(arg, env);
+  if (!argResult.ok) {
+    return halt(argResult.diagnostic);
+  }
+  const angle = requireNumber(
+    argResult.value,
+    arg.source_span,
+    callableName.toLowerCase(),
+  );
+  if (!angle.ok) {
+    return halt(angle.diagnostic);
+  }
+  if (!Number.isFinite(angle.value)) {
+    // Same rationale as `executeTurtleTurnCall`'s non-finite-angle guard: `requireNumber` accepts
+    // `Infinity`/`-Infinity`, but `Infinity % 360` is `NaN`, which would otherwise corrupt the
+    // turtle's heading instead of raising a diagnostic (`spec/execution-model.md:517`).
+    return halt(
+      runtimeDiag.nonFiniteHeading(arg.source_span, {
+        operation: callableName.toLowerCase() as "set_heading" | "seth",
+        value: String(angle.value),
+      }),
+    );
+  }
+  setHeadingTo(env, normalizeHeading(angle.value), headingCall.source_span);
+  return undefined;
+}
+
+/**
+ * Sentinel `dispatchTurtleCommand` returns when `statement` isn't any recognized turtle command,
+ * so {@link executeStatements} can fall through to its other statement-kind checks. Distinct from
+ * `undefined`, which `dispatchTurtleCommand` returns when a turtle command ran successfully (the
+ * same "handled, continue" meaning every `executeTurtle*Call` helper already uses).
+ */
+const NOT_A_TURTLE_COMMAND = Symbol("not-a-turtle-command");
+
+/**
+ * Single entry point {@link executeStatements} calls to try every turtle command in one step.
+ * Each new turtle command (`#202`/`#204`/`#207`/`#210`, …) should add its `isTurtleXCall`/
+ * `executeTurtleXCall` pair and one more branch **here**, not in `executeStatements` itself
+ * (issue #209 added the `set_width` branch this way, following issue #208's `set_color`/
+ * `set_background` branches):
+ * `executeStatements` recurses once per procedure call (via `runProcedureBody`/`runProcedure`),
+ * so every local variable/branch added directly to its body grows *every* stack frame in a deep
+ * recursive program. Growing this dispatcher instead keeps `executeStatements`'s own frame size
+ * fixed regardless of how many turtle commands exist — confirmed necessary when adding the
+ * `pen_up`/`pen_down` branch here (issue #206) pushed a 600-deep `recursionDepthLimit: 1000`
+ * regression test (`execution-budget.test.mjs`) over the native call-stack limit until the three
+ * previously-inline branches (`forward`/`back`, `left`/`right`, `pen_up`/`pen_down`) were
+ * consolidated into this single call.
+ */
+function dispatchTurtleCommand(
+  statement: StatementNode,
+  env: Environment,
+): ExecSignal | undefined | typeof NOT_A_TURTLE_COMMAND {
+  if (isTurtleMoveCall(statement)) {
+    return executeTurtleMoveCall(
+      statement as unknown as CallNode | ParenCallNode,
+      env,
+    );
+  }
+  if (isTurtleTurnCall(statement)) {
+    return executeTurtleTurnCall(
+      statement as unknown as CallNode | ParenCallNode,
+      env,
+    );
+  }
+  if (isTurtlePenCall(statement)) {
+    return executeTurtlePenCall(
+      statement as unknown as CallNode | ParenCallNode,
+      env,
+    );
+  }
+  if (isTurtlePositionCall(statement)) {
+    return executeTurtlePositionCall(
+      statement as unknown as CallNode | ParenCallNode,
+      env,
+    );
+  }
+  if (isTurtleHeadingCall(statement)) {
+    return executeTurtleHeadingCall(
+      statement as unknown as CallNode | ParenCallNode,
+      env,
+    );
+  }
+  if (isTurtleVisibilityCall(statement)) {
+    return executeTurtleVisibilityCall(
+      statement as unknown as CallNode | ParenCallNode,
+      env,
+    );
+  }
+  if (isTurtleClearCall(statement)) {
+    return executeTurtleClearCall(
+      statement as unknown as CallNode | ParenCallNode,
+      env,
+    );
+  }
+  if (isTurtleColorCall(statement)) {
+    return executeTurtleColorCall(
+      statement as unknown as CallNode | ParenCallNode,
+      env,
+    );
+  }
+  if (isTurtleBackgroundCall(statement)) {
+    return executeTurtleBackgroundCall(
+      statement as unknown as CallNode | ParenCallNode,
+      env,
+    );
+  }
+  if (isTurtleWidthCall(statement)) {
+    return executeTurtleWidthCall(
+      statement as unknown as CallNode | ParenCallNode,
+      env,
+    );
+  }
+  if (isTurtleFillCall(statement)) {
+    return executeTurtleFillCall(
+      statement as unknown as CallNode | ParenCallNode,
+      env,
+    );
+  }
+  if (isTurtleStampCall(statement)) {
+    return executeTurtleStampCall(
+      statement as unknown as CallNode | ParenCallNode,
+      env,
+    );
+  }
+  if (isTurtleShapeCall(statement)) {
+    return executeTurtleShapeCall(
+      statement as unknown as CallNode | ParenCallNode,
+      env,
+    );
+  }
+  return NOT_A_TURTLE_COMMAND;
 }
 
 /**
@@ -591,6 +1904,14 @@ function executeStatements(
       continue;
     }
 
+    const turtleOutcome = dispatchTurtleCommand(statement, env);
+    if (turtleOutcome !== NOT_A_TURTLE_COMMAND) {
+      if (turtleOutcome) {
+        return turtleOutcome;
+      }
+      continue;
+    }
+
     if (statement.kind === "Return") {
       if (!isSupportedExpression(statement.value, env.procedures)) {
         continue;
@@ -953,6 +2274,7 @@ function createExecutionEnvironment(
     ),
     instructionCount: { count: 0 },
     signal: options?.signal,
+    turtle: createDefaultTurtleState(),
     callProcedure: callProcedureAsValue,
   };
 }

@@ -1,0 +1,37 @@
+{
+  "description": "issue #208: the parenthesized `(set_color)` supplies zero arguments where `set_color` needs exactly one, raising `ol-not-enough-inputs`.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/color/set-color-not-enough-inputs",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": {
+        "statement_kind": "ParenCall"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-not-enough-inputs",
+      "source_span": {
+        "document": "turtle-rendering/color/set-color-not-enough-inputs",
+        "start": [1, 2],
+        "end": [1, 11]
+      },
+      "params": {
+        "callable": "set_color",
+        "expected": 1,
+        "actual": 0
+      },
+      "message": "set_color needs one input, but got 0.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

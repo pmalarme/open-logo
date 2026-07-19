@@ -1,0 +1,56 @@
+{
+  "description": "issue #203: `towards 100 0` and `distance 100 0` from the origin report `90` and `100` respectively (spec/commands.md worked examples) — no events emitted.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/movement/reporters-towards-distance",
+        "start": [1, 1],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "turtle-rendering/movement/reporters-towards-distance",
+        "start": [1, 1],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": [90]
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/movement/reporters-towards-distance",
+        "start": [2, 1],
+        "end": [2, 21]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "turtle-rendering/movement/reporters-towards-distance",
+        "start": [2, 1],
+        "end": [2, 21]
+      },
+      "payload": {
+        "values": [100]
+      }
+    }
+  ],
+  "diagnostics": []
+}

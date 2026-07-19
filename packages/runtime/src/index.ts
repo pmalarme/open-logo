@@ -61,6 +61,7 @@ export type {
   EvalResult,
   Environment,
   Frame,
+  TurtleState,
 } from "./evaluate.js";
 export {
   DEFAULT_INSTRUCTION_BUDGET,

@@ -1,0 +1,33 @@
+{
+  "description": "issue #208: `setcolor` is a Turtle & Rendering-profile (not Heritage) one-word alias of `set_color` (spec/commands.md:1521, spec/conformance.md's closed Heritage alias list at :105-117 does not include it) - behaves identically, emitting the same `color-change` event shape.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/color/setcolor-alias",
+        "start": [1, 1],
+        "end": [1, 15]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "color-change",
+      "source_span": {
+        "document": "turtle-rendering/color/setcolor-alias",
+        "start": [1, 1],
+        "end": [1, 15]
+      },
+      "payload": {
+        "from": "black",
+        "to": "red"
+      }
+    }
+  ],
+  "diagnostics": []
+}

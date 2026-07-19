@@ -1,0 +1,48 @@
+{
+  "description": "issue #207: `hide_turtle` hides the turtle avatar, emitting a `visibility-change` event from `true` to `false`; `show_turtle` then shows it again, emitting `visibility-change` from `false` to `true` (spec/rendering.md's \"Turtle avatar and shapes\" section: `show_turtle`/`hide_turtle` toggle avatar visibility, represented by `visibility-change` events). Neither call moves, turns, or draws - visibility is a display-only flag.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/visibility/hide-show-sequence",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "visibility-change",
+      "source_span": {
+        "document": "turtle-rendering/visibility/hide-show-sequence",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": { "from": true, "to": false }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/visibility/hide-show-sequence",
+        "start": [2, 1],
+        "end": [2, 12]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 3,
+      "kind": "visibility-change",
+      "source_span": {
+        "document": "turtle-rendering/visibility/hide-show-sequence",
+        "start": [2, 1],
+        "end": [2, 12]
+      },
+      "payload": { "from": false, "to": true }
+    }
+  ],
+  "diagnostics": []
+}

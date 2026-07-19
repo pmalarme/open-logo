@@ -1,0 +1,30 @@
+{
+  "description": "issue #201: a bare zero-argument `right` raises `ol-not-enough-inputs` — the static checker's arity rule never runs inside `execute()` (only `parse()` does), so this is the sole runtime guard against silently treating a callee-only `right` as a no-op.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/movement/right-not-enough-inputs",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-not-enough-inputs",
+      "source_span": {
+        "document": "turtle-rendering/movement/right-not-enough-inputs",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "params": { "callable": "right", "expected": 1, "actual": 0 },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

@@ -22,10 +22,13 @@ Every pane composes over **one** shared instance — never a per-pane copy:
   (document text), `selection` (cursor/selection), `runStatus`
   (`"idle" | "running" | "stopped"`), `diagnostics` (`@openlogo/core` `Diagnostic[]`), `output`
   (learner-visible printed lines from the most recent run, #126), `lesson` (lesson context for
-  `@openlogo/edu` content), and `notice` (a non-fatal, learner-visible status set by e.g. #128
-  persistence when it degrades gracefully). State changes only through its `set*` methods;
-  `getState()` is stable by reference between changes, and `subscribe` notifies listeners
-  synchronously after every change — see the doc comment in `state-model.ts` for the full contract.
+  `@openlogo/edu` content), `notice` (a non-fatal, learner-visible status set by e.g. #128
+  persistence when it degrades gracefully), and `turtleState`/`turtleScene` (the Canvas view's
+  turtle avatar state + retained scene, #218 — `@openlogo/turtle`'s own types, defaulted to its
+  program-start `INITIAL_TURTLE_STATE`/`INITIAL_TURTLE_SCENE`). State changes only through its
+  `set*` methods; `getState()` is stable by reference between changes, and `subscribe` notifies
+  listeners synchronously after every change — see the doc comment in `state-model.ts` for the full
+  contract.
 - `createAppShell(state)` (`src/app-shell.ts`) — a composable region registry (`editor`,
   `turtle`, `diagnostics`, `lesson`, `repl`), each starting as an empty placeholder. Later panes
   (#124 editor, #125 diagnostics, #126 run/stop, #127 lesson, #128 persistence, #129 a11y) call
@@ -69,14 +72,28 @@ slice may swap in a real renderer without changing this contract.
 - `attachPersistence(...).dispose()` stops persisting further changes;
   `attachPersistence(...).clearPersisted()` removes the stored value (also degrading gracefully).
 
-## Run/Stop/Reset/Step (#126)
+## Run/Stop/Reset/Step (#126, extended in #228 to drive the turtle Canvas view in lockstep)
 
 - `createRunController(state, options?)` (`src/run-controller.ts`) — the headless run controller
   over `@openlogo/runtime`'s execution budget (issue #102):
   - **Run** — `run()` calls `execute(state.getState().source, document, options)` and reduces the
-    returned trace-event stream to exactly what this slice surfaces: every `print` event becomes
-    one `output` line (already in the runtime's canonical `printedForm`, never reformatted here),
-    and the run's diagnostics replace the shared `diagnostics` list unchanged.
+    returned trace-event stream to exactly what #126 surfaced: every `print` event becomes one
+    `output` line (already in the runtime's canonical `printedForm`, never reformatted here), and
+    the run's diagnostics replace the shared `diagnostics` list unchanged. This part is unchanged
+    since #126 and always synchronous/instant — `execute()` never yields.
+  - **Turtle Canvas lockstep (#228)** — `run()` then replays that same already-complete
+    trace-event stream through `@openlogo/turtle`'s `TurtleAnimationController` (#216), pushing
+    each folded `{ state, scene }` snapshot into the shared `turtleState`/`turtleScene` fields (and
+    calling `options.canvasView.repaint()` immediately, if one was supplied) as playback advances.
+    The runtime executes once, atomically; the animation controller replays that recording —
+    `run-controller.ts` never re-implements movement math or drives the runtime step-by-step.
+    Pacing is via an injected `options.scheduler` (a `@openlogo/turtle` `Scheduler`; studio owns
+    the concrete `setTimeout`/`requestAnimationFrame` implementation — `@openlogo/turtle` itself
+    stays timer-free). It defaults to `@openlogo/turtle`'s synchronous `IMMEDIATE_SCHEDULER`, which
+    drains the whole animation within `run()` before it returns — preserving every pre-#228 test's
+    run-completes-synchronously behavior unmodified. Set `options.reducedMotion: true` to honor
+    `prefers-reduced-motion` (#227): `run()` then paints the final scene instantly via
+    `playWithMotionPreference`'s `seekToEnd()` path instead of pacing per-step ticks.
   - **Stop** — `stop()` flips a cancellation signal this controller owns for its whole lifetime
     and sets `runStatus` to `"stopped"` immediately. Because `execute()` is synchronous and never
     yields, a same-thread `stop()` cannot preempt a call already on the stack — true mid-loop
@@ -86,14 +103,26 @@ slice may swap in a real renderer without changing this contract.
     `DEFAULT_INSTRUCTION_BUDGET`), checked before every statement/loop pass inside `execute()`
     itself. A cancelled signal stays cancelled until `reset()` re-arms it, so `stop()` then `run()`
     deterministically halts with `ol-limit`/`cancelled` rather than silently dropping the request.
+    (#228) `stop()` also pauses the in-progress turtle animation, so the Canvas view freezes at the
+    exact same point the output/diagnostics already stopped at — any tick already scheduled before
+    `stop()` is a guaranteed no-op when it eventually fires, per `TurtleAnimationController`'s own
+    `status !== "running"` guard, so a stale async tick can never sneak in an extra frame.
   - **Reset** — `reset()` clears `output`/`diagnostics` back to empty, re-arms the cancellation
-    signal, and sets `runStatus` to `"idle"` — deterministic, ready for the next `run()`.
-  - **Step** — `step()` is a documented no-op: `execute()` exposes no per-instruction pause/resume
-    API to step through (a single call runs the whole program and returns the full event stream at
-    once), so this slice does not fake stepping the runtime doesn't support. A follow-up issue
-    should track real step-through once the runtime grows an incremental execution entry point.
+    signal, and sets `runStatus` to `"idle"` — deterministic, ready for the next `run()`. (#228)
+    `reset()` also resets the turtle animation and restores `turtleState`/`turtleScene` to
+    `@openlogo/turtle`'s program-start `INITIAL_TURTLE_STATE`/`INITIAL_TURTLE_SCENE`, repainting
+    the Canvas view (if supplied) back to a blank slate.
+  - **Step** — no longer a no-op as of #228: `step()` advances the turtle animation by exactly one
+    instruction-step (matching `TurtleAnimationController.step()`'s own granularity) and pushes the
+    resulting snapshot, repainting the Canvas view if supplied. It remains a no-op before the first
+    `run()` or once the animation is exhausted. This is deliberately stepping the *replay* of an
+    already-complete event stream, not the runtime — `@openlogo/runtime`'s `execute()` itself still
+    exposes no per-instruction pause/resume API; a follow-up issue should track real runtime
+    step-through once it grows an incremental execution entry point.
   - `mountRunController(shell, controller)` composes the controller into the shell's `repl` region.
-- See `run-controller.ts`'s doc comment for the full same-thread cancellation rationale.
+- See `run-controller.ts`'s doc comment for the full same-thread cancellation rationale and the
+  `runStatus`-vs-animation-completion decoupling #228 introduces (a still-paced Canvas view is
+  never reported `"idle"`/`"stopped"` before its animation has actually reached `"done"`).
 
 ## Diagnostics pane (#125)
 
@@ -121,23 +150,29 @@ slice may swap in a real renderer without changing this contract.
 - `mountDiagnosticsPane(shell, controller)` composes the controller into the shell's `diagnostics`
   region.
 
-## REPL keyboard + screen-reader accessibility (#129)
+## Studio keyboard + screen-reader accessibility (#129, extended in #229 to the Canvas pane)
 
-Scope: the three REPL surfaces — editor (#124), run controls (#126, mounted in the `repl` region),
-and diagnostics (#125). Lesson-pane a11y is a separate slice (#127/M3). Like every prior slice,
-ADR-0001 leaves the DOM/framework choice open, so this is a **headless, `node:test`-able a11y
-contract/view-model layer** (`src/a11y.ts`) that a later real renderer maps onto actual DOM
-attributes 1:1 — there is no DOM here to regress.
+Scope: every studio surface — editor (#124), run controls (#126/#228, mounted in the `repl`
+region), the turtle Canvas pane (#218/#228, mounted in the `turtle` region), and diagnostics
+(#125). Lesson-pane a11y is a separate slice (#127/M3). Like every prior slice, ADR-0001 leaves the
+DOM/framework choice open, so this is a **headless, `node:test`-able a11y contract/view-model
+layer** (`src/a11y.ts`) that a later real renderer maps onto actual DOM attributes 1:1 — there is
+no DOM here to regress.
 
 - **Keyboard operability** — `REPL_FOCUS_ORDER` is a static, ordered list of every focusable stop
-  across the three panes: the editor (one `textbox` stop), Run/Stop/Reset (three `button` stops,
-  matching `run-controller.ts`'s `run()`/`stop()`/`reset()`), and the diagnostics list (one `log`
-  stop). `nextFocusStop`/`previousFocusStop` cycle through it, wrapping at both ends — proof there
-  is no keyboard trap: from any stop you can always reach every other stop moving forward or
-  backward.
+  across the studio: the editor (one `textbox` stop), Run/Stop/Reset/Step (four `button` stops,
+  matching `run-controller.ts`'s `run()`/`stop()`/`reset()`/`step()`), the turtle Canvas (one `img`
+  stop), and the diagnostics list (one `log` stop). `nextFocusStop`/`previousFocusStop` cycle
+  through it, wrapping at both ends — proof there is no keyboard trap: from any stop you can always
+  reach every other stop moving forward or backward. `run-controller.ts` has no `speed`/`export`
+  control yet (`@openlogo/turtle` exposes `exportTurtleSvg`/`exportTurtlePng` and an animation
+  `stepsPerSecond` option, but studio does not wire either into a learner-facing action today), so
+  this module deliberately adds no focus stop for an action that does not exist — the same
+  "document the honest gap, never fake it" precedent #126/#228 set for `step()`/`stop()`.
 - **Semantic structure** — `REPL_LANDMARK_ROLES` declares each pane's container-level ARIA role +
-  label (editor≈`textbox`, run controls≈`toolbar` "Run controls", diagnostics≈`log` "Diagnostics"),
-  for a renderer to map onto real `role`/`aria-label` attributes.
+  label (editor≈`textbox`, run controls≈`toolbar` "Run controls", the Canvas≈`img` "Turtle canvas",
+  its non-visual state text≈`status` "Turtle state", diagnostics≈`log` "Diagnostics"), for a
+  renderer to map onto real `role`/`aria-label` attributes.
 - **Screen-reader announcements** — `createA11yAnnouncer(state)` subscribes to the shared #123
   store (never a copy) and emits an `Announcement` (`{ politeness, message }`) whenever
   `runStatus` or `diagnostics` changes: run-status transitions ("Run started."/"Run stopped."/
@@ -148,6 +183,42 @@ attributes 1:1 — there is no DOM here to regress.
   `diagnostics.ts`. `getAnnouncements()` returns the full history; `subscribeAnnouncements(...)`
   notifies every listener with the same events, so multiple consumers never desync (the #123
   single-source-of-truth contract, once again).
-- No shell region/mount function is added for the announcer itself — it is a cross-cutting service
-  over the existing store, not a pane with its own visible content.
+- **Non-visual turtle state (#229)** — `createTurtleStateRegion(state)` is a single, always-current
+  `status`/`aria-live="polite"` text region over the shared store's `turtleState` slot (the same
+  one #218 paints from and #228 pushes into on every run tick/`step()`/`reset()`), rendered via
+  `@openlogo/turtle`'s published `describeTurtleState` — this module never re-derives
+  position/heading/pen wording itself. Unlike the announcer's growing log, `getText()` always
+  returns the *current* description (available immediately, even before any run), and
+  `subscribeText(listener)` notifies every listener with the new text whenever `turtleState`
+  changes — so the region reads in lockstep with the Canvas view as a program runs, and multiple
+  consumers never desync.
+- No shell region/mount function is added for the announcer or the turtle-state region — both are
+  cross-cutting services over the existing store, not panes with their own mount lifecycle.
+
+## Turtle Canvas view (#218, driven live by Run/Stop/Reset/Step in #228)
+
+**#218 delivered static composition** — the initial default turtle state/scene, painted once at
+mount. **#228 (above)** wires `run-controller.ts` to update `turtleState`/`turtleScene` after each
+run/step/reset and repaint the pane live, in lockstep with output/diagnostics.
+
+- `state-model.ts` gains `turtleState`/`turtleScene` on `StudioState`, reusing `@openlogo/turtle`'s
+  own `TurtleState`/`TurtleScene` types verbatim (never a studio-invented fork) and defaulting to
+  its program-start `INITIAL_TURTLE_STATE`/`INITIAL_TURTLE_SCENE` — origin, heading `0`, pen down,
+  color `"black"`, width `1`, visible, background `"white"`, no drawing items.
+- **The DOM ownership boundary**: `@openlogo/turtle` is deliberately DOM-free — its `RenderTarget`
+  is a hand-written minimal structural subset of the real Canvas 2D drawing API (this monorepo has
+  no `lib.dom` and no `node-canvas` dependency). `src/canvas-view.ts`'s
+  `Canvas2DContext` names that same real-context surface from the studio side, and
+  `createCanvasRenderTarget(context)` wraps it into `@openlogo/turtle`'s `RenderTarget` — a real
+  forwarding adapter (not a pass-through, since a real `CanvasRenderingContext2D`'s
+  `fillStyle`/`strokeStyle` accept `CanvasGradient`/`CanvasPattern` too, wider than `RenderTarget`
+  declares) — the DOM canvas lives in studio, never in `@openlogo/turtle`.
+- `createCanvasViewController(state, { target, viewport })` reads `state.getState().turtleState`/
+  `.turtleScene` and paints them through `@openlogo/turtle`'s `paintTurtle` — never re-deriving
+  turtle coordinates, colors, or scene items itself. `repaint()` always reads the *current* store
+  snapshot, so it never goes stale relative to whichever pane last wrote `turtleState`/
+  `turtleScene`.
+- `mountCanvasView(shell, controller)` composes the controller into the app shell's existing
+  `turtle` region (seeded by #123) and calls `repaint()` immediately, so the pane never shows a
+  blank/stale target the moment it mounts.
 

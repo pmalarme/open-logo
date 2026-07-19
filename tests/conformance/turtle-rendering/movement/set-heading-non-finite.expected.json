@@ -1,0 +1,30 @@
+{
+  "description": "issue #202: a `set_heading` angle that overflows to `Infinity` (via `power 10 1000`) raises `ol-range` instead of corrupting the heading (`Infinity % 360` is `NaN`) — reuses the `nonFiniteHeading` builder, a sibling of issue #201's `nonFiniteAngle`.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/movement/set-heading-non-finite",
+        "start": [1, 1],
+        "end": [1, 26]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-range",
+      "source_span": {
+        "document": "turtle-rendering/movement/set-heading-non-finite",
+        "start": [1, 13],
+        "end": [1, 26]
+      },
+      "params": { "operation": "set_heading", "value": "Infinity" },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

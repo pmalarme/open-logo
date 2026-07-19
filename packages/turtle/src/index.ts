@@ -3,8 +3,87 @@
  * animation, deterministic export, and accessibility. Consumes the trace/event stream from
  * `@openlogo/core`.
  *
- * The turtle-state reducer and renderers land in later slices; this is the M0 skeleton.
+ * ```ts
+ * import * as OL from "@openlogo/turtle";
+ * const state = OL.reduceTurtleEvents(events);
+ * const scene = OL.reduceSceneEvents(events);
+ * OL.paintTurtle(canvasContext, scene, state, { width: 400, height: 400 });
+ * const svg = OL.exportTurtleSvg(scene, state, { width: 400, height: 400 });
+ * const png = OL.exportTurtlePng(scene, state, { width: 400, height: 400 });
+ * ```
+ *
+ * This slice publishes the deterministic turtle-**state** reducer (position, heading, pen,
+ * color, width, shape, visibility), the deterministic retained-**scene** reducer (background,
+ * segments, fills, stamps), the **Canvas live renderer**, deterministic **SVG** and **PNG**
+ * export — all three renderers paint the same retained data through the same
+ * dependency-injected `RenderTarget` abstraction and coordinate mapping — the
+ * **animation/execution-control** cursor (`run`/`pause`/`step`/`speed`/`reset`+`replay`) that
+ * paces consumption of that same event stream without ever re-deriving it, and **rendering
+ * accessibility** primitives: a non-visual textual state description
+ * (`describeTurtleState`), color-independent feedback descriptors for otherwise color-only
+ * rendering state, and a `renderFrame` reduced-motion paint mode that instantly drains and
+ * paints the retained scene without ever changing the event stream, final scene, turtle state,
+ * or export output.
  */
 
-/** Marker export so the M0 skeleton is a real ES module; replaced by real exports later. */
-export const TURTLE_PACKAGE = "@openlogo/turtle";
+export {
+  INITIAL_TURTLE_STATE,
+  reduceTurtleEvents,
+  reduceTurtleState,
+} from "./state.js";
+export type { TurtleState } from "./state.js";
+
+export {
+  INITIAL_TURTLE_SCENE,
+  reduceSceneEvents,
+  reduceTurtleScene,
+} from "./scene.js";
+export type {
+  SceneFill,
+  SceneItem,
+  SceneSegment,
+  SceneStamp,
+  TurtleScene,
+} from "./scene.js";
+
+export {
+  paintScene,
+  paintTurtle,
+  playWithMotionPreference,
+  renderFrame,
+  worldToTarget,
+} from "./canvas.js";
+export type {
+  MotionPreference,
+  MotionPreferencePlayer,
+  ReducedMotionSource,
+  RenderTarget,
+  Viewport,
+} from "./canvas.js";
+
+export { exportTurtleSvg } from "./svg.js";
+export type { SvgExportOptions } from "./svg.js";
+
+export { exportTurtlePng } from "./png.js";
+export type { PngExportOptions } from "./png.js";
+
+export { IMMEDIATE_SCHEDULER, TurtleAnimationController } from "./animation.js";
+export type {
+  AnimationSnapshot,
+  PlaybackStatus,
+  Scheduler,
+  TurtleAnimationOptions,
+} from "./animation.js";
+
+export {
+  describeCurrentStepCue,
+  describeErrorLocationCue,
+  describePenUpPreviewCue,
+  describeTurtleFocusCue,
+  describeTurtleState,
+} from "./a11y.js";
+export type {
+  ColorIndependentCue,
+  ColorIndependentCueKind,
+  TurtleStateDescriptionOptions,
+} from "./a11y.js";

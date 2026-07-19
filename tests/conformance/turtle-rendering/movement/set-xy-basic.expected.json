@@ -1,0 +1,63 @@
+{
+  "description": "issue #202: `set_xy 50 25` moves the turtle to an absolute point, leaving heading untouched (no `turn` event) — only `move`/`draw-segment` fire (spec/commands.md's `set_xy` entry).",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/movement/set-xy-basic",
+        "start": [1, 1],
+        "end": [1, 9]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "turn",
+      "source_span": {
+        "document": "turtle-rendering/movement/set-xy-basic",
+        "start": [1, 1],
+        "end": [1, 9]
+      },
+      "payload": { "from": 0, "to": 90 }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/movement/set-xy-basic",
+        "start": [2, 1],
+        "end": [2, 13]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 3,
+      "kind": "move",
+      "source_span": {
+        "document": "turtle-rendering/movement/set-xy-basic",
+        "start": [2, 1],
+        "end": [2, 13]
+      },
+      "payload": { "from": [0, 0], "to": [50, 25], "heading": 90 }
+    },
+    {
+      "seq": 4,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "turtle-rendering/movement/set-xy-basic",
+        "start": [2, 1],
+        "end": [2, 13]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [50, 25],
+        "color": "black",
+        "width": 1
+      }
+    }
+  ],
+  "diagnostics": []
+}
