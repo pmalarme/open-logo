@@ -14,6 +14,13 @@
 // yet — turtle movement belongs to `@openlogo/turtle` and is not wired into this package's
 // statement dispatch. `print` stands in for it throughout: it is this package's only
 // side-effecting statement, so it is the natural per-pass "did the loop body actually run" probe.
+//
+// Issue #233 adds the `for ... from ... to` (ForRange) and `for ... in` (ForIn) budget tests
+// below, mirroring the existing `forever`/`while`/comprehension tests' pattern exactly. Before
+// #233, `execute-internal.ts`'s `for`-loop `checkExecutionLimits`/`halt(limitDiagnostic)` branch
+// had no direct unit test of its own — its 100% coverage was parasitic on conformance-corpus
+// spillover (the same architecture issue #173 fixed for other branches), which is
+// environment-sensitive and flaked the Node-22 coverage gate on an unrelated PR (#232).
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -185,6 +192,47 @@ test("instructionBudget and recursionDepthLimit can be overridden together witho
   });
   assert.deepEqual(result.diagnostics, []);
   assert.equal(printedCount(result), 3);
+});
+
+test("a `for ... from ... to` (ForRange) loop is budgeted (issue #233): its own per-pass check halts a huge counted range", () => {
+  // Mirrors the `forever`/`while true [ ]` empty-body-safety concern: `for i from 1 to
+  // 1000000000 [ print :i ]` has no other exit and would otherwise run a billion passes.
+  // `checkExecutionLimits` must be reached from ForRange's own loop, not merely from
+  // `executeStatements`'s per-statement loop inside the body.
+  const result = execute("for i from 1 to 1000000000 [ print :i ]", doc, {
+    instructionBudget: 5,
+  });
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-limit");
+  assert.deepEqual(result.diagnostics[0].params, {
+    limit: "instruction-budget",
+    value: 5,
+  });
+  // The loop was cut off well short of a billion passes — some passes completed (partial
+  // trace is preserved, not discarded), but nowhere near an unbounded count.
+  const printed = printedCount(result);
+  assert.ok(printed > 0, "at least one pass should have completed");
+  assert.ok(printed < 5, "the tiny budget must not let the loop run free");
+});
+
+test("a `for ... in` (ForIn) loop is budgeted (issue #233): its own per-pass check halts mid-list", () => {
+  const result = execute("for n in [1 2 3 4 5 6 7 8 9 10] [ print :n ]", doc, {
+    instructionBudget: 3,
+  });
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-limit");
+  assert.deepEqual(result.diagnostics[0].params, {
+    limit: "instruction-budget",
+    value: 3,
+  });
+  // The loop was cut off mid-list — some passes completed (partial trace is preserved), but
+  // not the full 10-element list.
+  const printed = printedCount(result);
+  assert.ok(printed > 0, "at least one pass should have completed");
+  assert.ok(
+    printed < 10,
+    "the tiny budget must not let the loop run to completion",
+  );
 });
 
 test("a comprehension's map/filter loop is budgeted too (checkExecutionLimits is shared with evaluate.ts, not just execute-internal.ts)", () => {
