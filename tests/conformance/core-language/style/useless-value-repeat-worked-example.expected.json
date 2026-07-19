@@ -1,0 +1,20 @@
+{
+  "description": "ol-style-useless-value (issue #115): reproduces the spec's own worked example verbatim (spec/tooling.md:254-262) — a long-form `repeat 4 ... end repeat` whose block's only statement is `:side * 2`, a value-producing expression whose value is discarded. `params` carry `form:\"repeat\"`. The span covers the whole `repeat` node (head through `end repeat`). `:side` is declared first to isolate the code, the same pattern issue #114's `no-value-map-worked-example` fixture uses.",
+  "profiles": ["core-language"],
+  "check": true,
+  "style": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-style-useless-value",
+      "source_span": {
+        "document": "core-language/style/useless-value-repeat-worked-example",
+        "start": [2, 1],
+        "end": [4, 11]
+      },
+      "params": { "form": "repeat" },
+      "stage": "semantic",
+      "severity": "warning"
+    }
+  ]
+}

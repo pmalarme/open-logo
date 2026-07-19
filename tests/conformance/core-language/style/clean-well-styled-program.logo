@@ -1,0 +1,4 @@
+:side_length = 100
+repeat 4
+  print :side_length
+end repeat

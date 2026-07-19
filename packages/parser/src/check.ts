@@ -14,9 +14,14 @@
  * here; #113's `ol-undefined-var`/`ol-reserved-word` (alongside #79/#113's completed
  * `ol-not-a-place`) are the third; #114's `ol-return-outside-proc`/`ol-stop-outside-proc`/
  * `ol-return-in-comprehension`/`ol-no-value`/`ol-duplicate-binder` control-flow statics are the
- * last registered, leaving only the #115 style-lint slice to extend {@link RULES} the same way,
- * one vertical slice at a time, exactly as issue #90's `execute()` spine is filled in by the
- * runtime evaluator slices.
+ * last Layer-2 (error) rule registered.
+ *
+ * Layer-3 style lints (issue #115) are a **separate, opt-in** {@link STYLE_RULES} array, run
+ * only when `options.style === true` (default off). Style rules MUST NOT run unconditionally:
+ * unlike Layer-2 errors, a style warning (e.g. `ol-style-name-case`) would fire on plenty of
+ * existing `check: true` conformance fixtures that never opted into style checking, regressing
+ * them. `STYLE_RULES` findings are appended *after* the always-on `RULES` findings, in
+ * registration order, exactly mirroring how `RULES` itself is extended one slice at a time.
  */
 
 import type { Diagnostic } from "@openlogo/core";
@@ -25,6 +30,7 @@ import { arityRule } from "./checker-arity.js";
 import { controlFlowRule } from "./checker-control-flow.js";
 import { notAPlaceRule } from "./checker-not-a-place.js";
 import { reservedWordRule } from "./checker-reserved-word.js";
+import { STYLE_RULES } from "./checker-style.js";
 import { undefinedVarRule } from "./checker-undefined-var.js";
 import { unknownCommandRule } from "./checker-unknown-command.js";
 import { unknownTypeRule } from "./checker-type-field.js";
@@ -64,6 +70,13 @@ export type CheckProfile = (typeof OL_CHECK_PROFILES)[number];
 export interface CheckOptions {
   readonly profiles?: readonly CheckProfile[];
   readonly source?: string;
+  /**
+   * Opt in to the Layer-3 style lints ({@link STYLE_RULES}, issue #115). Defaults to `false`/
+   * `undefined` — style warnings never run unless a caller explicitly asks for them, so
+   * existing Layer-2-only callers and conformance fixtures keep seeing exactly the same
+   * diagnostics they did before this option existed.
+   */
+  readonly style?: boolean;
 }
 
 /** The result of {@link check}: the ordered semantic/style diagnostics it found. */
@@ -79,14 +92,24 @@ export const DEFAULT_CHECK_PROFILES: readonly CheckProfile[] = [
 /**
  * Run the Layer-2/Layer-3 static checks over `program`, consulting `options.profiles` (default
  * {@link DEFAULT_CHECK_PROFILES}) for name/form visibility. Returns every registered rule's
- * findings, concatenated in registration order — see {@link RULES}.
+ * findings, concatenated in registration order — see {@link RULES} — followed by
+ * {@link STYLE_RULES}'s findings when `options.style === true`.
  */
 export function check(
   program: ProgramNode,
   options: CheckOptions = {},
 ): CheckResult {
   const profiles = options.profiles ?? DEFAULT_CHECK_PROFILES;
-  return { diagnostics: findings(program, profiles, options.source) };
+  const diagnostics = findings(program, profiles, options.source);
+  if (options.style !== true) {
+    return { diagnostics };
+  }
+  return {
+    diagnostics: [
+      ...diagnostics,
+      ...STYLE_RULES.flatMap((rule) => rule(program, profiles, options.source)),
+    ],
+  };
 }
 
 /**
@@ -95,7 +118,7 @@ export function check(
  * {@link check} — most rules ignore it; {@link notAPlaceRule} uses it, when present, to recover
  * exact target surface text instead of reconstructing it from the AST.
  */
-type CheckRule = (
+export type CheckRule = (
   program: ProgramNode,
   profiles: readonly CheckProfile[],
   source?: string,

@@ -1,0 +1,31 @@
+{
+  "description": "ol-style-name-case (issue #115): the camelCase user variable `sideLength` is flagged both at its assignment place (`:sideLength = 100`) and its later read (`print :sideLength`) — every occurrence of a non-snake_case identifier is reported, not just its declaration. `params.name` carries the offending identifier text.",
+  "profiles": ["core-language"],
+  "check": true,
+  "style": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-style-name-case",
+      "source_span": {
+        "document": "core-language/style/name-case-camel-case",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "params": { "name": "sideLength" },
+      "stage": "semantic",
+      "severity": "warning"
+    },
+    {
+      "code": "ol-style-name-case",
+      "source_span": {
+        "document": "core-language/style/name-case-camel-case",
+        "start": [2, 7],
+        "end": [2, 18]
+      },
+      "params": { "name": "sideLength" },
+      "stage": "semantic",
+      "severity": "warning"
+    }
+  ]
+}

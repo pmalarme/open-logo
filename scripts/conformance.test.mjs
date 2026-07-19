@@ -185,6 +185,27 @@ test("produce prefers check-mode over execute-mode when both are opted in", () =
   assert.deepEqual(result.diagnostics, []);
 });
 
+test("produce does not run style lints under check() by default (shouldStyle omitted)", () => {
+  // `:X = 1` is a style-name-case violation, but style lints are opt-in — with shouldStyle
+  // omitted (defaulting to false) check() must not report it even though check:true is set.
+  const result = produce(":X = 1", "test-doc", false, true, ["core-language"]);
+  assert.deepEqual(result.diagnostics, []);
+});
+
+test("produce threads shouldStyle through to check()'s Layer-3 style lints", () => {
+  const result = produce(
+    ":X = 1",
+    "test-doc",
+    false,
+    true,
+    ["core-language"],
+    true,
+  );
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-style-name-case");
+  assert.deepEqual(result.diagnostics[0].params, { name: "X" });
+});
+
 test("validateDiagnostics passes for well-formed diagnostics", () => {
   const diagnostics = [
     {
@@ -781,6 +802,81 @@ test("loadFixture rejects a non-boolean check field", () => {
 
   assert.ok(loaded.error);
   assert.ok(loaded.error.includes('"check" must be a boolean'));
+  cleanup();
+});
+
+test("loadFixture defaults style to false when not present", () => {
+  cleanup();
+  mkdirSync(join(TEMP_ROOT, "no-style"), { recursive: true });
+  writeFileSync(join(TEMP_ROOT, "no-style", "no-style.logo"), "print 1");
+  writeFileSync(
+    join(TEMP_ROOT, "no-style", "no-style.expected.json"),
+    JSON.stringify({
+      profiles: ["core-language"],
+      check: true,
+      events: [],
+      diagnostics: [],
+    }),
+  );
+
+  const loaded = loadFixture({
+    name: "no-style/no-style.expected.json",
+    expectedPath: join(TEMP_ROOT, "no-style", "no-style.expected.json"),
+    logoPath: join(TEMP_ROOT, "no-style", "no-style.logo"),
+  });
+
+  assert.equal(loaded.expected.style, false);
+  cleanup();
+});
+
+test("loadFixture reads an explicit style: true opt-in", () => {
+  cleanup();
+  mkdirSync(join(TEMP_ROOT, "with-style"), { recursive: true });
+  writeFileSync(join(TEMP_ROOT, "with-style", "with-style.logo"), "print 1");
+  writeFileSync(
+    join(TEMP_ROOT, "with-style", "with-style.expected.json"),
+    JSON.stringify({
+      profiles: ["core-language"],
+      check: true,
+      style: true,
+      events: [],
+      diagnostics: [],
+    }),
+  );
+
+  const loaded = loadFixture({
+    name: "with-style/with-style.expected.json",
+    expectedPath: join(TEMP_ROOT, "with-style", "with-style.expected.json"),
+    logoPath: join(TEMP_ROOT, "with-style", "with-style.logo"),
+  });
+
+  assert.equal(loaded.expected.style, true);
+  cleanup();
+});
+
+test("loadFixture rejects a non-boolean style field", () => {
+  cleanup();
+  mkdirSync(join(TEMP_ROOT, "bad-style"), { recursive: true });
+  writeFileSync(join(TEMP_ROOT, "bad-style", "bad-style.logo"), "");
+  writeFileSync(
+    join(TEMP_ROOT, "bad-style", "bad-style.expected.json"),
+    JSON.stringify({
+      profiles: ["core-language"],
+      check: true,
+      style: "yes",
+      events: [],
+      diagnostics: [],
+    }),
+  );
+
+  const loaded = loadFixture({
+    name: "bad-style/bad-style.expected.json",
+    expectedPath: join(TEMP_ROOT, "bad-style", "bad-style.expected.json"),
+    logoPath: join(TEMP_ROOT, "bad-style", "bad-style.logo"),
+  });
+
+  assert.ok(loaded.error);
+  assert.ok(loaded.error.includes('"style" must be a boolean'));
   cleanup();
 });
 

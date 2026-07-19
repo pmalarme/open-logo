@@ -1,0 +1,8 @@
+{
+  "description": "A well-styled program (snake_case variable, a repeat block whose final statement is a command, no standalone discarded comparisons) opts into style:true and reports zero diagnostics — proving the 3 new style lints do not false-positive on clean code.",
+  "profiles": ["core-language"],
+  "check": true,
+  "style": true,
+  "events": [],
+  "diagnostics": []
+}
