@@ -84,6 +84,38 @@ test("subscribe notifies listeners synchronously with the new snapshot on every 
   assert.equal(seen.at(-1), store.getState());
 });
 
+test("createStudioState defaults notice to null and honors a provided initial notice", () => {
+  const store = OL.createStudioState();
+  assert.equal(store.getState().notice, null);
+
+  const withNotice = OL.createStudioState({
+    notice: { level: "warning", message: "example" },
+  });
+  assert.deepEqual(withNotice.getState().notice, {
+    level: "warning",
+    message: "example",
+  });
+});
+
+test("setNotice replaces the notice and setNotice(null) clears it", () => {
+  const store = OL.createStudioState();
+  const seen = [];
+  store.subscribe((state) => seen.push(state.notice));
+
+  store.setNotice({ level: "warning", message: "could not save" });
+  assert.deepEqual(store.getState().notice, {
+    level: "warning",
+    message: "could not save",
+  });
+
+  store.setNotice(null);
+  assert.equal(store.getState().notice, null);
+  assert.deepEqual(seen, [
+    { level: "warning", message: "could not save" },
+    null,
+  ]);
+});
+
 test("subscribe returns an unsubscribe function that stops further notifications", () => {
   const store = OL.createStudioState();
   const seen = [];

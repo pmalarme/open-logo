@@ -16,6 +16,9 @@
  *   by `@openlogo/parser`/`@openlogo/runtime`. Studio never invents its own diagnostic shape.
  * - `lesson` — the active lesson context (id + title) for the lesson pane (#127); content itself
  *   is pulled from `@openlogo/edu`, never authored here.
+ * - `notice` — a non-fatal, learner-visible status (e.g. "your work could not be saved"), set by
+ *   #128 persistence when a storage operation degrades gracefully instead of crashing or silently
+ *   losing data. `null` means there is nothing to show.
  *
  * ## Update contract
  * - State changes **only** through the store's `set*` methods below; the object returned by
@@ -44,6 +47,15 @@ export interface LessonContext {
   readonly title: string | null;
 }
 
+/**
+ * A non-fatal, learner-visible status. Set when something degrades gracefully (e.g. persistence
+ * failing to save/restore) rather than crashing or silently losing the learner's work.
+ */
+export interface Notice {
+  readonly level: "info" | "warning";
+  readonly message: string;
+}
+
 /** The single source-of-truth snapshot every studio pane renders from. */
 export interface StudioState {
   readonly source: string;
@@ -51,6 +63,7 @@ export interface StudioState {
   readonly runStatus: RunStatus;
   readonly diagnostics: readonly Diagnostic[];
   readonly lesson: LessonContext;
+  readonly notice: Notice | null;
 }
 
 /** A subscriber notified with the new snapshot after every state change. */
@@ -78,6 +91,8 @@ export interface StudioStateStore {
   setDiagnostics(diagnostics: readonly Diagnostic[]): void;
   /** Replace the lesson context. */
   setLesson(lesson: LessonContext): void;
+  /** Replace the visible notice; pass `null` to clear it. */
+  setNotice(notice: Notice | null): void;
 }
 
 const INITIAL_POSITION: Position = [1, 1];
@@ -97,6 +112,7 @@ export function createStudioState(
     runStatus: initial?.runStatus ?? "idle",
     diagnostics: initial?.diagnostics ?? [],
     lesson: initial?.lesson ?? INITIAL_LESSON,
+    notice: initial?.notice ?? null,
   };
 
   const listeners = new Set<StudioStateListener>();
@@ -130,6 +146,9 @@ export function createStudioState(
     },
     setLesson(lesson) {
       commit({ lesson });
+    },
+    setNotice(notice) {
+      commit({ notice });
     },
   };
 }
