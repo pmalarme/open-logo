@@ -1,0 +1,6 @@
+# Core `for ... from ... to ... by ...` long form (spec/grammar.md:142-143): the loop variable
+# `:i` reads cleanly inside the body when a `by` step is present, exactly as it does without one
+# (`core-language/check/undefined-var-declared-forms-clean` only covers the no-`by` form).
+for i from 1 to 10 by 2
+  print :i
+end for

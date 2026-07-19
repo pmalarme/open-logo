@@ -1,0 +1,19 @@
+{
+  "description": "A destructuring `for [:x :y] in <expr>` binder (spec/grammar.md:127,136-137) lives only within its own loop body: reads of `:x`/`:y` inside the body are fine, but reading `:x` again after `end for` has no visible declaration in scope, so it raises `ol-undefined-var` (spec/execution-model.md:317-327). This is the destructuring-specific case of the binder-not-leaked rule — the existing `core-language/check/undefined-var-binder-not-leaked` fixture only covers a bare-name `for ... from ... to` binder.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "core-language/control/for-in-destructuring-scope-ends",
+        "start": [9, 7],
+        "end": [9, 9]
+      },
+      "params": { "name": "x" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}
