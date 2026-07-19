@@ -56,8 +56,12 @@ export type DiagnosticCode = (typeof OL_DIAGNOSTIC_CODES)[number];
  * Style-lint codes. These reuse the diagnostic shape with `severity: "warning"` and MUST
  * NOT change program meaning. `spec/tooling.md:237-251` registers 13 `ol-style-*` codes; issue
  * #115 slice 1 wired `ol-style-useless-value`, `ol-style-equality-confusion`, and
- * `ol-style-name-case`; slice 2a adds `ol-style-magic-number` and `ol-style-predicate-name` —
- * the remaining eight are tracked in the #169 follow-up issue.
+ * `ol-style-name-case`; #169 slice 2a added `ol-style-magic-number` and
+ * `ol-style-predicate-name`; slice 2b (this one) adds the layout group —
+ * `ol-style-one-command-per-line`, `ol-style-deep-nesting`, `ol-style-block-indentation`, and
+ * `ol-style-prefer-block` — the remaining four (`ol-style-full-name`, `ol-style-procedure-name`,
+ * `ol-style-comment-style`, `ol-style-hidden-abstraction`) are tracked in the #169 follow-up
+ * issue.
  */
 export const OL_STYLE_DIAGNOSTIC_CODES = [
   "ol-style-useless-value",
@@ -65,6 +69,10 @@ export const OL_STYLE_DIAGNOSTIC_CODES = [
   "ol-style-name-case",
   "ol-style-magic-number",
   "ol-style-predicate-name",
+  "ol-style-one-command-per-line",
+  "ol-style-deep-nesting",
+  "ol-style-block-indentation",
+  "ol-style-prefer-block",
 ] as const;
 
 /** A stable `ol-style-*` linter code. */

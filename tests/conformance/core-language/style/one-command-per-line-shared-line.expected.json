@@ -1,0 +1,42 @@
+{
+  "description": "ol-style-one-command-per-line (issue #169): a multi-line bracket-form repeat body puts two commands (print 1, print 2) on the same physical line. Since the second command necessarily starts at a different column than the first, this fixture also naturally exercises ol-style-block-indentation (the shared-line print 2 disagrees with the block's own baseline column) and ol-style-prefer-block (the block is a multi-line bracket form). All three are genuine, expected findings for this source, not incidental noise.",
+  "profiles": ["core-language"],
+  "check": true,
+  "style": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-style-one-command-per-line",
+      "source_span": {
+        "document": "core-language/style/one-command-per-line-shared-line",
+        "start": [2, 3],
+        "end": [2, 19]
+      },
+      "params": { "count": 2 },
+      "stage": "semantic",
+      "severity": "warning"
+    },
+    {
+      "code": "ol-style-block-indentation",
+      "source_span": {
+        "document": "core-language/style/one-command-per-line-shared-line",
+        "start": [2, 12],
+        "end": [2, 19]
+      },
+      "params": { "expected": 3, "found": 12 },
+      "stage": "semantic",
+      "severity": "warning"
+    },
+    {
+      "code": "ol-style-prefer-block",
+      "source_span": {
+        "document": "core-language/style/one-command-per-line-shared-line",
+        "start": [1, 10],
+        "end": [3, 2]
+      },
+      "params": { "form": "repeat" },
+      "stage": "semantic",
+      "severity": "warning"
+    }
+  ]
+}
