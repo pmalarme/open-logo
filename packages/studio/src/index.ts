@@ -52,6 +52,15 @@
  *   `stage`/`params` only, never `message` prose (the diagnostic-identity rule).
  * - {@link mountDiagnosticsPane} composes the controller into the shell's `diagnostics` region.
  *
+ * #129 adds keyboard + screen-reader accessibility over the REPL loop (editor/run/diagnostics):
+ * - {@link REPL_FOCUS_ORDER} is the static, ordered keyboard focus order across all three panes;
+ *   {@link nextFocusStop}/{@link previousFocusStop} cycle through it (wrapping both ends), proving
+ *   there is no keyboard trap. {@link REPL_LANDMARK_ROLES} declares each pane's container-level
+ *   ARIA role/label for a future renderer to map 1:1.
+ * - {@link createA11yAnnouncer} subscribes to the shared store and emits a screen-reader
+ *   {@link Announcement} whenever `runStatus` or `diagnostics` changes, built from structured
+ *   fields only (never `Diagnostic.message` prose). See `a11y.ts`.
+ *
  * No lesson UI lands yet — that's #127.
  */
 
@@ -112,3 +121,20 @@ export {
   mountDiagnosticsPane,
   toDiagnosticsView,
 } from "./diagnostics.js";
+
+export type {
+  A11yAnnouncer,
+  A11yRole,
+  Announcement,
+  AnnouncementListener,
+  AnnouncementPoliteness,
+  FocusStop,
+  RegionLandmark,
+} from "./a11y.js";
+export {
+  createA11yAnnouncer,
+  nextFocusStop,
+  previousFocusStop,
+  REPL_FOCUS_ORDER,
+  REPL_LANDMARK_ROLES,
+} from "./a11y.js";
