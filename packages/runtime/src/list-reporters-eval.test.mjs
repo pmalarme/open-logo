@@ -5,10 +5,10 @@
 // cannot: every dynamically-reachable diagnostic path exercised directly (not via
 // conformance-fixture subprocess spillover, per the #172/#173 lesson), the operand evaluation-
 // failure propagation branches, and the fresh-list (non-mutating) guarantee for `fput`/`lput`/
-// `sentence`/`reverse`.
+// `sentence`.
 //
-// `pick`/`sort` are Data-profile derived reporters (spec/data-structures.md:125-129), not Core,
-// so they are intentionally out of scope here — see the PR description.
+// `reverse`/`pick`/`sort` are Data-profile derived reporters (spec/data-structures.md:125-129),
+// not Core, so they are intentionally out of scope here — see the PR description.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -402,57 +402,6 @@ test("(count) with no input raises ol-not-enough-inputs", () => {
   assert.deepEqual(result.diagnostics[0].code, "ol-not-enough-inputs");
   assert.deepEqual(result.diagnostics[0].params, {
     callable: "count",
-    expected: 1,
-    actual: 0,
-  });
-});
-
-// --- reverse --------------------------------------------------------------------------------
-
-test("reverse returns a fresh list in the opposite order (bare-call form)", () => {
-  const result = execute("print reverse [1 2 3]", doc);
-  assert.deepEqual(result.diagnostics, []);
-  assert.deepEqual(printedValues(result), [[3, 2, 1]]);
-});
-
-test("reverse returns a word's characters in the opposite order", () => {
-  const result = execute('print reverse "hello"', doc);
-  assert.deepEqual(result.diagnostics, []);
-  assert.deepEqual(printedValues(result), ["olleh"]);
-});
-
-test("reverse never mutates its list argument", () => {
-  const result = execute(
-    ":mylist = [1 2 3]\n" + ":throwaway = reverse :mylist\n" + "print :mylist",
-    doc,
-  );
-  assert.deepEqual(result.diagnostics, []);
-  assert.deepEqual(printedValues(result), [[1, 2, 3]]);
-});
-
-test("reverse on a non-word/non-list argument raises ol-type", () => {
-  const result = execute("print reverse 5", doc);
-  assert.equal(result.diagnostics.length, 1);
-  assert.deepEqual(result.diagnostics[0].params, {
-    expected: "word or list",
-    actual: "number",
-    value: 5,
-    operation: "reverse",
-  });
-});
-
-test("reverse propagates an operand evaluation failure instead of evaluating", () => {
-  const result = execute("print reverse :missing", doc);
-  assert.equal(result.diagnostics.length, 1);
-  assert.equal(result.diagnostics[0].code, "ol-undefined-var");
-});
-
-test("(reverse) with no input raises ol-not-enough-inputs", () => {
-  const result = execute("print (reverse)", doc);
-  assert.equal(result.diagnostics.length, 1);
-  assert.deepEqual(result.diagnostics[0].code, "ol-not-enough-inputs");
-  assert.deepEqual(result.diagnostics[0].params, {
-    callable: "reverse",
     expected: 1,
     actual: 0,
   });

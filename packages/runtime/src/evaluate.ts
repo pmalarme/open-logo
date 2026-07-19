@@ -571,7 +571,6 @@ export function isSupportedExpression(
         name === "lput" ||
         name === "sentence" ||
         name === "count" ||
-        name === "reverse" ||
         procedures.has(name);
       return (
         isKnownCallee &&
@@ -982,9 +981,6 @@ function evaluateCall(node: ArithmeticCallNode, env: Environment): EvalResult {
   }
   if (name === "count") {
     return evaluateCount(node, env);
-  }
-  if (name === "reverse") {
-    return evaluateReverse(node, env);
   }
   if (env.procedures.has(name)) {
     return env.callProcedure(node, env);
@@ -1843,14 +1839,14 @@ function evaluatePrefixIsA(
   );
 }
 
-// --- Core list reporters: first/last/butfirst/butlast/fput/lput/sentence/count/reverse (issue
-// #101, spec/commands.md "Words and lists", spec/execution-model.md:447-482) -------------------
+// --- Core list reporters: first/last/butfirst/butlast/fput/lput/sentence/count (issue #101,
+// spec/commands.md "Words and lists", spec/execution-model.md:447-482) --------------------------
 //
 // Every reporter below is a plain `Call`/`ParenCall` — no dedicated AST node — dispatched by
-// lowercased callee name, same as the is-predicates above. `fput`/`lput`/`sentence`/`reverse`
-// always return a *fresh* array (never mutate an argument list in place); nested element
-// references are shared, only the outer array is copied (`spec/execution-model.md:447-482`'s
-// mutation-vs-copy distinction). `pick`/`sort` are Data-profile derived reporters
+// lowercased callee name, same as the is-predicates above. `fput`/`lput`/`sentence` always
+// return a *fresh* array (never mutate an argument list in place); nested element references
+// are shared, only the outer array is copied (`spec/execution-model.md:447-482`'s
+// mutation-vs-copy distinction). `reverse`/`pick`/`sort` are Data-profile derived reporters
 // (`spec/data-structures.md:125-129`), not Core, so they are intentionally absent here.
 
 /** A word (string) or list (array) — the shared input type of `first`/`last`/`butfirst`/`butlast`/`count`. */
@@ -2103,42 +2099,6 @@ function evaluateCount(node: ArithmeticCallNode, env: Environment): EvalResult {
     );
   }
   return ok(value.length);
-}
-
-/**
- * `reverse` — a *fresh* list or word with elements/characters in the opposite order
- * (`spec/commands.md` "reverse"; `spec/execution-model.md:447-482` — never mutates its argument).
- * A non-word/non-list input raises `ol-type`.
- */
-function evaluateReverse(
-  node: ArithmeticCallNode,
-  env: Environment,
-): EvalResult {
-  const arityDiagnostic = requireMinArgs(node, "reverse", 1);
-  if (arityDiagnostic) {
-    return fail(arityDiagnostic);
-  }
-  const inputNode = arg(node, 0);
-  const inputResult = evaluate(inputNode, env);
-  if (!inputResult.ok) {
-    return inputResult;
-  }
-  const value = inputResult.value;
-  if (!isWordOrList(value)) {
-    return fail(
-      runtimeDiag.listReporterType(inputNode.source_span, {
-        expected: "word or list",
-        actual: typeNameOf(value),
-        value,
-        operation: "reverse",
-      }),
-    );
-  }
-  return ok(
-    typeof value === "string"
-      ? [...value].reverse().join("")
-      : [...value].reverse(),
-  );
 }
 
 // --- Comprehensions: map / filter / reduce (spec/execution-model.md:380-479, issue #105) ------

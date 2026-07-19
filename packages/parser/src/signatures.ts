@@ -57,7 +57,6 @@ const CORE_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
   ["fput", 2],
   ["lput", 2],
   ["count", 1],
-  ["reverse", 1],
   ["uppercase", 1],
   ["lowercase", 1],
 ]);
