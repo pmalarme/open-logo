@@ -116,7 +116,7 @@ test("visibility-change updates avatar visibility for show_turtle/hide_turtle", 
   assert.equal(shown.visible, true);
 });
 
-test("non-state-bearing events (e.g. background-change, print, clear) leave state unchanged", () => {
+test("non-state-bearing events (e.g. background-change, print, a clean clear) leave state unchanged", () => {
   const events = [
     event("background-change", { color: "blue" }, undefined),
     event("print", { values: [] }, undefined),
@@ -125,6 +125,32 @@ test("non-state-bearing events (e.g. background-change, print, clear) leave stat
   ];
   const state = OL.reduceTurtleEvents(events);
   assert.deepEqual(state, OL.INITIAL_TURTLE_STATE);
+});
+
+test("clear_screen homes position and heading but preserves pen, color, width, shape, visibility", () => {
+  const moved = OL.reduceTurtleEvents([
+    event("color-change", { from: "black", to: "red" }),
+    event("width-change", { from: 1, to: 4 }),
+    event("shape-change", { from: "turtle", to: "arrow" }),
+    event("pen-change", { from: "down", to: "up" }),
+    event("visibility-change", { from: true, to: false }),
+    event("turn", { from: 0, to: 90 }),
+    event("move", { from: [0, 0], to: [50, 50], heading: 90 }),
+  ]);
+  assert.deepEqual(moved.position, [50, 50]);
+  assert.equal(moved.heading, 90);
+
+  const cleared = OL.reduceTurtleState(
+    moved,
+    event("clear", { mode: "clear_screen" }),
+  );
+  assert.deepEqual(cleared.position, [0, 0]);
+  assert.equal(cleared.heading, 0);
+  assert.equal(cleared.penDown, false);
+  assert.equal(cleared.color, "red");
+  assert.equal(cleared.width, 4);
+  assert.equal(cleared.shape, "arrow");
+  assert.equal(cleared.visible, false);
 });
 
 test("reduceTurtleState folds a single event onto an explicit starting state", () => {

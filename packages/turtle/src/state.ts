@@ -11,6 +11,7 @@
  */
 
 import type {
+  ClearPayload,
   ColorChangePayload,
   DrawSegmentPayload,
   MovePayload,
@@ -65,9 +66,13 @@ export const INITIAL_TURTLE_STATE: TurtleState = Object.freeze({
  * Reduces one trace event into the next turtle state. Only the state-bearing kinds change
  * anything: `move`/`draw-segment` update position (and `move` also updates heading), `turn`
  * updates heading, `pen-change` updates pen down/up, `color-change`/`width-change`/
- * `shape-change`/`visibility-change` update the matching field. Every other kind (scene,
- * control-flow, diagnostic, …) leaves state unchanged, so a sibling scene reducer can fold the
- * same stream alongside this one without either needing to know about the other's kinds.
+ * `shape-change`/`visibility-change` update the matching field, and a `clear-screen` `clear`
+ * homes position and heading (`spec/rendering.md`: "`clear_screen` clears the drawing and
+ * homes the turtle while preserving the pen state, color, width, visibility, and background" —
+ * a plain `clean` clear leaves state untouched, since it clears drawing only). Every other kind
+ * (scene, control-flow, diagnostic, …) leaves state unchanged, so a sibling scene reducer can
+ * fold the same stream alongside this one without either needing to know about the other's
+ * kinds.
  */
 export function reduceTurtleState(
   state: TurtleState,
@@ -105,6 +110,13 @@ export function reduceTurtleState(
     case "visibility-change": {
       const { to } = event.payload as VisibilityChangePayload;
       return { ...state, visible: to };
+    }
+    case "clear": {
+      const { mode } = event.payload as ClearPayload;
+      if (mode === "clear_screen") {
+        return { ...state, position: [0, 0] as Point, heading: 0 };
+      }
+      return state;
     }
     default:
       return state;
