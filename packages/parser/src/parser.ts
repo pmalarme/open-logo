@@ -35,7 +35,7 @@ import type {
   StatementNode,
 } from "./ast.js";
 import { parseDiag } from "./errors.js";
-import { corePrimitiveArity } from "./signatures.js";
+import { primitiveArity } from "./signatures.js";
 import { tokenize } from "./tokens.js";
 import type { LexToken } from "./tokens.js";
 
@@ -336,7 +336,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     if (user !== undefined) {
       return user;
     }
-    return corePrimitiveArity(name) ?? 0;
+    return primitiveArity(name) ?? 0;
   }
 
   function isCalleeName(text: string): boolean {
