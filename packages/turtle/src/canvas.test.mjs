@@ -421,3 +421,220 @@ test("reduced-to-scene and repaint is deterministic across repeated calls", () =
   OL.paintScene(second.target, scene, VIEWPORT);
   assert.deepEqual(first.calls, second.calls);
 });
+
+/** A minimal fake {@link OL.ReducedMotionSource}/{@link OL.MotionPreferencePlayer}: reports a
+ * fixed snapshot until `seekToEnd`/`run` is called, at which point it reports `finalSnapshot`
+ * instead — enough to distinguish "painted before playback" from "painted after playback"
+ * without a real animation controller. */
+function makeFakeAnimationSource(initialSnapshot, finalSnapshot) {
+  let drained = false;
+  let seekToEndCalls = 0;
+  let runCalls = 0;
+  return {
+    getSnapshot() {
+      return drained ? finalSnapshot : initialSnapshot;
+    },
+    seekToEnd() {
+      seekToEndCalls += 1;
+      drained = true;
+    },
+    run() {
+      runCalls += 1;
+      drained = true;
+    },
+    get seekToEndCallCount() {
+      return seekToEndCalls;
+    },
+    get runCallCount() {
+      return runCalls;
+    },
+  };
+}
+
+test("renderFrame paints exactly the source's current snapshot, never advancing or draining it", () => {
+  const initial = {
+    cursor: 0,
+    status: "paused",
+    state: { ...OL.INITIAL_TURTLE_STATE, position: [10, 0] },
+    scene: { background: "white", items: [] },
+  };
+  const final = {
+    cursor: 4,
+    status: "done",
+    state: { ...OL.INITIAL_TURTLE_STATE, position: [100, 0] },
+    scene: { background: "white", items: [] },
+  };
+  const source = makeFakeAnimationSource(initial, final);
+  const { target, calls } = makeRecordingTarget();
+
+  OL.renderFrame(target, source, VIEWPORT);
+
+  // A paused source stays paused — renderFrame must never call seekToEnd/run itself.
+  assert.equal(source.seekToEndCallCount, 0);
+  assert.equal(source.runCallCount, 0);
+  // Painted the *current* snapshot's avatar position, not some later one.
+  const translateCall = calls.find((call) => call[0] === "translate");
+  assert.deepEqual(translateCall, ["translate", 210, 150]);
+});
+
+test("renderFrame on an already-paused real controller repaints the paused frame without draining it to done", () => {
+  const events = [
+    {
+      seq: 0,
+      kind: "instruction",
+      source_span: { document: "t", start: [1, 1], end: [1, 11] },
+      payload: { text: "forward 100" },
+    },
+    {
+      seq: 1,
+      kind: "move",
+      source_span: { document: "t", start: [1, 1], end: [1, 11] },
+      payload: { to: [100, 0], heading: 0 },
+    },
+    {
+      seq: 2,
+      kind: "instruction",
+      source_span: { document: "t", start: [2, 1], end: [2, 10] },
+      payload: { text: "right 90" },
+    },
+    {
+      seq: 3,
+      kind: "turn",
+      source_span: { document: "t", start: [2, 1], end: [2, 10] },
+      payload: { heading: 90 },
+    },
+  ];
+  const controller = new OL.TurtleAnimationController(events);
+  controller.step(); // consumes only the first instruction-step; leaves "right 90" unconsumed.
+  assert.equal(controller.getSnapshot().status, "paused");
+  assert.equal(controller.getSnapshot().cursor, 2);
+
+  const { target } = makeRecordingTarget();
+  OL.renderFrame(target, controller, VIEWPORT);
+
+  // Repainting the current (paused) frame must not advance the cursor or change status — step
+  // and pause stay available exactly as the AC requires, regardless of how it was rendered.
+  assert.equal(controller.getSnapshot().status, "paused");
+  assert.equal(controller.getSnapshot().cursor, 2);
+  assert.equal(controller.getSnapshot().state.heading, 0);
+});
+
+test("playWithMotionPreference with reducedMotion:false starts the player's own paced run", () => {
+  const initial = {
+    cursor: 0,
+    status: "idle",
+    state: OL.INITIAL_TURTLE_STATE,
+    scene: { background: "white", items: [] },
+  };
+  const final = {
+    cursor: 4,
+    status: "done",
+    state: { ...OL.INITIAL_TURTLE_STATE, position: [100, 0] },
+    scene: { background: "white", items: [] },
+  };
+  const player = makeFakeAnimationSource(initial, final);
+
+  OL.playWithMotionPreference(player, { reducedMotion: false });
+
+  assert.equal(player.runCallCount, 1);
+  assert.equal(player.seekToEndCallCount, 0);
+  // getSnapshot() now reflects the post-run (drained) state, proving run() actually advanced it.
+  assert.deepEqual(player.getSnapshot(), final);
+});
+
+test("playWithMotionPreference with reducedMotion:true drains the whole stream instantly instead of pacing", () => {
+  const initial = {
+    cursor: 0,
+    status: "idle",
+    state: OL.INITIAL_TURTLE_STATE,
+    scene: { background: "white", items: [] },
+  };
+  const final = {
+    cursor: 4,
+    status: "done",
+    state: { ...OL.INITIAL_TURTLE_STATE, position: [100, 0] },
+    scene: { background: "white", items: [] },
+  };
+  const player = makeFakeAnimationSource(initial, final);
+
+  OL.playWithMotionPreference(player, { reducedMotion: true });
+
+  assert.equal(player.seekToEndCallCount, 1);
+  assert.equal(player.runCallCount, 0);
+});
+
+test("reduced-motion playback never changes the final scene/state/export vs stepped or paced normal playback", () => {
+  const events = [
+    {
+      seq: 0,
+      kind: "instruction",
+      source_span: { document: "t", start: [1, 1], end: [1, 11] },
+      payload: { text: "forward 100" },
+    },
+    {
+      seq: 1,
+      kind: "move",
+      source_span: { document: "t", start: [1, 1], end: [1, 11] },
+      payload: { to: [100, 0], heading: 0 },
+    },
+    {
+      seq: 2,
+      kind: "draw-segment",
+      source_span: { document: "t", start: [1, 1], end: [1, 11] },
+      payload: {
+        from: [0, 0],
+        to: [100, 0],
+        color: "black",
+        width: 1,
+      },
+    },
+    {
+      seq: 3,
+      kind: "instruction",
+      source_span: { document: "t", start: [2, 1], end: [2, 10] },
+      payload: { text: "right 90" },
+    },
+    {
+      seq: 4,
+      kind: "turn",
+      source_span: { document: "t", start: [2, 1], end: [2, 10] },
+      payload: { heading: 90 },
+    },
+  ];
+
+  // Reduced motion: start playback via playWithMotionPreference({reducedMotion: true}).
+  const reducedController = new OL.TurtleAnimationController(events);
+  OL.playWithMotionPreference(reducedController, { reducedMotion: true });
+
+  // Normal, paced playback: same events, driven step-by-step (not seekToEnd) to prove the
+  // reduced-motion path doesn't diverge from genuinely stepped/paced consumption.
+  const steppedController = new OL.TurtleAnimationController(events);
+  while (steppedController.getSnapshot().status !== "done") {
+    steppedController.step();
+  }
+
+  // Normal playback via run() with the default (synchronous) scheduler.
+  const runController = new OL.TurtleAnimationController(events);
+  OL.playWithMotionPreference(runController, { reducedMotion: false });
+
+  const reducedSnapshot = reducedController.getSnapshot();
+  const steppedSnapshot = steppedController.getSnapshot();
+  const runSnapshot = runController.getSnapshot();
+
+  assert.deepEqual(reducedSnapshot.scene, steppedSnapshot.scene);
+  assert.deepEqual(reducedSnapshot.state, steppedSnapshot.state);
+  assert.deepEqual(reducedSnapshot.scene, runSnapshot.scene);
+  assert.deepEqual(reducedSnapshot.state, runSnapshot.state);
+
+  // The original event array itself is untouched by any playback mode.
+  assert.equal(events.length, 5);
+  assert.equal(events[0].kind, "instruction");
+
+  // Rendering each final snapshot produces byte-identical draw calls too — reduced motion
+  // changes nothing about the retained scene an export or repaint would read.
+  const reducedTarget = makeRecordingTarget();
+  const steppedTarget = makeRecordingTarget();
+  OL.renderFrame(reducedTarget.target, reducedController, VIEWPORT);
+  OL.renderFrame(steppedTarget.target, steppedController, VIEWPORT);
+  assert.deepEqual(reducedTarget.calls, steppedTarget.calls);
+});
