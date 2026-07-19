@@ -7,11 +7,13 @@
  * import * as OL from "@openlogo/turtle";
  * const state = OL.reduceTurtleEvents(events);
  * const scene = OL.reduceSceneEvents(events);
+ * OL.paintTurtle(canvasContext, scene, state, { width: 400, height: 400 });
  * ```
  *
  * This slice publishes the deterministic turtle-**state** reducer (position, heading, pen,
- * color, width, shape, visibility) and the deterministic retained-**scene** reducer
- * (background, segments, fills, stamps). Renderers land in later slices.
+ * color, width, shape, visibility), the deterministic retained-**scene** reducer (background,
+ * segments, fills, stamps), and the **Canvas live renderer** that paints both onto a
+ * dependency-injected drawing target. SVG/PNG export land in later slices.
  */
 
 export {
@@ -33,3 +35,6 @@ export type {
   SceneStamp,
   TurtleScene,
 } from "./scene.js";
+
+export { paintScene, paintTurtle, worldToTarget } from "./canvas.js";
+export type { RenderTarget, Viewport } from "./canvas.js";
