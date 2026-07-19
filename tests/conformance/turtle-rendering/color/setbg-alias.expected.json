@@ -1,0 +1,32 @@
+{
+  "description": "issue #208: `setbg` is a Turtle & Rendering-profile (not Heritage) one-word alias of `set_background` (spec/commands.md:1539) - behaves identically, here with an `[r g b]` list normalized to an `rgb(r, g, b)` string.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/color/setbg-alias",
+        "start": [1, 1],
+        "end": [1, 14]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "background-change",
+      "source_span": {
+        "document": "turtle-rendering/color/setbg-alias",
+        "start": [1, 1],
+        "end": [1, 14]
+      },
+      "payload": {
+        "color": "rgb(1, 2, 3)"
+      }
+    }
+  ],
+  "diagnostics": []
+}

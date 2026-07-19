@@ -1,0 +1,33 @@
+{
+  "description": "issue #208: `set_color [10 20 30]` accepts an `[r g b]` list - each component a number 0 through 255 (spec/commands.md's \"Colors\" section) - and normalizes it to a stable `rgb(r, g, b)` string in the emitted `color-change` event's `to` field.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/color/set-color-rgb-list",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "color-change",
+      "source_span": {
+        "document": "turtle-rendering/color/set-color-rgb-list",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "from": "black",
+        "to": "rgb(10, 20, 30)"
+      }
+    }
+  ],
+  "diagnostics": []
+}

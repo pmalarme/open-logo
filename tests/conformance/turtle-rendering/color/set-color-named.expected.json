@@ -1,0 +1,33 @@
+{
+  "description": "issue #208: `set_color \"blue\"` validates a named palette word, sets the turtle's color, and emits a `color-change` event ({from: \"black\" (the default), to: \"blue\"}) - no move/turn/draw-segment event fires for a color change alone (spec/commands.md's `set_color` entry and its \"Colors\" section).",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/color/set-color-named",
+        "start": [1, 1],
+        "end": [1, 17]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "color-change",
+      "source_span": {
+        "document": "turtle-rendering/color/set-color-named",
+        "start": [1, 1],
+        "end": [1, 17]
+      },
+      "payload": {
+        "from": "black",
+        "to": "blue"
+      }
+    }
+  ],
+  "diagnostics": []
+}

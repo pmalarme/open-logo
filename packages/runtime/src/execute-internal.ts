@@ -21,7 +21,9 @@
  */
 
 import type {
+  BackgroundChangePayload,
   ClearPayload,
+  ColorChangePayload,
   Diagnostic,
   DrawSegmentPayload,
   MovePayload,
@@ -46,6 +48,7 @@ import type {
   StatementNode,
 } from "@openlogo/parser";
 import { parse, walk } from "@openlogo/parser";
+import { normalizeColor } from "./color.js";
 import {
   bindElement,
   checkExecutionLimits,
@@ -583,6 +586,171 @@ function executeTurtleClearCall(
 }
 
 /**
+ * Is `statement` a call to `set_color` or its Turtle & Rendering-profile alias `setcolor` (issue
+ * #208; `spec/commands.md:1521`). Not Heritage — same rationale as {@link isTurtlePositionCall}'s
+ * `setxy`. Same shape/convention as {@link isTurtleVisibilityCall}.
+ */
+function isTurtleColorCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  const name = statement.callee.name.toLowerCase();
+  return name === "set_color" || name === "setcolor";
+}
+
+/**
+ * Validate and run a `set_color`/`setcolor` statement matched by {@link isTurtleColorCall}:
+ * exactly one argument (`ol-not-enough-inputs`/`ol-too-many-inputs` otherwise), validated by
+ * {@link normalizeColor} against the three accepted color forms
+ * (`spec/commands.md`'s "Colors" section) — an unknown word, a wrong-length or out-of-range-
+ * component `[r g b]` list, or a malformed hex word all raise `ol-bad-color`
+ * (`runtimeDiag.badColor`). On success, sets `turtle.color` and emits a `color-change` event
+ * (`{from, to}`, mirroring {@link turnTurtle}'s shape — `spec/rendering.md`'s "Color" section:
+ * "Color state is part of turtle state"). Unlike {@link moveTurtle}, there is no `move`/
+ * `draw-segment` interaction: changing the pen color affects only *future* segments, which already
+ * capture `turtle.color` at draw time (see {@link moveTurtle}/{@link moveTurtleTo}'s
+ * `DrawSegmentPayload`) — no zero-length segment is drawn for the color change itself. Returns an
+ * {@link ExecSignal} to halt on, or `undefined` for {@link executeStatements} to `continue` on
+ * success (including the "left un-evaluated" case for an unsupported argument expression,
+ * mirroring `set_heading`/`seth`'s handling).
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeTurtleColorCall(
+  colorCall: CallNode | ParenCallNode,
+  env: Environment,
+): ExecSignal | undefined {
+  const callableName = colorCall.callee.name;
+  if (colorCall.args.length !== 1) {
+    return halt(
+      colorCall.args.length < 1
+        ? runtimeDiag.notEnoughInputs(
+            colorCall.callee.source_span,
+            callableName,
+            1,
+            colorCall.args.length,
+          )
+        : runtimeDiag.tooManyInputs(
+            colorCall.callee.source_span,
+            callableName,
+            1,
+            colorCall.args.length,
+          ),
+    );
+  }
+  const [arg] = colorCall.args as [ExpressionNode];
+  if (!isSupportedExpression(arg, env.procedures)) {
+    return undefined;
+  }
+  const argResult = evaluate(arg, env);
+  if (!argResult.ok) {
+    return halt(argResult.diagnostic);
+  }
+  const operation = callableName.toLowerCase() as "set_color" | "setcolor";
+  const color = normalizeColor(argResult.value);
+  if (color === undefined) {
+    return halt(
+      runtimeDiag.badColor(arg.source_span, {
+        operation,
+        value: argResult.value,
+      }),
+    );
+  }
+  const { turtle } = env;
+  const from = turtle.color;
+  turtle.color = color;
+  env.events.push({
+    seq: env.events.length,
+    kind: "color-change",
+    source_span: colorCall.source_span,
+    payload: { from, to: color } satisfies ColorChangePayload,
+  });
+  return undefined;
+}
+
+/**
+ * Is `statement` a call to `set_background` or its Turtle & Rendering-profile alias `setbg` (issue
+ * #208; `spec/commands.md:1539`). Not Heritage — same rationale as {@link isTurtlePositionCall}'s
+ * `setxy`. Same shape/convention as {@link isTurtleColorCall}.
+ */
+function isTurtleBackgroundCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  const name = statement.callee.name.toLowerCase();
+  return name === "set_background" || name === "setbg";
+}
+
+/**
+ * Validate and run a `set_background`/`setbg` statement matched by
+ * {@link isTurtleBackgroundCall}: exactly one argument (`ol-not-enough-inputs`/
+ * `ol-too-many-inputs` otherwise), validated by {@link normalizeColor} the same way
+ * {@link executeTurtleColorCall} does (`ol-bad-color` on an unaccepted form). On success, emits a
+ * `background-change` event carrying only the new color (`spec/rendering.md`'s "Background"
+ * section: "The background is a scene property, not a segment" — there is no prior-value pairing
+ * to report, unlike {@link ColorChangePayload}'s `{from, to}`). The runtime does not track
+ * background as turtle state at all: `clear_screen`/`clean` leave it unchanged
+ * (`spec/rendering.md`'s "Clear operations" table), and no other command reads it back, so there
+ * is nothing for a runtime-side field to serve — the scene's background is `@openlogo/turtle`'s
+ * own reducer state, folded from this event. Returns an {@link ExecSignal} to halt on, or
+ * `undefined` for {@link executeStatements} to `continue` on success (including the "left
+ * un-evaluated" case for an unsupported argument expression, mirroring
+ * {@link executeTurtleColorCall}'s handling).
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeTurtleBackgroundCall(
+  backgroundCall: CallNode | ParenCallNode,
+  env: Environment,
+): ExecSignal | undefined {
+  const callableName = backgroundCall.callee.name;
+  if (backgroundCall.args.length !== 1) {
+    return halt(
+      backgroundCall.args.length < 1
+        ? runtimeDiag.notEnoughInputs(
+            backgroundCall.callee.source_span,
+            callableName,
+            1,
+            backgroundCall.args.length,
+          )
+        : runtimeDiag.tooManyInputs(
+            backgroundCall.callee.source_span,
+            callableName,
+            1,
+            backgroundCall.args.length,
+          ),
+    );
+  }
+  const [arg] = backgroundCall.args as [ExpressionNode];
+  if (!isSupportedExpression(arg, env.procedures)) {
+    return undefined;
+  }
+  const argResult = evaluate(arg, env);
+  if (!argResult.ok) {
+    return halt(argResult.diagnostic);
+  }
+  const operation = callableName.toLowerCase() as "set_background" | "setbg";
+  const color = normalizeColor(argResult.value);
+  if (color === undefined) {
+    return halt(
+      runtimeDiag.badColor(arg.source_span, {
+        operation,
+        value: argResult.value,
+      }),
+    );
+  }
+  env.events.push({
+    seq: env.events.length,
+    kind: "background-change",
+    source_span: backgroundCall.source_span,
+    payload: { color } satisfies BackgroundChangePayload,
+  });
+  return undefined;
+}
+
+/**
  * Is `statement` a call to `home`/`set_xy` or `set_xy`'s Turtle & Rendering-profile alias `setxy`
  * (issue #202, Core absolute positioning; `spec/commands.md:1279`). Unlike `forward`'s `fd`,
  * `setxy`/`seth` are **not** Heritage — `spec/conformance.md:105-117`'s Heritage short-alias list
@@ -844,7 +1012,8 @@ const NOT_A_TURTLE_COMMAND = Symbol("not-a-turtle-command");
 /**
  * Single entry point {@link executeStatements} calls to try every turtle command in one step.
  * Each new turtle command (`#202`/`#204`/`#207`-`#210`, …) should add its `isTurtleXCall`/
- * `executeTurtleXCall` pair and one more branch **here**, not in `executeStatements` itself:
+ * `executeTurtleXCall` pair and one more branch **here**, not in `executeStatements` itself
+ * (issue #208 added the `set_color`/`set_background` branches this way):
  * `executeStatements` recurses once per procedure call (via `runProcedureBody`/`runProcedure`),
  * so every local variable/branch added directly to its body grows *every* stack frame in a deep
  * recursive program. Growing this dispatcher instead keeps `executeStatements`'s own frame size
@@ -896,6 +1065,18 @@ function dispatchTurtleCommand(
   }
   if (isTurtleClearCall(statement)) {
     return executeTurtleClearCall(
+      statement as unknown as CallNode | ParenCallNode,
+      env,
+    );
+  }
+  if (isTurtleColorCall(statement)) {
+    return executeTurtleColorCall(
+      statement as unknown as CallNode | ParenCallNode,
+      env,
+    );
+  }
+  if (isTurtleBackgroundCall(statement)) {
+    return executeTurtleBackgroundCall(
       statement as unknown as CallNode | ParenCallNode,
       env,
     );

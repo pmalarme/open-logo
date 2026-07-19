@@ -74,14 +74,14 @@ export function corePrimitiveArity(name: string): number | undefined {
  * derived from the Turtle movement / Pen and screen tables in
  * [`spec/commands.md`](../../../spec/commands.md). Registers the canonical underscored names plus
  * the small set of Turtle & Rendering (not Heritage) aliases the spec documents inline —
- * `setxy`/`seth` (issue #202; `spec/commands.md:1279,1296`). `fd`/`bk`/`lt`/`rt`/`pu`/`pd`/`st`/
- * `ht`/`cs` are the genuinely **Heritage**-profile (M5) short spellings and stay out of this
- * table — the Heritage profile's short-alias list is closed by `spec/conformance.md:105-117`, and
- * `setxy`/`seth` are not members of it. `setcolor`/`setbg`/`setwidth` are, like `setxy`/`seth`,
- * Turtle & Rendering aliases (`spec/commands.md:1521,1539,1556`) rather than Heritage — but they
- * stay out of this table for now because their owning commands (`set_color`/`set_background`/
- * `set_width`) are implemented by separate slices (#207/#204/#209), not this one. Kept as a
- * separate table from {@link CORE_PRIMITIVE_ARITY} (rather than merged into it) because the two
+ * `setxy`/`seth` (issue #202; `spec/commands.md:1279,1296`) and `setcolor`/`setbg` (issue #208;
+ * `spec/commands.md:1521,1539`). `fd`/`bk`/`lt`/`rt`/`pu`/`pd`/`st`/`ht`/`cs` are the genuinely
+ * **Heritage**-profile (M5) short spellings and stay out of this table — the Heritage profile's
+ * short-alias list is closed by `spec/conformance.md:105-117`, and `setxy`/`seth`/`setcolor`/
+ * `setbg` are not members of it. `setwidth` is, like these four, a Turtle & Rendering alias
+ * (`spec/commands.md:1556`) rather than Heritage — but it stays out of this table for now because
+ * its owning command (`set_width`) is implemented by a separate slice (#209), not this one. Kept
+ * as a separate table from {@link CORE_PRIMITIVE_ARITY} (rather than merged into it) because the two
  * profiles have independent visibility: the Layer-2 checker gates each on its own active profile
  * (`spec/tooling.md:175-176`), while the reader (this table's only consumer, via
  * {@link primitiveArity}) groups a bare call's arguments for *any* recognized primitive
@@ -112,7 +112,9 @@ const TURTLE_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
   ["clear_screen", 0],
   ["clean", 0],
   ["set_color", 1],
+  ["setcolor", 1], // Turtle & Rendering alias of `set_color` (spec/commands.md:1521), not Heritage.
   ["set_background", 1],
+  ["setbg", 1], // Turtle & Rendering alias of `set_background` (spec/commands.md:1539), not Heritage.
   ["set_width", 1],
   ["fill", 0],
   ["stamp", 0],
