@@ -134,6 +134,26 @@ export interface NegativeCountParams {
 }
 
 /**
+ * Params for an `ol-range` raised by a `forward`/`back` distance that is not finite
+ * (`Infinity`/`-Infinity`, reachable via arithmetic overflow — e.g. `power 10 1000` —
+ * `spec/execution-model.md:517` — "OpenLogo never exposes NaN or Infinity as learner-facing
+ * results"). Movement math (`x + d·sin h`) would otherwise silently corrupt the turtle's
+ * position with a non-finite or `NaN` coordinate (`0 · Infinity` is `NaN` in IEEE 754) instead of
+ * raising a diagnostic.
+ */
+export interface NonFiniteDistanceParams {
+  readonly operation: "forward" | "back";
+  /**
+   * `Infinity`/`-Infinity`/`NaN` rendered as its `String(value)` spelling (e.g. `"Infinity"`).
+   * `params` is a diagnostic-identity payload that MUST survive a JSON round-trip
+   * (`spec/error-model.md:34` — "used for identity, repair, telemetry, and localization"), but
+   * `JSON.stringify` silently turns a non-finite `number` into `null`; a string keeps the value
+   * legible and stable across API and serialized consumers.
+   */
+  readonly value: string;
+}
+
+/**
  * Params for an `ol-type` raised by a `for ... in` iterable that is not a list
  * (`spec/execution-model.md:375-376` — Core `for ... in` is list-only; dict iteration is a later
  * profile).
@@ -407,6 +427,24 @@ export const runtimeDiag = {
       source_span,
       { ...params },
       `${params.operation} needs a count of 0 or greater, but got ${params.value}.`,
+    );
+  },
+
+  /**
+   * `ol-range`: a `forward`/`back` distance is `Infinity`/`-Infinity` (reachable via arithmetic
+   * overflow, e.g. `forward power 10 1000` — `spec/execution-model.md:517`). Only reached once
+   * {@link requireNumber} has already confirmed the value is a number; a finite `distance` never
+   * reaches this check.
+   */
+  nonFiniteDistance(
+    source_span: SourceSpan,
+    params: NonFiniteDistanceParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-range",
+      source_span,
+      { ...params },
+      `${params.operation} needs a finite distance, but got ${params.value}.`,
     );
   },
 

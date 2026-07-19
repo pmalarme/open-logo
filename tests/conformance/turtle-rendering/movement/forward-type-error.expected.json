@@ -1,0 +1,35 @@
+{
+  "description": "issue #200: a non-number `forward` argument raises `ol-type` (expected concept \"number\") instead of moving the turtle — spec/error-model.md's stable ol-* diagnostic contract, reusing the same `requireNumber` builder arithmetic already uses.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/movement/forward-type-error",
+        "start": [1, 1],
+        "end": [1, 14]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "turtle-rendering/movement/forward-type-error",
+        "start": [1, 9],
+        "end": [1, 14]
+      },
+      "params": {
+        "expected": "number",
+        "actual": "word",
+        "value": "abc",
+        "operation": "forward"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

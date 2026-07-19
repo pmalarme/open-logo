@@ -1,0 +1,43 @@
+{
+  "description": "issue #200: `back 50` moves the turtle opposite its current heading (`back n` == `forward -n`, spec/commands.md:1215) — from the default `(0,0)` heading-`0` origin to `(0,-50)` — emitting the same `move`/`draw-segment` event pair as `forward`.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/movement/back-50",
+        "start": [1, 1],
+        "end": [1, 8]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "move",
+      "source_span": {
+        "document": "turtle-rendering/movement/back-50",
+        "start": [1, 1],
+        "end": [1, 8]
+      },
+      "payload": { "from": [0, 0], "to": [0, -50], "heading": 0 }
+    },
+    {
+      "seq": 2,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "turtle-rendering/movement/back-50",
+        "start": [1, 1],
+        "end": [1, 8]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, -50],
+        "color": "black",
+        "width": 1
+      }
+    }
+  ],
+  "diagnostics": []
+}
