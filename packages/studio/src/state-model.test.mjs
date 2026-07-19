@@ -10,6 +10,7 @@ test("createStudioState returns the documented initial snapshot", () => {
   assert.deepEqual(state.selection, { anchor: [1, 1], head: [1, 1] });
   assert.equal(state.runStatus, "idle");
   assert.deepEqual(state.diagnostics, []);
+  assert.deepEqual(state.output, []);
   assert.deepEqual(state.lesson, { lessonId: null, title: null });
 });
 
@@ -17,11 +18,13 @@ test("createStudioState honors provided initial values", () => {
   const store = OL.createStudioState({
     source: "forward 100",
     runStatus: "running",
+    output: ["100"],
   });
   const state = store.getState();
 
   assert.equal(state.source, "forward 100");
   assert.equal(state.runStatus, "running");
+  assert.deepEqual(state.output, ["100"]);
 });
 
 test("getState is stable by reference until the next mutation", () => {
@@ -71,13 +74,15 @@ test("subscribe notifies listeners synchronously with the new snapshot on every 
     },
   ]);
   store.setLesson({ lessonId: "l1", title: "Squares" });
+  store.setOutput(["5", "9"]);
 
-  assert.equal(seen.length, 5);
+  assert.equal(seen.length, 6);
   assert.equal(seen[0].source, "forward 10");
   assert.deepEqual(seen[1].selection, { anchor: [1, 1], head: [1, 5] });
   assert.equal(seen[2].runStatus, "running");
   assert.equal(seen[3].diagnostics.length, 1);
   assert.deepEqual(seen[4].lesson, { lessonId: "l1", title: "Squares" });
+  assert.deepEqual(seen[5].output, ["5", "9"]);
 
   // Every notification carries the current getState() snapshot, so subscribers and getState()
   // agree — no separate copy that could drift.

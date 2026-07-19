@@ -10,10 +10,13 @@
  * - `selection` — the cursor/selection range, expressed as {@link Position} anchor/head pairs
  *   (reusing `@openlogo/core`'s 1-based `[line, column]` positions — the same primitive
  *   diagnostics and the AST use, so panes never invent a second coordinate system).
- * - `runStatus` — `"idle" | "running" | "stopped"`, driven later by the run controller (#126)
- *   over the runtime's execution budget.
+ * - `runStatus` — `"idle" | "running" | "stopped"`, driven by the run controller (#126) over the
+ *   runtime's execution budget.
  * - `diagnostics` — the current `ol-*` {@link Diagnostic} list from `@openlogo/core`, as produced
  *   by `@openlogo/parser`/`@openlogo/runtime`. Studio never invents its own diagnostic shape.
+ * - `output` — the learner-visible text produced by the most recent run, one entry per `print`
+ *   trace event (#126). Studio never formats values itself; each entry is already in the
+ *   runtime's canonical printed form (`@openlogo/runtime`'s `printedForm`).
  * - `lesson` — the active lesson context (id + title) for the lesson pane (#127); content itself
  *   is pulled from `@openlogo/edu`, never authored here.
  * - `notice` — a non-fatal, learner-visible status (e.g. "your work could not be saved"), set by
@@ -32,7 +35,7 @@
 
 import type { Diagnostic, Position } from "@openlogo/core";
 
-/** The learner's run state, driven later by the run controller (#126) over the runtime budget. */
+/** The learner's run state, driven by the run controller (#126) over the runtime budget. */
 export type RunStatus = "idle" | "running" | "stopped";
 
 /** A cursor/selection range using `@openlogo/core`'s 1-based `[line, column]` positions. */
@@ -62,6 +65,7 @@ export interface StudioState {
   readonly selection: Selection;
   readonly runStatus: RunStatus;
   readonly diagnostics: readonly Diagnostic[];
+  readonly output: readonly string[];
   readonly lesson: LessonContext;
   readonly notice: Notice | null;
 }
@@ -89,6 +93,8 @@ export interface StudioStateStore {
   setRunStatus(runStatus: RunStatus): void;
   /** Replace the diagnostics list. */
   setDiagnostics(diagnostics: readonly Diagnostic[]): void;
+  /** Replace the learner-visible output (one entry per `print` trace event). */
+  setOutput(output: readonly string[]): void;
   /** Replace the lesson context. */
   setLesson(lesson: LessonContext): void;
   /** Replace the visible notice; pass `null` to clear it. */
@@ -111,6 +117,7 @@ export function createStudioState(
     selection: initial?.selection ?? INITIAL_SELECTION,
     runStatus: initial?.runStatus ?? "idle",
     diagnostics: initial?.diagnostics ?? [],
+    output: initial?.output ?? [],
     lesson: initial?.lesson ?? INITIAL_LESSON,
     notice: initial?.notice ?? null,
   };
@@ -143,6 +150,9 @@ export function createStudioState(
     },
     setDiagnostics(diagnostics) {
       commit({ diagnostics });
+    },
+    setOutput(output) {
+      commit({ output });
     },
     setLesson(lesson) {
       commit({ lesson });
