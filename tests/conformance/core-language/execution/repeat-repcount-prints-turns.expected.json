@@ -1,0 +1,78 @@
+{
+  "description": "`repeat 3 [ print repcount ]` runs the body three times, and `repcount` reports each pass's 1-based turn (`spec/commands.md:775-792`): the body's own `repcount` call re-evaluates each pass, so its `instruction` event repeats once per turn, printing 1, then 2, then 3. Issue #104.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repeat-repcount-prints-turns",
+        "start": [1, 1],
+        "end": [3, 2]
+      },
+      "payload": { "statement_kind": "Repeat" }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repeat-repcount-prints-turns",
+        "start": [2, 3],
+        "end": [2, 17]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/repeat-repcount-prints-turns",
+        "start": [2, 3],
+        "end": [2, 17]
+      },
+      "payload": { "values": [1] }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repeat-repcount-prints-turns",
+        "start": [2, 3],
+        "end": [2, 17]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 4,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/repeat-repcount-prints-turns",
+        "start": [2, 3],
+        "end": [2, 17]
+      },
+      "payload": { "values": [2] }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repeat-repcount-prints-turns",
+        "start": [2, 3],
+        "end": [2, 17]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 6,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/repeat-repcount-prints-turns",
+        "start": [2, 3],
+        "end": [2, 17]
+      },
+      "payload": { "values": [3] }
+    }
+  ],
+  "diagnostics": []
+}

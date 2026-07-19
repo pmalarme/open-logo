@@ -16,9 +16,15 @@
  * both require a boolean condition (`ol-not-boolean` otherwise, reusing the builder issue #95
  * added for `and`/`or`/`not`), `if` runs exactly one branch (or none, with no `else`), and `while`
  * re-evaluates its condition before every pass — including the first — running the body each time
- * the condition holds. Variables, procedures, and comprehensions land one vertical slice at a
- * time (issues #94-#105), each adding its own statement handling and, where the spec calls for
- * it, runtime `ol-*` diagnostics.
+ * the condition holds. Issue #104 gives `repeat`/`forever` their runtime meaning: `repeat`
+ * validates its count TYPE then RANGE, in that order (`spec/execution-model.md:365-369`) —
+ * `ol-type` for a non-whole-number count, `ol-range` for a negative one, zero passes for `repeat
+ * 0` — then runs its body that many times; `forever` repeats its body without bound (cancellation
+ * and the execution budget are a later slice, #102). Both thread the active `repeat` turn onto
+ * {@link Environment.repeatTurns} so the `repcount` reporter (`evaluate.ts`) can read the nearest
+ * enclosing `repeat`'s current 1-based turn. Variables, procedures, and comprehensions land one
+ * vertical slice at a time (issues #94-#105), each adding its own statement handling and, where
+ * the spec calls for it, runtime `ol-*` diagnostics.
  */
 
 import type {
@@ -40,6 +46,7 @@ import {
   evaluate,
   executeAssign,
   isSupportedExpression,
+  requireWholeNumber,
   type Environment,
 } from "./evaluate.js";
 import { runtimeDiag } from "./errors.js";
@@ -76,6 +83,19 @@ export interface InstructionPayload {
 export interface ExecuteResult {
   readonly events: readonly TraceEvent[];
   readonly diagnostics: readonly Diagnostic[];
+}
+
+/** Options for {@link execute}. */
+export interface ExecuteOptions {
+  /**
+   * **Test-only.** Caps how many passes any `forever` loop in this program runs before stopping
+   * on its own (with no diagnostic), so unit tests can exercise `forever`'s loop mechanics without
+   * hanging the test process. `forever` has no cancellation or execution-budget semantics in this
+   * issue's scope (`spec/execution-model.md:370`, `:556-557` — that lands with #102), so this MUST
+   * NOT become a silent production cap: no real caller ever supplies it, leaving every `forever`
+   * genuinely unbounded, exactly as the spec requires.
+   */
+  readonly foreverIterationLimit?: number;
 }
 
 /**
@@ -175,6 +195,21 @@ function evaluateCondition(
  * as any other unbounded loop in this issue's scope (the cancellable execution budget is a later,
  * separate slice).
  *
+ * A `Repeat` statement (issue #104) evaluates `count`, then validates it TYPE then RANGE, in that
+ * exact order (`spec/execution-model.md:367-369`): a non-whole-number count raises `ol-type`
+ * ({@link requireWholeNumber}); otherwise a negative count raises `ol-range`
+ * (`runtimeDiag.negativeCount`); `repeat 0` runs `body` zero times with no diagnostic. Each pass
+ * pushes that pass's 1-based turn onto `env.repeatTurns` before running `body` and pops it after —
+ * even on a diagnostic, the stack for `repcount` is only ever this scoped, so a nested `repeat`
+ * inside `body` sees its own turn on top of the outer one, and `repcount` always reads the
+ * innermost.
+ *
+ * A `Forever` statement (issue #104) repeats `body` without bound — cancellation and the
+ * execution budget are a later, separate slice (#102) — up to `foreverIterationLimit` passes when
+ * one is supplied. That limit is a **test-only** knob (see {@link ExecuteOptions}); no production
+ * caller ever passes it, so every real `forever` genuinely never terminates, same as an
+ * always-`true` `while`.
+ *
  * Statement kinds this issue does not give meaning to (e.g. a bare arithmetic expression, or any
  * command other than `print`) still emit their `instruction` event but do not evaluate — that is
  * each statement kind's own future slice to add.
@@ -183,6 +218,7 @@ function executeStatements(
   statements: readonly StatementNode[],
   env: Environment,
   events: TraceEvent[],
+  foreverIterationLimit?: number,
 ): Diagnostic | undefined {
   for (const statement of statements) {
     events.push({
@@ -248,7 +284,12 @@ function executeStatements(
       const branch = condition.value
         ? statement.thenBody.body
         : (statement.elseBody?.body ?? []);
-      const diagnostic = executeStatements(branch, env, events);
+      const diagnostic = executeStatements(
+        branch,
+        env,
+        events,
+        foreverIterationLimit,
+      );
       if (diagnostic) {
         return diagnostic;
       }
@@ -267,10 +308,73 @@ function executeStatements(
         if (!condition.value) {
           break;
         }
-        const diagnostic = executeStatements(statement.body.body, env, events);
+        const diagnostic = executeStatements(
+          statement.body.body,
+          env,
+          events,
+          foreverIterationLimit,
+        );
         if (diagnostic) {
           return diagnostic;
         }
+      }
+      continue;
+    }
+
+    if (statement.kind === "Repeat") {
+      if (!isSupportedExpression(statement.count)) {
+        continue;
+      }
+      const countResult = evaluate(statement.count, env);
+      if (!countResult.ok) {
+        return countResult.diagnostic;
+      }
+      const whole = requireWholeNumber(
+        countResult.value,
+        statement.count.source_span,
+        "repeat",
+      );
+      if (!whole.ok) {
+        return whole.diagnostic;
+      }
+      if (whole.value < 0) {
+        return runtimeDiag.negativeCount(statement.count.source_span, {
+          operation: "repeat",
+          value: whole.value,
+        });
+      }
+      for (let turn = 1; turn <= whole.value; turn++) {
+        env.repeatTurns.push(turn);
+        const diagnostic = executeStatements(
+          statement.body.body,
+          env,
+          events,
+          foreverIterationLimit,
+        );
+        env.repeatTurns.pop();
+        if (diagnostic) {
+          return diagnostic;
+        }
+      }
+      continue;
+    }
+
+    if (statement.kind === "Forever") {
+      let turn = 1;
+      while (
+        foreverIterationLimit === undefined ||
+        turn <= foreverIterationLimit
+      ) {
+        const diagnostic = executeStatements(
+          statement.body.body,
+          env,
+          events,
+          foreverIterationLimit,
+        );
+        if (diagnostic) {
+          return diagnostic;
+        }
+        turn++;
       }
     }
   }
@@ -287,10 +391,14 @@ function executeStatements(
  * A single root {@link Environment} (issue #94) is created once per `execute()` call and threaded
  * through every statement, so an assignment in one statement is visible to every later read in
  * the same program (`spec/execution-model.md:316-327`) — procedure call frames land with #97. The
- * actual per-statement dispatch (including recursing into `if`/`while` block bodies) lives in
- * {@link executeStatements}.
+ * actual per-statement dispatch (including recursing into `if`/`while`/`repeat`/`forever` block
+ * bodies) lives in {@link executeStatements}.
  */
-export function execute(source: string, document: string): ExecuteResult {
+export function execute(
+  source: string,
+  document: string,
+  options: ExecuteOptions = {},
+): ExecuteResult {
   const { ast: program, diagnostics } = parse(source, document);
   if (diagnostics.length > 0) {
     return { events: [], diagnostics };
@@ -298,6 +406,11 @@ export function execute(source: string, document: string): ExecuteResult {
 
   const env = createEnvironment();
   const events: TraceEvent[] = [];
-  const diagnostic = executeStatements(program.body, env, events);
+  const diagnostic = executeStatements(
+    program.body,
+    env,
+    events,
+    options.foreverIterationLimit,
+  );
   return { events, diagnostics: diagnostic ? [diagnostic] : [] };
 }

@@ -11,7 +11,9 @@
  * `ol-range` (a list index outside `1..length`), and a reuse of `ol-type` for a non-list base or
  * non-number key on a postfix index selector (`spec/error-model.md:99` calls out "list indexing
  * with a non-number key" as `ol-type`, not `ol-range`). Issue #95 adds `ol-not-boolean` for a
- * `not`/`and`/`or` operand that is not `true`/`false` — there is no truthiness.
+ * `not`/`and`/`or` operand that is not `true`/`false` — there is no truthiness. Issue #104 adds
+ * `ol-type`/`ol-range` for `repeat`'s non-whole/negative count and `ol-repcount-outside-repeat`
+ * for a `repcount` reporter used outside any enclosing `repeat`.
  * Mirrors the parser's `errors.ts` pattern: every finding is a stable code from the
  * `@openlogo/core` registry with structured `params` (the diagnostic identity) plus warm,
  * lowercase learner prose derived from them — prose is presentation only.
@@ -83,6 +85,22 @@ export interface IndexRangeParams {
 export interface NotBooleanErrorParams {
   readonly actual: string;
   readonly operation: string;
+}
+
+/**
+ * Params for an `ol-type` raised by `repeat`'s count when it is not a whole number
+ * (`spec/execution-model.md:367-369` — TYPE is checked before RANGE).
+ */
+export interface WholeNumberTypeErrorParams {
+  readonly actual: string;
+  readonly value: OLValue;
+  readonly operation: string;
+}
+
+/** Params for an `ol-range` raised by a negative `repeat` count. */
+export interface NegativeCountParams {
+  readonly operation: string;
+  readonly value: number;
 }
 
 /** Runtime-stage diagnostics, one builder per `ol-*` code the evaluator can raise. */
@@ -218,6 +236,57 @@ export const runtimeDiag = {
       source_span,
       { ...params },
       `${params.operation} needs a boolean (true or false), but got a ${params.actual}.`,
+    );
+  },
+
+  /**
+   * `ol-type`: `repeat`'s count is not a whole number (`spec/execution-model.md:367-369`) — the
+   * TYPE half of count validation, checked before the RANGE half {@link negativeCount} raises.
+   * `expected` is fixed to `"whole number"` (rather than the generic `"number"`
+   * {@link typeMismatch} uses) so the message names the concept precisely.
+   */
+  notWholeNumber(
+    source_span: SourceSpan,
+    params: WholeNumberTypeErrorParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-type",
+      source_span,
+      { expected: "whole number", ...params },
+      `${params.operation} needs a whole number, but got a ${params.actual}.`,
+    );
+  },
+
+  /**
+   * `ol-range`: `repeat`'s count is a whole number but negative
+   * (`spec/execution-model.md:367-369`, `spec/error-model.md:100` — "a negative whole-number
+   * `repeat` count"). Only reached once {@link notWholeNumber} has already confirmed the value is
+   * a whole number.
+   */
+  negativeCount(
+    source_span: SourceSpan,
+    params: NegativeCountParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-range",
+      source_span,
+      { ...params },
+      `${params.operation} needs a count of 0 or greater, but got ${params.value}.`,
+    );
+  },
+
+  /**
+   * `ol-repcount-outside-repeat`: `repcount` was used outside any enclosing `repeat`
+   * (`spec/commands.md:792`). Registry stage is `semantic`, but raised here at `stage: "runtime"`
+   * — same convention as `ol-not-a-place`/`ol-undefined-var` — since `execute()` never runs
+   * `check()`. Params are `none` per the registry.
+   */
+  repcountOutsideRepeat(source_span: SourceSpan): Diagnostic {
+    return runtimeError(
+      "ol-repcount-outside-repeat",
+      source_span,
+      {},
+      "repcount only reports a turn number inside a repeat loop — there is no enclosing repeat here.",
     );
   },
 } as const;
