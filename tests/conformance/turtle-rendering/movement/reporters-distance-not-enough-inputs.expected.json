@@ -1,0 +1,37 @@
+{
+  "description": "issue #203: `distance 100` under-supplies the 2-arity `distance` reporter, raising `ol-not-enough-inputs`.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/movement/reporters-distance-not-enough-inputs",
+        "start": [1, 1],
+        "end": [1, 19]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-not-enough-inputs",
+      "source_span": {
+        "document": "turtle-rendering/movement/reporters-distance-not-enough-inputs",
+        "start": [1, 7],
+        "end": [1, 15]
+      },
+      "params": {
+        "callable": "distance",
+        "expected": 2,
+        "actual": 1
+      },
+      "message": "distance needs 2 inputs, but got 1.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

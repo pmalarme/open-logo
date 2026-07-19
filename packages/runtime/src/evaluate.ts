@@ -50,6 +50,7 @@ import type {
   WordLitNode,
 } from "@openlogo/parser";
 import { runtimeDiag } from "./errors.js";
+import { normalizeHeading } from "./turtle-math.js";
 
 /** The outcome of evaluating one expression: a value, or the diagnostic that stopped it. */
 export type EvalResult =
@@ -568,7 +569,9 @@ function isLogicalOperator(name: string): name is LogicalOperator {
  * literal, never evaluated, so it needs no check of its own — and the prefix `empty?`/`member?`/
  * `is_a?` callees join the known-callee list above. As of issue #101 the Core list reporters
  * `first`/`last`/`butfirst`/`butlast`/`fput`/`lput`/`sentence`/`count` join the known-callee list
- * too.
+ * too. As of issue #203 the turtle-state reporters `xcor`/`ycor`/`heading`/`pos`/`towards`/
+ * `distance` join the known-callee list as well — pure reads of {@link Environment.turtle} that
+ * emit no trace event.
  */
 export function isSupportedExpression(
   node: ExpressionNode,
@@ -615,6 +618,12 @@ export function isSupportedExpression(
         name === "lput" ||
         name === "sentence" ||
         name === "count" ||
+        name === "xcor" ||
+        name === "ycor" ||
+        name === "heading" ||
+        name === "pos" ||
+        name === "towards" ||
+        name === "distance" ||
         procedures.has(name);
       return (
         isKnownCallee &&
@@ -1025,6 +1034,24 @@ function evaluateCall(node: ArithmeticCallNode, env: Environment): EvalResult {
   }
   if (name === "count") {
     return evaluateCount(node, env);
+  }
+  if (name === "xcor") {
+    return evaluateXcor(node, env);
+  }
+  if (name === "ycor") {
+    return evaluateYcor(node, env);
+  }
+  if (name === "heading") {
+    return evaluateHeadingReporter(node, env);
+  }
+  if (name === "pos") {
+    return evaluatePos(node, env);
+  }
+  if (name === "towards") {
+    return evaluateTowards(node, env);
+  }
+  if (name === "distance") {
+    return evaluateDistance(node, env);
   }
   if (env.procedures.has(name)) {
     return env.callProcedure(node, env);
@@ -2143,6 +2170,162 @@ function evaluateCount(node: ArithmeticCallNode, env: Environment): EvalResult {
     );
   }
   return ok(value.length);
+}
+
+/**
+ * Guards a strictly-fixed-arity reporter — 0-arg `xcor`/`ycor`/`heading`/`pos`, 2-arg `towards`/
+ * `distance` (issue #203): `ol-not-enough-inputs` when under-supplied, `ol-too-many-inputs` when
+ * over-supplied, `undefined` when the count matches. Mirrors `execute-internal.ts`'s inline
+ * `args.length !== n` guard on fixed-arity turtle-command statements (e.g.
+ * `executeTurtleTurnCall`) — these reporters need the identical shape here since `evaluate()` runs
+ * without the static checker (`execute()` never calls `check()`).
+ */
+function requireExactArgs(
+  node: ArithmeticCallNode,
+  name: string,
+  count: number,
+): Diagnostic | undefined {
+  if (node.args.length === count) {
+    return undefined;
+  }
+  return node.args.length < count
+    ? runtimeDiag.notEnoughInputs(
+        node.callee.source_span,
+        name,
+        count,
+        node.args.length,
+      )
+    : runtimeDiag.tooManyInputs(
+        node.callee.source_span,
+        name,
+        count,
+        node.args.length,
+      );
+}
+
+/**
+ * `xcor`/`ycor`/`heading`/`pos` (`spec/commands.md` "xcor"/"ycor"/"heading"/"pos") and `towards`/
+ * `distance` (issue #203): pure reads of {@link Environment.turtle} — no `move`/`turn`/
+ * `draw-segment` event is ever emitted, since reading position/heading is not an effect
+ * (`spec/rendering.md`'s "Line segments"/"Turning" sections only describe events for the
+ * *mutating* commands `forward`/`back`/`left`/`right`/`set_xy`/`set_heading`). `heading` returns
+ * `turtle.heading` as-is: the statement side (`turnTurtle`/`setHeadingTurtle` in
+ * `execute-internal.ts`) already keeps it normalized to `[0,360)` on every write, so there is
+ * nothing left to normalize on read.
+ */
+function evaluateXcor(node: ArithmeticCallNode, env: Environment): EvalResult {
+  const arityDiagnostic = requireExactArgs(node, "xcor", 0);
+  if (arityDiagnostic) {
+    return fail(arityDiagnostic);
+  }
+  return ok(env.turtle.x);
+}
+
+function evaluateYcor(node: ArithmeticCallNode, env: Environment): EvalResult {
+  const arityDiagnostic = requireExactArgs(node, "ycor", 0);
+  if (arityDiagnostic) {
+    return fail(arityDiagnostic);
+  }
+  return ok(env.turtle.y);
+}
+
+function evaluateHeadingReporter(
+  node: ArithmeticCallNode,
+  env: Environment,
+): EvalResult {
+  const arityDiagnostic = requireExactArgs(node, "heading", 0);
+  if (arityDiagnostic) {
+    return fail(arityDiagnostic);
+  }
+  return ok(env.turtle.heading);
+}
+
+/** `pos` — a fresh two-item list `[x y]` of the turtle's current position. */
+function evaluatePos(node: ArithmeticCallNode, env: Environment): EvalResult {
+  const arityDiagnostic = requireExactArgs(node, "pos", 0);
+  if (arityDiagnostic) {
+    return fail(arityDiagnostic);
+  }
+  return ok([env.turtle.x, env.turtle.y]);
+}
+
+/**
+ * `towards x y` — the heading (`[0,360)`) from the turtle's current position toward `(x, y)`
+ * (`spec/commands.md` "towards"). `Math.atan2(dx, dy)` (arguments in `(x, y)` order, not the usual
+ * `(y, x)`) directly yields OL's compass-bearing convention — `0` points up/`+y`, `right`/clockwise
+ * is positive — matching `spec/execution-model.md:538` and verified against the spec's own worked
+ * example: `towards 100 0` from the origin is `90` (dx=100, dy=0 → atan2(100,0) = 90°).
+ * {@link normalizeHeading} folds the `atan2` result's `(-180,180]` range into `[0,360)`, same as
+ * every other heading-producing path. Non-number `x`/`y` raise `ol-type`
+ * ({@link requireNumber}); the spec defines no other error for `towards` (unlike `set_width`, it
+ * has no "possible errors" section), so a same-point call (`dx = dy = 0`) is not an error —
+ * `atan2(0, 0)` is `0`, reported as heading `0`.
+ */
+function evaluateTowards(
+  node: ArithmeticCallNode,
+  env: Environment,
+): EvalResult {
+  const arityDiagnostic = requireExactArgs(node, "towards", 2);
+  if (arityDiagnostic) {
+    return fail(arityDiagnostic);
+  }
+  const xNode = arg(node, 0);
+  const yNode = arg(node, 1);
+  const xResult = evaluate(xNode, env);
+  if (!xResult.ok) {
+    return xResult;
+  }
+  const yResult = evaluate(yNode, env);
+  if (!yResult.ok) {
+    return yResult;
+  }
+  const x = requireNumber(xResult.value, xNode.source_span, "towards");
+  if (!x.ok) {
+    return fail(x.diagnostic);
+  }
+  const y = requireNumber(yResult.value, yNode.source_span, "towards");
+  if (!y.ok) {
+    return fail(y.diagnostic);
+  }
+  const dx = x.value - env.turtle.x;
+  const dy = y.value - env.turtle.y;
+  return ok(normalizeHeading((Math.atan2(dx, dy) * 180) / Math.PI));
+}
+
+/**
+ * `distance x y` — the straight-line distance from the turtle's current position to `(x, y)`
+ * (`spec/commands.md` "distance"). Non-number `x`/`y` raise `ol-type` ({@link requireNumber}); the
+ * spec defines no other error, matching {@link evaluateTowards}'s reasoning.
+ */
+function evaluateDistance(
+  node: ArithmeticCallNode,
+  env: Environment,
+): EvalResult {
+  const arityDiagnostic = requireExactArgs(node, "distance", 2);
+  if (arityDiagnostic) {
+    return fail(arityDiagnostic);
+  }
+  const xNode = arg(node, 0);
+  const yNode = arg(node, 1);
+  const xResult = evaluate(xNode, env);
+  if (!xResult.ok) {
+    return xResult;
+  }
+  const yResult = evaluate(yNode, env);
+  if (!yResult.ok) {
+    return yResult;
+  }
+  const x = requireNumber(xResult.value, xNode.source_span, "distance");
+  if (!x.ok) {
+    return fail(x.diagnostic);
+  }
+  const y = requireNumber(yResult.value, yNode.source_span, "distance");
+  if (!y.ok) {
+    return fail(y.diagnostic);
+  }
+  const dx = x.value - env.turtle.x;
+  const dy = y.value - env.turtle.y;
+  return ok(Math.hypot(dx, dy));
 }
 
 // --- Comprehensions: map / filter / reduce (spec/execution-model.md:380-479, issue #105) ------

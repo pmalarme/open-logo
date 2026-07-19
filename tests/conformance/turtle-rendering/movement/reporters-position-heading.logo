@@ -1,0 +1,6 @@
+right 90
+set_xy 30 40
+print xcor
+print ycor
+print heading
+print pos
