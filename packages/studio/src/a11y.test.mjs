@@ -138,6 +138,32 @@ test("createA11yAnnouncer does not re-announce setting the same run status again
   assert.equal(announcer.getAnnouncements().length, 1);
 });
 
+test("createA11yAnnouncer does not re-announce a structurally-identical diagnostics list on a fresh array reference", () => {
+  const state = OL.createStudioState();
+  const announcer = OL.createA11yAnnouncer(state);
+
+  const diagnostic = {
+    code: "ol-bad-token",
+    message: "irrelevant",
+    severity: "error",
+    stage: "parse",
+    source_span: { start: [1, 1], end: [1, 2] },
+    params: {},
+  };
+  // A fresh array with the exact same structured content — as the diagnostics/run controllers
+  // republish on every parse/run — must not be announced as "new".
+  state.setDiagnostics([{ ...diagnostic }]);
+  state.setDiagnostics([{ ...diagnostic }]);
+  // Re-setting the same (still-empty) diagnostics list after a clean run/edit is likewise a no-op.
+  state.setDiagnostics([]);
+  state.setDiagnostics([]);
+
+  assert.deepEqual(announcer.getAnnouncements(), [
+    { politeness: "assertive", message: "1 error found." },
+    { politeness: "polite", message: "No diagnostics." },
+  ]);
+});
+
 test("createA11yAnnouncer announces diagnostics changes using severity counts, not message prose", () => {
   const state = OL.createStudioState();
   const announcer = OL.createA11yAnnouncer(state);
@@ -279,8 +305,9 @@ test("createA11yAnnouncer composes with the real editor/run/diagnostics controll
   editor.setText("print 2 + 3");
   runController.run();
 
-  // `run()` always replaces `diagnostics` with a fresh array (even when empty), so a clean run
-  // announces its (empty) diagnostics alongside the run-status transitions.
+  // `run()` replaces `diagnostics` with a fresh array, but it is structurally identical to the
+  // starting (empty) diagnostics, so only the run-status transitions are announced — a clean run
+  // does not spam a redundant "No diagnostics." announcement.
   const messages = announcer.getAnnouncements().map((a) => a.message);
-  assert.deepEqual(messages, ["Run started.", "No diagnostics.", "Ready."]);
+  assert.deepEqual(messages, ["Run started.", "Ready."]);
 });

@@ -178,6 +178,27 @@ function describeDiagnostics(diagnostics: StudioState["diagnostics"]): string {
 }
 
 /**
+ * A structural identity key for a diagnostics list — `code`/`severity`/`stage`/`source_span`/
+ * `params` only, **never** `message` (the diagnostic-identity rule). Used to detect a genuinely
+ * *new* diagnostics list rather than merely a new array reference: the diagnostics controller
+ * (#125) and run controller (#126) both republish a fresh array on every parse/run even when the
+ * diagnostics are unchanged (e.g. re-running clean source stays empty), and announcing that as
+ * "new" would spam an assistive-technology user with a redundant interruption on every keystroke
+ * or Run.
+ */
+function diagnosticsKey(diagnostics: StudioState["diagnostics"]): string {
+  return JSON.stringify(
+    diagnostics.map((diagnostic) => ({
+      code: diagnostic.code,
+      severity: diagnostic.severity,
+      stage: diagnostic.stage,
+      source_span: diagnostic.source_span,
+      params: diagnostic.params,
+    })),
+  );
+}
+
+/**
  * Construct the screen-reader announcer bound to the shared studio state model (never a copy).
  * Emits an {@link Announcement} whenever `runStatus` or `diagnostics` changes after construction
  * — the initial snapshot is never announced, matching the issue's "when run state changes"/"when
@@ -187,7 +208,7 @@ export function createA11yAnnouncer(state: StudioStateStore): A11yAnnouncer {
   const announcements: Announcement[] = [];
   const listeners = new Set<AnnouncementListener>();
   let lastRunStatus = state.getState().runStatus;
-  let lastDiagnostics = state.getState().diagnostics;
+  let lastDiagnosticsKey = diagnosticsKey(state.getState().diagnostics);
 
   function emit(announcement: Announcement): void {
     announcements.push(announcement);
@@ -204,8 +225,9 @@ export function createA11yAnnouncer(state: StudioStateStore): A11yAnnouncer {
         message: describeRunStatus(next.runStatus),
       });
     }
-    if (next.diagnostics !== lastDiagnostics) {
-      lastDiagnostics = next.diagnostics;
+    const nextDiagnosticsKey = diagnosticsKey(next.diagnostics);
+    if (nextDiagnosticsKey !== lastDiagnosticsKey) {
+      lastDiagnosticsKey = nextDiagnosticsKey;
       const hasError = next.diagnostics.some(
         (diagnostic) => diagnostic.severity === "error",
       );
