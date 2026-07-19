@@ -41,6 +41,7 @@ import type {
 import { parse, walk } from "@openlogo/parser";
 import {
   bindElement,
+  checkExecutionLimits,
   evaluate,
   executeAssign,
   findDuplicateBinderName,
@@ -55,7 +56,11 @@ import {
   type ProcedureRegistry,
 } from "./evaluate.js";
 import { runtimeDiag } from "./errors.js";
-import type { ExecuteResult, InstructionPayload } from "./index.js";
+import type {
+  ExecuteOptions,
+  ExecuteResult,
+  InstructionPayload,
+} from "./index.js";
 
 /**
  * Is `statement` a call to `print` — the single-value `print value` form or the parenthesized
@@ -221,26 +226,27 @@ type ProcedureOutcome =
  * (`spec/execution-model.md:606-648`).
  *
  * Before any of that, the call is checked against `env.callDepth`'s length — the current
- * procedure-call nesting depth — against {@link MAX_PROCEDURE_CALL_DEPTH}: exceeding it raises
- * `ol-limit` at the callee span instead of recursing further, so an unbounded recursive procedure
- * degrades to a friendly diagnostic rather than a host `RangeError: Maximum call stack size
- * exceeded` (`spec/execution-model.md:551-557`). A depth marker is pushed once the check passes
- * and popped in a `finally` covering the rest of this function, so it is removed on every exit
- * path — a clean return, a `stop`, or a diagnostic partway through argument/default evaluation or
- * the body itself.
+ * procedure-call nesting depth — against {@link Environment.recursionDepthLimit}: exceeding it
+ * raises `ol-limit` at the callee span instead of recursing further, so an unbounded recursive
+ * procedure degrades to a friendly diagnostic rather than a host `RangeError: Maximum call stack
+ * size exceeded` (`spec/execution-model.md:551-557`). A depth marker is pushed once the check
+ * passes and popped in a `finally` covering the rest of this function, so it is removed on every
+ * exit path — a clean return, a `stop`, or a diagnostic partway through argument/default
+ * evaluation or the body itself. `recursionDepthLimit` defaults to
+ * {@link DEFAULT_RECURSION_DEPTH_LIMIT} but is configurable per `execute()` call (issue #102) —
+ * this is the previously hardcoded ceiling `MAX_PROCEDURE_CALL_DEPTH` promoted to a field of
+ * {@link Environment}, not a new mechanism.
  */
-const MAX_PROCEDURE_CALL_DEPTH = 500;
-
 function runProcedure(
   node: CallNode | ParenCallNode,
   env: Environment,
 ): ProcedureOutcome {
-  if (env.callDepth.length >= MAX_PROCEDURE_CALL_DEPTH) {
+  if (env.callDepth.length >= env.recursionDepthLimit) {
     return {
       ok: false,
       diagnostic: runtimeDiag.recursionLimit(
         node.callee.source_span,
-        MAX_PROCEDURE_CALL_DEPTH,
+        env.recursionDepthLimit,
       ),
     };
   }
@@ -500,12 +506,24 @@ function callProcedureAsValue(
  * Statement kinds this issue does not give meaning to (e.g. a bare arithmetic expression, or any
  * call this evaluator does not know) still emit their `instruction` event but do not evaluate —
  * that is each statement kind's own future slice to add.
+ *
+ * Issue #102: before pushing that `instruction` event, every pass through this loop calls
+ * {@link checkExecutionLimits} — the shared cancellation/instruction-budget gate — and halts with
+ * its `ol-limit` diagnostic instead of emitting the event or dispatching the statement. This is
+ * why a `forever`/`while`/`repeat`/`for` loop or a procedure call is always budgeted and
+ * cancellable no matter how deeply nested: they all recurse back into this same function for
+ * their body. A loop whose body is empty gets its own equivalent check directly in its own pass
+ * (see e.g. `While`/`Forever` below) since it would otherwise never reach this loop at all.
  */
 function executeStatements(
   statements: readonly StatementNode[],
   env: Environment,
 ): ExecSignal {
   for (const statement of statements) {
+    const limitDiagnostic = checkExecutionLimits(env, statement.source_span);
+    if (limitDiagnostic) {
+      return halt(limitDiagnostic);
+    }
     env.events.push({
       seq: env.events.length,
       kind: "instruction",
@@ -637,6 +655,13 @@ function executeStatements(
         continue;
       }
       for (;;) {
+        const limitDiagnostic = checkExecutionLimits(
+          env,
+          statement.source_span,
+        );
+        if (limitDiagnostic) {
+          return halt(limitDiagnostic);
+        }
         const condition = evaluateCondition(statement.condition, env, "while");
         if (!condition.ok) {
           return halt(condition.diagnostic);
@@ -677,6 +702,13 @@ function executeStatements(
         );
       }
       for (let turn = 1; turn <= whole.value; turn++) {
+        const limitDiagnostic = checkExecutionLimits(
+          env,
+          statement.source_span,
+        );
+        if (limitDiagnostic) {
+          return halt(limitDiagnostic);
+        }
         env.repeatTurns.push(turn);
         const signal = executeStatements(statement.body.body, env);
         env.repeatTurns.pop();
@@ -693,6 +725,13 @@ function executeStatements(
         env.foreverIterationLimit === undefined ||
         turn <= env.foreverIterationLimit
       ) {
+        const limitDiagnostic = checkExecutionLimits(
+          env,
+          statement.source_span,
+        );
+        if (limitDiagnostic) {
+          return halt(limitDiagnostic);
+        }
         const signal = executeStatements(statement.body.body, env);
         if (signal.kind !== "normal") {
           return signal;
@@ -727,6 +766,13 @@ function executeStatements(
         );
       }
       for (const element of iterableResult.value) {
+        const limitDiagnostic = checkExecutionLimits(
+          env,
+          statement.source_span,
+        );
+        if (limitDiagnostic) {
+          return halt(limitDiagnostic);
+        }
         const bound = bindElement(statement.binder, element);
         if (!bound.ok) {
           return halt(bound.diagnostic);
@@ -812,6 +858,13 @@ function executeStatements(
         if (!withinBound) {
           break;
         }
+        const limitDiagnostic = checkExecutionLimits(
+          env,
+          statement.source_span,
+        );
+        if (limitDiagnostic) {
+          return halt(limitDiagnostic);
+        }
         const signal = executeStatements(
           statement.body.body,
           pushLoopFrame(env, new Map([[statement.variable.name, current]])),
@@ -827,6 +880,40 @@ function executeStatements(
 }
 
 /**
+ * Default instruction-execution budget and procedure-call recursion-depth limit applied by
+ * {@link createExecutionEnvironment} when a real `execute()` call's {@link ExecuteOptions} does
+ * not override them (issue #102, `spec/execution-model.md:551-557`). `DEFAULT_RECURSION_DEPTH_LIMIT`
+ * is the exact value this file previously hardcoded as `MAX_PROCEDURE_CALL_DEPTH` — only its name
+ * and configurability changed, not the default behavior, so existing recursion-limit tests need
+ * no update. `DEFAULT_INSTRUCTION_BUDGET` is generous enough that any ordinary, terminating
+ * program — including one with tens of thousands of loop passes — completes without ever coming
+ * close to it, while still being finite, so a `forever`/`while true [ ]` with no other exit halts
+ * in bounded time even when the caller supplies no `signal` to cancel it explicitly.
+ */
+export const DEFAULT_RECURSION_DEPTH_LIMIT = 500;
+export const DEFAULT_INSTRUCTION_BUDGET = 1_000_000;
+
+/**
+ * Resolve one of {@link ExecuteOptions}' two numeric limits, falling back to `fallback` for any
+ * value that would not actually behave as a finite cap: `undefined` (omitted), `NaN`,
+ * non-positive, or non-finite (`Infinity`/`-Infinity`). Issue #102's whole premise is that
+ * `forever`/unbounded recursion are safe *only because* they are always budgeted — a caller
+ * passing `instructionBudget: Infinity` (or `NaN`, which every `>` comparison against it treats
+ * as automatically satisfied — never budget-exceeded) must not be able to silently disable that
+ * guarantee. Falling back to the production default (rather than throwing) keeps a mistaken
+ * caller's program merely generously bounded instead of unboundedly hung, without adding a new
+ * `ol-*` diagnostic for what is a caller-side options-validation concern, not a language error.
+ */
+function resolvePositiveFiniteLimit(
+  value: number | undefined,
+  fallback: number,
+): number {
+  return value !== undefined && Number.isFinite(value) && value > 0
+    ? value
+    : fallback;
+}
+
+/**
  * Build a fresh execution environment for running `program` from the top: the root/global frame,
  * no active `repeat` turn, `program`'s whole-program {@link ProcedureRegistry}
  * ({@link collectProcedures}), an empty event sink, `foreverIterationLimit` threaded through
@@ -835,10 +922,19 @@ function executeStatements(
  * `evaluate.ts`'s bare `createEnvironment()` (whose `callProcedure` stub is intentionally
  * unreachable, for expression-only tests with no procedures in scope), this is the environment
  * every real statement/expression in `program` actually runs against.
+ *
+ * Issue #102: `options` supplies the three execution-safety gates `spec/execution-model.md:
+ * 551-557` requires — `instructionBudget`/`recursionDepthLimit` fall back to
+ * {@link DEFAULT_INSTRUCTION_BUDGET}/{@link DEFAULT_RECURSION_DEPTH_LIMIT} when omitted OR when
+ * supplied but not a usable finite positive limit (see {@link resolvePositiveFiniteLimit} — a
+ * caller cannot disable the safety gate by passing `Infinity`/`NaN`/a non-positive number);
+ * `signal` is threaded through unchanged (`undefined` when the caller supplied none, which
+ * `checkExecutionLimits` treats as "never cancelled").
  */
 function createExecutionEnvironment(
   program: ProgramNode,
   foreverIterationLimit: number | undefined,
+  options: ExecuteOptions | undefined,
 ): Environment {
   return {
     frames: [new Map()],
@@ -847,6 +943,16 @@ function createExecutionEnvironment(
     events: [],
     foreverIterationLimit,
     callDepth: [],
+    recursionDepthLimit: resolvePositiveFiniteLimit(
+      options?.recursionDepthLimit,
+      DEFAULT_RECURSION_DEPTH_LIMIT,
+    ),
+    instructionBudget: resolvePositiveFiniteLimit(
+      options?.instructionBudget,
+      DEFAULT_INSTRUCTION_BUDGET,
+    ),
+    instructionCount: { count: 0 },
+    signal: options?.signal,
     callProcedure: callProcedureAsValue,
   };
 }
@@ -855,8 +961,9 @@ function createExecutionEnvironment(
  * Parse `source` and run it, sharing {@link execute}'s and
  * {@link executeWithForeverIterationLimitForTests}'s logic. `foreverIterationLimit` is
  * `undefined` for every real `execute()` call — see `index.ts`'s `execute()` doc comment — so a
- * `forever` loop is genuinely unbounded there; only the test-only entry point below ever supplies
- * it.
+ * `forever` loop never stops on its OWN account there; it is still budgeted and cancellable via
+ * `options` (issue #102). Only the test-only entry point below ever supplies
+ * `foreverIterationLimit`.
  *
  * A `"return"`/`"stop"` signal that escapes {@link executeStatements} unconsumed means it was
  * never inside any procedure ({@link runProcedure} always consumes its own body's signal before
@@ -869,13 +976,18 @@ export function runProgram(
   source: string,
   document: string,
   foreverIterationLimit: number | undefined,
+  options?: ExecuteOptions,
 ): ExecuteResult {
   const { ast: program, diagnostics } = parse(source, document);
   if (diagnostics.length > 0) {
     return { events: [], diagnostics };
   }
 
-  const env = createExecutionEnvironment(program, foreverIterationLimit);
+  const env = createExecutionEnvironment(
+    program,
+    foreverIterationLimit,
+    options,
+  );
   const signal = executeStatements(program.body, env);
   const diagnostic =
     signal.kind === "halt"
@@ -894,15 +1006,17 @@ export function runProgram(
  * `forever`'s loop mechanics without hanging the test process. Deliberately lives in this
  * module — never re-exported by `index.ts` — rather than as an optional parameter on `execute()`,
  * so the bound can never leak into a real caller's `execute()` invocation and is not reachable via
- * the `"@openlogo/runtime"` package specifier at all (see this file's header comment);
- * `forever` has no cancellation or execution-budget semantics in this issue's scope (that lands
- * with #102). Only this package's own tests, importing this file directly by relative path, ever
- * call it.
+ * the `"@openlogo/runtime"` package specifier at all (see this file's header comment). Runs with
+ * the same default instruction budget/recursion-depth limit as a real `execute()` call (issue
+ * #102) — `foreverIterationLimit` is a distinct, additional test-only cap that stops a `forever`
+ * long before it could ever reach the production budget, so the two mechanisms do not interact
+ * in this package's own test suite. Only this package's own tests, importing this file directly
+ * by relative path, ever call it.
  */
 export function executeWithForeverIterationLimitForTests(
   source: string,
   document: string,
   foreverIterationLimit: number,
 ): ExecuteResult {
-  return runProgram(source, document, foreverIterationLimit);
+  return runProgram(source, document, foreverIterationLimit, undefined);
 }

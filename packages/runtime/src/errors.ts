@@ -560,6 +560,39 @@ export const runtimeDiag = {
   },
 
   /**
+   * `ol-limit`: the other configurable safety limit besides recursion depth — the instruction
+   * execution budget (`spec/execution-model.md:551-557`, `spec/error-model.md:119`). Raised the
+   * moment the running count of executed statements/loop passes would exceed `value`, so a
+   * runaway `forever`/`while true [ ]` degrades to a friendly diagnostic instead of hanging the
+   * host (issue #102: "`forever` is therefore safe only because it is cancellable and
+   * budgeted."). `params.limit` is `"instruction-budget"` and `params.value` is the configured
+   * threshold, matching `recursionLimit`'s `{limit, value}` shape above.
+   */
+  instructionLimit(source_span: SourceSpan, value: number): Diagnostic {
+    return runtimeError(
+      "ol-limit",
+      source_span,
+      { limit: "instruction-budget", value },
+      `this program ran ${value} instructions without finishing, which is the configured safety limit — check for a loop that never ends, such as an unbounded 'forever' or 'while' whose condition never becomes false.`,
+    );
+  },
+
+  /**
+   * `ol-limit`: execution was cancelled from outside the program (`spec/execution-model.md:
+   * 551-557` — "implementations must support cancellation"), e.g. a learner pressing Stop while
+   * a program is still running. `params.limit` is `"cancelled"`; there is no numeric threshold,
+   * so unlike `recursionLimit`/`instructionLimit` there is no `value` param.
+   */
+  cancelled(source_span: SourceSpan): Diagnostic {
+    return runtimeError(
+      "ol-limit",
+      source_span,
+      { limit: "cancelled" },
+      "execution was cancelled before the program finished.",
+    );
+  },
+
+  /**
    * `ol-no-value`: a `map`/`filter`/`reduce` body's last statement does not produce a value
    * (`spec/execution-model.md:225`, worked example `map num in :nums [ print :num ]`). Same
    * `{form}` params shape as the parser's `checker-control-flow.ts` semantic rule (issue #114) so

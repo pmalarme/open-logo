@@ -1,0 +1,500 @@
+{
+  "description": "`repeat 20 [ print 1 ]` completes normally under the default 1,000,000-instruction budget (issue #102, spec/execution-model.md:551-557): a small, ordinary, in-budget program never raises ol-limit. Kept intentionally small so this exact-diff fixture stays hand-reviewable; the impractical-at-scale budget-exceeded/depth-exceeded/cancellation scenarios are proven by direct unit tests in packages/runtime/src/execution-budget.test.mjs instead.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 1],
+        "end": [1, 22]
+      },
+      "payload": {
+        "statement_kind": "Repeat"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 19,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 20,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 21,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 22,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 23,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 24,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 25,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 26,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 27,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 28,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 29,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 30,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 31,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 32,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 33,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 34,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 35,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 36,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 37,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 38,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 39,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 40,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/repeat-in-budget-no-limit",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": [1]
+      }
+    }
+  ],
+  "diagnostics": []
+}
