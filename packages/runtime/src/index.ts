@@ -24,7 +24,10 @@
  * {@link Environment.repeatTurns} so the `repcount` reporter (`evaluate.ts`) can read the nearest
  * enclosing `repeat`'s current 1-based turn. Variables, procedures, and comprehensions land one
  * vertical slice at a time (issues #94-#105), each adding its own statement handling and, where
- * the spec calls for it, runtime `ol-*` diagnostics.
+ * the spec calls for it, runtime `ol-*` diagnostics. Issue #103 gives `for ... in` and
+ * `for ... from ... to ... by` their runtime meaning: both bind their loop variable(s) in a fresh
+ * body-local frame each pass (never leaking past the loop) and thread `repeatTurns` unchanged, so
+ * a `repeat`'s `repcount` still works correctly inside a nested `for`.
  *
  * The actual per-statement dispatch (including recursing into `if`/`while`/`repeat`/`forever`
  * block bodies) lives in `execute-internal.ts`'s `executeStatements`, not in this file — see that

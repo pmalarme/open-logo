@@ -1,0 +1,140 @@
+{
+  "description": "Core for <var> from <start> to <end> [ body ] is an inclusive numeric range; default step is 1 (spec/execution-model.md:365-378). Issue #103.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/for-range-inclusive",
+        "start": [1, 1],
+        "end": [3, 2]
+      },
+      "payload": {
+        "statement_kind": "ForRange"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/for-range-inclusive",
+        "start": [2, 3],
+        "end": [2, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/for-range-inclusive",
+        "start": [2, 3],
+        "end": [2, 11]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/for-range-inclusive",
+        "start": [2, 3],
+        "end": [2, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/for-range-inclusive",
+        "start": [2, 3],
+        "end": [2, 11]
+      },
+      "payload": {
+        "values": [2]
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/for-range-inclusive",
+        "start": [2, 3],
+        "end": [2, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/for-range-inclusive",
+        "start": [2, 3],
+        "end": [2, 11]
+      },
+      "payload": {
+        "values": [3]
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/for-range-inclusive",
+        "start": [2, 3],
+        "end": [2, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/for-range-inclusive",
+        "start": [2, 3],
+        "end": [2, 11]
+      },
+      "payload": {
+        "values": [4]
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/for-range-inclusive",
+        "start": [2, 3],
+        "end": [2, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/for-range-inclusive",
+        "start": [2, 3],
+        "end": [2, 11]
+      },
+      "payload": {
+        "values": [5]
+      }
+    }
+  ],
+  "diagnostics": []
+}

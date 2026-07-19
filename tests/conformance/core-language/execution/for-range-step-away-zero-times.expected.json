@@ -1,0 +1,20 @@
+{
+  "description": "A step pointing away from end runs the body zero times with no diagnostic (spec/execution-model.md:369-375). Issue #103.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/for-range-step-away-zero-times",
+        "start": [1, 1],
+        "end": [3, 2]
+      },
+      "payload": {
+        "statement_kind": "ForRange"
+      }
+    }
+  ],
+  "diagnostics": []
+}

@@ -1,0 +1,116 @@
+{
+  "description": "Destructuring binder [ :x :y ] binds each 2-element list positionally on every turn (spec/execution-model.md:411-445,688-704). Issue #103.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/for-in-destructuring-pairs",
+        "start": [1, 1],
+        "end": [4, 2]
+      },
+      "payload": {
+        "statement_kind": "ForIn"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/for-in-destructuring-pairs",
+        "start": [2, 3],
+        "end": [2, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/for-in-destructuring-pairs",
+        "start": [2, 3],
+        "end": [2, 11]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/for-in-destructuring-pairs",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/for-in-destructuring-pairs",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": {
+        "values": [2]
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/for-in-destructuring-pairs",
+        "start": [2, 3],
+        "end": [2, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/for-in-destructuring-pairs",
+        "start": [2, 3],
+        "end": [2, 11]
+      },
+      "payload": {
+        "values": [3]
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/for-in-destructuring-pairs",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/for-in-destructuring-pairs",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": {
+        "values": [4]
+      }
+    }
+  ],
+  "diagnostics": []
+}

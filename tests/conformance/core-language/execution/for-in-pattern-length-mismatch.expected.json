@@ -1,0 +1,37 @@
+{
+  "description": "A destructuring pattern whose arity does not match an element list length (short or long) raises ol-range (spec/execution-model.md:411-445). Issue #103.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/for-in-pattern-length-mismatch",
+        "start": [1, 1],
+        "end": [3, 2]
+      },
+      "payload": {
+        "statement_kind": "ForIn"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-range",
+      "source_span": {
+        "document": "core-language/execution/for-in-pattern-length-mismatch",
+        "start": [1, 5],
+        "end": [1, 12]
+      },
+      "params": {
+        "operation": "destructuring",
+        "value": 3,
+        "length": 2
+      },
+      "message": "this pattern expects 2 values, but got 3.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

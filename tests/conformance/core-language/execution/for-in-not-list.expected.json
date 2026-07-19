@@ -1,0 +1,38 @@
+{
+  "description": "for ... in requires a list iterable (spec/execution-model.md:376-378); a non-list value (a number) raises ol-type. Issue #103.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/for-in-not-list",
+        "start": [1, 1],
+        "end": [3, 2]
+      },
+      "payload": {
+        "statement_kind": "ForIn"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "core-language/execution/for-in-not-list",
+        "start": [1, 10],
+        "end": [1, 11]
+      },
+      "params": {
+        "expected": "list",
+        "actual": "number",
+        "value": 5,
+        "operation": "for"
+      },
+      "message": "for ... in needs a list, but got a number.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

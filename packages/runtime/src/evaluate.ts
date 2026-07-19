@@ -153,8 +153,13 @@ export type NumberOrDiagnostic =
   | { readonly ok: true; readonly value: number }
   | { readonly ok: false; readonly diagnostic: Diagnostic };
 
-/** Require `value` to be a number (with word-that-reads-as-a-number coercion), or `ol-type`. */
-function requireNumber(
+/**
+ * Require `value` to be a number (with word-that-reads-as-a-number coercion), or `ol-type`.
+ * Exported so `execute-internal.ts`'s `ForRange` handling (issue #103) can reuse it for `from`/
+ * `to`/`by`, which — unlike `repeat`'s count — are not restricted to whole numbers
+ * (`spec/execution-model.md:370-375`).
+ */
+export function requireNumber(
   value: OLValue,
   source_span: SourceSpan,
   operation: string,
