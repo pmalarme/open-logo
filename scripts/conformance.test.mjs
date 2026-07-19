@@ -1102,7 +1102,8 @@ test("runHarness handles self-test that wrongly matches", () => {
 });
 
 test("runHarness handles normal fixture failure", () => {
-  // Create a normal fixture that will fail
+  // Create a normal fixture that will fail on a genuine comparison mismatch
+  // (not an off-contract schema error — the diagnostic below is schema-valid).
   mkdirSync(join(TEMP_ROOT, "fail-test"), {
     recursive: true,
   });
@@ -1112,7 +1113,15 @@ test("runHarness handles normal fixture failure", () => {
     JSON.stringify({
       profiles: ["core-language"],
       events: [],
-      diagnostics: [{ code: "ol-undefined-var" }], // Wrong diagnostic
+      diagnostics: [
+        {
+          code: "ol-undefined-var", // Wrong diagnostic — actual is ol-bad-token
+          source_span: { document: "test", start: [1, 1], end: [1, 1] },
+          params: {},
+          stage: "semantic",
+          severity: "error",
+        },
+      ],
     }),
   );
 
