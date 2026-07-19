@@ -8,10 +8,10 @@ played with turtle commands already.
 
 ```mermaid
 flowchart LR
-  A["Your code<br/>repeat 4 [ forward 100 right 90 ]"] --> B["Tokens<br/>little labeled words"]
-  B --> C["Tree (AST)<br/>how the words fit together"]
-  C --> D["Runner<br/>(the interpreter)"]
-  D --> E["🐢 Turtle moves"]
+  A["📝 Your text<br/>repeat 4 [ forward 100 right 90 ]"] --> B["🔤 Lexer<br/>chops it into tokens"]
+  B --> C["🌳 Reader<br/>builds a tree (the AST)"]
+  C --> D["🏃 Interpreter<br/>walks the tree, one step at a time"]
+  D --> E["🐢 Turtle<br/>moves and draws"]
 ```
 
 Every page in this series zooms into one of those boxes and shows you exactly how it works, using
