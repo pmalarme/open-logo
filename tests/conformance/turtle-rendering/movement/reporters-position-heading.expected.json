@@ -1,0 +1,170 @@
+{
+  "description": "issue #203: `xcor`/`ycor`/`heading`/`pos` report the turtle's current logical state after `right 90` + `set_xy 30 40` — reading state emits no move/turn/draw-segment events of its own.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/movement/reporters-position-heading",
+        "start": [1, 1],
+        "end": [1, 9]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "turn",
+      "source_span": {
+        "document": "turtle-rendering/movement/reporters-position-heading",
+        "start": [1, 1],
+        "end": [1, 9]
+      },
+      "payload": {
+        "from": 0,
+        "to": 90
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/movement/reporters-position-heading",
+        "start": [2, 1],
+        "end": [2, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "move",
+      "source_span": {
+        "document": "turtle-rendering/movement/reporters-position-heading",
+        "start": [2, 1],
+        "end": [2, 13]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [30, 40],
+        "heading": 90
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "turtle-rendering/movement/reporters-position-heading",
+        "start": [2, 1],
+        "end": [2, 13]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [30, 40],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/movement/reporters-position-heading",
+        "start": [3, 1],
+        "end": [3, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "print",
+      "source_span": {
+        "document": "turtle-rendering/movement/reporters-position-heading",
+        "start": [3, 1],
+        "end": [3, 11]
+      },
+      "payload": {
+        "values": [30]
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/movement/reporters-position-heading",
+        "start": [4, 1],
+        "end": [4, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "print",
+      "source_span": {
+        "document": "turtle-rendering/movement/reporters-position-heading",
+        "start": [4, 1],
+        "end": [4, 11]
+      },
+      "payload": {
+        "values": [40]
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/movement/reporters-position-heading",
+        "start": [5, 1],
+        "end": [5, 14]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "print",
+      "source_span": {
+        "document": "turtle-rendering/movement/reporters-position-heading",
+        "start": [5, 1],
+        "end": [5, 14]
+      },
+      "payload": {
+        "values": [90]
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/movement/reporters-position-heading",
+        "start": [6, 1],
+        "end": [6, 10]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "print",
+      "source_span": {
+        "document": "turtle-rendering/movement/reporters-position-heading",
+        "start": [6, 1],
+        "end": [6, 10]
+      },
+      "payload": {
+        "values": [[30, 40]]
+      }
+    }
+  ],
+  "diagnostics": []
+}
