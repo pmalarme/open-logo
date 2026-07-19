@@ -14,10 +14,11 @@
  *
  * This slice publishes the deterministic turtle-**state** reducer (position, heading, pen,
  * color, width, shape, visibility), the deterministic retained-**scene** reducer (background,
- * segments, fills, stamps), the **Canvas live renderer**, and deterministic **SVG** and **PNG**
+ * segments, fills, stamps), the **Canvas live renderer**, deterministic **SVG** and **PNG**
  * export — all three renderers paint the same retained data through the same
- * dependency-injected `RenderTarget` abstraction and coordinate mapping. Animation lands in a
- * later slice.
+ * dependency-injected `RenderTarget` abstraction and coordinate mapping — and the
+ * **animation/execution-control** cursor (`run`/`pause`/`step`/`speed`/`reset`+`replay`) that
+ * paces consumption of that same event stream without ever re-deriving it.
  */
 
 export {
@@ -48,3 +49,11 @@ export type { SvgExportOptions } from "./svg.js";
 
 export { exportTurtlePng } from "./png.js";
 export type { PngExportOptions } from "./png.js";
+
+export { IMMEDIATE_SCHEDULER, TurtleAnimationController } from "./animation.js";
+export type {
+  AnimationSnapshot,
+  PlaybackStatus,
+  Scheduler,
+  TurtleAnimationOptions,
+} from "./animation.js";
