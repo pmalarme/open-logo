@@ -1,0 +1,37 @@
+{
+  "description": "issue #210: `(fill 1)` - `fill` is arity 0, so one argument raises `ol-too-many-inputs`.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/style/fill-too-many-inputs",
+        "start": [1, 1],
+        "end": [1, 9]
+      },
+      "payload": {
+        "statement_kind": "ParenCall"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-too-many-inputs",
+      "source_span": {
+        "document": "turtle-rendering/style/fill-too-many-inputs",
+        "start": [1, 2],
+        "end": [1, 6]
+      },
+      "params": {
+        "callable": "fill",
+        "expected": 0,
+        "actual": 1
+      },
+      "message": "fill takes 0 inputs, but got 1.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

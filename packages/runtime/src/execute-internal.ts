@@ -26,6 +26,7 @@ import type {
   ColorChangePayload,
   Diagnostic,
   DrawSegmentPayload,
+  FillPayload,
   MovePayload,
   OLValue,
   PenChangePayload,
@@ -34,7 +35,9 @@ import type {
   ProcedureEnterPayload,
   ProcedureExitPayload,
   ReturnPayload,
+  ShapeChangePayload,
   SourceSpan,
+  StampPayload,
   TurnPayload,
   VisibilityChangePayload,
   WidthChangePayload,
@@ -50,6 +53,7 @@ import type {
 } from "@openlogo/parser";
 import { parse, walk } from "@openlogo/parser";
 import { normalizeColor } from "./color.js";
+import { isRecognizedShape, normalizeShape } from "./shape.js";
 import {
   bindElement,
   checkExecutionLimits,
@@ -827,6 +831,210 @@ function executeTurtleWidthCall(
 }
 
 /**
+ * Is `statement` a call to `fill` (issue #210; `spec/rendering.md`'s "Fill" section). Same
+ * shape/convention as {@link isTurtleClearCall} — a bare 0-arity turtle command with no Turtle &
+ * Rendering-profile alias.
+ */
+function isTurtleFillCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  return statement.callee.name.toLowerCase() === "fill";
+}
+
+/**
+ * Validate and run a `fill` statement matched by {@link isTurtleFillCall}: exactly zero arguments
+ * (`ol-too-many-inputs` otherwise), then emit a `fill` event carrying the current pen color
+ * (`spec/rendering.md`'s "Fill" section — the current pen color unless a vendor extension exposes
+ * a separate fill color; `spec/rendering.md`'s "Color" section: "a segment, fill, or stamp
+ * captures the color at the moment its event is applied"). No turtle-state change: `fill` affects
+ * only the retained scene, which is `@openlogo/turtle`'s reducer's job (issue #213) — the runtime
+ * only emits the one event. Returns an {@link ExecSignal} to halt on, or `undefined` for
+ * {@link executeStatements} to `continue` on success.
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeTurtleFillCall(
+  fillCall: CallNode | ParenCallNode,
+  env: Environment,
+): ExecSignal | undefined {
+  const callableName = fillCall.callee.name;
+  if (fillCall.args.length !== 0) {
+    return halt(
+      runtimeDiag.tooManyInputs(
+        fillCall.callee.source_span,
+        callableName,
+        0,
+        fillCall.args.length,
+      ),
+    );
+  }
+  env.events.push({
+    seq: env.events.length,
+    kind: "fill",
+    source_span: fillCall.source_span,
+    payload: { color: env.turtle.color } satisfies FillPayload,
+  });
+  return undefined;
+}
+
+/**
+ * Is `statement` a call to `stamp` (issue #210; `spec/rendering.md`'s "Turtle avatar and shapes"
+ * section). Same shape/convention as {@link isTurtleFillCall}.
+ */
+function isTurtleStampCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  return statement.callee.name.toLowerCase() === "stamp";
+}
+
+/**
+ * Validate and run a `stamp` statement matched by {@link isTurtleStampCall}: exactly zero
+ * arguments (`ol-too-many-inputs` otherwise), then emit a `stamp` event snapshotting the turtle
+ * avatar's current position, heading, shape, and pen color (`spec/rendering.md`'s "Turtle avatar
+ * and shapes" section) into the retained scene. Independent of pen state — a stamp is recorded
+ * even with the pen up, unlike {@link moveTurtle}'s `draw-segment`, since stamping the avatar is
+ * not drawing a line (`spec/rendering.md`'s "Turtle avatar and shapes" section: the avatar and its
+ * stamps are separate from the pen's drawn path). No turtle-state change: the runtime only emits
+ * the one event. Returns an {@link ExecSignal} to halt on, or `undefined` for
+ * {@link executeStatements} to `continue` on success.
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeTurtleStampCall(
+  stampCall: CallNode | ParenCallNode,
+  env: Environment,
+): ExecSignal | undefined {
+  const callableName = stampCall.callee.name;
+  if (stampCall.args.length !== 0) {
+    return halt(
+      runtimeDiag.tooManyInputs(
+        stampCall.callee.source_span,
+        callableName,
+        0,
+        stampCall.args.length,
+      ),
+    );
+  }
+  const { turtle } = env;
+  env.events.push({
+    seq: env.events.length,
+    kind: "stamp",
+    source_span: stampCall.source_span,
+    payload: {
+      position: [turtle.x, turtle.y],
+      heading: turtle.heading,
+      shape: turtle.shape,
+      color: turtle.color,
+    } satisfies StampPayload,
+  });
+  return undefined;
+}
+
+/**
+ * Is `statement` a call to `set_shape` (issue #210; `spec/commands.md:1573`). Same
+ * shape/convention as {@link isTurtleColorCall} — no Turtle & Rendering-profile alias is
+ * registered for `set_shape` (unlike `set_color`/`set_width`/`set_xy`/`set_heading`, which each
+ * have a one-word alias).
+ */
+function isTurtleShapeCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  return statement.callee.name.toLowerCase() === "set_shape";
+}
+
+/**
+ * Validate and run a `set_shape` statement matched by {@link isTurtleShapeCall}: exactly one
+ * argument (`ol-not-enough-inputs`/`ol-too-many-inputs` otherwise), which must be a word
+ * (`ol-type`, `expected: "word"`, otherwise — mirrors `evaluate.ts`'s `evaluateThing`'s
+ * non-word check) naming one of the recognized shapes (`packages/runtime/src/shape.ts`'s
+ * {@link isRecognizedShape}) — an unrecognized shape word is *also* `ol-type`, but with
+ * `expected: "shape"` instead of `expected: "word"`: `spec/commands.md`'s `set_shape` entry
+ * specifies no dedicated code ("Possible errors: none specified in C3 beyond general type and
+ * arity diagnostics"), because the shape set is open/implementation-defined
+ * (`spec/rendering.md`'s "Turtle avatar and shapes" section: MUST support the default, SHOULD
+ * support the portable set, MAY support more) rather than the closed palette `set_color` has —
+ * so there is no enumerable `value` set to anchor a dedicated `ol-bad-shape` code the way
+ * `ol-bad-color` anchors `set_color`'s. `error-model.md` treats `params` as part of a diagnostic's
+ * identity, so these are two distinct `ol-type` identities differentiated by `expected`/`value`,
+ * not one code overloaded ambiguously.
+ *
+ * On success, sets `turtle.shape` and emits a `shape-change` event (`{from, to}`, mirroring
+ * {@link executeTurtleColorCall}'s `color-change` shape). No `move`/`draw-segment` interaction:
+ * changing the shape affects only how the avatar is drawn/stamped going forward, not the drawn
+ * path. Returns an {@link ExecSignal} to halt on, or `undefined` for {@link executeStatements} to
+ * `continue` on success (including the "left un-evaluated" case for an unsupported argument
+ * expression, mirroring {@link executeTurtleColorCall}'s handling).
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeTurtleShapeCall(
+  shapeCall: CallNode | ParenCallNode,
+  env: Environment,
+): ExecSignal | undefined {
+  const callableName = shapeCall.callee.name;
+  if (shapeCall.args.length !== 1) {
+    return halt(
+      shapeCall.args.length < 1
+        ? runtimeDiag.notEnoughInputs(
+            shapeCall.callee.source_span,
+            callableName,
+            1,
+            shapeCall.args.length,
+          )
+        : runtimeDiag.tooManyInputs(
+            shapeCall.callee.source_span,
+            callableName,
+            1,
+            shapeCall.args.length,
+          ),
+    );
+  }
+  const [arg] = shapeCall.args as [ExpressionNode];
+  if (!isSupportedExpression(arg, env.procedures)) {
+    return undefined;
+  }
+  const argResult = evaluate(arg, env);
+  if (!argResult.ok) {
+    return halt(argResult.diagnostic);
+  }
+  if (typeof argResult.value !== "string") {
+    return halt(
+      runtimeDiag.placeType(arg.source_span, {
+        expected: "word",
+        actual: typeNameOf(argResult.value),
+        value: argResult.value,
+        operation: "set_shape",
+      }),
+    );
+  }
+  if (!isRecognizedShape(argResult.value)) {
+    return halt(
+      runtimeDiag.unknownShape(arg.source_span, {
+        value: argResult.value,
+        operation: "set_shape",
+      }),
+    );
+  }
+  const shape = normalizeShape(argResult.value);
+  const { turtle } = env;
+  const from = turtle.shape;
+  turtle.shape = shape;
+  env.events.push({
+    seq: env.events.length,
+    kind: "shape-change",
+    source_span: shapeCall.source_span,
+    payload: { from, to: shape } satisfies ShapeChangePayload,
+  });
+  return undefined;
+}
+
+/**
  * Is `statement` a call to `home`/`set_xy` or `set_xy`'s Turtle & Rendering-profile alias `setxy`
  * (issue #202, Core absolute positioning; `spec/commands.md:1279`). Unlike `forward`'s `fd`,
  * `setxy`/`seth` are **not** Heritage — `spec/conformance.md:105-117`'s Heritage short-alias list
@@ -1160,6 +1368,24 @@ function dispatchTurtleCommand(
   }
   if (isTurtleWidthCall(statement)) {
     return executeTurtleWidthCall(
+      statement as unknown as CallNode | ParenCallNode,
+      env,
+    );
+  }
+  if (isTurtleFillCall(statement)) {
+    return executeTurtleFillCall(
+      statement as unknown as CallNode | ParenCallNode,
+      env,
+    );
+  }
+  if (isTurtleStampCall(statement)) {
+    return executeTurtleStampCall(
+      statement as unknown as CallNode | ParenCallNode,
+      env,
+    );
+  }
+  if (isTurtleShapeCall(statement)) {
+    return executeTurtleShapeCall(
       statement as unknown as CallNode | ParenCallNode,
       env,
     );

@@ -1,0 +1,86 @@
+{
+  "description": "issue #210: `pen_up` then `forward 10` then `stamp` still emits a `stamp` event (independent of pen state) with no `draw-segment` event, since stamping the avatar is not drawing a line (spec/rendering.md's \"Turtle avatar and shapes\" section).",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/style/stamp-pen-up-independent",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "pen-change",
+      "source_span": {
+        "document": "turtle-rendering/style/stamp-pen-up-independent",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "payload": {
+        "from": "down",
+        "to": "up"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/style/stamp-pen-up-independent",
+        "start": [2, 1],
+        "end": [2, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "move",
+      "source_span": {
+        "document": "turtle-rendering/style/stamp-pen-up-independent",
+        "start": [2, 1],
+        "end": [2, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/style/stamp-pen-up-independent",
+        "start": [3, 1],
+        "end": [3, 6]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "stamp",
+      "source_span": {
+        "document": "turtle-rendering/style/stamp-pen-up-independent",
+        "start": [3, 1],
+        "end": [3, 6]
+      },
+      "payload": {
+        "position": [0, 10],
+        "heading": 0,
+        "shape": "turtle",
+        "color": "black"
+      }
+    }
+  ],
+  "diagnostics": []
+}
