@@ -132,6 +132,26 @@ export function turtlePrimitiveArity(name: string): number | undefined {
 }
 
 /**
+ * Every Turtle & Rendering primitive's canonical lowercase name, sorted for deterministic
+ * iteration. This is the enumerable counterpart to {@link turtlePrimitiveArity} — the checker's
+ * visible-name model (`checker-names.ts`, issue #136) needs the full name *list*, gated on the
+ * `turtle-rendering` profile, to make these primitives both callable without `ol-unknown-command`
+ * and candidates for its did-you-mean suggestions — mirroring {@link corePrimitiveNames}'s role
+ * for the Core table. Kept as a frozen array computed once so callers cannot mutate the shared
+ * table.
+ */
+const TURTLE_PRIMITIVE_NAMES: readonly string[] = Object.freeze(
+  [...TURTLE_PRIMITIVE_ARITY.keys()].sort(),
+);
+
+/**
+ * The full list of Turtle & Rendering primitive names, in sorted order. See
+ * {@link TURTLE_PRIMITIVE_NAMES}. */
+export function turtlePrimitiveNames(): readonly string[] {
+  return TURTLE_PRIMITIVE_NAMES;
+}
+
+/**
  * Every profile's primitive-arity table the reader consults, in lookup order. Core Language is
  * checked first (today's only always-visible table), then each optional profile's Core-spelled
  * primitives as they are registered — currently just Turtle & Rendering. A later profile slice
