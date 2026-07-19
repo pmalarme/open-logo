@@ -80,7 +80,7 @@ export function corePrimitiveArity(name: string): number | undefined {
  * `setxy`/`seth` are not members of it. `setcolor`/`setbg`/`setwidth` are, like `setxy`/`seth`,
  * Turtle & Rendering aliases (`spec/commands.md:1521,1539,1556`) rather than Heritage — but they
  * stay out of this table for now because their owning commands (`set_color`/`set_background`/
- * `set_pen_width`) are implemented by separate slices (#207/#204/#209), not this one. Kept as a
+ * `set_width`) are implemented by separate slices (#207/#204/#209), not this one. Kept as a
  * separate table from {@link CORE_PRIMITIVE_ARITY} (rather than merged into it) because the two
  * profiles have independent visibility: the Layer-2 checker gates each on its own active profile
  * (`spec/tooling.md:175-176`), while the reader (this table's only consumer, via
