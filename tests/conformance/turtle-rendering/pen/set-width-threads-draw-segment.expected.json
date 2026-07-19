@@ -1,0 +1,74 @@
+{
+  "description": "issue #209: after `set_width 4`, a subsequent `forward 10` draws a segment whose `draw-segment` event captures the new width (`width: 4`) - the pen defaults to down (issue #200), so the segment is drawn.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/pen/set-width-threads-draw-segment",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "width-change",
+      "source_span": {
+        "document": "turtle-rendering/pen/set-width-threads-draw-segment",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": {
+        "from": 1,
+        "to": 4
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/pen/set-width-threads-draw-segment",
+        "start": [2, 1],
+        "end": [2, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "move",
+      "source_span": {
+        "document": "turtle-rendering/pen/set-width-threads-draw-segment",
+        "start": [2, 1],
+        "end": [2, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "turtle-rendering/pen/set-width-threads-draw-segment",
+        "start": [2, 1],
+        "end": [2, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "color": "black",
+        "width": 4
+      }
+    }
+  ],
+  "diagnostics": []
+}

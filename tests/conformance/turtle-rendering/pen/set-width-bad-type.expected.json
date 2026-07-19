@@ -1,0 +1,38 @@
+{
+  "description": "issue #209: `set_width \"thick\"` is not a number at all, so it raises `ol-type` (reusing the general arithmetic type-error diagnostic via `requireNumber`) rather than `ol-range` - the turtle's width is left unchanged.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/pen/set-width-bad-type",
+        "start": [1, 1],
+        "end": [1, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "turtle-rendering/pen/set-width-bad-type",
+        "start": [1, 11],
+        "end": [1, 18]
+      },
+      "params": {
+        "expected": "number",
+        "actual": "word",
+        "value": "thick",
+        "operation": "set_width"
+      },
+      "message": "set_width needs a number, but got a word.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

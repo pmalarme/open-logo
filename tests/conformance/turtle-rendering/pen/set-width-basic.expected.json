@@ -1,0 +1,33 @@
+{
+  "description": "issue #209: `set_width 4` validates a positive number, sets the turtle's width (from the default 1), and emits a `width-change` event ({from: 1, to: 4}) - no move/turn/draw-segment event fires for a width change alone (spec/commands.md's `set_width` entry).",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/pen/set-width-basic",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "width-change",
+      "source_span": {
+        "document": "turtle-rendering/pen/set-width-basic",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": {
+        "from": 1,
+        "to": 4
+      }
+    }
+  ],
+  "diagnostics": []
+}
