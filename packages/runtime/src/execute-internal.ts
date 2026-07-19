@@ -568,18 +568,19 @@ function executeTurtlePositionCall(
   if (!yResult.ok) {
     return halt(yResult.diagnostic);
   }
-  const x = requireNumber(xResult.value, xArg.source_span, "set_xy");
+  const operation = callableName.toLowerCase() as "set_xy" | "setxy";
+  const x = requireNumber(xResult.value, xArg.source_span, operation);
   if (!x.ok) {
     return halt(x.diagnostic);
   }
-  const y = requireNumber(yResult.value, yArg.source_span, "set_xy");
+  const y = requireNumber(yResult.value, yArg.source_span, operation);
   if (!y.ok) {
     return halt(y.diagnostic);
   }
   if (!Number.isFinite(x.value)) {
     return halt(
       runtimeDiag.nonFiniteCoordinate(xArg.source_span, {
-        operation: "set_xy",
+        operation,
         axis: "x",
         value: String(x.value),
       }),
@@ -588,7 +589,7 @@ function executeTurtlePositionCall(
   if (!Number.isFinite(y.value)) {
     return halt(
       runtimeDiag.nonFiniteCoordinate(yArg.source_span, {
-        operation: "set_xy",
+        operation,
         axis: "y",
         value: String(y.value),
       }),
@@ -655,7 +656,11 @@ function executeTurtleHeadingCall(
   if (!argResult.ok) {
     return halt(argResult.diagnostic);
   }
-  const angle = requireNumber(argResult.value, arg.source_span, "set_heading");
+  const angle = requireNumber(
+    argResult.value,
+    arg.source_span,
+    callableName.toLowerCase(),
+  );
   if (!angle.ok) {
     return halt(angle.diagnostic);
   }
@@ -665,7 +670,7 @@ function executeTurtleHeadingCall(
     // turtle's heading instead of raising a diagnostic (`spec/execution-model.md:517`).
     return halt(
       runtimeDiag.nonFiniteHeading(arg.source_span, {
-        operation: "set_heading",
+        operation: callableName.toLowerCase() as "set_heading" | "seth",
         value: String(angle.value),
       }),
     );

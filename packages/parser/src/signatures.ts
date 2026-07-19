@@ -75,9 +75,12 @@ export function corePrimitiveArity(name: string): number | undefined {
  * [`spec/commands.md`](../../../spec/commands.md). Registers the canonical underscored names plus
  * the small set of Turtle & Rendering (not Heritage) aliases the spec documents inline —
  * `setxy`/`seth` (issue #202; `spec/commands.md:1279,1296`). `fd`/`bk`/`lt`/`rt`/`pu`/`pd`/`st`/
- * `ht`/`cs`/`setcolor`/`setbg`/`setwidth` remain **Heritage**-profile (M5) and stay out of this
+ * `ht`/`cs` are the genuinely **Heritage**-profile (M5) short spellings and stay out of this
  * table — the Heritage profile's short-alias list is closed by `spec/conformance.md:105-117`, and
- * `setxy`/`seth` are not members of it (unlike `setcolor`/`setbg`/`setwidth`, which are). Kept as a
+ * `setxy`/`seth` are not members of it. `setcolor`/`setbg`/`setwidth` are, like `setxy`/`seth`,
+ * Turtle & Rendering aliases (`spec/commands.md:1521,1539,1556`) rather than Heritage — but they
+ * stay out of this table for now because their owning commands (`set_color`/`set_background`/
+ * `set_pen_width`) are implemented by separate slices (#207/#204/#209), not this one. Kept as a
  * separate table from {@link CORE_PRIMITIVE_ARITY} (rather than merged into it) because the two
  * profiles have independent visibility: the Layer-2 checker gates each on its own active profile
  * (`spec/tooling.md:175-176`), while the reader (this table's only consumer, via

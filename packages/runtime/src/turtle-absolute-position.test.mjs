@@ -144,6 +144,14 @@ test("execute treats the setxy alias identically to set_xy (issue #202, Turtle &
   });
 });
 
+test("execute raises ol-type for a non-number setxy alias argument, naming the alias (not set_xy) in params.operation", () => {
+  const result = execute('setxy "a" 2', "main.logo");
+  assert.equal(result.events.length, 1);
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-type");
+  assert.equal(result.diagnostics[0].params.operation, "setxy");
+});
+
 test("execute raises ol-not-enough-inputs for a parenthesized one-argument setxy alias", () => {
   const result = execute("(setxy 1)", "main.logo");
   assert.equal(result.events.length, 1);
@@ -280,6 +288,14 @@ test("execute treats the seth alias identically to set_heading, including normal
     ["instruction", "turn"],
   );
   assert.deepEqual(result.events[1].payload, { from: 0, to: 90 });
+});
+
+test("execute raises ol-type for a non-number seth alias argument, naming the alias (not set_heading) in params.operation", () => {
+  const result = execute('seth "a"', "main.logo");
+  assert.equal(result.events.length, 1);
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-type");
+  assert.equal(result.diagnostics[0].params.operation, "seth");
 });
 
 test("execute raises ol-too-many-inputs for a parenthesized two-argument seth alias", () => {

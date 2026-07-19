@@ -172,7 +172,7 @@ export interface NonFiniteAngleParams {
  * re-touch #201's already-reviewed `left`/`right` diagnostic shape.
  */
 export interface NonFiniteHeadingParams {
-  readonly operation: "set_heading";
+  readonly operation: "set_heading" | "seth";
   readonly value: string;
 }
 
@@ -186,7 +186,7 @@ export interface NonFiniteHeadingParams {
  * guard is the same. `axis` names which argument was non-finite for the diagnostic's `params`.
  */
 export interface NonFiniteCoordinateParams {
-  readonly operation: "set_xy";
+  readonly operation: "set_xy" | "setxy";
   readonly axis: "x" | "y";
   readonly value: string;
 }
