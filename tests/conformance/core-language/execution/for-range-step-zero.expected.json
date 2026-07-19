@@ -1,0 +1,36 @@
+{
+  "description": "for ... by 0 never reaches end and raises ol-range (spec/execution-model.md:369-375). Issue #103.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/for-range-step-zero",
+        "start": [1, 1],
+        "end": [3, 2]
+      },
+      "payload": {
+        "statement_kind": "ForRange"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-range",
+      "source_span": {
+        "document": "core-language/execution/for-range-step-zero",
+        "start": [1, 22],
+        "end": [1, 23]
+      },
+      "params": {
+        "operation": "for",
+        "value": 0
+      },
+      "message": "for ... by 0 never reaches the end — try a step other than 0.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

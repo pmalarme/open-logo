@@ -20,7 +20,9 @@ import { typeNameOf } from "@openlogo/core";
 import type {
   CallNode,
   ExpressionNode,
+  ForInNode,
   ParenCallNode,
+  SpannedName,
   StatementNode,
 } from "@openlogo/parser";
 import { parse } from "@openlogo/parser";
@@ -29,11 +31,25 @@ import {
   evaluate,
   executeAssign,
   isSupportedExpression,
+  requireNumber,
   requireWholeNumber,
   type Environment,
+  type Frame,
 } from "./evaluate.js";
 import { runtimeDiag } from "./errors.js";
 import type { ExecuteResult, InstructionPayload } from "./index.js";
+
+/**
+ * `ForInNode.binder` (`spec/grammar.md:136-137`): a bare name, or a destructuring pattern. The
+ * pattern node itself (`DestructuringBinderNode`) is not part of `@openlogo/parser`'s public
+ * export list, so it is named here via `Extract` off the already-exported {@link ForInNode}
+ * rather than importing it directly.
+ */
+type ForInBinder = ForInNode["binder"];
+type DestructuringBinder = Extract<
+  ForInBinder,
+  { kind: "DestructuringBinder" }
+>;
 
 /**
  * Is `statement` a call to `print` — the single-value `print value` form or the parenthesized
@@ -81,6 +97,81 @@ function evaluateCondition(
     };
   }
   return { ok: true, value: result.value };
+}
+
+/**
+ * Push a fresh body-local frame binding `bindings` (name → value) onto `env`, nearest-first, for
+ * a `for` loop's own binder(s) — `spec/execution-model.md:435-437` ("body-local bindings that
+ * shadow outer names only for the body"). Returns a *new* {@link Environment}; `env` itself is
+ * never mutated, so once the caller stops using the returned value the binding is gone — there is
+ * no explicit "pop" step, unlike `repeatTurns` (a plain mutable array shared by every recursive
+ * call). `repeatTurns` is threaded through unchanged (same array reference) so a `for` nested
+ * inside a `repeat` still sees the right `repcount`, and a `repeat`/`for` nested inside a `for`
+ * still sees it too.
+ */
+function pushLoopFrame(
+  env: Environment,
+  bindings: ReadonlyMap<string, OLValue>,
+): Environment {
+  const frame: Frame = new Map(bindings);
+  return { frames: [frame, ...env.frames], repeatTurns: env.repeatTurns };
+}
+
+/**
+ * The first name in a destructuring pattern that repeats an earlier one in the same pattern
+ * (case-insensitively), or `undefined` when every name is distinct. Mirrors the parser's
+ * `checker-control-flow.ts` `patternDuplicateDiagnostics` exactly (same case-folding) so the
+ * runtime's own `ol-duplicate-binder` guard agrees with the semantic checker's — this is a static
+ * property of the pattern, checked once before iterating rather than per element.
+ */
+function findDuplicateBinderName(
+  binder: DestructuringBinder,
+): SpannedName | undefined {
+  const seen = new Set<string>();
+  for (const name of binder.names) {
+    const key = name.name.toLowerCase();
+    if (seen.has(key)) {
+      return name;
+    }
+    seen.add(key);
+  }
+  return undefined;
+}
+
+/**
+ * Bind one `for ... in` element against `binder`: a bare name binds the whole element, while a
+ * destructuring pattern destructures it positionally (`spec/execution-model.md:435-439`). A
+ * non-list element, or one whose length disagrees with the pattern's arity, raises `ol-range` — a
+ * non-list element's length is treated as `0`, since it can never match a non-empty pattern.
+ * `"kind" in binder` — not `binder.kind`, since a bare-name binder is a plain {@link SpannedName}
+ * with no `kind` field at all (see `ast.ts`'s own `walk` for the same pattern) — distinguishes the
+ * two without a false discriminated-union assumption.
+ */
+function bindForInElement(
+  binder: ForInBinder,
+  element: OLValue,
+):
+  | { readonly ok: true; readonly bindings: Map<string, OLValue> }
+  | { readonly ok: false; readonly diagnostic: Diagnostic } {
+  if (!("kind" in binder)) {
+    return { ok: true, bindings: new Map([[binder.name, element]]) };
+  }
+  const values = Array.isArray(element) ? element : undefined;
+  if (values === undefined || values.length !== binder.names.length) {
+    return {
+      ok: false,
+      diagnostic: runtimeDiag.patternLengthMismatch(binder.source_span, {
+        operation: "destructuring",
+        value: values === undefined ? 0 : values.length,
+        length: binder.names.length,
+      }),
+    };
+  }
+  const bindings = new Map<string, OLValue>();
+  binder.names.forEach((name, index) => {
+    bindings.set(name.name, values[index] as OLValue);
+  });
+  return { ok: true, bindings };
 }
 
 /**
@@ -148,6 +239,32 @@ function evaluateCondition(
  * {@link executeWithForeverIterationLimitForTests}, never via `execute()`; no production caller
  * ever passes it, so every real `forever` genuinely never terminates, same as an always-`true`
  * `while`.
+ *
+ * A `ForIn` statement (issue #103) evaluates `iterable` — it must be a list, `ol-type` otherwise
+ * (`spec/execution-model.md:375-376`; Core `for ... in` is list-only, dict iteration is a later
+ * profile) — then runs `body` once per element, in order, binding `binder` fresh each pass via
+ * {@link pushLoopFrame}. A bare-name binder binds the whole element; a destructuring binder
+ * ({@link bindForInElement}) binds each of its names positionally from the element, which must
+ * itself be a list of exactly that many items (`ol-range` otherwise —
+ * `spec/execution-model.md:435-439`). A duplicate name within one destructuring pattern
+ * (`for [:x :x] in ...`) raises `ol-duplicate-binder`, checked once up front via
+ * {@link findDuplicateBinderName} since it is a static property of the pattern, not the data.
+ *
+ * A `ForRange` statement (issue #103) evaluates `from`/`to`/`by` (default step `1`) — each must be
+ * a number, `ol-type` otherwise ({@link requireNumber}, which unlike `repeat`'s count is not
+ * restricted to whole numbers) — then iterates `variable` from `from` to `to` inclusive, adding
+ * `step` each pass: with a positive step the body runs while `variable` is at most `to`, with a
+ * negative step while it is at least `to` (`spec/execution-model.md:370-375`). A step pointing
+ * away from `to` (e.g. `from 1 to 5 by -1`) runs `body` zero times, no diagnostic; a step of `0`
+ * raises `ol-range` (`runtimeDiag.forStepZero`) since it would otherwise never reach `to`.
+ * `variable` is bound fresh each pass via {@link pushLoopFrame}, same as `ForIn`'s binder.
+ *
+ * Both loops' binders are fresh **body-local** bindings (`spec/execution-model.md:435-437`): each
+ * pass runs `body` against a *new* {@link Environment} with one extra frame in front of `env`'s
+ * own frames, so the binding is visible inside `body` but never leaks past the loop — `env` itself
+ * is never mutated. `env.repeatTurns` (same array reference) and `foreverIterationLimit` are
+ * threaded through unchanged, so a `repeat`'s `repcount` and a `forever`'s test-only iteration cap
+ * both still work correctly across a nested `for`.
  *
  * Statement kinds this issue does not give meaning to (e.g. a bare arithmetic expression, or any
  * command other than `print`) still emit their `instruction` event but do not evaluate — that is
@@ -314,6 +431,110 @@ function executeStatements(
           return diagnostic;
         }
         turn++;
+      }
+      continue;
+    }
+
+    if (statement.kind === "ForIn") {
+      if ("kind" in statement.binder) {
+        const duplicate = findDuplicateBinderName(statement.binder);
+        if (duplicate !== undefined) {
+          return runtimeDiag.duplicateBinder(
+            duplicate.source_span,
+            duplicate.name,
+          );
+        }
+      }
+      if (!isSupportedExpression(statement.iterable)) {
+        continue;
+      }
+      const iterableResult = evaluate(statement.iterable, env);
+      if (!iterableResult.ok) {
+        return iterableResult.diagnostic;
+      }
+      if (!Array.isArray(iterableResult.value)) {
+        return runtimeDiag.forInNotList(statement.iterable.source_span, {
+          actual: typeNameOf(iterableResult.value),
+          value: iterableResult.value,
+        });
+      }
+      for (const element of iterableResult.value) {
+        const bound = bindForInElement(statement.binder, element);
+        if (!bound.ok) {
+          return bound.diagnostic;
+        }
+        const diagnostic = executeStatements(
+          statement.body.body,
+          pushLoopFrame(env, bound.bindings),
+          events,
+          foreverIterationLimit,
+        );
+        if (diagnostic) {
+          return diagnostic;
+        }
+      }
+      continue;
+    }
+
+    if (statement.kind === "ForRange") {
+      if (
+        !isSupportedExpression(statement.from) ||
+        !isSupportedExpression(statement.to) ||
+        (statement.by !== undefined && !isSupportedExpression(statement.by))
+      ) {
+        continue;
+      }
+      const fromResult = evaluate(statement.from, env);
+      if (!fromResult.ok) {
+        return fromResult.diagnostic;
+      }
+      const from = requireNumber(
+        fromResult.value,
+        statement.from.source_span,
+        "for",
+      );
+      if (!from.ok) {
+        return from.diagnostic;
+      }
+      const toResult = evaluate(statement.to, env);
+      if (!toResult.ok) {
+        return toResult.diagnostic;
+      }
+      const to = requireNumber(toResult.value, statement.to.source_span, "for");
+      if (!to.ok) {
+        return to.diagnostic;
+      }
+      let step = 1;
+      if (statement.by !== undefined) {
+        const byResult = evaluate(statement.by, env);
+        if (!byResult.ok) {
+          return byResult.diagnostic;
+        }
+        const by = requireNumber(
+          byResult.value,
+          statement.by.source_span,
+          "for",
+        );
+        if (!by.ok) {
+          return by.diagnostic;
+        }
+        if (by.value === 0) {
+          return runtimeDiag.forStepZero(statement.by.source_span);
+        }
+        step = by.value;
+      }
+      const continues = (current: number): boolean =>
+        step > 0 ? current <= to.value : current >= to.value;
+      for (let current = from.value; continues(current); current += step) {
+        const diagnostic = executeStatements(
+          statement.body.body,
+          pushLoopFrame(env, new Map([[statement.variable.name, current]])),
+          events,
+          foreverIterationLimit,
+        );
+        if (diagnostic) {
+          return diagnostic;
+        }
       }
     }
   }

@@ -1,0 +1,36 @@
+{
+  "description": "A destructuring pattern with a repeated binder name raises ol-duplicate-binder before iteration begins (spec/error-model.md:116). Issue #103.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/for-in-duplicate-binder",
+        "start": [1, 1],
+        "end": [3, 2]
+      },
+      "payload": {
+        "statement_kind": "ForIn"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-duplicate-binder",
+      "source_span": {
+        "document": "core-language/execution/for-in-duplicate-binder",
+        "start": [1, 9],
+        "end": [1, 11]
+      },
+      "params": {
+        "name": "x",
+        "form": "destructuring"
+      },
+      "message": "the binder x is used twice here. give each binder a different name.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

@@ -13,7 +13,14 @@
  * with a non-number key" as `ol-type`, not `ol-range`). Issue #95 adds `ol-not-boolean` for a
  * `not`/`and`/`or` operand that is not `true`/`false` — there is no truthiness. Issue #104 adds
  * `ol-type`/`ol-range` for `repeat`'s non-whole/negative count and `ol-repcount-outside-repeat`
- * for a `repcount` reporter used outside any enclosing `repeat`.
+ * for a `repcount` reporter used outside any enclosing `repeat`. Issue #103 adds `for`'s own
+ * diagnostics: `ol-type` for a `for ... in` iterable that is not a list
+ * (`spec/execution-model.md:375-376` — Core `for ... in` is list-only), `ol-range` for a
+ * `for ... from ... to ... by 0` step (`spec/execution-model.md:374-375`), a destructuring
+ * pattern/element length mismatch (`spec/execution-model.md:438-439`), and `ol-duplicate-binder`
+ * for a repeated name in a `for [:x :x] in ...` pattern — the runtime's own copy of the
+ * semantic checker's rule of the same name (issue #114's `checker-control-flow.ts`), at
+ * `stage: "runtime"` since `execute()` never runs `check()`.
  * Mirrors the parser's `errors.ts` pattern: every finding is a stable code from the
  * `@openlogo/core` registry with structured `params` (the diagnostic identity) plus warm,
  * lowercase learner prose derived from them — prose is presentation only.
@@ -101,6 +108,38 @@ export interface WholeNumberTypeErrorParams {
 export interface NegativeCountParams {
   readonly operation: string;
   readonly value: number;
+}
+
+/**
+ * Params for an `ol-type` raised by a `for ... in` iterable that is not a list
+ * (`spec/execution-model.md:375-376` — Core `for ... in` is list-only; dict iteration is a later
+ * profile).
+ */
+export interface ForInNotListParams {
+  readonly actual: string;
+  readonly value: OLValue;
+}
+
+/**
+ * Params for an `ol-range` raised by a `for ... by 0` step
+ * (`spec/execution-model.md:374-375` — a step of `0` never reaches `end`, so it is rejected
+ * rather than silently looping forever).
+ */
+export interface ForStepZeroParams {
+  readonly operation: "for";
+  readonly value: 0;
+}
+
+/**
+ * Params for an `ol-range` raised by a destructuring binder/element length mismatch
+ * (`spec/execution-model.md:438-439` — "a short or long pattern mismatch raises `ol-range`"):
+ * `length` is the pattern's own arity, `value` the element's actual length (`0` for a non-list
+ * element, which can never match a non-empty pattern).
+ */
+export interface PatternLengthMismatchParams {
+  readonly operation: "destructuring";
+  readonly value: number;
+  readonly length: number;
 }
 
 /** Runtime-stage diagnostics, one builder per `ol-*` code the evaluator can raise. */
@@ -287,6 +326,68 @@ export const runtimeDiag = {
       source_span,
       {},
       "repcount only reports a turn number inside a repeat loop — there is no enclosing repeat here.",
+    );
+  },
+
+  /**
+   * `ol-type`: a `for ... in` iterable is not a list — Core's `for ... in` only iterates lists
+   * (`spec/execution-model.md:375-376`); dict iteration is a later, profile-specific form.
+   */
+  forInNotList(
+    source_span: SourceSpan,
+    params: ForInNotListParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-type",
+      source_span,
+      { expected: "list", ...params, operation: "for" },
+      `for ... in needs a list, but got a ${params.actual}.`,
+    );
+  },
+
+  /**
+   * `ol-range`: `for ... from ... to ... by 0` — a step of `0` never reaches `end`
+   * (`spec/execution-model.md:374-375`), unlike a step merely pointing away from `end` (which
+   * simply runs the body zero times, no diagnostic).
+   */
+  forStepZero(source_span: SourceSpan): Diagnostic {
+    return runtimeError(
+      "ol-range",
+      source_span,
+      { operation: "for", value: 0 } satisfies ForStepZeroParams,
+      "for ... by 0 never reaches the end — try a step other than 0.",
+    );
+  },
+
+  /**
+   * `ol-range`: a destructuring binder's pattern and an iterated element disagree on length
+   * (`spec/execution-model.md:438-439`). `params.value` is the element's actual length (`0` for a
+   * non-list element).
+   */
+  patternLengthMismatch(
+    source_span: SourceSpan,
+    params: PatternLengthMismatchParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-range",
+      source_span,
+      { ...params },
+      `this pattern expects ${params.length} value${params.length === 1 ? "" : "s"}, but got ${params.value}.`,
+    );
+  },
+
+  /**
+   * `ol-duplicate-binder`: a repeated name in a `for [:x :x] in ...` destructuring pattern. Same
+   * `{ name, form }` params shape as the parser's `checker-control-flow.ts` semantic rule (issue
+   * #114) so both stages agree on identity — this copy exists because `execute()` runs `parse()`
+   * only, not `check()`.
+   */
+  duplicateBinder(source_span: SourceSpan, name: string): Diagnostic {
+    return runtimeError(
+      "ol-duplicate-binder",
+      source_span,
+      { name, form: "destructuring" },
+      `the binder ${name} is used twice here. give each binder a different name.`,
     );
   },
 } as const;
