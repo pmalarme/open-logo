@@ -39,7 +39,20 @@
  * - {@link createInMemoryStorageAdapter} is the default, fully `node:test`-able backend; a real
  *   `localStorage`-backed adapter plugs into the same interface later. See `persistence.ts`.
  *
- * No diagnostics-rendering/lesson UI lands yet — those are #125/#127.
+ * #125 adds the diagnostics pane — one unified rendering path for every diagnostic stage:
+ * - {@link createDiagnosticsController} subscribes to the shared store and re-parses `source`
+ *   via `@openlogo/parser`'s `parse()` (Layer 1) whenever it changes, publishing the result
+ *   through `state.setDiagnostics` so a bad line surfaces at its span without a Run. Semantic
+ *   checking (`check()`, epic #108) is available via `semanticCheck: true` but defaults to
+ *   `false` — see `diagnostics.ts`'s doc comment for why enabling it today would falsely flag
+ *   ordinary turtle programs. Runtime-stage diagnostics (#126's run controller) flow into the
+ *   exact same `diagnostics` field, so this is the single surface for every stage.
+ * - {@link toDiagnosticsView} is the pure projection from raw `Diagnostic[]` to a rendering
+ *   model (`items`/`errorCount`/`warningCount`/`isEmpty`) — it keys off `code`/`severity`/
+ *   `stage`/`params` only, never `message` prose (the diagnostic-identity rule).
+ * - {@link mountDiagnosticsPane} composes the controller into the shell's `diagnostics` region.
+ *
+ * No lesson UI lands yet — that's #127.
  */
 
 export type {
@@ -86,3 +99,16 @@ export {
   createInMemoryStorageAdapter,
   DEFAULT_PERSISTENCE_KEY,
 } from "./persistence.js";
+
+export type {
+  DiagnosticsController,
+  DiagnosticsControllerOptions,
+  DiagnosticsView,
+  DiagnosticViewItem,
+} from "./diagnostics.js";
+export {
+  createDiagnosticsController,
+  DEFAULT_DIAGNOSTICS_DOCUMENT,
+  mountDiagnosticsPane,
+  toDiagnosticsView,
+} from "./diagnostics.js";

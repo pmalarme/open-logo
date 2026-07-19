@@ -95,4 +95,29 @@ slice may swap in a real renderer without changing this contract.
   - `mountRunController(shell, controller)` composes the controller into the shell's `repl` region.
 - See `run-controller.ts`'s doc comment for the full same-thread cancellation rationale.
 
+## Diagnostics pane (#125)
+
+- `createDiagnosticsController(state, options?)` (`src/diagnostics.ts`) — subscribes to the
+  shared store and, whenever `source` changes, re-parses it via `@openlogo/parser`'s `parse()`
+  (Layer 1, issue #9) and republishes the result through `state.setDiagnostics`, so a bad line
+  (e.g. `ol-bad-token`) surfaces at its `source_span` as the learner types, with no Run needed and
+  without ever crashing the session (`parse()` reports diagnostics instead of throwing).
+- **One unified rendering path for every stage.** Parse-stage (this controller), runtime-stage
+  (#126's run controller, already writing `execute()`'s diagnostics into the same field), and
+  semantic/style-stage (`@openlogo/parser`'s `check()`, epic #108) all flow through the exact same
+  `state.diagnostics` field and render through the exact same {@link toDiagnosticsView} — there is
+  no separate ad-hoc "runtime error" UI.
+- **Semantic checking is opt-in**, not automatic: pass `semanticCheck: true` to also run `check()`
+  after every parse. It defaults to `false` because `check()`'s `ol-unknown-command` rule does not
+  yet recognize runtime-registered primitives outside Core Language, so enabling it unconditionally
+  today would falsely flag an ordinary turtle program like `forward 100` as unknown-command — see
+  `diagnostics.ts`'s doc comment. Flip it on once epic #108 closes that gap; no rendering-side
+  change is needed when it does.
+- `toDiagnosticsView(diagnostics)` — the pure projection from a raw `Diagnostic[]` to a rendering
+  model (`items`/`errorCount`/`warningCount`/`isEmpty`). It keys off `code`/`severity`/`stage`/
+  `params` only and never inspects `message` prose, per the diagnostic-identity rule
+  (`spec/error-model.md`); `severity` stays a structured field on each item rather than being
+  translated into styling here.
+- `mountDiagnosticsPane(shell, controller)` composes the controller into the shell's `diagnostics`
+  region.
 
