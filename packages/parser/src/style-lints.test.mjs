@@ -227,16 +227,38 @@ test("ol-style-name-case: a short lowercase loop binder like `i` is clean", () =
   assert.deepEqual(diagnostics, []);
 });
 
-test("ol-style-name-case: a call/callee name is out of scope for this rule (not checked)", () => {
+test("ol-style-name-case: a user procedure/unresolved callee name is out of scope for this rule (not checked)", () => {
   // `badCallee` would be an ol-unknown-command Layer-2 error, not a style warning here — but the
-  // point of this test is that the *callee* spelling itself is never checked for name-case,
-  // regardless of whether it resolves; only declaration/reference *identifier* sites are.
+  // point of this test is that a callee spelling that is NOT a known Core primitive/command is
+  // never checked for name-case, regardless of whether it resolves; only declaration/reference
+  // *identifier* sites (and known-primitive callees, see the next test) are.
   const { ast: program } = OL.parse("badCallee 1", doc);
   const diagnostics = OL.check(program, {
     profiles: ["core-language"],
     style: true,
   }).diagnostics.filter((d) => d.code === "ol-style-name-case");
   assert.deepEqual(diagnostics, []);
+});
+
+test("ol-style-name-case: a known Core primitive/command callee IS checked for name-case", () => {
+  // `spec/style-guide.md` "Keywords are lowercase" covers primitive casing under this same code —
+  // `PRINT` is a known Core command spelling, so its non-lowercase callee use is flagged. Word
+  // operators like `mod`/`and`/`or`/`not` are excluded on purpose: the parser normalizes their
+  // callee spelling to canonical lowercase regardless of source casing (see checker-style.ts's
+  // `CORE_CALLEE_NAMES` doc comment), so a non-lowercase source spelling never reaches this rule.
+  const { ast: program, diagnostics: parseDiagnostics } = OL.parse(
+    "PRINT 1",
+    doc,
+  );
+  assert.deepEqual(parseDiagnostics, []);
+  const diagnostics = OL.check(program, {
+    profiles: ["core-language"],
+    style: true,
+  }).diagnostics.filter((d) => d.code === "ol-style-name-case");
+  assert.deepEqual(
+    diagnostics.map((d) => d.params.name),
+    ["PRINT"],
+  );
 });
 
 // --- opt-in gating -------------------------------------------------------------------------

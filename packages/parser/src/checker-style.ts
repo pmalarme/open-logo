@@ -31,13 +31,22 @@
  *   statement position is, since a chain can never itself be a valid statement-level effect.
  * - `ol-style-name-case` — a user identifier (variable, place base/field, procedure name,
  *   parameter, loop/comprehension binder) that is not lowercase snake_case with an optional
- *   trailing `?`/`!` (`spec/style-guide.md` "Names use `snake_case`"). Checked against
- *   `^[a-z][a-z0-9_]*[?!]?$`. Scope note: call/callee names (`Call`/`ParenCall.callee`) are not
- *   checked here — a callee may be a built-in, a Heritage alias, or a user procedure, and telling
- *   those apart needs the same registries `ol-unknown-command` already consults; that
- *   cross-reference is deferred to the #115 follow-up's `ol-style-full-name`/
- *   `ol-style-procedure-name` codes. Struct/field type names have no Core AST node yet (Data
- *   profile), so they are out of scope for the same reason `checker-reserved-word.ts` documents.
+ *   trailing `?`/`!` (`spec/style-guide.md` "Names use `snake_case`"), checked against
+ *   `^[a-z][a-z0-9_]*[?!]?$`. The same code also covers "Keywords are lowercase"'s primitive-name
+ *   half: a `Call`/`ParenCall` callee is checked *only* when its lowercased spelling is a known
+ *   Core primitive/command (e.g. `PRINT`), so `PRINT 1` is flagged but a user-defined procedure
+ *   call is left alone (see `checkNamesIn`'s `Call`/`ParenCall` case for why). Word-spelled
+ *   operators (`mod`/`and`/`or`/`not`) are excluded from that check — the parser normalizes their
+ *   callee spelling to canonical lowercase regardless of source casing, so a non-lowercase source
+ *   spelling never survives into the AST to check (see `CORE_CALLEE_NAMES`'s doc comment). Scope
+ *   note: bare structural keywords (`REPEAT`, `IF`, `WHILE`, …) are **not** checked — unlike a
+ *   primitive callee, `ast.ts` never records a control node's own keyword spelling (e.g.
+ *   `RepeatNode` has no field for the literal text "repeat"), so checking it would need to slice
+ *   the raw `source` text at each keyword's position — a new kind of check this checker package
+ *   has no existing pattern for, and `ast.ts` itself is out of this slice's write-set. That
+ *   narrower sub-case is deferred to the #115 follow-up alongside `ol-style-full-name`/
+ *   `ol-style-procedure-name`. Struct/field type names have no Core AST node yet (Data profile),
+ *   so they are out of scope for the same reason `checker-reserved-word.ts` documents.
  */
 
 import type { Diagnostic } from "@openlogo/core";
@@ -49,7 +58,8 @@ import type {
 } from "./ast.js";
 import { walk } from "./ast.js";
 import type { CheckProfile, CheckRule } from "./check.js";
-import { producesValue } from "./checker-control-flow.js";
+import { CORE_COMMANDS, producesValue } from "./checker-control-flow.js";
+import { corePrimitiveNames } from "./signatures.js";
 
 /** The `form` param {@link uselessValueRule} reports for each control-block kind it judges. */
 const CONTROL_FORM: Readonly<
@@ -211,6 +221,19 @@ export function equalityConfusionRule(
 /** Lowercase snake_case, with an optional trailing `?`/`!` — `spec/style-guide.md`'s naming rule. */
 const NAME_CASE_PATTERN = /^[a-z][a-z0-9_]*[?!]?$/;
 
+/**
+ * Every canonical Core primitive/command spelling this rule checks callee casing against. The
+ * word-spelled operators (`mod`/`and`/`or`/`not`) are deliberately excluded: the parser matches
+ * them case-insensitively but always *normalizes* the callee's stored spelling to its canonical
+ * lowercase form (see `parser.ts`'s `parseMultiplicative`/`parseAnd`/`parseOr`/`parseUnary`), so a
+ * source `MOD`/`AND` never survives into the AST for this rule to see — unlike a `Call` built by
+ * `parseFixedCall`, which keeps the literal token spelling (`sname(token.text, token)`).
+ */
+const CORE_CALLEE_NAMES: ReadonlySet<string> = new Set([
+  ...corePrimitiveNames(),
+  ...CORE_COMMANDS,
+]);
+
 /** Build an `ol-style-name-case` at `name`'s own span. */
 function nameCaseDiagnostic(name: SpannedName): Diagnostic {
   return {
@@ -279,6 +302,18 @@ function checkNamesIn(node: AnyNode, diagnostics: Diagnostic[]): void {
     case "ForRange":
       checkNameCase(node.variable, diagnostics);
       return;
+    case "Call":
+    case "ParenCall":
+      // `spec/style-guide.md` "Keywords are lowercase" also covers *primitive* casing (its own
+      // linter-check note names `ol-style-name-case`, not `ol-style-full-name`, which is about
+      // alias-vs-full-name choice, never case). Only check when the callee's lowercased spelling
+      // is a *known* Core primitive/command — a user procedure call is left alone, since telling
+      // a mistyped user name from a deliberately different one needs the same registries
+      // `ol-unknown-command` consults, deferred to the #115 follow-up.
+      if (CORE_CALLEE_NAMES.has(node.callee.name.toLowerCase())) {
+        checkNameCase(node.callee, diagnostics);
+      }
+      return;
     case "Comprehension": {
       // Same reasoning as "ForIn": a destructuring binder is its own walked "DestructuringBinder"
       // node (per `childrenOf`) and is checked there; a bare binder is metadata, only reachable
@@ -299,7 +334,8 @@ function checkNamesIn(node: AnyNode, diagnostics: Diagnostic[]): void {
 /**
  * `ol-style-name-case` (issue #115): every user identifier occurrence — variable reads, place
  * bases/fields, procedure names, parameters, `local` names, and loop/comprehension binders —
- * that is not lowercase snake_case (`^[a-z][a-z0-9_]*[?!]?$`).
+ * that is not lowercase snake_case (`^[a-z][a-z0-9_]*[?!]?$`), plus a known Core primitive/
+ * command callee written with non-lowercase casing.
  */
 export function nameCaseRule(program: ProgramNode): readonly Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
