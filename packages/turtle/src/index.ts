@@ -6,11 +6,12 @@
  * ```ts
  * import * as OL from "@openlogo/turtle";
  * const state = OL.reduceTurtleEvents(events);
+ * const scene = OL.reduceSceneEvents(events);
  * ```
  *
  * This slice publishes the deterministic turtle-**state** reducer (position, heading, pen,
- * color, width, shape, visibility). The retained drawing scene and renderers land in later
- * slices.
+ * color, width, shape, visibility) and the deterministic retained-**scene** reducer
+ * (background, segments, fills, stamps). Renderers land in later slices.
  */
 
 export {
@@ -19,3 +20,16 @@ export {
   reduceTurtleState,
 } from "./state.js";
 export type { TurtleState } from "./state.js";
+
+export {
+  INITIAL_TURTLE_SCENE,
+  reduceSceneEvents,
+  reduceTurtleScene,
+} from "./scene.js";
+export type {
+  SceneFill,
+  SceneItem,
+  SceneSegment,
+  SceneStamp,
+  TurtleScene,
+} from "./scene.js";
