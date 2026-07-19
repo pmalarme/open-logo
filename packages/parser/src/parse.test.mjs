@@ -289,3 +289,33 @@ test("puts a well-formed source span on every node", () => {
   // Program, Assign, Place, NumberLit, Call, VarRef.
   assert.equal(count, 6);
 });
+
+// #106/#148: parse()'s end-of-function dedup pass collapses diagnostics whose
+// (code, source_span, params) triple is byte-identical to an earlier one, keeping the
+// first occurrence. `message` is deliberately excluded from the identity key.
+test("collapses a byte-identical duplicate ol-bad-token diagnostic for the same span (#148)", () => {
+  const { diagnostics } = OL.parse("set :x to 100", doc);
+
+  assert.equal(diagnostics.length, 2);
+  assert.equal(diagnostics[0].params.text, ":x");
+  assert.equal(diagnostics[1].code, "ol-bad-token");
+  assert.equal(diagnostics[1].params.text, "to");
+  assert.deepEqual(diagnostics[1].source_span, span([1, 8], [1, 10]));
+});
+
+test("collapses a byte-identical duplicate ol-bad-token diagnostic from `is member` recovery (#106)", () => {
+  const { diagnostics } = OL.parse("print :x is member", doc);
+
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].code, "ol-bad-token");
+  assert.equal(diagnostics[0].params.text, "end of file");
+});
+
+test("preserves distinct-span diagnostics sharing the same code (no over-eager dedup)", () => {
+  const { diagnostics } = OL.parse("print 1, 2", doc);
+
+  assert.equal(diagnostics.length, 2);
+  assert.equal(diagnostics[0].code, "ol-bad-token");
+  assert.equal(diagnostics[1].code, "ol-bad-token");
+  assert.notDeepEqual(diagnostics[0].source_span, diagnostics[1].source_span);
+});

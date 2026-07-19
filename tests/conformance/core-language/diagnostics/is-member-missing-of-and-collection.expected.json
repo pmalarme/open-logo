@@ -1,0 +1,19 @@
+{
+  "description": "`print :x is member` has no `of` keyword and no parseable collection expression to follow (issue #106). `parseIsPredicate`'s `member` branch reports the missing `of` and then unconditionally falls through into a failed collection parse, which independently re-reports the same token. The parser's end-of-parse() dedup pass (issues #106/#148) collapses that byte-identical second `ol-bad-token` finding so exactly one survives.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/diagnostics/is-member-missing-of-and-collection",
+        "start": [6, 19],
+        "end": [7, 1]
+      },
+      "params": { "text": "end of line" },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}
