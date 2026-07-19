@@ -1,0 +1,7 @@
+{
+  "description": "Contextual keywords (empty, member, of, a) are not reserved (spec/grammar.md:365), so they are legal procedure names: `define empty/member/of/a ... end` defines them in the callable namespace and the subsequent calls resolve, with no ol-reserved-word and no ol-unknown-command. This is the positive mirror of issue #113's reserved-word-define-reserved, which raises ol-reserved-word for `define repeat ... end`.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

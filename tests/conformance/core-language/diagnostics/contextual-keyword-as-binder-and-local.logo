@@ -1,0 +1,10 @@
+# Contextual keywords are also legal in binder and local-declaration positions, because they are
+# ordinary names outside an `is`-predicate (spec/grammar.md:365). `empty` binds a `for ... in` loop
+# variable, `member` binds a `for ... from ... to` counter, and `of` is declared with `local` and
+# then assigned and read — none of these raise ol-reserved-word (contrast issue #113's
+# reserved-word-local-primitive) and every read resolves, so the checker reports nothing.
+for empty in [1 2 3] [ print :empty ]
+for member from 1 to 3 [ print :member ]
+local of
+:of = 5
+print :of

@@ -1,0 +1,6 @@
+{
+  "description": "One program uses `empty` and `member` in BOTH roles: as ordinary variables (`:empty`, `:member`) and as the predicate keyword immediately after `is` (`is empty`, `is member of`). The reader picks the role by grammatical position (spec/grammar.md:230,365), so the whole program parses with no diagnostic. Parse-only (default), demonstrating the Layer-1 reader's positional disambiguation.",
+  "profiles": ["core-language"],
+  "events": [],
+  "diagnostics": []
+}

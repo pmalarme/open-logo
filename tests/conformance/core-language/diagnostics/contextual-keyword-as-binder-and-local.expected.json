@@ -1,0 +1,7 @@
+{
+  "description": "Contextual keywords are legal binder and local names: `for empty in ...`, `for member from ... to ...`, and `local of` all declare ordinary names (spec/grammar.md:365), and their reads resolve. No ol-reserved-word (contrast issue #113) and no undefined-variable diagnostic, so check() reports an empty stream.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}
