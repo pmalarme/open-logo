@@ -169,8 +169,11 @@ export interface Environment {
  * than reassigned `Environment` fields, since every recursive `executeStatements`/`evaluate` call
  * shares the very same `Environment` and must observe the same turtle. Issue #200 (`forward`/
  * `back`) only ever reads `heading`/`penDown`/`color`/`width` and writes `x`/`y`; pen mutability
- * (`pen_up`/`pen_down`, issue #206), turning (issue #201), and color/width (issues #208/#209) each
- * add their own statement handling that mutates the remaining fields.
+ * (`pen_up`/`pen_down`, issue #206), turning (issue #201), color/width (issues #208/#209), and
+ * visibility (`show_turtle`/`hide_turtle`, issue #207) each add their own statement handling that
+ * mutates the remaining fields. `visible` is purely a display flag — it never gates `move`/
+ * `draw-segment` the way `penDown` does (`spec/rendering.md`'s "Turtle avatar and shapes" section:
+ * a hidden turtle still moves, turns, and draws exactly as when visible).
  */
 export interface TurtleState {
   x: number;
@@ -179,16 +182,25 @@ export interface TurtleState {
   penDown: boolean;
   color: string;
   width: number;
+  visible: boolean;
 }
 
 /**
  * The turtle's state at program start (`spec/rendering.md:78`, `spec/commands.md:1189`):
- * position `(0,0)`, heading `0`, pen down, color `"black"`, width `1`. Exported so
+ * position `(0,0)`, heading `0`, pen down, color `"black"`, width `1`, visible. Exported so
  * `execute-internal.ts`'s `createExecutionEnvironment` (the environment a real `execute()` call
  * runs against) builds the same defaults as this module's own bare `createEnvironment()`.
  */
 export function createDefaultTurtleState(): TurtleState {
-  return { x: 0, y: 0, heading: 0, penDown: true, color: "black", width: 1 };
+  return {
+    x: 0,
+    y: 0,
+    heading: 0,
+    penDown: true,
+    color: "black",
+    width: 1,
+    visible: true,
+  };
 }
 
 /** The empty registry shared by every environment that has no user procedures to call. */

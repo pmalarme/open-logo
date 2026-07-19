@@ -33,6 +33,7 @@ import type {
   ReturnPayload,
   SourceSpan,
   TurnPayload,
+  VisibilityChangePayload,
 } from "@openlogo/core";
 import { typeNameOf } from "@openlogo/core";
 import type {
@@ -429,6 +430,82 @@ function executeTurtlePenCall(
 }
 
 /**
+ * Is `statement` a call to `show_turtle`/`hide_turtle` (issue #207, Core turtle-avatar
+ * visibility — the Heritage `st`/`ht` aliases are a separate M5 slice)? Same shape/convention as
+ * {@link isTurtlePenCall}.
+ */
+function isTurtleVisibilityCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  const name = statement.callee.name.toLowerCase();
+  return name === "show_turtle" || name === "hide_turtle";
+}
+
+/**
+ * Set the turtle's visibility and emit the `visibility-change` effect-event
+ * `spec/rendering.md`'s "Turtle avatar and shapes" section requires (`{from, to}`, both
+ * `boolean`) — mirrors {@link setPen}'s `{from, to}` shape. Always emits the event, even when the
+ * turtle was already in the requested visibility (calling `show_turtle` twice in a row is not an
+ * error, and the learner still gets a confirming event each time — the same "unconditional emit"
+ * choice {@link turnTurtle}/{@link setPen} make).
+ *
+ * Unlike {@link setPen}, visibility has no `move`/`draw-segment` interaction at all: a hidden
+ * turtle still moves, turns, and draws exactly as when visible (`spec/rendering.md`'s "Turtle
+ * avatar and shapes" section) — `visible` is purely a display flag for the renderer, never a
+ * gate `moveTurtle` checks.
+ */
+function setVisibility(
+  env: Environment,
+  visible: boolean,
+  source_span: SourceSpan,
+): void {
+  const { turtle } = env;
+  const from = turtle.visible;
+  turtle.visible = visible;
+  env.events.push({
+    seq: env.events.length,
+    kind: "visibility-change",
+    source_span,
+    payload: { from, to: visible } satisfies VisibilityChangePayload,
+  });
+}
+
+/**
+ * Validate and run a `show_turtle`/`hide_turtle` statement matched by
+ * {@link isTurtleVisibilityCall}: exactly zero arguments (`ol-too-many-inputs` otherwise —
+ * `show_turtle`/`hide_turtle`'s registered arity is `0`, `packages/parser/src/signatures.ts`, so a
+ * call can never be parsed with fewer than zero arguments, only more via the parenthesized form,
+ * e.g. `(show_turtle 1)`), then delegated to {@link setVisibility}. Returns an {@link ExecSignal}
+ * to halt on, or `undefined` for {@link executeStatements} to `continue` on success.
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeTurtleVisibilityCall(
+  visibilityCall: CallNode | ParenCallNode,
+  env: Environment,
+): ExecSignal | undefined {
+  const callableName = visibilityCall.callee.name;
+  if (visibilityCall.args.length !== 0) {
+    return halt(
+      runtimeDiag.tooManyInputs(
+        visibilityCall.callee.source_span,
+        callableName,
+        0,
+        visibilityCall.args.length,
+      ),
+    );
+  }
+  setVisibility(
+    env,
+    callableName.toLowerCase() === "show_turtle",
+    visibilityCall.source_span,
+  );
+  return undefined;
+}
+
+/**
  * Is `statement` a call to `home`/`set_xy` or `set_xy`'s Turtle & Rendering-profile alias `setxy`
  * (issue #202, Core absolute positioning; `spec/commands.md:1279`). Unlike `forward`'s `fd`,
  * `setxy`/`seth` are **not** Heritage — `spec/conformance.md:105-117`'s Heritage short-alias list
@@ -730,6 +807,12 @@ function dispatchTurtleCommand(
   }
   if (isTurtleHeadingCall(statement)) {
     return executeTurtleHeadingCall(
+      statement as unknown as CallNode | ParenCallNode,
+      env,
+    );
+  }
+  if (isTurtleVisibilityCall(statement)) {
+    return executeTurtleVisibilityCall(
       statement as unknown as CallNode | ParenCallNode,
       env,
     );
