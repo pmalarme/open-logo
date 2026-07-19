@@ -421,3 +421,125 @@ test("reduced-to-scene and repaint is deterministic across repeated calls", () =
   OL.paintScene(second.target, scene, VIEWPORT);
   assert.deepEqual(first.calls, second.calls);
 });
+
+/** A minimal fake {@link OL.ReducedMotionSource}: reports a fixed snapshot until `seekToEnd`
+ * is called, at which point it reports `finalSnapshot` instead — enough to distinguish
+ * "painted before draining" from "painted after draining" without a real animation controller. */
+function makeFakeAnimationSource(initialSnapshot, finalSnapshot) {
+  let drained = false;
+  let seekToEndCalls = 0;
+  return {
+    getSnapshot() {
+      return drained ? finalSnapshot : initialSnapshot;
+    },
+    seekToEnd() {
+      seekToEndCalls += 1;
+      drained = true;
+    },
+    get seekToEndCallCount() {
+      return seekToEndCalls;
+    },
+  };
+}
+
+test("renderFrame with reducedMotion:false paints the source's current snapshot as-is, without draining", () => {
+  const initial = {
+    cursor: 0,
+    status: "paused",
+    state: { ...OL.INITIAL_TURTLE_STATE, position: [10, 0] },
+    scene: { background: "white", items: [] },
+  };
+  const final = {
+    cursor: 4,
+    status: "done",
+    state: { ...OL.INITIAL_TURTLE_STATE, position: [100, 0] },
+    scene: { background: "white", items: [] },
+  };
+  const source = makeFakeAnimationSource(initial, final);
+  const { target, calls } = makeRecordingTarget();
+
+  OL.renderFrame(target, source, VIEWPORT, { reducedMotion: false });
+
+  assert.equal(source.seekToEndCallCount, 0);
+  // Painted the *initial* (current) snapshot's avatar position, not the final one.
+  const translateCall = calls.find((call) => call[0] === "translate");
+  assert.deepEqual(translateCall, ["translate", 210, 150]);
+});
+
+test("renderFrame with reducedMotion:true drains the whole stream instantly, then paints once", () => {
+  const initial = {
+    cursor: 0,
+    status: "paused",
+    state: { ...OL.INITIAL_TURTLE_STATE, position: [10, 0] },
+    scene: { background: "white", items: [] },
+  };
+  const final = {
+    cursor: 4,
+    status: "done",
+    state: { ...OL.INITIAL_TURTLE_STATE, position: [100, 0] },
+    scene: { background: "white", items: [] },
+  };
+  const source = makeFakeAnimationSource(initial, final);
+  const { target, calls } = makeRecordingTarget();
+
+  OL.renderFrame(target, source, VIEWPORT, { reducedMotion: true });
+
+  assert.equal(source.seekToEndCallCount, 1);
+  // Painted the *final* (post-drain) snapshot's avatar position, not the pre-drain one.
+  const translateCall = calls.find((call) => call[0] === "translate");
+  assert.deepEqual(translateCall, ["translate", 300, 150]);
+});
+
+test("renderFrame's reduced-motion draining never changes the underlying scene/state — same final result as normal playback", () => {
+  const events = [
+    {
+      seq: 0,
+      kind: "instruction",
+      source_span: { document: "t", start: [1, 1], end: [1, 11] },
+      payload: { text: "forward 100" },
+    },
+    {
+      seq: 1,
+      kind: "move",
+      source_span: { document: "t", start: [1, 1], end: [1, 11] },
+      payload: { to: [100, 0], heading: 0 },
+    },
+    {
+      seq: 2,
+      kind: "draw-segment",
+      source_span: { document: "t", start: [1, 1], end: [1, 11] },
+      payload: {
+        from: [0, 0],
+        to: [100, 0],
+        color: "black",
+        width: 1,
+      },
+    },
+  ];
+
+  const reducedController = new OL.TurtleAnimationController(events);
+  const normalController = new OL.TurtleAnimationController(events);
+
+  const reducedTarget = makeRecordingTarget();
+  const normalTarget = makeRecordingTarget();
+
+  OL.renderFrame(reducedTarget.target, reducedController, VIEWPORT, {
+    reducedMotion: true,
+  });
+  // Drive the normal controller to the very same final point manually (no reduced motion), then
+  // paint via renderFrame with reducedMotion:false so it paints the already-current snapshot.
+  normalController.seekToEnd();
+  OL.renderFrame(normalTarget.target, normalController, VIEWPORT, {
+    reducedMotion: false,
+  });
+
+  assert.deepEqual(
+    reducedController.getSnapshot().scene,
+    normalController.getSnapshot().scene,
+  );
+  assert.deepEqual(
+    reducedController.getSnapshot().state,
+    normalController.getSnapshot().state,
+  );
+  assert.deepEqual(reducedTarget.calls, normalTarget.calls);
+});

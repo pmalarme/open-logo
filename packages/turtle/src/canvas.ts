@@ -18,6 +18,7 @@
  */
 
 import type { Point } from "@openlogo/core";
+import type { AnimationSnapshot } from "./animation.js";
 import type { SceneItem, TurtleScene } from "./scene.js";
 import type { TurtleState } from "./state.js";
 
@@ -296,4 +297,61 @@ export function paintTurtle(
       state.color,
     );
   }
+}
+
+/**
+ * A minimal source of the current frame to paint — anything that can produce an
+ * {@link AnimationSnapshot} and, when asked, drain the whole remaining stream instantly. Kept as
+ * a structural subset (not the concrete `TurtleAnimationController` type) so a test double needs
+ * only these two members, matching the same dependency-injection style as {@link RenderTarget}.
+ */
+export interface ReducedMotionSource {
+  getSnapshot(): AnimationSnapshot;
+  seekToEnd(): void;
+}
+
+/**
+ * A caller-supplied motion preference, e.g. read from the platform's `prefers-reduced-motion`
+ * setting. Detecting that OS/browser preference is a DOM concern owned by the host UI (Studio);
+ * this package only reacts to the boolean it is given, keeping `@openlogo/turtle` headless and
+ * DOM-free (`spec/rendering.md#reduced-motion`).
+ */
+export interface MotionPreference {
+  /** When `true`, {@link renderFrame} paints the scene instantly instead of the caller's own
+   * paced tick loop. */
+  readonly reducedMotion: boolean;
+}
+
+/**
+ * Paints one frame from an animation source, honoring a reduced-motion preference
+ * (`spec/rendering.md#reduced-motion`): "In reduced-motion mode, the renderer MUST avoid
+ * continuous animated movement by default. It SHOULD present instant drawing … Step and pause
+ * controls MUST remain available."
+ *
+ * - `reducedMotion: true` — drains the WHOLE remaining event stream instantly
+ *   ({@link ReducedMotionSource.seekToEnd}) before painting once, instead of the caller pacing
+ *   continuous per-step repaints. `step()`/`pause()` on the underlying controller are entirely
+ *   unaffected by this call — a learner can still step through or pause the very same
+ *   controller afterward; reduced motion changes only how eagerly *this* repaint request drains
+ *   the stream before drawing, never the controls available on the controller itself.
+ * - `reducedMotion: false` — paints exactly the source's CURRENT snapshot, unmodified; the
+ *   caller is responsible for its own pacing (e.g. calling this once per `run()`/`step()` tick).
+ *
+ * Either way, painting always goes through {@link paintTurtle} from the retained scene alone
+ * (never re-running the program), so reduced motion changes only how many events are consumed
+ * before this particular paint, never the event stream, final scene, turtle state, or export
+ * output — the determinism invariant `spec/rendering.md#reduced-motion` requires ("Reduced-motion
+ * mode MUST NOT change the event stream, final scene, turtle state, or export output").
+ */
+export function renderFrame(
+  target: RenderTarget,
+  source: ReducedMotionSource,
+  viewport: Viewport,
+  preference: MotionPreference,
+): void {
+  if (preference.reducedMotion) {
+    source.seekToEnd();
+  }
+  const { state, scene } = source.getSnapshot();
+  paintTurtle(target, scene, state, viewport);
 }
