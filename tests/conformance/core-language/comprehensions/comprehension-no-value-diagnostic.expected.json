@@ -1,0 +1,34 @@
+{
+  "description": "A comprehension body whose final statement does not produce a value (`print :n`, a command call) raises ol-no-value at runtime (spec/execution-model.md:225), mirroring #114's checker shape at stage=runtime since execute() never runs check(). Issue #105.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/comprehensions/comprehension-no-value-diagnostic",
+        "start": [1, 1],
+        "end": [1, 33]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-no-value",
+      "source_span": {
+        "document": "core-language/comprehensions/comprehension-no-value-diagnostic",
+        "start": [1, 8],
+        "end": [1, 33]
+      },
+      "params": {
+        "form": "map"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

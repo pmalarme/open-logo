@@ -1,0 +1,56 @@
+{
+  "description": "reduce folds an accumulator across every element, seeded by `from` — the spec's own worked map/reduce example (spec/execution-model.md:400-402,716-741). Issue #105.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/comprehensions/reduce-sum-worked-example",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/comprehensions/reduce-sum-worked-example",
+        "start": [2, 1],
+        "end": [2, 52]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/comprehensions/reduce-sum-worked-example",
+        "start": [3, 1],
+        "end": [3, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/comprehensions/reduce-sum-worked-example",
+        "start": [3, 1],
+        "end": [3, 13]
+      },
+      "payload": {
+        "values": [6]
+      }
+    }
+  ],
+  "diagnostics": []
+}

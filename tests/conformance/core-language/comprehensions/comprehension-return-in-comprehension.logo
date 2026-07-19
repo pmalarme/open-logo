@@ -1,0 +1,2 @@
+:out = map n in [1] [ return :n ]
+print :out

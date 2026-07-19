@@ -1,0 +1,35 @@
+{
+  "description": "reduce whose accumulator name collides with its bare item binder raises ol-duplicate-binder (form: reduce) at runtime — the spec's own worked example (spec/execution-model.md:741). Mirrors #114's checker shape, but at stage=runtime since execute() never runs check(). Issue #105.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/comprehensions/comprehension-duplicate-binder-reduce",
+        "start": [1, 1],
+        "end": [1, 51]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-duplicate-binder",
+      "source_span": {
+        "document": "core-language/comprehensions/comprehension-duplicate-binder-reduce",
+        "start": [1, 21],
+        "end": [1, 24]
+      },
+      "params": {
+        "name": "sum",
+        "form": "reduce"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

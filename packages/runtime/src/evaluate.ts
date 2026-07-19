@@ -35,13 +35,17 @@ import type {
 import { typeNameOf } from "@openlogo/core";
 import type {
   AssignNode,
+  BlockNode,
   CallNode,
   ComparisonChainNode,
+  ComprehensionNode,
   ExpressionNode,
   ParenCallNode,
   PlaceNode,
   ProcedureDefNode,
   SelectorSegment,
+  SpannedName,
+  StatementNode,
 } from "@openlogo/parser";
 import { runtimeDiag } from "./errors.js";
 
@@ -165,6 +169,104 @@ function assignVar(env: Environment, name: string, value: OLValue): void {
   }
   const root = env.frames[env.frames.length - 1] as Frame;
   root.set(name, value);
+}
+
+// --- Loop/comprehension binder helpers (spec/execution-model.md:435-439) --------------------
+//
+// Shared by `execute-internal.ts`'s `ForIn` statement handling (issue #103) and this module's
+// comprehension evaluation (`map`/`filter`/`reduce`, issue #105) — both bind one iterated element
+// against the same `Binder` shape (a bare name, or a destructuring pattern), so the logic lives
+// here rather than duplicated in both files. `execute-internal.ts` already imports this module,
+// so keeping the shared helpers here (never the reverse) is the only cycle-free placement.
+
+/**
+ * A `for ... in`/comprehension binder (`spec/grammar.md:136-137`): a bare name, or a
+ * destructuring pattern. The pattern node itself (`DestructuringBinderNode`) is not part of
+ * `@openlogo/parser`'s public export list, so it is named here via `Extract` off the
+ * already-exported {@link ComprehensionNode} rather than importing it directly —
+ * `ForInNode["binder"]` is the identical underlying `Binder` type from `ast.ts`, so this one
+ * alias serves both callers.
+ */
+export type Binder = ComprehensionNode["binder"];
+export type DestructuringBinder = Extract<
+  Binder,
+  { kind: "DestructuringBinder" }
+>;
+
+/**
+ * Push a fresh body-local frame binding `bindings` (name → value) onto `env`, nearest-first, for
+ * a `for`/comprehension binder's own name(s) — `spec/execution-model.md:435-437` ("body-local
+ * bindings that shadow outer names only for the body"). Returns a *new* {@link Environment};
+ * `env` itself is never mutated, so once the caller stops using the returned value the binding is
+ * gone — there is no explicit "pop" step, unlike `repeatTurns` (a plain mutable array shared by
+ * every recursive call). `repeatTurns`/`callDepth` are threaded through unchanged (same array
+ * reference) so a loop/comprehension nested inside a `repeat`/procedure call still sees the right
+ * `repcount`/call depth.
+ */
+export function pushLoopFrame(
+  env: Environment,
+  bindings: ReadonlyMap<string, OLValue>,
+): Environment {
+  const frame: Frame = new Map(bindings);
+  return { ...env, frames: [frame, ...env.frames] };
+}
+
+/**
+ * The first name in a destructuring pattern that repeats an earlier one in the same pattern
+ * (case-insensitively), or `undefined` when every name is distinct. Mirrors the parser's
+ * `checker-control-flow.ts` `patternDuplicateDiagnostics` exactly (same case-folding) so the
+ * runtime's own `ol-duplicate-binder` guard agrees with the semantic checker's — this is a static
+ * property of the pattern, checked once before iterating rather than per element.
+ */
+export function findDuplicateBinderName(
+  binder: DestructuringBinder,
+): SpannedName | undefined {
+  const seen = new Set<string>();
+  for (const name of binder.names) {
+    const key = name.name.toLowerCase();
+    if (seen.has(key)) {
+      return name;
+    }
+    seen.add(key);
+  }
+  return undefined;
+}
+
+/**
+ * Bind one iterated element against `binder`: a bare name binds the whole element, while a
+ * destructuring pattern destructures it positionally (`spec/execution-model.md:435-439`). A
+ * non-list element, or one whose length disagrees with the pattern's arity, raises `ol-range` — a
+ * non-list element's length is treated as `0`, since it can never match a non-empty pattern.
+ * `"kind" in binder` — not `binder.kind` — distinguishes a bare-name binder (a plain
+ * {@link SpannedName}, with no `kind` field at all) from a destructuring one without a false
+ * discriminated-union assumption. Shared by `ForIn` (`execute-internal.ts`) and every comprehension
+ * form (`map`/`filter`/`reduce`, below).
+ */
+export function bindElement(
+  binder: Binder,
+  element: OLValue,
+):
+  | { readonly ok: true; readonly bindings: Map<string, OLValue> }
+  | { readonly ok: false; readonly diagnostic: Diagnostic } {
+  if (!("kind" in binder)) {
+    return { ok: true, bindings: new Map([[binder.name, element]]) };
+  }
+  const values = Array.isArray(element) ? element : undefined;
+  if (values === undefined || values.length !== binder.names.length) {
+    return {
+      ok: false,
+      diagnostic: runtimeDiag.patternLengthMismatch(binder.source_span, {
+        operation: "destructuring",
+        value: values === undefined ? 0 : values.length,
+        length: binder.names.length,
+      }),
+    };
+  }
+  const bindings = new Map<string, OLValue>();
+  binder.names.forEach((name, index) => {
+    bindings.set(name.name, values[index] as OLValue);
+  });
+  return { ok: true, bindings };
 }
 
 /**
@@ -315,11 +417,11 @@ function isLogicalOperator(name: string): name is LogicalOperator {
 /**
  * Does {@link evaluate} give `node` a value in this issue's scope? `execute()` uses this guard
  * to decide whether to evaluate a `print` argument at all: expression kinds and callees this
- * issue does not implement yet (`is`-predicates, comprehensions, a dotted `.field` place segment
- * — Data-profile, deferred — and calls to any command other than the arithmetic operators, math
- * builtins, comparison operators, and `thing` below) are left untouched for their own future
- * slice (#94-#105), never reaching {@link evaluate}'s internal "not implemented yet" invariant
- * checks. As of issue #96 a {@link ComparisonChainNode} and the six comparison-operator calls
+ * issue does not implement yet (`is`-predicates, a dotted `.field` place segment — Data-profile,
+ * deferred — and calls to any command other than the arithmetic operators, math builtins,
+ * comparison operators, and `thing` below) are left untouched for their own future slice
+ * (#94-#105), never reaching {@link evaluate}'s internal "not implemented yet" invariant checks.
+ * As of issue #96 a {@link ComparisonChainNode} and the six comparison-operator calls
  * (`== != < > <= >=`) are in scope, so a comparison whose operands are all themselves supported
  * is evaluated. As of issue #94 a `VarRef` (`:name`) is always supported, and a `Place` (`:l[i]`)
  * is supported only when every postfix segment is an `index` selector with a supported key —
@@ -330,7 +432,11 @@ function isLogicalOperator(name: string): name is LogicalOperator {
  * `repcount` call is in scope too. As of issue #97 a call whose callee is a name in `procedures`
  * (a user procedure, in either the bare or parenthesized call form) is in scope as well — pass
  * the calling environment's `procedures` registry (defaults to none, for callers with no user
- * procedures in scope).
+ * procedures in scope). As of issue #105 a {@link ComprehensionNode} (`map`/`filter`/`reduce`) is
+ * in scope when its `iterable` (and, for `reduce`, its `initial`) and every body statement are
+ * themselves supported (see {@link isSupportedComprehensionBody}) — a comprehension whose body
+ * uses a not-yet-implemented expression kind is left wholly unevaluated, same as any other
+ * unsupported node, rather than raising a misleading `ol-no-value`.
  */
 export function isSupportedExpression(
   node: ExpressionNode,
@@ -370,6 +476,13 @@ export function isSupportedExpression(
         node.args.every((arg) => isSupportedExpression(arg, procedures))
       );
     }
+    case "Comprehension":
+      return (
+        isSupportedExpression(node.iterable, procedures) &&
+        (node.form !== "reduce" ||
+          isSupportedExpression(node.initial, procedures)) &&
+        isSupportedComprehensionBody(node.body, procedures)
+      );
     default:
       return false;
   }
@@ -427,9 +540,11 @@ export function evaluate(
       return evaluateCall(node, env);
     case "ComparisonChain":
       return evaluateComparisonChain(node, env);
+    case "Comprehension":
+      return evaluateComprehension(node, env);
     default:
-      // IsPredicate and Comprehension evaluation land with their own slices (#94-#105); nothing
-      // in this issue's scope reaches them.
+      // IsPredicate evaluation lands with its own future slice; nothing in this issue's scope
+      // reaches it.
       throw new Error(
         `evaluate: "${node.kind}" is not implemented yet — it lands with its own evaluator slice`,
       );
@@ -1250,4 +1365,404 @@ function evaluateComparisonChain(
     left = right;
   }
   return ok(true);
+}
+
+// --- Comprehensions: map / filter / reduce (spec/execution-model.md:380-479, issue #105) ------
+//
+// Comprehensions are value-producing *expressions* usable anywhere an expression is
+// (`spec/execution-model.md:380-384`), so — unlike a procedure body, which can contain arbitrary
+// control flow and genuinely needs `execute-internal.ts`'s full `executeStatements` dispatcher —
+// every spec worked example and acceptance criterion for a comprehension body is a single
+// bracketed expression-block whose *last* statement supplies the result
+// (`spec/execution-model.md:200-227`, the block-result rule). This module therefore evaluates a
+// comprehension body itself, entirely self-contained, rather than adding a second
+// `Environment`-threaded callback (mirroring `callProcedure`) purely to reach
+// `execute-internal.ts`'s general statement dispatcher for a case with no current spec pressure —
+// a deliberate, narrower scope than a procedure body's. A body may have leading statements too
+// (an `Assign`, or an expression evaluated for effect and discarded, per the block-result rule);
+// any OTHER leading statement kind (`If`/`While`/`Repeat`/`For`/`Forever`) is left unevaluated,
+// mirroring {@link isSupportedExpression}'s own "defer to a future slice" convention, and in fact
+// never reached: {@link isSupportedComprehensionBody} keeps such a body from being "supported" in
+// the first place, so the whole comprehension is deferred rather than partially evaluated.
+
+/** The Core primitives whose kind is Command (`spec/commands.md`) — mirrors the parser's static
+ * checker's `checker-control-flow.ts` `CORE_COMMANDS` (issue #114) exactly, since `execute()`
+ * never runs `check()` and this runtime copy is what actually classifies a comprehension body's
+ * final statement as command-shaped (reports nothing) vs. reporter-shaped (reports a value) for
+ * the block-result rule. Not re-exported by `@openlogo/parser`, so duplicated here rather than
+ * imported. */
+const COMPREHENSION_COMMAND_NAMES: ReadonlySet<string> = new Set([
+  "print",
+  "show",
+  "randomize",
+]);
+
+/**
+ * `ExpressionNode.kind`s a comprehension body statement may be while still counting as
+ * "value-producing" for the block-result rule — mirrors the checker's `VALUE_PRODUCING_KINDS`
+ * (issue #114) exactly, minus `IsPredicate` (not yet implemented by {@link evaluate}, so never
+ * reachable here — {@link isSupportedExpression} already excludes it).
+ */
+const VALUE_PRODUCING_STATEMENT_KINDS: ReadonlySet<string> = new Set([
+  "NumberLit",
+  "WordLit",
+  "BooleanLit",
+  "ListLit",
+  "VarRef",
+  "Place",
+  "ComparisonChain",
+  "Comprehension",
+]);
+
+/** Narrow `statement` to the `ExpressionNode` it also is, or `undefined` when it is a statement
+ * kind with no expression counterpart (`If`/`While`/`Repeat`/`For`/`Forever`/`ProcedureDef`). A
+ * `Call`/`ParenCall` is always narrowed — whether it is value-producing (a reporter) or not (a
+ * Core command) is a separate question {@link isValueProducingStatement} answers. */
+function asExpressionStatement(
+  statement: StatementNode,
+): ExpressionNode | undefined {
+  if (
+    VALUE_PRODUCING_STATEMENT_KINDS.has(statement.kind) ||
+    statement.kind === "Call" ||
+    statement.kind === "ParenCall"
+  ) {
+    return statement as ExpressionNode;
+  }
+  return undefined;
+}
+
+/**
+ * Does `statement` produce a value the surrounding block-result rule can use? Mirrors the
+ * checker's `producesValue` (`checker-control-flow.ts`, issue #114) exactly: a `Call`/`ParenCall`
+ * produces a value unless its callee is a known Core command (`print`/`show`/`randomize`); every
+ * other {@link VALUE_PRODUCING_STATEMENT_KINDS} kind always does.
+ */
+function isValueProducingStatement(statement: StatementNode): boolean {
+  if (statement.kind === "Call" || statement.kind === "ParenCall") {
+    return !COMPREHENSION_COMMAND_NAMES.has(
+      statement.callee.name.toLowerCase(),
+    );
+  }
+  return VALUE_PRODUCING_STATEMENT_KINDS.has(statement.kind);
+}
+
+/**
+ * Is `statement` a leading (non-final) comprehension body statement this evaluator can run?
+ * `Return`/`Stop` are structurally supported (they become `ol-return-in-comprehension` when
+ * actually reached, in {@link runComprehensionBody} — not silently deferred); `Assign` is always
+ * supported (the assignment target/value that are not yet implemented are themselves silently
+ * no-ops, per {@link executeAssign}'s own convention); any expression-shaped statement is
+ * supported when {@link isSupportedExpression} says so. Anything else (`If`/`While`/`Repeat`/
+ * `For`/`Forever`/`ProcedureDef`) is not.
+ */
+function isSupportedLeadingBodyStatement(
+  statement: StatementNode,
+  procedures: ProcedureRegistry,
+): boolean {
+  if (
+    statement.kind === "Return" ||
+    statement.kind === "Stop" ||
+    statement.kind === "Assign"
+  ) {
+    return true;
+  }
+  const expression = asExpressionStatement(statement);
+  return (
+    expression !== undefined && isSupportedExpression(expression, procedures)
+  );
+}
+
+/**
+ * Is `statement` a final comprehension body statement this evaluator can run? `Return`/`Stop` are
+ * structurally supported (as above). A `print`/`show`/`randomize` call is also structurally
+ * supported even though {@link evaluate} never gives it a value — {@link runComprehensionBody}
+ * correctly turns it into `ol-no-value` (it is command-shaped, not a not-yet-implemented shape),
+ * reproducing the spec's own worked example `map num in :nums [ print :num ]` → `ol-no-value`.
+ * Any other expression-shaped statement is supported when {@link isSupportedExpression} says so.
+ */
+function isSupportedFinalBodyStatement(
+  statement: StatementNode,
+  procedures: ProcedureRegistry,
+): boolean {
+  if (statement.kind === "Return" || statement.kind === "Stop") {
+    return true;
+  }
+  if (
+    (statement.kind === "Call" || statement.kind === "ParenCall") &&
+    COMPREHENSION_COMMAND_NAMES.has(statement.callee.name.toLowerCase())
+  ) {
+    return statement.args.every((argument) =>
+      isSupportedExpression(argument, procedures),
+    );
+  }
+  const expression = asExpressionStatement(statement);
+  return (
+    expression !== undefined && isSupportedExpression(expression, procedures)
+  );
+}
+
+/**
+ * Is every statement of a comprehension `body` one {@link runComprehensionBody} can actually run
+ * — every leading statement per {@link isSupportedLeadingBodyStatement}, and the last (if any) per
+ * {@link isSupportedFinalBodyStatement}? An empty body is vacuously supported: it always yields
+ * `ol-no-value` once evaluated, never an internal invariant violation. Kept in exact lock-step
+ * with {@link runComprehensionBody}'s own statement handling so `isSupportedExpression` never
+ * reports a comprehension "supported" only for evaluation to then hit an unimplemented shape.
+ */
+function isSupportedComprehensionBody(
+  body: BlockNode,
+  procedures: ProcedureRegistry,
+): boolean {
+  const statements = body.body;
+  if (statements.length === 0) {
+    return true;
+  }
+  const last = statements[statements.length - 1] as StatementNode;
+  return (
+    statements
+      .slice(0, -1)
+      .every((statement) =>
+        isSupportedLeadingBodyStatement(statement, procedures),
+      ) && isSupportedFinalBodyStatement(last, procedures)
+  );
+}
+
+/**
+ * The outcome of running a comprehension body: a value (its last statement was value-producing),
+ * `"no-value"` (the last statement was not — `ol-no-value` at the whole comprehension's span), an
+ * escaping `return`/`stop` (`ol-return-in-comprehension` at the control word's own span — this
+ * code wins over `ol-return-outside-proc`/`ol-stop-outside-proc` even when the comprehension is
+ * itself inside a procedure, mirroring `checker-control-flow.ts`'s `escapeDiagnostic`), or a halt
+ * (a diagnostic propagated from evaluating a statement).
+ */
+type ComprehensionBodyOutcome =
+  | { readonly kind: "value"; readonly value: OLValue }
+  | { readonly kind: "no-value" }
+  | {
+      readonly kind: "escape";
+      readonly keyword: "return" | "output" | "op" | "stop";
+      readonly source_span: SourceSpan;
+    }
+  | { readonly kind: "halt"; readonly diagnostic: Diagnostic };
+
+/**
+ * Run one comprehension body against the per-element/accumulator {@link Environment} its caller
+ * already pushed a fresh frame onto ({@link pushLoopFrame}). Leading statements run for effect
+ * only (their value, if any, is discarded); the final statement supplies the body's result, per
+ * the block-result rule (`spec/execution-model.md:200-227`). The caller ({@link
+ * evaluateComprehension}) only ever calls this once {@link isSupportedComprehensionBody} has
+ * confirmed every statement is one of the shapes handled below, so there is no "unimplemented
+ * shape" fallback here to keep in sync separately.
+ */
+function runComprehensionBody(
+  body: BlockNode,
+  env: Environment,
+): ComprehensionBodyOutcome {
+  const statements = body.body;
+  if (statements.length === 0) {
+    return { kind: "no-value" };
+  }
+
+  for (let index = 0; index < statements.length - 1; index++) {
+    const statement = statements[index] as StatementNode;
+    if (statement.kind === "Return") {
+      return {
+        kind: "escape",
+        keyword: statement.keyword,
+        source_span: statement.source_span,
+      };
+    }
+    if (statement.kind === "Stop") {
+      return {
+        kind: "escape",
+        keyword: "stop",
+        source_span: statement.source_span,
+      };
+    }
+    if (statement.kind === "Assign") {
+      const result = executeAssign(statement, env);
+      if (!result.ok) {
+        return { kind: "halt", diagnostic: result.diagnostic };
+      }
+      continue;
+    }
+    const expression = asExpressionStatement(statement) as ExpressionNode;
+    const result = evaluate(expression, env);
+    if (!result.ok) {
+      return { kind: "halt", diagnostic: result.diagnostic };
+    }
+  }
+
+  const last = statements[statements.length - 1] as StatementNode;
+  if (last.kind === "Return") {
+    return {
+      kind: "escape",
+      keyword: last.keyword,
+      source_span: last.source_span,
+    };
+  }
+  if (last.kind === "Stop") {
+    return { kind: "escape", keyword: "stop", source_span: last.source_span };
+  }
+  if (!isValueProducingStatement(last)) {
+    return { kind: "no-value" };
+  }
+  const expression = asExpressionStatement(last) as ExpressionNode;
+  const result = evaluate(expression, env);
+  if (!result.ok) {
+    return { kind: "halt", diagnostic: result.diagnostic };
+  }
+  return { kind: "value", value: result.value };
+}
+
+/** Turn a {@link ComprehensionBodyOutcome} into the {@link EvalResult} `evaluateComprehension`
+ * reports for one element/fold step. */
+function comprehensionBodyResult(
+  outcome: ComprehensionBodyOutcome,
+  node: ComprehensionNode,
+): EvalResult {
+  switch (outcome.kind) {
+    case "value":
+      return ok(outcome.value);
+    case "no-value":
+      return fail(runtimeDiag.noValue(node.source_span, node.form));
+    case "escape":
+      return fail(
+        runtimeDiag.returnInComprehension(
+          outcome.source_span,
+          outcome.keyword,
+          node.form,
+        ),
+      );
+    case "halt":
+      return fail(outcome.diagnostic);
+  }
+}
+
+/**
+ * The `ol-duplicate-binder` a comprehension's own binders raise before any element is ever
+ * bound — a static property of the comprehension's shape, checked once rather than per element.
+ * Mirrors `checker-control-flow.ts`'s two rules (issue #114) exactly: a repeated name within one
+ * destructuring item-binder pattern (`form: "destructuring"`), or — `reduce` only, and only when
+ * the item binder is a bare name, not a pattern — the accumulator name colliding with the item
+ * binder's own name (`form: "reduce"`; an accumulator-vs-pattern-name collision is out of scope,
+ * matching the checker's own documented boundary).
+ */
+function comprehensionDuplicateBinder(
+  node: ComprehensionNode,
+): Diagnostic | undefined {
+  if ("kind" in node.binder) {
+    const duplicate = findDuplicateBinderName(node.binder);
+    return duplicate === undefined
+      ? undefined
+      : runtimeDiag.duplicateBinder(
+          duplicate.source_span,
+          duplicate.name,
+          "destructuring",
+        );
+  }
+  if (
+    node.form === "reduce" &&
+    node.accumulator.name.toLowerCase() === node.binder.name.toLowerCase()
+  ) {
+    return runtimeDiag.duplicateBinder(
+      node.binder.source_span,
+      node.binder.name,
+      "reduce",
+    );
+  }
+  return undefined;
+}
+
+/**
+ * Evaluate a `map`/`filter`/`reduce` comprehension (`spec/execution-model.md:380-479`, worked
+ * examples `:695-741`): binder-duplicate check first ({@link comprehensionDuplicateBinder}), then
+ * the iterable (must be a list — `ol-type` otherwise, mirroring `ForIn`'s own `forInNotList`),
+ * then one {@link runComprehensionBody} pass per element (each in its own fresh body-local frame,
+ * {@link pushLoopFrame}) — collecting every body value for `map`, keeping elements whose boolean
+ * body value is `true` for `filter` (`ol-not-boolean` for a non-boolean body value), or folding
+ * into an accumulator seeded by `initial` for `reduce` (returned unchanged when `elements` is
+ * empty, `spec/execution-model.md:402`).
+ */
+function evaluateComprehension(
+  node: ComprehensionNode,
+  env: Environment,
+): EvalResult {
+  const duplicate = comprehensionDuplicateBinder(node);
+  if (duplicate !== undefined) {
+    return fail(duplicate);
+  }
+
+  const iterableResult = evaluate(node.iterable, env);
+  if (!iterableResult.ok) {
+    return iterableResult;
+  }
+  if (!Array.isArray(iterableResult.value)) {
+    return fail(
+      runtimeDiag.comprehensionNotList(node.iterable.source_span, {
+        actual: typeNameOf(iterableResult.value),
+        value: iterableResult.value,
+        operation: node.form,
+      }),
+    );
+  }
+  const elements = iterableResult.value;
+
+  if (node.form === "reduce") {
+    const initialResult = evaluate(node.initial, env);
+    if (!initialResult.ok) {
+      return initialResult;
+    }
+    let accumulator = initialResult.value;
+    for (const element of elements) {
+      const bound = bindElement(node.binder, element);
+      if (!bound.ok) {
+        return fail(bound.diagnostic);
+      }
+      const bindings = new Map(bound.bindings);
+      bindings.set(node.accumulator.name, accumulator);
+      const outcome = runComprehensionBody(
+        node.body,
+        pushLoopFrame(env, bindings),
+      );
+      const stepResult = comprehensionBodyResult(outcome, node);
+      if (!stepResult.ok) {
+        return stepResult;
+      }
+      accumulator = stepResult.value;
+    }
+    return ok(accumulator);
+  }
+
+  const results: OLValue[] = [];
+  for (const element of elements) {
+    const bound = bindElement(node.binder, element);
+    if (!bound.ok) {
+      return fail(bound.diagnostic);
+    }
+    const outcome = runComprehensionBody(
+      node.body,
+      pushLoopFrame(env, bound.bindings),
+    );
+    const stepResult = comprehensionBodyResult(outcome, node);
+    if (!stepResult.ok) {
+      return stepResult;
+    }
+    if (node.form === "map") {
+      results.push(stepResult.value);
+      continue;
+    }
+    if (typeof stepResult.value !== "boolean") {
+      return fail(
+        runtimeDiag.notBoolean(node.body.source_span, {
+          actual: typeNameOf(stepResult.value),
+          operation: "filter",
+        }),
+      );
+    }
+    if (stepResult.value) {
+      results.push(element);
+    }
+  }
+  return ok(results);
 }

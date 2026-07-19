@@ -1,0 +1,2 @@
+:total = reduce sum n in [] from 42 [ :sum + :n ]
+print :total

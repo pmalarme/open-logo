@@ -1,0 +1,56 @@
+{
+  "description": "map produces a fresh list of the body value per element, in order (spec/execution-model.md:380-398,705-715). Issue #105.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/comprehensions/map-doubles-in-order",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/comprehensions/map-doubles-in-order",
+        "start": [2, 1],
+        "end": [2, 37]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/comprehensions/map-doubles-in-order",
+        "start": [3, 1],
+        "end": [3, 15]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/comprehensions/map-doubles-in-order",
+        "start": [3, 1],
+        "end": [3, 15]
+      },
+      "payload": {
+        "values": [[2, 4, 6]]
+      }
+    }
+  ],
+  "diagnostics": []
+}

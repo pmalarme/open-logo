@@ -1,0 +1,37 @@
+{
+  "description": "map's iterable source that is not a list raises ol-type at the iterable span, naming the map operation (spec/execution-model.md:380-479 requires a list source). Issue #105.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/comprehensions/comprehension-not-list-diagnostic",
+        "start": [1, 1],
+        "end": [1, 25]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "core-language/comprehensions/comprehension-not-list-diagnostic",
+        "start": [1, 17],
+        "end": [1, 18]
+      },
+      "params": {
+        "expected": "list",
+        "actual": "number",
+        "value": 5,
+        "operation": "map"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

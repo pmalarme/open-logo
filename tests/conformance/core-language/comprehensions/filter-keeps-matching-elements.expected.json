@@ -1,0 +1,56 @@
+{
+  "description": "filter keeps only elements whose boolean body is true, in order (spec/execution-model.md:380-399). Issue #105.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/comprehensions/filter-keeps-matching-elements",
+        "start": [1, 1],
+        "end": [1, 18]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/comprehensions/filter-keeps-matching-elements",
+        "start": [2, 1],
+        "end": [2, 36]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/comprehensions/filter-keeps-matching-elements",
+        "start": [3, 1],
+        "end": [3, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/comprehensions/filter-keeps-matching-elements",
+        "start": [3, 1],
+        "end": [3, 11]
+      },
+      "payload": {
+        "values": [[3, 4]]
+      }
+    }
+  ],
+  "diagnostics": []
+}
