@@ -31,18 +31,27 @@ export type {
 
 export { isEventKind, OL_EVENT_KINDS } from "./events.js";
 export type {
+  BackgroundChangePayload,
   ClearPayload,
+  ColorChangePayload,
   DrawSegmentPayload,
   EventKind,
+  FillPayload,
   MovePayload,
+  PenChangePayload,
+  PenState,
   Point,
   PrintPayload,
   ProcedureEnterPayload,
   ProcedureExitPayload,
   ReturnPayload,
+  ShapeChangePayload,
+  StampPayload,
   TraceEvent,
   TurnPayload,
   TurtleId,
+  VisibilityChangePayload,
+  WidthChangePayload,
 } from "./events.js";
 
 export { typeNameOf } from "./values.js";

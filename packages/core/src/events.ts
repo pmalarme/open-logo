@@ -77,6 +77,87 @@ export interface ClearPayload {
   readonly mode: "clear_screen" | "clean";
 }
 
+/** Whether the pen is up (not drawing) or down (drawing), per `spec/rendering.md`. */
+export type PenState = "up" | "down";
+
+/**
+ * Payload for a `pen-change` event: the pen state before and after `pen_up`/`pen_down`
+ * (`spec/rendering.md`'s "Line segments" section — a segment is drawn only while the pen is
+ * down). Mirrors `turn`'s `{from, to}` shape.
+ */
+export interface PenChangePayload {
+  readonly from: PenState;
+  readonly to: PenState;
+}
+
+/**
+ * Payload for a `width-change` event: the pen width before and after `set_width`, in the same
+ * world units used for rendering (`spec/rendering.md`'s "Width" section). Mirrors `turn`'s
+ * `{from, to}` shape.
+ */
+export interface WidthChangePayload {
+  readonly from: number;
+  readonly to: number;
+}
+
+/**
+ * Payload for a `color-change` event: the pen color before and after `set_color`, each an
+ * sRGB-normalizable color value as accepted by `set_color` (`spec/rendering.md`'s "Color"
+ * section). Mirrors `turn`'s `{from, to}` shape.
+ */
+export interface ColorChangePayload {
+  readonly from: string;
+  readonly to: string;
+}
+
+/**
+ * Payload for a `background-change` event: the new scene background color set by
+ * `set_background` (`spec/rendering.md`'s "Background" section). The background is a scene
+ * property, not turtle state, so there is no prior-value pairing to report here.
+ */
+export interface BackgroundChangePayload {
+  readonly color: string;
+}
+
+/**
+ * Payload for a `shape-change` event: the turtle avatar's shape word before and after
+ * `set_shape` (`spec/rendering.md`'s "Turtle avatar and shapes" section). Mirrors `turn`'s
+ * `{from, to}` shape.
+ */
+export interface ShapeChangePayload {
+  readonly from: string;
+  readonly to: string;
+}
+
+/**
+ * Payload for a `visibility-change` event: the turtle avatar's visibility before and after
+ * `show_turtle`/`hide_turtle` (`spec/rendering.md`'s "Turtle avatar and shapes" section).
+ * Mirrors `turn`'s `{from, to}` shape.
+ */
+export interface VisibilityChangePayload {
+  readonly from: boolean;
+  readonly to: boolean;
+}
+
+/**
+ * Payload for a `fill` event: the color used to fill the currently enclosed region of the
+ * active turtle's drawn path (`spec/rendering.md`'s "Fill" section — the current pen color
+ * unless a vendor extension exposes a separate fill color).
+ */
+export interface FillPayload {
+  readonly color: string;
+}
+
+/**
+ * Payload for a `stamp` event: the position, heading, and shape word of the turtle avatar
+ * stamped into the retained scene (`spec/rendering.md`'s "Turtle avatar and shapes" section).
+ */
+export interface StampPayload {
+  readonly position: Point;
+  readonly heading: number;
+  readonly shape: string;
+}
+
 /**
  * Payload for a `print` event: the evaluated {@link OLValue}s, in argument order — one element
  * for the single-value `print value` form, two or more for the parenthesized variadic
@@ -123,8 +204,11 @@ export interface ReturnPayload {
 
 /**
  * The trace-event envelope. `payload` is kind-specific typed data — the payload interfaces
- * above cover the rendering-relevant kinds the spec calls out; other kinds refine their
- * payload with their feature slice.
+ * above cover every Turtle & Rendering kind (`move`, `turn`, `pen-change`, `width-change`,
+ * `color-change`, `background-change`, `draw-segment`, `fill`, `stamp`, `shape-change`,
+ * `visibility-change`, `clear`) plus `print`/`procedure-enter`/`procedure-exit`/`return`; other
+ * kinds (e.g. `overlay`, `sound`, `spawn-turtle`, `primitive`, `error`) refine their payload with
+ * their feature slice.
  */
 export interface TraceEvent<P = unknown> {
   /** Monotonic sequence number, ordering the stream. */
