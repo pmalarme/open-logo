@@ -361,6 +361,121 @@ test("ol-style-name-case: local's own keyword casing is deliberately not checked
   }
 });
 
+// --- ol-style-magic-number ---------------------------------------------------------------------
+
+test("ol-style-magic-number: a repeated bare literal outside the safe set is flagged at every occurrence", () => {
+  const diagnostics = checkStyle("print 37\nprint 37").filter(
+    (d) => d.code === "ol-style-magic-number",
+  );
+  assert.equal(diagnostics.length, 2);
+  assert.deepEqual(diagnostics[0].params, { value: 37 });
+  assert.deepEqual(diagnostics[1].params, { value: 37 });
+  assert.equal(diagnostics[0].severity, "warning");
+  assert.equal(diagnostics[0].stage, "semantic");
+});
+
+test('ol-style-magic-number: a single occurrence is not "repeated" and is left clean', () => {
+  assert.deepEqual(checkStyle("print 37"), []);
+});
+
+test("ol-style-magic-number: the safe/idiomatic set (0, 1, 2, 4, 90, 120, 360) is never flagged even when repeated", () => {
+  assert.deepEqual(checkStyle("print 90\nprint 90\nprint 360\nprint 360"), []);
+});
+
+test("ol-style-magic-number: a literal used directly as an assignment's right-hand side is excluded, even when repeated elsewhere", () => {
+  // Only the bare `print 37` occurrence counts; `:radius = 37`'s literal is already named by the
+  // assignment, so it neither counts toward the repetition nor is itself reported. Since only one
+  // *unexcluded* occurrence remains, this is not "repeated" and nothing is flagged.
+  assert.deepEqual(checkStyle(":radius = 37\nprint 37"), []);
+});
+
+test("ol-style-magic-number: set ... to's right-hand side is likewise excluded from the count", () => {
+  const diagnostics = checkStyle("set radius to 37\nprint 37\nprint 37").filter(
+    (d) => d.code === "ol-style-magic-number",
+  );
+  assert.equal(diagnostics.length, 2);
+  assert.deepEqual(diagnostics[0].params, { value: 37 });
+});
+
+// --- ol-style-predicate-name ------------------------------------------------------------------
+
+test("ol-style-predicate-name: a procedure whose every return is a comparison but whose name lacks ? is flagged", () => {
+  const diagnostics = checkStyle(
+    "define is_ready :x\n  return :x == 1\nend",
+  ).filter((d) => d.code === "ol-style-predicate-name");
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, {
+    name: "is_ready",
+    problem: "missing-suffix",
+  });
+  assert.equal(diagnostics[0].severity, "warning");
+  assert.equal(diagnostics[0].stage, "semantic");
+});
+
+test("ol-style-predicate-name: a procedure whose return is a boolean literal but whose name lacks ? is flagged", () => {
+  const diagnostics = checkStyle("define done\n  return true\nend").filter(
+    (d) => d.code === "ol-style-predicate-name",
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, {
+    name: "done",
+    problem: "missing-suffix",
+  });
+});
+
+test("ol-style-predicate-name: a procedure already ending in ? whose return is boolean is clean", () => {
+  assert.deepEqual(
+    checkStyle("define is_ready? :x\n  return :x == 1\nend"),
+    [],
+  );
+});
+
+test("ol-style-predicate-name: a procedure ending in ? with no return at all is flagged as misleading", () => {
+  const diagnostics = checkStyle("define draw?\n  print 1\nend").filter(
+    (d) => d.code === "ol-style-predicate-name",
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, {
+    name: "draw?",
+    problem: "misleading-suffix",
+  });
+});
+
+test("ol-style-predicate-name: a procedure ending in ? that returns a number is flagged as misleading", () => {
+  const diagnostics = checkStyle("define count?\n  return 1\nend").filter(
+    (d) => d.code === "ol-style-predicate-name",
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, {
+    name: "count?",
+    problem: "misleading-suffix",
+  });
+});
+
+test("ol-style-predicate-name: a procedure returning an unclassifiable expression (a variable) is left unflagged either way", () => {
+  assert.deepEqual(checkStyle("define pick :flag\n  return :flag\nend"), []);
+  assert.deepEqual(checkStyle("define pick? :flag\n  return :flag\nend"), []);
+});
+
+test("ol-style-predicate-name: returns belonging to a nested procedure are never attributed to the outer one", () => {
+  // The outer `wrapper` procedure's own body has no `return` of its own (only a nested
+  // `ProcedureDef` with its own `return`), so it must not be judged by the inner one's shape.
+  const diagnostics = checkStyle(
+    "define wrapper\n  define inner\n    return true\n  end\n  print 1\nend",
+  ).filter((d) => d.code === "ol-style-predicate-name");
+  // The nested `inner` procedure's own name (`inner`, no `?`, its only return is boolean) is
+  // still flagged on its own merits; `wrapper` (no returns of its own) is not.
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, {
+    name: "inner",
+    problem: "missing-suffix",
+  });
+});
+
+test("ol-style-predicate-name: a plain command procedure with no return and no ? suffix is clean", () => {
+  assert.deepEqual(checkStyle("define draw\n  print 1\nend"), []);
+});
+
 // --- opt-in gating -------------------------------------------------------------------------
 
 test("check() never runs style lints unless options.style === true", () => {

@@ -1,0 +1,20 @@
+{
+  "description": "ol-style-predicate-name (issue #169): a procedure (draw?) whose name ends in ? but has no return statement at all — a pure command can never report a boolean — is flagged for a misleading predicate suffix.",
+  "profiles": ["core-language"],
+  "check": true,
+  "style": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-style-predicate-name",
+      "source_span": {
+        "document": "core-language/style/predicate-name-misleading-suffix",
+        "start": [1, 8],
+        "end": [1, 13]
+      },
+      "params": { "name": "draw?", "problem": "misleading-suffix" },
+      "stage": "semantic",
+      "severity": "warning"
+    }
+  ]
+}
