@@ -21,6 +21,16 @@
  *   plain text — no hard dependency on the epic #118 highlighter). See `editor.ts`.
  * - {@link mountEditorPane} composes the controller into the shell's `editor` region.
  *
+ * #126 adds Run/Stop/Reset/Step over `@openlogo/runtime`'s execution budget (issue #102):
+ * - {@link createRunController} — `run()` executes the shared `source` via `@openlogo/runtime`'s
+ *   `execute()` (composing it, never re-implementing evaluation) and reduces its trace-event
+ *   stream to the shared `output`/`diagnostics` fields; `stop()` flips a cancellation signal
+ *   `run()` honors on its next call (see `run-controller.ts`'s doc comment for the honest
+ *   same-thread caveat this relies on the instruction budget to cover); `reset()` clears
+ *   output/diagnostics and re-arms cancellation deterministically; `step()` is a documented
+ *   no-op — `execute()` exposes no per-instruction pause/resume API to step through yet.
+ * - {@link mountRunController} composes the controller into the shell's `repl` region.
+ *
  * #128 adds persistence — the document text survives a reload:
  * - {@link attachPersistence} restores `source` from a pluggable {@link StorageAdapter} once at
  *   creation, then re-saves it on every change, always through the shared state model (no forked
@@ -29,8 +39,7 @@
  * - {@link createInMemoryStorageAdapter} is the default, fully `node:test`-able backend; a real
  *   `localStorage`-backed adapter plugs into the same interface later. See `persistence.ts`.
  *
- * No run/diagnostics-rendering/lesson behavior lands yet — this slice only proves the document
- * can be edited and its text survives a reload through the one shared state model.
+ * No diagnostics-rendering/lesson UI lands yet — those are #125/#127.
  */
 
 export type {
@@ -59,6 +68,13 @@ export {
   mountEditorPane,
   noopHighlighter,
 } from "./editor.js";
+
+export type { RunController, RunControllerOptions } from "./run-controller.js";
+export {
+  DEFAULT_RUN_DOCUMENT,
+  createRunController,
+  mountRunController,
+} from "./run-controller.js";
 
 export type {
   Persistence,

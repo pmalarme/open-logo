@@ -20,12 +20,12 @@ Every pane composes over **one** shared instance — never a per-pane copy:
 
 - `createStudioState()` (`src/state-model.ts`) — the single source of truth: `source`
   (document text), `selection` (cursor/selection), `runStatus`
-  (`"idle" | "running" | "stopped"`), `diagnostics` (`@openlogo/core` `Diagnostic[]`), `lesson`
-  (lesson context for `@openlogo/edu` content), and `notice` (a non-fatal, learner-visible status
-  set by e.g. #128 persistence when it degrades gracefully). State changes only through its `set*`
-  methods; `getState()` is stable by reference between changes, and `subscribe` notifies
-  listeners synchronously after every change — see the doc comment in `state-model.ts` for the
-  full contract.
+  (`"idle" | "running" | "stopped"`), `diagnostics` (`@openlogo/core` `Diagnostic[]`), `output`
+  (learner-visible printed lines from the most recent run, #126), `lesson` (lesson context for
+  `@openlogo/edu` content), and `notice` (a non-fatal, learner-visible status set by e.g. #128
+  persistence when it degrades gracefully). State changes only through its `set*` methods;
+  `getState()` is stable by reference between changes, and `subscribe` notifies listeners
+  synchronously after every change — see the doc comment in `state-model.ts` for the full contract.
 - `createAppShell(state)` (`src/app-shell.ts`) — a composable region registry (`editor`,
   `turtle`, `diagnostics`, `lesson`, `repl`), each starting as an empty placeholder. Later panes
   (#124 editor, #125 diagnostics, #126 run/stop, #127 lesson, #128 persistence, #129 a11y) call
@@ -68,5 +68,31 @@ slice may swap in a real renderer without changing this contract.
   so a later pane can render a visible notice. The learner keeps working either way.
 - `attachPersistence(...).dispose()` stops persisting further changes;
   `attachPersistence(...).clearPersisted()` removes the stored value (also degrading gracefully).
+
+## Run/Stop/Reset/Step (#126)
+
+- `createRunController(state, options?)` (`src/run-controller.ts`) — the headless run controller
+  over `@openlogo/runtime`'s execution budget (issue #102):
+  - **Run** — `run()` calls `execute(state.getState().source, document, options)` and reduces the
+    returned trace-event stream to exactly what this slice surfaces: every `print` event becomes
+    one `output` line (already in the runtime's canonical `printedForm`, never reformatted here),
+    and the run's diagnostics replace the shared `diagnostics` list unchanged.
+  - **Stop** — `stop()` flips a cancellation signal this controller owns for its whole lifetime
+    and sets `runStatus` to `"stopped"` immediately. Because `execute()` is synchronous and never
+    yields, a same-thread `stop()` cannot preempt a call already on the stack — true mid-loop
+    interruption needs a Web Worker + `SharedArrayBuffer`/`Atomics` architecture, which is out of
+    scope for this slice. What genuinely keeps a runaway `forever`/`repeat 10000 [...]` program
+    from hanging the session is the **instruction budget** (`options.instructionBudget`, default
+    `DEFAULT_INSTRUCTION_BUDGET`), checked before every statement/loop pass inside `execute()`
+    itself. A cancelled signal stays cancelled until `reset()` re-arms it, so `stop()` then `run()`
+    deterministically halts with `ol-limit`/`cancelled` rather than silently dropping the request.
+  - **Reset** — `reset()` clears `output`/`diagnostics` back to empty, re-arms the cancellation
+    signal, and sets `runStatus` to `"idle"` — deterministic, ready for the next `run()`.
+  - **Step** — `step()` is a documented no-op: `execute()` exposes no per-instruction pause/resume
+    API to step through (a single call runs the whole program and returns the full event stream at
+    once), so this slice does not fake stepping the runtime doesn't support. A follow-up issue
+    should track real step-through once the runtime grows an incremental execution entry point.
+  - `mountRunController(shell, controller)` composes the controller into the shell's `repl` region.
+- See `run-controller.ts`'s doc comment for the full same-thread cancellation rationale.
 
 
