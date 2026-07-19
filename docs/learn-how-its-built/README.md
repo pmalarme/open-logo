@@ -1,41 +1,41 @@
 # Learn How It's Built
 
-You've drawn with the turtle. Now: how does OpenLogo itself actually work? This series is for
-learners who finished the turtle basics and want to open the hood — programming a language, not
-just in one.
+You've made the turtle draw. Ever wonder what happens *between* you typing `forward 100` and the
+turtle actually moving? This series takes you on that journey — no experience needed beyond having
+played with turtle commands already.
 
-Every doc here is grounded in the real, shipped code: it points you to the actual files and tests
-behind each claim, and every `.logo` sample really runs against the current runtime. No
-hand-waving.
+## The whole trip, in one picture
 
-**Part of epic [#212](https://github.com/pmalarme/open-logo/issues/212).**
+```mermaid
+flowchart LR
+  A["Your code<br/>repeat 4 [ forward 100 right 90 ]"] --> B["Tokens<br/>little labeled words"]
+  B --> C["Tree (AST)<br/>how the words fit together"]
+  C --> D["Runner<br/>(the interpreter)"]
+  D --> E["🐢 Turtle moves"]
+```
 
-## The set
+Every page in this series zooms into one of those boxes and shows you exactly how it works, using
+real OpenLogo code and the actual code that runs inside OpenLogo today.
 
-Suggested reading order — front of the pipeline, to the back, then the workflow, then the story
-of how we got here:
+## The map
 
-| # | Doc | What it covers | Status |
-|---|---|---|---|
-| 1 | pipeline overview ([#224](https://github.com/pmalarme/open-logo/issues/224)) | From `.logo` text to a moving turtle — the whole pipeline in one picture | planned |
-| 2 | the lexer & tokens ([#223](https://github.com/pmalarme/open-logo/issues/223)) | How OpenLogo reads your letters into words | planned |
-| 3 | grammar, the reader & the AST ([#220](https://github.com/pmalarme/open-logo/issues/220)) | Turning tokens into a tree | planned |
-| 4 | the interpreter & runtime ([#221](https://github.com/pmalarme/open-logo/issues/221)) | How the tree becomes actions | planned |
-| 5 | highlighting & the checker ([#226](https://github.com/pmalarme/open-logo/issues/226)) | Coloring code and finding mistakes | planned |
-| 6 | how we build OpenLogo ([#219](https://github.com/pmalarme/open-logo/issues/219)) | Epics, slices, milestones, the agent team, CI & the Definition of Done | planned |
-| 7 | [M0 & M1 retrospective](m0-m1-retrospective.md) ([#222](https://github.com/pmalarme/open-logo/issues/222)) | What we actually shipped in the first two milestones, and how | **done** |
+| Page | What you'll learn |
+|---|---|
+| [01 · The big picture](01-the-big-picture.md) | The whole journey, zoomed out |
+| [02 · Tokens](02-tokens.md) | Chopping your code into little labeled words |
+| 03 · The lexer | *(coming soon)* The machine that does the chopping |
+| 04 · The AST | *(coming soon)* Turning tokens into a tree |
+| 05 · The interpreter & runtime | *(coming soon)* Walking the tree to make things happen |
+| 06 · Syntax highlighting | *(coming soon)* Why keywords turn colors |
+| 07 · When something is wrong | *(coming soon)* How OpenLogo says "oops," kindly |
+| 08 · How we built it | *(coming soon)* The human side — how a team builds a language |
 
-## Ground rules for this series
+Read them in order the first time through — each page builds on the last.
 
-- **Plain language first, real names second.** Every idea gets explained in kid-friendly terms
-  before we show the exact OpenLogo keyword or file.
-- **Canonical OpenLogo vocabulary.** Lowercase keywords, `define … end` (not `to`),
-  `forward`/`right`/... (not `fd`/`rt`) — any classic-Logo "Heritage" spelling is explicitly
-  labeled as such, never presented as the primary form.
-- **Every sample runs.** Every `.logo` snippet in this series is validated against the current
-  runtime before it's published — no invented syntax.
-- **No drift.** Each doc is technically reviewed by the domain agent who owns that part of the
-  codebase, and updated whenever the underlying grammar, semantics, or commands change.
+## How to read these pages
 
-See [`AGENTS.md`](../../AGENTS.md), [`docs/architecture.md`](../architecture.md), and
-[`docs/delivery.md`](../delivery.md) for the engineering context this series draws on.
+- Every page fits on roughly one screen.
+- Every jargon word gets explained the first time it shows up, with a real-world comparison.
+- Every diagram and every code sample is checked against the real OpenLogo code — nothing here is
+  made up.
+- Try the "Try it yourself" box at the end of each page — it only takes a minute.
