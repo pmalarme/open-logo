@@ -96,11 +96,32 @@ test("grammar operator callees (+, -, mod, and, or, not, comparisons) are never 
   }
 });
 
-test("the fowad->forward spec example is a documented known-gap at Core-only: forward is a Turtle & Rendering primitive not yet registered with the checker, so fowad is unknown with NO suggestion", () => {
+test("at Core-only (turtle-rendering NOT active), forward is still not visible: fowad is unknown with NO suggestion", () => {
+  // forward is a Turtle & Rendering primitive; when that profile is not part of the active set,
+  // fowad's nearest visible candidate is still out of reach, exactly as before issue #136.
   const [finding] = checkSource("(fowad 100)", ["core-language"]);
   assert.equal(finding.code, "ol-unknown-command");
   assert.deepEqual(finding.params, { name: "fowad" });
   assert.equal(finding.params.suggestion, undefined);
+});
+
+test("issue #136 / spec/tooling.md:198-205 worked example: with turtle-rendering active, fowad suggests forward", () => {
+  // Parenthesized form, per the same reasoning as the Core-only known-gap test above: an
+  // unrecognized bare callee's arity falls back to 0 in the reader, so a bare `fowad 100` would
+  // leave `100` as a stray second statement on the line (a parse-stage ol-bad-token) — orthogonal
+  // to this rule. `(fowad 100)` groups the argument explicitly, isolating the semantic finding.
+  const [finding] = checkSource("(fowad 100)", [
+    "core-language",
+    "turtle-rendering",
+  ]);
+  assert.equal(finding.code, "ol-unknown-command");
+  assert.equal(finding.stage, "semantic");
+  assert.equal(finding.severity, "error");
+  assert.deepEqual(finding.params, { name: "fowad", suggestion: "forward" });
+  assert.equal(
+    finding.message,
+    "i don't know how to fowad. did you mean forward?",
+  );
 });
 
 test("profile gating: when core-language is not active, Core primitives are not visible", () => {
@@ -113,6 +134,30 @@ test("profile gating: when core-language is active, Core primitives are visible"
   // A complete call: `print 1` exercises visibility without tripping the arity rule (#111),
   // which — correctly — treats a bare zero-argument `print` as `ol-not-enough-inputs`.
   assert.deepEqual(checkSource("print 1", ["core-language"]), []);
+});
+
+test("profile gating: when turtle-rendering is not active, Turtle & Rendering primitives are not visible", () => {
+  const diagnostics = checkSource("(forward 100)", ["core-language"]);
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, { name: "forward" });
+});
+
+test("profile gating: when turtle-rendering is active, Turtle & Rendering primitives are visible", () => {
+  assert.deepEqual(
+    checkSource("forward 100", ["core-language", "turtle-rendering"]),
+    [],
+  );
+});
+
+test("the ol-unknown-command rule stays profile-generic: turtle primitives are never hardcoded into the Core-only visible set", () => {
+  // Core-only active: none of the turtle-rendering primitives are visible, so each is reported
+  // as unknown — confirming checker-names.ts gates the turtle table on its own profile flag
+  // rather than always including it.
+  for (const name of ["forward", "back", "left", "right", "pen_up"]) {
+    const [finding] = checkSource(`(${name})`, ["core-language"]);
+    assert.equal(finding.code, "ol-unknown-command");
+    assert.equal(finding.params.name, name);
+  }
 });
 
 test("profile gating: user-declared procedures are visible regardless of active profiles", () => {
