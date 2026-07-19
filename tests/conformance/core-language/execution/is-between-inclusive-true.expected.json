@@ -1,0 +1,28 @@
+{
+  "description": "`<v> is between <low> and <high>` is inclusive of both bounds for numbers (spec/execution-model.md:146-166): `5 is between 1 and 5` is `true`. Issue #99.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/is-between-inclusive-true",
+        "start": [1, 1],
+        "end": [1, 28]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/is-between-inclusive-true",
+        "start": [1, 1],
+        "end": [1, 28]
+      },
+      "payload": { "values": [true] }
+    }
+  ],
+  "diagnostics": []
+}

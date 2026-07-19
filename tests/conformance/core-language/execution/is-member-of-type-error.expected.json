@@ -1,0 +1,35 @@
+{
+  "description": "`is member of` accepts only a list (or dict) collection; a number collection raises `ol-type` naming the expected concept \"list\" (spec/execution-model.md:146-166, error-model.md `ol-type`). Execution halts, so only the `instruction` event is kept. Issue #99.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/is-member-of-type-error",
+        "start": [1, 1],
+        "end": [1, 24]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "core-language/execution/is-member-of-type-error",
+        "start": [1, 23],
+        "end": [1, 24]
+      },
+      "params": {
+        "expected": "list",
+        "actual": "number",
+        "value": 5,
+        "operation": "is member of"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "description": "The worded is-predicate `<v> is member of <coll>` reports whether the value equals an element of the collection (spec/execution-model.md:146-166): `2 is member of [1 2 3]` is `true`. Issue #99.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/is-member-of-true",
+        "start": [1, 1],
+        "end": [1, 30]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/is-member-of-true",
+        "start": [1, 1],
+        "end": [1, 30]
+      },
+      "payload": { "values": [true] }
+    }
+  ],
+  "diagnostics": []
+}

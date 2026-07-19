@@ -218,17 +218,21 @@ test("isSupportedExpression rejects expression kinds and callees this issue does
   assert.equal(isSupportedExpression(parseExpr("[1 :ages.tom]")), false);
   // An arithmetic call with an unsupported operand is itself unsupported.
   assert.equal(isSupportedExpression(parseExpr("1 + :ages.tom")), false);
-  // A node kind this issue's evaluator does not implement yet falls through the switch's
-  // `default` branch — a real parse never produces one of these at expression position.
+  // An is-predicate whose operand is itself unsupported is unsupported (issue #99).
+  assert.equal(isSupportedExpression(parseExpr("(:ages.tom is empty)")), false);
+  // An is-predicate whose form-specific sub-expression is unsupported is unsupported too.
   assert.equal(
-    isSupportedExpression({ kind: "IsPredicate", source_span: span }),
+    isSupportedExpression(parseExpr("(2 is member of :ages.tom)")),
     false,
   );
-});
-
-test("throws for an expression node kind this issue does not implement yet", () => {
-  const isPredicate = { kind: "IsPredicate", source_span: span };
-  assert.throws(() => evaluate(isPredicate), /IsPredicate.*not implemented/);
+  assert.equal(
+    isSupportedExpression(parseExpr("(5 is between :ages.tom and 5)")),
+    false,
+  );
+  assert.equal(
+    isSupportedExpression(parseExpr("(5 is between 1 and :ages.tom)")),
+    false,
+  );
 });
 
 test("throws for a call to a callee this issue does not implement yet", () => {

@@ -1,0 +1,28 @@
+{
+  "description": "The prefix predicate `is_a?` is a Core fixed-arity alternative to the worded `is a <type-word>` (spec/commands.md:691-705): `is_a? 5 \"number\"` is `true`. Unlike the worded form, `is_a?` evaluates its type argument dynamically. Issue #99.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/prefix-is-a-true",
+        "start": [1, 1],
+        "end": [1, 23]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/prefix-is-a-true",
+        "start": [1, 1],
+        "end": [1, 23]
+      },
+      "payload": { "values": [true] }
+    }
+  ],
+  "diagnostics": []
+}

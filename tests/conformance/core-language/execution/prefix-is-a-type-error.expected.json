@@ -1,0 +1,35 @@
+{
+  "description": "Unlike the worded `is a <type-word>` (whose type word is grammar-checked at parse time), the prefix `is_a?` evaluates its second argument dynamically: a non-word type argument raises `ol-type` naming the expected concept \"word\" (spec/commands.md:691-705, error-model.md `ol-type`). Execution halts, so only the `instruction` event is kept. Issue #99.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/prefix-is-a-type-error",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "core-language/execution/prefix-is-a-type-error",
+        "start": [1, 15],
+        "end": [1, 16]
+      },
+      "params": {
+        "expected": "word",
+        "actual": "number",
+        "value": 6,
+        "operation": "is_a?"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}
