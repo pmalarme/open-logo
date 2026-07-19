@@ -22,7 +22,10 @@
 
 import type {
   Diagnostic,
+  DrawSegmentPayload,
+  MovePayload,
   OLValue,
+  Point,
   PrintPayload,
   ProcedureEnterPayload,
   ProcedureExitPayload,
@@ -42,6 +45,7 @@ import { parse, walk } from "@openlogo/parser";
 import {
   bindElement,
   checkExecutionLimits,
+  createDefaultTurtleState,
   evaluate,
   executeAssign,
   findDuplicateBinderName,
@@ -78,6 +82,153 @@ function isPrintCall(
     (statement.kind === "Call" || statement.kind === "ParenCall") &&
     statement.callee.name.toLowerCase() === "print"
   );
+}
+
+/**
+ * Is `statement` a call to `forward`/`back` (issue #200, Core Turtle movement — the Heritage
+ * `fd`/`bk` aliases are a separate M5 slice)? Accepts both the plain infix `Call` form
+ * (`forward 100`) and the explicit-parentheses `ParenCall` form (`(forward 100)`). A plain
+ * `boolean` — not a `statement is CallNode | ParenCallNode` type predicate — matching
+ * {@link isProcedureCallStatement}'s convention rather than {@link isPrintCall}'s: `execute-
+ * Statements` already narrowed `statement` away from `CallNode | ParenCallNode` entirely once
+ * `isPrintCall`'s (unsound, since it covers only `print`) type predicate's negative branch was
+ * taken above, so a second full type-predicate guard over the same node kinds would narrow to
+ * `never` here instead. The call site casts back to `CallNode | ParenCallNode` explicitly, same
+ * as {@link isProcedureCallStatement}'s caller does.
+ */
+function isTurtleMoveCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  const name = statement.callee.name.toLowerCase();
+  return name === "forward" || name === "back";
+}
+
+/**
+ * Move the turtle `distance` units along its current heading and emit the `move`/`draw-segment`
+ * effect-event pair `spec/execution-model.md:592-593` requires — a `move` reporting the position
+ * change and heading, followed by a `draw-segment` reporting the same endpoints plus the pen
+ * color/width active at the moment the segment is created (`spec/rendering.md`'s "Line segments"
+ * section). `distance` is negative for `back` (`back n` == `forward -n`,
+ * `spec/commands.md:1215`), positive for `forward`.
+ *
+ * Movement math is `spec/execution-model.md:545-546`'s `(x + d·sin h, y + d·cos h)`: heading `0`
+ * points up (`+y`), and `right` turns clockwise, so increasing heading rotates the direction of
+ * travel clockwise from up — exactly what `Math.sin`/`Math.cos` of a heading measured clockwise
+ * from the `+y` axis produce once converted from degrees to radians.
+ *
+ * This slice's turtle is always pen-down (pen mutability is issue #206), so a `draw-segment` is
+ * always emitted alongside `move` here; the future pen-up branch (move with no draw-segment) is
+ * added once `pen_up`/`pen_down` exist to actually reach it.
+ */
+function moveTurtle(
+  env: Environment,
+  distance: number,
+  source_span: SourceSpan,
+): void {
+  const { turtle } = env;
+  const heading = turtle.heading;
+  const radians = (heading * Math.PI) / 180;
+  const from: Point = [turtle.x, turtle.y];
+  const to: Point = [
+    turtle.x + distance * Math.sin(radians),
+    turtle.y + distance * Math.cos(radians),
+  ];
+  turtle.x = to[0];
+  turtle.y = to[1];
+  env.events.push({
+    seq: env.events.length,
+    kind: "move",
+    source_span,
+    payload: { from, to, heading } satisfies MovePayload,
+  });
+  env.events.push({
+    seq: env.events.length,
+    kind: "draw-segment",
+    source_span,
+    payload: {
+      from,
+      to,
+      color: turtle.color,
+      width: turtle.width,
+    } satisfies DrawSegmentPayload,
+  });
+}
+
+/**
+ * Validate and run a `forward`/`back` statement matched by {@link isTurtleMoveCall}: exactly one
+ * numeric argument (`ol-not-enough-inputs`/`ol-too-many-inputs`/`ol-type` otherwise, via
+ * {@link requireNumber}), negated for `back` (`back n` == `forward -n`), then delegated to
+ * {@link moveTurtle}. Returns an {@link ExecSignal} to halt on, or `undefined` for
+ * {@link executeStatements} to `continue` on success (including the "left un-evaluated" case for
+ * an unsupported argument expression, mirroring `print`'s handling).
+ *
+ * Deliberately a separate, non-inlined function rather than inline logic inside
+ * {@link executeStatements}: `executeStatements` recurses (through {@link runProcedureBody} /
+ * {@link runProcedure} / {@link evaluate}'s `callProcedure` callback) once per nested procedure
+ * call, so every local variable declared directly in its body adds to the native stack frame
+ * reserved on *every* recursive level — even for recursion that never touches `forward`/`back`.
+ * Keeping this branch's locals in their own (non-recursive) function keeps `executeStatements`'s
+ * own frame small, which is what lets `execution-budget.test.mjs`'s 1000-deep
+ * `recursionDepthLimit` override actually complete without hitting the real (V8) native stack
+ * limit first.
+ */
+function executeTurtleMoveCall(
+  moveCall: CallNode | ParenCallNode,
+  env: Environment,
+): ExecSignal | undefined {
+  const callableName = moveCall.callee.name;
+  if (moveCall.args.length !== 1) {
+    return halt(
+      moveCall.args.length < 1
+        ? runtimeDiag.notEnoughInputs(
+            moveCall.callee.source_span,
+            callableName,
+            1,
+            moveCall.args.length,
+          )
+        : runtimeDiag.tooManyInputs(
+            moveCall.callee.source_span,
+            callableName,
+            1,
+            moveCall.args.length,
+          ),
+    );
+  }
+  const [arg] = moveCall.args as [ExpressionNode];
+  if (!isSupportedExpression(arg, env.procedures)) {
+    return undefined;
+  }
+  const argResult = evaluate(arg, env);
+  if (!argResult.ok) {
+    return halt(argResult.diagnostic);
+  }
+  const distance = requireNumber(
+    argResult.value,
+    arg.source_span,
+    callableName.toLowerCase(),
+  );
+  if (!distance.ok) {
+    return halt(distance.diagnostic);
+  }
+  if (!Number.isFinite(distance.value)) {
+    // `requireNumber` accepts `Infinity`/`-Infinity` (reachable via arithmetic overflow, e.g.
+    // `power 10 1000` — see `comparison-equality.test.mjs`), but `moveTurtle`'s `d·sin h`/`d·cos h`
+    // can turn that into `NaN` whenever `sin`/`cos` of the heading is exactly `0` (IEEE 754
+    // `0 * Infinity` is `NaN`), silently corrupting the emitted position instead of raising a
+    // diagnostic (`spec/execution-model.md:517` — "OpenLogo never exposes NaN or Infinity as
+    // learner-facing results").
+    return halt(
+      runtimeDiag.nonFiniteDistance(arg.source_span, {
+        operation: callableName.toLowerCase() as "forward" | "back",
+        value: String(distance.value),
+      }),
+    );
+  }
+  const signedDistance =
+    callableName.toLowerCase() === "back" ? -distance.value : distance.value;
+  moveTurtle(env, signedDistance, moveCall.source_span);
+  return undefined;
 }
 
 /**
@@ -591,6 +742,17 @@ function executeStatements(
       continue;
     }
 
+    if (isTurtleMoveCall(statement)) {
+      const outcome = executeTurtleMoveCall(
+        statement as unknown as CallNode | ParenCallNode,
+        env,
+      );
+      if (outcome) {
+        return outcome;
+      }
+      continue;
+    }
+
     if (statement.kind === "Return") {
       if (!isSupportedExpression(statement.value, env.procedures)) {
         continue;
@@ -953,6 +1115,7 @@ function createExecutionEnvironment(
     ),
     instructionCount: { count: 0 },
     signal: options?.signal,
+    turtle: createDefaultTurtleState(),
     callProcedure: callProcedureAsValue,
   };
 }

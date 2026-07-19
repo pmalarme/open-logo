@@ -154,10 +154,41 @@ export interface Environment {
   readonly instructionBudget: number;
   readonly instructionCount: { count: number };
   readonly signal?: CancellationSignal;
+  readonly turtle: TurtleState;
   readonly callProcedure: (
     node: CallNode | ParenCallNode,
     env: Environment,
   ) => EvalResult;
+}
+
+/**
+ * The turtle's mutable runtime state — position, heading, and the pen/rendering attributes a
+ * `draw-segment` event captures at the moment it is emitted (`spec/rendering.md`'s "Line
+ * segments" section: "each segment captures the pen color and pen width active when the segment
+ * is created"). A single mutable object (like {@link Environment.repeatTurns}/`callDepth`) rather
+ * than reassigned `Environment` fields, since every recursive `executeStatements`/`evaluate` call
+ * shares the very same `Environment` and must observe the same turtle. Issue #200 (`forward`/
+ * `back`) only ever reads `heading`/`penDown`/`color`/`width` and writes `x`/`y`; pen mutability
+ * (`pen_up`/`pen_down`, issue #206), turning (issue #201), and color/width (issues #208/#209) each
+ * add their own statement handling that mutates the remaining fields.
+ */
+export interface TurtleState {
+  x: number;
+  y: number;
+  heading: number;
+  penDown: boolean;
+  color: string;
+  width: number;
+}
+
+/**
+ * The turtle's state at program start (`spec/rendering.md:78`, `spec/commands.md:1189`):
+ * position `(0,0)`, heading `0`, pen down, color `"black"`, width `1`. Exported so
+ * `execute-internal.ts`'s `createExecutionEnvironment` (the environment a real `execute()` call
+ * runs against) builds the same defaults as this module's own bare `createEnvironment()`.
+ */
+export function createDefaultTurtleState(): TurtleState {
+  return { x: 0, y: 0, heading: 0, penDown: true, color: "black", width: 1 };
 }
 
 /** The empty registry shared by every environment that has no user procedures to call. */
@@ -186,6 +217,7 @@ export function createEnvironment(): Environment {
     recursionDepthLimit: Number.POSITIVE_INFINITY,
     instructionBudget: Number.POSITIVE_INFINITY,
     instructionCount: { count: 0 },
+    turtle: createDefaultTurtleState(),
     callProcedure: () => {
       throw new Error(
         "callProcedure is unreachable on a bare createEnvironment() — it has no procedures",
