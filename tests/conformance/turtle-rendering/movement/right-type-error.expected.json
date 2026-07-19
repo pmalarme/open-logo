@@ -1,0 +1,35 @@
+{
+  "description": "issue #201: a non-number `right` argument raises `ol-type` (expected concept \"number\") instead of turning the turtle — spec/error-model.md's stable ol-* diagnostic contract, reusing the same `requireNumber` builder forward/back already uses.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/movement/right-type-error",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "turtle-rendering/movement/right-type-error",
+        "start": [1, 7],
+        "end": [1, 12]
+      },
+      "params": {
+        "expected": "number",
+        "actual": "word",
+        "value": "abc",
+        "operation": "right"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}
