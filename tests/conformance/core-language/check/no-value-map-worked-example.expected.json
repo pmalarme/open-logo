@@ -1,0 +1,19 @@
+{
+  "description": "ol-no-value (issue #114): reproduces the spec's own worked example verbatim (spec/tooling.md:220-228) — `:doubled = map num in :nums [ print :num ]`. The comprehension body's final (only) statement is the Core command `print`, which produces no value, so the `map` cannot yield an element per iteration. `params` carry `form:\"map\"`. The span covers the whole comprehension (head keyword through body block). `:nums` is declared first to isolate the code.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-no-value",
+      "source_span": {
+        "document": "core-language/check/no-value-map-worked-example",
+        "start": [2, 12],
+        "end": [4, 2]
+      },
+      "params": { "form": "map" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

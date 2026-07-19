@@ -1,0 +1,7 @@
+{
+  "description": "ol-duplicate-binder clean case (issue #114): a destructuring `for … in` pattern whose names are all distinct (`for [:x :y] in …`) produces no diagnostic. This is the positive-clean pair for the `destructuring` form of ol-duplicate-binder. `:pairs` is declared first so no `ol-undefined-var` fires.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

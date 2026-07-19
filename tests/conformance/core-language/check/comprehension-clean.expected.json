@@ -1,0 +1,7 @@
+{
+  "description": "ol-no-value / ol-return-in-comprehension clean case (issue #114): `map`/`filter`/`reduce` comprehensions whose bodies end in a value-producing expression, with no `return`/`stop` escape, produce no control-flow diagnostics. The `reduce` uses distinct accumulator and item binders, so this is also the clean pair for the `reduce` form of ol-duplicate-binder. `:nums` is declared first so no `ol-undefined-var` fires.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

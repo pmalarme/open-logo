@@ -1,0 +1,19 @@
+{
+  "description": "ol-duplicate-binder (issue #114): a `reduce` that reuses one name for both its accumulator and its item binder (`reduce sum sum in …`) binds the same name twice in one construct. `params` carry the repeated `name` and `form:\"reduce\"`. The span points at the second (item) binder occurrence. `:nums` is declared first to isolate the code.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-duplicate-binder",
+      "source_span": {
+        "document": "core-language/check/duplicate-binder-reduce",
+        "start": [2, 21],
+        "end": [2, 24]
+      },
+      "params": { "name": "sum", "form": "reduce" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

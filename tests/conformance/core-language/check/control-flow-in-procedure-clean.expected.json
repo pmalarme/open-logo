@@ -1,0 +1,7 @@
+{
+  "description": "ol-return-outside-proc / ol-stop-outside-proc clean case (issue #114): `return` and `stop` placed correctly inside `define … end` procedure bodies produce no control-flow diagnostics. This is the positive-clean pair for the two escape-outside-proc codes.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

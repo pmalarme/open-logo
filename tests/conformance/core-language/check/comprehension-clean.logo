@@ -1,0 +1,4 @@
+:nums = [1 2 3]
+:doubled = map n in :nums [ :n * 2 ]
+:evens = filter n in :nums [ :n ]
+:total = reduce acc n in :nums from 0 [ :acc ]

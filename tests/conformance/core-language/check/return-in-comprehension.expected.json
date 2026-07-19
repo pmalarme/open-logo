@@ -1,0 +1,19 @@
+{
+  "description": "ol-return-in-comprehension (issue #114): a `return` inside a `map` comprehension body is a semantic error and is reported with this code (not `ol-return-outside-proc`), because a comprehension body is not a procedure body even when nested in one. `params` carry the offending keyword and the enclosing comprehension `form`. The span points at the `return` control word. `:nums` is declared first so only the control-flow code fires.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-return-in-comprehension",
+      "source_span": {
+        "document": "core-language/check/return-in-comprehension",
+        "start": [2, 29],
+        "end": [2, 35]
+      },
+      "params": { "keyword": "return", "form": "map" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+define greet
+  return 5
+end
+define halt
+  stop
+end

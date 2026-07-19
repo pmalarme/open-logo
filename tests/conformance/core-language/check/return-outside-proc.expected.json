@@ -1,0 +1,19 @@
+{
+  "description": "ol-return-outside-proc (issue #114): a `return` statement at top level, outside any `define … end` procedure body, is a semantic error. The span points at the `return` control word itself (half-open, six columns). Identity only — code + span + params + stage + severity, never `message`.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-return-outside-proc",
+      "source_span": {
+        "document": "core-language/check/return-outside-proc",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "params": { "keyword": "return" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}
