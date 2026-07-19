@@ -21,6 +21,7 @@
  */
 
 import type {
+  ClearPayload,
   Diagnostic,
   DrawSegmentPayload,
   MovePayload,
@@ -506,6 +507,82 @@ function executeTurtleVisibilityCall(
 }
 
 /**
+ * Is `statement` a call to `clear_screen`/`clean` (issue #204, Core drawing/turtle reset — the
+ * Heritage `cs` alias is a separate M5 slice, deliberately left unregistered so it still raises
+ * `ol-unknown-command` at this milestone). Same shape/convention as {@link isTurtleVisibilityCall}.
+ */
+function isTurtleClearCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  const name = statement.callee.name.toLowerCase();
+  return name === "clear_screen" || name === "clean";
+}
+
+/**
+ * Clear the drawing and, for `clear_screen` only, silently home the turtle's position and
+ * heading — emitting exactly one `clear` event (`spec/rendering.md`'s "Clear operations" table:
+ * `clean` clears drawing only, `clear_screen` clears drawing and homes position+heading; both
+ * leave pen state, color, width, visibility, and background unchanged).
+ *
+ * `clear_screen`'s homing is deliberately a *silent* internal state reset — no `move`/`turn`
+ * event fires alongside it. `@openlogo/turtle`'s scene/state reducers (issues #211/#213, already
+ * merged) fold a `clear{mode:"clear_screen"}` event into a position/heading reset themselves, so
+ * emitting `move`/`turn` here as well would double-home the reducer's turtle state. This mirrors
+ * how {@link setVisibility}/{@link setPen} emit only their own single event, not a compound one.
+ */
+function clearScreen(
+  env: Environment,
+  mode: "clear_screen" | "clean",
+  source_span: SourceSpan,
+): void {
+  const { turtle } = env;
+  if (mode === "clear_screen") {
+    turtle.x = 0;
+    turtle.y = 0;
+    turtle.heading = 0;
+  }
+  env.events.push({
+    seq: env.events.length,
+    kind: "clear",
+    source_span,
+    payload: { mode } satisfies ClearPayload,
+  });
+}
+
+/**
+ * Validate and run a `clear_screen`/`clean` statement matched by {@link isTurtleClearCall}:
+ * exactly zero arguments (`ol-too-many-inputs` otherwise), then delegated to
+ * {@link clearScreen}. Returns an {@link ExecSignal} to halt on, or `undefined` for
+ * {@link executeStatements} to `continue` on success.
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeTurtleClearCall(
+  clearCall: CallNode | ParenCallNode,
+  env: Environment,
+): ExecSignal | undefined {
+  const callableName = clearCall.callee.name;
+  if (clearCall.args.length !== 0) {
+    return halt(
+      runtimeDiag.tooManyInputs(
+        clearCall.callee.source_span,
+        callableName,
+        0,
+        clearCall.args.length,
+      ),
+    );
+  }
+  clearScreen(
+    env,
+    callableName.toLowerCase() === "clear_screen" ? "clear_screen" : "clean",
+    clearCall.source_span,
+  );
+  return undefined;
+}
+
+/**
  * Is `statement` a call to `home`/`set_xy` or `set_xy`'s Turtle & Rendering-profile alias `setxy`
  * (issue #202, Core absolute positioning; `spec/commands.md:1279`). Unlike `forward`'s `fd`,
  * `setxy`/`seth` are **not** Heritage — `spec/conformance.md:105-117`'s Heritage short-alias list
@@ -813,6 +890,12 @@ function dispatchTurtleCommand(
   }
   if (isTurtleVisibilityCall(statement)) {
     return executeTurtleVisibilityCall(
+      statement as unknown as CallNode | ParenCallNode,
+      env,
+    );
+  }
+  if (isTurtleClearCall(statement)) {
+    return executeTurtleClearCall(
       statement as unknown as CallNode | ParenCallNode,
       env,
     );

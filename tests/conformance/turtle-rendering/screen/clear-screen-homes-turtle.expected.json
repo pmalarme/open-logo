@@ -1,0 +1,108 @@
+{
+  "description": "issue #204: `clear_screen` clears the drawing and silently homes the turtle's position and heading to (0,0)/0 - emitting exactly one `clear{mode:\"clear_screen\"}` event (no separate `move`/`turn` for the homing; the turtle/scene reducer folds that in itself, spec/rendering.md's \"Clear operations\" table). A following `forward` proves the internal home by drawing from the origin at heading 0.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/screen/clear-screen-homes-turtle",
+        "start": [1, 1],
+        "end": [1, 11]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "move",
+      "source_span": {
+        "document": "turtle-rendering/screen/clear-screen-homes-turtle",
+        "start": [1, 1],
+        "end": [1, 11]
+      },
+      "payload": { "from": [0, 0], "to": [0, 30], "heading": 0 }
+    },
+    {
+      "seq": 2,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "turtle-rendering/screen/clear-screen-homes-turtle",
+        "start": [1, 1],
+        "end": [1, 11]
+      },
+      "payload": { "from": [0, 0], "to": [0, 30], "color": "black", "width": 1 }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/screen/clear-screen-homes-turtle",
+        "start": [2, 1],
+        "end": [2, 9]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 4,
+      "kind": "turn",
+      "source_span": {
+        "document": "turtle-rendering/screen/clear-screen-homes-turtle",
+        "start": [2, 1],
+        "end": [2, 9]
+      },
+      "payload": { "from": 0, "to": 90 }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/screen/clear-screen-homes-turtle",
+        "start": [3, 1],
+        "end": [3, 13]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 6,
+      "kind": "clear",
+      "source_span": {
+        "document": "turtle-rendering/screen/clear-screen-homes-turtle",
+        "start": [3, 1],
+        "end": [3, 13]
+      },
+      "payload": { "mode": "clear_screen" }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/screen/clear-screen-homes-turtle",
+        "start": [4, 1],
+        "end": [4, 11]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 8,
+      "kind": "move",
+      "source_span": {
+        "document": "turtle-rendering/screen/clear-screen-homes-turtle",
+        "start": [4, 1],
+        "end": [4, 11]
+      },
+      "payload": { "from": [0, 0], "to": [0, 50], "heading": 0 }
+    },
+    {
+      "seq": 9,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "turtle-rendering/screen/clear-screen-homes-turtle",
+        "start": [4, 1],
+        "end": [4, 11]
+      },
+      "payload": { "from": [0, 0], "to": [0, 50], "color": "black", "width": 1 }
+    }
+  ],
+  "diagnostics": []
+}
