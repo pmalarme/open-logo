@@ -7,15 +7,16 @@ moving on screen. Our example for this trip is the classic square:
 repeat 4 [ forward 100 right 90 ]
 ```
 
-That one line passes through five little "machines" inside OpenLogo, one after another:
+That one line passes through four little "machines" inside OpenLogo, one after another — plus one
+optional helper that can look over the tree without running it:
 
 ```mermaid
 flowchart LR
   A["📝 Your text<br/>repeat 4 [ forward 100 right 90 ]"] --> B["🔤 Lexer<br/>chops it into tokens"]
   B --> C["🌳 Reader<br/>builds a tree (the AST)"]
-  C --> F["🔍 Checker<br/>double-checks the tree"]
-  F --> D["🏃 Interpreter<br/>walks the tree, one step at a time"]
+  C --> D["🏃 Interpreter<br/>walks the tree, one step at a time"]
   D --> E["🐢 Turtle<br/>moves and draws"]
+  C -.->|"🔍 optional: check<br/>before you run"| F["Checker"]
 ```
 
 Here's what each machine does, in plain words:
@@ -29,17 +30,18 @@ Here's what each machine does, in plain words:
    reader nests blocks and instructions inside each other, the way a table of contents nests
    chapters inside a book. This tree has a real name: the **AST** (Abstract Syntax Tree). `forward
    100` becomes one instruction: "move forward, and the amount is 100."
-3. **The checker** looks over the finished tree before anything runs, the same way a teacher
-   checks your outline before you start writing — catching mistakes early and kindly.
-4. **The interpreter** walks the tree branch by branch and actually *does* what each part says.
+3. **The interpreter** walks the tree branch by branch and actually *does* what each part says.
    Think of it like a cook following a recipe: it reads one step, does exactly that step, then
-   moves to the next — never skipping ahead.
-5. The engine underneath that keeps track of everything while the interpreter works — where the
-   turtle is, what's been drawn so far — is called the **runtime**. It's like the kitchen itself:
-   the counters, the pans, the state of everything the cook is using.
+   moves to the next — never skipping ahead. The engine underneath that keeps track of everything
+   while the interpreter works — where the turtle is, what's been drawn so far — is called the
+   **runtime**. It's like the kitchen itself: the counters, the pans, the state of everything the
+   cook is using.
+4. Only once the interpreter reaches a turtle instruction does the **turtle** actually move and
+   draw a line.
 
-Only once the interpreter reaches a turtle instruction does the **turtle** actually move and draw
-a line.
+Off to the side, the **checker** can look over the tree on its own, without running it — the same
+way a teacher looks over your outline before you start writing. It's a separate helper, not a
+required gate: your code can run without ever asking the checker first.
 
 ## What's real today
 

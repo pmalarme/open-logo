@@ -10,9 +10,9 @@ played with turtle commands already.
 flowchart LR
   A["📝 Your text<br/>repeat 4 [ forward 100 right 90 ]"] --> B["🔤 Lexer<br/>chops it into tokens"]
   B --> C["🌳 Reader<br/>builds a tree (the AST)"]
-  C --> F["🔍 Checker<br/>double-checks the tree"]
-  F --> D["🏃 Interpreter<br/>walks the tree, one step at a time"]
+  C --> D["🏃 Interpreter<br/>walks the tree, one step at a time"]
   D --> E["🐢 Turtle<br/>moves and draws"]
+  C -.->|"🔍 optional: check<br/>before you run"| F["Checker"]
 ```
 
 Every page in this series zooms into one of those boxes and shows you exactly how it works, using
