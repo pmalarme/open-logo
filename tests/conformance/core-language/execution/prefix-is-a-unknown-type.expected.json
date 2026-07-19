@@ -1,0 +1,30 @@
+{
+  "description": "`is_a?`'s type argument evaluates to a word that is not a recognized Core type, raising `ol-unknown-type` naming the word — the same code+params as the worded form's rule, at stage=runtime since `execute()` never runs `check()` (issues #94/#104/#114 convention) (spec/commands.md:691-705, error-model.md `ol-unknown-type`). Execution halts, so only the `instruction` event is kept. Issue #99.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/prefix-is-a-unknown-type",
+        "start": [1, 1],
+        "end": [1, 23]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-type",
+      "source_span": {
+        "document": "core-language/execution/prefix-is-a-unknown-type",
+        "start": [1, 15],
+        "end": [1, 23]
+      },
+      "params": { "name": "banana" },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

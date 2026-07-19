@@ -40,12 +40,14 @@ import type {
   ComparisonChainNode,
   ComprehensionNode,
   ExpressionNode,
+  IsPredicateNode,
   ParenCallNode,
   PlaceNode,
   ProcedureDefNode,
   SelectorSegment,
   SpannedName,
   StatementNode,
+  WordLitNode,
 } from "@openlogo/parser";
 import { runtimeDiag } from "./errors.js";
 
@@ -516,7 +518,11 @@ function isLogicalOperator(name: string): name is LogicalOperator {
  * in scope when its `iterable` (and, for `reduce`, its `initial`) and every body statement are
  * themselves supported (see {@link isSupportedComprehensionBody}) — a comprehension whose body
  * uses a not-yet-implemented expression kind is left wholly unevaluated, same as any other
- * unsupported node, rather than raising a misleading `ol-no-value`.
+ * unsupported node, rather than raising a misleading `ol-no-value`. As of issue #99 an
+ * {@link IsPredicateNode} is in scope when its `operand` (and, per `test.form`, its `collection`
+ * or `low`/`high`) are themselves supported — `test.form === "a"`'s type word is a parse-time
+ * literal, never evaluated, so it needs no check of its own — and the prefix `empty?`/`member?`/
+ * `is_a?` callees join the known-callee list above.
  */
 export function isSupportedExpression(
   node: ExpressionNode,
@@ -538,6 +544,8 @@ export function isSupportedExpression(
       );
     case "Place":
       return isSupportedPlace(node, procedures);
+    case "IsPredicate":
+      return isSupportedIsPredicate(node, procedures);
     case "Call":
     case "ParenCall": {
       const name = node.callee.name.toLowerCase();
@@ -550,6 +558,9 @@ export function isSupportedExpression(
         name === "not" ||
         name === "thing" ||
         name === "repcount" ||
+        name === "empty?" ||
+        name === "member?" ||
+        name === "is_a?" ||
         procedures.has(name);
       return (
         isKnownCallee &&
@@ -563,8 +574,6 @@ export function isSupportedExpression(
           isSupportedExpression(node.initial, procedures)) &&
         isSupportedComprehensionBody(node.body, procedures)
       );
-    default:
-      return false;
   }
 }
 
@@ -583,6 +592,33 @@ function isSupportedPlace(
       segment.kind === "index" &&
       isSupportedExpression(segment.key, procedures),
   );
+}
+
+/**
+ * Is an {@link IsPredicateNode} in scope? Its `operand` must always be supported; per
+ * `test.form`, `member-of`'s `collection` and `between`'s `low`/`high` must be too — `empty`
+ * takes no sub-expression, and `a`'s type word is a parse-time literal, never evaluated, so it
+ * needs no check of its own (issue #99).
+ */
+function isSupportedIsPredicate(
+  node: IsPredicateNode,
+  procedures: ProcedureRegistry = EMPTY_PROCEDURES,
+): boolean {
+  if (!isSupportedExpression(node.operand, procedures)) {
+    return false;
+  }
+  switch (node.test.form) {
+    case "empty":
+    case "a":
+      return true;
+    case "member-of":
+      return isSupportedExpression(node.test.collection, procedures);
+    case "between":
+      return (
+        isSupportedExpression(node.test.low, procedures) &&
+        isSupportedExpression(node.test.high, procedures)
+      );
+  }
 }
 
 /** Evaluate one Core expression node to a runtime {@link OLValue}. */
@@ -622,12 +658,8 @@ export function evaluate(
       return evaluateComparisonChain(node, env);
     case "Comprehension":
       return evaluateComprehension(node, env);
-    default:
-      // IsPredicate evaluation lands with its own future slice; nothing in this issue's scope
-      // reaches it.
-      throw new Error(
-        `evaluate: "${node.kind}" is not implemented yet — it lands with its own evaluator slice`,
-      );
+    case "IsPredicate":
+      return evaluateIsPredicate(node, env);
   }
 }
 
@@ -906,6 +938,15 @@ function evaluateCall(node: ArithmeticCallNode, env: Environment): EvalResult {
   }
   if (name === "repcount") {
     return evaluateRepcount(node, env);
+  }
+  if (name === "empty?") {
+    return evaluatePrefixEmpty(node, env);
+  }
+  if (name === "member?") {
+    return evaluatePrefixMember(node, env);
+  }
+  if (name === "is_a?") {
+    return evaluatePrefixIsA(node, env);
   }
   if (env.procedures.has(name)) {
     return env.callProcedure(node, env);
@@ -1445,6 +1486,323 @@ function evaluateComparisonChain(
     left = right;
   }
   return ok(true);
+}
+
+// --- is-predicates: worded `is ...` and prefix `?`-predicates (spec/execution-model.md:146-166,
+// issue #99) ------------------------------------------------------------------------------------
+//
+// `<value> is empty`/`is member of <collection>`/`is a <type-word>`/`is [ strictly ] between <low>
+// and <high>` are the worded forms; `empty?`/`member?`/`is_a?` (ordinary `Call`s dispatched from
+// {@link evaluateCall}) are their prefix equivalents (`spec/execution-model.md:153`). The worded
+// `is a <type-word>` form's type word is a parse-time literal (`IsTest`'s `{form:"a"}` carries a
+// `WordLitNode`, never evaluated), so at runtime it can only be an *unknown* type name
+// (`ol-unknown-type`) — never a wrong-typed value (`ol-type` is structurally unreachable for this
+// form). The prefix `is_a? value type` form's `type` is an ordinary, dynamically evaluated call
+// argument, so it can raise *both* `ol-type` (the argument isn't a word at all) and
+// `ol-unknown-type` (it is a word, but not a recognized type name) — two distinct code paths
+// ({@link evaluateIsAWorded} vs. {@link evaluateIsAValue}), matching the semantic checker's own
+// distinction (`packages/parser/src/checker-type-field.ts`).
+
+/**
+ * Core's built-in type words `is a`/`is_a?` recognize (`spec/execution-model.md:161-166`) — the
+ * runtime's own copy of the semantic checker's `CORE_TYPE_WORDS`
+ * (`packages/parser/src/checker-type-field.ts`, issue #112), kept in sync by hand since it is not
+ * part of `@openlogo/parser`'s public surface (`checker-type-field.ts` is not re-exported from
+ * `index.ts`). Case-sensitive, matching the checker: `is a "number"` resolves, `is a "Number"`
+ * does not (both are "unknown", not a type mismatch). Data-profile words (`dict`, `record`) are
+ * deferred exactly as the checker defers them — {@link OLValue} has no way to construct one yet.
+ */
+const CORE_IS_A_TYPE_WORDS: ReadonlySet<string> = new Set([
+  "number",
+  "word",
+  "list",
+  "boolean",
+]);
+
+/** Is `value` one of the types `is empty`/`empty?` accepts: a list or a word (dict is deferred). */
+function isEmptyableValue(
+  value: OLValue,
+): value is string | readonly OLValue[] {
+  return typeof value === "string" || Array.isArray(value);
+}
+
+/**
+ * `is empty`/`empty?`: `true` when a list/word operand has no elements/characters
+ * (`spec/execution-model.md:160` — accepts lists, dicts, and words; dict is deferred, see
+ * {@link CORE_IS_A_TYPE_WORDS}'s doc comment). Any other type raises `ol-type`.
+ */
+function evaluateIsEmptyValue(
+  value: OLValue,
+  span: SourceSpan,
+  operation: "is empty" | "empty?",
+): EvalResult {
+  if (!isEmptyableValue(value)) {
+    return fail(
+      runtimeDiag.isPredicateType(span, {
+        expected: "list or word",
+        actual: typeNameOf(value),
+        value,
+        operation,
+      }),
+    );
+  }
+  return ok(value.length === 0);
+}
+
+/**
+ * `is member of <collection>`/`member? value collection`: `true` when `collection` (a list — dict
+ * is deferred, see {@link CORE_IS_A_TYPE_WORDS}'s doc comment) has an element equal to `value`
+ * (`spec/execution-model.md:161` — `member of` accepts lists and dicts). A non-list `collection`
+ * raises `ol-type`; `value`'s own type is unrestricted, using the same equality
+ * ({@link valuesEqual}) as `==`.
+ */
+function evaluateIsMemberValue(
+  value: OLValue,
+  collection: OLValue,
+  collectionSpan: SourceSpan,
+  operation: "is member of" | "member?",
+): EvalResult {
+  if (!Array.isArray(collection)) {
+    return fail(
+      runtimeDiag.isPredicateType(collectionSpan, {
+        expected: "list",
+        actual: typeNameOf(collection),
+        value: collection,
+        operation,
+      }),
+    );
+  }
+  return ok(collection.some((element) => valuesEqual(value, element)));
+}
+
+/**
+ * `is a <type-word>`: `true` when `value`'s runtime type name equals the parse-time literal
+ * `typeWord`'s value. The word is grammar-checked (`IsTest`'s `{form:"a"}` carries a
+ * `WordLitNode`), so the only runtime-reachable failure is an *unknown* type name —
+ * `ol-unknown-type`, never `ol-type` (`spec/execution-model.md:162-163`).
+ */
+function evaluateIsAWorded(value: OLValue, typeWord: WordLitNode): EvalResult {
+  if (!CORE_IS_A_TYPE_WORDS.has(typeWord.value)) {
+    return fail(runtimeDiag.unknownType(typeWord.source_span, typeWord.value));
+  }
+  return ok(typeNameOf(value) === typeWord.value);
+}
+
+/**
+ * `is_a? value type`: the prefix form's `type` argument is dynamically evaluated
+ * (`spec/execution-model.md:164-166`), so — unlike the worded `is a`'s literal — it can itself be
+ * the wrong type (`ol-type`, when it isn't a word at all) before the unknown-type-name check
+ * ({@link evaluateIsAWorded}'s `ol-unknown-type`) even applies.
+ */
+function evaluateIsAValue(
+  value: OLValue,
+  typeArgument: OLValue,
+  typeArgumentSpan: SourceSpan,
+): EvalResult {
+  if (typeof typeArgument !== "string") {
+    return fail(
+      runtimeDiag.isPredicateType(typeArgumentSpan, {
+        expected: "word",
+        actual: typeNameOf(typeArgument),
+        value: typeArgument,
+        operation: "is_a?",
+      }),
+    );
+  }
+  if (!CORE_IS_A_TYPE_WORDS.has(typeArgument)) {
+    return fail(runtimeDiag.unknownType(typeArgumentSpan, typeArgument));
+  }
+  return ok(typeNameOf(value) === typeArgument);
+}
+
+/**
+ * `is [ strictly ] between <low> and <high>`: inclusive by default, exclusive with `strictly`
+ * (`spec/execution-model.md:151-152,159`). Reuses the exact number/word ordering primitives `< >
+ * <= >=` use ({@link numberOrdering}, {@link compareWords}, {@link orderingHolds}) rather than
+ * forking a second comparison implementation, but — unlike calling {@link evaluateOrdering}
+ * directly — reports every type mismatch with `operation: "between"` (not an ordering-operator
+ * symbol), since that is the predicate the learner actually wrote. `value` must be a number or a
+ * word (else `ol-type`, naming `"number or word"`); `low`/`high` must then match `value`'s own
+ * type (else `ol-type` naming it specifically).
+ */
+function evaluateBetween(
+  value: OLValue,
+  valueNode: ExpressionNode,
+  low: OLValue,
+  lowNode: ExpressionNode,
+  high: OLValue,
+  highNode: ExpressionNode,
+  strict: boolean,
+): EvalResult {
+  if (typeof value !== "number" && typeof value !== "string") {
+    return fail(
+      runtimeDiag.orderingType(valueNode.source_span, {
+        expected: "number or word",
+        actual: typeNameOf(value),
+        value,
+        operation: "between",
+      }),
+    );
+  }
+  const isNumber = typeof value === "number";
+  const boundKind = isNumber ? "number" : "word";
+  if (typeof low !== (isNumber ? "number" : "string")) {
+    return fail(
+      runtimeDiag.orderingType(lowNode.source_span, {
+        expected: boundKind,
+        actual: typeNameOf(low),
+        value: low,
+        operation: "between",
+      }),
+    );
+  }
+  if (typeof high !== (isNumber ? "number" : "string")) {
+    return fail(
+      runtimeDiag.orderingType(highNode.source_span, {
+        expected: boundKind,
+        actual: typeNameOf(high),
+        value: high,
+        operation: "between",
+      }),
+    );
+  }
+
+  const geLow = isNumber
+    ? numberOrdering(strict ? ">" : ">=", value as number, low as number)
+    : orderingHolds(
+        strict ? ">" : ">=",
+        compareWords(value as string, low as string),
+      );
+  if (!geLow) {
+    return ok(false);
+  }
+  const leHigh = isNumber
+    ? numberOrdering(strict ? "<" : "<=", value as number, high as number)
+    : orderingHolds(
+        strict ? "<" : "<=",
+        compareWords(value as string, high as string),
+      );
+  return ok(leHigh);
+}
+
+/** Evaluate a worded `<operand> is ...` predicate (all four {@link IsTest} forms). */
+function evaluateIsPredicate(
+  node: IsPredicateNode,
+  env: Environment,
+): EvalResult {
+  const operandResult = evaluate(node.operand, env);
+  if (!operandResult.ok) {
+    return operandResult;
+  }
+  const value = operandResult.value;
+  const test = node.test;
+
+  switch (test.form) {
+    case "empty":
+      return evaluateIsEmptyValue(value, node.operand.source_span, "is empty");
+    case "member-of": {
+      const collectionResult = evaluate(test.collection, env);
+      if (!collectionResult.ok) {
+        return collectionResult;
+      }
+      return evaluateIsMemberValue(
+        value,
+        collectionResult.value,
+        test.collection.source_span,
+        "is member of",
+      );
+    }
+    case "a":
+      return evaluateIsAWorded(value, test.type);
+    case "between": {
+      const lowResult = evaluate(test.low, env);
+      if (!lowResult.ok) {
+        return lowResult;
+      }
+      const highResult = evaluate(test.high, env);
+      if (!highResult.ok) {
+        return highResult;
+      }
+      return evaluateBetween(
+        value,
+        node.operand,
+        lowResult.value,
+        test.low,
+        highResult.value,
+        test.high,
+        test.strict,
+      );
+    }
+  }
+}
+
+/** `empty? value` — the prefix equivalent of `<value> is empty` (`spec/commands.md:655-669`). */
+function evaluatePrefixEmpty(
+  node: ArithmeticCallNode,
+  env: Environment,
+): EvalResult {
+  const operandNode = arg(node, 0);
+  const operandResult = evaluate(operandNode, env);
+  if (!operandResult.ok) {
+    return operandResult;
+  }
+  return evaluateIsEmptyValue(
+    operandResult.value,
+    operandNode.source_span,
+    "empty?",
+  );
+}
+
+/**
+ * `member? value collection` — the prefix equivalent of `<value> is member of <collection>`
+ * (`spec/commands.md:673-687`).
+ */
+function evaluatePrefixMember(
+  node: ArithmeticCallNode,
+  env: Environment,
+): EvalResult {
+  const valueNode = arg(node, 0);
+  const collectionNode = arg(node, 1);
+  const valueResult = evaluate(valueNode, env);
+  if (!valueResult.ok) {
+    return valueResult;
+  }
+  const collectionResult = evaluate(collectionNode, env);
+  if (!collectionResult.ok) {
+    return collectionResult;
+  }
+  return evaluateIsMemberValue(
+    valueResult.value,
+    collectionResult.value,
+    collectionNode.source_span,
+    "member?",
+  );
+}
+
+/**
+ * `is_a? value type` — the prefix equivalent of `<value> is a <type-word>`
+ * (`spec/commands.md:691-705`), whose `type` argument is dynamically evaluated
+ * (see {@link evaluateIsAValue}).
+ */
+function evaluatePrefixIsA(
+  node: ArithmeticCallNode,
+  env: Environment,
+): EvalResult {
+  const valueNode = arg(node, 0);
+  const typeNode = arg(node, 1);
+  const valueResult = evaluate(valueNode, env);
+  if (!valueResult.ok) {
+    return valueResult;
+  }
+  const typeResult = evaluate(typeNode, env);
+  if (!typeResult.ok) {
+    return typeResult;
+  }
+  return evaluateIsAValue(
+    valueResult.value,
+    typeResult.value,
+    typeNode.source_span,
+  );
 }
 
 // --- Comprehensions: map / filter / reduce (spec/execution-model.md:380-479, issue #105) ------

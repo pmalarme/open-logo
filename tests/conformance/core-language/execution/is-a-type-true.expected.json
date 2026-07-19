@@ -1,0 +1,28 @@
+{
+  "description": "The worded is-predicate `<v> is a <type-word>` reports whether the value has the named Core type (spec/execution-model.md:146-166): `5 is a \"number\"` is `true`. The type word is grammar-checked at parse time, so only `ol-unknown-type` (not `ol-type`) is reachable at runtime for this form. Issue #99.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/is-a-type-true",
+        "start": [1, 1],
+        "end": [1, 23]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/is-a-type-true",
+        "start": [1, 1],
+        "end": [1, 23]
+      },
+      "payload": { "values": [true] }
+    }
+  ],
+  "diagnostics": []
+}

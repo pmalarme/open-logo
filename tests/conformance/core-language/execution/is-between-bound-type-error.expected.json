@@ -1,0 +1,35 @@
+{
+  "description": "`between` requires the value and both bounds to be all-number or all-word; mixing a number value with a word low-bound raises `ol-type` naming the mismatched bound's concept \"number\" (spec/execution-model.md:146-166, error-model.md `ol-type`). Execution halts, so only the `instruction` event is kept. Issue #99.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/is-between-bound-type-error",
+        "start": [1, 1],
+        "end": [1, 30]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "core-language/execution/is-between-bound-type-error",
+        "start": [1, 21],
+        "end": [1, 24]
+      },
+      "params": {
+        "expected": "number",
+        "actual": "word",
+        "value": "a",
+        "operation": "between"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

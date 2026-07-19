@@ -1,0 +1,28 @@
+{
+  "description": "`between` also works on words, ordering them lexicographically like `<`/`>` (spec/execution-model.md:146-166, :508-510): `\"b\" is between \"a\" and \"c\"` is `true`. Issue #99.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/is-between-word-true",
+        "start": [1, 1],
+        "end": [1, 34]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/is-between-word-true",
+        "start": [1, 1],
+        "end": [1, 34]
+      },
+      "payload": { "values": [true] }
+    }
+  ],
+  "diagnostics": []
+}

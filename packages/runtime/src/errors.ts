@@ -36,7 +36,11 @@
  * reached inside a comprehension body; and widens `duplicateBinder` to also cover a `reduce`
  * accumulator/item-binder name collision — the runtime's own copies of the semantic checker's
  * rules of the same names (issue #114's `checker-control-flow.ts`), at `stage: "runtime"` since
- * `execute()` never runs `check()`.
+ * `execute()` never runs `check()`. Issue #99 adds the worded `is`-predicate/prefix `?`-predicate
+ * diagnostics: `ol-type` for a wrong-typed `is empty`/`empty?`, `is member of`/`member?`, or
+ * `is_a?` type-argument operand; and `ol-unknown-type` for an unrecognized type word in `is a
+ * <type-word>`/`is_a?` — the runtime's own copy of the checker's `unknownTypeRule` (issue #112's
+ * `checker-type-field.ts`), at `stage: "runtime"` for the same reason as the others above.
  * Mirrors the parser's `errors.ts` pattern: every finding is a stable code from the
  * `@openlogo/core` registry with structured `params` (the diagnostic identity) plus warm,
  * lowercase learner prose derived from them — prose is presentation only.
@@ -190,6 +194,20 @@ export interface NoValueParams {
 export interface ReturnInComprehensionParams {
   readonly keyword: "return" | "output" | "op" | "stop";
   readonly form: "map" | "filter" | "reduce";
+}
+
+/**
+ * Params for an `ol-type` raised by a worded `is`-predicate's or a prefix `?`-predicate's operand
+ * (`spec/execution-model.md:158-166`): `is empty`/`empty?` accepts a list or word, `is member of`/
+ * `member?` accepts a list as the collection, and the prefix `is_a? value type` form's dynamically
+ * evaluated `type` argument must itself be a word. Same shape as {@link OrderingTypeErrorParams}/
+ * {@link PlaceTypeErrorParams} — `operation` names the offending predicate for the message.
+ */
+export interface IsPredicateTypeErrorParams {
+  readonly expected: "list or word" | "list" | "word";
+  readonly actual: string;
+  readonly value: OLValue;
+  readonly operation: string;
 }
 
 /** Runtime-stage diagnostics, one builder per `ol-*` code the evaluator can raise. */
@@ -630,6 +648,42 @@ export const runtimeDiag = {
       source_span,
       { keyword, form },
       `${keyword} doesn't belong in a ${form} — a ${form} reports its last expression instead.`,
+    );
+  },
+
+  /**
+   * `ol-type` for a worded `is`-predicate's/prefix `?`-predicate's wrong-typed operand
+   * (`spec/execution-model.md:158-166`) — see {@link IsPredicateTypeErrorParams}.
+   */
+  isPredicateType(
+    source_span: SourceSpan,
+    params: IsPredicateTypeErrorParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-type",
+      source_span,
+      { ...params },
+      `${params.operation} needs a ${params.expected}, but got a ${params.actual}.`,
+    );
+  },
+
+  /**
+   * `ol-unknown-type`: the runtime's own copy of the semantic checker's `unknownTypeRule`
+   * (`packages/parser/src/checker-type-field.ts`, issue #112) for a type word in **type
+   * position** — the worded `is a <type-word>` form's literal type word (grammar-checked, so at
+   * runtime only an unknown name can occur, never `ol-type`) and the prefix `is_a? value type`
+   * form's type argument once it is confirmed to be a word (`spec/execution-model.md:161-166`).
+   * Same `{name}` params shape as the checker's rule so both stages agree on identity. The
+   * registry's default stage for `ol-unknown-type` is `semantic`; raised here at
+   * `stage: "runtime"` for the same reason as `ol-not-a-place`/`ol-return-outside-proc` above —
+   * `execute()` runs `parse()` only, never `check()`, so there is no double-report.
+   */
+  unknownType(source_span: SourceSpan, name: string): Diagnostic {
+    return runtimeError(
+      "ol-unknown-type",
+      source_span,
+      { name },
+      `i don't know a type called "${name}" — try number, word, list, or boolean.`,
     );
   },
 } as const;

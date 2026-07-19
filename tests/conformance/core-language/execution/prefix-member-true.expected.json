@@ -1,0 +1,28 @@
+{
+  "description": "The prefix predicate `member?` is a Core fixed-arity alternative to the worded `is member of` and shares its evaluation path (spec/commands.md:673-689): `member? 2 [1 2 3]` is `true`. Issue #99.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/prefix-member-true",
+        "start": [1, 1],
+        "end": [1, 24]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/prefix-member-true",
+        "start": [1, 1],
+        "end": [1, 24]
+      },
+      "payload": { "values": [true] }
+    }
+  ],
+  "diagnostics": []
+}
