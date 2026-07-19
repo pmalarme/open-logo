@@ -1,0 +1,20 @@
+{
+  "description": "ol-style-equality-confusion (issue #115): a standalone top-level `:side_count == 4` statement whose boolean result is discarded — the learner most likely meant to assign with `=`. `params.operators` lists the single operator involved. The span covers the whole comparison statement.",
+  "profiles": ["core-language"],
+  "check": true,
+  "style": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-style-equality-confusion",
+      "source_span": {
+        "document": "core-language/style/equality-confusion-standalone",
+        "start": [2, 1],
+        "end": [2, 17]
+      },
+      "params": { "operators": ["=="] },
+      "stage": "semantic",
+      "severity": "warning"
+    }
+  ]
+}

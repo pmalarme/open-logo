@@ -1,0 +1,2 @@
+:sideLength = 100
+print :sideLength

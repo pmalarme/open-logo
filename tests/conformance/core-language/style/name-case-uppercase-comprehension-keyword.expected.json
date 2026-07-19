@@ -1,0 +1,20 @@
+{
+  "description": "ol-style-name-case (issue #115): a `map`/`filter`/`reduce` comprehension keyword written non-lowercase (`MAP`) is flagged too. `ComprehensionNode.form` only ever stores the canonical lowercase spelling the parser normalizes to (never the literal source casing), so this check works by slicing `source` at the node's own span start, keyed off `form`'s length rather than a static per-kind keyword.",
+  "profiles": ["core-language"],
+  "check": true,
+  "style": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-style-name-case",
+      "source_span": {
+        "document": "core-language/style/name-case-uppercase-comprehension-keyword",
+        "start": [2, 7],
+        "end": [2, 10]
+      },
+      "params": { "name": "MAP" },
+      "stage": "semantic",
+      "severity": "warning"
+    }
+  ]
+}

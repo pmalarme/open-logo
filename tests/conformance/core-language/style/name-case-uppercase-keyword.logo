@@ -1,0 +1,3 @@
+REPEAT 4
+  print 1
+end repeat

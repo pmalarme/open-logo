@@ -64,15 +64,21 @@ interface Context {
  * with the operator as callee and always report a value. Turtle and later-profile commands are not
  * registered in the parser, so — per "tools MUST NOT report speculative errors" — a call whose
  * callee is not a *known* Core command is treated as value-producing.
+ *
+ * Exported so `checker-style.ts`'s `ol-style-useless-value` rule (issue #115) reuses the exact
+ * same command-vs-reporter classification instead of drifting from a second copy.
  */
-const CORE_COMMANDS: ReadonlySet<string> = new Set([
+export const CORE_COMMANDS: ReadonlySet<string> = new Set([
   "print",
   "show",
   "randomize",
 ]);
 
-/** AST node kinds that are always value-producing expressions in the Core grammar. */
-const VALUE_PRODUCING_KINDS: ReadonlySet<NodeKind> = new Set<NodeKind>([
+/**
+ * AST node kinds that are always value-producing expressions in the Core grammar. Exported for
+ * the same reason as {@link CORE_COMMANDS} — shared with `checker-style.ts`.
+ */
+export const VALUE_PRODUCING_KINDS: ReadonlySet<NodeKind> = new Set<NodeKind>([
   "NumberLit",
   "WordLit",
   "BooleanLit",
@@ -83,6 +89,33 @@ const VALUE_PRODUCING_KINDS: ReadonlySet<NodeKind> = new Set<NodeKind>([
   "IsPredicate",
   "Comprehension",
 ]);
+
+/** Is `name` a known Core command under the active `profiles`? */
+export function isCoreCommandName(
+  name: string,
+  profiles: readonly CheckProfile[],
+): boolean {
+  return (
+    profiles.includes("core-language") && CORE_COMMANDS.has(name.toLowerCase())
+  );
+}
+
+/**
+ * Does this statement statically produce a value the surrounding block-result rule can use?
+ * Shared by `ol-no-value` (this module, error) and `ol-style-useless-value`
+ * (`checker-style.ts`, warning) — the two codes judge the same question, one inside a
+ * comprehension body (a value is *required*), the other inside a control body (a value is
+ * *unwanted*).
+ */
+export function producesValue(
+  node: StatementNode,
+  profiles: readonly CheckProfile[],
+): boolean {
+  if (node.kind === "Call" || node.kind === "ParenCall") {
+    return !isCoreCommandName(node.callee.name, profiles);
+  }
+  return VALUE_PRODUCING_KINDS.has(node.kind);
+}
 
 /**
  * The span of just the control word of a `return`/`stop` — `spec/tooling.md:189` mandates pointing
@@ -204,17 +237,6 @@ export function controlFlowRule(
 ): readonly Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
 
-  const isCoreCommand = (name: string): boolean =>
-    profiles.includes("core-language") && CORE_COMMANDS.has(name.toLowerCase());
-
-  /** Does this final statement statically produce a value the comprehension can report? */
-  const producesValue = (node: StatementNode): boolean => {
-    if (node.kind === "Call" || node.kind === "ParenCall") {
-      return !isCoreCommand(node.callee.name);
-    }
-    return VALUE_PRODUCING_KINDS.has(node.kind);
-  };
-
   /** `ol-no-value` when a comprehension body cannot end in a value-producing expression. */
   const noValueDiagnostic = (
     node: ComprehensionNode,
@@ -227,7 +249,7 @@ export function controlFlowRule(
     ) {
       return undefined;
     }
-    if (last !== undefined && producesValue(last)) {
+    if (last !== undefined && producesValue(last, profiles)) {
       return undefined;
     }
     return {

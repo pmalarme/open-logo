@@ -1,0 +1,4 @@
+:side = 2
+repeat 4
+  :side * 2
+end repeat

@@ -176,12 +176,21 @@ export function loadFixture(fixture) {
     return { error: `"check" must be a boolean when present` };
   }
 
+  // "style" is an opt-in flag (default false), mirroring "check": only fixtures that opt in
+  // (alongside "check": true) get check()'s Layer-3 style lints enabled via { style: true }
+  // (per issue #115); every other check:true fixture stays Layer-2-only, since the existing
+  // check corpus never opted into style warnings and must not regress when they are added.
+  if (spec.style !== undefined && typeof spec.style !== "boolean") {
+    return { error: `"style" must be a boolean when present` };
+  }
+
   const expected = {
     description: spec.description ?? "",
     profiles: spec.profiles,
     expect: spec.expect ?? "match",
     execute: spec.execute ?? false,
     check: spec.check ?? false,
+    style: spec.style ?? false,
     events: spec.events,
     diagnostics: spec.diagnostics,
   };
@@ -248,10 +257,12 @@ export function validateDiagnostics(diagnostics) {
  *
  * When `shouldCheck` is true (a fixture opted in via `"check": true`), it calls `parse()` and,
  * if parsing produced no diagnostic, feeds the resulting AST to `@openlogo/parser`'s `check()`
- * (issue #116) along with the fixture's active `profiles`, returning the semantic/style
- * diagnostics `check()` found (an empty list is a clean pass). If parsing itself failed, the
- * document is not check-valid, so the parse diagnostics are returned unchanged and `check()`
- * never runs — mirroring how `shouldExecute` already treats a parse failure as terminal.
+ * (issue #116) along with the fixture's active `profiles` and, when `shouldStyle` also opted in
+ * (`"style": true`, issue #115), `{ style: true }` to additionally enable the Layer-3 style
+ * lints — returning the semantic/style diagnostics `check()` found (an empty list is a clean
+ * pass). If parsing itself failed, the document is not check-valid, so the parse diagnostics are
+ * returned unchanged and `check()` never runs — mirroring how `shouldExecute` already treats a
+ * parse failure as terminal.
  *
  * Otherwise, when `shouldExecute` is true (a fixture opted in via `"execute": true`), it calls
  * `@openlogo/runtime`'s `execute()` instead, which parses internally and also returns the
@@ -267,6 +278,7 @@ export function validateDiagnostics(diagnostics) {
  * @param {boolean} shouldExecute - Whether this fixture opted into execution (default false).
  * @param {boolean} shouldCheck - Whether this fixture opted into semantic checking (default false).
  * @param {string[]} profiles - The fixture's active profile set, passed to check() (default []).
+ * @param {boolean} shouldStyle - Whether this fixture opted into style lints too (default false).
  */
 export function produce(
   source,
@@ -274,6 +286,7 @@ export function produce(
   shouldExecute = false,
   shouldCheck = false,
   profiles = [],
+  shouldStyle = false,
 ) {
   if (shouldCheck) {
     const { ast: program, diagnostics: parseDiagnostics } = parse(
@@ -283,7 +296,7 @@ export function produce(
     const diagnostics =
       parseDiagnostics.length > 0
         ? parseDiagnostics
-        : check(program, { profiles, source }).diagnostics;
+        : check(program, { profiles, source, style: shouldStyle }).diagnostics;
     validateDiagnostics(diagnostics);
     return { events: [], diagnostics };
   }
@@ -466,6 +479,7 @@ export function runHarness(options = {}) {
         expected.execute,
         expected.check,
         expected.profiles,
+        expected.style,
       ),
     );
 
