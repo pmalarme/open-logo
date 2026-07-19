@@ -1,0 +1,33 @@
+{
+  "description": "issue #210: `set_shape \"triangle\"` validates the recognized shape, updates `turtle.shape` (from the default \"turtle\"), and emits `shape-change` ({from: \"turtle\", to: \"triangle\"}) - no move/turn/draw-segment event fires for a shape change alone (spec/commands.md's `set_shape` entry).",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/style/set-shape-basic",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "shape-change",
+      "source_span": {
+        "document": "turtle-rendering/style/set-shape-basic",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "from": "turtle",
+        "to": "triangle"
+      }
+    }
+  ],
+  "diagnostics": []
+}

@@ -1,0 +1,57 @@
+{
+  "description": "issue #210: `set_color \"blue\"` then `fill` emits a `fill` event carrying the current pen color ({color: \"blue\"}) - no turtle-state change (spec/rendering.md's \"Fill\" section).",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/style/fill-basic",
+        "start": [1, 1],
+        "end": [1, 17]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "color-change",
+      "source_span": {
+        "document": "turtle-rendering/style/fill-basic",
+        "start": [1, 1],
+        "end": [1, 17]
+      },
+      "payload": {
+        "from": "black",
+        "to": "blue"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/style/fill-basic",
+        "start": [2, 1],
+        "end": [2, 5]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "fill",
+      "source_span": {
+        "document": "turtle-rendering/style/fill-basic",
+        "start": [2, 1],
+        "end": [2, 5]
+      },
+      "payload": {
+        "color": "blue"
+      }
+    }
+  ],
+  "diagnostics": []
+}

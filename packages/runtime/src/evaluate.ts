@@ -174,7 +174,9 @@ export interface Environment {
  * visibility (`show_turtle`/`hide_turtle`, issue #207) each add their own statement handling that
  * mutates the remaining fields. `visible` is purely a display flag — it never gates `move`/
  * `draw-segment` the way `penDown` does (`spec/rendering.md`'s "Turtle avatar and shapes" section:
- * a hidden turtle still moves, turns, and draws exactly as when visible).
+ * a hidden turtle still moves, turns, and draws exactly as when visible). `shape` (issue #210,
+ * `set_shape`) is likewise a display-only attribute the avatar wears — it never gates `move`/
+ * `draw-segment` either, and `stamp` reads it to snapshot the avatar shape at the moment stamped.
  */
 export interface TurtleState {
   x: number;
@@ -184,11 +186,14 @@ export interface TurtleState {
   color: string;
   width: number;
   visible: boolean;
+  shape: string;
 }
 
 /**
  * The turtle's state at program start (`spec/rendering.md:78`, `spec/commands.md:1189`):
- * position `(0,0)`, heading `0`, pen down, color `"black"`, width `1`, visible. Exported so
+ * position `(0,0)`, heading `0`, pen down, color `"black"`, width `1`, visible, shape `"turtle"`
+ * (`spec/rendering.md`'s "Turtle avatar and shapes" section lists `"turtle"` first in the portable
+ * set, matching `@openlogo/turtle`'s `INITIAL_TURTLE_STATE.shape`). Exported so
  * `execute-internal.ts`'s `createExecutionEnvironment` (the environment a real `execute()` call
  * runs against) builds the same defaults as this module's own bare `createEnvironment()`.
  */
@@ -201,6 +206,7 @@ export function createDefaultTurtleState(): TurtleState {
     color: "black",
     width: 1,
     visible: true,
+    shape: "turtle",
   };
 }
 

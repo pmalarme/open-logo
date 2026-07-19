@@ -106,6 +106,12 @@ export interface PlaceTypeErrorParams {
   readonly operation: string;
 }
 
+/** Params for an `ol-type` raised by `set_shape` given a word that names no recognized shape. */
+export interface ShapeTypeErrorParams {
+  readonly value: string;
+  readonly operation: string;
+}
+
 /** Params for an `ol-range` raised by an out-of-bounds 1-based list index. */
 export interface IndexRangeParams {
   readonly index: OLValue;
@@ -944,6 +950,33 @@ export const runtimeDiag = {
       source_span,
       { ...params },
       `${params.operation} needs a positive width, but got ${params.value}.`,
+    );
+  },
+
+  /**
+   * `ol-type` (issue #210) — `set_shape`'s argument is a word, but names no recognized shape
+   * (`packages/runtime/src/shape.ts`'s `isRecognizedShape`). `spec/commands.md`'s `set_shape`
+   * entry defines no dedicated code ("Possible errors: none specified in C3 beyond general type
+   * and arity diagnostics") because the shape set is open/implementation-defined
+   * (`spec/rendering.md`'s "Turtle avatar and shapes" section), unlike `set_color`'s closed
+   * palette — so this stays `ol-type` with `expected: "shape"`, a diagnostic identity distinct
+   * from a non-word argument's `expected: "word"` (`error-model.md` treats `params` as part of a
+   * diagnostic's identity). See {@link ShapeTypeErrorParams}.
+   */
+  unknownShape(
+    source_span: SourceSpan,
+    params: ShapeTypeErrorParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-type",
+      source_span,
+      {
+        expected: "shape",
+        actual: "word",
+        value: params.value,
+        operation: params.operation,
+      },
+      `i don't know the shape "${params.value}". try a shape like "turtle", "triangle", "arrow", or "circle".`,
     );
   },
 } as const;
