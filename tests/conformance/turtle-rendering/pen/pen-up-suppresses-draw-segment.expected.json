@@ -1,0 +1,48 @@
+{
+  "description": "issue #206: `pen_up` lifts the pen (emitting a `pen-change` event from `down` to `up`), then `forward 50` still moves the turtle (a `move` event fires) but leaves no trail — no `draw-segment` event is emitted while the pen is up (spec/rendering.md's \"Line segments\" section: a segment is drawn only while the pen is down).",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/pen/pen-up-suppresses-draw-segment",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "pen-change",
+      "source_span": {
+        "document": "turtle-rendering/pen/pen-up-suppresses-draw-segment",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "payload": { "from": "down", "to": "up" }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/pen/pen-up-suppresses-draw-segment",
+        "start": [2, 1],
+        "end": [2, 11]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 3,
+      "kind": "move",
+      "source_span": {
+        "document": "turtle-rendering/pen/pen-up-suppresses-draw-segment",
+        "start": [2, 1],
+        "end": [2, 11]
+      },
+      "payload": { "from": [0, 0], "to": [0, 50], "heading": 0 }
+    }
+  ],
+  "diagnostics": []
+}

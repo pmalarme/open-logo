@@ -1,0 +1,30 @@
+{
+  "description": "issue #206: `pen_up`/`pen_down` take no arguments; the parenthesized form `(pen_down 1 2)` supplies two, raising `ol-too-many-inputs` at runtime (the bare form's extra tokens would instead fail at parse time as a stray-token diagnostic, since pen_up/pen_down's registered arity is 0 - see packages/parser/src/signatures.ts).",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/pen/pen-down-too-many-inputs",
+        "start": [1, 1],
+        "end": [1, 15]
+      },
+      "payload": { "statement_kind": "ParenCall" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-too-many-inputs",
+      "source_span": {
+        "document": "turtle-rendering/pen/pen-down-too-many-inputs",
+        "start": [1, 2],
+        "end": [1, 10]
+      },
+      "params": { "callable": "pen_down", "expected": 0, "actual": 2 },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}
