@@ -217,6 +217,71 @@ test("produce threads shouldStyle through to check()'s Layer-3 style lints", () 
   assert.deepEqual(result.diagnostics[0].params, { name: "X" });
 });
 
+// Coverage-anchor tests (issue #140 follow-up): `for ... from ... to ... by` (issue #103) has four
+// error-propagation branches — a failing `from`/`to`/`by` expression, and a failing loop-body
+// statement — that no corpus fixture or `@openlogo/runtime` unit test exercises today (its own
+// for-loop-binders.test.mjs only covers the *unsupported-expression* skip branch, a different code
+// path). Coverage of these branches was previously an accident of merged coverage across the whole
+// `node --test` run, which made it flaky (sometimes ~90% present, sometimes not, independent of
+// this file's own isolation fix). Calling `produce(..., true)` here exercises `@openlogo/runtime`'s
+// `execute()` directly and deterministically, so these branches are covered on every run.
+test("produce/execute propagates a failing `for` `from` expression's diagnostic", () => {
+  const result = produce(
+    "for i from :undef to 5 [\n  print :i\n]",
+    "test-doc",
+    true,
+  );
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-undefined-var");
+  assert.deepEqual(
+    result.events.filter((event) => event.kind === "print"),
+    [],
+  );
+});
+
+test("produce/execute propagates a failing `for` `to` expression's diagnostic", () => {
+  const result = produce(
+    "for i from 1 to :undef [\n  print :i\n]",
+    "test-doc",
+    true,
+  );
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-undefined-var");
+  assert.deepEqual(
+    result.events.filter((event) => event.kind === "print"),
+    [],
+  );
+});
+
+test("produce/execute propagates a failing `for` `by` expression's diagnostic", () => {
+  const result = produce(
+    "for i from 1 to 5 by :undef [\n  print :i\n]",
+    "test-doc",
+    true,
+  );
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-undefined-var");
+  assert.deepEqual(
+    result.events.filter((event) => event.kind === "print"),
+    [],
+  );
+});
+
+test("produce/execute propagates a failing statement inside a `for` range body, stopping the loop", () => {
+  const result = produce(
+    "for i from 1 to 5 [\n  print :undef\n]",
+    "test-doc",
+    true,
+  );
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-undefined-var");
+  // The loop stopped on its first pass: no print event ever completed.
+  assert.deepEqual(
+    result.events.filter((event) => event.kind === "print"),
+    [],
+  );
+});
+
 test("validateDiagnostics passes for well-formed diagnostics", () => {
   const diagnostics = [
     {
@@ -798,7 +863,6 @@ test("loadFixture rejects a non-boolean check field", () => {
 });
 
 test("loadFixture defaults style to false when not present", () => {
-  cleanup();
   mkdirSync(join(TEMP_ROOT, "no-style"), { recursive: true });
   writeFileSync(join(TEMP_ROOT, "no-style", "no-style.logo"), "print 1");
   writeFileSync(
@@ -818,11 +882,9 @@ test("loadFixture defaults style to false when not present", () => {
   });
 
   assert.equal(loaded.expected.style, false);
-  cleanup();
 });
 
 test("loadFixture reads an explicit style: true opt-in", () => {
-  cleanup();
   mkdirSync(join(TEMP_ROOT, "with-style"), { recursive: true });
   writeFileSync(join(TEMP_ROOT, "with-style", "with-style.logo"), "print 1");
   writeFileSync(
@@ -843,11 +905,9 @@ test("loadFixture reads an explicit style: true opt-in", () => {
   });
 
   assert.equal(loaded.expected.style, true);
-  cleanup();
 });
 
 test("loadFixture rejects a non-boolean style field", () => {
-  cleanup();
   mkdirSync(join(TEMP_ROOT, "bad-style"), { recursive: true });
   writeFileSync(join(TEMP_ROOT, "bad-style", "bad-style.logo"), "");
   writeFileSync(
@@ -869,7 +929,6 @@ test("loadFixture rejects a non-boolean style field", () => {
 
   assert.ok(loaded.error);
   assert.ok(loaded.error.includes('"style" must be a boolean'));
-  cleanup();
 });
 
 test("loadFixture handles missing .expected.json file", () => {
