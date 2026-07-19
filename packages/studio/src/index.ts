@@ -62,6 +62,20 @@
  *   fields only (never `Diagnostic.message` prose). See `a11y.ts`.
  *
  * No lesson UI lands yet — that's #127.
+ *
+ * #218 adds the turtle Canvas view — static composition of `@openlogo/turtle`'s DOM-free renderer
+ * into the app shell (dynamic run-loop repaint is #228):
+ * - `state-model.ts`'s {@link StudioState} gains `turtleState`/`turtleScene` slots, reusing
+ *   `@openlogo/turtle`'s own `TurtleState`/`TurtleScene` types verbatim and defaulting to its
+ *   `INITIAL_TURTLE_STATE`/`INITIAL_TURTLE_SCENE` program-start defaults.
+ * - {@link Canvas2DContext} names the real Canvas 2D context surface this package forwards (this
+ *   monorepo has no `lib.dom`); {@link createCanvasRenderTarget} adapts one into
+ *   `@openlogo/turtle`'s headless `RenderTarget` — the DOM canvas lives in studio, never in
+ *   `@openlogo/turtle`.
+ * - {@link createCanvasViewController} paints the shared state model's turtle state/scene through
+ *   `@openlogo/turtle`'s `paintTurtle`, never re-deriving coordinates or scene items itself;
+ *   {@link mountCanvasView} composes it into the shell's `turtle` region and paints the initial
+ *   default state immediately. See `canvas-view.ts`.
  */
 
 export type {
@@ -138,3 +152,14 @@ export {
   REPL_FOCUS_ORDER,
   REPL_LANDMARK_ROLES,
 } from "./a11y.js";
+
+export type {
+  Canvas2DContext,
+  CanvasViewController,
+  CanvasViewOptions,
+} from "./canvas-view.js";
+export {
+  createCanvasRenderTarget,
+  createCanvasViewController,
+  mountCanvasView,
+} from "./canvas-view.js";
