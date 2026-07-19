@@ -333,17 +333,37 @@ test("exportTurtlePng clips drawing that falls outside the viewport instead of t
   assert.deepEqual(pixelAt(decoded, 5, 3), { r: 0, g: 0, b: 255, a: 255 });
 });
 
-test("exportTurtlePng recognizes short (#rgb) and long (#rrggbb) hex colors", () => {
-  const shortHexScene = { background: "#0f0", items: [] };
-  const longHexScene = { background: "#00ff00", items: [] };
-  const shortDecoded = decodePng(
-    OL.exportTurtlePng(shortHexScene, HIDDEN_STATE, VIEWPORT),
-  );
-  const longDecoded = decodePng(
-    OL.exportTurtlePng(longHexScene, HIDDEN_STATE, VIEWPORT),
-  );
-  assert.deepEqual(pixelAt(shortDecoded, 0, 0), { r: 0, g: 255, b: 0, a: 255 });
-  assert.deepEqual(pixelAt(longDecoded, 0, 0), { r: 0, g: 255, b: 0, a: 255 });
+test("exportTurtlePng recognizes every color word in the normative palette (spec/commands.md#colors)", () => {
+  const palette = {
+    black: { r: 0, g: 0, b: 0 },
+    white: { r: 255, g: 255, b: 255 },
+    red: { r: 255, g: 0, b: 0 },
+    orange: { r: 255, g: 165, b: 0 },
+    yellow: { r: 255, g: 255, b: 0 },
+    green: { r: 0, g: 128, b: 0 },
+    blue: { r: 0, g: 0, b: 255 },
+    purple: { r: 128, g: 0, b: 128 },
+    pink: { r: 255, g: 192, b: 203 },
+    brown: { r: 165, g: 42, b: 42 },
+    gray: { r: 128, g: 128, b: 128 },
+  };
+  for (const [word, rgb] of Object.entries(palette)) {
+    const scene = { background: word, items: [] };
+    const decoded = decodePng(
+      OL.exportTurtlePng(scene, HIDDEN_STATE, VIEWPORT),
+    );
+    assert.deepEqual(
+      pixelAt(decoded, 0, 0),
+      { ...rgb, a: 255 },
+      `color word "${word}"`,
+    );
+  }
+});
+
+test("exportTurtlePng recognizes the normative #rrggbb hex color form", () => {
+  const scene = { background: "#00ff00", items: [] };
+  const decoded = decodePng(OL.exportTurtlePng(scene, HIDDEN_STATE, VIEWPORT));
+  assert.deepEqual(pixelAt(decoded, 0, 0), { r: 0, g: 255, b: 0, a: 255 });
 });
 
 test("exportTurtlePng falls back to opaque black for an unrecognized color word", () => {

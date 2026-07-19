@@ -59,22 +59,31 @@ interface Rgba {
   readonly a: number;
 }
 
-/** Parses a CSS-compatible color string (`#rgb`, `#rrggbb`, or a small fixed set of named
- * colors used by this codebase's tests and examples) into opaque RGBA. Unrecognized strings
- * fall back to opaque black — color-word validation is a command-level concern
- * (`spec/commands.md`), not a renderer fallback; by the time a color reaches the retained scene
- * it has already been accepted by `set_color`/`set_background`. This is intentionally the same
- * small, pragmatic parser shape as the rest of this headless, dependency-free package — no CSS
- * color library is introduced. */
+/** Parses a color string into opaque RGBA. Unlike `svg.ts`'s `normalizeColor` (which can pass a
+ * color string straight into markup for a native renderer to interpret), PNG export must write
+ * literal RGBA bytes, so this module needs a real color parser. It supports exactly the two
+ * string-valued forms `set_color`/`set_background` accept (`spec/commands.md`'s "Colors"
+ * section): the full normative named-color palette (`black`, `white`, `red`, `orange`, `yellow`,
+ * `green`, `blue`, `purple`, `pink`, `brown`, `gray`) and a `#rrggbb` hex word — there is no
+ * shorter `#rgb` form in the spec, so none is accepted here. An `[r g b]` RGB-list color is
+ * accepted by `set_color` itself, but by the time a color reaches this retained-scene reducer it
+ * has already been carried as a `string` in the event payload (`packages/core/src/events.ts`);
+ * how the not-yet-landed color-emitting runtime commands (#206–#210) represent an RGB-list color
+ * as a string is not yet defined, so this parser does not guess at that form — it is intentionally
+ * limited to the two forms actually specified as color-word syntax. Any other string (including
+ * an as-yet-undefined RGB-list serialization) falls back to opaque black, deterministically. */
 const NAMED_COLORS: ReadonlyMap<string, Rgba> = new Map([
   ["black", { r: 0, g: 0, b: 0, a: 255 }],
   ["white", { r: 255, g: 255, b: 255, a: 255 }],
   ["red", { r: 255, g: 0, b: 0, a: 255 }],
+  ["orange", { r: 255, g: 165, b: 0, a: 255 }],
+  ["yellow", { r: 255, g: 255, b: 0, a: 255 }],
   ["green", { r: 0, g: 128, b: 0, a: 255 }],
   ["blue", { r: 0, g: 0, b: 255, a: 255 }],
-  ["yellow", { r: 255, g: 255, b: 0, a: 255 }],
   ["purple", { r: 128, g: 0, b: 128, a: 255 }],
-  ["orange", { r: 255, g: 165, b: 0, a: 255 }],
+  ["pink", { r: 255, g: 192, b: 203, a: 255 }],
+  ["brown", { r: 165, g: 42, b: 42, a: 255 }],
+  ["gray", { r: 128, g: 128, b: 128, a: 255 }],
 ]);
 
 function parseColor(color: string): Rgba {
@@ -83,19 +92,9 @@ function parseColor(color: string): Rgba {
   if (named !== undefined) {
     return named;
   }
-  const shortHex = /^#([0-9a-f])([0-9a-f])([0-9a-f])$/.exec(normalized);
-  if (shortHex !== null) {
-    const [, r, g, b] = shortHex;
-    return {
-      r: parseInt(`${r}${r}`, 16),
-      g: parseInt(`${g}${g}`, 16),
-      b: parseInt(`${b}${b}`, 16),
-      a: 255,
-    };
-  }
-  const longHex = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/.exec(normalized);
-  if (longHex !== null) {
-    const [, r, g, b] = longHex;
+  const hex = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/.exec(normalized);
+  if (hex !== null) {
+    const [, r, g, b] = hex;
     return {
       r: parseInt(r as string, 16),
       g: parseInt(g as string, 16),
