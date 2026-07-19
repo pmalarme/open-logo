@@ -948,27 +948,35 @@ export function blockIndentationRule(
 
 /**
  * Does `block` use the bracket `[ … ]` surface form? `ast.ts`'s `BlockNode` records no field for
- * its own surface delimiter, but `parser.ts` gives us a reliable structural proxy instead:
- * `parseBracketBlock` spans `[open, closeBracket)` — strictly *before* the first body statement,
- * since `advance()` past `[` (and any skipped newlines) always moves `current()` on to a later
- * position before the first statement is parsed — while `parseLongBlock` captures `bodyStart` as
- * `current().source_span.start` *immediately before* parsing that very first statement, so a
- * non-empty `… end` block's own span always starts at *exactly* the same `[line, column]` as its
- * first statement. So: for a non-empty block, the two forms are distinguished by one span
- * comparison, no source-text slicing needed. An empty block (`body.length === 0`) has no
- * statement to compare against and is treated as "not a bracket block" — {@link preferBlockRule}
- * only ever needs a positive bracket-block identification, and an empty block has no content to
- * migrate into an `… end` block anyway.
+ * its own surface delimiter, so this recovers it from `source` by inspecting `block`'s own
+ * *closing* delimiter rather than its first statement. `parseBracketBlock` (`parser.ts`) always
+ * spans `[open, closeBracket)` — i.e. `block.source_span.end` sits immediately after the literal
+ * `]` character — while `parseLongBlock`'s span ends immediately after the `end` keyword (or its
+ * optional label), both of which are `name` tokens that can never contain `]`. So the character
+ * one before `block.source_span.end` is `]` if and only if `block` is bracket-form; checking the
+ * *end* of the span (rather than the start, against `body[0]`) is deliberate — it stays correct
+ * even when the block's first statement is itself a bracket-delimited expression (e.g. a bare
+ * `[1 2 3]` list-literal statement, or the block containing a comprehension whose own body is
+ * `[ … ]`), where a start-based comparison would be fooled by the body's own delimiters, and it
+ * is unaffected by the parser's error-recovery `resync()` reordering *interior* body statements.
+ * `check()` has no documented precondition that its input parsed clean, so this deliberately
+ * fails *safe* rather than assuming one: a block missing its own closing `]`/`end` (a genuine
+ * parse error) ends its span at whatever token the parser gave up on, which is `]` only by
+ * coincidence — `sliceKeyword` then either reads an unrelated character (no false positive; the
+ * comparison to `"]"` simply fails) or, when `endColumn` is `1` (the span-end token starts at the
+ * very beginning of its line), reads past the start of that line and returns `""` (still no
+ * false positive, only a false negative) — never a crash, never a wrong-positive finding.
+ *
+ * `source` is required: unlike `body[0]`, there is no AST-only proxy for a block's own literal
+ * closing text, so — mirroring {@link checkKeywordCasing}'s own "no source, skip the check"
+ * precedent in this file — a block is never reported as bracket-form when `source` is absent.
  */
-function isBracketBlock(block: BlockNode): boolean {
-  const first = block.body[0];
-  if (first === undefined) {
+function isBracketBlock(block: BlockNode, source: string | undefined): boolean {
+  if (source === undefined) {
     return false;
   }
-  return (
-    block.source_span.start[0] !== first.source_span.start[0] ||
-    block.source_span.start[1] !== first.source_span.start[1]
-  );
+  const [endLine, endColumn] = block.source_span.end;
+  return sliceKeyword(source, [endLine, endColumn - 1], 1) === "]";
 }
 
 /** Build an `ol-style-prefer-block` at `block`'s own span. */
@@ -988,9 +996,10 @@ function checkPreferBlock(
   block: BlockNode,
   form: string,
   diagnostics: Diagnostic[],
+  source: string | undefined,
 ): void {
   if (
-    isBracketBlock(block) &&
+    isBracketBlock(block, source) &&
     block.source_span.start[0] !== block.source_span.end[0]
   ) {
     diagnostics.push(preferBlockDiagnostic(block, form));
@@ -1007,30 +1016,34 @@ function checkPreferBlock(
  * bracket form to begin with. See {@link isBracketBlock} for how the bracket/`end` surface form
  * is recovered without a dedicated AST field.
  */
-export function preferBlockRule(program: ProgramNode): readonly Diagnostic[] {
+export function preferBlockRule(
+  program: ProgramNode,
+  _profiles: readonly CheckProfile[],
+  source?: string,
+): readonly Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
   walk(program, (node) => {
     switch (node.kind) {
       case "If":
-        checkPreferBlock(node.thenBody, CONTROL_FORM.If, diagnostics);
+        checkPreferBlock(node.thenBody, CONTROL_FORM.If, diagnostics, source);
         if (node.elseBody !== undefined) {
-          checkPreferBlock(node.elseBody, CONTROL_FORM.If, diagnostics);
+          checkPreferBlock(node.elseBody, CONTROL_FORM.If, diagnostics, source);
         }
         return;
       case "While":
-        checkPreferBlock(node.body, CONTROL_FORM.While, diagnostics);
+        checkPreferBlock(node.body, CONTROL_FORM.While, diagnostics, source);
         return;
       case "Repeat":
-        checkPreferBlock(node.body, CONTROL_FORM.Repeat, diagnostics);
+        checkPreferBlock(node.body, CONTROL_FORM.Repeat, diagnostics, source);
         return;
       case "Forever":
-        checkPreferBlock(node.body, CONTROL_FORM.Forever, diagnostics);
+        checkPreferBlock(node.body, CONTROL_FORM.Forever, diagnostics, source);
         return;
       case "ForIn":
-        checkPreferBlock(node.body, CONTROL_FORM.ForIn, diagnostics);
+        checkPreferBlock(node.body, CONTROL_FORM.ForIn, diagnostics, source);
         return;
       case "ForRange":
-        checkPreferBlock(node.body, CONTROL_FORM.ForRange, diagnostics);
+        checkPreferBlock(node.body, CONTROL_FORM.ForRange, diagnostics, source);
         return;
       default:
         return;

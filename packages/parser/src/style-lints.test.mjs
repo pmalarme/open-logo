@@ -618,6 +618,37 @@ test("ol-style-prefer-block: a comprehension body is never flagged, since it can
   );
 });
 
+test("ol-style-prefer-block: an … end block whose first statement is itself a bare list literal is not flagged", () => {
+  // Regression guard: `isBracketBlock` must key off `block`'s own *closing* delimiter, never its
+  // first statement's span. A start-based comparison would misread this block as bracket-form,
+  // since a bare `[1 2 3]` list-literal statement's own span happens to start with `[` — exactly
+  // the same leading character a real bracket block's span starts with.
+  assert.deepEqual(
+    checkStyle("repeat 4\n  [1 2 3]\n  print 1\nend repeat"),
+    [],
+  );
+});
+
+test("ol-style-prefer-block: an empty multi-line bracket block is flagged (it is still bracket-form)", () => {
+  const diagnostics = checkStyle("repeat 4 [\n]").filter(
+    (d) => d.code === "ol-style-prefer-block",
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, { form: "repeat" });
+});
+
+test("ol-style-prefer-block: silently skipped (never a false positive) when no source text is supplied", () => {
+  // Mirrors `ol-style-name-case`'s own "no source, skip" precedent: `isBracketBlock` has no
+  // AST-only proxy for a block's own literal closing text, so a bracket-form determination is
+  // never attempted without `source` — this must stay a no-op, not a false positive.
+  const { ast: program } = OL.parse("repeat 4 [\n  print 1\n  print 2\n]", doc);
+  const diagnostics = OL.check(program, {
+    profiles: ["core-language"],
+    style: true,
+  }).diagnostics;
+  assert.deepEqual(diagnostics, []);
+});
+
 // --- opt-in gating -------------------------------------------------------------------------
 
 test("check() never runs style lints unless options.style === true", () => {
