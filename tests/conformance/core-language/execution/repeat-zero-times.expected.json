@@ -1,0 +1,38 @@
+{
+  "description": "`repeat 0 [ print 1 ]` runs the body zero times with no diagnostic (`spec/execution-model.md:367-369`): only the `Repeat` statement's own `instruction` event is emitted, then execution continues to the following `print \"done\"` statement.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repeat-zero-times",
+        "start": [1, 1],
+        "end": [3, 2]
+      },
+      "payload": { "statement_kind": "Repeat" }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repeat-zero-times",
+        "start": [4, 1],
+        "end": [4, 13]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/repeat-zero-times",
+        "start": [4, 1],
+        "end": [4, 13]
+      },
+      "payload": { "values": ["done"] }
+    }
+  ],
+  "diagnostics": []
+}

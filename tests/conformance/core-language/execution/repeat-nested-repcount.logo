@@ -1,0 +1,5 @@
+repeat 2 [
+  repeat 2 [
+    print repcount
+  ]
+]

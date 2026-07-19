@@ -1,0 +1,30 @@
+{
+  "description": "`print repcount` outside any enclosing `repeat` raises `ol-repcount-outside-repeat` (`spec/commands.md:792`, `spec/error-model.md:118`) — registry stage `semantic`, raised here at `stage: \"runtime\"` since `execute()` never runs `check()` (same convention as `ol-not-a-place`/`ol-undefined-var`).",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repcount-outside-repeat",
+        "start": [1, 1],
+        "end": [1, 15]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-repcount-outside-repeat",
+      "source_span": {
+        "document": "core-language/execution/repcount-outside-repeat",
+        "start": [1, 7],
+        "end": [1, 15]
+      },
+      "params": {},
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

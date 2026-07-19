@@ -1,0 +1,118 @@
+{
+  "description": "A nested `repeat 2 [ repeat 2 [ print repcount ] ]`: `repcount` always reads the nearest-enclosing `repeat`'s turn (`spec/commands.md:775-792` — \"when several repeat loops are nested, repcount refers to the nearest one\"), so the inner loop's turn resets to 1 then 2 on every pass of the outer loop, printing 1, 2, 1, 2. Issue #104.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repeat-nested-repcount",
+        "start": [1, 1],
+        "end": [5, 2]
+      },
+      "payload": { "statement_kind": "Repeat" }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repeat-nested-repcount",
+        "start": [2, 3],
+        "end": [4, 4]
+      },
+      "payload": { "statement_kind": "Repeat" }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repeat-nested-repcount",
+        "start": [3, 5],
+        "end": [3, 19]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/repeat-nested-repcount",
+        "start": [3, 5],
+        "end": [3, 19]
+      },
+      "payload": { "values": [1] }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repeat-nested-repcount",
+        "start": [3, 5],
+        "end": [3, 19]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 5,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/repeat-nested-repcount",
+        "start": [3, 5],
+        "end": [3, 19]
+      },
+      "payload": { "values": [2] }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repeat-nested-repcount",
+        "start": [2, 3],
+        "end": [4, 4]
+      },
+      "payload": { "statement_kind": "Repeat" }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repeat-nested-repcount",
+        "start": [3, 5],
+        "end": [3, 19]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 8,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/repeat-nested-repcount",
+        "start": [3, 5],
+        "end": [3, 19]
+      },
+      "payload": { "values": [1] }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repeat-nested-repcount",
+        "start": [3, 5],
+        "end": [3, 19]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 10,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/repeat-nested-repcount",
+        "start": [3, 5],
+        "end": [3, 19]
+      },
+      "payload": { "values": [2] }
+    }
+  ],
+  "diagnostics": []
+}

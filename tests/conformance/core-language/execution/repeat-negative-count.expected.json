@@ -1,0 +1,33 @@
+{
+  "description": "`repeat -1 [ print 1 ]` — a whole-number count that is negative raises `ol-range` (`spec/execution-model.md:367-369`, `spec/error-model.md:100`): TYPE passes first (`-1` is a whole number), then the RANGE check fails; execution halts before any pass of the body runs.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repeat-negative-count",
+        "start": [1, 1],
+        "end": [3, 2]
+      },
+      "payload": { "statement_kind": "Repeat" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-range",
+      "source_span": {
+        "document": "core-language/execution/repeat-negative-count",
+        "start": [1, 8],
+        "end": [1, 10]
+      },
+      "params": {
+        "operation": "repeat",
+        "value": -1
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

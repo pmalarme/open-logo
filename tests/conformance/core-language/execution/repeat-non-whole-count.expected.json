@@ -1,0 +1,35 @@
+{
+  "description": "`repeat 3.5 [ print 1 ]` — a non-whole-number count raises `ol-type` (`spec/execution-model.md:367-369`, TYPE checked before RANGE); execution halts before any pass of the body runs.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repeat-non-whole-count",
+        "start": [1, 1],
+        "end": [3, 2]
+      },
+      "payload": { "statement_kind": "Repeat" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "core-language/execution/repeat-non-whole-count",
+        "start": [1, 8],
+        "end": [1, 11]
+      },
+      "params": {
+        "expected": "whole number",
+        "actual": "number",
+        "value": 3.5,
+        "operation": "repeat"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

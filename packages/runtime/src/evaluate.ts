@@ -17,6 +17,13 @@
  * Every operator/builtin does its own operand type-checking (`ol-type`) rather than sharing a
  * generic dispatcher, since each has its own arity and error semantics (e.g. only `sqrt` raises
  * `ol-neg-sqrt`, only `/`/`mod` raise `ol-div-zero`).
+ *
+ * Issue #104 adds {@link requireWholeNumber} (shared by `repeat`'s count validation in
+ * `index.ts`) and the `repcount` reporter (`spec/commands.md:775-792`): a 0-arg call that reports
+ * the nearest-enclosing `repeat`'s current 1-based turn, or raises `ol-repcount-outside-repeat`
+ * when there is none. The active turn stack lives on {@link Environment} (`repeatTurns`, nearest
+ * loop last) so nested `repeat`s and the statements they run both see the same mutable stack that
+ * `index.ts`'s `executeStatements` pushes/pops around each pass.
  */
 
 import type { Diagnostic, OLValue, SourceSpan } from "@openlogo/core";
@@ -55,14 +62,22 @@ function fail(diagnostic: Diagnostic): EvalResult {
 /** One lexical scope: a mutable name→value binding table. */
 export type Frame = Map<string, OLValue>;
 
-/** The evaluator's binding model: a nearest-first stack of frames, root last. */
+/**
+ * The evaluator's binding model: a nearest-first stack of frames, root last, plus the active
+ * `repeat` turn stack `repcount` reads (issue #104). `repeatTurns` is a mutable array — nearest
+ * (innermost) enclosing `repeat` last — that `index.ts`'s `executeStatements` pushes the current
+ * 1-based turn onto before running a `repeat` pass and pops after; the array reference itself
+ * never changes, so it is threaded unchanged through every recursive `executeStatements`/
+ * `evaluate` call the same way `frames` is.
+ */
 export interface Environment {
   readonly frames: readonly Frame[];
+  readonly repeatTurns: number[];
 }
 
-/** A fresh environment holding just the root/global frame. */
+/** A fresh environment holding just the root/global frame and no active `repeat` turn. */
 export function createEnvironment(): Environment {
-  return { frames: [new Map()] };
+  return { frames: [new Map()], repeatTurns: [] };
 }
 
 /** Look up `name` nearest frame to root; `undefined` when no frame binds it. */
@@ -130,7 +145,11 @@ function asNumber(value: OLValue): number | undefined {
   return undefined;
 }
 
-type NumberOrDiagnostic =
+/**
+ * The outcome of coercing an {@link OLValue} to a number (exported: `index.ts`'s `Repeat`
+ * handling calls {@link requireWholeNumber}, whose result carries this shape).
+ */
+export type NumberOrDiagnostic =
   | { readonly ok: true; readonly value: number }
   | { readonly ok: false; readonly diagnostic: Diagnostic };
 
@@ -146,6 +165,32 @@ function requireNumber(
       ok: false,
       diagnostic: runtimeDiag.typeMismatch(source_span, {
         expected: "number",
+        actual: typeNameOf(value),
+        value,
+        operation,
+      }),
+    };
+  }
+  return { ok: true, value: numeric };
+}
+
+/**
+ * Require `value` to be a whole number (with the same word-that-reads-as-a-number coercion as
+ * {@link requireNumber}), or `ol-type` — the TYPE half of `repeat`'s count validation
+ * (`spec/execution-model.md:367-369`), checked before the RANGE (negative) half its caller
+ * performs separately. Exported so `index.ts`'s `Repeat` statement handling can reuse it without
+ * duplicating the word-coercion logic.
+ */
+export function requireWholeNumber(
+  value: OLValue,
+  source_span: SourceSpan,
+  operation: string,
+): NumberOrDiagnostic {
+  const numeric = asNumber(value);
+  if (numeric === undefined || !Number.isInteger(numeric)) {
+    return {
+      ok: false,
+      diagnostic: runtimeDiag.notWholeNumber(source_span, {
         actual: typeNameOf(value),
         value,
         operation,
@@ -218,7 +263,8 @@ function isLogicalOperator(name: string): name is LogicalOperator {
  * `.field` segments stay unsupported since record/dict places are a later profile. As of issue
  * #95 `and`/`or`/`not` calls are in scope; note this is a *shape* check only — a short-circuited
  * operand such as `:missing` in `false and :missing` is still a supported `VarRef`, it is simply
- * never reached by {@link evaluate}'s short-circuit at runtime.
+ * never reached by {@link evaluate}'s short-circuit at runtime. As of issue #104 a 0-arg
+ * `repcount` call is in scope too.
  */
 export function isSupportedExpression(node: ExpressionNode): boolean {
   switch (node.kind) {
@@ -243,7 +289,8 @@ export function isSupportedExpression(node: ExpressionNode): boolean {
         isComparisonOperator(name) ||
         isLogicalOperator(name) ||
         name === "not" ||
-        name === "thing";
+        name === "thing" ||
+        name === "repcount";
       return isKnownCallee && node.args.every(isSupportedExpression);
     }
     default:
@@ -433,6 +480,24 @@ function evaluateThing(node: ArithmeticCallNode, env: Environment): EvalResult {
 }
 
 /**
+ * `repcount` (`spec/commands.md:775-792`): reports the nearest-enclosing `repeat`'s current
+ * 1-based turn — the top of {@link Environment.repeatTurns}, since `index.ts`'s `Repeat` handling
+ * pushes each pass's turn before running the body and pops it after, so nested `repeat`s naturally
+ * stack and the innermost one is always last. `ol-repcount-outside-repeat` when the stack is empty
+ * (no enclosing `repeat`) — registry stage `semantic`, but raised here at `stage: "runtime"` since
+ * `execute()` never runs `check()` (same convention as `ol-not-a-place`/`ol-undefined-var`).
+ */
+function evaluateRepcount(
+  node: ArithmeticCallNode,
+  env: Environment,
+): EvalResult {
+  if (env.repeatTurns.length === 0) {
+    return fail(runtimeDiag.repcountOutsideRepeat(node.source_span));
+  }
+  return ok(env.repeatTurns[env.repeatTurns.length - 1] as number);
+}
+
+/**
  * The target of `=`/`set … to` must be a supported place, per {@link isSupportedPlace}; anything
  * else (a `.field` segment) is Data-profile and left un-executed rather than raised as an error,
  * matching the existing convention for a statement kind this issue does not yet give meaning to.
@@ -558,6 +623,9 @@ function evaluateCall(node: ArithmeticCallNode, env: Environment): EvalResult {
   }
   if (name === "thing") {
     return evaluateThing(node, env);
+  }
+  if (name === "repcount") {
+    return evaluateRepcount(node, env);
   }
   throw new Error(
     `evaluate: call to "${name}" is not implemented yet — it lands with its own evaluator slice`,

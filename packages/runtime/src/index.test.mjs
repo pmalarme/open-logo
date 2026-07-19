@@ -63,22 +63,30 @@ test("execute assigns a monotonic seq starting at 0 across statement kinds", () 
   const result = execute(":x = 1\nprint :x\nrepeat 1 [ print 1 ]", "main.logo");
   assert.equal(result.diagnostics.length, 0);
   // `:x = 1` (Assign, no event beyond its instruction), `print :x` (instruction + print, since
-  // `:x` is now a supported read), `repeat 1 [ print 1 ]` (instruction only — repeat bodies are
-  // a later slice).
-  assert.equal(result.events.length, 4);
+  // `:x` is now a supported read), `repeat 1 [ print 1 ]` (Repeat's own instruction, then one
+  // pass of its body: instruction + print — issue #104 gives `repeat` its runtime meaning).
+  assert.equal(result.events.length, 6);
   assert.deepEqual(
     result.events.map((event) => event.seq),
-    [0, 1, 2, 3],
+    [0, 1, 2, 3, 4, 5],
   );
   assert.deepEqual(
     result.events.map((event) => event.kind),
-    ["instruction", "instruction", "print", "instruction"],
+    [
+      "instruction",
+      "instruction",
+      "print",
+      "instruction",
+      "instruction",
+      "print",
+    ],
   );
   assert.deepEqual(result.events[2].payload, { values: [1] });
+  assert.deepEqual(result.events[5].payload, { values: [1] });
   const instructionKinds = result.events
     .filter((event) => event.kind === "instruction")
     .map((event) => event.payload.statement_kind);
-  assert.deepEqual(instructionKinds, ["Assign", "Call", "Repeat"]);
+  assert.deepEqual(instructionKinds, ["Assign", "Call", "Repeat", "Call"]);
 });
 
 test("execute evaluates an arithmetic print argument, per issue #93", () => {
