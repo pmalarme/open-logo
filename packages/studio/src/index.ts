@@ -21,14 +21,31 @@
  *   plain text — no hard dependency on the epic #118 highlighter). See `editor.ts`.
  * - {@link mountEditorPane} composes the controller into the shell's `editor` region.
  *
- * #126 adds Run/Stop/Reset/Step over `@openlogo/runtime`'s execution budget (issue #102):
+ * #126 adds Run/Stop/Reset/Step over `@openlogo/runtime`'s execution budget (issue #102);
+ * #228 extends the same controller to replay the completed trace-event stream through
+ * `@openlogo/turtle`'s animation player, so the #218 Canvas view moves in lockstep:
  * - {@link createRunController} — `run()` executes the shared `source` via `@openlogo/runtime`'s
  *   `execute()` (composing it, never re-implementing evaluation) and reduces its trace-event
- *   stream to the shared `output`/`diagnostics` fields; `stop()` flips a cancellation signal
- *   `run()` honors on its next call (see `run-controller.ts`'s doc comment for the honest
- *   same-thread caveat this relies on the instruction budget to cover); `reset()` clears
- *   output/diagnostics and re-arms cancellation deterministically; `step()` is a documented
- *   no-op — `execute()` exposes no per-instruction pause/resume API to step through yet.
+ *   stream to the shared `output`/`diagnostics` fields — this part is unchanged since #126 and
+ *   always synchronous/instant. `run()` then (#228) replays that same completed event stream
+ *   through a `TurtleAnimationController`, pushing each folded `turtleState`/`turtleScene`
+ *   snapshot into the shared state model (and repainting an optional `RunControllerOptions.
+ *   canvasView` immediately) as it plays — paced via an injected `RunControllerOptions.scheduler`
+ *   (default: `@openlogo/turtle`'s synchronous `IMMEDIATE_SCHEDULER`, which preserves every
+ *   pre-#228 test's run-completes-synchronously behavior), or painted instantly via `seekToEnd()`
+ *   when `RunControllerOptions.reducedMotion` is set.
+ * - `stop()` flips a cancellation signal `run()` honors on its next call (see `run-controller.ts`'s
+ *   doc comment for the honest same-thread caveat this relies on the instruction budget to cover)
+ *   *and* (#228) pauses the in-progress turtle animation, so the Canvas view freezes at the exact
+ *   same point — a stale, already-scheduled tick can never fire afterward and advance it further
+ *   (`TurtleAnimationController`'s own guard).
+ * - `reset()` clears output/diagnostics and re-arms cancellation deterministically, *and* (#228)
+ *   resets the turtle animation and restores `turtleState`/`turtleScene` to `@openlogo/turtle`'s
+ *   program-start defaults, repainting the Canvas view if one was supplied.
+ * - `step()` — no longer a no-op as of #228: it advances the turtle animation by exactly one
+ *   instruction-step and pushes the resulting snapshot (a no-op before the first `run()` or once
+ *   the animation is exhausted, since `@openlogo/runtime`'s `execute()` itself still exposes no
+ *   per-instruction pause/resume API to step through — #228 steps the *replay*, not the runtime).
  * - {@link mountRunController} composes the controller into the shell's `repl` region.
  *
  * #128 adds persistence — the document text survives a reload:
@@ -64,7 +81,7 @@
  * No lesson UI lands yet — that's #127.
  *
  * #218 adds the turtle Canvas view — static composition of `@openlogo/turtle`'s DOM-free renderer
- * into the app shell (dynamic run-loop repaint is #228):
+ * into the app shell (the dynamic run-loop repaint is #228, above):
  * - `state-model.ts`'s {@link StudioState} gains `turtleState`/`turtleScene` slots, reusing
  *   `@openlogo/turtle`'s own `TurtleState`/`TurtleScene` types verbatim and defaulting to its
  *   `INITIAL_TURTLE_STATE`/`INITIAL_TURTLE_SCENE` program-start defaults.
