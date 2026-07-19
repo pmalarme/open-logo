@@ -219,12 +219,21 @@ test("produce threads shouldStyle through to check()'s Layer-3 style lints", () 
 
 // Coverage-anchor tests (issue #140 follow-up): `for ... from ... to ... by` (issue #103) has four
 // error-propagation branches — a failing `from`/`to`/`by` expression, and a failing loop-body
-// statement — that no corpus fixture or `@openlogo/runtime` unit test exercises today (its own
-// for-loop-binders.test.mjs only covers the *unsupported-expression* skip branch, a different code
-// path). Coverage of these branches was previously an accident of merged coverage across the whole
-// `node --test` run, which made it flaky (sometimes ~90% present, sometimes not, independent of
-// this file's own isolation fix). Calling `produce(..., true)` here exercises `@openlogo/runtime`'s
-// `execute()` directly and deterministically, so these branches are covered on every run.
+// statement — that, at the time this PR was written, no corpus fixture or `@openlogo/runtime` unit
+// test exercised directly (its own for-loop-binders.test.mjs only covered the
+// *unsupported-expression* skip branch, a different code path). Coverage of these branches was
+// previously an accident of merged coverage across the whole `node --test` run, which made it
+// flaky (sometimes ~90% present, sometimes not, independent of this file's own isolation fix).
+// Calling `produce(..., true)` here exercises `@openlogo/runtime`'s `execute()` directly and
+// deterministically, so these branches are covered on every run.
+//
+// Update (issue #173): `packages/runtime/src/for-loop-binders.test.mjs` later gained its own
+// direct tests for these exact four branches (added by #97/#171/#174, using `1 / 0` in place of
+// `:undef`). These four tests here are now redundant with those — an #173 audit confirmed removing
+// either set alone still leaves the branches at 100% via the other — but are kept as defense-in-
+// depth at the harness level rather than removed, since deleting test coverage is out of this
+// issue's scope. Prefer the `packages/runtime/**` tests as the canonical/idiomatic home for new
+// runtime-error-path coverage going forward; this file's job is the harness, not the runtime.
 test("produce/execute propagates a failing `for` `from` expression's diagnostic", () => {
   const result = produce(
     "for i from :undef to 5 [\n  print :i\n]",
@@ -999,8 +1008,34 @@ test("runHarness handles fixture with load error", () => {
   assert.equal(exitCode, 1); // Should fail
 });
 
-test("runHarness exits 0 for passing fixtures", () => {
-  // Real fixtures should pass
+// Coverage-anchor tests (issue #173): `npm run coverage` (`node --test
+// --experimental-test-coverage`) runs only `*.test.mjs` — it never runs `scripts/conformance.mjs`,
+// so the real fixture corpus under `tests/conformance/` only reaches `@openlogo/runtime`'s (or any
+// other package's) code coverage measurement via a `*.test.mjs` that executes it. These two tests
+// are that deliberate, intentional bridge: both are READ-ONLY (they never write into
+// `tests/conformance/`, so — unlike the tests above, which is why they get their own mkdtemp
+// `TEMP_ROOT` — they carry none of the #140 fixture-write race) and both call `runHarness()` with
+// no `root`, which defaults to the real corpus.
+//
+// As of this issue, an audit (temporarily `.skip`-ing both tests and re-running `npm run coverage`)
+// confirmed neither test is *currently* load-bearing for any `packages/**/src` line/branch/function:
+// the `for ... from ... to ... by` error-propagation branches these two used to cover only
+// incidentally (surfaced by #140/#172) now have direct, deterministic unit tests of their own in
+// `packages/runtime/src/for-loop-binders.test.mjs` (added by #97/#171/#174) that exercise
+// `execute()` directly and do not depend on the corpus at all. That is the target end-state for
+// every runtime slice (#173's "make each slice ship its own direct unit tests" direction) — the
+// corpus should only ever be a cross-check, never the sole source of a coverage number.
+//
+// These two tests are kept anyway, for two reasons: (1) they are still useful, non-redundant
+// **behavioral** tests of `runHarness()` itself (that it correctly discovers and passes the real,
+// growing fixture tree, and that profile filtering narrows it correctly) — that behavior has no
+// other test; (2) as defense-in-depth, so that if a *future* runtime/parser/core slice ships
+// without its own direct unit test for some error-path only a corpus fixture happens to exercise,
+// that path still counts toward the 100% gate instead of silently regressing main. If a future audit
+// finds one of these two tests IS load-bearing for some `packages/**/src` path again, the fix is to
+// add a direct unit test for that specific path (mirroring `for-loop-binders.test.mjs`'s pattern),
+// not to keep leaning on this spillover.
+test("runHarness exits 0 for passing fixtures (explicit real-corpus coverage anchor: read-only, executes the full corpus so any fixture-only package path still counts toward coverage)", () => {
   const exitCode = runHarness({});
   assert.equal(exitCode, 0);
 });
@@ -1010,7 +1045,7 @@ test("runHarness exits 2 for unknown profile", () => {
   assert.equal(exitCode, 2);
 });
 
-test("runHarness filters fixtures by profile", () => {
+test("runHarness filters fixtures by profile (also a read-only real-corpus coverage anchor, scoped to the core-language profile subset)", () => {
   const exitCode = runHarness({ profile: "core-language" });
   assert.equal(exitCode, 0);
 });
