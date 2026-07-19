@@ -25,7 +25,8 @@ together.
 
 The tree the reader builds is called the **AST** — the **Abstract Syntax Tree**. "Tree" because
 things nest inside other things, the same way a table of contents nests chapters inside a book,
-and sections inside chapters. "Abstract" because it throws away things that don't matter once
+and sections inside chapters — each one of those boxes in the tree, like a single chapter or
+section, is called a **node**. "Abstract" because it throws away things that don't matter once
 you've understood the shape — like exactly which spaces you typed — while keeping everything that
 does.
 
