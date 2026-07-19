@@ -1,0 +1,20 @@
+{
+  "description": "ol-style-prefer-block (issue #169): a `repeat` body uses the bracket `[ … ]` surface form but spans multiple physical lines (spec/tooling.md:244) — a long `… end repeat` block reads more clearly here. One command per line and consistent indentation mean this fixture never triggers ol-style-one-command-per-line or ol-style-block-indentation, isolating the identity check for this lint alone.",
+  "profiles": ["core-language"],
+  "check": true,
+  "style": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-style-prefer-block",
+      "source_span": {
+        "document": "core-language/style/prefer-block-multiline-bracket",
+        "start": [1, 10],
+        "end": [4, 2]
+      },
+      "params": { "form": "repeat" },
+      "stage": "semantic",
+      "severity": "warning"
+    }
+  ]
+}

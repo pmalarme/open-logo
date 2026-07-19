@@ -1,14 +1,14 @@
 /**
- * The Layer-3 style-lint rules (issue #115, slices 1 and 2a of the 13-code `ol-style-*` family
- * `spec/tooling.md:237-251` registers, sourced from `spec/style-guide.md`). Every finding here
- * reuses the C10 diagnostic shape with `severity: "warning"` and `stage: "semantic"` — a style
- * lint never changes program meaning, unlike a Layer-2 `ol-*` error.
+ * The Layer-3 style-lint rules (issue #115, slices 1, 2a, and 2b of the 13-code `ol-style-*`
+ * family `spec/tooling.md:237-251` registers, sourced from `spec/style-guide.md`). Every finding
+ * here reuses the C10 diagnostic shape with `severity: "warning"` and `stage: "semantic"` — a
+ * style lint never changes program meaning, unlike a Layer-2 `ol-*` error.
  *
  * These rules are opt-in: `check.ts` only runs {@link STYLE_RULES} when a caller passes
  * `{ style: true }`, so every existing Layer-2-only caller and conformance fixture is unaffected
  * (`check.ts`'s module doc explains why unconditional style-checking is unsafe).
  *
- * These two slices implement five of the thirteen registered codes; the rest are tracked in
+ * These three slices implement nine of the thirteen registered codes; the rest are tracked in
  * the #169 follow-up issue:
  *
  * - `ol-style-useless-value` — a control block (`if`/`while`/`repeat`/`forever`/`for … in`/
@@ -80,16 +80,47 @@
  *   guessed at — see {@link isBooleanProducing}/{@link isDefinitelyNonBoolean}'s doc comments.
  *   `Return`s belonging to a *nested* `ProcedureDef` are never attributed to the outer one (see
  *   {@link collectOwnReturns}).
+ * - `ol-style-one-command-per-line` (slice 2b, the layout group) — a `Block` body, itself spanning
+ *   more than one physical line (its own span's start and end lines differ — the AST's only
+ *   available "is this a deliberately short one-line block" signal, since surface delimiter form
+ *   is not otherwise recorded; see {@link isBracketBlock}'s doc comment for how `ol-style-
+ *   prefer-block` below *does* recover that form), whose direct statements group two or more onto
+ *   the same physical start line ("Prefer one command per line", `spec/style-guide.md`). One
+ *   finding per offending line, spanning from that line's first statement to its last. See
+ *   {@link oneCommandPerLineRule}.
+ * - `ol-style-deep-nesting` — a control-form node (`if`/`while`/`repeat`/`forever`/`for … in`/
+ *   `for … from … to`) whose own nesting depth among *other* control-form ancestors reaches three
+ *   or more, matching the spec's own bad example verbatim (`spec/style-guide.md` "Deep unlabeled
+ *   nesting": a `repeat` containing an `if` containing a `repeat`, depth 3, is presented as
+ *   needing a helper procedure or labeled ends). Nesting resets to zero inside a nested
+ *   `ProcedureDef`'s own body — extracting a helper is exactly the fix this lint recommends, so
+ *   the helper's own body must not inherit its caller's depth. See {@link collectDeepNesting}.
+ * - `ol-style-block-indentation` — a multi-line `Block` (same one-line exemption as above) with
+ *   two or more direct statements whose start *columns* disagree ("Indent the contents of `[ ]`
+ *   and long `… end` blocks consistently", `spec/tooling.md:243` — the word is "consistently", not
+ *   a specific width, so this rule is deliberately a **consistency** check among sibling
+ *   statements, never an absolute-indent-width check, to stay conservative and avoid flagging a
+ *   uniformly (if unusually) indented block). The majority column among the block's direct
+ *   statements is the baseline; any statement whose own column disagrees with that baseline is
+ *   flagged. See {@link blockIndentationRule}.
+ * - `ol-style-prefer-block` — a bracket-form `[ … ]` control body (an `if`/`while`/`repeat`/
+ *   `forever`/`for … in`/`for … from … to` body only — never a comprehension body, which the
+ *   grammar restricts to `[ … ]` alone, and never a `define … end` procedure body, which has no
+ *   bracket form at all) that spans more than one physical line ("Suggest a `… end` block when a
+ *   bracketed `[ ]` control body spans multiple lines", `spec/tooling.md:244`). `ast.ts`'s
+ *   `BlockNode` does not record its own surface delimiter, but {@link isBracketBlock} recovers it
+ *   reliably from spans alone — see its doc comment for the exact parser invariant this exploits.
+ *   See {@link preferBlockRule}.
  *
- * Two candidates from the #169 remainder were assessed and deliberately **not** attempted in this
- * slice, each for a concrete write-set/infrastructure reason (not merely difficulty):
+ * Two candidates from the #169 remainder were assessed and deliberately **not** attempted in any
+ * slice so far, each for a concrete write-set/infrastructure reason (not merely difficulty):
  *
  * - `ol-style-comment-style` needs comment *trivia* to exist somewhere in the token/AST stream to
  *   inspect at all. `tokens.ts`'s lexer treats every `#`/`//`/`/* … *\/` comment as pure whitespace
  *   and discards its text entirely before the parser ever sees a token — there is nothing for an
  *   additive `checker-style.ts` rule to read. Doing this would require the reader/lexer to start
- *   retaining comment spans, which is out of this slice's additive-only write-set; tracked as a
- *   blocker in the #169 follow-up rather than worked around here.
+ *   retaining comment spans, which is out of this slice's additive-only write-set; tracked as
+ *   blocker issue #175.
  * - `ol-style-procedure-name`'s normatively-decidable parts (non-snake-case naming; the `is_*?`/
  *   `*?` predicate-suffix pattern) are already fully covered by `ol-style-name-case` and
  *   `ol-style-predicate-name` above — implementing it separately would either duplicate those two
@@ -102,6 +133,7 @@ import type { Diagnostic, Position } from "@openlogo/core";
 import { makeSpan } from "@openlogo/core";
 import type {
   AnyNode,
+  BlockNode,
   ExpressionNode,
   NumberLitNode,
   ProgramNode,
@@ -712,6 +744,301 @@ export function predicateNameRule(program: ProgramNode): readonly Diagnostic[] {
   return diagnostics;
 }
 
+/** Build an `ol-style-one-command-per-line` spanning `first`'s start through `last`'s end. */
+function oneCommandPerLineDiagnostic(
+  first: StatementNode,
+  last: StatementNode,
+  count: number,
+): Diagnostic {
+  return {
+    code: "ol-style-one-command-per-line",
+    source_span: makeSpan(
+      first.source_span.document,
+      first.source_span.start,
+      last.source_span.end,
+    ),
+    params: { count },
+    message: `${count} commands share this line — give each its own line inside a multi-line block.`,
+    stage: "semantic",
+    severity: "warning",
+  };
+}
+
+/**
+ * `ol-style-one-command-per-line` (issue #169): a `Block` whose own span crosses more than one
+ * physical line (excluding a deliberately short one-line block, which the rule never inspects at
+ * all) but whose direct statements group two or more onto the very same physical start line
+ * (`spec/style-guide.md` "Prefer one command per line"). Statements are grouped by their own
+ * `source_span.start` line — same-line statements are always contiguous in a `Block`'s `body`
+ * array, since the array is already in source order, so a single `Map` grouping pass (the same
+ * shape {@link magicNumberRule} uses to group by value) is enough; no separate adjacency check is
+ * needed.
+ */
+export function oneCommandPerLineRule(
+  program: ProgramNode,
+): readonly Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  walk(program, (node) => {
+    if (
+      node.kind !== "Block" ||
+      node.source_span.start[0] === node.source_span.end[0]
+    ) {
+      return;
+    }
+    const byLine = new Map<number, StatementNode[]>();
+    for (const statement of node.body) {
+      const line = statement.source_span.start[0];
+      const group = byLine.get(line);
+      if (group === undefined) {
+        byLine.set(line, [statement]);
+      } else {
+        group.push(statement);
+      }
+    }
+    for (const group of byLine.values()) {
+      if (group.length < 2) {
+        continue;
+      }
+      const first = group[0];
+      const last = group[group.length - 1];
+      if (first !== undefined && last !== undefined) {
+        diagnostics.push(
+          oneCommandPerLineDiagnostic(first, last, group.length),
+        );
+      }
+    }
+  });
+  return diagnostics;
+}
+
+/** The `form` param {@link deepNestingRule} and {@link preferBlockRule} report, reusing the same control-kind → form-name mapping {@link uselessValueRule} uses. */
+const NESTING_CONTROL_KIND: ReadonlySet<string> = new Set(
+  Object.keys(CONTROL_FORM),
+);
+
+/** How many nested control forms are "too deep", matching the spec's own bad example verbatim. */
+const DEEP_NESTING_THRESHOLD = 3;
+
+/** Build an `ol-style-deep-nesting` at `node`'s own span. */
+function deepNestingDiagnostic(
+  node: AnyNode,
+  form: string,
+  depth: number,
+): Diagnostic {
+  return {
+    code: "ol-style-deep-nesting",
+    source_span: node.source_span,
+    params: { form, depth },
+    message: `this ${form} is nested ${depth} levels deep — extract a helper procedure or add labeled ends.`,
+    stage: "semantic",
+    severity: "warning",
+  };
+}
+
+/**
+ * Recurse through `node`, tracking `depth` — the count of enclosing control-form ancestors
+ * (`If`/`While`/`Repeat`/`Forever`/`ForIn`/`ForRange`), inclusive of `node` itself when `node` is
+ * one. Depth resets to zero inside a nested `ProcedureDef`'s own body: extracting a helper
+ * procedure is exactly the fix `ol-style-deep-nesting` recommends, so the helper's own nesting
+ * must never inherit its caller's depth (the same reset {@link collectOwnReturns} applies for
+ * `ol-style-predicate-name`, for the same reason — a nested definition starts a fresh scope).
+ */
+function collectDeepNesting(
+  node: AnyNode,
+  depth: number,
+  diagnostics: Diagnostic[],
+): void {
+  if (node.kind === "ProcedureDef") {
+    for (const child of childrenOf(node)) {
+      collectDeepNesting(child, 0, diagnostics);
+    }
+    return;
+  }
+  const isControlForm = NESTING_CONTROL_KIND.has(node.kind);
+  const nextDepth = isControlForm ? depth + 1 : depth;
+  if (isControlForm && nextDepth >= DEEP_NESTING_THRESHOLD) {
+    diagnostics.push(
+      deepNestingDiagnostic(
+        node,
+        CONTROL_FORM[node.kind as keyof typeof CONTROL_FORM],
+        nextDepth,
+      ),
+    );
+  }
+  for (const child of childrenOf(node)) {
+    collectDeepNesting(child, nextDepth, diagnostics);
+  }
+}
+
+/**
+ * `ol-style-deep-nesting` (issue #169): a control-form node whose own nesting depth among other
+ * control-form ancestors reaches {@link DEEP_NESTING_THRESHOLD} or more (`spec/style-guide.md`
+ * "Deep unlabeled nesting"). See {@link collectDeepNesting} for the traversal and the
+ * nested-`ProcedureDef` reset.
+ */
+export function deepNestingRule(program: ProgramNode): readonly Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  collectDeepNesting(program, 0, diagnostics);
+  return diagnostics;
+}
+
+/** Build an `ol-style-block-indentation` at `statement`'s own span. */
+function blockIndentationDiagnostic(
+  statement: StatementNode,
+  expected: number,
+  found: number,
+): Diagnostic {
+  return {
+    code: "ol-style-block-indentation",
+    source_span: statement.source_span,
+    params: { expected, found },
+    message: `this line is indented to column ${found}, but sibling lines in this block use column ${expected}.`,
+    stage: "semantic",
+    severity: "warning",
+  };
+}
+
+/**
+ * `ol-style-block-indentation` (issue #169): a multi-line `Block` (the same one-line exemption as
+ * {@link oneCommandPerLineRule}) whose direct statements' start columns disagree
+ * (`spec/tooling.md:243` says blocks should be indented "consistently", not to a specific width,
+ * so this is deliberately a consistency check among the block's own direct statements rather than
+ * an absolute-width check — a uniformly, if unusually, indented block is never flagged). The
+ * *majority* column among the block's direct statements is the baseline (ties break toward
+ * whichever column is seen first, via strict `>` on the running best count); every statement whose
+ * own column disagrees with that baseline is flagged. A block with fewer than two statements has
+ * nothing to compare and is skipped.
+ */
+export function blockIndentationRule(
+  program: ProgramNode,
+): readonly Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  walk(program, (node) => {
+    if (
+      node.kind !== "Block" ||
+      node.source_span.start[0] === node.source_span.end[0] ||
+      node.body.length < 2
+    ) {
+      return;
+    }
+    const countByColumn = new Map<number, number>();
+    for (const statement of node.body) {
+      const column = statement.source_span.start[1];
+      countByColumn.set(column, (countByColumn.get(column) ?? 0) + 1);
+    }
+    let baselineColumn = -1;
+    let baselineCount = 0;
+    for (const [column, count] of countByColumn) {
+      if (count > baselineCount) {
+        baselineColumn = column;
+        baselineCount = count;
+      }
+    }
+    for (const statement of node.body) {
+      const column = statement.source_span.start[1];
+      if (column !== baselineColumn) {
+        diagnostics.push(
+          blockIndentationDiagnostic(statement, baselineColumn, column),
+        );
+      }
+    }
+  });
+  return diagnostics;
+}
+
+/**
+ * Does `block` use the bracket `[ … ]` surface form? `ast.ts`'s `BlockNode` records no field for
+ * its own surface delimiter, but `parser.ts` gives us a reliable structural proxy instead:
+ * `parseBracketBlock` spans `[open, closeBracket)` — strictly *before* the first body statement,
+ * since `advance()` past `[` (and any skipped newlines) always moves `current()` on to a later
+ * position before the first statement is parsed — while `parseLongBlock` captures `bodyStart` as
+ * `current().source_span.start` *immediately before* parsing that very first statement, so a
+ * non-empty `… end` block's own span always starts at *exactly* the same `[line, column]` as its
+ * first statement. So: for a non-empty block, the two forms are distinguished by one span
+ * comparison, no source-text slicing needed. An empty block (`body.length === 0`) has no
+ * statement to compare against and is treated as "not a bracket block" — {@link preferBlockRule}
+ * only ever needs a positive bracket-block identification, and an empty block has no content to
+ * migrate into an `… end` block anyway.
+ */
+function isBracketBlock(block: BlockNode): boolean {
+  const first = block.body[0];
+  if (first === undefined) {
+    return false;
+  }
+  return (
+    block.source_span.start[0] !== first.source_span.start[0] ||
+    block.source_span.start[1] !== first.source_span.start[1]
+  );
+}
+
+/** Build an `ol-style-prefer-block` at `block`'s own span. */
+function preferBlockDiagnostic(block: BlockNode, form: string): Diagnostic {
+  return {
+    code: "ol-style-prefer-block",
+    source_span: block.source_span,
+    params: { form },
+    message: `this ${form} body spans multiple lines — an … end block reads more clearly here.`,
+    stage: "semantic",
+    severity: "warning",
+  };
+}
+
+/** Flag `block` for `form` when it is a multi-line bracket block, else do nothing. */
+function checkPreferBlock(
+  block: BlockNode,
+  form: string,
+  diagnostics: Diagnostic[],
+): void {
+  if (
+    isBracketBlock(block) &&
+    block.source_span.start[0] !== block.source_span.end[0]
+  ) {
+    diagnostics.push(preferBlockDiagnostic(block, form));
+  }
+}
+
+/**
+ * `ol-style-prefer-block` (issue #169): a bracket-form control body — `if`/`while`/`repeat`/
+ * `forever`/`for … in`/`for … from … to` only, matching {@link uselessValueRule}'s own six-kind
+ * switch — that spans more than one physical line (`spec/tooling.md:244`). A comprehension body
+ * is out of scope: the grammar restricts it to `[ … ]` alone (it is "the only body form the
+ * block-result rule lets return a value", per `spec/style-guide.md`), so it can never be
+ * rewritten as `… end`. A `define … end` procedure body is likewise out of scope: it has no
+ * bracket form to begin with. See {@link isBracketBlock} for how the bracket/`end` surface form
+ * is recovered without a dedicated AST field.
+ */
+export function preferBlockRule(program: ProgramNode): readonly Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  walk(program, (node) => {
+    switch (node.kind) {
+      case "If":
+        checkPreferBlock(node.thenBody, CONTROL_FORM.If, diagnostics);
+        if (node.elseBody !== undefined) {
+          checkPreferBlock(node.elseBody, CONTROL_FORM.If, diagnostics);
+        }
+        return;
+      case "While":
+        checkPreferBlock(node.body, CONTROL_FORM.While, diagnostics);
+        return;
+      case "Repeat":
+        checkPreferBlock(node.body, CONTROL_FORM.Repeat, diagnostics);
+        return;
+      case "Forever":
+        checkPreferBlock(node.body, CONTROL_FORM.Forever, diagnostics);
+        return;
+      case "ForIn":
+        checkPreferBlock(node.body, CONTROL_FORM.ForIn, diagnostics);
+        return;
+      case "ForRange":
+        checkPreferBlock(node.body, CONTROL_FORM.ForRange, diagnostics);
+        return;
+      default:
+        return;
+    }
+  });
+  return diagnostics;
+}
+
 /**
  * The opt-in Layer-3 style-rule registry (issue #115), run by `check()` only when
  * `options.style === true`. Order is the order findings are reported in; a later #169 slice
@@ -723,4 +1050,8 @@ export const STYLE_RULES: readonly CheckRule[] = [
   nameCaseRule,
   magicNumberRule,
   predicateNameRule,
+  oneCommandPerLineRule,
+  deepNestingRule,
+  blockIndentationRule,
+  preferBlockRule,
 ];

@@ -1,0 +1,20 @@
+{
+  "description": "ol-style-deep-nesting (issue #169): reproduces spec/style-guide.md's own canonical bad example — a `repeat` nested inside an `if` nested inside another `repeat`, three control-form levels deep (matching DEEP_NESTING_THRESHOLD). The innermost repeat is flagged with depth 3; extracting a helper procedure or adding labeled `end`s is the suggested fix (message only, not asserted here).",
+  "profiles": ["core-language"],
+  "check": true,
+  "style": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-style-deep-nesting",
+      "source_span": {
+        "document": "core-language/style/deep-nesting-repeat-if-repeat",
+        "start": [3, 5],
+        "end": [5, 15]
+      },
+      "params": { "form": "repeat", "depth": 3 },
+      "stage": "semantic",
+      "severity": "warning"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+repeat 4
+  if true
+    repeat 3
+      print 1
+    end repeat
+  end if
+end repeat

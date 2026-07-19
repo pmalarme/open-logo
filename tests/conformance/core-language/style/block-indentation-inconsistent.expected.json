@@ -1,0 +1,20 @@
+{
+  "description": "ol-style-block-indentation (issue #169): an `… end` block's second statement (print 2, column 4) is indented one column deeper than its sibling (print 1, column 3), disagreeing with the block's own majority/baseline column. This is a long-form block (no bracket delimiter), so it never triggers ol-style-prefer-block, and the two statements are on separate lines, so it never triggers ol-style-one-command-per-line — an isolated identity check for this lint alone.",
+  "profiles": ["core-language"],
+  "check": true,
+  "style": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-style-block-indentation",
+      "source_span": {
+        "document": "core-language/style/block-indentation-inconsistent",
+        "start": [3, 4],
+        "end": [3, 11]
+      },
+      "params": { "expected": 3, "found": 4 },
+      "stage": "semantic",
+      "severity": "warning"
+    }
+  ]
+}

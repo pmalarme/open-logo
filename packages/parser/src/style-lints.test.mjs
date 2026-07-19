@@ -476,6 +476,148 @@ test("ol-style-predicate-name: a plain command procedure with no return and no ?
   assert.deepEqual(checkStyle("define draw\n  print 1\nend"), []);
 });
 
+// --- ol-style-one-command-per-line ---------------------------------------------------------
+
+test("ol-style-one-command-per-line: two commands sharing a line inside a multi-line bracket block are flagged, once per offending line", () => {
+  const diagnostics = checkStyle(
+    "repeat 4 [\n  print 1  print 2\n  print 3  print 4\n]",
+  ).filter((d) => d.code === "ol-style-one-command-per-line");
+  assert.equal(diagnostics.length, 2);
+  assert.deepEqual(diagnostics[0].params, { count: 2 });
+  assert.deepEqual(diagnostics[1].params, { count: 2 });
+  assert.equal(diagnostics[0].severity, "warning");
+  assert.equal(diagnostics[0].stage, "semantic");
+});
+
+test("ol-style-one-command-per-line: a deliberately short one-line bracket block is exempt", () => {
+  assert.deepEqual(checkStyle("repeat 4 [ print 1  print 2 ]"), []);
+});
+
+test("ol-style-one-command-per-line: a multi-line block with one command per line is clean", () => {
+  assert.deepEqual(
+    checkStyle("repeat 4 [\n  print 1\n  print 2\n]").filter(
+      (d) => d.code === "ol-style-one-command-per-line",
+    ),
+    [],
+  );
+});
+
+// --- ol-style-deep-nesting -------------------------------------------------------------------
+
+test("ol-style-deep-nesting: reproduces the spec's own bad example (repeat > if > repeat, 3 levels)", () => {
+  const diagnostics = checkStyle(
+    "repeat 4\n  if true\n    repeat 3\n      print 1\n    end repeat\n  end if\nend repeat",
+  ).filter((d) => d.code === "ol-style-deep-nesting");
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, { form: "repeat", depth: 3 });
+  assert.equal(diagnostics[0].severity, "warning");
+  assert.equal(diagnostics[0].stage, "semantic");
+});
+
+test("ol-style-deep-nesting: two levels of nesting is clean", () => {
+  assert.deepEqual(
+    checkStyle("repeat 4\n  if true\n    print 1\n  end if\nend repeat"),
+    [],
+  );
+});
+
+test("ol-style-deep-nesting: a nested procedure's own body starts a fresh depth, never inheriting its caller's nesting", () => {
+  // `inner` is defined two control-forms deep inside `outer`, but its own body (repeat > if,
+  // 2 levels) never reaches the threshold on its own merits, so nothing is flagged despite the
+  // combined textual nesting being deeper than 3.
+  const diagnostics = checkStyle(
+    "define outer\n  repeat 4\n    if true\n      define inner\n        repeat 3\n          if true\n            print 1\n          end if\n        end repeat\n      end define\n      inner\n      print 2\n    end if\n  end repeat\nend define",
+  );
+  assert.deepEqual(diagnostics, []);
+});
+
+// --- ol-style-block-indentation --------------------------------------------------------------
+
+test("ol-style-block-indentation: a statement indented differently from its siblings is flagged", () => {
+  const diagnostics = checkStyle(
+    "repeat 4\n  print 1\n   print 2\nend repeat",
+  ).filter((d) => d.code === "ol-style-block-indentation");
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, { expected: 3, found: 4 });
+  assert.equal(diagnostics[0].severity, "warning");
+  assert.equal(diagnostics[0].stage, "semantic");
+});
+
+test("ol-style-block-indentation: consistently indented sibling statements are clean", () => {
+  assert.deepEqual(
+    checkStyle("repeat 4\n  print 1\n  print 2\nend repeat"),
+    [],
+  );
+});
+
+test("ol-style-block-indentation: with three distinct columns, the majority column is the baseline and both minority columns are flagged", () => {
+  const diagnostics = checkStyle(
+    "repeat 4\n  print 1\n  print 2\n   print 3\n    print 4\nend repeat",
+  ).filter((d) => d.code === "ol-style-block-indentation");
+  assert.equal(diagnostics.length, 2);
+  assert.deepEqual(diagnostics[0].params, { expected: 3, found: 4 });
+  assert.deepEqual(diagnostics[1].params, { expected: 3, found: 5 });
+});
+
+test("ol-style-block-indentation: a column-count tie breaks toward whichever column was seen first", () => {
+  // Two statements at column 3, two at column 12 (one per line, from the same source that also
+  // exercises ol-style-one-command-per-line) — the tie must resolve to the first-seen column (3),
+  // so the two column-12 statements are flagged and the two column-3 statements are not.
+  const diagnostics = checkStyle(
+    "repeat 4 [\n  print 1  print 2\n  print 3  print 4\n]",
+  ).filter((d) => d.code === "ol-style-block-indentation");
+  assert.equal(diagnostics.length, 2);
+  assert.deepEqual(diagnostics[0].params, { expected: 3, found: 12 });
+  assert.deepEqual(diagnostics[1].params, { expected: 3, found: 12 });
+});
+
+test("ol-style-block-indentation: a block with fewer than two statements has nothing to compare and is never flagged", () => {
+  assert.deepEqual(checkStyle("repeat 4\n  print 1\nend repeat"), []);
+});
+
+// --- ol-style-prefer-block --------------------------------------------------------------------
+
+test("ol-style-prefer-block: a multi-line bracket-form control body is flagged", () => {
+  const diagnostics = checkStyle("repeat 4 [\n  print 1\n  print 2\n]").filter(
+    (d) => d.code === "ol-style-prefer-block",
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, { form: "repeat" });
+  assert.equal(diagnostics[0].severity, "warning");
+  assert.equal(diagnostics[0].stage, "semantic");
+});
+
+test("ol-style-prefer-block: a single-line bracket block is exempt", () => {
+  assert.deepEqual(checkStyle("repeat 4 [ print 1  print 2 ]"), []);
+});
+
+test("ol-style-prefer-block: a multi-line … end block is already the recommended form and is not flagged", () => {
+  assert.deepEqual(
+    checkStyle("repeat 4\n  print 1\n  print 2\nend repeat"),
+    [],
+  );
+});
+
+test("ol-style-prefer-block: an empty bracket block is never flagged (nothing to migrate)", () => {
+  assert.deepEqual(checkStyle("repeat 4 [ ]"), []);
+});
+
+test("ol-style-prefer-block: both branches of an if are checked independently", () => {
+  const diagnostics = checkStyle(
+    "if true [\n  print 1\n  print 2\n] else [\n  print 3\n  print 4\n]",
+  ).filter((d) => d.code === "ol-style-prefer-block");
+  assert.equal(diagnostics.length, 2);
+  assert.deepEqual(diagnostics[0].params, { form: "if" });
+  assert.deepEqual(diagnostics[1].params, { form: "if" });
+});
+
+test("ol-style-prefer-block: a comprehension body is never flagged, since it can only ever be a bracket block", () => {
+  assert.deepEqual(
+    checkStyle(":xs = [1 2 3]\n:ys = map n in :xs [ :n * 2 ]"),
+    [],
+  );
+});
+
 // --- opt-in gating -------------------------------------------------------------------------
 
 test("check() never runs style lints unless options.style === true", () => {
