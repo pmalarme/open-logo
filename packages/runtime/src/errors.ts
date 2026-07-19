@@ -44,6 +44,8 @@
  * Issue #101 adds the Core list reporters' diagnostics: `ol-type` for a wrong-typed
  * `first`/`last`/`butfirst`/`butlast`/`count`/`fput`/`lput` argument, and `ol-range` for
  * `first`/`last`/`butfirst`/`butlast` given an empty word or list (`spec/error-model.md:100`).
+ * Issue #208 adds `ol-bad-color` for a `set_color`/`set_background` (or `setcolor`/`setbg`)
+ * argument that is not one of the three accepted color forms (`spec/error-model.md:122`).
  * Mirrors the parser's `errors.ts` pattern: every finding is a stable code from the
  * `@openlogo/core` registry with structured `params` (the diagnostic identity) plus warm,
  * lowercase learner prose derived from them — prose is presentation only.
@@ -294,6 +296,19 @@ export interface ListReporterTypeErrorParams {
 export interface EmptyInputRangeParams {
   readonly operation: "first" | "last" | "butfirst" | "butlast";
   readonly value: OLValue;
+}
+
+/**
+ * Params for an `ol-bad-color` raised by `set_color`/`set_background` (and their `setcolor`/
+ * `setbg` aliases, issue #208) when the argument is not one of the three accepted color forms
+ * (`spec/error-model.md:122`, `spec/commands.md`'s "Colors" section). `value` is the offending
+ * argument itself (matching {@link EmptyInputRangeParams}'s convention of carrying the offending
+ * value rather than just its type name); `operation` names the invoked alias for identity, same
+ * convention as {@link ListReporterTypeErrorParams}.
+ */
+export interface BadColorParams {
+  readonly value: OLValue;
+  readonly operation: "set_color" | "setcolor" | "set_background" | "setbg";
 }
 
 /** Runtime-stage diagnostics, one builder per `ol-*` code the evaluator can raise. */
@@ -877,6 +892,21 @@ export const runtimeDiag = {
       source_span,
       { ...params },
       `${params.operation} needs a non-empty word or list, but got an empty one.`,
+    );
+  },
+
+  /**
+   * `ol-bad-color` (issue #208) — `set_color`/`set_background`'s argument is not one of the three
+   * accepted color forms (`spec/error-model.md:122`): an unknown color word, an `[r g b]` list of
+   * the wrong length or with an out-of-range component, or a malformed hex word. See
+   * {@link BadColorParams}.
+   */
+  badColor(source_span: SourceSpan, params: BadColorParams): Diagnostic {
+    return runtimeError(
+      "ol-bad-color",
+      source_span,
+      { ...params },
+      `${params.operation} needs a color word, an [r g b] list, or a "#rrggbb" hex word, but got ${params.value}.`,
     );
   },
 } as const;
