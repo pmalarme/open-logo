@@ -98,4 +98,4 @@ Take any short turtle program you've written and, on paper, draw a box for each 
 arrow from each block to the instructions inside it — that's you building an AST by hand, the same
 way OpenLogo's reader does it automatically.
 
-**Next up →** check the [series map](README.md) for the full list.
+**Next up →** [05 · The interpreter & runtime](05-the-interpreter-and-runtime.md)

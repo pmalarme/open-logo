@@ -69,5 +69,4 @@ toward the answer instead of just giving it away.
 Next time you write a turtle program, try reading it out loud one token at a time — `repeat`,
 `4`, `[`, `forward`, `100`, `right`, `90`, `]` — the same way OpenLogo's lexer does.
 
-**Next up →** more pages in this series (tokens, the lexer, the tree, the interpreter, and more)
-are coming soon — check the [series map](README.md) for the full list.
+**Next up →** [02 · Tokens](02-tokens.md)

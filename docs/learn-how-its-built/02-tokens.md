@@ -59,4 +59,4 @@ Pick any line of turtle code you've written and say it out loud one token at a t
 every space and every bracket. That pause-per-token rhythm is exactly what tokenizing feels like
 from the inside.
 
-**Next up →** check the [series map](README.md) for the full list.
+**Next up →** [03 · The lexer](03-the-lexer.md)

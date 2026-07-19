@@ -75,4 +75,4 @@ Change `right 90` to `right 45` in the square and picture the event stream befor
 `move`/`draw-segment` events stay the same shape, but every `turn` event now goes `{ from: X, to:
 X + 45 }` instead of `+ 90` — and it takes 8 turns, not 4, to face the original direction again.
 
-**Next up →** check the [series map](README.md) for the full list.
+**Next up →** [06 · Highlighting](06-highlighting.md)

@@ -59,4 +59,4 @@ Open any `.logo` file in an editor with OpenLogo highlighting and look closely: 
 `repeat` should all share one color (keywords), while `forward`, `print`, and `right` share another
 (primitives) — even though, to your eyes, they're all "just words."
 
-**Next up →** check the [series map](README.md) for the full list.
+**Next up →** [07 · The checker](07-the-checker.md)

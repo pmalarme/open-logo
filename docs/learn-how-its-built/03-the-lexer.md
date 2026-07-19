@@ -56,4 +56,4 @@ even gets a chance to run.
 Try typing a word with a quote you forgot to close, like `print "hello`. The lexer notices
 immediately that the quote never closed — even before anyone tries to run your program.
 
-**Next up →** check the [series map](README.md) for the full list.
+**Next up →** [04 · The AST](04-the-ast.md)
