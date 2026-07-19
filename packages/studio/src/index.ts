@@ -69,14 +69,20 @@
  *   `stage`/`params` only, never `message` prose (the diagnostic-identity rule).
  * - {@link mountDiagnosticsPane} composes the controller into the shell's `diagnostics` region.
  *
- * #129 adds keyboard + screen-reader accessibility over the REPL loop (editor/run/diagnostics):
- * - {@link REPL_FOCUS_ORDER} is the static, ordered keyboard focus order across all three panes;
- *   {@link nextFocusStop}/{@link previousFocusStop} cycle through it (wrapping both ends), proving
- *   there is no keyboard trap. {@link REPL_LANDMARK_ROLES} declares each pane's container-level
- *   ARIA role/label for a future renderer to map 1:1.
+ * #129 adds keyboard + screen-reader accessibility over the REPL loop (editor/run/diagnostics),
+ * extended in #229 to the turtle Canvas pane (#218/#228):
+ * - {@link REPL_FOCUS_ORDER} is the static, ordered keyboard focus order across every studio pane
+ *   (editor → Run/Stop/Reset/Step → Canvas → diagnostics); {@link nextFocusStop}/
+ *   {@link previousFocusStop} cycle through it (wrapping both ends), proving there is no keyboard
+ *   trap. {@link REPL_LANDMARK_ROLES} declares each pane's container-level ARIA role/label for a
+ *   future renderer to map 1:1.
  * - {@link createA11yAnnouncer} subscribes to the shared store and emits a screen-reader
  *   {@link Announcement} whenever `runStatus` or `diagnostics` changes, built from structured
  *   fields only (never `Diagnostic.message` prose). See `a11y.ts`.
+ * - {@link createTurtleStateRegion} (#229) is the non-visual turtle-state text region: a single,
+ *   always-current `status`/`aria-live="polite"` string over the shared `turtleState` slot,
+ *   rendered via `@openlogo/turtle`'s published `describeTurtleState` — never re-derived here —
+ *   updating in lockstep with the Canvas view on every run tick, `step()`, and `reset()`.
  *
  * No lesson UI lands yet — that's #127.
  *
@@ -161,9 +167,12 @@ export type {
   AnnouncementPoliteness,
   FocusStop,
   RegionLandmark,
+  TurtleStateRegion,
+  TurtleStateTextListener,
 } from "./a11y.js";
 export {
   createA11yAnnouncer,
+  createTurtleStateRegion,
   nextFocusStop,
   previousFocusStop,
   REPL_FOCUS_ORDER,
