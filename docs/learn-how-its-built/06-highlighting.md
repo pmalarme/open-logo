@@ -31,10 +31,13 @@ Two things worth noticing:
   the brackets, not just the bracket character itself — that's only possible because it's reusing
   the reader's tree, not scanning text.
 
-OpenLogo recognizes **15 token classes** in total — our square only uses three of them (`keyword`,
-`number`, `primitive`, plus the bracket role). Bigger programs light up more: your own procedure
-names get their own color once you `define` them, and `:variable`s, words, and comments each get
-one too.
+OpenLogo recognizes **15 token classes** in total — our square only uses four of them (`keyword`,
+`number`, `primitive`, and `bracket`) — and that bracket pair also carries a **role**,
+`instruction-block`, on top of its class. Think of a role like an actor playing a different part in
+each movie: the same `[ ]` characters play "the hero" (an instruction block) in one program and "the
+villain" — er, "an ordinary list" — in another, depending on the tree around them. Bigger programs
+light up more classes: your own procedure names get their own color once you `define` them, and
+`:variable`s, words, and comments each get one too.
 
 ## What's real today
 
