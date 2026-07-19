@@ -1,0 +1,19 @@
+{
+  "description": "ol-duplicate-binder (issue #114): a destructuring `for … in` pattern that repeats a name (`for [:x :x] in …`) binds the same name twice in one pattern. #91's `DestructuringBinderNode` AST makes this checkable by walking `binder.names`. `params` carry the repeated `name` and `form:\"destructuring\"`. The span points at the second `:x` occurrence. `:pairs` is declared first to isolate the code.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-duplicate-binder",
+      "source_span": {
+        "document": "core-language/check/duplicate-binder-destructuring",
+        "start": [2, 9],
+        "end": [2, 11]
+      },
+      "params": { "name": "x", "form": "destructuring" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

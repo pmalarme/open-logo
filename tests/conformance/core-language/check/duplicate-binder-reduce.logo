@@ -1,0 +1,2 @@
+:nums = [1 2 3]
+:total = reduce sum sum in :nums from 0 [ :sum ]

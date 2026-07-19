@@ -1,0 +1,4 @@
+:nums = [1 2 3]
+:doubled = map num in :nums [
+  print :num
+]

@@ -1,0 +1,19 @@
+{
+  "description": "ol-stop-outside-proc (issue #114): a bare `stop` statement at top level, outside any `define … end` procedure body, is a semantic error. The span covers the four-column `stop` keyword. `params` is empty — the code alone identifies the escape kind. Identity only, never `message`.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-stop-outside-proc",
+      "source_span": {
+        "document": "core-language/check/stop-outside-proc",
+        "start": [1, 1],
+        "end": [1, 5]
+      },
+      "params": {},
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

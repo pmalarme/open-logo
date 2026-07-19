@@ -12,14 +12,17 @@
  * `(program, profiles) => readonly Diagnostic[]`; a rule slice adds its module and one
  * registration line in {@link RULES}. #117's `ol-unknown-command` is the first rule registered
  * here; #113's `ol-undefined-var`/`ol-reserved-word` (alongside #79/#113's completed
- * `ol-not-a-place`) are the third; the remaining two rule slices (#114 control-flow, #115 style)
- * each extend {@link RULES} the same way, one vertical slice at a time, exactly as issue #90's
- * `execute()` spine is filled in by the runtime evaluator slices.
+ * `ol-not-a-place`) are the third; #114's `ol-return-outside-proc`/`ol-stop-outside-proc`/
+ * `ol-return-in-comprehension`/`ol-no-value`/`ol-duplicate-binder` control-flow statics are the
+ * last registered, leaving only the #115 style-lint slice to extend {@link RULES} the same way,
+ * one vertical slice at a time, exactly as issue #90's `execute()` spine is filled in by the
+ * runtime evaluator slices.
  */
 
 import type { Diagnostic } from "@openlogo/core";
 import type { ProgramNode } from "./ast.js";
 import { arityRule } from "./checker-arity.js";
+import { controlFlowRule } from "./checker-control-flow.js";
 import { notAPlaceRule } from "./checker-not-a-place.js";
 import { reservedWordRule } from "./checker-reserved-word.js";
 import { undefinedVarRule } from "./checker-undefined-var.js";
@@ -109,6 +112,7 @@ const RULES: readonly CheckRule[] = [
   notAPlaceRule,
   undefinedVarRule,
   reservedWordRule,
+  controlFlowRule,
 ];
 
 /** Dispatches `program`/`profiles`/`source` to every registered rule and concatenates their findings. */
