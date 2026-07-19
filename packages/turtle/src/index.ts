@@ -3,8 +3,19 @@
  * animation, deterministic export, and accessibility. Consumes the trace/event stream from
  * `@openlogo/core`.
  *
- * The turtle-state reducer and renderers land in later slices; this is the M0 skeleton.
+ * ```ts
+ * import * as OL from "@openlogo/turtle";
+ * const state = OL.reduceTurtleEvents(events);
+ * ```
+ *
+ * This slice publishes the deterministic turtle-**state** reducer (position, heading, pen,
+ * color, width, shape, visibility). The retained drawing scene and renderers land in later
+ * slices.
  */
 
-/** Marker export so the M0 skeleton is a real ES module; replaced by real exports later. */
-export const TURTLE_PACKAGE = "@openlogo/turtle";
+export {
+  INITIAL_TURTLE_STATE,
+  reduceTurtleEvents,
+  reduceTurtleState,
+} from "./state.js";
+export type { TurtleState } from "./state.js";
