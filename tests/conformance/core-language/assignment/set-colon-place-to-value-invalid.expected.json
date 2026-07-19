@@ -1,0 +1,30 @@
+{
+  "description": "`set :x to 100` is invalid (spec/grammar.md:104 requires a bare-place after `set`): the colon-place token itself is rejected AND `to` is rejected as an unexpected second token on the line. Error recovery for `to` independently reaches the same failure twice; the parser's end-of-parse() dedup pass (issues #106/#148) collapses the byte-identical second `ol-bad-token` so exactly two distinct-span diagnostics survive.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/assignment/set-colon-place-to-value-invalid",
+        "start": [6, 5],
+        "end": [6, 7]
+      },
+      "params": { "text": ":x" },
+      "stage": "parse",
+      "severity": "error"
+    },
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/assignment/set-colon-place-to-value-invalid",
+        "start": [6, 8],
+        "end": [6, 10]
+      },
+      "params": { "text": "to" },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

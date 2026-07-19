@@ -1,0 +1,6 @@
+# CRITICAL asymmetry (spec/grammar.md:104): `set ... to` requires a bare place, not a
+# colon-place. `set :x to 100` is INVALID: the token after `set` must be a bare name (issue
+# #148). Error recovery independently pushes an ol-bad-token for the colon-place AND an
+# ol-bad-token for the `to` keyword that follows it on the same line — the parser must NOT
+# duplicate the `to` finding (dedup pass, issues #106/#148).
+set :x to 100

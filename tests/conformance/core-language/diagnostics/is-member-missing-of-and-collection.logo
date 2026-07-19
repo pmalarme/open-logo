@@ -1,0 +1,6 @@
+# `is member` with no `of` keyword, and end-of-file where a collection expression should
+# start, is a doubly-broken predicate (issue #106). `parseIsPredicate`'s `member` branch
+# reports the missing `of` and then unconditionally falls through into a failed collection
+# parse, which independently re-reports the same end-of-file token. The parser's end-of-parse()
+# dedup pass (issues #106/#148) collapses the byte-identical second finding.
+print :x is member

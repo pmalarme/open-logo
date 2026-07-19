@@ -159,17 +159,16 @@ test("`is` immediately followed by an unrecognized word reports ol-bad-token onc
   assert.equal(ast.body[1].callee.name, "wibble");
 });
 
-// KNOWN GAP (issue filed from this slice, #53): when `member` is not followed by `of` AND the
+// Fixed by #106/#148's end-of-parse() dedup pass: when `member` is not followed by `of` AND the
 // following token also fails to start a valid collection expression (e.g. end-of-file or a
-// reserved word), the parser pushes TWO identical `ol-bad-token` diagnostics for the same token —
-// once for the missing `of`, once for the failed collection parse — instead of one. This test
-// pins the parser's ACTUAL current (buggy) behavior; do not "fix" it here per #53's
-// validation-only scope. See the filed bug for the intended single-diagnostic behavior.
-test("KNOWN GAP: `is member` with no `of` and no parseable collection duplicates the ol-bad-token diagnostic", () => {
+// reserved word), `parseIsPredicate`'s `member` branch still pushes an `ol-bad-token` for the
+// missing `of` and then unconditionally falls into a failed collection parse that independently
+// pushes a second, byte-identical `ol-bad-token` for the same token. `parse()` now collapses that
+// duplicate (same code/span/params) before returning, so callers see exactly one diagnostic.
+test("`is member` with no `of` and no parseable collection reports a single ol-bad-token (duplicate collapsed)", () => {
   const { diagnostics } = OL.parse("print :x is member", doc);
 
-  assert.equal(diagnostics.length, 2);
-  assert.deepEqual(diagnostics[0], diagnostics[1]);
+  assert.equal(diagnostics.length, 1);
   assert.equal(diagnostics[0].code, "ol-bad-token");
   assert.equal(diagnostics[0].params.text, "end of file");
 
@@ -178,8 +177,7 @@ test("KNOWN GAP: `is member` with no `of` and no parseable collection duplicates
     "print :x is member and 1",
     doc,
   );
-  assert.equal(diagnostics2.length, 2);
-  assert.deepEqual(diagnostics2[0], diagnostics2[1]);
+  assert.equal(diagnostics2.length, 1);
   assert.equal(diagnostics2[0].params.text, "and");
 });
 
