@@ -72,14 +72,28 @@ slice may swap in a real renderer without changing this contract.
 - `attachPersistence(...).dispose()` stops persisting further changes;
   `attachPersistence(...).clearPersisted()` removes the stored value (also degrading gracefully).
 
-## Run/Stop/Reset/Step (#126)
+## Run/Stop/Reset/Step (#126, extended in #228 to drive the turtle Canvas view in lockstep)
 
 - `createRunController(state, options?)` (`src/run-controller.ts`) — the headless run controller
   over `@openlogo/runtime`'s execution budget (issue #102):
   - **Run** — `run()` calls `execute(state.getState().source, document, options)` and reduces the
-    returned trace-event stream to exactly what this slice surfaces: every `print` event becomes
-    one `output` line (already in the runtime's canonical `printedForm`, never reformatted here),
-    and the run's diagnostics replace the shared `diagnostics` list unchanged.
+    returned trace-event stream to exactly what #126 surfaced: every `print` event becomes one
+    `output` line (already in the runtime's canonical `printedForm`, never reformatted here), and
+    the run's diagnostics replace the shared `diagnostics` list unchanged. This part is unchanged
+    since #126 and always synchronous/instant — `execute()` never yields.
+  - **Turtle Canvas lockstep (#228)** — `run()` then replays that same already-complete
+    trace-event stream through `@openlogo/turtle`'s `TurtleAnimationController` (#216), pushing
+    each folded `{ state, scene }` snapshot into the shared `turtleState`/`turtleScene` fields (and
+    calling `options.canvasView.repaint()` immediately, if one was supplied) as playback advances.
+    The runtime executes once, atomically; the animation controller replays that recording —
+    `run-controller.ts` never re-implements movement math or drives the runtime step-by-step.
+    Pacing is via an injected `options.scheduler` (a `@openlogo/turtle` `Scheduler`; studio owns
+    the concrete `setTimeout`/`requestAnimationFrame` implementation — `@openlogo/turtle` itself
+    stays timer-free). It defaults to `@openlogo/turtle`'s synchronous `IMMEDIATE_SCHEDULER`, which
+    drains the whole animation within `run()` before it returns — preserving every pre-#228 test's
+    run-completes-synchronously behavior unmodified. Set `options.reducedMotion: true` to honor
+    `prefers-reduced-motion` (#227): `run()` then paints the final scene instantly via
+    `playWithMotionPreference`'s `seekToEnd()` path instead of pacing per-step ticks.
   - **Stop** — `stop()` flips a cancellation signal this controller owns for its whole lifetime
     and sets `runStatus` to `"stopped"` immediately. Because `execute()` is synchronous and never
     yields, a same-thread `stop()` cannot preempt a call already on the stack — true mid-loop
@@ -89,14 +103,26 @@ slice may swap in a real renderer without changing this contract.
     `DEFAULT_INSTRUCTION_BUDGET`), checked before every statement/loop pass inside `execute()`
     itself. A cancelled signal stays cancelled until `reset()` re-arms it, so `stop()` then `run()`
     deterministically halts with `ol-limit`/`cancelled` rather than silently dropping the request.
+    (#228) `stop()` also pauses the in-progress turtle animation, so the Canvas view freezes at the
+    exact same point the output/diagnostics already stopped at — any tick already scheduled before
+    `stop()` is a guaranteed no-op when it eventually fires, per `TurtleAnimationController`'s own
+    `status !== "running"` guard, so a stale async tick can never sneak in an extra frame.
   - **Reset** — `reset()` clears `output`/`diagnostics` back to empty, re-arms the cancellation
-    signal, and sets `runStatus` to `"idle"` — deterministic, ready for the next `run()`.
-  - **Step** — `step()` is a documented no-op: `execute()` exposes no per-instruction pause/resume
-    API to step through (a single call runs the whole program and returns the full event stream at
-    once), so this slice does not fake stepping the runtime doesn't support. A follow-up issue
-    should track real step-through once the runtime grows an incremental execution entry point.
+    signal, and sets `runStatus` to `"idle"` — deterministic, ready for the next `run()`. (#228)
+    `reset()` also resets the turtle animation and restores `turtleState`/`turtleScene` to
+    `@openlogo/turtle`'s program-start `INITIAL_TURTLE_STATE`/`INITIAL_TURTLE_SCENE`, repainting
+    the Canvas view (if supplied) back to a blank slate.
+  - **Step** — no longer a no-op as of #228: `step()` advances the turtle animation by exactly one
+    instruction-step (matching `TurtleAnimationController.step()`'s own granularity) and pushes the
+    resulting snapshot, repainting the Canvas view if supplied. It remains a no-op before the first
+    `run()` or once the animation is exhausted. This is deliberately stepping the *replay* of an
+    already-complete event stream, not the runtime — `@openlogo/runtime`'s `execute()` itself still
+    exposes no per-instruction pause/resume API; a follow-up issue should track real runtime
+    step-through once it grows an incremental execution entry point.
   - `mountRunController(shell, controller)` composes the controller into the shell's `repl` region.
-- See `run-controller.ts`'s doc comment for the full same-thread cancellation rationale.
+- See `run-controller.ts`'s doc comment for the full same-thread cancellation rationale and the
+  `runStatus`-vs-animation-completion decoupling #228 introduces (a still-paced Canvas view is
+  never reported `"idle"`/`"stopped"` before its animation has actually reached `"done"`).
 
 ## Diagnostics pane (#125)
 
@@ -154,11 +180,11 @@ attributes 1:1 — there is no DOM here to regress.
 - No shell region/mount function is added for the announcer itself — it is a cross-cutting service
   over the existing store, not a pane with its own visible content.
 
-## Turtle Canvas view (#218)
+## Turtle Canvas view (#218, driven live by Run/Stop/Reset/Step in #228)
 
-**Static composition only** — the initial default turtle state/scene, painted once at mount. The
-dynamic run-loop repaint (updating `turtleState`/`turtleScene` after each run and repainting live)
-is #228.
+**#218 delivered static composition** — the initial default turtle state/scene, painted once at
+mount. **#228 (above)** wires `run-controller.ts` to update `turtleState`/`turtleScene` after each
+run/step/reset and repaint the pane live, in lockstep with output/diagnostics.
 
 - `state-model.ts` gains `turtleState`/`turtleScene` on `StudioState`, reusing `@openlogo/turtle`'s
   own `TurtleState`/`TurtleScene` types verbatim (never a studio-invented fork) and defaulting to
