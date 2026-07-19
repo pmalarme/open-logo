@@ -261,6 +261,62 @@ test("ol-style-name-case: a known Core primitive/command callee IS checked for n
   );
 });
 
+test("ol-style-name-case: a non-lowercase structural keyword is flagged for every control/define form", () => {
+  // `spec/style-guide.md` "Keywords are lowercase" explicitly names `REPEAT`/`Define` as the
+  // avoided spelling in its own quick-checklist row, checked by this same code. One fixture per
+  // `STRUCTURAL_KEYWORD` entry: If, While, Repeat, Forever, ForIn, ForRange, ProcedureDef.
+  const cases = [
+    ["IF 1 == 1 [ print 1 ]", "IF"],
+    ["WHILE 1 == 1 [ stop ]", "WHILE"],
+    ["REPEAT 4 [ print 1 ]", "REPEAT"],
+    // `forever` needs a `stop` so the harness's own program terminates; irrelevant to this rule.
+    ["Forever [ stop ]", "Forever"],
+    ["FOR i in [ 1 2 3 ] [ print :i ]", "FOR"],
+    ["For i from 1 to 4 [ print :i ]", "For"],
+    ["DEFINE f\n  return 1\nend", "DEFINE"],
+  ];
+  for (const [source, expectedName] of cases) {
+    const { ast: program, diagnostics: parseDiagnostics } = OL.parse(
+      source,
+      doc,
+    );
+    assert.deepEqual(parseDiagnostics, [], `expected ${source} to parse clean`);
+    const diagnostics = OL.check(program, {
+      profiles: ["core-language"],
+      source,
+      style: true,
+    }).diagnostics.filter((d) => d.code === "ol-style-name-case");
+    assert.deepEqual(
+      diagnostics.map((d) => d.params.name),
+      [expectedName],
+      `expected only the ${expectedName} keyword to be flagged in: ${source}`,
+    );
+  }
+});
+
+test("ol-style-name-case: an already-lowercase structural keyword is clean", () => {
+  const source = "repeat 4\n  print 1\nend repeat";
+  const { ast: program } = OL.parse(source, doc);
+  const diagnostics = OL.check(program, {
+    profiles: ["core-language"],
+    source,
+    style: true,
+  }).diagnostics;
+  assert.deepEqual(diagnostics, []);
+});
+
+test("ol-style-name-case: keyword casing is silently skipped when no source text is supplied", () => {
+  // `checkKeywordCasing` needs the raw source to recover a keyword's own literal spelling (no
+  // `ast.ts` node records it) — without `source`, this sub-check is a no-op, not a false positive
+  // or a thrown error.
+  const { ast: program } = OL.parse("REPEAT 4 [ print 1 ]", doc);
+  const diagnostics = OL.check(program, {
+    profiles: ["core-language"],
+    style: true,
+  }).diagnostics;
+  assert.deepEqual(diagnostics, []);
+});
+
 // --- opt-in gating -------------------------------------------------------------------------
 
 test("check() never runs style lints unless options.style === true", () => {

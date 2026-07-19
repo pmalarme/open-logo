@@ -32,24 +32,29 @@
  * - `ol-style-name-case` — a user identifier (variable, place base/field, procedure name,
  *   parameter, loop/comprehension binder) that is not lowercase snake_case with an optional
  *   trailing `?`/`!` (`spec/style-guide.md` "Names use `snake_case`"), checked against
- *   `^[a-z][a-z0-9_]*[?!]?$`. The same code also covers "Keywords are lowercase"'s primitive-name
- *   half: a `Call`/`ParenCall` callee is checked *only* when its lowercased spelling is a known
- *   Core primitive/command (e.g. `PRINT`), so `PRINT 1` is flagged but a user-defined procedure
- *   call is left alone (see `checkNamesIn`'s `Call`/`ParenCall` case for why). Word-spelled
- *   operators (`mod`/`and`/`or`/`not`) are excluded from that check — the parser normalizes their
- *   callee spelling to canonical lowercase regardless of source casing, so a non-lowercase source
- *   spelling never survives into the AST to check (see `CORE_CALLEE_NAMES`'s doc comment). Scope
- *   note: bare structural keywords (`REPEAT`, `IF`, `WHILE`, …) are **not** checked — unlike a
- *   primitive callee, `ast.ts` never records a control node's own keyword spelling (e.g.
- *   `RepeatNode` has no field for the literal text "repeat"), so checking it would need to slice
- *   the raw `source` text at each keyword's position — a new kind of check this checker package
- *   has no existing pattern for, and `ast.ts` itself is out of this slice's write-set. That
- *   narrower sub-case is deferred to the #115 follow-up alongside `ol-style-full-name`/
- *   `ol-style-procedure-name`. Struct/field type names have no Core AST node yet (Data profile),
- *   so they are out of scope for the same reason `checker-reserved-word.ts` documents.
+ *   `^[a-z][a-z0-9_]*[?!]?$`. The same code also covers "Keywords are lowercase" in full:
+ *   - A `Call`/`ParenCall` callee is checked *only* when its lowercased spelling is a known Core
+ *     primitive/command (e.g. `PRINT`), so `PRINT 1` is flagged but a user-defined procedure call
+ *     is left alone (see `checkNamesIn`'s `Call`/`ParenCall` case for why). Word-spelled operators
+ *     (`mod`/`and`/`or`/`not`) are excluded from that check — the parser normalizes their callee
+ *     spelling to canonical lowercase regardless of source casing, so a non-lowercase source
+ *     spelling never survives into the AST to check (see `CORE_CALLEE_NAMES`'s doc comment).
+ *   - A bare structural keyword that opens a control form or a procedure definition (`if`,
+ *     `while`, `repeat`, `forever`, `for`, `define`) is also checked, e.g. `REPEAT 4 [ ... ]` is
+ *     flagged with `params: { name: "REPEAT" }` (see {@link checkKeywordCasing}). Unlike a
+ *     primitive callee, no `ast.ts` node carries a field for its own keyword's literal source
+ *     spelling, so this check can only run when `check()`'s caller supplies the original `source`
+ *     text (the conformance harness and every real production caller do) — see
+ *     {@link checkKeywordCasing}'s own doc comment for the source-unavailable fallback. The
+ *     trailing closing keyword (`end repeat`, `end if`, …) is **not** checked: `ast.ts`'s
+ *     `BlockNode` records only the body statements, not the closing keyword's own span, so there
+ *     is nothing to slice `source` against for it; that narrower sub-case is deferred to the #115
+ *     follow-up. Struct/field type names have no Core AST node yet (Data profile), so they are
+ *     out of scope for the same reason `checker-reserved-word.ts` documents.
  */
 
-import type { Diagnostic } from "@openlogo/core";
+import type { Diagnostic, Position } from "@openlogo/core";
+import { makeSpan } from "@openlogo/core";
 import type {
   AnyNode,
   ProgramNode,
@@ -254,6 +259,76 @@ function checkNameCase(name: SpannedName, diagnostics: Diagnostic[]): void {
 }
 
 /**
+ * Canonical opening-keyword spelling for every node kind whose own keyword casing
+ * `ol-style-name-case` checks (`spec/style-guide.md` "Keywords are lowercase"). `ForIn` and
+ * `ForRange` share the same `"for"` keyword, since the grammar branches on what follows `for`,
+ * not on a different opening word (`spec/grammar.md`'s `for-in`/`for-range` productions).
+ */
+const STRUCTURAL_KEYWORD: Readonly<Record<string, string>> = {
+  If: "if",
+  While: "while",
+  Repeat: "repeat",
+  Forever: "forever",
+  ForIn: "for",
+  ForRange: "for",
+  ProcedureDef: "define",
+};
+
+/**
+ * Slice `length` characters out of `source` starting at 1-based `[line, column]` position
+ * `start`. A control node's own span always starts at its opening keyword token (confirmed for
+ * every {@link STRUCTURAL_KEYWORD} kind in `parser.ts`: e.g. `parseRepeat`'s
+ * `spanToHere(token.source_span.start)`), and a keyword token never itself contains a newline, so
+ * the slice never crosses a line boundary. `start`'s line is always within `source`'s own line
+ * range, since it comes from a node the same `source` was just parsed into —
+ * `noUncheckedIndexedAccess` cannot correlate that invariant with an indexed access, so this
+ * documents it instead of adding an unreachable fallback that would fail the 100%
+ * branch-coverage gate (the same pattern `checker-not-a-place.ts`'s `renderPlace` uses).
+ */
+function sliceKeyword(source: string, start: Position, length: number): string {
+  const [line, column] = start;
+  const lineText = source.split("\n")[line - 1] as string;
+  return lineText.slice(column - 1, column - 1 + length);
+}
+
+/**
+ * Push an `ol-style-name-case` when `node` is a structural keyword written with non-lowercase
+ * casing (e.g. `REPEAT 4 [ ... ]`). Unlike a primitive `Call` callee — whose `SpannedName` is a
+ * plain AST field — no `ast.ts` control-flow node kind (`RepeatNode`, `IfNode`, …) records its
+ * own keyword's literal source spelling, so this check can only run by slicing the original
+ * `source` text at the node's own span start. When no `source` is supplied (a caller that only
+ * has a `ProgramNode`, with no source text at hand), this check is silently skipped — there is no
+ * AST-only fallback for a keyword's literal spelling, unlike `checker-not-a-place.ts`'s
+ * `renderNode` fallback for reconstructible expression text.
+ */
+function checkKeywordCasing(
+  node: AnyNode,
+  source: string,
+  diagnostics: Diagnostic[],
+): void {
+  const keyword = STRUCTURAL_KEYWORD[node.kind];
+  if (keyword === undefined) {
+    return;
+  }
+  const { start, document } = node.source_span;
+  const text = sliceKeyword(source, start, keyword.length);
+  if (text === keyword) {
+    return;
+  }
+  diagnostics.push({
+    code: "ol-style-name-case",
+    source_span: makeSpan(document, start, [
+      start[0],
+      start[1] + keyword.length,
+    ]),
+    params: { name: text },
+    message: `${text} should be lowercase, like a learner would read it aloud.`,
+    stage: "semantic",
+    severity: "warning",
+  });
+}
+
+/**
  * The identifier-bearing fields `ol-style-name-case` checks for one node, restricted to the
  * fields `walk`'s generic `childrenOf` traversal does not already visit as their own node (a
  * `SpannedName` carries no `kind`, so it is metadata, never a walked node) — see each case for
@@ -335,11 +410,23 @@ function checkNamesIn(node: AnyNode, diagnostics: Diagnostic[]): void {
  * `ol-style-name-case` (issue #115): every user identifier occurrence — variable reads, place
  * bases/fields, procedure names, parameters, `local` names, and loop/comprehension binders —
  * that is not lowercase snake_case (`^[a-z][a-z0-9_]*[?!]?$`), plus a known Core primitive/
- * command callee written with non-lowercase casing.
+ * command callee written with non-lowercase casing, plus (when `source` is supplied) a
+ * structural keyword (`if`/`while`/`repeat`/`forever`/`for`/`define`) written with non-lowercase
+ * casing — see {@link checkKeywordCasing}'s doc comment for why `source` is required for that
+ * last case only.
  */
-export function nameCaseRule(program: ProgramNode): readonly Diagnostic[] {
+export function nameCaseRule(
+  program: ProgramNode,
+  _profiles: readonly CheckProfile[],
+  source?: string,
+): readonly Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
-  walk(program, (node) => checkNamesIn(node, diagnostics));
+  walk(program, (node) => {
+    checkNamesIn(node, diagnostics);
+    if (source !== undefined) {
+      checkKeywordCasing(node, source, diagnostics);
+    }
+  });
   return diagnostics;
 }
 

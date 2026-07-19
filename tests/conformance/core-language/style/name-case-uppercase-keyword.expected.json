@@ -1,0 +1,20 @@
+{
+  "description": "ol-style-name-case (issue #115): a structural keyword written non-lowercase (`REPEAT`) is flagged the same way a non-lowercase primitive/user identifier is (`spec/style-guide.md` \"Keywords are lowercase\"). Only the opening keyword's own span is reported (`params.name` carries its literal source spelling); the closing `end repeat` is already lowercase here and is out of scope for this slice regardless (no AST field records a block's closing keyword spelling).",
+  "profiles": ["core-language"],
+  "check": true,
+  "style": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-style-name-case",
+      "source_span": {
+        "document": "core-language/style/name-case-uppercase-keyword",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "params": { "name": "REPEAT" },
+      "stage": "semantic",
+      "severity": "warning"
+    }
+  ]
+}
