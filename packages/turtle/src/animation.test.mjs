@@ -213,6 +213,114 @@ test("run is a no-op once playback is done", () => {
   assert.deepEqual(controller.getSnapshot(), before);
 });
 
+test("run is a no-op while already running — no duplicate overlapping drive loop", () => {
+  const events = repeat4ForwardRightEvents();
+  const pendingCallbacks = [];
+  const scheduler = (callback) => {
+    pendingCallbacks.push(callback);
+    return () => {
+      const index = pendingCallbacks.indexOf(callback);
+      if (index >= 0) {
+        pendingCallbacks.splice(index, 1);
+      }
+    };
+  };
+  const controller = new OL.TurtleAnimationController(events, { scheduler });
+
+  controller.run();
+  assert.equal(pendingCallbacks.length, 1, "one step scheduled");
+
+  // Calling run() again while already running must NOT schedule a second, overlapping tick —
+  // otherwise pause() would only be able to cancel the newest one, leaving the first pending
+  // forever and able to double-consume a step once it eventually fires.
+  controller.run();
+  assert.equal(
+    pendingCallbacks.length,
+    1,
+    "still exactly one scheduled tick after a redundant run() call",
+  );
+
+  controller.pause();
+  assert.equal(
+    pendingCallbacks.length,
+    0,
+    "the single pending tick was cancelled by pause",
+  );
+  assert.equal(controller.getSnapshot().cursor, 0);
+});
+
+test("step cancels a pending run()-scheduled tick, so it cannot later double-consume", () => {
+  const events = repeat4ForwardRightEvents();
+  const pendingCallbacks = [];
+  const scheduler = (callback) => {
+    pendingCallbacks.push(callback);
+    return () => {
+      const index = pendingCallbacks.indexOf(callback);
+      if (index >= 0) {
+        pendingCallbacks.splice(index, 1);
+      }
+    };
+  };
+  const controller = new OL.TurtleAnimationController(events, { scheduler });
+
+  controller.run();
+  assert.equal(pendingCallbacks.length, 1);
+  const staleCallback = pendingCallbacks[0];
+
+  // A manual step takes over from the still-pending run() tick.
+  controller.step();
+  assert.equal(controller.getSnapshot().cursor, 3);
+  assert.equal(controller.getSnapshot().status, "paused");
+  assert.equal(
+    pendingCallbacks.length,
+    0,
+    "step() cancelled the stale run()-scheduled tick",
+  );
+
+  // Even if something still held a reference to the (now-cancelled) stale callback and invoked
+  // it directly, the controller's own status guard must refuse to consume — belt-and-braces
+  // alongside the scheduler-level cancellation above.
+  staleCallback();
+  assert.equal(
+    controller.getSnapshot().cursor,
+    3,
+    "no double-consumption from the stale tick",
+  );
+  assert.equal(controller.getSnapshot().status, "paused");
+});
+
+test("driveRun's callback ignores a stale invocation from a scheduler that ignores cancellation", () => {
+  const events = repeat4ForwardRightEvents();
+  let capturedCallback = null;
+  const misbehavingScheduler = (callback) => {
+    capturedCallback = callback;
+    // Deliberately returns a cancel function that does nothing, unlike every well-behaved
+    // scheduler used elsewhere in this file — simulates a host that ignores cancellation.
+    return () => {};
+  };
+  const controller = new OL.TurtleAnimationController(events, {
+    scheduler: misbehavingScheduler,
+  });
+
+  controller.run();
+  assert.equal(controller.getSnapshot().status, "running");
+  assert.equal(
+    controller.getSnapshot().cursor,
+    0,
+    "the misbehaving scheduler hasn't fired yet",
+  );
+
+  controller.pause();
+  assert.equal(controller.getSnapshot().status, "paused");
+
+  // The scheduler ignored our cancel handle, so the captured callback still fires "late" — the
+  // controller's own status guard (not the scheduler's cooperation) must be what prevents it
+  // from consuming a step after pause.
+  capturedCallback();
+  assert.equal(controller.getSnapshot().cursor, 0);
+  assert.equal(controller.getSnapshot().status, "paused");
+});
+
 test("reset clears runtime state and rewinds the cursor to the beginning", () => {
   const events = repeat4ForwardRightEvents();
   const controller = new OL.TurtleAnimationController(events);
@@ -315,6 +423,12 @@ test("determinism invariant: instant, slow, and step-by-step all fold to an iden
   const instant = new OL.TurtleAnimationController(events);
   instant.seekToEnd();
 
+  // Also drive the default IMMEDIATE_SCHEDULER through run()/driveRun() directly (not just
+  // seekToEnd's own loop), since running instantly is itself part of the spec's invariant.
+  const instantViaRun = new OL.TurtleAnimationController(events);
+  instantViaRun.run();
+  assert.equal(instantViaRun.getSnapshot().status, "done");
+
   const stepwise = new OL.TurtleAnimationController(events);
   while (stepwise.getSnapshot().status !== "done") {
     stepwise.step();
@@ -341,10 +455,15 @@ test("determinism invariant: instant, slow, and step-by-step all fold to an iden
   }
 
   assert.deepEqual(instant.getSnapshot().scene, direct);
+  assert.deepEqual(instantViaRun.getSnapshot().scene, direct);
   assert.deepEqual(stepwise.getSnapshot().scene, direct);
   assert.deepEqual(slow.getSnapshot().scene, direct);
   assert.deepEqual(instant.getSnapshot().state, stepwise.getSnapshot().state);
   assert.deepEqual(instant.getSnapshot().state, slow.getSnapshot().state);
+  assert.deepEqual(
+    instant.getSnapshot().state,
+    instantViaRun.getSnapshot().state,
+  );
 });
 
 test("large repeat stress case consumes in O(n) without recursion blowing the call stack", () => {

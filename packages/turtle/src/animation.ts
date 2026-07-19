@@ -162,14 +162,17 @@ export class TurtleAnimationController {
    * `spec/rendering.md`'s worked `repeat 4 [ forward 100 right 90 ]` example, where stepping
    * once at `forward 100` consumes only that instruction's `move`/`draw-segment` effects and
    * leaves `right 90` as a separate, not-yet-consumed step. A no-op once playback is `"done"`.
-   * After a manual step call, playback holds at `"paused"` (or `"done"` if that step exhausted
-   * the stream) — see {@link consumeOneStep}, which {@link run} also drives without forcing
-   * `"paused"` in between automated steps.
+   * Cancels any step scheduled by a prior {@link run} first, so a manual step can never race
+   * with — and be double-consumed by — a stale scheduled tick. After a manual step call,
+   * playback holds at `"paused"` (or `"done"` if that step exhausted the stream) — see
+   * {@link consumeOneStep}, which {@link run} also drives without forcing `"paused"` in
+   * between automated steps.
    */
   step(): void {
     if (this.status === "done") {
       return;
     }
+    this.cancelScheduledStep();
     const exhausted = this.consumeOneStep();
     this.status = exhausted ? "done" : "paused";
   }
@@ -202,12 +205,15 @@ export class TurtleAnimationController {
   /**
    * Starts (or resumes) continuous playback: consumes steps at the current {@link setSpeed}
    * pacing until paused, cancelled, or the stream is exhausted. A no-op once playback is
-   * `"done"`. With the default {@link IMMEDIATE_SCHEDULER} this drains the whole remaining
-   * stream synchronously in one call — behaviorally identical to {@link seekToEnd} — matching
-   * the spec's "running instantly … MUST produce the same final retained scene" requirement.
+   * already `"running"` or `"done"` — calling `run` again while already running must never
+   * schedule a second, overlapping drive loop (which would leak an uncancellable pending step
+   * once {@link pause} only has a handle to the newest one). With the default
+   * {@link IMMEDIATE_SCHEDULER} this drains the whole remaining stream synchronously in one
+   * call — behaviorally identical to {@link seekToEnd} — matching the spec's "running
+   * instantly … MUST produce the same final retained scene" requirement.
    */
   run(): void {
-    if (this.status === "done") {
+    if (this.status === "running" || this.status === "done") {
       return;
     }
     this.status = "running";
@@ -224,10 +230,7 @@ export class TurtleAnimationController {
       return;
     }
     this.status = "paused";
-    if (this.cancelPending) {
-      this.cancelPending();
-      this.cancelPending = null;
-    }
+    this.cancelScheduledStep();
   }
 
   /**
@@ -236,10 +239,7 @@ export class TurtleAnimationController {
    * `spec/rendering.md`'s vocabulary — see {@link replay}.
    */
   reset(): void {
-    if (this.cancelPending) {
-      this.cancelPending();
-      this.cancelPending = null;
-    }
+    this.cancelScheduledStep();
     this.cursor = 0;
     this.state = this.initialState;
     this.scene = this.initialScene;
@@ -257,14 +257,24 @@ export class TurtleAnimationController {
    * speed, for a deterministic program.
    */
   seekToEnd(): void {
-    if (this.cancelPending) {
-      this.cancelPending();
-      this.cancelPending = null;
-    }
+    this.cancelScheduledStep();
     while (this.cursor < this.events.length) {
       this.step();
     }
     this.status = "done";
+  }
+
+  /**
+   * Cancels a scheduled-but-not-yet-fired step, if any, and forgets its cancel handle. Shared
+   * by every control ({@link step}, {@link pause}, {@link reset}, {@link seekToEnd}) that must
+   * take over the cursor from a `run()` in progress, so a stale scheduled tick from before the
+   * takeover can never fire and double-consume a step afterwards.
+   */
+  private cancelScheduledStep(): void {
+    if (this.cancelPending) {
+      this.cancelPending();
+      this.cancelPending = null;
+    }
   }
 
   /** Folds `events[start..end)` into the running state/scene, in order, one event at a time. */
@@ -302,6 +312,12 @@ export class TurtleAnimationController {
       let scheduledSynchronously = true;
       this.cancelPending = this.scheduler(() => {
         this.cancelPending = null;
+        if (this.status !== "running") {
+          // Superseded by pause/reset/step/seekToEnd since this tick was scheduled (or a
+          // misbehaving scheduler ignored its own cancel handle) — do nothing rather than
+          // double-consume a step that manual control already took over.
+          return;
+        }
         const exhausted = this.consumeOneStep();
         if (exhausted) {
           this.status = "done";
