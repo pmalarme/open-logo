@@ -1,0 +1,46 @@
+{
+  "description": "return outside any procedure raises ol-return-outside-proc at the runtime stage (execute() never runs check(), so this is a stage:runtime mirror of #114's semantic-stage rule, matching the established #94/#104 convention). Issue #97.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-return-outside-proc",
+        "start": [4, 1],
+        "end": [4, 9]
+      },
+      "payload": {
+        "statement_kind": "Return"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "return",
+      "source_span": {
+        "document": "core-language/execution/procedure-return-outside-proc",
+        "start": [4, 1],
+        "end": [4, 9]
+      },
+      "payload": {
+        "value": 1
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-return-outside-proc",
+      "source_span": {
+        "document": "core-language/execution/procedure-return-outside-proc",
+        "start": [4, 1],
+        "end": [4, 9]
+      },
+      "params": {
+        "keyword": "return"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

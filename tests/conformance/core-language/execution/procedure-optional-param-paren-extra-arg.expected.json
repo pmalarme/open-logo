@@ -1,0 +1,240 @@
+{
+  "description": "The parenthesized call form supplies an argument for the optional trailing parameter that the fixed-arity bare form cannot reach (spec/execution-model.md:316-364; issue #97 (star 5 100 3) example).",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-optional-param-paren-extra-arg",
+        "start": [4, 1],
+        "end": [8, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-optional-param-paren-extra-arg",
+        "start": [9, 1],
+        "end": [9, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/execution/procedure-optional-param-paren-extra-arg",
+        "start": [9, 1],
+        "end": [9, 11]
+      },
+      "payload": {
+        "name": "star",
+        "args": [10, 90, 5]
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-optional-param-paren-extra-arg",
+        "start": [5, 3],
+        "end": [5, 14]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/procedure-optional-param-paren-extra-arg",
+        "start": [5, 3],
+        "end": [5, 14]
+      },
+      "payload": {
+        "values": [10]
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-optional-param-paren-extra-arg",
+        "start": [6, 3],
+        "end": [6, 15]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/procedure-optional-param-paren-extra-arg",
+        "start": [6, 3],
+        "end": [6, 15]
+      },
+      "payload": {
+        "values": [90]
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-optional-param-paren-extra-arg",
+        "start": [7, 3],
+        "end": [7, 15]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/procedure-optional-param-paren-extra-arg",
+        "start": [7, 3],
+        "end": [7, 15]
+      },
+      "payload": {
+        "values": [5]
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/execution/procedure-optional-param-paren-extra-arg",
+        "start": [9, 1],
+        "end": [9, 11]
+      },
+      "payload": {
+        "name": "star",
+        "result": null
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-optional-param-paren-extra-arg",
+        "start": [10, 1],
+        "end": [10, 15]
+      },
+      "payload": {
+        "statement_kind": "ParenCall"
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/execution/procedure-optional-param-paren-extra-arg",
+        "start": [10, 1],
+        "end": [10, 15]
+      },
+      "payload": {
+        "name": "star",
+        "args": [10, 90, 3]
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-optional-param-paren-extra-arg",
+        "start": [5, 3],
+        "end": [5, 14]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/procedure-optional-param-paren-extra-arg",
+        "start": [5, 3],
+        "end": [5, 14]
+      },
+      "payload": {
+        "values": [10]
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-optional-param-paren-extra-arg",
+        "start": [6, 3],
+        "end": [6, 15]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/procedure-optional-param-paren-extra-arg",
+        "start": [6, 3],
+        "end": [6, 15]
+      },
+      "payload": {
+        "values": [90]
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-optional-param-paren-extra-arg",
+        "start": [7, 3],
+        "end": [7, 15]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/procedure-optional-param-paren-extra-arg",
+        "start": [7, 3],
+        "end": [7, 15]
+      },
+      "payload": {
+        "values": [3]
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/execution/procedure-optional-param-paren-extra-arg",
+        "start": [10, 1],
+        "end": [10, 15]
+      },
+      "payload": {
+        "name": "star",
+        "result": null
+      }
+    }
+  ],
+  "diagnostics": []
+}

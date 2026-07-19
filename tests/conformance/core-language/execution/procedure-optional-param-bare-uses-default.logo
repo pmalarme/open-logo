@@ -1,0 +1,7 @@
+# The fixed-arity (bare) call form uses the optional parameter's default value
+# (spec/execution-model.md:316-364). The parenthesized-call-with-extra-args form is covered by
+# procedure-call-paren-extra-arg.logo.
+define greet (:name "world")
+  print :name
+end
+greet

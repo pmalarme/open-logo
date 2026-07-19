@@ -1,0 +1,130 @@
+{
+  "description": "Lexical frame scoping: a callee's params/locals are frame-local and invisible outside it, and the caller's own locals are invisible to the callee unless passed explicitly (spec/execution-model.md:316-364). Issue #97.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-lexical-scope-isolation",
+        "start": [5, 1],
+        "end": [8, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-lexical-scope-isolation",
+        "start": [10, 1],
+        "end": [10, 7]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-lexical-scope-isolation",
+        "start": [11, 1],
+        "end": [11, 7]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/execution/procedure-lexical-scope-isolation",
+        "start": [11, 1],
+        "end": [11, 7]
+      },
+      "payload": {
+        "name": "bump",
+        "args": [5]
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-lexical-scope-isolation",
+        "start": [6, 3],
+        "end": [6, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-lexical-scope-isolation",
+        "start": [7, 3],
+        "end": [7, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/procedure-lexical-scope-isolation",
+        "start": [7, 3],
+        "end": [7, 11]
+      },
+      "payload": {
+        "values": [105]
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/execution/procedure-lexical-scope-isolation",
+        "start": [11, 1],
+        "end": [11, 7]
+      },
+      "payload": {
+        "name": "bump",
+        "result": null
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-lexical-scope-isolation",
+        "start": [12, 1],
+        "end": [12, 9]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/procedure-lexical-scope-isolation",
+        "start": [12, 1],
+        "end": [12, 9]
+      },
+      "payload": {
+        "values": [1]
+      }
+    }
+  ],
+  "diagnostics": []
+}

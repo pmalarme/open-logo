@@ -1,0 +1,10 @@
+# `stop` reached inside a `repeat` loop nested in a procedure body propagates all the way out of
+# the procedure, not just the loop (spec/execution-model.md:340-349). `print "after"` never runs.
+define run_until_two
+  repeat 5 [
+    print repcount
+    if repcount == 2 [ stop ]
+  ]
+  print "after"
+end
+run_until_two

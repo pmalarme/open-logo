@@ -1,0 +1,3 @@
+# `stop` outside any procedure is `ol-stop-outside-proc`, raised by the runtime at call time
+# (same stage:"runtime"-mirrors-semantic convention as `procedure-return-outside-proc.logo`).
+stop

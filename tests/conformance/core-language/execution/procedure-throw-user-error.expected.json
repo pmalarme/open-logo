@@ -1,0 +1,71 @@
+{
+  "description": "throw halts execution with ol-user-error carrying the thrown message. Issue #97.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-throw-user-error",
+        "start": [2, 1],
+        "end": [4, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-throw-user-error",
+        "start": [5, 1],
+        "end": [5, 5]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/execution/procedure-throw-user-error",
+        "start": [5, 1],
+        "end": [5, 5]
+      },
+      "payload": {
+        "name": "fail",
+        "args": []
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-throw-user-error",
+        "start": [3, 3],
+        "end": [3, 26]
+      },
+      "payload": {
+        "statement_kind": "Throw"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-user-error",
+      "source_span": {
+        "document": "core-language/execution/procedure-throw-user-error",
+        "start": [3, 3],
+        "end": [3, 26]
+      },
+      "params": {
+        "message": "something broke"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

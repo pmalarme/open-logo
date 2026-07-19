@@ -1,0 +1,82 @@
+{
+  "description": "The fixed-arity (bare) call form binds the optional parameter's default value (spec/execution-model.md:316-364). Issue #97.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-optional-param-bare-uses-default",
+        "start": [4, 1],
+        "end": [6, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-optional-param-bare-uses-default",
+        "start": [7, 1],
+        "end": [7, 6]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/execution/procedure-optional-param-bare-uses-default",
+        "start": [7, 1],
+        "end": [7, 6]
+      },
+      "payload": {
+        "name": "greet",
+        "args": ["world"]
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-optional-param-bare-uses-default",
+        "start": [5, 3],
+        "end": [5, 14]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/procedure-optional-param-bare-uses-default",
+        "start": [5, 3],
+        "end": [5, 14]
+      },
+      "payload": {
+        "values": ["world"]
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/execution/procedure-optional-param-bare-uses-default",
+        "start": [7, 1],
+        "end": [7, 6]
+      },
+      "payload": {
+        "name": "greet",
+        "result": null
+      }
+    }
+  ],
+  "diagnostics": []
+}

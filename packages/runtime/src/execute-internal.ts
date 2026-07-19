@@ -8,13 +8,26 @@
  * `repeat-forever-repcount.test.mjs` uses) can — this is deliberate: it keeps the test-only
  * `forever` iteration cap architecturally unreachable from `execute()` or any real caller, not
  * just unreachable by convention/naming.
+ *
+ * Issue #97 adds user-procedure call execution: {@link executeStatements} now returns an
+ * {@link ExecSignal} — `"normal"`/`"halt"` (its original two outcomes, renamed) plus `"return"`/
+ * `"stop"` — so a control form's body (`If`/`While`/`Repeat`/`Forever`/`ForIn`/`ForRange`)
+ * transparently propagates a `return`/`stop` up to the nearest enclosing procedure, rather than
+ * only stopping its own loop (`spec/execution-model.md:340-349`). {@link runProcedure} is the
+ * shared call mechanics reachable from both a statement-position call (dispatched directly, right
+ * here) and an expression-position call (`evaluate.ts`'s `evaluateCall`, via the `callProcedure`
+ * callback threaded onto `Environment` — see `evaluate.ts`'s doc comment for why a direct import
+ * back into this file would be a cycle).
  */
 
 import type {
   Diagnostic,
   OLValue,
   PrintPayload,
-  TraceEvent,
+  ProcedureEnterPayload,
+  ProcedureExitPayload,
+  ReturnPayload,
+  SourceSpan,
 } from "@openlogo/core";
 import { typeNameOf } from "@openlogo/core";
 import type {
@@ -22,19 +35,23 @@ import type {
   ExpressionNode,
   ForInNode,
   ParenCallNode,
+  ProcedureDefNode,
+  ProgramNode,
   SpannedName,
   StatementNode,
 } from "@openlogo/parser";
-import { parse } from "@openlogo/parser";
+import { parse, walk } from "@openlogo/parser";
 import {
-  createEnvironment,
   evaluate,
   executeAssign,
   isSupportedExpression,
+  printedForm,
   requireNumber,
   requireWholeNumber,
   type Environment,
+  type EvalResult,
   type Frame,
+  type ProcedureRegistry,
 } from "./evaluate.js";
 import { runtimeDiag } from "./errors.js";
 import type { ExecuteResult, InstructionPayload } from "./index.js";
@@ -114,7 +131,7 @@ function pushLoopFrame(
   bindings: ReadonlyMap<string, OLValue>,
 ): Environment {
   const frame: Frame = new Map(bindings);
-  return { frames: [frame, ...env.frames], repeatTurns: env.repeatTurns };
+  return { ...env, frames: [frame, ...env.frames] };
 }
 
 /**
@@ -175,15 +192,291 @@ function bindForInElement(
 }
 
 /**
- * Execute `statements` in order, mutating `events` in place with one `instruction` event per
- * statement plus whatever effect events that statement's kind produces, and returns the
- * diagnostic that stopped execution, or `undefined` on a clean run through every statement. This
- * is the shared statement-execution core for both the top-level program body ({@link
- * runProgram}) and a control form's block body (the `If`/`While`/`Repeat`/`Forever` handling
- * below) — a block is just another list of statements run against the same threaded
- * {@link Environment} (`spec/execution-model.md:316-327`), so nested control forms and
- * further-nested blocks recurse through this same function without their own copy of the dispatch
- * logic.
+ * The outcome of running a list of statements. `"normal"` is a clean run through every statement;
+ * `"halt"` is the pre-existing "stopped on a diagnostic" outcome, just renamed to make room for
+ * the two new control-transfer outcomes issue #97 adds: `"return"` (a `return`/`output`/`op`
+ * reached, carrying its value and the exact keyword spelling used, for the
+ * `ol-return-outside-proc` diagnostic if it escapes every enclosing procedure) and `"stop"` (a
+ * `stop` reached). Every control-form body below (`If`/`While`/`Repeat`/`Forever`/`ForIn`/
+ * `ForRange`) now propagates ANY non-`"normal"` signal straight up unchanged rather than only
+ * checking for `"halt"` — this is what makes a `stop`/`return` nested inside a loop inside a
+ * procedure exit the whole procedure, not just that loop (`spec/execution-model.md:340-349`).
+ * {@link runProcedure} is the only place that ever *consumes* a `"return"`/`"stop"` signal; if one
+ * reaches {@link runProgram}'s top level instead, no procedure was there to catch it, so it is
+ * converted to `ol-return-outside-proc`/`ol-stop-outside-proc`.
+ */
+type ExecSignal =
+  | { readonly kind: "normal" }
+  | { readonly kind: "halt"; readonly diagnostic: Diagnostic }
+  | {
+      readonly kind: "return";
+      readonly value: OLValue;
+      readonly source_span: SourceSpan;
+      readonly keyword: "return" | "output" | "op";
+    }
+  | { readonly kind: "stop"; readonly source_span: SourceSpan };
+
+const NORMAL_SIGNAL: ExecSignal = { kind: "normal" };
+
+function halt(diagnostic: Diagnostic): ExecSignal {
+  return { kind: "halt", diagnostic };
+}
+
+/**
+ * Every `ProcedureDef` in `program`, keyed by its lowercased name — a whole-program scan (not
+ * just the top-level statement list) so a procedure may be called before its textual `define`
+ * (`spec/execution-model.md:328-333`), mirroring the static checker's `collectProcedureArities`/
+ * `collectVisibleNames` (`packages/parser/src/checker-arity.ts`) exactly, including "a later
+ * `define` of the same name overwrites the earlier one here" — redefinition itself is
+ * `ol-reserved-word`'s concern (issue #113), not this collection's.
+ */
+function collectProcedures(program: ProgramNode): ProcedureRegistry {
+  const procedures = new Map<string, ProcedureDefNode>();
+  walk(program, (node) => {
+    if (node.kind === "ProcedureDef") {
+      procedures.set(node.name.name.toLowerCase(), node);
+    }
+  });
+  return procedures;
+}
+
+/**
+ * Is `statement` a call — bare or parenthesized — to a name that {@link Environment.procedures}
+ * knows, i.e. a user-procedure call in statement (command) position (`star 5 100`, as opposed to
+ * expression/reporter position, e.g. `print area :r`, which `evaluate.ts`'s `evaluateCall`
+ * dispatches instead via `env.callProcedure`)?
+ */
+function isProcedureCallStatement(
+  statement: StatementNode,
+  procedures: ProcedureRegistry,
+): boolean {
+  return (
+    (statement.kind === "Call" || statement.kind === "ParenCall") &&
+    procedures.has(statement.callee.name.toLowerCase())
+  );
+}
+
+/**
+ * The result of one procedure invocation: `ok:false` propagates a diagnostic (an arity mismatch,
+ * a failed argument/default evaluation, or a diagnostic that halted the body); `ok:true` carries
+ * `result` — the `return`ed value, or `null` for a command (the body finished, or `stop`ped,
+ * without ever reaching `return`). A dedicated type, not {@link EvalResult}, since `result` can be
+ * `null` (a command) where {@link OLValue} cannot.
+ */
+type ProcedureOutcome =
+  | { readonly ok: true; readonly result: OLValue | null }
+  | { readonly ok: false; readonly diagnostic: Diagnostic };
+
+/**
+ * Run one invocation of the user procedure `def` denotes, called via `node` (its callee span is
+ * used for every diagnostic below, matching the static checker's `checker-arity.ts` convention of
+ * pointing at the callee, not the whole call). Shared by both a statement-position call
+ * (dispatched directly in {@link executeStatements}) and an expression-position call
+ * (`evaluate.ts`'s `evaluateCall`, via `env.callProcedure` — see this file's header comment for
+ * why that indirection exists).
+ *
+ * Arity is checked BEFORE evaluating any argument, exactly like the static checker's
+ * `arityRule` (`packages/parser/src/checker-arity.ts`): `actual < required` is
+ * `ol-not-enough-inputs`, `actual > max` is `ol-too-many-inputs` — both share that rule's
+ * `{callable, expected, actual}` param shape so the two stages agree on diagnostic identity
+ * (issue #111 / #97). The reader already caps a bare `Call` to a user procedure at its required
+ * parameter count (it stops gathering arguments at the first optional/parenthesized-default
+ * parameter), so `actual > max` is only actually reachable for the parenthesized form in
+ * practice — but the check itself does not special-case `node.kind`, matching `arityRule` exactly.
+ *
+ * Each supplied argument is evaluated left to right in the CALLER's environment, before the
+ * callee frame exists. The callee then runs in a FRESH frame stacked only on the shared root
+ * frame (`env.frames[env.frames.length - 1]`, never the caller's own local frame(s)) — lexical
+ * scoping: the callee cannot see the caller's parameters or locals unless passed as an argument
+ * (`spec/execution-model.md:316-320`). Its own `repeatTurns` starts empty: `repcount` is tied to
+ * the lexical nesting of `repeat` within the currently-running body, and a callee begins a new
+ * body, so it starts with no active `repeat` turn of its own (an assumption called out in this
+ * issue's PR, since the spec does not spell out `repcount` across a call boundary explicitly).
+ * Every parameter without a supplied argument (an omitted optional) has its `defaultValue`
+ * evaluated in the NEW callee frame, in parameter order, so an earlier parameter's bound value is
+ * visible to a later parameter's default expression; a failure there (e.g. `ol-div-zero`)
+ * propagates exactly like a failed supplied-argument evaluation.
+ *
+ * A `procedure-enter` event carries the callee's name and every bound argument value (required
+ * ones as supplied, optional ones with their default already applied) in parameter order,
+ * pushed before the body runs; a `procedure-exit` event carries the callee's name and its result
+ * — the `return`ed value, or `null` for a command (fell through, or `stop`ped) — pushed after,
+ * but only on a clean or `return`/`stop` outcome (a `"halt"` outcome skips it, matching the
+ * existing convention that a diagnostic stops the trace with no further events at all). This
+ * ordering reproduces the spec's worked recursive-call trace exactly
+ * (`spec/execution-model.md:606-648`).
+ *
+ * Before any of that, the call is checked against `env.callDepth`'s length — the current
+ * procedure-call nesting depth — against {@link MAX_PROCEDURE_CALL_DEPTH}: exceeding it raises
+ * `ol-limit` at the callee span instead of recursing further, so an unbounded recursive procedure
+ * degrades to a friendly diagnostic rather than a host `RangeError: Maximum call stack size
+ * exceeded` (`spec/execution-model.md:551-557`). A depth marker is pushed once the check passes
+ * and popped in a `finally` covering the rest of this function, so it is removed on every exit
+ * path — a clean return, a `stop`, or a diagnostic partway through argument/default evaluation or
+ * the body itself.
+ */
+const MAX_PROCEDURE_CALL_DEPTH = 500;
+
+function runProcedure(
+  node: CallNode | ParenCallNode,
+  env: Environment,
+): ProcedureOutcome {
+  if (env.callDepth.length >= MAX_PROCEDURE_CALL_DEPTH) {
+    return {
+      ok: false,
+      diagnostic: runtimeDiag.recursionLimit(
+        node.callee.source_span,
+        MAX_PROCEDURE_CALL_DEPTH,
+      ),
+    };
+  }
+  env.callDepth.push(env.callDepth.length + 1);
+  try {
+    return runProcedureBody(node, env);
+  } finally {
+    env.callDepth.pop();
+  }
+}
+
+/** The body of {@link runProcedure}, run once the recursion-depth check and push have happened. */
+function runProcedureBody(
+  node: CallNode | ParenCallNode,
+  env: Environment,
+): ProcedureOutcome {
+  const name = node.callee.name.toLowerCase();
+  const def = env.procedures.get(name) as ProcedureDefNode;
+  const required = def.params.filter(
+    (param) => param.defaultValue === undefined,
+  ).length;
+  const max = def.params.length;
+  const actual = node.args.length;
+  if (actual < required) {
+    return {
+      ok: false,
+      diagnostic: runtimeDiag.notEnoughInputs(
+        node.callee.source_span,
+        node.callee.name,
+        required,
+        actual,
+      ),
+    };
+  }
+  if (actual > max) {
+    return {
+      ok: false,
+      diagnostic: runtimeDiag.tooManyInputs(
+        node.callee.source_span,
+        node.callee.name,
+        max,
+        actual,
+      ),
+    };
+  }
+
+  const argValues: OLValue[] = [];
+  for (const arg of node.args) {
+    const result = evaluate(arg, env);
+    if (!result.ok) {
+      return { ok: false, diagnostic: result.diagnostic };
+    }
+    argValues.push(result.value);
+  }
+
+  const calleeFrame: Frame = new Map();
+  const calleeEnv: Environment = {
+    ...env,
+    frames: [calleeFrame, env.frames[env.frames.length - 1] as Frame],
+    repeatTurns: [],
+  };
+  const boundArgs: OLValue[] = [];
+  for (const [index, param] of def.params.entries()) {
+    if (index < argValues.length) {
+      const value = argValues[index] as OLValue;
+      calleeFrame.set(param.name.name, value);
+      boundArgs.push(value);
+      continue;
+    }
+    // An omitted optional's default is evaluated in the callee frame, once its earlier
+    // (already-bound) siblings are in place, so a later default may reference an earlier
+    // parameter (e.g. a hypothetical `(:step 100) (:points (:step))`).
+    const defaultResult = evaluate(
+      param.defaultValue as ExpressionNode,
+      calleeEnv,
+    );
+    if (!defaultResult.ok) {
+      return { ok: false, diagnostic: defaultResult.diagnostic };
+    }
+    calleeFrame.set(param.name.name, defaultResult.value);
+    boundArgs.push(defaultResult.value);
+  }
+
+  env.events.push({
+    seq: env.events.length,
+    kind: "procedure-enter",
+    source_span: node.source_span,
+    payload: {
+      name: def.name.name,
+      args: boundArgs,
+    } satisfies ProcedureEnterPayload,
+  });
+
+  const signal = executeStatements(def.body.body, calleeEnv);
+  if (signal.kind === "halt") {
+    return { ok: false, diagnostic: signal.diagnostic };
+  }
+  const result = signal.kind === "return" ? signal.value : null;
+
+  env.events.push({
+    seq: env.events.length,
+    kind: "procedure-exit",
+    source_span: node.source_span,
+    payload: { name: def.name.name, result } satisfies ProcedureExitPayload,
+  });
+
+  return { ok: true, result };
+}
+
+/**
+ * Call a user procedure from an expression/reporter position (`print area :r`): like
+ * {@link runProcedure}, but a command result (`null` — the procedure never reached `return`)
+ * is `ol-no-output` here, since a value is required in this position
+ * (`spec/execution-model.md:346-349`). Wired onto every execution `Environment`'s
+ * `callProcedure` field so `evaluate.ts`'s `evaluateCall` can reach it without importing this
+ * module (see this file's header comment).
+ */
+function callProcedureAsValue(
+  node: CallNode | ParenCallNode,
+  env: Environment,
+): EvalResult {
+  const outcome = runProcedure(node, env);
+  if (!outcome.ok) {
+    return outcome;
+  }
+  if (outcome.result === null) {
+    return {
+      ok: false,
+      diagnostic: runtimeDiag.noOutput(
+        node.callee.source_span,
+        node.callee.name,
+      ),
+    };
+  }
+  return { ok: true, value: outcome.result };
+}
+
+/**
+ * Execute `statements` in order, mutating `env.events` in place with one `instruction` event per
+ * statement plus whatever effect events that statement's kind produces, and returns an
+ * {@link ExecSignal} describing how the run ended: `"normal"` on a clean run through every
+ * statement, `"halt"` with the diagnostic that stopped it, or — issue #97 — `"return"`/`"stop"`
+ * when a `return`/`stop` was reached and needs to keep propagating up to its enclosing procedure
+ * (or, if there is none, to {@link runProgram}'s top level). This is the shared statement-
+ * execution core for both the top-level program body ({@link runProgram}), a procedure's own body
+ * ({@link runProcedure}), and a control form's block body (the `If`/`While`/`Repeat`/`Forever`
+ * handling below) — a block is just another list of statements run against the same threaded
+ * {@link Environment} (`spec/execution-model.md:316-327`), so nested control forms, further-nested
+ * blocks, and procedure bodies all recurse through this same function without their own copy of
+ * the dispatch logic.
  *
  * An `Assign` statement (`:place = value`, `set place to value`) is executed via
  * {@link executeAssign}; it never emits its own event (there is no dedicated event kind for
@@ -205,6 +498,26 @@ function bindForInElement(
  * `ol-type`, `ol-undefined-var`, `ol-range`), execution stops there: the events emitted so far are
  * kept and the diagnostic is returned, exactly as a parse-stage failure returns diagnostics
  * instead of a trace — later operands of that same `print` are never evaluated.
+ *
+ * A `Call`/`ParenCall` statement whose callee names a user procedure (issue #97,
+ * {@link isProcedureCallStatement}) runs it via {@link runProcedure} for its side effects only —
+ * a command result (`null`) is perfectly fine to discard in statement position, so `ol-no-output`
+ * never fires here (only {@link callProcedureAsValue}'s expression-position path raises it). Any
+ * OTHER call (a callee this issue's evaluator does not know — neither a Core primitive/operator
+ * nor a user procedure) still emits its `instruction` event but is left un-evaluated, same as
+ * before.
+ *
+ * A `Return`/`Stop`/`Throw` statement (issue #97) always returns its own {@link ExecSignal}
+ * unconditionally, regardless of whether a procedure is actually running: `Return`'s value is
+ * evaluated first — gated by {@link isSupportedExpression}, same "defer if unsupported"
+ * convention as `print` — and pushes a `return` event before returning `{kind:"return", …}`;
+ * `Stop` returns `{kind:"stop", …}` with no event of its own (the enclosing `procedure-exit`'s
+ * `result:null` already conveys it); `Throw`'s value is likewise evaluated first (a word is used
+ * as the message verbatim, any other value via its printed form, matching `print`'s own
+ * rendering) and becomes `{kind:"halt", diagnostic: ol-user-error}`. Whichever signal comes out is
+ * either consumed by the nearest enclosing {@link runProcedure} call, or — if it escapes every
+ * enclosing procedure — converted by {@link runProgram} into `ol-return-outside-proc`/
+ * `ol-stop-outside-proc`.
  *
  * An `If` statement (issue #100) evaluates `condition` — requiring a boolean, `ol-not-boolean`
  * otherwise (`spec/execution-model.md:365-369`) — and runs exactly one branch: `thenBody` when
@@ -262,23 +575,24 @@ function bindForInElement(
  * Both loops' binders are fresh **body-local** bindings (`spec/execution-model.md:435-437`): each
  * pass runs `body` against a *new* {@link Environment} with one extra frame in front of `env`'s
  * own frames, so the binding is visible inside `body` but never leaks past the loop — `env` itself
- * is never mutated. `env.repeatTurns` (same array reference) and `foreverIterationLimit` are
+ * is never mutated. `env.repeatTurns` (same array reference) and `env.foreverIterationLimit` are
  * threaded through unchanged, so a `repeat`'s `repcount` and a `forever`'s test-only iteration cap
- * both still work correctly across a nested `for`.
+ * both still work correctly across a nested `for`. Every control-form body below propagates ANY
+ * non-`"normal"` signal from `executeStatements` straight back up — including `"return"`/`"stop"`
+ * — so a `stop` or `return` nested inside a loop nested inside a procedure exits the *procedure*,
+ * not just that loop (`spec/execution-model.md:340-349`).
  *
  * Statement kinds this issue does not give meaning to (e.g. a bare arithmetic expression, or any
- * command other than `print`) still emit their `instruction` event but do not evaluate — that is
- * each statement kind's own future slice to add.
+ * call this evaluator does not know) still emit their `instruction` event but do not evaluate —
+ * that is each statement kind's own future slice to add.
  */
 function executeStatements(
   statements: readonly StatementNode[],
   env: Environment,
-  events: TraceEvent[],
-  foreverIterationLimit?: number,
-): Diagnostic | undefined {
+): ExecSignal {
   for (const statement of statements) {
-    events.push({
-      seq: events.length,
+    env.events.push({
+      seq: env.events.length,
       kind: "instruction",
       source_span: statement.source_span,
       payload: { statement_kind: statement.kind } satisfies InstructionPayload,
@@ -287,25 +601,40 @@ function executeStatements(
     if (statement.kind === "Assign") {
       const result = executeAssign(statement, env);
       if (!result.ok) {
-        return result.diagnostic;
+        return halt(result.diagnostic);
+      }
+      continue;
+    }
+
+    if (isProcedureCallStatement(statement, env.procedures)) {
+      const outcome = runProcedure(statement as CallNode | ParenCallNode, env);
+      if (!outcome.ok) {
+        return halt(outcome.diagnostic);
       }
       continue;
     }
 
     if (isPrintCall(statement)) {
       if (statement.args.length === 0) {
-        return runtimeDiag.notEnoughInputs(
-          statement.callee.source_span,
-          statement.callee.name,
-          1,
-          0,
+        return halt(
+          runtimeDiag.notEnoughInputs(
+            statement.callee.source_span,
+            statement.callee.name,
+            1,
+            0,
+          ),
         );
       }
       // Only evaluate a `print` whose every operand is an expression kind this issue's
-      // evaluator gives meaning to (Core literals, arithmetic, variable/place reads).
-      // `(print 1 :ages.tom)` and similar still emit their `instruction` event but are left
-      // un-evaluated for the slice that implements the unsupported operand's expression kind.
-      if (statement.args.every(isSupportedExpression)) {
+      // evaluator gives meaning to (Core literals, arithmetic, variable/place reads, user
+      // procedure calls). `(print 1 :ages.tom)` and similar still emit their `instruction`
+      // event but are left un-evaluated for the slice that implements the unsupported
+      // operand's expression kind.
+      if (
+        statement.args.every((arg) =>
+          isSupportedExpression(arg, env.procedures),
+        )
+      ) {
         const values: OLValue[] = [];
         let failure: Diagnostic | undefined;
         for (const arg of statement.args) {
@@ -317,10 +646,10 @@ function executeStatements(
           values.push(result.value);
         }
         if (failure) {
-          return failure;
+          return halt(failure);
         }
-        events.push({
-          seq: events.length,
+        env.events.push({
+          seq: env.events.length,
           kind: "print",
           source_span: statement.source_span,
           payload: { values } satisfies PrintPayload,
@@ -329,61 +658,92 @@ function executeStatements(
       continue;
     }
 
+    if (statement.kind === "Return") {
+      if (!isSupportedExpression(statement.value, env.procedures)) {
+        continue;
+      }
+      const result = evaluate(statement.value, env);
+      if (!result.ok) {
+        return halt(result.diagnostic);
+      }
+      env.events.push({
+        seq: env.events.length,
+        kind: "return",
+        source_span: statement.source_span,
+        payload: { value: result.value } satisfies ReturnPayload,
+      });
+      return {
+        kind: "return",
+        value: result.value,
+        source_span: statement.source_span,
+        keyword: statement.keyword,
+      };
+    }
+
+    if (statement.kind === "Stop") {
+      return { kind: "stop", source_span: statement.source_span };
+    }
+
+    if (statement.kind === "Throw") {
+      if (!isSupportedExpression(statement.value, env.procedures)) {
+        continue;
+      }
+      const result = evaluate(statement.value, env);
+      if (!result.ok) {
+        return halt(result.diagnostic);
+      }
+      const message =
+        typeof result.value === "string"
+          ? result.value
+          : printedForm(result.value);
+      return halt(runtimeDiag.userError(statement.source_span, message));
+    }
+
     if (statement.kind === "If") {
-      if (!isSupportedExpression(statement.condition)) {
+      if (!isSupportedExpression(statement.condition, env.procedures)) {
         continue;
       }
       const condition = evaluateCondition(statement.condition, env, "if");
       if (!condition.ok) {
-        return condition.diagnostic;
+        return halt(condition.diagnostic);
       }
       const branch = condition.value
         ? statement.thenBody.body
         : (statement.elseBody?.body ?? []);
-      const diagnostic = executeStatements(
-        branch,
-        env,
-        events,
-        foreverIterationLimit,
-      );
-      if (diagnostic) {
-        return diagnostic;
+      const signal = executeStatements(branch, env);
+      if (signal.kind !== "normal") {
+        return signal;
       }
       continue;
     }
 
     if (statement.kind === "While") {
-      if (!isSupportedExpression(statement.condition)) {
+      if (!isSupportedExpression(statement.condition, env.procedures)) {
         continue;
       }
       for (;;) {
         const condition = evaluateCondition(statement.condition, env, "while");
         if (!condition.ok) {
-          return condition.diagnostic;
+          return halt(condition.diagnostic);
         }
         if (!condition.value) {
           break;
         }
-        const diagnostic = executeStatements(
-          statement.body.body,
-          env,
-          events,
-          foreverIterationLimit,
-        );
-        if (diagnostic) {
-          return diagnostic;
+        const signal = executeStatements(statement.body.body, env);
+        if (signal.kind !== "normal") {
+          return signal;
         }
       }
       continue;
     }
 
     if (statement.kind === "Repeat") {
-      if (!isSupportedExpression(statement.count)) {
+      if (!isSupportedExpression(statement.count, env.procedures)) {
         continue;
       }
       const countResult = evaluate(statement.count, env);
       if (!countResult.ok) {
-        return countResult.diagnostic;
+        return halt(countResult.diagnostic);
       }
       const whole = requireWholeNumber(
         countResult.value,
@@ -391,25 +751,22 @@ function executeStatements(
         "repeat",
       );
       if (!whole.ok) {
-        return whole.diagnostic;
+        return halt(whole.diagnostic);
       }
       if (whole.value < 0) {
-        return runtimeDiag.negativeCount(statement.count.source_span, {
-          operation: "repeat",
-          value: whole.value,
-        });
+        return halt(
+          runtimeDiag.negativeCount(statement.count.source_span, {
+            operation: "repeat",
+            value: whole.value,
+          }),
+        );
       }
       for (let turn = 1; turn <= whole.value; turn++) {
         env.repeatTurns.push(turn);
-        const diagnostic = executeStatements(
-          statement.body.body,
-          env,
-          events,
-          foreverIterationLimit,
-        );
+        const signal = executeStatements(statement.body.body, env);
         env.repeatTurns.pop();
-        if (diagnostic) {
-          return diagnostic;
+        if (signal.kind !== "normal") {
+          return signal;
         }
       }
       continue;
@@ -418,17 +775,12 @@ function executeStatements(
     if (statement.kind === "Forever") {
       let turn = 1;
       while (
-        foreverIterationLimit === undefined ||
-        turn <= foreverIterationLimit
+        env.foreverIterationLimit === undefined ||
+        turn <= env.foreverIterationLimit
       ) {
-        const diagnostic = executeStatements(
-          statement.body.body,
-          env,
-          events,
-          foreverIterationLimit,
-        );
-        if (diagnostic) {
-          return diagnostic;
+        const signal = executeStatements(statement.body.body, env);
+        if (signal.kind !== "normal") {
+          return signal;
         }
         turn++;
       }
@@ -439,38 +791,37 @@ function executeStatements(
       if ("kind" in statement.binder) {
         const duplicate = findDuplicateBinderName(statement.binder);
         if (duplicate !== undefined) {
-          return runtimeDiag.duplicateBinder(
-            duplicate.source_span,
-            duplicate.name,
+          return halt(
+            runtimeDiag.duplicateBinder(duplicate.source_span, duplicate.name),
           );
         }
       }
-      if (!isSupportedExpression(statement.iterable)) {
+      if (!isSupportedExpression(statement.iterable, env.procedures)) {
         continue;
       }
       const iterableResult = evaluate(statement.iterable, env);
       if (!iterableResult.ok) {
-        return iterableResult.diagnostic;
+        return halt(iterableResult.diagnostic);
       }
       if (!Array.isArray(iterableResult.value)) {
-        return runtimeDiag.forInNotList(statement.iterable.source_span, {
-          actual: typeNameOf(iterableResult.value),
-          value: iterableResult.value,
-        });
+        return halt(
+          runtimeDiag.forInNotList(statement.iterable.source_span, {
+            actual: typeNameOf(iterableResult.value),
+            value: iterableResult.value,
+          }),
+        );
       }
       for (const element of iterableResult.value) {
         const bound = bindForInElement(statement.binder, element);
         if (!bound.ok) {
-          return bound.diagnostic;
+          return halt(bound.diagnostic);
         }
-        const diagnostic = executeStatements(
+        const signal = executeStatements(
           statement.body.body,
           pushLoopFrame(env, bound.bindings),
-          events,
-          foreverIterationLimit,
         );
-        if (diagnostic) {
-          return diagnostic;
+        if (signal.kind !== "normal") {
+          return signal;
         }
       }
       continue;
@@ -478,15 +829,16 @@ function executeStatements(
 
     if (statement.kind === "ForRange") {
       if (
-        !isSupportedExpression(statement.from) ||
-        !isSupportedExpression(statement.to) ||
-        (statement.by !== undefined && !isSupportedExpression(statement.by))
+        !isSupportedExpression(statement.from, env.procedures) ||
+        !isSupportedExpression(statement.to, env.procedures) ||
+        (statement.by !== undefined &&
+          !isSupportedExpression(statement.by, env.procedures))
       ) {
         continue;
       }
       const fromResult = evaluate(statement.from, env);
       if (!fromResult.ok) {
-        return fromResult.diagnostic;
+        return halt(fromResult.diagnostic);
       }
       const from = requireNumber(
         fromResult.value,
@@ -494,21 +846,21 @@ function executeStatements(
         "for",
       );
       if (!from.ok) {
-        return from.diagnostic;
+        return halt(from.diagnostic);
       }
       const toResult = evaluate(statement.to, env);
       if (!toResult.ok) {
-        return toResult.diagnostic;
+        return halt(toResult.diagnostic);
       }
       const to = requireNumber(toResult.value, statement.to.source_span, "for");
       if (!to.ok) {
-        return to.diagnostic;
+        return halt(to.diagnostic);
       }
       let step = 1;
       if (statement.by !== undefined) {
         const byResult = evaluate(statement.by, env);
         if (!byResult.ok) {
-          return byResult.diagnostic;
+          return halt(byResult.diagnostic);
         }
         const by = requireNumber(
           byResult.value,
@@ -516,10 +868,10 @@ function executeStatements(
           "for",
         );
         if (!by.ok) {
-          return by.diagnostic;
+          return halt(by.diagnostic);
         }
         if (by.value === 0) {
-          return runtimeDiag.forStepZero(statement.by.source_span);
+          return halt(runtimeDiag.forStepZero(statement.by.source_span));
         }
         step = by.value;
       }
@@ -545,20 +897,43 @@ function executeStatements(
         if (!withinBound) {
           break;
         }
-        const diagnostic = executeStatements(
+        const signal = executeStatements(
           statement.body.body,
           pushLoopFrame(env, new Map([[statement.variable.name, current]])),
-          events,
-          foreverIterationLimit,
         );
-        if (diagnostic) {
-          return diagnostic;
+        if (signal.kind !== "normal") {
+          return signal;
         }
       }
     }
   }
 
-  return undefined;
+  return NORMAL_SIGNAL;
+}
+
+/**
+ * Build a fresh execution environment for running `program` from the top: the root/global frame,
+ * no active `repeat` turn, `program`'s whole-program {@link ProcedureRegistry}
+ * ({@link collectProcedures}), an empty event sink, `foreverIterationLimit` threaded through
+ * unchanged, an empty `callDepth` stack ({@link runProcedure} checks and pushes/pops it), and
+ * `callProcedure` wired to {@link callProcedureAsValue} — unlike
+ * `evaluate.ts`'s bare `createEnvironment()` (whose `callProcedure` stub is intentionally
+ * unreachable, for expression-only tests with no procedures in scope), this is the environment
+ * every real statement/expression in `program` actually runs against.
+ */
+function createExecutionEnvironment(
+  program: ProgramNode,
+  foreverIterationLimit: number | undefined,
+): Environment {
+  return {
+    frames: [new Map()],
+    repeatTurns: [],
+    procedures: collectProcedures(program),
+    events: [],
+    foreverIterationLimit,
+    callDepth: [],
+    callProcedure: callProcedureAsValue,
+  };
 }
 
 /**
@@ -567,6 +942,13 @@ function executeStatements(
  * `undefined` for every real `execute()` call — see `index.ts`'s `execute()` doc comment — so a
  * `forever` loop is genuinely unbounded there; only the test-only entry point below ever supplies
  * it.
+ *
+ * A `"return"`/`"stop"` signal that escapes {@link executeStatements} unconsumed means it was
+ * never inside any procedure ({@link runProcedure} always consumes its own body's signal before
+ * it reaches here) — this is `ol-return-outside-proc`/`ol-stop-outside-proc` (issue #97), the
+ * runtime's own copy of the semantic checker's rule of the same name
+ * (`packages/parser/src/checker-control-flow.ts`, issue #114), at `stage: "runtime"` since
+ * `execute()` runs `parse()` only, never `check()`.
  */
 export function runProgram(
   source: string,
@@ -578,15 +960,17 @@ export function runProgram(
     return { events: [], diagnostics };
   }
 
-  const env = createEnvironment();
-  const events: TraceEvent[] = [];
-  const diagnostic = executeStatements(
-    program.body,
-    env,
-    events,
-    foreverIterationLimit,
-  );
-  return { events, diagnostics: diagnostic ? [diagnostic] : [] };
+  const env = createExecutionEnvironment(program, foreverIterationLimit);
+  const signal = executeStatements(program.body, env);
+  const diagnostic =
+    signal.kind === "halt"
+      ? signal.diagnostic
+      : signal.kind === "return"
+        ? runtimeDiag.returnOutsideProc(signal.source_span, signal.keyword)
+        : signal.kind === "stop"
+          ? runtimeDiag.stopOutsideProc(signal.source_span)
+          : undefined;
+  return { events: env.events, diagnostics: diagnostic ? [diagnostic] : [] };
 }
 
 /**

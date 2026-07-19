@@ -1,0 +1,6 @@
+# A parenthesized call with too few arguments for a user procedure's required parameters raises
+# `ol-not-enough-inputs` at the callee span (spec/error-model.md; issue #97/#111 shared param shape).
+define double :a :b
+  return :a + :b
+end
+print (double 5)

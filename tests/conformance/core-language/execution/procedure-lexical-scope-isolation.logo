@@ -1,0 +1,12 @@
+# Lexical frame scoping: a callee's parameters/locals are frame-local and invisible to a caller,
+# and a caller's own locals are invisible to the callee unless passed explicitly
+# (spec/execution-model.md:316-364). `:n` here is bound as a param inside `bump`, entirely
+# separate from the caller's own top-level `:n`.
+define bump :n
+  :n = :n + 100
+  print :n
+end
+
+:n = 1
+bump 5
+print :n

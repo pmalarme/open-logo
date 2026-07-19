@@ -146,6 +146,35 @@ test("for ... by a non-number raises ol-type", () => {
   assert.equal(result.diagnostics[0].code, "ol-type");
 });
 
+test("for ... from whose expression itself fails to evaluate (not merely wrong type) halts with that diagnostic", () => {
+  const result = execute("for i from 1 / 0 to 5 [\n  print 1\n]", doc);
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-div-zero");
+});
+
+test("for ... to whose expression itself fails to evaluate halts with that diagnostic", () => {
+  const result = execute("for i from 1 to 1 / 0 [\n  print 1\n]", doc);
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-div-zero");
+});
+
+test("for ... by whose expression itself fails to evaluate halts with that diagnostic", () => {
+  const result = execute("for i from 1 to 5 by 1 / 0 [\n  print 1\n]", doc);
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-div-zero");
+});
+
+test("a diagnostic raised inside a for ... from ... to body halts the loop and propagates up", () => {
+  const result = execute("for i from 1 to 3 [\n  print 1 / 0\n]", doc);
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-div-zero");
+  // The loop stopped after its first pass raised — no `print` event for turns 2 or 3.
+  assert.equal(
+    result.events.filter((event) => event.kind === "print").length,
+    0,
+  );
+});
+
 test("a single-name destructuring pattern length mismatch uses the singular 'value' wording", () => {
   const result = execute("for [:x] in [[1 2]] [\n  print :x\n]", doc);
   assert.equal(result.diagnostics.length, 1);

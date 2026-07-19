@@ -1,0 +1,278 @@
+{
+  "description": "The spec's worked recursive-call trace (spec/execution-model.md:606-648), reproduced verbatim: each recursive invocation gets its own frame, and procedure-enter/return/procedure-exit events nest as the recursion unwinds. Issue #97.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-recursion-trace",
+        "start": [4, 1],
+        "end": [10, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-recursion-trace",
+        "start": [12, 1],
+        "end": [12, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/execution/procedure-recursion-trace",
+        "start": [12, 7],
+        "end": [12, 18]
+      },
+      "payload": {
+        "name": "countdown",
+        "args": [2]
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-recursion-trace",
+        "start": [5, 3],
+        "end": [7, 6]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-recursion-trace",
+        "start": [8, 3],
+        "end": [8, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/procedure-recursion-trace",
+        "start": [8, 3],
+        "end": [8, 11]
+      },
+      "payload": {
+        "values": [2]
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-recursion-trace",
+        "start": [9, 3],
+        "end": [9, 26]
+      },
+      "payload": {
+        "statement_kind": "Return"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/execution/procedure-recursion-trace",
+        "start": [9, 10],
+        "end": [9, 26]
+      },
+      "payload": {
+        "name": "countdown",
+        "args": [1]
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-recursion-trace",
+        "start": [5, 3],
+        "end": [7, 6]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-recursion-trace",
+        "start": [8, 3],
+        "end": [8, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/procedure-recursion-trace",
+        "start": [8, 3],
+        "end": [8, 11]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-recursion-trace",
+        "start": [9, 3],
+        "end": [9, 26]
+      },
+      "payload": {
+        "statement_kind": "Return"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/execution/procedure-recursion-trace",
+        "start": [9, 10],
+        "end": [9, 26]
+      },
+      "payload": {
+        "name": "countdown",
+        "args": [0]
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-recursion-trace",
+        "start": [5, 3],
+        "end": [7, 6]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-recursion-trace",
+        "start": [6, 5],
+        "end": [6, 13]
+      },
+      "payload": {
+        "statement_kind": "Return"
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "return",
+      "source_span": {
+        "document": "core-language/execution/procedure-recursion-trace",
+        "start": [6, 5],
+        "end": [6, 13]
+      },
+      "payload": {
+        "value": 0
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/execution/procedure-recursion-trace",
+        "start": [9, 10],
+        "end": [9, 26]
+      },
+      "payload": {
+        "name": "countdown",
+        "result": 0
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "return",
+      "source_span": {
+        "document": "core-language/execution/procedure-recursion-trace",
+        "start": [9, 3],
+        "end": [9, 26]
+      },
+      "payload": {
+        "value": 0
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/execution/procedure-recursion-trace",
+        "start": [9, 10],
+        "end": [9, 26]
+      },
+      "payload": {
+        "name": "countdown",
+        "result": 0
+      }
+    },
+    {
+      "seq": 19,
+      "kind": "return",
+      "source_span": {
+        "document": "core-language/execution/procedure-recursion-trace",
+        "start": [9, 3],
+        "end": [9, 26]
+      },
+      "payload": {
+        "value": 0
+      }
+    },
+    {
+      "seq": 20,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/execution/procedure-recursion-trace",
+        "start": [12, 7],
+        "end": [12, 18]
+      },
+      "payload": {
+        "name": "countdown",
+        "result": 0
+      }
+    },
+    {
+      "seq": 21,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/procedure-recursion-trace",
+        "start": [12, 1],
+        "end": [12, 18]
+      },
+      "payload": {
+        "values": [0]
+      }
+    }
+  ],
+  "diagnostics": []
+}

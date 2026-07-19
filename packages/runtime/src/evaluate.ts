@@ -26,7 +26,12 @@
  * `index.ts`'s `executeStatements` pushes/pops around each pass.
  */
 
-import type { Diagnostic, OLValue, SourceSpan } from "@openlogo/core";
+import type {
+  Diagnostic,
+  OLValue,
+  SourceSpan,
+  TraceEvent,
+} from "@openlogo/core";
 import { typeNameOf } from "@openlogo/core";
 import type {
   AssignNode,
@@ -35,6 +40,7 @@ import type {
   ExpressionNode,
   ParenCallNode,
   PlaceNode,
+  ProcedureDefNode,
   SelectorSegment,
 } from "@openlogo/parser";
 import { runtimeDiag } from "./errors.js";
@@ -63,21 +69,73 @@ function fail(diagnostic: Diagnostic): EvalResult {
 export type Frame = Map<string, OLValue>;
 
 /**
+ * The whole-program name→definition table issue #97's `execute-internal.ts` builds once, up
+ * front, by scanning every {@link ProcedureDefNode} in the program (mirroring the static
+ * checker's `collectProcedureArities`/`collectVisibleNames`) — so a procedure may be called
+ * before its textual `define` (`spec/execution-model.md:328-333`). Keyed by the callee's
+ * lowercased name, matching every other case-insensitive command-name lookup in this package.
+ */
+export type ProcedureRegistry = ReadonlyMap<string, ProcedureDefNode>;
+
+/**
  * The evaluator's binding model: a nearest-first stack of frames, root last, plus the active
  * `repeat` turn stack `repcount` reads (issue #104). `repeatTurns` is a mutable array — nearest
  * (innermost) enclosing `repeat` last — that `index.ts`'s `executeStatements` pushes the current
  * 1-based turn onto before running a `repeat` pass and pops after; the array reference itself
  * never changes, so it is threaded unchanged through every recursive `executeStatements`/
  * `evaluate` call the same way `frames` is.
+ *
+ * Issue #97 adds the whole-program {@link ProcedureRegistry} (`procedures`), the shared,
+ * mutable trace-event sink (`events`) every emitting site now pushes onto directly instead of
+ * threading a separate `events` parameter, the whole-program `forever` iteration test cap
+ * (`foreverIterationLimit`, also promoted from a separate parameter for the same reason),
+ * `callProcedure` — a callback into `execute-internal.ts`'s procedure-call mechanics that lets
+ * `evaluateCall` (expression/reporter position, e.g. `print area :r`) invoke a user procedure
+ * without this module importing `execute-internal.ts` (which already imports this one, so a
+ * direct import here would be a cycle). Statement-position calls (`star 5 100`) instead call
+ * `execute-internal.ts`'s `runProcedure` directly — same module, no indirection needed. It also
+ * adds `callDepth`, a mutable stack `runProcedure` pushes onto before running a callee's body and
+ * pops after (mirroring `repeatTurns`'s push/pop-around-a-pass shape): its length is the current
+ * procedure-call nesting depth, checked against a fixed ceiling before every call so unbounded
+ * recursion raises a friendly `ol-limit` diagnostic (`spec/execution-model.md:551-557`) instead of
+ * overflowing the host's own call stack.
  */
 export interface Environment {
   readonly frames: readonly Frame[];
   readonly repeatTurns: number[];
+  readonly procedures: ProcedureRegistry;
+  readonly events: TraceEvent[];
+  readonly foreverIterationLimit?: number;
+  readonly callDepth: number[];
+  readonly callProcedure: (
+    node: CallNode | ParenCallNode,
+    env: Environment,
+  ) => EvalResult;
 }
 
-/** A fresh environment holding just the root/global frame and no active `repeat` turn. */
+/** The empty registry shared by every environment that has no user procedures to call. */
+const EMPTY_PROCEDURES: ProcedureRegistry = new Map();
+
+/**
+ * A fresh environment holding just the root/global frame, no active `repeat` turn, and no user
+ * procedures. Used directly by expression-only tests; `execute-internal.ts` builds its own
+ * environment (`createExecutionEnvironment`) with a real `procedures` registry and a working
+ * `callProcedure` wired to `runProcedure` instead of this stub, which throws if ever reached —
+ * safe, since `procedures` is empty here, so `evaluateCall` never takes the branch that calls it.
+ */
 export function createEnvironment(): Environment {
-  return { frames: [new Map()], repeatTurns: [] };
+  return {
+    frames: [new Map()],
+    repeatTurns: [],
+    procedures: EMPTY_PROCEDURES,
+    events: [],
+    callDepth: [],
+    callProcedure: () => {
+      throw new Error(
+        "callProcedure is unreachable on a bare createEnvironment() — it has no procedures",
+      );
+    },
+  };
 }
 
 /** Look up `name` nearest frame to root; `undefined` when no frame binds it. */
@@ -269,9 +327,15 @@ function isLogicalOperator(name: string): name is LogicalOperator {
  * #95 `and`/`or`/`not` calls are in scope; note this is a *shape* check only — a short-circuited
  * operand such as `:missing` in `false and :missing` is still a supported `VarRef`, it is simply
  * never reached by {@link evaluate}'s short-circuit at runtime. As of issue #104 a 0-arg
- * `repcount` call is in scope too.
+ * `repcount` call is in scope too. As of issue #97 a call whose callee is a name in `procedures`
+ * (a user procedure, in either the bare or parenthesized call form) is in scope as well — pass
+ * the calling environment's `procedures` registry (defaults to none, for callers with no user
+ * procedures in scope).
  */
-export function isSupportedExpression(node: ExpressionNode): boolean {
+export function isSupportedExpression(
+  node: ExpressionNode,
+  procedures: ProcedureRegistry = EMPTY_PROCEDURES,
+): boolean {
   switch (node.kind) {
     case "NumberLit":
     case "WordLit":
@@ -279,11 +343,15 @@ export function isSupportedExpression(node: ExpressionNode): boolean {
     case "VarRef":
       return true;
     case "ListLit":
-      return node.elements.every(isSupportedExpression);
+      return node.elements.every((element) =>
+        isSupportedExpression(element, procedures),
+      );
     case "ComparisonChain":
-      return node.operands.every(isSupportedExpression);
+      return node.operands.every((operand) =>
+        isSupportedExpression(operand, procedures),
+      );
     case "Place":
-      return isSupportedPlace(node);
+      return isSupportedPlace(node, procedures);
     case "Call":
     case "ParenCall": {
       const name = node.callee.name.toLowerCase();
@@ -295,8 +363,12 @@ export function isSupportedExpression(node: ExpressionNode): boolean {
         isLogicalOperator(name) ||
         name === "not" ||
         name === "thing" ||
-        name === "repcount";
-      return isKnownCallee && node.args.every(isSupportedExpression);
+        name === "repcount" ||
+        procedures.has(name);
+      return (
+        isKnownCallee &&
+        node.args.every((arg) => isSupportedExpression(arg, procedures))
+      );
     }
     default:
       return false;
@@ -309,9 +381,14 @@ export function isSupportedExpression(node: ExpressionNode): boolean {
  * carrying one is unsupported regardless of its other segments. Vacuously `true` for a
  * zero-segment place (a bare `:name` grown into a place only in assignment-target position).
  */
-function isSupportedPlace(place: PlaceNode): boolean {
+function isSupportedPlace(
+  place: PlaceNode,
+  procedures: ProcedureRegistry = EMPTY_PROCEDURES,
+): boolean {
   return place.segments.every(
-    (segment) => segment.kind === "index" && isSupportedExpression(segment.key),
+    (segment) =>
+      segment.kind === "index" &&
+      isSupportedExpression(segment.key, procedures),
   );
 }
 
@@ -541,7 +618,10 @@ export function executeAssign(
     );
   }
   const place = node.place;
-  if (!isSupportedPlace(place) || !isSupportedExpression(node.value)) {
+  if (
+    !isSupportedPlace(place, env.procedures) ||
+    !isSupportedExpression(node.value, env.procedures)
+  ) {
     return { ok: true };
   }
 
@@ -631,6 +711,9 @@ function evaluateCall(node: ArithmeticCallNode, env: Environment): EvalResult {
   }
   if (name === "repcount") {
     return evaluateRepcount(node, env);
+  }
+  if (env.procedures.has(name)) {
+    return env.callProcedure(node, env);
   }
   throw new Error(
     `evaluate: call to "${name}" is not implemented yet — it lands with its own evaluator slice`,

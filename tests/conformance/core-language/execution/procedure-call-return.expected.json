@@ -1,0 +1,78 @@
+{
+  "description": "A reporter procedure (reaches `return`) called in expression position: `procedure-enter`/`return`/`procedure-exit` bracket the call (spec/execution-model.md:316-364, 606-648). Issue #97.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-call-return",
+        "start": [2, 1],
+        "end": [4, 4]
+      },
+      "payload": { "statement_kind": "ProcedureDef" }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-call-return",
+        "start": [5, 1],
+        "end": [5, 15]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 2,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/execution/procedure-call-return",
+        "start": [5, 7],
+        "end": [5, 15]
+      },
+      "payload": { "name": "square", "args": [5] }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/procedure-call-return",
+        "start": [3, 3],
+        "end": [3, 17]
+      },
+      "payload": { "statement_kind": "Return" }
+    },
+    {
+      "seq": 4,
+      "kind": "return",
+      "source_span": {
+        "document": "core-language/execution/procedure-call-return",
+        "start": [3, 3],
+        "end": [3, 17]
+      },
+      "payload": { "value": 25 }
+    },
+    {
+      "seq": 5,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/execution/procedure-call-return",
+        "start": [5, 7],
+        "end": [5, 15]
+      },
+      "payload": { "name": "square", "result": 25 }
+    },
+    {
+      "seq": 6,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/procedure-call-return",
+        "start": [5, 1],
+        "end": [5, 15]
+      },
+      "payload": { "values": [25] }
+    }
+  ],
+  "diagnostics": []
+}
