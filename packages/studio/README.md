@@ -167,10 +167,11 @@ is #228.
 - **The DOM ownership boundary**: `@openlogo/turtle` is deliberately DOM-free — its `RenderTarget`
   is a hand-written minimal structural subset of the real Canvas 2D drawing API (this monorepo has
   no `lib.dom` and no `node-canvas` dependency). `src/canvas-view.ts`'s
-  `Canvas2DContextLike` names that same subset from the studio side, and
-  `createCanvasRenderTarget(context)` adapts a real (or fake, for tests) 2-D context into
-  `@openlogo/turtle`'s `RenderTarget` — the DOM canvas lives in studio, never in
-  `@openlogo/turtle`.
+  `Canvas2DContext` names that same real-context surface from the studio side, and
+  `createCanvasRenderTarget(context)` wraps it into `@openlogo/turtle`'s `RenderTarget` — a real
+  forwarding adapter (not a pass-through, since a real `CanvasRenderingContext2D`'s
+  `fillStyle`/`strokeStyle` accept `CanvasGradient`/`CanvasPattern` too, wider than `RenderTarget`
+  declares) — the DOM canvas lives in studio, never in `@openlogo/turtle`.
 - `createCanvasViewController(state, { target, viewport })` reads `state.getState().turtleState`/
   `.turtleScene` and paints them through `@openlogo/turtle`'s `paintTurtle` — never re-deriving
   turtle coordinates, colors, or scene items itself. `repaint()` always reads the *current* store

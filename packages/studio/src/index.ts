@@ -68,8 +68,8 @@
  * - `state-model.ts`'s {@link StudioState} gains `turtleState`/`turtleScene` slots, reusing
  *   `@openlogo/turtle`'s own `TurtleState`/`TurtleScene` types verbatim and defaulting to its
  *   `INITIAL_TURTLE_STATE`/`INITIAL_TURTLE_SCENE` program-start defaults.
- * - {@link Canvas2DContextLike} names the real Canvas 2D context surface this package forwards
- *   (this monorepo has no `lib.dom`); {@link createCanvasRenderTarget} adapts one into
+ * - {@link Canvas2DContext} names the real Canvas 2D context surface this package forwards (this
+ *   monorepo has no `lib.dom`); {@link createCanvasRenderTarget} adapts one into
  *   `@openlogo/turtle`'s headless `RenderTarget` — the DOM canvas lives in studio, never in
  *   `@openlogo/turtle`.
  * - {@link createCanvasViewController} paints the shared state model's turtle state/scene through
@@ -154,7 +154,7 @@ export {
 } from "./a11y.js";
 
 export type {
-  Canvas2DContextLike,
+  Canvas2DContext,
   CanvasViewController,
   CanvasViewOptions,
 } from "./canvas-view.js";

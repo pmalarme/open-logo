@@ -12,12 +12,17 @@
  * draw calls `paintScene`/`paintTurtle` need), not `CanvasRenderingContext2D` itself — this
  * monorepo has no `lib.dom` and no `node-canvas` dependency anywhere
  * (`tsconfig.base.json`'s `lib` is `["es2023"]` only). Studio owns the real DOM/browser canvas:
- * {@link Canvas2DContextLike} names exactly the subset of a real 2-D context's surface this
- * adapter forwards (mirroring `RenderTarget` field-for-field), and
- * {@link createCanvasRenderTarget} is the seam where a real `<canvas>`'s `getContext("2d")`
+ * {@link Canvas2DContext} names the subset of a real 2-D context's surface this adapter needs,
+ * and {@link createCanvasRenderTarget} is the seam where a real `<canvas>`'s `getContext("2d")`
  * result is handed to `@openlogo/turtle`'s headless painter — the DOM canvas lives here, never
- * inside `@openlogo/turtle`. A `node:test` fake implementing {@link Canvas2DContextLike}
- * exercises the exact same path with no DOM at all.
+ * inside `@openlogo/turtle`. A real `CanvasRenderingContext2D` is **not** directly usable as a
+ * `RenderTarget` (its `fillStyle`/`strokeStyle` accept `CanvasGradient`/`CanvasPattern` in
+ * addition to `string`, a wider type than `RenderTarget` declares — exactly the narrowing gap
+ * `@openlogo/turtle`'s own doc comment calls out), so {@link createCanvasRenderTarget} is a real
+ * forwarding wrapper, not a pass-through: it reads/writes `fillStyle`/`strokeStyle` as strings
+ * only (the only values this renderer ever assigns) and delegates every draw call to the
+ * underlying context. A `node:test` fake implementing {@link Canvas2DContext} exercises the
+ * exact same path with no DOM at all.
  */
 
 import type {
@@ -31,16 +36,17 @@ import type { AppShell } from "./app-shell.js";
 import type { StudioStateStore } from "./state-model.js";
 
 /**
- * The structural subset of a real Canvas 2D drawing context this adapter forwards to
- * `@openlogo/turtle`'s {@link RenderTarget}. Declared locally rather than reused from `lib.dom`
- * (which this package's `tsconfig` does not include) — a real browser
- * `CanvasRenderingContext2D` satisfies this shape structurally (it has every member below), so
- * production code can pass one directly; `canvas-view.test.mjs` passes a small recording fake
- * with no DOM at all.
+ * The structural shape of a real Canvas 2D drawing context {@link createCanvasRenderTarget}
+ * accepts. Declared locally rather than reused from `lib.dom` (which this package's `tsconfig`
+ * does not include). `fillStyle`/`strokeStyle` are typed as `unknown` here — not `string` — so a
+ * real `CanvasRenderingContext2D` (whose `fillStyle`/`strokeStyle` accept
+ * `CanvasGradient`/`CanvasPattern` too) is structurally assignable to this parameter type without
+ * a cast at the call site; `canvas-view.test.mjs` passes a small recording fake with no DOM at
+ * all.
  */
-export interface Canvas2DContextLike {
-  fillStyle: string;
-  strokeStyle: string;
+export interface Canvas2DContext {
+  fillStyle: unknown;
+  strokeStyle: unknown;
   lineWidth: number;
   save(): void;
   restore(): void;
@@ -64,21 +70,54 @@ export interface Canvas2DContextLike {
 
 /**
  * Adapts a real (or real-shaped) Canvas 2D context into `@openlogo/turtle`'s headless
- * {@link RenderTarget}. `Canvas2DContextLike` and `RenderTarget` are structurally identical by
- * design, so this is a pass-through — its purpose is to be the one named seam where studio's
- * DOM-owning code hands a real canvas 2D context to `@openlogo/turtle`'s DOM-free renderer
- * (`studio.instructions.md`: "Studio owns the DOM side").
+ * {@link RenderTarget}. This is a genuine forwarding wrapper, not a pass-through: `fillStyle`/
+ * `strokeStyle` are read back as `string` (this renderer only ever assigns plain color strings
+ * through them, per `paintScene`'s doc comment) and every draw call delegates to `context`. This
+ * is the one named seam where studio's DOM-owning code hands a real canvas 2D context to
+ * `@openlogo/turtle`'s DOM-free renderer (`studio.instructions.md`: "Studio owns the DOM side").
  */
 export function createCanvasRenderTarget(
-  context: Canvas2DContextLike,
+  context: Canvas2DContext,
 ): RenderTarget {
-  return context;
+  return {
+    get fillStyle(): string {
+      return context.fillStyle as string;
+    },
+    set fillStyle(value: string) {
+      context.fillStyle = value;
+    },
+    get strokeStyle(): string {
+      return context.strokeStyle as string;
+    },
+    set strokeStyle(value: string) {
+      context.strokeStyle = value;
+    },
+    get lineWidth(): number {
+      return context.lineWidth;
+    },
+    set lineWidth(value: number) {
+      context.lineWidth = value;
+    },
+    save: () => context.save(),
+    restore: () => context.restore(),
+    translate: (x, y) => context.translate(x, y),
+    rotate: (angleRadians) => context.rotate(angleRadians),
+    beginPath: () => context.beginPath(),
+    closePath: () => context.closePath(),
+    moveTo: (x, y) => context.moveTo(x, y),
+    lineTo: (x, y) => context.lineTo(x, y),
+    stroke: () => context.stroke(),
+    fill: () => context.fill(),
+    fillRect: (x, y, width, height) => context.fillRect(x, y, width, height),
+    arc: (x, y, radius, startAngle, endAngle) =>
+      context.arc(x, y, radius, startAngle, endAngle),
+  };
 }
 
 /** Options for {@link createCanvasViewController}. */
 export interface CanvasViewOptions {
   /** The real (or fake, for tests) 2-D drawing context to paint into. */
-  readonly target: Canvas2DContextLike;
+  readonly target: Canvas2DContext;
   /** The target's pixel size and world-to-target scale (`@openlogo/turtle`'s `Viewport`). */
   readonly viewport: Viewport;
 }

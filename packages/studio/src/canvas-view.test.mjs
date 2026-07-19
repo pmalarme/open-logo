@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as OL from "@openlogo/studio";
 
-/** A minimal recording fake satisfying {@link OL.Canvas2DContextLike}, with no DOM at all. */
+/** A minimal recording fake satisfying {@link OL.Canvas2DContext}, with no DOM at all. */
 function createRecordingContext() {
   const calls = [];
   const fillRectStyles = [];
@@ -57,13 +57,63 @@ function createRecordingContext() {
 
 const VIEWPORT = { width: 400, height: 400 };
 
-test("createCanvasRenderTarget adapts a Canvas2DContextLike into a RenderTarget pass-through", () => {
+test("createCanvasRenderTarget forwards fillStyle/strokeStyle/lineWidth reads and writes to the underlying context", () => {
   const context = createRecordingContext();
   const target = OL.createCanvasRenderTarget(context);
-  assert.equal(target, context);
+
+  assert.notEqual(
+    target,
+    context,
+    "the adapter must be a real wrapper, not an identity pass-through",
+  );
+
+  target.fillStyle = "red";
+  assert.equal(context.fillStyle, "red");
+  assert.equal(target.fillStyle, "red");
+
+  target.strokeStyle = "blue";
+  assert.equal(context.strokeStyle, "blue");
+  assert.equal(target.strokeStyle, "blue");
+
+  target.lineWidth = 3;
+  assert.equal(context.lineWidth, 3);
+  assert.equal(target.lineWidth, 3);
 });
 
-test("createCanvasViewController.repaint() paints the state model's default turtle state/scene", () => {
+test("createCanvasRenderTarget delegates every draw call to the underlying context", () => {
+  const context = createRecordingContext();
+  const target = OL.createCanvasRenderTarget(context);
+
+  target.save();
+  target.translate(1, 2);
+  target.rotate(0.5);
+  target.beginPath();
+  target.moveTo(3, 4);
+  target.lineTo(5, 6);
+  target.closePath();
+  target.stroke();
+  target.fill();
+  target.fillRect(0, 0, 10, 10);
+  target.arc(1, 1, 2, 0, Math.PI);
+  target.restore();
+
+  assert.deepEqual(context.calls, [
+    ["save"],
+    ["translate", 1, 2],
+    ["rotate", 0.5],
+    ["beginPath"],
+    ["moveTo", 3, 4],
+    ["lineTo", 5, 6],
+    ["closePath"],
+    ["stroke"],
+    ["fill"],
+    ["fillRect", 0, 0, 10, 10],
+    ["arc", 1, 1, 2, 0, Math.PI],
+    ["restore"],
+  ]);
+});
+
+test("createCanvasViewController.repaint() paints the state model's default turtle state/scene, exact call sequence", () => {
   const state = OL.createStudioState();
   const context = createRecordingContext();
   const controller = OL.createCanvasViewController(state, {
@@ -80,21 +130,27 @@ test("createCanvasViewController.repaint() paints the state model's default turt
 
   controller.repaint();
 
-  // Background fill first, at full target size, using the default "white" background.
-  assert.equal(context.calls[0]?.[0], "fillRect");
-  assert.deepEqual(context.calls[0], ["fillRect", 0, 0, 400, 400]);
+  // Background fill (default "white"), then the visible default-shape ("turtle") avatar's full
+  // save/translate/rotate/beginPath/moveTo/lineTo/lineTo/closePath/fill/restore bracket at the
+  // origin, heading 0 — the exact sequence `paintScene`/`paintTurtle` produce for the program-start
+  // defaults, with no drawing items in the scene.
+  assert.deepEqual(context.calls, [
+    ["fillRect", 0, 0, 400, 400],
+    ["save"],
+    ["translate", 200, 200],
+    ["rotate", 0],
+    ["beginPath"],
+    ["moveTo", 0, -10],
+    ["lineTo", 6, 6],
+    ["lineTo", -6, 6],
+    ["closePath"],
+    ["fill"],
+    ["restore"],
+  ]);
   assert.equal(context.fillRectStyles[0], "white");
-
-  // No drawing items in the default scene, so the only other work is the visible avatar's
-  // save/translate/rotate/…/restore bracket at the origin, heading 0.
-  const saveIndex = context.calls.findIndex((call) => call[0] === "save");
-  assert.ok(saveIndex > 0, "avatar paints after the background");
-  assert.deepEqual(context.calls[saveIndex + 1], ["translate", 200, 200]);
-  assert.deepEqual(context.calls[saveIndex + 2], ["rotate", 0]);
-  assert.equal(context.calls.at(-1)?.[0], "restore");
 });
 
-test("createCanvasViewController.repaint() reflects the state model's turtle scene, not a private copy", () => {
+test("createCanvasViewController.repaint() reflects the state model's current turtleScene, not a snapshot taken at construction", () => {
   const state = OL.createStudioState();
   const context = createRecordingContext();
   const controller = OL.createCanvasViewController(state, {
@@ -110,6 +166,32 @@ test("createCanvasViewController.repaint() reflects the state model's turtle sce
     context.fillRectStyles[0],
     "yellow",
     "repaint() must read the state model's current turtleScene, never a snapshot taken at construction",
+  );
+});
+
+test("createCanvasViewController.repaint() reflects the state model's current turtleState, not a snapshot taken at construction", () => {
+  const state = OL.createStudioState();
+  const context = createRecordingContext();
+  const controller = OL.createCanvasViewController(state, {
+    target: context,
+    viewport: VIEWPORT,
+  });
+
+  const { turtleState } = state.getState();
+  state.setTurtleState({ ...turtleState, position: [50, 0], heading: 90 });
+  controller.repaint();
+
+  const saveIndex = context.calls.findIndex((call) => call[0] === "save");
+  assert.ok(saveIndex > 0, "avatar paints after the background");
+  assert.deepEqual(
+    context.calls[saveIndex + 1],
+    ["translate", 250, 200],
+    "must translate to the turtle's current (updated) world position, not the position at construction",
+  );
+  assert.deepEqual(
+    context.calls[saveIndex + 2],
+    ["rotate", Math.PI / 2],
+    "must rotate by the turtle's current (updated) heading, not the heading at construction",
   );
 });
 
