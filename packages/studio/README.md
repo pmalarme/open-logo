@@ -34,3 +34,20 @@ Every pane composes over **one** shared instance — never a per-pane copy:
 No studio shell framework/bundler is pinned yet (deferred in ADR-0001), so this slice models the
 shell headlessly (plain objects, no DOM) to stay simple and testable under `node:test`; a later
 slice may swap in a real renderer without changing this contract.
+
+## Editor pane (#124)
+
+- `createEditorController(state, options?)` (`src/editor.ts`) — the headless editing controller:
+  `getText`/`getSelection` read straight from the shared state model; `setText`/`setSelection`/
+  `insertText`/`deleteBackward`/`deleteForward` write straight through it. There is no private
+  text buffer, so two controllers over the same store always agree — the #123 single-source-of-
+  truth contract holds through editing.
+- `mountEditorPane(shell, controller)` composes the controller into the shell's `editor` region.
+- Syntax coloring is a pluggable seam: `getTokens()` delegates to a `HighlightProvider` (default
+  `noopHighlighter`, i.e. plain text). This slice has no hard dependency on the epic #118
+  highlighter — pass a provider built from `@openlogo/parser`'s `semanticTokens` once you want
+  real coloring; this module never re-implements token classification itself.
+- See `editor.ts`'s doc comment for the DOM/mount integration contract a later real-widget slice
+  (e.g. a `<textarea>`/CodeMirror/Monaco host) should follow to stay headless-first and avoid
+  ever forking the document text or regressing keyboard operability.
+
