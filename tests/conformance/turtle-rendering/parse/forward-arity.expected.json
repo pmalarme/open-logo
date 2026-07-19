@@ -1,0 +1,6 @@
+{
+  "description": "issue #193: Turtle & Rendering primitive arities are now registered in the parser's reader, so `forward 100` and its sibling fixed-arity turtle commands (back/left/right/set_xy/set_heading/home) group their arguments correctly and parse with zero diagnostics, instead of the previous Layer-1 ol-bad-token caused by the reader defaulting an unregistered name to arity 0 (spec/commands.md's Turtle movement table).",
+  "profiles": ["turtle-rendering"],
+  "events": [],
+  "diagnostics": []
+}

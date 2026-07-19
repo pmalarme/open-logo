@@ -729,6 +729,14 @@ test("exposes the core primitive arities", () => {
   assert.equal(OL.corePrimitiveArity("power"), 2);
 });
 
+test("exposes the turtle & rendering primitive arities", () => {
+  assert.equal(OL.turtlePrimitiveArity("forward"), 1);
+  assert.equal(OL.turtlePrimitiveArity("FORWARD"), 1);
+  assert.equal(OL.turtlePrimitiveArity("wibble"), undefined);
+  assert.equal(OL.turtlePrimitiveArity("set_xy"), 2);
+  assert.equal(OL.turtlePrimitiveArity("home"), 0);
+});
+
 // --- AST walker -------------------------------------------------------------
 
 const MEGA = [

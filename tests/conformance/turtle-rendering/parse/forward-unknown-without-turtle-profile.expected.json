@@ -1,0 +1,19 @@
+{
+  "description": "issue #193: with only core-language active (turtle-rendering NOT in the active profile set), `forward 100` still parses cleanly at Layer 1 (the reader now knows forward's arity and groups its one argument correctly), but check() flags a clean Layer-2 semantic ol-unknown-command with a did-you-mean, never a Layer-1 structural ol-bad-token. Registering turtle primitives as *visible* when turtle-rendering IS active is issue #136's follow-up slice (checker-names.ts), not this one.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "turtle-rendering/parse/forward-unknown-without-turtle-profile",
+        "start": [1, 1],
+        "end": [1, 8]
+      },
+      "params": { "name": "forward" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}
