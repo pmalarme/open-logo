@@ -82,6 +82,31 @@ export type Frame = Map<string, OLValue>;
 export type ProcedureRegistry = ReadonlyMap<string, ProcedureDefNode>;
 
 /**
+ * Minimal structural shape of the standard `AbortSignal` this package's cancellation gate needs
+ * (issue #102, `spec/execution-model.md:551-557`) — just the boolean `aborted` flag it polls.
+ * Defined locally instead of referencing the global `AbortSignal` type because this package's
+ * `tsconfig` targets `lib: ["es2023"]` with no DOM types (it runs in both Node and the browser).
+ *
+ * **`execute()` is synchronous and never yields to the event loop mid-run.** That has a real
+ * consequence for cancellation: a same-thread `AbortController`/`AbortSignal` — the `fetch()`
+ * pattern — cannot interrupt an `execute()` call already in progress, because the click handler
+ * that would call `abort()` cannot run on the same thread until `execute()` returns control; by
+ * then the run is already over. `checkExecutionLimits` polling `signal.aborted` many times during
+ * one synchronous call only helps if something *outside that call* can flip `aborted` without
+ * needing a turn of that same thread's event loop. The realistic deployment this is designed for
+ * is `@openlogo/studio` running `execute()` inside a Web Worker: the main thread's Stop button
+ * writes to a `SharedArrayBuffer` with `Atomics.store`, and the worker's `signal` implementation
+ * reads that same buffer with `Atomics.load` in its `aborted` getter — a plain synchronous memory
+ * read, visible to the worker thread instantly, with no event-loop cooperation required from the
+ * busy worker at all. A same-thread `AbortSignal` remains structurally assignable here (so this
+ * type doesn't reject one), but it will not actually cancel a run already underway; only a
+ * cross-thread-backed signal like the `Atomics` one above can.
+ */
+export interface CancellationSignal {
+  readonly aborted: boolean;
+}
+
+/**
  * The evaluator's binding model: a nearest-first stack of frames, root last, plus the active
  * `repeat` turn stack `repcount` reads (issue #104). `repeatTurns` is a mutable array — nearest
  * (innermost) enclosing `repeat` last — that `index.ts`'s `executeStatements` pushes the current
@@ -103,6 +128,18 @@ export type ProcedureRegistry = ReadonlyMap<string, ProcedureDefNode>;
  * procedure-call nesting depth, checked against a fixed ceiling before every call so unbounded
  * recursion raises a friendly `ol-limit` diagnostic (`spec/execution-model.md:551-557`) instead of
  * overflowing the host's own call stack.
+ *
+ * Issue #102 adds the other two execution-safety gates `spec/execution-model.md:551-557`
+ * requires alongside recursion depth: a configurable instruction-execution budget
+ * (`instructionBudget`, checked against the running `instructionCount` box) and external
+ * cancellation (`signal`, an `AbortSignal`). `recursionDepthLimit` promotes the previously
+ * hardcoded procedure-call depth ceiling to a configurable field of the same shape.
+ * `instructionCount` is a single mutable `{ count }` box (not a plain field) for the same reason
+ * `repeatTurns`/`callDepth` are arrays rather than reassigned fields: recursive calls receive the
+ * very same `Environment` object, so a plain field would be indistinguishable from a fresh one —
+ * only a shared mutable container survives being incremented from many nested call frames at
+ * once. {@link checkExecutionLimits} is the single gate every looping/recursive execution path
+ * calls before it may run another pass or statement.
  */
 export interface Environment {
   readonly frames: readonly Frame[];
@@ -111,6 +148,10 @@ export interface Environment {
   readonly events: TraceEvent[];
   readonly foreverIterationLimit?: number;
   readonly callDepth: number[];
+  readonly recursionDepthLimit: number;
+  readonly instructionBudget: number;
+  readonly instructionCount: { count: number };
+  readonly signal?: CancellationSignal;
   readonly callProcedure: (
     node: CallNode | ParenCallNode,
     env: Environment,
@@ -126,6 +167,12 @@ const EMPTY_PROCEDURES: ProcedureRegistry = new Map();
  * environment (`createExecutionEnvironment`) with a real `procedures` registry and a working
  * `callProcedure` wired to `runProcedure` instead of this stub, which throws if ever reached —
  * safe, since `procedures` is empty here, so `evaluateCall` never takes the branch that calls it.
+ *
+ * `instructionBudget` is `Number.POSITIVE_INFINITY` and `recursionDepthLimit` is
+ * `Number.POSITIVE_INFINITY` here — this bare environment models a single expression evaluation
+ * for this package's own unit tests, not a cancellable/budgeted program run, so neither limit
+ * should ever fire under normal test use. `execute-internal.ts`'s `createExecutionEnvironment`
+ * is the only place real, finite production defaults are applied (issue #102).
  */
 export function createEnvironment(): Environment {
   return {
@@ -134,12 +181,45 @@ export function createEnvironment(): Environment {
     procedures: EMPTY_PROCEDURES,
     events: [],
     callDepth: [],
+    recursionDepthLimit: Number.POSITIVE_INFINITY,
+    instructionBudget: Number.POSITIVE_INFINITY,
+    instructionCount: { count: 0 },
     callProcedure: () => {
       throw new Error(
         "callProcedure is unreachable on a bare createEnvironment() — it has no procedures",
       );
     },
   };
+}
+
+/**
+ * The single execution-safety gate every looping/recursive execution path must pass before
+ * running another pass or statement (`spec/execution-model.md:551-557`): external cancellation
+ * first, then the instruction-count budget. Returns the `ol-limit` diagnostic to halt with, or
+ * `undefined` when it is safe to proceed — the caller is responsible for turning that into
+ * whatever "stop now" outcome its own control-flow shape uses (`execute-internal.ts`'s `halt()`
+ * for statement execution, `fail()` for a comprehension's expression-position evaluation).
+ *
+ * Called from BOTH `executeStatements`' own per-statement loop AND the top of every individual
+ * loop pass (`While`/`Forever`/`Repeat`/`ForIn`/`ForRange` in `execute-internal.ts`, plus
+ * `evaluateComprehension`'s per-element pass here) — not just the former — because a loop whose
+ * body is empty (`while true [ ]`, `forever [ ]`) never enters `executeStatements`' per-statement
+ * loop at all, and would otherwise spin forever, uninstrumented and uncancellable. Every call
+ * increments `env.instructionCount`, so budget/cancellation responsiveness does not depend on
+ * how many statements a particular pass happens to contain.
+ */
+export function checkExecutionLimits(
+  env: Environment,
+  source_span: SourceSpan,
+): Diagnostic | undefined {
+  if (env.signal?.aborted) {
+    return runtimeDiag.cancelled(source_span);
+  }
+  env.instructionCount.count++;
+  if (env.instructionCount.count > env.instructionBudget) {
+    return runtimeDiag.instructionLimit(source_span, env.instructionBudget);
+  }
+  return undefined;
 }
 
 /** Look up `name` nearest frame to root; `undefined` when no frame binds it. */
@@ -1715,6 +1795,10 @@ function evaluateComprehension(
     }
     let accumulator = initialResult.value;
     for (const element of elements) {
+      const limitDiagnostic = checkExecutionLimits(env, node.source_span);
+      if (limitDiagnostic) {
+        return fail(limitDiagnostic);
+      }
       const bound = bindElement(node.binder, element);
       if (!bound.ok) {
         return fail(bound.diagnostic);
@@ -1736,6 +1820,10 @@ function evaluateComprehension(
 
   const results: OLValue[] = [];
   for (const element of elements) {
+    const limitDiagnostic = checkExecutionLimits(env, node.source_span);
+    if (limitDiagnostic) {
+      return fail(limitDiagnostic);
+    }
     const bound = bindElement(node.binder, element);
     if (!bound.ok) {
       return fail(bound.diagnostic);
