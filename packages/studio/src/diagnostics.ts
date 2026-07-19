@@ -106,12 +106,18 @@ export interface DiagnosticsControllerOptions {
   /** The document identifier passed to `parse()`/`check()`. Defaults to `"studio-session"`. */
   readonly document?: string;
   /**
-   * Opt into Layer-2/3 semantic + style checking (`@openlogo/parser`'s `check()`, epic #108) on
-   * every re-check, appended after the Layer-1 parse diagnostics. Defaults to `false` — see this
+   * Opt into Layer-2 semantic checking (`@openlogo/parser`'s `check()`, epic #108) on every
+   * re-check, appended after the Layer-1 parse diagnostics. Defaults to `false` — see this
    * module's doc comment for why turning it on today would falsely flag ordinary turtle
    * programs.
    */
   readonly semanticCheck?: boolean;
+  /**
+   * Also opt into Layer-3 style lints (`check()`'s `style: true`, issue #115) when
+   * `semanticCheck` is `true`. Has no effect unless `semanticCheck` is also `true`. Defaults to
+   * `false`, matching `check()`'s own opt-in default.
+   */
+  readonly styleCheck?: boolean;
   /** Active conformance profiles passed to `check()` when `semanticCheck` is `true`. */
   readonly profiles?: readonly CheckProfile[];
 }
@@ -140,7 +146,11 @@ function runChecks(
   if (options.semanticCheck !== true) {
     return parsed.diagnostics;
   }
-  const checked = check(parsed.ast, { profiles: options.profiles, source });
+  const checked = check(parsed.ast, {
+    profiles: options.profiles,
+    source,
+    style: options.styleCheck === true,
+  });
   return [...parsed.diagnostics, ...checked.diagnostics];
 }
 

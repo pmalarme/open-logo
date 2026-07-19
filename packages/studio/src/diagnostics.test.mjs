@@ -125,6 +125,26 @@ test("semanticCheck: true layers real semantic diagnostics into the same unified
   assert.ok(view.items.some((item) => item.code === "ol-unknown-command"));
 });
 
+test("styleCheck: true additionally layers Layer-3 style-lint warnings when semanticCheck is on", () => {
+  const state = createStudioState();
+  createDiagnosticsController(state, { semanticCheck: true, styleCheck: true });
+
+  state.setSource("define MyProc\nend");
+
+  const view = toDiagnosticsView(state.getState().diagnostics);
+  assert.ok(view.items.some((item) => item.code === "ol-style-name-case"));
+});
+
+test("styleCheck: true has no effect when semanticCheck is false (default)", () => {
+  const state = createStudioState();
+  createDiagnosticsController(state, { styleCheck: true });
+
+  state.setSource("define MyProc\nend");
+
+  const view = toDiagnosticsView(state.getState().diagnostics);
+  assert.ok(!view.items.some((item) => item.code === "ol-style-name-case"));
+});
+
 test("refresh() is a no-op guard when source hasn't changed (subscribe doesn't clobber itself)", () => {
   const state = createStudioState();
   const controller = createDiagnosticsController(state);
