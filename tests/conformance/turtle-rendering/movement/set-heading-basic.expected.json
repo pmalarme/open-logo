@@ -1,0 +1,28 @@
+{
+  "description": "issue #202: `set_heading 180` sets the turtle's heading directly to an absolute value, emitting only a `turn` event — position is untouched, so no `move`/`draw-segment` fires (spec/commands.md's `set_heading` entry).",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/movement/set-heading-basic",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "turn",
+      "source_span": {
+        "document": "turtle-rendering/movement/set-heading-basic",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": { "from": 0, "to": 180 }
+    }
+  ],
+  "diagnostics": []
+}

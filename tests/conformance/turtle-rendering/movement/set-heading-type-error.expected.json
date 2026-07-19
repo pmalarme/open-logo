@@ -1,0 +1,35 @@
+{
+  "description": "issue #202: a non-number `set_heading` argument raises `ol-type` instead of turning the turtle.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/movement/set-heading-type-error",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "turtle-rendering/movement/set-heading-type-error",
+        "start": [1, 13],
+        "end": [1, 16]
+      },
+      "params": {
+        "expected": "number",
+        "actual": "word",
+        "value": "a",
+        "operation": "set_heading"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

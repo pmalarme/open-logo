@@ -1,0 +1,30 @@
+{
+  "description": "issue #202: a bare zero-argument `set_heading` raises `ol-not-enough-inputs` — mirrors the runtime arity guard on every other turtle command.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/movement/set-heading-not-enough-inputs",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-not-enough-inputs",
+      "source_span": {
+        "document": "turtle-rendering/movement/set-heading-not-enough-inputs",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "params": { "callable": "set_heading", "expected": 1, "actual": 0 },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

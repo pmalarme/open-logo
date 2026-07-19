@@ -1,0 +1,43 @@
+{
+  "description": "issue #202: `setxy` is a Turtle & Rendering-profile alias of `set_xy` (spec/commands.md:1279) -- not Heritage, unlike `forward`'s `fd`; spec/conformance.md:105-117's closed Heritage short-alias list does not include it. `setxy 50 25` behaves identically to `set_xy 50 25`: absolute move, heading untouched.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/movement/setxy-alias",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "move",
+      "source_span": {
+        "document": "turtle-rendering/movement/setxy-alias",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": { "from": [0, 0], "to": [50, 25], "heading": 0 }
+    },
+    {
+      "seq": 2,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "turtle-rendering/movement/setxy-alias",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [50, 25],
+        "color": "black",
+        "width": 1
+      }
+    }
+  ],
+  "diagnostics": []
+}

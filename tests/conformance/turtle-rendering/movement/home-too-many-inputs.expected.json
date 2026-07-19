@@ -1,0 +1,30 @@
+{
+  "description": "issue #202: a parenthesized one-argument `(home 1)` raises `ol-too-many-inputs` — `home` is 0-arity — reusing the same runtime arity guard as every other turtle command.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/movement/home-too-many-inputs",
+        "start": [1, 1],
+        "end": [1, 9]
+      },
+      "payload": { "statement_kind": "ParenCall" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-too-many-inputs",
+      "source_span": {
+        "document": "turtle-rendering/movement/home-too-many-inputs",
+        "start": [1, 2],
+        "end": [1, 6]
+      },
+      "params": { "callable": "home", "expected": 0, "actual": 1 },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

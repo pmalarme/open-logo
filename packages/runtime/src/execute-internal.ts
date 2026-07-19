@@ -429,6 +429,257 @@ function executeTurtlePenCall(
 }
 
 /**
+ * Is `statement` a call to `home`/`set_xy` or `set_xy`'s Turtle & Rendering-profile alias `setxy`
+ * (issue #202, Core absolute positioning; `spec/commands.md:1279`). Unlike `forward`'s `fd`,
+ * `setxy`/`seth` are **not** Heritage — `spec/conformance.md:105-117`'s Heritage short-alias list
+ * is closed and does not include them, so they are registered (with `set_xy`'s arity) in
+ * `packages/parser/src/signatures.ts` and dispatched identically here. Same shape/convention as
+ * {@link isTurtleMoveCall}.
+ */
+function isTurtlePositionCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  const name = statement.callee.name.toLowerCase();
+  return name === "home" || name === "set_xy" || name === "setxy";
+}
+
+/**
+ * Move the turtle directly to an absolute `to` position (as opposed to {@link moveTurtle}'s
+ * relative distance-along-the-current-heading move) and emit the same `move`/conditional
+ * `draw-segment` pair `moveTurtle` does — `home`'s jump to `(0,0)` and `set_xy`'s jump to an
+ * arbitrary point are both "the turtle moved from A to B", just computed differently. Heading is
+ * unaffected (the `move` event's `heading` field reports the turtle's current heading, unchanged
+ * by a position-only move — `set_heading`/`home`'s own heading reset is a separate `turn` event
+ * via {@link setHeadingTo}).
+ */
+function moveTurtleTo(
+  env: Environment,
+  to: Point,
+  source_span: SourceSpan,
+): void {
+  const { turtle } = env;
+  const from: Point = [turtle.x, turtle.y];
+  turtle.x = to[0];
+  turtle.y = to[1];
+  env.events.push({
+    seq: env.events.length,
+    kind: "move",
+    source_span,
+    payload: { from, to, heading: turtle.heading } satisfies MovePayload,
+  });
+  if (turtle.penDown) {
+    env.events.push({
+      seq: env.events.length,
+      kind: "draw-segment",
+      source_span,
+      payload: {
+        from,
+        to,
+        color: turtle.color,
+        width: turtle.width,
+      } satisfies DrawSegmentPayload,
+    });
+  }
+}
+
+/**
+ * Set the turtle's heading directly to an absolute, already-normalized `to` value (as opposed to
+ * {@link turnTurtle}'s relative delta turn) and emit the same `turn` event `turnTurtle` does. `to`
+ * must already be normalized to `[0,360)` (via {@link normalizeHeading}) — this helper does not
+ * normalize again, matching {@link turnTurtle}'s own division of labor (it normalizes, this
+ * doesn't need to since both its callers already have).
+ */
+function setHeadingTo(
+  env: Environment,
+  to: number,
+  source_span: SourceSpan,
+): void {
+  const { turtle } = env;
+  const from = turtle.heading;
+  turtle.heading = to;
+  env.events.push({
+    seq: env.events.length,
+    kind: "turn",
+    source_span,
+    payload: { from, to } satisfies TurnPayload,
+  });
+}
+
+/**
+ * Validate and run a `home`/`set_xy`/`setxy` statement matched by {@link isTurtlePositionCall}.
+ * `home` takes zero arguments and resets both position (to `(0,0)`) and heading (to `0`) — it is a
+ * move like any other, so it emits `move`/conditional `draw-segment` (via {@link moveTurtleTo})
+ * followed by `turn` (via {@link setHeadingTo}) (`spec/commands.md:1259-1274`). `set_xy`/`setxy`
+ * takes exactly two numeric arguments and moves the turtle to that absolute position, leaving
+ * heading untouched (`spec/commands.md:1276-1291`). Diagnostics: `ol-not-enough-inputs`/
+ * `ol-too-many-inputs` for the wrong argument count, `ol-type` for a non-number `set_xy` argument
+ * (via {@link requireNumber}), `ol-range` ({@link runtimeDiag.nonFiniteCoordinate}) for a
+ * `set_xy` argument that is `Infinity`/`-Infinity` (same "never expose a non-finite learner-facing
+ * result" rationale as {@link executeTurtleMoveCall}'s non-finite-distance guard —
+ * `spec/execution-model.md:517`). Returns an {@link ExecSignal} to halt on, or `undefined` for
+ * {@link executeStatements} to `continue` on success (including the "left un-evaluated" case for
+ * an unsupported argument expression, mirroring `forward`/`back`'s handling).
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeTurtlePositionCall(
+  positionCall: CallNode | ParenCallNode,
+  env: Environment,
+): ExecSignal | undefined {
+  const callableName = positionCall.callee.name;
+  const isHome = callableName.toLowerCase() === "home";
+  const expectedArgs = isHome ? 0 : 2;
+  if (positionCall.args.length !== expectedArgs) {
+    return halt(
+      positionCall.args.length < expectedArgs
+        ? runtimeDiag.notEnoughInputs(
+            positionCall.callee.source_span,
+            callableName,
+            expectedArgs,
+            positionCall.args.length,
+          )
+        : runtimeDiag.tooManyInputs(
+            positionCall.callee.source_span,
+            callableName,
+            expectedArgs,
+            positionCall.args.length,
+          ),
+    );
+  }
+  if (isHome) {
+    moveTurtleTo(env, [0, 0], positionCall.source_span);
+    setHeadingTo(env, 0, positionCall.source_span);
+    return undefined;
+  }
+  const [xArg, yArg] = positionCall.args as [ExpressionNode, ExpressionNode];
+  if (
+    !isSupportedExpression(xArg, env.procedures) ||
+    !isSupportedExpression(yArg, env.procedures)
+  ) {
+    return undefined;
+  }
+  const xResult = evaluate(xArg, env);
+  if (!xResult.ok) {
+    return halt(xResult.diagnostic);
+  }
+  const yResult = evaluate(yArg, env);
+  if (!yResult.ok) {
+    return halt(yResult.diagnostic);
+  }
+  const operation = callableName.toLowerCase() as "set_xy" | "setxy";
+  const x = requireNumber(xResult.value, xArg.source_span, operation);
+  if (!x.ok) {
+    return halt(x.diagnostic);
+  }
+  const y = requireNumber(yResult.value, yArg.source_span, operation);
+  if (!y.ok) {
+    return halt(y.diagnostic);
+  }
+  if (!Number.isFinite(x.value)) {
+    return halt(
+      runtimeDiag.nonFiniteCoordinate(xArg.source_span, {
+        operation,
+        axis: "x",
+        value: String(x.value),
+      }),
+    );
+  }
+  if (!Number.isFinite(y.value)) {
+    return halt(
+      runtimeDiag.nonFiniteCoordinate(yArg.source_span, {
+        operation,
+        axis: "y",
+        value: String(y.value),
+      }),
+    );
+  }
+  moveTurtleTo(env, [x.value, y.value], positionCall.source_span);
+  return undefined;
+}
+
+/**
+ * Is `statement` a call to `set_heading` or its Turtle & Rendering-profile alias `seth`
+ * (issue #202; `spec/commands.md:1296`). Not Heritage — same rationale as
+ * {@link isTurtlePositionCall}'s `setxy`. Same shape/convention as {@link isTurtleMoveCall}.
+ */
+function isTurtleHeadingCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  const name = statement.callee.name.toLowerCase();
+  return name === "set_heading" || name === "seth";
+}
+
+/**
+ * Validate and run a `set_heading`/`seth` statement matched by {@link isTurtleHeadingCall}: exactly one
+ * numeric argument (`ol-not-enough-inputs`/`ol-too-many-inputs`/`ol-type` otherwise, via
+ * {@link requireNumber}), normalized to `[0,360)` (the same {@link normalizeHeading} `left`/
+ * `right` use — `spec/commands.md:1300`, "Implementations normalize headings to [0,360)"), then
+ * delegated to {@link setHeadingTo}. Unlike `left`/`right`, the argument is the turtle's new
+ * *absolute* heading, not a delta — so it is normalized directly rather than added to the current
+ * heading first. Returns an {@link ExecSignal} to halt on, or `undefined` for
+ * {@link executeStatements} to `continue` on success (including the "left un-evaluated" case for
+ * an unsupported argument expression, mirroring `left`/`right`'s handling).
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeTurtleHeadingCall(
+  headingCall: CallNode | ParenCallNode,
+  env: Environment,
+): ExecSignal | undefined {
+  const callableName = headingCall.callee.name;
+  if (headingCall.args.length !== 1) {
+    return halt(
+      headingCall.args.length < 1
+        ? runtimeDiag.notEnoughInputs(
+            headingCall.callee.source_span,
+            callableName,
+            1,
+            headingCall.args.length,
+          )
+        : runtimeDiag.tooManyInputs(
+            headingCall.callee.source_span,
+            callableName,
+            1,
+            headingCall.args.length,
+          ),
+    );
+  }
+  const [arg] = headingCall.args as [ExpressionNode];
+  if (!isSupportedExpression(arg, env.procedures)) {
+    return undefined;
+  }
+  const argResult = evaluate(arg, env);
+  if (!argResult.ok) {
+    return halt(argResult.diagnostic);
+  }
+  const angle = requireNumber(
+    argResult.value,
+    arg.source_span,
+    callableName.toLowerCase(),
+  );
+  if (!angle.ok) {
+    return halt(angle.diagnostic);
+  }
+  if (!Number.isFinite(angle.value)) {
+    // Same rationale as `executeTurtleTurnCall`'s non-finite-angle guard: `requireNumber` accepts
+    // `Infinity`/`-Infinity`, but `Infinity % 360` is `NaN`, which would otherwise corrupt the
+    // turtle's heading instead of raising a diagnostic (`spec/execution-model.md:517`).
+    return halt(
+      runtimeDiag.nonFiniteHeading(arg.source_span, {
+        operation: callableName.toLowerCase() as "set_heading" | "seth",
+        value: String(angle.value),
+      }),
+    );
+  }
+  setHeadingTo(env, normalizeHeading(angle.value), headingCall.source_span);
+  return undefined;
+}
+
+/**
  * Sentinel `dispatchTurtleCommand` returns when `statement` isn't any recognized turtle command,
  * so {@link executeStatements} can fall through to its other statement-kind checks. Distinct from
  * `undefined`, which `dispatchTurtleCommand` returns when a turtle command ran successfully (the
@@ -467,6 +718,18 @@ function dispatchTurtleCommand(
   }
   if (isTurtlePenCall(statement)) {
     return executeTurtlePenCall(
+      statement as unknown as CallNode | ParenCallNode,
+      env,
+    );
+  }
+  if (isTurtlePositionCall(statement)) {
+    return executeTurtlePositionCall(
+      statement as unknown as CallNode | ParenCallNode,
+      env,
+    );
+  }
+  if (isTurtleHeadingCall(statement)) {
+    return executeTurtleHeadingCall(
       statement as unknown as CallNode | ParenCallNode,
       env,
     );
