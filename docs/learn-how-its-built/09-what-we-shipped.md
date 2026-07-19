@@ -4,19 +4,19 @@ Every other page in this series shows you one *machine* — the lexer, the tree,
 checker. This page zooms out: forget how it works — **what does OpenLogo actually have, right now,
 that you could run?** Think school report card: not "how did you study," but "what did you learn."
 
-## Two checkpoints so far
+## Milestones so far
 
 OpenLogo's roadmap is cut into **milestones** — checkpoints where a whole group of features is
-proven to work *together*. We've reached two of them:
+proven to work *together*. Here's where we stand:
 
 ```mermaid
 flowchart LR
   M0["🏗️ M0 · Foundation<br/>the workshop gets built"] --> M1["🧠 M1 · Core Language<br/>the language comes alive"]
-  M1 -.->|"next up"| M2["🐢 M2 · Turtle & Rendering<br/>drawing on screen"]
+  M1 --> M2["🐢 M2 · Turtle & Rendering<br/>drawing on screen"]
 ```
 
-M0 and M1 are both real, merged into shared code today. The dashed arrow to M2 means "planned
-next" — the dashed-line-means-optional convention from page 01's diagram.
+M0, M1, and M2 are all real today, merged into shared code — the turtle really draws. Only thing
+still ahead: M2 hasn't been cut as a tagged `0.1.0` release yet.
 
 ## M0 · Foundation — building the workshop
 
@@ -37,32 +37,32 @@ Before you build a language, you need a workshop. M0 built one:
   takes — page 04), the **event stream** (a play-by-play of what happened while your program ran,
   like a sportscaster's call), the **`ol-*` diagnostics** (every error/warning, with its own stable
   code, like a doctor's diagnosis codes), and the **token classes** (categories a highlighter sorts
-  words into — page 06). Agreeing on these first let separate teams build the lexer, the turtle
-  engine, and the highlighter **at the same time** without colliding — like crews agreeing on
-  measurements before framing four walls.
+  words into — page 06). Agreeing on these first let separate teams build the lexer, turtle engine,
+  and highlighter **at the same time** without colliding — like crews agreeing on measurements
+  before framing four walls.
 
 ## M1 · Core Language — the language wakes up
 
-M1 turned the empty workshop into a language you can run — just not one that draws pictures yet
-(M2's job). It was built as a **walking skeleton**: the smallest version of *every* layer, wired end
-to end, before any layer got fancy — like sketching a stick figure before adding muscle and skin.
+M1 turned the empty workshop into a language you can run — text in, real behavior out, before a
+single turtle command existed (turtle graphics are their own milestone, M2 — more below). It was
+built as a **walking skeleton**: the smallest version of *every* layer, wired end to end, before
+any layer got fancy — like sketching a stick figure before adding muscle and skin.
 
 - **Reading and running your code** — the lexer, reader, AST (pages 03–04), interpreter, and runtime
   (page 05) cover the whole Core grammar, including `define … end` procedures: teach OpenLogo a
   recipe once (`define square :size … end`) and call it by name afterward.
 - **Deciding and repeating** — the **control forms** `if`/`while`/`repeat`/`forever`/`for` (deciding
   *whether* or *how many times* other instructions run), plus **comprehensions** — `map`, `filter`,
-  `reduce` — transforming a whole list in one line: `map [ :x * 2 ] [ 1 2 3 ]` doubles every number
-  without writing the loop yourself.
+  `reduce` — transforming a whole list in one line: `map x in [ 1 2 3 ] [ :x * 2 ]` doubles every
+  number without writing the loop yourself.
 - **Words, lists, and math** — Core **reporters** (an instruction handing back an answer instead of
   doing something): `word`/`sentence`/`first`/`last`/`butfirst`/`butlast`/`fput`/`lput`/`count`/
-  `uppercase`/`lowercase`, plus math (`abs`/`sqrt`/`round`/`power`/`random`) and predicates
-  (`empty?`/`member?`). `print`/`show` let your program talk back.
+  `uppercase`/`lowercase`, plus math (`abs`/`sqrt`/`round`/`power`/`random`) and **predicates**
+  (yes/no tests like `empty?`/`member?`). `print`/`show` let your program talk back.
 - **Errors, colors, and a place to try it** — `ol-*` diagnostics became real error messages, the
   checker (page 07) learned every Core word (`prnt` really suggests `print`), the highlighter
-  (page 06) learned every Core token class, and `@openlogo/studio`'s REPL (type a line, see what
-  happens — read-evaluate-print-loop) already runs non-graphical Core: variables, procedures, loops,
-  printing, everything but the turtle.
+  (page 06) learned every Core token class, and the studio REPL (type a line, see what happens —
+  read-evaluate-print-loop) already runs Core: variables, procedures, loops, printing.
 
 Every piece is backed by real conformance fixtures under `tests/conformance/core-language/` —
 folders for `procedures/`, `control/`, `comprehensions/`, `lists/`, `variables/`, `diagnostics/`, and
@@ -71,11 +71,12 @@ more. This checkpoint has its own name: **`0.1.0-core`**.
 ## ✅ / ℹ️ What's real today
 
 ✅ **The full Core language runs, end to end** — lexing, the tree, the interpreter, `define … end`
-procedures, every control form, both comprehensions, and the full Core reporter set, proven by real
-fixtures. You can type and run these in the studio REPL — no turtle required.
+procedures, every control form, all three comprehensions, and the full Core reporter set, proven by
+real fixtures, runnable in the studio REPL.
 
-ℹ️ **No turtle movement yet** — `forward`/`right` aren't Core; they belong to the **Turtle &
-Rendering** milestone (M2), next on the roadmap. Everything above runs without a turtle moving.
+✅ **The turtle draws too** — `forward`/`right`/pen/color aren't Core (they're their own milestone,
+M2 Turtle & Rendering), but M2 has since shipped and is conformance-green too — the turtle came
+next, so OpenLogo really draws today.
 
 ## Try it yourself
 
