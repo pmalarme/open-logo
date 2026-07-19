@@ -357,20 +357,41 @@ test("createTurtleStateRegion.getText updates when turtleState changes", () => {
   );
 });
 
-test("createTurtleStateRegion does not recompute or notify for a structurally-identical turtleState replacing itself (same reference)", () => {
+test("createTurtleStateRegion does not notify for a same-reference re-set (no-op for the store's own change detection)", () => {
   const state = OL.createStudioState();
   const region = OL.createTurtleStateRegion(state);
   const texts = [];
   region.subscribeText((text) => texts.push(text));
 
-  // Re-setting the exact same object reference is a no-op for the store's own change detection,
-  // so the region must not notify either.
   const { turtleState } = state.getState();
   state.setTurtleState(turtleState);
   assert.deepEqual(texts, []);
 
   // A genuine change is still delivered to the same listener.
   state.setTurtleState({ ...turtleState, heading: 90 });
+  assert.deepEqual(texts, [region.getText()]);
+});
+
+test("createTurtleStateRegion does not notify for a genuine no-op turtle event that still produces a fresh (but text-identical) turtleState object", () => {
+  // @openlogo/turtle's reduceTurtleState always spreads a new object for any state-bearing trace
+  // event, even a no-op like a repeated pen_down while the pen is already down (the runtime emits
+  // these; see execute-internal.ts's pen-change events). A reference-equality check alone would
+  // wrongly re-notify identical text on every such tick during a long animation — this proves the
+  // region instead compares the rendered text, matching diagnosticsKey's precedent above.
+  const state = OL.createStudioState();
+  const region = OL.createTurtleStateRegion(state);
+  const texts = [];
+  region.subscribeText((text) => texts.push(text));
+
+  const { turtleState } = state.getState();
+  assert.equal(turtleState.penDown, true, "the default turtle starts pen down");
+  // A fresh object with the exact same field values as the current state — as a no-op pen_down/
+  // set_color/etc. trace event's reducer output would be — must not be treated as a "change".
+  state.setTurtleState({ ...turtleState });
+  assert.deepEqual(texts, []);
+
+  // A genuine change afterward is still delivered.
+  state.setTurtleState({ ...turtleState, penDown: false });
   assert.deepEqual(texts, [region.getText()]);
 });
 

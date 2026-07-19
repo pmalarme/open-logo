@@ -301,25 +301,31 @@ export interface TurtleStateRegion {
 /**
  * Construct the turtle-state text region bound to the shared studio state model (never a copy).
  * The text is computed via `@openlogo/turtle`'s published {@link describeTurtleState} — this
- * module never re-derives position/heading/pen wording itself — and recomputed whenever
- * `turtleState` changes (the same slot #218 paints from and #228 pushes into on every run tick,
- * `step()`, and `reset()`), so the region reads in lockstep with the Canvas view as a program
- * runs. Unlike {@link createA11yAnnouncer}, the initial state's text *is* available immediately
- * via {@link TurtleStateRegion.getText} (there is always a "current" turtle state to describe,
- * even before any run) — only {@link TurtleStateRegion.subscribeText} listeners are limited to
- * changes after construction.
+ * module never re-derives position/heading/pen wording itself — and recomputed on every store
+ * update, but listeners are notified only when the **text itself** actually changes (not merely
+ * on a new `turtleState` object reference): `@openlogo/turtle`'s reducers
+ * (`reduceTurtleState`) always return a fresh object on any state-bearing trace event, even a
+ * genuine no-op like a repeated `pen_down` while the pen is already down, or `set_color "black"`
+ * when the color is already `"black"` — a reference check alone would re-notify identical text on
+ * every such no-op tick during a long animation. Comparing the rendered text (like
+ * `diagnosticsKey` does for diagnostics, above) is what actually keeps an assistive-technology
+ * user from hearing the same sentence repeated. So the region reads in lockstep with the Canvas
+ * view as a program runs, only ever announcing a *genuine* change. Unlike
+ * {@link createA11yAnnouncer}, the initial state's text *is* available immediately via
+ * {@link TurtleStateRegion.getText} (there is always a "current" turtle state to describe, even
+ * before any run) — only {@link TurtleStateRegion.subscribeText} listeners are limited to changes
+ * after construction.
  */
 export function createTurtleStateRegion(
   state: StudioStateStore,
 ): TurtleStateRegion {
   const listeners = new Set<TurtleStateTextListener>();
-  let lastTurtleState: TurtleState = state.getState().turtleState;
-  let text = describeTurtleState(lastTurtleState);
+  let text = describeTurtleState(state.getState().turtleState);
 
   state.subscribe((next) => {
-    if (next.turtleState !== lastTurtleState) {
-      lastTurtleState = next.turtleState;
-      text = describeTurtleState(lastTurtleState);
+    const nextText = describeTurtleState(next.turtleState);
+    if (nextText !== text) {
+      text = nextText;
       for (const listener of listeners) {
         listener(text);
       }
