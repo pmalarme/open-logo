@@ -1,0 +1,19 @@
+{
+  "description": "A lone unmatched opening `{` raises ol-unmatched-brace. `{ }` itself is a VALID empty dict literal (spec/grammar.md dict-literal), so only a genuinely unpaired brace is stack-neutral across Core and Data. Closes the corpus gap noted at M1 close (issue #195): ol-unmatched-brace had 10+ unit assertions but zero fixtures. Parse-only: the program is not execution-valid.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unmatched-brace",
+      "source_span": {
+        "document": "core-language/diagnostics/unmatched-brace-pair",
+        "start": [6, 1],
+        "end": [6, 2]
+      },
+      "params": { "delimiter": "{" },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

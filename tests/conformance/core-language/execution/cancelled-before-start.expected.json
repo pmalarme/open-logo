@@ -1,0 +1,20 @@
+{
+  "description": "A program run with an already-aborted CancellationSignal (harness executeOptions.signal, issue #195 — a plain `{ aborted: true }` object, the only shape JSON fixture data and execute() itself both need) halts before its first statement runs with ol-limit/cancelled and no events at all. This is the third and last of the three ol-limit params (`instruction-budget`, `recursion-depth`, `cancelled`), closing the corpus gap noted at M1 close: ol-limit had zero execute-mode fixtures despite being fully implemented and unit-tested (spec/execution-model.md:551-557, spec/error-model.md:119). A fixture cannot express a signal that flips mid-run (that needs a stateful JS getter, not JSON), so the mid-run cancellation scenario stays proven only by packages/runtime/src/execution-budget.test.mjs's direct unit test.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "executeOptions": { "signal": { "aborted": true } },
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-limit",
+      "source_span": {
+        "document": "core-language/execution/cancelled-before-start",
+        "start": [1, 1],
+        "end": [1, 14]
+      },
+      "params": { "limit": "cancelled" },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

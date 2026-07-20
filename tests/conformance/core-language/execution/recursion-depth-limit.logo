@@ -1,0 +1,4 @@
+define loop_forever
+  loop_forever
+end
+loop_forever

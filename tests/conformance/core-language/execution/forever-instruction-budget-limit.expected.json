@@ -1,0 +1,51 @@
+{
+  "description": "An unbounded `forever` loop run under a deliberately tiny instructionBudget (harness executeOptions, issue #195) halts with ol-limit/instruction-budget instead of running forever: the partial trace up to the cutoff is preserved (one completed print pass), never discarded. Closes the corpus gap noted at M1 close — ol-limit had zero execute-mode fixtures despite implementing all three execution-safety gates (spec/execution-model.md:551-557). The production-scale default budget (1,000,000) would make an exact-diff fixture impractically large, so this fixture opts into a small executeOptions.instructionBudget via the harness's new pass-through mechanism (scripts/harness/index.mjs); see packages/runtime/src/execution-budget.test.mjs for the full exceeded-limit matrix at unit-test granularity.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "executeOptions": { "instructionBudget": 3 },
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/forever-instruction-budget-limit",
+        "start": [1, 1],
+        "end": [1, 22]
+      },
+      "payload": { "statement_kind": "Forever" }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/forever-instruction-budget-limit",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/forever-instruction-budget-limit",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": { "values": ["x"] }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-limit",
+      "source_span": {
+        "document": "core-language/execution/forever-instruction-budget-limit",
+        "start": [1, 1],
+        "end": [1, 22]
+      },
+      "params": { "limit": "instruction-budget", "value": 3 },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}
