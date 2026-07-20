@@ -107,75 +107,71 @@ test("the triangle reference solution turns the turtle back to its starting head
   assert.equal(totalTurn, 360);
 });
 
-test("the house reference solution draws the square body, walks to the roof, draws it, then places a door and two windows all with the pen up between shapes", () => {
-  const house = level2Exercises.find(
-    (exercise) => exercise.id === "l2-house-square-and-triangle",
+test("the tree reference solution draws the trunk with plain moves and turns, then repeat 3 stacks three identical triangle tiers straight up with no diagnostics", () => {
+  const tree = level2Exercises.find(
+    (exercise) => exercise.id === "l2-tree-trunk-and-tiers",
   );
-  assert.ok(house);
+  assert.ok(tree);
 
-  const houseResult = execute(house.referenceSolution.source, "house.logo");
-  assert.deepEqual(houseResult.diagnostics, []);
-
-  // Four shapes are drawn with the pen down (body, roof, door, window, window), each preceded
-  // by a pen_up walk to reposition — except the very first, which starts with the pen already
-  // down — so the pen alternates down/up/down/up/down/up/down/up: 8 changes in total.
-  const penChanges = houseResult.events.filter(
-    (event) => event.kind === "pen-change",
-  );
-  assert.deepEqual(
-    penChanges.map((event) => event.payload),
-    [
-      { from: "down", to: "up" },
-      { from: "up", to: "down" },
-      { from: "down", to: "up" },
-      { from: "up", to: "down" },
-      { from: "down", to: "up" },
-      { from: "up", to: "down" },
-      { from: "down", to: "up" },
-      { from: "up", to: "down" },
-    ],
-  );
-
-  const turnEvents = houseResult.events.filter(
-    (event) => event.kind === "turn",
-  );
-  const totalTurn = turnEvents.reduce(
-    (sum, event) => sum + ((event.payload.to - event.payload.from + 360) % 360),
-    0,
-  );
-  assert.equal(totalTurn, 3600);
-});
-
-test("the two-houses reference solution repeats the whole house pattern (including door and windows) twice, drawing two complete houses with no diagnostics", () => {
-  const twoHouses = level2Exercises.find(
-    (exercise) => exercise.id === "l2-two-houses-repeat",
-  );
-  assert.ok(twoHouses);
-
-  const result = execute(twoHouses.referenceSolution.source, "two-houses.logo");
+  const result = execute(tree.referenceSolution.source, "tree.logo");
   assert.deepEqual(result.diagnostics, []);
 
-  // Each pass of the outer repeat draws the same complete house (body, roof, door, and two
-  // windows) as the single-house exercise, so the pen alternates down/up ten times per pass:
-  // 20 changes across the two passes.
+  // The trunk is drawn once with the pen already down, then pen_up/pen_down brackets it from
+  // the first tier; each of the 3 repeat passes adds one more pen_up/pen_down pair (walking up
+  // to the next tier): 1 initial pair + 3 pairs = 8 changes.
   const penChanges = result.events.filter(
     (event) => event.kind === "pen-change",
   );
-  assert.equal(penChanges.length, 20);
+  assert.equal(penChanges.length, 8);
 
-  // Each house closes its own shapes for 3600 degrees of turning, plus the three turns in the
-  // offset walk between passes (90 + 90 + 180 = 360) repeated twice: 2*3600 + 2*360 = 7920.
+  // The trunk closes for 360 degrees of turning (4 right-90 turns), and each of the 3 tiers
+  // closes its own triangle for 360 degrees (3 right-120 turns): 360 + 3*360 = 1440.
   const turnEvents = result.events.filter((event) => event.kind === "turn");
   const totalTurn = turnEvents.reduce(
     (sum, event) => sum + ((event.payload.to - event.payload.from + 360) % 360),
     0,
   );
-  assert.equal(totalTurn, 7920);
+  assert.equal(totalTurn, 1440);
 
-  // The final move of the second pass ends 300 units over from the first house's start corner —
-  // 150 units per house — confirming the second house was drawn beside the first, not on top of
-  // it.
+  // Every tier closes back to the same x as the trunk, so the tree grows straight up: the last
+  // move lands directly above the start, at the trunk height (40) plus 3 walks of 25 between
+  // tiers (40 + 3*25 = 115).
   const moves = result.events.filter((event) => event.kind === "move");
   const lastMove = moves[moves.length - 1];
-  assert.equal(Math.round(lastMove.payload.to[0]), 300);
+  assert.equal(Math.round(lastMove.payload.to[0]), 0);
+  assert.equal(Math.round(lastMove.payload.to[1]), 115);
+});
+
+test("the taller-tree reference solution only changes the repeat count, growing the same tree with twice as many tiers", () => {
+  const tallerTree = level2Exercises.find(
+    (exercise) => exercise.id === "l2-taller-tree-repeat",
+  );
+  assert.ok(tallerTree);
+
+  const result = execute(
+    tallerTree.referenceSolution.source,
+    "taller-tree.logo",
+  );
+  assert.deepEqual(result.diagnostics, []);
+
+  // 1 initial pen_up/pen_down pair plus one more pair per tier: 1 + 6 = 7 pairs = 14 changes.
+  const penChanges = result.events.filter(
+    (event) => event.kind === "pen-change",
+  );
+  assert.equal(penChanges.length, 14);
+
+  // Trunk (360) plus 6 tiers of 360 each: 360 + 6*360 = 2520.
+  const turnEvents = result.events.filter((event) => event.kind === "turn");
+  const totalTurn = turnEvents.reduce(
+    (sum, event) => sum + ((event.payload.to - event.payload.from + 360) % 360),
+    0,
+  );
+  assert.equal(totalTurn, 2520);
+
+  // Same trunk height (40) plus 6 walks of 25 between tiers: 40 + 6*25 = 190 -- taller than the
+  // 3-tier tree's 115, purely from the bigger repeat count.
+  const moves = result.events.filter((event) => event.kind === "move");
+  const lastMove = moves[moves.length - 1];
+  assert.equal(Math.round(lastMove.payload.to[0]), 0);
+  assert.equal(Math.round(lastMove.payload.to[1]), 190);
 });

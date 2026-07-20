@@ -37,15 +37,19 @@ lesson-content shape elsewhere in the codebase — extend this contract instead.
 
 - `lessons/level-1.ts` — the Level 1 lesson ("Leaving a mark") + graded exercises, covering
   turtle position/heading/pen/color/width and `forward`/`back`/`right`/`left`/`pen_up`/
-  `pen_down`/`clear_screen`/`home` (`spec/educational-model.md:37-58`).
+  `pen_down`/`clear_screen`/`home` (`spec/educational-model.md:37-58`). The open challenge
+  follows the compose-a-recognizable-object rule (`spec/educational-model.md`,
+  `.github/skills/curriculum/author-a-lesson/SKILL.md`): a house — a square body and a triangle
+  roof, each with a door and two windows — with every side of the square and roof typed out one
+  at a time, since `repeat` does not exist yet at this level.
 - `lessons/level-2.ts` — the Level 2 lesson ("One side, repeated") + graded exercises, covering
   `repeat` as an effects-only block and `repcount`, including the canonical square worked
-  example (`spec/educational-model.md:64-85`). The graded exercises follow a recognizable-goal
-  ramp (issue #354): a guided change to the square, the triangle pattern as practice, then a
-  house (a square body, a triangle roof, a door, and two windows, composed from L1 primitives)
-  as the open challenge, and a further "two houses" exercise that reuses the whole house
-  pattern inside `repeat 2 [ ... ]` — the payoff moment for why `repeat` matters, since drawing
-  a second house by hand would mean retyping every line.
+  example (`spec/educational-model.md:64-85`). The graded exercises follow the same
+  compose-a-recognizable-object rule: a guided change to the square, the triangle pattern as
+  practice, then a tree (a trunk plus repeated triangle tiers, each tier the exact same `repeat`
+  body) as the open challenge, and a further "taller tree" exercise that changes only the
+  repeat count — the payoff moment for why `repeat` matters, since growing the tree by hand
+  would mean retyping every tier.
 - `lessons/exercise.ts` — the `Exercise` contract: a graded exercise additive to `Lesson`
   (`lessonId`, a `LearnerLevel`, a `"guided" | "practice" | "challenge"` difficulty, a prompt,
   and a runnable `referenceSolution`). `Lesson` itself only carries a single `exercisePrompt`

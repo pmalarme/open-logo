@@ -69,3 +69,42 @@ test("every Level 1 exercise reference solution parses and runs with no diagnost
     );
   }
 });
+
+test("the house reference solution draws the square body one side at a time, the triangle roof one side at a time, then a door and two windows, all with the pen up between shapes", () => {
+  const house = level1Exercises.find(
+    (exercise) => exercise.id === "l1-house-square-and-triangle",
+  );
+  assert.ok(house);
+
+  const houseResult = execute(house.referenceSolution.source, "house.logo");
+  assert.deepEqual(houseResult.diagnostics, []);
+
+  // Four shapes are drawn with the pen down (body, roof, door, window, window), each preceded
+  // by a pen_up walk to reposition -- except the very first, which starts with the pen already
+  // down -- so the pen alternates down/up/down/up/down/up/down/up: 8 changes in total.
+  const penChanges = houseResult.events.filter(
+    (event) => event.kind === "pen-change",
+  );
+  assert.deepEqual(
+    penChanges.map((event) => event.payload),
+    [
+      { from: "down", to: "up" },
+      { from: "up", to: "down" },
+      { from: "down", to: "up" },
+      { from: "up", to: "down" },
+      { from: "down", to: "up" },
+      { from: "up", to: "down" },
+      { from: "down", to: "up" },
+      { from: "up", to: "down" },
+    ],
+  );
+
+  const turnEvents = houseResult.events.filter(
+    (event) => event.kind === "turn",
+  );
+  const totalTurn = turnEvents.reduce(
+    (sum, event) => sum + ((event.payload.to - event.payload.from + 360) % 360),
+    0,
+  );
+  assert.equal(totalTurn, 3600);
+});
