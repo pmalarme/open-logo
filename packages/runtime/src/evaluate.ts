@@ -52,6 +52,11 @@ import type {
 import { runtimeDiag } from "./errors.js";
 import { notAPlaceTargetText } from "./not-a-place-text.js";
 import type { RenderableNode } from "./not-a-place-text.js";
+import {
+  createRandomNumberGeneratorState,
+  nextRandomInt,
+} from "./random-number-generator.js";
+import type { RandomNumberGeneratorState } from "./random-number-generator.js";
 import { normalizeHeading } from "./turtle-math.js";
 
 /** The outcome of evaluating one expression: a value, or the diagnostic that stopped it. */
@@ -169,6 +174,14 @@ export interface Environment {
     node: CallNode | ParenCallNode,
     env: Environment,
   ) => EvalResult;
+  /**
+   * The shared, mutable `random`/`randomize` generator state (issue #287,
+   * `random-number-generator.ts`). A box like `instructionCount`/`turtle` rather than a plain
+   * value, so a `randomize` reseed (or a `random` draw) made from anywhere in the program —
+   * including deep inside a procedure call or loop body sharing this same `Environment` — is
+   * observed by every later draw in the same run.
+   */
+  readonly randomNumberGenerator: RandomNumberGeneratorState;
 }
 
 /**
@@ -246,6 +259,7 @@ export function createEnvironment(): Environment {
     instructionBudget: Number.POSITIVE_INFINITY,
     instructionCount: { count: 0 },
     turtle: createDefaultTurtleState(),
+    randomNumberGenerator: createRandomNumberGeneratorState(),
     callProcedure: () => {
       throw new Error(
         "callProcedure is unreachable on a bare createEnvironment() — it has no procedures",
@@ -587,6 +601,9 @@ function isLogicalOperator(name: string): name is LogicalOperator {
  * too. As of issue #203 the turtle-state reporters `xcor`/`ycor`/`heading`/`pos`/`towards`/
  * `distance` join the known-callee list as well — pure reads of {@link Environment.turtle} that
  * emit no trace event. As of issue #234 the word-constructor `word` joins the known-callee list.
+ * As of issue #287 the Core Math reporter `random` joins the known-callee list too — it reads and
+ * mutates {@link Environment.randomNumberGenerator} but, like the turtle-state reporters above, is
+ * otherwise a pure expression with no diagnostic beyond its own argument checks.
  */
 export function isSupportedExpression(
   node: ExpressionNode,
@@ -640,6 +657,7 @@ export function isSupportedExpression(
         name === "pos" ||
         name === "towards" ||
         name === "distance" ||
+        name === "random" ||
         procedures.has(name);
       return (
         isKnownCallee &&
@@ -1069,6 +1087,9 @@ function evaluateCall(node: ArithmeticCallNode, env: Environment): EvalResult {
   }
   if (name === "distance") {
     return evaluateDistance(node, env);
+  }
+  if (name === "random") {
+    return evaluateRandom(node, env);
   }
   if (env.procedures.has(name)) {
     return env.callProcedure(node, env);
@@ -2376,6 +2397,92 @@ function evaluateDistance(
   const dx = x.value - env.turtle.x;
   const dy = y.value - env.turtle.y;
   return ok(Math.hypot(dx, dy));
+}
+
+/**
+ * `random n` / `(random a b)` (issue #287, `spec/commands.md`'s `random` entry): a whole-number
+ * draw from the shared per-{@link Environment} generator
+ * ({@link Environment.randomNumberGenerator}). Unlike
+ * {@link evaluateTowards}/{@link evaluateDistance}'s single fixed arity, `random` has two valid
+ * shapes — bare `random n` (1 argument, reporting `[0, n-1]`) and parenthesized `(random a b)` (2
+ * arguments, reporting `[a, b]` inclusive) — so neither {@link requireMinArgs} alone (no upper
+ * bound) nor {@link requireExactArgs} alone (only one valid count) fits; both bounds are guarded
+ * directly here, the same way `checker-arity.ts`'s static arity rule cannot itself catch every gap
+ * for a primitive with more than one valid arity (`execute()` never runs `check()`, so the runtime
+ * is the sole enforcement point regardless). Every bound is checked for whole-number TYPE before
+ * either RANGE check, exactly matching the entry's documented order: "Inputs are checked in
+ * order: a non-whole bound raises `ol-type`; then `n` below `1`, or `a` greater than `b`, raises
+ * `ol-range`."
+ */
+function evaluateRandom(
+  node: ArithmeticCallNode,
+  env: Environment,
+): EvalResult {
+  if (node.args.length < 1 || node.args.length > 2) {
+    const source_span = node.callee.source_span;
+    return fail(
+      node.args.length < 1
+        ? runtimeDiag.notEnoughInputs(
+            source_span,
+            "random",
+            1,
+            node.args.length,
+          )
+        : runtimeDiag.tooManyInputs(source_span, "random", 2, node.args.length),
+    );
+  }
+  if (node.args.length === 1) {
+    const nNode = arg(node, 0);
+    const nResult = evaluate(nNode, env);
+    if (!nResult.ok) {
+      return nResult;
+    }
+    const n = requireWholeNumber(nResult.value, nNode.source_span, "random");
+    if (!n.ok) {
+      return fail(n.diagnostic);
+    }
+    if (n.value < 1) {
+      return fail(
+        runtimeDiag.randomBelowMinimum(nNode.source_span, { value: n.value }),
+      );
+    }
+    return ok(nextRandomInt(env.randomNumberGenerator, 0, n.value - 1));
+  }
+  const lowNode = arg(node, 0);
+  const highNode = arg(node, 1);
+  const lowResult = evaluate(lowNode, env);
+  if (!lowResult.ok) {
+    return lowResult;
+  }
+  const highResult = evaluate(highNode, env);
+  if (!highResult.ok) {
+    return highResult;
+  }
+  const low = requireWholeNumber(
+    lowResult.value,
+    lowNode.source_span,
+    "random",
+  );
+  if (!low.ok) {
+    return fail(low.diagnostic);
+  }
+  const high = requireWholeNumber(
+    highResult.value,
+    highNode.source_span,
+    "random",
+  );
+  if (!high.ok) {
+    return fail(high.diagnostic);
+  }
+  if (low.value > high.value) {
+    return fail(
+      runtimeDiag.randomRangeReversed(node.source_span, {
+        low: low.value,
+        high: high.value,
+      }),
+    );
+  }
+  return ok(nextRandomInt(env.randomNumberGenerator, low.value, high.value));
 }
 
 // --- Comprehensions: map / filter / reduce (spec/execution-model.md:380-479, issue #105) ------

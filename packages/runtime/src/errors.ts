@@ -49,6 +49,9 @@
  * Issue #209 adds a reuse of `ol-range` for a `set_width`/`setwidth` argument that is a number but
  * not positive and finite (`spec/commands.md`'s `set_width` entry) — the ordinary non-number case
  * reuses `requireNumber`'s existing `ol-type`, so no new type-error builder is needed here.
+ * Issue #287 adds `random`'s two `ol-range` cases — `n` below the minimum of `1`, and `(random a
+ * b)` with `a` greater than `b` — reusing `requireWholeNumber`'s existing `ol-type` for a
+ * non-whole bound, checked first (`spec/commands.md`'s `random` entry).
  * Mirrors the parser's `errors.ts` pattern: every finding is a stable code from the
  * `@openlogo/core` registry with structured `params` (the diagnostic identity) plus warm,
  * lowercase learner prose derived from them — prose is presentation only.
@@ -336,6 +339,27 @@ export interface BadColorParams {
 export interface NonPositiveWidthParams {
   readonly operation: "set_width" | "setwidth";
   readonly value: string;
+}
+
+/**
+ * Params for an `ol-range` raised by `random n` (issue #287) when `n` is a whole number below the
+ * minimum of `1` (`spec/commands.md`'s `random` entry: "`n` MUST be a whole number of at least
+ * `1`"). Only reached once {@link requireWholeNumber} has already confirmed `n` is a whole number
+ * — type is checked before range, per the same entry: "Inputs are checked in order: a non-whole
+ * bound raises `ol-type`; then `n` below `1` … raises `ol-range`."
+ */
+export interface RandomBelowMinimumParams {
+  readonly value: number;
+}
+
+/**
+ * Params for an `ol-range` raised by `(random a b)` (issue #287) when `a` is greater than `b`
+ * (`spec/commands.md`'s `random` entry: "`a` and `b` MUST be whole numbers with `a <= b`"). Only
+ * reached once {@link requireWholeNumber} has already confirmed both bounds are whole numbers.
+ */
+export interface RandomRangeReversedParams {
+  readonly low: number;
+  readonly high: number;
 }
 
 /** Runtime-stage diagnostics, one builder per `ol-*` code the evaluator can raise. */
@@ -978,6 +1002,41 @@ export const runtimeDiag = {
         operation: params.operation,
       },
       `i don't know the shape "${params.value}". try a shape like "turtle", "triangle", "arrow", or "circle".`,
+    );
+  },
+
+  /**
+   * `ol-range` (issue #287) — `random n`'s argument is a whole number but below the minimum of
+   * `1` (`spec/commands.md`'s `random` entry). Only reached once {@link requireWholeNumber} has
+   * already confirmed the value is a whole number. See {@link RandomBelowMinimumParams}.
+   */
+  randomBelowMinimum(
+    source_span: SourceSpan,
+    params: RandomBelowMinimumParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-range",
+      source_span,
+      { operation: "random", ...params },
+      `random needs a whole number of 1 or greater, but got ${params.value}.`,
+    );
+  },
+
+  /**
+   * `ol-range` (issue #287) — `(random a b)`'s bounds are both whole numbers, but `a` is greater
+   * than `b` (`spec/commands.md`'s `random` entry: "`a` and `b` MUST be whole numbers with
+   * `a <= b`"). Only reached once {@link requireWholeNumber} has already confirmed both bounds are
+   * whole numbers. See {@link RandomRangeReversedParams}.
+   */
+  randomRangeReversed(
+    source_span: SourceSpan,
+    params: RandomRangeReversedParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-range",
+      source_span,
+      { operation: "random", ...params },
+      `random needs its first number to be no greater than its second, but got random ${params.low} ${params.high}.`,
     );
   },
 } as const;
