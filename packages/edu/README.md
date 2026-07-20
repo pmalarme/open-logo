@@ -40,7 +40,10 @@ lesson-content shape elsewhere in the codebase — extend this contract instead.
   `pen_down`/`clear_screen`/`home` (`spec/educational-model.md:37-58`).
 - `lessons/level-2.ts` — the Level 2 lesson ("One side, repeated") + graded exercises, covering
   `repeat` as an effects-only block and `repcount`, including the canonical square worked
-  example (`spec/educational-model.md:64-85`).
+  example (`spec/educational-model.md:64-85`). The graded exercises follow a recognizable-goal
+  ramp (issue #354): a guided change to the square, the triangle pattern as practice, then a
+  house (the square body plus a triangle roof) as the open challenge — composing a real object
+  from patterns already learned instead of an abstract shape.
 - `lessons/exercise.ts` — the `Exercise` contract: a graded exercise additive to `Lesson`
   (`lessonId`, a `LearnerLevel`, a `"guided" | "practice" | "challenge"` difficulty, a prompt,
   and a runnable `referenceSolution`). `Lesson` itself only carries a single `exercisePrompt`
