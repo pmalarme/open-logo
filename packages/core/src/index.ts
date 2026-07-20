@@ -60,6 +60,10 @@ export type {
   HintTutorOutputPayload,
   DebugTutorOutputPayload,
   TutorOutputSegments,
+  WhyDiagnosticTutorOutputPayload,
+  WhyProgramTutorOutputPayload,
+  DebugDiagnosticTutorOutputPayload,
+  DebugProgramTutorOutputPayload,
 } from "./events.js";
 
 export { typeNameOf } from "./values.js";

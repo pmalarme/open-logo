@@ -242,12 +242,15 @@ export type TutorHintStage = "nudge" | "concept" | "partial" | "last-resort";
  *   REQUIRED on the `"hint"` arm (using the whole-program span when no narrower target is
  *   selected); optional on `explain`/`why`/`debug` — present whenever they describe a specific
  *   instruction, statement range, or diagnostic, and absent only when they concern the program
- *   as a whole with no diagnostic and no narrower selection in scope. When `diagnostic_code` is
- *   also present, callers MUST set this to that diagnostic's own source span (a residual
- *   cross-field invariant the type system does not itself enforce).
+ *   as a whole with no diagnostic and no narrower selection in scope.
  * - `diagnostic_code` — optional, and present ONLY on the `"why"`/`"debug"` arms (never
  *   `"explain"`/`"hint"`): the `ol-*` code being explained, when the explanation concerns a
- *   diagnostic rather than turtle/variable state.
+ *   diagnostic rather than turtle/variable state. Whenever `diagnostic_code` is present,
+ *   `target_source_span` is REQUIRED alongside it (co-required — a `why`/`debug` payload can
+ *   never carry a diagnostic code without also carrying that diagnostic's own source span). The
+ *   type system enforces this presence pairing via separate diagnostic/non-diagnostic arms
+ *   below; it does NOT enforce that the span's *value* equals the diagnostic's own span — that
+ *   equality is a residual runtime invariant left to later slices.
  */
 export interface TutorOutputSegments {
   readonly segments: readonly [string, ...string[]];
@@ -259,12 +262,29 @@ export interface ExplainTutorOutputPayload extends TutorOutputSegments {
   readonly target_source_span?: SourceSpan;
 }
 
-/** The `tutor-output` payload for `why` — see {@link TutorOutputPayload}. */
-export interface WhyTutorOutputPayload extends TutorOutputSegments {
+/**
+ * The `why` payload arm describing an `ol-*` diagnostic: `diagnostic_code` and
+ * `target_source_span` are co-required (see {@link TutorOutputPayload}).
+ */
+export interface WhyDiagnosticTutorOutputPayload extends TutorOutputSegments {
   readonly command: "why";
-  readonly target_source_span?: SourceSpan;
-  readonly diagnostic_code?: DiagnosticCode;
+  readonly diagnostic_code: DiagnosticCode;
+  readonly target_source_span: SourceSpan;
 }
+
+/**
+ * The `why` payload arm describing turtle/variable state rather than a diagnostic: no
+ * `diagnostic_code`; `target_source_span` is optional (see {@link TutorOutputPayload}).
+ */
+export interface WhyProgramTutorOutputPayload extends TutorOutputSegments {
+  readonly command: "why";
+  readonly diagnostic_code?: undefined;
+  readonly target_source_span?: SourceSpan;
+}
+
+/** The `tutor-output` payload for `why` — see {@link TutorOutputPayload}. */
+export type WhyTutorOutputPayload =
+  WhyDiagnosticTutorOutputPayload | WhyProgramTutorOutputPayload;
 
 /** The `tutor-output` payload for `hint` — see {@link TutorOutputPayload}. */
 export interface HintTutorOutputPayload extends TutorOutputSegments {
@@ -273,12 +293,29 @@ export interface HintTutorOutputPayload extends TutorOutputSegments {
   readonly target_source_span: SourceSpan;
 }
 
-/** The `tutor-output` payload for `debug` — see {@link TutorOutputPayload}. */
-export interface DebugTutorOutputPayload extends TutorOutputSegments {
+/**
+ * The `debug` payload arm describing an `ol-*` diagnostic: `diagnostic_code` and
+ * `target_source_span` are co-required (see {@link TutorOutputPayload}).
+ */
+export interface DebugDiagnosticTutorOutputPayload extends TutorOutputSegments {
   readonly command: "debug";
-  readonly target_source_span?: SourceSpan;
-  readonly diagnostic_code?: DiagnosticCode;
+  readonly diagnostic_code: DiagnosticCode;
+  readonly target_source_span: SourceSpan;
 }
+
+/**
+ * The `debug` payload arm describing turtle/variable state rather than a diagnostic: no
+ * `diagnostic_code`; `target_source_span` is optional (see {@link TutorOutputPayload}).
+ */
+export interface DebugProgramTutorOutputPayload extends TutorOutputSegments {
+  readonly command: "debug";
+  readonly diagnostic_code?: undefined;
+  readonly target_source_span?: SourceSpan;
+}
+
+/** The `tutor-output` payload for `debug` — see {@link TutorOutputPayload}. */
+export type DebugTutorOutputPayload =
+  DebugDiagnosticTutorOutputPayload | DebugProgramTutorOutputPayload;
 
 export type TutorOutputPayload =
   | ExplainTutorOutputPayload
