@@ -6,9 +6,10 @@
  * Issue #189 fixed the read-only `Lesson`/`WorkedExample` data contract. Issue #328 adds the
  * first curriculum content on top of it — Level 1 and Level 2 lessons plus graded `Exercise`s
  * (`./lessons/level-1.ts`, `./lessons/level-2.ts`) — aggregated by `./lessons/registry.ts` into
- * the flat `LESSONS`/`EXERCISES` lists re-exported below. Later levels (B2/B3/B4) add their own
- * `level-N.ts` module and extend the registry additively. The educational meta-commands,
- * geometry stdlib, and AI tutor land in later slices.
+ * the flat `LESSONS`/`EXERCISES` lists re-exported below. Issue #325 adds Level 3
+ * (`./lessons/level-3.ts`, variables). Later levels (B3/B4) add their own `level-N.ts` module and
+ * extend the registry additively. The educational meta-commands, geometry stdlib, and AI tutor
+ * land in later slices.
  */
 
 /** Marker export so the M0 skeleton is a real ES module; replaced by real exports later. */

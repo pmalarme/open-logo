@@ -5,19 +5,19 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as OL from "@openlogo/edu";
 
-test("LESSONS and EXERCISES aggregate every authored Level 1 and Level 2 item", () => {
+const AUTHORED_LEVELS = new Set(["1", "2", "3"]);
+
+test("LESSONS and EXERCISES aggregate every authored Level 1-3 item", () => {
   assert.equal(
-    OL.LESSONS.every((lesson) => lesson.level === "1" || lesson.level === "2"),
+    OL.LESSONS.every((lesson) => AUTHORED_LEVELS.has(lesson.level)),
     true,
   );
   assert.equal(
-    OL.EXERCISES.every(
-      (exercise) => exercise.level === "1" || exercise.level === "2",
-    ),
+    OL.EXERCISES.every((exercise) => AUTHORED_LEVELS.has(exercise.level)),
     true,
   );
-  assert.equal(OL.LESSONS.length >= 2, true);
-  assert.equal(OL.EXERCISES.length >= 6, true);
+  assert.equal(OL.LESSONS.length >= 3, true);
+  assert.equal(OL.EXERCISES.length >= 9, true);
 });
 
 test("every lesson id across the registry is unique", () => {
@@ -37,7 +37,7 @@ test("getLessonsByLevel returns only lessons for the requested level, empty for 
     level1.every((lesson) => lesson.level === "1"),
     true,
   );
-  assert.deepEqual(OL.getLessonsByLevel("3"), []);
+  assert.deepEqual(OL.getLessonsByLevel("4"), []);
 });
 
 test("getExercisesByLevel returns only exercises for the requested level, empty for an unauthored one", () => {
