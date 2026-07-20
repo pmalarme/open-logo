@@ -967,7 +967,7 @@ define draw_if_ready :ready
 end
 ```
 
-- **Possible errors:** `ol-stop-outside-proc`.
+- **Possible errors:** `ol-stop-outside-proc`, `ol-return-in-comprehension` when used inside a `map`/`filter`/`reduce` body.
 
 ### `throw`
 

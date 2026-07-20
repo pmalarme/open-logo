@@ -382,7 +382,7 @@ print :c       # fresh list
 
 At Level 8, higher-order work is written with three comprehension special forms. OpenLogo v0.1 has no first-class functions and no `lambda`.
 
-Each comprehension uses a binder, a list expression, and a bracketed expression body. The body is `[ ]` only, never `… end`. It reports by the value of its last expression, so `return`, `output`, and `op` are not used in comprehension bodies.
+Each comprehension uses a binder, a list expression, and a bracketed expression body. The body is `[ ]` only, never `… end`. It reports by the value of its last expression, so `return`, `output`, `op`, and `stop` are not used in comprehension bodies.
 
 ```logo
 :nums = [1 2 3 4]
@@ -417,7 +417,7 @@ end
 :total = reduce sum num in :nums from 0 [ :sum + :num ]
 ```
 
-A comprehension body that has no value-producing final expression raises `ol-no-value`. A `return`, `output`, or `op` inside a comprehension body raises `ol-return-in-comprehension`. If the final expression calls a procedure that never returns a value, that call raises `ol-no-output` at the call site.
+A comprehension body that has no value-producing final expression raises `ol-no-value`. A `return`, `output`, `op`, or `stop` inside a comprehension body raises `ol-return-in-comprehension`. If the final expression calls a procedure that never returns a value, that call raises `ol-no-output` at the call site.
 
 ## Error summary
 
@@ -435,7 +435,7 @@ A comprehension body that has no value-producing final expression raises `ol-no-
 | record constructor arity too small or too large | `ol-not-enough-inputs`, `ol-too-many-inputs` |
 | comprehension final body has no value | `ol-no-value` |
 | `filter` body is not boolean | `ol-not-boolean` |
-| `return` inside a comprehension body | `ol-return-in-comprehension` |
+| `return`/`output`/`op`/`stop` inside a comprehension body | `ol-return-in-comprehension` |
 | repeated `reduce` binder name | `ol-duplicate-binder` |
 
 These diagnostics use the shared error shape defined by the [error model](error-model.md). Place parsing and selector grammar are defined by the [grammar](grammar.md), and mutation semantics are evaluated as specified by the [execution model](execution-model.md).

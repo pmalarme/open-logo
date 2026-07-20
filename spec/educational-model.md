@@ -361,7 +361,7 @@ The teaching moment is not “recursion is hard.” It is “the same instructio
 
 ## Level 8b — comprehensions and destructuring
 
-Comprehensions transform, choose, or combine data without introducing lambdas or first-class procedure values. `map`, `filter`, and `reduce` use an expression body in `[ ]`; the last expression is the value. Do not use `return` inside a comprehension body.
+Comprehensions transform, choose, or combine data without introducing lambdas or first-class procedure values. `map`, `filter`, and `reduce` use an expression body in `[ ]`; the last expression is the value. Do not use `return`, `output`, `op`, or `stop` inside a comprehension body.
 
 Destructuring `for` lets a learner take apart list items or records by position.
 
