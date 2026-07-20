@@ -14,9 +14,11 @@ Start with the [OpenLogo specification](spec/README.md). OpenLogo is licensed un
 **Install & build:**
 
 ```bash
-npm ci
+npm install
 npm run build
 ```
+
+(`npm ci` also works — it installs from the committed `package-lock.json`, same as CI.)
 
 **Run the checks** (prove it works):
 
@@ -33,8 +35,15 @@ npm run examples     # runs the spec/examples/*.logo programs
 repeat 4 [ forward 100 right 90 ]
 ```
 
-Run it interactively in `@openlogo/studio`, the browser IDE (editor + Canvas turtle view + Run/Stop),
-once it's built and served — see [`packages/studio`](packages/studio) for details.
+Run it interactively in `@openlogo/studio`, the browser IDE (editor + Canvas turtle view + Run):
+
+```bash
+npm run dev
+```
+
+Then open the printed local URL, type the program above into the editor, and press **Run** — a
+square draws on the Canvas. See [`packages/studio`](packages/studio) for details.
+
 
 **Repo map:** see [`packages/README.md`](packages/README.md) for the package layout and
 [`docs/`](docs/) for architecture, ADRs, and delivery docs.

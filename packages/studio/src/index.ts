@@ -99,6 +99,13 @@
  *   `@openlogo/turtle`'s `paintTurtle`, never re-deriving coordinates or scene items itself;
  *   {@link mountCanvasView} composes it into the shell's `turtle` region and paints the initial
  *   default state immediately. See `canvas-view.ts`.
+ *
+ * #277 makes the studio actually servable — a Vite-hosted browser page (`index.html` +
+ * `web/main.ts`) composes every seam above onto a real `<textarea>`/`<canvas>`/Run button. The
+ * browser entry is a thin, logic-free wiring layer (outside this package's `tsc -b` build graph
+ * and never imported by a test); any real logic it needs lives in {@link DEFAULT_RUN_PROGRAM}/
+ * {@link formatDiagnosticsSummary} (`web-bootstrap.ts`) instead, so it stays inside the 100%
+ * coverage gate. See `packages/studio/README.md`'s "Running in a browser" section.
  */
 
 export type {
@@ -189,3 +196,8 @@ export {
   createCanvasViewController,
   mountCanvasView,
 } from "./canvas-view.js";
+
+export {
+  DEFAULT_RUN_PROGRAM,
+  formatDiagnosticsSummary,
+} from "./web-bootstrap.js";

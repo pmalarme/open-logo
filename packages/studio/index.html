@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/openlogo.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OpenLogo Studio</title>
+  </head>
+  <body>
+    <header>
+      <img
+        src="/openlogo.png"
+        alt="OpenLogo — DRAW · LEARN · CREATE"
+        height="64"
+      />
+      <h1>OpenLogo Studio</h1>
+    </header>
+    <main>
+      <section aria-label="Editor">
+        <textarea id="editor" rows="10" cols="60" spellcheck="false"></textarea>
+      </section>
+      <section aria-label="Run controls">
+        <button id="run-button" type="button">Run</button>
+      </section>
+      <section aria-label="Turtle canvas">
+        <canvas id="turtle-canvas" width="500" height="500"></canvas>
+      </section>
+      <section aria-label="Diagnostics">
+        <pre id="diagnostics"></pre>
+      </section>
+    </main>
+    <script type="module" src="/web/main.ts"></script>
+  </body>
+</html>
