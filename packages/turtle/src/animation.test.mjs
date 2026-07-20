@@ -238,6 +238,101 @@ test("issue #295: consecutive leading containers (nested loops) all coalesce int
   assert.equal(snapshot.status, "done");
 });
 
+/**
+ * Builds the event stream `@openlogo/runtime` emits for a procedure whose body starts with a
+ * control container (issue #295 P2):
+ * ```logo
+ * define sq
+ *   repeat 4 [ forward 100 right 90 ]
+ * end
+ * sq
+ * ```
+ * The stream LEADS with a call instruction and a `procedure-enter` bookkeeping event before the
+ * `repeat` container and the first real `forward 100`:
+ * `instruction{Call sq} -> procedure-enter -> instruction{Repeat} -> instruction{Call forward}
+ *  -> move -> draw-segment -> instruction{Call right} -> turn -> … -> procedure-exit`.
+ * `procedure-enter`/`procedure-exit` are START/bookkeeping events (like `instruction`), NOT
+ * visible effects — a predicate keyed on `kind !== "instruction"` would wrongly let
+ * `procedure-enter` end the first step, leaving the turtle unmoved.
+ */
+function procedureLedRepeatEvents() {
+  const events = [
+    event("instruction", { statement_kind: "Call" }),
+    event("procedure-enter", { name: "sq", args: [] }),
+    event("instruction", { statement_kind: "Repeat" }),
+  ];
+  let x = 0;
+  let y = 0;
+  let heading = 0;
+  for (let i = 0; i < 4; i++) {
+    const from = [x, y];
+    y += 100;
+    const to = [x, y];
+    events.push(event("instruction", { statement_kind: "Call" }));
+    events.push(event("move", { from, to, heading }));
+    events.push(event("draw-segment", { from, to, color: "black", width: 1 }));
+
+    const fromHeading = heading;
+    heading = (heading + 90) % 360;
+    events.push(event("instruction", { statement_kind: "Call" }));
+    events.push(event("turn", { from: fromHeading, to: heading }));
+  }
+  events.push(event("procedure-exit", { name: "sq", result: null }));
+  return events;
+}
+
+test("issue #295 P2: first step from idle folds the leading Call + procedure-enter + Repeat and moves the turtle", () => {
+  const events = procedureLedRepeatEvents();
+  const controller = new OL.TurtleAnimationController(events);
+  controller.step();
+  const snapshot = controller.getSnapshot();
+
+  // Folded: instruction(Call sq) + procedure-enter + instruction(Repeat) + instruction(Call
+  // forward) + move + draw-segment (6 events) — the turtle must visibly advance to (0,100), NOT
+  // stop at the invisible procedure-enter.
+  assert.equal(snapshot.cursor, 6);
+  assert.equal(snapshot.status, "paused");
+  assert.deepEqual(
+    snapshot.state.position,
+    [0, 100],
+    "procedure-enter must not end the first step before the forward move",
+  );
+  assert.equal(snapshot.scene.items.length, 1);
+  assert.equal(snapshot.scene.items[0].kind, "segment");
+});
+
+test("issue #295 P2: reset then step on the procedure-led stream also moves the turtle", () => {
+  const events = procedureLedRepeatEvents();
+  const controller = new OL.TurtleAnimationController(events);
+  controller.seekToEnd();
+  controller.reset();
+  assert.equal(controller.getSnapshot().cursor, 0);
+  assert.equal(controller.getSnapshot().status, "idle");
+
+  controller.step();
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.cursor, 6, "reset→step behaves like a fresh idle→step");
+  assert.deepEqual(snapshot.state.position, [0, 100]);
+  assert.equal(snapshot.scene.items.length, 1);
+});
+
+test("issue #295 P2: the procedure-led stream still yields 8 visible steps, then done", () => {
+  const events = procedureLedRepeatEvents();
+  const controller = new OL.TurtleAnimationController(events);
+  let steps = 0;
+  while (controller.getSnapshot().status !== "done") {
+    controller.step();
+    steps += 1;
+  }
+  // The invisible Call/procedure-enter/procedure-exit bookkeeping adds no extra visible step:
+  // 4 forwards + 4 rights = 8, and the trailing procedure-exit is folded into the last step.
+  assert.equal(steps, 8);
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.cursor, events.length);
+  assert.equal(snapshot.status, "done");
+  assert.deepEqual(snapshot.scene, OL.reduceSceneEvents(events));
+});
+
 test("step is a no-op once playback is done", () => {
   const events = repeat4ForwardRightEvents();
   const controller = new OL.TurtleAnimationController(events);

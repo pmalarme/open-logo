@@ -106,12 +106,13 @@ export interface AnimationSnapshot {
  * and can never diverge from what a direct `reduceTurtleEvents`/`reduceSceneEvents` call over
  * the same events would produce.
  *
- * Step boundaries follow `spec/rendering.md`/`spec/execution-model.md`: one step is an
- * `instruction` event plus every effect event up to (but not including) the next `instruction`
- * event or the end of the stream, except that a leading zero-effect control-form container
- * instruction is coalesced with the following effect-producing step so the first step is always
- * observable (issue #295 — see {@link consumeOneStep}). Speed changes only how {@link run} paces
- * those same steps — it never skips an effect event or coalesces two visible state changes.
+ * Step boundaries follow the normative manual-stepping rule in
+ * `spec/execution-model.md`/`spec/rendering.md`: one step folds any leading zero-effect START/
+ * bookkeeping events (a control-form container's own `instruction` **and** `procedure-enter`)
+ * together with the following effect-producing instruction and its effect events, up to (but not
+ * including) the next `instruction` event that begins a new visible step — so the first step is
+ * always observable (issue #295 — see {@link consumeOneStep}). Speed changes only how {@link run}
+ * paces those same steps — it never skips an effect event or coalesces two visible state changes.
  */
 export class TurtleAnimationController {
   private readonly events: readonly TraceEvent[];
@@ -159,19 +160,20 @@ export class TurtleAnimationController {
   }
 
   /**
-   * Consumes exactly one step: the instruction event at the cursor plus every following effect
-   * event up to (but not including) the next `instruction` event or the end of the stream —
-   * matching `spec/rendering.md`'s worked `repeat 4 [ forward 100 right 90 ]` example, where
-   * stepping once at `forward 100` consumes only that instruction's `move`/`draw-segment`
-   * effects and leaves `right 90` as a separate, not-yet-consumed step. A leading zero-effect
-   * control-form container instruction (the `repeat`/`while`/… start event) is coalesced with
-   * the following effect-producing instruction so the first step always advances to a visible
-   * effect (issue #295) — see {@link consumeOneStep}. A no-op once playback is `"done"`.
-   * Cancels any step scheduled by a prior {@link run} first, so a manual step can never race
-   * with — and be double-consumed by — a stale scheduled tick. After a manual step call,
-   * playback holds at `"paused"` (or `"done"` if that step exhausted the stream) — see
-   * {@link consumeOneStep}, which {@link run} also drives without forcing `"paused"` in
-   * between automated steps.
+   * Consumes exactly one manual step. Per the normative manual-stepping rule
+   * (`spec/execution-model.md`/`spec/rendering.md`: manual/visual stepping advances to the next
+   * effect-producing instruction, folding zero-effect structural containers and `procedure-enter`),
+   * a step folds any leading START/bookkeeping events — a `repeat`/`while`/… container's own
+   * `instruction`, a `procedure-enter`, etc. — together with the following effect-producing
+   * instruction and its effect events, up to (but not including) the next `instruction` event that
+   * begins a new visible step. So stepping once from idle at `repeat 4 [ forward 100 right 90 ]`
+   * advances the turtle by `forward 100` (issue #295) rather than consuming only the invisible
+   * container, and the following `right 90` remains a separate step — see {@link consumeOneStep}.
+   * A no-op once playback is `"done"`. Cancels any step scheduled by a prior {@link run} first, so
+   * a manual step can never race with — and be double-consumed by — a stale scheduled tick. After
+   * a manual step call, playback holds at `"paused"` (or `"done"` if that step exhausted the
+   * stream) — see {@link consumeOneStep}, which {@link run} also drives without forcing `"paused"`
+   * in between automated steps.
    */
   step(): void {
     if (this.status === "done") {
@@ -191,38 +193,49 @@ export class TurtleAnimationController {
    * keeps `"running"` across every automated step until the stream is exhausted or `pause`/
    * `reset` intervenes, so continuous playback doesn't stall after its first tick.
    *
-   * A control-form instruction (`repeat`/`while`/`for`/…) emits its own `instruction` start
-   * event with no effect events of its own — the body's first real instruction follows
-   * immediately (`spec/execution-model.md`: the container instruction leads, then each body
-   * statement gets its own instruction event). Consuming such a leading zero-effect container
-   * alone would make the first "Next step" (from idle, or right after `reset`) visibly do
-   * nothing — issue #295. So a step coalesces past any leading zero-effect instruction(s) until
-   * it has consumed an instruction-step that produced at least one observable effect event, or
-   * the stream ends. This never coalesces two *visible* state changes into one step (each
-   * effect-producing instruction still gets its own step, per `spec/rendering.md`'s "MUST NOT
-   * coalesce visible state changes in step mode"); it only skips the invisible container so the
-   * first observable step matches the spec's worked `forward 100` example.
+   * Per the normative manual-stepping rule (`spec/execution-model.md`/`spec/rendering.md`),
+   * manual/visual stepping advances to the next **effect-producing** instruction: it folds any
+   * leading START/bookkeeping events — the `instruction` start event of a zero-effect structural
+   * container (`repeat`/`while`/`for`/…) **and** `procedure-enter`, plus any other non-effect
+   * start event — into the same step until it has consumed an event that produces an observable
+   * turtle-state or scene change. Consuming such a leading zero-effect event *alone* would make
+   * the first "Next step" (from idle, or right after `reset`) visibly do nothing — issue #295.
+   *
+   * "Observable" is derived from the reducers themselves rather than a hand-maintained kind list,
+   * so it can never drift: {@link reduceTurtleState}/{@link reduceTurtleScene} return the *same*
+   * object reference for a kind they don't treat as a change (their `default` branch) and a
+   * *new* object for every effect kind they do handle, so a reference change is exactly an
+   * observable effect. This is why `procedure-enter` (which neither reducer folds) no longer
+   * wrongly ends the first step, unlike a predicate keyed on `kind !== "instruction"`.
+   *
+   * This never coalesces two *visible* state changes into one step: once an effect has been
+   * produced, the next `instruction` event ends the step (each effect-producing instruction
+   * still gets its own step, per `spec/rendering.md`'s "MUST NOT coalesce visible state changes
+   * in step mode"). It only folds the invisible leading events, so the first observable step
+   * matches the spec's worked `forward 100` example.
    */
   private consumeOneStep(): boolean {
     if (this.cursor >= this.events.length) {
       return true;
     }
-    let end = this.cursor;
-    let consumedEffect = false;
-    do {
-      // Consume the instruction event at `end`, then every following effect event up to (but
-      // not including) the next `instruction` event or the end of the stream.
-      end++;
-      while (
-        end < this.events.length &&
-        this.events[end]?.kind !== "instruction"
-      ) {
-        consumedEffect = true;
-        end++;
+    let producedObservableEffect = false;
+    while (this.cursor < this.events.length) {
+      const event = this.events[this.cursor];
+      // Stop before an `instruction` that would begin a NEW visible step — but only once this
+      // step has already produced an observable effect, so leading start/bookkeeping events are
+      // folded in first.
+      if (event?.kind === "instruction" && producedObservableEffect) {
+        break;
       }
-    } while (!consumedEffect && end < this.events.length);
-    this.applyRange(this.cursor, end);
-    this.cursor = end;
+      const previousState = this.state;
+      const previousScene = this.scene;
+      this.state = reduceTurtleState(this.state, event as TraceEvent);
+      this.scene = reduceTurtleScene(this.scene, event as TraceEvent);
+      if (this.state !== previousState || this.scene !== previousScene) {
+        producedObservableEffect = true;
+      }
+      this.cursor++;
+    }
     return this.cursor >= this.events.length;
   }
 
@@ -298,14 +311,6 @@ export class TurtleAnimationController {
     if (this.cancelPending) {
       this.cancelPending();
       this.cancelPending = null;
-    }
-  }
-
-  /** Folds `events[start..end)` into the running state/scene, in order, one event at a time. */
-  private applyRange(start: number, end: number): void {
-    for (const event of this.events.slice(start, end)) {
-      this.state = reduceTurtleState(this.state, event);
-      this.scene = reduceTurtleScene(this.scene, event);
     }
   }
 
