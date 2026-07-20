@@ -229,28 +229,62 @@ export type TutorHintStage = "nudge" | "concept" | "partial" | "last-resort";
  * Payload for a `tutor-output` event (Educational profile,
  * `spec/execution-model.md#tutor-output-educational-profile`): the deterministic, template-based
  * result of a baseline meta-command (`explain`/`why`/`hint`/`debug`), emitted immediately after
- * that command produces its result. Field names mirror the spec's payload table exactly:
+ * that command produces its result. A discriminated union on `command` — rather than one
+ * interface with every field optional — so the type system itself enforces the spec's
+ * command-dependent field rules instead of merely documenting them:
  *
- * - `command` — which of the four baseline meta-commands produced this output.
- * - `segments` — a non-empty ordered list of learner-facing message segments (plain text). The
- *   spec's normative guardrail is that these, read together, MUST NOT constitute a complete,
- *   ready-to-run OpenLogo solution program.
- * - `stage` — present only when `command` is `"hint"`; absent for `explain`/`why`/`debug`.
+ * - `segments` — a non-empty ordered list of learner-facing message segments (plain text), for
+ *   every command. The spec's normative guardrail is that these, read together, MUST NOT
+ *   constitute a complete, ready-to-run OpenLogo solution program.
+ * - `stage` — required, and present ONLY on the `"hint"` arm (absent for
+ *   `explain`/`why`/`debug`), one of the four progressive stages in {@link TutorHintStage}.
  * - `target_source_span` — the instruction/statement range/program the `segments` describe.
- *   MUST be present for `hint` (using the whole-program span when no narrower target is
- *   selected) and MUST be present for `explain`/`why`/`debug` whenever they describe a specific
- *   instruction, statement range, or diagnostic; MAY be absent only when `explain`/`why`/`debug`
- *   concern the program as a whole with no diagnostic and no narrower selection in scope.
- * - `diagnostic_code` — optional; the `ol-*` code that `why`/`debug` is explaining, when the
- *   explanation concerns a diagnostic rather than turtle/variable state.
+ *   REQUIRED on the `"hint"` arm (using the whole-program span when no narrower target is
+ *   selected); optional on `explain`/`why`/`debug` — present whenever they describe a specific
+ *   instruction, statement range, or diagnostic, and absent only when they concern the program
+ *   as a whole with no diagnostic and no narrower selection in scope. When `diagnostic_code` is
+ *   also present, callers MUST set this to that diagnostic's own source span (a residual
+ *   cross-field invariant the type system does not itself enforce).
+ * - `diagnostic_code` — optional, and present ONLY on the `"why"`/`"debug"` arms (never
+ *   `"explain"`/`"hint"`): the `ol-*` code being explained, when the explanation concerns a
+ *   diagnostic rather than turtle/variable state.
  */
-export interface TutorOutputPayload {
-  readonly command: TutorCommand;
-  readonly segments: readonly string[];
-  readonly stage?: TutorHintStage;
+export interface TutorOutputSegments {
+  readonly segments: readonly [string, ...string[]];
+}
+
+/** The `tutor-output` payload for `explain` — see {@link TutorOutputPayload}. */
+export interface ExplainTutorOutputPayload extends TutorOutputSegments {
+  readonly command: "explain";
+  readonly target_source_span?: SourceSpan;
+}
+
+/** The `tutor-output` payload for `why` — see {@link TutorOutputPayload}. */
+export interface WhyTutorOutputPayload extends TutorOutputSegments {
+  readonly command: "why";
   readonly target_source_span?: SourceSpan;
   readonly diagnostic_code?: DiagnosticCode;
 }
+
+/** The `tutor-output` payload for `hint` — see {@link TutorOutputPayload}. */
+export interface HintTutorOutputPayload extends TutorOutputSegments {
+  readonly command: "hint";
+  readonly stage: TutorHintStage;
+  readonly target_source_span: SourceSpan;
+}
+
+/** The `tutor-output` payload for `debug` — see {@link TutorOutputPayload}. */
+export interface DebugTutorOutputPayload extends TutorOutputSegments {
+  readonly command: "debug";
+  readonly target_source_span?: SourceSpan;
+  readonly diagnostic_code?: DiagnosticCode;
+}
+
+export type TutorOutputPayload =
+  | ExplainTutorOutputPayload
+  | WhyTutorOutputPayload
+  | HintTutorOutputPayload
+  | DebugTutorOutputPayload;
 
 /**
  * The trace-event envelope. `payload` is kind-specific typed data — the payload interfaces

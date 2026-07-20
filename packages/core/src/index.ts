@@ -55,6 +55,11 @@ export type {
   TutorCommand,
   TutorHintStage,
   TutorOutputPayload,
+  ExplainTutorOutputPayload,
+  WhyTutorOutputPayload,
+  HintTutorOutputPayload,
+  DebugTutorOutputPayload,
+  TutorOutputSegments,
 } from "./events.js";
 
 export { typeNameOf } from "./values.js";

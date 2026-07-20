@@ -33,12 +33,24 @@ export type TutorLearnerLevel =
  * metadata" input). Absent when the target is not a call, or no target is selected.
  */
 export interface TutorCommandMetadata {
-  /** The callee's canonical name (e.g. `"forward"`, or a learner-defined procedure name). */
+  /**
+   * The callee's canonical name (e.g. `"forward"`, `"repeat"`, or a learner-defined procedure
+   * name).
+   */
   readonly name: string;
-  /** The callee's arity (parameter count) as known to the parser/runtime. */
+  /**
+   * The callee's arity as known to the parser/runtime — its non-block input count (e.g. `1` for
+   * `forward`, `1` for `repeat`'s count input; a control form's block body is not itself an
+   * input and is not counted here).
+   */
   readonly arity: number;
-  /** Whether the callee is a built-in primitive or a learner-defined procedure. */
-  readonly kind: "primitive" | "procedure";
+  /**
+   * Whether the callee is a built-in primitive, a control/binding **special form** (e.g.
+   * `repeat`, `if`, `define` — `explain` MUST be able to name these, per
+   * `spec/educational-model.md:451`'s "Name the command or special form"), or a learner-defined
+   * procedure.
+   */
+  readonly kind: "primitive" | "special-form" | "procedure";
 }
 
 /**
