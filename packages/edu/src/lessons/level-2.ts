@@ -118,7 +118,7 @@ export const level2Exercises: readonly Exercise[] = [
     referenceSolution: {
       source: "repeat 3 [ forward 80 right 120 ]",
       explanation:
-        "Three equal turns must add up to one full turn around, so an evenly split turn of 120 degrees brings the turtle back to where it started.",
+        "Three equal turns bring the turtle all the way around its starting point, so a turn of 120 degrees brings it back to exactly where it started.",
     },
   },
   {
@@ -144,7 +144,7 @@ export const level2Exercises: readonly Exercise[] = [
     referenceSolution: {
       source: treeSource(6),
       explanation:
-        "Doubling the repeat count from 3 to 6 is the only change, and it doubles the number of tiers -- this is exactly why repeat matters: growing the tree by hand would mean retyping three more tiers, but here a single bigger number grows it instead.",
+        "Changing the repeat count from 3 to 6 is the only change, and the tree grows six tiers tall instead of three -- this is exactly why repeat matters: growing the tree by hand would mean retyping three more tiers, but here a single bigger number grows it instead.",
     },
   },
 ];
