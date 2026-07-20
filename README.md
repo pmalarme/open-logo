@@ -1,4 +1,6 @@
-# open-logo
+![OpenLogo — DRAW · LEARN · CREATE](packages/studio/web/public/openlogo.png)
+
+# OpenLogo
 An Open Version of Logo
 
 ## Specification
