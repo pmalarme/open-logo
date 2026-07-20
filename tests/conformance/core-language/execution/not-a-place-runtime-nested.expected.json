@@ -1,0 +1,46 @@
+{
+  "description": "ol-not-a-place (issue #156): the runtime's guard for a nested-place assignment target (`count :nums[1] = 3` parses as a `Call` with callee `count` whose argument is itself a `Place`) reconciled to the FULL target surface text (`count :nums[1]`), matching the semantic checker's `not-a-place-nested-and-infix` fixture's `count :nums[1]` case and the same source-slicing rule (`not-a-place-text.ts`). The leading `:nums = [1 2 3]` assignment keeps this fixture focused on `ol-not-a-place` alone, without also tripping `ol-undefined-var` on the `:nums` read.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/not-a-place-runtime-nested",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/not-a-place-runtime-nested",
+        "start": [2, 1],
+        "end": [2, 19]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-not-a-place",
+      "source_span": {
+        "document": "core-language/execution/not-a-place-runtime-nested",
+        "start": [2, 1],
+        "end": [2, 15]
+      },
+      "params": {
+        "text": "count :nums[1]"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

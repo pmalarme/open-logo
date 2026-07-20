@@ -1,0 +1,28 @@
+{
+  "description": "Core `word` (issue #234, spec/commands.md `word`) is a variadic word-constructor that concatenates its word arguments into one word: bare form `word \"foo\" \"bar\"` groups its two arguments and returns `foobar`, which `print` then renders as a single unquoted word.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/word-reporter",
+        "start": [1, 1],
+        "end": [1, 23]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/word-reporter",
+        "start": [1, 1],
+        "end": [1, 23]
+      },
+      "payload": { "values": ["foobar"] }
+    }
+  ],
+  "diagnostics": []
+}

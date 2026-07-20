@@ -1,5 +1,5 @@
 {
-  "description": "`first :nums = 1` assigns to a reporter call, not a place, raising the runtime's own `ol-not-a-place` (issue #94, `stage: \"runtime\"` — this is the same defect the semantic checker's `checker-not-a-place.ts` rule from issue #113 also catches at `stage: \"semantic\"`, but `execute()` never runs `check()`). The structural check happens before any operand is evaluated, so `:nums` need not even be bound.",
+  "description": "`first :nums = 1` assigns to a reporter call, not a place, raising the runtime's own `ol-not-a-place` (issue #94, `stage: \"runtime\"` — this is the same defect the semantic checker's `checker-not-a-place.ts` rule from issue #113 also catches at `stage: \"semantic\"`, but `execute()` never runs `check()`). The structural check happens before any operand is evaluated, so `:nums` need not even be bound. `params.text` carries the FULL target surface text (`first :nums`), reconciled with the semantic-stage rule (issue #156, `spec/tooling.md:213-219`'s worked example) rather than just the offending callee's name.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [
@@ -25,7 +25,7 @@
         "end": [1, 12]
       },
       "params": {
-        "text": "first"
+        "text": "first :nums"
       },
       "stage": "runtime",
       "severity": "error"

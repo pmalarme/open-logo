@@ -98,6 +98,28 @@ function isPrintCall(
 }
 
 /**
+ * Is `statement` a call to `show` — the single-value `show value` form (`spec/commands.md:160-
+ * 175`, issue #234)? Accepts both the plain infix `Call` form (`show 1`) and the explicit-
+ * parentheses `ParenCall` form (`(show 1)`). Unlike {@link isPrintCall}'s `print`, `show` has no
+ * documented parenthesized variadic form — its signature is strictly `show value` — so
+ * {@link executeStatements} enforces exactly one argument itself, the same way `execute()` is the
+ * sole enforcement point for every list reporter's arity (`evaluate.ts`'s `requireMinArgs` doc
+ * comment) since it never runs the semantic checker.
+ *
+ * Returns a plain `boolean` — not a `statement is CallNode | ParenCallNode` predicate — because
+ * {@link isPrintCall}'s own predicate check runs first and its matching arm always `continue`s,
+ * which narrows `statement`'s type to exclude `CallNode | ParenCallNode` for every statement that
+ * reaches this call; a type predicate here would then narrow that already-excluded type to
+ * `never`. Matches {@link isProcedureCallStatement}'s convention of an explicit `as` cast instead.
+ */
+function isShowCall(statement: StatementNode): boolean {
+  return (
+    (statement.kind === "Call" || statement.kind === "ParenCall") &&
+    statement.callee.name.toLowerCase() === "show"
+  );
+}
+
+/**
  * Is `statement` a call to `forward`/`back` (issue #200, Core Turtle movement — the Heritage
  * `fd`/`bk` aliases are a separate M5 slice)? Accepts both the plain infix `Call` form
  * (`forward 100`) and the explicit-parentheses `ParenCall` form (`(forward 100)`). A plain
@@ -1394,6 +1416,61 @@ function dispatchTurtleCommand(
 }
 
 /**
+ * Executes a `show value` statement (issue #234, `spec/commands.md`'s `show`) once
+ * {@link executeStatements} has confirmed it via {@link isShowCall}. Extracted into its own
+ * function for the same reason {@link dispatchTurtleCommand}'s doc comment gives: `executeStatements`
+ * recurses once per procedure call, so keeping this arity/evaluation logic out of its body keeps
+ * its own stack frame size fixed — inlining it there pushed the 600-deep `recursionDepthLimit:
+ * 1000` regression test (`execution-budget.test.mjs`) over the native call-stack limit.
+ */
+function executeShowCall(
+  statement: CallNode | ParenCallNode,
+  env: Environment,
+): ExecSignal | undefined {
+  if (statement.args.length === 0) {
+    return halt(
+      runtimeDiag.notEnoughInputs(
+        statement.callee.source_span,
+        statement.callee.name,
+        1,
+        0,
+      ),
+    );
+  }
+  if (statement.args.length > 1) {
+    return halt(
+      runtimeDiag.tooManyInputs(
+        statement.callee.source_span,
+        statement.callee.name,
+        1,
+        statement.args.length,
+      ),
+    );
+  }
+  // Same unsupported-operand deferral as `print` uses inline in `executeStatements`: only
+  // evaluate `show` when its one operand is an expression kind this issue's evaluator gives
+  // meaning to.
+  const arg = statement.args[0] as ExpressionNode;
+  if (!isSupportedExpression(arg, env.procedures)) {
+    return undefined;
+  }
+  const result = evaluate(arg, env);
+  if (!result.ok) {
+    return halt(result.diagnostic);
+  }
+  // `show` shares `print`'s trace-event kind and rendering rule (`printedForm`, `evaluate.ts`'s
+  // doc comment near its definition) — the spec gives it "implementation-defined presentation
+  // details" but no distinct payload shape from `print`'s.
+  env.events.push({
+    seq: env.events.length,
+    kind: "print",
+    source_span: statement.source_span,
+    payload: { values: [result.value] } satisfies PrintPayload,
+  });
+  return undefined;
+}
+
+/**
  * Evaluate an `if`/`while` condition and require it to be a boolean — there is no truthiness
  * (`spec/execution-model.md:365-369`, `spec/error-model.md:121`). `operation` names the leading
  * form (`"if"`/`"while"`) for the `ol-not-boolean` diagnostic's `params.operation`, reusing the
@@ -1904,6 +1981,17 @@ function executeStatements(
       continue;
     }
 
+    if (isShowCall(statement)) {
+      const outcome = executeShowCall(
+        statement as unknown as CallNode | ParenCallNode,
+        env,
+      );
+      if (outcome) {
+        return outcome;
+      }
+      continue;
+    }
+
     const turtleOutcome = dispatchTurtleCommand(statement, env);
     if (turtleOutcome !== NOT_A_TURTLE_COMMAND) {
       if (turtleOutcome) {
@@ -2250,12 +2338,15 @@ function resolvePositiveFiniteLimit(
  * supplied but not a usable finite positive limit (see {@link resolvePositiveFiniteLimit} — a
  * caller cannot disable the safety gate by passing `Infinity`/`NaN`/a non-positive number);
  * `signal` is threaded through unchanged (`undefined` when the caller supplied none, which
- * `checkExecutionLimits` treats as "never cancelled").
+ * `checkExecutionLimits` treats as "never cancelled"). `source` (issue #156) is `runProgram`'s own
+ * `source` argument, threaded onto the environment so `executeAssign`'s `ol-not-a-place` guard can
+ * slice the exact assignment-target surface text out of it.
  */
 function createExecutionEnvironment(
   program: ProgramNode,
   foreverIterationLimit: number | undefined,
   options: ExecuteOptions | undefined,
+  source: string,
 ): Environment {
   return {
     frames: [new Map()],
@@ -2275,6 +2366,7 @@ function createExecutionEnvironment(
     instructionCount: { count: 0 },
     signal: options?.signal,
     turtle: createDefaultTurtleState(),
+    source,
     callProcedure: callProcedureAsValue,
   };
 }
@@ -2309,6 +2401,7 @@ export function runProgram(
     program,
     foreverIterationLimit,
     options,
+    source,
   );
   const signal = executeStatements(program.body, env);
   const diagnostic =
