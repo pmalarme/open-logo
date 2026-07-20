@@ -206,3 +206,18 @@ test("a full program's worth of events folds deterministically to the same final
     visible: false,
   });
 });
+
+test("tutor-output (Educational profile) is inert: default branch returns the same state reference unchanged", () => {
+  const state = OL.reduceTurtleEvents([
+    event("color-change", { from: "black", to: "red" }),
+  ]);
+  const next = OL.reduceTurtleState(
+    state,
+    event("tutor-output", {
+      command: "hint",
+      segments: ["Look at the turn after each side."],
+      stage: "nudge",
+    }),
+  );
+  assert.strictEqual(next, state);
+});

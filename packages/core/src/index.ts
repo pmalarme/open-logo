@@ -52,6 +52,9 @@ export type {
   TurtleId,
   VisibilityChangePayload,
   WidthChangePayload,
+  TutorCommand,
+  TutorHintStage,
+  TutorOutputPayload,
 } from "./events.js";
 
 export { typeNameOf } from "./values.js";

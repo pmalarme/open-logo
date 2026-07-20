@@ -7,6 +7,7 @@
  * the stream itself.
  */
 
+import type { DiagnosticCode } from "./diagnostics.js";
 import type { SourceSpan } from "./spans.js";
 import type { OLValue } from "./values.js";
 
@@ -46,6 +47,10 @@ export const OL_EVENT_KINDS = [
   "spawn-turtle",
   "primitive",
   "error",
+  // Effect event scoped to the Educational profile (`spec/execution-model.md`
+  // `#tutor-output-educational-profile`) — emitted only by hosts claiming that profile; a
+  // Core-only implementation never produces or consumes it (see `TutorOutputPayload`).
+  "tutor-output",
 ] as const;
 
 /** One registered trace-event kind. */
@@ -206,12 +211,55 @@ export interface ReturnPayload {
 }
 
 /**
+ * The four baseline meta-commands that emit `tutor-output` events
+ * (`spec/educational-model.md#baseline-meta-commands`), owned by the Educational profile.
+ */
+export type TutorCommand = "explain" | "why" | "hint" | "debug";
+
+/**
+ * The four progressive stages of `hint` (`spec/educational-model.md#hint`). A `hint` invocation
+ * for a given `target-source-span` starts at `"nudge"` and escalates one stage per repeated
+ * request, up to `"last-resort"`, which then repeats rather than revealing a full solution
+ * (`spec/execution-model.md:640-652`). Present in {@link TutorOutputPayload} only when
+ * `command` is `"hint"`.
+ */
+export type TutorHintStage = "nudge" | "concept" | "partial" | "last-resort";
+
+/**
+ * Payload for a `tutor-output` event (Educational profile,
+ * `spec/execution-model.md#tutor-output-educational-profile`): the deterministic, template-based
+ * result of a baseline meta-command (`explain`/`why`/`hint`/`debug`), emitted immediately after
+ * that command produces its result. Field names mirror the spec's payload table exactly:
+ *
+ * - `command` — which of the four baseline meta-commands produced this output.
+ * - `segments` — a non-empty ordered list of learner-facing message segments (plain text). The
+ *   spec's normative guardrail is that these, read together, MUST NOT constitute a complete,
+ *   ready-to-run OpenLogo solution program.
+ * - `stage` — present only when `command` is `"hint"`; absent for `explain`/`why`/`debug`.
+ * - `target_source_span` — the instruction/statement range/program the `segments` describe.
+ *   MUST be present for `hint` (using the whole-program span when no narrower target is
+ *   selected) and MUST be present for `explain`/`why`/`debug` whenever they describe a specific
+ *   instruction, statement range, or diagnostic; MAY be absent only when `explain`/`why`/`debug`
+ *   concern the program as a whole with no diagnostic and no narrower selection in scope.
+ * - `diagnostic_code` — optional; the `ol-*` code that `why`/`debug` is explaining, when the
+ *   explanation concerns a diagnostic rather than turtle/variable state.
+ */
+export interface TutorOutputPayload {
+  readonly command: TutorCommand;
+  readonly segments: readonly string[];
+  readonly stage?: TutorHintStage;
+  readonly target_source_span?: SourceSpan;
+  readonly diagnostic_code?: DiagnosticCode;
+}
+
+/**
  * The trace-event envelope. `payload` is kind-specific typed data — the payload interfaces
  * above cover every Turtle & Rendering kind (`move`, `turn`, `pen-change`, `width-change`,
  * `color-change`, `background-change`, `draw-segment`, `fill`, `stamp`, `shape-change`,
- * `visibility-change`, `clear`) plus `print`/`procedure-enter`/`procedure-exit`/`return`; other
- * kinds (e.g. `overlay`, `sound`, `spawn-turtle`, `primitive`, `error`) refine their payload with
- * their feature slice.
+ * `visibility-change`, `clear`) plus `print`/`procedure-enter`/`procedure-exit`/`return`, and
+ * `tutor-output` (Educational profile, via {@link TutorOutputPayload}); other kinds (e.g.
+ * `overlay`, `sound`, `spawn-turtle`, `primitive`, `error`) refine their payload with their
+ * feature slice.
  */
 export interface TraceEvent<P = unknown> {
   /** Monotonic sequence number, ordering the stream. */
