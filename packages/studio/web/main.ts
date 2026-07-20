@@ -22,7 +22,6 @@ import {
   mountDiagnosticsPane,
   mountEditorPane,
   mountRunController,
-  NO_DIAGNOSTICS_LABEL,
   toDiagnosticListItems,
 } from "../src/index.js";
 import type { DiagnosticListItem } from "../src/index.js";
@@ -111,14 +110,7 @@ function renderDiagnostics(
   diagnostics: readonly Diagnostic[],
 ): void {
   list.replaceChildren();
-  const items = toDiagnosticListItems(diagnostics);
-  if (items.length === 0) {
-    const emptyItem = document.createElement("li");
-    emptyItem.textContent = NO_DIAGNOSTICS_LABEL;
-    list.appendChild(emptyItem);
-    return;
-  }
-  for (const item of items) {
+  for (const item of toDiagnosticListItems(diagnostics)) {
     renderDiagnosticItem(list, item);
   }
 }

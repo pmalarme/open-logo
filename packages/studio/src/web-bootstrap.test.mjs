@@ -13,8 +13,10 @@ test("DEFAULT_RUN_PROGRAM is the canonical acceptance square", () => {
   assert.equal(DEFAULT_RUN_PROGRAM, "repeat 4 [ forward 100 right 90 ]");
 });
 
-test("toDiagnosticListItems returns an empty list for no diagnostics", () => {
-  assert.deepEqual(toDiagnosticListItems([]), []);
+test("toDiagnosticListItems returns the synthetic empty-state item for no diagnostics", () => {
+  assert.deepEqual(toDiagnosticListItems([]), [
+    { code: "", severity: "info", label: NO_DIAGNOSTICS_LABEL },
+  ]);
 });
 
 test("NO_DIAGNOSTICS_LABEL is a fixed, learner-facing constant", () => {

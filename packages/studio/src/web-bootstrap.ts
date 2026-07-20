@@ -27,11 +27,14 @@ export const NO_DIAGNOSTICS_LABEL = "No diagnostics.";
  * "non-trivial DOM formatting stays in a tested helper" rule from issue #278).
  */
 export interface DiagnosticListItem {
-  /** Stable `ol-*`/`ol-style-*` identity, exposed for callers that want to key off it (e.g. CSS). */
+  /** Stable `ol-*`/`ol-style-*` identity, exposed for callers that want to key off it (e.g. CSS).
+   * `""` for the synthetic empty-state item (see {@link toDiagnosticListItems}). */
   readonly code: string;
-  /** `"error"` or `"warning"`, exposed for callers that want to badge/style by severity. */
-  readonly severity: DiagnosticSeverity;
-  /** The full, ready-to-display line: `"<line>:<column> <code> (<severity>): <message>"`. */
+  /** `"error"` or `"warning"`, or `"info"` for the synthetic empty-state item, exposed for
+   * callers that want to badge/style by severity. */
+  readonly severity: DiagnosticSeverity | "info";
+  /** The full, ready-to-display line: `"<line>:<column> <code> (<severity>): <message>"`, or
+   * {@link NO_DIAGNOSTICS_LABEL} for the synthetic empty-state item. */
   readonly label: string;
 }
 
@@ -49,15 +52,24 @@ function formatPosition([line, column]: Position): string {
  * in any did-you-mean suggestion the spec provides (e.g. `ol-unknown-command`'s
  * "did you mean forward?", per `spec/error-model.md`'s "Did-you-mean" section), so no separate
  * suggestion rendering is needed here.
+ *
+ * Always returns a **non-empty** list: when there are no diagnostics, the single result item is
+ * the synthetic {@link NO_DIAGNOSTICS_LABEL} placeholder. This keeps the empty-state decision in
+ * this tested helper rather than as a branch in `web/main.ts`, which only ever loops over the
+ * returned items unconditionally (per issue #278's "logic stays in a tested `src/` helper" rule).
  */
 export function toDiagnosticListItems(
   diagnostics: readonly Diagnostic[],
 ): readonly DiagnosticListItem[] {
-  return toDiagnosticsView(diagnostics).items.map((item) => ({
+  const items = toDiagnosticsView(diagnostics).items.map((item) => ({
     code: item.code,
-    severity: item.severity,
+    severity: item.severity as DiagnosticSeverity | "info",
     label: `${formatPosition(item.sourceSpan.start)} ${item.code} (${item.severity}): ${item.message}`,
   }));
+  if (items.length === 0) {
+    return [{ code: "", severity: "info", label: NO_DIAGNOSTICS_LABEL }];
+  }
+  return items;
 }
 
 /**
