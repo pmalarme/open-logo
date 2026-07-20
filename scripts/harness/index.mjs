@@ -184,21 +184,24 @@ export function loadFixture(fixture) {
     return { error: `"style" must be a boolean when present` };
   }
 
-  // "executeOptions" (issue #195) is an opt-in object, valid only alongside "execute": true,
-  // that is passed straight through to @openlogo/runtime's execute() third argument
-  // (ExecuteOptions: instructionBudget/recursionDepthLimit/signal). It exists so a fixture can
-  // deterministically trigger the execution-safety gates (ol-limit) with a small, hand-reviewable
-  // budget/depth instead of hanging on the large production defaults. `signal`, when present,
-  // must be a plain `{ aborted: boolean }` object — the only shape JSON can express and the only
-  // shape execute() actually needs (it just reads `signal.aborted`); a fixture cannot express a
-  // signal that flips mid-run, so a fixture can only assert the "already cancelled" case.
-  // Requiring "execute": true rejects a fixture that sets executeOptions without it — otherwise
-  // that config would be silently ignored (parse-only fixtures never call execute()), masking a
-  // fixture-author typo (e.g. forgetting to set "execute": true alongside it).
+  // "executeOptions" (issue #195) is an opt-in object, valid only alongside "execute": true (and
+  // NOT alongside "check": true), that is passed straight through to @openlogo/runtime's
+  // execute() third argument (ExecuteOptions: instructionBudget/recursionDepthLimit/signal). It
+  // exists so a fixture can deterministically trigger the execution-safety gates (ol-limit) with
+  // a small, hand-reviewable budget/depth instead of hanging on the large production defaults.
+  // `signal`, when present, must be a plain `{ aborted: boolean }` object — the only shape JSON
+  // can express and the only shape execute() actually needs (it just reads `signal.aborted`); a
+  // fixture cannot express a signal that flips mid-run, so a fixture can only assert the
+  // "already cancelled" case.
+  // Requiring "execute": true (and rejecting "check": true) stops a fixture from setting
+  // executeOptions where it would be silently ignored: produce() short-circuits on "check": true
+  // BEFORE it ever reaches the "execute": true branch (see produce() below), so a
+  // check:true+execute:true+executeOptions fixture would run check-mode only and never call
+  // execute() — the same typo-masking hole as omitting "execute": true altogether.
   if (spec.executeOptions !== undefined) {
-    if (spec.execute !== true) {
+    if (spec.execute !== true || spec.check === true) {
       return {
-        error: `"executeOptions" requires "execute": true (it configures @openlogo/runtime's execute(), which never runs otherwise)`,
+        error: `"executeOptions" requires "execute": true and "check" to not be true (it configures @openlogo/runtime's execute(), which never runs when check:true short-circuits produce() first, or when execute isn't true at all)`,
       };
     }
     if (
@@ -315,7 +318,10 @@ export function validateDiagnostics(diagnostics) {
  * lints — returning the semantic/style diagnostics `check()` found (an empty list is a clean
  * pass). If parsing itself failed, the document is not check-valid, so the parse diagnostics are
  * returned unchanged and `check()` never runs — mirroring how `shouldExecute` already treats a
- * parse failure as terminal.
+ * parse failure as terminal. Because this `shouldCheck` branch returns before the `shouldExecute`
+ * branch below is ever reached, a fixture with both `"check": true` and `"execute": true` runs
+ * check-mode only — `execute()` (and any `executeOptions`) never runs. `loadFixture()` rejects
+ * `executeOptions` set alongside `"check": true` for exactly this reason.
  *
  * Otherwise, when `shouldExecute` is true (a fixture opted in via `"execute": true`), it calls
  * `@openlogo/runtime`'s `execute()` instead, which parses internally and also returns the

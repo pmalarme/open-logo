@@ -1058,6 +1058,52 @@ test("loadFixture rejects executeOptions when execute is explicitly false", () =
   assert.ok(loaded.error.includes('"executeOptions" requires "execute": true'));
 });
 
+test("loadFixture rejects executeOptions when check is true alongside execute:true (check short-circuits produce() before execute() ever runs)", () => {
+  mkdirSync(join(TEMP_ROOT, "execute-options-with-check-true"), {
+    recursive: true,
+  });
+  writeFileSync(
+    join(
+      TEMP_ROOT,
+      "execute-options-with-check-true",
+      "execute-options-with-check-true.logo",
+    ),
+    "print 1",
+  );
+  writeFileSync(
+    join(
+      TEMP_ROOT,
+      "execute-options-with-check-true",
+      "execute-options-with-check-true.expected.json",
+    ),
+    JSON.stringify({
+      profiles: ["core-language"],
+      execute: true,
+      check: true,
+      executeOptions: { instructionBudget: 5 },
+      events: [],
+      diagnostics: [],
+    }),
+  );
+
+  const loaded = loadFixture({
+    name: "execute-options-with-check-true/execute-options-with-check-true.expected.json",
+    expectedPath: join(
+      TEMP_ROOT,
+      "execute-options-with-check-true",
+      "execute-options-with-check-true.expected.json",
+    ),
+    logoPath: join(
+      TEMP_ROOT,
+      "execute-options-with-check-true",
+      "execute-options-with-check-true.logo",
+    ),
+  });
+
+  assert.ok(loaded.error);
+  assert.ok(loaded.error.includes('"executeOptions" requires "execute": true'));
+});
+
 test("loadFixture reads an executeOptions object with instructionBudget/recursionDepthLimit/signal", () => {
   mkdirSync(join(TEMP_ROOT, "with-execute-options"), { recursive: true });
   writeFileSync(
