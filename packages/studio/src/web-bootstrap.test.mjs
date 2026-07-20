@@ -7,6 +7,7 @@ const {
   NO_DIAGNOSTICS_LABEL,
   toDiagnosticListItems,
   createTimeoutScheduler,
+  formatOutput,
 } = OL;
 
 test("DEFAULT_RUN_PROGRAM is the canonical acceptance square", () => {
@@ -142,4 +143,16 @@ test("createTimeoutScheduler's returned cancel function calls the injected clear
 
   assert.equal(invoked, true);
   assert.deepEqual(calls, ["the-handle"]);
+});
+
+test("formatOutput joins output lines with newlines", () => {
+  assert.equal(formatOutput(["42", "hello"]), "42\nhello");
+});
+
+test("formatOutput formats empty output as an empty string", () => {
+  assert.equal(formatOutput([]), "");
+});
+
+test("formatOutput formats a single output line without a trailing newline", () => {
+  assert.equal(formatOutput(["42"]), "42");
 });

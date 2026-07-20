@@ -124,6 +124,9 @@
  *   {@link createDiagnosticsController} (live parse-stage diagnostics as the learner types) via
  *   {@link mountDiagnosticsPane} and renders both parse- and run-stage diagnostics through this
  *   one path, per `diagnostics.ts`'s "one unified rendering path" doc comment.
+ * - {@link formatOutput} formats {@link RunController}'s `state.output` (one line per `print`
+ *   trace event, already in `@openlogo/runtime`'s canonical `printedForm`) as a single string for
+ *   the output pane's `<pre>`, so a learner running `print 42` actually sees `42` rendered.
  */
 
 export type {
@@ -222,6 +225,7 @@ export type {
 export {
   createTimeoutScheduler,
   DEFAULT_RUN_PROGRAM,
+  formatOutput,
   NO_DIAGNOSTICS_LABEL,
   toDiagnosticListItems,
 } from "./web-bootstrap.js";

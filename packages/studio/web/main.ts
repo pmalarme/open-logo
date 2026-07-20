@@ -18,6 +18,7 @@ import {
   createStudioState,
   createTimeoutScheduler,
   DEFAULT_RUN_PROGRAM,
+  formatOutput,
   mountCanvasView,
   mountDiagnosticsPane,
   mountEditorPane,
@@ -38,6 +39,7 @@ const stopButton = document.getElementById("stop-button");
 const resetButton = document.getElementById("reset-button");
 const stepButton = document.getElementById("step-button");
 const runStatusElement = document.getElementById("run-status");
+const outputElement = document.getElementById("output");
 const diagnosticsListElement = document.getElementById("diagnostics-list");
 
 if (
@@ -48,6 +50,7 @@ if (
   !(resetButton instanceof HTMLButtonElement) ||
   !(stepButton instanceof HTMLButtonElement) ||
   runStatusElement === null ||
+  outputElement === null ||
   diagnosticsListElement === null
 ) {
   throw new Error("index.html is missing an expected element.");
@@ -120,7 +123,9 @@ state.subscribe((next) => {
     editorElement.value = next.source;
   }
   runStatusElement.textContent = next.runStatus;
+  outputElement.textContent = formatOutput(next.output);
   renderDiagnostics(diagnosticsListElement, next.diagnostics);
 });
 runStatusElement.textContent = state.getState().runStatus;
+outputElement.textContent = formatOutput(state.getState().output);
 renderDiagnostics(diagnosticsListElement, state.getState().diagnostics);

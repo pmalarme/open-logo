@@ -109,3 +109,15 @@ export function createTimeoutScheduler<Handle = unknown>(
     };
   };
 }
+
+/**
+ * Formats a run's learner-visible output (`StudioState.output`, one entry per `print` trace
+ * event, already in `@openlogo/runtime`'s canonical `printedForm` — this helper never reformats
+ * a value itself) as a single string ready for direct assignment to the output `<pre>`'s
+ * `textContent`: one line per entry, joined with `"\n"`. An empty `output` formats to `""`, which
+ * `web/main.ts` assigns unconditionally — no empty-state branch needed there, mirroring
+ * {@link toDiagnosticListItems}'s "logic stays in a tested `src/` helper" rule from issue #278.
+ */
+export function formatOutput(output: readonly string[]): string {
+  return output.join("\n");
+}
