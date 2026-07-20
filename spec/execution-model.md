@@ -601,17 +601,23 @@ event. Implementations may add extension events under a vendor namespace such as
 ### `tutor-output` (Educational profile)
 
 **Status: Normative, scoped to the [Educational profile](conformance.md#educational).** A
-Core+Turtle & Rendering conformance claim never requires this kind: the event registry above is
-unchanged for a Core-only implementation, and `tutor-output` is purely additive. An implementation
-only emits `tutor-output` events when it claims the Educational profile, because only that profile
-defines the `explain`, `why`, `hint`, and `debug` baseline meta-commands specified in
-[educational-model.md](educational-model.md#baseline-meta-commands) and required normatively in
-[conformance.md#educational](conformance.md#educational).
+Core+Turtle & Rendering conformance claim never requires this kind: a Core-only implementation never
+claims the Educational profile, so it never emits `tutor-output`, and every existing event envelope
+and every existing kind's payload is unchanged by this addition — nothing here alters Core-only
+traces. An implementation only emits `tutor-output` events when it claims the Educational profile,
+because only that profile defines the `explain`, `why`, `hint`, and `debug` baseline meta-commands
+specified in [educational-model.md](educational-model.md#baseline-meta-commands) and required
+normatively in [conformance.md#educational](conformance.md#educational). Per
+[the extension-kind allowance above](#trace-and-event-registry) and in
+[conformance.md](conformance.md#extensions-and-feature-detection), consumers already MUST tolerate
+`kind` values they do not recognize, so adding this profile-scoped kind to the normative registry
+does not require any consumer to change its handling of unrecognized kinds.
 
 `tutor-output` is an **effect event**: it is emitted immediately after the baseline meta-command
 that triggered it produces its result, following the same start/effect convention as every other
-event in this registry. The `source-span` field is the span of the meta-command invocation (or, for
-`why`/`debug`, the span of the instruction, state, or diagnostic they explain).
+event in this registry. Its envelope `source-span` is always the span of the meta-command invocation
+itself (the bare-word call site), matching every other event kind's `source-span` meaning; it is
+never replaced by the span of whatever the command is explaining.
 
 Payload shape (data-only, stack-neutral — no host-language types):
 
@@ -620,13 +626,29 @@ Payload shape (data-only, stack-neutral — no host-language types):
 | `command` | One of `"explain"`, `"why"`, `"hint"`, `"debug"`. |
 | `segments` | A non-empty ordered list of learner-facing message segments (plain text strings). No markup is imposed by the spec. |
 | `stage` | Present only when `command` is `"hint"`. One of `"nudge"`, `"concept"`, `"partial"`, `"last-resort"` — the four stages of the progressive hint model in [educational-model.md](educational-model.md#hint). Absent for `explain`, `why`, and `debug`. |
+| `target-source-span` | Optional. The span of the instruction, statement range, or short program the command's `segments` describe — the subject `explain` describes, the cause `why` or `debug` identifies, or the instruction a `hint` concerns. A span covering multiple instructions is permitted (`explain` MAY describe a short program, not only one instruction). Absent when the command has no single identifiable subject in scope (for example, a `hint` requested with no active challenge). |
+| `diagnostic-code` | Optional. The `ol-*` code from [error-model.md](error-model.md) that `debug` or `why` is explaining, when the explanation concerns a diagnostic rather than turtle/variable state. Absent otherwise. |
 
-Normative guardrail on the payload: **`segments` MUST NOT, at any stage, constitute a complete,
-ready-to-run OpenLogo solution program.** This restates the no-full-solution requirement of
-[conformance.md#educational](conformance.md#educational) as a checkable property of the payload
-itself — a conformance fixture MAY assert it directly (for example, by asserting that no `segments`
-value parses as a standalone runnable program) rather than only asserting prose intent. For `hint`,
-this guardrail applies independently at every `stage`, including `"last-resort"`.
+Normative guardrail on the payload: **the `segments` of a single `tutor-output` event, read together in
+order, MUST NOT constitute a complete, ready-to-run OpenLogo solution program.** This is a normative
+pedagogical rule restating the no-full-solution requirement of
+[conformance.md#educational](conformance.md#educational) against a concrete payload shape. It is
+checkable only in a limited, structural sense — a conformance fixture MAY assert that the
+concatenation of a `segments` value does not itself parse as a standalone runnable program that
+satisfies the current challenge — but this check cannot prove absence of a solution conveyed through
+prose, split across otherwise-unrelated commands, or expressed without valid OpenLogo syntax; a
+fixture asserting this guardrail is necessary but not sufficient evidence of compliance, and human
+review of new baseline templates remains required. For `hint`, this guardrail applies independently
+at every `stage`, including `"last-resort"`.
+
+Progression state for `hint` is keyed by `target-source-span` (falling back to the whole-program span
+when no more specific target is selected): the first `tutor-output` event with `command: "hint"` for a
+given `target-source-span` MUST have `stage: "nudge"`; each subsequent `hint` request for the *same*
+`target-source-span` MUST escalate to the next stage in the nudge → concept → partial → last-resort
+order; and once `"last-resort"` has been reached for a `target-source-span`, further `hint` requests
+for it MUST repeat `stage: "last-resort"` rather than fabricate a fifth stage or reveal the solution.
+A `hint` request against a *different* `target-source-span` starts its own independent progression at
+`"nudge"`.
 
 A host that does not claim the Educational profile MUST NOT emit `tutor-output` events, and a
 renderer or reducer that does not recognize `tutor-output` MUST treat it as an event with no visible

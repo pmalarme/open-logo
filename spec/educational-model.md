@@ -435,8 +435,10 @@ Baseline means **no AI is required**. These commands are deterministic and templ
 Each invocation emits a normative `tutor-output` event, as specified in
 [execution-model.md](execution-model.md#tutor-output-educational-profile), immediately after the
 command produces its result. The event's `segments` payload carries the learner-facing message
-described in this section; for `hint`, the event's `stage` field identifies which of the four
-progressive stages below the message belongs to.
+described in this section; its `target-source-span` identifies the instruction, statement range, or
+short program the message is about (when one is selected), and its optional `diagnostic-code` names
+the `ol-*` code when `why` or `debug` is explaining a diagnostic. For `hint`, the event's `stage`
+field identifies which of the four progressive stages below the message belongs to.
 
 ## `explain`
 
@@ -487,7 +489,7 @@ Possible response: “The turtle became green because `:sides == 4` was `true`, 
 
 ## `hint`
 
-`hint` is progressive and never reveals a full solution: the same request moves through stages only when the learner asks again or the environment records that earlier hints were already shown. The [Educational profile in conformance.md](conformance.md#educational) makes this progressive, no-full-solution behavior normative. Each stage below is emitted as the `stage` field of the `tutor-output` event specified in [execution-model.md](execution-model.md#tutor-output-educational-profile), so a conformance fixture can assert the stage progression and the no-full-solution guardrail per stage.
+`hint` is progressive and never reveals a full solution: the same request moves through stages only when the learner asks again or the environment records that earlier hints were already shown. The [Educational profile in conformance.md](conformance.md#educational) makes this progressive, no-full-solution behavior normative. Each stage below is emitted as the `stage` field of the `tutor-output` event specified in [execution-model.md](execution-model.md#tutor-output-educational-profile); progression is keyed by the event's `target-source-span` — the first hint for a given target is `nudge`, each repeated request for the same target escalates one stage, and requests after `last-resort` repeat `last-resort` rather than reveal the solution — so a conformance fixture can assert the stage progression and the no-full-solution guardrail per stage.
 
 Progression:
 
