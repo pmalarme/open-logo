@@ -106,10 +106,12 @@ export interface AnimationSnapshot {
  * and can never diverge from what a direct `reduceTurtleEvents`/`reduceSceneEvents` call over
  * the same events would produce.
  *
- * Step boundaries follow `spec/rendering.md`/`spec/execution-model.md` exactly: one step is an
+ * Step boundaries follow `spec/rendering.md`/`spec/execution-model.md`: one step is an
  * `instruction` event plus every effect event up to (but not including) the next `instruction`
- * event or the end of the stream. Speed changes only how {@link run} paces those same steps —
- * it never skips an event or changes where a step boundary falls.
+ * event or the end of the stream, except that a leading zero-effect control-form container
+ * instruction is coalesced with the following effect-producing step so the first step is always
+ * observable (issue #295 — see {@link consumeOneStep}). Speed changes only how {@link run} paces
+ * those same steps — it never skips an effect event or coalesces two visible state changes.
  */
 export class TurtleAnimationController {
   private readonly events: readonly TraceEvent[];
@@ -157,11 +159,14 @@ export class TurtleAnimationController {
   }
 
   /**
-   * Consumes exactly one step: the event at the cursor plus every following event up to (but
-   * not including) the next `instruction` event or the end of the stream — matching
-   * `spec/rendering.md`'s worked `repeat 4 [ forward 100 right 90 ]` example, where stepping
-   * once at `forward 100` consumes only that instruction's `move`/`draw-segment` effects and
-   * leaves `right 90` as a separate, not-yet-consumed step. A no-op once playback is `"done"`.
+   * Consumes exactly one step: the instruction event at the cursor plus every following effect
+   * event up to (but not including) the next `instruction` event or the end of the stream —
+   * matching `spec/rendering.md`'s worked `repeat 4 [ forward 100 right 90 ]` example, where
+   * stepping once at `forward 100` consumes only that instruction's `move`/`draw-segment`
+   * effects and leaves `right 90` as a separate, not-yet-consumed step. A leading zero-effect
+   * control-form container instruction (the `repeat`/`while`/… start event) is coalesced with
+   * the following effect-producing instruction so the first step always advances to a visible
+   * effect (issue #295) — see {@link consumeOneStep}. A no-op once playback is `"done"`.
    * Cancels any step scheduled by a prior {@link run} first, so a manual step can never race
    * with — and be double-consumed by — a stale scheduled tick. After a manual step call,
    * playback holds at `"paused"` (or `"done"` if that step exhausted the stream) — see
@@ -185,18 +190,37 @@ export class TurtleAnimationController {
    * — {@link step} sets `"paused"`/`"done"` for a single manual step, while {@link driveRun}
    * keeps `"running"` across every automated step until the stream is exhausted or `pause`/
    * `reset` intervenes, so continuous playback doesn't stall after its first tick.
+   *
+   * A control-form instruction (`repeat`/`while`/`for`/…) emits its own `instruction` start
+   * event with no effect events of its own — the body's first real instruction follows
+   * immediately (`spec/execution-model.md`: the container instruction leads, then each body
+   * statement gets its own instruction event). Consuming such a leading zero-effect container
+   * alone would make the first "Next step" (from idle, or right after `reset`) visibly do
+   * nothing — issue #295. So a step coalesces past any leading zero-effect instruction(s) until
+   * it has consumed an instruction-step that produced at least one observable effect event, or
+   * the stream ends. This never coalesces two *visible* state changes into one step (each
+   * effect-producing instruction still gets its own step, per `spec/rendering.md`'s "MUST NOT
+   * coalesce visible state changes in step mode"); it only skips the invisible container so the
+   * first observable step matches the spec's worked `forward 100` example.
    */
   private consumeOneStep(): boolean {
     if (this.cursor >= this.events.length) {
       return true;
     }
-    let end = this.cursor + 1;
-    while (
-      end < this.events.length &&
-      this.events[end]?.kind !== "instruction"
-    ) {
+    let end = this.cursor;
+    let consumedEffect = false;
+    do {
+      // Consume the instruction event at `end`, then every following effect event up to (but
+      // not including) the next `instruction` event or the end of the stream.
       end++;
-    }
+      while (
+        end < this.events.length &&
+        this.events[end]?.kind !== "instruction"
+      ) {
+        consumedEffect = true;
+        end++;
+      }
+    } while (!consumedEffect && end < this.events.length);
     this.applyRange(this.cursor, end);
     this.cursor = end;
     return this.cursor >= this.events.length;
