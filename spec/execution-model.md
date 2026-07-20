@@ -604,15 +604,11 @@ event. Implementations may add extension events under a vendor namespace such as
 Core+Turtle & Rendering conformance claim never requires this kind: a Core-only implementation never
 claims the Educational profile, so it never emits `tutor-output`, and every existing event envelope
 and every existing kind's payload is unchanged by this addition — nothing here alters Core-only
-traces. An implementation only emits `tutor-output` events when it claims the Educational profile,
-because only that profile defines the `explain`, `why`, `hint`, and `debug` baseline meta-commands
-specified in [educational-model.md](educational-model.md#baseline-meta-commands) and required
-normatively in [conformance.md#educational](conformance.md#educational). A consumer that does not
-implement the Educational profile is never given a `tutor-output` event in a Core-only trace, so it
-needs no change to keep consuming Core-only traces; a consumer that processes traces from an
-Educational implementation but does not itself special-case `tutor-output` MUST fall back to the
-inert default handling defined below, the same way it already must handle any `primitive` or
-vendor-namespaced event it does not recognize.
+traces or requires a Core-only consumer to change. An implementation only emits `tutor-output` events
+when it claims the Educational profile, because only that profile defines the `explain`, `why`,
+`hint`, and `debug` baseline meta-commands specified in
+[educational-model.md](educational-model.md#baseline-meta-commands) and required normatively in
+[conformance.md#educational](conformance.md#educational).
 
 `tutor-output` is an **effect event**: it is emitted immediately after the baseline meta-command
 that triggered it produces its result, following the same start/effect convention as every other
@@ -627,7 +623,7 @@ Payload shape (data-only, stack-neutral — no host-language types):
 | `command` | One of `"explain"`, `"why"`, `"hint"`, `"debug"`. |
 | `segments` | A non-empty ordered list of learner-facing message segments (plain text strings). No markup is imposed by the spec. |
 | `stage` | Present only when `command` is `"hint"`. One of `"nudge"`, `"concept"`, `"partial"`, `"last-resort"` — the four stages of the progressive hint model in [educational-model.md](educational-model.md#hint). Absent for `explain`, `why`, and `debug`. |
-| `target-source-span` | The span of the instruction, statement range, or short program the command's `segments` describe. **MUST be present for `hint`**, using the whole-program span as its explicit value when no narrower challenge target is selected — the payload always carries a concrete span, never a hidden or implicit fallback. **MUST be present for `explain`, `why`, and `debug`** whenever they describe a specific instruction, statement range, or diagnostic, and in that case MUST equal the diagnostic's own source span when `diagnostic-code` is also present. MAY be absent only for `explain`/`why`/`debug` output that concerns the program as a whole with no diagnostic and no narrower selection in scope. A span covering multiple instructions is permitted (`explain` MAY describe a short program, not only one instruction). |
+| `target-source-span` | The span of the instruction, statement range, or short program the command's `segments` describe. **MUST be present for `hint`**, using the whole-program span as its explicit value when no narrower challenge target is selected. **MUST be present for `explain`, `why`, and `debug`** whenever they describe a specific instruction, statement range, or diagnostic, and in that case MUST equal the diagnostic's own source span when `diagnostic-code` is also present. MAY be absent only for `explain`/`why`/`debug` output that concerns the program as a whole with no diagnostic and no narrower selection in scope. A span covering multiple instructions is permitted (`explain` MAY describe a short program, and `why`/`debug` MAY describe state produced across several instructions, not only one). |
 | `diagnostic-code` | Optional. The `ol-*` code from [error-model.md](error-model.md) that `debug` or `why` is explaining, when the explanation concerns a diagnostic rather than turtle/variable state. Absent otherwise. |
 
 Normative guardrail on the payload: **the `segments` of a single `tutor-output` event, read together in
@@ -642,20 +638,23 @@ fixture asserting this guardrail is necessary but not sufficient evidence of com
 review of new baseline templates remains required. For `hint`, this guardrail applies independently
 at every `stage`, including `"last-resort"`.
 
-Progression state for `hint` is keyed by `target-source-span`, which is always present in a `hint`
-event's payload (the whole-program span when no narrower challenge target is selected — see the
-payload table above): the first `tutor-output` event with `command: "hint"` for a given
-`target-source-span` value MUST have `stage: "nudge"`; each subsequent `hint` request whose
-`target-source-span` is the same value MUST escalate to the next stage in the nudge → concept →
-partial → last-resort order; and once `"last-resort"` has been reached for a `target-source-span`
-value, further `hint` requests for that same value MUST repeat `stage: "last-resort"` rather than
+Progression state for `hint` is keyed by `target-source-span` **within a single learner session and
+an unchanged program text at that span**: editing the program text at a `target-source-span`, or
+starting a new challenge attempt, resets its progression. Within one session and one unchanged
+target: the first `tutor-output` event with `command: "hint"` for a given `target-source-span` value
+MUST have `stage: "nudge"`; each subsequent `hint` request for the same value MUST escalate to the
+next stage in the nudge → concept → partial → last-resort order; and once `"last-resort"` has been
+reached, further `hint` requests for that value MUST repeat `stage: "last-resort"` rather than
 fabricate a fifth stage or reveal the solution. A `hint` request whose `target-source-span` is a
-*different* value starts its own independent progression at `"nudge"`.
+*different* value, or whose session or program text has reset, starts its own independent
+progression at `"nudge"`.
 
-A host that does not claim the Educational profile MUST NOT emit `tutor-output` events, and a
-renderer or reducer that does not recognize `tutor-output` MUST treat it as an event with no visible
-or state-changing effect (inert default branch), consistent with `primitive` and other
-implementation-specific events it does not special-case.
+This kind's only consumer-facing requirement is self-contained: a renderer or reducer that does not
+recognize `tutor-output` MUST treat it as an event with no visible or state-changing effect (inert
+default branch, returning the same state reference). This is the only behavior this proposal requires
+of any consumer; it does not depend on, and does not establish, any general rule for handling other
+unrecognized event kinds. A host that does not claim the Educational profile MUST NOT emit
+`tutor-output` events.
 
 ## Worked traces
 
