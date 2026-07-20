@@ -16,7 +16,9 @@ flowchart LR
 ```
 
 M0, M1, and M2 are all real, merged into shared code — Core Language and Turtle & Rendering shipped
-together as the tagged `v0.1.0` release, and the turtle really draws.
+together as
+[the tagged `v0.1.0` release](https://github.com/pmalarme/open-logo/releases/tag/v0.1.0), and the
+turtle really draws.
 
 ## M0 · Foundation — building the workshop
 
