@@ -159,12 +159,38 @@ function isKnownShape(shape: string): shape is KnownShape {
 }
 
 /**
+ * The `"turtle"` default avatar's outline: a twelve-point polygon silhouette of a turtle seen
+ * from above — a head at the nose, four leg bumps (front-left/front-right/back-left/back-right),
+ * and a tail tip at the rear — so the default glyph is a literal turtle rather than a bare
+ * triangle/arrow (`spec/rendering.md`: "The default avatar shape is an implementation-defined
+ * turtle-like shape whose nose points along the turtle heading"; the spec leaves the exact look
+ * implementation-defined). Expressed as plain `moveTo`/`lineTo` pairs — no curves — so both the
+ * Canvas and SVG `RenderTarget` implementations render it identically (`svg.ts`'s
+ * `SvgRenderTarget` only special-cases the `"circle"` shape's `arc` call).
+ * Coordinates are fractions of {@link AVATAR_SIZE}, nose at local `(0, -AVATAR_SIZE)` matching
+ * the other shapes.
+ */
+const TURTLE_OUTLINE_POINTS: ReadonlyArray<readonly [number, number]> = [
+  [0, -1], // nose (head tip)
+  [0.4, -0.6], // head, right shoulder
+  [0.7, -0.6], // front-right leg
+  [0.4, -0.3],
+  [0.7, 0.3], // back-right leg
+  [0.4, 0.6],
+  [0, 0.9], // tail tip
+  [-0.4, 0.6],
+  [-0.7, 0.3], // back-left leg
+  [-0.4, -0.3],
+  [-0.7, -0.6], // front-left leg
+  [-0.4, -0.6], // head, left shoulder
+];
+
+/**
  * Draws one avatar shape centered at the origin of the current (already translated + rotated)
  * transform, nose pointing toward local `-y` — which is "up" in target-pixel space, matching
  * heading `0°` pointing up once the caller has rotated by the heading (`spec/rendering.md`:
  * "The avatar MUST be positioned at the turtle's world position and rotated so heading `0°`
- * points upward"). `"turtle"` (the implementation-defined default) reuses the `"triangle"`
- * outline for simplicity (KISS) — the spec leaves its exact look implementation-defined.
+ * points upward").
  */
 function drawShapeOutline(target: RenderTarget, shape: string): void {
   const resolved: KnownShape = isKnownShape(shape) ? shape : "turtle";
@@ -184,11 +210,26 @@ function drawShapeOutline(target: RenderTarget, shape: string): void {
     target.fill();
     return;
   }
-  // "triangle" and the "turtle" default.
+  if (resolved === "triangle") {
+    target.beginPath();
+    target.moveTo(0, -AVATAR_SIZE);
+    target.lineTo(AVATAR_SIZE * 0.6, AVATAR_SIZE * 0.6);
+    target.lineTo(-AVATAR_SIZE * 0.6, AVATAR_SIZE * 0.6);
+    target.closePath();
+    target.fill();
+    return;
+  }
+  // "turtle" (the default): a real turtle silhouette, not a bare triangle/arrow.
   target.beginPath();
-  target.moveTo(0, -AVATAR_SIZE);
-  target.lineTo(AVATAR_SIZE * 0.6, AVATAR_SIZE * 0.6);
-  target.lineTo(-AVATAR_SIZE * 0.6, AVATAR_SIZE * 0.6);
+  TURTLE_OUTLINE_POINTS.forEach(([fractionX, fractionY], index) => {
+    const x = fractionX * AVATAR_SIZE;
+    const y = fractionY * AVATAR_SIZE;
+    if (index === 0) {
+      target.moveTo(x, y);
+    } else {
+      target.lineTo(x, y);
+    }
+  });
   target.closePath();
   target.fill();
 }
