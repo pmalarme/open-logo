@@ -275,6 +275,39 @@ test("run() paces the turtle animation over an injected scheduler, one tick at a
   assert.notEqual(store.getState().turtleState, initialTurtleState);
 });
 
+test("run() ignores a second call while a paced animation is still running (#314) — it never overlaps a run mid-animation", () => {
+  const store = OL.createStudioState({
+    source: "forward 100\nright 90\nforward 100",
+  });
+  const manual = createManualScheduler();
+  const controller = OL.createRunController(store, {
+    scheduler: manual.scheduler,
+  });
+
+  controller.run();
+  manual.fire(); // consume the first step; the run is still "running", one tick still pending.
+  const outputAfterFirstRun = store.getState().output;
+  const turtleStateMidRun = store.getState().turtleState;
+  assert.equal(store.getState().runStatus, "running");
+  assert.ok(manual.hasPending());
+
+  // Change the source and press Run again while the first run is still animating.
+  store.setSource("print 1");
+  controller.run();
+
+  // The second call was ignored: output/diagnostics are still the FIRST run's, and the animation
+  // in flight is untouched (same pending tick, same turtle state) rather than restarted.
+  assert.equal(store.getState().output, outputAfterFirstRun);
+  assert.equal(store.getState().turtleState, turtleStateMidRun);
+  assert.ok(manual.hasPending());
+
+  // Draining the original run's ticks still completes normally afterward.
+  while (manual.fire()) {
+    // keep firing until the original run's animation is fully drained
+  }
+  assert.equal(store.getState().runStatus, "done");
+});
+
 test("stop() pauses the turtle animation: a stale, already-scheduled tick can never fire afterward and advance it further", () => {
   const store = OL.createStudioState({
     source: "forward 100\nright 90\nforward 100",

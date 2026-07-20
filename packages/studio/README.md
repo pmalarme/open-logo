@@ -369,4 +369,57 @@ to reshape `index.html`/`web/styles.css`/`src/app-shell.ts` again:
   interactive content, and giving `#lesson-pane` (or its rendered content) a real `role`. #313
   deliberately declares none of that for content that doesn't exist yet — declaring an empty
   landmark ahead of time would itself be the accessibility regression this slice's DoD forbids.
+## Run log pane (#314)
+
+Epic #290, Studio UX polish milestone: before this slice, the `#output` pane held only the LATEST
+run's printed output — a second `run()` silently overwrote whatever the first one printed, so a
+learner who ran two programs in a row lost the first one's output the moment the second finished.
+This slice adds an additive, append-only **run log** — a scrollable history/timeline of every run
+this session, each entry timestamped and carrying that run's own output and `ol-*` diagnostics —
+without changing `#output`'s existing "show the latest run" behavior at all.
+
+- **`src/run-log.ts`** (new, 100%-covered) is the tested model:
+  - `createRunLogController(state, options?)` watches the shared `StudioStateStore` and appends
+    exactly one `RunLogEntry` every time `runStatus` transitions from `"running"` into a terminal
+    status — `"done"` (finished on its own, including a run whose only outcome was an `ol-*`
+    diagnostic) or `"stopped"` (`stop()`, or an `ol-limit` runaway-program halt). It never appends
+    on `reset()` (`"…" → "idle"` is not a completed run) and never on a `"running"`→`"running"`
+    no-op update. Entries are only ever appended (`[...entries, entry]`), never replaced or
+    reordered, so earlier runs' history is preserved across later ones.
+  - `toRunLogListItems(entries)` is the pure rendering projection: one already-formatted item per
+    entry (a deterministic `"Run N — <ISO timestamp>"` heading, its output text via #278's
+    `formatOutput`, and its diagnostics via #278's `toDiagnosticListItems` — the exact same
+    source-span/code/severity/message formatting the diagnostics pane already uses), plus a
+    `hasErrors` flag for styling. Like `toDiagnosticListItems`, it always returns a **non-empty**
+    list — a single synthetic "No runs yet." placeholder when history is empty — so `web/main.ts`
+    only ever loops unconditionally, with no `if`/`for` decision of its own.
+- **`index.html`/`web/styles.css`** host the run log **inside the existing Run controls toolbar**
+  (`<section class="pane-controls" aria-label="Run controls" role="toolbar">`) as a final
+  `<div class="run-log-wrapper">` child, rather than as a new top-level `pane-*` section. The issue's
+  acceptance criteria require reusing "the existing REPL landmark region" with **no new landmark**:
+  in this codebase `REPL_LANDMARK_ROLES`/`REPL_FOCUS_ORDER` (`src/a11y.ts`) specifically name that
+  toolbar section as the "REPL" region, and a `<section>` with an `aria-label` (even without an
+  explicit `role`) still gets an *implicit* ARIA `role="region"` per the HTML-AAM spec — so a
+  sibling `pane-runlog` section, however additively placed, would in fact have introduced a brand
+  new landmark. Nesting inside `pane-controls` instead adds zero new `role`/`aria-label` attributes
+  anywhere: every existing Run/Stop/Reset/speed-slider/`#run-status` element keeps its exact
+  attributes and DOM position, so #279's `REPL_LANDMARK_ROLES`/`REPL_FOCUS_ORDER` contracts (and
+  `index.test.mjs`'s proofs of them) are unaffected — keyboard tab order still follows DOM order.
+  CSS-wise this means the log is no longer its own grid-area row; it renders within the "controls"
+  grid area (which grows to fit), separated from the Run/Stop/Reset row by a `.run-log-wrapper`
+  top border.
+- **`web/main.ts`** wires `createRunLogController`/`toRunLogListItems` onto `#run-log` the same
+  thin, branch-free way every other pane is wired: a `createRunLogEntryElement` mapping function
+  (unavoidably untested, like `createDiagnosticListItemElement`, since this repo's `node:test` has
+  no DOM) builds one `<li>` per already-computed view item, and `renderRunLog` re-renders the whole
+  list from `runLog.getEntries()` whenever a new entry is appended.
+- **`src/run-controller.ts`** gained a re-entrancy guard: `run()` now ignores a call while
+  `runStatus` is already `"running"`. With a real paced `Scheduler` (the browser's, not the
+  headless-test-default `IMMEDIATE_SCHEDULER`), `runStatus` stays `"running"` across many
+  event-loop turns while the Canvas animation plays out — a second Run click in that window used to
+  silently `prepare()` a new run, overwriting `output`/`diagnostics` with the in-flight run's data
+  and orphaning its animation, so the run log recorded only the second run and silently lost the
+  first. The guard makes a run always finish (or `stop()`) before another can start, matching the
+  "Stop is the only way to interrupt a run" contract the instruction budget already gives runaway
+  programs.
 

@@ -111,6 +111,21 @@
  * then steps the (freshly prepared or already-running) animation by one instruction. This makes
  * `step()` a genuine "run one instruction" affordance from a blank studio, not just a scrubber over
  * an animation `run()` must have already started.
+ *
+ * ## #314 — `run()` never overlaps a still-animating run
+ * With a real paced `Scheduler` (the browser's `setTimeout`-backed one; the default
+ * {@link IMMEDIATE_SCHEDULER} never leaves this window open), `runStatus` stays `"running"` for the
+ * whole animation, across many event-loop turns — during which a learner could press **Run** again.
+ * Before this guard, a second `run()` call would silently `prepare()` a brand-new run mid-animation:
+ * `output`/`diagnostics` would jump straight to the *second* run's results while the first run's
+ * animation was still playing, and the first `TurtleAnimationController` would be orphaned (its
+ * already-scheduled ticks still fire, racing the new one). The run log (`run-log.ts`) depends on
+ * observing exactly one `"running"` → terminal transition per completed run — an overlapping second
+ * `run()` would silently absorb the first run into the second's entry, losing it entirely, which
+ * directly contradicts the "keeps the earlier run" acceptance criterion. `run()` now simply ignores
+ * a call while `runStatus` is already `"running"`, so a run always finishes (or is `stop()`ped)
+ * before another can start — the same "Stop is the only way to interrupt" contract the instruction
+ * budget already gives a runaway program, now also guaranteed against a same-thread double-click.
  */
 
 import { execute, printedForm } from "@openlogo/runtime";
@@ -334,6 +349,12 @@ export function createRunController(
   }
 
   function run(): void {
+    if (state.getState().runStatus === "running") {
+      // #314 — a run is already in progress (only reachable with a real paced scheduler, where
+      // runStatus stays "running" across many event-loop turns): ignore the extra call rather than
+      // silently starting a second run mid-animation. See this module's doc comment, "#314".
+      return;
+    }
     const current = prepare();
     playWithMotionPreference(current, {
       reducedMotion: (options?.reducedMotion ?? false) || currentIsInstant,
