@@ -99,6 +99,15 @@ test("isLesson accepts a lesson with more than one worked example", () => {
   assert.equal(OL.isLesson(multiExampleLesson), true);
 });
 
+test("isLesson rejects a lesson with zero worked examples", () => {
+  assert.equal(OL.isLesson({ ...squareLesson, workedExamples: [] }), false);
+});
+
+test("isLesson rejects a sparse workedExamples array (holes are not worked examples)", () => {
+  const sparse = new Array(1);
+  assert.equal(OL.isLesson({ ...squareLesson, workedExamples: sparse }), false);
+});
+
 test("EDU_PACKAGE marker is still exported alongside the Lesson contract", () => {
   assert.equal(OL.EDU_PACKAGE, "@openlogo/edu");
 });

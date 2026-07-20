@@ -94,15 +94,35 @@ export function isLesson(value: unknown): value is Lesson {
     return false;
   }
   const candidate = value as Record<string, unknown>;
+  const workedExamples = candidate.workedExamples;
   return (
     typeof candidate.id === "string" &&
     typeof candidate.title === "string" &&
     isLearnerLevel(candidate.level) &&
     typeof candidate.objective === "string" &&
-    Array.isArray(candidate.workedExamples) &&
-    candidate.workedExamples.every(isWorkedExample) &&
+    Array.isArray(workedExamples) &&
+    workedExamples.length > 0 &&
+    everyWorkedExample(workedExamples) &&
     typeof candidate.exercisePrompt === "string"
   );
+}
+
+/**
+ * Reports whether every index of `workedExamples` — including sparse ones — holds a
+ * {@link WorkedExample}. `Array.prototype.every` silently skips holes in a sparse array
+ * (`new Array(1)` never invokes its callback), which would otherwise let a hole through as if
+ * it were a valid worked example; iterating by index catches that.
+ */
+function everyWorkedExample(workedExamples: unknown[]): boolean {
+  for (let index = 0; index < workedExamples.length; index += 1) {
+    if (
+      !Object.hasOwn(workedExamples, index) ||
+      !isWorkedExample(workedExamples[index])
+    ) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /** A structural type guard for {@link WorkedExample}. */
