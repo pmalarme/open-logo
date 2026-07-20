@@ -52,6 +52,12 @@
  * Issue #287 adds `random`'s two `ol-range` cases — `n` below the minimum of `1`, and `(random a
  * b)` with `a` greater than `b` — reusing `requireWholeNumber`'s existing `ol-type` for a
  * non-whole bound, checked first (`spec/commands.md`'s `random` entry).
+ * Issue #323 adds a reuse of `ol-div-zero` for `tan` at a pole (`90` degrees plus any multiple of
+ * `180`, where cosine is `0`) — `spec/commands.md`'s `tan` entry specifies no dedicated code, and
+ * `tan θ = sin θ / cos θ` is literally a division by zero there, so this widens the existing code
+ * rather than inventing a new one (see {@link TanUndefinedParams}). `sin`/`cos`/`pi` raise no
+ * diagnostic of their own beyond the shared `ol-type` a non-number `sin`/`cos` operand already
+ * gets from {@link ArithmeticTypeErrorParams}.
  * Mirrors the parser's `errors.ts` pattern: every finding is a stable code from the
  * `@openlogo/core` registry with structured `params` (the diagnostic identity) plus warm,
  * lowercase learner prose derived from them — prose is presentation only.
@@ -362,6 +368,19 @@ export interface RandomRangeReversedParams {
   readonly high: number;
 }
 
+/**
+ * Params for the `ol-div-zero` raised by `tan` (issue #323) at a pole — `90` degrees plus any
+ * multiple of `180`, where cosine is mathematically `0`. `spec/commands.md`'s `tan` entry lists no
+ * dedicated error code for this case ("none specified beyond general type and arity
+ * diagnostics"), so this reuses `ol-div-zero`'s existing `{ operation }` shape (widened to accept
+ * `"tan"` alongside `/`/`mod`) plus the offending `value`, mirroring {@link
+ * ArithmeticTypeErrorParams}'s convention of carrying the input that failed.
+ */
+export interface TanUndefinedParams {
+  readonly operation: "tan";
+  readonly value: number;
+}
+
 /** Runtime-stage diagnostics, one builder per `ol-*` code the evaluator can raise. */
 export const runtimeDiag = {
   /**
@@ -393,6 +412,21 @@ export const runtimeDiag = {
       source_span,
       { operation },
       `dividing by zero with ${operation} has no answer — try a number other than 0.`,
+    );
+  },
+
+  /**
+   * `tan` at a pole (issue #323): `90` degrees plus any multiple of `180`, where `tan θ = sin θ /
+   * cos θ` divides by zero. Reuses `ol-div-zero` (see {@link TanUndefinedParams}) rather than a
+   * new code, since `spec/commands.md`'s `tan` entry specifies none and the section's opening
+   * sentence already treats "division by zero" as the umbrella for these educational errors.
+   */
+  tanUndefined(source_span: SourceSpan, value: number): Diagnostic {
+    return runtimeError(
+      "ol-div-zero",
+      source_span,
+      { operation: "tan", value },
+      `tan has no answer at ${value} degrees — the cosine there is 0, so it is the same as dividing by zero. try an angle other than 90 plus a multiple of 180.`,
     );
   },
 

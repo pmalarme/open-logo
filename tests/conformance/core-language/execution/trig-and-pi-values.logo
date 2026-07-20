@@ -1,0 +1,4 @@
+print sin 90
+print cos 0
+print tan 45
+print pi

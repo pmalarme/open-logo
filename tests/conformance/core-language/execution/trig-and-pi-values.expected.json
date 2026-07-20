@@ -1,0 +1,88 @@
+{
+  "description": "sin/cos/tan/pi evaluate at runtime (issue #323): `sin 90` -> 1, `cos 0` -> 1, `tan 45` -> the raw IEEE-754 double closest to 1 (`0.9999999999999999`, not rounded), and `pi` (a 0-arg reporter) -> `Math.PI`. Before this fix, these reporters parsed cleanly but were silently skipped by the evaluator: no `print` event and no diagnostic were ever emitted.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/trig-and-pi-values",
+        "start": [1, 1],
+        "end": [1, 13]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/trig-and-pi-values",
+        "start": [1, 1],
+        "end": [1, 13]
+      },
+      "payload": { "values": [1] }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/trig-and-pi-values",
+        "start": [2, 1],
+        "end": [2, 12]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/trig-and-pi-values",
+        "start": [2, 1],
+        "end": [2, 12]
+      },
+      "payload": { "values": [1] }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/trig-and-pi-values",
+        "start": [3, 1],
+        "end": [3, 13]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 5,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/trig-and-pi-values",
+        "start": [3, 1],
+        "end": [3, 13]
+      },
+      "payload": { "values": [0.9999999999999999] }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/trig-and-pi-values",
+        "start": [4, 1],
+        "end": [4, 9]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 7,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/trig-and-pi-values",
+        "start": [4, 1],
+        "end": [4, 9]
+      },
+      "payload": { "values": [3.141592653589793] }
+    }
+  ],
+  "diagnostics": []
+}
