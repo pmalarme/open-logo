@@ -223,7 +223,7 @@ to any value produced inside it:
 | `define` | Runs for effects; a procedure yields a value only by reaching `return` (`output`/`op`). |
 
 A comprehension body that has no value-producing final expression raises
-`ol-no-value`. A `return`/`output`/`op` inside a comprehension body raises
+`ol-no-value`. A `return`/`output`/`op`/`stop` inside a comprehension body raises
 `ol-return-in-comprehension`.
 
 ## Postfix reads
@@ -404,8 +404,8 @@ binders are fresh body-local bindings that shadow outer names only for the body.
 The binder names must differ; duplicates raise `ol-duplicate-binder`.
 
 Comprehension bodies are bracketed expression-blocks only. They must end in a
-value-producing expression, cannot contain `return`/`output`/`op`, and may call
-ordinary procedures. If the final expression calls a procedure that never
+value-producing expression, cannot contain `return`/`output`/`op`/`stop`, and may
+call ordinary procedures. If the final expression calls a procedure that never
 returns, `ol-no-output` is raised at that call site.
 
 ## Records and destructuring
