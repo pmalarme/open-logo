@@ -4,6 +4,8 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/openlogo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#1c2430" />
+    <link rel="stylesheet" href="/web/styles.css" />
     <title>OpenLogo Studio</title>
   </head>
   <body>
@@ -13,27 +15,74 @@
         alt="OpenLogo — DRAW · LEARN · CREATE"
         height="64"
       />
-      <h1>OpenLogo Studio</h1>
+      <div>
+        <h1>OpenLogo Studio</h1>
+        <p class="tagline">
+          <span class="tagline-draw">DRAW</span>
+          <span class="tagline-dot">&middot;</span>
+          <span class="tagline-learn">LEARN</span>
+          <span class="tagline-dot">&middot;</span>
+          <span class="tagline-create">CREATE</span>
+        </p>
+      </div>
     </header>
+    <div
+      id="announcer-polite"
+      aria-live="polite"
+      aria-atomic="true"
+      class="sr-only"
+    ></div>
+    <div
+      id="announcer-assertive"
+      aria-live="assertive"
+      aria-atomic="true"
+      class="sr-only"
+    ></div>
     <main>
       <section aria-label="Editor">
-        <textarea id="editor" rows="10" cols="60" spellcheck="false"></textarea>
+        <textarea
+          id="editor"
+          rows="10"
+          cols="60"
+          spellcheck="false"
+          role="textbox"
+          aria-label="OpenLogo source editor"
+        ></textarea>
       </section>
-      <section aria-label="Run controls">
+      <section aria-label="Run controls" role="toolbar">
         <button id="run-button" type="button">Run</button>
         <button id="stop-button" type="button">Stop</button>
         <button id="reset-button" type="button">Reset</button>
-        <button id="step-button" type="button">Step</button>
+        <button id="step-button" type="button">Next step</button>
         <p id="run-status" aria-live="polite"></p>
       </section>
       <section aria-label="Turtle canvas">
-        <canvas id="turtle-canvas" width="500" height="500"></canvas>
+        <canvas
+          id="turtle-canvas"
+          width="500"
+          height="500"
+          role="img"
+          aria-label="Turtle canvas"
+          tabindex="0"
+        ></canvas>
+        <p
+          id="turtle-state"
+          role="status"
+          aria-live="polite"
+          aria-label="Turtle state"
+        ></p>
       </section>
       <section aria-label="Output">
         <pre id="output"></pre>
       </section>
       <section aria-label="Diagnostics">
-        <ul id="diagnostics-list" aria-live="polite"></ul>
+        <ul
+          id="diagnostics-list"
+          role="log"
+          aria-label="Diagnostics"
+          aria-live="polite"
+          tabindex="0"
+        ></ul>
       </section>
     </main>
     <script type="module" src="/web/main.ts"></script>
