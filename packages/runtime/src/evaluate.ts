@@ -172,7 +172,7 @@ export interface Environment {
   readonly source?: string;
   readonly callProcedure: (
     node: CallNode | ParenCallNode,
-    env: Environment,
+    environment: Environment,
   ) => EvalResult;
   /**
    * The shared, mutable `random`/`randomize` generator state (issue #287,
@@ -281,26 +281,32 @@ export function createEnvironment(): Environment {
  * `evaluateComprehension`'s per-element pass here) — not just the former — because a loop whose
  * body is empty (`while true [ ]`, `forever [ ]`) never enters `executeStatements`' per-statement
  * loop at all, and would otherwise spin forever, uninstrumented and uncancellable. Every call
- * increments `env.instructionCount`, so budget/cancellation responsiveness does not depend on
+ * increments `environment.instructionCount`, so budget/cancellation responsiveness does not depend on
  * how many statements a particular pass happens to contain.
  */
 export function checkExecutionLimits(
-  env: Environment,
+  environment: Environment,
   source_span: SourceSpan,
 ): Diagnostic | undefined {
-  if (env.signal?.aborted) {
+  if (environment.signal?.aborted) {
     return runtimeDiag.cancelled(source_span);
   }
-  env.instructionCount.count++;
-  if (env.instructionCount.count > env.instructionBudget) {
-    return runtimeDiag.instructionLimit(source_span, env.instructionBudget);
+  environment.instructionCount.count++;
+  if (environment.instructionCount.count > environment.instructionBudget) {
+    return runtimeDiag.instructionLimit(
+      source_span,
+      environment.instructionBudget,
+    );
   }
   return undefined;
 }
 
 /** Look up `name` nearest frame to root; `undefined` when no frame binds it. */
-function lookupVar(env: Environment, name: string): OLValue | undefined {
-  for (const frame of env.frames) {
+function lookupVar(
+  environment: Environment,
+  name: string,
+): OLValue | undefined {
+  for (const frame of environment.frames) {
     const value = frame.get(name);
     if (value !== undefined) {
       return value;
@@ -316,14 +322,18 @@ function lookupVar(env: Environment, name: string): OLValue | undefined {
  * the only way to build an {@link Environment} and always seeds at least the root frame, so the
  * cast below (rather than a defensive throw no caller could ever trigger) is safe.
  */
-function assignVar(env: Environment, name: string, value: OLValue): void {
-  for (const frame of env.frames) {
+function assignVar(
+  environment: Environment,
+  name: string,
+  value: OLValue,
+): void {
+  for (const frame of environment.frames) {
     if (frame.has(name)) {
       frame.set(name, value);
       return;
     }
   }
-  const root = env.frames[env.frames.length - 1] as Frame;
+  const root = environment.frames[environment.frames.length - 1] as Frame;
   root.set(name, value);
 }
 
@@ -350,21 +360,21 @@ export type DestructuringBinder = Extract<
 >;
 
 /**
- * Push a fresh body-local frame binding `bindings` (name → value) onto `env`, nearest-first, for
+ * Push a fresh body-local frame binding `bindings` (name → value) onto `environment`, nearest-first, for
  * a `for`/comprehension binder's own name(s) — `spec/execution-model.md:435-437` ("body-local
  * bindings that shadow outer names only for the body"). Returns a *new* {@link Environment};
- * `env` itself is never mutated, so once the caller stops using the returned value the binding is
+ * `environment` itself is never mutated, so once the caller stops using the returned value the binding is
  * gone — there is no explicit "pop" step, unlike `repeatTurns` (a plain mutable array shared by
  * every recursive call). `repeatTurns`/`callDepth` are threaded through unchanged (same array
  * reference) so a loop/comprehension nested inside a `repeat`/procedure call still sees the right
  * `repcount`/call depth.
  */
 export function pushLoopFrame(
-  env: Environment,
+  environment: Environment,
   bindings: ReadonlyMap<string, OLValue>,
 ): Environment {
   const frame: Frame = new Map(bindings);
-  return { ...env, frames: [frame, ...env.frames] };
+  return { ...environment, frames: [frame, ...environment.frames] };
 }
 
 /**
@@ -721,7 +731,7 @@ function isSupportedIsPredicate(
 /** Evaluate one Core expression node to a runtime {@link OLValue}. */
 export function evaluate(
   node: ExpressionNode,
-  env: Environment = createEnvironment(),
+  environment: Environment = createEnvironment(),
 ): EvalResult {
   switch (node.kind) {
     case "NumberLit":
@@ -731,7 +741,7 @@ export function evaluate(
     case "ListLit": {
       const values: OLValue[] = [];
       for (const element of node.elements) {
-        const result = evaluate(element, env);
+        const result = evaluate(element, environment);
         if (!result.ok) {
           return result;
         }
@@ -740,23 +750,23 @@ export function evaluate(
       return ok(values);
     }
     case "VarRef": {
-      const value = lookupVar(env, node.name);
+      const value = lookupVar(environment, node.name);
       if (value === undefined) {
         return fail(runtimeDiag.undefinedVar(node.source_span, node.name));
       }
       return ok(value);
     }
     case "Place":
-      return readPlace(node, env);
+      return readPlace(node, environment);
     case "Call":
     case "ParenCall":
-      return evaluateCall(node, env);
+      return evaluateCall(node, environment);
     case "ComparisonChain":
-      return evaluateComparisonChain(node, env);
+      return evaluateComparisonChain(node, environment);
     case "Comprehension":
-      return evaluateComprehension(node, env);
+      return evaluateComprehension(node, environment);
     case "IsPredicate":
-      return evaluateIsPredicate(node, env);
+      return evaluateIsPredicate(node, environment);
   }
 }
 
@@ -767,8 +777,8 @@ export function evaluate(
  * `print`/`execute()`); a segment kind this issue does not implement is an internal invariant
  * violation, mirroring {@link evaluate}'s own "not implemented yet" checks.
  */
-function readPlace(node: PlaceNode, env: Environment): EvalResult {
-  const base = lookupVar(env, node.base.name);
+function readPlace(node: PlaceNode, environment: Environment): EvalResult {
+  const base = lookupVar(environment, node.base.name);
   if (base === undefined) {
     return fail(
       runtimeDiag.undefinedVar(node.base.source_span, node.base.name),
@@ -782,7 +792,7 @@ function readPlace(node: PlaceNode, env: Environment): EvalResult {
         `evaluate: place segment kind "${segment.kind}" is not implemented yet — it lands with its own evaluator slice`,
       );
     }
-    const step = resolveIndexSegment(current, segment, env);
+    const step = resolveIndexSegment(current, segment, environment);
     if (!step.ok) {
       return step;
     }
@@ -811,9 +821,9 @@ type IndexResolution =
 function resolveIndexSegment(
   container: OLValue,
   segment: SelectorSegment,
-  env: Environment,
+  environment: Environment,
 ): IndexResolution {
-  const keyResult = evaluate(segment.key, env);
+  const keyResult = evaluate(segment.key, environment);
   if (!keyResult.ok) {
     return keyResult;
   }
@@ -862,9 +872,12 @@ function resolveIndexSegment(
  * (`spec/execution-model.md:326-327`). The argument must evaluate to a word (`ol-type`
  * otherwise); an unbound name raises `ol-undefined-var`, same as a `:name` read.
  */
-function evaluateThing(node: ArithmeticCallNode, env: Environment): EvalResult {
+function evaluateThing(
+  node: ArithmeticCallNode,
+  environment: Environment,
+): EvalResult {
   const argNode = arg(node, 0);
-  const argResult = evaluate(argNode, env);
+  const argResult = evaluate(argNode, environment);
   if (!argResult.ok) {
     return argResult;
   }
@@ -878,7 +891,7 @@ function evaluateThing(node: ArithmeticCallNode, env: Environment): EvalResult {
       }),
     );
   }
-  const value = lookupVar(env, argResult.value);
+  const value = lookupVar(environment, argResult.value);
   if (value === undefined) {
     return fail(runtimeDiag.undefinedVar(argNode.source_span, argResult.value));
   }
@@ -895,12 +908,14 @@ function evaluateThing(node: ArithmeticCallNode, env: Environment): EvalResult {
  */
 function evaluateRepcount(
   node: ArithmeticCallNode,
-  env: Environment,
+  environment: Environment,
 ): EvalResult {
-  if (env.repeatTurns.length === 0) {
+  if (environment.repeatTurns.length === 0) {
     return fail(runtimeDiag.repcountOutsideRepeat(node.source_span));
   }
-  return ok(env.repeatTurns[env.repeatTurns.length - 1] as number);
+  return ok(
+    environment.repeatTurns[environment.repeatTurns.length - 1] as number,
+  );
 }
 
 /**
@@ -923,7 +938,7 @@ export type AssignResult =
  */
 export function executeAssign(
   node: AssignNode,
-  env: Environment,
+  environment: Environment,
 ): AssignResult {
   if (node.place.kind !== "Place") {
     // The parser structurally accepts any of `RenderableNode`'s kinds (a reporter/command call,
@@ -935,28 +950,28 @@ export function executeAssign(
       ok: false,
       diagnostic: runtimeDiag.notAPlace(
         node.place.source_span,
-        notAPlaceTargetText(node.place as RenderableNode, env.source),
+        notAPlaceTargetText(node.place as RenderableNode, environment.source),
       ),
     };
   }
   const place = node.place;
   if (
-    !isSupportedPlace(place, env.procedures) ||
-    !isSupportedExpression(node.value, env.procedures)
+    !isSupportedPlace(place, environment.procedures) ||
+    !isSupportedExpression(node.value, environment.procedures)
   ) {
     return { ok: true };
   }
 
-  const valueResult = evaluate(node.value, env);
+  const valueResult = evaluate(node.value, environment);
   if (!valueResult.ok) {
     return { ok: false, diagnostic: valueResult.diagnostic };
   }
 
   if (place.segments.length === 0) {
-    assignVar(env, place.base.name, valueResult.value);
+    assignVar(environment, place.base.name, valueResult.value);
     return { ok: true };
   }
-  return writeIndexedPlace(place, valueResult.value, env);
+  return writeIndexedPlace(place, valueResult.value, environment);
 }
 
 /**
@@ -972,9 +987,9 @@ export function executeAssign(
 function writeIndexedPlace(
   place: PlaceNode,
   value: OLValue,
-  env: Environment,
+  environment: Environment,
 ): AssignResult {
-  const base = lookupVar(env, place.base.name);
+  const base = lookupVar(environment, place.base.name);
   if (base === undefined) {
     return {
       ok: false,
@@ -991,7 +1006,7 @@ function writeIndexedPlace(
     const step = resolveIndexSegment(
       container,
       segments[i] as SelectorSegment,
-      env,
+      environment,
     );
     if (!step.ok) {
       return step;
@@ -1000,7 +1015,7 @@ function writeIndexedPlace(
   }
 
   const lastSegment = segments[segments.length - 1] as SelectorSegment;
-  const step = resolveIndexSegment(container, lastSegment, env);
+  const step = resolveIndexSegment(container, lastSegment, environment);
   if (!step.ok) {
     return step;
   }
@@ -1008,91 +1023,94 @@ function writeIndexedPlace(
   return { ok: true };
 }
 
-function evaluateCall(node: ArithmeticCallNode, env: Environment): EvalResult {
+function evaluateCall(
+  node: ArithmeticCallNode,
+  environment: Environment,
+): EvalResult {
   const name = node.callee.name.toLowerCase();
   if (isBinaryArithmeticOperator(name)) {
-    return evaluateBinaryArithmetic(node, name, env);
+    return evaluateBinaryArithmetic(node, name, environment);
   }
   if (isUnaryMathBuiltin(name)) {
-    return evaluateUnaryMath(node, name, env);
+    return evaluateUnaryMath(node, name, environment);
   }
   if (isBinaryMathBuiltin(name)) {
-    return evaluateBinaryMath(node, name, env);
+    return evaluateBinaryMath(node, name, environment);
   }
   if (isComparisonOperator(name)) {
-    return evaluateComparisonCall(node, name, env);
+    return evaluateComparisonCall(node, name, environment);
   }
   if (isLogicalOperator(name)) {
-    return evaluateLogical(node, name, env);
+    return evaluateLogical(node, name, environment);
   }
   if (name === "not") {
-    return evaluateNot(node, env);
+    return evaluateNot(node, environment);
   }
   if (name === "thing") {
-    return evaluateThing(node, env);
+    return evaluateThing(node, environment);
   }
   if (name === "repcount") {
-    return evaluateRepcount(node, env);
+    return evaluateRepcount(node, environment);
   }
   if (name === "empty?") {
-    return evaluatePrefixEmpty(node, env);
+    return evaluatePrefixEmpty(node, environment);
   }
   if (name === "member?") {
-    return evaluatePrefixMember(node, env);
+    return evaluatePrefixMember(node, environment);
   }
   if (name === "is_a?") {
-    return evaluatePrefixIsA(node, env);
+    return evaluatePrefixIsA(node, environment);
   }
   if (name === "first") {
-    return evaluateFirst(node, env);
+    return evaluateFirst(node, environment);
   }
   if (name === "last") {
-    return evaluateLast(node, env);
+    return evaluateLast(node, environment);
   }
   if (name === "butfirst") {
-    return evaluateButfirst(node, env);
+    return evaluateButfirst(node, environment);
   }
   if (name === "butlast") {
-    return evaluateButlast(node, env);
+    return evaluateButlast(node, environment);
   }
   if (name === "fput") {
-    return evaluateFput(node, env);
+    return evaluateFput(node, environment);
   }
   if (name === "lput") {
-    return evaluateLput(node, env);
+    return evaluateLput(node, environment);
   }
   if (name === "sentence") {
-    return evaluateSentence(node, env);
+    return evaluateSentence(node, environment);
   }
   if (name === "word") {
-    return evaluateWord(node, env);
+    return evaluateWord(node, environment);
   }
   if (name === "count") {
-    return evaluateCount(node, env);
+    return evaluateCount(node, environment);
   }
   if (name === "xcor") {
-    return evaluateXcor(node, env);
+    return evaluateXcor(node, environment);
   }
   if (name === "ycor") {
-    return evaluateYcor(node, env);
+    return evaluateYcor(node, environment);
   }
   if (name === "heading") {
-    return evaluateHeadingReporter(node, env);
+    return evaluateHeadingReporter(node, environment);
   }
   if (name === "pos") {
-    return evaluatePos(node, env);
+    return evaluatePos(node, environment);
   }
   if (name === "towards") {
-    return evaluateTowards(node, env);
+    return evaluateTowards(node, environment);
   }
   if (name === "distance") {
-    return evaluateDistance(node, env);
+    return evaluateDistance(node, environment);
   }
   if (name === "random") {
-    return evaluateRandom(node, env);
+    return evaluateRandom(node, environment);
   }
-  if (env.procedures.has(name)) {
-    return env.callProcedure(node, env);
+  if (environment.procedures.has(name)) {
+    return environment.callProcedure(node, environment);
   }
   throw new Error(
     `evaluate: call to "${name}" is not implemented yet — it lands with its own evaluator slice`,
@@ -1102,16 +1120,16 @@ function evaluateCall(node: ArithmeticCallNode, env: Environment): EvalResult {
 function evaluateBinaryArithmetic(
   node: ArithmeticCallNode,
   operator: BinaryArithmeticOperator,
-  env: Environment,
+  environment: Environment,
 ): EvalResult {
   const leftNode = arg(node, 0);
   const rightNode = arg(node, 1);
 
-  const leftResult = evaluate(leftNode, env);
+  const leftResult = evaluate(leftNode, environment);
   if (!leftResult.ok) {
     return leftResult;
   }
-  const rightResult = evaluate(rightNode, env);
+  const rightResult = evaluate(rightNode, environment);
   if (!rightResult.ok) {
     return rightResult;
   }
@@ -1152,10 +1170,10 @@ function evaluateBinaryArithmetic(
 function evaluateUnaryMath(
   node: ArithmeticCallNode,
   builtin: UnaryMathBuiltin,
-  env: Environment,
+  environment: Environment,
 ): EvalResult {
   const argNode = arg(node, 0);
-  const argResult = evaluate(argNode, env);
+  const argResult = evaluate(argNode, environment);
   if (!argResult.ok) {
     return argResult;
   }
@@ -1182,16 +1200,16 @@ function evaluateUnaryMath(
 function evaluateBinaryMath(
   node: ArithmeticCallNode,
   builtin: BinaryMathBuiltin,
-  env: Environment,
+  environment: Environment,
 ): EvalResult {
   const baseNode = arg(node, 0);
   const exponentNode = arg(node, 1);
 
-  const baseResult = evaluate(baseNode, env);
+  const baseResult = evaluate(baseNode, environment);
   if (!baseResult.ok) {
     return baseResult;
   }
-  const exponentResult = evaluate(exponentNode, env);
+  const exponentResult = evaluate(exponentNode, environment);
   if (!exponentResult.ok) {
     return exponentResult;
   }
@@ -1248,9 +1266,12 @@ function requireBoolean(
  * `-` on a numeral is a negative *literal*, never unary minus, so `not` is the only prefix
  * operator this evaluator handles.
  */
-function evaluateNot(node: ArithmeticCallNode, env: Environment): EvalResult {
+function evaluateNot(
+  node: ArithmeticCallNode,
+  environment: Environment,
+): EvalResult {
   const operandNode = arg(node, 0);
-  const operandResult = evaluate(operandNode, env);
+  const operandResult = evaluate(operandNode, environment);
   if (!operandResult.ok) {
     return operandResult;
   }
@@ -1289,7 +1310,7 @@ function evaluateNot(node: ArithmeticCallNode, env: Environment): EvalResult {
 function evaluateLogical(
   node: ArithmeticCallNode,
   operator: LogicalOperator,
-  env: Environment,
+  environment: Environment,
 ): EvalResult {
   if (node.args.length < 2) {
     return fail(
@@ -1303,7 +1324,7 @@ function evaluateLogical(
   }
   const shortCircuitValue = operator !== "and";
   for (const operandNode of node.args) {
-    const operandResult = evaluate(operandNode, env);
+    const operandResult = evaluate(operandNode, environment);
     if (!operandResult.ok) {
       return operandResult;
     }
@@ -1568,16 +1589,16 @@ function compareValues(
 function evaluateComparisonCall(
   node: ArithmeticCallNode,
   operator: ComparisonOperator,
-  env: Environment,
+  environment: Environment,
 ): EvalResult {
   const leftNode = arg(node, 0);
   const rightNode = arg(node, 1);
 
-  const leftResult = evaluate(leftNode, env);
+  const leftResult = evaluate(leftNode, environment);
   if (!leftResult.ok) {
     return leftResult;
   }
-  const rightResult = evaluate(rightNode, env);
+  const rightResult = evaluate(rightNode, environment);
   if (!rightResult.ok) {
     return rightResult;
   }
@@ -1599,10 +1620,10 @@ function evaluateComparisonCall(
  */
 function evaluateComparisonChain(
   node: ComparisonChainNode,
-  env: Environment,
+  environment: Environment,
 ): EvalResult {
   const firstNode = node.operands[0] as ExpressionNode;
-  const firstResult = evaluate(firstNode, env);
+  const firstResult = evaluate(firstNode, environment);
   if (!firstResult.ok) {
     return firstResult;
   }
@@ -1611,7 +1632,7 @@ function evaluateComparisonChain(
 
   for (let i = 0; i < node.operators.length; i++) {
     const rightNode = node.operands[i + 1] as ExpressionNode;
-    const rightResult = evaluate(rightNode, env);
+    const rightResult = evaluate(rightNode, environment);
     if (!rightResult.ok) {
       return rightResult;
     }
@@ -1831,9 +1852,9 @@ function evaluateBetween(
 /** Evaluate a worded `<operand> is ...` predicate (all four {@link IsTest} forms). */
 function evaluateIsPredicate(
   node: IsPredicateNode,
-  env: Environment,
+  environment: Environment,
 ): EvalResult {
-  const operandResult = evaluate(node.operand, env);
+  const operandResult = evaluate(node.operand, environment);
   if (!operandResult.ok) {
     return operandResult;
   }
@@ -1844,7 +1865,7 @@ function evaluateIsPredicate(
     case "empty":
       return evaluateIsEmptyValue(value, node.operand.source_span, "is empty");
     case "member-of": {
-      const collectionResult = evaluate(test.collection, env);
+      const collectionResult = evaluate(test.collection, environment);
       if (!collectionResult.ok) {
         return collectionResult;
       }
@@ -1858,11 +1879,11 @@ function evaluateIsPredicate(
     case "a":
       return evaluateIsAWorded(value, test.type);
     case "between": {
-      const lowResult = evaluate(test.low, env);
+      const lowResult = evaluate(test.low, environment);
       if (!lowResult.ok) {
         return lowResult;
       }
-      const highResult = evaluate(test.high, env);
+      const highResult = evaluate(test.high, environment);
       if (!highResult.ok) {
         return highResult;
       }
@@ -1882,10 +1903,10 @@ function evaluateIsPredicate(
 /** `empty? value` — the prefix equivalent of `<value> is empty` (`spec/commands.md:655-669`). */
 function evaluatePrefixEmpty(
   node: ArithmeticCallNode,
-  env: Environment,
+  environment: Environment,
 ): EvalResult {
   const operandNode = arg(node, 0);
-  const operandResult = evaluate(operandNode, env);
+  const operandResult = evaluate(operandNode, environment);
   if (!operandResult.ok) {
     return operandResult;
   }
@@ -1902,15 +1923,15 @@ function evaluatePrefixEmpty(
  */
 function evaluatePrefixMember(
   node: ArithmeticCallNode,
-  env: Environment,
+  environment: Environment,
 ): EvalResult {
   const valueNode = arg(node, 0);
   const collectionNode = arg(node, 1);
-  const valueResult = evaluate(valueNode, env);
+  const valueResult = evaluate(valueNode, environment);
   if (!valueResult.ok) {
     return valueResult;
   }
-  const collectionResult = evaluate(collectionNode, env);
+  const collectionResult = evaluate(collectionNode, environment);
   if (!collectionResult.ok) {
     return collectionResult;
   }
@@ -1929,15 +1950,15 @@ function evaluatePrefixMember(
  */
 function evaluatePrefixIsA(
   node: ArithmeticCallNode,
-  env: Environment,
+  environment: Environment,
 ): EvalResult {
   const valueNode = arg(node, 0);
   const typeNode = arg(node, 1);
-  const valueResult = evaluate(valueNode, env);
+  const valueResult = evaluate(valueNode, environment);
   if (!valueResult.ok) {
     return valueResult;
   }
-  const typeResult = evaluate(typeNode, env);
+  const typeResult = evaluate(typeNode, environment);
   if (!typeResult.ok) {
     return typeResult;
   }
@@ -1995,7 +2016,7 @@ function requireMinArgs(
  */
 function evaluateFirstOrLast(
   node: ArithmeticCallNode,
-  env: Environment,
+  environment: Environment,
   which: "first" | "last",
 ): EvalResult {
   const arityDiagnostic = requireMinArgs(node, which, 1);
@@ -2003,7 +2024,7 @@ function evaluateFirstOrLast(
     return fail(arityDiagnostic);
   }
   const inputNode = arg(node, 0);
-  const inputResult = evaluate(inputNode, env);
+  const inputResult = evaluate(inputNode, environment);
   if (!inputResult.ok) {
     return inputResult;
   }
@@ -2030,12 +2051,18 @@ function evaluateFirstOrLast(
   return ok(value[index] as OLValue);
 }
 
-function evaluateFirst(node: ArithmeticCallNode, env: Environment): EvalResult {
-  return evaluateFirstOrLast(node, env, "first");
+function evaluateFirst(
+  node: ArithmeticCallNode,
+  environment: Environment,
+): EvalResult {
+  return evaluateFirstOrLast(node, environment, "first");
 }
 
-function evaluateLast(node: ArithmeticCallNode, env: Environment): EvalResult {
-  return evaluateFirstOrLast(node, env, "last");
+function evaluateLast(
+  node: ArithmeticCallNode,
+  environment: Environment,
+): EvalResult {
+  return evaluateFirstOrLast(node, environment, "last");
 }
 
 /**
@@ -2045,7 +2072,7 @@ function evaluateLast(node: ArithmeticCallNode, env: Environment): EvalResult {
  */
 function evaluateButfirstOrButlast(
   node: ArithmeticCallNode,
-  env: Environment,
+  environment: Environment,
   which: "butfirst" | "butlast",
 ): EvalResult {
   const arityDiagnostic = requireMinArgs(node, which, 1);
@@ -2053,7 +2080,7 @@ function evaluateButfirstOrButlast(
     return fail(arityDiagnostic);
   }
   const inputNode = arg(node, 0);
-  const inputResult = evaluate(inputNode, env);
+  const inputResult = evaluate(inputNode, environment);
   if (!inputResult.ok) {
     return inputResult;
   }
@@ -2083,16 +2110,16 @@ function evaluateButfirstOrButlast(
 
 function evaluateButfirst(
   node: ArithmeticCallNode,
-  env: Environment,
+  environment: Environment,
 ): EvalResult {
-  return evaluateButfirstOrButlast(node, env, "butfirst");
+  return evaluateButfirstOrButlast(node, environment, "butfirst");
 }
 
 function evaluateButlast(
   node: ArithmeticCallNode,
-  env: Environment,
+  environment: Environment,
 ): EvalResult {
-  return evaluateButfirstOrButlast(node, env, "butlast");
+  return evaluateButfirstOrButlast(node, environment, "butlast");
 }
 
 /**
@@ -2102,7 +2129,7 @@ function evaluateButlast(
  */
 function evaluateFputOrLput(
   node: ArithmeticCallNode,
-  env: Environment,
+  environment: Environment,
   which: "fput" | "lput",
 ): EvalResult {
   const arityDiagnostic = requireMinArgs(node, which, 2);
@@ -2111,11 +2138,11 @@ function evaluateFputOrLput(
   }
   const valueNode = arg(node, 0);
   const listNode = arg(node, 1);
-  const valueResult = evaluate(valueNode, env);
+  const valueResult = evaluate(valueNode, environment);
   if (!valueResult.ok) {
     return valueResult;
   }
-  const listResult = evaluate(listNode, env);
+  const listResult = evaluate(listNode, environment);
   if (!listResult.ok) {
     return listResult;
   }
@@ -2137,12 +2164,18 @@ function evaluateFputOrLput(
   );
 }
 
-function evaluateFput(node: ArithmeticCallNode, env: Environment): EvalResult {
-  return evaluateFputOrLput(node, env, "fput");
+function evaluateFput(
+  node: ArithmeticCallNode,
+  environment: Environment,
+): EvalResult {
+  return evaluateFputOrLput(node, environment, "fput");
 }
 
-function evaluateLput(node: ArithmeticCallNode, env: Environment): EvalResult {
-  return evaluateFputOrLput(node, env, "lput");
+function evaluateLput(
+  node: ArithmeticCallNode,
+  environment: Environment,
+): EvalResult {
+  return evaluateFputOrLput(node, environment, "lput");
 }
 
 /**
@@ -2156,7 +2189,7 @@ function evaluateLput(node: ArithmeticCallNode, env: Environment): EvalResult {
  */
 function evaluateSentence(
   node: ArithmeticCallNode,
-  env: Environment,
+  environment: Environment,
 ): EvalResult {
   const arityDiagnostic = requireMinArgs(node, "sentence", 2);
   if (arityDiagnostic) {
@@ -2164,7 +2197,7 @@ function evaluateSentence(
   }
   const result: OLValue[] = [];
   for (const argNode of node.args) {
-    const argResult = evaluate(argNode, env);
+    const argResult = evaluate(argNode, environment);
     if (!argResult.ok) {
       return argResult;
     }
@@ -2183,14 +2216,17 @@ function evaluateSentence(
  * word" is strict — every argument must itself be a Core `word` (a string); a `number`/`list`/
  * `boolean` argument raises `ol-type` (`spec/commands.md` "word"'s "Possible errors: `ol-type`").
  */
-function evaluateWord(node: ArithmeticCallNode, env: Environment): EvalResult {
+function evaluateWord(
+  node: ArithmeticCallNode,
+  environment: Environment,
+): EvalResult {
   const arityDiagnostic = requireMinArgs(node, "word", 2);
   if (arityDiagnostic) {
     return fail(arityDiagnostic);
   }
   let result = "";
   for (const argNode of node.args) {
-    const argResult = evaluate(argNode, env);
+    const argResult = evaluate(argNode, environment);
     if (!argResult.ok) {
       return argResult;
     }
@@ -2219,13 +2255,16 @@ function evaluateWord(node: ArithmeticCallNode, env: Environment): EvalResult {
  * genuine, currently-unimplementable gap `CORE_IS_A_TYPE_WORDS` already documents for `is a
  * "dict"`, deferred rather than invented here.
  */
-function evaluateCount(node: ArithmeticCallNode, env: Environment): EvalResult {
+function evaluateCount(
+  node: ArithmeticCallNode,
+  environment: Environment,
+): EvalResult {
   const arityDiagnostic = requireMinArgs(node, "count", 1);
   if (arityDiagnostic) {
     return fail(arityDiagnostic);
   }
   const inputNode = arg(node, 0);
-  const inputResult = evaluate(inputNode, env);
+  const inputResult = evaluate(inputNode, environment);
   if (!inputResult.ok) {
     return inputResult;
   }
@@ -2284,40 +2323,49 @@ function requireExactArgs(
  * `execute-internal.ts`) already keeps it normalized to `[0,360)` on every write, so there is
  * nothing left to normalize on read.
  */
-function evaluateXcor(node: ArithmeticCallNode, env: Environment): EvalResult {
+function evaluateXcor(
+  node: ArithmeticCallNode,
+  environment: Environment,
+): EvalResult {
   const arityDiagnostic = requireExactArgs(node, "xcor", 0);
   if (arityDiagnostic) {
     return fail(arityDiagnostic);
   }
-  return ok(env.turtle.x);
+  return ok(environment.turtle.x);
 }
 
-function evaluateYcor(node: ArithmeticCallNode, env: Environment): EvalResult {
+function evaluateYcor(
+  node: ArithmeticCallNode,
+  environment: Environment,
+): EvalResult {
   const arityDiagnostic = requireExactArgs(node, "ycor", 0);
   if (arityDiagnostic) {
     return fail(arityDiagnostic);
   }
-  return ok(env.turtle.y);
+  return ok(environment.turtle.y);
 }
 
 function evaluateHeadingReporter(
   node: ArithmeticCallNode,
-  env: Environment,
+  environment: Environment,
 ): EvalResult {
   const arityDiagnostic = requireExactArgs(node, "heading", 0);
   if (arityDiagnostic) {
     return fail(arityDiagnostic);
   }
-  return ok(env.turtle.heading);
+  return ok(environment.turtle.heading);
 }
 
 /** `pos` — a fresh two-item list `[x y]` of the turtle's current position. */
-function evaluatePos(node: ArithmeticCallNode, env: Environment): EvalResult {
+function evaluatePos(
+  node: ArithmeticCallNode,
+  environment: Environment,
+): EvalResult {
   const arityDiagnostic = requireExactArgs(node, "pos", 0);
   if (arityDiagnostic) {
     return fail(arityDiagnostic);
   }
-  return ok([env.turtle.x, env.turtle.y]);
+  return ok([environment.turtle.x, environment.turtle.y]);
 }
 
 /**
@@ -2334,7 +2382,7 @@ function evaluatePos(node: ArithmeticCallNode, env: Environment): EvalResult {
  */
 function evaluateTowards(
   node: ArithmeticCallNode,
-  env: Environment,
+  environment: Environment,
 ): EvalResult {
   const arityDiagnostic = requireExactArgs(node, "towards", 2);
   if (arityDiagnostic) {
@@ -2342,11 +2390,11 @@ function evaluateTowards(
   }
   const xNode = arg(node, 0);
   const yNode = arg(node, 1);
-  const xResult = evaluate(xNode, env);
+  const xResult = evaluate(xNode, environment);
   if (!xResult.ok) {
     return xResult;
   }
-  const yResult = evaluate(yNode, env);
+  const yResult = evaluate(yNode, environment);
   if (!yResult.ok) {
     return yResult;
   }
@@ -2358,8 +2406,8 @@ function evaluateTowards(
   if (!y.ok) {
     return fail(y.diagnostic);
   }
-  const dx = x.value - env.turtle.x;
-  const dy = y.value - env.turtle.y;
+  const dx = x.value - environment.turtle.x;
+  const dy = y.value - environment.turtle.y;
   return ok(normalizeHeading((Math.atan2(dx, dy) * 180) / Math.PI));
 }
 
@@ -2370,7 +2418,7 @@ function evaluateTowards(
  */
 function evaluateDistance(
   node: ArithmeticCallNode,
-  env: Environment,
+  environment: Environment,
 ): EvalResult {
   const arityDiagnostic = requireExactArgs(node, "distance", 2);
   if (arityDiagnostic) {
@@ -2378,11 +2426,11 @@ function evaluateDistance(
   }
   const xNode = arg(node, 0);
   const yNode = arg(node, 1);
-  const xResult = evaluate(xNode, env);
+  const xResult = evaluate(xNode, environment);
   if (!xResult.ok) {
     return xResult;
   }
-  const yResult = evaluate(yNode, env);
+  const yResult = evaluate(yNode, environment);
   if (!yResult.ok) {
     return yResult;
   }
@@ -2394,8 +2442,8 @@ function evaluateDistance(
   if (!y.ok) {
     return fail(y.diagnostic);
   }
-  const dx = x.value - env.turtle.x;
-  const dy = y.value - env.turtle.y;
+  const dx = x.value - environment.turtle.x;
+  const dy = y.value - environment.turtle.y;
   return ok(Math.hypot(dx, dy));
 }
 
@@ -2416,7 +2464,7 @@ function evaluateDistance(
  */
 function evaluateRandom(
   node: ArithmeticCallNode,
-  env: Environment,
+  environment: Environment,
 ): EvalResult {
   if (node.args.length < 1 || node.args.length > 2) {
     const source_span = node.callee.source_span;
@@ -2433,7 +2481,7 @@ function evaluateRandom(
   }
   if (node.args.length === 1) {
     const nNode = arg(node, 0);
-    const nResult = evaluate(nNode, env);
+    const nResult = evaluate(nNode, environment);
     if (!nResult.ok) {
       return nResult;
     }
@@ -2446,15 +2494,15 @@ function evaluateRandom(
         runtimeDiag.randomBelowMinimum(nNode.source_span, { value: n.value }),
       );
     }
-    return ok(nextRandomInt(env.randomNumberGenerator, 0, n.value - 1));
+    return ok(nextRandomInt(environment.randomNumberGenerator, 0, n.value - 1));
   }
   const lowNode = arg(node, 0);
   const highNode = arg(node, 1);
-  const lowResult = evaluate(lowNode, env);
+  const lowResult = evaluate(lowNode, environment);
   if (!lowResult.ok) {
     return lowResult;
   }
-  const highResult = evaluate(highNode, env);
+  const highResult = evaluate(highNode, environment);
   if (!highResult.ok) {
     return highResult;
   }
@@ -2482,7 +2530,9 @@ function evaluateRandom(
       }),
     );
   }
-  return ok(nextRandomInt(env.randomNumberGenerator, low.value, high.value));
+  return ok(
+    nextRandomInt(environment.randomNumberGenerator, low.value, high.value),
+  );
 }
 
 // --- Comprehensions: map / filter / reduce (spec/execution-model.md:380-479, issue #105) ------
@@ -2674,7 +2724,7 @@ type ComprehensionBodyOutcome =
  */
 function runComprehensionBody(
   body: BlockNode,
-  env: Environment,
+  environment: Environment,
 ): ComprehensionBodyOutcome {
   const statements = body.body;
   if (statements.length === 0) {
@@ -2698,14 +2748,14 @@ function runComprehensionBody(
       };
     }
     if (statement.kind === "Assign") {
-      const result = executeAssign(statement, env);
+      const result = executeAssign(statement, environment);
       if (!result.ok) {
         return { kind: "halt", diagnostic: result.diagnostic };
       }
       continue;
     }
     const expression = asExpressionStatement(statement) as ExpressionNode;
-    const result = evaluate(expression, env);
+    const result = evaluate(expression, environment);
     if (!result.ok) {
       return { kind: "halt", diagnostic: result.diagnostic };
     }
@@ -2726,7 +2776,7 @@ function runComprehensionBody(
     return { kind: "no-value" };
   }
   const expression = asExpressionStatement(last) as ExpressionNode;
-  const result = evaluate(expression, env);
+  const result = evaluate(expression, environment);
   if (!result.ok) {
     return { kind: "halt", diagnostic: result.diagnostic };
   }
@@ -2804,14 +2854,14 @@ function comprehensionDuplicateBinder(
  */
 function evaluateComprehension(
   node: ComprehensionNode,
-  env: Environment,
+  environment: Environment,
 ): EvalResult {
   const duplicate = comprehensionDuplicateBinder(node);
   if (duplicate !== undefined) {
     return fail(duplicate);
   }
 
-  const iterableResult = evaluate(node.iterable, env);
+  const iterableResult = evaluate(node.iterable, environment);
   if (!iterableResult.ok) {
     return iterableResult;
   }
@@ -2827,13 +2877,16 @@ function evaluateComprehension(
   const elements = iterableResult.value;
 
   if (node.form === "reduce") {
-    const initialResult = evaluate(node.initial, env);
+    const initialResult = evaluate(node.initial, environment);
     if (!initialResult.ok) {
       return initialResult;
     }
     let accumulator = initialResult.value;
     for (const element of elements) {
-      const limitDiagnostic = checkExecutionLimits(env, node.source_span);
+      const limitDiagnostic = checkExecutionLimits(
+        environment,
+        node.source_span,
+      );
       if (limitDiagnostic) {
         return fail(limitDiagnostic);
       }
@@ -2845,7 +2898,7 @@ function evaluateComprehension(
       bindings.set(node.accumulator.name, accumulator);
       const outcome = runComprehensionBody(
         node.body,
-        pushLoopFrame(env, bindings),
+        pushLoopFrame(environment, bindings),
       );
       const stepResult = comprehensionBodyResult(outcome, node);
       if (!stepResult.ok) {
@@ -2858,7 +2911,7 @@ function evaluateComprehension(
 
   const results: OLValue[] = [];
   for (const element of elements) {
-    const limitDiagnostic = checkExecutionLimits(env, node.source_span);
+    const limitDiagnostic = checkExecutionLimits(environment, node.source_span);
     if (limitDiagnostic) {
       return fail(limitDiagnostic);
     }
@@ -2868,7 +2921,7 @@ function evaluateComprehension(
     }
     const outcome = runComprehensionBody(
       node.body,
-      pushLoopFrame(env, bound.bindings),
+      pushLoopFrame(environment, bound.bindings),
     );
     const stepResult = comprehensionBodyResult(outcome, node);
     if (!stepResult.ok) {

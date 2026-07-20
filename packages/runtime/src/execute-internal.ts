@@ -162,7 +162,7 @@ function isTurtleMoveCall(statement: StatementNode): boolean {
  * `spec/execution-model.md:592-593` requires, reporting the position change and heading. A
  * `draw-segment` reporting the same endpoints plus the pen color/width active at the moment the
  * segment is created (`spec/rendering.md`'s "Line segments" section) follows it **only while the
- * pen is down** (`env.turtle.penDown`) — `spec/rendering.md`'s "Line segments" section: a segment
+ * pen is down** (`environment.turtle.penDown`) — `spec/rendering.md`'s "Line segments" section: a segment
  * is drawn only while the pen is down; while up, the turtle still moves (and still emits `move`)
  * but leaves no trail (issue #206, `pen_up`/`pen_down`). `distance` is negative for `back`
  * (`back n` == `forward -n`, `spec/commands.md:1215`), positive for `forward`.
@@ -173,11 +173,11 @@ function isTurtleMoveCall(statement: StatementNode): boolean {
  * from the `+y` axis produce once converted from degrees to radians.
  */
 function moveTurtle(
-  env: Environment,
+  environment: Environment,
   distance: number,
   source_span: SourceSpan,
 ): void {
-  const { turtle } = env;
+  const { turtle } = environment;
   const heading = turtle.heading;
   const radians = (heading * Math.PI) / 180;
   const from: Point = [turtle.x, turtle.y];
@@ -187,15 +187,15 @@ function moveTurtle(
   ];
   turtle.x = to[0];
   turtle.y = to[1];
-  env.events.push({
-    seq: env.events.length,
+  environment.events.push({
+    seq: environment.events.length,
     kind: "move",
     source_span,
     payload: { from, to, heading } satisfies MovePayload,
   });
   if (turtle.penDown) {
-    env.events.push({
-      seq: env.events.length,
+    environment.events.push({
+      seq: environment.events.length,
       kind: "draw-segment",
       source_span,
       payload: {
@@ -228,7 +228,7 @@ function moveTurtle(
  */
 function executeTurtleMoveCall(
   moveCall: CallNode | ParenCallNode,
-  env: Environment,
+  environment: Environment,
 ): ExecSignal | undefined {
   const callableName = moveCall.callee.name;
   if (moveCall.args.length !== 1) {
@@ -249,10 +249,10 @@ function executeTurtleMoveCall(
     );
   }
   const [arg] = moveCall.args as [ExpressionNode];
-  if (!isSupportedExpression(arg, env.procedures)) {
+  if (!isSupportedExpression(arg, environment.procedures)) {
     return undefined;
   }
-  const argResult = evaluate(arg, env);
+  const argResult = evaluate(arg, environment);
   if (!argResult.ok) {
     return halt(argResult.diagnostic);
   }
@@ -280,7 +280,7 @@ function executeTurtleMoveCall(
   }
   const signedDistance =
     callableName.toLowerCase() === "back" ? -distance.value : distance.value;
-  moveTurtle(env, signedDistance, moveCall.source_span);
+  moveTurtle(environment, signedDistance, moveCall.source_span);
   return undefined;
 }
 
@@ -309,16 +309,16 @@ function isTurtleTurnCall(statement: StatementNode): boolean {
  * position or drawing event follows it.
  */
 function turnTurtle(
-  env: Environment,
+  environment: Environment,
   deltaDegrees: number,
   source_span: SourceSpan,
 ): void {
-  const { turtle } = env;
+  const { turtle } = environment;
   const from = turtle.heading;
   const to = normalizeHeading(from + deltaDegrees);
   turtle.heading = to;
-  env.events.push({
-    seq: env.events.length,
+  environment.events.push({
+    seq: environment.events.length,
     kind: "turn",
     source_span,
     payload: { from, to } satisfies TurnPayload,
@@ -339,7 +339,7 @@ function turnTurtle(
  */
 function executeTurtleTurnCall(
   turnCall: CallNode | ParenCallNode,
-  env: Environment,
+  environment: Environment,
 ): ExecSignal | undefined {
   const callableName = turnCall.callee.name;
   if (turnCall.args.length !== 1) {
@@ -360,10 +360,10 @@ function executeTurtleTurnCall(
     );
   }
   const [arg] = turnCall.args as [ExpressionNode];
-  if (!isSupportedExpression(arg, env.procedures)) {
+  if (!isSupportedExpression(arg, environment.procedures)) {
     return undefined;
   }
-  const argResult = evaluate(arg, env);
+  const argResult = evaluate(arg, environment);
   if (!argResult.ok) {
     return halt(argResult.diagnostic);
   }
@@ -389,7 +389,7 @@ function executeTurtleTurnCall(
   }
   const signedAngle =
     callableName.toLowerCase() === "left" ? -angle.value : angle.value;
-  turnTurtle(env, signedAngle, turnCall.source_span);
+  turnTurtle(environment, signedAngle, turnCall.source_span);
   return undefined;
 }
 
@@ -417,19 +417,19 @@ function isTurtlePenCall(statement: StatementNode): boolean {
  *
  * Setting has no `move`/`draw-segment` counterpart: it never moves or turns the turtle, so no
  * position or heading event follows it. It is, however, the reason {@link moveTurtle}'s
- * `draw-segment` is now conditional on `env.turtle.penDown`.
+ * `draw-segment` is now conditional on `environment.turtle.penDown`.
  */
 function setPen(
-  env: Environment,
+  environment: Environment,
   penDown: boolean,
   source_span: SourceSpan,
 ): void {
-  const { turtle } = env;
+  const { turtle } = environment;
   const from = turtle.penDown ? "down" : "up";
   const to = penDown ? "down" : "up";
   turtle.penDown = penDown;
-  env.events.push({
-    seq: env.events.length,
+  environment.events.push({
+    seq: environment.events.length,
     kind: "pen-change",
     source_span,
     payload: { from, to } satisfies PenChangePayload,
@@ -449,7 +449,7 @@ function setPen(
  */
 function executeTurtlePenCall(
   penCall: CallNode | ParenCallNode,
-  env: Environment,
+  environment: Environment,
 ): ExecSignal | undefined {
   const callableName = penCall.callee.name;
   if (penCall.args.length !== 0) {
@@ -462,7 +462,11 @@ function executeTurtlePenCall(
       ),
     );
   }
-  setPen(env, callableName.toLowerCase() === "pen_down", penCall.source_span);
+  setPen(
+    environment,
+    callableName.toLowerCase() === "pen_down",
+    penCall.source_span,
+  );
   return undefined;
 }
 
@@ -493,15 +497,15 @@ function isTurtleVisibilityCall(statement: StatementNode): boolean {
  * gate `moveTurtle` checks.
  */
 function setVisibility(
-  env: Environment,
+  environment: Environment,
   visible: boolean,
   source_span: SourceSpan,
 ): void {
-  const { turtle } = env;
+  const { turtle } = environment;
   const from = turtle.visible;
   turtle.visible = visible;
-  env.events.push({
-    seq: env.events.length,
+  environment.events.push({
+    seq: environment.events.length,
     kind: "visibility-change",
     source_span,
     payload: { from, to: visible } satisfies VisibilityChangePayload,
@@ -521,7 +525,7 @@ function setVisibility(
  */
 function executeTurtleVisibilityCall(
   visibilityCall: CallNode | ParenCallNode,
-  env: Environment,
+  environment: Environment,
 ): ExecSignal | undefined {
   const callableName = visibilityCall.callee.name;
   if (visibilityCall.args.length !== 0) {
@@ -535,7 +539,7 @@ function executeTurtleVisibilityCall(
     );
   }
   setVisibility(
-    env,
+    environment,
     callableName.toLowerCase() === "show_turtle",
     visibilityCall.source_span,
   );
@@ -568,18 +572,18 @@ function isTurtleClearCall(statement: StatementNode): boolean {
  * how {@link setVisibility}/{@link setPen} emit only their own single event, not a compound one.
  */
 function clearScreen(
-  env: Environment,
+  environment: Environment,
   mode: "clear_screen" | "clean",
   source_span: SourceSpan,
 ): void {
-  const { turtle } = env;
+  const { turtle } = environment;
   if (mode === "clear_screen") {
     turtle.x = 0;
     turtle.y = 0;
     turtle.heading = 0;
   }
-  env.events.push({
-    seq: env.events.length,
+  environment.events.push({
+    seq: environment.events.length,
     kind: "clear",
     source_span,
     payload: { mode } satisfies ClearPayload,
@@ -597,7 +601,7 @@ function clearScreen(
  */
 function executeTurtleClearCall(
   clearCall: CallNode | ParenCallNode,
-  env: Environment,
+  environment: Environment,
 ): ExecSignal | undefined {
   const callableName = clearCall.callee.name;
   if (clearCall.args.length !== 0) {
@@ -611,7 +615,7 @@ function executeTurtleClearCall(
     );
   }
   clearScreen(
-    env,
+    environment,
     callableName.toLowerCase() === "clear_screen" ? "clear_screen" : "clean",
     clearCall.source_span,
   );
@@ -652,7 +656,7 @@ function isTurtleColorCall(statement: StatementNode): boolean {
  */
 function executeTurtleColorCall(
   colorCall: CallNode | ParenCallNode,
-  env: Environment,
+  environment: Environment,
 ): ExecSignal | undefined {
   const callableName = colorCall.callee.name;
   if (colorCall.args.length !== 1) {
@@ -673,10 +677,10 @@ function executeTurtleColorCall(
     );
   }
   const [arg] = colorCall.args as [ExpressionNode];
-  if (!isSupportedExpression(arg, env.procedures)) {
+  if (!isSupportedExpression(arg, environment.procedures)) {
     return undefined;
   }
-  const argResult = evaluate(arg, env);
+  const argResult = evaluate(arg, environment);
   if (!argResult.ok) {
     return halt(argResult.diagnostic);
   }
@@ -690,11 +694,11 @@ function executeTurtleColorCall(
       }),
     );
   }
-  const { turtle } = env;
+  const { turtle } = environment;
   const from = turtle.color;
   turtle.color = color;
-  env.events.push({
-    seq: env.events.length,
+  environment.events.push({
+    seq: environment.events.length,
     kind: "color-change",
     source_span: colorCall.source_span,
     payload: { from, to: color } satisfies ColorChangePayload,
@@ -736,7 +740,7 @@ function isTurtleBackgroundCall(statement: StatementNode): boolean {
  */
 function executeTurtleBackgroundCall(
   backgroundCall: CallNode | ParenCallNode,
-  env: Environment,
+  environment: Environment,
 ): ExecSignal | undefined {
   const callableName = backgroundCall.callee.name;
   if (backgroundCall.args.length !== 1) {
@@ -757,10 +761,10 @@ function executeTurtleBackgroundCall(
     );
   }
   const [arg] = backgroundCall.args as [ExpressionNode];
-  if (!isSupportedExpression(arg, env.procedures)) {
+  if (!isSupportedExpression(arg, environment.procedures)) {
     return undefined;
   }
-  const argResult = evaluate(arg, env);
+  const argResult = evaluate(arg, environment);
   if (!argResult.ok) {
     return halt(argResult.diagnostic);
   }
@@ -774,8 +778,8 @@ function executeTurtleBackgroundCall(
       }),
     );
   }
-  env.events.push({
-    seq: env.events.length,
+  environment.events.push({
+    seq: environment.events.length,
     kind: "background-change",
     source_span: backgroundCall.source_span,
     payload: { color } satisfies BackgroundChangePayload,
@@ -817,7 +821,7 @@ function isTurtleWidthCall(statement: StatementNode): boolean {
  */
 function executeTurtleWidthCall(
   widthCall: CallNode | ParenCallNode,
-  env: Environment,
+  environment: Environment,
 ): ExecSignal | undefined {
   const callableName = widthCall.callee.name;
   if (widthCall.args.length !== 1) {
@@ -838,10 +842,10 @@ function executeTurtleWidthCall(
     );
   }
   const [arg] = widthCall.args as [ExpressionNode];
-  if (!isSupportedExpression(arg, env.procedures)) {
+  if (!isSupportedExpression(arg, environment.procedures)) {
     return undefined;
   }
-  const argResult = evaluate(arg, env);
+  const argResult = evaluate(arg, environment);
   if (!argResult.ok) {
     return halt(argResult.diagnostic);
   }
@@ -858,11 +862,11 @@ function executeTurtleWidthCall(
       }),
     );
   }
-  const { turtle } = env;
+  const { turtle } = environment;
   const from = turtle.width;
   turtle.width = width.value;
-  env.events.push({
-    seq: env.events.length,
+  environment.events.push({
+    seq: environment.events.length,
     kind: "width-change",
     source_span: widthCall.source_span,
     payload: { from, to: width.value } satisfies WidthChangePayload,
@@ -897,7 +901,7 @@ function isTurtleFillCall(statement: StatementNode): boolean {
  */
 function executeTurtleFillCall(
   fillCall: CallNode | ParenCallNode,
-  env: Environment,
+  environment: Environment,
 ): ExecSignal | undefined {
   const callableName = fillCall.callee.name;
   if (fillCall.args.length !== 0) {
@@ -910,11 +914,11 @@ function executeTurtleFillCall(
       ),
     );
   }
-  env.events.push({
-    seq: env.events.length,
+  environment.events.push({
+    seq: environment.events.length,
     kind: "fill",
     source_span: fillCall.source_span,
-    payload: { color: env.turtle.color } satisfies FillPayload,
+    payload: { color: environment.turtle.color } satisfies FillPayload,
   });
   return undefined;
 }
@@ -946,7 +950,7 @@ function isTurtleStampCall(statement: StatementNode): boolean {
  */
 function executeTurtleStampCall(
   stampCall: CallNode | ParenCallNode,
-  env: Environment,
+  environment: Environment,
 ): ExecSignal | undefined {
   const callableName = stampCall.callee.name;
   if (stampCall.args.length !== 0) {
@@ -959,9 +963,9 @@ function executeTurtleStampCall(
       ),
     );
   }
-  const { turtle } = env;
-  env.events.push({
-    seq: env.events.length,
+  const { turtle } = environment;
+  environment.events.push({
+    seq: environment.events.length,
     kind: "stamp",
     source_span: stampCall.source_span,
     payload: {
@@ -1015,7 +1019,7 @@ function isTurtleShapeCall(statement: StatementNode): boolean {
  */
 function executeTurtleShapeCall(
   shapeCall: CallNode | ParenCallNode,
-  env: Environment,
+  environment: Environment,
 ): ExecSignal | undefined {
   const callableName = shapeCall.callee.name;
   if (shapeCall.args.length !== 1) {
@@ -1036,10 +1040,10 @@ function executeTurtleShapeCall(
     );
   }
   const [arg] = shapeCall.args as [ExpressionNode];
-  if (!isSupportedExpression(arg, env.procedures)) {
+  if (!isSupportedExpression(arg, environment.procedures)) {
     return undefined;
   }
-  const argResult = evaluate(arg, env);
+  const argResult = evaluate(arg, environment);
   if (!argResult.ok) {
     return halt(argResult.diagnostic);
   }
@@ -1062,11 +1066,11 @@ function executeTurtleShapeCall(
     );
   }
   const shape = normalizeShape(argResult.value);
-  const { turtle } = env;
+  const { turtle } = environment;
   const from = turtle.shape;
   turtle.shape = shape;
-  env.events.push({
-    seq: env.events.length,
+  environment.events.push({
+    seq: environment.events.length,
     kind: "shape-change",
     source_span: shapeCall.source_span,
     payload: { from, to: shape } satisfies ShapeChangePayload,
@@ -1100,23 +1104,23 @@ function isTurtlePositionCall(statement: StatementNode): boolean {
  * via {@link setHeadingTo}).
  */
 function moveTurtleTo(
-  env: Environment,
+  environment: Environment,
   to: Point,
   source_span: SourceSpan,
 ): void {
-  const { turtle } = env;
+  const { turtle } = environment;
   const from: Point = [turtle.x, turtle.y];
   turtle.x = to[0];
   turtle.y = to[1];
-  env.events.push({
-    seq: env.events.length,
+  environment.events.push({
+    seq: environment.events.length,
     kind: "move",
     source_span,
     payload: { from, to, heading: turtle.heading } satisfies MovePayload,
   });
   if (turtle.penDown) {
-    env.events.push({
-      seq: env.events.length,
+    environment.events.push({
+      seq: environment.events.length,
       kind: "draw-segment",
       source_span,
       payload: {
@@ -1137,15 +1141,15 @@ function moveTurtleTo(
  * doesn't need to since both its callers already have).
  */
 function setHeadingTo(
-  env: Environment,
+  environment: Environment,
   to: number,
   source_span: SourceSpan,
 ): void {
-  const { turtle } = env;
+  const { turtle } = environment;
   const from = turtle.heading;
   turtle.heading = to;
-  env.events.push({
-    seq: env.events.length,
+  environment.events.push({
+    seq: environment.events.length,
     kind: "turn",
     source_span,
     payload: { from, to } satisfies TurnPayload,
@@ -1172,7 +1176,7 @@ function setHeadingTo(
  */
 function executeTurtlePositionCall(
   positionCall: CallNode | ParenCallNode,
-  env: Environment,
+  environment: Environment,
 ): ExecSignal | undefined {
   const callableName = positionCall.callee.name;
   const isHome = callableName.toLowerCase() === "home";
@@ -1195,22 +1199,22 @@ function executeTurtlePositionCall(
     );
   }
   if (isHome) {
-    moveTurtleTo(env, [0, 0], positionCall.source_span);
-    setHeadingTo(env, 0, positionCall.source_span);
+    moveTurtleTo(environment, [0, 0], positionCall.source_span);
+    setHeadingTo(environment, 0, positionCall.source_span);
     return undefined;
   }
   const [xArg, yArg] = positionCall.args as [ExpressionNode, ExpressionNode];
   if (
-    !isSupportedExpression(xArg, env.procedures) ||
-    !isSupportedExpression(yArg, env.procedures)
+    !isSupportedExpression(xArg, environment.procedures) ||
+    !isSupportedExpression(yArg, environment.procedures)
   ) {
     return undefined;
   }
-  const xResult = evaluate(xArg, env);
+  const xResult = evaluate(xArg, environment);
   if (!xResult.ok) {
     return halt(xResult.diagnostic);
   }
-  const yResult = evaluate(yArg, env);
+  const yResult = evaluate(yArg, environment);
   if (!yResult.ok) {
     return halt(yResult.diagnostic);
   }
@@ -1241,7 +1245,7 @@ function executeTurtlePositionCall(
       }),
     );
   }
-  moveTurtleTo(env, [x.value, y.value], positionCall.source_span);
+  moveTurtleTo(environment, [x.value, y.value], positionCall.source_span);
   return undefined;
 }
 
@@ -1274,7 +1278,7 @@ function isTurtleHeadingCall(statement: StatementNode): boolean {
  */
 function executeTurtleHeadingCall(
   headingCall: CallNode | ParenCallNode,
-  env: Environment,
+  environment: Environment,
 ): ExecSignal | undefined {
   const callableName = headingCall.callee.name;
   if (headingCall.args.length !== 1) {
@@ -1295,10 +1299,10 @@ function executeTurtleHeadingCall(
     );
   }
   const [arg] = headingCall.args as [ExpressionNode];
-  if (!isSupportedExpression(arg, env.procedures)) {
+  if (!isSupportedExpression(arg, environment.procedures)) {
     return undefined;
   }
-  const argResult = evaluate(arg, env);
+  const argResult = evaluate(arg, environment);
   if (!argResult.ok) {
     return halt(argResult.diagnostic);
   }
@@ -1321,7 +1325,11 @@ function executeTurtleHeadingCall(
       }),
     );
   }
-  setHeadingTo(env, normalizeHeading(angle.value), headingCall.source_span);
+  setHeadingTo(
+    environment,
+    normalizeHeading(angle.value),
+    headingCall.source_span,
+  );
   return undefined;
 }
 
@@ -1350,84 +1358,84 @@ const NOT_A_TURTLE_COMMAND = Symbol("not-a-turtle-command");
  */
 function dispatchTurtleCommand(
   statement: StatementNode,
-  env: Environment,
+  environment: Environment,
 ): ExecSignal | undefined | typeof NOT_A_TURTLE_COMMAND {
   if (isTurtleMoveCall(statement)) {
     return executeTurtleMoveCall(
       statement as unknown as CallNode | ParenCallNode,
-      env,
+      environment,
     );
   }
   if (isTurtleTurnCall(statement)) {
     return executeTurtleTurnCall(
       statement as unknown as CallNode | ParenCallNode,
-      env,
+      environment,
     );
   }
   if (isTurtlePenCall(statement)) {
     return executeTurtlePenCall(
       statement as unknown as CallNode | ParenCallNode,
-      env,
+      environment,
     );
   }
   if (isTurtlePositionCall(statement)) {
     return executeTurtlePositionCall(
       statement as unknown as CallNode | ParenCallNode,
-      env,
+      environment,
     );
   }
   if (isTurtleHeadingCall(statement)) {
     return executeTurtleHeadingCall(
       statement as unknown as CallNode | ParenCallNode,
-      env,
+      environment,
     );
   }
   if (isTurtleVisibilityCall(statement)) {
     return executeTurtleVisibilityCall(
       statement as unknown as CallNode | ParenCallNode,
-      env,
+      environment,
     );
   }
   if (isTurtleClearCall(statement)) {
     return executeTurtleClearCall(
       statement as unknown as CallNode | ParenCallNode,
-      env,
+      environment,
     );
   }
   if (isTurtleColorCall(statement)) {
     return executeTurtleColorCall(
       statement as unknown as CallNode | ParenCallNode,
-      env,
+      environment,
     );
   }
   if (isTurtleBackgroundCall(statement)) {
     return executeTurtleBackgroundCall(
       statement as unknown as CallNode | ParenCallNode,
-      env,
+      environment,
     );
   }
   if (isTurtleWidthCall(statement)) {
     return executeTurtleWidthCall(
       statement as unknown as CallNode | ParenCallNode,
-      env,
+      environment,
     );
   }
   if (isTurtleFillCall(statement)) {
     return executeTurtleFillCall(
       statement as unknown as CallNode | ParenCallNode,
-      env,
+      environment,
     );
   }
   if (isTurtleStampCall(statement)) {
     return executeTurtleStampCall(
       statement as unknown as CallNode | ParenCallNode,
-      env,
+      environment,
     );
   }
   if (isTurtleShapeCall(statement)) {
     return executeTurtleShapeCall(
       statement as unknown as CallNode | ParenCallNode,
-      env,
+      environment,
     );
   }
   return NOT_A_TURTLE_COMMAND;
@@ -1443,7 +1451,7 @@ function dispatchTurtleCommand(
  */
 function executeShowCall(
   statement: CallNode | ParenCallNode,
-  env: Environment,
+  environment: Environment,
 ): ExecSignal | undefined {
   if (statement.args.length === 0) {
     return halt(
@@ -1469,18 +1477,18 @@ function executeShowCall(
   // evaluate `show` when its one operand is an expression kind this issue's evaluator gives
   // meaning to.
   const arg = statement.args[0] as ExpressionNode;
-  if (!isSupportedExpression(arg, env.procedures)) {
+  if (!isSupportedExpression(arg, environment.procedures)) {
     return undefined;
   }
-  const result = evaluate(arg, env);
+  const result = evaluate(arg, environment);
   if (!result.ok) {
     return halt(result.diagnostic);
   }
   // `show` shares `print`'s trace-event kind and rendering rule (`printedForm`, `evaluate.ts`'s
   // doc comment near its definition) — the spec gives it "implementation-defined presentation
   // details" but no distinct payload shape from `print`'s.
-  env.events.push({
-    seq: env.events.length,
+  environment.events.push({
+    seq: environment.events.length,
     kind: "print",
     source_span: statement.source_span,
     payload: { values: [result.value] } satisfies PrintPayload,
@@ -1492,9 +1500,9 @@ function executeShowCall(
  * Executes a `randomize`/`(randomize seed)` statement (issue #287, `spec/commands.md`'s
  * `randomize` entry) once {@link executeStatements} has confirmed it via {@link isRandomizeCall}.
  * Reseeds the shared {@link Environment.randomNumberGenerator} generator *in place* — mutating its
- * `state` field rather than replacing `env.randomNumberGenerator` itself — so every environment
+ * `state` field rather than replacing `environment.randomNumberGenerator` itself — so every environment
  * sharing this same box (every nested procedure-call/loop-body environment spread from this one
- * via `execute-internal.ts`'s `{...env, frames: […]}` pattern) observes the reseed. Extracted
+ * via `execute-internal.ts`'s `{...environment, frames: […]}` pattern) observes the reseed. Extracted
  * into its own top-level function for the same stack-depth reason {@link executeShowCall}'s doc
  * comment gives.
  *
@@ -1509,7 +1517,7 @@ function executeShowCall(
  */
 function executeRandomizeCall(
   statement: CallNode | ParenCallNode,
-  env: Environment,
+  environment: Environment,
 ): ExecSignal | undefined {
   if (statement.args.length > 1) {
     return halt(
@@ -1522,21 +1530,22 @@ function executeRandomizeCall(
     );
   }
   if (statement.args.length === 0) {
-    env.randomNumberGenerator.state = createRandomNumberGeneratorState().state;
+    environment.randomNumberGenerator.state =
+      createRandomNumberGeneratorState().state;
     return undefined;
   }
   // Same unsupported-operand deferral as `show`/`print` use: only evaluate the seed when it is
   // an expression kind this issue's evaluator gives meaning to.
   const seedNode = statement.args[0] as ExpressionNode;
-  if (!isSupportedExpression(seedNode, env.procedures)) {
+  if (!isSupportedExpression(seedNode, environment.procedures)) {
     return undefined;
   }
-  const result = evaluate(seedNode, env);
+  const result = evaluate(seedNode, environment);
   if (!result.ok) {
     return halt(result.diagnostic);
   }
   const value = result.value;
-  env.randomNumberGenerator.state =
+  environment.randomNumberGenerator.state =
     typeof value === "number"
       ? Math.trunc(value) >>> 0
       : seedFromText(printedForm(value));
@@ -1566,18 +1575,18 @@ const NOT_A_SHOW_OR_RANDOMIZE_COMMAND = Symbol(
  */
 function dispatchShowOrRandomizeCommand(
   statement: StatementNode,
-  env: Environment,
+  environment: Environment,
 ): ExecSignal | undefined | typeof NOT_A_SHOW_OR_RANDOMIZE_COMMAND {
   if (isShowCall(statement)) {
     return executeShowCall(
       statement as unknown as CallNode | ParenCallNode,
-      env,
+      environment,
     );
   }
   if (isRandomizeCall(statement)) {
     return executeRandomizeCall(
       statement as unknown as CallNode | ParenCallNode,
-      env,
+      environment,
     );
   }
   return NOT_A_SHOW_OR_RANDOMIZE_COMMAND;
@@ -1592,12 +1601,12 @@ function dispatchShowOrRandomizeCommand(
  */
 function evaluateCondition(
   condition: ExpressionNode,
-  env: Environment,
+  environment: Environment,
   operation: "if" | "while",
 ):
   | { readonly ok: true; readonly value: boolean }
   | { readonly ok: false; readonly diagnostic: Diagnostic } {
-  const result = evaluate(condition, env);
+  const result = evaluate(condition, environment);
   if (!result.ok) {
     return result;
   }
@@ -1666,7 +1675,7 @@ function collectProcedures(program: ProgramNode): ProcedureRegistry {
  * Is `statement` a call — bare or parenthesized — to a name that {@link Environment.procedures}
  * knows, i.e. a user-procedure call in statement (command) position (`star 5 100`, as opposed to
  * expression/reporter position, e.g. `print area :r`, which `evaluate.ts`'s `evaluateCall`
- * dispatches instead via `env.callProcedure`)?
+ * dispatches instead via `environment.callProcedure`)?
  */
 function isProcedureCallStatement(
   statement: StatementNode,
@@ -1694,7 +1703,7 @@ type ProcedureOutcome =
  * used for every diagnostic below, matching the static checker's `checker-arity.ts` convention of
  * pointing at the callee, not the whole call). Shared by both a statement-position call
  * (dispatched directly in {@link executeStatements}) and an expression-position call
- * (`evaluate.ts`'s `evaluateCall`, via `env.callProcedure` — see this file's header comment for
+ * (`evaluate.ts`'s `evaluateCall`, via `environment.callProcedure` — see this file's header comment for
  * why that indirection exists).
  *
  * Arity is checked BEFORE evaluating any argument, exactly like the static checker's
@@ -1708,7 +1717,7 @@ type ProcedureOutcome =
  *
  * Each supplied argument is evaluated left to right in the CALLER's environment, before the
  * callee frame exists. The callee then runs in a FRESH frame stacked only on the shared root
- * frame (`env.frames[env.frames.length - 1]`, never the caller's own local frame(s)) — lexical
+ * frame (`environment.frames[environment.frames.length - 1]`, never the caller's own local frame(s)) — lexical
  * scoping: the callee cannot see the caller's parameters or locals unless passed as an argument
  * (`spec/execution-model.md:316-320`). Its own `repeatTurns` starts empty: `repcount` is tied to
  * the lexical nesting of `repeat` within the currently-running body, and a callee begins a new
@@ -1728,7 +1737,7 @@ type ProcedureOutcome =
  * ordering reproduces the spec's worked recursive-call trace exactly
  * (`spec/execution-model.md:606-648`).
  *
- * Before any of that, the call is checked against `env.callDepth`'s length — the current
+ * Before any of that, the call is checked against `environment.callDepth`'s length — the current
  * procedure-call nesting depth — against {@link Environment.recursionDepthLimit}: exceeding it
  * raises `ol-limit` at the callee span instead of recursing further, so an unbounded recursive
  * procedure degrades to a friendly diagnostic rather than a host `RangeError: Maximum call stack
@@ -1742,32 +1751,32 @@ type ProcedureOutcome =
  */
 function runProcedure(
   node: CallNode | ParenCallNode,
-  env: Environment,
+  environment: Environment,
 ): ProcedureOutcome {
-  if (env.callDepth.length >= env.recursionDepthLimit) {
+  if (environment.callDepth.length >= environment.recursionDepthLimit) {
     return {
       ok: false,
       diagnostic: runtimeDiag.recursionLimit(
         node.callee.source_span,
-        env.recursionDepthLimit,
+        environment.recursionDepthLimit,
       ),
     };
   }
-  env.callDepth.push(env.callDepth.length + 1);
+  environment.callDepth.push(environment.callDepth.length + 1);
   try {
-    return runProcedureBody(node, env);
+    return runProcedureBody(node, environment);
   } finally {
-    env.callDepth.pop();
+    environment.callDepth.pop();
   }
 }
 
 /** The body of {@link runProcedure}, run once the recursion-depth check and push have happened. */
 function runProcedureBody(
   node: CallNode | ParenCallNode,
-  env: Environment,
+  environment: Environment,
 ): ProcedureOutcome {
   const name = node.callee.name.toLowerCase();
-  const def = env.procedures.get(name) as ProcedureDefNode;
+  const def = environment.procedures.get(name) as ProcedureDefNode;
   const required = def.params.filter(
     (param) => param.defaultValue === undefined,
   ).length;
@@ -1798,7 +1807,7 @@ function runProcedureBody(
 
   const argValues: OLValue[] = [];
   for (const arg of node.args) {
-    const result = evaluate(arg, env);
+    const result = evaluate(arg, environment);
     if (!result.ok) {
       return { ok: false, diagnostic: result.diagnostic };
     }
@@ -1807,8 +1816,11 @@ function runProcedureBody(
 
   const calleeFrame: Frame = new Map();
   const calleeEnv: Environment = {
-    ...env,
-    frames: [calleeFrame, env.frames[env.frames.length - 1] as Frame],
+    ...environment,
+    frames: [
+      calleeFrame,
+      environment.frames[environment.frames.length - 1] as Frame,
+    ],
     repeatTurns: [],
   };
   const boundArgs: OLValue[] = [];
@@ -1833,8 +1845,8 @@ function runProcedureBody(
     boundArgs.push(defaultResult.value);
   }
 
-  env.events.push({
-    seq: env.events.length,
+  environment.events.push({
+    seq: environment.events.length,
     kind: "procedure-enter",
     source_span: node.source_span,
     payload: {
@@ -1849,8 +1861,8 @@ function runProcedureBody(
   }
   const result = signal.kind === "return" ? signal.value : null;
 
-  env.events.push({
-    seq: env.events.length,
+  environment.events.push({
+    seq: environment.events.length,
     kind: "procedure-exit",
     source_span: node.source_span,
     payload: { name: def.name.name, result } satisfies ProcedureExitPayload,
@@ -1869,9 +1881,9 @@ function runProcedureBody(
  */
 function callProcedureAsValue(
   node: CallNode | ParenCallNode,
-  env: Environment,
+  environment: Environment,
 ): EvalResult {
-  const outcome = runProcedure(node, env);
+  const outcome = runProcedure(node, environment);
   if (!outcome.ok) {
     return outcome;
   }
@@ -1888,7 +1900,7 @@ function callProcedureAsValue(
 }
 
 /**
- * Execute `statements` in order, mutating `env.events` in place with one `instruction` event per
+ * Execute `statements` in order, mutating `environment.events` in place with one `instruction` event per
  * statement plus whatever effect events that statement's kind produces, and returns an
  * {@link ExecSignal} describing how the run ended: `"normal"` on a clean run through every
  * statement, `"halt"` with the diagnostic that stopped it, or — issue #97 — `"return"`/`"stop"`
@@ -1964,7 +1976,7 @@ function callProcedureAsValue(
  * exact order (`spec/execution-model.md:367-369`): a non-whole-number count raises `ol-type`
  * ({@link requireWholeNumber}); otherwise a negative count raises `ol-range`
  * (`runtimeDiag.negativeCount`); `repeat 0` runs `body` zero times with no diagnostic. Each pass
- * pushes that pass's 1-based turn onto `env.repeatTurns` before running `body` and pops it after —
+ * pushes that pass's 1-based turn onto `environment.repeatTurns` before running `body` and pops it after —
  * even on a diagnostic, the stack for `repcount` is only ever this scoped, so a nested `repeat`
  * inside `body` sees its own turn on top of the outer one, and `repcount` always reads the
  * innermost.
@@ -1997,9 +2009,9 @@ function callProcedureAsValue(
  * `variable` is bound fresh each pass via {@link pushLoopFrame}, same as `ForIn`'s binder.
  *
  * Both loops' binders are fresh **body-local** bindings (`spec/execution-model.md:435-437`): each
- * pass runs `body` against a *new* {@link Environment} with one extra frame in front of `env`'s
- * own frames, so the binding is visible inside `body` but never leaks past the loop — `env` itself
- * is never mutated. `env.repeatTurns` (same array reference) and `env.foreverIterationLimit` are
+ * pass runs `body` against a *new* {@link Environment} with one extra frame in front of `environment`'s
+ * own frames, so the binding is visible inside `body` but never leaks past the loop — `environment` itself
+ * is never mutated. `environment.repeatTurns` (same array reference) and `environment.foreverIterationLimit` are
  * threaded through unchanged, so a `repeat`'s `repcount` and a `forever`'s test-only iteration cap
  * both still work correctly across a nested `for`. Every control-form body below propagates ANY
  * non-`"normal"` signal from `executeStatements` straight back up — including `"return"`/`"stop"`
@@ -2020,30 +2032,36 @@ function callProcedureAsValue(
  */
 function executeStatements(
   statements: readonly StatementNode[],
-  env: Environment,
+  environment: Environment,
 ): ExecSignal {
   for (const statement of statements) {
-    const limitDiagnostic = checkExecutionLimits(env, statement.source_span);
+    const limitDiagnostic = checkExecutionLimits(
+      environment,
+      statement.source_span,
+    );
     if (limitDiagnostic) {
       return halt(limitDiagnostic);
     }
-    env.events.push({
-      seq: env.events.length,
+    environment.events.push({
+      seq: environment.events.length,
       kind: "instruction",
       source_span: statement.source_span,
       payload: { statement_kind: statement.kind } satisfies InstructionPayload,
     });
 
     if (statement.kind === "Assign") {
-      const result = executeAssign(statement, env);
+      const result = executeAssign(statement, environment);
       if (!result.ok) {
         return halt(result.diagnostic);
       }
       continue;
     }
 
-    if (isProcedureCallStatement(statement, env.procedures)) {
-      const outcome = runProcedure(statement as CallNode | ParenCallNode, env);
+    if (isProcedureCallStatement(statement, environment.procedures)) {
+      const outcome = runProcedure(
+        statement as CallNode | ParenCallNode,
+        environment,
+      );
       if (!outcome.ok) {
         return halt(outcome.diagnostic);
       }
@@ -2068,13 +2086,13 @@ function executeStatements(
       // operand's expression kind.
       if (
         statement.args.every((arg) =>
-          isSupportedExpression(arg, env.procedures),
+          isSupportedExpression(arg, environment.procedures),
         )
       ) {
         const values: OLValue[] = [];
         let failure: Diagnostic | undefined;
         for (const arg of statement.args) {
-          const result = evaluate(arg, env);
+          const result = evaluate(arg, environment);
           if (!result.ok) {
             failure = result.diagnostic;
             break;
@@ -2084,8 +2102,8 @@ function executeStatements(
         if (failure) {
           return halt(failure);
         }
-        env.events.push({
-          seq: env.events.length,
+        environment.events.push({
+          seq: environment.events.length,
           kind: "print",
           source_span: statement.source_span,
           payload: { values } satisfies PrintPayload,
@@ -2096,7 +2114,7 @@ function executeStatements(
 
     const showOrRandomizeOutcome = dispatchShowOrRandomizeCommand(
       statement,
-      env,
+      environment,
     );
     if (showOrRandomizeOutcome !== NOT_A_SHOW_OR_RANDOMIZE_COMMAND) {
       if (showOrRandomizeOutcome) {
@@ -2105,7 +2123,7 @@ function executeStatements(
       continue;
     }
 
-    const turtleOutcome = dispatchTurtleCommand(statement, env);
+    const turtleOutcome = dispatchTurtleCommand(statement, environment);
     if (turtleOutcome !== NOT_A_TURTLE_COMMAND) {
       if (turtleOutcome) {
         return turtleOutcome;
@@ -2114,15 +2132,15 @@ function executeStatements(
     }
 
     if (statement.kind === "Return") {
-      if (!isSupportedExpression(statement.value, env.procedures)) {
+      if (!isSupportedExpression(statement.value, environment.procedures)) {
         continue;
       }
-      const result = evaluate(statement.value, env);
+      const result = evaluate(statement.value, environment);
       if (!result.ok) {
         return halt(result.diagnostic);
       }
-      env.events.push({
-        seq: env.events.length,
+      environment.events.push({
+        seq: environment.events.length,
         kind: "return",
         source_span: statement.source_span,
         payload: { value: result.value } satisfies ReturnPayload,
@@ -2140,10 +2158,10 @@ function executeStatements(
     }
 
     if (statement.kind === "Throw") {
-      if (!isSupportedExpression(statement.value, env.procedures)) {
+      if (!isSupportedExpression(statement.value, environment.procedures)) {
         continue;
       }
-      const result = evaluate(statement.value, env);
+      const result = evaluate(statement.value, environment);
       if (!result.ok) {
         return halt(result.diagnostic);
       }
@@ -2155,17 +2173,21 @@ function executeStatements(
     }
 
     if (statement.kind === "If") {
-      if (!isSupportedExpression(statement.condition, env.procedures)) {
+      if (!isSupportedExpression(statement.condition, environment.procedures)) {
         continue;
       }
-      const condition = evaluateCondition(statement.condition, env, "if");
+      const condition = evaluateCondition(
+        statement.condition,
+        environment,
+        "if",
+      );
       if (!condition.ok) {
         return halt(condition.diagnostic);
       }
       const branch = condition.value
         ? statement.thenBody.body
         : (statement.elseBody?.body ?? []);
-      const signal = executeStatements(branch, env);
+      const signal = executeStatements(branch, environment);
       if (signal.kind !== "normal") {
         return signal;
       }
@@ -2173,25 +2195,29 @@ function executeStatements(
     }
 
     if (statement.kind === "While") {
-      if (!isSupportedExpression(statement.condition, env.procedures)) {
+      if (!isSupportedExpression(statement.condition, environment.procedures)) {
         continue;
       }
       for (;;) {
         const limitDiagnostic = checkExecutionLimits(
-          env,
+          environment,
           statement.source_span,
         );
         if (limitDiagnostic) {
           return halt(limitDiagnostic);
         }
-        const condition = evaluateCondition(statement.condition, env, "while");
+        const condition = evaluateCondition(
+          statement.condition,
+          environment,
+          "while",
+        );
         if (!condition.ok) {
           return halt(condition.diagnostic);
         }
         if (!condition.value) {
           break;
         }
-        const signal = executeStatements(statement.body.body, env);
+        const signal = executeStatements(statement.body.body, environment);
         if (signal.kind !== "normal") {
           return signal;
         }
@@ -2200,10 +2226,10 @@ function executeStatements(
     }
 
     if (statement.kind === "Repeat") {
-      if (!isSupportedExpression(statement.count, env.procedures)) {
+      if (!isSupportedExpression(statement.count, environment.procedures)) {
         continue;
       }
-      const countResult = evaluate(statement.count, env);
+      const countResult = evaluate(statement.count, environment);
       if (!countResult.ok) {
         return halt(countResult.diagnostic);
       }
@@ -2225,15 +2251,15 @@ function executeStatements(
       }
       for (let turn = 1; turn <= whole.value; turn++) {
         const limitDiagnostic = checkExecutionLimits(
-          env,
+          environment,
           statement.source_span,
         );
         if (limitDiagnostic) {
           return halt(limitDiagnostic);
         }
-        env.repeatTurns.push(turn);
-        const signal = executeStatements(statement.body.body, env);
-        env.repeatTurns.pop();
+        environment.repeatTurns.push(turn);
+        const signal = executeStatements(statement.body.body, environment);
+        environment.repeatTurns.pop();
         if (signal.kind !== "normal") {
           return signal;
         }
@@ -2244,17 +2270,17 @@ function executeStatements(
     if (statement.kind === "Forever") {
       let turn = 1;
       while (
-        env.foreverIterationLimit === undefined ||
-        turn <= env.foreverIterationLimit
+        environment.foreverIterationLimit === undefined ||
+        turn <= environment.foreverIterationLimit
       ) {
         const limitDiagnostic = checkExecutionLimits(
-          env,
+          environment,
           statement.source_span,
         );
         if (limitDiagnostic) {
           return halt(limitDiagnostic);
         }
-        const signal = executeStatements(statement.body.body, env);
+        const signal = executeStatements(statement.body.body, environment);
         if (signal.kind !== "normal") {
           return signal;
         }
@@ -2272,10 +2298,10 @@ function executeStatements(
           );
         }
       }
-      if (!isSupportedExpression(statement.iterable, env.procedures)) {
+      if (!isSupportedExpression(statement.iterable, environment.procedures)) {
         continue;
       }
-      const iterableResult = evaluate(statement.iterable, env);
+      const iterableResult = evaluate(statement.iterable, environment);
       if (!iterableResult.ok) {
         return halt(iterableResult.diagnostic);
       }
@@ -2289,7 +2315,7 @@ function executeStatements(
       }
       for (const element of iterableResult.value) {
         const limitDiagnostic = checkExecutionLimits(
-          env,
+          environment,
           statement.source_span,
         );
         if (limitDiagnostic) {
@@ -2301,7 +2327,7 @@ function executeStatements(
         }
         const signal = executeStatements(
           statement.body.body,
-          pushLoopFrame(env, bound.bindings),
+          pushLoopFrame(environment, bound.bindings),
         );
         if (signal.kind !== "normal") {
           return signal;
@@ -2312,14 +2338,14 @@ function executeStatements(
 
     if (statement.kind === "ForRange") {
       if (
-        !isSupportedExpression(statement.from, env.procedures) ||
-        !isSupportedExpression(statement.to, env.procedures) ||
+        !isSupportedExpression(statement.from, environment.procedures) ||
+        !isSupportedExpression(statement.to, environment.procedures) ||
         (statement.by !== undefined &&
-          !isSupportedExpression(statement.by, env.procedures))
+          !isSupportedExpression(statement.by, environment.procedures))
       ) {
         continue;
       }
-      const fromResult = evaluate(statement.from, env);
+      const fromResult = evaluate(statement.from, environment);
       if (!fromResult.ok) {
         return halt(fromResult.diagnostic);
       }
@@ -2331,7 +2357,7 @@ function executeStatements(
       if (!from.ok) {
         return halt(from.diagnostic);
       }
-      const toResult = evaluate(statement.to, env);
+      const toResult = evaluate(statement.to, environment);
       if (!toResult.ok) {
         return halt(toResult.diagnostic);
       }
@@ -2341,7 +2367,7 @@ function executeStatements(
       }
       let step = 1;
       if (statement.by !== undefined) {
-        const byResult = evaluate(statement.by, env);
+        const byResult = evaluate(statement.by, environment);
         if (!byResult.ok) {
           return halt(byResult.diagnostic);
         }
@@ -2381,7 +2407,7 @@ function executeStatements(
           break;
         }
         const limitDiagnostic = checkExecutionLimits(
-          env,
+          environment,
           statement.source_span,
         );
         if (limitDiagnostic) {
@@ -2389,7 +2415,10 @@ function executeStatements(
         }
         const signal = executeStatements(
           statement.body.body,
-          pushLoopFrame(env, new Map([[statement.variable.name, current]])),
+          pushLoopFrame(
+            environment,
+            new Map([[statement.variable.name, current]]),
+          ),
         );
         if (signal.kind !== "normal") {
           return signal;
@@ -2514,13 +2543,13 @@ export function runProgram(
     return { events: [], diagnostics };
   }
 
-  const env = createExecutionEnvironment(
+  const environment = createExecutionEnvironment(
     program,
     foreverIterationLimit,
     options,
     source,
   );
-  const signal = executeStatements(program.body, env);
+  const signal = executeStatements(program.body, environment);
   const diagnostic =
     signal.kind === "halt"
       ? signal.diagnostic
@@ -2529,7 +2558,10 @@ export function runProgram(
         : signal.kind === "stop"
           ? runtimeDiag.stopOutsideProc(signal.source_span)
           : undefined;
-  return { events: env.events, diagnostics: diagnostic ? [diagnostic] : [] };
+  return {
+    events: environment.events,
+    diagnostics: diagnostic ? [diagnostic] : [],
+  };
 }
 
 /**
