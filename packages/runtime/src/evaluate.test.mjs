@@ -233,6 +233,9 @@ test("isSupportedExpression rejects expression kinds and callees this issue does
     isSupportedExpression(parseExpr("(5 is between 1 and :ages.tom)")),
     false,
   );
+  // A dict literal is parseable (issue #149) but not yet runtime-supported — its own evaluator
+  // slice is still blocked.
+  assert.equal(isSupportedExpression(parseExpr("{ a: 1 }")), false);
 });
 
 test("throws for a call to a callee this issue does not implement yet", () => {
@@ -253,4 +256,9 @@ test("throws when a call is missing an argument the operator requires", () => {
     args: [{ kind: "NumberLit", source_span: span, value: 1 }],
   };
   assert.throws(() => evaluate(call), /no argument at position 1/);
+});
+
+test("throws when evaluate() is called directly on a DictLit (issue #149's evaluator slice is still blocked)", () => {
+  const dictLit = parseExpr("{ a: 1 }");
+  assert.throws(() => evaluate(dictLit), /DictLit.*not implemented/);
 });

@@ -14,8 +14,8 @@
 //     (struct declaration + constructor calls), and field-name (field-list declaration + known
 //     `.field` access) — plus graceful degradation to `primitive` for unresolved names.
 //
-// The dict-*literal* half of `dict-key` (`{ key: value }`) is still deferred to #149: `{ }` has
-// no parser production at all yet, so there is nothing to disambiguate there.
+// The dict-*literal* half of `dict-key` (`{ key: value }`) is covered alongside the selector
+// half (issue #149): both share the identical bare-identifier-vs-quoted-word disambiguation.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -133,12 +133,13 @@ test("bracket: a list literal's brackets still resolve when a trailing newline f
   assert.equal(brackets[1].role, "list");
 });
 
-test("brace: dict-literal braces classify as brace (even though dict literals do not parse yet)", () => {
-  assert.deepEqual(classes("print {1 2}"), [
+test("brace: dict-literal braces classify as brace", () => {
+  assert.deepEqual(classes("print {a: 1}"), [
     ["primitive", "print", undefined],
     ["brace", "{", undefined],
+    ["dict-key", "a", undefined],
+    ["operator", ":", undefined],
     ["number", "1", undefined],
-    ["number", "2", undefined],
     ["brace", "}", undefined],
   ]);
 });
@@ -207,22 +208,108 @@ test("dict-key: a reserved word used as a bare selector key is still dict-key, n
   assert.equal(key.class, "dict-key");
 });
 
-test("deferred: a dict-literal's `{ key: value }` key is not classified dict-key — dict literals do not parse at all yet (issue #149)", () => {
-  // `{ }` has no parser production (ol-unmatched-brace) and a standalone `:` key-separator is
-  // dropped as ol-bad-token, so `field` below is just an ordinary bare name (primitive), and the
-  // braces get their plain lexical `brace` class with no special role — highlight() must still
-  // not throw on this input, matching parse()'s own never-throws contract.
-  assert.doesNotThrow(() => OL.highlight("print { field: 6 }", doc));
+test("dict-key: a dict-literal's bare key classifies as dict-key, its `:` separator as operator", () => {
   const tokens = OL.highlight("print { field: 6 }", doc);
   const field = tokens.find((token) => token.text === "field");
-  assert.equal(field.class, "primitive");
-  const braces = tokens.filter(
-    (token) => token.text === "{" || token.text === "}",
+  assert.equal(field.class, "dict-key");
+  const colon = tokens.find((token) => token.text === ":");
+  assert.equal(colon.class, "operator");
+});
+
+test("dict-key: a dict-literal's number key stays number, not dict-key", () => {
+  const tokens = OL.highlight('print { 1: "one" }', doc);
+  const numberKey = tokens.find((token) => token.text === "1");
+  assert.equal(numberKey.class, "number");
+});
+
+// --- Glued dict-entry colon (`{ a:foo }`, issue #149) --------------------------------------
+//
+// A dict-entry's `:` with no gap before its value's leading identifier lexes as one raw
+// `variable`-kind token (the same ambiguity `parser.ts`'s `splitGluedColonToken` resolves for
+// parsing). `highlight()` never re-lexes its own copy or shares the parser's internal token
+// array, so it must independently split that one raw token back into an `operator` `:` plus
+// the value's own class (spec/tooling.md:39,41) rather than emitting a single `:variable` token.
+
+test("dict-key: a glued dict-entry colon splits into operator `:` plus the value's own class", () => {
+  assert.deepEqual(classes("print { a:foo }"), [
+    ["primitive", "print", undefined],
+    ["brace", "{", undefined],
+    ["dict-key", "a", undefined],
+    ["operator", ":", undefined],
+    ["primitive", "foo", undefined],
+    ["brace", "}", undefined],
+  ]);
+});
+
+test("dict-key: a glued dict-entry colon's split operator/name tokens have exact, adjacent spans", () => {
+  const tokens = OL.highlight("print { a:foo }", doc);
+  const colon = tokens.find((token) => token.text === ":");
+  const value = tokens.find((token) => token.text === "foo");
+  // "print { a:foo }" — "a" is columns 9-9, ":" is column 10, "foo" is columns 11-13.
+  assert.deepEqual(colon.source_span, span([1, 10], [1, 11]));
+  assert.deepEqual(value.source_span, span([1, 11], [1, 14]));
+});
+
+test("dict-key: a glued dict-entry value that is a reserved word (boolean literal) still splits", () => {
+  assert.deepEqual(classes("print { a:true }"), [
+    ["primitive", "print", undefined],
+    ["brace", "{", undefined],
+    ["dict-key", "a", undefined],
+    ["operator", ":", undefined],
+    ["keyword", "true", undefined],
+    ["brace", "}", undefined],
+  ]);
+});
+
+test("dict-key: a glued dict-entry value resolving to a user-defined procedure classifies procedure-name", () => {
+  const source = "define double :n\n  return :n\nend\nprint { a:double 1 }";
+  const { diagnostics } = OL.parse(source, doc);
+  assert.deepEqual(diagnostics, []);
+  const tokens = OL.highlight(source, doc);
+  const glued = tokens.find(
+    (token) => token.text === "double" && token.class === "procedure-name",
   );
-  assert.deepEqual(
-    braces.map((token) => token.class),
-    ["brace", "brace"],
+  assert.ok(
+    glued,
+    "expected the glued dict value to resolve as procedure-name",
   );
+});
+
+test("dict-key: a spaced dict-entry colon is unaffected by the glued-colon split logic", () => {
+  assert.deepEqual(classes("print { a: foo }"), [
+    ["primitive", "print", undefined],
+    ["brace", "{", undefined],
+    ["dict-key", "a", undefined],
+    ["operator", ":", undefined],
+    ["primitive", "foo", undefined],
+    ["brace", "}", undefined],
+  ]);
+});
+
+test("dict-key: a glued dict-entry value that is a word-spelled operator classifies operator, not primitive", () => {
+  assert.deepEqual(classes("print { a:not true }"), [
+    ["primitive", "print", undefined],
+    ["brace", "{", undefined],
+    ["dict-key", "a", undefined],
+    ["operator", ":", undefined],
+    ["operator", "not", undefined],
+    ["keyword", "true", undefined],
+    ["brace", "}", undefined],
+  ]);
+});
+
+test("dict-key: multiple glued dict entries each split their own colon independently", () => {
+  assert.deepEqual(classes("print { a:1 b:2 }"), [
+    ["primitive", "print", undefined],
+    ["brace", "{", undefined],
+    ["dict-key", "a", undefined],
+    ["operator", ":", undefined],
+    ["number", "1", undefined],
+    ["dict-key", "b", undefined],
+    ["operator", ":", undefined],
+    ["number", "2", undefined],
+    ["brace", "}", undefined],
+  ]);
 });
 
 // --- Bracket delimiter roles (spec/tooling.md:71-81) --------------------------------------

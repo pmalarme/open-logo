@@ -1,0 +1,3 @@
+# An empty dict literal `{ }` (matched braces, zero entries) is a valid empty dict, not an error
+# (spec/error-model.md): only a genuinely unmatched `{`/`}` reports ol-unmatched-brace.
+print { }

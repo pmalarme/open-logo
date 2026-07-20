@@ -1,0 +1,19 @@
+{
+  "description": "A `{` with no matching `}` before end of file reports ol-unmatched-brace, anchored at the opening delimiter (spec/error-model.md).",
+  "profiles": ["core-language", "data"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unmatched-brace",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-unmatched-brace",
+        "start": [3, 7],
+        "end": [3, 8]
+      },
+      "params": { "delimiter": "{" },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

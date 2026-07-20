@@ -2030,6 +2030,41 @@ function callProcedureAsValue(
  * their body. A loop whose body is empty gets its own equivalent check directly in its own pass
  * (see e.g. `While`/`Forever` below) since it would otherwise never reach this loop at all.
  */
+/**
+ * Executes a statement-position user-procedure call (`star 5 100`) once
+ * {@link isProcedureCallStatement} has confirmed it. Extracted into its own function for the same
+ * reason {@link executeShowCall}'s doc comment gives: `executeStatements` recurses once per
+ * procedure call, so keeping this argument-gating logic out of its body keeps its own stack frame
+ * size fixed — inlining an `isSupportedExpression` gate directly there pushed the 600-deep
+ * `recursionDepthLimit: 1000` regression test (`execution-budget.test.mjs`) over the native
+ * call-stack limit.
+ *
+ * Unlike an expression-position call (`print area :r`), which only ever reaches `runProcedure`
+ * after `evaluate.ts`'s own `isSupportedExpression` gate already checked every argument, a
+ * statement-position call is dispatched straight from `executeStatements` — so this is the one
+ * call site that must gate its own arguments. An argument this issue's evaluator cannot yet give
+ * meaning to (e.g. a dict literal, `star { a: 1 }`) leaves the whole call un-evaluated, same as
+ * the "instruction event but no evaluation" convention documented above, rather than reaching
+ * `evaluate()` and throwing.
+ */
+function executeProcedureCallStatement(
+  call: CallNode | ParenCallNode,
+  environment: Environment,
+): ExecSignal {
+  if (
+    !call.args.every((arg) =>
+      isSupportedExpression(arg, environment.procedures),
+    )
+  ) {
+    return NORMAL_SIGNAL;
+  }
+  const outcome = runProcedure(call, environment);
+  if (!outcome.ok) {
+    return halt(outcome.diagnostic);
+  }
+  return NORMAL_SIGNAL;
+}
+
 function executeStatements(
   statements: readonly StatementNode[],
   environment: Environment,
@@ -2058,12 +2093,12 @@ function executeStatements(
     }
 
     if (isProcedureCallStatement(statement, environment.procedures)) {
-      const outcome = runProcedure(
+      const signal = executeProcedureCallStatement(
         statement as CallNode | ParenCallNode,
         environment,
       );
-      if (!outcome.ok) {
-        return halt(outcome.diagnostic);
+      if (signal.kind === "halt") {
+        return signal;
       }
       continue;
     }

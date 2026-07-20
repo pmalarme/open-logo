@@ -78,7 +78,7 @@ export const parseDiag = {
       "ol-unmatched-brace",
       span,
       { delimiter },
-      `this ${delimiter} doesn't have a matching brace, and core openlogo has no use for { }.`,
+      `this ${delimiter} doesn't have a matching brace. dictionary literals need both { and }.`,
     );
   },
 
