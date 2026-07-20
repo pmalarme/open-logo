@@ -314,4 +314,24 @@ The package is now genuinely servable, not just headless-testable:
   not yet the full diagnostics pane. `Next step` was removed from the 0.1.0 UI (#305); the
   headless `step()` machinery it drove stays intact for Wave 1 (#302) to rebuild the control on.
 
+## Side-by-side code/run layout (#313)
+
+Presentation-only slice (epic #290, Studio UX polish milestone): from a 48rem (~768px) viewport up,
+the editor and the turtle Canvas render **side by side** — the editor and run controls stack in a
+left column, the Canvas fills a right column beside them, and output/diagnostics stay full-width
+below — so a learner sees code and the drawing it produces at the same time. Narrower (mobile)
+viewports keep the original single-column stack.
+
+- Pure CSS (`web/styles.css`): a `grid-template-areas` layout on `<main>`, switched at one
+  `@media (min-width: 48rem)` breakpoint. `index.html`'s `<section>`s each gained a `pane-*` class
+  purely to name their grid area — no element was reordered, and every existing `id`/`role`/
+  `aria-label` is unchanged, so #279's `REPL_LANDMARK_ROLES`/`REPL_FOCUS_ORDER` contracts (and their
+  `index.test.mjs` proofs) still hold: keyboard tab order still follows DOM order, which reads
+  editor → run controls → Canvas → output → diagnostics in both layouts.
+- The Canvas gained `max-width: 100%; height: auto` so it scales down to fit its column on
+  narrower screens; its `width`/`height` attributes (and thus the turtle's actual drawing
+  resolution `@openlogo/turtle` paints at) are untouched — purely a visual scale.
+- No `src/` or `web/main.ts` changes: there is no layout *decision* logic to test — CSS alone
+  decides when to switch columns, so `web/main.ts` stays exactly as thin and branch-free as before.
+
 

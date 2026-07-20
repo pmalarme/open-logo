@@ -39,7 +39,7 @@
       class="sr-only"
     ></div>
     <main>
-      <section aria-label="Editor">
+      <section class="pane-editor" aria-label="Editor">
         <textarea
           id="editor"
           rows="10"
@@ -49,7 +49,7 @@
           aria-label="OpenLogo source editor"
         ></textarea>
       </section>
-      <section aria-label="Run controls" role="toolbar">
+      <section class="pane-controls" aria-label="Run controls" role="toolbar">
         <button id="run-button" type="button">Run</button>
         <button id="stop-button" type="button">Stop</button>
         <button id="reset-button" type="button">Reset</button>
@@ -72,7 +72,7 @@
           aria-label="Run status"
         ></p>
       </section>
-      <section aria-label="Turtle canvas">
+      <section class="pane-turtle" aria-label="Turtle canvas">
         <canvas
           id="turtle-canvas"
           width="500"
@@ -88,10 +88,10 @@
           aria-label="Turtle state"
         ></p>
       </section>
-      <section aria-label="Output">
+      <section class="pane-output" aria-label="Output">
         <pre id="output"></pre>
       </section>
-      <section aria-label="Diagnostics">
+      <section class="pane-diagnostics" aria-label="Diagnostics">
         <ul
           id="diagnostics-list"
           role="log"

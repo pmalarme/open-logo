@@ -72,12 +72,31 @@ header h1 {
   padding: 0 0.35em;
 }
 
+/*
+ * #313 — side-by-side code/run layout. Narrow (default/mobile) viewports keep the original
+ * single-column stack, in DOM order (editor, controls, turtle canvas, output, diagnostics) — the
+ * same order #279's REPL_FOCUS_ORDER/index.test.mjs already pin, so no reflow ever separates
+ * visual order from tab order there. From the 48rem (~768px) breakpoint up (media queries cannot
+ * reference custom properties, so the value is repeated in the @media rule below), a two-column
+ * grid places the editor above the run controls in the left column and the turtle canvas spans
+ * both rows in the right column — visually adjacent to the editor it draws for, while output and
+ * diagnostics stay full-width below. Only `grid-template-areas`/`-columns` change between the two
+ * layouts; every pane keeps its existing id/role/aria-label, so #279's landmarks and focus order
+ * are untouched by this purely presentational, CSS-only slice.
+ */
 main {
   display: grid;
   gap: 1rem;
   padding: 1rem 1.5rem 2rem;
   max-width: 960px;
   margin: 0 auto;
+  grid-template-columns: 1fr;
+  grid-template-areas:
+    "editor"
+    "controls"
+    "turtle"
+    "output"
+    "diagnostics";
 }
 
 main section {
@@ -85,6 +104,43 @@ main section {
   border: 1px solid var(--ol-border);
   border-radius: 8px;
   padding: 0.75rem 1rem;
+}
+
+.pane-editor {
+  grid-area: editor;
+}
+
+.pane-controls {
+  grid-area: controls;
+}
+
+.pane-turtle {
+  grid-area: turtle;
+}
+
+.pane-output {
+  grid-area: output;
+}
+
+.pane-diagnostics {
+  grid-area: diagnostics;
+}
+
+@media (min-width: 48rem) {
+  main {
+    max-width: 1200px;
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "editor turtle"
+      "controls turtle"
+      "output output"
+      "diagnostics diagnostics";
+  }
+
+  .pane-turtle {
+    /* Keeps the canvas vertically centered beside the shorter editor+controls column. */
+    align-self: start;
+  }
 }
 
 #editor {
@@ -149,6 +205,10 @@ main section {
   border-radius: 6px;
   background: var(--ol-surface);
   display: block;
+  /* Scale down to fit its pane on narrow columns; the backing width/height attributes (and thus
+     the turtle's actual drawing resolution) are untouched — this is a visual-only scale. */
+  max-width: 100%;
+  height: auto;
 }
 
 #turtle-state {
