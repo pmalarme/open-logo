@@ -580,6 +580,17 @@ A step is the span from one `instruction` event to the next. The `instruction`
 event is the unit of "one step"; effect events caused by that instruction follow
 it before the next `instruction`.
 
+This is the raw event stream and the unit used by conformance and by the
+educational commands (`why`, `debug`, `explain`): every statement — including the
+zero-effect headers of structural control forms and each `procedure-enter` — is a
+distinct step in the stream. A renderer's manual and visual **step** control MAY
+present a coarser granularity by folding leading events that produce no observable
+Canvas change — zero-effect `instruction` containers, `procedure-enter`, and
+non-drawing effect events such as `print` and `sound` — into the following visible
+step; that is a presentation rule (see [Animation and execution control](rendering.md#animation-and-execution-control))
+and does not change the event stream, conformance semantics, or the educational
+commands.
+
 Normative `kind` values:
 
 | Timing | Kinds |
