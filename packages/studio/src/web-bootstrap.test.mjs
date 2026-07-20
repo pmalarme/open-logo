@@ -9,6 +9,8 @@ const {
   createTimeoutScheduler,
   formatOutput,
   selectScheduler,
+  assertPresent,
+  syncTextValue,
   createKeyValueStorageAdapter,
   ANNOUNCER_POLITE_ELEMENT_ID,
   ANNOUNCER_ASSERTIVE_ELEMENT_ID,
@@ -187,9 +189,9 @@ test("selectScheduler picks the timeout scheduler when reduced motion is not req
 
 test("createKeyValueStorageAdapter's save delegates to the storage's setItem", () => {
   const calls = [];
-  const adapter = createKeyValueStorageAdapter({
+  const adapter = createKeyValueStorageAdapter(() => ({
     setItem: (key, value) => calls.push(["setItem", key, value]),
-  });
+  }));
 
   adapter.save("openlogo.studio.source", "forward 10");
 
@@ -199,12 +201,12 @@ test("createKeyValueStorageAdapter's save delegates to the storage's setItem", (
 });
 
 test("createKeyValueStorageAdapter's load delegates to the storage's getItem and forwards null", () => {
-  const adapterWithValue = createKeyValueStorageAdapter({
+  const adapterWithValue = createKeyValueStorageAdapter(() => ({
     getItem: () => "forward 10",
-  });
-  const adapterWithNothingStored = createKeyValueStorageAdapter({
+  }));
+  const adapterWithNothingStored = createKeyValueStorageAdapter(() => ({
     getItem: () => null,
-  });
+  }));
 
   assert.equal(adapterWithValue.load("openlogo.studio.source"), "forward 10");
   assert.equal(adapterWithNothingStored.load("openlogo.studio.source"), null);
@@ -212,13 +214,80 @@ test("createKeyValueStorageAdapter's load delegates to the storage's getItem and
 
 test("createKeyValueStorageAdapter's clear delegates to the storage's removeItem", () => {
   const calls = [];
-  const adapter = createKeyValueStorageAdapter({
+  const adapter = createKeyValueStorageAdapter(() => ({
     removeItem: (key) => calls.push(["removeItem", key]),
-  });
+  }));
 
   adapter.clear("openlogo.studio.source");
 
   assert.deepEqual(calls, [["removeItem", "openlogo.studio.source"]]);
+});
+
+test("createKeyValueStorageAdapter defers calling its storage getter until save/load/clear run", () => {
+  let getStorageCalls = 0;
+  const getStorage = () => {
+    getStorageCalls += 1;
+    throw new Error("localStorage is disabled");
+  };
+
+  const adapter = createKeyValueStorageAdapter(getStorage);
+  assert.equal(
+    getStorageCalls,
+    0,
+    "constructing the adapter must not access storage yet",
+  );
+
+  assert.throws(() => adapter.save("k", "v"), /localStorage is disabled/);
+  assert.throws(() => adapter.load("k"), /localStorage is disabled/);
+  assert.throws(() => adapter.clear("k"), /localStorage is disabled/);
+  assert.equal(getStorageCalls, 3);
+});
+
+test("assertPresent returns the value when the default null-check predicate passes", () => {
+  assert.equal(assertPresent("hello", "greeting"), "hello");
+});
+
+test("assertPresent throws a descriptive error when the value is null", () => {
+  assert.throws(
+    () => assertPresent(null, "editor"),
+    /index\.html is missing an expected element: editor/,
+  );
+});
+
+test("assertPresent throws a descriptive error when the value is undefined", () => {
+  assert.throws(
+    () => assertPresent(undefined, "2-D canvas context"),
+    /index\.html is missing an expected element: 2-D canvas context/,
+  );
+});
+
+test("assertPresent returns the value when a custom predicate passes", () => {
+  const isPositiveNumber = (value) => typeof value === "number" && value > 0;
+  assert.equal(assertPresent(42, "count", isPositiveNumber), 42);
+});
+
+test("assertPresent throws a descriptive error when a custom predicate fails", () => {
+  const isPositiveNumber = (value) => typeof value === "number" && value > 0;
+  assert.throws(
+    () => assertPresent(-1, "count", isPositiveNumber),
+    /index\.html is missing an expected element: count/,
+  );
+});
+
+test("syncTextValue writes nextValue when it differs from the target's current value", () => {
+  const target = { value: "old" };
+  syncTextValue(target, "new");
+  assert.equal(target.value, "new");
+});
+
+test("syncTextValue leaves the target untouched when nextValue matches the current value", () => {
+  // A frozen target makes ANY write throw (this module is strict-mode ESM), so a clean run
+  // proves `syncTextValue` skipped the assignment rather than merely reassigning the same
+  // string back — without needing an accessor stub that would sit at 0% function coverage.
+  const target = Object.freeze({ value: "same" });
+
+  assert.doesNotThrow(() => syncTextValue(target, "same"));
+  assert.equal(target.value, "same");
 });
 
 test("ANNOUNCER_POLITE_ELEMENT_ID and ANNOUNCER_ASSERTIVE_ELEMENT_ID are distinct fixed ids", () => {

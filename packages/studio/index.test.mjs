@@ -23,17 +23,24 @@ const packageDir = path.dirname(fileURLToPath(import.meta.url));
 const indexHtml = readFileSync(path.join(packageDir, "index.html"), "utf8");
 const mainTs = readFileSync(path.join(packageDir, "web", "main.ts"), "utf8");
 
-test("index.html maps every REPL_LANDMARK_ROLES role/label pair onto real markup", () => {
+/** Every opening tag `<...>` in `index.html`, so role/label assertions can check both attributes
+ * are declared on the *same* element rather than merely appearing somewhere in the file. */
+const openingTags = indexHtml.match(/<[a-zA-Z][^>]*>/g);
+assert.ok(
+  openingTags,
+  "index.html should contain at least one opening HTML tag",
+);
+
+test("index.html maps every REPL_LANDMARK_ROLES role/label pair onto the same element", () => {
   for (const landmark of OL.REPL_LANDMARK_ROLES) {
-    assert.match(
-      indexHtml,
-      new RegExp(`role="${landmark.role}"`),
-      `expected a role="${landmark.role}" element for the ${landmark.region} region`,
+    const matchingTag = openingTags.find(
+      (tag) =>
+        tag.includes(`role="${landmark.role}"`) &&
+        tag.includes(`aria-label="${landmark.label}"`),
     );
-    assert.match(
-      indexHtml,
-      new RegExp(`aria-label="${landmark.label}"`),
-      `expected an aria-label="${landmark.label}" element for the ${landmark.region} region`,
+    assert.ok(
+      matchingTag,
+      `expected a single element with role="${landmark.role}" AND aria-label="${landmark.label}" for the ${landmark.region} region`,
     );
   }
 });
@@ -122,15 +129,38 @@ test("web/main.ts wires reduced motion via matchMedia and selectScheduler, never
 
 test("web/main.ts wires localStorage persistence via attachPersistence + createKeyValueStorageAdapter", () => {
   assert.match(mainTs, /attachPersistence\(/);
-  assert.match(mainTs, /createKeyValueStorageAdapter\(window\.localStorage\)/);
+  assert.match(
+    mainTs,
+    /createKeyValueStorageAdapter\(\s*\(\)\s*=>\s*window\.localStorage\)/,
+  );
 });
 
 test("web/main.ts wires the screen-reader announcer and the non-visual turtle-state region", () => {
   assert.match(mainTs, /createA11yAnnouncer\(/);
+  assert.match(mainTs, /\.subscribeAnnouncements\(/);
   assert.match(mainTs, /selectAnnouncerElementId\(/);
+  assert.match(
+    mainTs,
+    /announcerElementsById\[elementId\]\.textContent\s*=\s*announcement\.message/,
+  );
   assert.match(mainTs, /createTurtleStateRegion\(/);
+  assert.match(mainTs, /turtleStateRegion\.getText\(\)/);
+  assert.match(mainTs, /turtleStateRegion\.subscribeText\(/);
 });
 
 test("web/main.ts imports the branding stylesheet", () => {
   assert.match(mainTs, /import\s+"\.\/styles\.css"/);
+});
+
+test("web/main.ts asserts every DOM element lookup via the tested assertPresent helper, not a manual if/throw", () => {
+  assert.match(mainTs, /assertPresent[<(]/);
+  assert.doesNotMatch(
+    mainTs,
+    /throw new Error\(\s*"index\.html is missing an expected element/,
+  );
+});
+
+test("web/main.ts syncs the editor's value via the tested syncTextValue helper, not a manual equality check", () => {
+  assert.match(mainTs, /syncTextValue\(editorElement, next\.source\)/);
+  assert.doesNotMatch(mainTs, /if\s*\(\s*editorElement\.value/);
 });

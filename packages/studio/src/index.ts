@@ -142,10 +142,17 @@
  *   pure function chooses between {@link createTimeoutScheduler}'s paced scheduler and
  *   `@openlogo/turtle`'s synchronous `IMMEDIATE_SCHEDULER`, honoring `spec/rendering.md`'s
  *   reduced-motion requirement.
- * - {@link createKeyValueStorageAdapter} adapts `window.localStorage` into #128's
- *   `StorageAdapter` seam, so {@link attachPersistence} restores/saves the learner's document
- *   text across a real page reload; {@link KeyValueStorage} is the minimal `getItem`/`setItem`/
- *   `removeItem` shape it adapts.
+ * - {@link createKeyValueStorageAdapter} adapts a lazily-resolved `KeyValueStorage` (e.g.
+ *   `() => window.localStorage`) into #128's `StorageAdapter` seam, so {@link attachPersistence}
+ *   restores/saves the learner's document text across a real page reload; {@link KeyValueStorage}
+ *   is the minimal `getItem`/`setItem`/`removeItem` shape it adapts. Resolving the storage lazily
+ *   (once per `save`/`load`/`clear`, not at construction) means even a throwing storage getter
+ *   degrades gracefully through `attachPersistence`'s existing error handling instead of crashing.
+ * - {@link assertPresent} and {@link syncTextValue} keep `web/main.ts`'s remaining DOM-lookup and
+ *   editor-sync decisions out of the entrypoint too: the former turns a `document.getElementById`
+ *   result into a single asserted, narrowed value (throwing a clear error if missing) instead of a
+ *   manual `if`/`throw`; the latter writes the editor's value only when it actually changed, so the
+ *   browser entry never has to branch on either.
  * - `web/main.ts` applies the OpenLogo palette/tagline via a linked stylesheet
  *   (`web/styles.css`); no new `src/` logic is needed for static branding.
  */
@@ -242,11 +249,13 @@ export {
 export type {
   DiagnosticListItem,
   KeyValueStorage,
+  TextValueTarget,
   TimeoutSchedulerTimers,
 } from "./web-bootstrap.js";
 export {
   ANNOUNCER_ASSERTIVE_ELEMENT_ID,
   ANNOUNCER_POLITE_ELEMENT_ID,
+  assertPresent,
   createKeyValueStorageAdapter,
   createTimeoutScheduler,
   DEFAULT_RUN_PROGRAM,
@@ -254,5 +263,6 @@ export {
   NO_DIAGNOSTICS_LABEL,
   selectAnnouncerElementId,
   selectScheduler,
+  syncTextValue,
   toDiagnosticListItems,
 } from "./web-bootstrap.js";
