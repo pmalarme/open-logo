@@ -164,6 +164,7 @@ Match the merged spec exactly. Common mistakes to avoid:
 ## 10. Conventions
 
 - TypeScript 7, ES modules, `strict` on. Public API namespace is **OL**.
+- **Clean, self-explaining names — no abbreviations.** Spell identifiers out (`randomNumberGenerator`, not `rng`; file `random-number-generator.ts`, not `rng.ts`). Follow the repo's casing: kebab-case file names, `camelCase` values/functions, `PascalCase` types. A learner-facing language rewards code a learner could almost read.
 - Prefer ecosystem tooling over hand-rolled scripts. No secrets in code or fixtures.
 - No MCP servers required in v1 (optional Microsoft Learn MCP later for research-heavy agents).
 - When you finish a slice, leave the tree green and the docs/spec cross-links consistent.
