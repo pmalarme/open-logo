@@ -334,4 +334,37 @@ viewports keep the original single-column stack.
 - No `src/` or `web/main.ts` changes: there is no layout *decision* logic to test — CSS alone
   decides when to switch columns, so `web/main.ts` stays exactly as thin and branch-free as before.
 
+**Shell write-set (declared)** — exactly these three files, nothing else:
+`index.html` (adds `pane-*` classes + the extension-slot placeholder below — no reordering, no
+`id`/`role`/`aria-label` change to any existing element), `web/styles.css` (the grid rules above +
+the extension-slot rules below), `README.md` (this section). `src/app-shell.ts` was **not**
+touched — its `"lesson"` region already existed (see below).
+
+### Extension slot for the future lesson pane (#127/M3)
+
+M11 and M3 build toward the same end-state three-pane layout — **Lesson pane (context) | Code
+editor | Run/Canvas** — so this slice reserves that third slot now, CSS-only, so `#127` never has
+to reshape `index.html`/`web/styles.css`/`src/app-shell.ts` again:
+
+- **DOM contract**: `index.html` gains `<section id="lesson-pane" class="pane-lesson"
+  aria-label="Lesson" hidden></section>` as `<main>`'s first child (matching the target reading
+  order). It ships `hidden`, so it has no box, no grid participation, and — critically — is
+  entirely absent from the accessibility tree and the keyboard focus order while empty: nothing to
+  regress, no empty landmark, no focus-order gap (verified — see below).
+- **App-shell contract**: no change needed. `src/app-shell.ts`'s `APP_SHELL_REGIONS` has included
+  `"lesson"` as a named region since #123. A future lesson-pane module mounts exactly like
+  `canvas-view.ts`'s `mountCanvasView` does for `"turtle"`: call `shell.mount("lesson",
+  controller)`, then clear `#lesson-pane`'s `hidden` attribute (e.g.
+  `document.getElementById("lesson-pane").hidden = false`) once it has real content to show.
+- **CSS contract**: `web/styles.css`'s `main:has(.pane-lesson:not([hidden]))` rules are the *only*
+  place the `lesson` grid area is defined — in the narrow layout it inserts a `"lesson"` row above
+  `editor`; from 48rem up it inserts a `minmax(14rem, 22%)` column to the left of the existing
+  editor/turtle columns. Both activate automatically the instant the `hidden` attribute is cleared
+  — no `styles.css` edit required to add the third pane. (`:has()` is supported by every evergreen
+  browser this project targets.)
+- **What #127 still owns**: the lesson-pane module itself, plus updating `src/a11y.ts` to add a
+  `REPL_LANDMARK_ROLES` entry (region `"lesson"`) and any `REPL_FOCUS_ORDER` stops for its own
+  interactive content, and giving `#lesson-pane` (or its rendered content) a real `role`. #313
+  deliberately declares none of that for content that doesn't exist yet — declaring an empty
+  landmark ahead of time would itself be the accessibility regression this slice's DoD forbids.
 

@@ -83,6 +83,15 @@ header h1 {
  * diagnostics stay full-width below. Only `grid-template-areas`/`-columns` change between the two
  * layouts; every pane keeps its existing id/role/aria-label, so #279's landmarks and focus order
  * are untouched by this purely presentational, CSS-only slice.
+ *
+ * Extension slot for the future lesson pane (#127/M3, target end-state
+ * "Lesson | Editor | Run/Canvas"): `#lesson-pane`/`.pane-lesson` in index.html starts `hidden`,
+ * so it has no box and no `grid-area` participation at all — none of the rules below reserve any
+ * space for it while hidden, in either layout. The `main:has(.pane-lesson:not([hidden]))` rules
+ * further down are the *only* place its column/row is defined; they activate automatically the
+ * moment a future lesson-pane module clears that `hidden` attribute, with zero further edits to
+ * this file, index.html, or app-shell.ts (whose "lesson" `RegionName` this reuses, unchanged
+ * since #123). `:has()` is supported by every evergreen browser this project targets.
  */
 main {
   display: grid;
@@ -106,6 +115,10 @@ main section {
   padding: 0.75rem 1rem;
 }
 
+.pane-lesson {
+  grid-area: lesson;
+}
+
 .pane-editor {
   grid-area: editor;
 }
@@ -126,6 +139,18 @@ main section {
   grid-area: diagnostics;
 }
 
+/* The lesson pane is present (its `hidden` attribute was cleared) — reserve its row, stacked
+   above the rest, in the narrow single-column layout. */
+main:has(.pane-lesson:not([hidden])) {
+  grid-template-areas:
+    "lesson"
+    "editor"
+    "controls"
+    "turtle"
+    "output"
+    "diagnostics";
+}
+
 @media (min-width: 48rem) {
   main {
     max-width: 1200px;
@@ -140,6 +165,18 @@ main section {
   .pane-turtle {
     /* Keeps the canvas vertically centered beside the shorter editor+controls column. */
     align-self: start;
+  }
+
+  /* The lesson pane is present — add its column to the left of editor/controls, matching the
+     target end-state "Lesson | Editor | Run/Canvas" three-pane layout. */
+  main:has(.pane-lesson:not([hidden])) {
+    max-width: 1400px;
+    grid-template-columns: minmax(14rem, 22%) 1fr 1fr;
+    grid-template-areas:
+      "lesson editor turtle"
+      "lesson controls turtle"
+      "lesson output output"
+      "lesson diagnostics diagnostics";
   }
 }
 

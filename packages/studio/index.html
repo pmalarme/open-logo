@@ -39,6 +39,24 @@
       class="sr-only"
     ></div>
     <main>
+      <!--
+        #313 extension slot for the future lesson pane (#127/M3): a placeholder that stays
+        `hidden` (fully removed from layout, focus order, and the accessibility tree) until a
+        future lesson-pane module mounts into the app shell's existing "lesson" region
+        (`APP_SHELL_REGIONS` in src/app-shell.ts, unchanged since #123) and clears this `hidden`
+        attribute. `web/styles.css`'s `main:has(.pane-lesson:not([hidden]))` rules already reserve
+        its column/row in both the wide (3-column: lesson | editor+controls | turtle) and narrow
+        (stacked, lesson first) layouts, so mounting a lesson pane needs NO further edits to this
+        file, styles.css, or app-shell.ts. The mounting module is responsible for its own
+        role/aria-label and a REPL_FOCUS_ORDER/REPL_LANDMARK_ROLES entry in src/a11y.ts, since
+        #313 cannot declare an accessible name/role for content that doesn't exist yet.
+      -->
+      <section
+        id="lesson-pane"
+        class="pane-lesson"
+        aria-label="Lesson"
+        hidden
+      ></section>
       <section class="pane-editor" aria-label="Editor">
         <textarea
           id="editor"
