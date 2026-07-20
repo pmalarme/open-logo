@@ -40,3 +40,5 @@ presentation and interaction, never language logic.
 - Run/Stop/Reset/Step go through the runtime **execution budget**; Stop truly cancels.
 - Diagnostics render inline at their `source_span` with did-you-mean; never raw stack traces.
 - Every control is keyboard-operable and screen-reader-labeled; honor reduced-motion.
+- Follow the team agreement's clean-code naming rule (no abbreviations, self-explaining identifiers) — see
+  [`openlogo-team.instructions.md` §10](openlogo-team.instructions.md#10-conventions).
