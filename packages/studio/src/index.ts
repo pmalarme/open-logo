@@ -192,6 +192,24 @@
  *   accessible label + live speed-description text, and its `input` event wiring — a thin
  *   forwarding call into the tested helpers above, never a branch of its own.
  *
+ * #314 adds the run log pane — a history/timeline of every completed run, not just the latest:
+ * - {@link createRunLogController} watches the shared store's `runStatus` and appends one
+ *   {@link RunLogEntry} (id, completion timestamp, terminal status, output, diagnostics) every
+ *   time a run finishes — on its own (`"done"`) or via `stop()`/`ol-limit` (`"stopped"`) — never on
+ *   `reset()`. Entries are only ever appended, never replaced or dropped. See `run-log.ts`'s doc
+ *   comment for the exact `"running"` → `"done"`/`"stopped"` transition this keys off.
+ * - {@link toRunLogListItems} projects the history into ready-to-render {@link RunLogEntryViewItem}s
+ *   (a formatted heading, output text, and diagnostic lines reusing #278's `formatOutput`/
+ *   `toDiagnosticListItems`), always non-empty (a synthetic {@link NO_RUN_LOG_ENTRIES_LABEL}
+ *   placeholder when no run has completed yet), so `web/main.ts` only ever loops unconditionally.
+ * - `index.html`/`web/styles.css` host the run log INSIDE the existing Run controls toolbar
+ *   (`.pane-controls`, `role="toolbar"`) as a final `.run-log-wrapper` child — not a new top-level
+ *   pane — adding no new `role`/`aria-label`/`aria-labelledby` anywhere: #279's
+ *   `REPL_LANDMARK_ROLES`/`REPL_FOCUS_ORDER` contracts are untouched (a sibling section would still
+ *   pick up an implicit ARIA `role="region"` from its `aria-label` alone, per HTML-AAM, which is
+ *   why nesting inside the existing landmark — not merely placing it nearby — is what the issue's
+ *   "existing REPL landmark region, no new landmark" acceptance criterion requires).
+ *
  * #311 gives the run-status region a friendlier, learner-facing label instead of the raw internal
  * state-machine name:
  * - `state-model.ts`'s {@link RunStatus} gains a `"done"` value, distinct from `"idle"`: `run-
@@ -330,3 +348,17 @@ export {
 } from "./turtle-speed.js";
 
 export { mapRunStatusToLabel, RUN_STATUS_LABELS } from "./run-status-label.js";
+
+export type {
+  RunLogController,
+  RunLogControllerOptions,
+  RunLogEntry,
+  RunLogEntryListener,
+  RunLogEntryViewItem,
+} from "./run-log.js";
+export {
+  createRunLogController,
+  NO_RUN_LOG_ENTRIES_LABEL,
+  NO_RUN_OUTPUT_LABEL,
+  toRunLogListItems,
+} from "./run-log.js";

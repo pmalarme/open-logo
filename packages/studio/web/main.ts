@@ -39,6 +39,7 @@ import {
   createEditorController,
   createKeyValueStorageAdapter,
   createRunController,
+  createRunLogController,
   createStudioState,
   createTimeoutScheduler,
   createTurtleStateRegion,
@@ -57,8 +58,14 @@ import {
   SPEED_SLIDER_MIN,
   syncTextValue,
   toDiagnosticListItems,
+  toRunLogListItems,
 } from "../src/index.js";
-import type { DiagnosticListItem, Canvas2DContext } from "../src/index.js";
+import type {
+  DiagnosticListItem,
+  Canvas2DContext,
+  RunLogEntry,
+  RunLogEntryViewItem,
+} from "../src/index.js";
 import type { Diagnostic } from "@openlogo/core";
 import { IMMEDIATE_SCHEDULER } from "@openlogo/turtle";
 
@@ -109,6 +116,10 @@ const outputElement = assertPresent<HTMLElement>(
 const diagnosticsListElement = assertPresent<HTMLElement>(
   document.getElementById("diagnostics-list"),
   "diagnostics-list",
+);
+const runLogElement = assertPresent<HTMLElement>(
+  document.getElementById("run-log"),
+  "run-log",
 );
 const turtleStateElement = assertPresent<HTMLElement>(
   document.getElementById("turtle-state"),
@@ -173,6 +184,8 @@ const runController = createRunController(state, {
 });
 mountRunController(shell, runController);
 
+const runLog = createRunLogController(state);
+
 const announcer = createA11yAnnouncer(state);
 announcer.subscribeAnnouncements((announcement) => {
   const elementId = selectAnnouncerElementId(announcement.politeness);
@@ -226,6 +239,45 @@ function renderDiagnostics(
   );
 }
 
+/** Builds one `<li>` per already-projected {@link RunLogEntryViewItem} — again plain DOM element
+ * creation with no decision of its own (heading/output/diagnostic-label/empty-state DECISIONS were
+ * already made by {@link toRunLogListItems}), so this stays a one-line-per-item mapping rather than
+ * an `if`/`for` block, matching {@link createDiagnosticListItemElement} above. */
+function createRunLogEntryElement(item: RunLogEntryViewItem): HTMLLIElement {
+  const listItem = document.createElement("li");
+  listItem.dataset.hasErrors = String(item.hasErrors);
+
+  const heading = document.createElement("p");
+  heading.className = "run-log-heading";
+  heading.textContent = item.heading;
+
+  const output = document.createElement("pre");
+  output.className = "run-log-output";
+  output.textContent = item.outputText;
+
+  const diagnosticsList = document.createElement("ul");
+  diagnosticsList.className = "run-log-diagnostics";
+  diagnosticsList.replaceChildren(
+    ...item.diagnosticLabels.map((label) => {
+      const diagnosticItem = document.createElement("li");
+      diagnosticItem.textContent = label;
+      return diagnosticItem;
+    }),
+  );
+
+  listItem.replaceChildren(heading, output, diagnosticsList);
+  return listItem;
+}
+
+function renderRunLog(
+  list: HTMLElement,
+  entries: readonly RunLogEntry[],
+): void {
+  list.replaceChildren(
+    ...toRunLogListItems(entries).map(createRunLogEntryElement),
+  );
+}
+
 state.subscribe((next) => {
   syncTextValue(editorElement, next.source);
   runStatusElement.textContent = mapRunStatusToLabel(next.runStatus);
@@ -236,9 +288,13 @@ state.subscribe((next) => {
     mapSpeedSliderValueToTickDelayMs(next.speedSliderValue),
   );
 });
+runLog.subscribeEntries(() => {
+  renderRunLog(runLogElement, runLog.getEntries());
+});
 runStatusElement.textContent = mapRunStatusToLabel(state.getState().runStatus);
 outputElement.textContent = formatOutput(state.getState().output);
 renderDiagnostics(diagnosticsListElement, state.getState().diagnostics);
+renderRunLog(runLogElement, runLog.getEntries());
 syncTextValue(speedSliderElement, String(state.getState().speedSliderValue));
 speedDescriptionElement.textContent = describeSpeedTickDelayMs(
   mapSpeedSliderValueToTickDelayMs(state.getState().speedSliderValue),
