@@ -51,7 +51,6 @@ test("index.html's focusable elements appear in exactly REPL_FOCUS_ORDER's DOM o
     "run-button": "run-button",
     "stop-button": "stop-button",
     "reset-button": "reset-button",
-    "step-button": "step-button",
     canvas: "turtle-canvas",
     "diagnostics-list": "diagnostics-list",
   };
@@ -91,16 +90,11 @@ test("index.html gives the Canvas and diagnostics list a tabindex (neither is na
   );
 });
 
-test("index.html labels the single-step control 'Next step' (#289), not the ambiguous 'Step'", () => {
-  assert.match(
-    indexHtml,
-    /id="step-button"[^>]*>\s*Next step\s*</,
-    "the step button's visible/accessible label should read 'Next step'",
-  );
+test("index.html does not render a 'Next step' control (#305) — the headless step() machinery stays for Wave 1 (#302) to rebuild a UI on", () => {
   assert.doesNotMatch(
     indexHtml,
-    /id="step-button"[^>]*>\s*Step\s*</,
-    "the step button must not keep the old ambiguous 'Step' label",
+    /id="step-button"/,
+    "the step button was removed from the 0.1.0 studio UI",
   );
 });
 

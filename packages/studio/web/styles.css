@@ -115,10 +115,6 @@ main section {
   background: var(--ol-blue);
 }
 
-#step-button {
-  background: var(--ol-purple);
-}
-
 :focus-visible {
   outline: 3px solid var(--ol-orange);
   outline-offset: 2px;

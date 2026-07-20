@@ -1,8 +1,9 @@
 /**
  * Keyboard + screen-reader accessibility for the studio REPL loop — editor (#124), run controls
- * (#126, extended in #228 with Step and the turtle Canvas view), diagnostics (#125), and, as of
+ * (#126, extended in #228 with the turtle Canvas view), diagnostics (#125), and, as of
  * #229, the turtle Canvas pane (#218/#228) and its non-visual state text. Lesson-pane a11y is out
- * of scope (split to #127/M3).
+ * of scope (split to #127/M3). #305 removes the `Next step` control from the 0.1.0 UI; the
+ * headless `step()` method it drove stays (Wave 1/#302 rebuilds a UI on it).
  *
  * Like #123-#129, ADR-0001 defers the studio's DOM/framework choice, so this slice models
  * accessibility as **headless, node:test-able data + functions** a future real-widget renderer
@@ -11,18 +12,20 @@
  *
  * ## Keyboard operability — {@link REPL_FOCUS_ORDER}
  * A single, static, ordered list of every focusable stop across the four studio panes: the editor
- * (one `textbox` stop), the run controls (four `button` stops — Run/Stop/Reset/Step, matching
- * `run-controller.ts`'s `run()`/`stop()`/`reset()`/`step()`), the turtle Canvas pane (one `img`
+ * (one `textbox` stop), the run controls (three `button` stops — Run/Stop/Reset, matching
+ * `run-controller.ts`'s `run()`/`stop()`/`reset()`), the turtle Canvas pane (one `img`
  * stop, #218/#228's rendered + animated scene), and the diagnostics list (one `log` stop).
  * {@link nextFocusStop}/{@link previousFocusStop} cycle through it (wrapping at both ends), so a
  * future Tab/Shift+Tab (or roving-`tabindex`) binding can move forward and backward from *any*
  * stop and always reach every other stop — the headless proof that there is no keyboard trap.
  *
- * `run-controller.ts` has no `speed`/`export` control today (`@openlogo/turtle` exposes
- * `exportTurtleSvg`/`exportTurtlePng` and an animation `stepsPerSecond` option, but studio does not
- * yet wire either into a learner-facing action) — this module deliberately does not add focus
- * stops for actions that do not exist, matching #126/#228's "document the honest gap, never fake
- * it" precedent for `step()`/`stop()`. Wiring those controls is left to a follow-up issue.
+ * `run-controller.ts`'s headless `step()` method still exists (Wave 1/#302 rebuilds a UI on it),
+ * but 0.1.0 does not surface a `Next step` control, so this module deliberately adds no focus stop
+ * for it (#305) — the same "document the honest gap, never fake it" precedent #126/#228 set for
+ * controls that do not exist. `run-controller.ts` also has no `speed`/`export` control today
+ * (`@openlogo/turtle` exposes `exportTurtleSvg`/`exportTurtlePng` and an animation
+ * `stepsPerSecond` option, but studio does not yet wire either into a learner-facing action) —
+ * same reasoning applies. Wiring those controls is left to follow-up issues.
  *
  * ## Semantic structure — {@link REPL_LANDMARK_ROLES}
  * The ARIA role + label a future renderer gives each pane's *container* (as opposed to the
@@ -90,7 +93,6 @@ export const REPL_FOCUS_ORDER: readonly FocusStop[] = [
   { id: "run-button", region: "repl", role: "button", label: "Run" },
   { id: "stop-button", region: "repl", role: "button", label: "Stop" },
   { id: "reset-button", region: "repl", role: "button", label: "Reset" },
-  { id: "step-button", region: "repl", role: "button", label: "Step" },
   { id: "canvas", region: "turtle", role: "img", label: "Turtle canvas" },
   {
     id: "diagnostics-list",
