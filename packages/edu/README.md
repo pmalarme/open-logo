@@ -29,3 +29,28 @@ consumes. It has no authoring API, no runtime, and no AI (those land in later sl
 Consumers that load lesson content from an untyped source (e.g. JSON) can validate it with the
 exported `isLesson`/`isWorkedExample`/`isLearnerLevel` type guards. Do not invent a competing
 lesson-content shape elsewhere in the codebase — extend this contract instead.
+
+## Curriculum content: Level 1 and Level 2
+
+`src/lessons/` holds the first authored curriculum content, built on top of the read-only
+`Lesson` contract above:
+
+- `lessons/level-1.ts` — the Level 1 lesson ("Leaving a mark") + graded exercises, covering
+  turtle position/heading/pen/color/width and `forward`/`back`/`right`/`left`/`pen_up`/
+  `pen_down`/`clear_screen`/`home` (`spec/educational-model.md:37-58`).
+- `lessons/level-2.ts` — the Level 2 lesson ("One side, repeated") + graded exercises, covering
+  `repeat` as an effects-only block and `repcount`, including the canonical square worked
+  example (`spec/educational-model.md:64-85`).
+- `lessons/exercise.ts` — the `Exercise` contract: a graded exercise additive to `Lesson`
+  (`lessonId`, a `LearnerLevel`, a `"guided" | "practice" | "challenge"` difficulty, a prompt,
+  and a runnable `referenceSolution`). `Lesson` itself only carries a single `exercisePrompt`
+  string, so `Exercise` is a separate, non-invasive contract rather than a change to `lesson.ts`.
+- `lessons/registry.ts` — aggregates every level's lessons/exercises into flat `LESSONS`/
+  `EXERCISES` lists, plus `getLessonsByLevel`/`getExercisesByLevel`/`getExercisesByLesson`/
+  `findLessonById`/`findExerciseById` helpers.
+
+Every worked example and reference solution is executed against `@openlogo/runtime` in this
+package's tests, so lesson content can never drift from real execution behavior. Later levels
+(Level 3 onward) add their own `lessons/level-N.ts` module and extend the registry additively —
+no shared file needs an ever-growing literal, and no level uses a concept from a later level
+(`spec/educational-model.md:35`'s discovery guardrail).
