@@ -22,9 +22,14 @@ last, and every example actually runs.
 3. **Worked example** in canonical OpenLogo (`shared/spec-fidelity`) — lowercase keywords, correct
    profile. Keep it minimal (KISS).
 4. **Graded exercises:** ramp from guided to open; for each, include a **runnable reference solution**.
-5. **Validate every example + solution against the runtime** (`shared/conformance-fixture`) so lessons
+5. **Culminate in a recognizable object:** the challenge composes what was just taught into a
+   motivating, real object a learner wants to reproduce — not an abstract geometry drill. It
+   generalizes one level up per concept: L1 shapes → a house (square/rectangle body + triangle roof,
+   door, windows); L2 `repeat` → a tree (trunk + repeated triangle tiers). Teach the parts first, then
+   compose them.
+6. **Validate every example + solution against the runtime** (`shared/conformance-fixture`) so lessons
    can never drift from real behavior; wire them into CI.
-6. **Add teaching hooks:** expected misconceptions (from `@geometry-teacher`) and staged hints (from
+7. **Add teaching hooks:** expected misconceptions (from `@geometry-teacher`) and staged hints (from
    `@ai-tutor`) for the exercise.
 
 ## Critical rules
@@ -36,5 +41,6 @@ last, and every example actually runs.
 ## Checklist
 - [ ] Level + objective + prerequisites explicit; profile-appropriate primitives only.
 - [ ] Worked example + graded exercises, each with a runnable solution.
+- [ ] Challenge composes a recognizable, motivating object (e.g. house, tree) — not an abstract drill.
 - [ ] All samples validated against the runtime in CI.
 - [ ] Misconception + hint hooks attached.
