@@ -34,6 +34,15 @@ real OpenLogo code and the actual code that runs inside OpenLogo today.
 
 Read them in order the first time through — each page builds on the last.
 
+## Extra / deeper dives
+
+| Page | What you'll learn |
+|---|---|
+| [Extra · Why turtle coordinates show decimals](extra-why-coordinates-show-decimals.md) | Why the turtle's position often prints as a long decimal instead of a whole number |
+
+These pages stand on their own — read one any time a specific question comes up, no need to read
+the main series first.
+
 ## How to read these pages
 
 - Every page fits on roughly one screen.
