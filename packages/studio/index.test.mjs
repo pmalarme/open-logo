@@ -51,6 +51,7 @@ test("index.html's focusable elements appear in exactly REPL_FOCUS_ORDER's DOM o
     "run-button": "run-button",
     "stop-button": "stop-button",
     "reset-button": "reset-button",
+    "speed-slider": "speed-slider",
     canvas: "turtle-canvas",
     "diagnostics-list": "diagnostics-list",
   };
@@ -170,4 +171,24 @@ test("web/main.ts asserts every DOM element lookup via the tested assertPresent 
 test("web/main.ts syncs the editor's value via the tested syncTextValue helper, not a manual equality check", () => {
   assert.match(mainTs, /syncTextValue\(editorElement, next\.source\)/);
   assert.doesNotMatch(mainTs, /if\s*\(\s*editorElement\.value/);
+});
+
+test("index.html declares a labeled #speed-slider range input for the turtle-speed control (#310)", () => {
+  assert.match(indexHtml, /id="speed-slider"[\s\S]*?type="range"/);
+  assert.match(indexHtml, /<label for="speed-slider">Turtle speed<\/label>/);
+});
+
+test("web/main.ts wires the speed slider straight to setSpeedSliderValue on input, with no hardcoded animation delay (#310)", () => {
+  assert.match(mainTs, /speedSliderElement\.addEventListener\(\s*"input"/);
+  assert.match(mainTs, /shell\.state\.setSpeedSliderValue\(/);
+  assert.doesNotMatch(mainTs, /ANIMATION_STEP_DELAY_MS/);
+});
+
+test("web/main.ts mirrors the slider's position and its learner-facing description via describeSpeedTickDelayMs, not raw ms (#310)", () => {
+  assert.match(mainTs, /describeSpeedTickDelayMs\(/);
+  assert.match(mainTs, /mapSpeedSliderValueToTickDelayMs\(/);
+  assert.match(
+    mainTs,
+    /syncTextValue\(speedSliderElement, String\(next\.speedSliderValue\)\)/,
+  );
 });

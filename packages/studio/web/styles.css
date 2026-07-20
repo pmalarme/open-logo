@@ -115,6 +115,30 @@ main section {
   background: var(--ol-blue);
 }
 
+/* #310 — the turtle-speed slider control, inline with Run/Stop/Reset in the same toolbar. */
+.speed-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-right: 0.5rem;
+}
+
+.speed-control label {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+#speed-slider {
+  width: 8rem;
+  accent-color: var(--ol-purple);
+}
+
+#speed-description {
+  font-size: 0.8rem;
+  color: var(--ol-navy);
+  min-width: 4.5rem;
+}
+
 :focus-visible {
   outline: 3px solid var(--ol-orange);
   outline-offset: 2px;

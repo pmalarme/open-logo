@@ -125,6 +125,48 @@ slice may swap in a real renderer without changing this contract.
   `runStatus`-vs-animation-completion decoupling #228 introduces (a still-paced Canvas view is
   never reported `"idle"`/`"stopped"` before its animation has actually reached `"done"`).
 
+## Turtle-speed control (#310)
+
+The Run/Stop/Reset animation pace, previously a hardcoded fixed delay `web/main.ts` ignored the
+runtime's own per-call pacing to enforce, is now a learner-controllable slider:
+
+- `src/turtle-speed.ts` — the single, fully-tested pure-function mapping the slider owns:
+  - `SPEED_SLIDER_MIN`/`SPEED_SLIDER_MAX` (`0`..`100`) bound the slider's range;
+    `DEFAULT_SPEED_SLIDER_VALUE` (`50`) is its initial position.
+  - `mapSpeedSliderValueToTickDelayMs(value)` linearly interpolates a slider position down from
+    `SLOWEST_TICK_DELAY_MS` (at `SPEED_SLIDER_MIN`) to `FASTEST_PACED_TICK_DELAY_MS` (at
+    `SPEED_SLIDER_MAX - 1`), clamping out-of-range input — **and** dedicates the slider's top end
+    (`SPEED_SLIDER_MAX`) to `INSTANT_TICK_DELAY_MS`, a distinct "no animation at all" position
+    rather than just an extreme pace.
+  - `isInstantTickDelay(delayMs)` / `tickDelayMsToStepsPerSecond(delayMs)` /
+    `describeSpeedTickDelayMs(delayMs)` (a short learner-facing string, e.g. `"Instant"` or
+    `"5 steps/second"`) round out the helper — every branch of the slider's behavior lives here,
+    fully covered by `turtle-speed.test.mjs`, so `web/main.ts` never has to.
+- `state-model.ts` gains `speedSliderValue` (defaulting to `DEFAULT_SPEED_SLIDER_VALUE`) and
+  `setSpeedSliderValue` — the same single-source-of-truth contract every other field follows.
+- `run-controller.ts`'s `prepare()` reads `speedSliderValue` on every `run()`/`step()` and maps it
+  to a tick delay: when paced, it constructs the `TurtleAnimationController` with the matching
+  `stepsPerSecond` (via `tickDelayMsToStepsPerSecond`) so each scheduled tick actually waits that
+  long; when the slider is at the dedicated instant position, `run()` paints the final scene
+  immediately via the same `seekToEnd()` path `reducedMotion` already used — **the slider's instant
+  position and the OS's `prefers-reduced-motion` are OR-combined**, so either one alone is enough to
+  skip the animation; neither replaces the other's own reason for existing.
+- The literal bug this issue targets: `web-bootstrap.ts`'s `createTimeoutScheduler` used to take an
+  outer, fixed `delayMs` and ignore the per-call one `TurtleAnimationController` passed on every
+  tick — so no matter what pace the caller asked for, every run animated at the same hardcoded
+  speed. It now takes no outer `delayMs` at all; its returned scheduler forwards each call's own
+  `delayMs` straight to the injected `setTimeout`, so the slider's chosen pace is what actually
+  plays back.
+- `web/main.ts` wires the `#speed-slider` `<input type="range">` straight to
+  `setSpeedSliderValue` on every `input` event (no branch — the mapping is already a plain function
+  call), and mirrors both the slider's position and its `describeSpeedTickDelayMs` text into
+  `#speed-description` whenever `speedSliderValue` changes, including on first paint.
+- Accessibility: the slider is a real `<input type="range">` (implicit `role="slider"`) with a
+  `<label for="speed-slider">`, so it is keyboard-operable (arrow keys) and announces its accessible
+  name to a screen reader; `#speed-description`'s live text is the *only* signal for the instant
+  position — color is never used to distinguish it. `a11y.ts`'s `REPL_FOCUS_ORDER` gains the
+  matching `speed-slider` stop (see below).
+
 ## Diagnostics pane (#125)
 
 - `createDiagnosticsController(state, options?)` (`src/diagnostics.ts`) — subscribes to the
@@ -162,16 +204,16 @@ no DOM here to regress.
 
 - **Keyboard operability** — `REPL_FOCUS_ORDER` is a static, ordered list of every focusable stop
   across the studio: the editor (one `textbox` stop), Run/Stop/Reset (three `button` stops,
-  matching `run-controller.ts`'s `run()`/`stop()`/`reset()`), the turtle Canvas (one `img`
-  stop), and the diagnostics list (one `log` stop). `nextFocusStop`/`previousFocusStop` cycle
-  through it, wrapping at both ends — proof there is no keyboard trap: from any stop you can always
-  reach every other stop moving forward or backward. `run-controller.ts`'s headless `step()` method
-  still exists (Wave 1/#302 rebuilds a UI on it), but 0.1.0 removed its `Next step` control (#305),
-  and has no `speed`/`export` control either (`@openlogo/turtle` exposes
-  `exportTurtleSvg`/`exportTurtlePng` and an animation `stepsPerSecond` option, but studio does not
-  wire either into a learner-facing action today), so
-  this module deliberately adds no focus stop for an action that does not exist — the same
-  "document the honest gap, never fake it" precedent #126/#228 set for `step()`/`stop()`.
+  matching `run-controller.ts`'s `run()`/`stop()`/`reset()`), the turtle-speed slider (one `slider`
+  stop, #310), the turtle Canvas (one `img` stop), and the diagnostics list (one `log` stop).
+  `nextFocusStop`/`previousFocusStop` cycle through it, wrapping at both ends — proof there is no
+  keyboard trap: from any stop you can always reach every other stop moving forward or backward.
+  `run-controller.ts`'s headless `step()` method still exists (Wave 1/#302 rebuilds a UI on it), but
+  0.1.0 removed its `Next step` control (#305), and has no `export` control either (`@openlogo/turtle`
+  exposes `exportTurtleSvg`/`exportTurtlePng`, but studio does not wire it into a learner-facing
+  action today), so this module deliberately adds no focus stop for that action that does not
+  exist — the same "document the honest gap, never fake it" precedent #126/#228 set for
+  `step()`/`stop()`.
 - **Semantic structure** — `REPL_LANDMARK_ROLES` declares each pane's container-level ARIA role +
   label (editor≈`textbox`, run controls≈`toolbar` "Run controls", the Canvas≈`img` "Turtle canvas",
   its non-visual state text≈`status` "Turtle state", diagnostics≈`log` "Diagnostics"), for a
@@ -241,9 +283,10 @@ The package is now genuinely servable, not just headless-testable:
   `createStudioState`/`createAppShell`/`createEditorController`/`createCanvasViewController`/
   `createRunController` (every seam documented above) onto real DOM elements from `index.html`. It
   never reimplements any of them. Any non-trivial glue (the default boot program, a diagnostics
-  summary string) lives in `src/web-bootstrap.ts` instead, which has its own `.test.mjs` and stays
-  inside the 100% coverage gate — `web/**` is outside this package's `tsc -b` build graph (`src/`
-  only) and is never imported by a test, so it does not count toward that gate either way.
+  summary string, #310's slider→tick-delay mapping) lives in `src/web-bootstrap.ts` and
+  `src/turtle-speed.ts` instead, each with its own `.test.mjs` and staying inside the 100% coverage
+  gate — `web/**` is outside this package's `tsc -b` build graph (`src/` only) and is never imported
+  by a test, so it does not count toward that gate either way.
 - This is the **walking skeleton** (epic #276's slice 1): Stop/Reset with live animation, the
   full diagnostics list pane, and a11y/persistence/branding polish are later slices. A bad program
   (e.g. `forward`) does not crash the page on Run — its diagnostics render as a plain-text summary,

@@ -1,6 +1,6 @@
 /**
- * The browser entry (#277, extended by #278 and #279) — a thin, logic-free, branch-free wiring
- * layer only. It composes the published `@openlogo/studio` seams (state model, app shell,
+ * The browser entry (#277, extended by #278, #279, and #310) — a thin, logic-free, branch-free
+ * wiring layer only. It composes the published `@openlogo/studio` seams (state model, app shell,
  * editor/canvas/run/diagnostics/a11y/persistence controllers) onto the real DOM `index.html`
  * declares; it never reimplements them and holds no non-trivial logic of its own (that lives in
  * `../src/web-bootstrap.ts`, which has its own `.test.mjs` and stays inside the 100% coverage
@@ -8,12 +8,17 @@
  * test, so it does not need to be, and does not count toward, that gate, and any untested branch
  * here would be invisible to it). Every decision this file would otherwise have to branch on —
  * which scheduler to pace a run through, which `aria-live` region an announcement belongs in,
- * whether a looked-up element is missing, whether the editor's value actually needs rewriting —
- * is made by a tested `src/web-bootstrap.ts` helper instead (`selectScheduler`,
- * `selectAnnouncerElementId`, `assertPresent`, `syncTextValue`); this file only reads the raw
- * browser input (`matchMedia`, `localStorage`, `document.getElementById`) and forwards it. The
- * one remaining loop-shaped statement (`.map(createDiagnosticListItemElement)`, building one
- * `<li>` per already-computed {@link DiagnosticListItem}) has no decision left to make — the
+ * whether a looked-up element is missing, whether the editor's value actually needs rewriting,
+ * how a turtle-speed slider position maps to a tick delay or a learner-facing description — is
+ * made by a tested `src/` helper instead (`selectScheduler`, `selectAnnouncerElementId`,
+ * `assertPresent`, `syncTextValue`, and #310's `mapSpeedSliderValueToTickDelayMs` /
+ * `describeSpeedTickDelayMs` in `turtle-speed.ts`); this file only reads the raw browser input
+ * (`matchMedia`, `localStorage`, `document.getElementById`, the slider's `input` event) and
+ * forwards it. The turtle-speed slider (`#speed-slider`) writes straight to the shared state
+ * model via `setSpeedSliderValue` on every `input` event — `run-controller.ts`'s `prepare()`
+ * reads that value on the next `run()`/`step()`, so no scheduler is rebuilt here. The one
+ * remaining loop-shaped statement (`.map(createDiagnosticListItemElement)`, building one `<li>`
+ * per already-computed {@link DiagnosticListItem}) has no decision left to make — the
  * label/severity/empty-state choices were already made by `toDiagnosticListItems` — and can't be
  * moved into `web-bootstrap.ts` either, since `document.createElement` needs a real DOM this
  * repository's jsdom-free `node:test` suite doesn't have.
@@ -37,23 +42,23 @@ import {
   createTimeoutScheduler,
   createTurtleStateRegion,
   DEFAULT_RUN_PROGRAM,
+  describeSpeedTickDelayMs,
   formatOutput,
+  mapSpeedSliderValueToTickDelayMs,
   mountCanvasView,
   mountDiagnosticsPane,
   mountEditorPane,
   mountRunController,
   selectAnnouncerElementId,
   selectScheduler,
+  SPEED_SLIDER_MAX,
+  SPEED_SLIDER_MIN,
   syncTextValue,
   toDiagnosticListItems,
 } from "../src/index.js";
 import type { DiagnosticListItem, Canvas2DContext } from "../src/index.js";
 import type { Diagnostic } from "@openlogo/core";
 import { IMMEDIATE_SCHEDULER } from "@openlogo/turtle";
-
-/** Fixed pace (ms/step) the turtle animation plays back at — see `createTimeoutScheduler`'s doc
- * comment in `web-bootstrap.ts` for why a single fixed delay is the right call for this slice. */
-const ANIMATION_STEP_DELAY_MS = 100;
 
 const editorElement = assertPresent(
   document.getElementById("editor"),
@@ -80,6 +85,17 @@ const resetButton = assertPresent(
   "reset-button",
   (value): value is HTMLButtonElement => value instanceof HTMLButtonElement,
 );
+const speedSliderElement = assertPresent(
+  document.getElementById("speed-slider"),
+  "speed-slider",
+  (value): value is HTMLInputElement => value instanceof HTMLInputElement,
+);
+const speedDescriptionElement = assertPresent<HTMLElement>(
+  document.getElementById("speed-description"),
+  "speed-description",
+);
+speedSliderElement.min = String(SPEED_SLIDER_MIN);
+speedSliderElement.max = String(SPEED_SLIDER_MAX);
 const runStatusElement = assertPresent<HTMLElement>(
   document.getElementById("run-status"),
   "run-status",
@@ -139,7 +155,7 @@ mountDiagnosticsPane(shell, createDiagnosticsController(state));
 const prefersReducedMotion = window.matchMedia(
   "(prefers-reduced-motion: reduce)",
 ).matches;
-const timeoutScheduler = createTimeoutScheduler(ANIMATION_STEP_DELAY_MS, {
+const timeoutScheduler = createTimeoutScheduler({
   setTimeout: (callback, delayMs) => globalThis.setTimeout(callback, delayMs),
   clearTimeout: (handle) => globalThis.clearTimeout(handle),
 });
@@ -180,6 +196,9 @@ stopButton.addEventListener("click", () => {
 resetButton.addEventListener("click", () => {
   runController.reset();
 });
+speedSliderElement.addEventListener("input", () => {
+  shell.state.setSpeedSliderValue(speedSliderElement.valueAsNumber);
+});
 
 /** Builds one `<li>` per already-formatted {@link DiagnosticListItem} — plain DOM element
  * creation with no decision of its own (the label/severity/empty-state DECISIONS were already
@@ -210,7 +229,15 @@ state.subscribe((next) => {
   runStatusElement.textContent = next.runStatus;
   outputElement.textContent = formatOutput(next.output);
   renderDiagnostics(diagnosticsListElement, next.diagnostics);
+  syncTextValue(speedSliderElement, String(next.speedSliderValue));
+  speedDescriptionElement.textContent = describeSpeedTickDelayMs(
+    mapSpeedSliderValueToTickDelayMs(next.speedSliderValue),
+  );
 });
 runStatusElement.textContent = state.getState().runStatus;
 outputElement.textContent = formatOutput(state.getState().output);
 renderDiagnostics(diagnosticsListElement, state.getState().diagnostics);
+syncTextValue(speedSliderElement, String(state.getState().speedSliderValue));
+speedDescriptionElement.textContent = describeSpeedTickDelayMs(
+  mapSpeedSliderValueToTickDelayMs(state.getState().speedSliderValue),
+);

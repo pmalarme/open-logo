@@ -159,6 +159,38 @@
  *   browser entry never has to branch on either.
  * - `web/main.ts` applies the OpenLogo palette/tagline via a linked stylesheet
  *   (`web/styles.css`); no new `src/` logic is needed for static branding.
+ *
+ * #310 wires up a configurable turtle-speed control — a slider ranging from slow to fast, plus a
+ * dedicated "instant / no animation" end — that actually takes effect (previously,
+ * `TurtleAnimationController`'s own `stepsPerSecond` pacing was never wired from studio's side;
+ * every run played back at whatever pace the browser entry's scheduler happened to use):
+ * - {@link mapSpeedSliderValueToTickDelayMs} (`turtle-speed.ts`) is the one tested place that maps
+ *   a raw slider position (`SPEED_SLIDER_MIN`..`SPEED_SLIDER_MAX`) to a per-tick delay in
+ *   milliseconds — linear interpolation between {@link SLOWEST_TICK_DELAY_MS} and
+ *   {@link FASTEST_PACED_TICK_DELAY_MS} for every paced position, and {@link INSTANT_TICK_DELAY_MS}
+ *   (`0`) for the dedicated top position. {@link isInstantTickDelay}/
+ *   {@link tickDelayMsToStepsPerSecond}/{@link describeSpeedTickDelayMs} are the small, pure
+ *   functions built on top of that mapping `run-controller.ts` and a future renderer consume —
+ *   keeping every branch out of `web/main.ts`, which stays a thin, branch-free wiring layer.
+ * - `state-model.ts`'s {@link StudioState} gains `speedSliderValue` (default
+ *   {@link DEFAULT_SPEED_SLIDER_VALUE}), and {@link StudioStateStore.setSpeedSliderValue} replaces
+ *   it — the single source of truth for the slider position, exactly like every other learner
+ *   input.
+ * - `run-controller.ts`'s `prepare()` reads `speedSliderValue` and maps it to the
+ *   `TurtleAnimationController`'s `stepsPerSecond` option for a paced speed; for the instant
+ *   position, `run()` instead OR-combines it into the `reducedMotion` flag it already passes to
+ *   `playWithMotionPreference` — so the slider's instant end **complements**, never replaces, the
+ *   OS-level `prefers-reduced-motion` path (either alone is enough to force instant playback). See
+ *   `run-controller.ts`'s doc comment ("#310") for the full mechanism.
+ * - {@link createTimeoutScheduler} (`web-bootstrap.ts`) is fixed to honor each scheduled call's own
+ *   `delayMs` (previously it ignored it in favor of one fixed pace) — the actual bug this slice's
+ *   acceptance criteria center on.
+ * - {@link REPL_FOCUS_ORDER} (`a11y.ts`) gains a `slider` focus stop for the new control, in the
+ *   `repl` region alongside Run/Stop/Reset, so it is keyboard-reachable and screen-reader-labeled
+ *   like every other control.
+ * - `index.html`/`web/main.ts`/`web/styles.css` add the real `<input type="range">` element, its
+ *   accessible label + live speed-description text, and its `input` event wiring — a thin
+ *   forwarding call into the tested helpers above, never a branch of its own.
  */
 
 export type {
@@ -270,3 +302,16 @@ export {
   syncTextValue,
   toDiagnosticListItems,
 } from "./web-bootstrap.js";
+
+export {
+  DEFAULT_SPEED_SLIDER_VALUE,
+  describeSpeedTickDelayMs,
+  FASTEST_PACED_TICK_DELAY_MS,
+  INSTANT_TICK_DELAY_MS,
+  isInstantTickDelay,
+  mapSpeedSliderValueToTickDelayMs,
+  SLOWEST_TICK_DELAY_MS,
+  SPEED_SLIDER_MAX,
+  SPEED_SLIDER_MIN,
+  tickDelayMsToStepsPerSecond,
+} from "./turtle-speed.js";

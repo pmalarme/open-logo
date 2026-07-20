@@ -484,3 +484,113 @@ test("run() with reducedMotion:true paints the final scene instantly rather than
   assert.equal(store.getState().turtleState.heading, 90);
   assert.equal(store.getState().runStatus, "idle");
 });
+
+// ---------------------------------------------------------------------------------------------
+// #310 — the turtle-speed slider actually paces (or instantly bypasses) the animation.
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Like {@link createManualScheduler}, but also records the `delayMs` argument of every scheduled
+ * call, so a test can assert the exact per-tick delay `prepare()` derived from `speedSliderValue`
+ * (via `turtle-speed.ts`'s `mapSpeedSliderValueToTickDelayMs`) without needing a real clock. These
+ * speed tests only need the recorded delay, never firing/cancelling a tick, so unlike
+ * `createManualScheduler` its returned cancel function is a no-op rather than tracked state.
+ */
+function createRecordingScheduler() {
+  const delays = [];
+  const scheduler = (_callback, delayMs) => {
+    delays.push(delayMs);
+    return () => {};
+  };
+  return { scheduler, delays };
+}
+
+test("run() paces the turtle animation at the tick delay speedSliderValue maps to", () => {
+  const store = OL.createStudioState({
+    source: "forward 100\nright 90",
+    speedSliderValue: OL.SPEED_SLIDER_MIN,
+  });
+  const manual = createRecordingScheduler();
+  const controller = OL.createRunController(store, {
+    scheduler: manual.scheduler,
+  });
+
+  controller.run();
+
+  assert.ok(manual.delays.length > 0);
+  for (const delay of manual.delays) {
+    assert.equal(delay, OL.SLOWEST_TICK_DELAY_MS);
+  }
+  // Exercises the scheduler's own cancel function too (stop() cancels the pending tick).
+  controller.stop();
+});
+
+test("run() paces the fastest paced slider position at FASTEST_PACED_TICK_DELAY_MS", () => {
+  const store = OL.createStudioState({
+    source: "forward 100\nright 90",
+    speedSliderValue: OL.SPEED_SLIDER_MAX - 1,
+  });
+  const manual = createRecordingScheduler();
+  const controller = OL.createRunController(store, {
+    scheduler: manual.scheduler,
+  });
+
+  controller.run();
+
+  assert.ok(manual.delays.length > 0);
+  for (const delay of manual.delays) {
+    assert.equal(delay, OL.FASTEST_PACED_TICK_DELAY_MS);
+  }
+  controller.stop();
+});
+
+test("run() drains instantly (bypassing the scheduler entirely) when speedSliderValue is at the dedicated instant position", () => {
+  const store = OL.createStudioState({
+    source: "forward 100\nright 90",
+    speedSliderValue: OL.SPEED_SLIDER_MAX,
+  });
+  const manual = createManualScheduler();
+  const controller = OL.createRunController(store, {
+    scheduler: manual.scheduler,
+  });
+
+  controller.run();
+
+  assert.equal(manual.hasPending(), false);
+  assert.equal(store.getState().turtleState.heading, 90);
+  assert.equal(store.getState().runStatus, "idle");
+});
+
+test("run() with reducedMotion:true still paints instantly even when the slider is at a paced (non-instant) position — OS preference is honored regardless of the slider", () => {
+  const store = OL.createStudioState({
+    source: "forward 100\nright 90",
+    speedSliderValue: OL.SPEED_SLIDER_MIN,
+  });
+  const manual = createManualScheduler();
+  const controller = OL.createRunController(store, {
+    scheduler: manual.scheduler,
+    reducedMotion: true,
+  });
+
+  controller.run();
+
+  assert.equal(manual.hasPending(), false);
+  assert.equal(store.getState().turtleState.heading, 90);
+});
+
+test("run() with reducedMotion:false still paints instantly when the slider is at the instant position — the slider complements, never replaces, reducedMotion", () => {
+  const store = OL.createStudioState({
+    source: "forward 100\nright 90",
+    speedSliderValue: OL.SPEED_SLIDER_MAX,
+  });
+  const manual = createManualScheduler();
+  const controller = OL.createRunController(store, {
+    scheduler: manual.scheduler,
+    reducedMotion: false,
+  });
+
+  controller.run();
+
+  assert.equal(manual.hasPending(), false);
+  assert.equal(store.getState().turtleState.heading, 90);
+});

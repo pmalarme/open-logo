@@ -29,6 +29,13 @@
  *   `@openlogo/turtle`'s own reducers — studio never re-derives turtle coordinates or scene items
  *   itself. This slice (#218) only composes the *initial* defaults; wiring a run's trace-event
  *   stream through `reduceTurtleState`/`reduceTurtleScene` to keep them live is #228.
+ * - `speedSliderValue` (#310) — the learner-facing turtle-speed slider position, a plain number
+ *   in `turtle-speed.ts`'s `[SPEED_SLIDER_MIN, SPEED_SLIDER_MAX]` range (the top value being the
+ *   dedicated "instant / no animation" end). Defaults to `turtle-speed.ts`'s
+ *   `DEFAULT_SPEED_SLIDER_VALUE`. `run-controller.ts` reads it at `run()`/`step()`-prepare time and
+ *   maps it (via `mapSpeedSliderValueToTickDelayMs`) to the `TurtleAnimationController` pacing it
+ *   drives the Canvas animation through — this store only holds the raw slider position, never the
+ *   derived delay, so there is exactly one place (`turtle-speed.ts`) that owns the mapping.
  *
  * ## Update contract
  * - State changes **only** through the store's `set*` methods below; the object returned by
@@ -43,6 +50,7 @@
 import type { Diagnostic, Position } from "@openlogo/core";
 import type { TurtleScene, TurtleState } from "@openlogo/turtle";
 import { INITIAL_TURTLE_SCENE, INITIAL_TURTLE_STATE } from "@openlogo/turtle";
+import { DEFAULT_SPEED_SLIDER_VALUE } from "./turtle-speed.js";
 
 /** The learner's run state, driven by the run controller (#126) over the runtime budget. */
 export type RunStatus = "idle" | "running" | "stopped";
@@ -79,6 +87,7 @@ export interface StudioState {
   readonly notice: Notice | null;
   readonly turtleState: TurtleState;
   readonly turtleScene: TurtleScene;
+  readonly speedSliderValue: number;
 }
 
 /** A subscriber notified with the new snapshot after every state change. */
@@ -114,6 +123,14 @@ export interface StudioStateStore {
   setTurtleState(turtleState: TurtleState): void;
   /** Replace the retained turtle drawing scene the Canvas view (#218) paints. */
   setTurtleScene(turtleScene: TurtleScene): void;
+  /**
+   * Replace the turtle-speed slider position (#310) — a plain number in `turtle-speed.ts`'s
+   * `[SPEED_SLIDER_MIN, SPEED_SLIDER_MAX]` range. `run-controller.ts` reads it via `getState()` at
+   * the start of every `run()`/lazily-prepared `step()`, so a change only takes effect on the
+   * *next* run, matching how `RunControllerOptions.reducedMotion` itself already only applies at
+   * `run()`-call time.
+   */
+  setSpeedSliderValue(speedSliderValue: number): void;
 }
 
 const INITIAL_POSITION: Position = [1, 1];
@@ -137,6 +154,7 @@ export function createStudioState(
     notice: initial?.notice ?? null,
     turtleState: initial?.turtleState ?? INITIAL_TURTLE_STATE,
     turtleScene: initial?.turtleScene ?? INITIAL_TURTLE_SCENE,
+    speedSliderValue: initial?.speedSliderValue ?? DEFAULT_SPEED_SLIDER_VALUE,
   };
 
   const listeners = new Set<StudioStateListener>();
@@ -182,6 +200,9 @@ export function createStudioState(
     },
     setTurtleScene(turtleScene) {
       commit({ turtleScene });
+    },
+    setSpeedSliderValue(speedSliderValue) {
+      commit({ speedSliderValue });
     },
   };
 }

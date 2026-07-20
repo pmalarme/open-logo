@@ -14,6 +14,10 @@
  * straight-line sequence of assertions instead of one large `if`/`throw` block, and {@link
  * syncTextValue} keeps the editor `<textarea>`'s value in sync without fighting the learner's
  * cursor.
+ *
+ * #310 fixes {@link createTimeoutScheduler} to honor each scheduled call's own `delayMs` instead
+ * of a fixed pace, so the learner-facing turtle-speed slider (`turtle-speed.ts`, wired through
+ * `run-controller.ts`'s `prepare()`) actually takes effect in the browser.
  */
 
 import type { Diagnostic, DiagnosticSeverity, Position } from "@openlogo/core";
@@ -103,17 +107,18 @@ export interface TimeoutSchedulerTimers<Handle = unknown> {
  * visibly instead of draining instantly like the default `IMMEDIATE_SCHEDULER` — `@openlogo/turtle`
  * stays timer-free by design, so studio owns the timer (`run-controller.ts`'s doc comment).
  *
- * Deliberately paces every step at the same fixed `delayMs`, ignoring the
- * `TurtleAnimationController`'s own per-step delay (its default speed of 1 step/second would make
- * even a short program take tens of seconds, and the studio doesn't expose a speed control yet —
- * that's a later slice). A single fixed pace is the simplest thing that makes every run visibly
- * animated without over-building a speed UI this slice doesn't need.
+ * Honors each scheduled call's own `delayMs` argument (#310) — that argument is
+ * `TurtleAnimationController.driveRun()`'s own `this.delayMs()` (`1000 / stepsPerSecond`), which
+ * `run-controller.ts`'s `prepare()` now derives from the learner-facing turtle-speed slider
+ * (`turtle-speed.ts`'s `mapSpeedSliderValueToTickDelayMs` → `tickDelayMsToStepsPerSecond`), so a
+ * fixed delay here would silently override every speed the slider chose. Before #310 this
+ * function paced every step at one fixed delay instead, since studio did not yet expose a speed
+ * control.
  */
 export function createTimeoutScheduler<Handle = unknown>(
-  delayMs: number,
   timers: TimeoutSchedulerTimers<Handle>,
 ): Scheduler {
-  return (callback) => {
+  return (callback, delayMs) => {
     const handle = timers.setTimeout(callback, delayMs);
     return () => {
       timers.clearTimeout(handle);
