@@ -146,7 +146,7 @@ test("the house reference solution draws the square body, walks to the roof, dra
   assert.equal(totalTurn, 3600);
 });
 
-test("the two-houses reference solution repeats the whole house pattern twice, drawing two houses with no diagnostics", () => {
+test("the two-houses reference solution repeats the whole house pattern (including door and windows) twice, drawing two complete houses with no diagnostics", () => {
   const twoHouses = level2Exercises.find(
     (exercise) => exercise.id === "l2-two-houses-repeat",
   );
@@ -155,13 +155,22 @@ test("the two-houses reference solution repeats the whole house pattern twice, d
   const result = execute(twoHouses.referenceSolution.source, "two-houses.logo");
   assert.deepEqual(result.diagnostics, []);
 
-  // Each pass of the outer repeat draws one house (square body + triangle roof only, without
-  // the door/windows), alternating pen down/up/down/up four times per pass: 8 changes in total
-  // across the two passes.
+  // Each pass of the outer repeat draws the same complete house (body, roof, door, and two
+  // windows) as the single-house exercise, so the pen alternates down/up ten times per pass:
+  // 20 changes across the two passes.
   const penChanges = result.events.filter(
     (event) => event.kind === "pen-change",
   );
-  assert.equal(penChanges.length, 8);
+  assert.equal(penChanges.length, 20);
+
+  // Each house closes its own shapes for 3600 degrees of turning, plus the three turns in the
+  // offset walk between passes (90 + 90 + 180 = 360) repeated twice: 2*3600 + 2*360 = 7920.
+  const turnEvents = result.events.filter((event) => event.kind === "turn");
+  const totalTurn = turnEvents.reduce(
+    (sum, event) => sum + ((event.payload.to - event.payload.from + 360) % 360),
+    0,
+  );
+  assert.equal(totalTurn, 7920);
 
   // The final move of the second pass ends 300 units over from the first house's start corner —
   // 150 units per house — confirming the second house was drawn beside the first, not on top of
