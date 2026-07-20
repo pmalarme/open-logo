@@ -108,7 +108,7 @@ npm run format:check # Prettier
 npm run test         # node:test
 npm run coverage     # node:test 100% line/branch/function gate — verify on Node 22 (see .nvmrc)
 npm run conformance  # stack-neutral fixtures (placeholder until issue #6)
-npm run examples     # verify every spec/examples/*.logo is present and non-empty
+npm run examples     # parse + execute every spec/examples/*.logo whose required profiles are implemented; skip the rest with a visible notice
 ```
 
 These eight scripts are the CI-enforced Definition of Done; see
