@@ -50,6 +50,40 @@ export const level2Lessons: readonly Lesson[] = [
 ];
 
 /**
+ * Builds the tree reference solution source with the given repeat count. Both tree exercises
+ * below call this with only the count changed, so their sources are guaranteed to differ in
+ * exactly one place -- the number passed to repeat.
+ */
+function treeSource(repeatCount: number): string {
+  return [
+    "# why: the trunk is a one-off shape, so it is drawn with plain Level 1 moves and turns",
+    "forward 40",
+    "right 90",
+    "forward 20",
+    "right 90",
+    "forward 40",
+    "right 90",
+    "forward 20",
+    "right 90",
+    "pen_up",
+    "forward 40",
+    "pen_down",
+    "# why: the same repeat body draws a triangle tier, then walks up to where the next tier starts",
+    `repeat ${repeatCount} [`,
+    "  forward 80",
+    "  right 120",
+    "  forward 80",
+    "  right 120",
+    "  forward 80",
+    "  right 120",
+    "  pen_up",
+    "  forward 25",
+    "  pen_down",
+    "]",
+  ].join("\n");
+}
+
+/**
  * Graded Level 2 exercises for `l2-square-repeat`. Follows the compose-a-recognizable-object
  * rule (`spec/educational-model.md`, `.github/skills/curriculum/author-a-lesson/SKILL.md`):
  * guided change to the square, then the triangle pattern as a practice exercise, then a tree —
@@ -95,32 +129,7 @@ export const level2Exercises: readonly Exercise[] = [
     prompt:
       "Draw a tree: a trunk made from Level 1 moves and turns, then repeat 3 [ ... ] to stack three identical triangle tiers on top of it, each tier followed by a walk further up before the next tier starts.",
     referenceSolution: {
-      source: [
-        "# why: the trunk is a one-off shape, so it is drawn with plain Level 1 moves and turns",
-        "forward 40",
-        "right 90",
-        "forward 20",
-        "right 90",
-        "forward 40",
-        "right 90",
-        "forward 20",
-        "right 90",
-        "pen_up",
-        "forward 40",
-        "pen_down",
-        "# why: the same repeat body draws a triangle tier, then walks up to where the next tier starts",
-        "repeat 3 [",
-        "  forward 80",
-        "  right 120",
-        "  forward 80",
-        "  right 120",
-        "  forward 80",
-        "  right 120",
-        "  pen_up",
-        "  forward 25",
-        "  pen_down",
-        "]",
-      ].join("\n"),
+      source: treeSource(3),
       explanation:
         "The trunk only happens once, so it is four plain forward/right pairs like any Level 1 rectangle. Repeat then runs one rule three times: draw a triangle tier (three forward/right pairs that close back to where they started), then walk 25 further up before the next tier begins -- so the trunk plus three stacked tiers become a tree without ever typing a tier's three sides more than once.",
     },
@@ -133,31 +142,7 @@ export const level2Exercises: readonly Exercise[] = [
     prompt:
       "Make the tree taller without retyping any tier: change only the repeat count in the tree exercise from 3 to 6 and predict how much taller the tree grows before you run it.",
     referenceSolution: {
-      source: [
-        "# why: a taller tree needs a bigger repeat count -- nothing else about the tree changes",
-        "forward 40",
-        "right 90",
-        "forward 20",
-        "right 90",
-        "forward 40",
-        "right 90",
-        "forward 20",
-        "right 90",
-        "pen_up",
-        "forward 40",
-        "pen_down",
-        "repeat 6 [",
-        "  forward 80",
-        "  right 120",
-        "  forward 80",
-        "  right 120",
-        "  forward 80",
-        "  right 120",
-        "  pen_up",
-        "  forward 25",
-        "  pen_down",
-        "]",
-      ].join("\n"),
+      source: treeSource(6),
       explanation:
         "Doubling the repeat count from 3 to 6 is the only change, and it doubles the number of tiers -- this is exactly why repeat matters: growing the tree by hand would mean retyping three more tiers, but here a single bigger number grows it instead.",
     },
