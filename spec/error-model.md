@@ -112,7 +112,7 @@ codes only outside the `ol-*` namespace.
 | `ol-no-output` | runtime | `procedure` | A procedure was used as a reporter but reached the end without `return`, `output`, or `op`. The error is reported at the call site. |
 | `ol-no-value` | semantic | `form` | A `map`, `filter`, or `reduce` body produced no final value. This is for a comprehension body with no value-producing final expression. |
 | `ol-return-outside-proc` | semantic | `keyword` | `return`, `output`, or `op` appears outside any procedure. |
-| `ol-return-in-comprehension` | semantic | `keyword`, `form` | `return`, `output`, `op`, or `stop` appears inside a `map`, `filter`, or `reduce` body. A comprehension is a value context, so any control-flow escape from it — not only the reporter forms — is illegal; comprehensions report by their last expression instead. |
+| `ol-return-in-comprehension` | semantic | `keyword`, `form` | `return`, `output`, `op`, or `stop` appears inside a `map`, `filter`, or `reduce` body. A comprehension is a value context, so these control-flow escapes — not only the reporter forms — are illegal there; comprehensions report by their last expression instead. |
 | `ol-duplicate-binder` | semantic | `name`, `form` | A binder name is repeated where names must be distinct, including `reduce sum sum …` or a repeated name in a destructuring pattern. |
 | `ol-stop-outside-proc` | semantic | none or `keyword` | `stop` appears outside any procedure. |
 | `ol-repcount-outside-repeat` | semantic | none | `repcount` was used outside any enclosing `repeat`. Explain that `repcount` reports the current turn of a `repeat` and only has meaning inside one. |

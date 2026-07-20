@@ -185,7 +185,7 @@ profile block-heads are available.
 | Unknown struct type in a type position | `ol-unknown-type` | Use only when a type position (the type word of `is a` / `is_a?`) names no registered type; an unknown callable or constructor name in call position is `ol-unknown-command`. |
 | Unknown record field | `ol-unknown-field` | Use for record field reads and writes; struct fields are fixed and never upsert. |
 | Assignment or `set` target is not an assignable place | `ol-not-a-place` | Reject reporter calls, literals, computed values, and parenthesized expressions as targets. |
-| Comprehension body statically has no value-producing final expression | `ol-no-value` | Applies to `map`, `filter`, and `reduce`; `return`/`stop` inside a comprehension is `ol-return-in-comprehension`. |
+| Comprehension body statically has no value-producing final expression | `ol-no-value` | Applies to `map`, `filter`, and `reduce`; `return`/`output`/`op`/`stop` inside a comprehension is `ol-return-in-comprehension`. |
 | `return`, `output`, or `op` outside a procedure | `ol-return-outside-proc` | Point at the control word. |
 | `return`, `output`, `op`, or `stop` inside `map`/`filter`/`reduce` | `ol-return-in-comprehension` | Explain that comprehensions report the last expression; `stop` is a control-flow escape too, so it belongs to the same diagnostic family. |
 | Repeated `reduce` or pattern binder name | `ol-duplicate-binder` | Include the repeated binder name. |
