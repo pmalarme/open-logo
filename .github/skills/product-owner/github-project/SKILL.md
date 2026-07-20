@@ -101,6 +101,24 @@ gh project item-edit --id <epicItemId> --project-id <projectId> \
   --field-id <StatusFieldId> --single-select-option-id <InProgressOptionId>
 ```
 
+## Board hygiene — every issue must be on the board
+
+`.github/workflows/add-to-project.yml` (owned by `@devops`) auto-adds every newly-opened issue and
+PR to Project #5 as `Status = Todo`, once the maintainer has created the `ADD_TO_PROJECT_PAT`
+secret (see the workflow's header comment). Use this **manual fallback** if the automation is ever
+off, the secret is missing, or an issue was created before the workflow existed:
+
+```bash
+gh project item-add 5 --owner pmalarme --url <issue-or-pr-url>
+# find the new item id, then set Status = Todo:
+gh project item-list 5 --owner pmalarme --format json | jq '.items[] | select(.content.url == "<issue-or-pr-url>")'
+gh project item-edit --project-id PVT_kwHOAAp56M4BdsNb --id <item-id> \
+  --field-id PVTSSF_lAHOAAp56M4BdsNbzhYL-ko --single-select-option-id f75ad846
+```
+
+Run a board-vs-`gh issue list --state open` diff periodically (or whenever drift is suspected) and
+reconcile any missing items with the commands above.
+
 ## Critical rules
 
 - The board **reflects** the epic/story/milestone model — don't invent a parallel taxonomy here.
