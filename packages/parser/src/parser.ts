@@ -134,7 +134,10 @@ function collectUserArities(
 /** Parse `source` into a Core AST plus diagnostics. Attribution spans point into `document`. */
 export function parse(source: string, document = "<input>"): ParseResult {
   const lexed = tokenize(source, document);
-  const tokens = lexed.tokens;
+  // A local, mutable copy — spliced by parseDictEntry()'s splitGluedColonToken() when a
+  // dict-entry's `:` lexed glued to its value (`{ a:foo }`, no gap after the colon) instead of
+  // as its own `colon` token, so the rest of the reader still walks a normal token stream.
+  const tokens: LexToken[] = lexed.tokens.slice();
   const diagnostics: Diagnostic[] = [...lexed.diagnostics];
   const userArities = collectUserArities(tokens);
 
@@ -904,6 +907,49 @@ export function parse(source: string, document = "<input>"): ParseResult {
   }
 
   /**
+   * A dict-entry's `:` with no gap before its value's leading identifier lexes as one
+   * `variable` token — the lexer's `:name` rule (`tokens.ts`) has no notion of "dict-entry
+   * separator" and greedily reads `:foo` as a variable reference. Since whitespace is
+   * insignificant around the separator (`spec/grammar.md`), `{ a:foo }` must parse identically
+   * to `{ a: foo }` — a zero-arity call to `foo`, not a `VarRef` — so this splices the glued
+   * token back into the real `colon` it opens plus the bare `name` it swallowed, letting the
+   * ordinary {@link parseExpression} call read an ordinary name token next.
+   */
+  function splitGluedColonToken(): void {
+    const glued = current();
+    const colonStart = glued.source_span.start;
+    const colonEnd: Position = [colonStart[0], colonStart[1] + 1];
+    const colon: LexToken = {
+      kind: "colon",
+      text: ":",
+      value: "",
+      source_span: makeSpan(document, colonStart, colonEnd),
+    };
+    const name: LexToken = {
+      kind: "name",
+      text: glued.value,
+      value: "",
+      source_span: makeSpan(document, colonEnd, glued.source_span.end),
+    };
+    tokens.splice(pos, 1, colon, name);
+  }
+
+  /**
+   * Like {@link unexpected}, but for a token found where {@link parseDictEntry} expected a colon
+   * or a value. A `}` there is never an unmatched brace: {@link parseDictLiteral}'s own loop is
+   * about to consume that very token and close the dict correctly on its next pass (`{ a }` and
+   * `{ a: }` both still end up a well-formed, if empty or short, `DictLit`), so reporting
+   * `unexpected`'s `ol-unmatched-brace` here would claim a mismatch that never happens. This
+   * reports the accurate `ol-bad-token` instead — a colon/value was expected, not a brace — and
+   * defers to {@link unexpected} for every other token kind.
+   */
+  function unexpectedInDictEntry(token: LexToken): Diagnostic {
+    return token.kind === "rbrace"
+      ? parseDiag.badToken(token.source_span, token.text)
+      : unexpected(token);
+  }
+
+  /**
    * Parse one `dict-entry ::= dict-key ":" expression` (`spec/grammar.md`). `dict-key` is only
    * `identifier | number` — narrower than {@link parseKeyTerm}'s selector `key-term`, which also
    * accepts `:name` reads, word literals, and parenthesized expressions — because a dict key is
@@ -928,15 +974,18 @@ export function parse(source: string, document = "<input>"): ParseResult {
       }
     }
     skipNewlines();
+    if (current().kind === "variable") {
+      splitGluedColonToken();
+    }
     if (current().kind !== "colon") {
-      diagnostics.push(unexpected(current()));
+      diagnostics.push(unexpectedInDictEntry(current()));
       return undefined;
     }
     advance();
     skipNewlines();
     const value = parseExpression();
     if (value === undefined) {
-      diagnostics.push(unexpected(current()));
+      diagnostics.push(unexpectedInDictEntry(current()));
       return undefined;
     }
     return { key, value, source_span: spanBetween(key, value) };

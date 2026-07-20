@@ -128,18 +128,27 @@ test("the dict literal's own source_span covers exactly the braces", () => {
 
 test("reports a diagnostic when a dict entry is missing its `:` separator", () => {
   // The key `a` parses, but the next token (`b`) is neither `:` nor a valid follow-on, so it is
-  // reported as a bad token; the malformed entry is then skipped and parsing resumes, closing the
-  // dict at the next `}`.
-  assert.deepEqual(codesOf("print { a b }"), [
-    "ol-bad-token",
-    "ol-unmatched-brace",
-  ]);
+  // reported as a bad token; the malformed entry is skipped and `b` is retried as a fresh key,
+  // which then finds `}` instead of a colon — also reported as a bad token, since that `}` is
+  // not actually unmatched: parseDictLiteral's own loop is about to consume it and close the
+  // dict correctly right after.
+  assert.deepEqual(codesOf("print { a b }"), ["ol-bad-token", "ol-bad-token"]);
 });
 
-test("reports ol-unmatched-brace when a dict entry is missing its value", () => {
-  // After `a:`, the closing `}` is reached before any value expression, so the entry is reported
-  // against the (matched, but premature) closing brace.
-  assert.deepEqual(codesOf("print { a: }"), ["ol-unmatched-brace"]);
+test("reports ol-bad-token, not ol-unmatched-brace, when a dict entry is missing its value", () => {
+  // After `a:`, the closing `}` is reached before any value expression. That `}` still closes
+  // the dict correctly on the very next pass, so it is not an unmatched brace — reporting one
+  // would be misleading; `ol-bad-token` (a value was expected here) is accurate instead.
+  assert.deepEqual(codesOf("print { a: }"), ["ol-bad-token"]);
+  const badToken = parse("print { a: }").diagnostics[0];
+  assert.equal(badToken.params.text, "}");
+});
+
+test("reports ol-bad-token, not ol-unmatched-brace, when a dict entry has neither `:` nor value", () => {
+  // `{ a }` is missing both the separator and the value, but its brace still matches.
+  assert.deepEqual(codesOf("print { a }"), ["ol-bad-token"]);
+  const badToken = parse("print { a }").diagnostics[0];
+  assert.equal(badToken.params.text, "}");
 });
 
 test("reports ol-unmatched-brace when a dict key is not an identifier or number", () => {
@@ -150,4 +159,42 @@ test("reports ol-unmatched-brace when a dict key is not an identifier or number"
   const first = parse("print { { a: 1 }: 2 }").diagnostics[0];
   assert.equal(first.code, "ol-unmatched-brace");
   assert.equal(first.params.delimiter, "{");
+});
+
+test("a dict-entry colon glued to its value with no gap parses identically to one with a space", () => {
+  // The lexer's `:name` rule (tokens.ts) has no notion of "dict-entry separator": `:foo` with
+  // zero gap anywhere lexes as one `variable` token. Since whitespace is insignificant around
+  // the separator (`spec/grammar.md`), `{ a:foo }` must parse exactly like `{ a: foo }` — a
+  // zero-arity call to `foo`, never a `VarRef` — with no diagnostics either way.
+  const glued = firstArg("print { a:foo }");
+  const spaced = firstArg("print { a: foo }");
+  assert.equal(glued.entries[0].value.kind, "Call");
+  assert.equal(glued.entries[0].value.callee.name, "foo");
+  assert.deepEqual(glued.entries[0].value.args, []);
+  assert.equal(spaced.entries[0].value.kind, "Call");
+  assert.equal(spaced.entries[0].value.callee.name, "foo");
+  assert.deepEqual(codesOf("print { a:foo }"), []);
+});
+
+test("a glued dict-entry colon still gathers a multi-argument fixed call", () => {
+  const dict = firstArg("print { a:power 2 3 }");
+  const value = dict.entries[0].value;
+  assert.equal(value.kind, "Call");
+  assert.equal(value.callee.name, "power");
+  assert.deepEqual(
+    value.args.map((arg) => arg.value),
+    [2, 3],
+  );
+  assert.deepEqual(codesOf("print { a:power 2 3 }"), []);
+});
+
+test("a glued dict-entry colon before a reserved bare name still parses (not a variable read)", () => {
+  // `{ a:true }` is an edge case only because `true` is a reserved boolean literal, not an
+  // ordinary identifier — the split must still hand the reader a `name` token that parses as a
+  // `BooleanLit`, not silently drop the entry.
+  const diagnosticCodes = codesOf("print { a:true }");
+  assert.deepEqual(diagnosticCodes, []);
+  const dict = firstArg("print { a:true }");
+  assert.equal(dict.entries[0].value.kind, "BooleanLit");
+  assert.equal(dict.entries[0].value.value, true);
 });
