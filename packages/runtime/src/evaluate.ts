@@ -1991,8 +1991,12 @@ function evaluatePrefixIsA(
 // are shared, only the outer array is copied (`spec/execution-model.md:447-482`'s
 // mutation-vs-copy distinction). `reverse`/`pick`/`sort` are Data-profile derived reporters
 // (`spec/data-structures.md:125-141`), not Core — they are evaluated just below `count`, sharing
-// this section's `isWordOrList`/`requireMinArgs`/`listReporterType` helpers, but kept in their own
-// issue #190 doc comment since they are a separate profile slice.
+// this section's `isWordOrList`/`listReporterType` helpers, but kept in their own issue #190 doc
+// comment since they are a separate profile slice. Unlike `first`/`last`/`butfirst`/`butlast`/
+// `count` above (fixed at exactly one input, but guarded with `requireMinArgs` only), each of
+// `reverse`/`pick`/`sort` is guarded with `requireExactArgs` so an oversupplied parenthesized call
+// such as `(reverse [1 2] [3])` raises `ol-too-many-inputs` instead of silently discarding the
+// extra input.
 
 /** A word (string) or list (array) — the shared input type of `first`/`last`/`butfirst`/`butlast`/`count`. */
 function isWordOrList(value: OLValue): value is string | readonly OLValue[] {
@@ -2315,7 +2319,7 @@ function evaluateReverse(
   node: ArithmeticCallNode,
   environment: Environment,
 ): EvalResult {
-  const arityDiagnostic = requireMinArgs(node, "reverse", 1);
+  const arityDiagnostic = requireExactArgs(node, "reverse", 1);
   if (arityDiagnostic) {
     return fail(arityDiagnostic);
   }
@@ -2349,7 +2353,7 @@ function evaluatePick(
   node: ArithmeticCallNode,
   environment: Environment,
 ): EvalResult {
-  const arityDiagnostic = requireMinArgs(node, "pick", 1);
+  const arityDiagnostic = requireExactArgs(node, "pick", 1);
   if (arityDiagnostic) {
     return fail(arityDiagnostic);
   }
@@ -2424,7 +2428,7 @@ function evaluateSort(
   node: ArithmeticCallNode,
   environment: Environment,
 ): EvalResult {
-  const arityDiagnostic = requireMinArgs(node, "sort", 1);
+  const arityDiagnostic = requireExactArgs(node, "sort", 1);
   if (arityDiagnostic) {
     return fail(arityDiagnostic);
   }

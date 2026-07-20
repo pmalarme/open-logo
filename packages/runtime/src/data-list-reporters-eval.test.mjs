@@ -95,6 +95,17 @@ test("(reverse) with no input raises ol-not-enough-inputs", () => {
   });
 });
 
+test("(reverse [1 2] [3]) with an extra input raises ol-too-many-inputs, not a silent discard", () => {
+  const result = execute("print (reverse [1 2] [3])", doc);
+  assert.equal(result.diagnostics.length, 1);
+  assert.deepEqual(result.diagnostics[0].code, "ol-too-many-inputs");
+  assert.deepEqual(result.diagnostics[0].params, {
+    callable: "reverse",
+    expected: 1,
+    actual: 2,
+  });
+});
+
 // --- pick -------------------------------------------------------------------------------------
 
 test("pick returns a member of the list, deterministically under a seeded generator", () => {
@@ -153,6 +164,17 @@ test("(pick) with no input raises ol-not-enough-inputs", () => {
     callable: "pick",
     expected: 1,
     actual: 0,
+  });
+});
+
+test("(pick [1] [2]) with an extra input raises ol-too-many-inputs, not a silent discard", () => {
+  const result = execute("print (pick [1] [2])", doc);
+  assert.equal(result.diagnostics.length, 1);
+  assert.deepEqual(result.diagnostics[0].code, "ol-too-many-inputs");
+  assert.deepEqual(result.diagnostics[0].params, {
+    callable: "pick",
+    expected: 1,
+    actual: 2,
   });
 });
 
@@ -280,5 +302,16 @@ test("(sort) with no input raises ol-not-enough-inputs", () => {
     callable: "sort",
     expected: 1,
     actual: 0,
+  });
+});
+
+test("(sort [2 1] [3]) with an extra input raises ol-too-many-inputs, not a silent discard", () => {
+  const result = execute("print (sort [2 1] [3])", doc);
+  assert.equal(result.diagnostics.length, 1);
+  assert.deepEqual(result.diagnostics[0].code, "ol-too-many-inputs");
+  assert.deepEqual(result.diagnostics[0].params, {
+    callable: "sort",
+    expected: 1,
+    actual: 2,
   });
 });
