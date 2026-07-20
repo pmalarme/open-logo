@@ -27,11 +27,11 @@ test("getExercisesByLevel('2') contains only valid, Level 2 Exercises tied to a 
   }
 });
 
-test("level2Exercises ramps through every difficulty exactly once per lesson", () => {
+test("level2Exercises includes every rung of the difficulty ramp at least once per lesson", () => {
   const byLesson = new Map();
   for (const exercise of level2Exercises) {
-    const difficulties = byLesson.get(exercise.lessonId) ?? [];
-    difficulties.push(exercise.difficulty);
+    const difficulties = byLesson.get(exercise.lessonId) ?? new Set();
+    difficulties.add(exercise.difficulty);
     byLesson.set(exercise.lessonId, difficulties);
   }
   for (const difficulties of byLesson.values()) {
@@ -107,7 +107,7 @@ test("the triangle reference solution turns the turtle back to its starting head
   assert.equal(totalTurn, 360);
 });
 
-test("the house reference solution draws the square body with the pen down, walks to the roof without drawing, then draws the triangle roof with the pen down again", () => {
+test("the house reference solution draws the square body, walks to the roof, draws it, then places a door and two windows all with the pen up between shapes", () => {
   const house = level2Exercises.find(
     (exercise) => exercise.id === "l2-house-square-and-triangle",
   );
@@ -116,6 +116,9 @@ test("the house reference solution draws the square body with the pen down, walk
   const houseResult = execute(house.referenceSolution.source, "house.logo");
   assert.deepEqual(houseResult.diagnostics, []);
 
+  // Four shapes are drawn with the pen down (body, roof, door, window, window), each preceded
+  // by a pen_up walk to reposition — except the very first, which starts with the pen already
+  // down — so the pen alternates down/up/down/up/down/up/down/up: 8 changes in total.
   const penChanges = houseResult.events.filter(
     (event) => event.kind === "pen-change",
   );
@@ -124,13 +127,15 @@ test("the house reference solution draws the square body with the pen down, walk
     [
       { from: "down", to: "up" },
       { from: "up", to: "down" },
+      { from: "down", to: "up" },
+      { from: "up", to: "down" },
+      { from: "down", to: "up" },
+      { from: "up", to: "down" },
+      { from: "down", to: "up" },
+      { from: "up", to: "down" },
     ],
   );
 
-  // The square body's four 90-degree turns and the triangle roof's three 120-degree turns
-  // each close their own shape, plus the two repositioning turns (90, then 180) that walk
-  // the pen from the square's top-left corner to its top-right corner while facing back
-  // across the top edge: 4*90 + 90 + 180 + 3*120 = 990 degrees in total.
   const turnEvents = houseResult.events.filter(
     (event) => event.kind === "turn",
   );
@@ -138,5 +143,30 @@ test("the house reference solution draws the square body with the pen down, walk
     (sum, event) => sum + ((event.payload.to - event.payload.from + 360) % 360),
     0,
   );
-  assert.equal(totalTurn, 990);
+  assert.equal(totalTurn, 3600);
+});
+
+test("the two-houses reference solution repeats the whole house pattern twice, drawing two houses with no diagnostics", () => {
+  const twoHouses = level2Exercises.find(
+    (exercise) => exercise.id === "l2-two-houses-repeat",
+  );
+  assert.ok(twoHouses);
+
+  const result = execute(twoHouses.referenceSolution.source, "two-houses.logo");
+  assert.deepEqual(result.diagnostics, []);
+
+  // Each pass of the outer repeat draws one house (square body + triangle roof only, without
+  // the door/windows), alternating pen down/up/down/up four times per pass: 8 changes in total
+  // across the two passes.
+  const penChanges = result.events.filter(
+    (event) => event.kind === "pen-change",
+  );
+  assert.equal(penChanges.length, 8);
+
+  // The final move of the second pass ends 300 units over from the first house's start corner —
+  // 150 units per house — confirming the second house was drawn beside the first, not on top of
+  // it.
+  const moves = result.events.filter((event) => event.kind === "move");
+  const lastMove = moves[moves.length - 1];
+  assert.equal(Math.round(lastMove.payload.to[0]), 300);
 });
