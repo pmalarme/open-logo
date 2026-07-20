@@ -52,8 +52,12 @@ export const level2Lessons: readonly Lesson[] = [
 /**
  * Graded Level 2 exercises for `l2-square-repeat`. Follows a recognizable-goal ramp (issue
  * #354): guided change to the square, then the triangle pattern as a practice exercise, then a
- * house — a square body plus a triangle roof — as the open challenge, so the learner composes a
- * real object from patterns already learned rather than an abstract shape.
+ * house — a square body plus a triangle roof, a door, and two windows — as the open challenge,
+ * so the learner composes a real object from patterns already learned rather than an abstract
+ * shape. A further "two houses" exercise then reuses that same house to make the learner feel
+ * why `repeat` matters: drawing the whole house a second time by hand would mean retyping every
+ * line, so wrapping the sequence in `repeat 2 [ ... ]` (with a walk to the next spot at the end
+ * of the block) draws both houses side by side instead.
  */
 export const level2Exercises: readonly Exercise[] = [
   {
@@ -88,10 +92,10 @@ export const level2Exercises: readonly Exercise[] = [
     level: "2",
     difficulty: "challenge",
     prompt:
-      "Draw a house: reuse the square as the body, then lift the pen to walk to the top edge and draw a triangle roof on top of it, using only the square and triangle patterns you already know.",
+      "Draw a house: reuse the square as the body, lift the pen to walk to the top edge and draw a triangle roof on top of it, then add a door and two windows using only forward, right, left, pen_up, and pen_down.",
     referenceSolution: {
       source: [
-        "# why: a house is just the square and triangle patterns, one drawn on top of the other",
+        "# why: the square body and triangle roof draw exactly as in the earlier house",
         "repeat 4 [ forward 80 right 90 ]",
         "pen_up",
         "forward 80",
@@ -100,9 +104,95 @@ export const level2Exercises: readonly Exercise[] = [
         "right 180",
         "pen_down",
         "repeat 3 [ forward 80 right 120 ]",
+        "pen_up",
+        "forward 80",
+        "left 90",
+        "forward 80",
+        "right 180",
+        "# why: back at the house's starting corner, facing the same way it began, ready for the door",
+        "right 90",
+        "forward 30",
+        "left 90",
+        "pen_down",
+        "forward 30",
+        "right 90",
+        "forward 20",
+        "right 90",
+        "forward 30",
+        "right 90",
+        "# why: the first window, an enclosed square to the right of the door",
+        "pen_up",
+        "right 180",
+        "forward 5",
+        "left 90",
+        "forward 15",
+        "pen_down",
+        "forward 15",
+        "right 90",
+        "forward 15",
+        "right 90",
+        "forward 15",
+        "right 90",
+        "forward 15",
+        "right 90",
+        "# why: the second window, an enclosed square to the left of the door",
+        "pen_up",
+        "left 90",
+        "forward 50",
+        "right 90",
+        "pen_down",
+        "forward 15",
+        "right 90",
+        "forward 15",
+        "right 90",
+        "forward 15",
+        "right 90",
+        "forward 15",
+        "right 90",
       ].join("\n"),
       explanation:
-        "The square body closes back at the start facing the same way it began; pen_up walks along the top edge to the far corner without drawing, right 180 turns the turtle back to face across that edge, and the triangle pattern then draws a roof sitting exactly on top of it.",
+        "The square body and triangle roof draw exactly as before; pen_up then walks the turtle back to the house's starting corner. From there, short pen_up/pen_down walks place a three-sided door (its open bottom edge already drawn by the house's ground line) and two enclosed square windows, one on each side of the door, without drawing any connecting lines between them.",
+    },
+  },
+  {
+    id: "l2-two-houses-repeat",
+    lessonId: "l2-square-repeat",
+    level: "2",
+    difficulty: "challenge",
+    prompt:
+      "Draw the house again, offset to one side, without retyping it: wrap the whole house pattern in repeat 2 [ ... ], adding a walk to the next spot at the end of the block so each pass draws its own house.",
+    referenceSolution: {
+      source: [
+        "# why: repeating the whole house pattern draws two houses without retyping any of it",
+        "repeat 2 [",
+        "  repeat 4 [",
+        "    forward 80",
+        "    right 90",
+        "  ]",
+        "  pen_up",
+        "  forward 80",
+        "  right 90",
+        "  forward 80",
+        "  right 180",
+        "  pen_down",
+        "  repeat 3 [",
+        "    forward 80",
+        "    right 120",
+        "  ]",
+        "  pen_up",
+        "  forward 80",
+        "  left 90",
+        "  forward 80",
+        "  right 180",
+        "  # why: walk sideways to the next house's starting spot before repeating",
+        "  right 90",
+        "  forward 150",
+        "  left 90",
+        "  pen_down",
+        "]",
+      ].join("\n"),
+      explanation:
+        "Each pass of the outer repeat draws one whole house — square body, then triangle roof — then walks back to its own starting corner and over by 150 to where the next house should begin, so the second pass draws a second house next to the first without a single line of the pattern being retyped.",
     },
   },
 ];
