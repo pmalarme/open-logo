@@ -20,6 +20,8 @@ OpenLogo follows a constructionist rhythm:
 
 The guiding rule is: **build the concept before naming the shortcut**. A learner draws four sides with `repeat` before meeting `polygon`. A learner changes a number by hand before storing it in `:size`. A learner grows a path list before using `map` to transform it.
 
+A companion rule shapes each lesson's culminating challenge: once a concept has been built and named, the learner composes it into a **recognizable, motivating object** rather than an abstract geometry drill — so learners apply the concept by reproducing something they recognize. This pattern repeats as new concepts are introduced, with each challenge building on ideas the learner has already met. For example, after learners use Level 1 movement and turns to build basic shapes, a challenge can be a **house** — a square or rectangle body, a triangle roof, and a door and windows; after Level 2's `repeat`, another can be a **tree**: a trunk with repeated triangle tiers. Each lesson teaches the parts first, then invites the learner to combine them into the whole.
+
 Examples should always answer “why?” in plain language:
 
 ```logo
