@@ -228,6 +228,25 @@ test("raises ol-not-a-place for a parenthesized reporter call target", () => {
   assert.deepEqual(result.diagnostic.params, { text: "(first :nums)" });
 });
 
+test("raises ol-not-a-place for a bare number-literal assignment target", () => {
+  // The parser structurally accepts a literal in target position (`checker-not-a-place.ts`'s
+  // doc comment; `spec/tooling.md:213-219`) precisely so this rule — not an internal-invariant
+  // throw — can explain the mistake with its full surface text.
+  const env = createEnvironment();
+  const result = executeAssign(parseStatement("3 = 5"), env);
+  assert.equal(result.ok, false);
+  assert.equal(result.diagnostic.code, "ol-not-a-place");
+  assert.deepEqual(result.diagnostic.params, { text: "3" });
+});
+
+test("raises ol-not-a-place for a bare list-literal assignment target", () => {
+  const env = createEnvironment();
+  const result = executeAssign(parseStatement("[1 2] = 5"), env);
+  assert.equal(result.ok, false);
+  assert.equal(result.diagnostic.code, "ol-not-a-place");
+  assert.deepEqual(result.diagnostic.params, { text: "[1 2]" });
+});
+
 test("ol-not-a-place is raised before the target is evaluated — an unbound operand does not matter", () => {
   const env = createEnvironment();
   const result = executeAssign(parseStatement("first :missing = 1"), env);
@@ -347,7 +366,10 @@ test("readPlace throws for a place segment kind this issue does not implement ye
   assert.throws(() => evaluate(place, env), /field.*not implemented/);
 });
 
-test("executeAssign throws when the assignment target is neither a Place nor a Call", () => {
+test("executeAssign raises ol-not-a-place when the assignment target is a bare NumberLit", () => {
+  // Now that the runtime treats every non-`Place` target uniformly (matching the semantic
+  // checker's `checker-not-a-place.ts` rule), a hand-built `NumberLit` target — not just a real
+  // `Call`/`ParenCall` — raises the same diagnostic instead of an internal-invariant throw.
   const node = {
     kind: "Assign",
     source_span: span,
@@ -355,8 +377,8 @@ test("executeAssign throws when the assignment target is neither a Place nor a C
     value: { kind: "NumberLit", source_span: span, value: 2 },
     form: "equals",
   };
-  assert.throws(
-    () => executeAssign(node, createEnvironment()),
-    /NumberLit.*not a place/,
-  );
+  const result = executeAssign(node, createEnvironment());
+  assert.equal(result.ok, false);
+  assert.equal(result.diagnostic.code, "ol-not-a-place");
+  assert.deepEqual(result.diagnostic.params, { text: "1" });
 });

@@ -1,0 +1,34 @@
+{
+  "description": "`3 = 5` assigns to a bare number literal, not a place, raising the runtime's own `ol-not-a-place` (issue #94/#156). The parser structurally accepts a literal in target position precisely so this rule — not an internal-invariant throw — can explain the mistake (`checker-not-a-place.ts`'s doc comment; `spec/tooling.md:213-219`). `params.text` carries the FULL target surface text (`3`), matching the semantic-stage rule from issue #113.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/not-a-place-runtime-literal",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-not-a-place",
+      "source_span": {
+        "document": "core-language/execution/not-a-place-runtime-literal",
+        "start": [1, 1],
+        "end": [1, 2]
+      },
+      "params": {
+        "text": "3"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

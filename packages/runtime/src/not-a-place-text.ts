@@ -40,7 +40,7 @@ import type {
  * `checker-not-a-place.ts`'s `RenderableNode` (see that module's doc comment for why this set is
  * closed to exactly these eight kinds).
  */
-type RenderableNode =
+export type RenderableNode =
   | NumberLitNode
   | WordLitNode
   | BooleanLitNode
@@ -164,12 +164,13 @@ function sliceSourceSpan(source: string, span: SourceSpan): string {
 }
 
 /**
- * The `ol-not-a-place` `text` param for `target` (a non-`Place` assignment target, i.e. a `Call`
- * or `ParenCall`): the FULL target surface text, sliced from `source` when available, or
- * reconstructed from the AST otherwise. See this module's doc comment for the two-path priority.
+ * The `ol-not-a-place` `text` param for `target` (any non-`Place` assignment target the parser
+ * can build — a `Call`/`ParenCall`, or a bare `NumberLit`/`WordLit`/`BooleanLit`/`ListLit`): the
+ * FULL target surface text, sliced from `source` when available, or reconstructed from the AST
+ * otherwise. See this module's doc comment for the two-path priority.
  */
 export function notAPlaceTargetText(
-  target: CallNode | ParenCallNode,
+  target: RenderableNode,
   source: string | undefined,
 ): string {
   return source !== undefined

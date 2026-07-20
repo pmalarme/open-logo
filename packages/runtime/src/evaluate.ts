@@ -51,6 +51,7 @@ import type {
 } from "@openlogo/parser";
 import { runtimeDiag } from "./errors.js";
 import { notAPlaceTargetText } from "./not-a-place-text.js";
+import type { RenderableNode } from "./not-a-place-text.js";
 import { normalizeHeading } from "./turtle-math.js";
 
 /** The outcome of evaluating one expression: a value, or the diagnostic that stopped it. */
@@ -906,21 +907,19 @@ export function executeAssign(
   node: AssignNode,
   env: Environment,
 ): AssignResult {
-  if (node.place.kind === "Call" || node.place.kind === "ParenCall") {
+  if (node.place.kind !== "Place") {
+    // The parser structurally accepts any of `RenderableNode`'s kinds (a reporter/command call,
+    // or a bare literal/list) in target position, precisely so this rule — not a blunt parse
+    // error — can explain the mistake (`checker-not-a-place.ts`'s doc comment, `spec/grammar.md`,
+    // `spec/tooling.md:213-219`): `first :x = 5`, `count :nums = 3`, `3 = 5`, `[1 2] = 5` all
+    // reach here as a non-`Place` `node.place`.
     return {
       ok: false,
       diagnostic: runtimeDiag.notAPlace(
         node.place.source_span,
-        notAPlaceTargetText(node.place, env.source),
+        notAPlaceTargetText(node.place as RenderableNode, env.source),
       ),
     };
-  }
-  if (node.place.kind !== "Place") {
-    // The grammar only ever builds an Assign target as a Place or a Call/ParenCall
-    // (`spec/grammar.md:244-258`); anything else is an internal invariant violation.
-    throw new Error(
-      `executeAssign: assignment target kind "${node.place.kind}" is not a place`,
-    );
   }
   const place = node.place;
   if (
