@@ -87,15 +87,11 @@ test("every Level 2 exercise reference solution parses and runs with no diagnost
   }
 });
 
-test("the triangle and hexagon reference solutions turn the turtle back to its starting heading", () => {
+test("the triangle reference solution turns the turtle back to its starting heading", () => {
   const triangle = level2Exercises.find(
     (exercise) => exercise.id === "l2-triangle-matching-turn",
   );
-  const hexagon = level2Exercises.find(
-    (exercise) => exercise.id === "l2-hexagon-two-colors",
-  );
   assert.ok(triangle);
-  assert.ok(hexagon);
 
   const triangleResult = execute(
     triangle.referenceSolution.source,
@@ -109,10 +105,38 @@ test("the triangle and hexagon reference solutions turn the turtle back to its s
     0,
   );
   assert.equal(totalTurn, 360);
+});
 
-  const hexagonResult = execute(
-    hexagon.referenceSolution.source,
-    "hexagon.logo",
+test("the house reference solution draws the square body with the pen down, walks to the roof without drawing, then draws the triangle roof with the pen down again", () => {
+  const house = level2Exercises.find(
+    (exercise) => exercise.id === "l2-house-square-and-triangle",
   );
-  assert.deepEqual(hexagonResult.diagnostics, []);
+  assert.ok(house);
+
+  const houseResult = execute(house.referenceSolution.source, "house.logo");
+  assert.deepEqual(houseResult.diagnostics, []);
+
+  const penChanges = houseResult.events.filter(
+    (event) => event.kind === "pen-change",
+  );
+  assert.deepEqual(
+    penChanges.map((event) => event.payload),
+    [
+      { from: "down", to: "up" },
+      { from: "up", to: "down" },
+    ],
+  );
+
+  // The square body's four 90-degree turns and the triangle roof's three 120-degree turns
+  // each close their own shape, plus the two repositioning turns (90, then 180) that walk
+  // the pen from the square's top-left corner to its top-right corner while facing back
+  // across the top edge: 4*90 + 90 + 180 + 3*120 = 990 degrees in total.
+  const turnEvents = houseResult.events.filter(
+    (event) => event.kind === "turn",
+  );
+  const totalTurn = turnEvents.reduce(
+    (sum, event) => sum + ((event.payload.to - event.payload.from + 360) % 360),
+    0,
+  );
+  assert.equal(totalTurn, 990);
 });

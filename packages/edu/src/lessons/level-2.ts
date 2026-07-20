@@ -50,8 +50,10 @@ export const level2Lessons: readonly Lesson[] = [
 ];
 
 /**
- * Graded Level 2 exercises for `l2-square-repeat`, ramping from changing one number in the
- * square to drawing a different regular polygon by matching the repeat count to the turn.
+ * Graded Level 2 exercises for `l2-square-repeat`. Follows a recognizable-goal ramp (issue
+ * #354): guided change to the square, then the triangle pattern as a practice exercise, then a
+ * house — a square body plus a triangle roof — as the open challenge, so the learner composes a
+ * real object from patterns already learned rather than an abstract shape.
  */
 export const level2Exercises: readonly Exercise[] = [
   {
@@ -81,28 +83,26 @@ export const level2Exercises: readonly Exercise[] = [
     },
   },
   {
-    id: "l2-hexagon-two-colors",
+    id: "l2-house-square-and-triangle",
     lessonId: "l2-square-repeat",
     level: "2",
     difficulty: "challenge",
     prompt:
-      "Draw a hexagon as two repeats of three sides each, switching to a different pen color halfway through, using only ideas you already know.",
+      "Draw a house: reuse the square as the body, then lift the pen to walk to the top edge and draw a triangle roof on top of it, using only the square and triangle patterns you already know.",
     referenceSolution: {
       source: [
-        "# why: two repeats of three sides each still close the hexagon",
-        'set_color "blue"',
-        "repeat 3",
-        "  forward 50",
-        "  right 60",
-        "end repeat",
-        'set_color "red"',
-        "repeat 3",
-        "  forward 50",
-        "  right 60",
-        "end repeat",
+        "# why: a house is just the square and triangle patterns, one drawn on top of the other",
+        "repeat 4 [ forward 80 right 90 ]",
+        "pen_up",
+        "forward 80",
+        "right 90",
+        "forward 80",
+        "right 180",
+        "pen_down",
+        "repeat 3 [ forward 80 right 120 ]",
       ].join("\n"),
       explanation:
-        "The hexagon reuses the square's repeat idiom with a matching 60-degree turn; set_color (already introduced at Level 1) marks the halfway point between the two repeats.",
+        "The square body closes back at the start facing the same way it began; pen_up walks along the top edge to the far corner without drawing, right 180 turns the turtle back to face across that edge, and the triangle pattern then draws a roof sitting exactly on top of it.",
     },
   },
 ];
