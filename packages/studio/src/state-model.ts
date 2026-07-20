@@ -10,8 +10,12 @@
  * - `selection` — the cursor/selection range, expressed as {@link Position} anchor/head pairs
  *   (reusing `@openlogo/core`'s 1-based `[line, column]` positions — the same primitive
  *   diagnostics and the AST use, so panes never invent a second coordinate system).
- * - `runStatus` — `"idle" | "running" | "stopped"`, driven by the run controller (#126) over the
- *   runtime's execution budget.
+ * - `runStatus` — `"idle" | "running" | "done" | "stopped"`, driven by the run controller (#126)
+ *   over the runtime's execution budget. `"idle"` is the initial/`reset()` state (nothing has run
+ *   yet); `"done"` (#311) is a *distinct* value the controller commits once a run finishes
+ *   *on its own* (no `stop()`, no `ol-limit`), so a learner-facing renderer can tell "never run"
+ *   (`"idle"`) apart from "just finished" (`"done"`) — see `run-status-label.ts` for the
+ *   learner-facing label each value maps to.
  * - `diagnostics` — the current `ol-*` {@link Diagnostic} list from `@openlogo/core`, as produced
  *   by `@openlogo/parser`/`@openlogo/runtime`. Studio never invents its own diagnostic shape.
  * - `output` — the learner-visible text produced by the most recent run, one entry per `print`
@@ -52,8 +56,12 @@ import type { TurtleScene, TurtleState } from "@openlogo/turtle";
 import { INITIAL_TURTLE_SCENE, INITIAL_TURTLE_STATE } from "@openlogo/turtle";
 import { DEFAULT_SPEED_SLIDER_VALUE } from "./turtle-speed.js";
 
-/** The learner's run state, driven by the run controller (#126) over the runtime budget. */
-export type RunStatus = "idle" | "running" | "stopped";
+/**
+ * The learner's run state, driven by the run controller (#126) over the runtime budget. `"done"`
+ * (#311) is committed only when a run finishes on its own (never on `stop()`/`ol-limit`, which
+ * commit `"stopped"`, and never at program-start/`reset()`, which commit `"idle"`).
+ */
+export type RunStatus = "idle" | "running" | "done" | "stopped";
 
 /** A cursor/selection range using `@openlogo/core`'s 1-based `[line, column]` positions. */
 export interface Selection {

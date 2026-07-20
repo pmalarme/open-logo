@@ -186,6 +186,8 @@ function describeRunStatus(runStatus: StudioState["runStatus"]): string {
   switch (runStatus) {
     case "running":
       return "Run started.";
+    case "done":
+      return "Run complete.";
     case "stopped":
       return "Run stopped.";
     case "idle":
