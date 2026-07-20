@@ -44,6 +44,7 @@
 - { name: "area:grammar",     color: "c2e0c6", description: "EBNF grammar / reserved words" }
 - { name: "area:highlighter", color: "c2e0c6", description: "Syntax highlighting / token classes" }
 - { name: "area:checker",     color: "c2e0c6", description: "Syntax + semantic checker / linter" }
+- { name: "area:core",        color: "c2e0c6", description: "Core value/type model, ol-* diagnostics, event registry" }
 - { name: "area:runtime",     color: "c2e0c6", description: "Evaluator / runtime" }
 - { name: "area:rendering",   color: "c2e0c6", description: "Turtle rendering / export" }
 - { name: "area:studio",      color: "c2e0c6", description: "Browser studio UI" }

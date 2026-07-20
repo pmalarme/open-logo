@@ -33,7 +33,8 @@ sync with that manifest and (b) auto-applies path-derived labels to PRs.
 
   | Path glob | Labels |
   |---|---|
-  | `packages/core/**`, `packages/runtime/**` | `agent:interpreter`, `area:runtime` |
+  | `packages/core/**` | `agent:interpreter`, `area:core` |
+  | `packages/runtime/**` | `agent:interpreter`, `area:runtime` |
   | `packages/parser/**` | `area:grammar` (co-owned → owner set in triage) |
   | `packages/turtle/**` | `agent:turtle-engine`, `area:rendering` |
   | `packages/studio/**` | `agent:learner-experience`, `area:studio` |
