@@ -117,14 +117,20 @@ test("reset() is deterministic even with no prior run()", () => {
   assert.equal(store.getState().runStatus, "idle");
 });
 
-test("step() before any run() is a no-op: it never touches state", () => {
-  const store = OL.createStudioState({ source: "print 1" });
+test("step() before any run() lazily prepares: executes the CURRENT source and advances exactly one instruction-step", () => {
+  const store = OL.createStudioState({
+    source: "forward 100\nright 90\nforward 100",
+  });
   const controller = OL.createRunController(store);
-  const before = store.getState();
 
-  controller.step();
+  controller.step(); // consumes "forward 100" — the first instruction.
 
-  assert.equal(store.getState(), before);
+  const { output, diagnostics, runStatus, turtleState } = store.getState();
+  assert.deepEqual(output, []);
+  assert.deepEqual(diagnostics, []);
+  assert.equal(runStatus, "running");
+  assert.deepEqual(turtleState.position, [0, 100]);
+  assert.equal(turtleState.heading, 0);
 });
 
 test("two consumers holding the same store observe the same run output — no forked copy", () => {
@@ -319,14 +325,66 @@ test("step() advances the paused turtle animation by exactly one instruction-ste
   assert.equal(store.getState().turtleState.heading, 90);
 });
 
-test("step() before any run() remains a documented no-op even with a canvasView supplied", () => {
-  const store = OL.createStudioState({ source: "print 1" });
+test("step() before any run() lazily prepares even with a canvasView supplied, repainting the first step", () => {
+  const store = OL.createStudioState({ source: "forward 100\nright 90" });
   const fake = createFakeCanvasView();
   const controller = OL.createRunController(store, { canvasView: fake.view });
 
   controller.step();
 
-  assert.equal(fake.repaintCount(), 0);
+  assert.ok(fake.repaintCount() > 0);
+  assert.deepEqual(store.getState().turtleState.position, [0, 100]);
+});
+
+test("repeated step() from idle advances incrementally and settles to 'idle' once the animation is exhausted", () => {
+  const store = OL.createStudioState({
+    source: "forward 100\nright 90",
+  });
+  const controller = OL.createRunController(store);
+
+  controller.step(); // "forward 100"
+  assert.equal(store.getState().runStatus, "running");
+  assert.deepEqual(store.getState().turtleState.position, [0, 100]);
+  assert.equal(store.getState().turtleState.heading, 0);
+
+  controller.step(); // "right 90" — the last instruction, animation reaches "done".
+  assert.equal(store.getState().turtleState.heading, 90);
+  assert.equal(store.getState().runStatus, "idle");
+
+  controller.step(); // exhausted: a no-op, must not throw or change state.
+  assert.equal(store.getState().runStatus, "idle");
+  assert.equal(store.getState().turtleState.heading, 90);
+});
+
+test("step() from idle on a program with a diagnostic surfaces that diagnostic exactly as run() would", () => {
+  const store = OL.createStudioState({ source: "flibbertigibbet 5" });
+  const controller = OL.createRunController(store);
+
+  controller.step();
+
+  const { output, diagnostics } = store.getState();
+  assert.deepEqual(output, []);
+  assert.ok(diagnostics.length > 0);
+});
+
+test("stop() then step()ping to exhaustion never reverts runStatus away from 'stopped', even when step() itself had to lazily prepare", () => {
+  const store = OL.createStudioState({ source: "forward 100\nright 90" });
+  const controller = OL.createRunController(store);
+
+  controller.stop();
+  assert.equal(store.getState().runStatus, "stopped");
+
+  // animation is still null here (no run() ever happened) — step() must lazily prepare it, but
+  // the prior stop() request must still be honored: the cancellation signal stays armed, so the
+  // freshly-prepared run halts immediately with ol-limit/cancelled, exactly as run() would.
+  controller.step();
+
+  const { output, diagnostics, runStatus } = store.getState();
+  assert.deepEqual(output, []);
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].code, "ol-limit");
+  assert.equal(diagnostics[0].params?.limit, "cancelled");
+  assert.equal(runStatus, "stopped");
 });
 
 test("step()ping through the rest of the animation after stop() never reverts runStatus away from 'stopped'", () => {

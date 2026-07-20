@@ -91,6 +91,19 @@ test("index.html gives the Canvas and diagnostics list a tabindex (neither is na
   );
 });
 
+test("index.html labels the single-step control 'Next step' (#289), not the ambiguous 'Step'", () => {
+  assert.match(
+    indexHtml,
+    /id="step-button"[^>]*>\s*Next step\s*</,
+    "the step button's visible/accessible label should read 'Next step'",
+  );
+  assert.doesNotMatch(
+    indexHtml,
+    /id="step-button"[^>]*>\s*Step\s*</,
+    "the step button must not keep the old ambiguous 'Step' label",
+  );
+});
+
 test("index.html declares both always-live aria-live regions createA11yAnnouncer's announcements render into", () => {
   assert.match(
     indexHtml,
