@@ -38,3 +38,5 @@ targets with animation, export, and rendering accessibility.
 ## Conventions
 - Identical event input → identical frames and byte/image-stable exports (snapshot fixtures).
 - Provide the normative textual state description and honor reduced-motion.
+- Follow the team agreement's clean-code naming rule (no abbreviations, self-explaining identifiers) — see
+  [`openlogo-team.instructions.md` §10](openlogo-team.instructions.md#10-conventions).

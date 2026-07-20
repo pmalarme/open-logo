@@ -35,3 +35,5 @@ The foundation package. Owns the **value/type model** (`number`, `word`, `list`,
 ## Conventions
 - A new `ol-*` code or trace event is a **serialized, owner-reviewed** change (it is a shared contract).
 - No rendering, parsing, or evaluation logic here — only the shared model + registries.
+- Follow the team agreement's clean-code naming rule (no abbreviations, self-explaining identifiers) — see
+  [`openlogo-team.instructions.md` §10](openlogo-team.instructions.md#10-conventions).

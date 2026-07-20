@@ -39,3 +39,5 @@ the **AST**, the **reserved-word registry**, the **syntax highlighter** (token c
 ## Conventions
 - Every AST node carries a `source_span`; one grammar production ↔ one node.
 - Diagnostics use only registered `ol-*` codes; the highlighter ships with any grammar change (interlock).
+- Follow the team agreement's clean-code naming rule (no abbreviations, self-explaining identifiers) — see
+  [`openlogo-team.instructions.md` §10](openlogo-team.instructions.md#10-conventions).
