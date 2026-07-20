@@ -8,3 +8,11 @@
 
 /** Marker export so the M0 skeleton is a real ES module; replaced by real exports later. */
 export const EDU_PACKAGE = "@openlogo/edu";
+
+export {
+  isLearnerLevel,
+  isLesson,
+  isWorkedExample,
+  LEARNER_LEVELS,
+} from "./lesson.js";
+export type { Lesson, LearnerLevel, WorkedExample } from "./lesson.js";
