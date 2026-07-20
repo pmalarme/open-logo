@@ -24,7 +24,7 @@ last, and every example actually runs.
 4. **Graded exercises:** ramp from guided to open; for each, include a **runnable reference solution**.
 5. **Culminate in a recognizable object:** the challenge composes what was just taught into a
    motivating, real object a learner wants to reproduce — not an abstract geometry drill. It
-   generalizes one level up per concept: L1 shapes → a house (square/rectangle body + triangle roof,
+   generalizes per concept: L1 shapes → a house (square/rectangle body + triangle roof,
    door, windows); L2 `repeat` → a tree (trunk + repeated triangle tiers). Teach the parts first, then
    compose them.
 6. **Validate every example + solution against the runtime** (`shared/conformance-fixture`) so lessons
