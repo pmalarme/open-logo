@@ -50,6 +50,7 @@ import type {
   WordLitNode,
 } from "@openlogo/parser";
 import { runtimeDiag } from "./errors.js";
+import { notAPlaceTargetText } from "./not-a-place-text.js";
 import { normalizeHeading } from "./turtle-math.js";
 
 /** The outcome of evaluating one expression: a value, or the diagnostic that stopped it. */
@@ -143,6 +144,12 @@ export interface CancellationSignal {
  * only a shared mutable container survives being incremented from many nested call frames at
  * once. {@link checkExecutionLimits} is the single gate every looping/recursive execution path
  * calls before it may run another pass or statement.
+ *
+ * `source` (issue #156) is the original `.logo` source text `execute()`/`runProgram` parsed, when
+ * available — `executeAssign`'s `ol-not-a-place` guard slices the exact target surface text out
+ * of it (`not-a-place-text.ts`), matching the semantic checker's identical rule. `undefined` for
+ * an environment built directly by a unit test with no real source string (this package's own
+ * `createEnvironment()`), which falls back to reconstructing the text from the AST instead.
  */
 export interface Environment {
   readonly frames: readonly Frame[];
@@ -156,6 +163,7 @@ export interface Environment {
   readonly instructionCount: { count: number };
   readonly signal?: CancellationSignal;
   readonly turtle: TurtleState;
+  readonly source?: string;
   readonly callProcedure: (
     node: CallNode | ParenCallNode,
     env: Environment,
@@ -577,7 +585,7 @@ function isLogicalOperator(name: string): name is LogicalOperator {
  * `first`/`last`/`butfirst`/`butlast`/`fput`/`lput`/`sentence`/`count` join the known-callee list
  * too. As of issue #203 the turtle-state reporters `xcor`/`ycor`/`heading`/`pos`/`towards`/
  * `distance` join the known-callee list as well — pure reads of {@link Environment.turtle} that
- * emit no trace event.
+ * emit no trace event. As of issue #234 the word-constructor `word` joins the known-callee list.
  */
 export function isSupportedExpression(
   node: ExpressionNode,
@@ -623,6 +631,7 @@ export function isSupportedExpression(
         name === "fput" ||
         name === "lput" ||
         name === "sentence" ||
+        name === "word" ||
         name === "count" ||
         name === "xcor" ||
         name === "ycor" ||
@@ -902,7 +911,7 @@ export function executeAssign(
       ok: false,
       diagnostic: runtimeDiag.notAPlace(
         node.place.source_span,
-        node.place.callee.name,
+        notAPlaceTargetText(node.place, env.source),
       ),
     };
   }
@@ -1037,6 +1046,9 @@ function evaluateCall(node: ArithmeticCallNode, env: Environment): EvalResult {
   }
   if (name === "sentence") {
     return evaluateSentence(node, env);
+  }
+  if (name === "word") {
+    return evaluateWord(node, env);
   }
   if (name === "count") {
     return evaluateCount(node, env);
@@ -1916,12 +1928,12 @@ function evaluatePrefixIsA(
   );
 }
 
-// --- Core list reporters: first/last/butfirst/butlast/fput/lput/sentence/count (issue #101,
-// spec/commands.md "Words and lists", spec/execution-model.md:447-482) --------------------------
+// --- Core list reporters: first/last/butfirst/butlast/fput/lput/sentence/word/count (issue #101,
+// #234; spec/commands.md "Words and lists", spec/execution-model.md:447-482) ---------------------
 //
 // Every reporter below is a plain `Call`/`ParenCall` — no dedicated AST node — dispatched by
-// lowercased callee name, same as the is-predicates above. `fput`/`lput`/`sentence` always
-// return a *fresh* array (never mutate an argument list in place); nested element references
+// lowercased callee name, same as the is-predicates above. `fput`/`lput`/`sentence`/`word` always
+// return a *fresh* value (never mutate an argument list in place); nested element references
 // are shared, only the outer array is copied (`spec/execution-model.md:447-482`'s
 // mutation-vs-copy distinction). `reverse`/`pick`/`sort` are Data-profile derived reporters
 // (`spec/data-structures.md:125-129`), not Core, so they are intentionally absent here.
@@ -2141,6 +2153,39 @@ function evaluateSentence(
     } else {
       result.push(argResult.value);
     }
+  }
+  return ok(result);
+}
+
+/**
+ * `word` — a *fresh* word concatenating every argument (`spec/commands.md` "word": "Concatenates
+ * word values into a word"). Unlike `sentence`'s flattening rule, `word`'s "Argument types: word,
+ * word" is strict — every argument must itself be a Core `word` (a string); a `number`/`list`/
+ * `boolean` argument raises `ol-type` (`spec/commands.md` "word"'s "Possible errors: `ol-type`").
+ */
+function evaluateWord(node: ArithmeticCallNode, env: Environment): EvalResult {
+  const arityDiagnostic = requireMinArgs(node, "word", 2);
+  if (arityDiagnostic) {
+    return fail(arityDiagnostic);
+  }
+  let result = "";
+  for (const argNode of node.args) {
+    const argResult = evaluate(argNode, env);
+    if (!argResult.ok) {
+      return argResult;
+    }
+    const value = argResult.value;
+    if (typeof value !== "string") {
+      return fail(
+        runtimeDiag.listReporterType(argNode.source_span, {
+          expected: "word",
+          actual: typeNameOf(value),
+          value,
+          operation: "word",
+        }),
+      );
+    }
+    result += value;
   }
   return ok(result);
 }

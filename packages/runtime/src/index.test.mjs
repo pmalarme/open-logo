@@ -232,6 +232,67 @@ test("execute raises ol-not-enough-inputs for a parenthesized zero-argument `(pr
   });
 });
 
+// --- `show` (issue #234) ------------------------------------------------------------------
+
+test("execute emits an instruction event, then a print event, per `show` statement", () => {
+  const result = execute('show "hello"', "main.logo");
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(
+    result.events.map((event) => event.kind),
+    ["instruction", "print"],
+  );
+  assert.deepEqual(result.events[1].payload, { values: ["hello"] });
+});
+
+test("execute raises ol-not-enough-inputs for a bare zero-argument `show`", () => {
+  const result = execute("show", "main.logo");
+  assert.equal(result.events.length, 1);
+  assert.equal(result.events[0].kind, "instruction");
+  assert.equal(result.diagnostics.length, 1);
+  assert.deepEqual(result.diagnostics[0].params, {
+    callable: "show",
+    expected: 1,
+    actual: 0,
+  });
+  assert.equal(result.diagnostics[0].code, "ol-not-enough-inputs");
+});
+
+test("execute raises ol-too-many-inputs for `show` given more than one argument", () => {
+  // `show`'s bare form always groups exactly one argument (its fixed arity), so the only way to
+  // reach the runtime with more than one is the parenthesized form — which `parse()` accepts
+  // structurally as-is, deferring arity enforcement to `check()` (semantic stage) or, since a bare
+  // `execute()` call never runs `check()`, to this very guard in `executeShowCall`.
+  const result = execute('(show "a" "b")', "main.logo");
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");
+  assert.deepEqual(result.diagnostics[0].params, {
+    callable: "show",
+    expected: 1,
+    actual: 2,
+  });
+});
+
+test("execute leaves an unsupported `show` argument un-evaluated, emitting no print event", () => {
+  // A dotted `.field` place segment (Data-profile, deferred) is not yet a supported expression —
+  // the same deferral `print` uses.
+  const result = execute("show :ages.tom", "main.logo");
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(
+    result.events.map((event) => event.kind),
+    ["instruction"],
+  );
+});
+
+test("execute stops and returns the diagnostic when a `show` argument fails to evaluate", () => {
+  const result = execute('show 1 / 0\nshow "unreached"', "main.logo");
+  assert.deepEqual(
+    result.events.map((event) => event.kind),
+    ["instruction"],
+  );
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-div-zero");
+});
+
 test("execute dispatches an `Assign` statement, making its binding visible to a later statement", () => {
   // `:x = 1` never emits its own event (issue #94: there is no dedicated event kind for
   // assignment) — only its `instruction` event fires — but the binding it creates is visible to
@@ -256,7 +317,7 @@ test("execute halts on an Assign failure, keeping only the events emitted so far
   assert.equal(result.events[0].kind, "instruction");
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-not-a-place");
-  assert.deepEqual(result.diagnostics[0].params, { text: "first" });
+  assert.deepEqual(result.diagnostics[0].params, { text: "first :nums" });
 });
 
 // --- `if`/`while` execution (issue #100) ------------------------------------------------------

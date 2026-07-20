@@ -1,0 +1,28 @@
+{
+  "description": "Core `show` (issue #234, spec/commands.md `show`) is an output command like `print`: `show \"hello\"` renders its single value the same way `print` would, sharing the `print` trace-event kind since the spec documents no distinct payload shape for `show`.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/show-command",
+        "start": [1, 1],
+        "end": [1, 13]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/show-command",
+        "start": [1, 1],
+        "end": [1, 13]
+      },
+      "payload": { "values": ["hello"] }
+    }
+  ],
+  "diagnostics": []
+}

@@ -285,12 +285,13 @@ export interface IsPredicateTypeErrorParams {
 /**
  * Params for an `ol-type` raised by a Core list reporter's wrong-typed argument
  * (`spec/commands.md` — `first`/`last`/`butfirst`/`butlast`/`count` accept a word or list; `fput`/
- * `lput` require their second argument to be a list). Same `{expected, actual, value, operation}`
- * shape as {@link IsPredicateTypeErrorParams}/{@link OrderingTypeErrorParams} — `operation` names
- * the offending reporter for the message.
+ * `lput` require their second argument to be a list; `word` requires every argument to be a word,
+ * issue #234). Same `{expected, actual, value, operation}` shape as
+ * {@link IsPredicateTypeErrorParams}/{@link OrderingTypeErrorParams} — `operation` names the
+ * offending reporter for the message.
  */
 export interface ListReporterTypeErrorParams {
-  readonly expected: "word or list" | "list";
+  readonly expected: "word or list" | "list" | "word";
   readonly actual: string;
   readonly value: OLValue;
   readonly operation: string;

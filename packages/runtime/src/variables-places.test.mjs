@@ -216,7 +216,7 @@ test("raises ol-not-a-place for a reporter call used as an assignment target", (
   const result = executeAssign(parseStatement("first :nums = 1"), env);
   assert.equal(result.ok, false);
   assert.equal(result.diagnostic.code, "ol-not-a-place");
-  assert.deepEqual(result.diagnostic.params, { text: "first" });
+  assert.deepEqual(result.diagnostic.params, { text: "first :nums" });
   assert.equal(result.diagnostic.stage, "runtime");
 });
 
@@ -225,6 +225,7 @@ test("raises ol-not-a-place for a parenthesized reporter call target", () => {
   const result = executeAssign(parseStatement("(first :nums) = 1"), env);
   assert.equal(result.ok, false);
   assert.equal(result.diagnostic.code, "ol-not-a-place");
+  assert.deepEqual(result.diagnostic.params, { text: "(first :nums)" });
 });
 
 test("ol-not-a-place is raised before the target is evaluated — an unbound operand does not matter", () => {
@@ -232,7 +233,7 @@ test("ol-not-a-place is raised before the target is evaluated — an unbound ope
   const result = executeAssign(parseStatement("first :missing = 1"), env);
   assert.equal(result.ok, false);
   assert.equal(result.diagnostic.code, "ol-not-a-place");
-  assert.deepEqual(result.diagnostic.params, { text: "first" });
+  assert.deepEqual(result.diagnostic.params, { text: "first :missing" });
 });
 
 test("leaves a dotted `.field` assignment target silently un-executed (Data-profile, deferred)", () => {

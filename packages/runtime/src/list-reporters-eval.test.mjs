@@ -347,6 +347,71 @@ test("(sentence 1) with only one input raises ol-not-enough-inputs", () => {
   });
 });
 
+// --- word (issue #234) ------------------------------------------------------------------------
+
+test("word concatenates two words into a fresh word", () => {
+  const result = execute('print word "foo" "bar"', doc);
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(printedValues(result), ["foobar"]);
+});
+
+test("word accepts more than two arguments in parenthesized form", () => {
+  const result = execute('print (word "a" "b" "c")', doc);
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(printedValues(result), ["abc"]);
+});
+
+test("word raises ol-type when an argument is a number, not a word", () => {
+  const result = execute('print word 1 "bar"', doc);
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-type");
+  assert.deepEqual(result.diagnostics[0].params, {
+    expected: "word",
+    actual: "number",
+    value: 1,
+    operation: "word",
+  });
+});
+
+test("word raises ol-type when an argument is a list, not a word", () => {
+  const result = execute('print word [1] "bar"', doc);
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-type");
+});
+
+test("word raises ol-type when an argument is a boolean, not a word", () => {
+  const result = execute('print word true "bar"', doc);
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-type");
+});
+
+test("word propagates an argument evaluation failure", () => {
+  const result = execute('print word :missing "bar"', doc);
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-undefined-var");
+});
+
+test("(word) with no inputs raises ol-not-enough-inputs", () => {
+  const result = execute("print (word)", doc);
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-not-enough-inputs");
+  assert.deepEqual(result.diagnostics[0].params, {
+    callable: "word",
+    expected: 2,
+    actual: 0,
+  });
+});
+
+test('(word "a") with only one input raises ol-not-enough-inputs', () => {
+  const result = execute('print (word "a")', doc);
+  assert.equal(result.diagnostics.length, 1);
+  assert.deepEqual(result.diagnostics[0].params, {
+    callable: "word",
+    expected: 2,
+    actual: 1,
+  });
+});
+
 // --- count ----------------------------------------------------------------------------------
 
 test("count returns a list's length", () => {
