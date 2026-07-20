@@ -638,23 +638,25 @@ fixture asserting this guardrail is necessary but not sufficient evidence of com
 review of new baseline templates remains required. For `hint`, this guardrail applies independently
 at every `stage`, including `"last-resort"`.
 
-Progression state for `hint` is keyed by `target-source-span` **within a single learner session and
-an unchanged program text at that span**: editing the program text at a `target-source-span`, or
-starting a new challenge attempt, resets its progression. Within one session and one unchanged
-target: the first `tutor-output` event with `command: "hint"` for a given `target-source-span` value
-MUST have `stage: "nudge"`; each subsequent `hint` request for the same value MUST escalate to the
-next stage in the nudge → concept → partial → last-resort order; and once `"last-resort"` has been
-reached, further `hint` requests for that value MUST repeat `stage: "last-resort"` rather than
-fabricate a fifth stage or reveal the solution. A `hint` request whose `target-source-span` is a
-*different* value, or whose session or program text has reset, starts its own independent
-progression at `"nudge"`.
+Progression state for `hint` is a property of the host implementation, not the wire event itself: this
+spec does not define learner sessions, challenge attempts, or any other lifecycle concept, so it does
+not mandate exactly when that state resets. What it requires is only the observable ordering among the
+`tutor-output` events an implementation actually emits for a given `target-source-span` value: the
+first such event with `command: "hint"` MUST have `stage: "nudge"`; each subsequent one for the *same*
+`target-source-span` value MUST escalate to the next stage in the nudge → concept → partial →
+last-resort order; and once `"last-resort"` has been emitted for that value, further `hint` events for
+it MUST repeat `stage: "last-resort"` rather than fabricate a fifth stage or reveal the solution. A
+`hint` event whose `target-source-span` is a *different* value starts its own independent progression
+at `"nudge"`. When (and whether) an implementation begins a fresh progression for what a learner
+perceives as "the same" hint request — for example after editing the program or restarting a
+challenge — is implementation-defined and out of scope for this event kind.
 
-This kind's only consumer-facing requirement is self-contained: a renderer or reducer that does not
-recognize `tutor-output` MUST treat it as an event with no visible or state-changing effect (inert
-default branch, returning the same state reference). This is the only behavior this proposal requires
-of any consumer; it does not depend on, and does not establish, any general rule for handling other
-unrecognized event kinds. A host that does not claim the Educational profile MUST NOT emit
-`tutor-output` events.
+An implementation that consumes traces from an Educational-profile host but does not itself
+special-case `tutor-output` MUST treat it as having no visible or semantic effect. This requirement
+applies only to consumers of Educational traces; it does not require any change to a Core-only
+implementation, which by definition never produces or consumes a `tutor-output` event, and it does
+not establish any general rule for handling other unrecognized event kinds. A host that does not claim
+the Educational profile MUST NOT emit `tutor-output` events.
 
 ## Worked traces
 
