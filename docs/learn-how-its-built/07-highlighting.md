@@ -1,4 +1,4 @@
-# 06 · Highlighting
+# 07 · Highlighting
 
 Open your `.logo` file in an editor and every piece of it lights up in a different color: keywords
 in one shade, numbers in another, commands in a third. That's **syntax highlighting** — and it's
@@ -59,4 +59,4 @@ Open any `.logo` file in an editor with OpenLogo highlighting and look closely: 
 `repeat` should all share one color (keywords), while `forward`, `print`, and `right` share another
 (primitives) — even though, to your eyes, they're all "just words."
 
-**Next up →** [07 · The checker](07-the-checker.md)
+**Next up →** [08 · The checker](08-the-checker.md)
