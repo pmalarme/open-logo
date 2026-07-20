@@ -21,12 +21,16 @@
       </section>
       <section aria-label="Run controls">
         <button id="run-button" type="button">Run</button>
+        <button id="stop-button" type="button">Stop</button>
+        <button id="reset-button" type="button">Reset</button>
+        <button id="step-button" type="button">Step</button>
+        <p id="run-status" aria-live="polite"></p>
       </section>
       <section aria-label="Turtle canvas">
         <canvas id="turtle-canvas" width="500" height="500"></canvas>
       </section>
       <section aria-label="Diagnostics">
-        <pre id="diagnostics"></pre>
+        <ul id="diagnostics-list" aria-live="polite"></ul>
       </section>
     </main>
     <script type="module" src="/web/main.ts"></script>

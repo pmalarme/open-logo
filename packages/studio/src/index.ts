@@ -103,9 +103,27 @@
  * #277 makes the studio actually servable — a Vite-hosted browser page (`index.html` +
  * `web/main.ts`) composes every seam above onto a real `<textarea>`/`<canvas>`/Run button. The
  * browser entry is a thin, logic-free wiring layer (outside this package's `tsc -b` build graph
- * and never imported by a test); any real logic it needs lives in {@link DEFAULT_RUN_PROGRAM}/
- * {@link formatDiagnosticsSummary} (`web-bootstrap.ts`) instead, so it stays inside the 100%
- * coverage gate. See `packages/studio/README.md`'s "Running in a browser" section.
+ * and never imported by a test); any real logic it needs lives in `web-bootstrap.ts` instead, so
+ * it stays inside the 100% coverage gate. See `packages/studio/README.md`'s "Running in a
+ * browser" section.
+ *
+ * #278 makes the page's Run/Stop/Reset/Step controls real and paces the turtle animation
+ * visibly, and turns the diagnostics pane into a real list:
+ * - {@link createTimeoutScheduler} builds a real, paced `RunControllerOptions.scheduler` — a
+ *   fixed-delay, `setTimeout`-backed `Scheduler` (`@openlogo/turtle`'s timer-free type) the
+ *   browser entry injects so a run's turtle animation plays back step by step instead of
+ *   draining instantly (`IMMEDIATE_SCHEDULER`, still the default for headless/test callers).
+ *   {@link TimeoutSchedulerTimers} is the injectable timer seam (real `setTimeout`/
+ *   `clearTimeout` from the browser entry, fakes in this module's own tests) — kept out of
+ *   `run-controller.ts`/`@openlogo/turtle` entirely, per their "studio owns the timer" boundary.
+ * - {@link toDiagnosticListItems} projects {@link DiagnosticsController}'s `diagnostics` into a
+ *   ready-to-render list — one {@link DiagnosticListItem} per diagnostic, each already carrying
+ *   its fully formatted `label` (source span + code + severity + message, per
+ *   `spec/error-model.md`'s diagnostic-identity rule); {@link NO_DIAGNOSTICS_LABEL} is the fixed
+ *   placeholder shown when the list is empty. The browser entry mounts
+ *   {@link createDiagnosticsController} (live parse-stage diagnostics as the learner types) via
+ *   {@link mountDiagnosticsPane} and renders both parse- and run-stage diagnostics through this
+ *   one path, per `diagnostics.ts`'s "one unified rendering path" doc comment.
  */
 
 export type {
@@ -197,7 +215,13 @@ export {
   mountCanvasView,
 } from "./canvas-view.js";
 
+export type {
+  DiagnosticListItem,
+  TimeoutSchedulerTimers,
+} from "./web-bootstrap.js";
 export {
+  createTimeoutScheduler,
   DEFAULT_RUN_PROGRAM,
-  formatDiagnosticsSummary,
+  NO_DIAGNOSTICS_LABEL,
+  toDiagnosticListItems,
 } from "./web-bootstrap.js";
