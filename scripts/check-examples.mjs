@@ -1,29 +1,18 @@
-// Verify the runnable spec examples are present and non-empty. Once the parser and runtime
-// land, this gate will parse and execute each example; for the M0 skeleton it guards against
-// missing or empty `spec/examples/*.logo` so the DoD `examples` gate is meaningful from day one.
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+#!/usr/bin/env node
+/**
+ * Thin CLI shell for the examples DoD gate. All logic lives in scripts/examples-gate.mjs; this
+ * entry point just parses argv, runs the gate, prints its report, and exits non-zero on failure.
+ * Per ADR-0009's pattern (mirroring scripts/conformance.mjs), this CLI wrapper stays
+ * subprocess-tested and out of the loaded-module coverage set.
+ */
 
-const dir = join("spec", "examples");
-const files = readdirSync(dir).filter((f) => f.endsWith(".logo"));
+import { parseArgs, runExamplesGate } from "./examples-gate.mjs";
 
-if (files.length === 0) {
-  console.error(`examples: no .logo files found in ${dir}`);
-  process.exit(1);
+const options = parseArgs(process.argv.slice(2));
+const result = runExamplesGate(options);
+
+for (const line of result.lines) {
+  console.log(line);
 }
 
-let failures = 0;
-for (const file of files) {
-  const text = readFileSync(join(dir, file), "utf8").trim();
-  if (text.length === 0) {
-    console.error(`examples: ${file} is empty`);
-    failures += 1;
-  }
-}
-
-if (failures > 0) {
-  console.error(`examples: ${failures} empty example(s) found`);
-  process.exit(1);
-}
-
-console.log(`examples: ${files.length} .logo example(s) present and non-empty`);
+process.exit(result.ok ? 0 : 1);

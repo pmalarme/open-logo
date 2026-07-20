@@ -45,8 +45,12 @@ formatting).
 tests at M0; the first smoke tests land with the contract stubs (issue #7).
 
 **Conformance + examples:** small Node scripts under `scripts/`. `conformance` is a placeholder
-until the stack-neutral harness lands in issue #6; `examples` checks that every runnable
-`spec/examples/*.logo` is present and non-empty (it will parse/run them once the runtime exists).
+until the stack-neutral harness lands in issue #6; `examples` parses and executes every
+`spec/examples/*.logo` file against `@openlogo/parser` + `@openlogo/runtime`, using a
+`scripts/examples-profiles.json` manifest to skip (with a visible notice) any example whose
+required profile isn't implemented yet, so the gate only *attempts* examples whose declared
+profiles are implemented — and genuinely fails when one of those examples hits a real
+parser/runtime gap, rather than reporting success just because the file is present.
 
 This ADR **resolves** ADR-0001's deferred "package manager" and "test runner" sub-decisions and
 does not supersede it; ADR-0001 remains Accepted. Rendering libraries, the studio shell, and the
