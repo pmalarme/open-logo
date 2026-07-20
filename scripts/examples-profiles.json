@@ -1,0 +1,15 @@
+{
+  "_comment": "Owned by @testing (issue #283), NOT spec/ (spec/ is maintainer-owned per AGENTS.md). Maps each spec/examples/*.logo filename to the minimal set of spec/conformance.md profile ids it requires, using the same ids as scripts/harness/index.mjs's PROFILE_DEPS. scripts/examples-gate.mjs skips (with a visible notice) any example that needs a profile not yet in IMPLEMENTED_PROFILES, rather than counting it as passed. Every spec/examples/*.logo file MUST have an entry here, or the gate fails loudly instead of silently ignoring it.",
+  "01-movement.logo": ["core-language", "turtle-rendering"],
+  "02-repetition.logo": ["core-language", "turtle-rendering"],
+  "03-variables.logo": ["core-language", "turtle-rendering"],
+  "04-conditions.logo": ["core-language", "turtle-rendering"],
+  "05-procedures.logo": ["core-language", "turtle-rendering", "heritage"],
+  "06-geometry.logo": ["core-language", "turtle-rendering"],
+  "07-data-structures.logo": ["core-language", "turtle-rendering", "data"],
+  "08-algorithms.logo": ["core-language", "turtle-rendering"],
+  "09-sprites.logo": ["core-language", "turtle-rendering", "sprites"],
+  "10-game.logo": ["core-language", "turtle-rendering", "interaction-events"],
+  "11-music.logo": ["core-language", "turtle-rendering", "sound"],
+  "12-fractal.logo": ["core-language", "turtle-rendering"]
+}
