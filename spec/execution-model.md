@@ -585,7 +585,7 @@ Normative `kind` values:
 | Timing | Kinds |
 |---|---|
 | Start | `instruction`, `procedure-enter` |
-| Effect | `move`, `turn`, `pen-change`, `width-change`, `color-change`, `background-change`, `draw-segment`, `fill`, `stamp`, `shape-change`, `visibility-change`, `clear`, `overlay`, `procedure-exit`, `return`, `print`, `sound`, `spawn-turtle`, `primitive`, `error` |
+| Effect | `move`, `turn`, `pen-change`, `width-change`, `color-change`, `background-change`, `draw-segment`, `fill`, `stamp`, `shape-change`, `visibility-change`, `clear`, `overlay`, `procedure-exit`, `return`, `print`, `sound`, `spawn-turtle`, `primitive`, `error`, `tutor-output` |
 
 Rendering-relevant events carry typed payloads. Examples:
 
@@ -597,6 +597,41 @@ Rendering-relevant events carry typed payloads. Examples:
 `primitive` is the generic catch-all for a primitive without a more specific
 event. Implementations may add extension events under a vendor namespace such as
 `vendor_name.event_name`.
+
+### `tutor-output` (Educational profile)
+
+**Status: Normative, scoped to the [Educational profile](conformance.md#educational).** A
+Core+Turtle & Rendering conformance claim never requires this kind: the event registry above is
+unchanged for a Core-only implementation, and `tutor-output` is purely additive. An implementation
+only emits `tutor-output` events when it claims the Educational profile, because only that profile
+defines the `explain`, `why`, `hint`, and `debug` baseline meta-commands specified in
+[educational-model.md](educational-model.md#baseline-meta-commands) and required normatively in
+[conformance.md#educational](conformance.md#educational).
+
+`tutor-output` is an **effect event**: it is emitted immediately after the baseline meta-command
+that triggered it produces its result, following the same start/effect convention as every other
+event in this registry. The `source-span` field is the span of the meta-command invocation (or, for
+`why`/`debug`, the span of the instruction, state, or diagnostic they explain).
+
+Payload shape (data-only, stack-neutral — no host-language types):
+
+| Field | Meaning |
+|---|---|
+| `command` | One of `"explain"`, `"why"`, `"hint"`, `"debug"`. |
+| `segments` | A non-empty ordered list of learner-facing message segments (plain text strings). No markup is imposed by the spec. |
+| `stage` | Present only when `command` is `"hint"`. One of `"nudge"`, `"concept"`, `"partial"`, `"last-resort"` — the four stages of the progressive hint model in [educational-model.md](educational-model.md#hint). Absent for `explain`, `why`, and `debug`. |
+
+Normative guardrail on the payload: **`segments` MUST NOT, at any stage, constitute a complete,
+ready-to-run OpenLogo solution program.** This restates the no-full-solution requirement of
+[conformance.md#educational](conformance.md#educational) as a checkable property of the payload
+itself — a conformance fixture MAY assert it directly (for example, by asserting that no `segments`
+value parses as a standalone runnable program) rather than only asserting prose intent. For `hint`,
+this guardrail applies independently at every `stage`, including `"last-resort"`.
+
+A host that does not claim the Educational profile MUST NOT emit `tutor-output` events, and a
+renderer or reducer that does not recognize `tutor-output` MUST treat it as an event with no visible
+or state-changing effect (inert default branch), consistent with `primitive` and other
+implementation-specific events it does not special-case.
 
 ## Worked traces
 

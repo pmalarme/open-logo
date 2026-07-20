@@ -169,6 +169,15 @@ invoked as a bare word with no inputs and produces tutor output rather than a pr
 | `hint` | Command | 0 | none (tutor output) |
 | `debug` | Command | 0 | none (tutor output) |
 
+Each invocation MUST emit a `tutor-output` event, the normative event kind specified in
+[execution-model.md](execution-model.md#tutor-output-educational-profile). This kind is scoped to
+this profile: a Core+Turtle & Rendering-only implementation is never required to emit it, and it adds
+no field to, and changes no behavior of, any existing event kind. A stack-neutral conformance fixture
+for `explain`/`why`/`hint`/`debug` MUST assert on this event's `command` and `segments` fields (and,
+for `hint`, its `stage` field) rather than on undefined behavior, and MUST assert that no `segments`
+value constitutes a complete, ready-to-run solution — the checkable form of the no-full-solution
+requirement above.
+
 ### Tutor (AI)
 
 The **Tutor (AI)** profile provides AI-augmented tutoring behavior, including `challenge`, Socratic
