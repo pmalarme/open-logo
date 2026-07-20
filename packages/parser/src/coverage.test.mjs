@@ -738,6 +738,13 @@ test("exposes the turtle & rendering primitive arities", () => {
   assert.equal(OL.turtlePrimitiveArity("home"), 0);
 });
 
+test("exposes the data profile's derived list reporter arities (issue #190)", () => {
+  assert.equal(OL.dataPrimitiveArity("reverse"), 1);
+  assert.equal(OL.dataPrimitiveArity("PICK"), 1);
+  assert.equal(OL.dataPrimitiveArity("sort"), 1);
+  assert.equal(OL.dataPrimitiveArity("wibble"), undefined);
+});
+
 // --- AST walker -------------------------------------------------------------
 
 const MEGA = [

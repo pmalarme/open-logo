@@ -69,7 +69,11 @@ export type { RecordFieldAccess } from "./checker-type-field.js";
 export { isReservedWord, OL_RESERVED_WORDS } from "./reserved.js";
 export type { ReservedWord } from "./reserved.js";
 
-export { corePrimitiveArity, turtlePrimitiveArity } from "./signatures.js";
+export {
+  corePrimitiveArity,
+  turtlePrimitiveArity,
+  dataPrimitiveArity,
+} from "./signatures.js";
 
 export { highlight, OL_BRACKET_ROLES, OL_TOKEN_CLASSES } from "./highlight.js";
 export type { BracketRole, Token, TokenClass } from "./highlight.js";

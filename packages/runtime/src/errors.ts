@@ -52,6 +52,13 @@
  * Issue #287 adds `random`'s two `ol-range` cases — `n` below the minimum of `1`, and `(random a
  * b)` with `a` greater than `b` — reusing `requireWholeNumber`'s existing `ol-type` for a
  * non-whole bound, checked first (`spec/commands.md`'s `random` entry).
+ * Issue #190 adds the Data-profile derived list reporters' diagnostics
+ * (`spec/data-structures.md:125-141`): a reuse of `ol-type` (via `listReporterType`) for
+ * `reverse`/`pick`/`sort`'s non-list argument, `ol-range` (via the new `emptyList`) for `pick` on
+ * an empty list — narrower than `emptyInput`'s "word or list" wording since `pick` is list-only —
+ * and a reuse of `ol-type` (via `orderingType`) for `sort` given elements that are not mutually
+ * orderable (a mix of numbers and words, or any other type), following the exact ordering rule
+ * `<`/`>`/`<=`/`>=` already use (`spec/data-structures.md:141`).
  * Mirrors the parser's `errors.ts` pattern: every finding is a stable code from the
  * `@openlogo/core` registry with structured `params` (the diagnostic identity) plus warm,
  * lowercase learner prose derived from them — prose is presentation only.
@@ -289,7 +296,9 @@ export interface IsPredicateTypeErrorParams {
  * Params for an `ol-type` raised by a Core list reporter's wrong-typed argument
  * (`spec/commands.md` — `first`/`last`/`butfirst`/`butlast`/`count` accept a word or list; `fput`/
  * `lput` require their second argument to be a list; `word` requires every argument to be a word,
- * issue #234). Same `{expected, actual, value, operation}` shape as
+ * issue #234) or a Data-profile derived list reporter's wrong-typed argument
+ * (`spec/data-structures.md:125-141` — `reverse`/`pick`/`sort` each require a `list`, issue #190).
+ * Same `{expected, actual, value, operation}` shape as
  * {@link IsPredicateTypeErrorParams}/{@link OrderingTypeErrorParams} — `operation` names the
  * offending reporter for the message.
  */
@@ -308,6 +317,19 @@ export interface ListReporterTypeErrorParams {
  */
 export interface EmptyInputRangeParams {
   readonly operation: "first" | "last" | "butfirst" | "butlast";
+  readonly value: OLValue;
+}
+
+/**
+ * Params for an `ol-range` raised by `pick` on an empty list (issue #190,
+ * `spec/error-model.md`'s `ol-range` row: "`pick` from an empty list"). Sibling of
+ * {@link EmptyInputRangeParams} but kept as its own interface/builder rather than widening that
+ * one's `operation` union: `pick`'s sole input type is `list` (`spec/data-structures.md:127`),
+ * unlike `first`/`last`/`butfirst`/`butlast`'s word-or-list, so the message names "list" rather
+ * than "word or list".
+ */
+export interface EmptyListParams {
+  readonly operation: "pick";
   readonly value: OLValue;
 }
 
@@ -943,6 +965,18 @@ export const runtimeDiag = {
       source_span,
       { ...params },
       `${params.operation} needs a non-empty word or list, but got an empty one.`,
+    );
+  },
+
+  /**
+   * `ol-range` for `pick` given an empty list (issue #190) — see {@link EmptyListParams}.
+   */
+  emptyList(source_span: SourceSpan, params: EmptyListParams): Diagnostic {
+    return runtimeError(
+      "ol-range",
+      source_span,
+      { ...params },
+      `${params.operation} needs a non-empty list, but got an empty one.`,
     );
   },
 
