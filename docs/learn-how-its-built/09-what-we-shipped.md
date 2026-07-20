@@ -15,7 +15,8 @@ flowchart LR
   M1 --> M2["🐢 M2 · Turtle & Rendering<br/>drawing on screen"]
 ```
 
-M0, M1, and M2 are all real, merged into shared code, and **tagged** — the turtle really draws.
+M0, M1, and M2 are all real, merged into shared code — Core Language and Turtle & Rendering shipped
+together as the tagged `v0.1.0` release, and the turtle really draws.
 
 ## M0 · Foundation — building the workshop
 
