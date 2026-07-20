@@ -15,7 +15,10 @@ flowchart LR
   M1 --> M2["🐢 M2 · Turtle & Rendering<br/>drawing on screen"]
 ```
 
-M0, M1, and M2 are all real, merged into shared code — the turtle really draws.
+M0, M1, and M2 are all real, merged into shared code — Core Language and Turtle & Rendering shipped
+together as
+[the tagged `v0.1.0` release](https://github.com/pmalarme/open-logo/releases/tag/v0.1.0), and the
+turtle really draws.
 
 ## M0 · Foundation — building the workshop
 
@@ -32,13 +35,16 @@ Before building a language, you need a workshop. M0 built one:
   program, see *exactly* these results" — an answer key checked automatically, instead of once by a
   teacher.
 - **Four shared contracts** — a **contract** is a shape everyone agrees to use, like every outlet in
-  a country sharing one plug shape. OpenLogo has four: the **AST** (the tree shape a parsed program
-  takes — page 04), the **event stream** (a play-by-play of what happened while your program ran,
-  like a sportscaster's call), the **`ol-*` diagnostics** (every error/warning, with its own stable
-  code, like a doctor's diagnosis codes), and the **token classes** (categories a highlighter sorts
-  words into — page 06). Agreeing on these first let separate teams build the lexer, turtle engine,
-  and highlighter **at the same time** without colliding — like crews agreeing on measurements
-  before framing walls.
+  a country sharing one plug shape. OpenLogo has four:
+  - the **AST** — the tree shape a parsed program takes (page 04)
+  - the **event stream** — a play-by-play of what happened while your program ran, like a
+    sportscaster's call
+  - the **`ol-*` diagnostics** — every error/warning, with its own stable code, like a doctor's
+    diagnosis codes
+  - the **token classes** — categories a highlighter sorts words into (page 06)
+
+  Agreeing on these first let separate teams build the lexer, turtle engine, and highlighter **at
+  the same time** without colliding — like crews agreeing on measurements before framing walls.
 
 ## M1 · Core Language — the language wakes up
 
@@ -55,9 +61,12 @@ layer got fancy — like sketching a stick figure before adding muscle and skin.
   `reduce` — transforming a whole list in one line: `map x in [ 1 2 3 ] [ :x * 2 ]` doubles every
   number without writing the loop yourself.
 - **Words, lists, and math** — Core **reporters** (an instruction handing back an answer instead of
-  doing something): `word`/`sentence`/`first`/`last`/`butfirst`/`butlast`/`fput`/`lput`/`count`/
-  `uppercase`/`lowercase`, plus math (`abs`/`sqrt`/`round`/`power`/`random`) and **predicates**
-  (yes/no tests like `empty?`/`member?`). `print`/`show` let your program talk back.
+  doing something):
+  - text and lists: `word`/`sentence`/`first`/`last`/`butfirst`/`butlast`/`fput`/`lput`/`count`/
+    `uppercase`/`lowercase`
+  - math: `abs`/`sqrt`/`round`/`power`/`random`
+  - **predicates** — yes/no tests like `empty?`/`member?`
+  - `print`/`show` let your program talk back
 - **Errors, colors, and a place to try it** — `ol-*` diagnostics became real error messages, the
   checker (page 07) learned every Core word (`prnt` suggests `print`), the highlighter (page 06)
   learned every Core token class, and the studio REPL (type a line, see what happens —
@@ -65,20 +74,24 @@ layer got fancy — like sketching a stick figure before adding muscle and skin.
 
 Every piece is backed by real conformance fixtures under `tests/conformance/core-language/` —
 folders for `procedures/`, `control/`, `comprehensions/`, `lists/`, `variables/`, `diagnostics/`, and
-more. This checkpoint has its own name: **`0.1.0-core`**.
+more. This Core-only checkpoint had its own pre-release name, **`0.1.0-core`** — a milestone marker,
+not the release you'd install. The actual tagged release came one milestone later, once the turtle
+could draw too (see below).
 
-## ✅ / ℹ️ What's real today
+## What's real today
 
 ✅ **The full Core language runs, end to end** — lexing, the tree, the interpreter, `define … end`
 procedures, every control form, all three comprehensions, and the full Core reporter set, proven by
 real fixtures, runnable in the studio REPL.
 
-✅ **The turtle draws too** — `forward`/`right`/pen/color aren't Core (their own milestone, M2
-Turtle & Rendering), but M2 has since shipped and is conformance-green too — the turtle draws
-today.
+✅ **The turtle draws too** — `forward`/`right`/pen/color are Turtle & Rendering (M2), not Core, and
+they shipped in the same release as Core — the turtle draws today.
 
-ℹ️ **One tag still ahead** — M2 hasn't been cut as a tagged `0.1.0` release, even though its
-conformance suite is already green.
+✅ **0.1.0 is tagged** — Core Language and Turtle & Rendering shipped **together** as
+[the tagged release `v0.1.0`](https://github.com/pmalarme/open-logo/releases/tag/v0.1.0),
+OpenLogo's first conformant milestone. `package.json` says `"version": "0.1.0"` for a reason: this
+is real, released software, not a work-in-progress checkpoint — and it supersedes the earlier
+`0.1.0-core` pre-release name above.
 
 ## Try it yourself
 
