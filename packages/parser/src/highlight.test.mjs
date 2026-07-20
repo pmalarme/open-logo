@@ -222,6 +222,82 @@ test("dict-key: a dict-literal's number key stays number, not dict-key", () => {
   assert.equal(numberKey.class, "number");
 });
 
+// --- Glued dict-entry colon (`{ a:foo }`, issue #149) --------------------------------------
+//
+// A dict-entry's `:` with no gap before its value's leading identifier lexes as one raw
+// `variable`-kind token (the same ambiguity `parser.ts`'s `splitGluedColonToken` resolves for
+// parsing). `highlight()` never re-lexes its own copy or shares the parser's internal token
+// array, so it must independently split that one raw token back into an `operator` `:` plus
+// the value's own class (spec/tooling.md:39,41) rather than emitting a single `:variable` token.
+
+test("dict-key: a glued dict-entry colon splits into operator `:` plus the value's own class", () => {
+  assert.deepEqual(classes("print { a:foo }"), [
+    ["primitive", "print", undefined],
+    ["brace", "{", undefined],
+    ["dict-key", "a", undefined],
+    ["operator", ":", undefined],
+    ["primitive", "foo", undefined],
+    ["brace", "}", undefined],
+  ]);
+});
+
+test("dict-key: a glued dict-entry colon's split operator/name tokens have exact, adjacent spans", () => {
+  const tokens = OL.highlight("print { a:foo }", doc);
+  const colon = tokens.find((token) => token.text === ":");
+  const value = tokens.find((token) => token.text === "foo");
+  // "print { a:foo }" — "a" is columns 9-9, ":" is column 10, "foo" is columns 11-13.
+  assert.deepEqual(colon.source_span, span([1, 10], [1, 11]));
+  assert.deepEqual(value.source_span, span([1, 11], [1, 14]));
+});
+
+test("dict-key: a glued dict-entry value that is a reserved word (boolean literal) still splits", () => {
+  assert.deepEqual(classes("print { a:true }"), [
+    ["primitive", "print", undefined],
+    ["brace", "{", undefined],
+    ["dict-key", "a", undefined],
+    ["operator", ":", undefined],
+    ["keyword", "true", undefined],
+    ["brace", "}", undefined],
+  ]);
+});
+
+test("dict-key: a glued dict-entry value resolving to a user-defined procedure classifies procedure-name", () => {
+  const source = "define double :n\n  return :n\nend\nprint { a:double() }";
+  const tokens = OL.highlight(source, doc);
+  const glued = tokens.find(
+    (token) => token.text === "double" && token.class === "procedure-name",
+  );
+  assert.ok(
+    glued,
+    "expected the glued dict value to resolve as procedure-name",
+  );
+});
+
+test("dict-key: a spaced dict-entry colon is unaffected by the glued-colon split logic", () => {
+  assert.deepEqual(classes("print { a: foo }"), [
+    ["primitive", "print", undefined],
+    ["brace", "{", undefined],
+    ["dict-key", "a", undefined],
+    ["operator", ":", undefined],
+    ["primitive", "foo", undefined],
+    ["brace", "}", undefined],
+  ]);
+});
+
+test("dict-key: multiple glued dict entries each split their own colon independently", () => {
+  assert.deepEqual(classes("print { a:1 b:2 }"), [
+    ["primitive", "print", undefined],
+    ["brace", "{", undefined],
+    ["dict-key", "a", undefined],
+    ["operator", ":", undefined],
+    ["number", "1", undefined],
+    ["dict-key", "b", undefined],
+    ["operator", ":", undefined],
+    ["number", "2", undefined],
+    ["brace", "}", undefined],
+  ]);
+});
+
 // --- Bracket delimiter roles (spec/tooling.md:71-81) --------------------------------------
 
 test("role list: a list literal in value position after `=`", () => {
