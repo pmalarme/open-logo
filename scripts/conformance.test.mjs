@@ -969,6 +969,95 @@ test("loadFixture leaves executeOptions undefined when not present", () => {
   assert.equal(loaded.expected.executeOptions, undefined);
 });
 
+test("loadFixture rejects executeOptions when execute is not true (silently-ignored config would mask a fixture-author typo)", () => {
+  mkdirSync(join(TEMP_ROOT, "execute-options-without-execute"), {
+    recursive: true,
+  });
+  writeFileSync(
+    join(
+      TEMP_ROOT,
+      "execute-options-without-execute",
+      "execute-options-without-execute.logo",
+    ),
+    "print 1",
+  );
+  writeFileSync(
+    join(
+      TEMP_ROOT,
+      "execute-options-without-execute",
+      "execute-options-without-execute.expected.json",
+    ),
+    JSON.stringify({
+      profiles: ["core-language"],
+      executeOptions: { instructionBudget: 5 },
+      events: [],
+      diagnostics: [],
+    }),
+  );
+
+  const loaded = loadFixture({
+    name: "execute-options-without-execute/execute-options-without-execute.expected.json",
+    expectedPath: join(
+      TEMP_ROOT,
+      "execute-options-without-execute",
+      "execute-options-without-execute.expected.json",
+    ),
+    logoPath: join(
+      TEMP_ROOT,
+      "execute-options-without-execute",
+      "execute-options-without-execute.logo",
+    ),
+  });
+
+  assert.ok(loaded.error);
+  assert.ok(loaded.error.includes('"executeOptions" requires "execute": true'));
+});
+
+test("loadFixture rejects executeOptions when execute is explicitly false", () => {
+  mkdirSync(join(TEMP_ROOT, "execute-options-execute-false"), {
+    recursive: true,
+  });
+  writeFileSync(
+    join(
+      TEMP_ROOT,
+      "execute-options-execute-false",
+      "execute-options-execute-false.logo",
+    ),
+    "print 1",
+  );
+  writeFileSync(
+    join(
+      TEMP_ROOT,
+      "execute-options-execute-false",
+      "execute-options-execute-false.expected.json",
+    ),
+    JSON.stringify({
+      profiles: ["core-language"],
+      execute: false,
+      executeOptions: { instructionBudget: 5 },
+      events: [],
+      diagnostics: [],
+    }),
+  );
+
+  const loaded = loadFixture({
+    name: "execute-options-execute-false/execute-options-execute-false.expected.json",
+    expectedPath: join(
+      TEMP_ROOT,
+      "execute-options-execute-false",
+      "execute-options-execute-false.expected.json",
+    ),
+    logoPath: join(
+      TEMP_ROOT,
+      "execute-options-execute-false",
+      "execute-options-execute-false.logo",
+    ),
+  });
+
+  assert.ok(loaded.error);
+  assert.ok(loaded.error.includes('"executeOptions" requires "execute": true'));
+});
+
 test("loadFixture reads an executeOptions object with instructionBudget/recursionDepthLimit/signal", () => {
   mkdirSync(join(TEMP_ROOT, "with-execute-options"), { recursive: true });
   writeFileSync(
