@@ -37,11 +37,11 @@ export const level2Lessons: readonly Lesson[] = [
       },
       {
         source: [
-          "# why: repcount answers 'which turn am I on?' inside a repeat",
-          "repeat 4 [ print repcount forward 80 right 90 ]",
+          "# why: repcount changes on every turn, so the growing side shows which turn is running",
+          "repeat 4 [ forward repcount right 90 ]",
         ].join("\n"),
         explanation:
-          "repcount reports the current pass of the nearest enclosing repeat, counting up from 1 to 4 as the same square is drawn.",
+          "repcount reports the current pass of the nearest enclosing repeat — 1, then 2, then 3, then 4 — so using it directly as the forward distance makes each side a little longer than the last, without needing print (a later idea).",
       },
     ],
     exercisePrompt:
@@ -60,7 +60,7 @@ export const level2Exercises: readonly Exercise[] = [
     level: "2",
     difficulty: "guided",
     prompt:
-      "Change only the repeat count in the square example from 4 to 3 and predict what shape prints before you run it.",
+      "Change only the repeat count in the square example from 4 to 3 and predict what shape appears before you run it.",
     referenceSolution: {
       source: "repeat 3 [ forward 80 right 90 ]",
       explanation:
@@ -81,30 +81,28 @@ export const level2Exercises: readonly Exercise[] = [
     },
   },
   {
-    id: "l2-hexagon-repcount-color",
+    id: "l2-hexagon-two-colors",
     lessonId: "l2-square-repeat",
     level: "2",
     difficulty: "challenge",
     prompt:
-      "Draw a hexagon as two repeats of three sides each, in two different colors, printing repcount on every turn.",
+      "Draw a hexagon as two repeats of three sides each, switching to a different pen color halfway through, using only ideas you already know.",
     referenceSolution: {
       source: [
         "# why: two repeats of three sides each still close the hexagon (3 + 3 turns of 60 degrees)",
         'set_color "blue"',
         "repeat 3",
-        "  print repcount",
         "  forward 50",
         "  right 60",
         "end repeat",
         'set_color "red"',
         "repeat 3",
-        "  print repcount",
         "  forward 50",
         "  right 60",
         "end repeat",
       ].join("\n"),
       explanation:
-        "The hexagon reuses the square's repeat idiom with a matching 60-degree turn; repcount restarts at 1 for each repeat, and set_color (already introduced at Level 1) marks the halfway point.",
+        "The hexagon reuses the square's repeat idiom with a matching 60-degree turn; set_color (already introduced at Level 1) marks the halfway point between the two repeats.",
     },
   },
 ];
