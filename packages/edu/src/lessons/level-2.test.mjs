@@ -92,7 +92,7 @@ test("the triangle and hexagon reference solutions turn the turtle back to its s
     (exercise) => exercise.id === "l2-triangle-matching-turn",
   );
   const hexagon = level2Exercises.find(
-    (exercise) => exercise.id === "l2-hexagon-repcount-color",
+    (exercise) => exercise.id === "l2-hexagon-two-colors",
   );
   assert.ok(triangle);
   assert.ok(hexagon);
