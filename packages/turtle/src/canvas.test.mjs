@@ -316,8 +316,17 @@ test("paintTurtle draws the avatar above the scene when visible", () => {
     ["set fillStyle", "black"],
     ["beginPath"],
     ["moveTo", 0, -10],
-    ["lineTo", 6, 6],
-    ["lineTo", -6, 6],
+    ["lineTo", 4, -6],
+    ["lineTo", 7, -6],
+    ["lineTo", 4, -3],
+    ["lineTo", 7, 3],
+    ["lineTo", 4, 6],
+    ["lineTo", 0, 9],
+    ["lineTo", -4, 6],
+    ["lineTo", -7, 3],
+    ["lineTo", -4, -3],
+    ["lineTo", -7, -6],
+    ["lineTo", -4, -6],
     ["closePath"],
     ["fill"],
     ["restore"],
@@ -366,7 +375,7 @@ test("avatar rotation follows heading in degrees converted to radians, clockwise
   assert.equal(rotateCall[1], Math.PI);
 });
 
-test("unknown shape words fall back to the default triangle-style avatar", () => {
+test("unknown shape words fall back to the default turtle-style avatar", () => {
   const { target, calls } = makeRecordingTarget();
   const scene = { background: "white", items: [] };
   const state = {
@@ -384,6 +393,47 @@ test("unknown shape words fall back to the default triangle-style avatar", () =>
       (call) => call[0] === "moveTo" && call[1] === 0 && call[2] === -10,
     ),
   );
+  const lineToCalls = calls.filter((call) => call[0] === "lineTo");
+  assert.equal(
+    lineToCalls.length,
+    11,
+    "the default 'turtle' glyph is a twelve-point silhouette (head/legs/tail), not the bare triangle",
+  );
+});
+
+test("'turtle' and 'triangle' shapes render distinct outlines", () => {
+  const baseState = {
+    position: [0, 0],
+    heading: 0,
+    penDown: true,
+    color: "black",
+    width: 1,
+    visible: true,
+  };
+  const scene = { background: "white", items: [] };
+
+  const turtleRecording = makeRecordingTarget();
+  OL.paintTurtle(
+    turtleRecording.target,
+    scene,
+    { ...baseState, shape: "turtle" },
+    VIEWPORT,
+  );
+  const triangleRecording = makeRecordingTarget();
+  OL.paintTurtle(
+    triangleRecording.target,
+    scene,
+    { ...baseState, shape: "triangle" },
+    VIEWPORT,
+  );
+
+  const turtleLineTos = turtleRecording.calls.filter(
+    (call) => call[0] === "lineTo",
+  );
+  const triangleLineTos = triangleRecording.calls.filter(
+    (call) => call[0] === "lineTo",
+  );
+  assert.notDeepEqual(turtleLineTos, triangleLineTos);
 });
 
 test("arrow shape draws its four-point outline", () => {
