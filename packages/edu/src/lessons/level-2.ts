@@ -41,7 +41,7 @@ export const level2Lessons: readonly Lesson[] = [
           "repeat 4 [ forward repcount right 90 ]",
         ].join("\n"),
         explanation:
-          "repcount reports the current pass of the nearest enclosing repeat — 1, then 2, then 3, then 4 — so using it directly as the forward distance makes each side a little longer than the last, without needing print (a later idea).",
+          "repcount reports the current pass of the nearest enclosing repeat — 1, then 2, then 3, then 4 — so using it directly as the forward distance makes each side a little longer than the last.",
       },
     ],
     exercisePrompt:
@@ -77,7 +77,7 @@ export const level2Exercises: readonly Exercise[] = [
     referenceSolution: {
       source: "repeat 3 [ forward 80 right 120 ]",
       explanation:
-        "Three equal turns must add up to one full turn (360 degrees), so each turn is 360 / 3 = 120 degrees.",
+        "Three equal turns must add up to one full turn around, so an evenly split turn of 120 degrees brings the turtle back to where it started.",
     },
   },
   {
@@ -89,7 +89,7 @@ export const level2Exercises: readonly Exercise[] = [
       "Draw a hexagon as two repeats of three sides each, switching to a different pen color halfway through, using only ideas you already know.",
     referenceSolution: {
       source: [
-        "# why: two repeats of three sides each still close the hexagon (3 + 3 turns of 60 degrees)",
+        "# why: two repeats of three sides each still close the hexagon",
         'set_color "blue"',
         "repeat 3",
         "  forward 50",
