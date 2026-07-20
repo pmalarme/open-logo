@@ -1,4 +1,6 @@
-![OpenLogo — DRAW · LEARN · CREATE](packages/studio/web/public/openlogo.png)
+<p align="center">
+  <img src="packages/studio/web/public/openlogo.png" alt="OpenLogo — DRAW · LEARN · CREATE" width="320" />
+</p>
 
 # OpenLogo
 An Open Version of Logo
