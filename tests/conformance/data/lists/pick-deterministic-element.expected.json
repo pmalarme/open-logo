@@ -1,0 +1,38 @@
+{
+  "description": "`pick` (Data profile, spec/data-structures.md:125-141) draws one element from `list` through the shared seeded random-number generator (issue #190), so seeding it with `(randomize 42)` first makes the draw reproducible: index 1 of `[10 20 30]` is `20`.",
+  "profiles": ["data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/lists/pick-deterministic-element",
+        "start": [1, 1],
+        "end": [1, 15]
+      },
+      "payload": { "statement_kind": "ParenCall" }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/lists/pick-deterministic-element",
+        "start": [2, 1],
+        "end": [2, 22]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "data/lists/pick-deterministic-element",
+        "start": [2, 1],
+        "end": [2, 22]
+      },
+      "payload": { "values": [20] }
+    }
+  ],
+  "diagnostics": []
+}

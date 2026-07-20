@@ -162,14 +162,48 @@ export function turtlePrimitiveNames(): readonly string[] {
 }
 
 /**
+ * Default arities for the **Data** profile's derived list reporters (issue #190), derived from
+ * the "Derived list reporters in the Data profile" table in
+ * [`spec/data-structures.md`](../../../spec/data-structures.md): `reverse`/`pick`/`sort` each take
+ * one `list` argument, matching the spec's own worked example's bare-call form
+ * (`:backward = reverse :nums`). Kept as its own table rather than folded into
+ * {@link CORE_PRIMITIVE_ARITY} for the same reason {@link TURTLE_PRIMITIVE_ARITY} is separate: the
+ * two profiles have independent visibility (the Layer-2 checker gates each on its own active
+ * profile, `spec/tooling.md:175-176`), while the reader (this table's only consumer, via
+ * {@link primitiveArity}) groups a bare call's arguments for *any* recognized primitive regardless
+ * of profile.
+ */
+const DATA_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
+  ["reverse", 1],
+  ["pick", 1],
+  ["sort", 1],
+]);
+
+/**
+ * The default arity of a Data-profile derived list reporter, or `undefined` when `name` is not one
+ * of the primitives registered in {@link DATA_PRIMITIVE_ARITY}. Matching is case-insensitive.
+ *
+ * `DATA_PRIMITIVE_ARITY` is this profile's single source-of-truth table. A future visibility slice
+ * (mirroring #136 for Turtle & Rendering) that makes these reporters visible to
+ * `ol-unknown-command` (`checker-names.ts`) and its static arity check (`checker-arity.ts`) should
+ * add its own name-enumeration accessor reading from this same table (mirroring
+ * {@link turtlePrimitiveNames}'s role for the Turtle & Rendering table) rather than re-deriving a
+ * separate name/arity list — not added yet since nothing consumes it until that slice lands.
+ */
+export function dataPrimitiveArity(name: string): number | undefined {
+  return DATA_PRIMITIVE_ARITY.get(name.toLowerCase());
+}
+
+/**
  * Every profile's primitive-arity table the reader consults, in lookup order. Core Language is
  * checked first (today's only always-visible table), then each optional profile's Core-spelled
- * primitives as they are registered — currently just Turtle & Rendering. A later profile slice
+ * primitives as they are registered — currently Turtle & Rendering and Data. A later profile slice
  * adds its table here rather than editing {@link primitiveArity}'s body.
  */
 const PROFILE_PRIMITIVE_ARITY_TABLES: readonly ReadonlyMap<string, number>[] = [
   CORE_PRIMITIVE_ARITY,
   TURTLE_PRIMITIVE_ARITY,
+  DATA_PRIMITIVE_ARITY,
 ];
 
 /**

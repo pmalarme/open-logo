@@ -613,7 +613,8 @@ function isLogicalOperator(name: string): name is LogicalOperator {
  * emit no trace event. As of issue #234 the word-constructor `word` joins the known-callee list.
  * As of issue #287 the Core Math reporter `random` joins the known-callee list too — it reads and
  * mutates {@link Environment.randomNumberGenerator} but, like the turtle-state reporters above, is
- * otherwise a pure expression with no diagnostic beyond its own argument checks.
+ * otherwise a pure expression with no diagnostic beyond its own argument checks. As of issue #190
+ * the Data-profile derived list reporters `reverse`/`pick`/`sort` join the known-callee list too.
  */
 export function isSupportedExpression(
   node: ExpressionNode,
@@ -661,6 +662,9 @@ export function isSupportedExpression(
         name === "sentence" ||
         name === "word" ||
         name === "count" ||
+        name === "reverse" ||
+        name === "pick" ||
+        name === "sort" ||
         name === "xcor" ||
         name === "ycor" ||
         name === "heading" ||
@@ -1087,6 +1091,15 @@ function evaluateCall(
   }
   if (name === "count") {
     return evaluateCount(node, environment);
+  }
+  if (name === "reverse") {
+    return evaluateReverse(node, environment);
+  }
+  if (name === "pick") {
+    return evaluatePick(node, environment);
+  }
+  if (name === "sort") {
+    return evaluateSort(node, environment);
   }
   if (name === "xcor") {
     return evaluateXcor(node, environment);
@@ -1977,7 +1990,9 @@ function evaluatePrefixIsA(
 // return a *fresh* value (never mutate an argument list in place); nested element references
 // are shared, only the outer array is copied (`spec/execution-model.md:447-482`'s
 // mutation-vs-copy distinction). `reverse`/`pick`/`sort` are Data-profile derived reporters
-// (`spec/data-structures.md:125-129`), not Core, so they are intentionally absent here.
+// (`spec/data-structures.md:125-141`), not Core — they are evaluated just below `count`, sharing
+// this section's `isWordOrList`/`requireMinArgs`/`listReporterType` helpers, but kept in their own
+// issue #190 doc comment since they are a separate profile slice.
 
 /** A word (string) or list (array) — the shared input type of `first`/`last`/`butfirst`/`butlast`/`count`. */
 function isWordOrList(value: OLValue): value is string | readonly OLValue[] {
@@ -2280,6 +2295,188 @@ function evaluateCount(
     );
   }
   return ok(value.length);
+}
+
+// --- Data-profile derived list reporters: reverse/pick/sort (issue #190,
+// spec/data-structures.md:125-141) --------------------------------------------------------------
+//
+// `reverse`/`sort` always report a *fresh* list — the argument list itself is never mutated, only
+// shallow-copied (its own array is copied, nested element references are shared), matching the
+// same mutation-vs-copy convention `fput`/`lput`/`sentence` follow above. `pick` draws its element
+// through the shared per-{@link Environment} seeded generator ({@link nextRandomInt}, the same one
+// `random`/`randomize` use below) rather than `Math.random()`, so a program's output stays
+// reproducible under a given seed.
+
+/**
+ * `reverse` — a *fresh* list with `list`'s elements in reverse order (`spec/data-structures.md`'s
+ * derived-reporters table). A non-list argument raises `ol-type`.
+ */
+function evaluateReverse(
+  node: ArithmeticCallNode,
+  environment: Environment,
+): EvalResult {
+  const arityDiagnostic = requireMinArgs(node, "reverse", 1);
+  if (arityDiagnostic) {
+    return fail(arityDiagnostic);
+  }
+  const listNode = arg(node, 0);
+  const listResult = evaluate(listNode, environment);
+  if (!listResult.ok) {
+    return listResult;
+  }
+  const list = listResult.value;
+  if (!Array.isArray(list)) {
+    return fail(
+      runtimeDiag.listReporterType(listNode.source_span, {
+        expected: "list",
+        actual: typeNameOf(list),
+        value: list,
+        operation: "reverse",
+      }),
+    );
+  }
+  return ok([...list].reverse());
+}
+
+/**
+ * `pick` — one element of `list`, drawn from the shared seeded generator
+ * ({@link Environment.randomNumberGenerator}, via {@link nextRandomInt}) so the draw is
+ * deterministic given a seed, matching `random`'s own generator usage below. A non-list argument
+ * raises `ol-type`; an empty list raises `ol-range` (`spec/data-structures.md`'s derived-reporters
+ * table; `spec/error-model.md`'s `ol-range` row: "`pick` from an empty list").
+ */
+function evaluatePick(
+  node: ArithmeticCallNode,
+  environment: Environment,
+): EvalResult {
+  const arityDiagnostic = requireMinArgs(node, "pick", 1);
+  if (arityDiagnostic) {
+    return fail(arityDiagnostic);
+  }
+  const listNode = arg(node, 0);
+  const listResult = evaluate(listNode, environment);
+  if (!listResult.ok) {
+    return listResult;
+  }
+  const list = listResult.value;
+  if (!Array.isArray(list)) {
+    return fail(
+      runtimeDiag.listReporterType(listNode.source_span, {
+        expected: "list",
+        actual: typeNameOf(list),
+        value: list,
+        operation: "pick",
+      }),
+    );
+  }
+  if (list.length === 0) {
+    return fail(
+      runtimeDiag.emptyList(listNode.source_span, {
+        operation: "pick",
+        value: list,
+      }),
+    );
+  }
+  const index = nextRandomInt(
+    environment.randomNumberGenerator,
+    0,
+    list.length - 1,
+  );
+  return ok(list[index] as OLValue);
+}
+
+/**
+ * Compare two mutually-orderable sort elements (both numbers, or both words) the same way
+ * `numberOrdering`/`compareWords` above define `<`/`>`/`<=`/`>=`: negative when `a` sorts before
+ * `b`, positive when after, `0` when equal. Written as its own direct comparison (not `a - b`) for
+ * the same equal-non-finite-operand reason {@link numberOrdering}'s doc comment gives.
+ */
+function compareSortElements(
+  category: "number" | "string",
+  a: number | string,
+  b: number | string,
+): number {
+  if (category === "string") {
+    return compareWords(a as string, b as string);
+  }
+  const left = a as number;
+  const right = b as number;
+  if (left < right) {
+    return -1;
+  }
+  if (left > right) {
+    return 1;
+  }
+  return 0;
+}
+
+/**
+ * `sort` — a *fresh* list with `list`'s elements sorted ascending, numbers numerically and words
+ * lexicographically, following the exact ordering `<`/`>`/`<=`/`>=` already define
+ * (`spec/data-structures.md:141`). A non-list argument raises `ol-type`; elements that are not
+ * mutually orderable (a mix of numbers and words, or any other type) raise `ol-type` too — checked
+ * across *every* element before any sorting happens, per the same rule
+ * `spec/data-structures.md:141` states ("is not mutually orderable and raises `ol-type`"), so a
+ * rejected list is never partially reordered. A list of 0 or 1 elements is trivially sorted and
+ * needs no orderability check at all.
+ */
+function evaluateSort(
+  node: ArithmeticCallNode,
+  environment: Environment,
+): EvalResult {
+  const arityDiagnostic = requireMinArgs(node, "sort", 1);
+  if (arityDiagnostic) {
+    return fail(arityDiagnostic);
+  }
+  const listNode = arg(node, 0);
+  const listResult = evaluate(listNode, environment);
+  if (!listResult.ok) {
+    return listResult;
+  }
+  const list = listResult.value;
+  if (!Array.isArray(list)) {
+    return fail(
+      runtimeDiag.listReporterType(listNode.source_span, {
+        expected: "list",
+        actual: typeNameOf(list),
+        value: list,
+        operation: "sort",
+      }),
+    );
+  }
+  if (list.length <= 1) {
+    return ok([...list]);
+  }
+  const first = list[0] as OLValue;
+  if (typeof first !== "number" && typeof first !== "string") {
+    return fail(
+      runtimeDiag.orderingType(listNode.source_span, {
+        expected: "number or word",
+        actual: typeNameOf(first),
+        value: first,
+        operation: "sort",
+      }),
+    );
+  }
+  const category: "number" | "string" =
+    typeof first === "number" ? "number" : "string";
+  const expected = category === "number" ? "number" : "word";
+  for (const element of list) {
+    if (typeof element !== category) {
+      return fail(
+        runtimeDiag.orderingType(listNode.source_span, {
+          expected,
+          actual: typeNameOf(element),
+          value: element,
+          operation: "sort",
+        }),
+      );
+    }
+  }
+  const sorted = [...(list as readonly (number | string)[])].sort((a, b) =>
+    compareSortElements(category, a, b),
+  );
+  return ok(sorted);
 }
 
 /**

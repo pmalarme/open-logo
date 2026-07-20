@@ -1,0 +1,35 @@
+{
+  "description": "`sort` on a list mixing a number and a word raises `ol-type` before any partial sort happens — elements must be mutually orderable, all numbers or all words, per the same ordering rule `<`/`>`/`<=`/`>=` use (spec/data-structures.md:141). Issue #190.",
+  "profiles": ["data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/lists/sort-mixed-type-error",
+        "start": [1, 1],
+        "end": [1, 19]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "data/lists/sort-mixed-type-error",
+        "start": [1, 12],
+        "end": [1, 19]
+      },
+      "params": {
+        "expected": "number",
+        "actual": "word",
+        "value": "a",
+        "operation": "sort"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

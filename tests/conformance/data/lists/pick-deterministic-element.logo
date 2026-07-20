@@ -1,0 +1,2 @@
+(randomize 42)
+print pick [10 20 30]

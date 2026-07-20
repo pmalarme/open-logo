@@ -1,0 +1,35 @@
+{
+  "description": "`sort` on a non-list argument raises `ol-type` naming the expected `list` concept (spec/data-structures.md:125-141, spec/error-model.md). Issue #190.",
+  "profiles": ["data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/lists/sort-non-list-error",
+        "start": [1, 1],
+        "end": [1, 22]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "data/lists/sort-non-list-error",
+        "start": [1, 12],
+        "end": [1, 22]
+      },
+      "params": {
+        "expected": "list",
+        "actual": "word",
+        "value": "notalist",
+        "operation": "sort"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}
