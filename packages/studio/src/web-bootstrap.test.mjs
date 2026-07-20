@@ -8,6 +8,11 @@ const {
   toDiagnosticListItems,
   createTimeoutScheduler,
   formatOutput,
+  selectScheduler,
+  createKeyValueStorageAdapter,
+  ANNOUNCER_POLITE_ELEMENT_ID,
+  ANNOUNCER_ASSERTIVE_ELEMENT_ID,
+  selectAnnouncerElementId,
 } = OL;
 
 test("DEFAULT_RUN_PROGRAM is the canonical acceptance square", () => {
@@ -155,4 +160,80 @@ test("formatOutput formats empty output as an empty string", () => {
 
 test("formatOutput formats a single output line without a trailing newline", () => {
   assert.equal(formatOutput(["42"]), "42");
+});
+
+test("selectScheduler picks the immediate scheduler when reduced motion is requested", () => {
+  // Plain marker objects (not functions) are enough here: selectScheduler only ever
+  // returns one of its two inputs by reference, it never calls either — using function
+  // fakes would leave their bodies permanently uncovered since they're never invoked.
+  const timeoutScheduler = { name: "timeout" };
+  const immediateScheduler = { name: "immediate" };
+
+  assert.equal(
+    selectScheduler(true, timeoutScheduler, immediateScheduler),
+    immediateScheduler,
+  );
+});
+
+test("selectScheduler picks the timeout scheduler when reduced motion is not requested", () => {
+  const timeoutScheduler = { name: "timeout" };
+  const immediateScheduler = { name: "immediate" };
+
+  assert.equal(
+    selectScheduler(false, timeoutScheduler, immediateScheduler),
+    timeoutScheduler,
+  );
+});
+
+test("createKeyValueStorageAdapter's save delegates to the storage's setItem", () => {
+  const calls = [];
+  const adapter = createKeyValueStorageAdapter({
+    setItem: (key, value) => calls.push(["setItem", key, value]),
+  });
+
+  adapter.save("openlogo.studio.source", "forward 10");
+
+  assert.deepEqual(calls, [
+    ["setItem", "openlogo.studio.source", "forward 10"],
+  ]);
+});
+
+test("createKeyValueStorageAdapter's load delegates to the storage's getItem and forwards null", () => {
+  const adapterWithValue = createKeyValueStorageAdapter({
+    getItem: () => "forward 10",
+  });
+  const adapterWithNothingStored = createKeyValueStorageAdapter({
+    getItem: () => null,
+  });
+
+  assert.equal(adapterWithValue.load("openlogo.studio.source"), "forward 10");
+  assert.equal(adapterWithNothingStored.load("openlogo.studio.source"), null);
+});
+
+test("createKeyValueStorageAdapter's clear delegates to the storage's removeItem", () => {
+  const calls = [];
+  const adapter = createKeyValueStorageAdapter({
+    removeItem: (key) => calls.push(["removeItem", key]),
+  });
+
+  adapter.clear("openlogo.studio.source");
+
+  assert.deepEqual(calls, [["removeItem", "openlogo.studio.source"]]);
+});
+
+test("ANNOUNCER_POLITE_ELEMENT_ID and ANNOUNCER_ASSERTIVE_ELEMENT_ID are distinct fixed ids", () => {
+  assert.equal(ANNOUNCER_POLITE_ELEMENT_ID, "announcer-polite");
+  assert.equal(ANNOUNCER_ASSERTIVE_ELEMENT_ID, "announcer-assertive");
+  assert.notEqual(ANNOUNCER_POLITE_ELEMENT_ID, ANNOUNCER_ASSERTIVE_ELEMENT_ID);
+});
+
+test("selectAnnouncerElementId routes a polite announcement to the polite region", () => {
+  assert.equal(selectAnnouncerElementId("polite"), ANNOUNCER_POLITE_ELEMENT_ID);
+});
+
+test("selectAnnouncerElementId routes an assertive announcement to the assertive region", () => {
+  assert.equal(
+    selectAnnouncerElementId("assertive"),
+    ANNOUNCER_ASSERTIVE_ELEMENT_ID,
+  );
 });

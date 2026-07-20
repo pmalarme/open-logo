@@ -1,15 +1,23 @@
 /**
- * Headless glue for the browser entry (`web/main.ts`, issue #277, extended by #278). Everything a
- * real DOM host needs beyond composing the published `@openlogo/studio` controllers verbatim lives
- * here, so it stays `node:test`-able and inside the 100% coverage gate — `web/main.ts` itself is a
- * thin, logic-free wiring layer that only touches `document`/`window` and is never imported by a
- * test (per this package's `tsconfig.json`, `web/**` is outside the `src` build graph and this
- * monorepo has no `lib.dom`), so any real logic must live here instead.
+ * Headless glue for the browser entry (`web/main.ts`, issue #277, extended by #278 and #279).
+ * Everything a real DOM host needs beyond composing the published `@openlogo/studio` controllers
+ * verbatim lives here, so it stays `node:test`-able and inside the 100% coverage gate —
+ * `web/main.ts` itself is a thin, logic-free wiring layer that only touches `document`/`window`
+ * and is never imported by a test (per this package's `tsconfig.json`, `web/**` is outside the
+ * `src` build graph and this monorepo has no `lib.dom`), so any real logic must live here instead.
+ *
+ * #279 adds the three decisions the finished, servable page needs beyond #278's controls:
+ * {@link selectScheduler} picks the reduced-motion-aware `Scheduler`, {@link
+ * createKeyValueStorageAdapter} adapts `window.localStorage` into #128's `StorageAdapter` seam,
+ * and {@link selectAnnouncerElementId} routes a #129 `Announcement` to the right always-live
+ * `aria-live` region.
  */
 
 import type { Diagnostic, DiagnosticSeverity, Position } from "@openlogo/core";
 import type { Scheduler } from "@openlogo/turtle";
+import type { AnnouncementPoliteness } from "./a11y.js";
 import { toDiagnosticsView } from "./diagnostics.js";
+import type { StorageAdapter } from "./persistence.js";
 
 /**
  * The program the editor boots with — the canonical acceptance square from issue #277 and the
@@ -120,4 +128,97 @@ export function createTimeoutScheduler<Handle = unknown>(
  */
 export function formatOutput(output: readonly string[]): string {
   return output.join("\n");
+}
+
+/**
+ * Chooses which paced {@link Scheduler} a run should animate a program's turtle Canvas through,
+ * honoring the browser's `prefers-reduced-motion` media query (#279, `spec/rendering.md`'s
+ * reduced-motion requirement). `web/main.ts` only reads the boolean from
+ * `window.matchMedia('(prefers-reduced-motion: reduce)').matches` and forwards it here — this
+ * pure function makes the actual choice, keeping the browser entry branch-free per issue #278's
+ * "logic stays in a tested `src/` helper" rule.
+ *
+ * When reduced motion is requested, `immediateScheduler` (`@openlogo/turtle`'s
+ * `IMMEDIATE_SCHEDULER`) drains every step synchronously instead of pacing playback; otherwise
+ * `timeoutScheduler` (built by {@link createTimeoutScheduler}) paces it. Callers should also pass
+ * the same boolean as `RunControllerOptions.reducedMotion`, which makes `run()` paint the final
+ * turtle scene instantly via `@openlogo/turtle`'s `playWithMotionPreference` — the scheduler
+ * chosen here still matters for `step()`, which advances the animation one tick at a time
+ * regardless of `reducedMotion`.
+ */
+export function selectScheduler(
+  prefersReducedMotion: boolean,
+  timeoutScheduler: Scheduler,
+  immediateScheduler: Scheduler,
+): Scheduler {
+  return prefersReducedMotion ? immediateScheduler : timeoutScheduler;
+}
+
+/**
+ * The minimal synchronous key-value storage surface {@link createKeyValueStorageAdapter} adapts —
+ * matches `window.localStorage`'s `getItem`/`setItem`/`removeItem` shape exactly, so the real
+ * browser entry can pass `window.localStorage` directly; this module's own tests pass a plain
+ * fake with no DOM involved.
+ */
+export interface KeyValueStorage {
+  /** Read the value previously stored under `key`, or `null` if nothing is stored. */
+  getItem(key: string): string | null;
+  /** Persist `value` under `key`. */
+  setItem(key: string, value: string): void;
+  /** Remove any value stored under `key`. */
+  removeItem(key: string): void;
+}
+
+/**
+ * Adapts a {@link KeyValueStorage} (e.g. `window.localStorage`) into `persistence.ts`'s
+ * {@link StorageAdapter} seam, so `attachPersistence` (#128) can persist the learner's document
+ * text across a real page reload (#279) exactly as it already does for the fully `node:test`-able
+ * `createInMemoryStorageAdapter`. `attachPersistence` alone decides restore-vs-default precedence
+ * (a `null` load leaves the store's existing `source` — e.g. {@link DEFAULT_RUN_PROGRAM} —
+ * untouched) and already degrades gracefully on a throwing `save`/`load`/`clear` (quota exceeded,
+ * storage disabled, private browsing) via `StudioStateStore.setNotice`; this adapter adds no
+ * logic beyond the shape translation.
+ */
+export function createKeyValueStorageAdapter(
+  storage: KeyValueStorage,
+): StorageAdapter {
+  return {
+    save(key, value) {
+      storage.setItem(key, value);
+    },
+    load(key) {
+      return storage.getItem(key);
+    },
+    clear(key) {
+      storage.removeItem(key);
+    },
+  };
+}
+
+/** The `id` of the always-`aria-live="polite"` region {@link selectAnnouncerElementId} routes a
+ * `politeness: "polite"` {@link Announcement} to. `index.html` (#279) declares it, always empty
+ * at rest. */
+export const ANNOUNCER_POLITE_ELEMENT_ID = "announcer-polite";
+
+/** The `id` of the always-`aria-live="assertive"` region {@link selectAnnouncerElementId} routes
+ * a `politeness: "assertive"` {@link Announcement} to. `index.html` (#279) declares it, always
+ * empty at rest. */
+export const ANNOUNCER_ASSERTIVE_ELEMENT_ID = "announcer-assertive";
+
+/**
+ * Chooses which of the two always-live `aria-live` regions an {@link Announcement} should render
+ * into, keyed only on its structured `politeness` field — never on message prose. Two always-live
+ * regions (one `polite`, one `assertive`), each updated only when needed, is the standard pattern
+ * for reliable screen-reader announcements: dynamically flipping a single region's `aria-live`
+ * attribute is not reliably picked up by every screen reader once the region already exists in
+ * the DOM. `web/main.ts` only looks the returned id up via `document.getElementById` and sets its
+ * `textContent`; the politeness-to-region decision stays here so the browser entry is
+ * branch-free, per issue #278's "logic stays in a tested `src/` helper" rule.
+ */
+export function selectAnnouncerElementId(
+  politeness: AnnouncementPoliteness,
+): string {
+  return politeness === "assertive"
+    ? ANNOUNCER_ASSERTIVE_ELEMENT_ID
+    : ANNOUNCER_POLITE_ELEMENT_ID;
 }
