@@ -77,6 +77,10 @@ import type {
   ExecuteResult,
   InstructionPayload,
 } from "./index.js";
+import {
+  createRandomNumberGeneratorState,
+  seedFromText,
+} from "./random-number-generator.js";
 import { normalizeHeading } from "./turtle-math.js";
 
 /**
@@ -116,6 +120,20 @@ function isShowCall(statement: StatementNode): boolean {
   return (
     (statement.kind === "Call" || statement.kind === "ParenCall") &&
     statement.callee.name.toLowerCase() === "show"
+  );
+}
+
+/**
+ * Is `statement` a call to `randomize` — the bare `randomize` (no seed) or parenthesized
+ * `(randomize seed)` form (`spec/commands.md`'s `randomize` entry, issue #287)? Same shape and
+ * rationale as {@link isShowCall} — a plain `boolean`, not a `statement is …` type predicate,
+ * since `isPrintCall`'s negative branch already narrowed `statement` away from
+ * `CallNode | ParenCallNode` by the time execution reaches this check.
+ */
+function isRandomizeCall(statement: StatementNode): boolean {
+  return (
+    (statement.kind === "Call" || statement.kind === "ParenCall") &&
+    statement.callee.name.toLowerCase() === "randomize"
   );
 }
 
@@ -1471,6 +1489,101 @@ function executeShowCall(
 }
 
 /**
+ * Executes a `randomize`/`(randomize seed)` statement (issue #287, `spec/commands.md`'s
+ * `randomize` entry) once {@link executeStatements} has confirmed it via {@link isRandomizeCall}.
+ * Reseeds the shared {@link Environment.randomNumberGenerator} generator *in place* — mutating its
+ * `state` field rather than replacing `env.randomNumberGenerator` itself — so every environment
+ * sharing this same box (every nested procedure-call/loop-body environment spread from this one
+ * via `execute-internal.ts`'s `{...env, frames: […]}` pattern) observes the reseed. Extracted
+ * into its own top-level function for the same stack-depth reason {@link executeShowCall}'s doc
+ * comment gives.
+ *
+ * With no seed, a fresh implementation-chosen seed is drawn
+ * ({@link createRandomNumberGeneratorState}'s own `Date.now()` fallback — the entry: "With no seed
+ * the implementation chooses a seed"). With a seed, the entry documents no type restriction at
+ * all ("Possible errors: none specified beyond
+ * general arity diagnostics" — deliberately omitting the "type" diagnostics every sibling entry
+ * with an argument lists), so every {@link OLValue} is a valid seed: a number seeds directly
+ * (truncated to a whole 32-bit value), and any other type — word/list/boolean, or a non-integer
+ * number — is folded through {@link seedFromText} on its printed form instead of being rejected.
+ */
+function executeRandomizeCall(
+  statement: CallNode | ParenCallNode,
+  env: Environment,
+): ExecSignal | undefined {
+  if (statement.args.length > 1) {
+    return halt(
+      runtimeDiag.tooManyInputs(
+        statement.callee.source_span,
+        statement.callee.name,
+        1,
+        statement.args.length,
+      ),
+    );
+  }
+  if (statement.args.length === 0) {
+    env.randomNumberGenerator.state = createRandomNumberGeneratorState().state;
+    return undefined;
+  }
+  // Same unsupported-operand deferral as `show`/`print` use: only evaluate the seed when it is
+  // an expression kind this issue's evaluator gives meaning to.
+  const seedNode = statement.args[0] as ExpressionNode;
+  if (!isSupportedExpression(seedNode, env.procedures)) {
+    return undefined;
+  }
+  const result = evaluate(seedNode, env);
+  if (!result.ok) {
+    return halt(result.diagnostic);
+  }
+  const value = result.value;
+  env.randomNumberGenerator.state =
+    typeof value === "number"
+      ? Math.trunc(value) >>> 0
+      : seedFromText(printedForm(value));
+  return undefined;
+}
+
+/**
+ * Sentinel `dispatchShowOrRandomizeCommand` returns when `statement` is neither a `show` nor a
+ * `randomize` call, so {@link executeStatements} can fall through to its other statement-kind
+ * checks. Distinct from `undefined`, which means "handled, continue" (same convention as
+ * {@link NOT_A_TURTLE_COMMAND}/{@link dispatchTurtleCommand}).
+ */
+const NOT_A_SHOW_OR_RANDOMIZE_COMMAND = Symbol(
+  "not-a-show-or-randomize-command",
+);
+
+/**
+ * Single entry point {@link executeStatements} calls to try both `show` and `randomize` in one
+ * step — the same amortization {@link dispatchTurtleCommand}'s doc comment explains: folding two
+ * single-command predicate/dispatch pairs behind one call site keeps `executeStatements`'s own
+ * body (and so every stack frame in a deep recursive program) from growing with each additional
+ * statement kind it recognizes. `show` (issue #234) and `randomize` (issue #287) are combined
+ * here because both were added as individually inline checks in `executeStatements` before this
+ * consolidation, and the second inline check alone was enough to push the 600-deep
+ * `recursionDepthLimit: 1000` regression test over the native call-stack limit under coverage
+ * instrumentation.
+ */
+function dispatchShowOrRandomizeCommand(
+  statement: StatementNode,
+  env: Environment,
+): ExecSignal | undefined | typeof NOT_A_SHOW_OR_RANDOMIZE_COMMAND {
+  if (isShowCall(statement)) {
+    return executeShowCall(
+      statement as unknown as CallNode | ParenCallNode,
+      env,
+    );
+  }
+  if (isRandomizeCall(statement)) {
+    return executeRandomizeCall(
+      statement as unknown as CallNode | ParenCallNode,
+      env,
+    );
+  }
+  return NOT_A_SHOW_OR_RANDOMIZE_COMMAND;
+}
+
+/**
  * Evaluate an `if`/`while` condition and require it to be a boolean — there is no truthiness
  * (`spec/execution-model.md:365-369`, `spec/error-model.md:121`). `operation` names the leading
  * form (`"if"`/`"while"`) for the `ol-not-boolean` diagnostic's `params.operation`, reusing the
@@ -1981,13 +2094,13 @@ function executeStatements(
       continue;
     }
 
-    if (isShowCall(statement)) {
-      const outcome = executeShowCall(
-        statement as unknown as CallNode | ParenCallNode,
-        env,
-      );
-      if (outcome) {
-        return outcome;
+    const showOrRandomizeOutcome = dispatchShowOrRandomizeCommand(
+      statement,
+      env,
+    );
+    if (showOrRandomizeOutcome !== NOT_A_SHOW_OR_RANDOMIZE_COMMAND) {
+      if (showOrRandomizeOutcome) {
+        return showOrRandomizeOutcome;
       }
       continue;
     }
@@ -2330,7 +2443,10 @@ function resolvePositiveFiniteLimit(
  * `callProcedure` wired to {@link callProcedureAsValue} — unlike
  * `evaluate.ts`'s bare `createEnvironment()` (whose `callProcedure` stub is intentionally
  * unreachable, for expression-only tests with no procedures in scope), this is the environment
- * every real statement/expression in `program` actually runs against.
+ * every real statement/expression in `program` actually runs against. Issue #287 adds
+ * `randomNumberGenerator`, the shared seeded `random`/`randomize` generator state, freshly seeded
+ * per run ({@link createRandomNumberGeneratorState}'s own `Date.now()` fallback) so two separate
+ * `execute()` calls are independent even before either program ever calls `randomize`.
  *
  * Issue #102: `options` supplies the three execution-safety gates `spec/execution-model.md:
  * 551-557` requires — `instructionBudget`/`recursionDepthLimit` fall back to
@@ -2366,6 +2482,7 @@ function createExecutionEnvironment(
     instructionCount: { count: 0 },
     signal: options?.signal,
     turtle: createDefaultTurtleState(),
+    randomNumberGenerator: createRandomNumberGeneratorState(),
     source,
     callProcedure: callProcedureAsValue,
   };

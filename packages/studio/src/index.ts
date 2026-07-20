@@ -127,6 +127,34 @@
  * - {@link formatOutput} formats {@link RunController}'s `state.output` (one line per `print`
  *   trace event, already in `@openlogo/runtime`'s canonical `printedForm`) as a single string for
  *   the output pane's `<pre>`, so a learner running `print 42` actually sees `42` rendered.
+ *
+ * #279 finishes the servable studio — accessibility, reduced motion, persistence, and branding —
+ * wired onto real DOM in `index.html`/`web/main.ts`:
+ * - `index.html` maps {@link REPL_LANDMARK_ROLES} onto its `<section>`s/elements and
+ *   {@link REPL_FOCUS_ORDER} onto native DOM order (plus `tabindex="0"` on the Canvas and
+ *   diagnostics list, which aren't natively focusable), declares the turtle-state `status` region
+ *   {@link createTurtleStateRegion} feeds, and two always-live `aria-live` regions
+ *   {@link createA11yAnnouncer}'s announcements render into.
+ * - {@link selectAnnouncerElementId} picks which of those two live regions — `polite` or
+ *   `assertive` — an {@link Announcement} belongs in, keyed only on its `politeness`.
+ * - {@link selectScheduler} picks the reduced-motion-aware `RunControllerOptions.scheduler`: the
+ *   browser entry reads `window.matchMedia('(prefers-reduced-motion: reduce)').matches` and this
+ *   pure function chooses between {@link createTimeoutScheduler}'s paced scheduler and
+ *   `@openlogo/turtle`'s synchronous `IMMEDIATE_SCHEDULER`, honoring `spec/rendering.md`'s
+ *   reduced-motion requirement.
+ * - {@link createKeyValueStorageAdapter} adapts a lazily-resolved `KeyValueStorage` (e.g.
+ *   `() => window.localStorage`) into #128's `StorageAdapter` seam, so {@link attachPersistence}
+ *   restores/saves the learner's document text across a real page reload; {@link KeyValueStorage}
+ *   is the minimal `getItem`/`setItem`/`removeItem` shape it adapts. Resolving the storage lazily
+ *   (once per `save`/`load`/`clear`, not at construction) means even a throwing storage getter
+ *   degrades gracefully through `attachPersistence`'s existing error handling instead of crashing.
+ * - {@link assertPresent} and {@link syncTextValue} keep `web/main.ts`'s remaining DOM-lookup and
+ *   editor-sync decisions out of the entrypoint too: the former turns a `document.getElementById`
+ *   result into a single asserted, narrowed value (throwing a clear error if missing) instead of a
+ *   manual `if`/`throw`; the latter writes the editor's value only when it actually changed, so the
+ *   browser entry never has to branch on either.
+ * - `web/main.ts` applies the OpenLogo palette/tagline via a linked stylesheet
+ *   (`web/styles.css`); no new `src/` logic is needed for static branding.
  */
 
 export type {
@@ -220,12 +248,21 @@ export {
 
 export type {
   DiagnosticListItem,
+  KeyValueStorage,
+  TextValueTarget,
   TimeoutSchedulerTimers,
 } from "./web-bootstrap.js";
 export {
+  ANNOUNCER_ASSERTIVE_ELEMENT_ID,
+  ANNOUNCER_POLITE_ELEMENT_ID,
+  assertPresent,
+  createKeyValueStorageAdapter,
   createTimeoutScheduler,
   DEFAULT_RUN_PROGRAM,
   formatOutput,
   NO_DIAGNOSTICS_LABEL,
+  selectAnnouncerElementId,
+  selectScheduler,
+  syncTextValue,
   toDiagnosticListItems,
 } from "./web-bootstrap.js";

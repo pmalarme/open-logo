@@ -1,0 +1,181 @@
+/*
+ * OpenLogo Studio branding (#279) — the palette + tagline (DRAW · LEARN · CREATE) from the root
+ * logo (packages/studio/web/public/openlogo.png), applied consistently across the page. Kept as
+ * a single, simple stylesheet (KISS): no build-time CSS tooling, no component framework — plain
+ * custom properties plus a handful of rules for the header, panes, controls, and focus/live
+ * regions #277/#278/#279 already produce in `index.html`.
+ */
+
+:root {
+  --ol-green: #2e9e4f;
+  --ol-blue: #2e86d1;
+  --ol-purple: #7c4fd1;
+  --ol-navy: #1c2430;
+  --ol-orange: #f2994a;
+  --ol-background: #f7f8f9;
+  --ol-surface: #ffffff;
+  --ol-border: #d8dee5;
+  --ol-error: #c0392b;
+  --ol-warning: #b8860b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--ol-background);
+  color: var(--ol-navy);
+  font-family:
+    "Segoe UI",
+    system-ui,
+    -apple-system,
+    sans-serif;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  background: var(--ol-surface);
+  border-bottom: 1px solid var(--ol-border);
+}
+
+header h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: var(--ol-navy);
+}
+
+.tagline {
+  margin: 0.25rem 0 0;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.tagline-draw {
+  color: var(--ol-green);
+}
+
+.tagline-learn {
+  color: var(--ol-blue);
+}
+
+.tagline-create {
+  color: var(--ol-purple);
+}
+
+.tagline-dot {
+  color: var(--ol-border);
+  padding: 0 0.35em;
+}
+
+main {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem 1.5rem 2rem;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+main section {
+  background: var(--ol-surface);
+  border: 1px solid var(--ol-border);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+}
+
+#editor {
+  width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.95rem;
+  border: 1px solid var(--ol-border);
+  border-radius: 6px;
+  padding: 0.5rem;
+}
+
+[role="toolbar"] button {
+  background: var(--ol-green);
+  color: var(--ol-surface);
+  border: none;
+  border-radius: 6px;
+  padding: 0.4rem 1rem;
+  margin-right: 0.5rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+#stop-button {
+  background: var(--ol-orange);
+}
+
+#reset-button {
+  background: var(--ol-blue);
+}
+
+#step-button {
+  background: var(--ol-purple);
+}
+
+:focus-visible {
+  outline: 3px solid var(--ol-orange);
+  outline-offset: 2px;
+}
+
+#turtle-canvas {
+  border: 1px solid var(--ol-border);
+  border-radius: 6px;
+  background: var(--ol-surface);
+  display: block;
+}
+
+#turtle-state {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  color: var(--ol-navy);
+}
+
+#output {
+  white-space: pre-wrap;
+  min-height: 1.5rem;
+}
+
+#diagnostics-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+#diagnostics-list li {
+  padding: 0.25rem 0;
+  border-bottom: 1px solid var(--ol-border);
+}
+
+#diagnostics-list li:last-child {
+  border-bottom: none;
+}
+
+#diagnostics-list li[data-severity="error"] {
+  color: var(--ol-error);
+}
+
+#diagnostics-list li[data-severity="warning"] {
+  color: var(--ol-warning);
+}
+
+/* Visually hidden but still announced by assistive technology (the two always-live
+   `aria-live` regions #279's `createA11yAnnouncer` wiring renders into — see
+   `src/web-bootstrap.ts`'s `selectAnnouncerElementId`). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

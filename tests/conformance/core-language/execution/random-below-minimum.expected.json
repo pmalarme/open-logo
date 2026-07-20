@@ -1,0 +1,33 @@
+{
+  "description": "`random 0` — a whole-number bound below the minimum of `1` raises `ol-range` (`spec/commands.md`'s `random` entry: \"`n` MUST be ... >= 1\", issue #287). Only reached once the type check has confirmed a whole number.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/random-below-minimum",
+        "start": [1, 1],
+        "end": [1, 15]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-range",
+      "source_span": {
+        "document": "core-language/execution/random-below-minimum",
+        "start": [1, 14],
+        "end": [1, 15]
+      },
+      "params": {
+        "operation": "random",
+        "value": 0
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

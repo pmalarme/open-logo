@@ -79,6 +79,19 @@
  *   synchronously and in full the moment `execute()` returns (unchanged from #126) — they were
  *   never paced to begin with, so there is nothing for them to desync from while the Canvas
  *   animation continues to play out the same already-computed stream.
+ *
+ * ## #289 — `step()` from the initial idle state (before any `run()`)
+ * `run()`'s body was always two halves: *prepare* (execute the source, surface output/diagnostics,
+ * build a fresh `TurtleAnimationController` over the run's event stream) and *play* (start that
+ * controller animating via `playWithMotionPreference`). `step()` used to only ever operate on an
+ * animation `run()` had already prepared, so pressing "Next step" before the first `run()` was a
+ * silent no-op — confusing from a blank studio. The *prepare* half is now its own private
+ * `prepare()` helper, shared by both: `run()` still calls `prepare()` then immediately plays the
+ * result, unchanged; `step()` now calls `prepare()` itself, lazily, whenever no animation exists
+ * yet (i.e. `animation` is still `null`, exactly the state `reset()`/program-start leave it in),
+ * then steps the (freshly prepared or already-running) animation by one instruction. This makes
+ * `step()` a genuine "run one instruction" affordance from a blank studio, not just a scrubber over
+ * an animation `run()` must have already started.
  */
 
 import { execute, printedForm } from "@openlogo/runtime";
@@ -161,12 +174,19 @@ export interface RunController {
   reset(): void;
   /**
    * Advance the turtle animation (#228) by exactly one instruction-step and push the resulting
-   * snapshot, repainting the Canvas view if one was supplied. A no-op before the first `run()` or
-   * once the animation is exhausted (`TurtleAnimationController.step()`'s own guard) — see this
-   * module's doc comment ("#228") for why this replays the already-complete event stream rather
-   * than stepping the runtime, which exposes no per-instruction pause/resume API. `runStatus`
-   * stays `"stopped"` if the learner already called `stop()`, even once stepping exhausts the
-   * animation — `step()` never silently reverts an explicit stop back to a completed-run status.
+   * snapshot, repainting the Canvas view if one was supplied. Once the animation is exhausted this
+   * is a no-op (`TurtleAnimationController.step()`'s own guard) — see this module's doc comment
+   * ("#228") for why this replays the already-complete event stream rather than stepping the
+   * runtime, which exposes no per-instruction pause/resume API. `runStatus` stays `"stopped"` if
+   * the learner already called `stop()`, even once stepping exhausts the animation — `step()`
+   * never silently reverts an explicit stop back to a completed-run status.
+   *
+   * #289 — called before the first `run()` (i.e. from the initial idle state), `step()` no longer
+   * no-ops: it first lazily runs `prepare()` (everything `run()` does short of actually starting
+   * playback — executing the source, surfacing output/diagnostics, and building a fresh
+   * `TurtleAnimationController` over the resulting event stream) and then steps that
+   * freshly-prepared animation by one instruction, so pressing "Next step" from a blank studio
+   * animates the very first instruction instead of doing nothing.
    */
   step(): void;
 }
@@ -196,14 +216,16 @@ export function createRunController(
   const document = options?.document ?? DEFAULT_RUN_DOCUMENT;
   const signal: MutableCancellationSignal = { aborted: false };
 
-  // The current turtle animation player (#228), rebuilt fresh on every run() over that run's own
-  // trace-event stream; null before the first run() and after reset(). `finalRunStatus` is the
-  // runStatus run() would already have committed pre-#228 (derived from the run's diagnostics),
-  // deferred here until the animation actually finishes so a still-paced Canvas view is never
-  // reported as idle/stopped early (see this module's doc comment, "#228"). `userStopped` latches
-  // once `stop()` is called and is only cleared by `run()`/`reset()` — it prevents a later
-  // `step()` from silently overwriting an explicit stop back to `finalRunStatus` once the learner
-  // finishes manually stepping through the rest of an already-stopped animation.
+  // The current turtle animation player (#228), rebuilt fresh on every prepare() (called by
+  // run(), and by step() lazily when nothing has started yet — #289) over that run's own
+  // trace-event stream; null before the first run()/step() and after reset(). `finalRunStatus` is
+  // the runStatus run() would already have committed pre-#228 (derived from the run's
+  // diagnostics), deferred here until the animation actually finishes so a still-paced Canvas view
+  // is never reported as idle/stopped early (see this module's doc comment, "#228"). `userStopped`
+  // latches once `stop()` is called and is only cleared by `run()`/`reset()`/a lazy `prepare()`
+  // from `step()` — it prevents a later `step()` from silently overwriting an explicit stop back
+  // to `finalRunStatus` once the learner finishes manually stepping through the rest of an
+  // already-stopped animation.
   let animation: TurtleAnimationController | null = null;
   let finalRunStatus: RunStatus = "idle";
   let userStopped = false;
@@ -228,7 +250,7 @@ export function createRunController(
     }
   }
 
-  function run(): void {
+  function prepare(): TurtleAnimationController {
     state.setRunStatus("running");
     userStopped = false;
 
@@ -263,6 +285,11 @@ export function createRunController(
 
     current = new TurtleAnimationController(result.events, { scheduler });
     animation = current;
+    return current;
+  }
+
+  function run(): void {
+    const current = prepare();
     playWithMotionPreference(current, {
       reducedMotion: options?.reducedMotion ?? false,
     });
@@ -291,12 +318,15 @@ export function createRunController(
   }
 
   function step(): void {
-    if (!animation) {
-      return;
-    }
-    animation.step();
-    pushTurtleSnapshot(animation);
-    maybeSettleRunStatus(animation);
+    // #289 — from the initial idle state (before any run()), no animation exists yet: prepare()
+    // lazily builds one (executing the CURRENT source exactly as run() would) so stepping from a
+    // blank studio animates the first instruction instead of silently doing nothing. Once an
+    // animation already exists (mid-run, paused, or exhausted), this is exactly the pre-#289
+    // behavior: step the existing one, never rebuilding it from a possibly-changed source.
+    const current = animation ?? prepare();
+    current.step();
+    pushTurtleSnapshot(current);
+    maybeSettleRunStatus(current);
   }
 
   return { state, run, stop, reset, step };
