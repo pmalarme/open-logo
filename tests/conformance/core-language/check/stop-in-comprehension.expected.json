@@ -1,5 +1,5 @@
 {
-  "description": "ol-return-in-comprehension (issue #114): a `stop` inside a `map` comprehension body is routed to this same code with `keyword:\"stop\"`, so any control-flow escape out of a comprehension is one diagnostic family. (Spec note: error-model.md/execution-model.md name only return/output/op for this code and are silent on `stop`-in-comprehension; issue #114 requires routing `stop` here rather than to `ol-stop-outside-proc`.) `:nums` is declared first to isolate the code.",
+  "description": "ol-return-in-comprehension (issue #114): a `stop` inside a `map` comprehension body is routed to this same code with `keyword:\"stop\"`, so any control-flow escape out of a comprehension is one diagnostic family. (Spec: error-model.md and execution-model.md name `return`, `output`, `op`, and `stop` for this code — reconciled in issue #166/PR #269. Issue #114 requires routing `stop` here rather than to `ol-stop-outside-proc`.) `:nums` is declared first to isolate the code.",
   "profiles": ["core-language"],
   "check": true,
   "events": [],

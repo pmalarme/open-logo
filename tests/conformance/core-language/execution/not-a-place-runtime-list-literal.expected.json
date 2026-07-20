@@ -1,0 +1,34 @@
+{
+  "description": "`[1 2] = 5` assigns to a bare list literal, not a place, raising the runtime's own `ol-not-a-place` (issue #113/#156), mirroring `not-a-place-runtime-literal.expected.json`'s number-literal case. `params.text` carries the FULL target surface text (`[1 2]`), per the full-target-text rule from issue #113/#156.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/not-a-place-runtime-list-literal",
+        "start": [1, 1],
+        "end": [1, 10]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-not-a-place",
+      "source_span": {
+        "document": "core-language/execution/not-a-place-runtime-list-literal",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "params": {
+        "text": "[1 2]"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "description": "Core `show` (issue #234, spec/commands.md `show`) with a LIST value (issue #273): `show [1 2 3]` evaluates the list literal and carries the raw runtime list on the shared `print` trace event, just like `show \"hello\"` does for a word (`show-command.expected.json`).",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/show-list",
+        "start": [1, 1],
+        "end": [1, 13]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/show-list",
+        "start": [1, 1],
+        "end": [1, 13]
+      },
+      "payload": { "values": [[1, 2, 3]] }
+    }
+  ],
+  "diagnostics": []
+}
