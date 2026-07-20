@@ -49,10 +49,11 @@ export function nextRandomFloat(
 ): number {
   randomNumberGenerator.state =
     (randomNumberGenerator.state + 0x6d2b79f5) >>> 0;
-  let t = randomNumberGenerator.state;
-  t = Math.imul(t ^ (t >>> 15), t | 1);
-  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  let mixedState = randomNumberGenerator.state;
+  mixedState = Math.imul(mixedState ^ (mixedState >>> 15), mixedState | 1);
+  mixedState ^=
+    mixedState + Math.imul(mixedState ^ (mixedState >>> 7), mixedState | 61);
+  return ((mixedState ^ (mixedState >>> 14)) >>> 0) / 4294967296;
 }
 
 /**
