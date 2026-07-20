@@ -33,6 +33,6 @@
     "@openlogo/edu": "0.1.0"
   },
   "devDependencies": {
-    "vite": "^7.1.0"
+    "vite": "^7.3.6"
   }
 }
