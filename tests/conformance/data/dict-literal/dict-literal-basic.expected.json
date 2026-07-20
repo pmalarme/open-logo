@@ -1,0 +1,7 @@
+{
+  "description": "A multi-entry dict literal `{ name: \"ada\" age: 36 }` parses cleanly as the dict-literal primary, per grammar.md's `dict-literal ::= \"{\" { dict-entry } \"}\"` and `dict-entry ::= dict-key \":\" expression` — parse/lex/highlight only, no runtime evaluation.",
+  "profiles": ["core-language", "data"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

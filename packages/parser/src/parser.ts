@@ -13,10 +13,11 @@
  * separate binary-expression kind.
  *
  * Scope for this slice is the Core surface: prefix calls, the precedence ladder, blocks,
- * assignment, `local`, dotted places (`:a.b.c`), worded `is`-predicates, comparison chains, and
- * the parenthesized variadic `(and …)`/`(or …)`. Index/key selectors (`:a[i]`), dict/struct and
- * the other Data forms, and the Heritage spellings (`make`/`to`/`output`/`op`/aliases) are
- * handled by their own later slices; until then those spellings degrade to ordinary calls or a
+ * assignment, `local`, dotted places (`:a.b.c`), worded `is`-predicates, comparison chains,
+ * the parenthesized variadic `(and …)`/`(or …)`, and dict literals (`{ key: value … }`, the
+ * Data profile's `dict-literal` production). Index/key selectors (`:a[i]`), struct and the
+ * other Data forms, and the Heritage spellings (`make`/`to`/`output`/`op`/aliases) are handled
+ * by their own later slices; until then those spellings degrade to ordinary calls or a
  * collected diagnostic rather than a crash.
  */
 
@@ -27,12 +28,15 @@ import type {
   Binder,
   BlockNode,
   DestructuringBinderNode,
+  DictEntryNode,
   ExpressionNode,
+  NumberLitNode,
   PlaceSegment,
   ProcedureParam,
   ProgramNode,
   SpannedName,
   StatementNode,
+  WordLitNode,
 } from "./ast.js";
 import { parseDiag } from "./errors.js";
 import { primitiveArity } from "./signatures.js";
@@ -607,7 +611,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * operand, not a negative literal, so the `-`'s end must equal the numeral's start on BOTH line
    * and column — a block comment is whitespace and may span lines (`spec/grammar.md:32`).
    */
-  function tryNegativeNumberLiteral(): ExpressionNode | undefined {
+  function tryNegativeNumberLiteral(): NumberLitNode | undefined {
     const token = current();
     const after = peek(1);
     const end = token.source_span.end;
@@ -782,6 +786,8 @@ export function parse(source: string, document = "<input>"): ParseResult {
         return ast.varRef(token.value, token.source_span);
       case "lbracket":
         return parseListLiteral();
+      case "lbrace":
+        return parseDictLiteral();
       case "lparen":
         return parseParenthesized();
       case "name":
@@ -862,6 +868,78 @@ export function parse(source: string, document = "<input>"): ParseResult {
         advance();
       }
     }
+  }
+
+  /**
+   * Parse a dictionary literal `{ key: value … }` (`spec/grammar.md`'s `dict-literal ::= "{"
+   * { dict-entry } "}"`) — entries are separated only by whitespace/newlines, never commas, so
+   * `{ }` (matched, no entries) is a valid empty dict, not an error (`spec/error-model.md`'s
+   * `ol-unmatched-brace` fires only for a genuinely unmatched `{`/`}`).
+   */
+  function parseDictLiteral(): ExpressionNode {
+    const open = current();
+    advance();
+    const entries: DictEntryNode[] = [];
+    for (;;) {
+      skipNewlines();
+      const token = current();
+      if (token.kind === "rbrace") {
+        advance();
+        return ast.dictLit(entries, spanBetween(open, token));
+      }
+      if (token.kind === "eof") {
+        diagnostics.push(parseDiag.unmatchedBrace(open.source_span, "{"));
+        return ast.dictLit(entries, spanBetween(open, token));
+      }
+      const before = pos;
+      const entry = parseDictEntry();
+      if (entry !== undefined) {
+        entries.push(entry);
+      }
+      if (pos === before) {
+        diagnostics.push(unexpected(current()));
+        advance();
+      }
+    }
+  }
+
+  /**
+   * Parse one `dict-entry ::= dict-key ":" expression` (`spec/grammar.md`). `dict-key` is only
+   * `identifier | number` — narrower than {@link parseKeyTerm}'s selector `key-term`, which also
+   * accepts `:name` reads, word literals, and parenthesized expressions — because a dict key is
+   * always a literal, never evaluated (`spec/data-structures.md:143-171`). A bare identifier
+   * reuses {@link WordLitNode} exactly like a bare selector key; reserved words are legal keys
+   * for free, since the lexer never special-cases them. Returns `undefined` for anything else so
+   * the caller can report the malformed entry.
+   */
+  function parseDictEntry(): DictEntryNode | undefined {
+    const negative = tryNegativeNumberLiteral();
+    const token = current();
+    let key: WordLitNode | NumberLitNode | undefined = negative;
+    if (key === undefined) {
+      if (token.kind === "number") {
+        advance();
+        key = ast.numberLit(Number(token.text), token.source_span);
+      } else if (token.kind === "name") {
+        advance();
+        key = ast.wordLit(token.text, token.source_span);
+      } else {
+        return undefined;
+      }
+    }
+    skipNewlines();
+    if (current().kind !== "colon") {
+      diagnostics.push(unexpected(current()));
+      return undefined;
+    }
+    advance();
+    skipNewlines();
+    const value = parseExpression();
+    if (value === undefined) {
+      diagnostics.push(unexpected(current()));
+      return undefined;
+    }
+    return { key, value, source_span: spanBetween(key, value) };
   }
 
   function parseParenthesized(): ExpressionNode | undefined {

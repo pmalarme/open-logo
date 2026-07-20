@@ -1,0 +1,5 @@
+# A dict literal `{ key: value }` in expression position parses cleanly as the dict-literal
+# primary (grammar.md's `dict-literal ::= "{" { dict-entry } "}"`); entries are separated only by
+# whitespace/newlines, never commas, and a bare identifier or number is a literal key, never a
+# variable read.
+print { name: "ada" age: 36 }

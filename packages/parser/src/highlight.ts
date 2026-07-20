@@ -160,13 +160,10 @@ export function highlight(source: string, document = "<input>"): Token[] {
 
   // `dict-key` (`spec/tooling.md:41`) has two grammatical sources: a selector's bare-word key
   // (`:dict[key]`, handled by `markSelectorKey` below) and a dict-*literal*'s bare key before its
-  // `:` (`{ key: value }`). The literal form is not classifiable yet because `{ }` dict literals
-  // are not a parseable construct at all today — `parser.ts` has no brace-triggered production
-  // and `ast.ts` has no `DictLit` node (its own comment marks that as future Data-profile work),
-  // and the lexer's `:` handling (`tokens.ts`) only recognizes a `:name` variable prefix, emitting
-  // `ol-bad-token` and dropping any other `:` (so a literal's key-separator never becomes a real
-  // token to classify as `operator` either). This is a parser/lexer gap, not a highlighter one —
-  // tracked in issue #149 rather than guessed at here; only the selector-key half is implemented.
+  // `:` (`{ key: value }`, handled by the `"DictLit"` case in `visit()`, reusing the same
+  // `markSelectorKey` helper for each entry). Both share the identical bare-identifier-vs-quoted
+  // -word-literal disambiguation, since a dict-literal key parses to the same `WordLitNode` shape
+  // as a bare selector key.
   const roleByIndex = new Map<number, BracketRole>();
   const dictKeyIndexes = new Set<number>();
   const contextualKeywordIndexes = new Set<number>();
@@ -334,6 +331,11 @@ export function highlight(source: string, document = "<input>"): Token[] {
     switch (node.kind) {
       case "ListLit":
         markBracketPair(node.source_span, "list");
+        break;
+      case "DictLit":
+        for (const entry of node.entries) {
+          markSelectorKey(entry.key);
+        }
         break;
       case "If":
         markBracketPair(node.thenBody.source_span, "instruction-block");
@@ -617,6 +619,12 @@ export function highlight(source: string, document = "<input>"): Token[] {
       case "dot":
         return {
           class: "index/dot",
+          text: token.text,
+          source_span: token.source_span,
+        };
+      case "colon":
+        return {
+          class: "operator",
           text: token.text,
           source_span: token.source_span,
         };

@@ -1,0 +1,7 @@
+{
+  "description": "An empty dict literal `{ }` (matched braces, zero entries) parses as a valid empty dict with zero diagnostics — matched empty braces are never an error (spec/error-model.md's ol-unmatched-brace only fires on a genuinely unmatched delimiter).",
+  "profiles": ["core-language", "data"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

@@ -14,8 +14,8 @@
 //     (struct declaration + constructor calls), and field-name (field-list declaration + known
 //     `.field` access) — plus graceful degradation to `primitive` for unresolved names.
 //
-// The dict-*literal* half of `dict-key` (`{ key: value }`) is still deferred to #149: `{ }` has
-// no parser production at all yet, so there is nothing to disambiguate there.
+// The dict-*literal* half of `dict-key` (`{ key: value }`) is covered alongside the selector
+// half (issue #149): both share the identical bare-identifier-vs-quoted-word disambiguation.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -133,12 +133,13 @@ test("bracket: a list literal's brackets still resolve when a trailing newline f
   assert.equal(brackets[1].role, "list");
 });
 
-test("brace: dict-literal braces classify as brace (even though dict literals do not parse yet)", () => {
-  assert.deepEqual(classes("print {1 2}"), [
+test("brace: dict-literal braces classify as brace", () => {
+  assert.deepEqual(classes("print {a: 1}"), [
     ["primitive", "print", undefined],
     ["brace", "{", undefined],
+    ["dict-key", "a", undefined],
+    ["operator", ":", undefined],
     ["number", "1", undefined],
-    ["number", "2", undefined],
     ["brace", "}", undefined],
   ]);
 });
@@ -207,22 +208,18 @@ test("dict-key: a reserved word used as a bare selector key is still dict-key, n
   assert.equal(key.class, "dict-key");
 });
 
-test("deferred: a dict-literal's `{ key: value }` key is not classified dict-key — dict literals do not parse at all yet (issue #149)", () => {
-  // `{ }` has no parser production (ol-unmatched-brace) and a standalone `:` key-separator is
-  // dropped as ol-bad-token, so `field` below is just an ordinary bare name (primitive), and the
-  // braces get their plain lexical `brace` class with no special role — highlight() must still
-  // not throw on this input, matching parse()'s own never-throws contract.
-  assert.doesNotThrow(() => OL.highlight("print { field: 6 }", doc));
+test("dict-key: a dict-literal's bare key classifies as dict-key, its `:` separator as operator", () => {
   const tokens = OL.highlight("print { field: 6 }", doc);
   const field = tokens.find((token) => token.text === "field");
-  assert.equal(field.class, "primitive");
-  const braces = tokens.filter(
-    (token) => token.text === "{" || token.text === "}",
-  );
-  assert.deepEqual(
-    braces.map((token) => token.class),
-    ["brace", "brace"],
-  );
+  assert.equal(field.class, "dict-key");
+  const colon = tokens.find((token) => token.text === ":");
+  assert.equal(colon.class, "operator");
+});
+
+test("dict-key: a dict-literal's number key stays number, not dict-key", () => {
+  const tokens = OL.highlight('print { 1: "one" }', doc);
+  const numberKey = tokens.find((token) => token.text === "1");
+  assert.equal(numberKey.class, "number");
 });
 
 // --- Bracket delimiter roles (spec/tooling.md:71-81) --------------------------------------

@@ -1,0 +1,3 @@
+# A `{` with no matching `}` before end of file reports ol-unmatched-brace, anchored at the
+# opening delimiter (spec/error-model.md).
+print { a: 1

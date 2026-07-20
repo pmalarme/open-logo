@@ -18,7 +18,8 @@ import type { SourceSpan } from "@openlogo/core";
 
 /**
  * The Core node-kind vocabulary, mirroring the grammar productions of `spec/grammar.md`.
- * Data-profile nodes (`DictLit`, `StructDef`, …) join with that profile.
+ * `DictLit` is the first Data-profile node kind — other Data-profile nodes (`StructDef`, …)
+ * join this vocabulary as their own slices land.
  */
 export const OL_NODE_KINDS = [
   "Program",
@@ -26,6 +27,7 @@ export const OL_NODE_KINDS = [
   "WordLit",
   "BooleanLit",
   "ListLit",
+  "DictLit",
   "VarRef",
   "Place",
   "Assign",
@@ -103,6 +105,26 @@ export interface BooleanLitNode extends NodeBase {
 export interface ListLitNode extends NodeBase {
   readonly kind: "ListLit";
   readonly elements: readonly ExpressionNode[];
+}
+
+/**
+ * One `key: value` entry of a {@link DictLitNode} (`spec/grammar.md`'s
+ * `dict-entry ::= dict-key ":" expression`). The key is a literal, never a variable read — a
+ * bare identifier reuses {@link WordLitNode} exactly like a bare {@link SelectorSegment} key, and
+ * a bare number key reuses {@link NumberLitNode}. Duplicate-key/insertion-order rules
+ * (`spec/data-structures.md:143-171`) are a runtime concern; the parser only has to preserve
+ * every entry in source order.
+ */
+export interface DictEntryNode {
+  readonly key: WordLitNode | NumberLitNode;
+  readonly value: ExpressionNode;
+  readonly source_span: SourceSpan;
+}
+
+/** A dictionary literal `{ key: value … }` (Data profile, `spec/grammar.md`'s `dict-literal`). */
+export interface DictLitNode extends NodeBase {
+  readonly kind: "DictLit";
+  readonly entries: readonly DictEntryNode[];
 }
 
 /** A variable read `:name` (the name carries no leading colon). */
@@ -369,6 +391,7 @@ export type ExpressionNode =
   | WordLitNode
   | BooleanLitNode
   | ListLitNode
+  | DictLitNode
   | VarRefNode
   | PlaceNode
   | CallNode
@@ -419,6 +442,9 @@ export const ast = {
   },
   listLit(elements: readonly ExpressionNode[], span: SourceSpan): ListLitNode {
     return { kind: "ListLit", source_span: span, elements };
+  },
+  dictLit(entries: readonly DictEntryNode[], span: SourceSpan): DictLitNode {
+    return { kind: "DictLit", source_span: span, entries };
   },
   varRef(name: string, span: SourceSpan): VarRefNode {
     return { kind: "VarRef", source_span: span, name };
@@ -595,6 +621,8 @@ export function childrenOf(node: AnyNode): readonly AnyNode[] {
       return node.body;
     case "ListLit":
       return node.elements;
+    case "DictLit":
+      return node.entries.flatMap((entry) => [entry.key, entry.value]);
     case "Call":
     case "ParenCall":
       return node.args;

@@ -681,6 +681,10 @@ export function isSupportedExpression(
           isSupportedExpression(node.initial, procedures)) &&
         isSupportedComprehensionBody(node.body, procedures)
       );
+    case "DictLit":
+      // Dict-literal runtime evaluation (values, reads, writes) is its own blocked slice
+      // (issue #149 only delivers the parse/lex/highlight surface) — always unsupported for now.
+      return false;
   }
 }
 
@@ -767,6 +771,14 @@ export function evaluate(
       return evaluateComprehension(node, environment);
     case "IsPredicate":
       return evaluateIsPredicate(node, environment);
+    case "DictLit":
+      // `isSupportedExpression` always returns `false` for a `DictLit`, so callers gate it out
+      // before ever reaching here (same invariant as `readPlace`'s unimplemented segment kinds,
+      // below) — dict-literal runtime evaluation is its own blocked slice (issue #149 is
+      // parse/lex/highlight only).
+      throw new Error(
+        'evaluate: expression kind "DictLit" is not implemented yet — it lands with its own evaluator slice',
+      );
   }
 }
 
