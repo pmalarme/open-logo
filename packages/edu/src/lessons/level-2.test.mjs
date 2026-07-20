@@ -142,6 +142,25 @@ test("the tree reference solution draws the trunk with plain moves and turns, th
   assert.equal(Math.round(lastMove.payload.to[1]), 115);
 });
 
+test("the taller-tree reference solution's source is identical to the tree's, except the repeat count", () => {
+  const tree = level2Exercises.find(
+    (exercise) => exercise.id === "l2-tree-trunk-and-tiers",
+  );
+  const tallerTree = level2Exercises.find(
+    (exercise) => exercise.id === "l2-taller-tree-repeat",
+  );
+  assert.ok(tree);
+  assert.ok(tallerTree);
+
+  // Swapping "repeat 3 [" for "repeat 6 [" in the tree's source must produce exactly the
+  // taller-tree's source -- proving the only change between the two exercises is the number
+  // passed to repeat, with no other line (including comments) rewritten.
+  assert.equal(
+    tree.referenceSolution.source.replace("repeat 3 [", "repeat 6 ["),
+    tallerTree.referenceSolution.source,
+  );
+});
+
 test("the taller-tree reference solution only changes the repeat count, growing the same tree with twice as many tiers", () => {
   const tallerTree = level2Exercises.find(
     (exercise) => exercise.id === "l2-taller-tree-repeat",

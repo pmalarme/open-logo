@@ -99,10 +99,10 @@ export const level1Exercises: readonly Exercise[] = [
     level: "1",
     difficulty: "challenge",
     prompt:
-      "Draw a house: a square body and a triangle roof, each side drawn one at a time (no repeat yet), then a door and two windows using only forward, right, left, pen_up, and pen_down.",
+      "Draw a house: a square body and a triangle roof, each side drawn one at a time, then a door and two windows using only forward, right, left, pen_up, and pen_down.",
     referenceSolution: {
       source: [
-        "# why: four explicit sides draw the square body -- repeat comes later, in Level 2",
+        "# why: each side of the square body is typed out one at a time",
         "forward 80",
         "right 90",
         "forward 80",
@@ -117,7 +117,7 @@ export const level1Exercises: readonly Exercise[] = [
         "forward 80",
         "right 180",
         "pen_down",
-        "# why: three explicit sides draw the triangle roof the same way",
+        "# why: each side of the triangle roof is typed out the same way",
         "forward 80",
         "right 120",
         "forward 80",
@@ -171,7 +171,7 @@ export const level1Exercises: readonly Exercise[] = [
         "right 90",
       ].join("\n"),
       explanation:
-        "Every side of the square and the triangle is typed out one at a time, so the square takes four forward/right pairs and the roof takes three -- the same repeated pattern a learner will later collapse into repeat at Level 2. From the roof, short pen_up/pen_down walks place a three-sided door (its open bottom edge already drawn by the house's ground line) and two enclosed square windows, one on each side of the door, without drawing any connecting lines between them.",
+        "Every side of the square and the triangle is typed out one at a time, so the square takes four forward/right pairs and the roof takes three. From the roof, short pen_up/pen_down walks place a three-sided door (its open bottom edge already drawn by the house's ground line) and two enclosed square windows, one on each side of the door, without drawing any connecting lines between them.",
     },
   },
 ];
