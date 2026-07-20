@@ -347,10 +347,12 @@ editor | Run/Canvas** — so this slice reserves that third slot now, CSS-only, 
 to reshape `index.html`/`web/styles.css`/`src/app-shell.ts` again:
 
 - **DOM contract**: `index.html` gains `<section id="lesson-pane" class="pane-lesson"
-  aria-label="Lesson" hidden></section>` as `<main>`'s first child (matching the target reading
-  order). It ships `hidden`, so it has no box, no grid participation, and — critically — is
-  entirely absent from the accessibility tree and the keyboard focus order while empty: nothing to
-  regress, no empty landmark, no focus-order gap (verified — see below).
+  hidden></section>` as `<main>`'s first child (matching the target reading order). It carries
+  **no `role`/`aria-label` of its own** — declaring one now would create an unmodelled implicit
+  `region` landmark the moment `hidden` is cleared, since `src/a11y.ts` has no entry for it yet.
+  It ships `hidden`, so it has no box, no grid participation, and — critically — is entirely
+  absent from the accessibility tree and the keyboard focus order while empty: nothing to regress,
+  no empty landmark, no focus-order gap (verified — see below).
 - **App-shell contract**: no change needed. `src/app-shell.ts`'s `APP_SHELL_REGIONS` has included
   `"lesson"` as a named region since #123. A future lesson-pane module mounts exactly like
   `canvas-view.ts`'s `mountCanvasView` does for `"turtle"`: call `shell.mount("lesson",
