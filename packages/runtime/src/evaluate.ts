@@ -52,8 +52,11 @@ import type {
 import { runtimeDiag } from "./errors.js";
 import { notAPlaceTargetText } from "./not-a-place-text.js";
 import type { RenderableNode } from "./not-a-place-text.js";
-import { createRngState, nextRandomInt } from "./rng.js";
-import type { RngState } from "./rng.js";
+import {
+  createRandomNumberGeneratorState,
+  nextRandomInt,
+} from "./random-number-generator.js";
+import type { RandomNumberGeneratorState } from "./random-number-generator.js";
 import { normalizeHeading } from "./turtle-math.js";
 
 /** The outcome of evaluating one expression: a value, or the diagnostic that stopped it. */
@@ -172,12 +175,13 @@ export interface Environment {
     env: Environment,
   ) => EvalResult;
   /**
-   * The shared, mutable `random`/`randomize` generator state (issue #287, `rng.ts`). A box like
-   * `instructionCount`/`turtle` rather than a plain value, so a `randomize` reseed (or a `random`
-   * draw) made from anywhere in the program — including deep inside a procedure call or loop
-   * body sharing this same `Environment` — is observed by every later draw in the same run.
+   * The shared, mutable `random`/`randomize` generator state (issue #287,
+   * `random-number-generator.ts`). A box like `instructionCount`/`turtle` rather than a plain
+   * value, so a `randomize` reseed (or a `random` draw) made from anywhere in the program —
+   * including deep inside a procedure call or loop body sharing this same `Environment` — is
+   * observed by every later draw in the same run.
    */
-  readonly rng: RngState;
+  readonly randomNumberGenerator: RandomNumberGeneratorState;
 }
 
 /**
@@ -255,7 +259,7 @@ export function createEnvironment(): Environment {
     instructionBudget: Number.POSITIVE_INFINITY,
     instructionCount: { count: 0 },
     turtle: createDefaultTurtleState(),
-    rng: createRngState(),
+    randomNumberGenerator: createRandomNumberGeneratorState(),
     callProcedure: () => {
       throw new Error(
         "callProcedure is unreachable on a bare createEnvironment() — it has no procedures",
@@ -598,8 +602,8 @@ function isLogicalOperator(name: string): name is LogicalOperator {
  * `distance` join the known-callee list as well — pure reads of {@link Environment.turtle} that
  * emit no trace event. As of issue #234 the word-constructor `word` joins the known-callee list.
  * As of issue #287 the Core Math reporter `random` joins the known-callee list too — it reads and
- * mutates {@link Environment.rng} but, like the turtle-state reporters above, is otherwise a pure
- * expression with no diagnostic beyond its own argument checks.
+ * mutates {@link Environment.randomNumberGenerator} but, like the turtle-state reporters above, is
+ * otherwise a pure expression with no diagnostic beyond its own argument checks.
  */
 export function isSupportedExpression(
   node: ExpressionNode,
@@ -2397,7 +2401,8 @@ function evaluateDistance(
 
 /**
  * `random n` / `(random a b)` (issue #287, `spec/commands.md`'s `random` entry): a whole-number
- * draw from the shared per-{@link Environment} generator ({@link Environment.rng}). Unlike
+ * draw from the shared per-{@link Environment} generator
+ * ({@link Environment.randomNumberGenerator}). Unlike
  * {@link evaluateTowards}/{@link evaluateDistance}'s single fixed arity, `random` has two valid
  * shapes — bare `random n` (1 argument, reporting `[0, n-1]`) and parenthesized `(random a b)` (2
  * arguments, reporting `[a, b]` inclusive) — so neither {@link requireMinArgs} alone (no upper
@@ -2441,7 +2446,7 @@ function evaluateRandom(
         runtimeDiag.randomBelowMinimum(nNode.source_span, { value: n.value }),
       );
     }
-    return ok(nextRandomInt(env.rng, 0, n.value - 1));
+    return ok(nextRandomInt(env.randomNumberGenerator, 0, n.value - 1));
   }
   const lowNode = arg(node, 0);
   const highNode = arg(node, 1);
@@ -2477,7 +2482,7 @@ function evaluateRandom(
       }),
     );
   }
-  return ok(nextRandomInt(env.rng, low.value, high.value));
+  return ok(nextRandomInt(env.randomNumberGenerator, low.value, high.value));
 }
 
 // --- Comprehensions: map / filter / reduce (spec/execution-model.md:380-479, issue #105) ------

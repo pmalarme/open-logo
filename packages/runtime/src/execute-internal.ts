@@ -77,7 +77,10 @@ import type {
   ExecuteResult,
   InstructionPayload,
 } from "./index.js";
-import { createRngState, seedFromText } from "./rng.js";
+import {
+  createRandomNumberGeneratorState,
+  seedFromText,
+} from "./random-number-generator.js";
 import { normalizeHeading } from "./turtle-math.js";
 
 /**
@@ -1488,15 +1491,17 @@ function executeShowCall(
 /**
  * Executes a `randomize`/`(randomize seed)` statement (issue #287, `spec/commands.md`'s
  * `randomize` entry) once {@link executeStatements} has confirmed it via {@link isRandomizeCall}.
- * Reseeds the shared {@link Environment.rng} generator *in place* — mutating its `state` field
- * rather than replacing `env.rng` itself — so every environment sharing this same box (every
- * nested procedure-call/loop-body environment spread from this one via `execute-internal.ts`'s
- * `{...env, frames: […]}` pattern) observes the reseed. Extracted into its own top-level function
- * for the same stack-depth reason {@link executeShowCall}'s doc comment gives.
+ * Reseeds the shared {@link Environment.randomNumberGenerator} generator *in place* — mutating its
+ * `state` field rather than replacing `env.randomNumberGenerator` itself — so every environment
+ * sharing this same box (every nested procedure-call/loop-body environment spread from this one
+ * via `execute-internal.ts`'s `{...env, frames: […]}` pattern) observes the reseed. Extracted
+ * into its own top-level function for the same stack-depth reason {@link executeShowCall}'s doc
+ * comment gives.
  *
- * With no seed, a fresh implementation-chosen seed is drawn ({@link createRngState}'s own
- * `Date.now()` fallback — the entry: "With no seed the implementation chooses a seed"). With a
- * seed, the entry documents no type restriction at all ("Possible errors: none specified beyond
+ * With no seed, a fresh implementation-chosen seed is drawn
+ * ({@link createRandomNumberGeneratorState}'s own `Date.now()` fallback — the entry: "With no seed
+ * the implementation chooses a seed"). With a seed, the entry documents no type restriction at
+ * all ("Possible errors: none specified beyond
  * general arity diagnostics" — deliberately omitting the "type" diagnostics every sibling entry
  * with an argument lists), so every {@link OLValue} is a valid seed: a number seeds directly
  * (truncated to a whole 32-bit value), and any other type — word/list/boolean, or a non-integer
@@ -1517,7 +1522,7 @@ function executeRandomizeCall(
     );
   }
   if (statement.args.length === 0) {
-    env.rng.state = createRngState().state;
+    env.randomNumberGenerator.state = createRandomNumberGeneratorState().state;
     return undefined;
   }
   // Same unsupported-operand deferral as `show`/`print` use: only evaluate the seed when it is
@@ -1531,7 +1536,7 @@ function executeRandomizeCall(
     return halt(result.diagnostic);
   }
   const value = result.value;
-  env.rng.state =
+  env.randomNumberGenerator.state =
     typeof value === "number"
       ? Math.trunc(value) >>> 0
       : seedFromText(printedForm(value));
@@ -2438,10 +2443,10 @@ function resolvePositiveFiniteLimit(
  * `callProcedure` wired to {@link callProcedureAsValue} — unlike
  * `evaluate.ts`'s bare `createEnvironment()` (whose `callProcedure` stub is intentionally
  * unreachable, for expression-only tests with no procedures in scope), this is the environment
- * every real statement/expression in `program` actually runs against. Issue #287 adds `rng`, the
- * shared seeded `random`/`randomize` generator state, freshly seeded per run
- * ({@link createRngState}'s own `Date.now()` fallback) so two separate `execute()` calls are
- * independent even before either program ever calls `randomize`.
+ * every real statement/expression in `program` actually runs against. Issue #287 adds
+ * `randomNumberGenerator`, the shared seeded `random`/`randomize` generator state, freshly seeded
+ * per run ({@link createRandomNumberGeneratorState}'s own `Date.now()` fallback) so two separate
+ * `execute()` calls are independent even before either program ever calls `randomize`.
  *
  * Issue #102: `options` supplies the three execution-safety gates `spec/execution-model.md:
  * 551-557` requires — `instructionBudget`/`recursionDepthLimit` fall back to
@@ -2477,7 +2482,7 @@ function createExecutionEnvironment(
     instructionCount: { count: 0 },
     signal: options?.signal,
     turtle: createDefaultTurtleState(),
-    rng: createRngState(),
+    randomNumberGenerator: createRandomNumberGeneratorState(),
     source,
     callProcedure: callProcedureAsValue,
   };

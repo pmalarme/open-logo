@@ -83,7 +83,8 @@ test("(randomize 123) then random 100 twice yields the same sequence across two 
   assert.deepEqual(first.diagnostics, []);
   assert.deepEqual(second.diagnostics, []);
   assert.deepEqual(printedValues(first), printedValues(second));
-  // Pins the exact implementation sequence (computed directly from `rng.ts`'s mulberry32 draw for
+  // Pins the exact implementation sequence (computed directly from
+  // `random-number-generator.ts`'s mulberry32 draw for
   // seed 123) so a future accidental change to the generator is caught, without claiming this
   // sequence is portable to any other OpenLogo implementation.
   assert.deepEqual(printedValues(first), [78, 17]);
@@ -108,7 +109,8 @@ test("randomize with no seed still lets random produce a valid whole number in r
 
 test("two fresh execute() runs with no randomize are independent (not both seeded from a shared module-level generator)", () => {
   // Not a determinism assertion (two runs seeded from Date.now() may coincidentally collide) —
-  // just confirms each run gets its OWN rng state rather than sharing one from a previous run,
+  // just confirms each run gets its OWN random number generator state rather than sharing one from
+  // a previous run,
   // by reseeding both identically and checking they now agree.
   const program = "(randomize 42)\nprint random 1000000";
   const a = execute(program, doc);
@@ -176,7 +178,8 @@ test("randomize with an unsupported .field argument is left un-executed", () => 
   const result = execute("(randomize :places.tom)\nprint random 10", doc);
   assert.deepEqual(result.diagnostics, []);
   // The seed argument is deferred (not evaluated), but `randomize` itself is still skipped as a
-  // whole statement, and the following `print random 10` still runs fine off the default rng.
+  // whole statement, and the following `print random 10` still runs fine off the default random
+  // number generator.
   assert.equal(printedValues(result).length, 1);
 });
 
