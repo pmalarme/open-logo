@@ -80,11 +80,6 @@ const resetButton = assertPresent(
   "reset-button",
   (value): value is HTMLButtonElement => value instanceof HTMLButtonElement,
 );
-const stepButton = assertPresent(
-  document.getElementById("step-button"),
-  "step-button",
-  (value): value is HTMLButtonElement => value instanceof HTMLButtonElement,
-);
 const runStatusElement = assertPresent<HTMLElement>(
   document.getElementById("run-status"),
   "run-status",
@@ -184,9 +179,6 @@ stopButton.addEventListener("click", () => {
 });
 resetButton.addEventListener("click", () => {
   runController.reset();
-});
-stepButton.addEventListener("click", () => {
-  runController.step();
 });
 
 /** Builds one `<li>` per already-formatted {@link DiagnosticListItem} — plain DOM element

@@ -1,7 +1,7 @@
 # `@openlogo/studio`
 
 **The OpenLogo UI that runs in a browser.** A TypeScript web app hosting the code editor/REPL, the
-**Canvas** turtle view, the diagnostics UI, and the lesson/tutor pane, with Run/Stop/Reset/Step,
+**Canvas** turtle view, the diagnostics UI, and the lesson/tutor pane, with Run/Stop/Reset,
 persistence, and accessibility. It composes the other packages and owns no language logic.
 
 - **Source root:** `src/` — app entry `src/index.ts`; keep a headless `run-controller.ts` + state
@@ -72,7 +72,7 @@ slice may swap in a real renderer without changing this contract.
 - `attachPersistence(...).dispose()` stops persisting further changes;
   `attachPersistence(...).clearPersisted()` removes the stored value (also degrading gracefully).
 
-## Run/Stop/Reset/Step (#126, extended in #228 to drive the turtle Canvas view in lockstep)
+## Run/Stop/Reset (#126, extended in #228 to drive the turtle Canvas view in lockstep)
 
 - `createRunController(state, options?)` (`src/run-controller.ts`) — the headless run controller
   over `@openlogo/runtime`'s execution budget (issue #102):
@@ -112,7 +112,8 @@ slice may swap in a real renderer without changing this contract.
     `reset()` also resets the turtle animation and restores `turtleState`/`turtleScene` to
     `@openlogo/turtle`'s program-start `INITIAL_TURTLE_STATE`/`INITIAL_TURTLE_SCENE`, repainting
     the Canvas view (if supplied) back to a blank slate.
-  - **Step** — no longer a no-op as of #228: `step()` advances the turtle animation by exactly one
+  - **Step** (headless only — not surfaced in the 0.1.0 UI, see #305; Wave 1/#302 rebuilds a UI on
+    it) — no longer a no-op as of #228: `step()` advances the turtle animation by exactly one
     instruction-step (matching `TurtleAnimationController.step()`'s own granularity) and pushes the
     resulting snapshot, repainting the Canvas view if supplied. It remains a no-op before the first
     `run()` or once the animation is exhausted. This is deliberately stepping the *replay* of an
@@ -160,13 +161,15 @@ layer** (`src/a11y.ts`) that a later real renderer maps onto actual DOM attribut
 no DOM here to regress.
 
 - **Keyboard operability** — `REPL_FOCUS_ORDER` is a static, ordered list of every focusable stop
-  across the studio: the editor (one `textbox` stop), Run/Stop/Reset/Step (four `button` stops,
-  matching `run-controller.ts`'s `run()`/`stop()`/`reset()`/`step()`), the turtle Canvas (one `img`
+  across the studio: the editor (one `textbox` stop), Run/Stop/Reset (three `button` stops,
+  matching `run-controller.ts`'s `run()`/`stop()`/`reset()`), the turtle Canvas (one `img`
   stop), and the diagnostics list (one `log` stop). `nextFocusStop`/`previousFocusStop` cycle
   through it, wrapping at both ends — proof there is no keyboard trap: from any stop you can always
-  reach every other stop moving forward or backward. `run-controller.ts` has no `speed`/`export`
-  control yet (`@openlogo/turtle` exposes `exportTurtleSvg`/`exportTurtlePng` and an animation
-  `stepsPerSecond` option, but studio does not wire either into a learner-facing action today), so
+  reach every other stop moving forward or backward. `run-controller.ts`'s headless `step()` method
+  still exists (Wave 1/#302 rebuilds a UI on it), but 0.1.0 removed its `Next step` control (#305),
+  and has no `speed`/`export` control either (`@openlogo/turtle` exposes
+  `exportTurtleSvg`/`exportTurtlePng` and an animation `stepsPerSecond` option, but studio does not
+  wire either into a learner-facing action today), so
   this module deliberately adds no focus stop for an action that does not exist — the same
   "document the honest gap, never fake it" precedent #126/#228 set for `step()`/`stop()`.
 - **Semantic structure** — `REPL_LANDMARK_ROLES` declares each pane's container-level ARIA role +
@@ -195,7 +198,7 @@ no DOM here to regress.
 - No shell region/mount function is added for the announcer or the turtle-state region — both are
   cross-cutting services over the existing store, not panes with their own mount lifecycle.
 
-## Turtle Canvas view (#218, driven live by Run/Stop/Reset/Step in #228)
+## Turtle Canvas view (#218, driven live by Run/Stop/Reset in #228)
 
 **#218 delivered static composition** — the initial default turtle state/scene, painted once at
 mount. **#228 (above)** wires `run-controller.ts` to update `turtleState`/`turtleScene` after each
@@ -241,9 +244,10 @@ The package is now genuinely servable, not just headless-testable:
   summary string) lives in `src/web-bootstrap.ts` instead, which has its own `.test.mjs` and stays
   inside the 100% coverage gate — `web/**` is outside this package's `tsc -b` build graph (`src/`
   only) and is never imported by a test, so it does not count toward that gate either way.
-- This is the **walking skeleton** (epic #276's slice 1): Stop/Reset/Step with live animation, the
+- This is the **walking skeleton** (epic #276's slice 1): Stop/Reset with live animation, the
   full diagnostics list pane, and a11y/persistence/branding polish are later slices. A bad program
   (e.g. `forward`) does not crash the page on Run — its diagnostics render as a plain-text summary,
-  not yet the full diagnostics pane.
+  not yet the full diagnostics pane. `Next step` was removed from the 0.1.0 UI (#305); the
+  headless `step()` machinery it drove stays intact for Wave 1 (#302) to rebuild the control on.
 
 

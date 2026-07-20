@@ -21,7 +21,9 @@
  *   plain text — no hard dependency on the epic #118 highlighter). See `editor.ts`.
  * - {@link mountEditorPane} composes the controller into the shell's `editor` region.
  *
- * #126 adds Run/Stop/Reset/Step over `@openlogo/runtime`'s execution budget (issue #102);
+ * #126 adds Run/Stop/Reset/Step over `@openlogo/runtime`'s execution budget (issue #102) — `step()`
+ * is headless-only as of #305 (the `Next step` UI control was removed for 0.1.0; Wave 1/#302
+ * rebuilds a UI on it);
  * #228 extends the same controller to replay the completed trace-event stream through
  * `@openlogo/turtle`'s animation player, so the #218 Canvas view moves in lockstep:
  * - {@link createRunController} — `run()` executes the shared `source` via `@openlogo/runtime`'s
@@ -72,7 +74,7 @@
  * #129 adds keyboard + screen-reader accessibility over the REPL loop (editor/run/diagnostics),
  * extended in #229 to the turtle Canvas pane (#218/#228):
  * - {@link REPL_FOCUS_ORDER} is the static, ordered keyboard focus order across every studio pane
- *   (editor → Run/Stop/Reset/Step → Canvas → diagnostics); {@link nextFocusStop}/
+ *   (editor → Run/Stop/Reset → Canvas → diagnostics); {@link nextFocusStop}/
  *   {@link previousFocusStop} cycle through it (wrapping both ends), proving there is no keyboard
  *   trap. {@link REPL_LANDMARK_ROLES} declares each pane's container-level ARIA role/label for a
  *   future renderer to map 1:1.
@@ -107,8 +109,10 @@
  * it stays inside the 100% coverage gate. See `packages/studio/README.md`'s "Running in a
  * browser" section.
  *
- * #278 makes the page's Run/Stop/Reset/Step controls real and paces the turtle animation
- * visibly, and turns the diagnostics pane into a real list:
+ * #278 makes the page's Run/Stop/Reset controls real and paces the turtle animation
+ * visibly, and turns the diagnostics pane into a real list (#305 later removes the `Next step`
+ * control from the 0.1.0 UI; the headless `step()` machinery it drove stays intact for Wave 1/
+ * #302 to rebuild a UI on):
  * - {@link createTimeoutScheduler} builds a real, paced `RunControllerOptions.scheduler` — a
  *   fixed-delay, `setTimeout`-backed `Scheduler` (`@openlogo/turtle`'s timer-free type) the
  *   browser entry injects so a run's turtle animation plays back step by step instead of
