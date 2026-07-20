@@ -5,7 +5,7 @@ description: >-
   worked example, graded exercises, and a runnable solution validated against the runtime. Use for
   curriculum, levels, lessons, exercises. Grounded in spec/educational-model.md's 8 levels.
 created: 2026-07-17T00:00
-updated: 2026-07-17T00:00
+updated: 2026-07-20T00:00
 ---
 
 ## Purpose
@@ -22,11 +22,12 @@ last, and every example actually runs.
 3. **Worked example** in canonical OpenLogo (`shared/spec-fidelity`) — lowercase keywords, correct
    profile. Keep it minimal (KISS).
 4. **Graded exercises:** ramp from guided to open; for each, include a **runnable reference solution**.
-5. **Culminate in a recognizable object:** the challenge composes what was just taught into a
-   motivating, real object a learner wants to reproduce — not an abstract geometry drill. It
-   generalizes per concept: L1 shapes → a house (square/rectangle body + triangle roof,
-   door, windows); L2 `repeat` → a tree (trunk + repeated triangle tiers). Teach the parts first, then
-   compose them.
+5. **Culminate in a recognizable object:** make the final graded exercise (with its runnable solution)
+   a challenge that composes what was just taught into a motivating object a learner wants to
+   reproduce — not an abstract geometry drill. It generalizes per concept; for example, L1 movement
+   and turns can compose basic shapes into a house (square/rectangle body + triangle roof, door,
+   windows); L2 `repeat` can compose repeated triangle tiers into a tree (trunk + tiers). Teach the
+   parts first, then compose them.
 6. **Validate every example + solution against the runtime** (`shared/conformance-fixture`) so lessons
    can never drift from real behavior; wire them into CI.
 7. **Add teaching hooks:** expected misconceptions (from `@geometry-teacher`) and staged hints (from
@@ -41,6 +42,6 @@ last, and every example actually runs.
 ## Checklist
 - [ ] Level + objective + prerequisites explicit; profile-appropriate primitives only.
 - [ ] Worked example + graded exercises, each with a runnable solution.
-- [ ] Challenge composes a recognizable, motivating object (e.g. house, tree) — not an abstract drill.
+- [ ] Final graded challenge composes a recognizable, motivating object (e.g. house, tree) — not an abstract drill.
 - [ ] All samples validated against the runtime in CI.
 - [ ] Misconception + hint hooks attached.
