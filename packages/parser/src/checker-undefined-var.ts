@@ -88,35 +88,38 @@ const ROOT_CONTEXT: ScopeContext = {
 };
 
 function pushBinder(
-  ctx: ScopeContext,
+  scopeContext: ScopeContext,
   binder: ReadonlySet<string>,
 ): ScopeContext {
   return {
-    procedureFrame: ctx.procedureFrame,
-    binderStack: [...ctx.binderStack, binder],
+    procedureFrame: scopeContext.procedureFrame,
+    binderStack: [...scopeContext.binderStack, binder],
   };
 }
 
-/** Is `name` visible via `ctx`'s binder stack or enclosing procedure frame (not the globals)? */
-function visibleInLocalScope(name: string, ctx: ScopeContext): boolean {
-  for (let i = ctx.binderStack.length - 1; i >= 0; i -= 1) {
+/** Is `name` visible via `scopeContext`'s binder stack or enclosing procedure frame (not the globals)? */
+function visibleInLocalScope(
+  name: string,
+  scopeContext: ScopeContext,
+): boolean {
+  for (let i = scopeContext.binderStack.length - 1; i >= 0; i -= 1) {
     // `binderStack[i]` is always populated within `[0, length)` — `noUncheckedIndexedAccess`
     // cannot correlate that with a bounded `for` loop, so this documents the invariant.
-    const binder = ctx.binderStack[i] as ReadonlySet<string>;
+    const binder = scopeContext.binderStack[i] as ReadonlySet<string>;
     if (binder.has(name)) {
       return true;
     }
   }
-  return ctx.procedureFrame?.has(name) ?? false;
+  return scopeContext.procedureFrame?.has(name) ?? false;
 }
 
 /** Is `name` visible anywhere in the full scope chain: binder stack, procedure frame, or global? */
 function isVisible(
   name: string,
-  ctx: ScopeContext,
+  scopeContext: ScopeContext,
   globals: ReadonlySet<string>,
 ): boolean {
-  return visibleInLocalScope(name, ctx) || globals.has(name);
+  return visibleInLocalScope(name, scopeContext) || globals.has(name);
 }
 
 /**
@@ -164,7 +167,7 @@ function collectGlobalNames(program: ProgramNode): ReadonlySet<string> {
 
 function collectGlobalsIn(
   node: AnyNode,
-  ctx: ScopeContext,
+  scopeContext: ScopeContext,
   globals: Set<string>,
 ): void {
   switch (node.kind) {
@@ -172,7 +175,7 @@ function collectGlobalsIn(
       // A `local` is always a declaration into the *current* frame — the enclosing procedure's
       // own frame (already collected by collectProcedureFrame, so ignored here) or, at the top
       // level, the root/global frame, regardless of surrounding control-flow nesting.
-      if (ctx.procedureFrame === undefined) {
+      if (scopeContext.procedureFrame === undefined) {
         for (const name of node.names) {
           globals.add(name.name.toLowerCase());
         }
@@ -182,13 +185,13 @@ function collectGlobalsIn(
       const target = node.place;
       if (target.kind === "Place" && target.segments.length === 0) {
         const name = target.base.name.toLowerCase();
-        if (!visibleInLocalScope(name, ctx)) {
+        if (!visibleInLocalScope(name, scopeContext)) {
           globals.add(name);
         }
       } else if (target.kind !== "Place") {
-        collectGlobalsIn(target, ctx, globals);
+        collectGlobalsIn(target, scopeContext, globals);
       }
-      collectGlobalsIn(node.value, ctx, globals);
+      collectGlobalsIn(node.value, scopeContext, globals);
       return;
     }
     case "ProcedureDef": {
@@ -205,34 +208,38 @@ function collectGlobalsIn(
       return;
     }
     case "ForIn": {
-      collectGlobalsIn(node.iterable, ctx, globals);
+      collectGlobalsIn(node.iterable, scopeContext, globals);
       const binder = new Set(binderNames(node.binder));
-      collectGlobalsIn(node.body, pushBinder(ctx, binder), globals);
+      collectGlobalsIn(node.body, pushBinder(scopeContext, binder), globals);
       return;
     }
     case "ForRange": {
-      collectGlobalsIn(node.from, ctx, globals);
-      collectGlobalsIn(node.to, ctx, globals);
+      collectGlobalsIn(node.from, scopeContext, globals);
+      collectGlobalsIn(node.to, scopeContext, globals);
       if (node.by !== undefined) {
-        collectGlobalsIn(node.by, ctx, globals);
+        collectGlobalsIn(node.by, scopeContext, globals);
       }
       const binder = new Set([node.variable.name.toLowerCase()]);
-      collectGlobalsIn(node.body, pushBinder(ctx, binder), globals);
+      collectGlobalsIn(node.body, pushBinder(scopeContext, binder), globals);
       return;
     }
     case "Comprehension": {
-      collectGlobalsIn(node.iterable, ctx, globals);
+      collectGlobalsIn(node.iterable, scopeContext, globals);
       const names = binderNames(node.binder);
       if (node.form === "reduce") {
-        collectGlobalsIn(node.initial, ctx, globals);
+        collectGlobalsIn(node.initial, scopeContext, globals);
         names.push(node.accumulator.name.toLowerCase());
       }
-      collectGlobalsIn(node.body, pushBinder(ctx, new Set(names)), globals);
+      collectGlobalsIn(
+        node.body,
+        pushBinder(scopeContext, new Set(names)),
+        globals,
+      );
       return;
     }
     default:
       for (const child of childrenOf(node)) {
-        collectGlobalsIn(child, ctx, globals);
+        collectGlobalsIn(child, scopeContext, globals);
       }
   }
 }
@@ -273,12 +280,12 @@ function undefinedVarDiagnostic(
 /** Checks a `Place`'s base as a read (postfixed reads and segmented assignment-target bases). */
 function checkBaseRead(
   place: PlaceNode,
-  ctx: ScopeContext,
+  scopeContext: ScopeContext,
   globals: ReadonlySet<string>,
   diagnostics: Diagnostic[],
 ): void {
   const name = place.base.name.toLowerCase();
-  if (!isVisible(name, ctx, globals)) {
+  if (!isVisible(name, scopeContext, globals)) {
     diagnostics.push(undefinedVarDiagnostic(name, place.base.source_span));
   }
 }
@@ -299,14 +306,14 @@ function checkReads(
 
 function checkReadsIn(
   node: AnyNode,
-  ctx: ScopeContext,
+  scopeContext: ScopeContext,
   globals: ReadonlySet<string>,
   diagnostics: Diagnostic[],
 ): void {
   switch (node.kind) {
     case "VarRef": {
       const name = node.name.toLowerCase();
-      if (!isVisible(name, ctx, globals)) {
+      if (!isVisible(name, scopeContext, globals)) {
         diagnostics.push(undefinedVarDiagnostic(name, node.source_span));
       }
       return;
@@ -315,10 +322,10 @@ function checkReadsIn(
       // Reached here (not via the Assign case below, which handles a Place assignment target
       // directly and never recurses generically into it), this Place is always a read of its
       // base — e.g. `print :missing.field` or `:nums[1]` used as a value.
-      checkBaseRead(node, ctx, globals, diagnostics);
+      checkBaseRead(node, scopeContext, globals, diagnostics);
       for (const segment of node.segments) {
         if (segment.kind === "index") {
-          checkReadsIn(segment.key, ctx, globals, diagnostics);
+          checkReadsIn(segment.key, scopeContext, globals, diagnostics);
         }
       }
       return;
@@ -332,19 +339,19 @@ function checkReadsIn(
         if (target.segments.length > 0) {
           // Segmented target: the base must already be a bound variable — no intermediate
           // auto-vivification (spec/execution-model.md:251-291) — so it is checked as a read.
-          checkBaseRead(target, ctx, globals, diagnostics);
+          checkBaseRead(target, scopeContext, globals, diagnostics);
           for (const segment of target.segments) {
             if (segment.kind === "index") {
-              checkReadsIn(segment.key, ctx, globals, diagnostics);
+              checkReadsIn(segment.key, scopeContext, globals, diagnostics);
             }
           }
         }
         // A zero-segment target (`:name = value`) is never itself a read — see the module doc
         // comment and collectGlobalNames.
       } else {
-        checkReadsIn(target, ctx, globals, diagnostics);
+        checkReadsIn(target, scopeContext, globals, diagnostics);
       }
-      checkReadsIn(node.value, ctx, globals, diagnostics);
+      checkReadsIn(node.value, scopeContext, globals, diagnostics);
       return;
     }
     case "ProcedureDef": {
@@ -361,31 +368,41 @@ function checkReadsIn(
       return;
     }
     case "ForIn": {
-      checkReadsIn(node.iterable, ctx, globals, diagnostics);
+      checkReadsIn(node.iterable, scopeContext, globals, diagnostics);
       const binder = new Set(binderNames(node.binder));
-      checkReadsIn(node.body, pushBinder(ctx, binder), globals, diagnostics);
+      checkReadsIn(
+        node.body,
+        pushBinder(scopeContext, binder),
+        globals,
+        diagnostics,
+      );
       return;
     }
     case "ForRange": {
-      checkReadsIn(node.from, ctx, globals, diagnostics);
-      checkReadsIn(node.to, ctx, globals, diagnostics);
+      checkReadsIn(node.from, scopeContext, globals, diagnostics);
+      checkReadsIn(node.to, scopeContext, globals, diagnostics);
       if (node.by !== undefined) {
-        checkReadsIn(node.by, ctx, globals, diagnostics);
+        checkReadsIn(node.by, scopeContext, globals, diagnostics);
       }
       const binder = new Set([node.variable.name.toLowerCase()]);
-      checkReadsIn(node.body, pushBinder(ctx, binder), globals, diagnostics);
+      checkReadsIn(
+        node.body,
+        pushBinder(scopeContext, binder),
+        globals,
+        diagnostics,
+      );
       return;
     }
     case "Comprehension": {
-      checkReadsIn(node.iterable, ctx, globals, diagnostics);
+      checkReadsIn(node.iterable, scopeContext, globals, diagnostics);
       const names = binderNames(node.binder);
       if (node.form === "reduce") {
-        checkReadsIn(node.initial, ctx, globals, diagnostics);
+        checkReadsIn(node.initial, scopeContext, globals, diagnostics);
         names.push(node.accumulator.name.toLowerCase());
       }
       checkReadsIn(
         node.body,
-        pushBinder(ctx, new Set(names)),
+        pushBinder(scopeContext, new Set(names)),
         globals,
         diagnostics,
       );
@@ -396,18 +413,18 @@ function checkReadsIn(
       const wordArg = thingCallArg(node);
       if (wordArg !== undefined) {
         const name = wordArg.value.toLowerCase();
-        if (!isVisible(name, ctx, globals)) {
+        if (!isVisible(name, scopeContext, globals)) {
           diagnostics.push(undefinedVarDiagnostic(name, wordArg.source_span));
         }
       }
       for (const child of childrenOf(node)) {
-        checkReadsIn(child, ctx, globals, diagnostics);
+        checkReadsIn(child, scopeContext, globals, diagnostics);
       }
       return;
     }
     default:
       for (const child of childrenOf(node)) {
-        checkReadsIn(child, ctx, globals, diagnostics);
+        checkReadsIn(child, scopeContext, globals, diagnostics);
       }
   }
 }
