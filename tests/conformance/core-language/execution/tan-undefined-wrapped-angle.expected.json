@@ -1,0 +1,30 @@
+{
+  "description": "`tan 270` is undefined (issue #323): a pole reached by wrapping past 180 degrees (270 = 90 + 180) must still raise `ol-div-zero`, proving the pole check isn't limited to the `[0, 180)` range.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/tan-undefined-wrapped-angle",
+        "start": [1, 1],
+        "end": [1, 14]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-div-zero",
+      "source_span": {
+        "document": "core-language/execution/tan-undefined-wrapped-angle",
+        "start": [1, 7],
+        "end": [1, 14]
+      },
+      "params": { "operation": "tan", "value": 270 },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

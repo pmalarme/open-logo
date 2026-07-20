@@ -1,0 +1,30 @@
+{
+  "description": "`tan 450` is undefined (issue #323): a pole reached after more than a full turn (450 = 90 + 360) must still raise `ol-div-zero`, proving the pole check normalizes angles beyond a single 360-degree period.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/tan-undefined-beyond-full-turn",
+        "start": [1, 1],
+        "end": [1, 14]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-div-zero",
+      "source_span": {
+        "document": "core-language/execution/tan-undefined-beyond-full-turn",
+        "start": [1, 7],
+        "end": [1, 14]
+      },
+      "params": { "operation": "tan", "value": 450 },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

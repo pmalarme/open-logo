@@ -1,0 +1,30 @@
+{
+  "description": "`tan -90` is undefined (issue #323): a negative angle at a pole must still raise `ol-div-zero`. This specifically exercises the negative-angle branch of the pole detection — JS's `%` is a remainder, not a mathematical modulo (`-90 % 180 === -90`, not `90`), so the guard must check `degrees % 180 === -90` as well as `=== 90` rather than assuming the remainder is always non-negative.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/tan-undefined-negative-angle",
+        "start": [1, 1],
+        "end": [1, 14]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-div-zero",
+      "source_span": {
+        "document": "core-language/execution/tan-undefined-negative-angle",
+        "start": [1, 7],
+        "end": [1, 14]
+      },
+      "params": { "operation": "tan", "value": -90 },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}
