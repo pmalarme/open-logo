@@ -6,3 +6,35 @@ An Open Version of Logo
 OpenLogo (short name **OL**) is a modern educational Logo-family language using the **`.logo`** extension.
 
 Start with the [OpenLogo specification](spec/README.md). OpenLogo is licensed under the [MIT License](LICENSE).
+
+## Getting Started
+
+**Prerequisites:** Node.js `>=22` and npm.
+
+**Install & build:**
+
+```bash
+npm ci
+npm run build
+```
+
+**Run the checks** (prove it works):
+
+```bash
+npm test             # unit tests
+npm run conformance  # stack-neutral source → events/diagnostics fixtures
+npm run coverage     # 100% line/branch/function coverage gate
+npm run examples     # runs the spec/examples/*.logo programs
+```
+
+**Try a program:** the canonical square —
+
+```
+repeat 4 [ forward 100 right 90 ]
+```
+
+Run it interactively in `@openlogo/studio`, the browser IDE (editor + Canvas turtle view + Run/Stop),
+once it's built and served — see [`packages/studio`](packages/studio) for details.
+
+**Repo map:** see [`packages/README.md`](packages/README.md) for the package layout and
+[`docs/`](docs/) for architecture, ADRs, and delivery docs.
