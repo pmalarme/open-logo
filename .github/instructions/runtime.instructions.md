@@ -36,3 +36,5 @@ Emits the deterministic, headless **trace/event stream**.
 ## Conventions
 - Every observable effect is a registered trace event; every error is a registered `ol-*` diagnostic.
 - Extend the conformance fixtures with each primitive/behavior; keep them green.
+- Follow the team agreement's clean-code naming rule (no abbreviations, self-explaining identifiers) — see
+  [`openlogo-team.instructions.md` §10](openlogo-team.instructions.md#10-conventions).

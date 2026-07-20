@@ -37,6 +37,9 @@ Cross-package changes need the owning agent's review and a serialized PR.
 - Deterministic core: no wall-clock/random in `core`/`parser`/`runtime` outputs; animation/timing
   live only in `turtle`/`studio`.
 - No secrets in code or fixtures; the AI adapter (`edu`) reads config at runtime.
+- Clean, self-explaining names — no abbreviations (spell identifiers out, e.g.
+  `randomNumberGenerator`/`random-number-generator.ts`, not `rng`/`rng.ts`) — see
+  [`openlogo-team.instructions.md` §10](../../instructions/openlogo-team.instructions.md#10-conventions).
 
 ## Adding or extending a package
 
