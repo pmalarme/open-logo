@@ -39,7 +39,7 @@ Cross-package changes need the owning agent's review and a serialized PR.
 - No secrets in code or fixtures; the AI adapter (`edu`) reads config at runtime.
 - Clean, self-explaining names — no abbreviations (spell identifiers out, e.g.
   `randomNumberGenerator`/`random-number-generator.ts`, not `rng`/`rng.ts`) — see
-  [`openlogo-team.instructions.md` §10](../../instructions/openlogo-team.instructions.md#10-conventions).
+  [`openlogo-team.instructions.md` §10](../../../instructions/openlogo-team.instructions.md#10-conventions).
 
 ## Adding or extending a package
 
