@@ -1,0 +1,46 @@
+name: Add to project
+
+# Auto-adds every newly-opened issue and pull request to Project #5 "OpenLogo" (Status
+# defaults to Todo in the board's default column) — see issue #225. This closes the
+# "created but not on the board" gap: without this workflow, issues filed outside the
+# product-owner's board-triage pass stay invisible until someone manually runs
+# `gh project item-add` (documented fallback:
+# .github/skills/product-owner/github-project/SKILL.md).
+#
+# Requires the ADD_TO_PROJECT_PAT secret: a fine-grained PAT scoped to @pmalarme's user
+# projects with Projects (read/write) plus Issues (read) and Pull requests (read) repo
+# permissions, or a classic PAT with the `project` scope. The default GITHUB_TOKEN cannot
+# write to a user-owned Projects (v2) board, so this workflow is INERT (no failing red-X
+# runs) until a maintainer creates that secret — see the HAS_PAT guard below.
+#
+# No-secret alternative: GitHub's built-in Project *Workflows* settings has an "Auto-add
+# to project" toggle that needs no secret, but it is configured in the Project UI and is
+# NOT version-controlled (won't show up in this repo's history/PRs). This workflow is the
+# version-controlled equivalent.
+#
+# Maintainer activation (one-time):
+#   1. Create a PAT with the scopes above and save it as the repo secret ADD_TO_PROJECT_PAT
+#      (Settings > Secrets and variables > Actions), OR enable the built-in UI toggle instead.
+#   2. Verify: file a throwaway test issue, confirm it appears as Todo on Project #5, close it.
+
+on:
+  issues:
+    types: [opened]
+  pull_request_target:
+    types: [opened]
+
+permissions:
+  contents: read
+
+jobs:
+  add-to-project:
+    name: Add issue/PR to Project #5
+    runs-on: ubuntu-latest
+    env:
+      HAS_PAT: ${{ secrets.ADD_TO_PROJECT_PAT != '' }}
+    steps:
+      - if: env.HAS_PAT == 'true'
+        uses: actions/add-to-project@v2
+        with:
+          project-url: https://github.com/users/pmalarme/projects/5
+          github-token: ${{ secrets.ADD_TO_PROJECT_PAT }}

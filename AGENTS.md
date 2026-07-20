@@ -73,6 +73,11 @@ When editing under `packages/<name>/`, read that package's
 in [`.github/ISSUE_TEMPLATE/`](.github/ISSUE_TEMPLATE) (labels come from
 [`.github/labels.yml`](.github/labels.yml)); the `product-owner` schedules it onto a milestone.
 
+Every issue must be on the Project #5 board — `.github/workflows/add-to-project.yml` auto-adds new
+issues/PRs (once the maintainer has provisioned the `ADD_TO_PROJECT_PAT` secret); if that automation
+is ever off, use the manual fallback in the
+[`product-owner/github-project`](.github/skills/product-owner/github-project/SKILL.md) skill.
+
 ## Spec fidelity cheatsheet (canonical OpenLogo, not classic Logo)
 
 - Lowercase keywords; no commas, no `f(x,y)`, no arrays/lambda in v0.1.
