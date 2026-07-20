@@ -222,3 +222,28 @@ run/step/reset and repaint the pane live, in lockstep with output/diagnostics.
   `turtle` region (seeded by #123) and calls `repaint()` immediately, so the pane never shows a
   blank/stale target the moment it mounts.
 
+## Running in a browser (#277)
+
+The package is now genuinely servable, not just headless-testable:
+
+- **`npm run dev`** (from this directory, or `npm run dev` at the repo root) starts a **Vite** dev
+  server (see [ADR-0011](../../docs/adr/0011-studio-app-bundler.md)) serving `index.html`. A
+  `predev` hook runs `npm run build` first (`tsc -b`'s project references transitively build every
+  `@openlogo/*` dependency), so `npm install` → `npm run dev` on a fresh clone works with no
+  separate manual build step. Type `repeat 4 [ forward 100 right 90 ]` (the default boot program)
+  into the editor and press **Run** — a square draws on the Canvas.
+- **`npm run build:web`** (`vite build`) produces a static, deployable bundle in `web-dist/`;
+  **`npm run preview`** (`vite preview`) serves that bundle locally.
+- **`web/main.ts`** is the browser entry — a thin, logic-free wiring layer that composes
+  `createStudioState`/`createAppShell`/`createEditorController`/`createCanvasViewController`/
+  `createRunController` (every seam documented above) onto real DOM elements from `index.html`. It
+  never reimplements any of them. Any non-trivial glue (the default boot program, a diagnostics
+  summary string) lives in `src/web-bootstrap.ts` instead, which has its own `.test.mjs` and stays
+  inside the 100% coverage gate — `web/**` is outside this package's `tsc -b` build graph (`src/`
+  only) and is never imported by a test, so it does not count toward that gate either way.
+- This is the **walking skeleton** (epic #276's slice 1): Stop/Reset/Step with live animation, the
+  full diagnostics list pane, and a11y/persistence/branding polish are later slices. A bad program
+  (e.g. `forward`) does not crash the page on Run — its diagnostics render as a plain-text summary,
+  not yet the full diagnostics pane.
+
+

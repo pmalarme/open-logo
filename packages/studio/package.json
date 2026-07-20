@@ -18,7 +18,12 @@
   ],
   "scripts": {
     "build": "tsc -b",
-    "clean": "tsc -b --clean"
+    "clean": "tsc -b --clean",
+    "predev": "npm run -s build",
+    "dev": "vite",
+    "prebuild:web": "npm run -s build",
+    "build:web": "vite build",
+    "preview": "vite preview"
   },
   "dependencies": {
     "@openlogo/core": "0.1.0",
@@ -26,5 +31,8 @@
     "@openlogo/runtime": "0.1.0",
     "@openlogo/turtle": "0.1.0",
     "@openlogo/edu": "0.1.0"
+  },
+  "devDependencies": {
+    "vite": "^7.1.0"
   }
 }

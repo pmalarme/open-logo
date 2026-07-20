@@ -13,6 +13,7 @@
   ],
   "scripts": {
     "build": "tsc -b",
+    "dev": "npm run dev --workspace @openlogo/studio",
     "typecheck": "tsc -b",
     "lint": "biome lint .",
     "format": "prettier --write .",
