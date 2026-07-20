@@ -129,11 +129,13 @@ test("createA11yAnnouncer announces run-status transitions with structured, dete
   const announcer = OL.createA11yAnnouncer(state);
 
   state.setRunStatus("running");
+  state.setRunStatus("done");
   state.setRunStatus("stopped");
   state.setRunStatus("idle");
 
   assert.deepEqual(announcer.getAnnouncements(), [
     { politeness: "polite", message: "Run started." },
+    { politeness: "polite", message: "Run complete." },
     { politeness: "polite", message: "Run stopped." },
     { politeness: "polite", message: "Ready." },
   ]);
@@ -320,7 +322,7 @@ test("createA11yAnnouncer composes with the real editor/run/diagnostics controll
   // starting (empty) diagnostics, so only the run-status transitions are announced — a clean run
   // does not spam a redundant "No diagnostics." announcement.
   const messages = announcer.getAnnouncements().map((a) => a.message);
-  assert.deepEqual(messages, ["Run started.", "Ready."]);
+  assert.deepEqual(messages, ["Run started.", "Run complete."]);
 });
 
 test("createTurtleStateRegion.getText describes the initial default turtle state immediately, via describeTurtleState", () => {

@@ -80,7 +80,9 @@ slice may swap in a real renderer without changing this contract.
     returned trace-event stream to exactly what #126 surfaced: every `print` event becomes one
     `output` line (already in the runtime's canonical `printedForm`, never reformatted here), and
     the run's diagnostics replace the shared `diagnostics` list unchanged. This part is unchanged
-    since #126 and always synchronous/instant — `execute()` never yields.
+    since #126 and always synchronous/instant — `execute()` never yields. `runStatus` settles to
+    `"done"` (#311) once a run finishes on its own — distinct from `"idle"`, which now means only
+    "never run" / just after `reset()`.
   - **Turtle Canvas lockstep (#228)** — `run()` then replays that same already-complete
     trace-event stream through `@openlogo/turtle`'s `TurtleAnimationController` (#216), pushing
     each folded `{ state, scene }` snapshot into the shared `turtleState`/`turtleScene` fields (and
@@ -123,7 +125,26 @@ slice may swap in a real renderer without changing this contract.
   - `mountRunController(shell, controller)` composes the controller into the shell's `repl` region.
 - See `run-controller.ts`'s doc comment for the full same-thread cancellation rationale and the
   `runStatus`-vs-animation-completion decoupling #228 introduces (a still-paced Canvas view is
-  never reported `"idle"`/`"stopped"` before its animation has actually reached `"done"`).
+  never reported `"done"`/`"stopped"` before its animation has actually reached its own,
+  `@openlogo/turtle`-owned `"done"` status).
+
+## Friendlier run-status labels (#311)
+
+The `#run-status` region (`index.html`) shows a learner-facing label instead of the raw internal
+`RunStatus` state-machine name:
+
+- `state-model.ts`'s `RunStatus` gained a `"done"` value distinct from `"idle"`: `run-controller.ts`
+  now commits `"done"` (not `"idle"`) when a run finishes on its own, so a renderer can tell "never
+  run yet" apart from "just finished" — the state-machine names are otherwise unchanged.
+- `src/run-status-label.ts` — the single, fully-tested pure lookup `web/main.ts` reads instead of
+  rendering `runStatus` raw: `mapRunStatusToLabel(runStatus)` maps `"idle"` → `"Ready"`,
+  `"running"` → `"Running"`, `"done"` → `"Complete"`, `"stopped"` → `"Stopped"`
+  (`RUN_STATUS_LABELS` is the underlying table).
+- `a11y.ts`'s `describeRunStatus` gained the matching `"Run complete."` screen-reader announcement
+  for `"done"`, so the existing `aria-live` announcement stays in sync with the visible label.
+- Accessibility: `#run-status` keeps its existing `aria-live="polite"`/`role="status"` region (no
+  new markup needed beyond a `role`/`aria-label` for parity with the turtle-state region); the label
+  is plain text — color is never used to distinguish run states.
 
 ## Turtle-speed control (#310)
 
@@ -220,10 +241,10 @@ no DOM here to regress.
   renderer to map onto real `role`/`aria-label` attributes.
 - **Screen-reader announcements** — `createA11yAnnouncer(state)` subscribes to the shared #123
   store (never a copy) and emits an `Announcement` (`{ politeness, message }`) whenever
-  `runStatus` or `diagnostics` changes: run-status transitions ("Run started."/"Run stopped."/
-  "Ready.") and diagnostics changes (e.g. "1 error found.", `politeness: "assertive"` when any
-  diagnostic is an error, else `"polite"`). Announcement text is built **only** from structured
-  fields (`runStatus`; diagnostics' `severity` counts) — it never reads or branches on a
+  `runStatus` or `diagnostics` changes: run-status transitions ("Run started."/"Run complete."/
+  "Run stopped."/"Ready.") and diagnostics changes (e.g. "1 error found.", `politeness: "assertive"`
+  when any diagnostic is an error, else `"polite"`). Announcement text is built **only** from
+  structured fields (`runStatus`; diagnostics' `severity` counts) — it never reads or branches on a
   `Diagnostic.message`'s prose, per the diagnostic-identity rule already followed by
   `diagnostics.ts`. `getAnnouncements()` returns the full history; `subscribeAnnouncements(...)`
   notifies every listener with the same events, so multiple consumers never desync (the #123

@@ -191,6 +191,19 @@
  * - `index.html`/`web/main.ts`/`web/styles.css` add the real `<input type="range">` element, its
  *   accessible label + live speed-description text, and its `input` event wiring — a thin
  *   forwarding call into the tested helpers above, never a branch of its own.
+ *
+ * #311 gives the run-status region a friendlier, learner-facing label instead of the raw internal
+ * state-machine name:
+ * - `state-model.ts`'s {@link RunStatus} gains a `"done"` value, distinct from `"idle"`: `run-
+ *   controller.ts`'s `prepare()` now commits `"done"` (not `"idle"`) when a run finishes on its
+ *   own (no `stop()`, no `ol-limit`) — the state-machine names themselves are otherwise unchanged,
+ *   and `"idle"` still means only "never run" / just after `reset()`.
+ * - {@link mapRunStatusToLabel} (`run-status-label.ts`) is the one tested place that maps each
+ *   `RunStatus` value to its learner-facing label (`"idle"` → `"Ready"`, `"running"` →
+ *   `"Running"`, `"done"` → `"Complete"`, `"stopped"` → `"Stopped"`); `web/main.ts` calls it
+ *   instead of rendering `runStatus` raw, staying a thin, branch-free wiring layer.
+ * - `a11y.ts`'s `describeRunStatus` gains the matching `"Run complete."` announcement for the new
+ *   `"done"` value, keeping the existing `aria-live` announcement in sync with the visible label.
  */
 
 export type {
@@ -315,3 +328,5 @@ export {
   SPEED_SLIDER_MIN,
   tickDelayMsToStepsPerSecond,
 } from "./turtle-speed.js";
+
+export { mapRunStatusToLabel, RUN_STATUS_LABELS } from "./run-status-label.js";

@@ -10,7 +10,7 @@ test("run() executes the shared source via @openlogo/runtime and surfaces print 
 
   assert.deepEqual(store.getState().output, ["hi 2 3"]);
   assert.deepEqual(store.getState().diagnostics, []);
-  assert.equal(store.getState().runStatus, "idle");
+  assert.equal(store.getState().runStatus, "done");
 });
 
 test("run() surfaces one output line per print event, in order", () => {
@@ -22,7 +22,7 @@ test("run() surfaces one output line per print event, in order", () => {
   controller.run();
 
   assert.deepEqual(store.getState().output, ["1", "2", "3"]);
-  assert.equal(store.getState().runStatus, "idle");
+  assert.equal(store.getState().runStatus, "done");
 });
 
 test("run() surfaces parse/runtime diagnostics unchanged and leaves output empty", () => {
@@ -34,7 +34,7 @@ test("run() surfaces parse/runtime diagnostics unchanged and leaves output empty
   const { output, diagnostics, runStatus } = store.getState();
   assert.deepEqual(output, []);
   assert.ok(diagnostics.length > 0);
-  assert.equal(runStatus, "idle");
+  assert.equal(runStatus, "done");
 });
 
 test("run() reads the store's CURRENT source at call time, never a private copy", () => {
@@ -97,7 +97,7 @@ test("reset() re-arms cancellation, clears output/diagnostics, and returns runSt
   // The signal was re-armed, so a normal run() now completes instead of halting again.
   controller.run();
   assert.deepEqual(store.getState().output, ["1"]);
-  assert.equal(store.getState().runStatus, "idle");
+  assert.equal(store.getState().runStatus, "done");
 });
 
 test("reset() is deterministic even with no prior run()", () => {
@@ -241,7 +241,7 @@ test("run() with the default (immediate) scheduler drives the turtle state/scene
   );
   assert.equal(turtleState.heading, 90);
   assert.ok(turtleScene.items.length > 0);
-  assert.equal(runStatus, "idle");
+  assert.equal(runStatus, "done");
 });
 
 test("run() repaints a supplied canvasView as the animation advances", () => {
@@ -336,7 +336,7 @@ test("step() before any run() lazily prepares even with a canvasView supplied, r
   assert.deepEqual(store.getState().turtleState.position, [0, 100]);
 });
 
-test("repeated step() from idle advances incrementally and settles to 'idle' once the animation is exhausted", () => {
+test("repeated step() from idle advances incrementally and settles to 'done' once the animation is exhausted", () => {
   const store = OL.createStudioState({
     source: "forward 100\nright 90",
   });
@@ -349,10 +349,10 @@ test("repeated step() from idle advances incrementally and settles to 'idle' onc
 
   controller.step(); // "right 90" — the last instruction, animation reaches "done".
   assert.equal(store.getState().turtleState.heading, 90);
-  assert.equal(store.getState().runStatus, "idle");
+  assert.equal(store.getState().runStatus, "done");
 
   controller.step(); // exhausted: a no-op, must not throw or change state.
-  assert.equal(store.getState().runStatus, "idle");
+  assert.equal(store.getState().runStatus, "done");
   assert.equal(store.getState().turtleState.heading, 90);
 });
 
@@ -482,7 +482,7 @@ test("run() with reducedMotion:true paints the final scene instantly rather than
   // seekToEnd() bypasses the scheduler entirely — nothing pending, already at the final frame.
   assert.equal(manual.hasPending(), false);
   assert.equal(store.getState().turtleState.heading, 90);
-  assert.equal(store.getState().runStatus, "idle");
+  assert.equal(store.getState().runStatus, "done");
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -558,7 +558,7 @@ test("run() drains instantly (bypassing the scheduler entirely) when speedSlider
 
   assert.equal(manual.hasPending(), false);
   assert.equal(store.getState().turtleState.heading, 90);
-  assert.equal(store.getState().runStatus, "idle");
+  assert.equal(store.getState().runStatus, "done");
 });
 
 test("run() with reducedMotion:true still paints instantly even when the slider is at a paced (non-instant) position — OS preference is honored regardless of the slider", () => {
