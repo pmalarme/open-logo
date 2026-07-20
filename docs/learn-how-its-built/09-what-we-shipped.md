@@ -72,7 +72,9 @@ layer got fancy — like sketching a stick figure before adding muscle and skin.
 
 Every piece is backed by real conformance fixtures under `tests/conformance/core-language/` —
 folders for `procedures/`, `control/`, `comprehensions/`, `lists/`, `variables/`, `diagnostics/`, and
-more. This checkpoint has its own name: **`0.1.0-core`**.
+more. This Core-only checkpoint had its own pre-release name, **`0.1.0-core`** — a milestone marker,
+not the release you'd install. The actual tagged release came one milestone later, once the turtle
+could draw too (see below).
 
 ## What's real today
 
@@ -83,9 +85,11 @@ real fixtures, runnable in the studio REPL.
 ✅ **The turtle draws too** — `forward`/`right`/pen/color are Turtle & Rendering (M2), not Core, and
 they shipped in the same release as Core — the turtle draws today.
 
-✅ **0.1.0 is tagged** — Core Language and Turtle & Rendering shipped **together** as the tagged
-release `v0.1.0`, OpenLogo's first conformant milestone. `package.json` says `"version": "0.1.0"`
-for a reason: this is real, released software, not a work-in-progress checkpoint.
+✅ **0.1.0 is tagged** — Core Language and Turtle & Rendering shipped **together** as
+[the tagged release `v0.1.0`](https://github.com/pmalarme/open-logo/releases/tag/v0.1.0),
+OpenLogo's first conformant milestone. `package.json` says `"version": "0.1.0"` for a reason: this
+is real, released software, not a work-in-progress checkpoint — and it supersedes the earlier
+`0.1.0-core` pre-release name above.
 
 ## Try it yourself
 
