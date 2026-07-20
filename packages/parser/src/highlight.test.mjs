@@ -262,7 +262,9 @@ test("dict-key: a glued dict-entry value that is a reserved word (boolean litera
 });
 
 test("dict-key: a glued dict-entry value resolving to a user-defined procedure classifies procedure-name", () => {
-  const source = "define double :n\n  return :n\nend\nprint { a:double() }";
+  const source = "define double :n\n  return :n\nend\nprint { a:double 1 }";
+  const { diagnostics } = OL.parse(source, doc);
+  assert.deepEqual(diagnostics, []);
   const tokens = OL.highlight(source, doc);
   const glued = tokens.find(
     (token) => token.text === "double" && token.class === "procedure-name",
@@ -280,6 +282,18 @@ test("dict-key: a spaced dict-entry colon is unaffected by the glued-colon split
     ["dict-key", "a", undefined],
     ["operator", ":", undefined],
     ["primitive", "foo", undefined],
+    ["brace", "}", undefined],
+  ]);
+});
+
+test("dict-key: a glued dict-entry value that is a word-spelled operator classifies operator, not primitive", () => {
+  assert.deepEqual(classes("print { a:not true }"), [
+    ["primitive", "print", undefined],
+    ["brace", "{", undefined],
+    ["dict-key", "a", undefined],
+    ["operator", ":", undefined],
+    ["operator", "not", undefined],
+    ["keyword", "true", undefined],
     ["brace", "}", undefined],
   ]);
 });
