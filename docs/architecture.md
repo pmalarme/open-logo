@@ -74,8 +74,8 @@ responsibilities, spec files, boundaries, and conventions.
   `highlight.ts` (token classification), `check.ts` (parse/semantic/style checker), `index.ts`.
 - **runtime/src**: `evaluator.ts`, `scope.ts`, `procedures.ts`, `control.ts`, `comprehensions.ts`,
   `places.ts`, `equality.ts`, `budget.ts`, `index.ts`.
-- **turtle/src**: `turtle.ts`, `state.ts`, `render/{canvas,svg,png}.ts`, `animation.ts`,
-  `export.ts`, `a11y.ts`, `index.ts`.
+- **turtle/src**: `state.ts`, `scene.ts`, `canvas.ts`, `svg.ts`, `png.ts`, `animation.ts`,
+  `a11y.ts`, `index.ts` (flat — no `render/` subfolder).
 - **studio/src**: `app.ts`, `editor/`, `repl.ts`, `run-controller.ts`, `diagnostics-view.ts`,
   `lsp/`, `lesson-pane.ts`, `persistence.ts`, `index.ts`.
 - **edu/src**: `levels.ts`, `concepts.ts`, `meta/` (explain/why/hint/debug), `geometry/` (`.logo` +
@@ -93,7 +93,7 @@ them in parallel.** Any change is a serialized, one-PR change reviewed by the ow
 | **Trace / event stream** | `core/src/events.ts` | runtime | turtle (render), studio (step), tests | Deterministic, ordered, headless events with the `seq`/`kind`/`source-span`/`turtle-id`/`payload` envelope and registered kinds (`instruction`, `move`, `draw-segment`, …). No timing/frames in the stream. See `turtle-engine/turtle-event-contract`. |
 | **Diagnostics** | `core/src/diagnostics.ts` | parser, runtime | studio (UI), tests, tutor | Normative `ol-*` shape: code, span, params, message, stage, severity, did-you-mean. Never ad-hoc strings. See `shared/diagnostics`. |
 | **LSP / tooling** | `studio/src/lsp` | studio | editors | Built from parser (tokens, AST, lints) + core (diagnostics): highlight, hover, diagnostics, completion. Informative in the spec; must stay grammar-faithful. |
-| **Rendering** | `turtle/src/render` | turtle | studio | Consumes events → Canvas (required — the live **browser** surface), SVG/PNG (export). Deterministic export; honors reduced-motion, keyboard, non-visual descriptions (`spec/rendering.md`). |
+| **Rendering** | `turtle/src/{canvas,svg,png}.ts` | turtle | studio | Consumes events → Canvas (required — the live **browser** surface), SVG/PNG (export). Deterministic export; honors reduced-motion, keyboard, non-visual descriptions (`spec/rendering.md`). |
 | **Studio UI / state** | `studio/src` | studio | learner | Composes editor + turtle view + diagnostics + lesson pane over a single state model (source, run-state, diagnostics, turtle frame). Run/Stop/Reset drive the runtime budget. See `learner-experience/studio-ui`. |
 
 ## 5. How it all fits
