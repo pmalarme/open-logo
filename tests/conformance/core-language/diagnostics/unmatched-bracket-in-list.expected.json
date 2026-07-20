@@ -1,0 +1,19 @@
+{
+  "description": "A `[` list literal that never closes reaches end of file still open, raising ol-unmatched-bracket at the opening delimiter — Core's sibling of the existing ol-unmatched-paren fixture, closing the corpus gap noted at M1 close (issue #195). Parse-only: the program is not execution-valid.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unmatched-bracket",
+      "source_span": {
+        "document": "core-language/diagnostics/unmatched-bracket-in-list",
+        "start": [4, 7],
+        "end": [4, 8]
+      },
+      "params": { "delimiter": "[" },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

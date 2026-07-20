@@ -1,0 +1,4 @@
+# A list literal opened with `[` that never closes reaches end of file still open, raising
+# ol-unmatched-bracket at the opening delimiter (spec/grammar.md list-literal production;
+# spec/error-model.md ol-unmatched-bracket). Parse-only: the program never becomes execution-valid.
+print [1 2

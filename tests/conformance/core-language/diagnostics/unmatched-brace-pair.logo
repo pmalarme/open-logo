@@ -1,0 +1,6 @@
+# A lone `{` with no closing `}` is unmatched under every profile: `{ }` itself is a VALID empty
+# dict literal per the grammar (dict-literal ::= "{" { dict-entry } "}"), so a matched pair would
+# not be stack-neutral once the Data profile's dict-literal parsing lands. A lone opening brace,
+# however, always needs a matching `}` no matter the profile, so it stays unmatched everywhere
+# (spec/error-model.md ol-unmatched-brace; spec/grammar.md dict-literal; spec/data-structures.md).
+{
