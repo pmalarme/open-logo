@@ -184,6 +184,50 @@ export function loadFixture(fixture) {
     return { error: `"style" must be a boolean when present` };
   }
 
+  // "executeOptions" (issue #195) is an opt-in object, only meaningful alongside "execute": true,
+  // that is passed straight through to @openlogo/runtime's execute() third argument
+  // (ExecuteOptions: instructionBudget/recursionDepthLimit/signal). It exists so a fixture can
+  // deterministically trigger the execution-safety gates (ol-limit) with a small, hand-reviewable
+  // budget/depth instead of hanging on the large production defaults. `signal`, when present,
+  // must be a plain `{ aborted: boolean }` object — the only shape JSON can express and the only
+  // shape execute() actually needs (it just reads `signal.aborted`); a fixture cannot express a
+  // signal that flips mid-run, so a fixture can only assert the "already cancelled" case.
+  if (spec.executeOptions !== undefined) {
+    if (
+      typeof spec.executeOptions !== "object" ||
+      spec.executeOptions === null ||
+      Array.isArray(spec.executeOptions)
+    ) {
+      return { error: `"executeOptions" must be an object when present` };
+    }
+    const { instructionBudget, recursionDepthLimit, signal } =
+      spec.executeOptions;
+    if (
+      instructionBudget !== undefined &&
+      typeof instructionBudget !== "number"
+    ) {
+      return { error: `"executeOptions.instructionBudget" must be a number` };
+    }
+    if (
+      recursionDepthLimit !== undefined &&
+      typeof recursionDepthLimit !== "number"
+    ) {
+      return {
+        error: `"executeOptions.recursionDepthLimit" must be a number`,
+      };
+    }
+    if (
+      signal !== undefined &&
+      (typeof signal !== "object" ||
+        signal === null ||
+        typeof signal.aborted !== "boolean")
+    ) {
+      return {
+        error: `"executeOptions.signal" must be an object with a boolean "aborted"`,
+      };
+    }
+  }
+
   const expected = {
     description: spec.description ?? "",
     profiles: spec.profiles,
@@ -191,6 +235,7 @@ export function loadFixture(fixture) {
     execute: spec.execute ?? false,
     check: spec.check ?? false,
     style: spec.style ?? false,
+    executeOptions: spec.executeOptions,
     events: spec.events,
     diagnostics: spec.diagnostics,
   };
@@ -279,6 +324,11 @@ export function validateDiagnostics(diagnostics) {
  * @param {boolean} shouldCheck - Whether this fixture opted into semantic checking (default false).
  * @param {string[]} profiles - The fixture's active profile set, passed to check() (default []).
  * @param {boolean} shouldStyle - Whether this fixture opted into style lints too (default false).
+ * @param {object} [executeOptions] - Opt-in `ExecuteOptions` (issue #195) forwarded verbatim to
+ *   @openlogo/runtime's `execute()` third argument when `shouldExecute` is true, letting a
+ *   fixture deterministically trigger `ol-limit` with a small instructionBudget/
+ *   recursionDepthLimit/pre-aborted signal instead of the large production defaults. Ignored when
+ *   `shouldExecute` is false.
  */
 export function produce(
   source,
@@ -287,6 +337,7 @@ export function produce(
   shouldCheck = false,
   profiles = [],
   shouldStyle = false,
+  executeOptions = undefined,
 ) {
   if (shouldCheck) {
     const { ast: program, diagnostics: parseDiagnostics } = parse(
@@ -302,7 +353,7 @@ export function produce(
   }
 
   const { events, diagnostics } = shouldExecute
-    ? execute(source, document)
+    ? execute(source, document, executeOptions)
     : { events: [], ...parse(source, document) };
 
   // Validate actual diagnostics conform to spec (spec/error-model.md:28-38 requires message).
@@ -480,6 +531,7 @@ export function runHarness(options = {}) {
         expected.check,
         expected.profiles,
         expected.style,
+        expected.executeOptions,
       ),
     );
 

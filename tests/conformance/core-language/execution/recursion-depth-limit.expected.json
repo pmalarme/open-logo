@@ -1,0 +1,101 @@
+{
+  "description": "A procedure that calls itself with no base case, run under a deliberately tiny recursionDepthLimit (harness executeOptions, issue #195), halts at the call site that would push one frame past the limit with ol-limit/recursion-depth — instead of letting the host's own call stack overflow. Closes the corpus gap noted at M1 close: ol-limit had zero execute-mode fixtures. The production-scale default depth (500) would make an exact-diff fixture impractically large, so this fixture opts into a small executeOptions.recursionDepthLimit via the harness's new pass-through mechanism (scripts/harness/index.mjs); see packages/runtime/src/execution-budget.test.mjs for the full matrix at unit-test granularity.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "executeOptions": { "recursionDepthLimit": 3 },
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/recursion-depth-limit",
+        "start": [1, 1],
+        "end": [3, 4]
+      },
+      "payload": { "statement_kind": "ProcedureDef" }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/recursion-depth-limit",
+        "start": [4, 1],
+        "end": [4, 13]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 2,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/execution/recursion-depth-limit",
+        "start": [4, 1],
+        "end": [4, 13]
+      },
+      "payload": { "name": "loop_forever", "args": [] }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/recursion-depth-limit",
+        "start": [2, 3],
+        "end": [2, 15]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 4,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/execution/recursion-depth-limit",
+        "start": [2, 3],
+        "end": [2, 15]
+      },
+      "payload": { "name": "loop_forever", "args": [] }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/recursion-depth-limit",
+        "start": [2, 3],
+        "end": [2, 15]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 6,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/execution/recursion-depth-limit",
+        "start": [2, 3],
+        "end": [2, 15]
+      },
+      "payload": { "name": "loop_forever", "args": [] }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/recursion-depth-limit",
+        "start": [2, 3],
+        "end": [2, 15]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-limit",
+      "source_span": {
+        "document": "core-language/execution/recursion-depth-limit",
+        "start": [2, 3],
+        "end": [2, 15]
+      },
+      "params": { "limit": "recursion-depth", "value": 3 },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

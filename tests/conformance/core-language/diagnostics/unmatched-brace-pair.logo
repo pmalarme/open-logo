@@ -1,0 +1,5 @@
+# Core has no production for `{ }` at all (they are Data-profile dict-literal delimiters), so a
+# standalone brace pair with no dict grammar around it raises ol-unmatched-brace TWICE — once for
+# the opening `{` and once for the closing `}` — since neither delimiter is ever paired by any
+# Core production (spec/error-model.md ol-unmatched-brace; spec/data-structures.md dict literals).
+{ }

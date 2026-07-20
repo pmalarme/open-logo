@@ -940,6 +940,297 @@ test("loadFixture rejects a non-boolean style field", () => {
   assert.ok(loaded.error.includes('"style" must be a boolean'));
 });
 
+test("loadFixture leaves executeOptions undefined when not present", () => {
+  mkdirSync(join(TEMP_ROOT, "no-execute-options"), { recursive: true });
+  writeFileSync(
+    join(TEMP_ROOT, "no-execute-options", "no-execute-options.logo"),
+    "print 1",
+  );
+  writeFileSync(
+    join(TEMP_ROOT, "no-execute-options", "no-execute-options.expected.json"),
+    JSON.stringify({
+      profiles: ["core-language"],
+      execute: true,
+      events: [],
+      diagnostics: [],
+    }),
+  );
+
+  const loaded = loadFixture({
+    name: "no-execute-options/no-execute-options.expected.json",
+    expectedPath: join(
+      TEMP_ROOT,
+      "no-execute-options",
+      "no-execute-options.expected.json",
+    ),
+    logoPath: join(TEMP_ROOT, "no-execute-options", "no-execute-options.logo"),
+  });
+
+  assert.equal(loaded.expected.executeOptions, undefined);
+});
+
+test("loadFixture reads an executeOptions object with instructionBudget/recursionDepthLimit/signal", () => {
+  mkdirSync(join(TEMP_ROOT, "with-execute-options"), { recursive: true });
+  writeFileSync(
+    join(TEMP_ROOT, "with-execute-options", "with-execute-options.logo"),
+    "print 1",
+  );
+  writeFileSync(
+    join(
+      TEMP_ROOT,
+      "with-execute-options",
+      "with-execute-options.expected.json",
+    ),
+    JSON.stringify({
+      profiles: ["core-language"],
+      execute: true,
+      executeOptions: {
+        instructionBudget: 5,
+        recursionDepthLimit: 10,
+        signal: { aborted: true },
+      },
+      events: [],
+      diagnostics: [],
+    }),
+  );
+
+  const loaded = loadFixture({
+    name: "with-execute-options/with-execute-options.expected.json",
+    expectedPath: join(
+      TEMP_ROOT,
+      "with-execute-options",
+      "with-execute-options.expected.json",
+    ),
+    logoPath: join(
+      TEMP_ROOT,
+      "with-execute-options",
+      "with-execute-options.logo",
+    ),
+  });
+
+  assert.deepEqual(loaded.expected.executeOptions, {
+    instructionBudget: 5,
+    recursionDepthLimit: 10,
+    signal: { aborted: true },
+  });
+});
+
+test("loadFixture rejects a non-object executeOptions field", () => {
+  mkdirSync(join(TEMP_ROOT, "bad-execute-options-type"), { recursive: true });
+  writeFileSync(
+    join(
+      TEMP_ROOT,
+      "bad-execute-options-type",
+      "bad-execute-options-type.logo",
+    ),
+    "",
+  );
+  writeFileSync(
+    join(
+      TEMP_ROOT,
+      "bad-execute-options-type",
+      "bad-execute-options-type.expected.json",
+    ),
+    JSON.stringify({
+      profiles: ["core-language"],
+      execute: true,
+      executeOptions: "nope",
+      events: [],
+      diagnostics: [],
+    }),
+  );
+
+  const loaded = loadFixture({
+    name: "bad-execute-options-type/bad-execute-options-type.expected.json",
+    expectedPath: join(
+      TEMP_ROOT,
+      "bad-execute-options-type",
+      "bad-execute-options-type.expected.json",
+    ),
+    logoPath: join(
+      TEMP_ROOT,
+      "bad-execute-options-type",
+      "bad-execute-options-type.logo",
+    ),
+  });
+
+  assert.ok(loaded.error);
+  assert.ok(loaded.error.includes('"executeOptions" must be an object'));
+});
+
+test("loadFixture rejects an array executeOptions field", () => {
+  mkdirSync(join(TEMP_ROOT, "bad-execute-options-array"), {
+    recursive: true,
+  });
+  writeFileSync(
+    join(
+      TEMP_ROOT,
+      "bad-execute-options-array",
+      "bad-execute-options-array.logo",
+    ),
+    "",
+  );
+  writeFileSync(
+    join(
+      TEMP_ROOT,
+      "bad-execute-options-array",
+      "bad-execute-options-array.expected.json",
+    ),
+    JSON.stringify({
+      profiles: ["core-language"],
+      execute: true,
+      executeOptions: [],
+      events: [],
+      diagnostics: [],
+    }),
+  );
+
+  const loaded = loadFixture({
+    name: "bad-execute-options-array/bad-execute-options-array.expected.json",
+    expectedPath: join(
+      TEMP_ROOT,
+      "bad-execute-options-array",
+      "bad-execute-options-array.expected.json",
+    ),
+    logoPath: join(
+      TEMP_ROOT,
+      "bad-execute-options-array",
+      "bad-execute-options-array.logo",
+    ),
+  });
+
+  assert.ok(loaded.error);
+  assert.ok(loaded.error.includes('"executeOptions" must be an object'));
+});
+
+test("loadFixture rejects a non-numeric executeOptions.instructionBudget", () => {
+  mkdirSync(join(TEMP_ROOT, "bad-instruction-budget"), { recursive: true });
+  writeFileSync(
+    join(TEMP_ROOT, "bad-instruction-budget", "bad-instruction-budget.logo"),
+    "",
+  );
+  writeFileSync(
+    join(
+      TEMP_ROOT,
+      "bad-instruction-budget",
+      "bad-instruction-budget.expected.json",
+    ),
+    JSON.stringify({
+      profiles: ["core-language"],
+      execute: true,
+      executeOptions: { instructionBudget: "five" },
+      events: [],
+      diagnostics: [],
+    }),
+  );
+
+  const loaded = loadFixture({
+    name: "bad-instruction-budget/bad-instruction-budget.expected.json",
+    expectedPath: join(
+      TEMP_ROOT,
+      "bad-instruction-budget",
+      "bad-instruction-budget.expected.json",
+    ),
+    logoPath: join(
+      TEMP_ROOT,
+      "bad-instruction-budget",
+      "bad-instruction-budget.logo",
+    ),
+  });
+
+  assert.ok(loaded.error);
+  assert.ok(
+    loaded.error.includes(
+      '"executeOptions.instructionBudget" must be a number',
+    ),
+  );
+});
+
+test("loadFixture rejects a non-numeric executeOptions.recursionDepthLimit", () => {
+  mkdirSync(join(TEMP_ROOT, "bad-recursion-depth"), { recursive: true });
+  writeFileSync(
+    join(TEMP_ROOT, "bad-recursion-depth", "bad-recursion-depth.logo"),
+    "",
+  );
+  writeFileSync(
+    join(TEMP_ROOT, "bad-recursion-depth", "bad-recursion-depth.expected.json"),
+    JSON.stringify({
+      profiles: ["core-language"],
+      execute: true,
+      executeOptions: { recursionDepthLimit: "ten" },
+      events: [],
+      diagnostics: [],
+    }),
+  );
+
+  const loaded = loadFixture({
+    name: "bad-recursion-depth/bad-recursion-depth.expected.json",
+    expectedPath: join(
+      TEMP_ROOT,
+      "bad-recursion-depth",
+      "bad-recursion-depth.expected.json",
+    ),
+    logoPath: join(
+      TEMP_ROOT,
+      "bad-recursion-depth",
+      "bad-recursion-depth.logo",
+    ),
+  });
+
+  assert.ok(loaded.error);
+  assert.ok(
+    loaded.error.includes(
+      '"executeOptions.recursionDepthLimit" must be a number',
+    ),
+  );
+});
+
+test("loadFixture rejects an executeOptions.signal missing a boolean aborted", () => {
+  mkdirSync(join(TEMP_ROOT, "bad-signal"), { recursive: true });
+  writeFileSync(join(TEMP_ROOT, "bad-signal", "bad-signal.logo"), "");
+  writeFileSync(
+    join(TEMP_ROOT, "bad-signal", "bad-signal.expected.json"),
+    JSON.stringify({
+      profiles: ["core-language"],
+      execute: true,
+      executeOptions: { signal: { aborted: "yes" } },
+      events: [],
+      diagnostics: [],
+    }),
+  );
+
+  const loaded = loadFixture({
+    name: "bad-signal/bad-signal.expected.json",
+    expectedPath: join(TEMP_ROOT, "bad-signal", "bad-signal.expected.json"),
+    logoPath: join(TEMP_ROOT, "bad-signal", "bad-signal.logo"),
+  });
+
+  assert.ok(loaded.error);
+  assert.ok(
+    loaded.error.includes(
+      '"executeOptions.signal" must be an object with a boolean "aborted"',
+    ),
+  );
+});
+
+test("produce forwards executeOptions to @openlogo/runtime's execute() so ol-limit can be triggered deterministically", () => {
+  const result = produce(
+    'forever [ print "x" ]',
+    "test-doc",
+    true,
+    false,
+    [],
+    false,
+    { instructionBudget: 3 },
+  );
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-limit");
+  assert.deepEqual(result.diagnostics[0].params, {
+    limit: "instruction-budget",
+    value: 3,
+  });
+});
+
 test("loadFixture handles missing .expected.json file", () => {
   mkdirSync(join(TEMP_ROOT, "no-expected"), { recursive: true });
   writeFileSync(join(TEMP_ROOT, "no-expected", "test.logo"), "");

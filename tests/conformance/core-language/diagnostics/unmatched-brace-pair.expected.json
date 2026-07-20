@@ -1,0 +1,30 @@
+{
+  "description": "A standalone `{ }` pair raises ol-unmatched-brace TWICE — once per delimiter — because Core has no dict-literal production to pair them with (they are Data-profile syntax). Closes the corpus gap noted at M1 close (issue #195): ol-unmatched-brace had 10+ unit assertions but zero fixtures. Parse-only: the program is not execution-valid.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unmatched-brace",
+      "source_span": {
+        "document": "core-language/diagnostics/unmatched-brace-pair",
+        "start": [5, 1],
+        "end": [5, 2]
+      },
+      "params": { "delimiter": "{" },
+      "stage": "parse",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unmatched-brace",
+      "source_span": {
+        "document": "core-language/diagnostics/unmatched-brace-pair",
+        "start": [5, 3],
+        "end": [5, 4]
+      },
+      "params": { "delimiter": "}" },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}
