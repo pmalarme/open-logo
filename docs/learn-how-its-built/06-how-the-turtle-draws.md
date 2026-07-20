@@ -42,26 +42,22 @@ pen_down
 forward 50
 ```
 
-The real event stream this produces is:
+Here is the real event stream this produces (the `instruction` events are trimmed out — one per
+statement, same as the last page — so the drawing-relevant events stand out):
 
 ```
-0  instruction   { statement_kind: "Call" }          // forward 50
-1  move          { from: [0, 0], to: [0, 50] }
-2  draw-segment  { from: [0, 0], to: [0, 50] }
-3  instruction   { statement_kind: "Call" }          // pen_up
-4  pen-change    { from: "down", to: "up" }
-5  instruction   { statement_kind: "Call" }          // forward 50
-6  move          { from: [0, 50], to: [0, 100] }
-7  instruction   { statement_kind: "Call" }          // pen_down
-8  pen-change    { from: "up", to: "down" }
-9  instruction   { statement_kind: "Call" }          // forward 50
-10 move          { from: [0, 100], to: [0, 150] }
-11 draw-segment  { from: [0, 100], to: [0, 150] }
+move          { from: [0, 0], to: [0, 50], heading: 0 }
+draw-segment  { from: [0, 0], to: [0, 50], color: "black", width: 1 }
+pen-change    { from: "down", to: "up" }
+move          { from: [0, 50], to: [0, 100], heading: 0 }
+pen-change    { from: "up", to: "down" }
+move          { from: [0, 100], to: [0, 150], heading: 0 }
+draw-segment  { from: [0, 100], to: [0, 150], color: "black", width: 1 }
 ```
 
-Notice event 6: the middle `forward 50` moves the turtle just like the other two, but with no
-matching `draw-segment` — so the canvas ends up with two separate line segments and a gap between
-them, even though the turtle glided smoothly through all three moves.
+Notice the middle `move` event: the middle `forward 50` moves the turtle just like the other two,
+but with no matching `draw-segment` — so the canvas ends up with two separate line segments and a
+gap between them, even though the turtle glided smoothly through all three moves.
 
 ## What's real today
 
@@ -81,19 +77,18 @@ drawing model.
 
 ## Try it yourself
 
-Draw our square from earlier pages, but lift the pen for one side:
+Draw our square from earlier pages, but lift the pen for the last side only:
 
 ```
-repeat 4 [
-  forward 100
-  pen_up
-  right 90
-  pen_down
-]
+repeat 3 [ forward 100 right 90 ]
+pen_up
+forward 100
+pen_down
+right 90
 ```
 
-Wait — that only lifts the pen while turning, and turning never draws a segment anyway. Try moving
-the `pen_up`/`pen_down` so only one *side* of the square is skipped, and predict how many
-`draw-segment` events you'll see before you run it (hint: it's not four anymore).
+Predict how many `draw-segment` events you'll see before you run it — hint: it's not four anymore,
+because the fourth `forward 100` moves the turtle with the pen up, leaving a gap where the last
+side of the square would have been.
 
 **Next up →** [07 · Highlighting](07-highlighting.md)
