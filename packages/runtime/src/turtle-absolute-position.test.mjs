@@ -217,7 +217,7 @@ test("execute propagates a failing set_xy y-argument expression instead of movin
 });
 
 test("execute leaves an unsupported set_xy argument un-evaluated, emitting no move event", () => {
-  const result = execute("set_xy :ages.tom 2", "main.logo");
+  const result = execute("set_xy (nonexistent_builtin 1) 2", "main.logo");
   assert.equal(result.events.length, 1);
   assert.deepEqual(result.diagnostics, []);
 });
@@ -349,7 +349,7 @@ test("execute propagates a failing set_heading argument expression instead of tu
 });
 
 test("execute leaves an unsupported set_heading argument un-evaluated, emitting no turn event", () => {
-  const result = execute("set_heading :ages.tom", "main.logo");
+  const result = execute("set_heading (nonexistent_builtin 1)", "main.logo");
   assert.equal(result.events.length, 1);
   assert.deepEqual(result.diagnostics, []);
 });

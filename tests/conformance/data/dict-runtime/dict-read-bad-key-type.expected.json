@@ -1,0 +1,56 @@
+{
+  "description": "A dict key must be a word or number; a bare `[:flag]` selector carrying a boolean raises `ol-type` (issue #322, `spec/data-structures.md:143`, `spec/error-model.md:126`).",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-runtime/dict-read-bad-key-type",
+        "start": [1, 1],
+        "end": [3, 2]
+      },
+      "payload": { "statement_kind": "Assign" }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-runtime/dict-read-bad-key-type",
+        "start": [4, 1],
+        "end": [4, 13]
+      },
+      "payload": { "statement_kind": "Assign" }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-runtime/dict-read-bad-key-type",
+        "start": [5, 1],
+        "end": [5, 19]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "data/dict-runtime/dict-read-bad-key-type",
+        "start": [5, 12],
+        "end": [5, 19]
+      },
+      "params": {
+        "expected": "word or number",
+        "actual": "boolean",
+        "value": true,
+        "operation": "index"
+      },
+      "message": "index needs a word or number, but got a boolean.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

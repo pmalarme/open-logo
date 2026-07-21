@@ -324,14 +324,14 @@ test("distance with three arguments raises ol-too-many-inputs", () => {
 
 // --- unsupported argument expression: left un-evaluated, mirroring #209's `.field` precedent --
 
-test("towards with an unsupported .field argument is left un-executed", () => {
-  const result = execute("print towards :places.tom 0", doc);
+test("towards with an unsupported argument is left un-executed", () => {
+  const result = execute("print towards (nonexistent_builtin 1) 0", doc);
   assert.deepEqual(result.diagnostics, []);
   assert.deepEqual(printedValues(result), []);
 });
 
-test("distance with an unsupported .field argument is left un-executed", () => {
-  const result = execute("print distance :places.tom 0", doc);
+test("distance with an unsupported argument is left un-executed", () => {
+  const result = execute("print distance (nonexistent_builtin 1) 0", doc);
   assert.deepEqual(result.diagnostics, []);
   assert.deepEqual(printedValues(result), []);
 });

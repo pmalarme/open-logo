@@ -28,6 +28,7 @@ export const OL_NODE_KINDS = [
   "BooleanLit",
   "ListLit",
   "DictLit",
+  "ValueOfKey",
   "VarRef",
   "Place",
   "Assign",
@@ -131,6 +132,19 @@ export interface DictEntryNode {
 export interface DictLitNode extends NodeBase {
   readonly kind: "DictLit";
   readonly entries: readonly DictEntryNode[];
+}
+
+/**
+ * The Heritage dict reader `value of <dictionary> for key <key>` (Data profile,
+ * `spec/grammar.md:213`'s `value-of-reader ::= "value" "of" expression "for" "key" expression`).
+ * Read-only, equivalent to `dictionary.key`/`dictionary[key]` at runtime
+ * (`spec/data-structures.md:183-195`). Both `dictionary` and `key` are full expressions, not the
+ * narrower {@link SelectorSegment} key-term grammar.
+ */
+export interface ValueOfKeyNode extends NodeBase {
+  readonly kind: "ValueOfKey";
+  readonly dictionary: ExpressionNode;
+  readonly key: ExpressionNode;
 }
 
 /** A variable read `:name` (the name carries no leading colon). */
@@ -472,6 +486,7 @@ export type ExpressionNode =
   | BooleanLitNode
   | ListLitNode
   | DictLitNode
+  | ValueOfKeyNode
   | VarRefNode
   | PlaceNode
   | CallNode
@@ -531,6 +546,13 @@ export const ast = {
   },
   dictLit(entries: readonly DictEntryNode[], span: SourceSpan): DictLitNode {
     return { kind: "DictLit", source_span: span, entries };
+  },
+  valueOfKey(
+    dictionary: ExpressionNode,
+    key: ExpressionNode,
+    span: SourceSpan,
+  ): ValueOfKeyNode {
+    return { kind: "ValueOfKey", source_span: span, dictionary, key };
   },
   varRef(name: string, span: SourceSpan): VarRefNode {
     return { kind: "VarRef", source_span: span, name };
@@ -748,6 +770,8 @@ export function childrenOf(node: AnyNode): readonly AnyNode[] {
       return node.elements;
     case "DictLit":
       return node.entries.flatMap((entry) => [entry.key, entry.value]);
+    case "ValueOfKey":
+      return [node.dictionary, node.key];
     case "Call":
     case "ParenCall":
       return node.args;

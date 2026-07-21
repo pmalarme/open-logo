@@ -46,12 +46,12 @@ test("`is empty` is false for a non-empty word", () => {
   assert.deepEqual(printedValues(result), [false]);
 });
 
-test("`is empty` on a number raises ol-type naming 'list or word'", () => {
+test("`is empty` on a number raises ol-type naming 'list, dict, or word'", () => {
   const result = execute("print 5 is empty", doc);
   assert.equal(result.diagnostics.length, 1);
   assert.deepEqual(result.diagnostics[0].code, "ol-type");
   assert.deepEqual(result.diagnostics[0].params, {
-    expected: "list or word",
+    expected: "list, dict, or word",
     actual: "number",
     value: 5,
     operation: "is empty",
@@ -80,7 +80,7 @@ test("`empty?` prefix form raises ol-type with operation 'empty?'", () => {
   const result = execute("print empty? 5", doc);
   assert.equal(result.diagnostics.length, 1);
   assert.deepEqual(result.diagnostics[0].params, {
-    expected: "list or word",
+    expected: "list, dict, or word",
     actual: "number",
     value: 5,
     operation: "empty?",
@@ -107,11 +107,11 @@ test("`is member of` is false when the collection has no equal element", () => {
   assert.deepEqual(printedValues(result), [false]);
 });
 
-test("`is member of` on a non-list collection raises ol-type naming 'list'", () => {
+test("`is member of` on a non-list collection raises ol-type naming 'list or dict'", () => {
   const result = execute("print (2 is member of 5)", doc);
   assert.equal(result.diagnostics.length, 1);
   assert.deepEqual(result.diagnostics[0].params, {
-    expected: "list",
+    expected: "list or dict",
     actual: "number",
     value: 5,
     operation: "is member of",
@@ -140,7 +140,7 @@ test("`member?` prefix form raises ol-type with operation 'member?'", () => {
   const result = execute("print member? 2 5", doc);
   assert.equal(result.diagnostics.length, 1);
   assert.deepEqual(result.diagnostics[0].params, {
-    expected: "list",
+    expected: "list or dict",
     actual: "number",
     value: 5,
     operation: "member?",

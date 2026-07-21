@@ -769,6 +769,7 @@ const MEGA = [
   "define f :p ( :q 1 )\n return :p\nend",
   "throw 9",
   "print { a: 1 }",
+  'print value of :x for key "a"',
   "add 3 to :x",
   "remove 3 from :x",
   'remove key "a" from :x',

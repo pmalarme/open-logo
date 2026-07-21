@@ -1,0 +1,56 @@
+{
+  "description": "Two dicts built with the same key/value pairs in different insertion order are structurally equal via `==` (issue #322, `spec/execution-model.md:447-469` uniform-access collections row); equality does not depend on insertion order.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-runtime/dict-equality-structural",
+        "start": [1, 1],
+        "end": [1, 19]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-runtime/dict-equality-structural",
+        "start": [2, 1],
+        "end": [2, 19]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-runtime/dict-equality-structural",
+        "start": [3, 1],
+        "end": [3, 16]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "data/dict-runtime/dict-equality-structural",
+        "start": [3, 1],
+        "end": [3, 16]
+      },
+      "payload": {
+        "values": [true]
+      }
+    }
+  ],
+  "diagnostics": []
+}

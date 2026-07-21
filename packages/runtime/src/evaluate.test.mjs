@@ -11,7 +11,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { makeSpan } from "@openlogo/core";
+import { makeSpan, OLDict } from "@openlogo/core";
 import * as Parser from "@openlogo/parser";
 import { evaluate, isSupportedExpression } from "@openlogo/runtime";
 
@@ -210,32 +210,41 @@ test("isSupportedExpression accepts every literal, arithmetic, and place-read sh
 });
 
 test("isSupportedExpression rejects expression kinds and callees this issue does not implement", () => {
-  // A dotted `.field` place segment is Data/record-profile and deferred (issue #94 covers only
-  // the `index` selector); a bare variable read (`:x`) and an `index`-only place are supported.
-  assert.equal(isSupportedExpression(parseExpr(":ages.tom")), false);
+  // A `.field` place segment's key is a parse-time literal, never evaluated, so it is always
+  // supported regardless of what the base variable holds at runtime (issue #322); a call to a
+  // name unknown to both the builtin whitelist and the procedure registry remains unsupported.
+  const unknownCall = "(nonexistent_builtin 1)";
+  assert.equal(isSupportedExpression(parseExpr(":ages.tom")), true);
+  assert.equal(isSupportedExpression(parseExpr(unknownCall)), false);
   assert.equal(isSupportedExpression(parseExpr("(forward 100)")), false);
   // A list containing an unsupported element is itself unsupported.
-  assert.equal(isSupportedExpression(parseExpr("[1 :ages.tom]")), false);
+  assert.equal(isSupportedExpression(parseExpr(`[1 ${unknownCall}]`)), false);
   // An arithmetic call with an unsupported operand is itself unsupported.
-  assert.equal(isSupportedExpression(parseExpr("1 + :ages.tom")), false);
+  assert.equal(isSupportedExpression(parseExpr(`1 + ${unknownCall}`)), false);
   // An is-predicate whose operand is itself unsupported is unsupported (issue #99).
-  assert.equal(isSupportedExpression(parseExpr("(:ages.tom is empty)")), false);
+  assert.equal(
+    isSupportedExpression(parseExpr(`(${unknownCall} is empty)`)),
+    false,
+  );
   // An is-predicate whose form-specific sub-expression is unsupported is unsupported too.
   assert.equal(
-    isSupportedExpression(parseExpr("(2 is member of :ages.tom)")),
+    isSupportedExpression(parseExpr(`(2 is member of ${unknownCall})`)),
     false,
   );
   assert.equal(
-    isSupportedExpression(parseExpr("(5 is between :ages.tom and 5)")),
+    isSupportedExpression(parseExpr(`(5 is between ${unknownCall} and 5)`)),
     false,
   );
   assert.equal(
-    isSupportedExpression(parseExpr("(5 is between 1 and :ages.tom)")),
+    isSupportedExpression(parseExpr(`(5 is between 1 and ${unknownCall})`)),
     false,
   );
-  // A dict literal is parseable (issue #149) but not yet runtime-supported — its own evaluator
-  // slice is still blocked.
-  assert.equal(isSupportedExpression(parseExpr("{ a: 1 }")), false);
+  // A dict literal is fully runtime-supported once every entry's value is (issue #322).
+  assert.equal(isSupportedExpression(parseExpr("{ a: 1 }")), true);
+  assert.equal(
+    isSupportedExpression(parseExpr(`{ a: ${unknownCall} }`)),
+    false,
+  );
 });
 
 test("throws for a call to a callee this issue does not implement yet", () => {
@@ -258,7 +267,68 @@ test("throws when a call is missing an argument the operator requires", () => {
   assert.throws(() => evaluate(call), /no argument at position 1/);
 });
 
-test("throws when evaluate() is called directly on a DictLit (issue #149's evaluator slice is still blocked)", () => {
-  const dictLit = parseExpr("{ a: 1 }");
-  assert.throws(() => evaluate(dictLit), /DictLit.*not implemented/);
+test("evaluate() on a DictLit returns a fresh OLDict with its entries (issue #322)", () => {
+  const dictLit = parseExpr('{ a: 1 b: "x" }');
+  const result = evaluate(dictLit);
+  assert.equal(result.ok, true);
+  assert.ok(result.value instanceof OLDict);
+  assert.deepEqual(result.value.keys(), ["a", "b"]);
+  assert.deepEqual(result.value.values(), [1, "x"]);
+});
+
+test("evaluate() on a DictLit propagates a failing entry value's diagnostic (issue #322)", () => {
+  const result = evalExpr("{ a: 1 / 0 }");
+  assert.equal(result.ok, false);
+  assert.equal(result.diagnostic.code, "ol-div-zero");
+});
+
+test("`value of <dict> for key <key>` propagates a failing dictionary expression's diagnostic", () => {
+  const result = evalExpr('value of (1 / 0) for key "a"');
+  assert.equal(result.ok, false);
+  assert.equal(result.diagnostic.code, "ol-div-zero");
+});
+
+test("`value of <dict> for key <key>` raises ol-type when the dictionary is not a dict", () => {
+  const result = evalExpr('value of 5 for key "a"');
+  assert.equal(result.ok, false);
+  assert.equal(result.diagnostic.code, "ol-type");
+  assert.deepEqual(result.diagnostic.params, {
+    expected: "dict",
+    actual: "number",
+    value: 5,
+    operation: "value of",
+  });
+});
+
+test("`value of <dict> for key <key>` propagates a failing key expression's diagnostic", () => {
+  const result = evalExpr("value of { a: 1 } for key (1 / 0)");
+  assert.equal(result.ok, false);
+  assert.equal(result.diagnostic.code, "ol-div-zero");
+});
+
+test("`value of <dict> for key <key>` raises ol-type when the key is neither word nor number", () => {
+  const result = evalExpr("value of { a: 1 } for key true");
+  assert.equal(result.ok, false);
+  assert.equal(result.diagnostic.code, "ol-type");
+  assert.deepEqual(result.diagnostic.params, {
+    expected: "word or number",
+    actual: "boolean",
+    value: true,
+    operation: "value of",
+  });
+});
+
+test("`value of <dict> for key <key>` raises ol-unknown-key when the key is missing", () => {
+  const result = evalExpr('value of { a: 1 } for key "b"');
+  assert.equal(result.ok, false);
+  assert.equal(result.diagnostic.code, "ol-unknown-key");
+  assert.deepEqual(result.diagnostic.params, { key: "b" });
+});
+
+test("`value of <dict> for key <key>` reports a numeric key bare (unquoted) in the ol-unknown-key message", () => {
+  const result = evalExpr("value of { a: 1 } for key 5");
+  assert.equal(result.ok, false);
+  assert.equal(result.diagnostic.code, "ol-unknown-key");
+  assert.deepEqual(result.diagnostic.params, { key: 5 });
+  assert.equal(result.diagnostic.message, "this dict has no key 5.");
 });

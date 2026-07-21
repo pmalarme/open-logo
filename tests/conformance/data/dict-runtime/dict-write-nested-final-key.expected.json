@@ -1,0 +1,92 @@
+{
+  "description": "The spec's literal nested-write example (`spec/data-structures.md:196-201`): `:people.tom` already holds a dict, so writing its final selector `:people.tom.age = 8` and `:people.tom.height = 120` upserts both keys into the existing nested dict without needing to vivify `tom`.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-runtime/dict-write-nested-final-key",
+        "start": [1, 1],
+        "end": [1, 15]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-runtime/dict-write-nested-final-key",
+        "start": [2, 1],
+        "end": [4, 2]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-runtime/dict-write-nested-final-key",
+        "start": [5, 1],
+        "end": [5, 25]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-runtime/dict-write-nested-final-key",
+        "start": [6, 1],
+        "end": [6, 23]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "print",
+      "source_span": {
+        "document": "data/dict-runtime/dict-write-nested-final-key",
+        "start": [6, 1],
+        "end": [6, 23]
+      },
+      "payload": {
+        "values": [["age", "height"]]
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-runtime/dict-write-nested-final-key",
+        "start": [7, 1],
+        "end": [7, 25]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "print",
+      "source_span": {
+        "document": "data/dict-runtime/dict-write-nested-final-key",
+        "start": [7, 1],
+        "end": [7, 25]
+      },
+      "payload": {
+        "values": [[8, 120]]
+      }
+    }
+  ],
+  "diagnostics": []
+}

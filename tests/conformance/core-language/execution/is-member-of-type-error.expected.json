@@ -1,5 +1,5 @@
 {
-  "description": "`is member of` accepts only a list (or dict) collection; a number collection raises `ol-type` naming the expected concept \"list\" (spec/execution-model.md:146-166, error-model.md `ol-type`). Execution halts, so only the `instruction` event is kept. Issue #99.",
+  "description": "`is member of` accepts only a list or dict collection; a number collection raises `ol-type` naming the expected concept \"list or dict\" (spec/execution-model.md:146-166, error-model.md `ol-type`). Execution halts, so only the `instruction` event is kept. Issue #99, widened for dict by #322.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [
@@ -23,7 +23,7 @@
         "end": [1, 24]
       },
       "params": {
-        "expected": "list",
+        "expected": "list or dict",
         "actual": "number",
         "value": 5,
         "operation": "is member of"

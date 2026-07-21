@@ -1,5 +1,5 @@
 {
-  "description": "`count` on a number raises `ol-type` naming the expected concept \"word or list\" (spec/commands.md \"count\"; error-model.md `ol-type`). Execution halts, so only the `instruction` event is kept. Issue #101.",
+  "description": "`count` on a number raises `ol-type` naming the expected concept \"word, list, or dict\" (spec/commands.md \"count\"; error-model.md `ol-type`). Execution halts, so only the `instruction` event is kept. Issue #101, widened for dict by #322.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [
@@ -23,7 +23,7 @@
         "end": [1, 14]
       },
       "params": {
-        "expected": "word or list",
+        "expected": "word, list, or dict",
         "actual": "number",
         "value": 5,
         "operation": "count"

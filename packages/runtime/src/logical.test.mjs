@@ -263,6 +263,12 @@ test("isSupportedExpression accepts not/and/or calls, recursing into every opera
 });
 
 test("isSupportedExpression rejects a not/and/or call with an unsupported operand", () => {
-  assert.equal(isSupportedExpression(parseExpr("not :ages.tom")), false);
-  assert.equal(isSupportedExpression(parseExpr("true and :ages.tom")), false);
+  assert.equal(
+    isSupportedExpression(parseExpr("not (nonexistent_builtin 1)")),
+    false,
+  );
+  assert.equal(
+    isSupportedExpression(parseExpr("true and (nonexistent_builtin 1)")),
+    false,
+  );
 });

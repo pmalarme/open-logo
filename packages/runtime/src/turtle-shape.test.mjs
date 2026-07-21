@@ -190,8 +190,8 @@ test("set_shape with two arguments raises ol-too-many-inputs", () => {
   });
 });
 
-test("set_shape leaves an unsupported argument expression un-evaluated (place segment)", () => {
-  const result = execute("set_shape :shapes.tom", "main.logo");
+test("set_shape leaves an unsupported argument expression un-evaluated", () => {
+  const result = execute("set_shape (nonexistent_builtin 1)", "main.logo");
   assert.equal(result.diagnostics.length, 0);
   assert.equal(
     result.events.some((event) => event.kind === "shape-change"),

@@ -66,5 +66,5 @@ export type {
   DebugProgramTutorOutputPayload,
 } from "./events.js";
 
-export { typeNameOf } from "./values.js";
-export type { OLTypeName, OLValue } from "./values.js";
+export { OLDict, typeNameOf } from "./values.js";
+export type { OLDictKey, OLTypeName, OLValue } from "./values.js";

@@ -1,0 +1,7 @@
+:ages = dict
+:ages.max = 9
+:who = "who"
+:ages[:who] = 10
+set ages.lee to 7
+print keys :ages
+print values :ages

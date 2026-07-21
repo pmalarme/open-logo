@@ -98,31 +98,43 @@ test("destructuring a non-list element raises ol-range with length 0 (never matc
 });
 
 test("for ... in whose iterable is an expression kind this evaluator does not give meaning to is skipped, not raised", () => {
-  // `:ages.tom` is a dotted-field read (Data-profile, not yet supported); the whole `ForIn`
+  // `(nonexistent_builtin 1)` is a call to a name this evaluator does not know; the whole `ForIn`
   // statement is skipped rather than raising, matching the existing "unsupported operand"
   // convention for `print`/`Assign`/`Repeat`.
-  const result = execute("for n in :ages.tom [\n  print 1\n]", doc);
+  const result = execute(
+    "for n in (nonexistent_builtin 1) [\n  print 1\n]",
+    doc,
+  );
   assert.deepEqual(result.diagnostics, []);
   assert.equal(result.events.length, 1);
   assert.equal(result.events[0].payload.statement_kind, "ForIn");
 });
 
 test("for ... from whose `from` is an unsupported expression is skipped, not raised", () => {
-  const result = execute("for i from :ages.tom to 5 [\n  print 1\n]", doc);
+  const result = execute(
+    "for i from (nonexistent_builtin 1) to 5 [\n  print 1\n]",
+    doc,
+  );
   assert.deepEqual(result.diagnostics, []);
   assert.equal(result.events.length, 1);
   assert.equal(result.events[0].payload.statement_kind, "ForRange");
 });
 
 test("for ... to whose `to` is an unsupported expression is skipped, not raised", () => {
-  const result = execute("for i from 1 to :ages.tom [\n  print 1\n]", doc);
+  const result = execute(
+    "for i from 1 to (nonexistent_builtin 1) [\n  print 1\n]",
+    doc,
+  );
   assert.deepEqual(result.diagnostics, []);
   assert.equal(result.events.length, 1);
   assert.equal(result.events[0].payload.statement_kind, "ForRange");
 });
 
 test("for ... by whose step is an unsupported expression is skipped, not raised", () => {
-  const result = execute("for i from 1 to 5 by :ages.tom [\n  print 1\n]", doc);
+  const result = execute(
+    "for i from 1 to 5 by (nonexistent_builtin 1) [\n  print 1\n]",
+    doc,
+  );
   assert.deepEqual(result.diagnostics, []);
   assert.equal(result.events.length, 1);
   assert.equal(result.events[0].payload.statement_kind, "ForRange");

@@ -181,10 +181,10 @@ test("setbg raises ol-too-many-inputs with two arguments", () => {
 });
 
 test("set_color leaves an unsupported argument expression un-evaluated (no diagnostic, no event)", () => {
-  // Mirrors turtle-movement.test.mjs's equivalent test: `.field` place segments are
-  // Data/record-profile and deferred, so `isSupportedExpression` reports this operand
-  // unsupported and the statement is left un-evaluated (still no diagnostic, no event).
-  const result = execute("set_color :colors.tom", "main.logo");
+  // Mirrors turtle-movement.test.mjs's equivalent test: a call to an unregistered procedure is
+  // reported unsupported by `isSupportedExpression` and the statement is left un-evaluated
+  // (still no diagnostic, no event).
+  const result = execute("set_color (nonexistent_builtin 1)", "main.logo");
   assert.equal(result.events.length, 1);
   assert.equal(result.events[0].kind, "instruction");
   assert.deepEqual(result.diagnostics, []);
@@ -204,7 +204,7 @@ test("set_color propagates a diagnostic raised while evaluating its argument", (
 });
 
 test("set_background leaves an unsupported argument expression un-evaluated (no diagnostic, no event)", () => {
-  const result = execute("set_background :colors.tom", "main.logo");
+  const result = execute("set_background (nonexistent_builtin 1)", "main.logo");
   assert.equal(result.events.length, 1);
   assert.equal(result.events[0].kind, "instruction");
   assert.deepEqual(result.diagnostics, []);

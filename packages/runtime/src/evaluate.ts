@@ -33,7 +33,8 @@ import type {
   TraceEvent,
   TutorHintStage,
 } from "@openlogo/core";
-import { makeSpan, typeNameOf } from "@openlogo/core";
+import { makeSpan, OLDict, typeNameOf } from "@openlogo/core";
+import type { OLDictKey } from "@openlogo/core";
 import type {
   AddNode,
   AssignNode,
@@ -42,17 +43,20 @@ import type {
   ClearNode,
   ComparisonChainNode,
   ComprehensionNode,
+  DictLitNode,
   ExpressionNode,
   InsertNode,
   IsPredicateNode,
   ParenCallNode,
   PlaceNode,
+  PlaceSegment,
   ProcedureDefNode,
   ProgramNode,
+  RemoveKeyNode,
   RemoveNode,
-  SelectorSegment,
   SpannedName,
   StatementNode,
+  ValueOfKeyNode,
   WordLitNode,
 } from "@openlogo/parser";
 import { runtimeDiag } from "./errors.js";
@@ -719,6 +723,9 @@ export function isSupportedExpression(
         name === "reverse" ||
         name === "pick" ||
         name === "sort" ||
+        name === "dict" ||
+        name === "keys" ||
+        name === "values" ||
         name === "xcor" ||
         name === "ycor" ||
         name === "heading" ||
@@ -740,16 +747,23 @@ export function isSupportedExpression(
         isSupportedComprehensionBody(node.body, procedures)
       );
     case "DictLit":
-      // Dict-literal runtime evaluation (values, reads, writes) is its own blocked slice
-      // (issue #149 only delivers the parse/lex/highlight surface) — always unsupported for now.
-      return false;
+      // Issue #322: a dict literal is supported exactly when every entry's value is.
+      return node.entries.every((entry) =>
+        isSupportedExpression(entry.value, procedures),
+      );
+    case "ValueOfKey":
+      // Issue #322: `value of <dict> for key <key>` — both operands must be supported.
+      return (
+        isSupportedExpression(node.dictionary, procedures) &&
+        isSupportedExpression(node.key, procedures)
+      );
   }
 }
 
 /**
- * Is every postfix segment of `place` a Core-scope `index` selector (`:l[i]`) with a supported
- * key expression? A dotted `.field` segment is Data/record-profile and deferred, so a place
- * carrying one is unsupported regardless of its other segments. Vacuously `true` for a
+ * Is every postfix segment of `place` supported? A `.field` segment (dict-only, issue #322) is
+ * always supported — its key is a parse-time literal, never evaluated. An `index` segment
+ * (`:l[i]`/`:d[key]`) is supported when its key expression is. Vacuously `true` for a
  * zero-segment place (a bare `:name` grown into a place only in assignment-target position).
  */
 function isSupportedPlace(
@@ -758,7 +772,7 @@ function isSupportedPlace(
 ): boolean {
   return place.segments.every(
     (segment) =>
-      segment.kind === "index" &&
+      segment.kind === "field" ||
       isSupportedExpression(segment.key, procedures),
   );
 }
@@ -830,22 +844,84 @@ export function evaluate(
     case "IsPredicate":
       return evaluateIsPredicate(node, environment);
     case "DictLit":
-      // `isSupportedExpression` always returns `false` for a `DictLit`, so callers gate it out
-      // before ever reaching here (same invariant as `readPlace`'s unimplemented segment kinds,
-      // below) — dict-literal runtime evaluation is its own blocked slice (issue #149 is
-      // parse/lex/highlight only).
-      throw new Error(
-        'evaluate: expression kind "DictLit" is not implemented yet — it lands with its own evaluator slice',
-      );
+      return evaluateDictLit(node, environment);
+    case "ValueOfKey":
+      return evaluateValueOfKey(node, environment);
   }
 }
 
 /**
- * Resolve a {@link PlaceNode} read (`:l[i]`, `:m[1][2]`): look up the base variable, then walk
- * every postfix segment against the value so far. Only `index` segments are in this issue's
- * scope (`isSupportedExpression` keeps a `.field`-bearing place from reaching evaluation from
- * `print`/`execute()`); a segment kind this issue does not implement is an internal invariant
- * violation, mirroring {@link evaluate}'s own "not implemented yet" checks.
+ * Evaluate a dict literal `{ key: value … }` (issue #322, `spec/data-structures.md:143-171`):
+ * a fresh {@link OLDict}, entries evaluated left to right. `entry.key` is a literal (never
+ * evaluated); `OLDict.set` upserts an existing canonical key in place, which gives both
+ * "last-duplicate-wins value" and "first-insertion-position iteration" from one call.
+ */
+function evaluateDictLit(
+  node: DictLitNode,
+  environment: Environment,
+): EvalResult {
+  const dict = new OLDict();
+  for (const entry of node.entries) {
+    const valueResult = evaluate(entry.value, environment);
+    if (!valueResult.ok) {
+      return valueResult;
+    }
+    dict.set(entry.key.value, valueResult.value);
+  }
+  return ok(dict);
+}
+
+/**
+ * `value of <dictionary> for key <key>` (issue #322, `spec/grammar.md:213`) — the Heritage dict
+ * reader, read-only and equivalent to `dictionary.key`/`dictionary[key]`
+ * (`spec/data-structures.md:183-195`). `dictionary` must evaluate to a dict (`ol-type`
+ * otherwise); `key` must evaluate to a word or number (`ol-type` otherwise); a missing key
+ * raises `ol-unknown-key` (`spec/data-structures.md:191`).
+ */
+function evaluateValueOfKey(
+  node: ValueOfKeyNode,
+  environment: Environment,
+): EvalResult {
+  const dictResult = evaluate(node.dictionary, environment);
+  if (!dictResult.ok) {
+    return dictResult;
+  }
+  if (!(dictResult.value instanceof OLDict)) {
+    return fail(
+      runtimeDiag.placeType(node.dictionary.source_span, {
+        expected: "dict",
+        actual: typeNameOf(dictResult.value),
+        value: dictResult.value,
+        operation: "value of",
+      }),
+    );
+  }
+  const keyResult = evaluate(node.key, environment);
+  if (!keyResult.ok) {
+    return keyResult;
+  }
+  const key = keyResult.value;
+  if (typeof key !== "string" && typeof key !== "number") {
+    return fail(
+      runtimeDiag.placeType(node.key.source_span, {
+        expected: "word or number",
+        actual: typeNameOf(key),
+        value: key,
+        operation: "value of",
+      }),
+    );
+  }
+  if (!dictResult.value.has(key)) {
+    return fail(runtimeDiag.unknownKey(node.key.source_span, { key }));
+  }
+  return ok(dictResult.value.get(key) as OLValue);
+}
+
+/**
+ * Resolve a {@link PlaceNode} read (`:l[i]`, `:d.key`, `:m[1][2]`): look up the base variable,
+ * then walk every postfix segment against the value so far via {@link resolvePlaceSegment}. Every
+ * segment on a read requires its key/field to already exist — a read never upserts (issue #322,
+ * `spec/data-structures.md:191`).
  */
 function readPlace(node: PlaceNode, environment: Environment): EvalResult {
   const base = lookupVar(environment, node.base.name);
@@ -857,84 +933,182 @@ function readPlace(node: PlaceNode, environment: Environment): EvalResult {
 
   let current: OLValue = base;
   for (const segment of node.segments) {
-    if (segment.kind !== "index") {
-      throw new Error(
-        `evaluate: place segment kind "${segment.kind}" is not implemented yet — it lands with its own evaluator slice`,
-      );
-    }
-    const step = resolveIndexSegment(current, segment, environment);
+    const step = resolvePlaceSegment(current, segment, environment, false);
     if (!step.ok) {
       return step;
     }
-    current = step.list[step.index] as OLValue;
+    current = readPlaceSegmentValue(step);
   }
   return ok(current);
 }
 
-/** The outcome of resolving one `index` postfix segment against its container value. */
-type IndexResolution =
+/** The outcome of resolving one postfix place segment against its container value. */
+type PlaceSegmentResolution =
   | {
       readonly ok: true;
-      readonly list: readonly OLValue[];
+      readonly kind: "list";
+      readonly list: OLValue[];
       readonly index: number;
+    }
+  | {
+      readonly ok: true;
+      readonly kind: "dict";
+      readonly dict: OLDict;
+      readonly key: OLDictKey;
     }
   | { readonly ok: false; readonly diagnostic: Diagnostic };
 
 /**
- * Evaluate `segment.key` and validate it against `container`: the container must be a list
- * (`ol-type`, `expected: "list"`), the key must read as a number (`ol-type`,
- * `expected: "number"` — `spec/error-model.md:99` calls this `ol-type`, not `ol-range`), and the
- * (1-based) key must be a whole number within `1..container.length` (`ol-range` otherwise).
- * Returns the container (as a list) and the equivalent 0-based JS index so callers can either
- * read or mutate the element in place.
+ * Resolve one postfix place segment — a dotted `.field` (dict-only, its key a parse-time
+ * literal) or a bracketed `[key]` selector (a list index or a dict key, decided by `container`'s
+ * actual runtime type) — against `container` (issue #322, `spec/data-structures.md:173-217`).
+ *
+ * `allowMissingDictKey` controls only the dict branch: `false` (every read, and every
+ * *intermediate* write segment) requires the key to already exist — `ol-unknown-key` otherwise,
+ * with no auto-vivification of a missing intermediate dict (`spec/data-structures.md:203`).
+ * `true` (a write's *final* segment only) lets a missing dict key resolve anyway, so the caller
+ * can upsert it. List indexing never upserts regardless of this flag — an out-of-range index is
+ * always `ol-range`, matching the pre-existing list-only behavior byte-for-byte.
  */
-function resolveIndexSegment(
+function resolvePlaceSegment(
   container: OLValue,
-  segment: SelectorSegment,
+  segment: PlaceSegment,
   environment: Environment,
-): IndexResolution {
+  allowMissingDictKey: boolean,
+): PlaceSegmentResolution {
+  if (segment.kind === "field") {
+    return resolveDictSegment(
+      container,
+      segment,
+      segment.name.name,
+      allowMissingDictKey,
+      "field",
+    );
+  }
+
   const keyResult = evaluate(segment.key, environment);
   if (!keyResult.ok) {
     return keyResult;
   }
-  if (!Array.isArray(container)) {
+  const key = keyResult.value;
+
+  if (Array.isArray(container)) {
+    const numericKey = asNumber(key);
+    if (numericKey === undefined) {
+      return {
+        ok: false,
+        diagnostic: runtimeDiag.placeType(segment.source_span, {
+          expected: "number",
+          actual: typeNameOf(key),
+          value: key,
+          operation: "index",
+        }),
+      };
+    }
+    if (
+      !Number.isInteger(numericKey) ||
+      numericKey < 1 ||
+      numericKey > container.length
+    ) {
+      return {
+        ok: false,
+        diagnostic: runtimeDiag.indexRange(segment.source_span, {
+          index: key,
+          length: container.length,
+        }),
+      };
+    }
+    return {
+      ok: true,
+      kind: "list",
+      list: container as OLValue[],
+      index: numericKey - 1,
+    };
+  }
+
+  if (container instanceof OLDict) {
+    if (typeof key !== "string" && typeof key !== "number") {
+      return {
+        ok: false,
+        diagnostic: runtimeDiag.placeType(segment.source_span, {
+          expected: "word or number",
+          actual: typeNameOf(key),
+          value: key,
+          operation: "index",
+        }),
+      };
+    }
+    return resolveDictSegment(
+      container,
+      segment,
+      key,
+      allowMissingDictKey,
+      "index",
+    );
+  }
+
+  return {
+    ok: false,
+    diagnostic: runtimeDiag.placeType(segment.source_span, {
+      expected: "list or dict",
+      actual: typeNameOf(container),
+      value: container,
+      operation: "index",
+    }),
+  };
+}
+
+/**
+ * Shared tail of {@link resolvePlaceSegment}'s `.field` and dict-typed `[key]` branches: reject a
+ * non-dict container (`ol-type`, `expected: "dict"`), then either require the key to already
+ * exist (`ol-unknown-key` otherwise) or let it pass through unresolved for the caller to upsert.
+ */
+function resolveDictSegment(
+  container: OLValue,
+  segment: PlaceSegment,
+  key: OLDictKey,
+  allowMissingDictKey: boolean,
+  operation: "field" | "index",
+): PlaceSegmentResolution {
+  if (!(container instanceof OLDict)) {
     return {
       ok: false,
       diagnostic: runtimeDiag.placeType(segment.source_span, {
-        expected: "list",
+        expected: "dict",
         actual: typeNameOf(container),
         value: container,
-        operation: "index",
+        operation,
       }),
     };
   }
-  const key = keyResult.value;
-  const numericKey = asNumber(key);
-  if (numericKey === undefined) {
+  if (!allowMissingDictKey && !container.has(key)) {
     return {
       ok: false,
-      diagnostic: runtimeDiag.placeType(segment.source_span, {
-        expected: "number",
-        actual: typeNameOf(key),
-        value: key,
-        operation: "index",
-      }),
+      diagnostic: runtimeDiag.unknownKey(segment.source_span, { key }),
     };
   }
-  if (
-    !Number.isInteger(numericKey) ||
-    numericKey < 1 ||
-    numericKey > container.length
-  ) {
-    return {
-      ok: false,
-      diagnostic: runtimeDiag.indexRange(segment.source_span, {
-        index: key,
-        length: container.length,
-      }),
-    };
+  return { ok: true, kind: "dict", dict: container, key };
+}
+
+/** Read the value a resolved {@link PlaceSegmentResolution} points at. */
+function readPlaceSegmentValue(
+  step: Extract<PlaceSegmentResolution, { readonly ok: true }>,
+): OLValue {
+  return step.kind === "list"
+    ? (step.list[step.index] as OLValue)
+    : (step.dict.get(step.key) as OLValue);
+}
+
+/** Write `value` into a resolved {@link PlaceSegmentResolution}'s slot, in place. */
+function writePlaceSegmentValue(
+  step: Extract<PlaceSegmentResolution, { readonly ok: true }>,
+  value: OLValue,
+): void {
+  if (step.kind === "list") {
+    step.list[step.index] = value;
+  } else {
+    step.dict.set(step.key, value);
   }
-  return { ok: true, list: container, index: numericKey - 1 };
 }
 
 /**
@@ -989,9 +1163,10 @@ function evaluateRepcount(
 }
 
 /**
- * The target of `=`/`set … to` must be a supported place, per {@link isSupportedPlace}; anything
- * else (a `.field` segment) is Data-profile and left un-executed rather than raised as an error,
- * matching the existing convention for a statement kind this issue does not yet give meaning to.
+ * The target of `=`/`set … to` must be a supported place, per {@link isSupportedPlace}; a place
+ * with an operand this issue does not evaluate is left un-executed rather than raised as an
+ * error, matching the existing convention for a statement kind this issue does not yet give
+ * meaning to.
  */
 export type AssignResult =
   | { readonly ok: true }
@@ -1001,10 +1176,10 @@ export type AssignResult =
  * Execute one `Assign` statement (`:place = value`, `set place to value`): the runtime's own
  * `ol-not-a-place` guard for a reporter/command call used as a target (issue #113's checker
  * catches this too, at `stage: "semantic"`, but `execute()` never runs `check()`), then either
- * `assignVar` for a bare place or {@link writeIndexedPlace} for a postfix (`:l[i] = v`) one. A
- * `.field`-bearing place — or a `.field`-bearing (or otherwise unsupported) value expression, e.g.
- * `:x = :ages.tom` — is silently left un-executed (Data-profile, deferred): neither the place nor
- * the value is evaluated, matching `print`'s "unsupported operand" convention.
+ * `assignVar` for a bare place or {@link writeIndexedPlace} for a postfix (`:l[i] = v`,
+ * `:d.key = v`) one. An unsupported value expression, e.g. `:x = :ages.tom` where the read side
+ * is not yet evaluable, is silently left un-executed: neither the place nor the value is
+ * evaluated, matching `print`'s "unsupported operand" convention.
  */
 export function executeAssign(
   node: AssignNode,
@@ -1045,14 +1220,14 @@ export function executeAssign(
 }
 
 /**
- * Write through a non-empty postfix place (`:l[i] = v`, `:m[1][2] = v`): the base variable must
- * already exist (`ol-undefined-var` otherwise — unlike bare assignment, indexed assignment never
- * creates a base), every intermediate segment resolves against the existing value with no
- * auto-vivification (`ol-range`/`ol-type` per {@link resolveIndexSegment}), and only the final
- * segment's slot is mutated in place — so an aliased reference to the same list observes the
- * write (`spec/execution-model.md:276-287`). The caller ({@link executeAssign}) only reaches
- * here after `isSupportedPlace` has confirmed every segment is `index`-kind, so the cast below
- * is safe without a redundant runtime re-check.
+ * Write through a non-empty postfix place (`:l[i] = v`, `:d.key = v`, `:m[1][2] = v`): the base
+ * variable must already exist (`ol-undefined-var` otherwise — unlike bare assignment, indexed
+ * assignment never creates a base), every *intermediate* segment resolves against the existing
+ * value with no auto-vivification (`ol-range`/`ol-type`/`ol-unknown-key` per
+ * {@link resolvePlaceSegment}), and only the *final* segment's slot is mutated in place — so an
+ * aliased reference to the same list/dict observes the write (`spec/execution-model.md:276-287`).
+ * A missing final *dict* key upserts (`spec/data-structures.md:195,203`); a missing final list
+ * index is still always `ol-range` (lists never upsert).
  */
 function writeIndexedPlace(
   place: PlaceNode,
@@ -1070,42 +1245,46 @@ function writeIndexedPlace(
     };
   }
 
-  const segments = place.segments as readonly SelectorSegment[];
+  const segments = place.segments;
   let container: OLValue = base;
   for (let i = 0; i < segments.length - 1; i++) {
-    const step = resolveIndexSegment(
+    const step = resolvePlaceSegment(
       container,
-      segments[i] as SelectorSegment,
+      segments[i] as PlaceSegment,
       environment,
+      false,
     );
     if (!step.ok) {
       return step;
     }
-    container = step.list[step.index] as OLValue;
+    container = readPlaceSegmentValue(step);
   }
 
-  const lastSegment = segments[segments.length - 1] as SelectorSegment;
-  const step = resolveIndexSegment(container, lastSegment, environment);
+  const lastSegment = segments[segments.length - 1] as PlaceSegment;
+  const step = resolvePlaceSegment(container, lastSegment, environment, true);
   if (!step.ok) {
     return step;
   }
-  (step.list as OLValue[])[step.index] = value;
+  writePlaceSegmentValue(step, value);
   return { ok: true };
 }
 
 /**
- * Resolve a list-mutator statement's target expression (`add … to TARGET`, `clear TARGET`, …) to
- * the shared list it must mutate in place. Evaluating a supported target (`:name`, a postfix
- * `:l[i]`, or any list-valued reporter) yields the *same* array reference the binding holds, so a
- * `push`/`splice`/`length = 0` on it is observed through every alias (`spec/data-structures.md:47`,
- * `spec/execution-model.md:471-481`). A target that does not evaluate to a list raises `ol-type`
- * (`spec/data-structures.md:79`). `OLValue`'s list arm is `readonly`, so the cast to a mutable
- * array mirrors {@link writeIndexedPlace}'s own in-place write.
+ * Resolve a list-mutator statement's target expression (`add … to TARGET`, `remove … from
+ * TARGET`, `insert … in TARGET at …`) to the shared list it must mutate in place. Evaluating a
+ * supported target (`:name`, a postfix `:l[i]`, or any list-valued reporter) yields the *same*
+ * array reference the binding holds, so a `push`/`splice`/`length = 0` on it is observed through
+ * every alias (`spec/data-structures.md:47`, `spec/execution-model.md:471-481`). A target that
+ * does not evaluate to a list raises `ol-type` (`spec/data-structures.md:79`). `OLValue`'s list
+ * arm is `readonly`, so the cast to a mutable array mirrors {@link writeIndexedPlace}'s own
+ * in-place write. `clear`'s target may also be a dict (issue #322), so it uses its own sibling
+ * {@link evaluateCollectionTarget} instead — this helper stays list-only and byte-identical to
+ * before that issue.
  */
 function evaluateListTarget(
   targetNode: ExpressionNode,
   environment: Environment,
-  operation: "add" | "remove" | "insert" | "clear",
+  operation: "add" | "remove" | "insert",
 ):
   | { readonly ok: true; readonly list: OLValue[] }
   | { readonly ok: false; readonly diagnostic: Diagnostic } {
@@ -1250,9 +1429,43 @@ export function executeInsert(
 }
 
 /**
- * Execute `clear target` (`spec/data-structures.md:82`): remove every element from the list
- * `target`, in place. A non-list target raises `ol-type`; an unsupported target expression is a
- * deferred no-op (matching {@link executeAdd}).
+ * Resolve `clear`'s target expression to the shared list or dict it must empty in place (issue
+ * #322 widens `clear` to dicts — {@link evaluateListTarget}'s sibling, kept separate rather than
+ * widening that one, since `add`/`remove`/`insert` stay list-only and must not change). A target
+ * that is neither raises `ol-type` (`expected: "list or dict"`).
+ */
+function evaluateCollectionTarget(
+  targetNode: ExpressionNode,
+  environment: Environment,
+):
+  | { readonly ok: true; readonly kind: "list"; readonly list: OLValue[] }
+  | { readonly ok: true; readonly kind: "dict"; readonly dict: OLDict }
+  | { readonly ok: false; readonly diagnostic: Diagnostic } {
+  const result = evaluate(targetNode, environment);
+  if (!result.ok) {
+    return result;
+  }
+  if (Array.isArray(result.value)) {
+    return { ok: true, kind: "list", list: result.value as OLValue[] };
+  }
+  if (result.value instanceof OLDict) {
+    return { ok: true, kind: "dict", dict: result.value };
+  }
+  return {
+    ok: false,
+    diagnostic: runtimeDiag.listMutatorType(targetNode.source_span, {
+      expected: "list or dict",
+      actual: typeNameOf(result.value),
+      value: result.value,
+      operation: "clear",
+    }),
+  };
+}
+
+/**
+ * Execute `clear target` (`spec/data-structures.md:82,230`): remove every element/entry from the
+ * list or dict `target`, in place. A target that is neither raises `ol-type`; an unsupported
+ * target expression is a deferred no-op (matching {@link executeAdd}).
  */
 export function executeClear(
   node: ClearNode,
@@ -1261,11 +1474,68 @@ export function executeClear(
   if (!isSupportedExpression(node.target, environment.procedures)) {
     return { ok: true };
   }
-  const target = evaluateListTarget(node.target, environment, "clear");
+  const target = evaluateCollectionTarget(node.target, environment);
   if (!target.ok) {
     return target;
   }
-  target.list.length = 0;
+  if (target.kind === "list") {
+    target.list.length = 0;
+  } else {
+    target.dict.clear();
+  }
+  return { ok: true };
+}
+
+/**
+ * Execute `remove key key from target` (issue #322, `spec/data-structures.md:229`): drop the
+ * entry keyed `key` from the dict `target`, in place. If `target` has no such key, it is left
+ * unchanged and no diagnostic is raised (matching {@link executeRemove}'s "no match, no error"
+ * convention). `key` then `target` are evaluated left to right; either being an expression kind
+ * this profile does not yet evaluate leaves the whole statement a deferred no-op. A non-dict
+ * target raises `ol-type`; a key that is not a word or number raises `ol-type` too.
+ */
+export function executeRemoveKey(
+  node: RemoveKeyNode,
+  environment: Environment,
+): AssignResult {
+  if (
+    !isSupportedExpression(node.key, environment.procedures) ||
+    !isSupportedExpression(node.target, environment.procedures)
+  ) {
+    return { ok: true };
+  }
+  const keyResult = evaluate(node.key, environment);
+  if (!keyResult.ok) {
+    return { ok: false, diagnostic: keyResult.diagnostic };
+  }
+  const targetResult = evaluate(node.target, environment);
+  if (!targetResult.ok) {
+    return { ok: false, diagnostic: targetResult.diagnostic };
+  }
+  if (!(targetResult.value instanceof OLDict)) {
+    return {
+      ok: false,
+      diagnostic: runtimeDiag.listMutatorType(node.target.source_span, {
+        expected: "dict",
+        actual: typeNameOf(targetResult.value),
+        value: targetResult.value,
+        operation: "remove key",
+      }),
+    };
+  }
+  const key = keyResult.value;
+  if (typeof key !== "string" && typeof key !== "number") {
+    return {
+      ok: false,
+      diagnostic: runtimeDiag.placeType(node.key.source_span, {
+        expected: "word or number",
+        actual: typeNameOf(key),
+        value: key,
+        operation: "remove key",
+      }),
+    };
+  }
+  targetResult.value.delete(key);
   return { ok: true };
 }
 
@@ -1342,6 +1612,15 @@ function evaluateCall(
   }
   if (name === "sort") {
     return evaluateSort(node, environment);
+  }
+  if (name === "dict") {
+    return evaluateDict(node, environment);
+  }
+  if (name === "keys") {
+    return evaluateKeys(node, environment);
+  }
+  if (name === "values") {
+    return evaluateValues(node, environment);
   }
   if (name === "xcor") {
     return evaluateXcor(node, environment);
@@ -1626,7 +1905,9 @@ export function formatNumber(value: number): string {
  * `print value`/`(print …)` trace event as learner-visible text: numbers follow
  * {@link formatNumber}; a word prints verbatim (no surrounding quotes); a boolean prints
  * `true`/`false`; a list prints space-separated and bracketed, recursively, so a nested list
- * renders as `[1 [2 3]]`.
+ * renders as `[1 [2 3]]`; a dict prints its entries in insertion order as `{key: value …}`
+ * (issue #322 — the spec does not give dict printing a normative literal syntax, so this mirrors
+ * the dict-literal surface for legibility).
  */
 export function printedForm(value: OLValue): string {
   if (typeof value === "number") {
@@ -1638,26 +1919,32 @@ export function printedForm(value: OLValue): string {
   if (typeof value === "boolean") {
     return value ? "true" : "false";
   }
+  if (value instanceof OLDict) {
+    const entries = value
+      .keys()
+      .map((key) => `${key}: ${printedForm(value.get(key) as OLValue)}`);
+    return `{${entries.join(" ")}}`;
+  }
   return `[${value.map(printedForm).join(" ")}]`;
 }
 
 /**
- * Normative `==` for the four Core types (`spec/execution-model.md:483-510` matrix): numeric
+ * Normative `==` for OpenLogo's value types (`spec/execution-model.md:483-510` matrix): numeric
  * equality for two numbers; number↔word by canonical printed form; case-sensitive word equality;
- * boolean identity; structural list equality; every other cross-type pair is `false`. List
- * equality is cycle-safe via pair memoization (see {@link listEqual}). Exported so equality can
- * be exercised directly on constructed {@link OLValue}s — including cyclic lists, which are not
- * yet expressible through Core source (list mutation is issue #101).
+ * boolean identity; structural list equality; structural dict equality (same key set, pairwise
+ * `==`, order-independent — issue #322); every other cross-type pair is `false`. List/dict
+ * equality is cycle-safe via pair memoization (see {@link listEqual}/{@link dictEqual}). Exported
+ * so equality can be exercised directly on constructed {@link OLValue}s — including cyclic lists,
+ * which are not yet expressible through Core source (list mutation is issue #101).
  */
 export function valuesEqual(a: OLValue, b: OLValue): boolean {
   return equalRec(a, b, new Map());
 }
 
-function equalRec(
-  a: OLValue,
-  b: OLValue,
-  inProgress: Map<readonly OLValue[], Set<readonly OLValue[]>>,
-): boolean {
+/** Reference pairs currently on the structural-equality comparison stack (lists or dicts). */
+type EqualityMemo = Map<object, Set<object>>;
+
+function equalRec(a: OLValue, b: OLValue, inProgress: EqualityMemo): boolean {
   if (typeof a === "number") {
     if (typeof b === "number") {
       return a === b;
@@ -1680,6 +1967,9 @@ function equalRec(
     // `a === b` is `true` only for the same boolean; every cross-type right side is `false`.
     return a === b;
   }
+  if (a instanceof OLDict) {
+    return b instanceof OLDict ? dictEqual(a, b, inProgress) : false;
+  }
   if (!Array.isArray(b)) {
     return false;
   }
@@ -1697,7 +1987,7 @@ function equalRec(
 function listEqual(
   a: readonly OLValue[],
   b: readonly OLValue[],
-  inProgress: Map<readonly OLValue[], Set<readonly OLValue[]>>,
+  inProgress: EqualityMemo,
 ): boolean {
   const partners = inProgress.get(a);
   if (partners?.has(b)) {
@@ -1706,7 +1996,7 @@ function listEqual(
   if (a.length !== b.length) {
     return false;
   }
-  const active = partners ?? new Set<readonly OLValue[]>();
+  const active = partners ?? new Set<object>();
   if (partners === undefined) {
     inProgress.set(a, active);
   }
@@ -1714,6 +2004,42 @@ function listEqual(
   try {
     for (let i = 0; i < a.length; i++) {
       if (!equalRec(a[i] as OLValue, b[i] as OLValue, inProgress)) {
+        return false;
+      }
+    }
+    return true;
+  } finally {
+    active.delete(b);
+    if (active.size === 0) {
+      inProgress.delete(a);
+    }
+  }
+}
+
+/**
+ * Structural dict equality (issue #322, `spec/execution-model.md:494`): same key set and pairwise
+ * `==`, order-independent. Sibling of {@link listEqual} — same cyclic/shared-structure memoization
+ * strategy, reusing the same `inProgress` stack since a dict can nest lists and vice versa.
+ */
+function dictEqual(a: OLDict, b: OLDict, inProgress: EqualityMemo): boolean {
+  const partners = inProgress.get(a);
+  if (partners?.has(b)) {
+    return true;
+  }
+  if (a.size !== b.size) {
+    return false;
+  }
+  const active = partners ?? new Set<object>();
+  if (partners === undefined) {
+    inProgress.set(a, active);
+  }
+  active.add(b);
+  try {
+    for (const key of a.keys()) {
+      if (!b.has(key)) {
+        return false;
+      }
+      if (!equalRec(a.get(key) as OLValue, b.get(key) as OLValue, inProgress)) {
         return false;
       }
     }
@@ -1928,27 +2254,30 @@ function evaluateComparisonChain(
  * (`packages/parser/src/checker-type-field.ts`, issue #112), kept in sync by hand since it is not
  * part of `@openlogo/parser`'s public surface (`checker-type-field.ts` is not re-exported from
  * `index.ts`). Case-sensitive, matching the checker: `is a "number"` resolves, `is a "Number"`
- * does not (both are "unknown", not a type mismatch). Data-profile words (`dict`, `record`) are
- * deferred exactly as the checker defers them — {@link OLValue} has no way to construct one yet.
+ * does not (both are "unknown", not a type mismatch). `record` is deferred exactly as the checker
+ * defers it — {@link OLValue} has no way to construct one yet; `dict` joined as of issue #322.
  */
 const CORE_IS_A_TYPE_WORDS: ReadonlySet<string> = new Set([
   "number",
   "word",
   "list",
   "boolean",
+  "dict",
 ]);
 
-/** Is `value` one of the types `is empty`/`empty?` accepts: a list or a word (dict is deferred). */
+/** Is `value` one of the types `is empty`/`empty?` accepts: a list, dict, or word (issue #322). */
 function isEmptyableValue(
   value: OLValue,
-): value is string | readonly OLValue[] {
-  return typeof value === "string" || Array.isArray(value);
+): value is string | readonly OLValue[] | OLDict {
+  return (
+    typeof value === "string" || Array.isArray(value) || value instanceof OLDict
+  );
 }
 
 /**
- * `is empty`/`empty?`: `true` when a list/word operand has no elements/characters
- * (`spec/execution-model.md:160` — accepts lists, dicts, and words; dict is deferred, see
- * {@link CORE_IS_A_TYPE_WORDS}'s doc comment). Any other type raises `ol-type`.
+ * `is empty`/`empty?`: `true` when a list/dict/word operand has no elements/entries/characters
+ * (`spec/execution-model.md:160` — accepts lists, dicts, and words). Any other type raises
+ * `ol-type`.
  */
 function evaluateIsEmptyValue(
   value: OLValue,
@@ -1958,22 +2287,23 @@ function evaluateIsEmptyValue(
   if (!isEmptyableValue(value)) {
     return fail(
       runtimeDiag.isPredicateType(span, {
-        expected: "list or word",
+        expected: "list, dict, or word",
         actual: typeNameOf(value),
         value,
         operation,
       }),
     );
   }
-  return ok(value.length === 0);
+  const size = value instanceof OLDict ? value.size : value.length;
+  return ok(size === 0);
 }
 
 /**
- * `is member of <collection>`/`member? value collection`: `true` when `collection` (a list — dict
- * is deferred, see {@link CORE_IS_A_TYPE_WORDS}'s doc comment) has an element equal to `value`
- * (`spec/execution-model.md:161` — `member of` accepts lists and dicts). A non-list `collection`
- * raises `ol-type`; `value`'s own type is unrestricted, using the same equality
- * ({@link valuesEqual}) as `==`.
+ * `is member of <collection>`/`member? value collection`: `true` when `collection` (a list or
+ * dict, `spec/execution-model.md:161`) has, respectively, an element equal to `value` (list, via
+ * {@link valuesEqual}) or a key equal to `value` (dict — key membership, a distinct check from a
+ * list's element search). A `collection` that is neither raises `ol-type`; `value`'s own type is
+ * unrestricted.
  */
 function evaluateIsMemberValue(
   value: OLValue,
@@ -1981,10 +2311,13 @@ function evaluateIsMemberValue(
   collectionSpan: SourceSpan,
   operation: "is member of" | "member?",
 ): EvalResult {
+  if (collection instanceof OLDict) {
+    return ok(collection.has(value));
+  }
   if (!Array.isArray(collection)) {
     return fail(
       runtimeDiag.isPredicateType(collectionSpan, {
-        expected: "list",
+        expected: "list or dict",
         actual: typeNameOf(collection),
         value: collection,
         operation,
@@ -2508,13 +2841,9 @@ function evaluateWord(
 }
 
 /**
- * `count` — the number of elements in a list, or characters in a word
- * (`spec/commands.md` "count"). A non-word/non-list input raises `ol-type`.
- *
- * `spec/commands.md`'s literal `count` signature also accepts a dict argument, but `OLValue`
- * (`packages/core/src/values.ts`) has no dict representation at all yet — this is the same
- * genuine, currently-unimplementable gap `CORE_IS_A_TYPE_WORDS` already documents for `is a
- * "dict"`, deferred rather than invented here.
+ * `count` — the number of elements in a list, entries in a dict (issue #322), or characters in a
+ * word (`spec/commands.md:1141` — accepts a word, list, or dict). Any other input raises
+ * `ol-type`.
  */
 function evaluateCount(
   node: ArithmeticCallNode,
@@ -2530,10 +2859,13 @@ function evaluateCount(
     return inputResult;
   }
   const value = inputResult.value;
+  if (value instanceof OLDict) {
+    return ok(value.size);
+  }
   if (!isWordOrList(value)) {
     return fail(
       runtimeDiag.listReporterType(inputNode.source_span, {
-        expected: "word or list",
+        expected: "word, list, or dict",
         actual: typeNameOf(value),
         value,
         operation: "count",
@@ -2723,6 +3055,84 @@ function evaluateSort(
     compareSortElements(category, a, b),
   );
   return ok(sorted);
+}
+
+/**
+ * `dict` — the empty-dict constructor reporter (issue #322, `spec/data-structures.md:150`). Takes
+ * no arguments; every call yields a *fresh*, independent, empty `OLDict`.
+ */
+function evaluateDict(
+  node: ArithmeticCallNode,
+  environment: Environment,
+): EvalResult {
+  const arityDiagnostic = requireExactArgs(node, "dict", 0);
+  if (arityDiagnostic) {
+    return fail(arityDiagnostic);
+  }
+  void environment;
+  return ok(new OLDict());
+}
+
+/**
+ * `keys` — a fresh list of `dict`'s keys, in insertion order (issue #322,
+ * `spec/data-structures.md:236`). A non-dict argument raises `ol-type`.
+ */
+function evaluateKeys(
+  node: ArithmeticCallNode,
+  environment: Environment,
+): EvalResult {
+  const arityDiagnostic = requireExactArgs(node, "keys", 1);
+  if (arityDiagnostic) {
+    return fail(arityDiagnostic);
+  }
+  const dictNode = arg(node, 0);
+  const dictResult = evaluate(dictNode, environment);
+  if (!dictResult.ok) {
+    return dictResult;
+  }
+  const value = dictResult.value;
+  if (!(value instanceof OLDict)) {
+    return fail(
+      runtimeDiag.listReporterType(dictNode.source_span, {
+        expected: "dict",
+        actual: typeNameOf(value),
+        value,
+        operation: "keys",
+      }),
+    );
+  }
+  return ok([...value.keys()]);
+}
+
+/**
+ * `values` — a fresh list of `dict`'s values, in the same insertion order as {@link evaluateKeys}
+ * (issue #322, `spec/data-structures.md:237`). A non-dict argument raises `ol-type`.
+ */
+function evaluateValues(
+  node: ArithmeticCallNode,
+  environment: Environment,
+): EvalResult {
+  const arityDiagnostic = requireExactArgs(node, "values", 1);
+  if (arityDiagnostic) {
+    return fail(arityDiagnostic);
+  }
+  const dictNode = arg(node, 0);
+  const dictResult = evaluate(dictNode, environment);
+  if (!dictResult.ok) {
+    return dictResult;
+  }
+  const value = dictResult.value;
+  if (!(value instanceof OLDict)) {
+    return fail(
+      runtimeDiag.listReporterType(dictNode.source_span, {
+        expected: "dict",
+        actual: typeNameOf(value),
+        value,
+        operation: "values",
+      }),
+    );
+  }
+  return ok([...value.values()]);
 }
 
 /**
