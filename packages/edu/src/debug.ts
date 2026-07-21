@@ -307,21 +307,27 @@ function turtleStateSegment(events: readonly TraceEvent[]): string | undefined {
  * (`spec/educational-model.md:521`'s "For procedures, show a friendly call path"): every
  * `procedure-enter` pushes its callee's name, every `procedure-exit` pops one — the same
  * enter/exit pairing the trace/event contract itself guarantees
- * (`spec/execution-model.md:606-648`) — leaving only the frames still active.
+ * (`spec/execution-model.md:606-648`) — leaving only the frames still active. When the target
+ * itself is a completed procedure call (its enter/exit pair already closed, so no frame is left
+ * open), the target's own `commandMetadata` still names the procedure it invoked — showing that
+ * single-name path is more useful to a learner than showing nothing.
  */
-function callPathSegment(events: readonly TraceEvent[]): string | undefined {
+function callPathSegment(context: TutorContext): string | undefined {
   const openFrames: string[] = [];
-  for (const event of events) {
+  for (const event of context.events) {
     if (event.kind === "procedure-enter") {
       openFrames.push((event.payload as ProcedureEnterPayload).name);
     } else if (event.kind === "procedure-exit") {
       openFrames.pop();
     }
   }
-  if (openFrames.length === 0) {
-    return undefined;
+  if (openFrames.length > 0) {
+    return `Call path: ${openFrames.map((name) => `\`${name}\``).join(" → ")}.`;
   }
-  return `Call path: ${openFrames.map((name) => `\`${name}\``).join(" → ")}.`;
+  if (context.commandMetadata?.kind === "procedure") {
+    return `Call path: \`${context.commandMetadata.name}\`.`;
+  }
+  return undefined;
 }
 
 /**
@@ -334,7 +340,7 @@ function nextStepSegment(
   diagnostic: OlDiagnostic | undefined,
 ): string {
   if (diagnostic === undefined) {
-    return "This instruction ran without an error. Try changing one input at a time and running `debug` again to see what changes.";
+    return "No error is associated with this instruction. Try changing one input at a time and running `debug` again to see what changes.";
   }
   const names = collectVariableNames(context.target);
   if (names.length > 0) {
@@ -369,7 +375,7 @@ export function debug(context: TutorContext): TutorOutput {
     segments.push(turtleState);
   }
 
-  const callPath = callPathSegment(context.events);
+  const callPath = callPathSegment(context);
   if (callPath !== undefined) {
     segments.push(callPath);
   }

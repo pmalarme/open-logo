@@ -31,7 +31,7 @@ test("debug describes the whole program when no target is selected and nothing w
   assert.equal(output.target_source_span, undefined);
   assert.ok(
     output.segments[output.segments.length - 1].includes(
-      "ran without an error",
+      "No error is associated",
     ),
   );
 });
@@ -111,6 +111,10 @@ test("debug names a procedure target by its commandMetadata kind", () => {
     output.segments[0],
     "The current instruction calls the `square` procedure.",
   );
+  // The call to `square` already ran to completion (no trace events at all here, so no
+  // procedure-enter/procedure-exit frame is open) — the target's own commandMetadata still
+  // names it, so the learner sees which procedure this line invokes instead of no call path.
+  assert.ok(output.segments.includes("Call path: `square`."));
 });
 
 test("debug describes a non-call target using its statement kind when no commandMetadata is given", () => {
@@ -284,7 +288,7 @@ test("debug does not attribute an error from a different document to a selected 
   // No containing/matching diagnostic for this target: `debug` reports no error rather than
   // misattributing an unrelated one to the instruction the learner is looking at.
   assert.equal(output.diagnostic_code, undefined);
-  assert.ok(output.segments.at(-1).includes("ran without an error"));
+  assert.ok(output.segments.at(-1).includes("No error is associated"));
 });
 
 test("debug ignores style diagnostics and diagnostics that are not severity error when picking what to explain", () => {
@@ -307,7 +311,7 @@ test("debug ignores style diagnostics and diagnostics that are not severity erro
   };
   const output = OL.debug(context);
   assert.equal(output.diagnostic_code, undefined);
-  assert.ok(output.segments.at(-1).includes("ran without an error"));
+  assert.ok(output.segments.at(-1).includes("No error is associated"));
 });
 
 test("debug's next-step suggestion falls back to naming the callee when there is an error but no variable in play", () => {
@@ -356,7 +360,7 @@ test("debug ignores an error-severity diagnostic whose code is not a stable ol-*
   };
   const output = OL.debug(context);
   assert.equal(output.diagnostic_code, undefined);
-  assert.ok(output.segments.at(-1).includes("ran without an error"));
+  assert.ok(output.segments.at(-1).includes("No error is associated"));
 });
 
 test("debug still cites the only ol-* error when no target is selected at all", () => {
@@ -429,7 +433,7 @@ test("debug does not attribute a diagnostic to a target that starts after it in 
   // `target` (the second statement) doesn't contain the first statement's error, so `debug`
   // reports no error for it rather than misattributing an unrelated failure.
   assert.equal(output.diagnostic_code, undefined);
-  assert.ok(output.segments.at(-1).includes("ran without an error"));
+  assert.ok(output.segments.at(-1).includes("No error is associated"));
 });
 
 test("debug does not attribute a diagnostic to an earlier target in the same document", () => {
@@ -446,7 +450,7 @@ test("debug does not attribute a diagnostic to an earlier target in the same doc
   };
   const output = OL.debug(context);
   assert.equal(output.diagnostic_code, undefined);
-  assert.ok(output.segments.at(-1).includes("ran without an error"));
+  assert.ok(output.segments.at(-1).includes("No error is associated"));
 });
 
 test("debug reports a variable segment without a type-mismatch phrase when the diagnostic carries no expected/actual params", () => {
