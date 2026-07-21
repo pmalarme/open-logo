@@ -17,10 +17,12 @@ its rules.
 
 ## How the parser reads your tokens
 
-The parser walks the token list left to right, never looking more than a token or two ahead — a
-style called **recursive descent**: for each kind of thing it might be reading (a statement, then an
-expression, then a *piece* of an expression), it calls a smaller function that knows how to read
-just that one shape, and those functions call each other, nesting the way the tree itself nests.
+The parser mostly walks the token list left to right, a style called **recursive descent**: for each
+kind of thing it might be reading (a statement, then an expression, then a *piece* of an expression),
+it calls a smaller function that knows how to read just that one shape, and those functions call
+each other, nesting the way the tree itself nests. Before any of that starts, it does take one quick
+peek through the *whole* token list — just to note how many inputs each of your own `define`d
+procedures expects, so it can read a call to one of them correctly later.
 
 ```mermaid
 flowchart LR
