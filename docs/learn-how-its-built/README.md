@@ -27,10 +27,11 @@ real OpenLogo code and the actual code that runs inside OpenLogo today.
 | [03 · The lexer](03-the-lexer.md) | The machine that does the chopping |
 | [04 · The AST](04-the-ast.md) | Turning tokens into a tree |
 | [05 · The interpreter & runtime](05-the-interpreter-and-runtime.md) | Walking the tree to make things happen |
-| [06 · Highlighting](06-highlighting.md) | Why keywords turn colors |
-| [07 · The checker](07-the-checker.md) | How OpenLogo says "oops," kindly |
-| [08 · How we built it](08-how-we-built-it.md) | The human side — how a team builds a language |
-| [09 · What we shipped](09-what-we-shipped.md) | What the whole series adds up to, all together |
+| [06 · How the turtle draws](06-how-the-turtle-draws.md) | Turning events into pixels on the canvas |
+| [07 · Highlighting](07-highlighting.md) | Why keywords turn colors |
+| [08 · The checker](08-the-checker.md) | How OpenLogo says "oops," kindly |
+| [09 · How we built it](09-how-we-built-it.md) | The human side — how a team builds a language |
+| [10 · What we shipped](10-what-we-shipped.md) | What the whole series adds up to, all together |
 
 Read them in order the first time through — each page builds on the last.
 

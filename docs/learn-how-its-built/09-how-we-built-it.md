@@ -1,4 +1,4 @@
-# 08 · How we built it
+# 09 · How we built it
 
 The other pages in this series show you the *machines* inside OpenLogo — the lexer, the tree, the
 interpreter, the turtle. This page is about the *team* that built them, and the habits that keep
@@ -95,4 +95,4 @@ Open the `.github/agents/` folder in the OpenLogo repository and count how many 
 you find — see if you can match each one to the part of the language it owns, using the list above
 as a guide.
 
-**Next up →** [09 · What we shipped](09-what-we-shipped.md)
+**Next up →** [10 · What we shipped](10-what-we-shipped.md)
