@@ -400,3 +400,18 @@ export {
   mountLessonPane,
   NO_LESSON_VIEW,
 } from "./lesson-pane.js";
+
+export type {
+  TutorOutputController,
+  TutorOutputControllerOptions,
+  TutorOutputEntry,
+  TutorOutputEntryListener,
+  TutorOutputPaneView,
+  TutorOutputViewItem,
+} from "./tutor-output-pane.js";
+export {
+  createTutorOutputController,
+  eduTutorTemplate,
+  mountTutorOutputPane,
+  toTutorOutputListItems,
+} from "./tutor-output-pane.js";

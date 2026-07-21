@@ -40,6 +40,12 @@
  *   maps it (via `mapSpeedSliderValueToTickDelayMs`) to the `TurtleAnimationController` pacing it
  *   drives the Canvas animation through — this store only holds the raw slider position, never the
  *   derived delay, so there is exactly one place (`turtle-speed.ts`) that owns the mapping.
+ * - `tutorOutput` (#334) — the current run's `tutor-output` trace events (`@openlogo/core`'s
+ *   `TutorOutputPayload`), one entry per `explain`/`why`/`hint`/`debug` invocation, in the order
+ *   they were emitted. Replaced wholesale by `run-controller.ts` every run, exactly like `output`/
+ *   `diagnostics` above — never invented or reformatted here. `tutor-output-pane.ts`'s controller
+ *   is what accumulates these across runs into a growing history (mirroring `run-log.ts`'s
+ *   pattern), so this field only ever needs to hold the latest run's own events.
  *
  * ## Update contract
  * - State changes **only** through the store's `set*` methods below; the object returned by
@@ -51,7 +57,7 @@
  *   notified synchronously with the new snapshot; `subscribe` returns an unsubscribe function.
  */
 
-import type { Diagnostic, Position } from "@openlogo/core";
+import type { Diagnostic, Position, TutorOutputPayload } from "@openlogo/core";
 import type { TurtleScene, TurtleState } from "@openlogo/turtle";
 import { INITIAL_TURTLE_SCENE, INITIAL_TURTLE_STATE } from "@openlogo/turtle";
 import { DEFAULT_SPEED_SLIDER_VALUE } from "./turtle-speed.js";
@@ -96,6 +102,7 @@ export interface StudioState {
   readonly turtleState: TurtleState;
   readonly turtleScene: TurtleScene;
   readonly speedSliderValue: number;
+  readonly tutorOutput: readonly TutorOutputPayload[];
 }
 
 /** A subscriber notified with the new snapshot after every state change. */
@@ -139,6 +146,13 @@ export interface StudioStateStore {
    * `run()`-call time.
    */
   setSpeedSliderValue(speedSliderValue: number): void;
+  /**
+   * Replace the current run's `tutor-output` events (#334) — the ordered `TutorOutputPayload`s
+   * `explain`/`why`/`hint`/`debug` emitted during the most recent run. `run-controller.ts` calls
+   * this once per `run()`, exactly like `setOutput`/`setDiagnostics`; `tutor-output-pane.ts`'s
+   * controller accumulates these across runs into its own growing history.
+   */
+  setTutorOutput(tutorOutput: readonly TutorOutputPayload[]): void;
 }
 
 const INITIAL_POSITION: Position = [1, 1];
@@ -163,6 +177,7 @@ export function createStudioState(
     turtleState: initial?.turtleState ?? INITIAL_TURTLE_STATE,
     turtleScene: initial?.turtleScene ?? INITIAL_TURTLE_SCENE,
     speedSliderValue: initial?.speedSliderValue ?? DEFAULT_SPEED_SLIDER_VALUE,
+    tutorOutput: initial?.tutorOutput ?? [],
   };
 
   const listeners = new Set<StudioStateListener>();
@@ -211,6 +226,9 @@ export function createStudioState(
     },
     setSpeedSliderValue(speedSliderValue) {
       commit({ speedSliderValue });
+    },
+    setTutorOutput(tutorOutput) {
+      commit({ tutorOutput });
     },
   };
 }

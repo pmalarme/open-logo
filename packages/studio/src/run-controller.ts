@@ -14,6 +14,17 @@
  * `diagnostics` list unchanged — the diagnostics pane (#125) renders them, this module never
  * invents its own diagnostic shape.
  *
+ * ## #334 — injecting `@openlogo/edu`'s tutor templates + surfacing `tutor-output`
+ * `prepare()` passes `tutor-output-pane.ts`'s {@link eduTutorTemplate} as
+ * `ExecuteOptions.tutorTemplates` (A2, #332's injectable seam) so `explain`/`why`/`hint`/`debug`
+ * emit `@openlogo/edu`'s real curriculum-quality prose instead of the runtime's minimal built-in
+ * `defaultTutorTemplate` fallback — this module still never chooses that pedagogy itself, it only
+ * composes the HOST's template into the runtime call, exactly as it already composes
+ * `instructionBudget`/`recursionDepthLimit`/`signal`. Every `tutor-output` event the run emits is
+ * then reduced (mirroring `collectOutput`'s `print`-event reduction) into the shared state model's
+ * `tutorOutput` field (`state.setTutorOutput`) — `tutor-output-pane.ts`'s controller is what
+ * accumulates these across runs into the pane's growing, learner-visible history.
+ *
  * ## Stop and the same-thread cancellation caveat
  * `@openlogo/runtime`'s {@link CancellationSignal} is checked before every statement/loop pass
  * *within* a single `execute()` call, so it is the correct mechanism to cancel a loop already in
@@ -130,7 +141,11 @@
 
 import { execute, printedForm } from "@openlogo/runtime";
 import type { CancellationSignal, ExecuteOptions } from "@openlogo/runtime";
-import type { PrintPayload, TraceEvent } from "@openlogo/core";
+import type {
+  PrintPayload,
+  TraceEvent,
+  TutorOutputPayload,
+} from "@openlogo/core";
 import {
   IMMEDIATE_SCHEDULER,
   INITIAL_TURTLE_SCENE,
@@ -142,6 +157,7 @@ import type { Scheduler } from "@openlogo/turtle";
 import type { AppShell } from "./app-shell.js";
 import type { CanvasViewController } from "./canvas-view.js";
 import type { RunStatus, StudioStateStore } from "./state-model.js";
+import { eduTutorTemplate } from "./tutor-output-pane.js";
 import {
   isInstantTickDelay,
   mapSpeedSliderValueToTickDelayMs,
@@ -250,6 +266,29 @@ function collectOutput(events: readonly TraceEvent[]): string[] {
   return output;
 }
 
+function isTutorOutputEvent(
+  event: TraceEvent,
+): event is TraceEvent<TutorOutputPayload> & { readonly kind: "tutor-output" } {
+  return event.kind === "tutor-output";
+}
+
+/**
+ * Reduce a trace-event stream down to the ordered `tutor-output` payloads it carries (#334) —
+ * every `explain`/`why`/`hint`/`debug` invocation's result, in emission order. Mirrors
+ * {@link collectOutput}'s reduction pattern for `print` events above.
+ */
+function collectTutorOutput(
+  events: readonly TraceEvent[],
+): TutorOutputPayload[] {
+  const tutorOutput: TutorOutputPayload[] = [];
+  for (const event of events) {
+    if (isTutorOutputEvent(event)) {
+      tutorOutput.push(event.payload);
+    }
+  }
+  return tutorOutput;
+}
+
 /** Construct the Run/Stop/Reset/Step controller over an existing state model (never a copy). */
 export function createRunController(
   state: StudioStateStore,
@@ -303,6 +342,7 @@ export function createRunController(
 
     const execOptions: ExecuteOptions = {
       signal,
+      tutorTemplates: eduTutorTemplate,
       ...(options?.instructionBudget !== undefined
         ? { instructionBudget: options.instructionBudget }
         : {}),
@@ -315,6 +355,7 @@ export function createRunController(
 
     state.setOutput(collectOutput(result.events));
     state.setDiagnostics(result.diagnostics);
+    state.setTutorOutput(collectTutorOutput(result.events));
     finalRunStatus = result.diagnostics.some(
       (diagnostic) => diagnostic.code === "ol-limit",
     )
@@ -375,6 +416,7 @@ export function createRunController(
     userStopped = false;
     state.setOutput([]);
     state.setDiagnostics([]);
+    state.setTutorOutput([]);
     animation?.reset();
     animation = null;
     state.setTurtleState(INITIAL_TURTLE_STATE);

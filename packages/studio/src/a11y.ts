@@ -144,6 +144,12 @@ export const REPL_FOCUS_ORDER: readonly FocusStop[] = [
     role: "log",
     label: "Diagnostics",
   },
+  {
+    id: "tutor-output",
+    region: "tutor",
+    role: "log",
+    label: "Tutor output",
+  },
 ];
 
 /** The container-level ARIA role + label for one REPL pane (as opposed to its focus stops). */
@@ -165,6 +171,7 @@ export const REPL_LANDMARK_ROLES: readonly RegionLandmark[] = [
   { region: "turtle", role: "img", label: "Turtle canvas" },
   { region: "turtle", role: "status", label: "Turtle state" },
   { region: "diagnostics", role: "log", label: "Diagnostics" },
+  { region: "tutor", role: "log", label: "Tutor output" },
 ];
 
 /** The index of `id` within `order`, or throws if it isn't a member (a programming error). */

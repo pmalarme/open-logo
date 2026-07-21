@@ -53,6 +53,7 @@ import {
   createStudioState,
   createTimeoutScheduler,
   createTurtleStateRegion,
+  createTutorOutputController,
   DEFAULT_RUN_PROGRAM,
   describeSpeedTickDelayMs,
   formatOutput,
@@ -64,6 +65,7 @@ import {
   mountEditorPane,
   mountLessonPane,
   mountRunController,
+  mountTutorOutputPane,
   selectAnnouncerElementId,
   selectScheduler,
   SPEED_SLIDER_MAX,
@@ -71,6 +73,7 @@ import {
   syncTextValue,
   toDiagnosticListItems,
   toRunLogListItems,
+  toTutorOutputListItems,
 } from "../src/index.js";
 import type {
   DiagnosticListItem,
@@ -78,6 +81,8 @@ import type {
   LessonPaneView,
   RunLogEntry,
   RunLogEntryViewItem,
+  TutorOutputEntry,
+  TutorOutputViewItem,
   WorkedExampleViewItem,
   RunStatus,
   RunToggleAction,
@@ -139,6 +144,14 @@ const diagnosticsListElement = assertPresent<HTMLElement>(
 const runLogElement = assertPresent<HTMLElement>(
   document.getElementById("run-log"),
   "run-log",
+);
+const tutorOutputPaneElement = assertPresent<HTMLElement>(
+  document.getElementById("tutor-output-pane"),
+  "tutor-output-pane",
+);
+const tutorOutputElement = assertPresent<HTMLElement>(
+  document.getElementById("tutor-output"),
+  "tutor-output",
 );
 const turtleStateElement = assertPresent<HTMLElement>(
   document.getElementById("turtle-state"),
@@ -207,6 +220,9 @@ const runController = createRunController(state, {
 mountRunController(shell, runController);
 
 const runLog = createRunLogController(state);
+
+const tutorOutput = createTutorOutputController(state);
+mountTutorOutputPane(shell, tutorOutput);
 
 const announcer = createA11yAnnouncer(state);
 announcer.subscribeAnnouncements((announcement) => {
@@ -319,6 +335,49 @@ function renderRunLog(
   );
 }
 
+/** Builds one `<li>` per already-projected {@link TutorOutputViewItem} — plain DOM element
+ * creation with no decision of its own (the heading/segment text was already decided by
+ * {@link toTutorOutputListItems}), matching {@link createRunLogEntryElement} above. */
+function createTutorOutputEntryElement(
+  item: TutorOutputViewItem,
+): HTMLLIElement {
+  const listItem = document.createElement("li");
+
+  const heading = document.createElement("p");
+  heading.className = "tutor-output-heading";
+  heading.textContent = item.heading;
+
+  const segments = document.createElement("div");
+  segments.className = "tutor-output-segments";
+  segments.replaceChildren(
+    ...item.segments.map((segment) => {
+      const paragraph = document.createElement("p");
+      paragraph.textContent = segment;
+      return paragraph;
+    }),
+  );
+
+  listItem.replaceChildren(heading, segments);
+  return listItem;
+}
+
+/** Renders the tutor-output pane: the whole `.pane-tutor` section (not just the `<ul>`) stays
+ * hidden until `explain`/`why`/`hint`/`debug` has ever run — matching {@link renderLessonPane}'s
+ * direct `hidden` toggle on its mount element, so `web/styles.css`'s
+ * `main:has(.pane-tutor:not([hidden]))` extension-slot rules only reserve grid space once the
+ * pane is truly visible — then one `<li>` per recorded entry via
+ * {@link createTutorOutputEntryElement}. */
+function renderTutorOutput(
+  pane: HTMLElement,
+  list: HTMLElement,
+  entries: readonly TutorOutputEntry[],
+): void {
+  pane.hidden = entries.length === 0;
+  list.replaceChildren(
+    ...toTutorOutputListItems(entries).map(createTutorOutputEntryElement),
+  );
+}
+
 /** Builds one worked-example block per already-projected {@link WorkedExampleViewItem} — plain DOM
  * element creation with no decision of its own (`lesson-pane.ts`'s `toView` already picked which
  * worked examples exist and in what order), matching {@link createRunLogEntryElement} above. */
@@ -390,11 +449,23 @@ state.subscribe((next) => {
 runLog.subscribeEntries(() => {
   renderRunLog(runLogElement, runLog.getEntries());
 });
+tutorOutput.subscribeEntries(() => {
+  renderTutorOutput(
+    tutorOutputPaneElement,
+    tutorOutputElement,
+    tutorOutput.getEntries(),
+  );
+});
 runStatusElement.textContent = mapRunStatusToLabel(state.getState().runStatus);
 renderRunToggleButton(state.getState().runStatus);
 outputElement.textContent = formatOutput(state.getState().output);
 renderDiagnostics(diagnosticsListElement, state.getState().diagnostics);
 renderRunLog(runLogElement, runLog.getEntries());
+renderTutorOutput(
+  tutorOutputPaneElement,
+  tutorOutputElement,
+  tutorOutput.getEntries(),
+);
 syncTextValue(speedSliderElement, String(state.getState().speedSliderValue));
 speedDescriptionElement.textContent = describeSpeedTickDelayMs(
   mapSpeedSliderValueToTickDelayMs(state.getState().speedSliderValue),

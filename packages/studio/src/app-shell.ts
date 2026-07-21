@@ -13,13 +13,18 @@
 
 import type { StudioStateStore } from "./state-model.js";
 
-/** The named composition points later panes mount into. */
+/**
+ * The named composition points later panes mount into. `"tutor"` (#334) holds the tutor-output
+ * pane's `explain`/`why`/`hint`/`debug` results — absent until a meta-command runs, exactly like
+ * `"lesson"` is absent in sandbox mode (see `tutor-output-pane.ts`).
+ */
 export const APP_SHELL_REGIONS = [
   "editor",
   "turtle",
   "diagnostics",
   "lesson",
   "repl",
+  "tutor",
 ] as const;
 
 /** One of the app shell's named regions. */
