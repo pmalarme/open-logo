@@ -100,15 +100,8 @@ the learner asks again for the same target (or the environment remembers earlier
 4. **Last-resort** — describe the next step, still without giving the complete answer. Requests
    after `last-resort` repeat `last-resort` rather than escalate further or reveal the solution.
 
-**Example progression**, for a challenge to draw a pentagon:
-
-```logo
-# why: a regular pentagon needs five equal turns that add to a full turn
-repeat 5
-  forward 60
-  right 360 / 5
-end repeat
-```
+**Example progression**, for a learner working on the open-ended challenge of drawing a pentagon
+(no reference program shown here — showing one would defeat the point):
 
 - Nudge: "Look at the turn after each side. How many equal turns make a full turn?"
 - Concept: "A full turn is `360` degrees, and a regular polygon divides that by the number of
