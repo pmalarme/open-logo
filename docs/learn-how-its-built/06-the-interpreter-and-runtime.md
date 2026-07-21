@@ -1,6 +1,6 @@
-# 05 · The interpreter & runtime
+# 06 · The interpreter & runtime
 
-You already met these two in the big picture, but let's zoom all the way in. Once the reader has
+You already met these two in the big picture, but let's zoom all the way in. Once the parser has
 built the tree (the **AST**) for our square:
 
 ```
@@ -75,4 +75,4 @@ Change `right 90` to `right 45` in the square and picture the event stream befor
 `move`/`draw-segment` events stay the same shape, but every `turn` event now goes `{ from: X, to:
 X + 45 }` instead of `+ 90` — and it takes 8 turns, not 4, to face the original direction again.
 
-**Next up →** [06 · How the turtle draws](06-how-the-turtle-draws.md)
+**Next up →** [07 · How the turtle draws](07-how-the-turtle-draws.md)

@@ -1,4 +1,4 @@
-# 07 · Highlighting
+# 08 · Highlighting
 
 Open your `.logo` file in an editor and every piece of it lights up in a different color: keywords
 in one shade, numbers in another, commands in a third. That's **syntax highlighting** — and it's
@@ -6,7 +6,7 @@ the same idea as using different highlighter pens on your notes: one color for d
 names, one for definitions, so your eyes can spot what's what before you even read the words.
 
 OpenLogo does this by reusing the exact same tools that already understand your code — the
-**lexer** and the **reader** (the tree-builder from earlier pages) — instead of guessing from
+**lexer** and the **parser** (the tree-builder from earlier pages) — instead of guessing from
 patterns. That matters: a pattern-guesser might get confused and color a variable named `printer`
 as if it were the command `print`. OpenLogo never does, because it isn't guessing — it's asking the
 lexer and the tree what each piece of your code actually *is*.
@@ -29,7 +29,7 @@ Two things worth noticing:
   different pair of brackets, wrapping a plain list of numbers like `[ 1 2 3 ]`, would get the role
   `list` instead. The highlighter figures out the role by looking at the *shape* of the tree around
   the brackets, not just the bracket character itself — that's only possible because it's reusing
-  the reader's tree, not scanning text.
+  the parser's tree, not scanning text.
 
 OpenLogo recognizes **15 token classes** in total — our square only uses four of them (`keyword`,
 `number`, `primitive`, and `bracket`) — and that bracket pair also carries a **role**,
@@ -42,7 +42,7 @@ light up more classes: your own procedure names get their own color once you `de
 ## What's real today
 
 ✅ **Highlighting is grammar-derived, not guesswork** — it reuses the real lexer and the real tree
-(the reader's output), so it never mis-colors a variable that happens to share a name with a
+(the parser's output), so it never mis-colors a variable that happens to share a name with a
 command.
 
 ✅ **Bracket roles are real** — the `[ ]` around our square's repeat block is correctly classified
@@ -59,4 +59,4 @@ Open any `.logo` file in an editor with OpenLogo highlighting and look closely: 
 `repeat` should all share one color (keywords), while `forward`, `print`, and `right` share another
 (primitives) — even though, to your eyes, they're all "just words."
 
-**Next up →** [08 · The checker](08-the-checker.md)
+**Next up →** [09 · The checker](09-the-checker.md)

@@ -13,7 +13,7 @@ optional helper that can look over the tree without running it:
 ```mermaid
 flowchart LR
   A["📝 Your text<br/>repeat 4 [ forward 100 right 90 ]"] --> B["🔤 Lexer<br/>chops it into tokens"]
-  B --> C["🌳 Reader<br/>builds a tree (the AST)"]
+  B --> C["🌳 Parser<br/>builds a tree (the AST)"]
   C --> D["🏃 Interpreter<br/>walks the tree, one step at a time"]
   D --> E["🐢 Turtle<br/>moves and draws"]
   C -.->|"🔍 optional: check<br/>before you run"| F["Checker"]
@@ -25,9 +25,9 @@ Here's what each machine does, in plain words:
    the smallest meaningful pieces, like `repeat`, `4`, `[`, `forward`, `100`. Think of it like
    splitting a sentence into words before you can understand it. A future page in this series digs
    into tokens in detail.
-2. **The reader** takes that flat list of tokens and builds a **tree** out of it — a **block** is
+2. **The parser** takes that flat list of tokens and builds a **tree** out of it — a **block** is
    one bundle of instructions grouped together (here, everything between the `[` and `]`). The
-   reader nests blocks and instructions inside each other, the way a table of contents nests
+   parser nests blocks and instructions inside each other, the way a table of contents nests
    chapters inside a book. This tree has a real name: the **AST** (Abstract Syntax Tree). `forward
    100` becomes one instruction: "move forward, and the amount is 100."
 3. **The interpreter** walks the tree branch by branch and actually *does* what each part says.
@@ -46,7 +46,7 @@ required gate: your code can run without ever asking the checker first.
 ## What's real today
 
 ✅ **Tokenizing and building the tree** — our square example splits into clean tokens and the
-reader builds the correct tree, grouping `forward` with `100` and `right` with `90`.
+parser builds the correct tree, grouping `forward` with `100` and `right` with `90`.
 
 ✅ **The turtle actually moves** — this is the big one. Run our square today and OpenLogo really
 does draw it: the interpreter walks the tree and the turtle moves forward, turns, moves forward
