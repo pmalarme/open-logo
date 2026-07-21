@@ -61,3 +61,6 @@ export { explain, why } from "./tutor/explain-why.js";
 // (spec/educational-model.md#hint). No AI, no mutable state; stage progression is threaded in
 // via TutorContext.priorHintStage by the runtime dispatch slice (A2, #332).
 export { hint } from "./tutor/hint.js";
+
+// A5 (#335): the deterministic, offline, template-based `debug` baseline meta-command.
+export { debug } from "./debug.js";
