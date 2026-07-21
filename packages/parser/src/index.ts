@@ -16,11 +16,13 @@
  */
 export { ast, OL_NODE_KINDS, walk } from "./ast.js";
 export type {
+  AddNode,
   AnyNode,
   AssignNode,
   BlockNode,
   BooleanLitNode,
   CallNode,
+  ClearNode,
   ComparisonChainNode,
   ComprehensionNode,
   ExpressionNode,
@@ -29,6 +31,7 @@ export type {
   ForInNode,
   ForRangeNode,
   IfNode,
+  InsertNode,
   IsPredicateNode,
   IsTest,
   ListLitNode,
@@ -44,6 +47,8 @@ export type {
   ProcedureParam,
   ProgramNode,
   ReduceComprehensionNode,
+  RemoveKeyNode,
+  RemoveNode,
   RepeatNode,
   ReturnNode,
   SelectorSegment,

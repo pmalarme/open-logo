@@ -769,6 +769,11 @@ const MEGA = [
   "define f :p ( :q 1 )\n return :p\nend",
   "throw 9",
   "print { a: 1 }",
+  "add 3 to :x",
+  "remove 3 from :x",
+  'remove key "a" from :x',
+  "insert 3 in :x at 0",
+  "clear :x",
 ].join("\n");
 
 test("walk visits every core node kind, pre-order", () => {

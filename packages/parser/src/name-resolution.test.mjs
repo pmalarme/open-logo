@@ -201,9 +201,9 @@ test("the AST fallback wraps a ParenCall target back in its own parentheses, e.g
 
 test("the AST fallback renders a genuine two-argument prefix call target in prefix form — a two-argument callee that is NOT one of the fixed infix operator names is never mistaken for one", () => {
   const [finding] = checkNoSource(
-    "define add :a :b\n  print :a\nend\nadd 1 2 = 5\n",
+    "define combine :a :b\n  print :a\nend\ncombine 1 2 = 5\n",
   ).filter(isNotAPlace);
-  assert.deepEqual(finding.params, { text: "add 1 2" });
+  assert.deepEqual(finding.params, { text: "combine 1 2" });
 });
 
 // ── ol-undefined-var: static reads of an unbound `:name` ─────────────────────────────────────
