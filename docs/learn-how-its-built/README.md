@@ -31,7 +31,8 @@ real OpenLogo code and the actual code that runs inside OpenLogo today.
 | [07 · Highlighting](07-highlighting.md) | Why keywords turn colors |
 | [08 · The checker](08-the-checker.md) | How OpenLogo says "oops," kindly |
 | [09 · How we built it](09-how-we-built-it.md) | The human side — how a team builds a language |
-| [10 · What we shipped](10-what-we-shipped.md) | What the whole series adds up to, all together |
+| [10 · Where you type it](10-where-you-type-it.md) | The studio REPL and the Run/Stop/Reset controls |
+| [11 · What we shipped](11-what-we-shipped.md) | What the whole series adds up to, all together |
 
 Read them in order the first time through — each page builds on the last.
 

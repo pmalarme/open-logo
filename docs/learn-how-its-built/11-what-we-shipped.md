@@ -1,4 +1,4 @@
-# 10 · What we shipped
+# 11 · What we shipped
 
 Every other page in this series shows you one *machine* — the lexer, the tree, the interpreter, the
 checker. This page zooms out: forget how it works — **what does OpenLogo have, right now, that you
