@@ -109,15 +109,17 @@ export const level4Lessons: readonly Lesson[] = [
 
 /**
  * Graded Level 4 exercises for `l4-shape-color-condition`, ramping from a single comparison-
- * operator change, to applying that same comparison to a new value, to composing the concept
- * into a recognizable house (reusing Level 3's house shape) whose color is chosen by a
- * condition — per the compose-a-recognizable-object rule (`spec/educational-model.md:23`, issue
- * #359). The guided and practice exercises are literal single-line diffs of one another (see
- * level-4.test.mjs's diff assertions): guided changes only `==` to `!=` from the lesson's first
- * worked example, and practice changes only `:sides` from 4 to 6 from guided. The challenge is
- * intentionally exempt from that line-diff rule — it is the composition step the guardrail rule
- * asks for, not another single-line variation — but it still uses exactly one comparison
- * choosing between exactly one pair of branches, the same shape every earlier exercise used.
+ * operator change, to a second single comparison-operator change on the same shape and value, to
+ * composing the concept into a recognizable house (reusing Level 3's house shape) whose color is
+ * chosen by a condition — per the compose-a-recognizable-object rule (`spec/educational-model.md:23`,
+ * issue #359). The guided and practice exercises are literal single-line diffs of one another
+ * (see level-4.test.mjs's diff assertions): guided changes only `==` to `!=` from the lesson's
+ * first worked example, and practice changes only `!=` to `>=` from guided — `:sides = 4` and
+ * every branch body stay untouched across both, so only the comparison operator itself changes
+ * each time. The challenge is intentionally exempt from that line-diff rule — it is the
+ * composition step the guardrail rule asks for, not another single-line variation — but it still
+ * uses exactly one comparison choosing between exactly one pair of branches, the same pattern
+ * every earlier exercise used.
  */
 export const level4Exercises: readonly Exercise[] = [
   {
@@ -153,13 +155,13 @@ export const level4Exercises: readonly Exercise[] = [
     level: "4",
     difficulty: "practice",
     prompt:
-      "Apply the same != comparison to a hexagon: starting from the exercise above, change only :sides from 4 to 6, leaving every other line untouched, and predict the hexagon's color before you run it.",
+      "Starting from the exercise above, change only the comparison operator again, from != to >=, leaving :sides = 4 and every other line untouched, and predict the square's color before you run it.",
     referenceSolution: {
       source: [
         "# why: the turtle chooses a turn from a boolean comparison",
-        ":sides = 6",
+        ":sides = 4",
         "",
-        "if :sides != 4",
+        "if :sides >= 4",
         '  set_color "green"',
         "else",
         '  set_color "purple"',
@@ -171,7 +173,7 @@ export const level4Exercises: readonly Exercise[] = [
         "end repeat",
       ].join("\n"),
       explanation:
-        "Changing :sides from 4 to 6 is the only change from the guided exercise: :sides != 4 is now true for the hexagon, so the green branch runs — the same != comparison from the guided exercise now colors a different shape, because the value it compares against changed, not the comparison itself.",
+        "Changing != to >= is the only change from the guided exercise: :sides >= 4 is true for the same square (:sides is still 4), so the green branch runs this time — a different comparison operator reaches a different verdict on the very same value, without touching :sides or either branch's body.",
     },
   },
   {

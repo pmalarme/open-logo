@@ -146,7 +146,7 @@ test("the guided exercise changes exactly one line (== to !=) from the lesson's 
   assert.deepEqual(changedLines[0], ["if :sides == 4", "if :sides != 4"]);
 });
 
-test("the practice exercise changes exactly one line (:sides 4 to 6) from the guided exercise", () => {
+test("the practice exercise changes exactly one line (!= to >=) from the guided exercise", () => {
   const guided = level4Exercises.find(
     (item) => item.id === "l4-shape-color-flip-comparison",
   );
@@ -162,7 +162,7 @@ test("the practice exercise changes exactly one line (:sides 4 to 6) from the gu
     .map((line, index) => [line, practiceLines[index]])
     .filter(([before, after]) => before !== after);
   assert.equal(changedLines.length, 1);
-  assert.deepEqual(changedLines[0], [":sides = 4", ":sides = 6"]);
+  assert.deepEqual(changedLines[0], ["if :sides != 4", "if :sides >= 4"]);
 });
 
 test("the challenge exercise still uses exactly one comparison choosing between exactly one branch pair", () => {
@@ -225,7 +225,7 @@ test("l4-shape-color-flip-comparison colors the square purple after flipping == 
   assert.equal(colorChanges[0].payload.to, "purple");
 });
 
-test("l4-shape-color-many-sides colors the hexagon green under the != 4 comparison", () => {
+test("l4-shape-color-many-sides colors the square green under the >= 4 comparison", () => {
   const exercise = level4Exercises.find(
     (item) => item.id === "l4-shape-color-many-sides",
   );
@@ -237,7 +237,7 @@ test("l4-shape-color-many-sides colors the hexagon green under the != 4 comparis
   assert.equal(colorChanges.length, 1);
   assert.equal(colorChanges[0].payload.to, "green");
   const moves = result.events.filter((event) => event.kind === "move");
-  assert.equal(moves.length, 6);
+  assert.equal(moves.length, 4);
 });
 
 test("l4-house-color-by-size colors the whole house green when :size >= 80", () => {
