@@ -94,6 +94,59 @@ test("fill payload carries the fill color used", () => {
   assert.equal(event.payload.color, "green");
 });
 
+test("tutor-output payload (explain) carries command, segments, and target span", () => {
+  const event = {
+    seq: 9,
+    kind: "tutor-output",
+    source_span: makeSpan(),
+    payload: {
+      command: "explain",
+      segments: ["`repeat` runs the block four times."],
+      target_source_span: makeSpan(),
+    },
+  };
+  assert.ok(OL.isEventKind(event.kind));
+  assert.equal(event.payload.command, "explain");
+  assert.deepEqual(event.payload.segments, [
+    "`repeat` runs the block four times.",
+  ]);
+  assert.equal(event.payload.stage, undefined);
+  assert.equal(event.payload.diagnostic_code, undefined);
+});
+
+test("tutor-output payload (hint) carries a progressive stage", () => {
+  const event = {
+    seq: 10,
+    kind: "tutor-output",
+    source_span: makeSpan(),
+    payload: {
+      command: "hint",
+      segments: ["Look at the turn after each side."],
+      stage: "nudge",
+      target_source_span: makeSpan(),
+    },
+  };
+  assert.ok(OL.isEventKind(event.kind));
+  assert.equal(event.payload.command, "hint");
+  assert.equal(event.payload.stage, "nudge");
+});
+
+test("tutor-output payload (why) may carry a diagnostic-code", () => {
+  const event = {
+    seq: 11,
+    kind: "tutor-output",
+    source_span: makeSpan(),
+    payload: {
+      command: "why",
+      segments: ["forward needs a number, but :size is a word."],
+      target_source_span: makeSpan(),
+      diagnostic_code: "ol-type",
+    },
+  };
+  assert.ok(OL.isEventKind(event.kind));
+  assert.ok(OL.isDiagnosticCode(event.payload.diagnostic_code));
+});
+
 test("stamp payload carries position, heading, shape, and color stamped", () => {
   const event = {
     seq: 8,
