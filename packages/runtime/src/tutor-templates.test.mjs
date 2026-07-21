@@ -8,7 +8,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parse } from "@openlogo/parser";
-import { defaultTutorTemplate, execute, nextHintStage } from "@openlogo/runtime";
+import {
+  defaultTutorTemplate,
+  execute,
+  nextHintStage,
+} from "@openlogo/runtime";
 
 const doc = "acceptance.logo";
 
@@ -70,9 +74,7 @@ test("defaultTutorTemplate emits debug's DIAGNOSTIC arm when a diagnostic is in 
   assert.equal(payload.diagnostic_code, "ol-too-many-inputs");
   assert.deepEqual(payload.target_source_span, diagnostic.source_span);
   assert.equal(
-    payload.segments.some((segment) =>
-      segment.includes("ol-too-many-inputs"),
-    ),
+    payload.segments.some((segment) => segment.includes("ol-too-many-inputs")),
     true,
   );
 });

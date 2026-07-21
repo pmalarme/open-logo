@@ -1584,6 +1584,16 @@ function isEducationalMetaCommandCall(
  * never an event-log scan). `undefined` when `statement` is the first entry, or every earlier
  * entry is itself a meta-command call.
  *
+ * `procedures` is `environment.procedures` — the SAME registry {@link executeStatements} itself
+ * consults ({@link isProcedureCallStatement}) to let a learner-defined procedure shadow one of
+ * the four meta-command names (matching the existing Turtle/Data shadowing convention). A
+ * candidate is only skipped as "just a meta-command call" when it is BOTH syntactically one of
+ * the four names AND not shadowed by a procedure — a candidate line like `hint` that a `define
+ * hint … end` shadows was executed as an ordinary procedure call, so it is a real preceding
+ * sibling here too, exactly as it was for {@link executeStatements}'s own dispatch. Without this
+ * check, a shadowed candidate would be wrongly skipped even though the run just treated it as a
+ * real statement.
+ *
  * This is simpler than — and supersedes — an earlier event-log-based approach, and inherently
  * avoids that approach's `procedure-enter` bug class: a meta-command with no preceding sibling in
  * its OWN statement list (whether at top level or as the first statement of a procedure/loop
@@ -1598,11 +1608,18 @@ function isEducationalMetaCommandCall(
 function findPrecedingSiblingStatement(
   statements: readonly StatementNode[],
   statement: StatementNode,
+  procedures: ProcedureRegistry,
 ): StatementNode | undefined {
   const index = statements.indexOf(statement);
   for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
     const candidate = statements[cursor];
-    if (candidate !== undefined && !isEducationalMetaCommandCall(candidate)) {
+    if (
+      candidate !== undefined &&
+      !(
+        isEducationalMetaCommandCall(candidate) &&
+        !procedures.has(candidate.callee.name.toLowerCase())
+      )
+    ) {
       return candidate;
     }
   }
@@ -1681,7 +1698,11 @@ function executeEducationalMetaCommand(
     );
   }
 
-  const target = findPrecedingSiblingStatement(statements, statement);
+  const target = findPrecedingSiblingStatement(
+    statements,
+    statement,
+    environment.procedures,
+  );
   const targetOrProgramSpan =
     target?.source_span ?? environment.program.source_span;
   const hintKey = hintTargetKey(targetOrProgramSpan);

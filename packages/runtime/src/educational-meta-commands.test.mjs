@@ -191,3 +191,21 @@ test("a user-defined procedure named `explain` shadows the baseline meta-command
   assert.equal(printed.length, 1);
   assert.equal(printed[0].payload.values[0], 42);
 });
+
+// --- regression (rubber-duck review, PR #371): a shadowed meta-command NAME must still count --
+// --- as a real preceding sibling for target resolution — it ran as an ordinary procedure call, --
+// --- not as a meta-command, so a LATER unshadowed meta-command must not skip past it -----------
+
+test("a shadowed `hint` procedure call counts as a real preceding sibling, not a skipped meta-command", () => {
+  const source = "define hint\nprint 1\nend\nforward 10\nhint\nexplain";
+  const result = execute(source, doc);
+  assert.deepEqual(result.diagnostics, []);
+  const [event] = tutorEvents(result);
+  assert.equal(event.payload.command, "explain");
+  // The immediately preceding sibling is line 5's shadowed `hint` procedure call, NOT line 4's
+  // `forward 10` — without the shadowing fix, `findPrecedingSiblingStatement` would wrongly
+  // treat line 5 as a meta-command to skip past, targeting `forward 10` instead.
+  assert.equal(event.payload.target_source_span.start[0], 5);
+  const printed = result.events.filter((e) => e.kind === "print");
+  assert.equal(printed.length, 1);
+});
