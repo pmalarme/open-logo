@@ -77,7 +77,7 @@ function treeSource(repeatCount: number): string {
     "  forward 80",
     "  right 120",
     "  pen_up",
-    "  forward 25",
+    "  forward 80",
     "  pen_down",
     "]",
   ].join("\n");
@@ -131,7 +131,7 @@ export const level2Exercises: readonly Exercise[] = [
     referenceSolution: {
       source: treeSource(3),
       explanation:
-        "The trunk only happens once, so it is four plain forward/right pairs like any Level 1 rectangle. Repeat then runs one rule three times: draw a triangle tier (three forward/right pairs that close back to where they started), then walk 25 further up before the next tier begins -- so the trunk plus three stacked tiers become a tree without ever typing a tier's three sides more than once.",
+        "The trunk only happens once, so it is four plain forward/right pairs like any Level 1 rectangle. Repeat then runs one rule three times: draw a triangle tier (three forward/right pairs that close back to where they started), then walk 80 further up -- exactly one tier's height -- before the next tier begins, so each tier's base touches the one below without overlapping it. The trunk plus three touching tiers become a tree without ever typing a tier's three sides more than once.",
     },
   },
   {

@@ -134,12 +134,35 @@ test("the tree reference solution draws the trunk with plain moves and turns, th
   assert.equal(totalTurn, 1440);
 
   // Every tier closes back to the same x as the trunk, so the tree grows straight up: the last
-  // move lands directly above the start, at the trunk height (40) plus 3 walks of 25 between
-  // tiers (40 + 3*25 = 115).
+  // move lands directly above the start, at the trunk height (40) plus 3 walks of 80 between
+  // tiers -- one full tier height each, so tiers touch without overlapping (40 + 3*80 = 280).
   const moves = result.events.filter((event) => event.kind === "move");
   const lastMove = moves[moves.length - 1];
   assert.equal(Math.round(lastMove.payload.to[0]), 0);
-  assert.equal(Math.round(lastMove.payload.to[1]), 115);
+  assert.equal(Math.round(lastMove.payload.to[1]), 280);
+
+  // Each tier spans exactly one tier-height (80) of y, and touches the tier below it without
+  // overlapping: consecutive tiers' y-ranges share only their boundary point, not a chunk of
+  // vertical space. Move events run: 4 trunk sides (index 0-3), 1 one-time walk up to the first
+  // tier's base (index 4), then per tier 3 triangle sides plus 1 walk-up-to-the-next-tier move
+  // -- so tier N's 3 sides sit at indexes 5 + 4*N, 6 + 4*N, 7 + 4*N.
+  const tierStartIndexes = [5, 9, 13];
+  const tierRanges = tierStartIndexes.map((start) => {
+    const tierMoves = moves.slice(start, start + 3);
+    const ys = tierMoves.flatMap((move) => [
+      move.payload.from[1],
+      move.payload.to[1],
+    ]);
+    return { min: Math.min(...ys), max: Math.max(...ys) };
+  });
+  for (let i = 1; i < tierRanges.length; i += 1) {
+    const previous = tierRanges[i - 1];
+    const current = tierRanges[i];
+    assert.ok(
+      current.min >= previous.max - 1e-6,
+      `tier ${i} must not overlap tier ${i - 1}: tier ${i - 1} tops out at ${previous.max}, tier ${i} starts at ${current.min}`,
+    );
+  }
 });
 
 test("the taller-tree reference solution's source is identical to the tree's, except the repeat count", () => {
@@ -187,10 +210,10 @@ test("the taller-tree reference solution only changes the repeat count, growing 
   );
   assert.equal(totalTurn, 2520);
 
-  // Same trunk height (40) plus 6 walks of 25 between tiers: 40 + 6*25 = 190 -- taller than the
-  // 3-tier tree's 115, purely from the bigger repeat count.
+  // Same trunk height (40) plus 6 walks of 80 between tiers: 40 + 6*80 = 520 -- taller than the
+  // 3-tier tree's 280, purely from the bigger repeat count.
   const moves = result.events.filter((event) => event.kind === "move");
   const lastMove = moves[moves.length - 1];
   assert.equal(Math.round(lastMove.payload.to[0]), 0);
-  assert.equal(Math.round(lastMove.payload.to[1]), 190);
+  assert.equal(Math.round(lastMove.payload.to[1]), 520);
 });
