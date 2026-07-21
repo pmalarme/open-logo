@@ -92,6 +92,18 @@ test("index.html gives the Canvas and diagnostics list a tabindex (neither is na
   );
 });
 
+test("index.html does NOT give lesson-nav-list its own tabindex — its REPL_FOCUS_ORDER stop is the entry point into its real, natively-focusable per-lesson <button> children (#127), unlike the canvas/diagnostics-list stops above whose containers hold no interactive children of their own", () => {
+  const lessonNavListTag = openingTags.find((tag) =>
+    tag.includes('id="lesson-nav-list"'),
+  );
+  assert.ok(lessonNavListTag, 'expected an element with id="lesson-nav-list"');
+  assert.doesNotMatch(
+    lessonNavListTag,
+    /tabindex=/,
+    "lesson-nav-list must stay out of the tab order itself so Tab lands directly on its first lesson <button>, not an empty intermediate stop",
+  );
+});
+
 test("index.html does not render a 'Next step' control (#305) — the headless step() machinery stays for Wave 1 (#302) to rebuild a UI on", () => {
   assert.doesNotMatch(
     indexHtml,

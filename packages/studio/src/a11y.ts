@@ -80,7 +80,16 @@ export type A11yRole =
   | "list"
   | "region";
 
-/** One focusable stop in the REPL's keyboard focus order. */
+/**
+ * One focusable stop in the REPL's keyboard focus order. For a container `role` (e.g. `"list"`),
+ * the stop names the container as the tab-order entry point into its own real,
+ * natively-focusable children (e.g. per-lesson `<button>`s) — the container element itself must
+ * NOT get an explicit `tabindex`, or Tab would land on an extra, empty intermediate stop before
+ * reaching the first real control (see the `lesson-nav-list` stop below and
+ * `index.test.mjs`'s corresponding assertion). This differs from `"log"`/`"img"` stops like
+ * `diagnostics-list`/`canvas`, whose containers hold no interactive children of their own and so
+ * need an explicit `tabindex="0"` to be reachable at all.
+ */
 export interface FocusStop {
   /** A stable identifier for this stop, unique within {@link REPL_FOCUS_ORDER}. */
   readonly id: string;

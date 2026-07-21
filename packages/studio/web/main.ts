@@ -299,7 +299,9 @@ function renderRunLog(
  * element creation with no decision of its own (the label/selection DECISION was already made by
  * {@link toLessonNavItems}); clicking a button just forwards its id to
  * {@link LessonPaneController.selectLesson}, which republishes through the shared state model, so
- * this stays a thin, branch-free wiring layer like every other `create*Element` helper above. */
+ * this stays a thin, branch-free wiring layer like every other `create*Element` helper above.
+ * `dataset.lessonId` lets {@link renderLessonNav} restore keyboard focus onto the same lesson's
+ * button after `selectLesson` causes this list to be rebuilt from scratch (see below). */
 function createLessonNavItemElement(item: LessonNavItem): HTMLLIElement {
   const listItem = document.createElement("li");
 
@@ -307,6 +309,7 @@ function createLessonNavItemElement(item: LessonNavItem): HTMLLIElement {
   button.type = "button";
   button.className = "lesson-nav-item";
   button.textContent = `${item.title} (Level ${item.level})`;
+  button.dataset.lessonId = item.id;
   button.setAttribute("aria-current", String(item.isSelected));
   button.addEventListener("click", () => {
     lessonPane.selectLesson(item.id);
@@ -316,15 +319,37 @@ function createLessonNavItemElement(item: LessonNavItem): HTMLLIElement {
   return listItem;
 }
 
+/** Rebuilds the lesson nav list from already-projected view items. Because clicking a nav button
+ * (see {@link createLessonNavItemElement}) triggers a state change that calls this very function
+ * again, the clicked button — which still has keyboard focus at that moment — is about to be
+ * replaced out from under itself; without intervention the browser would drop focus to
+ * `<body>`, a keyboard trap for anyone navigating the lesson list. So this captures which lesson's
+ * button (if any) currently has focus *before* rebuilding, then restores focus to the new button
+ * for that same lesson id afterward — the id is stable across rebuilds even though the DOM node
+ * is not. */
 function renderLessonNav(
   list: HTMLElement,
   selectedLessonId: string | null,
 ): void {
+  const focusedElement = document.activeElement;
+  const focusedLessonId =
+    focusedElement instanceof HTMLElement && list.contains(focusedElement)
+      ? focusedElement.dataset.lessonId
+      : undefined;
+
   list.replaceChildren(
     ...toLessonNavItems(lessonPane.getLessons(), selectedLessonId).map(
       createLessonNavItemElement,
     ),
   );
+
+  if (focusedLessonId !== undefined) {
+    list
+      .querySelector<HTMLButtonElement>(
+        `button[data-lesson-id="${focusedLessonId}"]`,
+      )
+      ?.focus();
+  }
 }
 
 /** Builds one worked-example `<div>` per already-projected item — verbatim `source`/`explanation`
