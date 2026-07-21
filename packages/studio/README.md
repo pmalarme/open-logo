@@ -360,15 +360,25 @@ to reshape `index.html`/`web/styles.css`/`src/app-shell.ts` again:
   `document.getElementById("lesson-pane").hidden = false`) once it has real content to show.
 - **CSS contract**: `web/styles.css`'s `main:has(.pane-lesson:not([hidden]))` rules are the *only*
   place the `lesson` grid area is defined — in the narrow layout it inserts a `"lesson"` row above
-  `editor`; from 48rem up it inserts a `minmax(14rem, 22%)` column to the left of the existing
-  editor/turtle columns. Both activate automatically the instant the `hidden` attribute is cleared
-  — no `styles.css` edit required to add the third pane. (`:has()` is supported by every evergreen
-  browser this project targets.)
+  `editor`; from 48rem up it inserts a column to the left of the existing editor/turtle columns.
+  Both activate automatically the instant the `hidden` attribute is cleared — no `styles.css` edit
+  required to add the third pane. (`:has()` is supported by every evergreen browser this project
+  targets.)
 - **What #127 still owns**: the lesson-pane module itself, plus updating `src/a11y.ts` to add a
   `REPL_LANDMARK_ROLES` entry (region `"lesson"`) and any `REPL_FOCUS_ORDER` stops for its own
   interactive content, and giving `#lesson-pane` (or its rendered content) a real `role`. #313
   deliberately declares none of that for content that doesn't exist yet — declaring an empty
   landmark ahead of time would itself be the accessibility regression this slice's DoD forbids.
+
+**#127 delivered** (see `src/lesson-pane.ts` for the full doc comment): `#lesson-pane` now carries
+`role="complementary"`/`aria-label="Lesson"` (`REPL_LANDMARK_ROLES`/`REPL_FOCUS_ORDER` in
+`src/a11y.ts`), M3's enrichment refined the wide-layout column from the placeholder
+`minmax(14rem, 22%)` above to `minmax(0, 300px)` (a ~300px starting width that collapses toward
+zero — the M3-required "collapses before editor/turtle drop below their own minimums" behavior —
+rather than a percentage), and `.pane-lesson` gained its own bounded, independently scrolling box
+(`max-height`/`overflow-y: auto`, matching the run log's `#run-log` precedent below) so long lesson
+content never pushes the editor/canvas down.
+
 ## Run log pane (#314)
 
 Epic #290, Studio UX polish milestone: before this slice, the `#output` pane held only the LATEST

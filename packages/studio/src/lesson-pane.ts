@@ -33,10 +33,21 @@
  * `element.hidden = !view.isVisible` and (re)builds the section's heading structure — an `<h2>`
  * for the lesson title, then `<h3>`s for "Objective", each worked example, and the exercise
  * prompt — from {@link LessonPaneView}'s fields. `index.html`'s `#lesson-pane` section already
- * carries `role="region"`/`aria-label="Lesson"`/`tabindex="0"` (this slice's a11y fix — see
- * `a11y.ts`'s `REPL_LANDMARK_ROLES`/`REPL_FOCUS_ORDER`), and its native `hidden` attribute removes
- * it from the accessibility tree and keyboard focus order whenever no lesson is loaded, with no
- * further branching needed anywhere.
+ * carries `role="complementary"`/`aria-label="Lesson"`/`tabindex="0"` (this slice's a11y fix —
+ * see `a11y.ts`'s `REPL_LANDMARK_ROLES`/`REPL_FOCUS_ORDER`), and its native `hidden` attribute
+ * removes it from the accessibility tree and keyboard focus order whenever no lesson is loaded,
+ * with no further branching needed anywhere.
+ *
+ * ## Layout (M3 enrichment)
+ * `web/styles.css` keeps the lesson pane in its own leftmost column ahead of editor/turtle
+ * (`"lesson editor turtle"` in the wide `grid-template-areas`), collapsed to zero width/height
+ * and out of layout entirely while `hidden` (freeform/sandbox mode — an `editor | canvas`
+ * two-region layout, reclaiming the width), sized to a ~300px starting column that collapses
+ * toward zero before the editor/turtle columns would be squeezed below their own minimums under
+ * width pressure, and with its own independent vertical scroll so a long objective/worked-example
+ * /exercise-prompt never pushes the editor/canvas down. None of that is this module's concern —
+ * it only supplies the render-ready {@link LessonPaneView} content; the CSS delta lives entirely
+ * in `web/styles.css`.
  */
 
 import type { Lesson } from "@openlogo/edu";

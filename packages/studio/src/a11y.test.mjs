@@ -37,7 +37,7 @@ test("REPL_FOCUS_ORDER puts the lesson pane first and diagnostics last, with the
   const lessonStop = order.find((stop) => stop.id === "lesson-pane");
   assert.ok(lessonStop, "the lesson pane must be a focus stop");
   assert.equal(lessonStop.region, "lesson");
-  assert.equal(lessonStop.role, "region");
+  assert.equal(lessonStop.role, "complementary");
 
   const replStops = order.filter((stop) => stop.region === "repl");
   assert.deepEqual(
@@ -114,7 +114,7 @@ test("REPL_LANDMARK_ROLES declares landmarks for every studio region with a role
       landmark,
     ]),
   );
-  assert.equal(byRegion.get("lesson:region")?.role, "region");
+  assert.equal(byRegion.get("lesson:complementary")?.role, "complementary");
   assert.equal(byRegion.get("editor:textbox")?.role, "textbox");
   assert.equal(byRegion.get("repl:toolbar")?.role, "toolbar");
   assert.equal(byRegion.get("turtle:img")?.role, "img");

@@ -96,6 +96,12 @@
  * - {@link mountLessonPane} composes the controller into the shell's `lesson` region. This slice
  *   also gives `#lesson-pane` its accessibility landmark and keyboard focus stop — see
  *   `a11y.ts`'s `REPL_LANDMARK_ROLES`/`REPL_FOCUS_ORDER`.
+ * - M3's enrichment refined the layout/a11y delta in `web/styles.css`/`index.html`: the lesson
+ *   pane is a `complementary` landmark (not the generic `region`), stays its own leftmost column
+ *   ahead of editor/turtle, collapses to zero width/height entirely when `hidden`
+ *   (freeform/sandbox — a clean `editor | canvas` two-region layout), sizes to a ~300px starting
+ *   column that collapses toward zero before editor/turtle are squeezed below their own minimums,
+ *   and scrolls its own content independently of the editor/canvas below it.
  *
  * #218 adds the turtle Canvas view — static composition of `@openlogo/turtle`'s DOM-free renderer
  * into the app shell (the dynamic run-loop repaint is #228, above):

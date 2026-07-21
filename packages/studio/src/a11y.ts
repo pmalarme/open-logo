@@ -34,14 +34,17 @@
  *
  * ## Semantic structure — {@link REPL_LANDMARK_ROLES}
  * The ARIA role + label a future renderer gives each pane's *container* (as opposed to the
- * individual focusable stops above): the lesson pane is a `region` (#127), the editor is a
- * `textbox`, the run controls are a `toolbar`, the turtle Canvas is an `img`, its non-visual state
- * text is a `status` live region, and diagnostics are a `log` landmark. A renderer maps this 1:1
- * onto real `role`/`aria-label` attributes; this module never touches the DOM itself. `index.html`
- * already gives `#lesson-pane` the matching `role="region"`/`aria-label="Lesson"` (plus
- * `tabindex="0"`, since a `<section>` isn't natively focusable) — its own heading structure
- * (`<h2>` title, `<h3>`s for Objective/worked examples/exercise prompt) is built by
- * `web/main.ts` from `lesson-pane.ts`'s `LessonPaneView` once a lesson is loaded.
+ * individual focusable stops above): the lesson pane is a `complementary` landmark (#127 — M3's
+ * enrichment asked for `complementary`/`aside` semantics rather than the generic `region`, since
+ * the lesson content is supplementary to the primary editor/canvas task, not the main content
+ * itself), the editor is a `textbox`, the run controls are a `toolbar`, the turtle Canvas is an
+ * `img`, its non-visual state text is a `status` live region, and diagnostics are a `log`
+ * landmark. A renderer maps this 1:1 onto real `role`/`aria-label` attributes; this module never
+ * touches the DOM itself. `index.html` already gives `#lesson-pane` the matching
+ * `role="complementary"`/`aria-label="Lesson"` (plus `tabindex="0"`, since a `<section>` isn't
+ * natively focusable) — its own heading structure (`<h2>` title, `<h3>`s for Objective/worked
+ * examples/exercise prompt) is built by `web/main.ts` from `lesson-pane.ts`'s `LessonPaneView`
+ * once a lesson is loaded.
  *
  * ## Screen-reader announcements — {@link createA11yAnnouncer}
  * Subscribes to the shared #123 state model and emits an {@link Announcement} whenever
@@ -80,7 +83,7 @@ export type A11yRole =
   | "img"
   | "status"
   | "slider"
-  | "region";
+  | "complementary";
 
 /** One focusable stop in the REPL's keyboard focus order. */
 export interface FocusStop {
@@ -105,7 +108,12 @@ export interface FocusStop {
  * browser tab order while no lesson is loaded, so there is no keyboard trap either way.
  */
 export const REPL_FOCUS_ORDER: readonly FocusStop[] = [
-  { id: "lesson-pane", region: "lesson", role: "region", label: "Lesson" },
+  {
+    id: "lesson-pane",
+    region: "lesson",
+    role: "complementary",
+    label: "Lesson",
+  },
   {
     id: "editor",
     region: "editor",
@@ -143,7 +151,7 @@ export interface RegionLandmark {
  * {@link createTurtleStateRegion}), and diagnostics.
  */
 export const REPL_LANDMARK_ROLES: readonly RegionLandmark[] = [
-  { region: "lesson", role: "region", label: "Lesson" },
+  { region: "lesson", role: "complementary", label: "Lesson" },
   { region: "editor", role: "textbox", label: "OpenLogo source editor" },
   { region: "repl", role: "toolbar", label: "Run controls" },
   { region: "turtle", role: "img", label: "Turtle canvas" },
