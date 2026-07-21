@@ -3,7 +3,10 @@
  * (#126, extended in #228 with the turtle Canvas view), diagnostics (#125), the turtle Canvas
  * pane (#218/#228) and its non-visual state text (#229), and, as of #127, the lesson pane. #305
  * removes the `Next step` control from the 0.1.0 UI; the headless `step()` method it drove stays
- * (Wave 1/#302 rebuilds a UI on it).
+ * (Wave 1/#302 rebuilds a UI on it). #316 collapses the separate Run and Stop buttons into a
+ * single Start/Pause toggle (presentation only, over the unchanged `run()`/`stop()` — see
+ * `run-controls.ts`), so the run-controls focus stops below go from three (Run/Stop/Reset) to two
+ * (the toggle, then Reset).
  *
  * Like #123-#129, ADR-0001 defers the studio's DOM/framework choice, so this slice models
  * accessibility as **headless, node:test-able data + functions** a future real-widget renderer
@@ -15,10 +18,10 @@
  * pane (one `region` stop, #127 — present or absent depending on whether a lesson is loaded, but
  * declared here unconditionally like every other stop; a `hidden` lesson pane is natively removed
  * from the browser's real tab order, so there is no trap either way), the editor (one `textbox`
- * stop), the run controls (three `button` stops — Run/Stop/Reset, matching `run-controller.ts`'s
- * `run()`/`stop()`/`reset()` — plus one `slider` stop, #310's turtle-speed control), the turtle
- * Canvas pane (one `img` stop, #218/#228's rendered + animated scene), and the diagnostics list
- * (one `log` stop).
+ * stop), the run controls (two `button` stops — the Start/Pause toggle (#316, invoking
+ * `run-controller.ts`'s `run()`/`stop()`) and Reset (`reset()`) — plus one `slider` stop, #310's
+ * turtle-speed control), the turtle Canvas pane (one `img` stop, #218/#228's rendered + animated
+ * scene), and the diagnostics list (one `log` stop).
  * {@link nextFocusStop}/{@link previousFocusStop} cycle through it (wrapping at both ends), so a
  * future Tab/Shift+Tab (or roving-`tabindex`) binding can move forward and backward from *any*
  * stop and always reach every other stop — the headless proof that there is no keyboard trap.
@@ -98,14 +101,15 @@ export interface FocusStop {
 }
 
 /**
- * The studio's keyboard focus order: lesson pane → editor → Run → Stop → Reset → Speed → turtle
- * Canvas → diagnostics list, matching `index.html`'s DOM order (`#lesson-pane` is `<main>`'s
+ * The studio's keyboard focus order: lesson pane → editor → Start/Pause toggle → Reset → Speed →
+ * turtle Canvas → diagnostics list, matching `index.html`'s DOM order (`#lesson-pane` is `<main>`'s
  * first child, before the editor). Static and declarative — it does not depend on shell mount
  * state — because the full studio REPL + Canvas loop always composes every pane together. The
  * lesson stop (#127) is the one exception to "always composes together": it is present only when
  * a lesson is loaded, but is still declared here unconditionally, exactly like every other stop —
  * `index.html`'s native `hidden` attribute (not this list) is what removes it from the *real*
- * browser tab order while no lesson is loaded, so there is no keyboard trap either way.
+ * browser tab order while no lesson is loaded, so there is no keyboard trap either way. #316
+ * collapses the former separate Run/Stop stops into the single `run-toggle-button` stop below.
  */
 export const REPL_FOCUS_ORDER: readonly FocusStop[] = [
   {
@@ -120,8 +124,12 @@ export const REPL_FOCUS_ORDER: readonly FocusStop[] = [
     role: "textbox",
     label: "OpenLogo source editor",
   },
-  { id: "run-button", region: "repl", role: "button", label: "Run" },
-  { id: "stop-button", region: "repl", role: "button", label: "Stop" },
+  {
+    id: "run-toggle-button",
+    region: "repl",
+    role: "button",
+    label: "Start run",
+  },
   { id: "reset-button", region: "repl", role: "button", label: "Reset" },
   {
     id: "speed-slider",

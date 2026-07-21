@@ -17,6 +17,13 @@
   --ol-border: #d8dee5;
   --ol-error: #c0392b;
   --ol-warning: #b8860b;
+  /* #316 — dedicated, darker button backgrounds for the icon run-controls toolbar. Distinct from
+     --ol-green/--ol-orange/--ol-blue (used elsewhere for the tagline text and focus outline)
+     because those lighter shades fall short of WCAG AA's 4.5:1 text contrast against white
+     button-label text; these three are darkened just enough to clear it. */
+  --ol-button-start: #1f7a3d;
+  --ol-button-pause: #a85c14;
+  --ol-button-reset: #256ba8;
 }
 
 * {
@@ -210,7 +217,7 @@ main:has(.pane-lesson:not([hidden])) {
 }
 
 [role="toolbar"] button {
-  background: var(--ol-green);
+  background: var(--ol-button-start);
   color: var(--ol-surface);
   border: none;
   border-radius: 6px;
@@ -218,14 +225,40 @@ main:has(.pane-lesson:not([hidden])) {
   margin-right: 0.5rem;
   font-weight: 600;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
-#stop-button {
-  background: var(--ol-orange);
+/* #316 — icon run-controls: the icon is a decorative pseudo-element (aria-hidden on its span),
+   never the only accessible signal — every button also keeps a visible text label plus an
+   `aria-label` set from `run-controls.ts`'s tested view model. Glyphs are plain Unicode
+   characters (no icon-font/SVG dependency needed for this slice) sized in `em`s so they scale
+   with the button's font size. */
+.control-icon::before {
+  display: inline-block;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+#run-toggle-button[data-icon="play"] .control-icon::before {
+  content: "\25B6"; /* ▶ */
+}
+
+#run-toggle-button[data-icon="pause"] .control-icon::before {
+  content: "\23F8"; /* ⏸ */
+}
+
+#reset-button .control-icon::before {
+  content: "\21BA"; /* ↺ */
+}
+
+#run-toggle-button[data-icon="pause"] {
+  background: var(--ol-button-pause);
 }
 
 #reset-button {
-  background: var(--ol-blue);
+  background: var(--ol-button-reset);
 }
 
 /* #310 — the turtle-speed slider control, inline with Run/Stop/Reset in the same toolbar. */
