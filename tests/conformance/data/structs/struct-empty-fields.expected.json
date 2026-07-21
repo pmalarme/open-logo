@@ -1,0 +1,19 @@
+{
+  "description": "An empty field list `struct point [ ]` reports ol-unmatched-bracket at the closing bracket (grammar.md's `field-list ::= \"[\" identifier { identifier } \"]\"` requires at least one identifier); it is not silently accepted. Parse-only negative fixture.",
+  "profiles": ["core-language", "data"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unmatched-bracket",
+      "source_span": {
+        "document": "data/structs/struct-empty-fields",
+        "start": [4, 16],
+        "end": [4, 17]
+      },
+      "params": { "delimiter": "]" },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

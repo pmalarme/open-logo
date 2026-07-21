@@ -1,0 +1,4 @@
+# A field list must contain at least one identifier (grammar.md's
+# `field-list ::= "[" identifier { identifier } "]"`). An empty `[ ]` is reported as
+# ol-unmatched-bracket at the closing bracket, not silently accepted. Parse-only negative fixture.
+struct point [ ]

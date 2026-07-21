@@ -1,0 +1,4 @@
+# `struct` must be followed by a type name before the field list (grammar.md's
+# `struct-declaration ::= "struct" type-name field-list`). A missing type name is reported as
+# ol-bad-token at the offending token, not silently accepted. Parse-only negative fixture.
+struct [ x ]

@@ -1247,6 +1247,8 @@ export function parse(source: string, document = "<input>"): ParseResult {
           return parseInsert();
         case "clear":
           return parseClear();
+        case "struct":
+          return parseStructDef();
         default:
           break;
       }
@@ -1844,6 +1846,54 @@ export function parse(source: string, document = "<input>"): ParseResult {
       return undefined;
     }
     return ast.clear(target, spanFrom(token.source_span.start, target));
+  }
+
+  /**
+   * `struct type-name "[" identifier { identifier } "]"` (`spec/grammar.md:155-156`, Data profile).
+   * Declares a record type, its fixed fields, and a same-named constructor. The bracketed field
+   * list is not a list literal: it holds bare field names that perform no evaluation
+   * (`spec/data-structures.md:264`), so the fields are carried as {@link SpannedName} metadata, the
+   * same shape as procedure parameter and destructuring-binder names. Grammar/AST only — the
+   * constructor call and field access/mutation land in a later Data-profile slice.
+   */
+  function parseStructDef(): StatementNode | undefined {
+    const structTok = current();
+    advance();
+    const nameTok = current();
+    if (nameTok.kind !== "name") {
+      diagnostics.push(unexpected(nameTok));
+      return undefined;
+    }
+    advance();
+    const name = sname(nameTok.text, nameTok);
+    const open = current();
+    if (open.kind !== "lbracket") {
+      diagnostics.push(unexpected(open));
+      return undefined;
+    }
+    advance();
+    const fields: SpannedName[] = [];
+    while (current().kind === "name") {
+      const fieldTok = current();
+      advance();
+      fields.push(sname(fieldTok.text, fieldTok));
+    }
+    if (fields.length === 0) {
+      diagnostics.push(unexpected(current()));
+      // Consume a stray closing bracket (e.g. `struct point [ ]`) so error recovery doesn't
+      // re-diagnose the same `]` a second time as an unmatched top-level token — mirroring the
+      // empty destructuring-binder path.
+      if (current().kind === "rbracket") {
+        advance();
+      }
+      return undefined;
+    }
+    if (current().kind !== "rbracket") {
+      diagnostics.push(parseDiag.unmatchedBracket(open.source_span, "["));
+      return undefined;
+    }
+    advance();
+    return ast.structDef(name, fields, spanToHere(structTok.source_span.start));
   }
 
   function parseProgram(): ProgramNode {

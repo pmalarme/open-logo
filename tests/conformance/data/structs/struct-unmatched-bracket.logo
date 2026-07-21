@@ -1,0 +1,4 @@
+# An unclosed field list is reported as ol-unmatched-bracket at the opening `[` (grammar.md's
+# `field-list ::= "[" identifier { identifier } "]"`), not silently accepted. Parse-only negative
+# fixture.
+struct point [ x y
