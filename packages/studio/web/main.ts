@@ -145,6 +145,10 @@ const runLogElement = assertPresent<HTMLElement>(
   document.getElementById("run-log"),
   "run-log",
 );
+const tutorOutputPaneElement = assertPresent<HTMLElement>(
+  document.getElementById("tutor-output-pane"),
+  "tutor-output-pane",
+);
 const tutorOutputElement = assertPresent<HTMLElement>(
   document.getElementById("tutor-output"),
   "tutor-output",
@@ -357,14 +361,18 @@ function createTutorOutputEntryElement(
   return listItem;
 }
 
-/** Renders the tutor-output pane: hidden until `explain`/`why`/`hint`/`debug` has ever run (per
- * {@link TutorOutputController.getView}'s `isVisible`, matching {@link renderLessonPane}'s direct
- * `hidden` read), then one `<li>` per recorded entry via {@link createTutorOutputEntryElement}. */
+/** Renders the tutor-output pane: the whole `.pane-tutor` section (not just the `<ul>`) stays
+ * hidden until `explain`/`why`/`hint`/`debug` has ever run — matching {@link renderLessonPane}'s
+ * direct `hidden` toggle on its mount element, so `web/styles.css`'s
+ * `main:has(.pane-tutor:not([hidden]))` extension-slot rules only reserve grid space once the
+ * pane is truly visible — then one `<li>` per recorded entry via
+ * {@link createTutorOutputEntryElement}. */
 function renderTutorOutput(
+  pane: HTMLElement,
   list: HTMLElement,
   entries: readonly TutorOutputEntry[],
 ): void {
-  list.hidden = entries.length === 0;
+  pane.hidden = entries.length === 0;
   list.replaceChildren(
     ...toTutorOutputListItems(entries).map(createTutorOutputEntryElement),
   );
@@ -442,14 +450,22 @@ runLog.subscribeEntries(() => {
   renderRunLog(runLogElement, runLog.getEntries());
 });
 tutorOutput.subscribeEntries(() => {
-  renderTutorOutput(tutorOutputElement, tutorOutput.getEntries());
+  renderTutorOutput(
+    tutorOutputPaneElement,
+    tutorOutputElement,
+    tutorOutput.getEntries(),
+  );
 });
 runStatusElement.textContent = mapRunStatusToLabel(state.getState().runStatus);
 renderRunToggleButton(state.getState().runStatus);
 outputElement.textContent = formatOutput(state.getState().output);
 renderDiagnostics(diagnosticsListElement, state.getState().diagnostics);
 renderRunLog(runLogElement, runLog.getEntries());
-renderTutorOutput(tutorOutputElement, tutorOutput.getEntries());
+renderTutorOutput(
+  tutorOutputPaneElement,
+  tutorOutputElement,
+  tutorOutput.getEntries(),
+);
 syncTextValue(speedSliderElement, String(state.getState().speedSliderValue));
 speedDescriptionElement.textContent = describeSpeedTickDelayMs(
   mapSpeedSliderValueToTickDelayMs(state.getState().speedSliderValue),

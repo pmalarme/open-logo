@@ -150,10 +150,17 @@
           tabindex="0"
         ></ul>
       </section>
-      <section class="pane-tutor" aria-label="Tutor output">
-        <!-- #334 — hidden until explain/why/hint/debug has ever run (web/main.ts's
-             renderTutorOutput toggles `hidden` from TutorOutputController's `getView().isVisible`,
-             mirroring `#diagnostics-list`'s role="log" convention above); never blocks/replaces the
+      <section
+        id="tutor-output-pane"
+        class="pane-tutor"
+        aria-label="Tutor output"
+        hidden
+      >
+        <!-- #334 — the whole section (not just the list) is hidden until explain/why/hint/debug
+             has ever run: web/main.ts's renderTutorOutput toggles this section's `hidden` from
+             TutorOutputController's `getView().isVisible`, matching `.pane-lesson`'s direct
+             `hidden` toggle above so `main:has(.pane-tutor:not([hidden]))` in web/styles.css only
+             reserves grid space once the pane is truly visible; it never blocks/replaces the
              editor or diagnostics panes. -->
         <ul
           id="tutor-output"
@@ -161,7 +168,6 @@
           aria-label="Tutor output"
           aria-live="polite"
           tabindex="0"
-          hidden
         ></ul>
       </section>
     </main>
