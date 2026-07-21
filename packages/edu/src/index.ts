@@ -55,3 +55,9 @@ export {
 // (`spec/educational-model.md#explain`, `#why`). Pure functions over the A0 `TutorContext`
 // contract above — append-only alongside A4/A5's sibling exports.
 export { explain, why } from "./tutor/explain-why.js";
+
+// A4 (#333): the baseline, deterministic `hint` template — a pure TutorContext -> TutorOutput
+// mapping implementing the nudge -> concept -> partial -> last-resort progression
+// (spec/educational-model.md#hint). No AI, no mutable state; stage progression is threaded in
+// via TutorContext.priorHintStage by the runtime dispatch slice (A2, #332).
+export { hint } from "./tutor/hint.js";
