@@ -39,6 +39,9 @@ import type {
   SourceSpan,
   StampPayload,
   TurnPayload,
+  TutorCommand,
+  TutorHintStage,
+  TutorOutputPayload,
   VisibilityChangePayload,
   WidthChangePayload,
 } from "@openlogo/core";
@@ -1553,30 +1556,270 @@ function executeRandomizeCall(
 }
 
 /**
- * Sentinel `dispatchShowOrRandomizeCommand` returns when `statement` is neither a `show` nor a
- * `randomize` call, so {@link executeStatements} can fall through to its other statement-kind
- * checks. Distinct from `undefined`, which means "handled, continue" (same convention as
- * {@link NOT_A_TURTLE_COMMAND}/{@link dispatchTurtleCommand}).
+ * Is `statement` a call to one of the four Educational-profile baseline meta-commands
+ * (`explain`/`why`/`hint`/`debug`, `spec/educational-model.md#baseline-meta-commands`)? A1
+ * (issue #331) parses all four as ordinary zero-arity `Call`/`ParenCall` nodes — no dedicated AST
+ * node kind — matching the existing Turtle/Data precedent ({@link isShowCall}/
+ * {@link isRandomizeCall} above), so this predicate has the identical shape: a plain `boolean`
+ * checking `statement.callee.name` case-insensitively against the four command names.
  */
-const NOT_A_SHOW_OR_RANDOMIZE_COMMAND = Symbol(
-  "not-a-show-or-randomize-command",
+function isEducationalMetaCommandCall(
+  statement: StatementNode,
+): statement is CallNode | ParenCallNode {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  const name = statement.callee.name.toLowerCase();
+  return (
+    name === "explain" || name === "why" || name === "hint" || name === "debug"
+  );
+}
+
+/**
+ * The `target-source-span` a baseline meta-command reports on, resolved deterministically from
+ * runtime-available state alone (`spec/educational-model.md`'s baseline: "the parsed program,
+ * source spans, trace events, diagnostics, and known command metadata") — never from edu's
+ * curriculum knowledge, which this package must not import (issue #332's architecture
+ * constraint).
+ *
+ * By the time {@link executeStatements} dispatches a meta-command statement, it has ALREADY
+ * pushed that statement's own unconditional `instruction` event onto `environment.events` (see
+ * the top of its loop) — so the meta-command's own instruction event is always the LAST entry.
+ * Scanning backward from just before it, the first event that is itself neither an `instruction`
+ * nor a `tutor-output` is the last real EFFECT of whatever executed before the meta-command, in
+ * real execution order (flattened across any nested loop/procedure calls sharing this same
+ * `environment.events` array) — `instruction` events carry no new information beyond the
+ * statement kind already reflected in the effect that follows them, and skipping past any
+ * `tutor-output` events is what keeps a run of CONSECUTIVE meta-commands (e.g. `hint` called
+ * three times in a row with nothing in between) all resolving to the SAME target — the last real
+ * action — rather than each one targeting the previous meta-command's own call site. Without
+ * that skip, `hint`'s progression (`spec/execution-model.md:641-652`, "for the SAME target")
+ * could never observe two calls sharing one target, since every call's own instruction event
+ * would differ. That prior effect event's own `source_span` is the most specific deterministic
+ * "what was just done" the runtime can point to, so it is the resolved target. `undefined` when
+ * no such event exists — the meta-command (possibly preceded only by other meta-commands) is
+ * effectively the first real thing executed.
+ */
+function resolveTutorTargetSpan(
+  environment: Environment,
+): SourceSpan | undefined {
+  const events = environment.events;
+  // events[length - 1] is this meta-command's own just-pushed `instruction` event; scan strictly
+  // before it.
+  for (let index = events.length - 2; index >= 0; index -= 1) {
+    const event = events[index];
+    if (
+      event !== undefined &&
+      event.kind !== "instruction" &&
+      event.kind !== "tutor-output"
+    ) {
+      return event.source_span;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * `hint`'s `target_source_span` is REQUIRED (unlike `explain`/`why`/`debug`, where it is
+ * optional) — `spec/execution-model.md#tutor-output-educational-profile` calls for "the
+ * whole-program span" as the explicit fallback when no narrower target is selected. Every
+ * `Environment` carries `programSpan` (the parsed program's own `source_span`) for exactly this
+ * fallback.
+ */
+function resolveHintTargetSpan(environment: Environment): SourceSpan {
+  return resolveTutorTargetSpan(environment) ?? environment.programSpan;
+}
+
+/**
+ * Serializes a `SourceSpan` into a stable string key for {@link Environment.hintProgress} —
+ * `document` plus both endpoints, so two different spans (even in the same document) never
+ * collide, and the whole-program fallback span (a distinct, wider span than any single
+ * statement) gets its own independent progression, per
+ * `spec/execution-model.md:641-652`'s "observable ordering ... for a given target-source-span
+ * value" requirement.
+ */
+function hintTargetKey(span: SourceSpan): string {
+  return `${span.document}:${span.start[0]}:${span.start[1]}:${span.end[0]}:${span.end[1]}`;
+}
+
+const HINT_STAGE_ORDER: readonly TutorHintStage[] = [
+  "nudge",
+  "concept",
+  "partial",
+  "last-resort",
+];
+
+/**
+ * Advances (and records) the progression stage for a `hint` targeting `span` — the first `hint`
+ * for a given target starts at `"nudge"`; every later `hint` for that SAME target escalates one
+ * stage, capping at `"last-resort"`, which then repeats rather than ever producing a full
+ * solution (`spec/execution-model.md:640-652`). Mutates `environment.hintProgress` in place, so
+ * every environment sharing that same map (every nested procedure-call/loop-body environment
+ * spread from the top-level one) observes later calls' escalation — matching the
+ * `randomNumberGenerator`/`turtle` shared-mutable-box convention used throughout this file.
+ */
+function nextHintStage(
+  environment: Environment,
+  span: SourceSpan,
+): TutorHintStage {
+  const key = hintTargetKey(span);
+  const previous = environment.hintProgress.get(key);
+  const previousIndex = previous ? HINT_STAGE_ORDER.indexOf(previous) : -1;
+  const nextIndex = Math.min(previousIndex + 1, HINT_STAGE_ORDER.length - 1);
+  const stage = HINT_STAGE_ORDER[nextIndex] as TutorHintStage;
+  environment.hintProgress.set(key, stage);
+  return stage;
+}
+
+/**
+ * Deterministic, non-curriculum `segments` text for each baseline meta-command (and, for `hint`,
+ * each progressive stage) — satisfies {@link TutorOutputSegments}'s non-empty-tuple requirement
+ * with fixed, generic boilerplate rather than any target-derived pedagogy. Writing actual
+ * learner-facing curriculum prose from the target statement's real semantics is @openlogo/edu's
+ * job (issues #333-#335 — the A3/A4/A5 slices this deliberately leaves untouched); this runtime
+ * only has to produce SOME deterministic, non-empty, non-solution-revealing text so the
+ * `tutor-output` event it emits conforms to A0's wire contract.
+ */
+function tutorOutputSegments(
+  command: TutorCommand,
+  hintStage: TutorHintStage | undefined,
+  hasTarget: boolean,
+): readonly [string, ...string[]] {
+  const scope = hasTarget ? "the most recent instruction" : "your program";
+  switch (command) {
+    case "explain":
+      return [`Here is what ${scope} does.`];
+    case "why":
+      return [`Here is why ${scope} behaves the way it does.`];
+    case "debug":
+      return [`Here is what to check about ${scope}.`];
+    case "hint": {
+      switch (hintStage) {
+        case "concept":
+          return [`Think about the concept behind ${scope}.`];
+        case "partial":
+          return [`Here is a partial idea to move ${scope} forward.`];
+        case "last-resort":
+          return [
+            `Here is a strong nudge for ${scope} — try it yourself first.`,
+          ];
+        default:
+          return [`Here is a small nudge about ${scope}.`];
+      }
+    }
+  }
+}
+
+/**
+ * Executes one of the four Educational baseline meta-commands once
+ * {@link isEducationalMetaCommandCall} has confirmed the statement. Two responsibilities, per the
+ * A1 reviewer's flagged gap (A1 reuses the ordinary zero-arity `Call`/`ParenCall` shape with no
+ * static arity check, matching Turtle/Data precedent, so nothing before this point ever rejects
+ * `(explain 1)`):
+ *
+ * 1. Reject any nonzero-input parenthesized form — `(explain 1)`, `(hint "x" "y")`, etc. — at
+ *    runtime with the stable `ol-too-many-inputs` diagnostic (reusing
+ *    {@link runtimeDiag.tooManyInputs} with `expected: 0`, exactly like every other arity
+ *    violation in this file).
+ * 2. Otherwise, gather the deterministic runtime context (the resolved target span, and for
+ *    `hint`, the progression stage) and emit exactly one `tutor-output` event whose payload
+ *    matches A0's discriminated {@link TutorOutputPayload} union.
+ *
+ * Never emits the `diagnostic_code` (`why`/`debug`'s diagnostic arm): a runtime diagnostic halts
+ * `executeStatements` immediately and terminally (only one ever surfaces per `execute()` call),
+ * so a meta-command can never observe "the" diagnostic from its OWN run — there is no diagnostic
+ * left standing by the time this function could report on it. Always the non-diagnostic
+ * ("Program") arm.
+ */
+function executeEducationalMetaCommand(
+  statement: CallNode | ParenCallNode,
+  environment: Environment,
+): ExecSignal | undefined {
+  const command = statement.callee.name.toLowerCase() as TutorCommand;
+  if (statement.args.length > 0) {
+    return halt(
+      runtimeDiag.tooManyInputs(
+        statement.callee.source_span,
+        statement.callee.name,
+        0,
+        statement.args.length,
+      ),
+    );
+  }
+
+  if (command === "hint") {
+    const targetSpan = resolveHintTargetSpan(environment);
+    const stage = nextHintStage(environment, targetSpan);
+    environment.events.push({
+      seq: environment.events.length,
+      kind: "tutor-output",
+      source_span: statement.source_span,
+      payload: {
+        command: "hint",
+        stage,
+        target_source_span: targetSpan,
+        segments: tutorOutputSegments("hint", stage, true),
+      } satisfies TutorOutputPayload,
+    });
+    return undefined;
+  }
+
+  const targetSpan = resolveTutorTargetSpan(environment);
+  const segments = tutorOutputSegments(
+    command,
+    undefined,
+    targetSpan !== undefined,
+  );
+  const payload: TutorOutputPayload =
+    command === "explain"
+      ? targetSpan === undefined
+        ? { command: "explain", segments }
+        : { command: "explain", segments, target_source_span: targetSpan }
+      : command === "why"
+        ? targetSpan === undefined
+          ? { command: "why", segments }
+          : { command: "why", segments, target_source_span: targetSpan }
+        : targetSpan === undefined
+          ? { command: "debug", segments }
+          : { command: "debug", segments, target_source_span: targetSpan };
+  environment.events.push({
+    seq: environment.events.length,
+    kind: "tutor-output",
+    source_span: statement.source_span,
+    payload,
+  });
+  return undefined;
+}
+
+/**
+ * Sentinel `dispatchShowRandomizeOrEducationalCommand` returns when `statement` is none of
+ * `show`/`randomize`/the four Educational meta-commands, so {@link executeStatements} can fall
+ * through to its other statement-kind checks. Distinct from `undefined`, which means "handled,
+ * continue" (same convention as {@link NOT_A_TURTLE_COMMAND}/`dispatchTurtleCommand`).
+ */
+const NOT_A_SHOW_RANDOMIZE_OR_EDUCATIONAL_COMMAND = Symbol(
+  "not-a-show-randomize-or-educational-command",
 );
 
 /**
- * Single entry point {@link executeStatements} calls to try both `show` and `randomize` in one
- * step — the same amortization {@link dispatchTurtleCommand}'s doc comment explains: folding two
+ * Single entry point {@link executeStatements} calls to try `show`, `randomize`, and the four
+ * Educational meta-commands (`explain`/`why`/`hint`/`debug`, issue #332) in one step — the same
+ * amortization {@link dispatchTurtleCommand}'s doc comment explains: folding multiple
  * single-command predicate/dispatch pairs behind one call site keeps `executeStatements`'s own
  * body (and so every stack frame in a deep recursive program) from growing with each additional
- * statement kind it recognizes. `show` (issue #234) and `randomize` (issue #287) are combined
- * here because both were added as individually inline checks in `executeStatements` before this
- * consolidation, and the second inline check alone was enough to push the 600-deep
+ * statement kind it recognizes. `show` (issue #234) and `randomize` (issue #287) were already
+ * combined here for exactly this reason — the doc comment on the original two-command version
+ * of this function recorded that "the second inline check alone was enough to push the 600-deep
  * `recursionDepthLimit: 1000` regression test over the native call-stack limit under coverage
- * instrumentation.
+ * instrumentation" — and issue #332's own first attempt (a separate
+ * `dispatchEducationalMetaCommand` call site right after this one) reproduced precisely that
+ * regression, so the four meta-commands are folded into this SAME dispatcher rather than added
+ * as a new one.
  */
-function dispatchShowOrRandomizeCommand(
+function dispatchShowRandomizeOrEducationalCommand(
   statement: StatementNode,
   environment: Environment,
-): ExecSignal | undefined | typeof NOT_A_SHOW_OR_RANDOMIZE_COMMAND {
+): ExecSignal | undefined | typeof NOT_A_SHOW_RANDOMIZE_OR_EDUCATIONAL_COMMAND {
   if (isShowCall(statement)) {
     return executeShowCall(
       statement as unknown as CallNode | ParenCallNode,
@@ -1589,7 +1832,10 @@ function dispatchShowOrRandomizeCommand(
       environment,
     );
   }
-  return NOT_A_SHOW_OR_RANDOMIZE_COMMAND;
+  if (isEducationalMetaCommandCall(statement)) {
+    return executeEducationalMetaCommand(statement, environment);
+  }
+  return NOT_A_SHOW_RANDOMIZE_OR_EDUCATIONAL_COMMAND;
 }
 
 /**
@@ -2147,13 +2393,14 @@ function executeStatements(
       continue;
     }
 
-    const showOrRandomizeOutcome = dispatchShowOrRandomizeCommand(
-      statement,
-      environment,
-    );
-    if (showOrRandomizeOutcome !== NOT_A_SHOW_OR_RANDOMIZE_COMMAND) {
-      if (showOrRandomizeOutcome) {
-        return showOrRandomizeOutcome;
+    const showRandomizeOrEducationalOutcome =
+      dispatchShowRandomizeOrEducationalCommand(statement, environment);
+    if (
+      showRandomizeOrEducationalOutcome !==
+      NOT_A_SHOW_RANDOMIZE_OR_EDUCATIONAL_COMMAND
+    ) {
+      if (showRandomizeOrEducationalOutcome) {
+        return showRandomizeOrEducationalOutcome;
       }
       continue;
     }
@@ -2520,7 +2767,11 @@ function resolvePositiveFiniteLimit(
  * `signal` is threaded through unchanged (`undefined` when the caller supplied none, which
  * `checkExecutionLimits` treats as "never cancelled"). `source` (issue #156) is `runProgram`'s own
  * `source` argument, threaded onto the environment so `executeAssign`'s `ol-not-a-place` guard can
- * slice the exact assignment-target surface text out of it.
+ * slice the exact assignment-target surface text out of it. Issue #332 adds `programSpan`
+ * (`program`'s own `source_span`, the whole-program fallback `hint` falls back to) and a fresh
+ * `hintProgress` map per run, so the Educational profile's `hint` progression
+ * (`spec/execution-model.md:641-652`) starts over — every target begins at `"nudge"` — for each
+ * new `execute()` call.
  */
 function createExecutionEnvironment(
   program: ProgramNode,
@@ -2548,6 +2799,8 @@ function createExecutionEnvironment(
     turtle: createDefaultTurtleState(),
     randomNumberGenerator: createRandomNumberGeneratorState(),
     source,
+    programSpan: program.source_span,
+    hintProgress: new Map(),
     callProcedure: callProcedureAsValue,
   };
 }

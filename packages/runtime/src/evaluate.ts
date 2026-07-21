@@ -31,8 +31,9 @@ import type {
   OLValue,
   SourceSpan,
   TraceEvent,
+  TutorHintStage,
 } from "@openlogo/core";
-import { typeNameOf } from "@openlogo/core";
+import { makeSpan, typeNameOf } from "@openlogo/core";
 import type {
   AssignNode,
   BlockNode,
@@ -156,6 +157,17 @@ export interface CancellationSignal {
  * of it (`not-a-place-text.ts`), matching the semantic checker's identical rule. `undefined` for
  * an environment built directly by a unit test with no real source string (this package's own
  * `createEnvironment()`), which falls back to reconstructing the text from the AST instead.
+ *
+ * Issue #332 adds `programSpan` and `hintProgress` for the Educational profile's four baseline
+ * meta-commands (`explain`/`why`/`hint`/`debug`, `execute-internal.ts`'s
+ * `executeEducationalMetaCommand`). `programSpan` is the whole program's own `source_span` — the
+ * explicit fallback `target-source-span` value `hint` MUST carry
+ * (`spec/execution-model.md#tutor-output-educational-profile`) when no narrower target is
+ * selected. `hintProgress` is the host-implementation-defined progression state
+ * `spec/execution-model.md:641-652` calls for: a mutable map (like `instructionCount`/`turtle`,
+ * shared unchanged across every recursive `executeStatements`/`evaluate` call in one `execute()`
+ * run) from a serialized `target-source-span` key to the last {@link TutorHintStage} emitted for
+ * it, so a repeated `hint` for the same target escalates one stage per call within a single run.
  */
 export interface Environment {
   readonly frames: readonly Frame[];
@@ -170,6 +182,8 @@ export interface Environment {
   readonly signal?: CancellationSignal;
   readonly turtle: TurtleState;
   readonly source?: string;
+  readonly programSpan: SourceSpan;
+  readonly hintProgress: Map<string, TutorHintStage>;
   readonly callProcedure: (
     node: CallNode | ParenCallNode,
     environment: Environment,
@@ -260,6 +274,12 @@ export function createEnvironment(): Environment {
     instructionCount: { count: 0 },
     turtle: createDefaultTurtleState(),
     randomNumberGenerator: createRandomNumberGeneratorState(),
+    // No real parsed program backs this bare environment, so `programSpan` is a placeholder —
+    // safe because none of this package's own expression-only unit tests exercise the
+    // Educational meta-commands (`execute-internal.ts`'s `createExecutionEnvironment` is the
+    // only place a real `program.source_span` is threaded through, per issue #332).
+    programSpan: makeSpan("", [1, 1], [1, 1]),
+    hintProgress: new Map(),
     callProcedure: () => {
       throw new Error(
         "callProcedure is unreachable on a bare createEnvironment() — it has no procedures",

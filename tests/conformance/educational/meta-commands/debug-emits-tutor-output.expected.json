@@ -1,0 +1,31 @@
+{
+  "description": "issue #332 (A2): executing the bare `debug` meta-command emits exactly one `tutor-output` event with `command: \"debug\"`, a non-empty `segments` array, and no `diagnostic_code`/`target_source_span` — same shape rationale as `why`'s fixture (the diagnostic arm is out of scope: a runtime diagnostic halts execution terminally, before a `debug` call could ever observe one from its own run).",
+  "profiles": ["core-language", "educational"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "educational/meta-commands/debug-emits-tutor-output",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "tutor-output",
+      "source_span": {
+        "document": "educational/meta-commands/debug-emits-tutor-output",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "command": "debug",
+        "segments": ["Here is what to check about your program."]
+      }
+    }
+  ],
+  "diagnostics": []
+}

@@ -1,0 +1,31 @@
+{
+  "description": "issue #332 (A2), closing the gap A1's reviewer flagged: A1 (#331) parses `explain`/`why`/`hint`/`debug` as ordinary zero-arity `Call`/`ParenCall` nodes with no static arity check, matching Turtle/Data precedent, so `(explain 1)` parses and checks clean. A2 rejects any nonzero-input parenthesized meta-command call AT RUNTIME with the stable `ol-too-many-inputs` diagnostic (spec/error-model.md) — reusing the same builder every other arity violation in the runtime uses — and emits no `tutor-output` event.",
+  "profiles": ["core-language", "educational"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "educational/meta-commands/explain-too-many-inputs",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": { "statement_kind": "ParenCall" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-too-many-inputs",
+      "source_span": {
+        "document": "educational/meta-commands/explain-too-many-inputs",
+        "start": [1, 2],
+        "end": [1, 9]
+      },
+      "params": { "callable": "explain", "expected": 0, "actual": 1 },
+      "message": "explain takes 0 inputs, but got 1.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}
