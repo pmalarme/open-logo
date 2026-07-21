@@ -159,10 +159,10 @@ test("execute raises ol-range for a left turn angle that overflows to -Infinity"
 });
 
 test("execute leaves an unsupported turn-angle argument un-evaluated, emitting no turn event", () => {
-  // `:ages.tom` is a place/expression form this slice's parser does not yet fully support in
-  // every position (mirrors the equivalent forward/back test) — left un-evaluated rather than
-  // raising, matching print's precedent.
-  const result = execute("right :ages.tom", "main.logo");
+  // `(nonexistent_builtin 1)` is a call to an unregistered procedure — this slice's evaluator
+  // does not attempt it (mirrors the equivalent forward/back test) — left un-evaluated rather
+  // than raising, matching print's precedent.
+  const result = execute("right (nonexistent_builtin 1)", "main.logo");
   assert.equal(result.events.length, 1);
   assert.deepEqual(result.diagnostics, []);
 });

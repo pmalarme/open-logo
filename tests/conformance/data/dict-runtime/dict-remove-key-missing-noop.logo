@@ -1,0 +1,5 @@
+:ages = {
+  tom: 8
+}
+remove key "nobody" from :ages
+print count :ages

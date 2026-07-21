@@ -1,0 +1,118 @@
+{
+  "description": "`member?`/`is member of`, `keys`, `values`, and `count` on a dict (issue #322, `spec/data-structures.md:219-250`): `member? \"tom\" :ages` and `\"tom\" is member of :ages` are both `true` (key membership, not element search), `keys`/`values` return lists in insertion order, and `count` reports the entry total.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-runtime/dict-ops-basic",
+        "start": [1, 1],
+        "end": [4, 2]
+      },
+      "payload": { "statement_kind": "Assign" }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-runtime/dict-ops-basic",
+        "start": [5, 1],
+        "end": [5, 26]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "data/dict-runtime/dict-ops-basic",
+        "start": [5, 1],
+        "end": [5, 26]
+      },
+      "payload": { "values": [true] }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-runtime/dict-ops-basic",
+        "start": [6, 1],
+        "end": [6, 32]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 4,
+      "kind": "print",
+      "source_span": {
+        "document": "data/dict-runtime/dict-ops-basic",
+        "start": [6, 1],
+        "end": [6, 32]
+      },
+      "payload": { "values": [true] }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-runtime/dict-ops-basic",
+        "start": [7, 1],
+        "end": [7, 17]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 6,
+      "kind": "print",
+      "source_span": {
+        "document": "data/dict-runtime/dict-ops-basic",
+        "start": [7, 1],
+        "end": [7, 17]
+      },
+      "payload": { "values": [["tom", "sophie"]] }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-runtime/dict-ops-basic",
+        "start": [8, 1],
+        "end": [8, 19]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 8,
+      "kind": "print",
+      "source_span": {
+        "document": "data/dict-runtime/dict-ops-basic",
+        "start": [8, 1],
+        "end": [8, 19]
+      },
+      "payload": { "values": [[8, 6]] }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-runtime/dict-ops-basic",
+        "start": [9, 1],
+        "end": [9, 18]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 10,
+      "kind": "print",
+      "source_span": {
+        "document": "data/dict-runtime/dict-ops-basic",
+        "start": [9, 1],
+        "end": [9, 18]
+      },
+      "payload": { "values": [2] }
+    }
+  ],
+  "diagnostics": []
+}

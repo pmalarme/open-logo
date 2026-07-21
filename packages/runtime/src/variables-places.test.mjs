@@ -10,7 +10,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { makeSpan } from "@openlogo/core";
+import { makeSpan, OLDict } from "@openlogo/core";
 import * as Parser from "@openlogo/parser";
 import { createEnvironment, evaluate, executeAssign } from "@openlogo/runtime";
 
@@ -145,13 +145,13 @@ test("raises ol-range for a zero index and for a non-integer index", () => {
   assert.equal(fractional.diagnostic.code, "ol-range");
 });
 
-test("raises ol-type when indexing a non-list value", () => {
+test("raises ol-type when indexing a non-list, non-dict value", () => {
   const env = envWith("x", 5);
   const result = evaluate(parseExpr(":x[1]"), env);
   assert.equal(result.ok, false);
   assert.equal(result.diagnostic.code, "ol-type");
   assert.deepEqual(result.diagnostic.params, {
-    expected: "list",
+    expected: "list or dict",
     actual: "number",
     value: 5,
     operation: "index",
@@ -255,18 +255,21 @@ test("ol-not-a-place is raised before the target is evaluated — an unbound ope
   assert.deepEqual(result.diagnostic.params, { text: "first :missing" });
 });
 
-test("leaves a dotted `.field` assignment target silently un-executed (Data-profile, deferred)", () => {
+test("writing through a dotted `.field` place raises ol-undefined-var when the base is unbound", () => {
   const env = createEnvironment();
   const result = executeAssign(parseStatement(":ages.tom = 5"), env);
-  assert.deepEqual(result, { ok: true });
-  assert.equal(env.frames[env.frames.length - 1].has("ages"), false);
+  assert.equal(result.ok, false);
+  assert.equal(result.diagnostic.code, "ol-undefined-var");
+  assert.deepEqual(result.diagnostic.params, { name: "ages" });
 });
 
-test("leaves an assignment with a dotted `.field` value expression silently un-executed", () => {
-  const env = envWith("ages", [1]);
+test("reads a dict field through a dotted `.field` value expression, assigning the result", () => {
+  const dict = new OLDict();
+  dict.set("tom", 8);
+  const env = envWith("ages", dict);
   const result = executeAssign(parseStatement(":x = :ages.tom"), env);
   assert.deepEqual(result, { ok: true });
-  assert.equal(env.frames[env.frames.length - 1].has("x"), false);
+  assert.equal(env.frames[env.frames.length - 1].get("x"), 8);
 });
 
 // --- Assignment: postfix index places ---------------------------------------------------------
@@ -343,13 +346,16 @@ test("raises ol-range for the final segment of an indexed write when it is out o
 // --- Hand-built AST invariants (unreachable from real source) ---------------------------------
 //
 // The remaining tests hand-build minimal AST nodes to exercise evaluator-internal invariants
-// that the parser's grammar makes unreachable from real source: `isSupportedExpression` already
-// filters a `.field`-bearing place out of anything `print`/`execute()` would evaluate, and the
-// grammar only ever builds an `Assign` target as a `Place` or a `Call`/`ParenCall`.
+// that the parser's grammar makes unreachable from real source: the grammar only ever builds an
+// `Assign` target as a `Place` or a `Call`/`ParenCall`.
 
 const span = makeSpan(doc, [1, 1], [1, 1]);
 
-test("readPlace throws for a place segment kind this issue does not implement yet", () => {
+test("readPlace raises ol-type ('dict') for a `.field` segment whose container is a list", () => {
+  // `.field` is dict-only (issue #322): resolving it against a list container is a type error,
+  // not an internal-invariant throw — the parser's grammar never places a genuinely unimplemented
+  // segment kind here (only `field`/`index` exist), so this exercises the runtime type-check on
+  // a real, reachable shape instead.
   const env = envWith("ages", [1, 2, 3]);
   const place = {
     kind: "Place",
@@ -363,7 +369,15 @@ test("readPlace throws for a place segment kind this issue does not implement ye
       },
     ],
   };
-  assert.throws(() => evaluate(place, env), /field.*not implemented/);
+  const result = evaluate(place, env);
+  assert.equal(result.ok, false);
+  assert.equal(result.diagnostic.code, "ol-type");
+  assert.deepEqual(result.diagnostic.params, {
+    expected: "dict",
+    actual: "list",
+    value: [1, 2, 3],
+    operation: "field",
+  });
 });
 
 test("executeAssign raises ol-not-a-place when the assignment target is a bare NumberLit", () => {

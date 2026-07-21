@@ -9,6 +9,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { formatNumber, printedForm } from "@openlogo/runtime";
+import { OLDict } from "@openlogo/core";
 
 test("formatNumber prints a whole value without a decimal", () => {
   assert.equal(formatNumber(5), "5");
@@ -50,4 +51,22 @@ test("printedForm prints a nested list recursively", () => {
 
 test("printedForm prints a mixed-type list, each element in its own canonical form", () => {
   assert.equal(printedForm([1, "two", true, [3]]), "[1 two true [3]]");
+});
+
+test("printedForm prints a dict as `{key: value …}` in insertion order (issue #322)", () => {
+  const dict = new OLDict();
+  dict.set("a", 1);
+  dict.set("b", "two");
+  assert.equal(printedForm(dict), "{a: 1 b: two}");
+});
+
+test("printedForm prints an empty dict as `{}`", () => {
+  assert.equal(printedForm(new OLDict()), "{}");
+});
+
+test("printedForm prints a dict nested inside a list, and vice versa", () => {
+  const dict = new OLDict();
+  dict.set("x", [1, 2]);
+  assert.equal(printedForm(dict), "{x: [1 2]}");
+  assert.equal(printedForm([dict]), "[{x: [1 2]}]");
 });

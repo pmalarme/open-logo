@@ -82,6 +82,17 @@ function runtimeError(
   };
 }
 
+/**
+ * A small, self-contained learner-message rendering of a dict key for `ol-unknown-key`'s message
+ * text (a number prints bare, a word is quoted so it reads as the key it is). Cannot reuse
+ * `evaluate.ts`'s `printedForm`/`formatNumber` — `evaluate.ts` imports diagnostics *from* this
+ * module, so the reverse import would be a cycle; the key is always a word or number by the time
+ * a caller reaches here, so this only needs to cover those two shapes.
+ */
+function formatKeyForMessage(key: OLValue): string {
+  return typeof key === "number" ? String(key) : `"${String(key)}"`;
+}
+
 /** Params for an `ol-type` diagnostic raised by an arithmetic operator or math builtin. */
 export interface ArithmeticTypeErrorParams {
   readonly expected: "number";
@@ -105,12 +116,15 @@ export interface OrderingTypeErrorParams {
 }
 
 /**
- * Params for an `ol-type` raised while resolving a postfix place — a non-list value indexed with
- * `[ … ]`, a non-number index key, or a non-word argument to `thing`
- * (`spec/error-model.md:99` — list indexing with a non-number key is `ol-type`, not `ol-range`).
+ * Params for an `ol-type` raised while resolving a postfix place — a non-list/non-dict value
+ * indexed with `[ … ]`/`.field`, a non-number list-index key, a non-word/non-number dict key, or
+ * a non-word argument to `thing` (`spec/error-model.md:99` — list indexing with a non-number key
+ * is `ol-type`, not `ol-range`; issue #322 extends the same postfix-resolution guard to dicts,
+ * `spec/data-structures.md:183-203`).
  */
 export interface PlaceTypeErrorParams {
-  readonly expected: "list" | "number" | "word";
+  readonly expected:
+    "list" | "number" | "word" | "dict" | "word or number" | "list or dict";
   readonly actual: string;
   readonly value: OLValue;
   readonly operation: string;
@@ -129,17 +143,29 @@ export interface IndexRangeParams {
 }
 
 /**
+ * Params for `ol-unknown-key` (`spec/error-model.md:126`): a required dictionary key is absent on
+ * read, or an intermediate dictionary key is absent in a nested access chain
+ * (`spec/data-structures.md:191,203`). Writing a missing *final* key upserts instead of raising
+ * this. `key` is the offending key exactly as the learner wrote it (a word or number).
+ */
+export interface UnknownKeyParams {
+  readonly key: OLValue;
+}
+
+/**
  * Params for an `ol-type` raised by a list-mutator statement (`add`/`remove`/`insert`/`clear`,
  * `spec/data-structures.md:73-93`, `spec/execution-model.md:447-482`) whose target is not a list,
- * or by `insert`'s position argument that is not a number. Same `{expected, actual, value,
+ * or by `insert`'s position argument that is not a number. Issue #322 widens this for the dict
+ * half of `clear` (target may be a list or dict) and for `remove key … from`, whose target must
+ * be a dict specifically (`spec/data-structures.md:221-234`). Same `{expected, actual, value,
  * operation}` shape as the other `ol-type` param builders so every stage agrees on identity;
  * `operation` names the mutator verb for the message.
  */
 export interface ListMutatorTypeErrorParams {
-  readonly expected: "list" | "number";
+  readonly expected: "list" | "number" | "dict" | "list or dict";
   readonly actual: string;
   readonly value: OLValue;
-  readonly operation: "add" | "remove" | "insert" | "clear";
+  readonly operation: "add" | "remove" | "insert" | "clear" | "remove key";
 }
 
 /**
@@ -307,13 +333,14 @@ export interface ReturnInComprehensionParams {
 
 /**
  * Params for an `ol-type` raised by a worded `is`-predicate's or a prefix `?`-predicate's operand
- * (`spec/execution-model.md:158-166`): `is empty`/`empty?` accepts a list or word, `is member of`/
- * `member?` accepts a list as the collection, and the prefix `is_a? value type` form's dynamically
- * evaluated `type` argument must itself be a word. Same shape as {@link OrderingTypeErrorParams}/
+ * (`spec/execution-model.md:158-166`): `is empty`/`empty?` accepts a list, dict, or word
+ * (`spec/commands.md:671`), `is member of`/`member?` accepts a list or dict as the collection
+ * (`spec/commands.md:689`), and the prefix `is_a? value type` form's dynamically evaluated `type`
+ * argument must itself be a word. Same shape as {@link OrderingTypeErrorParams}/
  * {@link PlaceTypeErrorParams} — `operation` names the offending predicate for the message.
  */
 export interface IsPredicateTypeErrorParams {
-  readonly expected: "list or word" | "list" | "word";
+  readonly expected: "list, dict, or word" | "list or dict" | "list" | "word";
   readonly actual: string;
   readonly value: OLValue;
   readonly operation: string;
@@ -321,16 +348,17 @@ export interface IsPredicateTypeErrorParams {
 
 /**
  * Params for an `ol-type` raised by a Core list reporter's wrong-typed argument
- * (`spec/commands.md` — `first`/`last`/`butfirst`/`butlast`/`count` accept a word or list; `fput`/
- * `lput` require their second argument to be a list; `word` requires every argument to be a word,
- * issue #234) or a Data-profile derived list reporter's wrong-typed argument
- * (`spec/data-structures.md:125-141` — `reverse`/`pick`/`sort` each require a `list`, issue #190).
- * Same `{expected, actual, value, operation}` shape as
- * {@link IsPredicateTypeErrorParams}/{@link OrderingTypeErrorParams} — `operation` names the
- * offending reporter for the message.
+ * (`spec/commands.md` — `first`/`last`/`butfirst`/`butlast` accept a word or list; `count` accepts
+ * a word, list, or dict (`spec/commands.md:1141`, issue #322); `fput`/`lput` require their second
+ * argument to be a list; `word` requires every argument to be a word, issue #234) or a
+ * Data-profile derived list reporter's wrong-typed argument (`spec/data-structures.md:125-141` —
+ * `reverse`/`pick`/`sort` each require a `list`, issue #190). Same `{expected, actual, value,
+ * operation}` shape as {@link IsPredicateTypeErrorParams}/{@link OrderingTypeErrorParams} —
+ * `operation` names the offending reporter for the message.
  */
 export interface ListReporterTypeErrorParams {
-  readonly expected: "word or list" | "list" | "word";
+  readonly expected:
+    "word or list" | "word, list, or dict" | "list" | "word" | "dict";
   readonly actual: string;
   readonly value: OLValue;
   readonly operation: string;
@@ -505,6 +533,21 @@ export const runtimeDiag = {
       source_span,
       { text },
       `${text} reports a value, it isn't a place you can assign to.`,
+    );
+  },
+
+  /**
+   * `ol-unknown-key`: a required dictionary key is absent on read, or an intermediate dictionary
+   * key is absent in a nested access chain (`spec/error-model.md:126`,
+   * `spec/data-structures.md:191,203`). Never raised for a missing *final* write key (that
+   * upserts instead).
+   */
+  unknownKey(source_span: SourceSpan, params: UnknownKeyParams): Diagnostic {
+    return runtimeError(
+      "ol-unknown-key",
+      source_span,
+      { ...params },
+      `this dict has no key ${formatKeyForMessage(params.key)}.`,
     );
   },
 

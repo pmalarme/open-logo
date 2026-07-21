@@ -821,10 +821,49 @@ export function parse(source: string, document = "<input>"): ParseResult {
     if (lower === "map" || lower === "filter" || lower === "reduce") {
       return parseComprehension(token, lower);
     }
+    if (
+      lower === "value" &&
+      peek(1).kind === "name" &&
+      peek(1).text.toLowerCase() === "of"
+    ) {
+      return parseValueOfKey(token);
+    }
     if (NON_PRIMARY_NAMES.has(lower)) {
       return undefined;
     }
     return parseFixedCall(token);
+  }
+
+  /**
+   * `value of expression "for" "key" expression` (`spec/grammar.md:213`'s `value-of-reader`), the
+   * Heritage dict reader — a read-only equivalent of `dictionary.key`/`dictionary[key]`
+   * (`spec/data-structures.md:183-195`). Both the dictionary and the key are full expressions
+   * (unlike a selector's narrower `key-term`), so `value of ( f ) for key ( g )` is legal. Only
+   * intercepted here when `value` is directly followed by `of`, so a bare `value` (not a known
+   * primitive today) still falls through to {@link parseFixedCall} unchanged.
+   */
+  function parseValueOfKey(token: LexToken): ExpressionNode | undefined {
+    advance(); // "value"
+    advance(); // "of"
+    const dictionary = requireExpression();
+    if (dictionary === undefined) {
+      return undefined;
+    }
+    if (!consumeKeyword("for")) {
+      return undefined;
+    }
+    if (!consumeKeyword("key")) {
+      return undefined;
+    }
+    const key = requireExpression();
+    if (key === undefined) {
+      return undefined;
+    }
+    return ast.valueOfKey(
+      dictionary,
+      key,
+      spanFrom(token.source_span.start, key),
+    );
   }
 
   function parseFixedCall(token: LexToken): ExpressionNode {

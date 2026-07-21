@@ -1,0 +1,56 @@
+{
+  "description": "`clear` empties a dict in place (issue #322, `spec/data-structures.md:219-231`, extending the list-mutator `clear` from #188 to dicts); `count` is 0 after clearing a two-entry dict.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-runtime/dict-clear-execute",
+        "start": [1, 1],
+        "end": [4, 2]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-runtime/dict-clear-execute",
+        "start": [5, 1],
+        "end": [5, 12]
+      },
+      "payload": {
+        "statement_kind": "Clear"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-runtime/dict-clear-execute",
+        "start": [6, 1],
+        "end": [6, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "data/dict-runtime/dict-clear-execute",
+        "start": [6, 1],
+        "end": [6, 18]
+      },
+      "payload": {
+        "values": [0]
+      }
+    }
+  ],
+  "diagnostics": []
+}

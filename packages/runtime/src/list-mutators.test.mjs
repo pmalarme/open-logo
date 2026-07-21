@@ -2,10 +2,10 @@
 // `add … to`, `remove … from`, `insert … in … at`, and `clear` (spec/data-structures.md:73-93,
 // spec/execution-model.md:447-482). Each mutates a shared list reference in place, emits no
 // dedicated effect event (only the generic per-statement `instruction` event, like assignment),
-// and raises `ol-type`/`ol-range` on a bad target/position. The dict-only `remove key … from`
-// form stays a deferred no-op (dicts have no runtime representation yet — issue #322). Every case
-// drives the public `execute()` entry point through real parsed source, exactly as a learner
-// program would, so the parser dispatch AND the runtime dispatch are both exercised end to end.
+// and raises `ol-type`/`ol-range` on a bad target/position. `clear` and the dict-only
+// `remove key … from` form are extended to dicts by issue #322. Every case drives the public
+// `execute()` entry point through real parsed source, exactly as a learner program would, so the
+// parser dispatch AND the runtime dispatch are both exercised end to end.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -91,11 +91,17 @@ test("`add` propagates a failing value expression", () => {
 });
 
 test("`add` with an unsupported value expression is a deferred no-op", () => {
-  assert.deepEqual(lastPrint(":l = [1]\nadd :d.field to :l\nprint :l"), [[1]]);
+  assert.deepEqual(
+    lastPrint(":l = [1]\nadd (nonexistent_builtin 1) to :l\nprint :l"),
+    [[1]],
+  );
 });
 
 test("`add` with an unsupported target expression is a deferred no-op", () => {
-  assert.deepEqual(lastPrint(":l = [1]\nadd 5 to :l.field\nprint :l"), [[1]]);
+  assert.deepEqual(
+    lastPrint(":l = [1]\nadd 5 to (nonexistent_builtin 1)\nprint :l"),
+    [[1]],
+  );
 });
 
 // --- `remove … from` ------------------------------------------------------------------------
@@ -146,9 +152,10 @@ test("`remove` propagates a failing value expression", () => {
 });
 
 test("`remove` with an unsupported operand is a deferred no-op", () => {
-  assert.deepEqual(lastPrint(":l = [1 2]\nremove :d.field from :l\nprint :l"), [
-    [1, 2],
-  ]);
+  assert.deepEqual(
+    lastPrint(":l = [1 2]\nremove (nonexistent_builtin 1) from :l\nprint :l"),
+    [[1, 2]],
+  );
 });
 
 // --- `insert … in … at` ---------------------------------------------------------------------
@@ -258,20 +265,21 @@ test("`insert` checks the target type before evaluating the position, short-circ
 
 test("`insert` with an unsupported value operand is a deferred no-op", () => {
   assert.deepEqual(
-    lastPrint(":l = [1]\ninsert :d.field in :l at 1\nprint :l"),
+    lastPrint(":l = [1]\ninsert (nonexistent_builtin 1) in :l at 1\nprint :l"),
     [[1]],
   );
 });
 
 test("`insert` with an unsupported target operand is a deferred no-op", () => {
-  assert.deepEqual(lastPrint(":l = [1]\ninsert 5 in :l.field at 1\nprint :l"), [
-    [1],
-  ]);
+  assert.deepEqual(
+    lastPrint(":l = [1]\ninsert 5 in (nonexistent_builtin 1) at 1\nprint :l"),
+    [[1]],
+  );
 });
 
 test("`insert` with an unsupported position operand is a deferred no-op", () => {
   assert.deepEqual(
-    lastPrint(":l = [1]\ninsert 5 in :l at :d.field\nprint :l"),
+    lastPrint(":l = [1]\ninsert 5 in :l at (nonexistent_builtin 1)\nprint :l"),
     [[1]],
   );
 });
@@ -296,7 +304,7 @@ test("`clear` of a non-list target raises ol-type", () => {
   const diagnostic = runError("clear 5");
   assert.equal(diagnostic.code, "ol-type");
   assert.deepEqual(diagnostic.params, {
-    expected: "list",
+    expected: "list or dict",
     actual: "number",
     value: 5,
     operation: "clear",
@@ -304,24 +312,90 @@ test("`clear` of a non-list target raises ol-type", () => {
 });
 
 test("`clear` with an unsupported target expression is a deferred no-op", () => {
-  assert.deepEqual(lastPrint(":l = [1]\nclear :l.field\nprint :l"), [[1]]);
+  assert.deepEqual(
+    lastPrint(":l = [1]\nclear (nonexistent_builtin 1)\nprint :l"),
+    [[1]],
+  );
 });
 
-// --- `remove key … from` (deferred) + wiring ------------------------------------------------
+// --- `remove key … from` (dict runtime, issue #322) + wiring --------------------------------
 
-test("`remove key … from` is a deferred no-op (dict runtime is issue #322)", () => {
-  const events = run(":x = [1 2]\nremove key foo from :x\nprint :x");
-  // The list is untouched...
+test("`remove key … from` deletes a dict entry in place", () => {
+  const events = run(
+    ':x = { a: 1 b: 2 }\nremove key "a" from :x\nprint keys :x',
+  );
   const prints = events.filter((event) => event.kind === "print");
-  assert.deepEqual(prints[prints.length - 1].payload.values, [[1, 2]]);
+  assert.deepEqual(prints[prints.length - 1].payload.values, [["b"]]);
   // ...and it reached the runtime as a genuine RemoveKey statement (not misparsed as a plain
-  // Remove that happened to no-op), so this really exercises the #322 deferral path.
+  // Remove that happened to no-op).
   const removeKey = events.find(
     (event) =>
       event.kind === "instruction" &&
       event.payload.statement_kind === "RemoveKey",
   );
   assert.ok(removeKey, "expected a RemoveKey instruction event");
+});
+
+test("`remove key … from` is a no-op when the key does not exist", () => {
+  assert.deepEqual(
+    lastPrint(':x = { a: 1 }\nremove key "b" from :x\nprint count :x'),
+    [1],
+  );
+});
+
+test("`remove key … from` propagates a failing key expression's diagnostic", () => {
+  const diagnostic = runError(":x = { a: 1 }\nremove key (1 / 0) from :x");
+  assert.equal(diagnostic.code, "ol-div-zero");
+});
+
+test("`remove key … from` propagates a failing target expression's diagnostic", () => {
+  const diagnostic = runError('remove key "a" from (1 / 0)');
+  assert.equal(diagnostic.code, "ol-div-zero");
+});
+
+test("`remove key … from` raises ol-type when the target is not a dict", () => {
+  const diagnostic = runError('remove key "a" from 5');
+  assert.equal(diagnostic.code, "ol-type");
+  assert.deepEqual(diagnostic.params, {
+    expected: "dict",
+    actual: "number",
+    value: 5,
+    operation: "remove key",
+  });
+});
+
+test("`remove key … from` raises ol-type when the key is neither word nor number", () => {
+  const diagnostic = runError(":x = { a: 1 }\nremove key (true) from :x");
+  assert.equal(diagnostic.code, "ol-type");
+  assert.deepEqual(diagnostic.params, {
+    expected: "word or number",
+    actual: "boolean",
+    value: true,
+    operation: "remove key",
+  });
+});
+
+test("`remove key … from` is a deferred no-op when the key expression is unsupported", () => {
+  assert.deepEqual(
+    lastPrint(
+      ":x = { a: 1 }\nremove key (nonexistent_builtin 1) from :x\nprint count :x",
+    ),
+    [1],
+  );
+});
+
+test("`remove key … from` is a deferred no-op when the target expression is unsupported", () => {
+  assert.deepEqual(
+    lastPrint(
+      ':x = { a: 1 }\nremove key "a" from (nonexistent_builtin 1)\nprint count :x',
+    ),
+    [1],
+  );
+});
+
+test("`clear` propagates a failing target expression's diagnostic", () => {
+  const diagnostic = runError("clear (1 / 0)");
+  assert.equal(diagnostic.code, "ol-div-zero");
 });
 
 test("a mutator statement emits the generic `instruction` event", () => {

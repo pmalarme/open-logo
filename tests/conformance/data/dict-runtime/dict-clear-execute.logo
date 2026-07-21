@@ -1,0 +1,6 @@
+:ages = {
+  tom: 8
+  sophie: 6
+}
+clear :ages
+print count :ages

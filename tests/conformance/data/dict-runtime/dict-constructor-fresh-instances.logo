@@ -1,0 +1,5 @@
+:a = dict
+:b = dict
+:a.x = 1
+print count :a
+print count :b

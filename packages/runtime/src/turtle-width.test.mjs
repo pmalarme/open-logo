@@ -144,8 +144,8 @@ test("setwidth with two arguments raises ol-too-many-inputs with its own identit
   assert.equal(result.diagnostics[0].params.callable, "setwidth");
 });
 
-test("set_width leaves an unsupported argument expression un-evaluated (place segment)", () => {
-  const result = execute("set_width :widths.tom", "main.logo");
+test("set_width leaves an unsupported argument expression un-evaluated", () => {
+  const result = execute("set_width (nonexistent_builtin 1)", "main.logo");
   assert.equal(result.diagnostics.length, 0);
   assert.equal(
     result.events.some((event) => event.kind === "width-change"),

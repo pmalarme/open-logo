@@ -199,10 +199,10 @@ test("repeat stops and returns the diagnostic raised by a failing statement insi
 });
 
 test("a repeat with an unsupported-expression count is left un-executed, like other future-slice statements", () => {
-  // `:ages.tom` is a dotted-field read (Data-profile, not yet supported); the whole `Repeat`
+  // `(nonexistent_builtin 1)` calls an unregistered procedure; the whole `Repeat`
   // statement is skipped rather than raising, matching the existing "unsupported operand"
   // convention for `print`/`Assign`.
-  const result = execute("repeat :ages.tom [\n  print 1\n]", doc);
+  const result = execute("repeat (nonexistent_builtin 1) [\n  print 1\n]", doc);
   assert.deepEqual(result.diagnostics, []);
   assert.equal(result.events.length, 1);
   assert.equal(result.events[0].payload.statement_kind, "Repeat");

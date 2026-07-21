@@ -174,8 +174,11 @@ test("(randomize :missing) propagates the undefined-variable failure", () => {
 
 // --- randomize defers on an unsupported argument expression, mirroring show/print's precedent --
 
-test("randomize with an unsupported .field argument is left un-executed", () => {
-  const result = execute("(randomize :places.tom)\nprint random 10", doc);
+test("randomize with an unsupported argument is left un-executed", () => {
+  const result = execute(
+    "(randomize (nonexistent_builtin 1))\nprint random 10",
+    doc,
+  );
   assert.deepEqual(result.diagnostics, []);
   // The seed argument is deferred (not evaluated), but `randomize` itself is still skipped as a
   // whole statement, and the following `print random 10` still runs fine off the default random

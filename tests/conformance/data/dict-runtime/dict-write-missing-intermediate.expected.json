@@ -1,0 +1,47 @@
+{
+  "description": "A write through a missing intermediate segment does not auto-vivify — it raises `ol-unknown-key` (issue #322, `spec/data-structures.md:203`). `:people.tom.age = 8` fails because `:people` has no `tom` key yet.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-runtime/dict-write-missing-intermediate",
+        "start": [1, 1],
+        "end": [1, 15]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-runtime/dict-write-missing-intermediate",
+        "start": [2, 1],
+        "end": [2, 20]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-key",
+      "source_span": {
+        "document": "data/dict-runtime/dict-write-missing-intermediate",
+        "start": [2, 8],
+        "end": [2, 12]
+      },
+      "params": {
+        "key": "tom"
+      },
+      "message": "this dict has no key \"tom\".",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

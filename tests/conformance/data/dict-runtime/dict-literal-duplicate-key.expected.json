@@ -1,0 +1,58 @@
+{
+  "description": "A repeated key in a dict literal — the last entry wins the value, but the key keeps its first-insertion position for iteration (issue #322, `spec/data-structures.md:160-168`). `{ speed: 1 speed: 3 }` reads back `3`, and `keys` reports a single `speed` entry, not two.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-runtime/dict-literal-duplicate-key",
+        "start": [1, 1],
+        "end": [4, 2]
+      },
+      "payload": { "statement_kind": "Assign" }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-runtime/dict-literal-duplicate-key",
+        "start": [5, 1],
+        "end": [5, 22]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "data/dict-runtime/dict-literal-duplicate-key",
+        "start": [5, 1],
+        "end": [5, 22]
+      },
+      "payload": { "values": [3] }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-runtime/dict-literal-duplicate-key",
+        "start": [6, 1],
+        "end": [6, 21]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 4,
+      "kind": "print",
+      "source_span": {
+        "document": "data/dict-runtime/dict-literal-duplicate-key",
+        "start": [6, 1],
+        "end": [6, 21]
+      },
+      "payload": { "values": [["speed"]] }
+    }
+  ],
+  "diagnostics": []
+}

@@ -1,0 +1,41 @@
+{
+  "description": "A required dict read miss raises `ol-unknown-key` (issue #322, `spec/data-structures.md:191`): `:ages.nobody` reads a key that does not exist, halting execution before the `print` runs.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-runtime/dict-read-unknown-key",
+        "start": [1, 1],
+        "end": [3, 2]
+      },
+      "payload": { "statement_kind": "Assign" }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-runtime/dict-read-unknown-key",
+        "start": [4, 1],
+        "end": [4, 19]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-key",
+      "source_span": {
+        "document": "data/dict-runtime/dict-read-unknown-key",
+        "start": [4, 12],
+        "end": [4, 19]
+      },
+      "params": { "key": "nobody" },
+      "message": "this dict has no key \"nobody\".",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

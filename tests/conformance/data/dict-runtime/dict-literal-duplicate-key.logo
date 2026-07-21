@@ -1,0 +1,6 @@
+:settings = {
+  speed: 1
+  speed: 3
+}
+print :settings.speed
+print keys :settings

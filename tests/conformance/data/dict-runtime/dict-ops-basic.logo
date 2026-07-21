@@ -1,0 +1,9 @@
+:ages = {
+  tom: 8
+  sophie: 6
+}
+print member? "tom" :ages
+print ("tom" is member of :ages)
+print keys :ages
+print values :ages
+print count :ages

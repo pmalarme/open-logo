@@ -65,6 +65,7 @@ import {
   executeClear,
   executeInsert,
   executeRemove,
+  executeRemoveKey,
   findDuplicateBinderName,
   isSupportedExpression,
   printedForm,
@@ -1451,16 +1452,15 @@ function dispatchTurtleCommand(
 }
 
 /**
- * Dispatch the statements that write a place or mutate a list value in place — `Assign`
- * (`set … to` / `<place> = …`) plus the four Data-profile list mutators `add`/`remove`/`insert`/
- * `clear` (issue #188, `spec/data-structures.md:73-93`) — to their evaluators in `evaluate.ts`.
- * Returns the evaluator's {@link AssignResult} (a clean `ok`, or its `ol-type`/`ol-range`
- * diagnostic), or `undefined` when `statement` is none of them — so {@link executeStatements} falls
- * through to its remaining handlers. `RemoveKey` (dict key deletion) is deliberately NOT handled
- * here: dicts have no runtime representation yet (issue #322), so it stays a deferred no-op,
- * reaching only the generic `instruction` event like any other not-yet-evaluated statement kind.
+ * Dispatch the statements that write a place or mutate a list/dict value in place — `Assign`
+ * (`set … to` / `<place> = …`) plus the five Data-profile mutators `add`/`remove`/`insert`/
+ * `clear` (issue #188, `spec/data-structures.md:73-93`) and `RemoveKey` (dict key deletion, issue
+ * #322, `spec/data-structures.md:229`) — to their evaluators in `evaluate.ts`. Returns the
+ * evaluator's {@link AssignResult} (a clean `ok`, or its `ol-type`/`ol-range` diagnostic), or
+ * `undefined` when `statement` is none of them — so {@link executeStatements} falls through to its
+ * remaining handlers.
  *
- * `Assign` and the four mutators share one dispatch — and therefore one result local in
+ * `Assign` and the five mutators share one dispatch — and therefore one result local in
  * {@link executeStatements} — on purpose. `executeStatements` recurses once per procedure call, so
  * every extra local it declares widens the per-level stack frame; a *second* result local there for
  * the mutators pushed the 600-deep `recursionDepthLimit: 1000` regression test
@@ -1482,6 +1482,8 @@ function dispatchAssignOrListMutator(
       return executeInsert(statement, environment);
     case "Clear":
       return executeClear(statement, environment);
+    case "RemoveKey":
+      return executeRemoveKey(statement, environment);
     default:
       return undefined;
   }
