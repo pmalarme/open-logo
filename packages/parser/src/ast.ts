@@ -18,8 +18,8 @@ import type { SourceSpan } from "@openlogo/core";
 
 /**
  * The Core node-kind vocabulary, mirroring the grammar productions of `spec/grammar.md`.
- * `DictLit` is the first Data-profile node kind — other Data-profile nodes (`StructDef`, …)
- * join this vocabulary as their own slices land.
+ * `DictLit` is the first Data-profile node kind; `StructDef` (the `struct` declaration) joins it,
+ * and further Data-profile nodes land in their own slices.
  */
 export const OL_NODE_KINDS = [
   "Program",
@@ -54,6 +54,7 @@ export const OL_NODE_KINDS = [
   "RemoveKey",
   "Insert",
   "Clear",
+  "StructDef",
 ] as const;
 
 /** One Core AST node kind. */
@@ -449,6 +450,21 @@ export interface ClearNode extends NodeBase {
   readonly target: ExpressionNode;
 }
 
+/**
+ * `struct type-name "[" identifier { identifier } "]"` — declares a record type, its fixed field
+ * set, and a same-named constructor reporter (Data profile, `spec/grammar.md:155-156`'s
+ * `struct-declaration`/`field-list`; `spec/data-structures.md:252-266`). Both `name` and each
+ * `field` are {@link SpannedName} metadata, not walkable nodes: the bracketed field list contains
+ * bare field names that perform no evaluation (`spec/data-structures.md:264`), so a `StructDef` has
+ * no expression children (it falls through `childrenOf`'s default). Grammar/AST only — the
+ * constructor-call and field mutation semantics land in a later Data-profile slice.
+ */
+export interface StructDefNode extends NodeBase {
+  readonly kind: "StructDef";
+  readonly name: SpannedName;
+  readonly fields: readonly SpannedName[];
+}
+
 /** Nodes usable in value position. */
 export type ExpressionNode =
   | NumberLitNode
@@ -487,7 +503,8 @@ export type StatementNode =
   | RemoveNode
   | RemoveKeyNode
   | InsertNode
-  | ClearNode;
+  | ClearNode
+  | StructDefNode;
 
 /** Any concrete AST node. */
 export type AnyNode = ProgramNode | StatementNode | DestructuringBinderNode;
@@ -702,6 +719,13 @@ export const ast = {
   },
   clear(target: ExpressionNode, span: SourceSpan): ClearNode {
     return { kind: "Clear", source_span: span, target };
+  },
+  structDef(
+    name: SpannedName,
+    fields: readonly SpannedName[],
+    span: SourceSpan,
+  ): StructDefNode {
+    return { kind: "StructDef", source_span: span, name, fields };
   },
 } as const;
 

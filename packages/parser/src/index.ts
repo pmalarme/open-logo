@@ -55,6 +55,7 @@ export type {
   SpannedName,
   StatementNode,
   StopNode,
+  StructDefNode,
   ThrowNode,
   VarRefNode,
   Visitor,

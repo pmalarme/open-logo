@@ -774,6 +774,7 @@ const MEGA = [
   'remove key "a" from :x',
   "insert 3 in :x at 0",
   "clear :x",
+  "struct point [ p q ]",
 ].join("\n");
 
 test("walk visits every core node kind, pre-order", () => {

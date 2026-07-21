@@ -1247,6 +1247,8 @@ export function parse(source: string, document = "<input>"): ParseResult {
           return parseInsert();
         case "clear":
           return parseClear();
+        case "struct":
+          return parseStructDef();
         default:
           break;
       }
@@ -1844,6 +1846,83 @@ export function parse(source: string, document = "<input>"): ParseResult {
       return undefined;
     }
     return ast.clear(target, spanFrom(token.source_span.start, target));
+  }
+
+  /**
+   * `struct type-name "[" identifier { identifier } "]"` (`spec/grammar.md:155-156`, Data profile).
+   * Declares a record type, its fixed fields, and a same-named constructor. The bracketed field
+   * list is not a list literal: it holds bare field names that perform no evaluation
+   * (`spec/data-structures.md:264`), so the fields are carried as {@link SpannedName} metadata, the
+   * same shape as procedure parameter and destructuring-binder names. Grammar/AST only — the
+   * constructor call and field access/mutation land in a later Data-profile slice.
+   */
+  function parseStructDef(): StatementNode | undefined {
+    const structTok = current();
+    advance();
+    const nameTok = current();
+    if (nameTok.kind !== "name") {
+      diagnostics.push(unexpected(nameTok));
+      return undefined;
+    }
+    advance();
+    const name = sname(nameTok.text, nameTok);
+    const open = current();
+    if (open.kind !== "lbracket") {
+      diagnostics.push(unexpected(open));
+      return undefined;
+    }
+    advance();
+    const fields: SpannedName[] = [];
+    while (current().kind === "name") {
+      const fieldTok = current();
+      advance();
+      fields.push(sname(fieldTok.text, fieldTok));
+    }
+    const closer = current();
+    if (closer.kind === "rbracket") {
+      advance();
+      if (fields.length === 0) {
+        // `struct point [ ]`: both brackets are present and matched, so the `]` is not itself
+        // unmatched — the field list is simply empty where at least one field name was
+        // required. Flag the stray closer as an `ol-bad-token`, mirroring how an empty group
+        // `( )` reports its matched `)` (see `parseParenthesized`). Consuming it above keeps
+        // recovery from re-diagnosing the same bracket as a stray top-level token.
+        diagnostics.push(parseDiag.badToken(closer.source_span, closer.text));
+        return undefined;
+      }
+      return ast.structDef(
+        name,
+        fields,
+        spanToHere(structTok.source_span.start),
+      );
+    }
+    if (closer.kind === "newline" || closer.kind === "eof") {
+      // The field list was opened but never closed before the statement ended: the opening `[`
+      // is the genuinely unmatched bracket (`spec/error-model.md:102`).
+      diagnostics.push(parseDiag.unmatchedBracket(open.source_span, "["));
+      return undefined;
+    }
+    // A non-identifier token (e.g. a number) interrupts the field list. Both brackets are
+    // present, so the problem is the stray token, not the bracket: report it as `ol-bad-token`
+    // at that token, then recover by skipping the balanced remainder up to and including the
+    // field list's own `]`. Tracking bracket depth means a nested `[ … ]` inside the garbage
+    // cannot end recovery early at the wrong `]` and leak a spurious second diagnostic.
+    diagnostics.push(unexpected(closer));
+    let depth = 1;
+    while (
+      depth > 0 &&
+      current().kind !== "newline" &&
+      current().kind !== "eof"
+    ) {
+      const kind = current().kind;
+      if (kind === "lbracket") {
+        depth += 1;
+      } else if (kind === "rbracket") {
+        depth -= 1;
+      }
+      advance();
+    }
+    return undefined;
   }
 
   function parseProgram(): ProgramNode {
