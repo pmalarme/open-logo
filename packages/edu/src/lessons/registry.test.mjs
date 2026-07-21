@@ -5,9 +5,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as OL from "@openlogo/edu";
 
-const AUTHORED_LEVELS = new Set(["1", "2", "3", "4"]);
+const AUTHORED_LEVELS = new Set(["1", "2", "3", "4", "5"]);
 
-test("LESSONS and EXERCISES aggregate every authored Level 1-4 item", () => {
+test("LESSONS and EXERCISES aggregate every authored Level 1-5 item", () => {
   assert.equal(
     OL.LESSONS.every((lesson) => AUTHORED_LEVELS.has(lesson.level)),
     true,
@@ -37,7 +37,7 @@ test("getLessonsByLevel returns only lessons for the requested level, empty for 
     level1.every((lesson) => lesson.level === "1"),
     true,
   );
-  assert.deepEqual(OL.getLessonsByLevel("5"), []);
+  assert.deepEqual(OL.getLessonsByLevel("6"), []);
 });
 
 test("getExercisesByLevel returns only exercises for the requested level, empty for an unauthored one", () => {
@@ -47,7 +47,7 @@ test("getExercisesByLevel returns only exercises for the requested level, empty 
     level2.every((exercise) => exercise.level === "2"),
     true,
   );
-  assert.deepEqual(OL.getExercisesByLevel("5"), []);
+  assert.deepEqual(OL.getExercisesByLevel("6"), []);
 });
 
 test("getExercisesByLesson returns only exercises for the requested lesson, empty for an unknown one", () => {
