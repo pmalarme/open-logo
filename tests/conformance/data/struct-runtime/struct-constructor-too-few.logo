@@ -1,0 +1,2 @@
+struct point [ x y ]
+:p = point 3

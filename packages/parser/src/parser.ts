@@ -99,9 +99,22 @@ const END_LABELS = new Set<string>([
 ]);
 
 /**
- * Pre-scan the token stream for `define <name> :p …` headers so a later prefix call to a user
- * procedure knows how many arguments to gather. Optional `( :name default )` parameters do not
- * count toward the default arity — only the leading required `:name` parameters do.
+ * Pre-scan the token stream for the two user-declared forms that register a callable name, so a
+ * later prefix call to either knows how many arguments to gather:
+ *
+ * - `define <name> :p …` — a user procedure; its default arity is the count of leading required
+ *   `:name` parameters (an optional `( :name default )` parameter does not count).
+ * - `struct <name> [ f1 f2 … ]` — a Data-profile record type whose type name becomes a constructor
+ *   reporter (`spec/data-structures.md:254,264`); its arity is the declared field count. Without
+ *   this, a bare constructor call like `point 3 4` would read `point` as a zero-arity call and
+ *   leave `3 4` as stray tokens (issue #329) — the same "reader needs a callee's arity to group a
+ *   bare call's arguments" mechanism `define` already relies on, extended to the other name-
+ *   registering form the grammar already parses (issue #321's `StructDef`).
+ *
+ * This pre-scan is purely about arity grouping for the reader; it performs no validation. A name
+ * that collides with a primitive or another declaration is still recorded here so parsing does not
+ * crash — the runtime's phase-1 `struct` registration is what raises `ol-reserved-word` for a real
+ * collision (`spec/data-structures.md:264`).
  */
 function collectUserArities(
   tokens: readonly LexToken[],
@@ -112,21 +125,39 @@ function collectUserArities(
   // name or a variable, so the scans stop before running off the end).
   for (let k = 0; k + 1 < tokens.length; k += 1) {
     const head = tokens[k] as LexToken;
-    if (head.kind !== "name" || head.text.toLowerCase() !== "define") {
+    if (head.kind !== "name") {
       continue;
     }
+    const headText = head.text.toLowerCase();
     const nameTok = tokens[k + 1] as LexToken;
     if (nameTok.kind !== "name") {
       continue;
     }
-    let arity = 0;
-    for (let j = k + 2; j < tokens.length; j += 1) {
-      if ((tokens[j] as LexToken).kind !== "variable") {
-        break;
+    if (headText === "define") {
+      let arity = 0;
+      for (let j = k + 2; j < tokens.length; j += 1) {
+        if ((tokens[j] as LexToken).kind !== "variable") {
+          break;
+        }
+        arity += 1;
       }
-      arity += 1;
+      arities.set(nameTok.text.toLowerCase(), arity);
+    } else if (
+      headText === "struct" &&
+      (tokens[k + 2] as LexToken).kind === "lbracket"
+    ) {
+      // `struct <name> [ f1 f2 … ]`: the constructor's arity is the number of bare field-name
+      // tokens between the brackets. The scan stops at the first non-name token (the `]`, or a
+      // stray token the parser itself will diagnose).
+      let fieldCount = 0;
+      for (let j = k + 3; j < tokens.length; j += 1) {
+        if ((tokens[j] as LexToken).kind !== "name") {
+          break;
+        }
+        fieldCount += 1;
+      }
+      arities.set(nameTok.text.toLowerCase(), fieldCount);
     }
-    arities.set(nameTok.text.toLowerCase(), arity);
   }
   return arities;
 }

@@ -1,0 +1,62 @@
+{
+  "description": "`is_a?` with a non-word type argument raises `ol-type` (issue #329, `spec/data-structures.md:287`): the type argument `5` is a number, not a type word — reusing the Core `is_a?` type-argument check unchanged.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-is-a-non-word",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "statement_kind": "StructDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-is-a-non-word",
+        "start": [2, 1],
+        "end": [2, 15]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-is-a-non-word",
+        "start": [3, 1],
+        "end": [3, 17]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "data/struct-runtime/struct-is-a-non-word",
+        "start": [3, 16],
+        "end": [3, 17]
+      },
+      "params": {
+        "expected": "word",
+        "actual": "number",
+        "value": 5,
+        "operation": "is_a?"
+      },
+      "message": "is_a? needs a word, but got a number.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

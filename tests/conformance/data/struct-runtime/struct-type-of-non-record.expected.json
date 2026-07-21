@@ -1,0 +1,37 @@
+{
+  "description": "`type_of` reports a record's struct type name, so a non-record argument raises `ol-type` (issue #329, `spec/data-structures.md:286`): `type_of 5` is given a number, not a record.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-type-of-non-record",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "data/struct-runtime/struct-type-of-non-record",
+        "start": [1, 15],
+        "end": [1, 16]
+      },
+      "params": {
+        "operation": "type_of",
+        "expected": "record",
+        "actual": "number"
+      },
+      "message": "type_of needs a record, but got a number.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "description": "Reading an undeclared field raises `ol-unknown-field` (issue #329, `spec/data-structures.md:266`): `point` has no `height` field, so `:p.height` is an unknown-field read (no `write` param, matching the read/write convention of `checker-type-field.ts`'s `resolveRecordField`).",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-unknown-field-read",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "statement_kind": "StructDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-unknown-field-read",
+        "start": [2, 1],
+        "end": [2, 15]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-unknown-field-read",
+        "start": [3, 1],
+        "end": [3, 16]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-field",
+      "source_span": {
+        "document": "data/struct-runtime/struct-unknown-field-read",
+        "start": [3, 9],
+        "end": [3, 16]
+      },
+      "params": {
+        "type": "point",
+        "field": "height"
+      },
+      "message": "point has no field height. check the spelling.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

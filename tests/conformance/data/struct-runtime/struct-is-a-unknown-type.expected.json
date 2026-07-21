@@ -1,0 +1,59 @@
+{
+  "description": "`is_a?` with a type word that is neither a Core/Data type nor a declared struct raises `ol-unknown-type` (issue #329, `spec/data-structures.md:287`): no `struct circle` is declared, so `\"circle\"` is an unknown type word.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-is-a-unknown-type",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "statement_kind": "StructDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-is-a-unknown-type",
+        "start": [2, 1],
+        "end": [2, 15]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-is-a-unknown-type",
+        "start": [3, 1],
+        "end": [3, 24]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-type",
+      "source_span": {
+        "document": "data/struct-runtime/struct-is-a-unknown-type",
+        "start": [3, 16],
+        "end": [3, 24]
+      },
+      "params": {
+        "name": "circle"
+      },
+      "message": "i don't know a type called \"circle\" — try number, word, list, or boolean.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

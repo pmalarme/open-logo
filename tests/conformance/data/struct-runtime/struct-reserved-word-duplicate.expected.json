@@ -1,0 +1,23 @@
+{
+  "description": "A second `struct` declaring an already-declared type name raises `ol-reserved-word` at phase-1 registration (issue #329, `spec/data-structures.md:264`): the type name registers a constructor in the callable namespace, so `struct point` declared twice collides (`namespace: \"struct\"`).",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "data/struct-runtime/struct-reserved-word-duplicate",
+        "start": [2, 8],
+        "end": [2, 13]
+      },
+      "params": {
+        "name": "point",
+        "namespace": "struct"
+      },
+      "message": "point is already a struct, so it can't be redefined here.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+struct point [ x y ]
+:p = point 3 4
+:q = point 3 4
+:r = point 5 4
+print :p == :q
+print :p == :r
+print :p is a "point"

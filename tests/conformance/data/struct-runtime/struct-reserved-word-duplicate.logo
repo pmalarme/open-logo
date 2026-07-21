@@ -1,0 +1,2 @@
+struct point [ x y ]
+struct point [ a b ]
