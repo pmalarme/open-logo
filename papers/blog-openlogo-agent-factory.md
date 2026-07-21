@@ -234,10 +234,11 @@ The fix isn't cleverer prompts — it's **classic distributed-systems discipline
   owns, so "what's merged vs. pending" has a single answer that doesn't depend on which message arrived
   when.
 
-**Manual board hygiene.** The GitHub project board's automation needs a secret that wasn't always set,
-so moving cards from Todo → In Progress → Done was *manual* — and busy orchestrators forgot. The lesson
-is dull but real: a step you *think* is automated but actually isn't is a reliable source of drift.
-Automate it or checklist it.
+**Manual board hygiene.** Two independent gaps here. The board's auto-add automation needs a secret that
+wasn't always set — so new cards sometimes weren't added *at all*. And even when it runs, that automation
+only ever files a card as *Todo*; nothing advances it, so moving cards Todo → In Progress → Done was
+*always* manual — and busy orchestrators forgot. The lesson is dull but real: a step you *think* is
+automated but actually isn't is a reliable source of drift. Automate it or checklist it.
 
 **Over-eager cleaners.** One sharp edge: never point a "clean-tree" reviewer at a worktree the author is
 still editing — a reviewer that tidies up "stray" changes can `git checkout` away the author's

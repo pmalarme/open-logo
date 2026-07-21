@@ -386,8 +386,9 @@ The team runs on GitHub primitives rather than a bespoke tracker. **Issues** are
 template stamps a `type:*` label (two of them also pre-assign an `agent:*`), and the product-owner then
 triages each issue to exactly one `agent:*` owner and one `type:*` plus the applicable
 `profile:*`/`area:*`/`level:*` tags drawn from a manifest (`.github/labels.yml`, 50 managed labels; the
-repository carries 64 in total because label-sync never deletes). **Milestones** are the profile
-synchronization points M0–M6 (plus cross-cutting tracks); the milestone, not a label, decides which
+repository carries 64 in total because label-sync never deletes). **Milestones** are the synchronization
+points on the profile DAG — M0 (Foundation) followed by the profile milestones M1–M6 (plus cross-cutting
+tracks); the milestone, not a label, decides which
 release a change lands in. A **Projects v2 board** ("Project #5", 206 items) with Status/Agent/Profile
 fields is run by the product-owner via the `gh` CLI.
 
