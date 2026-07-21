@@ -1,14 +1,15 @@
 # We didn't build a programming language with one AI agent. We built an AI *company* — and let it ship.
 
-*How OpenLogo — a new educational programming language with turtle graphics, geometry, and an AI
-tutor — was built by a multi-layer fleet of GitHub Copilot agents, and what actually happened when
-we let them merge their own work.*
+*How OpenLogo — a new educational programming language with turtle graphics (and, by design, a
+discoverable geometry standard library and an AI tutor layered on top) — was built by a multi-layer
+fleet of GitHub Copilot agents, and what actually happened when we let them review and ship each
+other's work.*
 
 ---
 
 Here's a number to sit with: **from an empty repository to a tagged, test-backed `v0.1.0` of a brand-new
 programming language in about four days.** Not a toy. A real language — lexer, parser, evaluator,
-turtle graphics that draw to a canvas, a syntax highlighter, an error checker, and 397 conformance
+turtle graphics that draw to a canvas, a syntax highlighter, an error checker, and 370 conformance
 tests proving it behaves.
 
 The twist: almost none of it was typed by a human. It was built by a **team of AI agents** organized
@@ -112,7 +113,7 @@ orchestrator turns the spec into *milestones* (grouped by capability profile) an
 
 Each slice becomes its own **isolated Copilot session** — a dedicated git worktree with its own branch
 and its own agent process, kicked off with a prompt and left to run in autopilot on Claude Sonnet 5.
-Dozens of these run at once without stepping on each other, because each lives on its own branch.
+Many of these run at once without stepping on each other, because each lives on its own branch.
 They coordinate by sending each other messages, which land as new turns in the other session's
 conversation. (This very post was written by one such session, dispatched by the orchestrator and
 reporting back to it.)
@@ -137,7 +138,9 @@ flowchart LR
 
 The Definition of Done is strict: it builds and type-checks, lint and format pass, **100% test
 coverage**, the stack-neutral conformance fixtures pass, the runnable examples still run, and the docs
-are updated *in the same PR*. All CI-enforced.
+are updated *in the same PR*. Most of that is enforced automatically in CI — build, types, lint,
+format, tests, conformance, examples, coverage. A couple of gates (integration, accessibility) are
+still stubbed `TODO`, and the two-reviewer step below is a *process* gate, not a CI job.
 
 Then two **independent** agents review — and neither is the author. One (`rubber-duck`) checks the
 logic and spec fidelity. The other (`testing`) re-runs the *entire* Definition of Done **from a clean
@@ -193,14 +196,16 @@ Measured straight from the repo (as of this writing, 2026-07-21):
 
 - **6** packages, **12** agents, **29** skill playbooks, **12** architecture decision records, **6** CI
   workflows.
-- **147** merged pull requests and **397** conformance fixtures.
-- Merge throughput once the shared contracts were frozen: **12 → 45 → 56 → 26** PRs a day.
+- **151** merged pull requests; the tagged **`v0.1.0`** shipped **370** conformance fixtures (the tree
+  has kept growing past 400 since).
+- Merge throughput once the shared contracts were frozen: **12 → 45 → 56 → 26 → 12** PRs a day (UTC).
 - A tagged, minimally conformant **`v0.1.0`** — Core language + turtle graphics that really draws — with
   Educational, Data, and Geometry profiles now building *in parallel* on top.
 
-The burst is the tell. It only happened *after* the team froze four cross-cutting contracts — the syntax
-tree, the event stream, the error codes, and the highlighter's token classes — up front. Agree the seams
-first, and a dozen agents can build behind them at once without colliding.
+The burst is the tell — and our best operational read of what drove it. It came *after* the team froze
+four cross-cutting contracts — the syntax tree, the event stream, the error codes, and the highlighter's
+token classes — up front. Agree the seams first, and many agents can build behind them at once without
+colliding.
 
 ## The takeaway for anyone building with agent fleets
 

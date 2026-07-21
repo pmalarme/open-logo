@@ -11,9 +11,9 @@
 Large language model (LLM) agents can write code, but shipping a *coherent, specified software
 system* — rather than a pile of disconnected snippets — remains an open problem. We report a case
 study in which a **new programming language**, OpenLogo (an educational, open reimagining of
-Papert's Logo: a language, a turtle-graphics engine, a geometry standard library, and an AI tutor),
-was implemented end to end by a **multi-layer organization of AI agents** operating on the GitHub
-Copilot platform. The method has three pillars: (i) a **spec-first** origin, in which a normative,
+Papert's Logo — a programming language and turtle-graphics engine, designed to grow a discoverable
+geometry standard library and an AI tutor on top), was developed by a **multi-layer organization of
+AI agents** operating on the GitHub Copilot platform. The method has three pillars: (i) a **spec-first** origin, in which a normative,
 human-owned language contract is authored before any implementation and is treated as the single
 source of truth; (ii) an **agent factory** — twelve specialized, persona-plus-playbook agents that
 mirror the roles of a small software company, each governed by concrete step-by-step *skills*,
@@ -24,13 +24,14 @@ Definition-of-Done and an independent two-reviewer merge gate. We describe the a
 communication model between autonomous Copilot sessions, and the concrete governance that keeps a
 human in the loop for the specification while delegating routine merges to the machine. We report
 quantitative outcomes measured directly from the repository: a six-package TypeScript monorepo built
-across 12 profile and cross-cutting milestones, 146 merged pull requests and 397 stack-neutral
-conformance fixtures over a five-day window, culminating in a tagged, minimally conformant `v0.1.0`
-release. We also give an honest account of the failure modes we observed — chiefly a
+across 13 profile and cross-cutting milestones and 151 merged pull requests over a five-day window,
+culminating in a tagged, minimally conformant `v0.1.0` release — the Core Language and Turtle &
+Rendering profiles, backed by 370 stack-neutral conformance fixtures — with the optional profiles
+(Data, Geometry, Educational, and the AI Tutor) in progress against the frozen contracts. We also give an honest account of the failure modes we observed — chiefly a
 *stale-crossing* class of coordination bug in which asynchronous inter-agent messages cross in
 flight and orchestrators mis-track their own already-merged work — and the disciplines that contain
-them: live-verify before acting, freeze the head commit, bind review verdicts to a 40-character
-commit SHA, and treat an explicit orchestrator-owned queue as authoritative state. We close with
+them: live-verify before acting, freeze the head commit, bind review verdicts to the full commit
+SHA, and treat an explicit orchestrator-owned queue as authoritative state. We close with
 threats to validity and lessons for anyone assembling agent fleets to build specified systems.
 
 **Keywords:** LLM agents, multi-agent systems, agentic software engineering, spec-driven
@@ -69,7 +70,7 @@ into small, reviewable, independently verifiable units of work. Concretely, the 
 3. **Multi-layer orchestration.** A five-layer hierarchy — maintainer, root orchestrator, milestone
    orchestrators, implementation sessions, and review/specialist sub-agents — decomposes the spec
    into profile-based milestones and *vertical slices*, dispatches isolated worktree-backed Copilot
-   sessions to build them, and gates each merge behind a CI-enforced Definition of Done and an
+   sessions to build them, and gates each merge behind a largely CI-enforced Definition of Done and an
    independent two-reviewer review gate.
 
 We contribute: (a) a description of the orchestration architecture and its communication model
@@ -179,9 +180,9 @@ its behavior is pinned by three layers of durable context.
 | documentation | cross-cutting | reference, tutorials, runnable validated examples |
 | devops | cross-cutting | CI/CD pipelines, security scanning, labeler, label sync, releases |
 
-Three co-owned surfaces are deliberate: `@openlogo/parser` is co-owned by language-designer (grammar
-and grammar-derived tooling) and interpreter (lexer, AST, evaluation), and `@openlogo/edu` is
-co-owned by geometry-teacher, ai-tutor, and curriculum. Co-ownership is handled by the orchestrator
+Two co-owned package surfaces are deliberate: `@openlogo/parser` is co-owned by language-designer
+(grammar and grammar-derived tooling) and interpreter (lexer, AST, evaluation), and `@openlogo/edu`
+is co-owned by geometry-teacher, ai-tutor, and curriculum. Co-ownership is handled by the orchestrator
 at dispatch time, not left to chance.
 
 **Skills, not thin personas.** Each agent is backed by concrete **skill** playbooks — 29 `SKILL.md`
@@ -189,8 +190,8 @@ files under `.github/skills/`, split into seven *shared* skills every agent inhe
 skills for specialist work. Shared skills encode the universal procedures: `vertical-slice` (build a
 feature end to end), `ts7-package` (monorepo conventions), `spec-fidelity` (canonical vocabulary and
 `ol-*` codes), `diagnostics` (the normative error shape), `conformance-fixture` (how to write a
-stack-neutral test), `review-gate` (the pre-merge review), and `definition-of-done` (the CI-enforced
-checklist). Per-agent skills are equally concrete — e.g. `orchestrator/decompose-and-dispatch` and
+stack-neutral test), `review-gate` (the pre-merge review), and `definition-of-done` (the
+Definition-of-Done checklist, largely CI-enforced). Per-agent skills are equally concrete — e.g. `orchestrator/decompose-and-dispatch` and
 `orchestrator/integrate-and-merge`, `interpreter/implement-a-primitive` and `interpreter/ast-design`,
 `language-designer/evolve-the-grammar`, `devops/ci-pipeline` and `devops/labeler-and-labels`,
 `product-owner/github-project`. A skill is a numbered operating procedure with checklists, not
@@ -237,6 +238,8 @@ flowchart TD
   TR --> SPR["Sprites"]
   MOD --> LOC["Localization"]
   EDU --> TUT["Tutor (AI)"]
+  DATA --> GEO
+  DATA --> HER
 ```
 
 **Figure 1. The profile dependency DAG.** The required minimal path is `Core Language → Turtle &
@@ -312,7 +315,12 @@ type-checks (TS7); passes lint and format; passes unit tests; reaches **100% lin
 coverage**; extends and passes the **stack-neutral conformance fixtures**; keeps the runnable
 `spec/examples/*.logo` and doc examples working; passes accessibility/pedagogy checks where relevant;
 updates docs and spec cross-links in the same PR; and has passed the in-session review gate
-(`shared/definition-of-done`). These are enforced by CI (§3.7).
+(`shared/definition-of-done`). Most of these are enforced automatically by CI (§3.7) — build,
+type-check, lint, format, unit tests, conformance, runnable examples, and 100% coverage. Two of them
+are not yet automated: the **integration** and **accessibility/pedagogy** gates are staged but stubbed
+`TODO` in `ci.yml`, and the review gate and docs/spec cross-link updates are reviewer-run *process*
+checks rather than CI jobs. We distinguish the automated from the process gates rather than claim the
+whole checklist is machine-enforced.
 
 **The two-review gate.** Every change is reviewed by two independent non-author agents before it can
 merge (ADR-0004, amended by ADR-0008; `shared/review-gate`). The design evolved during the project: the
@@ -429,9 +437,13 @@ flowchart LR
   M2 --> DX["Docs &amp; Studio UX tracks"]
   M3 -.-> M6["M6 Modules · Localization · Tutor (AI)"]
   M4 -.-> M6
+  M5 -.-> M6
 ```
 
-**Figure 4. Milestone sequencing.** Sequential through the minimal-conformance release, then parallel.
+**Figure 4. Milestone sequencing (the release ladder).** Sequential through the minimal-conformance
+release (`v0.1.0` at M2), after which the optional-profile milestones proceed in parallel and are
+sequenced toward the planned M6. The dotted edges are *release ordering, not profile dependencies* —
+the normative dependency graph is Figure 1 (where, among these, only Tutor depends on Educational).
 
 ### 4.2 Spec fidelity as a first-class constraint
 
@@ -460,10 +472,12 @@ error the fidelity gate exists to catch.
 
 ## 5. Results
 
-All figures below were measured directly from the repository on 2026-07-21 (≈11:30 CET) using `git`
-and the GitHub CLI (`gh`); we state the measurement for each so they can be reproduced. Because
-development remained active while this paper was written, counts for the final day are a partial,
-still-growing window rather than a closed total.
+All figures below were measured from the repository on 2026-07-21. Release-artifact counts (fixtures,
+examples, packages) are read from the deterministic `v0.1.0` tag; project-activity counts (commits,
+merged PRs, issues, board items) are read from `origin/main` at commit `ddf04c3` via `git` and the
+GitHub CLI (`gh`) and *continue to grow* as the optional-profile milestones proceed — they are a
+partial, still-growing window, not a closed total. Daily buckets are UTC, and `gh` list commands used
+explicit `--limit` bounds so counts are not silently truncated by pagination.
 
 **Table 2. Quantitative outcomes.**
 
@@ -476,24 +490,24 @@ still-growing window rather than a closed total.
 | CI/automation workflows | 6 | `.github/workflows/*.yml` |
 | Issue templates | 7 | `.github/ISSUE_TEMPLATE/*.yml` (excl. `config.yml`) |
 | Label taxonomy | 64 | `gh label list` |
-| Stack-neutral conformance fixtures | 397 | `.logo`/`.expected.json` pairs under `tests/conformance/` |
+| Stack-neutral conformance fixtures | 370 in `v0.1.0` · 409 on `main` | `git ls-tree -r {v0.1.0,origin/main} -- tests/conformance` |
 | Spec example programs | 12 | `spec/examples/*.logo` |
-| Commits on `main` | 148 | `git rev-list --count origin/main` |
-| Merged pull requests | 147 | `gh pr list --state merged` |
-| Issues (open / closed) | 36 / 171 | `gh issue list` |
+| Commits on `main` | 152 | `git rev-list --count origin/main` |
+| Merged pull requests | 151 | `gh pr list --state merged --limit 1000` |
+| Issues (open / closed) | 32 / 175 | `gh issue list --limit 1000` |
 | Project board items | 206 | `gh project item-list 5` |
 | Milestones (profile + cross-cutting) | 13 | `gh api …/milestones` |
 | Tagged releases | 1 (`v0.1.0`) | `git tag` |
 
 **Timeline and throughput.** The first commit landed 2026-07-16; the first PR merged 2026-07-17; the
 `v0.1.0` release commit is dated 2026-07-20; the most recent merge in our window is 2026-07-21. Merged
-PRs per day were 12 / 45 / 56 / 26 / 8 across 2026-07-17…21 (the final day still open at measurement)
-— a pronounced burst reflecting Layer-3 parallelism once the M0 contracts were frozen. The **minimal
+PRs per day were 12 / 45 / 56 / 26 / 12 across 2026-07-17…21 (UTC; the last bucket keeps growing after
+measurement) — a pronounced burst reflecting Layer-3 parallelism once the M0 contracts were frozen. The **minimal
 conformant language therefore went from empty repository to tagged, conformance-backed `v0.1.0` in
 roughly four days** of agent-driven work.
 
 **Work distribution across milestones.** Closed issues per profile milestone were M0 = 4, M1 = 81,
-M2 = 36, with M3 = 7 (of 17), M4 = 4 (of 12), and M5 = 0 (of 3) in progress at time of measurement;
+M2 = 36, with M3 = 9 (of 17), M4 = 5 (of 12), and M5 = 0 (of 3) in progress at time of measurement;
 cross-cutting tracks (documentation, servable studio, studio UX, stepper/debugger) account for the
 remainder. The concentration in M1 (the Core Language) reflects the walking-skeleton strategy: the
 language's semantic core was the largest body of vertical slices, after which turtle, education, and
@@ -502,8 +516,8 @@ data profiles reused the frozen contracts.
 **What shipped.** A minimally conformant OpenLogo: the full Core language (lexing, AST, evaluation,
 procedures, all control forms, all three comprehensions, the Core reporter set, `ol-*` diagnostics),
 runnable in a studio REPL; a turtle that draws to Canvas with SVG/PNG export; a grammar-faithful
-highlighter and checker; a conformance harness with 397 fixtures; and — on the in-progress optional
-profiles — the first educational lessons and geometry work. Correctness is carried by the
+highlighter and checker; the conformance harness that gates `v0.1.0` with 370 fixtures (0 skipped);
+and — on the in-progress optional profiles — the first educational lessons and geometry work. Correctness is carried by the
 conformance fixtures rather than by prose, per the Definition of Done.
 
 ---
@@ -513,11 +527,15 @@ conformance fixtures rather than by prose, per the Definition of Done.
 ### 6.1 What worked
 
 **Contracts-first parallelism.** Freezing the AST, event stream, diagnostics, and token classes before
-fanning out is what made the day-4 burst of 56 merged PRs possible without incoherence. Agents built
-against stable seams; integration was a deliberate merge-time event, not a running negotiation.
+fanning out is, on our operational read, what let the mid-window burst (a peak of 56 merged PRs in one
+UTC day) land without incoherence — though we cannot prove causation without a controlled comparison
+(§7). Agents built against stable seams; integration was a deliberate merge-time event, not a running
+negotiation.
 
 **Vertical slices bounded blast radius.** Because each PR was one feature through every layer with a
-declared write-set, a failure was contained to a slice and its reviewers, and `main` stayed releasable.
+declared write-set, a failure was usually contained to a slice and its reviewers. `main` was kept
+close to releasable — though not perfectly: on three occasions a merge briefly turned it red on the
+100%-coverage job (a post-merge integration race; see §6.2), each promptly repaired.
 The single large bootstrapping PR that seeded the lexer/parser/AST is called out in the orchestrator's
 own playbook as a *one-time exception, not a template* — the team knew large PRs were a smell.
 
@@ -556,6 +574,14 @@ The disciplines that contain stale-crossing are consistent:
   history, the orchestrator keeps its merge-queue and drain state in a structured store it controls, so
   "what is merged / merge-ready / pending" has one authoritative answer that does not depend on whether
   an async message arrived.
+
+**Post-merge integration races.** Per-PR green CI does not guarantee a green `main`. On three occasions
+an independently green PR merged onto a base that had moved under it and briefly turned `main` red on
+the 100%-coverage job — the coverage denominator shifted once the two changes were combined (measured
+from the CI run history: three failing runs on `main` out of 150, all in the coverage job). Each was
+repaired quickly, but the pattern is *stale-crossing at the repository level*: a change verified against
+a base that is already stale by merge time. A required up-to-date branch, serialized merges, or a
+mandatory post-merge re-run mitigate it.
 
 **Manual board hygiene.** Because `add-to-project` is inert without a secret and Status is moved by
 hand, the board drifted from reality when a busy orchestrator forgot to advance a dispatched issue from
@@ -598,7 +624,12 @@ bug-free in the field.
 underlying model, the specific human maintainer's judgment, or the GitHub Copilot platform's
 affordances. The `v0.1.0` result is one trajectory, not a controlled comparison against a single-agent
 baseline; we make no claim about *how much* faster or better the layered approach is, only that it
-*sufficed* to ship a specified language and that its failure modes are characterizable.
+*sufficed* to ship a specified language and that its failure modes are characterizable. We also
+describe the two-review, SHA-bound merge gate as the policy the project *converged on*, not as an
+audited property of every PR: ADR-0004 (17 July) mandated one independent review, and ADR-0008
+(18 July) tightened it to two non-author reviews bound to the full head SHA. Early PRs predate that
+final gate — some recorded only abbreviated SHAs — and per-PR compliance is self-reported on PR
+bodies rather than independently verified here across all 151 merges.
 
 **External validity.** OpenLogo is a mid-sized, greenfield, well-specified educational language with an
 unusually crisp conformance model. The method leans heavily on the *existence of a normative spec*;
@@ -625,8 +656,8 @@ executable skills, layered instructions, and durable memory; and a five-layer or
 the spec into profile-based milestones and vertical slices, gates every change behind a Definition of
 Done and an independent two-reviewer review, and merges under human-delegated but human-bounded
 authority. In four days of agent-driven work the project went from an empty repository to a tagged,
-conformance-backed minimal release, at a throughput (dozens of merged PRs per day) that depended on
-freezing cross-cutting contracts before parallelizing.
+conformance-backed minimal release, at a peak throughput of dozens of merged pull requests per day that
+depended on freezing cross-cutting contracts before parallelizing.
 
 The honest other half of the story is that autonomy at the seams is where the bugs live. *Stale-crossing*
 — acting on a snapshot that has already moved — and its cousins (voided verdicts, drifting boards, WIP
