@@ -40,18 +40,33 @@
     ></div>
     <main>
       <!--
-        #313 extension slot for the future lesson pane (#127/M3): a placeholder that stays
-        `hidden` (fully removed from layout, focus order, and the accessibility tree) until a
-        future lesson-pane module mounts into the app shell's existing "lesson" region
-        (`APP_SHELL_REGIONS` in src/app-shell.ts, unchanged since #123) and clears this `hidden`
-        attribute. `web/styles.css`'s `main:has(.pane-lesson:not([hidden]))` rules already reserve
-        its column/row in both the wide (3-column: lesson | editor+controls | turtle) and narrow
-        (stacked, lesson first) layouts, so mounting a lesson pane needs NO further edits to this
-        file, styles.css, or app-shell.ts. The mounting module is responsible for its own
-        role/aria-label and a REPL_FOCUS_ORDER/REPL_LANDMARK_ROLES entry in src/a11y.ts, since
-        #313 cannot declare an accessible name/role for content that doesn't exist yet.
+        #127 wires the lesson pane into this slot (`APP_SHELL_REGIONS`'s existing "lesson" region,
+        unchanged since #123): `role="complementary"`/`aria-label="Lesson"` give it its
+        accessibility landmark (`src/a11y.ts`'s `REPL_LANDMARK_ROLES`) — `complementary` (not the
+        generic `region`) per M3's enrichment, since the lesson content supplements the primary
+        editor/canvas task rather than being the page's main content — and `tabindex="0"` makes it
+        a keyboard focus stop (`REPL_FOCUS_ORDER`) since a plain `<section>` isn't natively
+        focusable — matching the `#diagnostics-list` precedent below. It still starts `hidden`;
+        native `hidden` removes it from both the accessibility tree and the real tab order
+        whenever no lesson is loaded (freeform/sandbox mode), so neither attribute causes a
+        keyboard trap. `web/main.ts`'s lesson-pane wiring (co-owned with `src/lesson-pane.ts`)
+        builds this section's own heading structure (`<h2>` title, `<h3>`s for Objective/worked
+        examples/exercise prompt) and toggles `hidden` from `src/lesson-pane.ts`'s
+        `LessonPaneView`. `web/styles.css`'s `main:has(.pane-lesson:not([hidden]))` rules already
+        reserve its own leftmost column/row in both the wide (3-column: lesson | editor+controls |
+        turtle, `minmax(0, 300px)` so it collapses toward the editor/turtle's minimums under width
+        pressure rather than the reverse) and narrow (stacked, lesson first) layouts, plus give it
+        an independent vertical scroll region — no further edits needed there or to
+        `app-shell.ts`.
       -->
-      <section id="lesson-pane" class="pane-lesson" hidden></section>
+      <section
+        id="lesson-pane"
+        class="pane-lesson"
+        role="complementary"
+        aria-label="Lesson"
+        tabindex="0"
+        hidden
+      ></section>
       <section class="pane-editor" aria-label="Editor">
         <textarea
           id="editor"

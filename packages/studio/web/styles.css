@@ -87,11 +87,16 @@ header h1 {
  * Extension slot for the future lesson pane (#127/M3, target end-state
  * "Lesson | Editor | Run/Canvas"): `#lesson-pane`/`.pane-lesson` in index.html starts `hidden`,
  * so it has no box and no `grid-area` participation at all — none of the rules below reserve any
- * space for it while hidden, in either layout. The `main:has(.pane-lesson:not([hidden]))` rules
- * further down are the *only* place its column/row is defined; they activate automatically the
- * moment a future lesson-pane module clears that `hidden` attribute, with zero further edits to
- * this file, index.html, or app-shell.ts (whose "lesson" `RegionName` this reuses, unchanged
- * since #123). `:has()` is supported by every evergreen browser this project targets.
+ * space for it while hidden, in either layout (the collapsed-to-zero/freeform requirement: with
+ * no lesson loaded the layout is a clean `editor | canvas` two-region grid, width fully
+ * reclaimed). The `main:has(.pane-lesson:not([hidden]))` rules further down are the *only* place
+ * its column/row is defined; they activate automatically the moment a future lesson-pane module
+ * clears that `hidden` attribute, with zero further edits to this file, index.html, or
+ * app-shell.ts (whose "lesson" `RegionName` this reuses, unchanged since #123). `:has()` is
+ * supported by every evergreen browser this project targets. When present, the lesson pane is
+ * always its own leftmost column ahead of editor/turtle (`"lesson editor turtle"` below) — never
+ * sharing the editor's column — matching the learner flow and DOM/focus order (lesson pane first
+ * in `REPL_FOCUS_ORDER`).
  */
 main {
   display: grid;
@@ -117,6 +122,17 @@ main section {
 
 .pane-lesson {
   grid-area: lesson;
+  /* #127 M3 enrichment: the lesson region's objective/worked-example/exercise-prompt content can
+     be taller than the space its neighboring editor+controls+turtle+output+diagnostics column
+     needs (or than the viewport, in the narrow stacked layout). Give it its own bounded,
+     independently scrolling box — matching #314's `#run-log` precedent — instead of stretching
+     the whole grid row (and therefore the editor/canvas) to match its height. `min-height: 0`
+     overrides the grid item's default content-based minimum so it can actually shrink enough to
+     scroll instead of overflowing. */
+  align-self: start;
+  min-height: 0;
+  max-height: calc(100vh - 10rem);
+  overflow-y: auto;
 }
 
 .pane-editor {
@@ -167,11 +183,15 @@ main:has(.pane-lesson:not([hidden])) {
     align-self: start;
   }
 
-  /* The lesson pane is present — add its column to the left of editor/controls, matching the
-     target end-state "Lesson | Editor | Run/Canvas" three-pane layout. */
+  /* The lesson pane is present — add its own leftmost column ahead of editor/controls, matching
+     the target end-state "Lesson | Editor | Run/Canvas" three-pane layout. `minmax(0, 300px)`
+     gives it a ~300px starting width (a starting figure, not normative) that the grid track
+     sizing algorithm shrinks toward its 0 minimum first under width pressure — before the
+     `1fr` editor/turtle tracks (whose effective minimum is their own content) are ever squeezed
+     below their minimums. */
   main:has(.pane-lesson:not([hidden])) {
     max-width: 1400px;
-    grid-template-columns: minmax(14rem, 22%) 1fr 1fr;
+    grid-template-columns: minmax(0, 300px) 1fr 1fr;
     grid-template-areas:
       "lesson editor turtle"
       "lesson controls turtle"

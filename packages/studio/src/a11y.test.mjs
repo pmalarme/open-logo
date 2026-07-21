@@ -16,8 +16,8 @@ test("REPL_FOCUS_ORDER covers every studio region with unique, stable ids", () =
   const regions = new Set(order.map((stop) => stop.region));
   assert.deepEqual(
     [...regions].sort(),
-    ["diagnostics", "editor", "repl", "turtle"].sort(),
-    "focus order must span exactly the editor, repl, turtle, and diagnostics regions",
+    ["diagnostics", "editor", "lesson", "repl", "turtle"].sort(),
+    "focus order must span exactly the lesson, editor, repl, turtle, and diagnostics regions",
   );
 
   for (const stop of order) {
@@ -28,10 +28,16 @@ test("REPL_FOCUS_ORDER covers every studio region with unique, stable ids", () =
   }
 });
 
-test("REPL_FOCUS_ORDER puts the editor first and diagnostics last, with Run/Stop/Reset/Speed and the canvas in between", () => {
+test("REPL_FOCUS_ORDER puts the lesson pane first and diagnostics last, with the editor, Run/Stop/Reset/Speed, and the canvas in between", () => {
   const order = OL.REPL_FOCUS_ORDER;
-  assert.equal(order[0]?.id, "editor");
+  assert.equal(order[0]?.id, "lesson-pane");
+  assert.equal(order[1]?.id, "editor");
   assert.equal(order[order.length - 1]?.id, "diagnostics-list");
+
+  const lessonStop = order.find((stop) => stop.id === "lesson-pane");
+  assert.ok(lessonStop, "the lesson pane must be a focus stop");
+  assert.equal(lessonStop.region, "lesson");
+  assert.equal(lessonStop.role, "complementary");
 
   const replStops = order.filter((stop) => stop.region === "repl");
   assert.deepEqual(
@@ -100,7 +106,7 @@ test("REPL_LANDMARK_ROLES declares landmarks for every studio region with a role
   const landmarks = OL.REPL_LANDMARK_ROLES;
   assert.deepEqual(
     landmarks.map((landmark) => landmark.region).sort(),
-    ["diagnostics", "editor", "repl", "turtle", "turtle"].sort(),
+    ["diagnostics", "editor", "lesson", "repl", "turtle", "turtle"].sort(),
   );
   const byRegion = new Map(
     landmarks.map((landmark) => [
@@ -108,6 +114,7 @@ test("REPL_LANDMARK_ROLES declares landmarks for every studio region with a role
       landmark,
     ]),
   );
+  assert.equal(byRegion.get("lesson:complementary")?.role, "complementary");
   assert.equal(byRegion.get("editor:textbox")?.role, "textbox");
   assert.equal(byRegion.get("repl:toolbar")?.role, "toolbar");
   assert.equal(byRegion.get("turtle:img")?.role, "img");
