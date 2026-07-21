@@ -16,13 +16,15 @@
  * **`ol-unknown-field`** ({@link resolveRecordField}) is the record-field half. Field resolution
  * needs a record's statically known struct type and its declared field set — both of which come
  * from a `struct` declaration, formally part of the **Data** profile (`spec/data-structures.md`).
- * Core has no `struct` surface and no `StructDef` AST node yet, so no Core-profile program can
- * construct a record, and therefore no `core-language` conformance fixture can trigger
- * `ol-unknown-field`. Per the #96 observability-caveat pattern, this slice implements the pure
- * resolution *logic* and unit-tests it directly; it is intentionally **not** wired into
- * `check()`'s walk (there is nothing to resolve against at Core). The Data profile's
- * struct-registration slice adds the `StructDef` walk that feeds records into this primitive and
- * lands the matching Data-profile conformance coverage.
+ * This module exposes the pure resolution *logic* ({@link resolveRecordField}) and unit-tests it
+ * directly. It is deliberately **not** wired into `check()`'s walk: statically resolving a
+ * `:p.field` access needs `:p`'s struct type, which in turn needs tracking a variable's type
+ * across assignments — exactly the speculative inference `spec/tooling.md:198-200` forbids when a
+ * value is only known dynamically. The runtime (`@openlogo/runtime`) is therefore the authoritative
+ * source of `ol-unknown-field`: it validates every field read/write against the record's actual
+ * declared fields at execution time (issue #329), reusing this module's `params`/message shape so
+ * both layers agree on the diagnostic's identity. {@link knownTypeWords}, by contrast, *is* wired
+ * into `check()` and now collects declared struct type names so `is a <struct-type>` resolves.
  */
 
 import type { Diagnostic, SourceSpan } from "@openlogo/core";
@@ -53,11 +55,13 @@ const DATA_TYPE_WORDS: readonly string[] = ["dict", "record"];
 /**
  * Every type word that resolves as a known type under the active `profiles`. Includes the Core
  * built-ins only when `"core-language"` is active and the Data built-ins only when `"data"` is,
- * never a hardcoded "every optional profile active" set. Declared struct type names join this set
- * once the Data profile's `struct`-registration slice exists (there is no `StructDef` AST node to
- * collect from yet — see the module doc comment).
+ * never a hardcoded "every optional profile active" set. When `"data"` is active, every declared
+ * `struct` type name in `program` also joins the set, so `is a <struct-type>` resolves for a type
+ * the program itself declared (`spec/error-model.md:124`: a known built-in type *or declared
+ * struct*) — matching the runtime's own `is_a?` type-word recognition (issue #329).
  */
 function knownTypeWords(
+  program: ProgramNode,
   profiles: readonly CheckProfile[],
 ): ReadonlySet<string> {
   const active = new Set(profiles);
@@ -72,6 +76,11 @@ function knownTypeWords(
     for (const word of DATA_TYPE_WORDS) {
       words.add(word);
     }
+    walk(program, (node) => {
+      if (node.kind === "StructDef") {
+        words.add(node.name.name);
+      }
+    });
   }
 
   return words;
@@ -93,7 +102,7 @@ export function unknownTypeRule(
   program: ProgramNode,
   profiles: readonly CheckProfile[],
 ): readonly Diagnostic[] {
-  const known = knownTypeWords(profiles);
+  const known = knownTypeWords(program, profiles);
   const diagnostics: Diagnostic[] = [];
 
   walk(program, (node) => {

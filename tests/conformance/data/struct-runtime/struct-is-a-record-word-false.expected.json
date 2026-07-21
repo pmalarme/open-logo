@@ -1,0 +1,56 @@
+{
+  "description": "`is_a?` on a record matches only its own struct type name, so the generic word `\"record\"` is `false` (issue #329, `spec/data-structures.md:287`): `\"record\"` is a known type word (no `ol-unknown-type`), but a `point` record's type is `\"point\"`, not `\"record\"`.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-is-a-record-word-false",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "statement_kind": "StructDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-is-a-record-word-false",
+        "start": [2, 1],
+        "end": [2, 15]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-is-a-record-word-false",
+        "start": [3, 1],
+        "end": [3, 24]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "data/struct-runtime/struct-is-a-record-word-false",
+        "start": [3, 1],
+        "end": [3, 24]
+      },
+      "payload": {
+        "values": [false]
+      }
+    }
+  ],
+  "diagnostics": []
+}

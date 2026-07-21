@@ -1,0 +1,3 @@
+struct point [ x y ]
+:p = point 3 4
+:p.height = 120

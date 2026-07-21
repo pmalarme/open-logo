@@ -1,0 +1,128 @@
+{
+  "description": "Records nest and their field chains read and write through (issue #329, `spec/data-structures.md:252-327`): a `segment` of two `point` records supports `:s.head.x`/`:s.tail.y`, and `:s.head.x = 100` mutates the inner record in place.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-nested-records",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "statement_kind": "StructDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-nested-records",
+        "start": [2, 1],
+        "end": [2, 29]
+      },
+      "payload": {
+        "statement_kind": "StructDef"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-nested-records",
+        "start": [3, 1],
+        "end": [3, 37]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-nested-records",
+        "start": [4, 1],
+        "end": [4, 16]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "print",
+      "source_span": {
+        "document": "data/struct-runtime/struct-nested-records",
+        "start": [4, 1],
+        "end": [4, 16]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-nested-records",
+        "start": [5, 1],
+        "end": [5, 16]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "print",
+      "source_span": {
+        "document": "data/struct-runtime/struct-nested-records",
+        "start": [5, 1],
+        "end": [5, 16]
+      },
+      "payload": {
+        "values": [4]
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-nested-records",
+        "start": [6, 1],
+        "end": [6, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-nested-records",
+        "start": [7, 1],
+        "end": [7, 16]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "print",
+      "source_span": {
+        "document": "data/struct-runtime/struct-nested-records",
+        "start": [7, 1],
+        "end": [7, 16]
+      },
+      "payload": {
+        "values": [100]
+      }
+    }
+  ],
+  "diagnostics": []
+}

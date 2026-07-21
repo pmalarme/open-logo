@@ -33,7 +33,7 @@ import type {
   TraceEvent,
   TutorHintStage,
 } from "@openlogo/core";
-import { makeSpan, OLDict, typeNameOf } from "@openlogo/core";
+import { makeSpan, OLDict, OLRecord, typeNameOf } from "@openlogo/core";
 import type { OLDictKey } from "@openlogo/core";
 import type {
   AddNode,
@@ -56,6 +56,7 @@ import type {
   RemoveNode,
   SpannedName,
   StatementNode,
+  StructDefNode,
   ValueOfKeyNode,
   WordLitNode,
 } from "@openlogo/parser";
@@ -103,6 +104,18 @@ export type Frame = Map<string, OLValue>;
  * lowercased name, matching every other case-insensitive command-name lookup in this package.
  */
 export type ProcedureRegistry = ReadonlyMap<string, ProcedureDefNode>;
+
+/**
+ * The whole-program struct-type table the Data profile's `execute-internal.ts` builds once, up
+ * front, by scanning every {@link StructDefNode} in the program (mirroring
+ * {@link ProcedureRegistry} and the phase-1 procedure pre-scan) — so a `struct` type can be used
+ * as a constructor before its textual declaration (`spec/data-structures.md:252-327`, issue #329).
+ * Keyed by the struct type's lowercased name, matching every other case-insensitive command-name
+ * lookup in this package. The stored {@link StructDefNode} supplies the declared field list (in
+ * order) that the constructor fills and that `:record.field` accesses and `is_a?` validate
+ * against.
+ */
+export type StructRegistry = ReadonlyMap<string, StructDefNode>;
 
 /**
  * Minimal structural shape of the standard `AbortSignal` this package's cancellation gate needs
@@ -191,6 +204,7 @@ export interface Environment {
   readonly frames: readonly Frame[];
   readonly repeatTurns: number[];
   readonly procedures: ProcedureRegistry;
+  readonly structs: StructRegistry;
   readonly events: TraceEvent[];
   readonly foreverIterationLimit?: number;
   readonly callDepth: number[];
@@ -280,6 +294,9 @@ export function createDefaultTurtleState(): TurtleState {
 /** The empty registry shared by every environment that has no user procedures to call. */
 const EMPTY_PROCEDURES: ProcedureRegistry = new Map();
 
+/** The empty registry shared by every environment that has no `struct` types declared. */
+const EMPTY_STRUCTS: StructRegistry = new Map();
+
 /**
  * A fresh environment holding just the root/global frame, no active `repeat` turn, and no user
  * procedures. Used directly by expression-only tests; `execute-internal.ts` builds its own
@@ -298,6 +315,7 @@ export function createEnvironment(): Environment {
     frames: [new Map()],
     repeatTurns: [],
     procedures: EMPTY_PROCEDURES,
+    structs: EMPTY_STRUCTS,
     events: [],
     callDepth: [],
     recursionDepthLimit: Number.POSITIVE_INFINITY,
@@ -677,6 +695,7 @@ function isLogicalOperator(name: string): name is LogicalOperator {
 export function isSupportedExpression(
   node: ExpressionNode,
   procedures: ProcedureRegistry = EMPTY_PROCEDURES,
+  structs: StructRegistry = EMPTY_STRUCTS,
 ): boolean {
   switch (node.kind) {
     case "NumberLit":
@@ -686,16 +705,16 @@ export function isSupportedExpression(
       return true;
     case "ListLit":
       return node.elements.every((element) =>
-        isSupportedExpression(element, procedures),
+        isSupportedExpression(element, procedures, structs),
       );
     case "ComparisonChain":
       return node.operands.every((operand) =>
-        isSupportedExpression(operand, procedures),
+        isSupportedExpression(operand, procedures, structs),
       );
     case "Place":
-      return isSupportedPlace(node, procedures);
+      return isSupportedPlace(node, procedures, structs);
     case "IsPredicate":
-      return isSupportedIsPredicate(node, procedures);
+      return isSupportedIsPredicate(node, procedures, structs);
     case "Call":
     case "ParenCall": {
       const name = node.callee.name.toLowerCase();
@@ -726,6 +745,7 @@ export function isSupportedExpression(
         name === "dict" ||
         name === "keys" ||
         name === "values" ||
+        name === "type_of" ||
         name === "xcor" ||
         name === "ycor" ||
         name === "heading" ||
@@ -733,31 +753,57 @@ export function isSupportedExpression(
         name === "towards" ||
         name === "distance" ||
         name === "random" ||
-        procedures.has(name);
+        procedures.has(name) ||
+        structs.has(name);
       return (
         isKnownCallee &&
-        node.args.every((arg) => isSupportedExpression(arg, procedures))
+        node.args.every((arg) =>
+          isSupportedExpression(arg, procedures, structs),
+        )
       );
     }
     case "Comprehension":
       return (
-        isSupportedExpression(node.iterable, procedures) &&
+        isSupportedExpression(node.iterable, procedures, structs) &&
         (node.form !== "reduce" ||
-          isSupportedExpression(node.initial, procedures)) &&
-        isSupportedComprehensionBody(node.body, procedures)
+          isSupportedExpression(node.initial, procedures, structs)) &&
+        isSupportedComprehensionBody(node.body, procedures, structs)
       );
     case "DictLit":
       // Issue #322: a dict literal is supported exactly when every entry's value is.
       return node.entries.every((entry) =>
-        isSupportedExpression(entry.value, procedures),
+        isSupportedExpression(entry.value, procedures, structs),
       );
     case "ValueOfKey":
       // Issue #322: `value of <dict> for key <key>` — both operands must be supported.
       return (
-        isSupportedExpression(node.dictionary, procedures) &&
-        isSupportedExpression(node.key, procedures)
+        isSupportedExpression(node.dictionary, procedures, structs) &&
+        isSupportedExpression(node.key, procedures, structs)
       );
   }
+}
+
+/**
+ * {@link isSupportedExpression} bound to an {@link Environment}'s callable tables in one place.
+ * The command executors in `execute-internal.ts` guard every operand with this predicate; routing
+ * them through this one-argument wrapper keeps the hot `executeStatements` recursion frame narrow —
+ * each call site loads only the `environment` it already holds, instead of re-materialising both
+ * `environment.procedures` and `environment.structs` inline. That matters because
+ * `executeStatements` recurses once per procedure call, and the 600-deep `recursionDepthLimit: 1000`
+ * regression test (`execution-budget.test.mjs`) runs under `--experimental-test-coverage`, where
+ * V8 leaves the frame unoptimised: every inline property temporary widens it, and enough of them
+ * push that test over the native call-stack limit (see the frame-width notes on
+ * {@link executeShowCall} and its siblings).
+ */
+export function isSupportedArgument(
+  node: ExpressionNode,
+  environment: Environment,
+): boolean {
+  return isSupportedExpression(
+    node,
+    environment.procedures,
+    environment.structs,
+  );
 }
 
 /**
@@ -769,11 +815,12 @@ export function isSupportedExpression(
 function isSupportedPlace(
   place: PlaceNode,
   procedures: ProcedureRegistry = EMPTY_PROCEDURES,
+  structs: StructRegistry = EMPTY_STRUCTS,
 ): boolean {
   return place.segments.every(
     (segment) =>
       segment.kind === "field" ||
-      isSupportedExpression(segment.key, procedures),
+      isSupportedExpression(segment.key, procedures, structs),
   );
 }
 
@@ -786,8 +833,9 @@ function isSupportedPlace(
 function isSupportedIsPredicate(
   node: IsPredicateNode,
   procedures: ProcedureRegistry = EMPTY_PROCEDURES,
+  structs: StructRegistry = EMPTY_STRUCTS,
 ): boolean {
-  if (!isSupportedExpression(node.operand, procedures)) {
+  if (!isSupportedExpression(node.operand, procedures, structs)) {
     return false;
   }
   switch (node.test.form) {
@@ -795,11 +843,11 @@ function isSupportedIsPredicate(
     case "a":
       return true;
     case "member-of":
-      return isSupportedExpression(node.test.collection, procedures);
+      return isSupportedExpression(node.test.collection, procedures, structs);
     case "between":
       return (
-        isSupportedExpression(node.test.low, procedures) &&
-        isSupportedExpression(node.test.high, procedures)
+        isSupportedExpression(node.test.low, procedures, structs) &&
+        isSupportedExpression(node.test.high, procedures, structs)
       );
   }
 }
@@ -956,6 +1004,12 @@ type PlaceSegmentResolution =
       readonly dict: OLDict;
       readonly key: OLDictKey;
     }
+  | {
+      readonly ok: true;
+      readonly kind: "record";
+      readonly record: OLRecord;
+      readonly field: string;
+    }
   | { readonly ok: false; readonly diagnostic: Diagnostic };
 
 /**
@@ -977,6 +1031,14 @@ function resolvePlaceSegment(
   allowMissingDictKey: boolean,
 ): PlaceSegmentResolution {
   if (segment.kind === "field") {
+    if (container instanceof OLRecord) {
+      return resolveRecordSegment(
+        container,
+        segment,
+        segment.name.name,
+        allowMissingDictKey,
+      );
+    }
     return resolveDictSegment(
       container,
       segment,
@@ -1090,13 +1152,45 @@ function resolveDictSegment(
   return { ok: true, kind: "dict", dict: container, key };
 }
 
+/**
+ * The `.field` tail of {@link resolvePlaceSegment} when `container` is an {@link OLRecord}
+ * (issue #329, `spec/data-structures.md:252-327`). A record has a fixed field set and never grows
+ * new fields, so an unknown field is `ol-unknown-field` on both read and write — `allowMissingDictKey`
+ * (set only for a write's *final* segment) selects the `write: true` param/message variant rather
+ * than granting the dict-style upsert vivification records never allow. A known field always
+ * resolves to its in-place slot, so `:p.x = …` mutates the record every alias observes.
+ */
+function resolveRecordSegment(
+  record: OLRecord,
+  segment: PlaceSegment,
+  field: string,
+  allowMissingDictKey: boolean,
+): PlaceSegmentResolution {
+  if (!record.has(field)) {
+    return {
+      ok: false,
+      diagnostic: runtimeDiag.unknownField(segment.source_span, {
+        type: record.type,
+        field,
+        write: allowMissingDictKey,
+      }),
+    };
+  }
+  return { ok: true, kind: "record", record, field };
+}
+
 /** Read the value a resolved {@link PlaceSegmentResolution} points at. */
 function readPlaceSegmentValue(
   step: Extract<PlaceSegmentResolution, { readonly ok: true }>,
 ): OLValue {
-  return step.kind === "list"
-    ? (step.list[step.index] as OLValue)
-    : (step.dict.get(step.key) as OLValue);
+  switch (step.kind) {
+    case "list":
+      return step.list[step.index] as OLValue;
+    case "dict":
+      return step.dict.get(step.key) as OLValue;
+    case "record":
+      return step.record.get(step.field) as OLValue;
+  }
 }
 
 /** Write `value` into a resolved {@link PlaceSegmentResolution}'s slot, in place. */
@@ -1104,10 +1198,16 @@ function writePlaceSegmentValue(
   step: Extract<PlaceSegmentResolution, { readonly ok: true }>,
   value: OLValue,
 ): void {
-  if (step.kind === "list") {
-    step.list[step.index] = value;
-  } else {
-    step.dict.set(step.key, value);
+  switch (step.kind) {
+    case "list":
+      step.list[step.index] = value;
+      break;
+    case "dict":
+      step.dict.set(step.key, value);
+      break;
+    case "record":
+      step.record.set(step.field, value);
+      break;
   }
 }
 
@@ -1201,8 +1301,12 @@ export function executeAssign(
   }
   const place = node.place;
   if (
-    !isSupportedPlace(place, environment.procedures) ||
-    !isSupportedExpression(node.value, environment.procedures)
+    !isSupportedPlace(place, environment.procedures, environment.structs) ||
+    !isSupportedExpression(
+      node.value,
+      environment.procedures,
+      environment.structs,
+    )
   ) {
     return { ok: true };
   }
@@ -1318,8 +1422,16 @@ export function executeAdd(
   environment: Environment,
 ): AssignResult {
   if (
-    !isSupportedExpression(node.value, environment.procedures) ||
-    !isSupportedExpression(node.target, environment.procedures)
+    !isSupportedExpression(
+      node.value,
+      environment.procedures,
+      environment.structs,
+    ) ||
+    !isSupportedExpression(
+      node.target,
+      environment.procedures,
+      environment.structs,
+    )
   ) {
     return { ok: true };
   }
@@ -1346,8 +1458,16 @@ export function executeRemove(
   environment: Environment,
 ): AssignResult {
   if (
-    !isSupportedExpression(node.value, environment.procedures) ||
-    !isSupportedExpression(node.target, environment.procedures)
+    !isSupportedExpression(
+      node.value,
+      environment.procedures,
+      environment.structs,
+    ) ||
+    !isSupportedExpression(
+      node.target,
+      environment.procedures,
+      environment.structs,
+    )
   ) {
     return { ok: true };
   }
@@ -1381,9 +1501,21 @@ export function executeInsert(
   environment: Environment,
 ): AssignResult {
   if (
-    !isSupportedExpression(node.value, environment.procedures) ||
-    !isSupportedExpression(node.target, environment.procedures) ||
-    !isSupportedExpression(node.index, environment.procedures)
+    !isSupportedExpression(
+      node.value,
+      environment.procedures,
+      environment.structs,
+    ) ||
+    !isSupportedExpression(
+      node.target,
+      environment.procedures,
+      environment.structs,
+    ) ||
+    !isSupportedExpression(
+      node.index,
+      environment.procedures,
+      environment.structs,
+    )
   ) {
     return { ok: true };
   }
@@ -1471,7 +1603,13 @@ export function executeClear(
   node: ClearNode,
   environment: Environment,
 ): AssignResult {
-  if (!isSupportedExpression(node.target, environment.procedures)) {
+  if (
+    !isSupportedExpression(
+      node.target,
+      environment.procedures,
+      environment.structs,
+    )
+  ) {
     return { ok: true };
   }
   const target = evaluateCollectionTarget(node.target, environment);
@@ -1499,8 +1637,16 @@ export function executeRemoveKey(
   environment: Environment,
 ): AssignResult {
   if (
-    !isSupportedExpression(node.key, environment.procedures) ||
-    !isSupportedExpression(node.target, environment.procedures)
+    !isSupportedExpression(
+      node.key,
+      environment.procedures,
+      environment.structs,
+    ) ||
+    !isSupportedExpression(
+      node.target,
+      environment.procedures,
+      environment.structs,
+    )
   ) {
     return { ok: true };
   }
@@ -1643,8 +1789,18 @@ function evaluateCall(
   if (name === "random") {
     return evaluateRandom(node, environment);
   }
+  if (name === "type_of") {
+    return evaluateTypeOf(node, environment);
+  }
   if (environment.procedures.has(name)) {
     return environment.callProcedure(node, environment);
+  }
+  if (environment.structs.has(name)) {
+    return evaluateStructConstructor(
+      node,
+      environment.structs.get(name) as StructDefNode,
+      environment,
+    );
   }
   throw new Error(
     `evaluate: call to "${name}" is not implemented yet — it lands with its own evaluator slice`,
@@ -1925,6 +2081,12 @@ export function printedForm(value: OLValue): string {
       .map((key) => `${key}: ${printedForm(value.get(key) as OLValue)}`);
     return `{${entries.join(" ")}}`;
   }
+  if (value instanceof OLRecord) {
+    const entries = value
+      .fields()
+      .map((field) => `${field}: ${printedForm(value.get(field) as OLValue)}`);
+    return `${value.type} {${entries.join(" ")}}`;
+  }
   return `[${value.map(printedForm).join(" ")}]`;
 }
 
@@ -1969,6 +2131,9 @@ function equalRec(a: OLValue, b: OLValue, inProgress: EqualityMemo): boolean {
   }
   if (a instanceof OLDict) {
     return b instanceof OLDict ? dictEqual(a, b, inProgress) : false;
+  }
+  if (a instanceof OLRecord) {
+    return b instanceof OLRecord ? recordEqual(a, b, inProgress) : false;
   }
   if (!Array.isArray(b)) {
     return false;
@@ -2040,6 +2205,49 @@ function dictEqual(a: OLDict, b: OLDict, inProgress: EqualityMemo): boolean {
         return false;
       }
       if (!equalRec(a.get(key) as OLValue, b.get(key) as OLValue, inProgress)) {
+        return false;
+      }
+    }
+    return true;
+  } finally {
+    active.delete(b);
+    if (active.size === 0) {
+      inProgress.delete(a);
+    }
+  }
+}
+
+/**
+ * Structural record equality (issue #329): two records are `==` when they share a struct type name
+ * and every field is pairwise `==`. Sibling of {@link dictEqual} — same cyclic/shared-structure
+ * memoization strategy, reusing the same `inProgress` stack since a record can nest lists, dicts,
+ * and records. Same-type records always declare the identical field set, so iterating `a`'s fields
+ * and reading each from `b` is sufficient. The spec does not define a normative `==` for records;
+ * this mirrors the structural equality already given to lists and dicts for consistency across the
+ * compound Data value types.
+ */
+function recordEqual(
+  a: OLRecord,
+  b: OLRecord,
+  inProgress: EqualityMemo,
+): boolean {
+  if (a.type !== b.type) {
+    return false;
+  }
+  const partners = inProgress.get(a);
+  if (partners?.has(b)) {
+    return true;
+  }
+  const active = partners ?? new Set<object>();
+  if (partners === undefined) {
+    inProgress.set(a, active);
+  }
+  active.add(b);
+  try {
+    for (const field of a.fields()) {
+      if (
+        !equalRec(a.get(field) as OLValue, b.get(field) as OLValue, inProgress)
+      ) {
         return false;
       }
     }
@@ -2250,12 +2458,16 @@ function evaluateComparisonChain(
 
 /**
  * Core's built-in type words `is a`/`is_a?` recognize (`spec/execution-model.md:161-166`) — the
- * runtime's own copy of the semantic checker's `CORE_TYPE_WORDS`
- * (`packages/parser/src/checker-type-field.ts`, issue #112), kept in sync by hand since it is not
- * part of `@openlogo/parser`'s public surface (`checker-type-field.ts` is not re-exported from
- * `index.ts`). Case-sensitive, matching the checker: `is a "number"` resolves, `is a "Number"`
- * does not (both are "unknown", not a type mismatch). `record` is deferred exactly as the checker
- * defers it — {@link OLValue} has no way to construct one yet; `dict` joined as of issue #322.
+ * runtime's own copy of the semantic checker's `CORE_TYPE_WORDS` + `DATA_TYPE_WORDS`
+ * (`packages/parser/src/checker-type-field.ts`, issues #112/#322), kept in sync by hand since it
+ * is not part of `@openlogo/parser`'s public surface (`checker-type-field.ts` is not re-exported
+ * from `index.ts`). Case-sensitive, matching the checker: `is a "number"` resolves, `is a "Number"`
+ * does not (both are "unknown", not a type mismatch). `dict` joined as of issue #322; `record`
+ * joins as of issue #329 (the `record` value now exists — {@link OLRecord}). A record value is
+ * still never *of* the generic `record` type under `is_a?` — it matches only its own struct type
+ * name (`spec/data-structures.md:287`, see {@link valueMatchesIsAWord}) — but `record` is a known
+ * type *word*, so `is_a? :p "record"` is a well-formed `false`, not `ol-unknown-type`. Declared
+ * struct type names extend this set per program (see {@link isKnownIsAWord}).
  */
 const CORE_IS_A_TYPE_WORDS: ReadonlySet<string> = new Set([
   "number",
@@ -2263,7 +2475,37 @@ const CORE_IS_A_TYPE_WORDS: ReadonlySet<string> = new Set([
   "list",
   "boolean",
   "dict",
+  "record",
 ]);
+
+/**
+ * Whether `word` names a type `is_a?`/`is a` recognizes: a Core/Data built-in
+ * ({@link CORE_IS_A_TYPE_WORDS}) or a declared `struct`'s type name (issue #329). Struct names
+ * match case-sensitively against their declared spelling, exactly as the semantic checker's
+ * `knownTypeWords` does — `struct point` is named by `"point"`, never `"Point"` — even though the
+ * constructor callable itself is looked up case-insensitively (the registry is lowercased-keyed,
+ * so the declared spelling is recovered from the stored node's `name`).
+ */
+function isKnownIsAWord(word: string, structs: StructRegistry): boolean {
+  if (CORE_IS_A_TYPE_WORDS.has(word)) {
+    return true;
+  }
+  const def = structs.get(word.toLowerCase());
+  return def !== undefined && def.name.name === word;
+}
+
+/**
+ * Whether `value` is of the (already known-to-be-valid) `is_a?` type named by `word`. A record
+ * matches its own struct type name and nothing else — never the generic `"record"`
+ * (`spec/data-structures.md:287`) — so `is_a? (point 3 4) "point"` is `true` but
+ * `is_a? (point 3 4) "record"` is `false`. Every non-record value matches its {@link typeNameOf}.
+ */
+function valueMatchesIsAWord(value: OLValue, word: string): boolean {
+  if (value instanceof OLRecord) {
+    return value.type === word;
+  }
+  return typeNameOf(value) === word;
+}
 
 /** Is `value` one of the types `is empty`/`empty?` accepts: a list, dict, or word (issue #322). */
 function isEmptyableValue(
@@ -2328,28 +2570,36 @@ function evaluateIsMemberValue(
 }
 
 /**
- * `is a <type-word>`: `true` when `value`'s runtime type name equals the parse-time literal
- * `typeWord`'s value. The word is grammar-checked (`IsTest`'s `{form:"a"}` carries a
- * `WordLitNode`), so the only runtime-reachable failure is an *unknown* type name —
- * `ol-unknown-type`, never `ol-type` (`spec/execution-model.md:162-163`).
+ * `is a <type-word>`: `true` when `value` is of the type named by the parse-time literal
+ * `typeWord`. The word is grammar-checked (`IsTest`'s `{form:"a"}` carries a `WordLitNode`), so the
+ * only runtime-reachable failure is an *unknown* type name — `ol-unknown-type`, never `ol-type`
+ * (`spec/execution-model.md:162-163`). A declared struct type name is a known word too
+ * (issue #329), and a record matches only its own struct type name (see
+ * {@link valueMatchesIsAWord}).
  */
-function evaluateIsAWorded(value: OLValue, typeWord: WordLitNode): EvalResult {
-  if (!CORE_IS_A_TYPE_WORDS.has(typeWord.value)) {
+function evaluateIsAWorded(
+  value: OLValue,
+  typeWord: WordLitNode,
+  environment: Environment,
+): EvalResult {
+  if (!isKnownIsAWord(typeWord.value, environment.structs)) {
     return fail(runtimeDiag.unknownType(typeWord.source_span, typeWord.value));
   }
-  return ok(typeNameOf(value) === typeWord.value);
+  return ok(valueMatchesIsAWord(value, typeWord.value));
 }
 
 /**
  * `is_a? value type`: the prefix form's `type` argument is dynamically evaluated
  * (`spec/execution-model.md:164-166`), so — unlike the worded `is a`'s literal — it can itself be
  * the wrong type (`ol-type`, when it isn't a word at all) before the unknown-type-name check
- * ({@link evaluateIsAWorded}'s `ol-unknown-type`) even applies.
+ * (its `ol-unknown-type`) even applies. A declared struct type name is a known word (issue #329),
+ * and a record matches only its own struct type name (see {@link valueMatchesIsAWord}).
  */
 function evaluateIsAValue(
   value: OLValue,
   typeArgument: OLValue,
   typeArgumentSpan: SourceSpan,
+  environment: Environment,
 ): EvalResult {
   if (typeof typeArgument !== "string") {
     return fail(
@@ -2361,10 +2611,10 @@ function evaluateIsAValue(
       }),
     );
   }
-  if (!CORE_IS_A_TYPE_WORDS.has(typeArgument)) {
+  if (!isKnownIsAWord(typeArgument, environment.structs)) {
     return fail(runtimeDiag.unknownType(typeArgumentSpan, typeArgument));
   }
-  return ok(typeNameOf(value) === typeArgument);
+  return ok(valueMatchesIsAWord(value, typeArgument));
 }
 
 /**
@@ -2465,7 +2715,7 @@ function evaluateIsPredicate(
       );
     }
     case "a":
-      return evaluateIsAWorded(value, test.type);
+      return evaluateIsAWorded(value, test.type, environment);
     case "between": {
       const lowResult = evaluate(test.low, environment);
       if (!lowResult.ok) {
@@ -2554,6 +2804,7 @@ function evaluatePrefixIsA(
     valueResult.value,
     typeResult.value,
     typeNode.source_span,
+    environment,
   );
 }
 
@@ -3136,6 +3387,84 @@ function evaluateValues(
 }
 
 /**
+ * `type_of <record>` (issue #329, `spec/data-structures.md:286`): reports a record's struct type
+ * name as a word (e.g. `person "tom" 8` → `"person"`). Records are the only values that carry a
+ * struct type name, so `type_of` reads {@link OLRecord.type} directly rather than
+ * {@link typeNameOf} (which reports the generic `"record"` for every record). A non-record
+ * argument is an `ol-type` error (`spec/data-structures.md`'s record-operations table types the
+ * input as `record`). Fixed arity 1, guarded like every other reporter since `execute()` runs
+ * without the static checker.
+ */
+function evaluateTypeOf(
+  node: ArithmeticCallNode,
+  environment: Environment,
+): EvalResult {
+  const arityDiagnostic = requireExactArgs(node, "type_of", 1);
+  if (arityDiagnostic !== undefined) {
+    return fail(arityDiagnostic);
+  }
+  const argNode = arg(node, 0);
+  const argResult = evaluate(argNode, environment);
+  if (!argResult.ok) {
+    return argResult;
+  }
+  if (!(argResult.value instanceof OLRecord)) {
+    return fail(
+      runtimeDiag.typeOfType(argNode.source_span, typeNameOf(argResult.value)),
+    );
+  }
+  return ok(argResult.value.type);
+}
+
+/**
+ * A `struct` type name used as a constructor (issue #329, `spec/data-structures.md:284`):
+ * `point 3 4` builds a fresh mutable {@link OLRecord} of type `point` binding each declared field
+ * to the argument at the same position. Arity is exactly the declared field count — too few inputs
+ * raise `ol-not-enough-inputs`, too many `ol-too-many-inputs` — mirroring a fixed-arity procedure
+ * call (`runProcedureBody`), guarded here because `execute()` runs without the static checker. The
+ * constructor's reported name is the struct's declared spelling (`def.name.name`), which the
+ * record also stores as its {@link OLRecord.type} so `type_of`/`is_a?` observe the declared case.
+ */
+function evaluateStructConstructor(
+  node: ArithmeticCallNode,
+  def: StructDefNode,
+  environment: Environment,
+): EvalResult {
+  const declaredFields = def.fields.map((field) => field.name);
+  const expected = declaredFields.length;
+  const actual = node.args.length;
+  if (actual < expected) {
+    return fail(
+      runtimeDiag.notEnoughInputs(
+        node.callee.source_span,
+        def.name.name,
+        expected,
+        actual,
+      ),
+    );
+  }
+  if (actual > expected) {
+    return fail(
+      runtimeDiag.tooManyInputs(
+        node.callee.source_span,
+        def.name.name,
+        expected,
+        actual,
+      ),
+    );
+  }
+  const values: OLValue[] = [];
+  for (const argumentNode of node.args) {
+    const result = evaluate(argumentNode, environment);
+    if (!result.ok) {
+      return result;
+    }
+    values.push(result.value);
+  }
+  return ok(new OLRecord(def.name.name, declaredFields, values));
+}
+
+/**
  * Guards a strictly-fixed-arity reporter — 0-arg `xcor`/`ycor`/`heading`/`pos`, 2-arg `towards`/
  * `distance` (issue #203): `ol-not-enough-inputs` when under-supplied, `ol-too-many-inputs` when
  * over-supplied, `undefined` when the count matches. Mirrors `execute-internal.ts`'s inline
@@ -3479,6 +3808,7 @@ function isValueProducingStatement(statement: StatementNode): boolean {
 function isSupportedLeadingBodyStatement(
   statement: StatementNode,
   procedures: ProcedureRegistry,
+  structs: StructRegistry = EMPTY_STRUCTS,
 ): boolean {
   if (
     statement.kind === "Return" ||
@@ -3489,7 +3819,8 @@ function isSupportedLeadingBodyStatement(
   }
   const expression = asExpressionStatement(statement);
   return (
-    expression !== undefined && isSupportedExpression(expression, procedures)
+    expression !== undefined &&
+    isSupportedExpression(expression, procedures, structs)
   );
 }
 
@@ -3504,6 +3835,7 @@ function isSupportedLeadingBodyStatement(
 function isSupportedFinalBodyStatement(
   statement: StatementNode,
   procedures: ProcedureRegistry,
+  structs: StructRegistry = EMPTY_STRUCTS,
 ): boolean {
   if (statement.kind === "Return" || statement.kind === "Stop") {
     return true;
@@ -3513,12 +3845,13 @@ function isSupportedFinalBodyStatement(
     COMPREHENSION_COMMAND_NAMES.has(statement.callee.name.toLowerCase())
   ) {
     return statement.args.every((argument) =>
-      isSupportedExpression(argument, procedures),
+      isSupportedExpression(argument, procedures, structs),
     );
   }
   const expression = asExpressionStatement(statement);
   return (
-    expression !== undefined && isSupportedExpression(expression, procedures)
+    expression !== undefined &&
+    isSupportedExpression(expression, procedures, structs)
   );
 }
 
@@ -3533,6 +3866,7 @@ function isSupportedFinalBodyStatement(
 function isSupportedComprehensionBody(
   body: BlockNode,
   procedures: ProcedureRegistry,
+  structs: StructRegistry = EMPTY_STRUCTS,
 ): boolean {
   const statements = body.body;
   if (statements.length === 0) {
@@ -3543,8 +3877,8 @@ function isSupportedComprehensionBody(
     statements
       .slice(0, -1)
       .every((statement) =>
-        isSupportedLeadingBodyStatement(statement, procedures),
-      ) && isSupportedFinalBodyStatement(last, procedures)
+        isSupportedLeadingBodyStatement(statement, procedures, structs),
+      ) && isSupportedFinalBodyStatement(last, procedures, structs)
   );
 }
 

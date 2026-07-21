@@ -1,0 +1,128 @@
+{
+  "description": "A `struct` constructor call builds a record whose fields are set in declared order (issue #329, `spec/data-structures.md:252-286`): `point 3 4` makes a `point` record, `:p.x`/`:p.y` read `3`/`4`, `type_of :p` reports the struct type name `\"point\"`, and `is_a? :p \"point\"` is `true`.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-constructor-and-fields",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "statement_kind": "StructDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-constructor-and-fields",
+        "start": [2, 1],
+        "end": [2, 15]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-constructor-and-fields",
+        "start": [3, 1],
+        "end": [3, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "data/struct-runtime/struct-constructor-and-fields",
+        "start": [3, 1],
+        "end": [3, 11]
+      },
+      "payload": {
+        "values": [3]
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-constructor-and-fields",
+        "start": [4, 1],
+        "end": [4, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "print",
+      "source_span": {
+        "document": "data/struct-runtime/struct-constructor-and-fields",
+        "start": [4, 1],
+        "end": [4, 11]
+      },
+      "payload": {
+        "values": [4]
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-constructor-and-fields",
+        "start": [5, 1],
+        "end": [5, 17]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "print",
+      "source_span": {
+        "document": "data/struct-runtime/struct-constructor-and-fields",
+        "start": [5, 1],
+        "end": [5, 17]
+      },
+      "payload": {
+        "values": ["point"]
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-constructor-and-fields",
+        "start": [6, 1],
+        "end": [6, 23]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "print",
+      "source_span": {
+        "document": "data/struct-runtime/struct-constructor-and-fields",
+        "start": [6, 1],
+        "end": [6, 23]
+      },
+      "payload": {
+        "values": [true]
+      }
+    }
+  ],
+  "diagnostics": []
+}

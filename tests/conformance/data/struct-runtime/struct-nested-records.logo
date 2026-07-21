@@ -1,0 +1,7 @@
+struct point [ x y ]
+struct segment [ head tail ]
+:s = segment (point 1 2) (point 3 4)
+print :s.head.x
+print :s.tail.y
+:s.head.x = 100
+print :s.head.x

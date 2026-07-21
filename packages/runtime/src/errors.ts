@@ -551,6 +551,33 @@ export const runtimeDiag = {
     );
   },
 
+  /**
+   * `ol-unknown-field`: a `:record.field` read or write named a field the record's struct type
+   * does not declare (`spec/data-structures.md:266,309`, `spec/error-model.md:124`). Records have
+   * a fixed field set and never grow new fields, so an unknown field is an error on both read and
+   * write. Same `{ type, field }` params (plus `write: true` for a write) and message templates as
+   * the parser's `resolveRecordField` (`checker-type-field.ts`, issue #112) so the static and
+   * runtime halves agree on identity; raised here at `stage: "runtime"` because `execute()` runs
+   * `parse()` only, never `check()`, and because a variable's struct type is generally only known
+   * dynamically (issue #329).
+   */
+  unknownField(
+    source_span: SourceSpan,
+    params: { type: string; field: string; write?: boolean },
+  ): Diagnostic {
+    const outParams: Record<string, unknown> = params.write
+      ? { type: params.type, field: params.field, write: true }
+      : { type: params.type, field: params.field };
+    return runtimeError(
+      "ol-unknown-field",
+      source_span,
+      outParams,
+      params.write
+        ? `${params.type} has no field ${params.field}, and records can't grow new fields.`
+        : `${params.type} has no field ${params.field}. check the spelling.`,
+    );
+  },
+
   /** `ol-range`: a 1-based list index outside `1..length`. */
   indexRange(source_span: SourceSpan, params: IndexRangeParams): Diagnostic {
     return runtimeError(
@@ -558,6 +585,23 @@ export const runtimeDiag = {
       source_span,
       { operation: "index", index: params.index, length: params.length },
       `index ${String(params.index)} is out of range for a list of ${params.length}.`,
+    );
+  },
+
+  /**
+   * `ol-type` for `type_of` given a non-record argument (issue #329). `type_of` reports a
+   * record's struct type name, so its sole input must be a record
+   * (`spec/data-structures.md:286`); any other value is a type error. A dedicated builder because
+   * {@link PlaceTypeErrorParams}'s `expected` union does not include `"record"`. Same
+   * `{ operation, expected, actual }` shape and message voice as the other Core/Data `ol-type`
+   * builders so the diagnostics read uniformly.
+   */
+  typeOfType(source_span: SourceSpan, actual: string): Diagnostic {
+    return runtimeError(
+      "ol-type",
+      source_span,
+      { operation: "type_of", expected: "record", actual },
+      `type_of needs a record, but got a ${actual}.`,
     );
   },
 
@@ -852,6 +896,30 @@ export const runtimeDiag = {
       source_span,
       { callable, expected, actual },
       `${callable} takes ${expected === 1 ? "one input" : `${expected} inputs`}, but got ${actual}.`,
+    );
+  },
+
+  /**
+   * `ol-reserved-word`: a top-level `struct` declaration's type name collides with a reserved
+   * word, a primitive, an existing procedure, or an earlier `struct` of the same name
+   * (`spec/data-structures.md:264`, `spec/error-model.md:123`). Same `{ name, namespace }` params
+   * shape as the parser's `checker-reserved-word.ts` semantic rule (issue #113) so both stages
+   * agree on identity — raised here at `stage: "runtime"` (the registry default is `semantic`)
+   * because `execute()` runs `parse()` only, never `check()`, so there is no double-report. This
+   * is the runtime's phase-1 registration guard (issue #329): a `struct` type name registers a
+   * constructor in the callable namespace, so a collision there is caught before any statement
+   * runs.
+   */
+  reservedWord(
+    source_span: SourceSpan,
+    name: string,
+    namespace: "reserved" | "primitive" | "procedure" | "struct",
+  ): Diagnostic {
+    return runtimeError(
+      "ol-reserved-word",
+      source_span,
+      { name, namespace },
+      `${name} is already a ${namespace}, so it can't be redefined here.`,
     );
   },
 

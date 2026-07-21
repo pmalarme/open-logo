@@ -51,8 +51,17 @@ import type {
   ProcedureDefNode,
   ProgramNode,
   StatementNode,
+  StructDefNode,
 } from "@openlogo/parser";
-import { parse, walk } from "@openlogo/parser";
+import {
+  corePrimitiveArity,
+  dataPrimitiveArity,
+  educationalPrimitiveArity,
+  isReservedWord,
+  parse,
+  turtlePrimitiveArity,
+  walk,
+} from "@openlogo/parser";
 import { normalizeColor } from "./color.js";
 import { isRecognizedShape, normalizeShape } from "./shape.js";
 import {
@@ -67,7 +76,7 @@ import {
   executeRemove,
   executeRemoveKey,
   findDuplicateBinderName,
-  isSupportedExpression,
+  isSupportedArgument,
   printedForm,
   pushLoopFrame,
   requireNumber,
@@ -77,6 +86,7 @@ import {
   type EvalResult,
   type Frame,
   type ProcedureRegistry,
+  type StructRegistry,
 } from "./evaluate.js";
 import { runtimeDiag } from "./errors.js";
 import type {
@@ -259,7 +269,7 @@ function executeTurtleMoveCall(
     );
   }
   const [arg] = moveCall.args as [ExpressionNode];
-  if (!isSupportedExpression(arg, environment.procedures)) {
+  if (!isSupportedArgument(arg, environment)) {
     return undefined;
   }
   const argResult = evaluate(arg, environment);
@@ -370,7 +380,7 @@ function executeTurtleTurnCall(
     );
   }
   const [arg] = turnCall.args as [ExpressionNode];
-  if (!isSupportedExpression(arg, environment.procedures)) {
+  if (!isSupportedArgument(arg, environment)) {
     return undefined;
   }
   const argResult = evaluate(arg, environment);
@@ -687,7 +697,7 @@ function executeTurtleColorCall(
     );
   }
   const [arg] = colorCall.args as [ExpressionNode];
-  if (!isSupportedExpression(arg, environment.procedures)) {
+  if (!isSupportedArgument(arg, environment)) {
     return undefined;
   }
   const argResult = evaluate(arg, environment);
@@ -771,7 +781,7 @@ function executeTurtleBackgroundCall(
     );
   }
   const [arg] = backgroundCall.args as [ExpressionNode];
-  if (!isSupportedExpression(arg, environment.procedures)) {
+  if (!isSupportedArgument(arg, environment)) {
     return undefined;
   }
   const argResult = evaluate(arg, environment);
@@ -852,7 +862,7 @@ function executeTurtleWidthCall(
     );
   }
   const [arg] = widthCall.args as [ExpressionNode];
-  if (!isSupportedExpression(arg, environment.procedures)) {
+  if (!isSupportedArgument(arg, environment)) {
     return undefined;
   }
   const argResult = evaluate(arg, environment);
@@ -1050,7 +1060,7 @@ function executeTurtleShapeCall(
     );
   }
   const [arg] = shapeCall.args as [ExpressionNode];
-  if (!isSupportedExpression(arg, environment.procedures)) {
+  if (!isSupportedArgument(arg, environment)) {
     return undefined;
   }
   const argResult = evaluate(arg, environment);
@@ -1215,8 +1225,8 @@ function executeTurtlePositionCall(
   }
   const [xArg, yArg] = positionCall.args as [ExpressionNode, ExpressionNode];
   if (
-    !isSupportedExpression(xArg, environment.procedures) ||
-    !isSupportedExpression(yArg, environment.procedures)
+    !isSupportedArgument(xArg, environment) ||
+    !isSupportedArgument(yArg, environment)
   ) {
     return undefined;
   }
@@ -1309,7 +1319,7 @@ function executeTurtleHeadingCall(
     );
   }
   const [arg] = headingCall.args as [ExpressionNode];
-  if (!isSupportedExpression(arg, environment.procedures)) {
+  if (!isSupportedArgument(arg, environment)) {
     return undefined;
   }
   const argResult = evaluate(arg, environment);
@@ -1525,7 +1535,7 @@ function executeShowCall(
   // evaluate `show` when its one operand is an expression kind this issue's evaluator gives
   // meaning to.
   const arg = statement.args[0] as ExpressionNode;
-  if (!isSupportedExpression(arg, environment.procedures)) {
+  if (!isSupportedArgument(arg, environment)) {
     return undefined;
   }
   const result = evaluate(arg, environment);
@@ -1585,7 +1595,7 @@ function executeRandomizeCall(
   // Same unsupported-operand deferral as `show`/`print` use: only evaluate the seed when it is
   // an expression kind this issue's evaluator gives meaning to.
   const seedNode = statement.args[0] as ExpressionNode;
-  if (!isSupportedExpression(seedNode, environment.procedures)) {
+  if (!isSupportedArgument(seedNode, environment)) {
     return undefined;
   }
   const result = evaluate(seedNode, environment);
@@ -1916,6 +1926,76 @@ function collectProcedures(program: ProgramNode): ProcedureRegistry {
     }
   });
   return procedures;
+}
+
+/** The outcome of {@link collectStructs}: either the built registry, or the first collision found. */
+type StructCollection =
+  | { readonly ok: true; readonly structs: StructRegistry }
+  | { readonly ok: false; readonly diagnostic: Diagnostic };
+
+/**
+ * Is `name` already a primitive in ANY profile's callable table? `struct` registers a constructor
+ * in the callable namespace, so a struct type name that shadows any built-in command/reporter —
+ * Core, Turtle, Data, or Educational — is a collision regardless of which profiles a given program
+ * happens to touch, mirroring how {@link runProgram} runs every profile's primitives unconditionally
+ * (`execute()` does not gate by profile).
+ */
+function isPrimitiveName(name: string): boolean {
+  return (
+    corePrimitiveArity(name) !== undefined ||
+    turtlePrimitiveArity(name) !== undefined ||
+    dataPrimitiveArity(name) !== undefined ||
+    educationalPrimitiveArity(name) !== undefined
+  );
+}
+
+/**
+ * The runtime phase-1 struct registration guard (issue #329): every top-level `struct <name>
+ * [ field… ]` registers its type name → declaration in the callable namespace BEFORE any statement
+ * runs, so a struct may be constructed before its textual declaration and so `type_of`/`is_a?` see
+ * every struct type up front — exactly mirroring {@link collectProcedures}'s whole-program pre-scan
+ * for `define`. Unlike procedures, a struct name that collides with a reserved word, a primitive
+ * (any profile), an already-collected procedure, or an earlier `struct` of the same name raises
+ * `ol-reserved-word` here at phase-1 (`spec/data-structures.md:264`), at `stage: "runtime"` —
+ * because `execute()` runs `parse()` only, never `check()`, so the parser's `checker-reserved-word`
+ * rule never runs. The `namespace` priority (`reserved` → `primitive` → `procedure` → `struct`)
+ * matches that checker's "more fundamental category wins" ordering, extended with `struct` for a
+ * duplicate type name. The first collision found (in source order) halts the whole program.
+ */
+function collectStructs(
+  program: ProgramNode,
+  procedures: ProcedureRegistry,
+): StructCollection {
+  const structs = new Map<string, StructDefNode>();
+  let collision: Diagnostic | undefined;
+  walk(program, (node) => {
+    if (collision !== undefined || node.kind !== "StructDef") {
+      return;
+    }
+    const name = node.name.name;
+    const namespace = isReservedWord(name)
+      ? "reserved"
+      : isPrimitiveName(name)
+        ? "primitive"
+        : procedures.has(name.toLowerCase())
+          ? "procedure"
+          : structs.has(name.toLowerCase())
+            ? "struct"
+            : undefined;
+    if (namespace !== undefined) {
+      collision = runtimeDiag.reservedWord(
+        node.name.source_span,
+        name,
+        namespace,
+      );
+      return;
+    }
+    structs.set(name.toLowerCase(), node);
+  });
+  if (collision !== undefined) {
+    return { ok: false, diagnostic: collision };
+  }
+  return { ok: true, structs };
 }
 
 /**
@@ -2298,11 +2378,7 @@ function executeProcedureCallStatement(
   call: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal {
-  if (
-    !call.args.every((arg) =>
-      isSupportedExpression(arg, environment.procedures),
-    )
-  ) {
+  if (!call.args.every((arg) => isSupportedArgument(arg, environment))) {
     return NORMAL_SIGNAL;
   }
   const outcome = runProcedure(call, environment);
@@ -2367,9 +2443,7 @@ function executeStatements(
       // event but are left un-evaluated for the slice that implements the unsupported
       // operand's expression kind.
       if (
-        statement.args.every((arg) =>
-          isSupportedExpression(arg, environment.procedures),
-        )
+        statement.args.every((arg) => isSupportedArgument(arg, environment))
       ) {
         const values: OLValue[] = [];
         let failure: Diagnostic | undefined;
@@ -2419,7 +2493,7 @@ function executeStatements(
     }
 
     if (statement.kind === "Return") {
-      if (!isSupportedExpression(statement.value, environment.procedures)) {
+      if (!isSupportedArgument(statement.value, environment)) {
         continue;
       }
       const result = evaluate(statement.value, environment);
@@ -2445,7 +2519,7 @@ function executeStatements(
     }
 
     if (statement.kind === "Throw") {
-      if (!isSupportedExpression(statement.value, environment.procedures)) {
+      if (!isSupportedArgument(statement.value, environment)) {
         continue;
       }
       const result = evaluate(statement.value, environment);
@@ -2460,7 +2534,7 @@ function executeStatements(
     }
 
     if (statement.kind === "If") {
-      if (!isSupportedExpression(statement.condition, environment.procedures)) {
+      if (!isSupportedArgument(statement.condition, environment)) {
         continue;
       }
       const condition = evaluateCondition(
@@ -2482,7 +2556,7 @@ function executeStatements(
     }
 
     if (statement.kind === "While") {
-      if (!isSupportedExpression(statement.condition, environment.procedures)) {
+      if (!isSupportedArgument(statement.condition, environment)) {
         continue;
       }
       for (;;) {
@@ -2513,7 +2587,7 @@ function executeStatements(
     }
 
     if (statement.kind === "Repeat") {
-      if (!isSupportedExpression(statement.count, environment.procedures)) {
+      if (!isSupportedArgument(statement.count, environment)) {
         continue;
       }
       const countResult = evaluate(statement.count, environment);
@@ -2585,7 +2659,7 @@ function executeStatements(
           );
         }
       }
-      if (!isSupportedExpression(statement.iterable, environment.procedures)) {
+      if (!isSupportedArgument(statement.iterable, environment)) {
         continue;
       }
       const iterableResult = evaluate(statement.iterable, environment);
@@ -2625,10 +2699,10 @@ function executeStatements(
 
     if (statement.kind === "ForRange") {
       if (
-        !isSupportedExpression(statement.from, environment.procedures) ||
-        !isSupportedExpression(statement.to, environment.procedures) ||
+        !isSupportedArgument(statement.from, environment) ||
+        !isSupportedArgument(statement.to, environment) ||
         (statement.by !== undefined &&
-          !isSupportedExpression(statement.by, environment.procedures))
+          !isSupportedArgument(statement.by, environment))
       ) {
         continue;
       }
@@ -2758,8 +2832,10 @@ function resolvePositiveFiniteLimit(
 
 /**
  * Build a fresh execution environment for running `program` from the top: the root/global frame,
- * no active `repeat` turn, `program`'s whole-program {@link ProcedureRegistry}
- * ({@link collectProcedures}), an empty event sink, `foreverIterationLimit` threaded through
+ * no active `repeat` turn, `program`'s whole-program {@link ProcedureRegistry} and
+ * {@link StructRegistry} (collected by {@link collectProcedures}/{@link collectStructs} and passed
+ * in by {@link runProgram}, which runs the struct phase-1 collision check first), an empty event
+ * sink, `foreverIterationLimit` threaded through
  * unchanged, an empty `callDepth` stack ({@link runProcedure} checks and pushes/pops it), and
  * `callProcedure` wired to {@link callProcedureAsValue} — unlike
  * `evaluate.ts`'s bare `createEnvironment()` (whose `callProcedure` stub is intentionally
@@ -2788,6 +2864,8 @@ function resolvePositiveFiniteLimit(
  */
 function createExecutionEnvironment(
   program: ProgramNode,
+  procedures: ProcedureRegistry,
+  structs: StructRegistry,
   foreverIterationLimit: number | undefined,
   options: ExecuteOptions | undefined,
   source: string,
@@ -2795,7 +2873,8 @@ function createExecutionEnvironment(
   return {
     frames: [new Map()],
     repeatTurns: [],
-    procedures: collectProcedures(program),
+    procedures,
+    structs,
     events: [],
     foreverIterationLimit,
     callDepth: [],
@@ -2846,8 +2925,16 @@ export function runProgram(
     return { events: [], diagnostics };
   }
 
+  const procedures = collectProcedures(program);
+  const structResult = collectStructs(program, procedures);
+  if (!structResult.ok) {
+    return { events: [], diagnostics: [structResult.diagnostic] };
+  }
+
   const environment = createExecutionEnvironment(
     program,
+    procedures,
+    structResult.structs,
     foreverIterationLimit,
     options,
     source,

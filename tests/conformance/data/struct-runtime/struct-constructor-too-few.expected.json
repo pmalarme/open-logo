@@ -1,0 +1,49 @@
+{
+  "description": "A constructor call with fewer arguments than declared fields raises `ol-not-enough-inputs` (issue #329, `spec/data-structures.md:284`): `point` declares 2 fields, so `point 3` supplies too few — the constructor's arity equals the declared field count, exactly like a user procedure.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-constructor-too-few",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "statement_kind": "StructDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-constructor-too-few",
+        "start": [2, 1],
+        "end": [2, 13]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-not-enough-inputs",
+      "source_span": {
+        "document": "data/struct-runtime/struct-constructor-too-few",
+        "start": [2, 6],
+        "end": [2, 11]
+      },
+      "params": {
+        "callable": "point",
+        "expected": 2,
+        "actual": 1
+      },
+      "message": "point needs 2 inputs, but got 1.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "description": "A constructor call with more arguments than declared fields raises `ol-too-many-inputs` (issue #329, `spec/data-structures.md:284`): the parenthesized `(point 3 4 5)` over-supplies the 2-field `point`. The bare `point 3 4 5` form instead groups by arity and leaves a stray token (`ol-bad-token`), identical to how a fixed-arity user procedure reads its arguments — so over-supply is expressed with the same parenthesized form the language uses everywhere else.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-constructor-too-many",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "statement_kind": "StructDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-constructor-too-many",
+        "start": [2, 1],
+        "end": [2, 19]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-too-many-inputs",
+      "source_span": {
+        "document": "data/struct-runtime/struct-constructor-too-many",
+        "start": [2, 7],
+        "end": [2, 12]
+      },
+      "params": {
+        "callable": "point",
+        "expected": 2,
+        "actual": 3
+      },
+      "message": "point takes 2 inputs, but got 3.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

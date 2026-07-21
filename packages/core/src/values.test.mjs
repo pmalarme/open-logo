@@ -12,6 +12,28 @@ test("typeNameOf reports the Core concept name for each runtime value shape", ()
   assert.equal(OL.typeNameOf([]), "list");
   assert.equal(OL.typeNameOf([1, "a", true]), "list");
   assert.equal(OL.typeNameOf(new OL.OLDict()), "dict");
+  assert.equal(
+    OL.typeNameOf(new OL.OLRecord("point", ["x", "y"], [3, 4])),
+    "record",
+  );
+});
+
+test("OLRecord binds its declared fields in order and exposes them via has/get/fields", () => {
+  const record = new OL.OLRecord("point", ["x", "y"], [3, 4]);
+  assert.equal(record.type, "point");
+  assert.deepEqual(record.fields(), ["x", "y"]);
+  assert.equal(record.has("x"), true);
+  assert.equal(record.has("z"), false);
+  assert.equal(record.get("x"), 3);
+  assert.equal(record.get("y"), 4);
+  assert.equal(record.get("z"), undefined);
+});
+
+test("OLRecord.set overwrites a declared field's value in place", () => {
+  const record = new OL.OLRecord("point", ["x", "y"], [3, 4]);
+  record.set("x", 10);
+  assert.equal(record.get("x"), 10);
+  assert.deepEqual(record.fields(), ["x", "y"]);
 });
 
 test("OLDict.set upserts by canonical key and preserves first-insertion order", () => {

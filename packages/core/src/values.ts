@@ -1,18 +1,19 @@
 /**
  * The OpenLogo value/type model — the runtime representation of the four Core v0.1 types
- * (`number`, `word`, `list`, `boolean`) plus the Data-profile `dict` type, per
+ * (`number`, `word`, `list`, `boolean`) plus the Data-profile `dict` and `record` types, per
  * [`spec/execution-model.md`](../../../spec/execution-model.md)'s "Value and type model"
- * section and [`spec/data-structures.md`](../../../spec/data-structures.md)'s dictionaries
- * section. `record`/`turtle` are later profiles and are not modeled here yet. Kept in
+ * section and [`spec/data-structures.md`](../../../spec/data-structures.md)'s dictionaries and
+ * records/structs sections. `turtle` is a later profile and is not modeled here yet. Kept in
  * `@openlogo/core` since every package that evaluates or displays a value (runtime, turtle,
  * studio, edu) needs the same representation and the same `ol-*` `expected`/`actual` type
  * names for diagnostics.
  *
  * Representation choices: a `number` is a JS `number` (IEEE-754 double, matching the spec
  * exactly); a `word` is a JS `string` (quotes already stripped by the reader); a `boolean` is a
- * JS `boolean`; a `list` is a JS array of `OLValue`; a `dict` is an {@link OLDict}. There is no
- * wrapper/tag for the first four — the JS `typeof` (plus `Array.isArray`) already distinguishes
- * them unambiguously; `dict` is distinguished with `instanceof OLDict`.
+ * JS `boolean`; a `list` is a JS array of `OLValue`; a `dict` is an {@link OLDict}; a `record` is
+ * an {@link OLRecord}. There is no wrapper/tag for the first four — the JS `typeof` (plus
+ * `Array.isArray`) already distinguishes them unambiguously; `dict` is distinguished with
+ * `instanceof OLDict` and `record` with `instanceof OLRecord`.
  */
 
 /** A legal dictionary key: words or numbers only (`spec/data-structures.md:143-153`). */
@@ -107,11 +108,69 @@ export class OLDict {
   }
 }
 
-/** A runtime value for a Core v0.1 type or the Data-profile `dict` type. */
-export type OLValue = number | string | boolean | readonly OLValue[] | OLDict;
+/**
+ * The Data-profile `record` value (`spec/data-structures.md:252-327`): a mutable aggregate whose
+ * field set is FIXED at construction from its `struct` declaration. Unlike an {@link OLDict}, a
+ * record can never grow or shrink — its fields are exactly the ones the `struct` declared, in
+ * declared order, so writing an undeclared field is an error the runtime raises
+ * (`ol-unknown-field`), never a silent insert. `type` is the struct type name the constructor was
+ * named after: `type_of` reports it and `is_a?` matches against it (`spec/data-structures.md:
+ * 286-287`). Assigning a record copies the reference, not the contents
+ * (`spec/execution-model.md:13-40`), same as a list or dict — aliases observe in-place mutation.
+ */
+export class OLRecord {
+  /** The struct type name this record was constructed from (`type_of`/`is_a?` read it). */
+  readonly type: string;
+  private readonly slots: Map<string, OLValue>;
+
+  /**
+   * Build a record of struct type `type` binding each of `fields` (declared order) to the value
+   * at the same index in `values`. The caller (the constructor dispatch in `@openlogo/runtime`)
+   * has already checked that `values.length` equals the declared field count, so every field has
+   * a value.
+   */
+  constructor(
+    type: string,
+    fields: readonly string[],
+    values: readonly OLValue[],
+  ) {
+    this.type = type;
+    this.slots = new Map(
+      fields.map((field, index) => [field, values[index] as OLValue]),
+    );
+  }
+
+  /** Whether `field` is one of this record's fixed, declared fields. */
+  has(field: string): boolean {
+    return this.slots.has(field);
+  }
+
+  /** The value stored in `field`, or `undefined` when `field` is not a declared field. */
+  get(field: string): OLValue | undefined {
+    return this.slots.get(field);
+  }
+
+  /**
+   * Write `value` into `field` in place. The caller must have confirmed `field` is declared (via
+   * {@link has}) — a record's field set is fixed, so this never creates a new field.
+   */
+  set(field: string, value: OLValue): void {
+    this.slots.set(field, value);
+  }
+
+  /** The record's field names, in declared order. */
+  fields(): string[] {
+    return [...this.slots.keys()];
+  }
+}
+
+/** A runtime value for a Core v0.1 type or the Data-profile `dict`/`record` types. */
+export type OLValue =
+  number | string | boolean | readonly OLValue[] | OLDict | OLRecord;
 
 /** The learner-facing concept name for a type, as `ol-type`'s `expected`/`actual` params use. */
-export type OLTypeName = "number" | "word" | "list" | "boolean" | "dict";
+export type OLTypeName =
+  "number" | "word" | "list" | "boolean" | "dict" | "record";
 
 /** The {@link OLTypeName} of a runtime value, for `ol-type` diagnostic params. */
 export function typeNameOf(value: OLValue): OLTypeName {
@@ -126,6 +185,9 @@ export function typeNameOf(value: OLValue): OLTypeName {
   }
   if (value instanceof OLDict) {
     return "dict";
+  }
+  if (value instanceof OLRecord) {
+    return "record";
   }
   return "list";
 }

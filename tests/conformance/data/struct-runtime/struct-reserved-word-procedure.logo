@@ -1,0 +1,4 @@
+define foo
+  return 1
+end
+struct foo [ x y ]
