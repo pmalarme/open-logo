@@ -483,11 +483,42 @@ test("why: a target with events present but none matching its span says that com
   );
 });
 
-test("why: an explicitly selected non-instruction target (e.g. a Block) with a matching event still gives a selection-aware cause", () => {
+test("why: an explicitly selected Block matches an event carrying only a child instruction's span (as the real runtime trace does)", () => {
   const program = parse("repeat 4 [ forward 80 right 90 ]");
   const block = program.body[0].body;
   assert.equal(block.kind, "Block");
-  const event = makeEvent("turn", { from: 0, to: 90 }, block.source_span);
+  const turnStatement = block.body[1];
+  // The runtime traces block children individually, so the event's span is the child
+  // instruction's span (`right 90`), never the enclosing block's own span.
+  const event = makeEvent(
+    "turn",
+    { from: 0, to: 90 },
+    turnStatement.source_span,
+  );
+  const context = baseContext({
+    program,
+    target: block,
+    command: "why",
+    events: [event],
+  });
+
+  const output = why(context);
+  assert.equal(output.segments[1], "This happened because `right` ran.");
+  assert.deepEqual(output.target_source_span, block.source_span);
+});
+
+test("why: an explicitly selected Block matches an event whose span doesn't resolve to any instruction, so the cause stays selection-generic", () => {
+  const program = parse("repeat 4 [ forward 80 right 90 ]");
+  const block = program.body[0].body;
+  assert.equal(block.kind, "Block");
+  // A span inside the block that does not correspond to any single instruction node (it starts
+  // mid-token), so `findInstructionAtSpan` cannot resolve a causing command name.
+  const bogusSpan = {
+    document: block.source_span.document,
+    start: [block.source_span.start[0], block.source_span.start[1] + 1],
+    end: block.source_span.end,
+  };
+  const event = makeEvent("turn", { from: 0, to: 90 }, bogusSpan);
   const context = baseContext({
     program,
     target: block,

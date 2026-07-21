@@ -453,9 +453,11 @@ function findInstructionAtSpan(
 }
 
 /**
- * Finds the trace event `why` should explain: the most recent event whose `source_span` matches
- * `target` exactly when a target is selected, otherwise the most recent event overall
- * (`spec/educational-model.md#why`'s "Use the turtle state or variable value at that moment").
+ * Finds the trace event `why` should explain: the most recent event whose `source_span` is
+ * contained by `target` when a target is selected — a selected range (e.g. a `repeat` body)
+ * only carries child-instruction spans in the trace, never its own enclosing span — otherwise
+ * the most recent event overall (`spec/educational-model.md#why`'s "Use the turtle state or
+ * variable value at that moment").
  */
 function findRelevantEvent(
   context: TutorContext,
@@ -467,7 +469,7 @@ function findRelevantEvent(
   if (context.target) {
     for (let index = context.events.length - 1; index >= 0; index -= 1) {
       const event = context.events[index];
-      if (event && spansEqual(event.source_span, target.source_span)) {
+      if (event && spanContains(target.source_span, event.source_span)) {
         return event;
       }
     }
