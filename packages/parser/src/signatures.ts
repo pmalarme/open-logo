@@ -195,15 +195,67 @@ export function dataPrimitiveArity(name: string): number | undefined {
 }
 
 /**
+ * Default arities for the **Educational** profile's baseline meta-commands (issue #331), derived
+ * from the signature table in [`spec/conformance.md`](../../../spec/conformance.md#educational):
+ * `explain`/`why`/`hint`/`debug` are each a Command, arity 0, invoked as a bare word — the exact
+ * same "zero-input bare Command" grammar production `home`/`pi`/`randomize` already use, so
+ * `spec/commands.md`'s "Meta-commands are commands taking no inputs" note needs no new grammar
+ * production or AST node kind (`ast-design` skill: "one node kind per grammar production"). Kept
+ * as its own table for the same reason {@link TURTLE_PRIMITIVE_ARITY}/{@link DATA_PRIMITIVE_ARITY}
+ * are separate: Educational has its own independent profile visibility (the Layer-2 checker gates
+ * it on its own active profile, `spec/tooling.md:175-176`), while the reader groups a bare call's
+ * arguments for *any* recognized primitive regardless of profile.
+ */
+const EDUCATIONAL_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
+  ["explain", 0],
+  ["why", 0],
+  ["hint", 0],
+  ["debug", 0],
+]);
+
+/**
+ * The default arity of an Educational-profile meta-command, or `undefined` when `name` is not one
+ * of `explain`/`why`/`hint`/`debug`. Matching is case-insensitive.
+ *
+ * `EDUCATIONAL_PRIMITIVE_ARITY` is this profile's single source-of-truth table — mirroring
+ * {@link turtlePrimitiveArity}/{@link dataPrimitiveArity} — for a future visibility slice's
+ * `educationalPrimitiveNames()` accessor to read from, exactly as {@link turtlePrimitiveNames} does
+ * for Turtle & Rendering.
+ */
+export function educationalPrimitiveArity(name: string): number | undefined {
+  return EDUCATIONAL_PRIMITIVE_ARITY.get(name.toLowerCase());
+}
+
+/**
+ * Every Educational-profile meta-command's canonical lowercase name, sorted for deterministic
+ * iteration. This is the enumerable counterpart to {@link educationalPrimitiveArity} — the
+ * checker's visible-name model (`checker-names.ts`) needs the full name *list*, gated on the
+ * `educational` profile, to make these meta-commands both callable without `ol-unknown-command`
+ * and candidates for its did-you-mean suggestions — mirroring {@link turtlePrimitiveNames}'s role
+ * for the Turtle & Rendering table.
+ */
+const EDUCATIONAL_PRIMITIVE_NAMES: readonly string[] = Object.freeze(
+  [...EDUCATIONAL_PRIMITIVE_ARITY.keys()].sort(),
+);
+
+/**
+ * The full list of Educational-profile meta-command names, in sorted order. See
+ * {@link EDUCATIONAL_PRIMITIVE_NAMES}. */
+export function educationalPrimitiveNames(): readonly string[] {
+  return EDUCATIONAL_PRIMITIVE_NAMES;
+}
+
+/**
  * Every profile's primitive-arity table the reader consults, in lookup order. Core Language is
  * checked first (today's only always-visible table), then each optional profile's Core-spelled
- * primitives as they are registered — currently Turtle & Rendering and Data. A later profile slice
- * adds its table here rather than editing {@link primitiveArity}'s body.
+ * primitives as they are registered — currently Turtle & Rendering, Data, and Educational. A later
+ * profile slice adds its table here rather than editing {@link primitiveArity}'s body.
  */
 const PROFILE_PRIMITIVE_ARITY_TABLES: readonly ReadonlyMap<string, number>[] = [
   CORE_PRIMITIVE_ARITY,
   TURTLE_PRIMITIVE_ARITY,
   DATA_PRIMITIVE_ARITY,
+  EDUCATIONAL_PRIMITIVE_ARITY,
 ];
 
 /**
