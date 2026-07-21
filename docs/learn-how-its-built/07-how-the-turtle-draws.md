@@ -1,4 +1,4 @@
-# 06 · How the turtle draws
+# 07 · How the turtle draws
 
 You typed `forward 100`. A line showed up on your screen. How? Think of an Etch-A-Sketch: you turn
 the knobs, and somewhere inside, a stylus drags a line across the screen exactly as far and in
@@ -91,4 +91,4 @@ Predict how many `draw-segment` events you'll see before you run it — hint: it
 because the fourth `forward 100` moves the turtle with the pen up, leaving a gap where the last
 side of the square would have been.
 
-**Next up →** [07 · Highlighting](07-highlighting.md)
+**Next up →** [08 · Highlighting](08-highlighting.md)

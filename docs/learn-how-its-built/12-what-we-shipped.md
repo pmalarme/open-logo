@@ -1,4 +1,4 @@
-# 11 · What we shipped
+# 12 · What we shipped
 
 Every other page in this series shows you one *machine* — the lexer, the tree, the interpreter, the
 checker. This page zooms out: forget how it works — **what does OpenLogo have, right now, that you
@@ -41,7 +41,7 @@ Before building a language, you need a workshop. M0 built one:
     sportscaster's call
   - the **`ol-*` diagnostics** — every error/warning, with its own stable code, like a doctor's
     diagnosis codes
-  - the **token classes** — categories a highlighter sorts words into (page 06)
+  - the **token classes** — categories a highlighter sorts words into (page 08)
 
   Agreeing on these first let separate teams build the lexer, turtle engine, and highlighter **at
   the same time** without colliding — like crews agreeing on measurements before framing walls.
@@ -53,8 +53,8 @@ single turtle command existed (turtle graphics are their own milestone, M2 — m
 built as a **walking skeleton**: the smallest version of every layer, wired end to end, before any
 layer got fancy — like sketching a stick figure before adding muscle and skin.
 
-- **Reading and running your code** — the lexer, reader, AST (pages 03–04), interpreter, and runtime
-  (page 05) cover the whole Core grammar, including `define … end` procedures: teach OpenLogo a
+- **Reading and running your code** — the lexer, parser, AST (pages 03–05), interpreter, and runtime
+  (page 06) cover the whole Core grammar, including `define … end` procedures: teach OpenLogo a
   recipe once (`define square :size … end`) and call it by name again.
 - **Deciding and repeating** — the **control forms** `if`/`while`/`repeat`/`forever`/`for` (deciding
   *whether* or *how many times* other instructions run), plus **comprehensions** — `map`, `filter`,
@@ -68,7 +68,7 @@ layer got fancy — like sketching a stick figure before adding muscle and skin.
   - **predicates** — yes/no tests like `empty?`/`member?`
   - `print`/`show` let your program talk back
 - **Errors, colors, and a place to try it** — `ol-*` diagnostics became real error messages, the
-  checker (page 07) learned every Core word (`prnt` suggests `print`), the highlighter (page 06)
+  checker (page 09) learned every Core word (`prnt` suggests `print`), the highlighter (page 08)
   learned every Core token class, and the studio REPL (type a line, see what happens —
   read-evaluate-print-loop) already runs Core: variables, procedures, loops, printing.
 

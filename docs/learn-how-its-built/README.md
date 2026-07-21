@@ -9,7 +9,7 @@ played with turtle commands already.
 ```mermaid
 flowchart LR
   A["📝 Your text<br/>repeat 4 [ forward 100 right 90 ]"] --> B["🔤 Lexer<br/>chops it into tokens"]
-  B --> C["🌳 Reader<br/>builds a tree (the AST)"]
+  B --> C["🌳 Parser<br/>builds a tree (the AST)"]
   C --> D["🏃 Interpreter<br/>walks the tree, one step at a time"]
   D --> E["🐢 Turtle<br/>moves and draws"]
   C -.->|"🔍 optional: check<br/>before you run"| F["Checker"]
@@ -26,13 +26,14 @@ real OpenLogo code and the actual code that runs inside OpenLogo today.
 | [02 · Tokens](02-tokens.md) | Chopping your code into little labeled words |
 | [03 · The lexer](03-the-lexer.md) | The machine that does the chopping |
 | [04 · The AST](04-the-ast.md) | Turning tokens into a tree |
-| [05 · The interpreter & runtime](05-the-interpreter-and-runtime.md) | Walking the tree to make things happen |
-| [06 · How the turtle draws](06-how-the-turtle-draws.md) | Turning events into pixels on the canvas |
-| [07 · Highlighting](07-highlighting.md) | Why keywords turn colors |
-| [08 · The checker](08-the-checker.md) | How OpenLogo says "oops," kindly |
-| [09 · How we built it](09-how-we-built-it.md) | The human side — how a team builds a language |
-| [10 · Where you type it](10-where-you-type-it.md) | The studio REPL and the Run/Stop/Reset controls |
-| [11 · What we shipped](11-what-we-shipped.md) | What the whole series adds up to, all together |
+| [05 · The parser](05-the-parser.md) | The machine that builds the tree |
+| [06 · The interpreter & runtime](06-the-interpreter-and-runtime.md) | Walking the tree to make things happen |
+| [07 · How the turtle draws](07-how-the-turtle-draws.md) | Turning events into pixels on the canvas |
+| [08 · Highlighting](08-highlighting.md) | Why keywords turn colors |
+| [09 · The checker](09-the-checker.md) | How OpenLogo says "oops," kindly |
+| [10 · How we built it](10-how-we-built-it.md) | The human side — how a team builds a language |
+| [11 · Where you type it](11-where-you-type-it.md) | The studio REPL and the Run/Stop/Reset controls |
+| [12 · What we shipped](12-what-we-shipped.md) | What the whole series adds up to, all together |
 
 Read them in order the first time through — each page builds on the last.
 

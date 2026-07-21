@@ -1,4 +1,4 @@
-# 09 · How we built it
+# 10 · How we built it
 
 The other pages in this series show you the *machines* inside OpenLogo — the lexer, the tree, the
 interpreter, the turtle. This page is about the *team* that built them, and the habits that keep
@@ -35,7 +35,7 @@ before moving to the next. It's like baking one whole cupcake — batter, baking
 instead of mixing a huge tray of batter with nothing ready to eat yet.
 
 A slice for a new turtle command travels through: the **grammar** (how do you spell it?) → the
-**tree** (the AST, from page 04) → the **interpreter** (page 05, actually running it) → the **turtle**
+**tree** (the AST, from page 04) → the **interpreter** (page 06, actually running it) → the **turtle**
 (actually moving) → **tests** that prove it → **docs** that explain it. Only once all of that is
 done is the slice finished — a half-built layer doesn't count.
 
@@ -95,4 +95,4 @@ Open the `.github/agents/` folder in the OpenLogo repository and count how many 
 you find — see if you can match each one to the part of the language it owns, using the list above
 as a guide.
 
-**Next up →** [10 · Where you type it](10-where-you-type-it.md)
+**Next up →** [11 · Where you type it](11-where-you-type-it.md)

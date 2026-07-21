@@ -1,4 +1,4 @@
-# 10 · Where you type it — the studio REPL and Run/Stop/Reset
+# 11 · Where you type it — the studio REPL and Run/Stop/Reset
 
 Every other page in this series shows you a *machine* — the lexer, the tree, the interpreter, the
 turtle. This page shows you the *room* you actually sit in: the **studio**, the app where you type
@@ -18,7 +18,7 @@ flowchart LR
 
 That loop — **type, run, see what happened, go again** — has a name: a **REPL**
 ("read‑evaluate‑print loop"). The studio's REPL isn't a separate, simplified engine; it calls the
-exact same `execute()` function from page 05's interpreter and runtime. Nothing about *how* your
+exact same `execute()` function from page 06's interpreter and runtime. Nothing about *how* your
 code runs changes because you typed it into the studio instead of running it any other way — the
 studio just gives you buttons for the loop.
 
@@ -46,7 +46,7 @@ number. Type `forever [ forward 1 ]`, though, and there's no such limit written 
 all. That's why every run also carries an **execution budget** — a hard ceiling on how many
 instructions a single run may take (1,000,000, by default) — enforced by the runtime itself, not
 just the studio UI. Once a program crosses that ceiling, the runtime halts it right there and
-reports an `ol-*` diagnostic (page 08's error codes), exactly the same way it would report any
+reports an `ol-*` diagnostic (page 09's error codes), exactly the same way it would report any
 other error:
 
 ```logo
@@ -90,4 +90,4 @@ Open the studio, type `repeat 10000 [ forward 1 ]`, and press **Run** — watch 
 watch the status turn **Stopped** by itself, with an `ol-limit` diagnostic in the diagnostics pane
 — nobody had to press **Stop** for the safety net to catch it.
 
-**Next up →** [11 · What we shipped](11-what-we-shipped.md)
+**Next up →** [12 · What we shipped](12-what-we-shipped.md)

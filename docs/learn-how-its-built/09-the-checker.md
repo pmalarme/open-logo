@@ -1,4 +1,4 @@
-# 08 · The checker
+# 09 · The checker
 
 Writing code, you *will* make mistakes — everyone does, always. The question is how fast you find
 out, and how much help you get once you do. That's the checker's whole job: it reads your code
@@ -11,7 +11,7 @@ apart:
 
 ```mermaid
 flowchart LR
-  A["📝 your text"] --> B["🔤 lexer + 🌳 reader<br/>build the tree"]
+  A["📝 your text"] --> B["🔤 lexer + 🌳 parser<br/>build the tree"]
   B -->|"tree is broken"| C["🧱 structure problems<br/>e.g. missing ]"]
   B -.->|"tree builds fine (optional)"| D["🔍 the checker<br/>looks over the finished tree"]
   D -->|"names/values don't add up"| E["🤔 meaning problems<br/>e.g. unknown command"]
@@ -93,4 +93,4 @@ knows Core words; `forward`/`right` typos only get suggested once the turtle voc
 Deliberately misspell a command you use often — try `prnt` instead of `print` — and see the
 checker's suggestion for yourself.
 
-**Next up →** [09 · How we built it](09-how-we-built-it.md)
+**Next up →** [10 · How we built it](10-how-we-built-it.md)
