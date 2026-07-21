@@ -162,6 +162,18 @@ main section {
   grid-area: diagnostics;
 }
 
+/* #334 — the tutor-output pane: absent (no box, no `grid-area` participation) until
+   `explain`/`why`/`hint`/`debug` has ever run, exactly mirroring `.pane-lesson`'s
+   `:has(...:not([hidden]))` extension-slot pattern above — it never displaces or reserves space
+   ahead of the editor/diagnostics panes while hidden. */
+.pane-tutor {
+  grid-area: tutor;
+  align-self: start;
+  min-height: 0;
+  max-height: calc(100vh - 10rem);
+  overflow-y: auto;
+}
+
 /* The lesson pane is present (its `hidden` attribute was cleared) — reserve its row, stacked
    above the rest, in the narrow single-column layout. */
 main:has(.pane-lesson:not([hidden])) {
@@ -172,6 +184,29 @@ main:has(.pane-lesson:not([hidden])) {
     "turtle"
     "output"
     "diagnostics";
+}
+
+/* The tutor-output pane is present — append its own row after diagnostics, single-column layout. */
+main:has(.pane-tutor:not([hidden])) {
+  grid-template-areas:
+    "editor"
+    "controls"
+    "turtle"
+    "output"
+    "diagnostics"
+    "tutor";
+}
+
+/* Both the lesson and tutor-output panes are present at once — combine both extension rows. */
+main:has(.pane-lesson:not([hidden])):has(.pane-tutor:not([hidden])) {
+  grid-template-areas:
+    "lesson"
+    "editor"
+    "controls"
+    "turtle"
+    "output"
+    "diagnostics"
+    "tutor";
 }
 
 @media (min-width: 48rem) {
@@ -204,6 +239,29 @@ main:has(.pane-lesson:not([hidden])) {
       "lesson controls turtle"
       "lesson output output"
       "lesson diagnostics diagnostics";
+  }
+
+  /* #334 — the tutor-output pane is present: append its own full-width row after diagnostics,
+     two-column layout. */
+  main:has(.pane-tutor:not([hidden])) {
+    grid-template-areas:
+      "editor turtle"
+      "controls turtle"
+      "output output"
+      "diagnostics diagnostics"
+      "tutor tutor";
+  }
+
+  /* Both the lesson and tutor-output panes are present at once — combine both extension areas. */
+  main:has(.pane-lesson:not([hidden])):has(.pane-tutor:not([hidden])) {
+    max-width: 1400px;
+    grid-template-columns: minmax(0, 300px) 1fr 1fr;
+    grid-template-areas:
+      "lesson editor turtle"
+      "lesson controls turtle"
+      "lesson output output"
+      "lesson diagnostics diagnostics"
+      "lesson tutor tutor";
   }
 }
 
@@ -400,6 +458,39 @@ main:has(.pane-lesson:not([hidden])) {
 .run-log-diagnostics li {
   padding: 0.15rem 0;
   border-bottom: none;
+}
+
+/* #334 — the tutor-output pane: an append-only history of `explain`/`why`/`hint`/`debug` results,
+   styled to match `#run-log`'s scrolling-list precedent immediately above. */
+#tutor-output {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+#tutor-output li {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--ol-border);
+}
+
+#tutor-output li:last-child {
+  border-bottom: none;
+}
+
+.tutor-output-heading {
+  margin: 0 0 0.25rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--ol-navy);
+}
+
+.tutor-output-segments p {
+  margin: 0 0 0.25rem;
+  font-size: 0.9rem;
+}
+
+.tutor-output-segments p:last-child {
+  margin-bottom: 0;
 }
 
 /* Visually hidden but still announced by assistive technology (the two always-live

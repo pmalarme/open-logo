@@ -54,6 +54,7 @@ test("index.html's focusable elements appear in exactly REPL_FOCUS_ORDER's DOM o
     "speed-slider": "speed-slider",
     canvas: "turtle-canvas",
     "diagnostics-list": "diagnostics-list",
+    "tutor-output": "tutor-output",
   };
 
   const positions = OL.REPL_FOCUS_ORDER.map((stop) => {

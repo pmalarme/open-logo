@@ -150,6 +150,20 @@
           tabindex="0"
         ></ul>
       </section>
+      <section class="pane-tutor" aria-label="Tutor output">
+        <!-- #334 — hidden until explain/why/hint/debug has ever run (web/main.ts's
+             renderTutorOutput toggles `hidden` from TutorOutputController's `getView().isVisible`,
+             mirroring `#diagnostics-list`'s role="log" convention above); never blocks/replaces the
+             editor or diagnostics panes. -->
+        <ul
+          id="tutor-output"
+          role="log"
+          aria-label="Tutor output"
+          aria-live="polite"
+          tabindex="0"
+          hidden
+        ></ul>
+      </section>
     </main>
     <script type="module" src="/web/main.ts"></script>
   </body>
