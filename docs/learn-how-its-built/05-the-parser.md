@@ -60,7 +60,7 @@ parser encodes this as a ladder, each rule calling the next-tighter one first:
 
 ```mermaid
 flowchart LR
-  A["or"] --> B["and"] --> C["comparison"] --> D["+ / -"] --> E["* / / / mod"] --> F["unary<br/>not, -3"] --> G["postfix<br/>:a.b, :a[i]"] --> H["a single value"]
+  A["or"] --> B["and"] --> C["comparison"] --> D["+ / -"] --> E["* / / / mod"] --> F["unary<br/>not"] --> G["postfix<br/>:a.b, :a[i]"] --> H["a single value<br/>100, -3"]
 ```
 
 Reading `2 + 3 * 4`: the `+`-level rule asks the `*`-level rule for its left side, gets `2` straight
