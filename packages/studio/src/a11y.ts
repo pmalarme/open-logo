@@ -1,9 +1,9 @@
 /**
  * Keyboard + screen-reader accessibility for the studio REPL loop — editor (#124), run controls
- * (#126, extended in #228 with the turtle Canvas view), diagnostics (#125), and, as of
- * #229, the turtle Canvas pane (#218/#228) and its non-visual state text. Lesson-pane a11y is out
- * of scope (split to #127/M3). #305 removes the `Next step` control from the 0.1.0 UI; the
- * headless `step()` method it drove stays (Wave 1/#302 rebuilds a UI on it).
+ * (#126, extended in #228 with the turtle Canvas view), diagnostics (#125), the turtle Canvas pane
+ * (#218/#228, as of #229) and its non-visual state text, and, as of #127, the lesson pane's nav
+ * list and detail article. #305 removes the `Next step` control from the 0.1.0 UI; the headless
+ * `step()` method it drove stays (Wave 1/#302 rebuilds a UI on it).
  *
  * Like #123-#129, ADR-0001 defers the studio's DOM/framework choice, so this slice models
  * accessibility as **headless, node:test-able data + functions** a future real-widget renderer
@@ -11,8 +11,10 @@
  * posture `editor.ts`'s doc comment already establishes. There is no DOM here to regress.
  *
  * ## Keyboard operability — {@link REPL_FOCUS_ORDER}
- * A single, static, ordered list of every focusable stop across the four studio panes: the editor
- * (one `textbox` stop), the run controls (three `button` stops — Run/Stop/Reset, matching
+ * A single, static, ordered list of every focusable stop across the five studio panes: the lesson
+ * nav list (one `list` stop, #127 — the entry point into `lesson-pane.ts`'s dynamically-sized,
+ * natively-focusable per-lesson `<button>`s, not one stop per lesson), the editor (one `textbox`
+ * stop), the run controls (three `button` stops — Run/Stop/Reset, matching
  * `run-controller.ts`'s `run()`/`stop()`/`reset()` — plus one `slider` stop, #310's turtle-speed
  * control), the turtle Canvas pane (one `img`
  * stop, #218/#228's rendered + animated scene), and the diagnostics list (one `log` stop).
@@ -31,8 +33,9 @@
  *
  * ## Semantic structure — {@link REPL_LANDMARK_ROLES}
  * The ARIA role + label a future renderer gives each pane's *container* (as opposed to the
- * individual focusable stops above): the editor is a `textbox`, the run controls are a `toolbar`,
- * the turtle Canvas is an `img`, its non-visual state text is a `status` live region, and
+ * individual focusable stops above): the lesson pane is a `navigation` landmark (its nav list)
+ * plus a `region` landmark (its detail article), the editor is a `textbox`, the run controls are a
+ * `toolbar`, the turtle Canvas is an `img`, its non-visual state text is a `status` live region, and
  * diagnostics are a `log` landmark. A renderer maps this 1:1 onto real `role`/`aria-label`
  * attributes; this module never touches the DOM itself.
  *
@@ -66,7 +69,16 @@ import type { RegionName } from "./app-shell.js";
 
 /** The ARIA role a focus stop or landmark is exposed as. */
 export type A11yRole =
-  "textbox" | "toolbar" | "button" | "log" | "img" | "status" | "slider";
+  | "textbox"
+  | "toolbar"
+  | "button"
+  | "log"
+  | "img"
+  | "status"
+  | "slider"
+  | "navigation"
+  | "list"
+  | "region";
 
 /** One focusable stop in the REPL's keyboard focus order. */
 export interface FocusStop {
@@ -81,11 +93,24 @@ export interface FocusStop {
 }
 
 /**
- * The studio's keyboard focus order: editor → Run → Stop → Reset → Speed → turtle Canvas →
- * diagnostics list. Static and declarative — it does not depend on shell mount state — because
- * the full studio REPL + Canvas loop always composes every pane together.
+ * The studio's keyboard focus order: the lesson nav list → editor → Run → Stop → Reset → Speed →
+ * turtle Canvas → diagnostics list. The lesson nav list is first because #313/#127's layout
+ * (`web/styles.css`'s `main:has(.pane-lesson:not([hidden]))` rules) places the lesson pane first
+ * in both the wide (leftmost column) and narrow (topmost row) layouts, matching DOM order. Static
+ * and declarative — it does not depend on shell mount state — because the full studio REPL +
+ * Canvas loop always composes every pane together. The lesson pane's individual per-lesson
+ * buttons (#127, `lesson-pane.ts`'s `toLessonNavItems`) are a dynamically-sized list rendered as
+ * real, natively-focusable `<button>` elements — this single `"list"`-role stop names the
+ * container as the keyboard entry point into that list rather than enumerating an unbounded,
+ * content-dependent number of individual stops here.
  */
 export const REPL_FOCUS_ORDER: readonly FocusStop[] = [
+  {
+    id: "lesson-nav-list",
+    region: "lesson",
+    role: "list",
+    label: "Lessons",
+  },
   {
     id: "editor",
     region: "editor",
@@ -118,11 +143,13 @@ export interface RegionLandmark {
 }
 
 /**
- * Each studio pane's landmark roles: editor, run controls (`repl`), the turtle Canvas (visual
- * `img` plus its non-visual `status` state-text region — see {@link createTurtleStateRegion}),
- * and diagnostics.
+ * Each studio pane's landmark roles: the lesson pane's nav list and detail article (#127), editor,
+ * run controls (`repl`), the turtle Canvas (visual `img` plus its non-visual `status` state-text
+ * region — see {@link createTurtleStateRegion}), and diagnostics.
  */
 export const REPL_LANDMARK_ROLES: readonly RegionLandmark[] = [
+  { region: "lesson", role: "navigation", label: "Lessons" },
+  { region: "lesson", role: "region", label: "Lesson detail" },
   { region: "editor", role: "textbox", label: "OpenLogo source editor" },
   { region: "repl", role: "toolbar", label: "Run controls" },
   { region: "turtle", role: "img", label: "Turtle canvas" },

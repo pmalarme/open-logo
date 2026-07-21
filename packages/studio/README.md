@@ -369,6 +369,36 @@ to reshape `index.html`/`web/styles.css`/`src/app-shell.ts` again:
   interactive content, and giving `#lesson-pane` (or its rendered content) a real `role`. #313
   deliberately declares none of that for content that doesn't exist yet — declaring an empty
   landmark ahead of time would itself be the accessibility regression this slice's DoD forbids.
+
+## Lesson pane (#127)
+
+Fills the extension slot #313 reserved above with a real, headless-first lesson pane, following
+the run-log pane (#314) precedent exactly:
+
+- **`src/lesson-pane.ts`**: `createLessonPaneController` is a headless controller over the shared
+  `StudioStateStore`'s `lesson: LessonContext | null` slot (unchanged since it was reserved ahead of
+  time, alongside `"lesson"` in `APP_SHELL_REGIONS`). `toLessonNavItems` and
+  `toLessonDetailViewItem` are pure projection functions — all "which lesson is selected", "is a
+  lesson selected at all" decisions live here, 100% unit-tested with node:test, no DOM. `@openlogo/edu`
+  is consumed **only** via its package barrel (`LESSONS`, `findLessonById`, `getLessonsByLevel`,
+  `Lesson`, `WorkedExample`) — this pane is a read-only renderer of the #189 data contract; it does
+  not execute lessons, author them, or add AI.
+- **DOM wiring**: `index.html`'s `#lesson-pane` section is no longer `hidden` — it now has real
+  markup: a `<nav aria-label="Lessons">` (native `navigation` landmark) with an `<h2>` heading and a
+  `<ul id="lesson-nav-list">`, plus an `<article id="lesson-detail" role="region" aria-live="polite">`
+  for the selected lesson's content. `web/main.ts` only loops over `lesson-pane.ts`'s
+  already-formatted view items to build `<li>`/detail DOM nodes — no decision logic in the DOM layer,
+  matching `run-log.ts`'s split.
+- **Accessibility (`src/a11y.ts`)**: adds `"navigation"`, `"list"`, and `"region"` to `A11yRole`;
+  `REPL_LANDMARK_ROLES` gains `{ region: "lesson", role: "navigation" }` (the nav) and
+  `{ region: "lesson", role: "region" }` (the detail article); `REPL_FOCUS_ORDER` gains one `"list"`
+  stop, `lesson-nav-list`, placed **first** — matching `web/styles.css`'s
+  `main:has(.pane-lesson:not([hidden]))` layout, where the lesson pane is now `<main>`'s first child
+  in both the wide (leftmost column) and narrow (topmost row) layouts. The nav's individual
+  per-lesson buttons are real, natively-focusable `<button>` elements; the single `list` stop names
+  the container as the keyboard entry point rather than enumerating an unbounded, content-dependent
+  number of stops.
+
 ## Run log pane (#314)
 
 Epic #290, Studio UX polish milestone: before this slice, the `#output` pane held only the LATEST
