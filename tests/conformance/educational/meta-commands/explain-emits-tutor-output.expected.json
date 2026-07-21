@@ -1,0 +1,31 @@
+{
+  "description": "issue #332 (A2): executing the bare `explain` meta-command emits exactly one `tutor-output` event (A0 #324's event kind + payload in @openlogo/core) with `command: \"explain\"`, a non-empty `segments` array, and no `target_source_span` — `explain` is the only statement, so there is no preceding runtime event to point at (spec/execution-model.md#tutor-output-educational-profile).",
+  "profiles": ["core-language", "educational"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "educational/meta-commands/explain-emits-tutor-output",
+        "start": [1, 1],
+        "end": [1, 8]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "tutor-output",
+      "source_span": {
+        "document": "educational/meta-commands/explain-emits-tutor-output",
+        "start": [1, 1],
+        "end": [1, 8]
+      },
+      "payload": {
+        "command": "explain",
+        "segments": ["Here is what your program does."]
+      }
+    }
+  ],
+  "diagnostics": []
+}

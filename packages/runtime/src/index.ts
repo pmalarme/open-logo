@@ -45,6 +45,9 @@
 import type { Diagnostic, TraceEvent } from "@openlogo/core";
 import { runProgram } from "./execute-internal.js";
 import type { CancellationSignal } from "./evaluate.js";
+import { defaultTutorTemplate } from "./tutor-templates.js";
+import type { TutorTemplateFn } from "./tutor-templates.js";
+import type { TutorLearnerLevel } from "./tutor-context.js";
 
 export {
   createEnvironment,
@@ -65,8 +68,16 @@ export type {
 } from "./evaluate.js";
 export {
   DEFAULT_INSTRUCTION_BUDGET,
+  DEFAULT_LEARNER_LEVEL,
   DEFAULT_RECURSION_DEPTH_LIMIT,
 } from "./execute-internal.js";
+export { defaultTutorTemplate, nextHintStage } from "./tutor-templates.js";
+export type { TutorTemplateFn } from "./tutor-templates.js";
+export type {
+  TutorCommandMetadata,
+  TutorContext,
+  TutorLearnerLevel,
+} from "./tutor-context.js";
 
 /** Marker export so the M0 skeleton is a real ES module; kept alongside the real exports. */
 export const RUNTIME_PACKAGE = "@openlogo/runtime";
@@ -109,11 +120,28 @@ export interface ExecuteResult {
  *   for why this only meaningfully cancels a run already in progress when backed by cross-thread
  *   shared state (e.g. a Web Worker + `SharedArrayBuffer`/`Atomics`) — `execute()` is synchronous
  *   and never yields, so a same-thread `AbortController` cannot interrupt a call already underway.
+ * - `tutorTemplates` (issue #332, the M3-orchestrator's injectable-template ruling) — a
+ *   `(TutorContext) => TutorOutputPayload` function the four Educational baseline meta-commands
+ *   (`explain`/`why`/`hint`/`debug`) call to produce the `tutor-output` event payload they emit.
+ *   This package's dispatch (`execute-internal.ts`'s `executeEducationalMetaCommand`) builds the
+ *   {@link TutorContext} and faithfully emits whichever payload arm the template returns — it
+ *   never chooses pedagogy or the diagnostic-vs-program arm itself. Defaults to
+ *   {@link defaultTutorTemplate}: a genuinely minimal, deterministic, structural template (not
+ *   curriculum-quality prose) — what a bare Educational-profile runtime, and this package's own
+ *   conformance fixtures, emit. `@openlogo/edu`'s richer A3/A4/A5 templates (or a host like
+ *   `@openlogo/studio`) supply their own function here instead.
+ * - `learnerLevel` (issue #332) — the learner's active curriculum level
+ *   ({@link TutorLearnerLevel}), threaded onto every `TutorContext.level` this run builds.
+ *   Defaults to {@link DEFAULT_LEARNER_LEVEL} (`"1"`, the first/movement level,
+ *   `spec/educational-model.md`'s level table) — the least-prior-knowledge assumption when a
+ *   caller does not track curriculum progression itself.
  */
 export interface ExecuteOptions {
   readonly instructionBudget?: number;
   readonly recursionDepthLimit?: number;
   readonly signal?: CancellationSignal;
+  readonly tutorTemplates?: TutorTemplateFn;
+  readonly learnerLevel?: TutorLearnerLevel;
 }
 
 /**

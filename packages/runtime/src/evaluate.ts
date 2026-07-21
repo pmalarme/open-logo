@@ -31,8 +31,9 @@ import type {
   OLValue,
   SourceSpan,
   TraceEvent,
+  TutorHintStage,
 } from "@openlogo/core";
-import { typeNameOf } from "@openlogo/core";
+import { makeSpan, typeNameOf } from "@openlogo/core";
 import type {
   AssignNode,
   BlockNode,
@@ -44,6 +45,7 @@ import type {
   ParenCallNode,
   PlaceNode,
   ProcedureDefNode,
+  ProgramNode,
   SelectorSegment,
   SpannedName,
   StatementNode,
@@ -57,6 +59,9 @@ import {
   nextRandomInt,
 } from "./random-number-generator.js";
 import type { RandomNumberGeneratorState } from "./random-number-generator.js";
+import { defaultTutorTemplate } from "./tutor-templates.js";
+import type { TutorTemplateFn } from "./tutor-templates.js";
+import type { TutorLearnerLevel } from "./tutor-context.js";
 import { normalizeHeading } from "./turtle-math.js";
 
 /** The outcome of evaluating one expression: a value, or the diagnostic that stopped it. */
@@ -156,6 +161,23 @@ export interface CancellationSignal {
  * of it (`not-a-place-text.ts`), matching the semantic checker's identical rule. `undefined` for
  * an environment built directly by a unit test with no real source string (this package's own
  * `createEnvironment()`), which falls back to reconstructing the text from the AST instead.
+ *
+ * Issue #332 adds `program`, `hintProgress`, `tutorTemplate`, and `learnerLevel` for the
+ * Educational profile's four baseline meta-commands (`explain`/`why`/`hint`/`debug`,
+ * `execute-internal.ts`'s `executeEducationalMetaCommand`). `program` is the whole parsed
+ * program ({@link TutorContext.program}) — its own `source_span` is the explicit fallback
+ * `target-source-span` value `hint` MUST carry
+ * (`spec/execution-model.md#tutor-output-educational-profile`) when no narrower target is
+ * selected. `hintProgress` is the host-implementation-defined progression state
+ * `spec/execution-model.md:641-652` calls for: a mutable map (like `instructionCount`/`turtle`,
+ * shared unchanged across every recursive `executeStatements`/`evaluate` call in one `execute()`
+ * run) from a serialized `target-source-span` key to the last {@link TutorHintStage} emitted for
+ * it, so a repeated `hint` for the same target escalates one stage per call within a single run.
+ * `tutorTemplate` and `learnerLevel` are the resolved forms of `ExecuteOptions.tutorTemplates`/
+ * `learnerLevel` (the M3-orchestrator's injectable-template ruling on issue #332) —
+ * `execute-internal.ts`'s `createExecutionEnvironment` resolves each caller-supplied override (or
+ * its documented default) exactly once per run, so every recursive call sees the same resolved
+ * values without re-checking `undefined` at each call site.
  */
 export interface Environment {
   readonly frames: readonly Frame[];
@@ -170,6 +192,21 @@ export interface Environment {
   readonly signal?: CancellationSignal;
   readonly turtle: TurtleState;
   readonly source?: string;
+  readonly hintProgress: Map<string, TutorHintStage>;
+  /**
+   * The full parsed program (`TutorContext.program`) — also the source of the whole-program
+   * fallback span `hint` MUST carry when no narrower target is selected
+   * (`program.source_span`).
+   */
+  readonly program: ProgramNode;
+  /**
+   * The resolved `tutor-output` template (`ExecuteOptions.tutorTemplates`, or
+   * {@link defaultTutorTemplate} when the caller supplied none) — see `tutor-templates.ts`'s
+   * doc comment for the injection seam this implements.
+   */
+  readonly tutorTemplate: TutorTemplateFn;
+  /** The resolved learner curriculum level (`ExecuteOptions.learnerLevel`, or its default). */
+  readonly learnerLevel: TutorLearnerLevel;
   readonly callProcedure: (
     node: CallNode | ParenCallNode,
     environment: Environment,
@@ -260,6 +297,19 @@ export function createEnvironment(): Environment {
     instructionCount: { count: 0 },
     turtle: createDefaultTurtleState(),
     randomNumberGenerator: createRandomNumberGeneratorState(),
+    // No real parsed program backs this bare environment, so `program` is a placeholder empty
+    // `Program` node — safe because none of this package's own expression-only unit tests
+    // exercise the Educational meta-commands (`execute-internal.ts`'s
+    // `createExecutionEnvironment` is the only place a real parsed program is threaded through,
+    // per issue #332).
+    program: {
+      kind: "Program",
+      source_span: makeSpan("", [1, 1], [1, 1]),
+      body: [],
+    },
+    hintProgress: new Map(),
+    tutorTemplate: defaultTutorTemplate,
+    learnerLevel: "1",
     callProcedure: () => {
       throw new Error(
         "callProcedure is unreachable on a bare createEnvironment() — it has no procedures",

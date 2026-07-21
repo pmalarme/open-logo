@@ -1,0 +1,31 @@
+{
+  "description": "issue #332 (A2): executing the bare `why` meta-command emits exactly one `tutor-output` event with `command: \"why\"`, a non-empty `segments` array, and no `diagnostic_code`/`target_source_span` — `why` is the only statement, so it reports on the whole program (spec/execution-model.md#tutor-output-educational-profile); the diagnostic arm is out of scope here since a runtime diagnostic halts execution terminally, so a `why` call can never observe a diagnostic from its own run.",
+  "profiles": ["core-language", "educational"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "educational/meta-commands/why-emits-tutor-output",
+        "start": [1, 1],
+        "end": [1, 4]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "tutor-output",
+      "source_span": {
+        "document": "educational/meta-commands/why-emits-tutor-output",
+        "start": [1, 1],
+        "end": [1, 4]
+      },
+      "payload": {
+        "command": "why",
+        "segments": ["Here is why your program behaves the way it does."]
+      }
+    }
+  ],
+  "diagnostics": []
+}
