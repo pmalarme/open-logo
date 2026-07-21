@@ -17,11 +17,13 @@ back to one of its rules.
 
 ## How the parser reads your tokens
 
-The parser walks the token list left to right, exactly once, never looking more than a token or two
-ahead — a style called **recursive descent**: for each kind of thing it might be reading (a
-statement, then an expression, then a *piece* of an expression), it calls a smaller function that
-knows how to read just that one shape, and those functions call each other, nesting the way the tree
-itself nests.
+The parser mostly walks the token list left to right, never looking more than a token or two ahead —
+a style called **recursive descent**: for each kind of thing it might be reading (a statement, then
+an expression, then a *piece* of an expression), it calls a smaller function that knows how to read
+just that one shape, and those functions call each other, nesting the way the tree itself nests. (It
+does take one quick peek at the whole token list before any of that starts, just to note how many
+arguments each of *your own* `define`d procedures expects — the same "how many arguments" question
+this page keeps coming back to.)
 
 ```mermaid
 flowchart LR
@@ -36,15 +38,19 @@ flowchart LR
 Watch it work on our square, `repeat 4 [ forward 100 right 90 ]`:
 
 - The parser sees the name `repeat` and looks up its rule: "a `repeat` is the word `repeat`, then a
-  count (an expression), then a block."
+  count (an expression), then a block." `repeat`, like `if`, `while`, and `set`, is a **keyword** —
+  it gets its own dedicated rule, hand-written to match exactly the shape the grammar describes for
+  it (`set`, for instance, has its own rule for "a place, then `to`, then a value" — it doesn't
+  count arguments the way an ordinary command does).
 - It reads the next token, `4`, as that count — a plain number expression, no further pieces needed.
 - It sees the `[` and knows this rule's last piece is a **block**: read statements until the
   matching `]`.
 - *Inside* the block, it reads `forward 100` as one instruction. Here's the trick that makes this
-  work without guessing: the parser already knows `forward` takes exactly **one** argument (that
-  arity comes from OpenLogo's own command table, the same one the checker uses), so it reads
-  *exactly one* expression — `100` — and stops. It never wonders whether `right` might also belong
-  to `forward`'s argument list.
+  work without guessing: `forward` is a **primitive**, not a keyword — and every primitive's rule is
+  the same one, "read exactly as many arguments as this primitive's known arity says." The parser
+  already knows `forward` takes exactly **one** argument (that arity comes from OpenLogo's own
+  command table, the same one the checker uses), so it reads *exactly one* expression — `100` — and
+  stops. It never wonders whether `right` might also belong to `forward`'s argument list.
 - It reads `right 90` the same way — one argument, by the same rule.
 - It sees the `]`, closes the block, and hands the finished `repeat` node back up.
 
@@ -61,7 +67,7 @@ each one calling the next-tighter one first:
 
 ```mermaid
 flowchart LR
-  A["or"] --> B["and"] --> C["comparison"] --> D["+ / -"] --> E["* / /"] --> F["unary -, not"] --> G["a single value"]
+  A["or"] --> B["and"] --> C["comparison"] --> D["+ / -"] --> E["* / / / mod"] --> F["unary<br/>not, -3"] --> G["postfix<br/>:a.b, :a[i]"] --> H["a single value"]
 ```
 
 Reading `2 + 3 * 4`, the `+`-level rule first asks the `*`-level rule for its left side, gets `2`
@@ -75,10 +81,10 @@ guarantees multiplication happens first, purely from which rule calls which.
 walks the token stream from the lexer using exactly this "each rule calls the next rule" structure,
 producing the AST shown on the last page for our square, node for node.
 
-✅ **Arity-driven argument reading is real** — `forward` reads exactly one argument, `set` reads a
-place and a value, because the parser looks up each command's argument count from OpenLogo's shared
-command table before it starts reading — the same table the checker uses to recognize a command
-exists at all.
+✅ **Arity-driven argument reading is real** — `forward` reads exactly one argument because the
+parser looks up its argument count from OpenLogo's shared command table before it starts reading —
+the same table the checker uses to recognize a command exists at all. Keywords like `set` and
+`repeat` don't use that table at all — each one has its own hand-written rule for its exact shape.
 
 ℹ️ **Bad input never crashes the parser** — a missing `]` or an incomplete `repeat` doesn't throw
 and give up; the parser collects a diagnostic (page 09's error codes) and keeps going with a
