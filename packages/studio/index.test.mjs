@@ -47,6 +47,7 @@ test("index.html maps every REPL_LANDMARK_ROLES role/label pair onto the same el
 
 test("index.html's focusable elements appear in exactly REPL_FOCUS_ORDER's DOM order", () => {
   const elementIdByStopId = {
+    "lesson-pane": "lesson-pane",
     editor: "editor",
     "run-button": "run-button",
     "stop-button": "stop-button",
@@ -78,7 +79,12 @@ test("index.html's focusable elements appear in exactly REPL_FOCUS_ORDER's DOM o
   );
 });
 
-test("index.html gives the Canvas and diagnostics list a tabindex (neither is natively focusable)", () => {
+test("index.html gives the lesson pane, Canvas, and diagnostics list a tabindex (none is natively focusable)", () => {
+  assert.match(
+    indexHtml,
+    /id="lesson-pane"[\s\S]*?tabindex="0"/,
+    "the lesson pane must be focusable to be a REPL_FOCUS_ORDER stop",
+  );
   assert.match(
     indexHtml,
     /id="turtle-canvas"[\s\S]*?tabindex="0"/,
@@ -96,6 +102,14 @@ test("index.html does not render a 'Next step' control (#305) — the headless s
     indexHtml,
     /id="step-button"/,
     "the step button was removed from the 0.1.0 studio UI",
+  );
+});
+
+test("index.html's lesson pane starts hidden by default (freeform/sandbox mode) (#127)", () => {
+  assert.match(
+    indexHtml,
+    /id="lesson-pane"[\s\S]*?hidden/,
+    "the lesson pane must start hidden until a lesson is loaded",
   );
 });
 
@@ -191,4 +205,14 @@ test("web/main.ts mirrors the slider's position and its learner-facing descripti
     mainTs,
     /syncTextValue\(speedSliderElement, String\(next\.speedSliderValue\)\)/,
   );
+});
+
+test("web/main.ts mounts the lesson pane via createLessonPaneController + mountLessonPane and renders its view on every state change (#127)", () => {
+  assert.match(mainTs, /createLessonPaneController\(state\)/);
+  assert.match(mainTs, /mountLessonPane\(shell, lessonPane\)/);
+  assert.match(
+    mainTs,
+    /renderLessonPane\(lessonPaneElement, lessonPane\.getView\(\)\)/,
+  );
+  assert.match(mainTs, /element\.hidden\s*=\s*!view\.isVisible/);
 });

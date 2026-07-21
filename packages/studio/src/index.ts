@@ -86,7 +86,16 @@
  *   rendered via `@openlogo/turtle`'s published `describeTurtleState` — never re-derived here —
  *   updating in lockstep with the Canvas view on every run tick, `step()`, and `reset()`.
  *
- * No lesson UI lands yet — that's #127.
+ * #127 adds the lesson pane, reading `@openlogo/edu`'s read-only `Lesson` contract (#189):
+ * - {@link createLessonPaneController} resolves the shared state model's `lesson` context
+ *   (`lessonId`/`title`) into a full render-ready {@link LessonPaneView} via a pluggable
+ *   {@link LessonLookup} (default: `@openlogo/edu`'s `findLessonById`); degrades to the fixed
+ *   {@link NO_LESSON_VIEW} (`isVisible: false`) both in freeform/sandbox mode and for a stale/
+ *   unresolvable `lessonId`, so `web/main.ts` never has to branch before reading a field. See
+ *   `lesson-pane.ts`.
+ * - {@link mountLessonPane} composes the controller into the shell's `lesson` region. This slice
+ *   also gives `#lesson-pane` its accessibility landmark and keyboard focus stop — see
+ *   `a11y.ts`'s `REPL_LANDMARK_ROLES`/`REPL_FOCUS_ORDER`.
  *
  * #218 adds the turtle Canvas view — static composition of `@openlogo/turtle`'s DOM-free renderer
  * into the app shell (the dynamic run-loop repaint is #228, above):
@@ -362,3 +371,16 @@ export {
   NO_RUN_OUTPUT_LABEL,
   toRunLogListItems,
 } from "./run-log.js";
+
+export type {
+  LessonLookup,
+  LessonPaneController,
+  LessonPaneControllerOptions,
+  LessonPaneView,
+  WorkedExampleViewItem,
+} from "./lesson-pane.js";
+export {
+  createLessonPaneController,
+  mountLessonPane,
+  NO_LESSON_VIEW,
+} from "./lesson-pane.js";

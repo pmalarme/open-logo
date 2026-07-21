@@ -1,8 +1,8 @@
 /**
- * The browser entry (#277, extended by #278, #279, #310, and #311) — a thin, logic-free,
+ * The browser entry (#277, extended by #278, #279, #310, #311, and #127) — a thin, logic-free,
  * branch-free wiring layer only. It composes the published `@openlogo/studio` seams (state model,
- * app shell, editor/canvas/run/diagnostics/a11y/persistence controllers) onto the real DOM
- * `index.html` declares; it never reimplements them and holds no non-trivial logic of its own
+ * app shell, editor/canvas/run/diagnostics/lesson-pane/a11y/persistence controllers) onto the real
+ * DOM `index.html` declares; it never reimplements them and holds no non-trivial logic of its own
  * (that lives in `../src/web-bootstrap.ts`, which has its own `.test.mjs` and stays inside the
  * 100% coverage gate — this file is outside `tsconfig.json`'s `src` build graph and is never
  * imported by a test, so it does not need to be, and does not count toward, that gate, and any
@@ -10,19 +10,22 @@
  * branch on — which scheduler to pace a run through, which `aria-live` region an announcement
  * belongs in, whether a looked-up element is missing, whether the editor's value actually needs
  * rewriting, how a turtle-speed slider position maps to a tick delay or a learner-facing
- * description, which learner-facing label a `runStatus` value maps to — is made by a tested `src/`
+ * description, which learner-facing label a `runStatus` value maps to, whether a lesson is loaded
+ * and what its objective/worked-examples/exercise-prompt content is — is made by a tested `src/`
  * helper instead (`selectScheduler`, `selectAnnouncerElementId`, `assertPresent`, `syncTextValue`,
- * #310's `mapSpeedSliderValueToTickDelayMs` / `describeSpeedTickDelayMs` in `turtle-speed.ts`, and
- * #311's `mapRunStatusToLabel` in `run-status-label.ts`); this file only reads the raw browser
- * input (`matchMedia`, `localStorage`, `document.getElementById`, the slider's `input` event) and
- * forwards it. The turtle-speed slider (`#speed-slider`) writes straight to the shared state
- * model via `setSpeedSliderValue` on every `input` event — `run-controller.ts`'s `prepare()`
- * reads that value on the next `run()`/`step()`, so no scheduler is rebuilt here. The one
- * remaining loop-shaped statement (`.map(createDiagnosticListItemElement)`, building one `<li>`
- * per already-computed {@link DiagnosticListItem}) has no decision left to make — the
- * label/severity/empty-state choices were already made by `toDiagnosticListItems` — and can't be
- * moved into `web-bootstrap.ts` either, since `document.createElement` needs a real DOM this
- * repository's jsdom-free `node:test` suite doesn't have.
+ * #310's `mapSpeedSliderValueToTickDelayMs` / `describeSpeedTickDelayMs` in `turtle-speed.ts`,
+ * #311's `mapRunStatusToLabel` in `run-status-label.ts`, and #127's `createLessonPaneController` /
+ * `LessonPaneView` in `lesson-pane.ts`); this file only reads the raw browser input (`matchMedia`,
+ * `localStorage`, `document.getElementById`, the slider's `input` event) and forwards it. The
+ * turtle-speed slider (`#speed-slider`) writes straight to the shared state model via
+ * `setSpeedSliderValue` on every `input` event — `run-controller.ts`'s `prepare()` reads that value
+ * on the next `run()`/`step()`, so no scheduler is rebuilt here. The remaining loop-shaped
+ * statements (`.map(createDiagnosticListItemElement)`, `.map(createRunLogEntryElement)`,
+ * `.map(createWorkedExampleElement)`, each building one element per already-computed view item)
+ * have no decision left to make — the label/severity/empty-state/heading/explanation choices were
+ * already made by `toDiagnosticListItems` / `toRunLogListItems` / `lesson-pane.ts`'s `toView` — and
+ * can't be moved into `web-bootstrap.ts` either, since `document.createElement` needs a real DOM
+ * this repository's jsdom-free `node:test` suite doesn't have.
  */
 
 import "./styles.css";
@@ -38,6 +41,7 @@ import {
   createDiagnosticsController,
   createEditorController,
   createKeyValueStorageAdapter,
+  createLessonPaneController,
   createRunController,
   createRunLogController,
   createStudioState,
@@ -51,6 +55,7 @@ import {
   mountCanvasView,
   mountDiagnosticsPane,
   mountEditorPane,
+  mountLessonPane,
   mountRunController,
   selectAnnouncerElementId,
   selectScheduler,
@@ -63,12 +68,18 @@ import {
 import type {
   DiagnosticListItem,
   Canvas2DContext,
+  LessonPaneView,
   RunLogEntry,
   RunLogEntryViewItem,
+  WorkedExampleViewItem,
 } from "../src/index.js";
 import type { Diagnostic } from "@openlogo/core";
 import { IMMEDIATE_SCHEDULER } from "@openlogo/turtle";
 
+const lessonPaneElement = assertPresent<HTMLElement>(
+  document.getElementById("lesson-pane"),
+  "lesson-pane",
+);
 const editorElement = assertPresent(
   document.getElementById("editor"),
   "editor",
@@ -154,6 +165,9 @@ attachPersistence(state, {
 });
 
 const shell = createAppShell(state);
+
+const lessonPane = createLessonPaneController(state);
+mountLessonPane(shell, lessonPane);
 
 mountEditorPane(shell, createEditorController(state));
 
@@ -278,6 +292,62 @@ function renderRunLog(
   );
 }
 
+/** Builds one worked-example block per already-projected {@link WorkedExampleViewItem} — plain DOM
+ * element creation with no decision of its own (`lesson-pane.ts`'s `toView` already picked which
+ * worked examples exist and in what order), matching {@link createRunLogEntryElement} above. */
+function createWorkedExampleElement(
+  item: WorkedExampleViewItem,
+): HTMLDivElement {
+  const container = document.createElement("div");
+  container.className = "worked-example";
+
+  const heading = document.createElement("h3");
+  heading.textContent = "Worked example";
+
+  const source = document.createElement("pre");
+  source.className = "worked-example-source";
+  source.textContent = item.source;
+
+  const explanation = document.createElement("p");
+  explanation.className = "worked-example-explanation";
+  explanation.textContent = item.explanation;
+
+  container.replaceChildren(heading, source, explanation);
+  return container;
+}
+
+/** Renders the lesson pane's whole heading structure (`<h2>` title, `<h3>` Objective, one worked
+ * example block per {@link createWorkedExampleElement}, `<h3>` exercise prompt) from an already
+ * fully-formed {@link LessonPaneView} — `lesson-pane.ts`'s `toView`/`NO_LESSON_VIEW` made every
+ * content decision, so the only branch-shaped statement left is the direct `hidden` assignment
+ * (not a decision — a straight read of an already-computed boolean, per this module's doc
+ * comment), plus the one tolerated loop mapping worked examples to elements. */
+function renderLessonPane(element: HTMLElement, view: LessonPaneView): void {
+  element.hidden = !view.isVisible;
+
+  const title = document.createElement("h2");
+  title.textContent = view.title;
+
+  const objectiveHeading = document.createElement("h3");
+  objectiveHeading.textContent = "Objective";
+  const objective = document.createElement("p");
+  objective.textContent = view.objective;
+
+  const exercisePromptHeading = document.createElement("h3");
+  exercisePromptHeading.textContent = "Try it";
+  const exercisePrompt = document.createElement("p");
+  exercisePrompt.textContent = view.exercisePrompt;
+
+  element.replaceChildren(
+    title,
+    objectiveHeading,
+    objective,
+    ...view.workedExamples.map(createWorkedExampleElement),
+    exercisePromptHeading,
+    exercisePrompt,
+  );
+}
+
 state.subscribe((next) => {
   syncTextValue(editorElement, next.source);
   runStatusElement.textContent = mapRunStatusToLabel(next.runStatus);
@@ -287,6 +357,7 @@ state.subscribe((next) => {
   speedDescriptionElement.textContent = describeSpeedTickDelayMs(
     mapSpeedSliderValueToTickDelayMs(next.speedSliderValue),
   );
+  renderLessonPane(lessonPaneElement, lessonPane.getView());
 });
 runLog.subscribeEntries(() => {
   renderRunLog(runLogElement, runLog.getEntries());
@@ -299,3 +370,4 @@ syncTextValue(speedSliderElement, String(state.getState().speedSliderValue));
 speedDescriptionElement.textContent = describeSpeedTickDelayMs(
   mapSpeedSliderValueToTickDelayMs(state.getState().speedSliderValue),
 );
+renderLessonPane(lessonPaneElement, lessonPane.getView());

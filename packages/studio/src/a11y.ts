@@ -1,9 +1,9 @@
 /**
  * Keyboard + screen-reader accessibility for the studio REPL loop — editor (#124), run controls
- * (#126, extended in #228 with the turtle Canvas view), diagnostics (#125), and, as of
- * #229, the turtle Canvas pane (#218/#228) and its non-visual state text. Lesson-pane a11y is out
- * of scope (split to #127/M3). #305 removes the `Next step` control from the 0.1.0 UI; the
- * headless `step()` method it drove stays (Wave 1/#302 rebuilds a UI on it).
+ * (#126, extended in #228 with the turtle Canvas view), diagnostics (#125), the turtle Canvas
+ * pane (#218/#228) and its non-visual state text (#229), and, as of #127, the lesson pane. #305
+ * removes the `Next step` control from the 0.1.0 UI; the headless `step()` method it drove stays
+ * (Wave 1/#302 rebuilds a UI on it).
  *
  * Like #123-#129, ADR-0001 defers the studio's DOM/framework choice, so this slice models
  * accessibility as **headless, node:test-able data + functions** a future real-widget renderer
@@ -11,11 +11,14 @@
  * posture `editor.ts`'s doc comment already establishes. There is no DOM here to regress.
  *
  * ## Keyboard operability — {@link REPL_FOCUS_ORDER}
- * A single, static, ordered list of every focusable stop across the four studio panes: the editor
- * (one `textbox` stop), the run controls (three `button` stops — Run/Stop/Reset, matching
- * `run-controller.ts`'s `run()`/`stop()`/`reset()` — plus one `slider` stop, #310's turtle-speed
- * control), the turtle Canvas pane (one `img`
- * stop, #218/#228's rendered + animated scene), and the diagnostics list (one `log` stop).
+ * A single, static, ordered list of every focusable stop across the studio's panes: the lesson
+ * pane (one `region` stop, #127 — present or absent depending on whether a lesson is loaded, but
+ * declared here unconditionally like every other stop; a `hidden` lesson pane is natively removed
+ * from the browser's real tab order, so there is no trap either way), the editor (one `textbox`
+ * stop), the run controls (three `button` stops — Run/Stop/Reset, matching `run-controller.ts`'s
+ * `run()`/`stop()`/`reset()` — plus one `slider` stop, #310's turtle-speed control), the turtle
+ * Canvas pane (one `img` stop, #218/#228's rendered + animated scene), and the diagnostics list
+ * (one `log` stop).
  * {@link nextFocusStop}/{@link previousFocusStop} cycle through it (wrapping at both ends), so a
  * future Tab/Shift+Tab (or roving-`tabindex`) binding can move forward and backward from *any*
  * stop and always reach every other stop — the headless proof that there is no keyboard trap.
@@ -31,10 +34,14 @@
  *
  * ## Semantic structure — {@link REPL_LANDMARK_ROLES}
  * The ARIA role + label a future renderer gives each pane's *container* (as opposed to the
- * individual focusable stops above): the editor is a `textbox`, the run controls are a `toolbar`,
- * the turtle Canvas is an `img`, its non-visual state text is a `status` live region, and
- * diagnostics are a `log` landmark. A renderer maps this 1:1 onto real `role`/`aria-label`
- * attributes; this module never touches the DOM itself.
+ * individual focusable stops above): the lesson pane is a `region` (#127), the editor is a
+ * `textbox`, the run controls are a `toolbar`, the turtle Canvas is an `img`, its non-visual state
+ * text is a `status` live region, and diagnostics are a `log` landmark. A renderer maps this 1:1
+ * onto real `role`/`aria-label` attributes; this module never touches the DOM itself. `index.html`
+ * already gives `#lesson-pane` the matching `role="region"`/`aria-label="Lesson"` (plus
+ * `tabindex="0"`, since a `<section>` isn't natively focusable) — its own heading structure
+ * (`<h2>` title, `<h3>`s for Objective/worked examples/exercise prompt) is built by
+ * `web/main.ts` from `lesson-pane.ts`'s `LessonPaneView` once a lesson is loaded.
  *
  * ## Screen-reader announcements — {@link createA11yAnnouncer}
  * Subscribes to the shared #123 state model and emits an {@link Announcement} whenever
@@ -66,7 +73,14 @@ import type { RegionName } from "./app-shell.js";
 
 /** The ARIA role a focus stop or landmark is exposed as. */
 export type A11yRole =
-  "textbox" | "toolbar" | "button" | "log" | "img" | "status" | "slider";
+  | "textbox"
+  | "toolbar"
+  | "button"
+  | "log"
+  | "img"
+  | "status"
+  | "slider"
+  | "region";
 
 /** One focusable stop in the REPL's keyboard focus order. */
 export interface FocusStop {
@@ -81,11 +95,17 @@ export interface FocusStop {
 }
 
 /**
- * The studio's keyboard focus order: editor → Run → Stop → Reset → Speed → turtle Canvas →
- * diagnostics list. Static and declarative — it does not depend on shell mount state — because
- * the full studio REPL + Canvas loop always composes every pane together.
+ * The studio's keyboard focus order: lesson pane → editor → Run → Stop → Reset → Speed → turtle
+ * Canvas → diagnostics list, matching `index.html`'s DOM order (`#lesson-pane` is `<main>`'s
+ * first child, before the editor). Static and declarative — it does not depend on shell mount
+ * state — because the full studio REPL + Canvas loop always composes every pane together. The
+ * lesson stop (#127) is the one exception to "always composes together": it is present only when
+ * a lesson is loaded, but is still declared here unconditionally, exactly like every other stop —
+ * `index.html`'s native `hidden` attribute (not this list) is what removes it from the *real*
+ * browser tab order while no lesson is loaded, so there is no keyboard trap either way.
  */
 export const REPL_FOCUS_ORDER: readonly FocusStop[] = [
+  { id: "lesson-pane", region: "lesson", role: "region", label: "Lesson" },
   {
     id: "editor",
     region: "editor",
@@ -118,11 +138,12 @@ export interface RegionLandmark {
 }
 
 /**
- * Each studio pane's landmark roles: editor, run controls (`repl`), the turtle Canvas (visual
- * `img` plus its non-visual `status` state-text region — see {@link createTurtleStateRegion}),
- * and diagnostics.
+ * Each studio pane's landmark roles: the lesson pane (#127), editor, run controls (`repl`), the
+ * turtle Canvas (visual `img` plus its non-visual `status` state-text region — see
+ * {@link createTurtleStateRegion}), and diagnostics.
  */
 export const REPL_LANDMARK_ROLES: readonly RegionLandmark[] = [
+  { region: "lesson", role: "region", label: "Lesson" },
   { region: "editor", role: "textbox", label: "OpenLogo source editor" },
   { region: "repl", role: "toolbar", label: "Run controls" },
   { region: "turtle", role: "img", label: "Turtle canvas" },
