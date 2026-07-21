@@ -95,4 +95,4 @@ Open the `.github/agents/` folder in the OpenLogo repository and count how many 
 you find — see if you can match each one to the part of the language it owns, using the list above
 as a guide.
 
-**Next up →** [10 · What we shipped](10-what-we-shipped.md)
+**Next up →** [10 · Where you type it](10-where-you-type-it.md)
