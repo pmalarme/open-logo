@@ -12,7 +12,7 @@ of just numbers, you get a moving, drawing turtle.
 flowchart LR
   A["⌨️ You type<br/>repeat 4 [ forward 100 right 90 ]"] --> B["▶️ Run<br/>execute() runs the whole program"]
   B --> C["🐢 Turtle + 📜 output<br/>Canvas animates, print lines appear"]
-  C --> D["⏹️ Stop<br/>halts a program still going"]
+  C --> D["⏹️ Stop<br/>pauses the animation, arms cancellation"]
   C --> E["🔁 Reset<br/>clears the screen for next time"]
 ```
 
@@ -30,37 +30,40 @@ off). Three buttons drive that status:
 
 - **Run** calls `execute()` on whatever you typed, then plays the turtle's moves on the Canvas and
   prints any `print` lines, in order.
-- **Stop** asks a running program to halt.
+- **Stop** requests cancellation and pauses the turtle animation right where it is.
 - **Reset** clears the output and the Canvas and puts the turtle back at the start, ready for a
   fresh **Run**.
 
-Here's the part that makes Stop actually matter: some programs never finish on their own. Type
-`repeat 10000 [ forward 1 ]` and it runs 10,000 steps and stops — a lot of steps, but a *finite*
-number. Type `forever [ forward 1 ]`, though, and there's no such limit written into the program at
-all; without something watching, it would just keep going forever, freezing the tab.
+Here's a wrinkle worth knowing: `execute()` runs your *whole* program in one go, so **Stop** can't
+interrupt a step that's already midway through running — the same way you can't pause a domino run
+partway between two dominoes that are still falling. What **Stop** reliably does is pause the
+turtle's on-screen animation immediately, and arm cancellation so the *next* thing you run honors
+it right away.
 
-That's why every run carries an **execution budget** — a hard ceiling on how many instructions a
-single run may take (1,000,000, by default) — enforced by the runtime itself, not just the studio
-UI. Once a program crosses that ceiling, the runtime halts it and reports an `ol-*` diagnostic
-(page 08's error codes), exactly the same way it would report any other error:
+So what actually protects you from a program that never finishes on its own? Type
+`repeat 10000 [ forward 1 ]` and it runs 10,000 steps and finishes — a lot of steps, but a *finite*
+number. Type `forever [ forward 1 ]`, though, and there's no such limit written into the program at
+all. That's why every run also carries an **execution budget** — a hard ceiling on how many
+instructions a single run may take (1,000,000, by default) — enforced by the runtime itself, not
+just the studio UI. Once a program crosses that ceiling, the runtime halts it right there and
+reports an `ol-*` diagnostic (page 08's error codes), exactly the same way it would report any
+other error:
 
 ```logo
 forever [ forward 1 ]
 ```
 
-Running this on the shipped runtime produces exactly one diagnostic and then stops — no output, no
-hang:
+Running this on the shipped runtime produces exactly one diagnostic and no output — the studio's
+diagnostics pane shows it as a single `line:column code (severity): message` line:
 
 ```
-ol-limit  runtime  error
-this program ran 1000000 instructions without finishing, which is the configured safety limit —
-check for a loop that never ends, such as an unbounded 'forever' or 'while' whose condition never
-becomes false.
+1:11 ol-limit (error): this program ran 1000000 instructions without finishing, which is the
+configured safety limit — check for a loop that never ends, such as an unbounded 'forever' or
+'while' whose condition never becomes false.
 ```
 
-**Stop** does the same job on demand: it flips the same cancellation switch the budget flips
-automatically, so a learner never has to wait out a runaway program — pressing **Stop** or hitting
-the budget both land you in the same **Stopped** status, ready for **Reset**.
+That budget, not **Stop**, is what actually rescues you from a runaway program like this one — and
+it lands you in the same **Stopped** status **Stop** does, ready for **Reset**.
 
 ## What's real today
 
@@ -74,6 +77,11 @@ there is no separate "studio mode" of the interpreter.
 ✅ **The execution budget is real and on by default** — every run is capped at a fixed number of
 instructions (1,000,000, unless the host overrides it), so a `forever`/unbounded `while` can't hang
 your tab; it halts with `ol-limit`, an ordinary diagnostic like any other.
+
+ℹ️ **Stop can't interrupt mid-step, but it doesn't need to** — a run executes as one atomic call, so
+pressing **Stop** mid-run pauses the animation and arms cancellation for whatever you run next,
+rather than reaching back into the step already in flight. The instruction budget above is what
+actually bounds how long any single call can run.
 
 ## Try it yourself
 
