@@ -169,43 +169,48 @@ Here's how one unit of work actually moves through them:
 
 ```mermaid
 flowchart LR
-  T["Issue template<br/>(1 of 7)"] --> I["Issue<br/>1 agent:* + 1 type:*<br/>+ profile/area/level"]
-  I --> B["Project #5 board<br/>Status / Agent / Profile"]
-  I --> M["Milestone M0–M6<br/>(profile sync point)"]
-  I --> PR["PR — one vertical slice"]
+  T["Issue template<br/>(1 of 7) seeds type:*"] --> TR["Product-owner triage<br/>1 agent:* + 1 type:*<br/>+ profile/area/level"]
+  TR --> B["Project #5 board<br/>Status / Agent / Profile"]
+  TR --> M["Milestone<br/>(profile sync point)"]
+  TR --> PR["PR — a triaged slice"]
   PR --> LB["Action: path → labels"]
-  PR --> CI["Action: CI = Definition of Done"]
+  PR --> CI["Action: CI<br/>(automated DoD checks)"]
   CI --> MG["Merge (delegated)"]
-  MG --> TAG["Tag: lockstep v0.1.0"]
+  MG -. "milestone green" .-> TAG["Tag: lockstep v0.1.0"]
 ```
 
 **Issues are the unit of work — and they're typed.** You don't open a freeform issue; you fill a
 **template** (feature-request, epic, feature-slice/user-story, conformance-task, foundation, bug, docs).
-Each one lands with exactly **one `agent:*` owner** and **one `type:*`**, plus `profile:*`/`area:*`/`level:*`
-tags. That's how a fuzzy idea becomes a *routable, owned* task: the label says who builds it, the
-milestone says which release it's for.
+Each template stamps the issue with its **`type:*`** (a couple also pre-assign an `agent:*`); then the
+product-owner triages it to exactly **one `agent:*` owner** and **one `type:*`**, plus the
+`profile:*`/`area:*`/`level:*` tags that apply. That's how a fuzzy idea becomes a *routable, owned* task:
+the owner label says who builds it, the milestone says which release it's for.
 
-**Labels are a manifest, not vibes.** The whole taxonomy — 64 labels — lives in one file,
+**Labels are a manifest, not vibes.** The managed taxonomy — 50 labels — lives in one file,
 `.github/labels.yml`, and an Action (`label-sync`) reconciles the repo *from* that file: create and
-update, never delete. No agent invents a label live, so the vocabulary can't drift.
+update, **never delete**. No agent invents a managed label live, so the taxonomy can't drift — though
+because sync never deletes, a few default/stray labels do accumulate (the repo carries 64 in total).
 
-**Milestones are the profile sync points.** M0→M6 map onto the capability profiles, and the *milestone*
-— not a label — decides which release a change ships in. A milestone is "done" only when its profile is
-conformance-green across every domain at once, not when one package finishes.
+**Milestones are the profile sync points.** M0 lays the foundation; **M1→M6** each reach a capability
+profile — and the *milestone*, not a label, decides which release a change ships in. A milestone is
+"done" only when its profile is conformance-green across every domain at once, not when one package
+finishes.
 
 **The board is the orchestrator's radar.** A Projects v2 board ("Project #5", ~206 items) with
 Status / Agent / Profile fields, driven straight from the `gh` CLI. Around it, **six Action workflows**
-keep things honest: `ci` (the Definition of Done), `labeler` (path→label auto-labeling), `label-sync`,
-`codeql` + `dependency-review` for security, and `add-to-project`.
+keep things honest: `ci` (the automated DoD checks — build, lint, tests, coverage, conformance),
+`labeler` (path→label auto-labeling), `label-sync`, `codeql` + `dependency-review` for security, and
+`add-to-project`.
 
 **Tags are lockstep releases.** When Core + Turtle went conformance-green, the whole `@openlogo/*`
 package set was tagged *together* as **v0.1.0** — one version tuple, one spec version, a declared set of
 profiles. A tag isn't "whatever happens to be on `main`"; it's a green, coherent snapshot you can point
 a learner at.
 
-And — keeping the promise to be honest — this is also where a real gap lives: `add-to-project` needs a
-secret that wasn't always set, so new issues weren't always auto-added, and board Status was moved *by
-hand*. Which is exactly why the board sometimes drifted. More on that now.
+And — keeping the promise to be honest — this is where real gaps live. `add-to-project` needs a secret
+that wasn't always set, so new issues weren't always auto-added *at all*. And even when it runs, it only
+ever files a card as *Todo* — nothing advances it, so every Status move (Todo → In Progress → Done) is
+done **by hand**. Both are why the board sometimes drifted. More on that now.
 
 ## The honest hard parts
 

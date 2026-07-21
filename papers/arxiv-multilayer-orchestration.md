@@ -382,9 +382,11 @@ integration happens deliberately at merge time.
 ### 3.7 GitHub objects as the operating system
 
 The team runs on GitHub primitives rather than a bespoke tracker. **Issues** are filed from templates
-(feature-request, epic, feature-slice/user-story, conformance-task, foundation, bug, docs), each
-carrying exactly one `agent:*` owner label and one `type:*` label plus a `profile:*`/`area:*`/`level:*`
-taxonomy drawn from a manifest (`.github/labels.yml`, 64 labels). **Milestones** are the profile
+(feature-request, epic, feature-slice/user-story, conformance-task, foundation, bug, docs); each
+template stamps a `type:*` label (two of them also pre-assign an `agent:*`), and the product-owner then
+triages each issue to exactly one `agent:*` owner and one `type:*` plus the applicable
+`profile:*`/`area:*`/`level:*` tags drawn from a manifest (`.github/labels.yml`, 50 managed labels; the
+repository carries 64 in total because label-sync never deletes). **Milestones** are the profile
 synchronization points M0–M6 (plus cross-cutting tracks); the milestone, not a label, decides which
 release a change lands in. A **Projects v2 board** ("Project #5", 206 items) with Status/Agent/Profile
 fields is run by the product-owner via the `gh` CLI.
@@ -492,7 +494,7 @@ explicit `--limit` bounds so counts are not silently truncated by pagination.
 | Architecture Decision Records | 12 | `docs/adr/0000..0011` |
 | CI/automation workflows | 6 | `.github/workflows/*.yml` |
 | Issue templates | 7 | `.github/ISSUE_TEMPLATE/*.yml` (excl. `config.yml`) |
-| Label taxonomy | 64 | `gh label list --limit 1000` |
+| Labels (managed in manifest / total in repo) | 50 / 64 | `grep -c '{ name:' .github/labels.yml`; `gh label list --limit 1000` |
 | Stack-neutral conformance fixtures | 370 in `v0.1.0` · 409 at `ddf04c3` | `git ls-tree -r --name-only <ref> -- tests/conformance` (per ref) |
 | Spec example programs | 12 | `spec/examples/*.logo` |
 | Commits on `main` | 152 | `git rev-list --count ddf04c3` |
