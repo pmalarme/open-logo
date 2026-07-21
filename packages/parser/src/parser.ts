@@ -1878,22 +1878,45 @@ export function parse(source: string, document = "<input>"): ParseResult {
       advance();
       fields.push(sname(fieldTok.text, fieldTok));
     }
-    if (fields.length === 0) {
-      diagnostics.push(unexpected(current()));
-      // Consume a stray closing bracket (e.g. `struct point [ ]`) so error recovery doesn't
-      // re-diagnose the same `]` a second time as an unmatched top-level token — mirroring the
-      // empty destructuring-binder path.
-      if (current().kind === "rbracket") {
-        advance();
+    const closer = current();
+    if (closer.kind === "rbracket") {
+      advance();
+      if (fields.length === 0) {
+        // `struct point [ ]`: the brackets match but the field list is empty, so the closing
+        // `]` stands where a field name was required. `spec/error-model.md:102` reports an
+        // empty field list as an `ol-unmatched-bracket` at that `]`; consuming it above keeps
+        // error recovery from re-diagnosing the same bracket as a stray top-level token.
+        diagnostics.push(unexpected(closer));
+        return undefined;
       }
-      return undefined;
+      return ast.structDef(
+        name,
+        fields,
+        spanToHere(structTok.source_span.start),
+      );
     }
-    if (current().kind !== "rbracket") {
+    if (closer.kind === "newline" || closer.kind === "eof") {
+      // The field list was opened but never closed before the statement ended: the opening `[`
+      // is the genuinely unmatched bracket (`spec/error-model.md:102`).
       diagnostics.push(parseDiag.unmatchedBracket(open.source_span, "["));
       return undefined;
     }
-    advance();
-    return ast.structDef(name, fields, spanToHere(structTok.source_span.start));
+    // A non-identifier token (e.g. a number) interrupts the field list. Both brackets are
+    // present, so the problem is the stray token, not the bracket: report it as `ol-bad-token`
+    // at that token, then recover by skipping up to and consuming the matching `]` so the rest
+    // of the line is not misparsed as separate statements.
+    diagnostics.push(unexpected(closer));
+    while (
+      current().kind !== "rbracket" &&
+      current().kind !== "newline" &&
+      current().kind !== "eof"
+    ) {
+      advance();
+    }
+    if (current().kind === "rbracket") {
+      advance();
+    }
+    return undefined;
   }
 
   function parseProgram(): ProgramNode {

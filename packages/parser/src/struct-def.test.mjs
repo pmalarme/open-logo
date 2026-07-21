@@ -93,10 +93,48 @@ test("`struct point [ x y` (unclosed field list) reports ol-unmatched-bracket", 
   assert.equal(hasStructDef("struct point [ x y"), false);
 });
 
-test("a non-identifier field ends the list and reports ol-unmatched-bracket", () => {
-  // `3` is not an identifier, so it stops the field scan; the still-open `[` is then flagged.
-  assert.ok(codesOf("struct point [ x 3 ]").includes("ol-unmatched-bracket"));
+test("`struct point [ x\\nprint 1` closes the unclosed list at the line break", () => {
+  const { ast, diagnostics } = parse("struct point [ x\nprint 1");
+  assert.deepEqual(
+    diagnostics.map((d) => d.code),
+    ["ol-unmatched-bracket"],
+  );
+  // The unclosed struct yields no node; the next line still parses as its own statement.
+  assert.equal(
+    ast.body.some((node) => node.kind === "StructDef"),
+    false,
+  );
+  assert.equal(ast.body.at(-1).kind, "Call");
+});
+
+test("a non-identifier field reports ol-bad-token and recovers through the `]`", () => {
+  // `3` is not an identifier, so it interrupts the field list; the stray token is flagged and
+  // the parser consumes up to the matching `]`, leaving no phantom statement behind it.
+  assert.deepEqual(codesOf("struct point [ x 3 ]"), ["ol-bad-token"]);
   assert.equal(hasStructDef("struct point [ x 3 ]"), false);
+});
+
+test("a bad first field reports ol-bad-token and recovers through the `]`", () => {
+  assert.deepEqual(codesOf("struct point [ 3 ]"), ["ol-bad-token"]);
+  assert.equal(hasStructDef("struct point [ 3 ]"), false);
+});
+
+test("a bad field with no closing `]` reports ol-bad-token, once, at end of input", () => {
+  assert.deepEqual(codesOf("struct point [ x 3"), ["ol-bad-token"]);
+  assert.equal(hasStructDef("struct point [ x 3"), false);
+});
+
+test("a bad field before a line break recovers without swallowing the next line", () => {
+  const { ast, diagnostics } = parse("struct point [ x 3\nprint 1");
+  assert.deepEqual(
+    diagnostics.map((d) => d.code),
+    ["ol-bad-token"],
+  );
+  assert.equal(
+    ast.body.some((node) => node.kind === "StructDef"),
+    false,
+  );
+  assert.equal(ast.body.at(-1).kind, "Call");
 });
 
 // --- walk / childrenOf -----------------------------------------------------
