@@ -45,6 +45,18 @@ test("index.html maps every REPL_LANDMARK_ROLES role/label pair onto the same el
   }
 });
 
+test("index.html's #lesson-pane wrapper section carries no aria-label of its own — only its nested <nav>/<article> declare the pane's two REPL_LANDMARK_ROLES landmarks, so the pane exposes exactly two accessible landmarks, not three", () => {
+  const lessonPaneTag = openingTags.find((tag) =>
+    tag.includes('id="lesson-pane"'),
+  );
+  assert.ok(lessonPaneTag, 'expected an element with id="lesson-pane"');
+  assert.doesNotMatch(
+    lessonPaneTag,
+    /aria-label=/,
+    '#lesson-pane must not carry its own aria-label — a <section> with an accessible name is itself an implicit region landmark, which would duplicate the nested <nav aria-label="Lessons"> landmark this pane already declares explicitly',
+  );
+});
+
 test("index.html's focusable elements appear in exactly REPL_FOCUS_ORDER's DOM order", () => {
   const elementIdByStopId = {
     "lesson-nav-list": "lesson-nav-list",

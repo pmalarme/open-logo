@@ -419,6 +419,14 @@ function renderLessonDetail(
   );
 }
 
+/** Tracks the last-rendered lesson selection so the subscribe callback below only re-renders the
+ * lesson nav/detail when the SELECTION actually changed — not on every unrelated store update
+ * (an editor keystroke, a run, a diagnostics change, a speed-slider drag all publish through the
+ * same store). Without this guard, `renderLessonDetail`'s `aria-live="polite"` article would
+ * replace its children (and so re-announce the same unchanged lesson content to screen readers)
+ * on every single state change, not just lesson selection. */
+let previousLessonId: string | null | undefined;
+
 state.subscribe((next) => {
   syncTextValue(editorElement, next.source);
   runStatusElement.textContent = mapRunStatusToLabel(next.runStatus);
@@ -428,11 +436,14 @@ state.subscribe((next) => {
   speedDescriptionElement.textContent = describeSpeedTickDelayMs(
     mapSpeedSliderValueToTickDelayMs(next.speedSliderValue),
   );
-  renderLessonNav(lessonNavListElement, next.lesson.lessonId);
-  renderLessonDetail(
-    lessonDetailElement,
-    toLessonDetailViewItem(lessonPane.getSelectedLesson()),
-  );
+  if (next.lesson.lessonId !== previousLessonId) {
+    previousLessonId = next.lesson.lessonId;
+    renderLessonNav(lessonNavListElement, next.lesson.lessonId);
+    renderLessonDetail(
+      lessonDetailElement,
+      toLessonDetailViewItem(lessonPane.getSelectedLesson()),
+    );
+  }
 });
 runLog.subscribeEntries(() => {
   renderRunLog(runLogElement, runLog.getEntries());
@@ -450,3 +461,4 @@ renderLessonDetail(
   lessonDetailElement,
   toLessonDetailViewItem(lessonPane.getSelectedLesson()),
 );
+previousLessonId = state.getState().lesson.lessonId;
