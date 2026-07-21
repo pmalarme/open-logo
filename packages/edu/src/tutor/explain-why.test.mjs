@@ -187,6 +187,19 @@ test("explain: an unknown primitive name gets an honest generic description", ()
   );
 });
 
+test("explain: a learner-defined procedure named like an Object.prototype member (e.g. `constructor`) still gets the honest generic description, not an inherited value", () => {
+  const program = parse("(constructor 1)");
+  const context = baseContext({ program, target: program.body[0] });
+
+  const output = explain(context);
+  assert.equal(output.segments[0], "`constructor` is a built-in command.");
+  assert.equal(output.segments[1], "Its input is its inputs, as written.");
+  assert.equal(
+    output.segments[2],
+    "Running it runs the `constructor` instruction.",
+  );
+});
+
 test("explain: whole-program fallback counts statements when no single instruction is targeted (no target given)", () => {
   const program = parse("forward 80\nright 90");
   const context = baseContext({ program, level: "1" });
@@ -287,6 +300,32 @@ test("why: explains an ol-* diagnostic matching the selected target", () => {
   assert.deepEqual(output.target_source_span, target.source_span);
   assert.equal(output.segments[0], "`:missing` has no value yet.");
   assert.equal(output.segments[1], "Diagnostic: `ol-undefined-var`.");
+});
+
+test("why: explains a diagnostic whose own span is nested inside the selected instruction (not an exact match)", () => {
+  const program = parse("forward :missing");
+  const target = program.body[0];
+  const nestedSpan = target.args[0].source_span;
+  assert.notDeepEqual(nestedSpan, target.source_span);
+  const diagnostic = {
+    code: "ol-undefined-var",
+    source_span: nestedSpan,
+    params: {},
+    message: "`:missing` has no value yet.",
+    stage: "semantic",
+    severity: "error",
+  };
+
+  const context = baseContext({
+    program,
+    target,
+    command: "why",
+    diagnostics: [diagnostic],
+  });
+
+  const output = why(context);
+  assert.equal(output.diagnostic_code, "ol-undefined-var");
+  assert.deepEqual(output.target_source_span, nestedSpan);
 });
 
 test("why: with no target selected, explains the most recent ol-* diagnostic", () => {
@@ -444,7 +483,7 @@ test("why: a target with events present but none matching its span says that com
   );
 });
 
-test("why: with no target selected, explains the most recent event overall and gives a generic cause", () => {
+test("why: with no target selected, resolves the causing instruction from the most recent event's own span", () => {
   const program = parse("forward 80\nright 90");
   const moveEvent = makeEvent(
     "move",
@@ -467,15 +506,42 @@ test("why: with no target selected, explains the most recent event overall and g
     output.segments[0],
     "The turtle's heading changed from 0 to 90 degrees.",
   );
+  assert.equal(output.segments[1], "This happened because `right` ran.");
+  assert.deepEqual(output.target_source_span, program.body[1].source_span);
+});
+
+test("why: with no target selected and no AST node matching the event's span, gives a generic cause", () => {
+  const program = parse("forward 80");
+  const event = makeEvent(
+    "move",
+    { from: [0, 0], to: [0, 80], heading: 0 },
+    Core.makeSpan(doc, [9, 1], [9, 2]),
+  );
+  const context = baseContext({
+    program,
+    command: "why",
+    events: [event],
+  });
+
+  const output = why(context);
   assert.equal(
     output.segments[1],
     "This happened because the selected instruction ran.",
   );
+  assert.equal(output.target_source_span, undefined);
 });
 
 test("why: describes every known trace-event kind", () => {
   const span = Core.makeSpan(doc, [1, 1], [1, 2]);
   const cases = [
+    [
+      makeEvent(
+        "draw-segment",
+        { from: [0, 0], to: [0, 80], color: "black", width: 1 },
+        span,
+      ),
+      /drew a black line, width 1, from \(0, 0\) to \(0, 80\)/,
+    ],
     [
       makeEvent("pen-change", { from: "up", to: "down" }, span),
       /pen changed to down/,

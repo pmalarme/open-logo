@@ -12,6 +12,7 @@ import {
   type ColorChangePayload,
   type Diagnostic,
   type DiagnosticCode,
+  type DrawSegmentPayload,
   type PenChangePayload,
   type Point,
   type PrintPayload,
@@ -24,6 +25,7 @@ import {
   type WidthChangePayload,
 } from "@openlogo/core";
 import type { AnyNode } from "@openlogo/parser";
+import { walk } from "@openlogo/parser";
 import { printedForm } from "@openlogo/runtime";
 import type {
   TutorCommandMetadata,
@@ -209,9 +211,11 @@ function resolveCommandName(
 
 /** Looks up a curated description, falling back to an honest generic one when unknown. */
 function describeCommand(resolved: ResolvedCommand): CommandDescription {
-  const known = KNOWN_COMMAND_DESCRIPTIONS[resolved.name];
-  if (known) {
-    return known;
+  // `Object.hasOwn` guards against a learner-defined name (e.g. `constructor`, `toString`)
+  // accidentally resolving to an inherited `Object.prototype` member instead of falling
+  // through to the honest generic description below.
+  if (Object.hasOwn(KNOWN_COMMAND_DESCRIPTIONS, resolved.name)) {
+    return KNOWN_COMMAND_DESCRIPTIONS[resolved.name] as CommandDescription;
   }
   return {
     kind: resolved.kind === "special-form" ? "special-form" : "primitive",
@@ -310,6 +314,27 @@ function spansEqual(a: SourceSpan, b: SourceSpan): boolean {
   );
 }
 
+/** Compares two `(line, column)` positions: negative when `a` comes before `b`. */
+function comparePositions(
+  a: readonly [number, number],
+  b: readonly [number, number],
+): number {
+  return a[0] - b[0] || a[1] - b[1];
+}
+
+/**
+ * Reports whether `inner` falls entirely within `outer`, in the same document — used to match a
+ * diagnostic (often pinpointing a nested expression, e.g. `:missing` inside `forward :missing`)
+ * against the wider instruction the learner selected, rather than requiring an exact span match.
+ */
+function spanContains(outer: SourceSpan, inner: SourceSpan): boolean {
+  return (
+    outer.document === inner.document &&
+    comparePositions(outer.start, inner.start) <= 0 &&
+    comparePositions(inner.end, outer.end) <= 0
+  );
+}
+
 /**
  * A {@link Diagnostic} narrowed to a stable `ol-*` code — the only kind `why`'s diagnostic arm
  * carries (`spec/educational-model.md#why`'s "error" cause is always a normative diagnostic,
@@ -320,10 +345,12 @@ interface OlDiagnostic extends Diagnostic {
 }
 
 /**
- * Finds the diagnostic `why` should explain: one whose `source_span` matches `target` exactly
- * when a target is selected, otherwise the most recent diagnostic (`spec/educational-model.md
- * #why`'s "When an error happened, link to the diagnostic shape in error-model.md"). Style lints
- * (`ol-style-*`) never explain an error's cause, so only stable `ol-*` codes are considered.
+ * Finds the diagnostic `why` should explain: one contained within `target`'s span (a diagnostic
+ * commonly pinpoints a nested expression, e.g. `:missing` inside `forward :missing`, so
+ * containment — not exact equality — is what matches "the source instruction") when a target is
+ * selected, otherwise the most recent diagnostic (`spec/educational-model.md#why`'s "When an
+ * error happened, link to the diagnostic shape in error-model.md"). Style lints (`ol-style-*`)
+ * never explain an error's cause, so only stable `ol-*` codes are considered.
  */
 function findRelevantDiagnostic(
   context: TutorContext,
@@ -338,7 +365,7 @@ function findRelevantDiagnostic(
   }
   if (context.target) {
     return olDiagnostics.find((diagnostic) =>
-      spansEqual(diagnostic.source_span, target.source_span),
+      spanContains(target.source_span, diagnostic.source_span),
     );
   }
   return olDiagnostics[olDiagnostics.length - 1];
@@ -350,6 +377,10 @@ function describeEvent(event: TraceEvent): string {
     case "move": {
       const { from, to } = event.payload as { from: Point; to: Point };
       return `The turtle moved from (${from[0]}, ${from[1]}) to (${to[0]}, ${to[1]}).`;
+    }
+    case "draw-segment": {
+      const { from, to, color, width } = event.payload as DrawSegmentPayload;
+      return `The turtle drew a ${color} line, width ${width}, from (${from[0]}, ${from[1]}) to (${to[0]}, ${to[1]}).`;
     }
     case "turn": {
       const { from, to } = event.payload as TurnPayload;
@@ -399,6 +430,29 @@ function describeEvent(event: TraceEvent): string {
 }
 
 /**
+ * Finds the AST node whose own `source_span` exactly matches `span` and names a single
+ * instruction — used to recover which instruction caused a trace event when the caller selected
+ * no explicit `target` (`why`'s "identify the source instruction" baseline behavior still
+ * applies even when the learner asks about the program as a whole).
+ */
+function findInstructionAtSpan(
+  program: AnyNode,
+  span: SourceSpan,
+): AnyNode | undefined {
+  let found: AnyNode | undefined;
+  walk(program, (node) => {
+    if (
+      !found &&
+      spansEqual(node.source_span, span) &&
+      resolveCommandName(node, undefined)
+    ) {
+      found = node;
+    }
+  });
+  return found;
+}
+
+/**
  * Finds the trace event `why` should explain: the most recent event whose `source_span` matches
  * `target` exactly when a target is selected, otherwise the most recent event overall
  * (`spec/educational-model.md#why`'s "Use the turtle state or variable value at that moment").
@@ -442,8 +496,23 @@ export function why(context: TutorContext): TutorOutput {
     };
   }
 
-  const resolved = resolveCommandName(target, context.commandMetadata);
+  let resolved = resolveCommandName(target, context.commandMetadata);
   const event = findRelevantEvent(context, target);
+  let eventTargetSpan = context.target?.source_span;
+
+  // With no explicit target, recover which instruction actually caused the event by looking up
+  // the AST node at the event's own span — otherwise `why` would always give a generic cause
+  // when the learner asks "why" about the program as a whole.
+  if (!resolved && event) {
+    const instruction = findInstructionAtSpan(
+      context.program,
+      event.source_span,
+    );
+    if (instruction) {
+      resolved = resolveCommandName(instruction, undefined);
+      eventTargetSpan ??= instruction.source_span;
+    }
+  }
 
   if (!event) {
     return {
@@ -464,6 +533,6 @@ export function why(context: TutorContext): TutorOutput {
   return {
     command: "why",
     segments: [describeEvent(event), causeSentence],
-    target_source_span: context.target?.source_span,
+    target_source_span: eventTargetSpan,
   };
 }
