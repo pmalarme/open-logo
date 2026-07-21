@@ -80,7 +80,9 @@ slice may swap in a real renderer without changing this contract.
     returned trace-event stream to exactly what #126 surfaced: every `print` event becomes one
     `output` line (already in the runtime's canonical `printedForm`, never reformatted here), and
     the run's diagnostics replace the shared `diagnostics` list unchanged. This part is unchanged
-    since #126 and always synchronous/instant — `execute()` never yields.
+    since #126 and always synchronous/instant — `execute()` never yields. `runStatus` settles to
+    `"done"` (#311) once a run finishes on its own — distinct from `"idle"`, which now means only
+    "never run" / just after `reset()`.
   - **Turtle Canvas lockstep (#228)** — `run()` then replays that same already-complete
     trace-event stream through `@openlogo/turtle`'s `TurtleAnimationController` (#216), pushing
     each folded `{ state, scene }` snapshot into the shared `turtleState`/`turtleScene` fields (and
@@ -123,7 +125,26 @@ slice may swap in a real renderer without changing this contract.
   - `mountRunController(shell, controller)` composes the controller into the shell's `repl` region.
 - See `run-controller.ts`'s doc comment for the full same-thread cancellation rationale and the
   `runStatus`-vs-animation-completion decoupling #228 introduces (a still-paced Canvas view is
-  never reported `"idle"`/`"stopped"` before its animation has actually reached `"done"`).
+  never reported `"done"`/`"stopped"` before its animation has actually reached its own,
+  `@openlogo/turtle`-owned `"done"` status).
+
+## Friendlier run-status labels (#311)
+
+The `#run-status` region (`index.html`) shows a learner-facing label instead of the raw internal
+`RunStatus` state-machine name:
+
+- `state-model.ts`'s `RunStatus` gained a `"done"` value distinct from `"idle"`: `run-controller.ts`
+  now commits `"done"` (not `"idle"`) when a run finishes on its own, so a renderer can tell "never
+  run yet" apart from "just finished" — the state-machine names are otherwise unchanged.
+- `src/run-status-label.ts` — the single, fully-tested pure lookup `web/main.ts` reads instead of
+  rendering `runStatus` raw: `mapRunStatusToLabel(runStatus)` maps `"idle"` → `"Ready"`,
+  `"running"` → `"Running"`, `"done"` → `"Complete"`, `"stopped"` → `"Stopped"`
+  (`RUN_STATUS_LABELS` is the underlying table).
+- `a11y.ts`'s `describeRunStatus` gained the matching `"Run complete."` screen-reader announcement
+  for `"done"`, so the existing `aria-live` announcement stays in sync with the visible label.
+- Accessibility: `#run-status` keeps its existing `aria-live="polite"`/`role="status"` region (no
+  new markup needed beyond a `role`/`aria-label` for parity with the turtle-state region); the label
+  is plain text — color is never used to distinguish run states.
 
 ## Turtle-speed control (#310)
 
@@ -220,10 +241,10 @@ no DOM here to regress.
   renderer to map onto real `role`/`aria-label` attributes.
 - **Screen-reader announcements** — `createA11yAnnouncer(state)` subscribes to the shared #123
   store (never a copy) and emits an `Announcement` (`{ politeness, message }`) whenever
-  `runStatus` or `diagnostics` changes: run-status transitions ("Run started."/"Run stopped."/
-  "Ready.") and diagnostics changes (e.g. "1 error found.", `politeness: "assertive"` when any
-  diagnostic is an error, else `"polite"`). Announcement text is built **only** from structured
-  fields (`runStatus`; diagnostics' `severity` counts) — it never reads or branches on a
+  `runStatus` or `diagnostics` changes: run-status transitions ("Run started."/"Run complete."/
+  "Run stopped."/"Ready.") and diagnostics changes (e.g. "1 error found.", `politeness: "assertive"`
+  when any diagnostic is an error, else `"polite"`). Announcement text is built **only** from
+  structured fields (`runStatus`; diagnostics' `severity` counts) — it never reads or branches on a
   `Diagnostic.message`'s prose, per the diagnostic-identity rule already followed by
   `diagnostics.ts`. `getAnnouncements()` returns the full history; `subscribeAnnouncements(...)`
   notifies every listener with the same events, so multiple consumers never desync (the #123
@@ -293,4 +314,59 @@ The package is now genuinely servable, not just headless-testable:
   not yet the full diagnostics pane. `Next step` was removed from the 0.1.0 UI (#305); the
   headless `step()` machinery it drove stays intact for Wave 1 (#302) to rebuild the control on.
 
+## Side-by-side code/run layout (#313)
+
+Presentation-only slice (epic #290, Studio UX polish milestone): from a 48rem (~768px) viewport up,
+the editor and the turtle Canvas render **side by side** — the editor and run controls stack in a
+left column, the Canvas fills a right column beside them, and output/diagnostics stay full-width
+below — so a learner sees code and the drawing it produces at the same time. Narrower (mobile)
+viewports keep the original single-column stack.
+
+- Pure CSS (`web/styles.css`): a `grid-template-areas` layout on `<main>`, switched at one
+  `@media (min-width: 48rem)` breakpoint. `index.html`'s `<section>`s each gained a `pane-*` class
+  purely to name their grid area — no element was reordered, and every existing `id`/`role`/
+  `aria-label` is unchanged, so #279's `REPL_LANDMARK_ROLES`/`REPL_FOCUS_ORDER` contracts (and their
+  `index.test.mjs` proofs) still hold: keyboard tab order still follows DOM order, which reads
+  editor → run controls → Canvas → output → diagnostics in both layouts.
+- The Canvas gained `max-width: 100%; height: auto` so it scales down to fit its column on
+  narrower screens; its `width`/`height` attributes (and thus the turtle's actual drawing
+  resolution `@openlogo/turtle` paints at) are untouched — purely a visual scale.
+- No `src/` or `web/main.ts` changes: there is no layout *decision* logic to test — CSS alone
+  decides when to switch columns, so `web/main.ts` stays exactly as thin and branch-free as before.
+
+**Shell write-set (declared)** — exactly these three files, nothing else:
+`index.html` (adds `pane-*` classes + the extension-slot placeholder below — no reordering, no
+`id`/`role`/`aria-label` change to any existing element), `web/styles.css` (the grid rules above +
+the extension-slot rules below), `README.md` (this section). `src/app-shell.ts` was **not**
+touched — its `"lesson"` region already existed (see below).
+
+### Extension slot for the future lesson pane (#127/M3)
+
+M11 and M3 build toward the same end-state three-pane layout — **Lesson pane (context) | Code
+editor | Run/Canvas** — so this slice reserves that third slot now, CSS-only, so `#127` never has
+to reshape `index.html`/`web/styles.css`/`src/app-shell.ts` again:
+
+- **DOM contract**: `index.html` gains `<section id="lesson-pane" class="pane-lesson"
+  hidden></section>` as `<main>`'s first child (matching the target reading order). It carries
+  **no `role`/`aria-label` of its own** — declaring one now would create an unmodelled implicit
+  `region` landmark the moment `hidden` is cleared, since `src/a11y.ts` has no entry for it yet.
+  It ships `hidden`, so it has no box, no grid participation, and — critically — is entirely
+  absent from the accessibility tree and the keyboard focus order while empty: nothing to regress,
+  no empty landmark, no focus-order gap (verified — see below).
+- **App-shell contract**: no change needed. `src/app-shell.ts`'s `APP_SHELL_REGIONS` has included
+  `"lesson"` as a named region since #123. A future lesson-pane module mounts exactly like
+  `canvas-view.ts`'s `mountCanvasView` does for `"turtle"`: call `shell.mount("lesson",
+  controller)`, then clear `#lesson-pane`'s `hidden` attribute (e.g.
+  `document.getElementById("lesson-pane").hidden = false`) once it has real content to show.
+- **CSS contract**: `web/styles.css`'s `main:has(.pane-lesson:not([hidden]))` rules are the *only*
+  place the `lesson` grid area is defined — in the narrow layout it inserts a `"lesson"` row above
+  `editor`; from 48rem up it inserts a `minmax(14rem, 22%)` column to the left of the existing
+  editor/turtle columns. Both activate automatically the instant the `hidden` attribute is cleared
+  — no `styles.css` edit required to add the third pane. (`:has()` is supported by every evergreen
+  browser this project targets.)
+- **What #127 still owns**: the lesson-pane module itself, plus updating `src/a11y.ts` to add a
+  `REPL_LANDMARK_ROLES` entry (region `"lesson"`) and any `REPL_FOCUS_ORDER` stops for its own
+  interactive content, and giving `#lesson-pane` (or its rendered content) a real `role`. #313
+  deliberately declares none of that for content that doesn't exist yet — declaring an empty
+  landmark ahead of time would itself be the accessibility regression this slice's DoD forbids.
 

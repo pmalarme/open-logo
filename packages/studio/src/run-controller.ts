@@ -70,15 +70,17 @@
  *   and every existing test. A real browser entry point injects a `setTimeout`-backed
  *   {@link Scheduler} for actual paced playback; `@openlogo/turtle` stays timer-free (studio owns
  *   the DOM/timer side, the same boundary #218 drew for the canvas context).
- * - `runStatus` still reflects `execute()`'s own completion (idle/stopped, from the run's
- *   diagnostics) exactly as #126 established — but with a real paced scheduler that flip to
- *   idle/stopped is deferred until the *animation* itself actually reaches `"done"` (or `stop()`
- *   fires, which sets `"stopped"` immediately), so a paced Canvas view mid-animation is not
- *   reported as already idle. With the default synchronous scheduler this happens within the same
- *   `run()` call, matching every pre-#228 test unchanged. `output`/`diagnostics` are still set
- *   synchronously and in full the moment `execute()` returns (unchanged from #126) — they were
- *   never paced to begin with, so there is nothing for them to desync from while the Canvas
- *   animation continues to play out the same already-computed stream.
+ * - `runStatus` still reflects `execute()`'s own completion (`"done"`/`"stopped"`, from the run's
+ *   diagnostics — #311 renamed the non-`stop()` completion value from `"idle"` to a distinct
+ *   `"done"`, see `state-model.ts`'s `RunStatus` doc comment) exactly as #126 established — but
+ *   with a real paced scheduler that flip is deferred until the *animation* itself actually
+ *   reaches its own (unrelated, `@openlogo/turtle`-owned) `"done"` status (or `stop()` fires, which
+ *   sets `"stopped"` immediately), so a paced Canvas view mid-animation is not reported as already
+ *   finished. With the default synchronous scheduler this happens within the same `run()` call,
+ *   matching every pre-#228 test unchanged. `output`/`diagnostics` are still set synchronously and
+ *   in full the moment `execute()` returns (unchanged from #126) — they were never paced to begin
+ *   with, so there is nothing for them to desync from while the Canvas animation continues to play
+ *   out the same already-computed stream.
  *
  * ## #310 — a configurable turtle-speed slider
  * Before this slice, `TurtleAnimationController`'s own pacing (`stepsPerSecond`/`setSpeed`) was
@@ -245,14 +247,16 @@ export function createRunController(
   // run(), and by step() lazily when nothing has started yet — #289) over that run's own
   // trace-event stream; null before the first run()/step() and after reset(). `finalRunStatus` is
   // the runStatus run() would already have committed pre-#228 (derived from the run's
-  // diagnostics), deferred here until the animation actually finishes so a still-paced Canvas view
-  // is never reported as idle/stopped early (see this module's doc comment, "#228"). `userStopped`
-  // latches once `stop()` is called and is only cleared by `run()`/`reset()`/a lazy `prepare()`
-  // from `step()` — it prevents a later `step()` from silently overwriting an explicit stop back
-  // to `finalRunStatus` once the learner finishes manually stepping through the rest of an
-  // already-stopped animation. `currentIsInstant` (#310) is prepare()'s verdict on whether the
-  // current speedSliderValue maps to the dedicated "instant" tick delay — run() reads it to
-  // OR-combine with RunControllerOptions.reducedMotion (see this module's doc comment, "#310").
+  // diagnostics — #311 renamed the non-`stop()` outcome from `"idle"` to a distinct `"done"`, see
+  // `state-model.ts`'s `RunStatus` doc comment), deferred here until the animation actually
+  // finishes so a still-paced Canvas view is never reported as done/stopped early (see this
+  // module's doc comment, "#228"). `userStopped` latches once `stop()` is called and is only
+  // cleared by `run()`/`reset()`/a lazy `prepare()` from `step()` — it prevents a later `step()`
+  // from silently overwriting an explicit stop back to `finalRunStatus` once the learner finishes
+  // manually stepping through the rest of an already-stopped animation. `currentIsInstant` (#310)
+  // is prepare()'s verdict on whether the current speedSliderValue maps to the dedicated "instant"
+  // tick delay — run() reads it to OR-combine with RunControllerOptions.reducedMotion (see this
+  // module's doc comment, "#310").
   let animation: TurtleAnimationController | null = null;
   let finalRunStatus: RunStatus = "idle";
   let userStopped = false;
@@ -300,7 +304,7 @@ export function createRunController(
       (diagnostic) => diagnostic.code === "ol-limit",
     )
       ? "stopped"
-      : "idle";
+      : "done";
 
     const baseScheduler = options?.scheduler ?? IMMEDIATE_SCHEDULER;
     let current: TurtleAnimationController;

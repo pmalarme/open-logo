@@ -1,19 +1,20 @@
 /**
- * The browser entry (#277, extended by #278, #279, and #310) — a thin, logic-free, branch-free
- * wiring layer only. It composes the published `@openlogo/studio` seams (state model, app shell,
- * editor/canvas/run/diagnostics/a11y/persistence controllers) onto the real DOM `index.html`
- * declares; it never reimplements them and holds no non-trivial logic of its own (that lives in
- * `../src/web-bootstrap.ts`, which has its own `.test.mjs` and stays inside the 100% coverage
- * gate — this file is outside `tsconfig.json`'s `src` build graph and is never imported by a
- * test, so it does not need to be, and does not count toward, that gate, and any untested branch
- * here would be invisible to it). Every decision this file would otherwise have to branch on —
- * which scheduler to pace a run through, which `aria-live` region an announcement belongs in,
- * whether a looked-up element is missing, whether the editor's value actually needs rewriting,
- * how a turtle-speed slider position maps to a tick delay or a learner-facing description — is
- * made by a tested `src/` helper instead (`selectScheduler`, `selectAnnouncerElementId`,
- * `assertPresent`, `syncTextValue`, and #310's `mapSpeedSliderValueToTickDelayMs` /
- * `describeSpeedTickDelayMs` in `turtle-speed.ts`); this file only reads the raw browser input
- * (`matchMedia`, `localStorage`, `document.getElementById`, the slider's `input` event) and
+ * The browser entry (#277, extended by #278, #279, #310, and #311) — a thin, logic-free,
+ * branch-free wiring layer only. It composes the published `@openlogo/studio` seams (state model,
+ * app shell, editor/canvas/run/diagnostics/a11y/persistence controllers) onto the real DOM
+ * `index.html` declares; it never reimplements them and holds no non-trivial logic of its own
+ * (that lives in `../src/web-bootstrap.ts`, which has its own `.test.mjs` and stays inside the
+ * 100% coverage gate — this file is outside `tsconfig.json`'s `src` build graph and is never
+ * imported by a test, so it does not need to be, and does not count toward, that gate, and any
+ * untested branch here would be invisible to it). Every decision this file would otherwise have to
+ * branch on — which scheduler to pace a run through, which `aria-live` region an announcement
+ * belongs in, whether a looked-up element is missing, whether the editor's value actually needs
+ * rewriting, how a turtle-speed slider position maps to a tick delay or a learner-facing
+ * description, which learner-facing label a `runStatus` value maps to — is made by a tested `src/`
+ * helper instead (`selectScheduler`, `selectAnnouncerElementId`, `assertPresent`, `syncTextValue`,
+ * #310's `mapSpeedSliderValueToTickDelayMs` / `describeSpeedTickDelayMs` in `turtle-speed.ts`, and
+ * #311's `mapRunStatusToLabel` in `run-status-label.ts`); this file only reads the raw browser
+ * input (`matchMedia`, `localStorage`, `document.getElementById`, the slider's `input` event) and
  * forwards it. The turtle-speed slider (`#speed-slider`) writes straight to the shared state
  * model via `setSpeedSliderValue` on every `input` event — `run-controller.ts`'s `prepare()`
  * reads that value on the next `run()`/`step()`, so no scheduler is rebuilt here. The one
@@ -44,6 +45,7 @@ import {
   DEFAULT_RUN_PROGRAM,
   describeSpeedTickDelayMs,
   formatOutput,
+  mapRunStatusToLabel,
   mapSpeedSliderValueToTickDelayMs,
   mountCanvasView,
   mountDiagnosticsPane,
@@ -226,7 +228,7 @@ function renderDiagnostics(
 
 state.subscribe((next) => {
   syncTextValue(editorElement, next.source);
-  runStatusElement.textContent = next.runStatus;
+  runStatusElement.textContent = mapRunStatusToLabel(next.runStatus);
   outputElement.textContent = formatOutput(next.output);
   renderDiagnostics(diagnosticsListElement, next.diagnostics);
   syncTextValue(speedSliderElement, String(next.speedSliderValue));
@@ -234,7 +236,7 @@ state.subscribe((next) => {
     mapSpeedSliderValueToTickDelayMs(next.speedSliderValue),
   );
 });
-runStatusElement.textContent = state.getState().runStatus;
+runStatusElement.textContent = mapRunStatusToLabel(state.getState().runStatus);
 outputElement.textContent = formatOutput(state.getState().output);
 renderDiagnostics(diagnosticsListElement, state.getState().diagnostics);
 syncTextValue(speedSliderElement, String(state.getState().speedSliderValue));

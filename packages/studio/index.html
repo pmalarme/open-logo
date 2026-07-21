@@ -39,7 +39,20 @@
       class="sr-only"
     ></div>
     <main>
-      <section aria-label="Editor">
+      <!--
+        #313 extension slot for the future lesson pane (#127/M3): a placeholder that stays
+        `hidden` (fully removed from layout, focus order, and the accessibility tree) until a
+        future lesson-pane module mounts into the app shell's existing "lesson" region
+        (`APP_SHELL_REGIONS` in src/app-shell.ts, unchanged since #123) and clears this `hidden`
+        attribute. `web/styles.css`'s `main:has(.pane-lesson:not([hidden]))` rules already reserve
+        its column/row in both the wide (3-column: lesson | editor+controls | turtle) and narrow
+        (stacked, lesson first) layouts, so mounting a lesson pane needs NO further edits to this
+        file, styles.css, or app-shell.ts. The mounting module is responsible for its own
+        role/aria-label and a REPL_FOCUS_ORDER/REPL_LANDMARK_ROLES entry in src/a11y.ts, since
+        #313 cannot declare an accessible name/role for content that doesn't exist yet.
+      -->
+      <section id="lesson-pane" class="pane-lesson" hidden></section>
+      <section class="pane-editor" aria-label="Editor">
         <textarea
           id="editor"
           rows="10"
@@ -49,7 +62,7 @@
           aria-label="OpenLogo source editor"
         ></textarea>
       </section>
-      <section aria-label="Run controls" role="toolbar">
+      <section class="pane-controls" aria-label="Run controls" role="toolbar">
         <button id="run-button" type="button">Run</button>
         <button id="stop-button" type="button">Stop</button>
         <button id="reset-button" type="button">Reset</button>
@@ -65,9 +78,14 @@
           />
           <span id="speed-description" aria-live="polite"></span>
         </span>
-        <p id="run-status" aria-live="polite"></p>
+        <p
+          id="run-status"
+          role="status"
+          aria-live="polite"
+          aria-label="Run status"
+        ></p>
       </section>
-      <section aria-label="Turtle canvas">
+      <section class="pane-turtle" aria-label="Turtle canvas">
         <canvas
           id="turtle-canvas"
           width="500"
@@ -83,10 +101,10 @@
           aria-label="Turtle state"
         ></p>
       </section>
-      <section aria-label="Output">
+      <section class="pane-output" aria-label="Output">
         <pre id="output"></pre>
       </section>
-      <section aria-label="Diagnostics">
+      <section class="pane-diagnostics" aria-label="Diagnostics">
         <ul
           id="diagnostics-list"
           role="log"
