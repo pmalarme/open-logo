@@ -282,6 +282,73 @@ main:has(.pane-lesson:not([hidden])) {
   color: var(--ol-warning);
 }
 
+/* #314 — the run log pane: an ordered, append-only history of runs, hosted as the last child of
+   the existing Run controls toolbar (`.pane-controls`, `role="toolbar"`) rather than a new
+   top-level pane, so it never introduces a new landmark region (per the issue's "existing REPL
+   landmark region" acceptance criterion) — see `index.html`'s `.run-log-wrapper`. Each `<li>`
+   groups one run's heading, formatted output, and diagnostics; `data-has-errors="true"` (set by
+   web/main.ts from RunLogEntryViewItem.hasErrors) tints just that run's heading, never the whole
+   pane. */
+.run-log-wrapper {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--ol-border);
+}
+
+.run-log-heading-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ol-navy);
+}
+
+#run-log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 16rem;
+  overflow-y: auto;
+}
+
+#run-log li {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--ol-border);
+}
+
+#run-log li:last-child {
+  border-bottom: none;
+}
+
+.run-log-heading {
+  margin: 0 0 0.25rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--ol-navy);
+}
+
+#run-log li[data-has-errors="true"] .run-log-heading {
+  color: var(--ol-error);
+}
+
+.run-log-output {
+  margin: 0 0 0.25rem;
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.85rem;
+}
+
+.run-log-diagnostics {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.8rem;
+}
+
+.run-log-diagnostics li {
+  padding: 0.15rem 0;
+  border-bottom: none;
+}
+
 /* Visually hidden but still announced by assistive technology (the two always-live
    `aria-live` regions #279's `createA11yAnnouncer` wiring renders into — see
    `src/web-bootstrap.ts`'s `selectAnnouncerElementId`). */
