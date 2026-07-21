@@ -50,3 +50,8 @@ export {
   getLessonsByLevel,
   LESSONS,
 } from "./lessons/registry.js";
+
+// A3 (#336): the deterministic, offline, template-based `explain`/`why` baseline meta-commands
+// (`spec/educational-model.md#explain`, `#why`). Pure functions over the A0 `TutorContext`
+// contract above — append-only alongside A4/A5's sibling exports.
+export { explain, why } from "./tutor/explain-why.js";
