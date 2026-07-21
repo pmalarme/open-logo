@@ -71,6 +71,7 @@ export const level4Lessons: readonly Lesson[] = [
           ":sides = 4",
           ":size = 70",
           ":is_big_square = :sides == 4 and :size > 50",
+          ":is_unusual_size = :size < 50 or :size > 90",
           "",
           "if :is_big_square",
           '  set_color "green"',
@@ -81,9 +82,13 @@ export const level4Lessons: readonly Lesson[] = [
           "if not (:sides == 4)",
           '  print "not a square"',
           "end if",
+          "",
+          "if :is_unusual_size",
+          '  print "an unusual size"',
+          "end if",
         ].join("\n"),
         explanation:
-          ":is_big_square is only true when both :sides == 4 and :size > 50 are true, so and combines two strict booleans into one; not (:sides == 4) flips a boolean rather than guessing from the number :sides directly — every value if ever sees is already true or false.",
+          ":is_big_square is only true when both :sides == 4 and :size > 50 are true, so and combines two strict booleans into one; :is_unusual_size is true when either :size < 50 or :size > 90 is true, so or is true as soon as one side holds; not (:sides == 4) flips a boolean rather than guessing from the number :sides directly — every value if ever sees is already true or false.",
       },
       {
         source: [
@@ -103,10 +108,16 @@ export const level4Lessons: readonly Lesson[] = [
 ];
 
 /**
- * Graded Level 4 exercises for `l4-shape-color-condition`, ramping from a single comparison
- * change, to applying the same idea to a new value, to composing a recognizable house (reusing
- * Level 3's house shape) whose color is chosen by a condition — per the compose-a-recognizable-
- * object rule (`spec/educational-model.md:23`, issue #359).
+ * Graded Level 4 exercises for `l4-shape-color-condition`, ramping from a single comparison-
+ * operator change, to applying that same comparison to a new value, to composing the concept
+ * into a recognizable house (reusing Level 3's house shape) whose color is chosen by a
+ * condition — per the compose-a-recognizable-object rule (`spec/educational-model.md:23`, issue
+ * #359). The guided and practice exercises are literal single-line diffs of one another (see
+ * level-4.test.mjs's diff assertions): guided changes only `==` to `!=` from the lesson's first
+ * worked example, and practice changes only `:sides` from 4 to 6 from guided. The challenge is
+ * intentionally exempt from that line-diff rule — it is the composition step the guardrail rule
+ * asks for, not another single-line variation — but it still uses exactly one comparison
+ * choosing between exactly one pair of branches, the same shape every earlier exercise used.
  */
 export const level4Exercises: readonly Exercise[] = [
   {
@@ -115,9 +126,10 @@ export const level4Exercises: readonly Exercise[] = [
     level: "4",
     difficulty: "guided",
     prompt:
-      "The reference program colors a square (:sides = 4) green when :sides == 4, and purple otherwise. Change only the comparison, from == to !=, and predict which color the square gets before you run it.",
+      "The reference program colors a square (:sides = 4) green when :sides == 4, and purple otherwise. Change only the comparison operator, from == to !=, leaving every other line untouched, and predict which color the square gets before you run it.",
     referenceSolution: {
       source: [
+        "# why: the turtle chooses a turn from a boolean comparison",
         ":sides = 4",
         "",
         "if :sides != 4",
@@ -132,7 +144,7 @@ export const level4Exercises: readonly Exercise[] = [
         "end repeat",
       ].join("\n"),
       explanation:
-        "Swapping == for != flips which branch runs: :sides != 4 is now false for a square, so the else branch runs and the square is colored purple instead of green — the comparison changed, but it still produces a strict boolean before if reads it.",
+        "Swapping == for != is the only change from the lesson's reference program: :sides != 4 is now false for a square, so the else branch runs and the square is colored purple instead of green — the comparison changed, but it still produces a strict boolean before if reads it.",
     },
   },
   {
@@ -141,12 +153,13 @@ export const level4Exercises: readonly Exercise[] = [
     level: "4",
     difficulty: "practice",
     prompt:
-      "Apply the same idea to a hexagon: with :sides = 6, change only the comparison from == 4 to >= 4, so any shape with 4 or more sides is colored green instead of only an exact square.",
+      "Apply the same != comparison to a hexagon: starting from the exercise above, change only :sides from 4 to 6, leaving every other line untouched, and predict the hexagon's color before you run it.",
     referenceSolution: {
       source: [
+        "# why: the turtle chooses a turn from a boolean comparison",
         ":sides = 6",
         "",
-        "if :sides >= 4",
+        "if :sides != 4",
         '  set_color "green"',
         "else",
         '  set_color "purple"',
@@ -158,7 +171,7 @@ export const level4Exercises: readonly Exercise[] = [
         "end repeat",
       ].join("\n"),
       explanation:
-        ":sides >= 4 is true for the hexagon's 6 sides, so it takes the green branch even though it is not exactly a square; only the comparison operator changed from == to >=, widening which shapes count as green without touching either branch's body.",
+        "Changing :sides from 4 to 6 is the only change from the guided exercise: :sides != 4 is now true for the hexagon, so the green branch runs — the same != comparison from the guided exercise now colors a different shape, because the value it compares against changed, not the comparison itself.",
     },
   },
   {
@@ -167,7 +180,7 @@ export const level4Exercises: readonly Exercise[] = [
     level: "4",
     difficulty: "challenge",
     prompt:
-      "Draw a house — a square of side :size and a triangular roof of side :size, as in the Level 3 house — but choose its color with a condition: green if :size >= 80 (a big house), purple otherwise (a small house).",
+      "This is the composition step (spec/educational-model.md's compose-a-recognizable-object rule, issue #359), not a single-line change: draw a house — a square of side :size and a triangular roof of side :size, exactly as in the Level 3 house — and choose its color with one condition and one branch, the same shape the earlier exercises used: green if :size >= 80 (a big house), purple otherwise (a small house).",
     referenceSolution: {
       source: [
         ":size = 90",
@@ -196,7 +209,7 @@ export const level4Exercises: readonly Exercise[] = [
         "end repeat",
       ].join("\n"),
       explanation:
-        ":size >= 80 is a strict boolean decided once, before either shape is drawn, so the whole house — walls and roof together — is colored green because :size is 90; a smaller house would take the else branch and be colored purple instead, but the walls-and-roof drawing itself is unchanged from Level 3.",
+        ":size >= 80 is a strict boolean decided once, before either shape is drawn, so the whole house — walls and roof together — is colored green because :size is 90; a smaller house would take the else branch and be colored purple instead. The condition is still exactly one comparison choosing between exactly one pair of branches, the same pattern as the earlier exercises, now composed with Level 3's house instead of a bare polygon.",
     },
   },
 ];

@@ -97,8 +97,8 @@ test("the lesson's guardrail for `if :sides [ ... ]` matches the spec's stated e
   );
 });
 
-test("no Level 4 content uses a Level 5+ concept (define or a procedure header)", () => {
-  const forbidden = [/\bdefine\b/, /\bend define\b/];
+test("no Level 4 content uses a Level 5+ concept (define, end define, or a to ... procedure header)", () => {
+  const forbidden = [/\bdefine\b/, /\bend define\b/, /^\s*to\s+[a-z_]/im];
   const sources = [
     ...level4Lessons.flatMap((lesson) =>
       lesson.workedExamples.map((example) => example.source),
@@ -114,6 +114,72 @@ test("no Level 4 content uses a Level 5+ concept (define or a procedure header)"
       );
     }
   }
+});
+
+test("the and/or/not worked example demonstrates or as a runnable strict boolean, not just in prose", () => {
+  const lesson = level4Lessons.find(
+    (item) => item.id === "l4-shape-color-condition",
+  );
+  assert.ok(lesson);
+  const andOrNotExample = lesson.workedExamples[2];
+  assert.equal(/\bor\b/.test(andOrNotExample.source), true);
+  assert.equal(/\band\b/.test(andOrNotExample.source), true);
+  assert.equal(/\bnot\b/.test(andOrNotExample.source), true);
+});
+
+test("the guided exercise changes exactly one line (== to !=) from the lesson's first worked example", () => {
+  const lesson = level4Lessons.find(
+    (item) => item.id === "l4-shape-color-condition",
+  );
+  const guided = level4Exercises.find(
+    (item) => item.id === "l4-shape-color-flip-comparison",
+  );
+  assert.ok(lesson);
+  assert.ok(guided);
+  const baseLines = lesson.workedExamples[0].source.split("\n");
+  const guidedLines = guided.referenceSolution.source.split("\n");
+  assert.equal(baseLines.length, guidedLines.length);
+  const changedLines = baseLines
+    .map((line, index) => [line, guidedLines[index]])
+    .filter(([before, after]) => before !== after);
+  assert.equal(changedLines.length, 1);
+  assert.deepEqual(changedLines[0], ["if :sides == 4", "if :sides != 4"]);
+});
+
+test("the practice exercise changes exactly one line (:sides 4 to 6) from the guided exercise", () => {
+  const guided = level4Exercises.find(
+    (item) => item.id === "l4-shape-color-flip-comparison",
+  );
+  const practice = level4Exercises.find(
+    (item) => item.id === "l4-shape-color-many-sides",
+  );
+  assert.ok(guided);
+  assert.ok(practice);
+  const guidedLines = guided.referenceSolution.source.split("\n");
+  const practiceLines = practice.referenceSolution.source.split("\n");
+  assert.equal(guidedLines.length, practiceLines.length);
+  const changedLines = guidedLines
+    .map((line, index) => [line, practiceLines[index]])
+    .filter(([before, after]) => before !== after);
+  assert.equal(changedLines.length, 1);
+  assert.deepEqual(changedLines[0], [":sides = 4", ":sides = 6"]);
+});
+
+test("the challenge exercise still uses exactly one comparison choosing between exactly one branch pair", () => {
+  const challenge = level4Exercises.find(
+    (item) => item.id === "l4-house-color-by-size",
+  );
+  assert.ok(challenge);
+  const source = challenge.referenceSolution.source;
+  const comparisonMatches = source.match(/==|!=|<=|>=|(?<![<>=!])[<>](?!=)/g);
+  assert.ok(comparisonMatches);
+  assert.equal(comparisonMatches.length, 1);
+  const ifMatches = source.match(/^if\b/gm);
+  assert.ok(ifMatches);
+  assert.equal(ifMatches.length, 1);
+  const elseMatches = source.match(/\belse\b/g);
+  assert.ok(elseMatches);
+  assert.equal(elseMatches.length, 1);
 });
 
 test("every Level 4 worked example parses and runs with no diagnostics", () => {
@@ -159,7 +225,7 @@ test("l4-shape-color-flip-comparison colors the square purple after flipping == 
   assert.equal(colorChanges[0].payload.to, "purple");
 });
 
-test("l4-shape-color-many-sides colors the hexagon green under the widened >= 4 comparison", () => {
+test("l4-shape-color-many-sides colors the hexagon green under the != 4 comparison", () => {
   const exercise = level4Exercises.find(
     (item) => item.id === "l4-shape-color-many-sides",
   );
