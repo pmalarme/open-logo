@@ -11,12 +11,14 @@ import type { Exercise } from "./exercise.js";
 import { level1Exercises, level1Lessons } from "./level-1.js";
 import { level2Exercises, level2Lessons } from "./level-2.js";
 import { level3Exercises, level3Lessons } from "./level-3.js";
+import { level4Exercises, level4Lessons } from "./level-4.js";
 
 /** Every authored {@link Lesson}, in level order. */
 export const LESSONS: readonly Lesson[] = [
   ...level1Lessons,
   ...level2Lessons,
   ...level3Lessons,
+  ...level4Lessons,
 ];
 
 /** Every authored {@link Exercise}, in level order. */
@@ -24,6 +26,7 @@ export const EXERCISES: readonly Exercise[] = [
   ...level1Exercises,
   ...level2Exercises,
   ...level3Exercises,
+  ...level4Exercises,
 ];
 
 /** Returns every {@link Lesson} tied to `level`, in registry order. */
