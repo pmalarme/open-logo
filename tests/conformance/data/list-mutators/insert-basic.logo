@@ -1,0 +1,3 @@
+# `insert <value> in <list> at <index>` inserts a value at a position (Data profile, grammar.md's
+# `insert-statement ::= "insert" expression "in" expression "at" expression`). Parse-only.
+insert 5 in :nums at 0

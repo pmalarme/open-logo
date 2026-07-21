@@ -1,0 +1,19 @@
+{
+  "description": "The `remove key` production still requires `from` before its target; omitting it reports ol-bad-token at the token found instead (spec/error-model.md). Parse-only negative fixture.",
+  "profiles": ["core-language", "data"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "data/list-mutators/remove-key-missing-from",
+        "start": [3, 19],
+        "end": [3, 24]
+      },
+      "params": { "text": ":ages" },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

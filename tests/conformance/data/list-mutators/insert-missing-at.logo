@@ -1,0 +1,3 @@
+# `insert` requires `at` before its index; omitting it leaves the index token where `at` was
+# expected, reported as ol-bad-token (spec/error-model.md). Parse-only negative fixture.
+insert 5 in :nums 0

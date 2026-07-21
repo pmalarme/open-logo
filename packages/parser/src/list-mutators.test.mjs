@@ -16,7 +16,9 @@ const codesOf = (src) => parse(src).diagnostics.map((d) => d.code);
 const first = (src) => parse(src).ast.body[0];
 /** The `ol-*` codes `check()` reports for `src` (Data profile active). */
 const checkCodesOf = (src) =>
-  OL.check(parse(src).ast).diagnostics.map((d) => d.code);
+  OL.check(parse(src).ast, {
+    profiles: ["core-language", "data"],
+  }).diagnostics.map((d) => d.code);
 
 // --- add -------------------------------------------------------------------
 

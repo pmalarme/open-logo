@@ -1,0 +1,5 @@
+# `remove key <key-term> from <dict>` drops a dictionary entry by key — a distinct production from
+# value removal (Data profile, grammar.md's
+# `remove-key-statement ::= "remove" "key" key-term "from" expression`). A bare identifier key such
+# as `sophie` is literal data, carried as a word literal, never a variable read. Parse-only.
+remove key sophie from :ages

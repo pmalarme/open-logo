@@ -1,0 +1,19 @@
+{
+  "description": "A wrong separator keyword — `from` where `add` requires `to` — reports ol-bad-token at the offending token (spec/error-model.md); the statement is not silently accepted. Parse-only negative fixture.",
+  "profiles": ["core-language", "data"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "data/list-mutators/add-wrong-separator",
+        "start": [3, 7],
+        "end": [3, 11]
+      },
+      "params": { "text": "from" },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}
