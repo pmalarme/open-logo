@@ -1,0 +1,73 @@
+{
+  "description": "Slice #330 — a per-kind diagnostic still fires correctly for the FIRST segment of a longer list-then-record chain: `:path[5]` is out of range (the list has one element), so `ol-range` is raised at the `[5]` segment and the trailing `.x` field segment is never reached.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/place-chaining/list-index-out-of-range-in-chain",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "statement_kind": "StructDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/place-chaining/list-index-out-of-range-in-chain",
+        "start": [3, 1],
+        "end": [3, 11]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/place-chaining/list-index-out-of-range-in-chain",
+        "start": [4, 1],
+        "end": [4, 25]
+      },
+      "payload": {
+        "statement_kind": "Add"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/place-chaining/list-index-out-of-range-in-chain",
+        "start": [6, 1],
+        "end": [6, 17]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-range",
+      "source_span": {
+        "document": "data/place-chaining/list-index-out-of-range-in-chain",
+        "start": [6, 12],
+        "end": [6, 15]
+      },
+      "params": {
+        "operation": "index",
+        "index": 5,
+        "length": 1
+      },
+      "message": "index 5 is out of range for a list of 1.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

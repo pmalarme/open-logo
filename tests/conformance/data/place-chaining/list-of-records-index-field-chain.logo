@@ -1,0 +1,9 @@
+struct point [ x y ]
+
+:path = []
+add (point 0 0) to :path
+add (point 100 90) to :path
+
+print :path[1].x
+:path[1].x = 5
+print :path[1].x

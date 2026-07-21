@@ -1,0 +1,50 @@
+{
+  "description": "Slice #330 — a `.field` segment applied to a value that is neither a dict nor a record (here a plain number) raises `ol-type` (`expected: \"dict\"`) rather than silently doing nothing: `:x = 5` then `:x.y = 1` fails because `:x`'s runtime value is a number, which the chain walker's dict/record dispatch rejects.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/place-chaining/non-collection-segment-in-chain",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/place-chaining/non-collection-segment-in-chain",
+        "start": [2, 1],
+        "end": [2, 9]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "data/place-chaining/non-collection-segment-in-chain",
+        "start": [2, 3],
+        "end": [2, 5]
+      },
+      "params": {
+        "expected": "dict",
+        "actual": "number",
+        "value": 5,
+        "operation": "field"
+      },
+      "message": "field needs a dict, but got a number.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

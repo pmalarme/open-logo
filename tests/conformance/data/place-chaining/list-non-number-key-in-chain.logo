@@ -1,0 +1,6 @@
+struct point [ x y ]
+
+:path = []
+add (point 0 0) to :path
+
+print :path["a"].x

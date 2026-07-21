@@ -1,0 +1,59 @@
+{
+  "description": "Slice #330 — the no-auto-vivify rule composes at ANY position in a longer chain, not just the first segment (`spec/data-structures.md:203`). `:db.people = dict` creates a dict-valued key `people` inside `:db`; `:db.people.tom.age = 5` then walks `.people` (intermediate, resolves fine) then `.tom` (intermediate, missing on the nested dict) — the miss is raised immediately as `ol-unknown-key` for `tom`, and `.age` (the would-be final segment) is never reached, proving the write walk never upserts an intermediate regardless of how deep it sits in the chain.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/place-chaining/missing-intermediate-dict-in-chain",
+        "start": [1, 1],
+        "end": [1, 11]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/place-chaining/missing-intermediate-dict-in-chain",
+        "start": [2, 1],
+        "end": [2, 18]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/place-chaining/missing-intermediate-dict-in-chain",
+        "start": [3, 1],
+        "end": [3, 23]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-key",
+      "source_span": {
+        "document": "data/place-chaining/missing-intermediate-dict-in-chain",
+        "start": [3, 11],
+        "end": [3, 15]
+      },
+      "params": {
+        "key": "tom"
+      },
+      "message": "this dict has no key \"tom\".",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

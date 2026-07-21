@@ -1,0 +1,3 @@
+:db = dict
+:db.people = dict
+:db.people.tom.age = 5
