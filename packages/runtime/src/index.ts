@@ -52,7 +52,11 @@ import type { TutorLearnerLevel } from "./tutor-context.js";
 export {
   createEnvironment,
   evaluate,
+  executeAdd,
   executeAssign,
+  executeClear,
+  executeInsert,
+  executeRemove,
   formatNumber,
   isSupportedExpression,
   printedForm,

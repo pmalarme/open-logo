@@ -1,0 +1,3 @@
+:nums = [1 2 3]
+insert 9 in :nums at 2
+print :nums

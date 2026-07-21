@@ -1,0 +1,50 @@
+{
+  "description": "`add 1 to :count` where :count is a number halts with ol-type: a list mutator's target must be a list (Data profile, issue #188, spec/data-structures.md:73-93). The Add's instruction event is still emitted before the runtime type-check fails.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/list-mutators/add-non-list-type-error",
+        "start": [1, 1],
+        "end": [1, 11]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/list-mutators/add-non-list-type-error",
+        "start": [2, 1],
+        "end": [2, 16]
+      },
+      "payload": {
+        "statement_kind": "Add"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "data/list-mutators/add-non-list-type-error",
+        "start": [2, 10],
+        "end": [2, 16]
+      },
+      "params": {
+        "expected": "list",
+        "actual": "number",
+        "value": 5,
+        "operation": "add"
+      },
+      "message": "add needs a list, but got a number.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}
