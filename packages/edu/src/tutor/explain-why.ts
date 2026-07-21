@@ -502,16 +502,19 @@ export function why(context: TutorContext): TutorOutput {
 
   // With no explicit target, recover which instruction actually caused the event by looking up
   // the AST node at the event's own span — otherwise `why` would always give a generic cause
-  // when the learner asks "why" about the program as a whole.
-  if (!resolved && event) {
-    const instruction = findInstructionAtSpan(
-      context.program,
-      event.source_span,
-    );
-    if (instruction) {
-      resolved = resolveCommandName(instruction, undefined);
-      eventTargetSpan ??= instruction.source_span;
+  // when the learner asks "why" about the program as a whole. Even when no AST node matches,
+  // the event's own span still identifies exactly what is being described.
+  if (event) {
+    if (!resolved) {
+      const instruction = findInstructionAtSpan(
+        context.program,
+        event.source_span,
+      );
+      if (instruction) {
+        resolved = resolveCommandName(instruction, undefined);
+      }
     }
+    eventTargetSpan ??= event.source_span;
   }
 
   if (!event) {
@@ -528,7 +531,9 @@ export function why(context: TutorContext): TutorOutput {
 
   const causeSentence = resolved
     ? `This happened because \`${resolved.name}\` ran.`
-    : "This happened because the selected instruction ran.";
+    : context.target
+      ? "This happened because the selected instruction ran."
+      : "This happened while running this part of the program.";
 
   return {
     command: "why",

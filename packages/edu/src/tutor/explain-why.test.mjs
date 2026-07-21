@@ -483,6 +483,26 @@ test("why: a target with events present but none matching its span says that com
   );
 });
 
+test("why: an explicitly selected non-instruction target (e.g. a Block) with a matching event still gives a selection-aware cause", () => {
+  const program = parse("repeat 4 [ forward 80 right 90 ]");
+  const block = program.body[0].body;
+  assert.equal(block.kind, "Block");
+  const event = makeEvent("turn", { from: 0, to: 90 }, block.source_span);
+  const context = baseContext({
+    program,
+    target: block,
+    command: "why",
+    events: [event],
+  });
+
+  const output = why(context);
+  assert.equal(
+    output.segments[1],
+    "This happened because the selected instruction ran.",
+  );
+  assert.deepEqual(output.target_source_span, block.source_span);
+});
+
 test("why: with no target selected, resolves the causing instruction from the most recent event's own span", () => {
   const program = parse("forward 80\nright 90");
   const moveEvent = makeEvent(
@@ -510,12 +530,13 @@ test("why: with no target selected, resolves the causing instruction from the mo
   assert.deepEqual(output.target_source_span, program.body[1].source_span);
 });
 
-test("why: with no target selected and no AST node matching the event's span, gives a generic cause", () => {
+test("why: with no target selected and no AST node matching the event's span, still points at the event's own span with non-selection wording", () => {
   const program = parse("forward 80");
+  const eventSpan = Core.makeSpan(doc, [9, 1], [9, 2]);
   const event = makeEvent(
     "move",
     { from: [0, 0], to: [0, 80], heading: 0 },
-    Core.makeSpan(doc, [9, 1], [9, 2]),
+    eventSpan,
   );
   const context = baseContext({
     program,
@@ -526,9 +547,9 @@ test("why: with no target selected and no AST node matching the event's span, gi
   const output = why(context);
   assert.equal(
     output.segments[1],
-    "This happened because the selected instruction ran.",
+    "This happened while running this part of the program.",
   );
-  assert.equal(output.target_source_span, undefined);
+  assert.deepEqual(output.target_source_span, eventSpan);
 });
 
 test("why: describes every known trace-event kind", () => {
