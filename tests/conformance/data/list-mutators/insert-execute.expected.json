@@ -1,0 +1,56 @@
+{
+  "description": "`insert 9 in :nums at 2` executes: the runtime splices 9 before 1-based position 2 in place, so `print :nums` observes [1 9 2 3] (Data profile, issue #188, spec/data-structures.md:73-93).",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/list-mutators/insert-execute",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/list-mutators/insert-execute",
+        "start": [2, 1],
+        "end": [2, 23]
+      },
+      "payload": {
+        "statement_kind": "Insert"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/list-mutators/insert-execute",
+        "start": [3, 1],
+        "end": [3, 12]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "data/list-mutators/insert-execute",
+        "start": [3, 1],
+        "end": [3, 12]
+      },
+      "payload": {
+        "values": [[1, 9, 2, 3]]
+      }
+    }
+  ],
+  "diagnostics": []
+}

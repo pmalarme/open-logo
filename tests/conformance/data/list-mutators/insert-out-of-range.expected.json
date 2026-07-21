@@ -1,0 +1,49 @@
+{
+  "description": "`insert 9 in :nums at 5` into a 3-element list halts with ol-range: a valid insert position is 1..length+1 (Data profile, issue #188, spec/data-structures.md:73-93). The Insert's instruction event is still emitted before the runtime range-check fails.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/list-mutators/insert-out-of-range",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/list-mutators/insert-out-of-range",
+        "start": [2, 1],
+        "end": [2, 23]
+      },
+      "payload": {
+        "statement_kind": "Insert"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-range",
+      "source_span": {
+        "document": "data/list-mutators/insert-out-of-range",
+        "start": [2, 22],
+        "end": [2, 23]
+      },
+      "params": {
+        "operation": "insert",
+        "index": 5,
+        "length": 3
+      },
+      "message": "insert position 5 is out of range for a list of 3.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

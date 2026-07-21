@@ -60,13 +60,18 @@ import {
   checkExecutionLimits,
   createDefaultTurtleState,
   evaluate,
+  executeAdd,
   executeAssign,
+  executeClear,
+  executeInsert,
+  executeRemove,
   findDuplicateBinderName,
   isSupportedExpression,
   printedForm,
   pushLoopFrame,
   requireNumber,
   requireWholeNumber,
+  type AssignResult,
   type Environment,
   type EvalResult,
   type Frame,
@@ -1446,6 +1451,43 @@ function dispatchTurtleCommand(
 }
 
 /**
+ * Dispatch the statements that write a place or mutate a list value in place — `Assign`
+ * (`set … to` / `<place> = …`) plus the four Data-profile list mutators `add`/`remove`/`insert`/
+ * `clear` (issue #188, `spec/data-structures.md:73-93`) — to their evaluators in `evaluate.ts`.
+ * Returns the evaluator's {@link AssignResult} (a clean `ok`, or its `ol-type`/`ol-range`
+ * diagnostic), or `undefined` when `statement` is none of them — so {@link executeStatements} falls
+ * through to its remaining handlers. `RemoveKey` (dict key deletion) is deliberately NOT handled
+ * here: dicts have no runtime representation yet (issue #322), so it stays a deferred no-op,
+ * reaching only the generic `instruction` event like any other not-yet-evaluated statement kind.
+ *
+ * `Assign` and the four mutators share one dispatch — and therefore one result local in
+ * {@link executeStatements} — on purpose. `executeStatements` recurses once per procedure call, so
+ * every extra local it declares widens the per-level stack frame; a *second* result local there for
+ * the mutators pushed the 600-deep `recursionDepthLimit: 1000` regression test
+ * (`execution-budget.test.mjs`) over the native call-stack limit, exactly as {@link executeShowCall}'s
+ * doc comment warns. Folding them together keeps that frame at its original width.
+ */
+function dispatchAssignOrListMutator(
+  statement: StatementNode,
+  environment: Environment,
+): AssignResult | undefined {
+  switch (statement.kind) {
+    case "Assign":
+      return executeAssign(statement, environment);
+    case "Add":
+      return executeAdd(statement, environment);
+    case "Remove":
+      return executeRemove(statement, environment);
+    case "Insert":
+      return executeInsert(statement, environment);
+    case "Clear":
+      return executeClear(statement, environment);
+    default:
+      return undefined;
+  }
+}
+
+/**
  * Executes a `show value` statement (issue #234, `spec/commands.md`'s `show`) once
  * {@link executeStatements} has confirmed it via {@link isShowCall}. Extracted into its own
  * function for the same reason {@link dispatchTurtleCommand}'s doc comment gives: `executeStatements`
@@ -2287,10 +2329,10 @@ function executeStatements(
       payload: { statement_kind: statement.kind } satisfies InstructionPayload,
     });
 
-    if (statement.kind === "Assign") {
-      const result = executeAssign(statement, environment);
-      if (!result.ok) {
-        return halt(result.diagnostic);
+    const writeResult = dispatchAssignOrListMutator(statement, environment);
+    if (writeResult !== undefined) {
+      if (!writeResult.ok) {
+        return halt(writeResult.diagnostic);
       }
       continue;
     }

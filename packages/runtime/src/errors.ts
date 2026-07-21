@@ -129,6 +129,33 @@ export interface IndexRangeParams {
 }
 
 /**
+ * Params for an `ol-type` raised by a list-mutator statement (`add`/`remove`/`insert`/`clear`,
+ * `spec/data-structures.md:73-93`, `spec/execution-model.md:447-482`) whose target is not a list,
+ * or by `insert`'s position argument that is not a number. Same `{expected, actual, value,
+ * operation}` shape as the other `ol-type` param builders so every stage agrees on identity;
+ * `operation` names the mutator verb for the message.
+ */
+export interface ListMutatorTypeErrorParams {
+  readonly expected: "list" | "number";
+  readonly actual: string;
+  readonly value: OLValue;
+  readonly operation: "add" | "remove" | "insert" | "clear";
+}
+
+/**
+ * Params for an `ol-range` raised by `insert value in list at position` when the 1-based
+ * `position` is a number but not a whole number in `1..length + 1`
+ * (`spec/data-structures.md:81` — "inserts before the 1-based position"; a position of
+ * `length + 1` appends). Sibling of {@link IndexRangeParams} but its own interface/builder because
+ * `insert`'s valid ceiling is `length + 1`, not `length`, and its message names "insert position"
+ * rather than "index". `index` is the offending position exactly as the learner wrote it.
+ */
+export interface InsertPositionRangeParams {
+  readonly index: OLValue;
+  readonly length: number;
+}
+
+/**
  * Params for `ol-not-boolean`: a `not`/`and`/`or` operand (or any other boolean-only condition)
  * was not `true`/`false` (`spec/error-model.md:121`). There is no truthiness — a number, word, or
  * list operand is never coerced, regardless of how "truthy" it might look.
@@ -501,6 +528,39 @@ export const runtimeDiag = {
       source_span,
       { ...params },
       `${params.operation} needs a ${params.expected}, but got a ${params.actual}.`,
+    );
+  },
+
+  /**
+   * `ol-type` for a list-mutator statement's non-list target or `insert`'s non-number position
+   * (issue #188, `spec/data-structures.md:73-93`) — see {@link ListMutatorTypeErrorParams}.
+   */
+  listMutatorType(
+    source_span: SourceSpan,
+    params: ListMutatorTypeErrorParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-type",
+      source_span,
+      { ...params },
+      `${params.operation} needs a ${params.expected}, but got a ${params.actual}.`,
+    );
+  },
+
+  /**
+   * `ol-range` for `insert`'s out-of-range 1-based position (issue #188) — see
+   * {@link InsertPositionRangeParams}. Valid positions are `1..length + 1`; a position of
+   * `length + 1` appends.
+   */
+  insertPositionRange(
+    source_span: SourceSpan,
+    params: InsertPositionRangeParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-range",
+      source_span,
+      { operation: "insert", index: params.index, length: params.length },
+      `insert position ${String(params.index)} is out of range for a list of ${params.length}.`,
     );
   },
 

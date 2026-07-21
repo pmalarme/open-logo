@@ -35,17 +35,21 @@ import type {
 } from "@openlogo/core";
 import { makeSpan, typeNameOf } from "@openlogo/core";
 import type {
+  AddNode,
   AssignNode,
   BlockNode,
   CallNode,
+  ClearNode,
   ComparisonChainNode,
   ComprehensionNode,
   ExpressionNode,
+  InsertNode,
   IsPredicateNode,
   ParenCallNode,
   PlaceNode,
   ProcedureDefNode,
   ProgramNode,
+  RemoveNode,
   SelectorSegment,
   SpannedName,
   StatementNode,
@@ -1086,6 +1090,182 @@ function writeIndexedPlace(
     return step;
   }
   (step.list as OLValue[])[step.index] = value;
+  return { ok: true };
+}
+
+/**
+ * Resolve a list-mutator statement's target expression (`add … to TARGET`, `clear TARGET`, …) to
+ * the shared list it must mutate in place. Evaluating a supported target (`:name`, a postfix
+ * `:l[i]`, or any list-valued reporter) yields the *same* array reference the binding holds, so a
+ * `push`/`splice`/`length = 0` on it is observed through every alias (`spec/data-structures.md:47`,
+ * `spec/execution-model.md:471-481`). A target that does not evaluate to a list raises `ol-type`
+ * (`spec/data-structures.md:79`). `OLValue`'s list arm is `readonly`, so the cast to a mutable
+ * array mirrors {@link writeIndexedPlace}'s own in-place write.
+ */
+function evaluateListTarget(
+  targetNode: ExpressionNode,
+  environment: Environment,
+  operation: "add" | "remove" | "insert" | "clear",
+):
+  | { readonly ok: true; readonly list: OLValue[] }
+  | { readonly ok: false; readonly diagnostic: Diagnostic } {
+  const result = evaluate(targetNode, environment);
+  if (!result.ok) {
+    return result;
+  }
+  if (!Array.isArray(result.value)) {
+    return {
+      ok: false,
+      diagnostic: runtimeDiag.listMutatorType(targetNode.source_span, {
+        expected: "list",
+        actual: typeNameOf(result.value),
+        value: result.value,
+        operation,
+      }),
+    };
+  }
+  return { ok: true, list: result.value as OLValue[] };
+}
+
+/**
+ * Execute `add value to target` (`spec/data-structures.md:79`, `spec/execution-model.md:471-481`):
+ * append `value` to the list `target` in place. `value` then `target` are evaluated left to right;
+ * either operand being an expression kind this profile does not yet evaluate leaves the whole
+ * statement a deferred no-op — matching {@link executeAssign}/`print`, so an unimplemented operand
+ * kind stays silently un-executed rather than raising. A non-list target raises `ol-type`.
+ */
+export function executeAdd(
+  node: AddNode,
+  environment: Environment,
+): AssignResult {
+  if (
+    !isSupportedExpression(node.value, environment.procedures) ||
+    !isSupportedExpression(node.target, environment.procedures)
+  ) {
+    return { ok: true };
+  }
+  const valueResult = evaluate(node.value, environment);
+  if (!valueResult.ok) {
+    return { ok: false, diagnostic: valueResult.diagnostic };
+  }
+  const target = evaluateListTarget(node.target, environment, "add");
+  if (!target.ok) {
+    return target;
+  }
+  target.list.push(valueResult.value);
+  return { ok: true };
+}
+
+/**
+ * Execute `remove value from target` (`spec/data-structures.md:80,93`): remove the *first* element
+ * structurally equal to `value` (`==`, via {@link valuesEqual}) from the list `target`, in place.
+ * If no element matches, the list is left unchanged and no diagnostic is raised. Operand
+ * evaluation, deferral, and the non-list `ol-type` guard match {@link executeAdd}.
+ */
+export function executeRemove(
+  node: RemoveNode,
+  environment: Environment,
+): AssignResult {
+  if (
+    !isSupportedExpression(node.value, environment.procedures) ||
+    !isSupportedExpression(node.target, environment.procedures)
+  ) {
+    return { ok: true };
+  }
+  const valueResult = evaluate(node.value, environment);
+  if (!valueResult.ok) {
+    return { ok: false, diagnostic: valueResult.diagnostic };
+  }
+  const target = evaluateListTarget(node.target, environment, "remove");
+  if (!target.ok) {
+    return target;
+  }
+  const index = target.list.findIndex((element) =>
+    valuesEqual(element, valueResult.value),
+  );
+  if (index !== -1) {
+    target.list.splice(index, 1);
+  }
+  return { ok: true };
+}
+
+/**
+ * Execute `insert value in target at position` (`spec/data-structures.md:81`): insert `value`
+ * before the 1-based `position` in the list `target`, in place. `value`, `target`, then
+ * `position` are evaluated left to right. A non-list target or a non-number position raises
+ * `ol-type`; a numeric position that is not a whole number in `1..length + 1` raises `ol-range`
+ * (inserting at `length + 1` appends). Word-that-reads-as-a-number position coercion matches list
+ * indexing ({@link resolveIndexSegment}).
+ */
+export function executeInsert(
+  node: InsertNode,
+  environment: Environment,
+): AssignResult {
+  if (
+    !isSupportedExpression(node.value, environment.procedures) ||
+    !isSupportedExpression(node.target, environment.procedures) ||
+    !isSupportedExpression(node.index, environment.procedures)
+  ) {
+    return { ok: true };
+  }
+  const valueResult = evaluate(node.value, environment);
+  if (!valueResult.ok) {
+    return { ok: false, diagnostic: valueResult.diagnostic };
+  }
+  const target = evaluateListTarget(node.target, environment, "insert");
+  if (!target.ok) {
+    return target;
+  }
+  const positionResult = evaluate(node.index, environment);
+  if (!positionResult.ok) {
+    return { ok: false, diagnostic: positionResult.diagnostic };
+  }
+  const position = asNumber(positionResult.value);
+  if (position === undefined) {
+    return {
+      ok: false,
+      diagnostic: runtimeDiag.listMutatorType(node.index.source_span, {
+        expected: "number",
+        actual: typeNameOf(positionResult.value),
+        value: positionResult.value,
+        operation: "insert",
+      }),
+    };
+  }
+  if (
+    !Number.isInteger(position) ||
+    position < 1 ||
+    position > target.list.length + 1
+  ) {
+    return {
+      ok: false,
+      diagnostic: runtimeDiag.insertPositionRange(node.index.source_span, {
+        index: positionResult.value,
+        length: target.list.length,
+      }),
+    };
+  }
+  target.list.splice(position - 1, 0, valueResult.value);
+  return { ok: true };
+}
+
+/**
+ * Execute `clear target` (`spec/data-structures.md:82`): remove every element from the list
+ * `target`, in place. A non-list target raises `ol-type`; an unsupported target expression is a
+ * deferred no-op (matching {@link executeAdd}).
+ */
+export function executeClear(
+  node: ClearNode,
+  environment: Environment,
+): AssignResult {
+  if (!isSupportedExpression(node.target, environment.procedures)) {
+    return { ok: true };
+  }
+  const target = evaluateListTarget(node.target, environment, "clear");
+  if (!target.ok) {
+    return target;
+  }
+  target.list.length = 0;
   return { ok: true };
 }
 
