@@ -1,0 +1,20 @@
+{
+  "description": "issue #331: with the educational profile active, a typo of `explain` (`explian`) is within did-you-mean edit distance (spec/error-model.md:129-151) and suggests the correctly-spelled meta-command — the same did-you-mean machinery Turtle & Rendering's `fowad`->`forward` case exercises (tests/conformance/turtle-rendering/check/fowad-suggests-forward). Parenthesized form isolates the finding from the reader's arity-0 fallback for an unrecognized bare callee.",
+  "profiles": ["core-language", "educational"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "educational/meta-commands/hint-style-typo-suggests-explain",
+        "start": [1, 2],
+        "end": [1, 9]
+      },
+      "params": { "name": "explian", "suggestion": "explain" },
+      "message": "i don't know how to explian. did you mean explain?",
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

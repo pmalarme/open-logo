@@ -1,0 +1,7 @@
+{
+  "description": "issue #331 / spec/commands.md's Meta-commands note and spec/conformance.md#educational's signature table: `explain` is a Command, arity 0, invoked as the bare word `explain` — with the educational profile active it parses and checks clean, with no diagnostics.",
+  "profiles": ["core-language", "educational"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}
