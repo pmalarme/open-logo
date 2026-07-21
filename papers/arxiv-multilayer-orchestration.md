@@ -25,7 +25,7 @@ communication model between autonomous Copilot sessions, and the concrete govern
 human in the loop for the specification while delegating routine merges to the machine. We report
 quantitative outcomes measured directly from the repository: a six-package TypeScript monorepo built
 across 13 profile and cross-cutting milestones and 151 merged pull requests over a five-day window.
-Midway through that window — after 129 of those merges — the project tagged a minimally conformant
+Late in that window (2026-07-20), after 129 of those merges, the project tagged a minimally conformant
 `v0.1.0` release (the Core Language and Turtle & Rendering profiles, backed by 370 stack-neutral
 conformance fixtures), after which the optional profiles (Data, Geometry, and the deterministic
 Educational layer) continued in parallel against the frozen contracts, with the remaining profiles —
@@ -492,12 +492,12 @@ explicit `--limit` bounds so counts are not silently truncated by pagination.
 | Architecture Decision Records | 12 | `docs/adr/0000..0011` |
 | CI/automation workflows | 6 | `.github/workflows/*.yml` |
 | Issue templates | 7 | `.github/ISSUE_TEMPLATE/*.yml` (excl. `config.yml`) |
-| Label taxonomy | 64 | `gh label list` |
-| Stack-neutral conformance fixtures | 370 in `v0.1.0` · 409 at `ddf04c3` | `git ls-tree -r {v0.1.0,ddf04c3} -- tests/conformance` |
+| Label taxonomy | 64 | `gh label list --limit 1000` |
+| Stack-neutral conformance fixtures | 370 in `v0.1.0` · 409 at `ddf04c3` | `git ls-tree -r --name-only <ref> -- tests/conformance` (per ref) |
 | Spec example programs | 12 | `spec/examples/*.logo` |
 | Commits on `main` | 152 | `git rev-list --count ddf04c3` |
-| Merged pull requests | 151 | `gh pr list --state merged --limit 1000` (2026-07-21) |
-| Issues (open / closed) | 32 / 175 | `gh issue list --state {open,closed} --limit 1000` |
+| Merged pull requests | 151 | `gh pr list --state merged --search "merged:<=2026-07-21" --limit 1000` |
+| Issues (open / closed) | 32 / 175 | `gh issue list --state all --limit 1000` (2026-07-21; open count grows) |
 | Project board items | 206 | `gh project item-list 5` |
 | Milestones (profile + cross-cutting) | 13 | `gh api …/milestones` |
 | Tagged releases | 1 (`v0.1.0`) | `git tag` |
