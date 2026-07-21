@@ -1,5 +1,5 @@
 {
-  "description": "issue #332 (A2): executing the bare `hint` meta-command emits exactly one `tutor-output` event with `command: \"hint\"`, a REQUIRED `stage` (starting at `\"nudge\"` for a first-ever request, spec/execution-model.md:640-652) and a REQUIRED `target_source_span` — since `hint` is the only statement (no preceding statement to point at), it falls back to the whole-program span, per `hint`'s explicit whole-program fallback (unlike `explain`/`why`/`debug`, whose target is optional).",
+  "description": "issue #332 (A2): executing the bare `hint` meta-command emits exactly one `tutor-output` event with `command: \"hint\"`, a REQUIRED `stage` (starting at `\"nudge\"` for a first-ever request, spec/execution-model.md:640-652) and a REQUIRED `target_source_span` — since `hint` is the only statement (no preceding statement to point at), it falls back to the whole-program span, per `hint`'s explicit whole-program fallback (unlike `explain`/`why`/`debug`, whose target is optional). The generic `segments` text says \"your program\" (not \"the most recent instruction\") to stay honest about there being no real preceding-effect target.",
   "profiles": ["core-language", "educational"],
   "execute": true,
   "events": [
@@ -29,7 +29,7 @@
           "start": [1, 1],
           "end": [2, 1]
         },
-        "segments": ["Here is a small nudge about the most recent instruction."]
+        "segments": ["Here is a small nudge about your program."]
       }
     }
   ],

@@ -1585,20 +1585,26 @@ function isEducationalMetaCommandCall(
  * By the time {@link executeStatements} dispatches a meta-command statement, it has ALREADY
  * pushed that statement's own unconditional `instruction` event onto `environment.events` (see
  * the top of its loop) — so the meta-command's own instruction event is always the LAST entry.
- * Scanning backward from just before it, the first event that is itself neither an `instruction`
- * nor a `tutor-output` is the last real EFFECT of whatever executed before the meta-command, in
- * real execution order (flattened across any nested loop/procedure calls sharing this same
- * `environment.events` array) — `instruction` events carry no new information beyond the
- * statement kind already reflected in the effect that follows them, and skipping past any
- * `tutor-output` events is what keeps a run of CONSECUTIVE meta-commands (e.g. `hint` called
- * three times in a row with nothing in between) all resolving to the SAME target — the last real
- * action — rather than each one targeting the previous meta-command's own call site. Without
- * that skip, `hint`'s progression (`spec/execution-model.md:641-652`, "for the SAME target")
- * could never observe two calls sharing one target, since every call's own instruction event
- * would differ. That prior effect event's own `source_span` is the most specific deterministic
- * "what was just done" the runtime can point to, so it is the resolved target. `undefined` when
- * no such event exists — the meta-command (possibly preceded only by other meta-commands) is
- * effectively the first real thing executed.
+ * Scanning backward from just before it, the first event that is itself neither a START event
+ * (`instruction` or `procedure-enter` — `packages/core/src/events.ts`'s `OL_EVENT_KINDS` groups
+ * these as "emitted before their effect") nor a `tutor-output` is the last real EFFECT of
+ * whatever executed before the meta-command, in real execution order (flattened across any
+ * nested loop/procedure calls sharing this same `environment.events` array). Both kinds of start
+ * event carry no new information beyond the effect that follows them — `procedure-enter` in
+ * particular must be skipped too, or a meta-command that is the very FIRST statement inside a
+ * procedure body would wrongly resolve its enclosing `procedure-enter` (the call that invoked
+ * it) as "the last thing done", rather than correctly falling back to `environment.programSpan`
+ * (see `hint`'s branch in {@link executeEducationalMetaCommand}). Skipping past any
+ * `tutor-output` events is what keeps a run of
+ * CONSECUTIVE meta-commands (e.g. `hint` called three times in a row with nothing in between)
+ * all resolving to the SAME target — the last real action — rather than each one targeting the
+ * previous meta-command's own call site. Without that skip, `hint`'s progression
+ * (`spec/execution-model.md:641-652`, "for the SAME target") could never observe two calls
+ * sharing one target, since every call's own instruction event would differ. That prior effect
+ * event's own `source_span` is the most specific deterministic "what was just done" the runtime
+ * can point to, so it is the resolved target. `undefined` when no such event exists (the
+ * meta-command — possibly preceded only by other meta-commands, or nested only inside
+ * `procedure-enter` start events — is effectively the first real thing executed).
  */
 function resolveTutorTargetSpan(
   environment: Environment,
@@ -1611,23 +1617,13 @@ function resolveTutorTargetSpan(
     if (
       event !== undefined &&
       event.kind !== "instruction" &&
+      event.kind !== "procedure-enter" &&
       event.kind !== "tutor-output"
     ) {
       return event.source_span;
     }
   }
   return undefined;
-}
-
-/**
- * `hint`'s `target_source_span` is REQUIRED (unlike `explain`/`why`/`debug`, where it is
- * optional) — `spec/execution-model.md#tutor-output-educational-profile` calls for "the
- * whole-program span" as the explicit fallback when no narrower target is selected. Every
- * `Environment` carries `programSpan` (the parsed program's own `source_span`) for exactly this
- * fallback.
- */
-function resolveHintTargetSpan(environment: Environment): SourceSpan {
-  return resolveTutorTargetSpan(environment) ?? environment.programSpan;
 }
 
 /**
@@ -1748,7 +1744,8 @@ function executeEducationalMetaCommand(
   }
 
   if (command === "hint") {
-    const targetSpan = resolveHintTargetSpan(environment);
+    const rawTargetSpan = resolveTutorTargetSpan(environment);
+    const targetSpan = rawTargetSpan ?? environment.programSpan;
     const stage = nextHintStage(environment, targetSpan);
     environment.events.push({
       seq: environment.events.length,
@@ -1758,7 +1755,11 @@ function executeEducationalMetaCommand(
         command: "hint",
         stage,
         target_source_span: targetSpan,
-        segments: tutorOutputSegments("hint", stage, true),
+        segments: tutorOutputSegments(
+          "hint",
+          stage,
+          rawTargetSpan !== undefined,
+        ),
       } satisfies TutorOutputPayload,
     });
     return undefined;

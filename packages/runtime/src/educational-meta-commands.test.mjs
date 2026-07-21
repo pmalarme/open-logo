@@ -9,6 +9,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { parse } from "@openlogo/parser";
 import { execute } from "@openlogo/runtime";
 
 const doc = "acceptance.logo";
@@ -75,6 +76,49 @@ test("hint after a preceding statement targets that statement, not the whole pro
   const result = execute("forward 10\nhint", doc);
   const [event] = tutorEvents(result);
   assert.equal(event.payload.target_source_span.start[0], 1);
+});
+
+// --- regression: a meta-command as the FIRST statement inside a procedure body must fall back --
+// --- to the whole-program span, not the enclosing `procedure-enter` start event ----------------
+
+test("`hint` as the first statement in a called procedure falls back to the whole-program span, not the call site", () => {
+  const source = "define ask\nhint\nend\nask";
+  const result = execute(source, doc);
+  assert.deepEqual(result.diagnostics, []);
+  const [event] = tutorEvents(result);
+  assert.equal(event.payload.command, "hint");
+  // The whole-program span always starts at [1, 1] regardless of where `hint` itself sits in the
+  // source; if this instead resolved the enclosing `procedure-enter` event (the `ask` call site
+  // on line 4), the target would start at line 4, not the program's own start.
+  const { ast: program } = parse(source, doc);
+  assert.deepEqual(event.payload.target_source_span, program.source_span);
+});
+
+for (const command of ["explain", "why", "debug"]) {
+  test(`\`${command}\` as the first statement in a called procedure omits target_source_span, not the call site`, () => {
+    const result = execute(`define ask\n${command}\nend\nask`, doc);
+    assert.deepEqual(result.diagnostics, []);
+    const [event] = tutorEvents(result);
+    assert.equal(event.payload.target_source_span, undefined);
+  });
+}
+
+// --- bare `hint` (no real target) reports "your program", not a false "the most recent ---------
+// --- instruction" claim, even though its payload target_source_span falls back to the program --
+
+test("bare `hint` with no real target describes its scope as the whole program, not a false instruction claim", () => {
+  const result = execute("hint", doc);
+  const [event] = tutorEvents(result);
+  assert.equal(
+    event.payload.segments.some((segment) => segment.includes("your program")),
+    true,
+  );
+  assert.equal(
+    event.payload.segments.some((segment) =>
+      segment.includes("the most recent instruction"),
+    ),
+    false,
+  );
 });
 
 // --- hint progression: nudge -> concept -> partial -> last-resort -> last-resort (repeats) ----
