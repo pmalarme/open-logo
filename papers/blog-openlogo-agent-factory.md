@@ -66,9 +66,16 @@ knows how *this* team ships."
 
 ## Spec-first: the one thing a human refused to delegate
 
-Before a single line of code, the human maintainer wrote a **normative specification** — the grammar,
-the commands, the execution model, the error codes, the rendering rules, the conformance profiles, the
-teaching model. Every `MUST` and `SHOULD` spelled out.
+Before a single line of code, the team wrote a **normative specification** — the grammar, the commands,
+the execution model, the error codes, the rendering rules, the conformance profiles, the teaching
+model. Every `MUST` and `SHOULD` spelled out.
+
+Here's the twist: the spec itself was built by the *same* agent factory. A fleet of author sessions,
+roughly one per document, drafted the seventeen files; an integration session reconciled them; and
+independent reviewers re-read the actual text until zero blocking issues remained. Then the human
+maintainer did the one thing no agent was allowed to do — reviewed it and merged it. (PR #2:
+seventeen documents plus twelve runnable examples, ~7,500 lines.) The humans didn't type the whole
+contract; they *owned* it.
 
 That spec is the **single source of truth.** When code and spec disagree, the spec wins — full stop. An
 agent that spots a conflict files an issue; it does not quietly "fix" the language. And critically:

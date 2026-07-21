@@ -143,6 +143,19 @@ baseline (`educational-model.md`), the AI tutor's guardrails (`ai-tutor.md`), an
 Because the contract is explicit, downstream work becomes checkable at the clause level, and many
 agents can build different parts of the language *in parallel* without renegotiating meaning.
 
+**The contract was itself produced by the orchestration.** The specification did not spring from a
+single author. According to the spec-authoring session's first-hand account, `spec/` was written by a
+dedicated fleet of author sessions — roughly one per document across the seventeen Normative and
+Informative Markdown files — preceded by several deliberate design pivots that moved the surface
+syntax toward `define … end` blocks and toward `=`/bracketed forms before any prose was locked. A
+separate integration session reconciled cross-document contracts, and multiple independent
+rubber-duck reviewers re-read the actual files (not their own memory) and issued
+blocking/non-blocking/nit verdicts until the cross-references reached a zero-blocking state. The human
+maintainer performed the final review and merge (PR #2, squash `142551b`, 2026-07-17: 32 files,
+roughly 7,500 lines; 17 documents plus 12 runnable `.logo` examples and the license). The same
+layered, review-gated pattern that would later build the compiler thus also built the compiler's
+contract — first evidence that the method generalizes beyond code.
+
 ### 3.2 The agent factory
 
 Twelve agents, defined in `.github/agents/*.agent.md`, split into **seven domain/package owners** and
@@ -430,6 +443,18 @@ underscored turtle commands (`forward`/`right`/`pen_up`, with `fd`/`rt`/`pu` aga
 OpenLogo source* (the `polygon` family is standard-library `.logo`, not an opaque primitive) so that
 learners still discover `repeat`, turns, and `define`. The `spec-fidelity` shared skill and the
 `ol-*` diagnostic registry make deviations detectable in review and CI, not merely discouraged.
+
+Two clauses show why fidelity here is pedagogical, not cosmetic. Geometry is required to stay
+*readable*: "Most of geometry is a derived standard library written in OpenLogo, not a hidden set of
+opaque primitives; the `grid`, `axes`, and `measure` overlays are the exception — they are
+renderer-backed primitives specified behaviorally rather than as OpenLogo source"
+(`spec/geometry-module.md`). And the teaching commands are constrained to protect discovery: the
+Educational profile's `hint` "MUST be progressive … and MUST NOT reveal a full solution on its first
+request," while the AI Tutor "MUST ask guiding questions before" answering and "MUST degrade
+gracefully to that Educational baseline" when the AI backend is unavailable (`spec/conformance.md`).
+An implementation that shipped `polygon` as a hidden primitive, or a tutor that printed a finished
+program, would compile and pass its unit tests yet violate the contract — precisely the class of
+error the fidelity gate exists to catch.
 
 ---
 
