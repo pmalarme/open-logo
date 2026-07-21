@@ -75,6 +75,10 @@ green, and (from M2 on) we tag a release.
 M2 is the flagship: the smallest thing that is a real, conformant OpenLogo. Everything after M2 is
 additive optional profiles, each releasable on its own once its conformance is green.
 
+M3's learner-facing documentation lives at [`educational-commands.md`](educational-commands.md)
+(the `explain`/`why`/`hint`/`debug` reference) and [`curriculum-overview.md`](curriculum-overview.md)
+(the Level 1–5 lessons).
+
 ### Working in parallel across domains
 
 Within a milestone, these run at the same time once the contracts are fixed: language/grammar,
