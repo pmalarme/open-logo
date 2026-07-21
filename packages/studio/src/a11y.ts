@@ -13,7 +13,8 @@
  * ## Keyboard operability — {@link REPL_FOCUS_ORDER}
  * A single, static, ordered list of every focusable stop across the four studio panes: the editor
  * (one `textbox` stop), the run controls (three `button` stops — Run/Stop/Reset, matching
- * `run-controller.ts`'s `run()`/`stop()`/`reset()`), the turtle Canvas pane (one `img`
+ * `run-controller.ts`'s `run()`/`stop()`/`reset()` — plus one `slider` stop, #310's turtle-speed
+ * control), the turtle Canvas pane (one `img`
  * stop, #218/#228's rendered + animated scene), and the diagnostics list (one `log` stop).
  * {@link nextFocusStop}/{@link previousFocusStop} cycle through it (wrapping at both ends), so a
  * future Tab/Shift+Tab (or roving-`tabindex`) binding can move forward and backward from *any*
@@ -22,10 +23,11 @@
  * `run-controller.ts`'s headless `step()` method still exists (Wave 1/#302 rebuilds a UI on it),
  * but 0.1.0 does not surface a `Next step` control, so this module deliberately adds no focus stop
  * for it (#305) — the same "document the honest gap, never fake it" precedent #126/#228 set for
- * controls that do not exist. `run-controller.ts` also has no `speed`/`export` control today
- * (`@openlogo/turtle` exposes `exportTurtleSvg`/`exportTurtlePng` and an animation
- * `stepsPerSecond` option, but studio does not yet wire either into a learner-facing action) —
- * same reasoning applies. Wiring those controls is left to follow-up issues.
+ * controls that do not exist. `@openlogo/turtle` also exposes `exportTurtleSvg`/`exportTurtlePng`,
+ * but studio does not yet wire either into a learner-facing action — same reasoning applies.
+ * Wiring an export control is left to a follow-up issue. #310 delivers the speed control this
+ * doc comment used to defer: {@link REPL_FOCUS_ORDER} now has a `slider` stop for it, in the
+ * `repl` region alongside Run/Stop/Reset.
  *
  * ## Semantic structure — {@link REPL_LANDMARK_ROLES}
  * The ARIA role + label a future renderer gives each pane's *container* (as opposed to the
@@ -64,7 +66,7 @@ import type { RegionName } from "./app-shell.js";
 
 /** The ARIA role a focus stop or landmark is exposed as. */
 export type A11yRole =
-  "textbox" | "toolbar" | "button" | "log" | "img" | "status";
+  "textbox" | "toolbar" | "button" | "log" | "img" | "status" | "slider";
 
 /** One focusable stop in the REPL's keyboard focus order. */
 export interface FocusStop {
@@ -79,7 +81,7 @@ export interface FocusStop {
 }
 
 /**
- * The studio's keyboard focus order: editor → Run → Stop → Reset → Step → turtle Canvas →
+ * The studio's keyboard focus order: editor → Run → Stop → Reset → Speed → turtle Canvas →
  * diagnostics list. Static and declarative — it does not depend on shell mount state — because
  * the full studio REPL + Canvas loop always composes every pane together.
  */
@@ -93,6 +95,12 @@ export const REPL_FOCUS_ORDER: readonly FocusStop[] = [
   { id: "run-button", region: "repl", role: "button", label: "Run" },
   { id: "stop-button", region: "repl", role: "button", label: "Stop" },
   { id: "reset-button", region: "repl", role: "button", label: "Reset" },
+  {
+    id: "speed-slider",
+    region: "repl",
+    role: "slider",
+    label: "Turtle speed",
+  },
   { id: "canvas", region: "turtle", role: "img", label: "Turtle canvas" },
   {
     id: "diagnostics-list",

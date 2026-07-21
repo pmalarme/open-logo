@@ -53,6 +53,18 @@
         <button id="run-button" type="button">Run</button>
         <button id="stop-button" type="button">Stop</button>
         <button id="reset-button" type="button">Reset</button>
+        <span class="speed-control">
+          <label for="speed-slider">Turtle speed</label>
+          <input
+            id="speed-slider"
+            type="range"
+            min="0"
+            max="100"
+            step="1"
+            aria-describedby="speed-description"
+          />
+          <span id="speed-description" aria-live="polite"></span>
+        </span>
         <p id="run-status" aria-live="polite"></p>
       </section>
       <section aria-label="Turtle canvas">

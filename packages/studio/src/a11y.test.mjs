@@ -28,7 +28,7 @@ test("REPL_FOCUS_ORDER covers every studio region with unique, stable ids", () =
   }
 });
 
-test("REPL_FOCUS_ORDER puts the editor first and diagnostics last, with Run/Stop/Reset and the canvas in between", () => {
+test("REPL_FOCUS_ORDER puts the editor first and diagnostics last, with Run/Stop/Reset/Speed and the canvas in between", () => {
   const order = OL.REPL_FOCUS_ORDER;
   assert.equal(order[0]?.id, "editor");
   assert.equal(order[order.length - 1]?.id, "diagnostics-list");
@@ -36,11 +36,12 @@ test("REPL_FOCUS_ORDER puts the editor first and diagnostics last, with Run/Stop
   const replStops = order.filter((stop) => stop.region === "repl");
   assert.deepEqual(
     replStops.map((stop) => stop.label),
-    ["Run", "Stop", "Reset"],
+    ["Run", "Stop", "Reset", "Turtle speed"],
   );
-  for (const stop of replStops) {
-    assert.equal(stop.role, "button");
-  }
+  assert.deepEqual(
+    replStops.map((stop) => stop.role),
+    ["button", "button", "button", "slider"],
+  );
 
   const canvasStop = order.find((stop) => stop.id === "canvas");
   assert.ok(canvasStop, "the canvas must be a focus stop");

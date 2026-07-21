@@ -80,6 +80,23 @@
  *   never paced to begin with, so there is nothing for them to desync from while the Canvas
  *   animation continues to play out the same already-computed stream.
  *
+ * ## #310 — a configurable turtle-speed slider
+ * Before this slice, `TurtleAnimationController`'s own pacing (`stepsPerSecond`/`setSpeed`) was
+ * never wired from studio's side — every run played back at whatever pace the injected
+ * `Scheduler` happened to use. `prepare()` now reads the shared state model's `speedSliderValue`
+ * and maps it (`turtle-speed.ts`'s {@link mapSpeedSliderValueToTickDelayMs}, the one tested place
+ * that owns this decision) to a per-tick delay, remembering whether that delay counts as
+ * "instant" ({@link isInstantTickDelay}) for `run()` to use. A **paced** delay becomes the
+ * `TurtleAnimationController`'s `stepsPerSecond` option (via
+ * {@link tickDelayMsToStepsPerSecond}); an **instant** delay is never passed as `stepsPerSecond`
+ * at all (that would require an infinite/zero value the controller's own speed-clamping cannot
+ * represent) — instead `run()` combines it into the existing `reducedMotion` flag it already
+ * passes to `playWithMotionPreference` (`instant || (options?.reducedMotion ?? false)`), which
+ * already knows how to paint a finished scene instantly via `seekToEnd()`. This makes the
+ * slider's "instant / no animation" end **complement**, not replace, the OS-level
+ * `prefers-reduced-motion` path: either one alone is enough to force instant playback, and
+ * neither overrides the other's own reasoning for wanting it.
+ *
  * ## #289 — `step()` from the initial idle state (before any `run()`)
  * `run()`'s body was always two halves: *prepare* (execute the source, surface output/diagnostics,
  * build a fresh `TurtleAnimationController` over the run's event stream) and *play* (start that
@@ -108,6 +125,11 @@ import type { Scheduler } from "@openlogo/turtle";
 import type { AppShell } from "./app-shell.js";
 import type { CanvasViewController } from "./canvas-view.js";
 import type { RunStatus, StudioStateStore } from "./state-model.js";
+import {
+  isInstantTickDelay,
+  mapSpeedSliderValueToTickDelayMs,
+  tickDelayMsToStepsPerSecond,
+} from "./turtle-speed.js";
 
 /** The document identifier passed to `execute()` when the caller doesn't supply one. */
 export const DEFAULT_RUN_DOCUMENT = "studio-session";
@@ -131,7 +153,10 @@ export interface RunControllerOptions {
   /**
    * When `true`, `run()` paints the final turtle scene instantly instead of pacing per-step ticks
    * (`@openlogo/turtle`'s `playWithMotionPreference`) — wire this to the browser's
-   * `prefers-reduced-motion` media query (#227). Defaults to `false`.
+   * `prefers-reduced-motion` media query (#227). Defaults to `false`. Combined with (never
+   * replaced by) the shared state model's `speedSliderValue` (#310): a run paints instantly when
+   * *either* this option is `true` *or* the slider is at its dedicated "instant" position — see
+   * this module's doc comment ("#310").
    */
   readonly reducedMotion?: boolean;
   /**
@@ -225,10 +250,13 @@ export function createRunController(
   // latches once `stop()` is called and is only cleared by `run()`/`reset()`/a lazy `prepare()`
   // from `step()` — it prevents a later `step()` from silently overwriting an explicit stop back
   // to `finalRunStatus` once the learner finishes manually stepping through the rest of an
-  // already-stopped animation.
+  // already-stopped animation. `currentIsInstant` (#310) is prepare()'s verdict on whether the
+  // current speedSliderValue maps to the dedicated "instant" tick delay — run() reads it to
+  // OR-combine with RunControllerOptions.reducedMotion (see this module's doc comment, "#310").
   let animation: TurtleAnimationController | null = null;
   let finalRunStatus: RunStatus = "idle";
   let userStopped = false;
+  let currentIsInstant = false;
 
   /** Push `current`'s folded state/scene into the shared store and repaint (never called with a
    * null animation — callers only invoke this once `animation` has been assigned). */
@@ -283,7 +311,20 @@ export function createRunController(
         maybeSettleRunStatus(current);
       }, delayMs);
 
-    current = new TurtleAnimationController(result.events, { scheduler });
+    const tickDelayMs = mapSpeedSliderValueToTickDelayMs(
+      state.getState().speedSliderValue,
+    );
+    currentIsInstant = isInstantTickDelay(tickDelayMs);
+
+    current = new TurtleAnimationController(result.events, {
+      scheduler,
+      // Only set stepsPerSecond for a genuinely paced speed — an "instant" tick delay has no
+      // finite steps-per-second equivalent (see turtle-speed.ts's tickDelayMsToStepsPerSecond doc
+      // comment) and is instead handled entirely through run()'s reducedMotion OR-combination.
+      ...(currentIsInstant
+        ? {}
+        : { stepsPerSecond: tickDelayMsToStepsPerSecond(tickDelayMs) }),
+    });
     animation = current;
     return current;
   }
@@ -291,7 +332,7 @@ export function createRunController(
   function run(): void {
     const current = prepare();
     playWithMotionPreference(current, {
-      reducedMotion: options?.reducedMotion ?? false,
+      reducedMotion: (options?.reducedMotion ?? false) || currentIsInstant,
     });
     pushTurtleSnapshot(current);
     maybeSettleRunStatus(current);

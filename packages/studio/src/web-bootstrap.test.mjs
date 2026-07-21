@@ -74,10 +74,10 @@ test("toDiagnosticListItems formats one fully-labeled item per diagnostic", () =
   ]);
 });
 
-test("createTimeoutScheduler schedules via the injected setTimeout with the fixed delay", () => {
+test("createTimeoutScheduler schedules via the injected setTimeout, honoring the caller's own delayMs", () => {
   const calls = [];
   let nextHandle = 0;
-  const scheduler = createTimeoutScheduler(150, {
+  const scheduler = createTimeoutScheduler({
     setTimeout: (callback, delayMs) => {
       calls.push(["setTimeout", delayMs]);
       callback();
@@ -96,20 +96,20 @@ test("createTimeoutScheduler schedules via the injected setTimeout with the fixe
 
   assert.equal(invoked, true);
   assert.deepEqual(calls, [
-    ["setTimeout", 150],
+    ["setTimeout", 999],
     ["clearTimeout", 1],
   ]);
 });
 
-test("createTimeoutScheduler ignores the caller's own delayMs and always uses its fixed delay", () => {
+test("createTimeoutScheduler honors each call's own delayMs independently, never a fixed pace", () => {
   const seenDelays = [];
   const clearedHandles = [];
   const invokedCallbacks = [];
-  const scheduler = createTimeoutScheduler(75, {
+  const scheduler = createTimeoutScheduler({
     setTimeout: (callback, delayMs) => {
       seenDelays.push(delayMs);
       callback();
-      return "handle";
+      return `handle-${delayMs}`;
     },
     clearTimeout: (handle) => {
       clearedHandles.push(handle);
@@ -125,15 +125,15 @@ test("createTimeoutScheduler ignores the caller's own delayMs and always uses it
   firstCancel();
   secondCancel();
 
-  assert.deepEqual(seenDelays, [75, 75]);
+  assert.deepEqual(seenDelays, [1, 10000]);
   assert.deepEqual(invokedCallbacks, ["first", "second"]);
-  assert.deepEqual(clearedHandles, ["handle", "handle"]);
+  assert.deepEqual(clearedHandles, ["handle-1", "handle-10000"]);
 });
 
 test("createTimeoutScheduler's returned cancel function calls the injected clearTimeout with the same handle", () => {
   const calls = [];
   let invoked = false;
-  const scheduler = createTimeoutScheduler(50, {
+  const scheduler = createTimeoutScheduler({
     setTimeout: (callback) => {
       callback();
       return "the-handle";

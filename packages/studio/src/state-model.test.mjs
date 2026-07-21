@@ -12,6 +12,7 @@ test("createStudioState returns the documented initial snapshot", () => {
   assert.deepEqual(state.diagnostics, []);
   assert.deepEqual(state.output, []);
   assert.deepEqual(state.lesson, { lessonId: null, title: null });
+  assert.equal(state.speedSliderValue, OL.DEFAULT_SPEED_SLIDER_VALUE);
 });
 
 test("createStudioState honors provided initial values", () => {
@@ -133,4 +134,20 @@ test("subscribe returns an unsubscribe function that stops further notifications
   assert.equal(seen.length, 1);
   assert.equal(seen[0].source, "a");
   assert.equal(store.getState().source, "b");
+});
+
+test("createStudioState honors a provided initial speedSliderValue", () => {
+  const store = OL.createStudioState({ speedSliderValue: 75 });
+  assert.equal(store.getState().speedSliderValue, 75);
+});
+
+test("setSpeedSliderValue replaces the slider position and notifies subscribers", () => {
+  const store = OL.createStudioState();
+  const seen = [];
+  store.subscribe((state) => seen.push(state.speedSliderValue));
+
+  store.setSpeedSliderValue(100);
+
+  assert.equal(store.getState().speedSliderValue, 100);
+  assert.deepEqual(seen, [100]);
 });
