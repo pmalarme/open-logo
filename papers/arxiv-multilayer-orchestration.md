@@ -460,8 +460,10 @@ error the fidelity gate exists to catch.
 
 ## 5. Results
 
-All figures below were measured directly from the repository on 2026-07-21 using `git` and the GitHub
-CLI (`gh`); we state the measurement for each so they can be reproduced.
+All figures below were measured directly from the repository on 2026-07-21 (≈11:30 CET) using `git`
+and the GitHub CLI (`gh`); we state the measurement for each so they can be reproduced. Because
+development remained active while this paper was written, counts for the final day are a partial,
+still-growing window rather than a closed total.
 
 **Table 2. Quantitative outcomes.**
 
@@ -476,18 +478,19 @@ CLI (`gh`); we state the measurement for each so they can be reproduced.
 | Label taxonomy | 64 | `gh label list` |
 | Stack-neutral conformance fixtures | 397 | `.logo`/`.expected.json` pairs under `tests/conformance/` |
 | Spec example programs | 12 | `spec/examples/*.logo` |
-| Commits on `main` | 147 | `git rev-list --count HEAD` |
-| Merged pull requests | 146 | `gh pr list --state merged` |
-| Issues (open / closed) | 37 / 170 | `gh issue list` |
+| Commits on `main` | 148 | `git rev-list --count origin/main` |
+| Merged pull requests | 147 | `gh pr list --state merged` |
+| Issues (open / closed) | 36 / 171 | `gh issue list` |
 | Project board items | 206 | `gh project item-list 5` |
 | Milestones (profile + cross-cutting) | 13 | `gh api …/milestones` |
 | Tagged releases | 1 (`v0.1.0`) | `git tag` |
 
 **Timeline and throughput.** The first commit landed 2026-07-16; the first PR merged 2026-07-17; the
 `v0.1.0` release commit is dated 2026-07-20; the most recent merge in our window is 2026-07-21. Merged
-PRs per day were 12 / 45 / 56 / 26 / 7 across 2026-07-17…21 — a pronounced burst reflecting Layer-3
-parallelism once the M0 contracts were frozen. The **minimal conformant language therefore went from
-empty repository to tagged, conformance-backed `v0.1.0` in roughly four days** of agent-driven work.
+PRs per day were 12 / 45 / 56 / 26 / 8 across 2026-07-17…21 (the final day still open at measurement)
+— a pronounced burst reflecting Layer-3 parallelism once the M0 contracts were frozen. The **minimal
+conformant language therefore went from empty repository to tagged, conformance-backed `v0.1.0` in
+roughly four days** of agent-driven work.
 
 **Work distribution across milestones.** Closed issues per profile milestone were M0 = 4, M1 = 81,
 M2 = 36, with M3 = 7 (of 17), M4 = 4 (of 12), and M5 = 0 (of 3) in progress at time of measurement;

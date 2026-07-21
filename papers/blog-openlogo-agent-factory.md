@@ -189,11 +189,11 @@ bugs distributed systems have had for decades, now wearing an LLM costume.
 
 ## What actually shipped
 
-Measured straight from the repo:
+Measured straight from the repo (as of this writing, 2026-07-21):
 
 - **6** packages, **12** agents, **29** skill playbooks, **12** architecture decision records, **6** CI
   workflows.
-- **146** merged pull requests and **397** conformance fixtures.
+- **147** merged pull requests and **397** conformance fixtures.
 - Merge throughput once the shared contracts were frozen: **12 → 45 → 56 → 26** PRs a day.
 - A tagged, minimally conformant **`v0.1.0`** — Core language + turtle graphics that really draws — with
   Educational, Data, and Geometry profiles now building *in parallel* on top.
