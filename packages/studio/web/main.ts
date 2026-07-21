@@ -38,6 +38,7 @@ import {
   createDiagnosticsController,
   createEditorController,
   createKeyValueStorageAdapter,
+  createLessonPaneController,
   createRunController,
   createRunLogController,
   createStudioState,
@@ -51,6 +52,7 @@ import {
   mountCanvasView,
   mountDiagnosticsPane,
   mountEditorPane,
+  mountLessonPane,
   mountRunController,
   selectAnnouncerElementId,
   selectScheduler,
@@ -58,11 +60,15 @@ import {
   SPEED_SLIDER_MIN,
   syncTextValue,
   toDiagnosticListItems,
+  toLessonDetailViewItem,
+  toLessonNavItems,
   toRunLogListItems,
 } from "../src/index.js";
 import type {
   DiagnosticListItem,
   Canvas2DContext,
+  LessonDetailViewItem,
+  LessonNavItem,
   RunLogEntry,
   RunLogEntryViewItem,
 } from "../src/index.js";
@@ -120,6 +126,14 @@ const diagnosticsListElement = assertPresent<HTMLElement>(
 const runLogElement = assertPresent<HTMLElement>(
   document.getElementById("run-log"),
   "run-log",
+);
+const lessonNavListElement = assertPresent<HTMLElement>(
+  document.getElementById("lesson-nav-list"),
+  "lesson-nav-list",
+);
+const lessonDetailElement = assertPresent<HTMLElement>(
+  document.getElementById("lesson-detail"),
+  "lesson-detail",
 );
 const turtleStateElement = assertPresent<HTMLElement>(
   document.getElementById("turtle-state"),
@@ -185,6 +199,9 @@ const runController = createRunController(state, {
 mountRunController(shell, runController);
 
 const runLog = createRunLogController(state);
+
+const lessonPane = createLessonPaneController(state);
+mountLessonPane(shell, lessonPane);
 
 const announcer = createA11yAnnouncer(state);
 announcer.subscribeAnnouncements((announcement) => {
@@ -278,6 +295,105 @@ function renderRunLog(
   );
 }
 
+/** Builds one clickable `<li>`/`<button>` per already-projected {@link LessonNavItem} — plain DOM
+ * element creation with no decision of its own (the label/selection DECISION was already made by
+ * {@link toLessonNavItems}); clicking a button just forwards its id to
+ * {@link LessonPaneController.selectLesson}, which republishes through the shared state model, so
+ * this stays a thin, branch-free wiring layer like every other `create*Element` helper above. */
+function createLessonNavItemElement(item: LessonNavItem): HTMLLIElement {
+  const listItem = document.createElement("li");
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "lesson-nav-item";
+  button.textContent = `${item.title} (Level ${item.level})`;
+  button.setAttribute("aria-current", String(item.isSelected));
+  button.addEventListener("click", () => {
+    lessonPane.selectLesson(item.id);
+  });
+
+  listItem.replaceChildren(button);
+  return listItem;
+}
+
+function renderLessonNav(
+  list: HTMLElement,
+  selectedLessonId: string | null,
+): void {
+  list.replaceChildren(
+    ...toLessonNavItems(lessonPane.getLessons(), selectedLessonId).map(
+      createLessonNavItemElement,
+    ),
+  );
+}
+
+/** Builds one worked-example `<div>` per already-projected item — verbatim `source`/`explanation`
+ * text from `@openlogo/edu`'s #189 contract, no reformatting. */
+function createLessonWorkedExampleElement(item: {
+  readonly source: string;
+  readonly explanation: string;
+}): HTMLDivElement {
+  const container = document.createElement("div");
+  container.className = "lesson-detail-worked-example";
+
+  const source = document.createElement("pre");
+  source.textContent = item.source;
+
+  const explanation = document.createElement("p");
+  explanation.textContent = item.explanation;
+
+  container.replaceChildren(source, explanation);
+  return container;
+}
+
+/** Renders the lesson detail article from an already-projected {@link LessonDetailViewItem} —
+ * the `hasLesson`/empty-state DECISION was already made by {@link toLessonDetailViewItem}; this
+ * only branches on that precomputed flag to choose which fixed set of nodes to build. */
+function renderLessonDetail(
+  article: HTMLElement,
+  item: LessonDetailViewItem,
+): void {
+  if (!item.hasLesson) {
+    const empty = document.createElement("p");
+    empty.textContent = item.emptyStateLabel;
+    article.replaceChildren(empty);
+    return;
+  }
+
+  const heading = document.createElement("h2");
+  heading.textContent = item.title;
+
+  const level = document.createElement("p");
+  level.textContent = `Level ${item.level}`;
+
+  const objective = document.createElement("p");
+  objective.textContent = item.objective;
+
+  const workedExamplesHeading = document.createElement("h3");
+  workedExamplesHeading.textContent = "Worked examples";
+
+  const workedExamples = document.createElement("div");
+  workedExamples.replaceChildren(
+    ...item.workedExamples.map(createLessonWorkedExampleElement),
+  );
+
+  const exercisePromptHeading = document.createElement("h3");
+  exercisePromptHeading.textContent = "Your turn";
+
+  const exercisePrompt = document.createElement("p");
+  exercisePrompt.textContent = item.exercisePrompt;
+
+  article.replaceChildren(
+    heading,
+    level,
+    objective,
+    workedExamplesHeading,
+    workedExamples,
+    exercisePromptHeading,
+    exercisePrompt,
+  );
+}
+
 state.subscribe((next) => {
   syncTextValue(editorElement, next.source);
   runStatusElement.textContent = mapRunStatusToLabel(next.runStatus);
@@ -286,6 +402,11 @@ state.subscribe((next) => {
   syncTextValue(speedSliderElement, String(next.speedSliderValue));
   speedDescriptionElement.textContent = describeSpeedTickDelayMs(
     mapSpeedSliderValueToTickDelayMs(next.speedSliderValue),
+  );
+  renderLessonNav(lessonNavListElement, next.lesson.lessonId);
+  renderLessonDetail(
+    lessonDetailElement,
+    toLessonDetailViewItem(lessonPane.getSelectedLesson()),
   );
 });
 runLog.subscribeEntries(() => {
@@ -298,4 +419,9 @@ renderRunLog(runLogElement, runLog.getEntries());
 syncTextValue(speedSliderElement, String(state.getState().speedSliderValue));
 speedDescriptionElement.textContent = describeSpeedTickDelayMs(
   mapSpeedSliderValueToTickDelayMs(state.getState().speedSliderValue),
+);
+renderLessonNav(lessonNavListElement, state.getState().lesson.lessonId);
+renderLessonDetail(
+  lessonDetailElement,
+  toLessonDetailViewItem(lessonPane.getSelectedLesson()),
 );

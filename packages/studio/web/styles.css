@@ -84,14 +84,11 @@ header h1 {
  * layouts; every pane keeps its existing id/role/aria-label, so #279's landmarks and focus order
  * are untouched by this purely presentational, CSS-only slice.
  *
- * Extension slot for the future lesson pane (#127/M3, target end-state
- * "Lesson | Editor | Run/Canvas"): `#lesson-pane`/`.pane-lesson` in index.html starts `hidden`,
- * so it has no box and no `grid-area` participation at all — none of the rules below reserve any
- * space for it while hidden, in either layout. The `main:has(.pane-lesson:not([hidden]))` rules
- * further down are the *only* place its column/row is defined; they activate automatically the
- * moment a future lesson-pane module clears that `hidden` attribute, with zero further edits to
- * this file, index.html, or app-shell.ts (whose "lesson" `RegionName` this reuses, unchanged
- * since #123). `:has()` is supported by every evergreen browser this project targets.
+ * #127 lesson pane (target end-state "Lesson | Editor | Run/Canvas"): `#lesson-pane`/
+ * `.pane-lesson` in index.html is always present now (never `hidden`), so the
+ * `main:has(.pane-lesson:not([hidden]))` rules further down — the only place its column/row are
+ * defined — always match, reserving its column in the wide layout and its row (first) in the
+ * narrow stacked layout. `:has()` is supported by every evergreen browser this project targets.
  */
 main {
   display: grid;
@@ -117,6 +114,59 @@ main section {
 
 .pane-lesson {
   grid-area: lesson;
+}
+
+/* #127 lesson pane — nav list of every lesson (built by web/main.ts from
+   `toLessonNavItems`) plus the detail article for the selected lesson (from
+   `toLessonDetailViewItem`). `[aria-current="true"]` marks the selected nav item without relying
+   on color alone (it also gets a distinct background below). */
+.lesson-nav-heading {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+}
+
+.lesson-nav-list {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+}
+
+.lesson-nav-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  color: var(--ol-navy);
+  cursor: pointer;
+}
+
+.lesson-nav-item:hover {
+  border-color: var(--ol-border);
+}
+
+.lesson-nav-item[aria-current="true"] {
+  background: var(--ol-background);
+  border-color: var(--ol-blue);
+  font-weight: 600;
+}
+
+.lesson-detail-worked-example {
+  margin: 0 0 0.75rem;
+}
+
+.lesson-detail-worked-example pre {
+  margin: 0 0 0.25rem;
+  padding: 0.5rem;
+  background: var(--ol-background);
+  border: 1px solid var(--ol-border);
+  border-radius: 6px;
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.85rem;
 }
 
 .pane-editor {

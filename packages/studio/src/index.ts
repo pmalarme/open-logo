@@ -362,3 +362,18 @@ export {
   NO_RUN_OUTPUT_LABEL,
   toRunLogListItems,
 } from "./run-log.js";
+
+export type {
+  LessonDetailViewItem,
+  LessonNavItem,
+  LessonPaneController,
+  LessonPaneControllerOptions,
+  LessonWorkedExampleViewItem,
+} from "./lesson-pane.js";
+export {
+  createLessonPaneController,
+  mountLessonPane,
+  NO_LESSON_SELECTED_LABEL,
+  toLessonDetailViewItem,
+  toLessonNavItems,
+} from "./lesson-pane.js";

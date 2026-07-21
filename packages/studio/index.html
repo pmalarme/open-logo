@@ -40,18 +40,27 @@
     ></div>
     <main>
       <!--
-        #313 extension slot for the future lesson pane (#127/M3): a placeholder that stays
-        `hidden` (fully removed from layout, focus order, and the accessibility tree) until a
-        future lesson-pane module mounts into the app shell's existing "lesson" region
-        (`APP_SHELL_REGIONS` in src/app-shell.ts, unchanged since #123) and clears this `hidden`
-        attribute. `web/styles.css`'s `main:has(.pane-lesson:not([hidden]))` rules already reserve
-        its column/row in both the wide (3-column: lesson | editor+controls | turtle) and narrow
-        (stacked, lesson first) layouts, so mounting a lesson pane needs NO further edits to this
-        file, styles.css, or app-shell.ts. The mounting module is responsible for its own
-        role/aria-label and a REPL_FOCUS_ORDER/REPL_LANDMARK_ROLES entry in src/a11y.ts, since
-        #313 cannot declare an accessible name/role for content that doesn't exist yet.
+        #127 lesson pane: renders `@openlogo/edu`'s read-only `Lesson` content (#189) via
+        `src/lesson-pane.ts`'s headless controller + pure view projections, mounted into the app
+        shell's existing "lesson" region (`APP_SHELL_REGIONS` in src/app-shell.ts, unchanged since
+        #123). #313's `main:has(.pane-lesson:not([hidden]))` rules in `web/styles.css` reserve its
+        column/row in both the wide (3-column: lesson | editor+controls | turtle) and narrow
+        (stacked, lesson first) layouts; this section is never `hidden` now that the pane is real.
+        `web/main.ts` builds the `<li>`/detail nodes from already-formatted view items — this
+        markup only declares the static nav/detail structure and its landmark roles/labels.
       -->
-      <section id="lesson-pane" class="pane-lesson" hidden></section>
+      <section id="lesson-pane" class="pane-lesson" aria-label="Lessons">
+        <nav aria-label="Lessons">
+          <h2 class="lesson-nav-heading">Lessons</h2>
+          <ul id="lesson-nav-list" class="lesson-nav-list"></ul>
+        </nav>
+        <article
+          id="lesson-detail"
+          class="lesson-detail"
+          aria-label="Lesson detail"
+          aria-live="polite"
+        ></article>
+      </section>
       <section class="pane-editor" aria-label="Editor">
         <textarea
           id="editor"
