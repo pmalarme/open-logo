@@ -1,0 +1,7 @@
+{
+  "description": "`insert 5 in :nums at 0` parses cleanly as an Insert statement (grammar.md's `insert-statement ::= \"insert\" expression \"in\" expression \"at\" expression`) — parse/AST only, no runtime evaluation.",
+  "profiles": ["core-language", "data"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

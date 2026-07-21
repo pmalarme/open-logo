@@ -1,0 +1,3 @@
+# `clear` requires a collection operand; with none before end of line it reports ol-bad-token
+# anchored at the line end (spec/error-model.md). Parse-only negative fixture.
+clear

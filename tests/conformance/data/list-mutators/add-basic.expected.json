@@ -1,0 +1,7 @@
+{
+  "description": "`add 5 to :nums` parses cleanly as an Add statement (grammar.md's `add-statement ::= \"add\" expression \"to\" expression`) — parse/AST only, no runtime evaluation.",
+  "profiles": ["core-language", "data"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

@@ -1,0 +1,3 @@
+# The `remove key` production still requires `from` before its target; omitting it reports
+# ol-bad-token at the token found instead (spec/error-model.md). Parse-only negative fixture.
+remove key sophie :ages

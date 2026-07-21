@@ -1,0 +1,7 @@
+{
+  "description": "`remove 5 from :nums` parses cleanly as a Remove statement (grammar.md's `remove-statement ::= \"remove\" expression \"from\" expression`) — parse/AST only, no runtime evaluation.",
+  "profiles": ["core-language", "data"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

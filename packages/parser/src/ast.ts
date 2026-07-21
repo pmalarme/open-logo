@@ -49,6 +49,11 @@ export const OL_NODE_KINDS = [
   "Return",
   "Stop",
   "Throw",
+  "Add",
+  "Remove",
+  "RemoveKey",
+  "Insert",
+  "Clear",
 ] as const;
 
 /** One Core AST node kind. */
@@ -385,6 +390,65 @@ export interface ThrowNode extends NodeBase {
   readonly value: ExpressionNode;
 }
 
+/**
+ * `add value to target` — append `value` to the list `target` (Data profile,
+ * `spec/grammar.md`'s `add-statement ::= "add" expression "to" expression`;
+ * `spec/execution-model.md:447-482`). A statement, never a reporter — it mutates in place and
+ * returns nothing. Runtime evaluation lands in its own Data-profile slice.
+ */
+export interface AddNode extends NodeBase {
+  readonly kind: "Add";
+  readonly value: ExpressionNode;
+  readonly target: ExpressionNode;
+}
+
+/**
+ * `remove value from target` — remove `value` from the list `target` (Data profile,
+ * `spec/grammar.md`'s `remove-statement ::= "remove" expression "from" expression`). Distinct
+ * from {@link RemoveKeyNode}, which drops a dictionary entry by key rather than a list element by
+ * value.
+ */
+export interface RemoveNode extends NodeBase {
+  readonly kind: "Remove";
+  readonly value: ExpressionNode;
+  readonly target: ExpressionNode;
+}
+
+/**
+ * `remove key <key-term> from target` — drop the entry keyed `key` from the dictionary `target`
+ * (Data profile, `spec/grammar.md`'s
+ * `remove-key-statement ::= "remove" "key" key-term "from" expression`). Its own production,
+ * separate from {@link RemoveNode}: the `key` is a `key-term` (a literal word/number, a `:name`
+ * read, or a parenthesized expression), so a bare identifier such as `sophie` is carried as a
+ * {@link WordLitNode}, exactly like a bracketed selector key.
+ */
+export interface RemoveKeyNode extends NodeBase {
+  readonly kind: "RemoveKey";
+  readonly key: ExpressionNode;
+  readonly target: ExpressionNode;
+}
+
+/**
+ * `insert value in target at index` — insert `value` into the list `target` at position `index`
+ * (Data profile, `spec/grammar.md`'s
+ * `insert-statement ::= "insert" expression "in" expression "at" expression`).
+ */
+export interface InsertNode extends NodeBase {
+  readonly kind: "Insert";
+  readonly value: ExpressionNode;
+  readonly target: ExpressionNode;
+  readonly index: ExpressionNode;
+}
+
+/**
+ * `clear target` — empty the collection `target` (Data profile, `spec/grammar.md`'s
+ * `clear-statement ::= "clear" expression`).
+ */
+export interface ClearNode extends NodeBase {
+  readonly kind: "Clear";
+  readonly target: ExpressionNode;
+}
+
 /** Nodes usable in value position. */
 export type ExpressionNode =
   | NumberLitNode
@@ -418,7 +482,12 @@ export type StatementNode =
   | ProcedureDefNode
   | ReturnNode
   | StopNode
-  | ThrowNode;
+  | ThrowNode
+  | AddNode
+  | RemoveNode
+  | RemoveKeyNode
+  | InsertNode
+  | ClearNode;
 
 /** Any concrete AST node. */
 export type AnyNode = ProgramNode | StatementNode | DestructuringBinderNode;
@@ -602,6 +671,38 @@ export const ast = {
   throwStmt(value: ExpressionNode, span: SourceSpan): ThrowNode {
     return { kind: "Throw", source_span: span, value };
   },
+  add(
+    value: ExpressionNode,
+    target: ExpressionNode,
+    span: SourceSpan,
+  ): AddNode {
+    return { kind: "Add", source_span: span, value, target };
+  },
+  remove(
+    value: ExpressionNode,
+    target: ExpressionNode,
+    span: SourceSpan,
+  ): RemoveNode {
+    return { kind: "Remove", source_span: span, value, target };
+  },
+  removeKey(
+    key: ExpressionNode,
+    target: ExpressionNode,
+    span: SourceSpan,
+  ): RemoveKeyNode {
+    return { kind: "RemoveKey", source_span: span, key, target };
+  },
+  insert(
+    value: ExpressionNode,
+    target: ExpressionNode,
+    index: ExpressionNode,
+    span: SourceSpan,
+  ): InsertNode {
+    return { kind: "Insert", source_span: span, value, target, index };
+  },
+  clear(target: ExpressionNode, span: SourceSpan): ClearNode {
+    return { kind: "Clear", source_span: span, target };
+  },
 } as const;
 
 /** A visitor invoked once per node during {@link walk}. */
@@ -685,6 +786,15 @@ export function childrenOf(node: AnyNode): readonly AnyNode[] {
     case "Return":
     case "Throw":
       return [node.value];
+    case "Add":
+    case "Remove":
+      return [node.value, node.target];
+    case "RemoveKey":
+      return [node.key, node.target];
+    case "Insert":
+      return [node.value, node.target, node.index];
+    case "Clear":
+      return [node.target];
     default:
       return [];
   }

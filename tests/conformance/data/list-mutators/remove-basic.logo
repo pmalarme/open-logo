@@ -1,0 +1,3 @@
+# `remove <value> from <list>` removes a value from a list in place (Data profile,
+# grammar.md's `remove-statement ::= "remove" expression "from" expression`). Parse-only.
+remove 5 from :nums

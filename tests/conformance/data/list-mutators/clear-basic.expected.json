@@ -1,0 +1,7 @@
+{
+  "description": "`clear :nums` parses cleanly as a Clear statement (grammar.md's `clear-statement ::= \"clear\" expression`) — parse/AST only, no runtime evaluation.",
+  "profiles": ["core-language", "data"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

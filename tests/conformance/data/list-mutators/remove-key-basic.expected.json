@@ -1,0 +1,7 @@
+{
+  "description": "`remove key sophie from :ages` parses cleanly as a RemoveKey statement (grammar.md's `remove-key-statement ::= \"remove\" \"key\" key-term \"from\" expression`); the bare key `sophie` is a literal word, not a variable read — parse/AST only, no runtime evaluation.",
+  "profiles": ["core-language", "data"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

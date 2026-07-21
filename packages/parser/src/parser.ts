@@ -1239,6 +1239,14 @@ export function parse(source: string, document = "<input>"): ParseResult {
           return parseStop();
         case "throw":
           return parseThrow();
+        case "add":
+          return parseAdd();
+        case "remove":
+          return parseRemove();
+        case "insert":
+          return parseInsert();
+        case "clear":
+          return parseClear();
         default:
           break;
       }
@@ -1709,6 +1717,133 @@ export function parse(source: string, document = "<input>"): ParseResult {
       return undefined;
     }
     return ast.throwStmt(value, spanFrom(token.source_span.start, value));
+  }
+
+  /**
+   * Parse a required expression, reporting the offending token when none is present. Shared by the
+   * list-mutator statements below, whose operands (`spec/grammar.md:113-117`) are all required.
+   */
+  function requireExpression(): ExpressionNode | undefined {
+    const expr = parseExpression();
+    if (expr === undefined) {
+      diagnostics.push(unexpected(current()));
+    }
+    return expr;
+  }
+
+  /**
+   * Consume the contextual keyword `word` (`to`/`from`/`in`/`at`) if it is next, reporting the
+   * offending token and leaving the cursor put otherwise. The list-mutator separators are keywords
+   * only in these statement forms, so they are matched by surface spelling, not a token kind.
+   */
+  function consumeKeyword(word: string): boolean {
+    if (!isName(word)) {
+      diagnostics.push(unexpected(current()));
+      return false;
+    }
+    advance();
+    return true;
+  }
+
+  /** `add expression "to" expression` (`spec/grammar.md:113`, Data profile). */
+  function parseAdd(): StatementNode | undefined {
+    const token = current();
+    advance();
+    const value = requireExpression();
+    if (value === undefined) {
+      return undefined;
+    }
+    if (!consumeKeyword("to")) {
+      return undefined;
+    }
+    const target = requireExpression();
+    if (target === undefined) {
+      return undefined;
+    }
+    return ast.add(value, target, spanFrom(token.source_span.start, target));
+  }
+
+  /**
+   * `remove expression "from" expression` (`spec/grammar.md:114`) or, when `key` follows `remove`,
+   * the distinct `remove "key" key-term "from" expression` (`spec/grammar.md:115`). Both are Data
+   * profile.
+   */
+  function parseRemove(): StatementNode | undefined {
+    const token = current();
+    advance();
+    if (isName("key")) {
+      advance();
+      const key = parseKeyTerm();
+      if (key === undefined) {
+        diagnostics.push(unexpected(current()));
+        return undefined;
+      }
+      if (!consumeKeyword("from")) {
+        return undefined;
+      }
+      const target = requireExpression();
+      if (target === undefined) {
+        return undefined;
+      }
+      return ast.removeKey(
+        key,
+        target,
+        spanFrom(token.source_span.start, target),
+      );
+    }
+    const value = requireExpression();
+    if (value === undefined) {
+      return undefined;
+    }
+    if (!consumeKeyword("from")) {
+      return undefined;
+    }
+    const target = requireExpression();
+    if (target === undefined) {
+      return undefined;
+    }
+    return ast.remove(value, target, spanFrom(token.source_span.start, target));
+  }
+
+  /** `insert expression "in" expression "at" expression` (`spec/grammar.md:116`, Data profile). */
+  function parseInsert(): StatementNode | undefined {
+    const token = current();
+    advance();
+    const value = requireExpression();
+    if (value === undefined) {
+      return undefined;
+    }
+    if (!consumeKeyword("in")) {
+      return undefined;
+    }
+    const target = requireExpression();
+    if (target === undefined) {
+      return undefined;
+    }
+    if (!consumeKeyword("at")) {
+      return undefined;
+    }
+    const index = requireExpression();
+    if (index === undefined) {
+      return undefined;
+    }
+    return ast.insert(
+      value,
+      target,
+      index,
+      spanFrom(token.source_span.start, index),
+    );
+  }
+
+  /** `clear expression` (`spec/grammar.md:117`, Data profile). */
+  function parseClear(): StatementNode | undefined {
+    const token = current();
+    advance();
+    const target = requireExpression();
+    if (target === undefined) {
+      return undefined;
+    }
+    return ast.clear(target, spanFrom(token.source_span.start, target));
   }
 
   function parseProgram(): ProgramNode {
