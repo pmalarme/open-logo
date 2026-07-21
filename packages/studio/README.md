@@ -146,6 +146,43 @@ The `#run-status` region (`index.html`) shows a learner-facing label instead of 
   new markup needed beyond a `role`/`aria-label` for parity with the turtle-state region); the label
   is plain text — color is never used to distinguish run states.
 
+## Icon Start/Pause run-toggle (#316)
+
+Presentation only, over the unchanged `run-controller.ts` — no new run-lifecycle semantics.
+
+- The separate `#run-button` ("Run") and `#stop-button` ("Stop") are replaced by a single
+  `#run-toggle-button` in `index.html`, an icon + label toggle: a play icon/"Start" label while
+  idle/done/stopped, a pause icon/"Pause" label while running. `#reset-button` is unchanged in
+  behavior and gains a matching icon.
+- `src/run-controls.ts` — the one tested, pure place that decides the toggle's presentation:
+  `mapRunStatusToRunToggleViewModel(runStatus)` maps every internal `RunStatus` to a
+  `RunToggleViewModel` (`action: "run" | "stop"`, `icon: "play" | "pause"`, `label`, `ariaLabel`,
+  `ariaPressed`). `"running"` is the only status that maps to `action: "stop"`/`ariaPressed: true`;
+  every other status maps to `action: "run"`/`ariaPressed: false`. `web/main.ts` never branches on
+  `runStatus` itself to decide the toggle's label/icon/click target — it looks the already-decided
+  `action` up in a small `Record<RunToggleAction, () => void>` (`run: () => runController.run()`,
+  `stop: () => runController.stop()`) and applies the view model's fields onto the DOM via plain
+  attribute assignment (`renderRunToggleButton`), matching this package's existing thin,
+  branch-free `web/main.ts` convention (`run-status-label.ts`/`turtle-speed.ts` follow the same
+  shape).
+- **Scope boundary:** clicking the toggle while running still calls the existing `stop()` — there
+  is no pause/resume method, and `run()`/`stop()`/`reset()` are otherwise byte-for-byte unchanged.
+  The toggle's "Pause" label is a learner-facing affordance over that same `stop()` call, not a new
+  runtime capability. There is still no `step()`/"Next step" control in the 0.1.0 UI (deferred to
+  Studio Stepper Wave 1 / #302 / milestone #12, per `a11y.ts`'s doc comment) — this slice does not
+  cross that boundary.
+- Accessibility: the icon (`.control-icon`, a CSS `::before`-rendered Unicode glyph keyed off the
+  button's `data-icon` attribute) is `aria-hidden="true"` and never the only accessible signal —
+  the toggle always carries an `aria-label` (`"Start run"`/`"Pause run"`) plus a visible text label
+  (`#run-toggle-label`, "Start"/"Pause") and an `aria-pressed` state reflecting whether a run is in
+  progress. `REPL_FOCUS_ORDER`/`REPL_LANDMARK_ROLES` (`a11y.ts`) collapse the former two Run/Stop
+  focus stops into the single `run-toggle-button` stop; Reset keeps its own stop. Button background
+  colors (`--ol-button-start`/`--ol-button-pause`/`--ol-button-reset` in `web/styles.css`) were
+  chosen to clear WCAG AA's 4.5:1 text-contrast threshold against the white button-label text,
+  distinct from the lighter `--ol-green`/`--ol-orange`/`--ol-blue` used elsewhere (tagline text,
+  focus outline) that fall short of it. No animation/transition is introduced, so there is nothing
+  for `prefers-reduced-motion` to suppress.
+
 ## Turtle-speed control (#310)
 
 The Run/Stop/Reset animation pace, previously a hardcoded fixed delay `web/main.ts` ignored the
@@ -224,9 +261,11 @@ layer** (`src/a11y.ts`) that a later real renderer maps onto actual DOM attribut
 no DOM here to regress.
 
 - **Keyboard operability** — `REPL_FOCUS_ORDER` is a static, ordered list of every focusable stop
-  across the studio: the editor (one `textbox` stop), Run/Stop/Reset (three `button` stops,
-  matching `run-controller.ts`'s `run()`/`stop()`/`reset()`), the turtle-speed slider (one `slider`
-  stop, #310), the turtle Canvas (one `img` stop), and the diagnostics list (one `log` stop).
+  across the studio: the editor (one `textbox` stop), the Start/Pause toggle and Reset (two
+  `button` stops, matching `run-controller.ts`'s `run()`/`stop()`/`reset()` — collapsed from three
+  stops to two by #316's icon toggle, see that section above), the turtle-speed slider (one
+  `slider` stop, #310), the turtle Canvas (one `img` stop), and the diagnostics list (one `log`
+  stop).
   `nextFocusStop`/`previousFocusStop` cycle through it, wrapping at both ends — proof there is no
   keyboard trap: from any stop you can always reach every other stop moving forward or backward.
   `run-controller.ts`'s headless `step()` method still exists (Wave 1/#302 rebuilds a UI on it), but

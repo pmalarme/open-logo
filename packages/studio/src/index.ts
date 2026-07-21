@@ -365,6 +365,16 @@ export {
 export { mapRunStatusToLabel, RUN_STATUS_LABELS } from "./run-status-label.js";
 
 export type {
+  RunToggleAction,
+  RunToggleIcon,
+  RunToggleViewModel,
+} from "./run-controls.js";
+export {
+  mapRunStatusToRunToggleViewModel,
+  RUN_TOGGLE_VIEW_MODELS,
+} from "./run-controls.js";
+
+export type {
   RunLogController,
   RunLogControllerOptions,
   RunLogEntry,

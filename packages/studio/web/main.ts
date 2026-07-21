@@ -1,5 +1,6 @@
 /**
- * The browser entry (#277, extended by #278, #279, #310, #311, and #127) — a thin, logic-free,
+ * The browser entry (#277, extended by #278, #279, #310, #311, #127, and #316) — a thin,
+ * logic-free,
  * branch-free wiring layer only. It composes the published `@openlogo/studio` seams (state model,
  * app shell, editor/canvas/run/diagnostics/lesson-pane/a11y/persistence controllers) onto the real
  * DOM `index.html` declares; it never reimplements them and holds no non-trivial logic of its own
@@ -10,16 +11,21 @@
  * branch on — which scheduler to pace a run through, which `aria-live` region an announcement
  * belongs in, whether a looked-up element is missing, whether the editor's value actually needs
  * rewriting, how a turtle-speed slider position maps to a tick delay or a learner-facing
- * description, which learner-facing label a `runStatus` value maps to, whether a lesson is loaded
- * and what its objective/worked-examples/exercise-prompt content is — is made by a tested `src/`
- * helper instead (`selectScheduler`, `selectAnnouncerElementId`, `assertPresent`, `syncTextValue`,
- * #310's `mapSpeedSliderValueToTickDelayMs` / `describeSpeedTickDelayMs` in `turtle-speed.ts`,
- * #311's `mapRunStatusToLabel` in `run-status-label.ts`, and #127's `createLessonPaneController` /
- * `LessonPaneView` in `lesson-pane.ts`); this file only reads the raw browser input (`matchMedia`,
- * `localStorage`, `document.getElementById`, the slider's `input` event) and forwards it. The
- * turtle-speed slider (`#speed-slider`) writes straight to the shared state model via
- * `setSpeedSliderValue` on every `input` event — `run-controller.ts`'s `prepare()` reads that value
- * on the next `run()`/`step()`, so no scheduler is rebuilt here. The remaining loop-shaped
+ * description, which learner-facing label a `runStatus` value maps to, which icon/label/aria state
+ * the Start/Pause toggle button shows and which of `run()`/`stop()` a click invokes, whether a
+ * lesson is loaded and what its objective/worked-examples/exercise-prompt content is — is made by a
+ * tested `src/` helper instead (`selectScheduler`, `selectAnnouncerElementId`, `assertPresent`,
+ * `syncTextValue`, #310's `mapSpeedSliderValueToTickDelayMs` / `describeSpeedTickDelayMs` in
+ * `turtle-speed.ts`, #311's `mapRunStatusToLabel` in `run-status-label.ts`, #127's
+ * `createLessonPaneController` / `LessonPaneView` in `lesson-pane.ts`, and #316's
+ * `mapRunStatusToRunToggleViewModel` in `run-controls.ts`); this file only reads the raw browser
+ * input (`matchMedia`, `localStorage`, `document.getElementById`, the slider's `input` event) and
+ * forwards it. The turtle-speed slider (`#speed-slider`) writes straight to the shared state
+ * model via `setSpeedSliderValue` on every `input` event — `run-controller.ts`'s `prepare()`
+ * reads that value on the next `run()`/`step()`, so no scheduler is rebuilt here. `runToggleActionHandlers`
+ * and `renderRunToggleButton` (#316) apply an already-decided `RunToggleViewModel` onto the single
+ * `#run-toggle-button` via an indexed lookup and plain attribute assignment — never a branch on
+ * `runStatus` itself, matching every other mapping this file consumes. The remaining loop-shaped
  * statements (`.map(createDiagnosticListItemElement)`, `.map(createRunLogEntryElement)`,
  * `.map(createWorkedExampleElement)`, each building one element per already-computed view item)
  * have no decision left to make — the label/severity/empty-state/heading/explanation choices were
@@ -51,6 +57,7 @@ import {
   describeSpeedTickDelayMs,
   formatOutput,
   mapRunStatusToLabel,
+  mapRunStatusToRunToggleViewModel,
   mapSpeedSliderValueToTickDelayMs,
   mountCanvasView,
   mountDiagnosticsPane,
@@ -72,6 +79,8 @@ import type {
   RunLogEntry,
   RunLogEntryViewItem,
   WorkedExampleViewItem,
+  RunStatus,
+  RunToggleAction,
 } from "../src/index.js";
 import type { Diagnostic } from "@openlogo/core";
 import { IMMEDIATE_SCHEDULER } from "@openlogo/turtle";
@@ -90,15 +99,14 @@ const canvasElement = assertPresent(
   "turtle-canvas",
   (value): value is HTMLCanvasElement => value instanceof HTMLCanvasElement,
 );
-const runButton = assertPresent(
-  document.getElementById("run-button"),
-  "run-button",
+const runToggleButton = assertPresent(
+  document.getElementById("run-toggle-button"),
+  "run-toggle-button",
   (value): value is HTMLButtonElement => value instanceof HTMLButtonElement,
 );
-const stopButton = assertPresent(
-  document.getElementById("stop-button"),
-  "stop-button",
-  (value): value is HTMLButtonElement => value instanceof HTMLButtonElement,
+const runToggleLabelElement = assertPresent<HTMLElement>(
+  document.getElementById("run-toggle-label"),
+  "run-toggle-label",
 );
 const resetButton = assertPresent(
   document.getElementById("reset-button"),
@@ -212,15 +220,23 @@ turtleStateRegion.subscribeText((text) => {
   turtleStateElement.textContent = text;
 });
 
+/** Looks up the `RunController` method a Start/Pause toggle click should invoke for the
+ * `RunToggleAction` `mapRunStatusToRunToggleViewModel` already decided — an indexed lookup, not a
+ * branch on `runStatus` itself (see this module's doc comment). */
+const runToggleActionHandlers: Readonly<Record<RunToggleAction, () => void>> = {
+  run: () => runController.run(),
+  stop: () => runController.stop(),
+};
+
 editorElement.value = state.getState().source;
 editorElement.addEventListener("input", () => {
   shell.state.setSource(editorElement.value);
 });
-runButton.addEventListener("click", () => {
-  runController.run();
-});
-stopButton.addEventListener("click", () => {
-  runController.stop();
+runToggleButton.addEventListener("click", () => {
+  const { action } = mapRunStatusToRunToggleViewModel(
+    state.getState().runStatus,
+  );
+  runToggleActionHandlers[action]();
 });
 resetButton.addEventListener("click", () => {
   runController.reset();
@@ -228,6 +244,17 @@ resetButton.addEventListener("click", () => {
 speedSliderElement.addEventListener("input", () => {
   shell.state.setSpeedSliderValue(speedSliderElement.valueAsNumber);
 });
+
+/** Applies the Start/Pause toggle button's already-decided presentation
+ * ({@link mapRunStatusToRunToggleViewModel}) onto the real DOM button — plain attribute/text
+ * assignment, no decision of its own (#316). */
+function renderRunToggleButton(runStatus: RunStatus): void {
+  const viewModel = mapRunStatusToRunToggleViewModel(runStatus);
+  runToggleButton.dataset.icon = viewModel.icon;
+  runToggleButton.setAttribute("aria-label", viewModel.ariaLabel);
+  runToggleButton.setAttribute("aria-pressed", String(viewModel.ariaPressed));
+  runToggleLabelElement.textContent = viewModel.label;
+}
 
 /** Builds one `<li>` per already-formatted {@link DiagnosticListItem} — plain DOM element
  * creation with no decision of its own (the label/severity/empty-state DECISIONS were already
@@ -351,6 +378,7 @@ function renderLessonPane(element: HTMLElement, view: LessonPaneView): void {
 state.subscribe((next) => {
   syncTextValue(editorElement, next.source);
   runStatusElement.textContent = mapRunStatusToLabel(next.runStatus);
+  renderRunToggleButton(next.runStatus);
   outputElement.textContent = formatOutput(next.output);
   renderDiagnostics(diagnosticsListElement, next.diagnostics);
   syncTextValue(speedSliderElement, String(next.speedSliderValue));
@@ -363,6 +391,7 @@ runLog.subscribeEntries(() => {
   renderRunLog(runLogElement, runLog.getEntries());
 });
 runStatusElement.textContent = mapRunStatusToLabel(state.getState().runStatus);
+renderRunToggleButton(state.getState().runStatus);
 outputElement.textContent = formatOutput(state.getState().output);
 renderDiagnostics(diagnosticsListElement, state.getState().diagnostics);
 renderRunLog(runLogElement, runLog.getEntries());

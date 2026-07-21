@@ -78,9 +78,27 @@
         ></textarea>
       </section>
       <section class="pane-controls" aria-label="Run controls" role="toolbar">
-        <button id="run-button" type="button">Run</button>
-        <button id="stop-button" type="button">Stop</button>
-        <button id="reset-button" type="button">Reset</button>
+        <button
+          id="run-toggle-button"
+          type="button"
+          class="icon-button"
+          data-icon="play"
+          aria-pressed="false"
+          aria-label="Start run"
+        >
+          <span class="control-icon" aria-hidden="true"></span>
+          <span id="run-toggle-label" class="control-label">Start</span>
+        </button>
+        <button
+          id="reset-button"
+          type="button"
+          class="icon-button"
+          data-icon="reset"
+          aria-label="Reset"
+        >
+          <span class="control-icon" aria-hidden="true"></span>
+          <span class="control-label">Reset</span>
+        </button>
         <span class="speed-control">
           <label for="speed-slider">Turtle speed</label>
           <input
