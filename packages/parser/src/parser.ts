@@ -1882,11 +1882,12 @@ export function parse(source: string, document = "<input>"): ParseResult {
     if (closer.kind === "rbracket") {
       advance();
       if (fields.length === 0) {
-        // `struct point [ ]`: the brackets match but the field list is empty, so the closing
-        // `]` stands where a field name was required. `spec/error-model.md:102` reports an
-        // empty field list as an `ol-unmatched-bracket` at that `]`; consuming it above keeps
-        // error recovery from re-diagnosing the same bracket as a stray top-level token.
-        diagnostics.push(unexpected(closer));
+        // `struct point [ ]`: both brackets are present and matched, so the `]` is not itself
+        // unmatched — the field list is simply empty where at least one field name was
+        // required. Flag the stray closer as an `ol-bad-token`, mirroring how an empty group
+        // `( )` reports its matched `)` (see `parseParenthesized`). Consuming it above keeps
+        // recovery from re-diagnosing the same bracket as a stray top-level token.
+        diagnostics.push(parseDiag.badToken(closer.source_span, closer.text));
         return undefined;
       }
       return ast.structDef(
@@ -1903,17 +1904,22 @@ export function parse(source: string, document = "<input>"): ParseResult {
     }
     // A non-identifier token (e.g. a number) interrupts the field list. Both brackets are
     // present, so the problem is the stray token, not the bracket: report it as `ol-bad-token`
-    // at that token, then recover by skipping up to and consuming the matching `]` so the rest
-    // of the line is not misparsed as separate statements.
+    // at that token, then recover by skipping the balanced remainder up to and including the
+    // field list's own `]`. Tracking bracket depth means a nested `[ … ]` inside the garbage
+    // cannot end recovery early at the wrong `]` and leak a spurious second diagnostic.
     diagnostics.push(unexpected(closer));
+    let depth = 1;
     while (
-      current().kind !== "rbracket" &&
+      depth > 0 &&
       current().kind !== "newline" &&
       current().kind !== "eof"
     ) {
-      advance();
-    }
-    if (current().kind === "rbracket") {
+      const kind = current().kind;
+      if (kind === "lbracket") {
+        depth += 1;
+      } else if (kind === "rbracket") {
+        depth -= 1;
+      }
       advance();
     }
     return undefined;

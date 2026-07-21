@@ -83,8 +83,15 @@ test("`struct point` (missing field list) reports ol-bad-token", () => {
   assert.equal(hasStructDef("struct point"), false);
 });
 
-test("`struct point [ ]` (empty field list) reports ol-unmatched-bracket, once", () => {
-  assert.deepEqual(codesOf("struct point [ ]"), ["ol-unmatched-bracket"]);
+test("`struct point [ ]` (empty field list) reports ol-bad-token at the `]`, once", () => {
+  // Both brackets are present, so the empty list's `]` is a bad token, not an unmatched one
+  // (mirrors the empty group `( )`), and it is reported exactly once.
+  const diags = parse("struct point [ ]").diagnostics;
+  assert.deepEqual(
+    diags.map((d) => d.code),
+    ["ol-bad-token"],
+  );
+  assert.equal(diags[0].params.text, "]");
   assert.equal(hasStructDef("struct point [ ]"), false);
 });
 
@@ -135,6 +142,13 @@ test("a bad field before a line break recovers without swallowing the next line"
     false,
   );
   assert.equal(ast.body.at(-1).kind, "Call");
+});
+
+test("a nested `[` in the field list recovers to the outer `]`, no spurious diagnostic", () => {
+  // `[ y ]` nested inside the field list is garbage; depth-aware recovery consumes the whole
+  // balanced remainder so only the single ol-bad-token at the stray `[` is reported.
+  assert.deepEqual(codesOf("struct p [ x [ y ] ]"), ["ol-bad-token"]);
+  assert.equal(hasStructDef("struct p [ x [ y ] ]"), false);
 });
 
 // --- walk / childrenOf -----------------------------------------------------

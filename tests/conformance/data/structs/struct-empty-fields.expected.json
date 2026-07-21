@@ -1,17 +1,17 @@
 {
-  "description": "An empty field list `struct point [ ]` reports ol-unmatched-bracket at the closing bracket (grammar.md's `field-list ::= \"[\" identifier { identifier } \"]\"` requires at least one identifier); it is not silently accepted. Parse-only negative fixture.",
+  "description": "An empty field list `struct point [ ]` reports ol-bad-token at the closing bracket (grammar.md's `field-list ::= \"[\" identifier { identifier } \"]\"` requires at least one identifier). Both brackets are present and matched, so the `]` is a bad token where a field name was required — not an ol-unmatched-bracket — mirroring how an empty group `( )` reports its matched `)`. Parse-only negative fixture.",
   "profiles": ["core-language", "data"],
   "expect": "match",
   "events": [],
   "diagnostics": [
     {
-      "code": "ol-unmatched-bracket",
+      "code": "ol-bad-token",
       "source_span": {
         "document": "data/structs/struct-empty-fields",
         "start": [4, 16],
         "end": [4, 17]
       },
-      "params": { "delimiter": "]" },
+      "params": { "text": "]" },
       "stage": "parse",
       "severity": "error"
     }
