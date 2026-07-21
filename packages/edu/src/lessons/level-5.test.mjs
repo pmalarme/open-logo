@@ -11,6 +11,47 @@ import { execute } from "@openlogo/runtime";
 const level5Lessons = OL.getLessonsByLevel("5");
 const level5Exercises = OL.getExercisesByLevel("5");
 
+/**
+ * Extracts the exact source lines of `define <name> …` … `end` from `source`, matching nested
+ * block openers (`repeat`/`if`/`while`/`for`/`forever`/`define`) against their `end`/`end
+ * <keyword>` closers by depth, so a procedure containing a nested block (e.g. `polygon`'s
+ * `repeat … end repeat`) is not mistaken for closing at that nested `end` — a plain
+ * `source.indexOf("\nend", start)` would stop at the first nested terminator instead of the
+ * procedure's own.
+ */
+function procedureBody(source, name) {
+  const lines = source.split("\n");
+  const headerPattern = new RegExp(`^define\\s+${name}\\b`);
+  const startIndex = lines.findIndex((line) => headerPattern.test(line.trim()));
+  assert.notEqual(
+    startIndex,
+    -1,
+    `expected to find "define ${name}" in: ${source}`,
+  );
+  const blockOpener = /^\(?\s*(define|repeat|if|while|for|forever)\b/;
+  let depth = 0;
+  let endIndex = -1;
+  for (let index = startIndex; index < lines.length; index += 1) {
+    const trimmed = lines[index].trim();
+    if (blockOpener.test(trimmed)) {
+      depth += 1;
+    }
+    if (/^end\b/.test(trimmed)) {
+      depth -= 1;
+      if (depth === 0) {
+        endIndex = index;
+        break;
+      }
+    }
+  }
+  assert.notEqual(
+    endIndex,
+    -1,
+    `expected a closing "end" for procedure ${name} in: ${source}`,
+  );
+  return lines.slice(startIndex, endIndex + 1).join("\n");
+}
+
 test("getLessonsByLevel('5') contains only valid, Level 5 Lessons", () => {
   assert.equal(level5Lessons.length > 0, true);
   for (const lesson of level5Lessons) {
@@ -158,14 +199,7 @@ test("no Level 5 content defines a procedure that calls itself (no recursion —
     ];
     for (const match of defineMatches) {
       const name = match[1];
-      const start = match.index;
-      const bodyEndIndex = source.indexOf("\nend", start);
-      assert.notEqual(
-        bodyEndIndex,
-        -1,
-        `expected a closing "end" for procedure ${name} in: ${source}`,
-      );
-      const body = source.slice(start, bodyEndIndex);
+      const body = procedureBody(source, name);
       const selfCallPattern = new RegExp(`\\b${name}\\b`, "g");
       const occurrences = body.match(selfCallPattern);
       assert.ok(occurrences);
@@ -226,9 +260,8 @@ test("the practice exercise defines triangle by calling polygon (procedure reuse
   assert.equal(/define triangle :size/.test(source), true);
   assert.equal(/polygon 3 :size/.test(source), true);
   // triangle's own body must not repeat forward/right — it must reuse polygon instead.
-  const triangleBodyStart = source.indexOf("define triangle");
-  const triangleBodyEnd = source.indexOf("\nend", triangleBodyStart);
-  const triangleBody = source.slice(triangleBodyStart, triangleBodyEnd);
+  const triangleBody = procedureBody(source, "triangle");
+  assert.equal(/\bpolygon 3 :size\b/.test(triangleBody), true);
   assert.equal(/forward|right|repeat/.test(triangleBody), false);
 });
 
@@ -241,6 +274,14 @@ test("the challenge exercise reuses house by calling it exactly twice, composed 
   assert.equal(/define polygon :sides :size/.test(source), true);
   assert.equal(/define triangle :size/.test(source), true);
   assert.equal(/define house :size/.test(source), true);
+  // Verify the exact reuse chain, not just that all three names are defined somewhere: house's
+  // own body must call polygon 4 :size (the square body) and triangle :size (the roof); triangle's
+  // own body must call polygon 3 :size — matching spec/examples/06-geometry.logo's chain.
+  const houseBody = procedureBody(source, "house");
+  assert.equal(/\bpolygon 4 :size\b/.test(houseBody), true);
+  assert.equal(/\btriangle :size\b/.test(houseBody), true);
+  const triangleBody = procedureBody(source, "triangle");
+  assert.equal(/\bpolygon 3 :size\b/.test(triangleBody), true);
   const houseCallMatches = source.match(/^house 70$/gm);
   assert.ok(houseCallMatches);
   assert.equal(houseCallMatches.length, 2);
