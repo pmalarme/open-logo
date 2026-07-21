@@ -24,10 +24,12 @@ Definition-of-Done and an independent two-reviewer merge gate. We describe the a
 communication model between autonomous Copilot sessions, and the concrete governance that keeps a
 human in the loop for the specification while delegating routine merges to the machine. We report
 quantitative outcomes measured directly from the repository: a six-package TypeScript monorepo built
-across 13 profile and cross-cutting milestones and 151 merged pull requests over a five-day window,
-culminating in a tagged, minimally conformant `v0.1.0` release — the Core Language and Turtle &
-Rendering profiles, backed by 370 stack-neutral conformance fixtures — with the optional profiles
-(Data, Geometry, Educational, and the AI Tutor) in progress against the frozen contracts. We also give an honest account of the failure modes we observed — chiefly a
+across 13 profile and cross-cutting milestones and 151 merged pull requests over a five-day window.
+Midway through that window — after 129 of those merges — the project tagged a minimally conformant
+`v0.1.0` release (the Core Language and Turtle & Rendering profiles, backed by 370 stack-neutral
+conformance fixtures), after which the optional profiles (Data, Geometry, and the deterministic
+Educational layer) continued in parallel against the frozen contracts, with the remaining profiles —
+including the AI Tutor — still planned. We also give an honest account of the failure modes we observed — chiefly a
 *stale-crossing* class of coordination bug in which asynchronous inter-agent messages cross in
 flight and orchestrators mis-track their own already-merged work — and the disciplines that contain
 them: live-verify before acting, freeze the head commit, bind review verdicts to the full commit
@@ -137,8 +139,9 @@ baseline (`educational-model.md`), the AI tutor's guardrails (`ai-tutor.md`), an
 - **It is the single source of truth.** When code and spec disagree, the spec wins; an agent that
   finds a conflict files an issue rather than diverging silently
   (`.github/instructions/openlogo-team.instructions.md`).
-- **It is human-owned.** No agent edits `spec/` directly. The product-owner agent may *propose*
-  changes through a pull request that a human reviews and merges; every other agent raises
+- **It is human-owned.** No agent — not even the product-owner — edits `spec/` directly; the
+  product-owner agent may only *propose* changes through a pull request that a human reviews and
+  merges, and every other agent raises
   ambiguities as change-requests. Specification authority never leaves the human.
 
 Because the contract is explicit, downstream work becomes checkable at the clause level, and many
@@ -373,7 +376,7 @@ session: the root orchestrator created it with a kickoff prompt and the two coor
 The upward channel matters as much as the downward one: authors report *merge-ready* status and
 questions back to their milestone orchestrator, which aggregates milestone status to the root, which
 in turn escalates spec change-requests and release sign-off to the human. Worktree isolation is what
-makes Layer-3 parallelism safe — dozens of sessions edit dozens of branches without colliding, and
+makes Layer-3 parallelism safe — many sessions edit many branches without colliding, and
 integration happens deliberately at merge time.
 
 ### 3.7 GitHub objects as the operating system
@@ -490,11 +493,11 @@ explicit `--limit` bounds so counts are not silently truncated by pagination.
 | CI/automation workflows | 6 | `.github/workflows/*.yml` |
 | Issue templates | 7 | `.github/ISSUE_TEMPLATE/*.yml` (excl. `config.yml`) |
 | Label taxonomy | 64 | `gh label list` |
-| Stack-neutral conformance fixtures | 370 in `v0.1.0` · 409 on `main` | `git ls-tree -r {v0.1.0,origin/main} -- tests/conformance` |
+| Stack-neutral conformance fixtures | 370 in `v0.1.0` · 409 at `ddf04c3` | `git ls-tree -r {v0.1.0,ddf04c3} -- tests/conformance` |
 | Spec example programs | 12 | `spec/examples/*.logo` |
-| Commits on `main` | 152 | `git rev-list --count origin/main` |
-| Merged pull requests | 151 | `gh pr list --state merged --limit 1000` |
-| Issues (open / closed) | 32 / 175 | `gh issue list --limit 1000` |
+| Commits on `main` | 152 | `git rev-list --count ddf04c3` |
+| Merged pull requests | 151 | `gh pr list --state merged --limit 1000` (2026-07-21) |
+| Issues (open / closed) | 32 / 175 | `gh issue list --state {open,closed} --limit 1000` |
 | Project board items | 206 | `gh project item-list 5` |
 | Milestones (profile + cross-cutting) | 13 | `gh api …/milestones` |
 | Tagged releases | 1 (`v0.1.0`) | `git tag` |
@@ -657,7 +660,7 @@ the spec into profile-based milestones and vertical slices, gates every change b
 Done and an independent two-reviewer review, and merges under human-delegated but human-bounded
 authority. In four days of agent-driven work the project went from an empty repository to a tagged,
 conformance-backed minimal release, at a peak throughput of dozens of merged pull requests per day that
-depended on freezing cross-cutting contracts before parallelizing.
+we operationally attribute to freezing cross-cutting contracts before parallelizing (§7).
 
 The honest other half of the story is that autonomy at the seams is where the bugs live. *Stale-crossing*
 — acting on a snapshot that has already moved — and its cousins (voided verdicts, drifting boards, WIP

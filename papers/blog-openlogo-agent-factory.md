@@ -80,8 +80,8 @@ contract; they *owned* it.
 
 That spec is the **single source of truth.** When code and spec disagree, the spec wins — full stop. An
 agent that spots a conflict files an issue; it does not quietly "fix" the language. And critically:
-**no agent may edit the spec.** Only the product-owner can *propose* a change, as a pull request a human
-reviews and merges.
+**no agent changes the spec unilaterally.** Even the product-owner can only *propose* a change, as a
+pull request a human reviews and merges.
 
 This one rule is load-bearing. It means hundreds of parallel changes can fly by, and the maintainer can
 still guarantee the *contract* never moved without a human saying so. It converts a fuzzy instruction
@@ -149,8 +149,10 @@ coverage can read 100% only because tests cheated past the public API. A fresh, 
 by a second pair of eyes catches exactly that.
 
 One detail matters more than it looks: **verdicts are bound to a specific commit.** A "pass" approves
-*one* 40-character commit SHA. Push one more commit and the approval is void — you review again. The
-implementer is *never* the only one attesting that the work is good.
+*that exact commit*. Push one more commit and the approval is void — you review again. The
+implementer is *never* the only one attesting that the work is good. (This two-reviewer, commit-bound
+gate wasn't there on day one — an early version used a single reviewer, and the team tightened it into
+the two-review rule within the first days.)
 
 Only then does the orchestrator merge — under authority the maintainer explicitly delegated: *"You can
 merge and move ahead. I delegate to you until it is spec related."* Anything touching the spec goes back
