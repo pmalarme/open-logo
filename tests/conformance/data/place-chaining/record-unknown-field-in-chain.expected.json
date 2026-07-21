@@ -1,0 +1,60 @@
+{
+  "description": "Slice #330 — an unknown record field at the tail of a dict-then-record chain raises `ol-unknown-field` (not `ol-unknown-key`): `.tom` resolves the dict-key segment fine, but `.height` is not one of `person`'s fixed fields, so the record-specific diagnostic fires — proving each segment's diagnostic stays keyed to that segment's own runtime kind even when composed after a different kind earlier in the chain.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/place-chaining/record-unknown-field-in-chain",
+        "start": [1, 1],
+        "end": [1, 27]
+      },
+      "payload": {
+        "statement_kind": "StructDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/place-chaining/record-unknown-field-in-chain",
+        "start": [3, 1],
+        "end": [5, 2]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/place-chaining/record-unknown-field-in-chain",
+        "start": [7, 1],
+        "end": [7, 25]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-field",
+      "source_span": {
+        "document": "data/place-chaining/record-unknown-field-in-chain",
+        "start": [7, 18],
+        "end": [7, 25]
+      },
+      "params": {
+        "type": "person",
+        "field": "height"
+      },
+      "message": "person has no field height. check the spelling.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

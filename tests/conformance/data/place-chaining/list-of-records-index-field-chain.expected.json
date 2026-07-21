@@ -1,0 +1,116 @@
+{
+  "description": "Slice #330 — a list of records composes list-index then record-field (`spec/data-structures.md:311-325`): `:path[1]` selects the 1-based list element (dispatching on the container's runtime kind — an array — inside the shared chain walker), then `.x` selects that element's record field. `:path[1].x = 5` writes through the same chain to the record already stored at index 1, and the re-`print` asserts the mutation actually took effect rather than silently no-op'ing.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/place-chaining/list-of-records-index-field-chain",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "statement_kind": "StructDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/place-chaining/list-of-records-index-field-chain",
+        "start": [3, 1],
+        "end": [3, 11]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/place-chaining/list-of-records-index-field-chain",
+        "start": [4, 1],
+        "end": [4, 25]
+      },
+      "payload": {
+        "statement_kind": "Add"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/place-chaining/list-of-records-index-field-chain",
+        "start": [5, 1],
+        "end": [5, 28]
+      },
+      "payload": {
+        "statement_kind": "Add"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/place-chaining/list-of-records-index-field-chain",
+        "start": [7, 1],
+        "end": [7, 17]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "print",
+      "source_span": {
+        "document": "data/place-chaining/list-of-records-index-field-chain",
+        "start": [7, 1],
+        "end": [7, 17]
+      },
+      "payload": {
+        "values": [0]
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/place-chaining/list-of-records-index-field-chain",
+        "start": [8, 1],
+        "end": [8, 15]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/place-chaining/list-of-records-index-field-chain",
+        "start": [9, 1],
+        "end": [9, 17]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "print",
+      "source_span": {
+        "document": "data/place-chaining/list-of-records-index-field-chain",
+        "start": [9, 1],
+        "end": [9, 17]
+      },
+      "payload": {
+        "values": [5]
+      }
+    }
+  ],
+  "diagnostics": []
+}

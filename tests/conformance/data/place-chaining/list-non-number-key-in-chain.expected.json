@@ -1,0 +1,74 @@
+{
+  "description": "Slice #330 — a non-number selector against a list container inside a chain raises `ol-type` (`expected: \"number\"`) at that segment, before the trailing `.x` field segment is ever reached — proving the per-kind key-type check still applies when the list is only the first link of a longer chain.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/place-chaining/list-non-number-key-in-chain",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "statement_kind": "StructDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/place-chaining/list-non-number-key-in-chain",
+        "start": [3, 1],
+        "end": [3, 11]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/place-chaining/list-non-number-key-in-chain",
+        "start": [4, 1],
+        "end": [4, 25]
+      },
+      "payload": {
+        "statement_kind": "Add"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/place-chaining/list-non-number-key-in-chain",
+        "start": [6, 1],
+        "end": [6, 19]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "data/place-chaining/list-non-number-key-in-chain",
+        "start": [6, 12],
+        "end": [6, 17]
+      },
+      "params": {
+        "expected": "number",
+        "actual": "word",
+        "value": "a",
+        "operation": "index"
+      },
+      "message": "index needs a number, but got a word.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}
