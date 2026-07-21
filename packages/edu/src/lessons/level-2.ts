@@ -1,10 +1,10 @@
 /**
- * Level 2 — patterns and repetition (`spec/educational-model.md:64-85`, issue #328). The
+ * Level 2 — patterns and repetition (`spec/educational-model.md:66-87`, issue #328). The
  * learner question is "Why type the same thing again and again?": `repeat` runs a bracketed
  * block for its effects and keeps no value, a count says how many times the block runs, and
  * `repcount` lets a learner see which turn of the repeat they are on. Only Level 1 vocabulary
  * (movement, turning, pen, color, width) plus `repeat`/`repcount` appears here — no variables,
- * conditions, or procedures (educational-model.md:35's discovery guardrail).
+ * conditions, or procedures (educational-model.md:37's discovery guardrail).
  */
 
 import type { Lesson } from "../lesson.js";
@@ -13,7 +13,7 @@ import type { Exercise } from "./exercise.js";
 /**
  * The single Level 2 lesson: turning a repeated side-and-turn pattern into one `repeat` rule,
  * then using `repcount` to see which turn is running. The first worked example reproduces
- * `spec/educational-model.md:77-83`'s square verbatim so the lesson never drifts from the
+ * `spec/educational-model.md:79-85`'s square verbatim so the lesson never drifts from the
  * normative sample.
  */
 export const level2Lessons: readonly Lesson[] = [

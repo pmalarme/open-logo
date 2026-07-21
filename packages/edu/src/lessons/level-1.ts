@@ -1,10 +1,10 @@
 /**
- * Level 1 — movement and drawing (`spec/educational-model.md:37-58`, issue #328). The
+ * Level 1 — movement and drawing (`spec/educational-model.md:39-64`, issue #328). The
  * learner question is "How can I make the turtle leave a mark?": a turtle has a position,
  * heading, pen, color, and width; `forward`/`back` move, `right`/`left` turn in degrees,
  * `pen_up`/`pen_down` decide whether movement draws, and `clear_screen`/`home` reset the
  * drawing/turtle. No variables, procedures, or control forms beyond straight-line sequencing
- * appear here — those are later levels (educational-model.md:35's discovery guardrail).
+ * appear here — those are later levels (educational-model.md:37's discovery guardrail).
  */
 
 import type { Lesson } from "../lesson.js";
@@ -12,7 +12,7 @@ import type { Exercise } from "./exercise.js";
 
 /**
  * The single Level 1 lesson: leaving a mark, then lifting the pen to leave a gap. The worked
- * example reproduces `spec/educational-model.md:50-60` verbatim so the lesson never drifts
+ * example reproduces `spec/educational-model.md:52-62` verbatim so the lesson never drifts
  * from the normative sample.
  */
 export const level1Lessons: readonly Lesson[] = [

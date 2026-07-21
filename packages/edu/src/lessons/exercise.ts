@@ -6,7 +6,7 @@
  * touching or duplicating the frozen `Lesson` contract: an `Exercise` always names the
  * `Lesson` it belongs to (`lessonId`), so one lesson can be paired with several graded
  * exercises that ramp from guided to open, per `spec/educational-model.md`'s "change one
- * thing at a time" guidance (see e.g. educational-model.md:85).
+ * thing at a time" guidance (see e.g. educational-model.md:87).
  */
 
 import type { LearnerLevel, WorkedExample } from "../lesson.js";
