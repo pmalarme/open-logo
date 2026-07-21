@@ -96,6 +96,243 @@ test("stepping through all 8 instruction-steps consumes the whole stream", () =>
   assert.equal(snapshot.status, "done");
 });
 
+/**
+ * Builds the event stream exactly as `@openlogo/runtime` actually emits it for
+ * `repeat 4 [ forward 100 right 90 ]` (issue #295): a control form emits its own zero-effect
+ * `instruction` start event *first* (the `repeat` container), then the body's first real
+ * instruction (`forward 100`) follows immediately with its `move`/`draw-segment` effects. Unlike
+ * {@link repeat4ForwardRightEvents} — which starts straight at `forward 100` — this fixture LEADS
+ * with the container instruction, so it reproduces the bug where the first "Next step" consumed
+ * only the invisible container and the turtle did not move until the second step.
+ */
+function repeatWithLeadingContainerEvents() {
+  const events = [event("instruction", { statement_kind: "Repeat" })];
+  let x = 0;
+  let y = 0;
+  let heading = 0;
+  for (let i = 0; i < 4; i++) {
+    const from = [x, y];
+    y += 100;
+    const to = [x, y];
+    events.push(event("instruction", { statement_kind: "Call" }));
+    events.push(event("move", { from, to, heading }));
+    events.push(event("draw-segment", { from, to, color: "black", width: 1 }));
+
+    const fromHeading = heading;
+    heading = (heading + 90) % 360;
+    events.push(event("instruction", { statement_kind: "Call" }));
+    events.push(event("turn", { from: fromHeading, to: heading }));
+  }
+  return events;
+}
+
+test("issue #295: first step from idle skips the leading `repeat` container and moves the turtle", () => {
+  const events = repeatWithLeadingContainerEvents();
+  const controller = new OL.TurtleAnimationController(events);
+  controller.step();
+  const snapshot = controller.getSnapshot();
+
+  // The leading zero-effect `Repeat` instruction is coalesced with the first `forward 100`
+  // step, so a single step consumes: instruction(Repeat) + instruction(forward) + move +
+  // draw-segment (4 events) and the turtle visibly advances to (0,100) — NOT a no-op.
+  assert.equal(snapshot.cursor, 4);
+  assert.equal(snapshot.status, "paused");
+  assert.deepEqual(
+    snapshot.state.position,
+    [0, 100],
+    "first step must move the turtle, not just consume the container",
+  );
+  assert.equal(
+    snapshot.state.heading,
+    0,
+    "right 90 is still a separate later step",
+  );
+  assert.equal(snapshot.scene.items.length, 1);
+  assert.equal(snapshot.scene.items[0].kind, "segment");
+});
+
+test("issue #295: reset then step reproduces the first observable move", () => {
+  const events = repeatWithLeadingContainerEvents();
+  const controller = new OL.TurtleAnimationController(events);
+  controller.seekToEnd();
+  controller.reset();
+  assert.equal(controller.getSnapshot().cursor, 0);
+  assert.equal(controller.getSnapshot().status, "idle");
+
+  controller.step();
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.cursor, 4, "reset→step behaves like a fresh idle→step");
+  assert.deepEqual(snapshot.state.position, [0, 100]);
+  assert.equal(snapshot.scene.items.length, 1);
+});
+
+test("issue #295: the container-led stream still yields 8 visible steps, then done", () => {
+  const events = repeatWithLeadingContainerEvents();
+  const controller = new OL.TurtleAnimationController(events);
+  let steps = 0;
+  while (controller.getSnapshot().status !== "done") {
+    controller.step();
+    steps += 1;
+  }
+  // The invisible container adds no extra step: coalesced into the first forward, so the visible
+  // step count matches spec/rendering.md's worked example (4 forwards + 4 rights), not 9.
+  assert.equal(steps, 8);
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.cursor, events.length);
+  assert.equal(snapshot.status, "done");
+  assert.deepEqual(snapshot.scene, OL.reduceSceneEvents(events));
+});
+
+test("issue #295: a trailing zero-effect container is consumed as the final step, reaching done", () => {
+  // `... forward 100  repeat 0 [ ... ]` — the last thing emitted is a lone container instruction
+  // with no effects and nothing after it. The final step must consume it and finish, never loop.
+  const events = [
+    event("instruction", { statement_kind: "Call" }),
+    event("move", { from: [0, 0], to: [0, 100], heading: 0 }),
+    event("draw-segment", {
+      from: [0, 0],
+      to: [0, 100],
+      color: "black",
+      width: 1,
+    }),
+    event("instruction", { statement_kind: "Repeat" }),
+  ];
+  const controller = new OL.TurtleAnimationController(events);
+  controller.step();
+  assert.equal(
+    controller.getSnapshot().cursor,
+    3,
+    "first step: the forward move",
+  );
+  assert.equal(controller.getSnapshot().status, "paused");
+
+  controller.step();
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.cursor, events.length, "trailing container consumed");
+  assert.equal(snapshot.status, "done");
+});
+
+test("issue #295: consecutive leading containers (nested loops) all coalesce into the first move", () => {
+  // `repeat 2 [ repeat 2 [ forward 10 ] ]` leads with TWO container instructions back to back.
+  const events = [
+    event("instruction", { statement_kind: "Repeat" }),
+    event("instruction", { statement_kind: "Repeat" }),
+    event("instruction", { statement_kind: "Call" }),
+    event("move", { from: [0, 0], to: [0, 10], heading: 0 }),
+    event("draw-segment", {
+      from: [0, 0],
+      to: [0, 10],
+      color: "black",
+      width: 1,
+    }),
+  ];
+  const controller = new OL.TurtleAnimationController(events);
+  controller.step();
+  const snapshot = controller.getSnapshot();
+  assert.equal(
+    snapshot.cursor,
+    events.length,
+    "both containers + the forward consumed",
+  );
+  assert.deepEqual(snapshot.state.position, [0, 10]);
+  assert.equal(snapshot.status, "done");
+});
+
+/**
+ * Builds the event stream `@openlogo/runtime` emits for a procedure whose body starts with a
+ * control container (issue #295 P2):
+ * ```logo
+ * define sq
+ *   repeat 4 [ forward 100 right 90 ]
+ * end
+ * sq
+ * ```
+ * The stream LEADS with a call instruction and a `procedure-enter` bookkeeping event before the
+ * `repeat` container and the first real `forward 100`:
+ * `instruction{Call sq} -> procedure-enter -> instruction{Repeat} -> instruction{Call forward}
+ *  -> move -> draw-segment -> instruction{Call right} -> turn -> … -> procedure-exit`.
+ * `procedure-enter`/`procedure-exit` are START/bookkeeping events (like `instruction`), NOT
+ * visible effects — a predicate keyed on `kind !== "instruction"` would wrongly let
+ * `procedure-enter` end the first step, leaving the turtle unmoved.
+ */
+function procedureLedRepeatEvents() {
+  const events = [
+    event("instruction", { statement_kind: "Call" }),
+    event("procedure-enter", { name: "sq", args: [] }),
+    event("instruction", { statement_kind: "Repeat" }),
+  ];
+  let x = 0;
+  let y = 0;
+  let heading = 0;
+  for (let i = 0; i < 4; i++) {
+    const from = [x, y];
+    y += 100;
+    const to = [x, y];
+    events.push(event("instruction", { statement_kind: "Call" }));
+    events.push(event("move", { from, to, heading }));
+    events.push(event("draw-segment", { from, to, color: "black", width: 1 }));
+
+    const fromHeading = heading;
+    heading = (heading + 90) % 360;
+    events.push(event("instruction", { statement_kind: "Call" }));
+    events.push(event("turn", { from: fromHeading, to: heading }));
+  }
+  events.push(event("procedure-exit", { name: "sq", result: null }));
+  return events;
+}
+
+test("issue #295 P2: first step from idle folds the leading Call + procedure-enter + Repeat and moves the turtle", () => {
+  const events = procedureLedRepeatEvents();
+  const controller = new OL.TurtleAnimationController(events);
+  controller.step();
+  const snapshot = controller.getSnapshot();
+
+  // Folded: instruction(Call sq) + procedure-enter + instruction(Repeat) + instruction(Call
+  // forward) + move + draw-segment (6 events) — the turtle must visibly advance to (0,100), NOT
+  // stop at the invisible procedure-enter.
+  assert.equal(snapshot.cursor, 6);
+  assert.equal(snapshot.status, "paused");
+  assert.deepEqual(
+    snapshot.state.position,
+    [0, 100],
+    "procedure-enter must not end the first step before the forward move",
+  );
+  assert.equal(snapshot.scene.items.length, 1);
+  assert.equal(snapshot.scene.items[0].kind, "segment");
+});
+
+test("issue #295 P2: reset then step on the procedure-led stream also moves the turtle", () => {
+  const events = procedureLedRepeatEvents();
+  const controller = new OL.TurtleAnimationController(events);
+  controller.seekToEnd();
+  controller.reset();
+  assert.equal(controller.getSnapshot().cursor, 0);
+  assert.equal(controller.getSnapshot().status, "idle");
+
+  controller.step();
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.cursor, 6, "reset→step behaves like a fresh idle→step");
+  assert.deepEqual(snapshot.state.position, [0, 100]);
+  assert.equal(snapshot.scene.items.length, 1);
+});
+
+test("issue #295 P2: the procedure-led stream still yields 8 visible steps, then done", () => {
+  const events = procedureLedRepeatEvents();
+  const controller = new OL.TurtleAnimationController(events);
+  let steps = 0;
+  while (controller.getSnapshot().status !== "done") {
+    controller.step();
+    steps += 1;
+  }
+  // The invisible Call/procedure-enter/procedure-exit bookkeeping adds no extra visible step:
+  // 4 forwards + 4 rights = 8, and the trailing procedure-exit is folded into the last step.
+  assert.equal(steps, 8);
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.cursor, events.length);
+  assert.equal(snapshot.status, "done");
+  assert.deepEqual(snapshot.scene, OL.reduceSceneEvents(events));
+});
+
 test("step is a no-op once playback is done", () => {
   const events = repeat4ForwardRightEvents();
   const controller = new OL.TurtleAnimationController(events);
