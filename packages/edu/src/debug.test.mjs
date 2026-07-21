@@ -178,6 +178,26 @@ test("debug omits the turtle-state segment when the trace never touched turtle s
   );
 });
 
+test("debug's turtle state reflects a clear_screen homing position and heading, but a clean leaving them untouched", () => {
+  const homed = OL.debug(
+    contextFromSource("forward 30\nright 90\nclear_screen", {}),
+  );
+  const homedSegment = homed.segments.find((segment) =>
+    segment.startsWith("Turtle state so far:"),
+  );
+  assert.match(homedSegment, /position \(0, 0\)/);
+  assert.match(homedSegment, /heading 0/);
+
+  const cleaned = OL.debug(
+    contextFromSource("forward 30\nright 90\nclean", {}),
+  );
+  const cleanedSegment = cleaned.segments.find((segment) =>
+    segment.startsWith("Turtle state so far:"),
+  );
+  assert.match(cleanedSegment, /position \(0, 30\)/);
+  assert.match(cleanedSegment, /heading 90/);
+});
+
 test("debug shows a friendly call path for a procedure still open at the point of failure", () => {
   const program = {
     kind: "Program",
@@ -242,7 +262,7 @@ test("debug's call path closes over matched procedure-enter/procedure-exit pairs
   );
 });
 
-test("debug falls back to the first ol-* error when the target selects no diagnostic exactly", () => {
+test("debug does not attribute an error from a different document to a selected target", () => {
   const { ast: program } = Parser.parse("forward 80", "main.logo");
   const diagnostic = {
     code: "ol-undefined-var",
@@ -261,11 +281,10 @@ test("debug falls back to the first ol-* error when the target selects no diagno
     level: "3",
   };
   const output = OL.debug(context);
-  assert.equal(output.diagnostic_code, "ol-undefined-var");
-  assert.equal(
-    output.segments.at(-2),
-    "Diagnostic `ol-undefined-var`: `:ghost` has no value yet.",
-  );
+  // No containing/matching diagnostic for this target: `debug` reports no error rather than
+  // misattributing an unrelated one to the instruction the learner is looking at.
+  assert.equal(output.diagnostic_code, undefined);
+  assert.ok(output.segments.at(-1).includes("ran without an error"));
 });
 
 test("debug ignores style diagnostics and diagnostics that are not severity error when picking what to explain", () => {
@@ -394,7 +413,7 @@ test("debug's span containment reaches across a multi-line block to the failing 
   assert.equal(output.diagnostic_code, "ol-undefined-var");
 });
 
-test("debug does not match a diagnostic against a target that starts after it in the same document", () => {
+test("debug does not attribute a diagnostic to a target that starts after it in the same document", () => {
   const source = "forward :missing\nright 90";
   const { ast: program } = Parser.parse(source, "main.logo");
   const { events, diagnostics } = Runtime.execute(source, "main.logo");
@@ -407,12 +426,13 @@ test("debug does not match a diagnostic against a target that starts after it in
     level: "3",
   };
   const output = OL.debug(context);
-  // Falls back to the only ol-* error even though `target` (the second statement) doesn't
-  // contain it, since `errorDiagnostics[0]` is the fallback rather than reporting nothing.
-  assert.equal(output.diagnostic_code, "ol-undefined-var");
+  // `target` (the second statement) doesn't contain the first statement's error, so `debug`
+  // reports no error for it rather than misattributing an unrelated failure.
+  assert.equal(output.diagnostic_code, undefined);
+  assert.ok(output.segments.at(-1).includes("ran without an error"));
 });
 
-test("debug does not match a diagnostic against an earlier target in the same document", () => {
+test("debug does not attribute a diagnostic to an earlier target in the same document", () => {
   const source = ':size = "big"\nforward :size';
   const { ast: program } = Parser.parse(source, "main.logo");
   const { events, diagnostics } = Runtime.execute(source, "main.logo");
@@ -425,7 +445,8 @@ test("debug does not match a diagnostic against an earlier target in the same do
     level: "3",
   };
   const output = OL.debug(context);
-  assert.equal(output.diagnostic_code, "ol-type");
+  assert.equal(output.diagnostic_code, undefined);
+  assert.ok(output.segments.at(-1).includes("ran without an error"));
 });
 
 test("debug reports a variable segment without a type-mismatch phrase when the diagnostic carries no expected/actual params", () => {
@@ -451,7 +472,7 @@ test("debug reports a variable segment without a type-mismatch phrase when the d
   assert.equal(output.segments[1], "Variables used here: `:size`.");
 });
 
-test("debug pluralizes the variable-value and next-step phrasing when more than one variable is in play", () => {
+test("debug reports a generic variable list, never a shared type-mismatch phrase, when more than one variable is in play", () => {
   const { ast: program } = Parser.parse("(print :a :b)", "main.logo");
   const diagnostic = {
     code: "ol-type",
@@ -470,10 +491,10 @@ test("debug pluralizes the variable-value and next-step phrasing when more than 
     level: "3",
   };
   const output = OL.debug(context);
-  assert.match(
-    output.segments[1],
-    /`:a` and `:b` currently hold a `word` value, but this line needs a `number`\./,
-  );
+  // A diagnostic's `expected`/`actual` describes exactly one failing value, so with more than one
+  // variable in play `debug` must not claim every one of them holds the same wrong type — it only
+  // pluralizes the generic listing and the next-step suggestion, both of which state no fact.
+  assert.equal(output.segments[1], "Variables used here: `:a` and `:b`.");
   assert.match(
     output.segments.at(-1),
     /Try tracing back where `:a` and `:b` get their values before this line runs\./,

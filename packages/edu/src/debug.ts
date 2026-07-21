@@ -21,6 +21,7 @@
 
 import {
   isDiagnosticCode,
+  type ClearPayload,
   type Diagnostic,
   type DiagnosticCode,
   type ColorChangePayload,
@@ -110,12 +111,12 @@ function spanContains(
 }
 
 /**
- * Picks the `ol-*` error `debug` should explain: the one whose span the selected `target`
- * encloses (or exactly matches), when one is selected and one qualifies; otherwise the first
- * error `debug` was given (`context.diagnostics` is supplied in the host's own deterministic
- * order) — falling back rather than reporting nothing, since a `debug` invocation after a failed
- * run is almost always about that failure even when the caller didn't narrow `target` to it
- * exactly.
+ * Picks the `ol-*` error `debug` should explain: when a specific `target` is selected, only the
+ * error whose span it encloses (or exactly matches) — never an unrelated error, which would
+ * misattribute a failure to an instruction that didn't cause it. When no `target` is selected
+ * (the whole program is in view), the first error `debug` was given (`context.diagnostics` is
+ * supplied in the host's own deterministic order), since there is no narrower instruction to
+ * misattribute it to.
  */
 function findRelevantErrorDiagnostic(
   context: TutorContext,
@@ -124,18 +125,15 @@ function findRelevantErrorDiagnostic(
   if (errorDiagnostics.length === 0) {
     return undefined;
   }
-  if (context.target !== undefined) {
-    const targetSpan = context.target.source_span;
-    const enclosed = errorDiagnostics.find(
-      (diagnostic) =>
-        spanEquals(diagnostic.source_span, targetSpan) ||
-        spanContains(targetSpan, diagnostic.source_span),
-    );
-    if (enclosed !== undefined) {
-      return enclosed;
-    }
+  if (context.target === undefined) {
+    return errorDiagnostics[0];
   }
-  return errorDiagnostics[0];
+  const targetSpan = context.target.source_span;
+  return errorDiagnostics.find(
+    (diagnostic) =>
+      spanEquals(diagnostic.source_span, targetSpan) ||
+      spanContains(targetSpan, diagnostic.source_span),
+  );
 }
 
 /**
@@ -212,12 +210,11 @@ function variableValuesSegment(
     return undefined;
   }
   const list = names.map((name) => `\`:${name}\``).join(" and ");
-  if (diagnostic !== undefined) {
+  if (diagnostic !== undefined && names.length === 1) {
     const expected = stringParam(diagnostic, "expected");
     const actual = stringParam(diagnostic, "actual");
     if (expected !== undefined && actual !== undefined) {
-      const verb = names.length === 1 ? "holds" : "hold";
-      return `${list} currently ${verb} a \`${actual}\` value, but this line needs a \`${expected}\`.`;
+      return `${list} currently holds a \`${actual}\` value, but this line needs a \`${expected}\`.`;
     }
   }
   return `Variables used here: ${list}.`;
@@ -259,6 +256,16 @@ function turtleStateSegment(events: readonly TraceEvent[]): string | undefined {
       }
       case "width-change": {
         width = (event.payload as WidthChangePayload).to;
+        break;
+      }
+      case "clear": {
+        // Mirrors `@openlogo/turtle`'s `reduceTurtleState` (`spec/rendering.md`'s "`clear_screen`
+        // ... homes the turtle"): a `clear_screen` clear homes position and heading; a plain
+        // `clean` clear only clears the drawing and leaves turtle state untouched.
+        if ((event.payload as ClearPayload).mode === "clear_screen") {
+          position = [0, 0];
+          heading = 0;
+        }
         break;
       }
       default:
