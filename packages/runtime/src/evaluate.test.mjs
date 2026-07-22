@@ -191,6 +191,78 @@ test("raises ol-type when power's base or exponent is not a number", () => {
   assert.equal(badExponent.diagnostic.code, "ol-type");
 });
 
+// `sin`/`cos`/`tan`/`pi` (issue #323, `spec/commands.md`'s "Math" section): the Core Math
+// reporters this issue adds. Before this issue, `sin`/`cos`/`tan`/`pi` were already registered in
+// the parser's fixed-arity table and so parsed with zero diagnostics, but reached no evaluator
+// branch and no `isSupportedExpression` entry, so `print sin 90` silently emitted no `print`
+// event and no diagnostic at all — an uncontrolled silent failure this issue fixes.
+
+test("sin/cos report the sine/cosine of an angle in degrees", () => {
+  assert.deepEqual(evalExpr("sin 90"), { ok: true, value: 1 });
+  assert.deepEqual(evalExpr("sin 0"), { ok: true, value: 0 });
+  assert.deepEqual(evalExpr("sin -90"), { ok: true, value: -1 });
+  assert.deepEqual(evalExpr("cos 0"), { ok: true, value: 1 });
+  assert.deepEqual(evalExpr("cos 180"), { ok: true, value: -1 });
+});
+
+test("tan reports the tangent of an angle in degrees", () => {
+  assert.deepEqual(evalExpr("tan 0"), { ok: true, value: 0 });
+  // `tan 45` is `0.9999999999999999`, not exactly `1`, per IEEE-754 double rounding of `π/4` —
+  // `print`'s canonical 10-significant-digit rendering (`formatNumber`) is what makes
+  // `print tan 45` display `1`, matching `spec/commands.md`'s worked example; the raw evaluated
+  // value is not itself rounded.
+  assert.deepEqual(evalExpr("tan 45"), {
+    ok: true,
+    value: 0.9999999999999999,
+  });
+});
+
+test("raises ol-tan-undefined for tan at a pole, never a huge finite value, NaN, or Infinity", () => {
+  for (const degrees of [90, -90, 270, 450]) {
+    const result = evalExpr(`tan ${degrees}`);
+    assert.equal(result.ok, false);
+    assert.equal(result.diagnostic.code, "ol-tan-undefined");
+    assert.deepEqual(result.diagnostic.params, {
+      value: degrees,
+    });
+  }
+});
+
+test("evaluates tan normally for angles adjacent to a pole, never a false-positive diagnostic", () => {
+  // Regression for a pole-detection bug caught in review: normalizing the remainder into
+  // `[0, 180)` by adding `180` before the second `%` is lossy for doubles one ULP away from `90`
+  // (`89.99999999999999`, `90.00000000000001`) — the addition rounds the sum to exactly `270`,
+  // which then falsely normalizes back to `90`, misclassifying a defined, finite `tan` input as
+  // undefined. Comparing `degrees % 180` directly against `90`/`-90` (no addition, so no
+  // precision loss) avoids this false positive.
+  for (const degrees of [89.99999999999999, 90.00000000000001]) {
+    const result = evalExpr(`tan ${degrees}`);
+    assert.equal(result.ok, true);
+    assert.equal(Number.isFinite(result.value), true);
+  }
+});
+
+test("pi reports the mathematical constant", () => {
+  assert.deepEqual(evalExpr("pi"), { ok: true, value: Math.PI });
+});
+
+test("propagates a failing operand into sin/cos/tan", () => {
+  for (const builtin of ["sin", "cos", "tan"]) {
+    const result = evalExpr(`${builtin} (1 / 0)`);
+    assert.equal(result.ok, false);
+    assert.equal(result.diagnostic.code, "ol-div-zero");
+  }
+});
+
+test("raises ol-type when sin/cos/tan's operand is not a number", () => {
+  for (const builtin of ["sin", "cos", "tan"]) {
+    const result = evalExpr(`${builtin} true`);
+    assert.equal(result.ok, false);
+    assert.equal(result.diagnostic.code, "ol-type");
+    assert.equal(result.diagnostic.params.operation, builtin);
+  }
+});
+
 // The remaining tests hand-build minimal AST nodes to exercise evaluator-internal invariants
 // that the parser's grammar and fixed-arity table make unreachable from real source.
 
@@ -203,6 +275,10 @@ test("isSupportedExpression accepts every literal, arithmetic, and place-read sh
   assert.equal(isSupportedExpression(parseExpr("[1 2 3]")), true);
   assert.equal(isSupportedExpression(parseExpr("2 + 3 * 4")), true);
   assert.equal(isSupportedExpression(parseExpr("sqrt (power 2 3)")), true);
+  assert.equal(isSupportedExpression(parseExpr("sin 90")), true);
+  assert.equal(isSupportedExpression(parseExpr("cos 0")), true);
+  assert.equal(isSupportedExpression(parseExpr("tan 45")), true);
+  assert.equal(isSupportedExpression(parseExpr("pi")), true);
   assert.equal(isSupportedExpression(parseExpr(":x")), true);
   assert.equal(isSupportedExpression(parseExpr('thing "x"')), true);
   assert.equal(isSupportedExpression(parseExpr(":nums[1]")), true);

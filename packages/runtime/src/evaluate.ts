@@ -3,7 +3,19 @@
  * gives every Core literal a value and implements arithmetic (`+ - * / mod`) plus the Core math
  * builtins (`abs sqrt int round power`) from
  * [`spec/execution-model.md`](../../../spec/execution-model.md) and
- * [`spec/commands.md`](../../../spec/commands.md). {@link evaluate} is a plain recursive
+ * [`spec/commands.md`](../../../spec/commands.md). Issue #323 adds the trigonometric reporters
+ * `sin`/`cos`/`tan` (one number, in degrees) and the 0-arg constant reporter `pi` — they were
+ * already registered in the parser's fixed-arity table (`packages/parser/src/signatures.ts`) and
+ * so parsed as ordinary `Call`s with zero diagnostics, but had no evaluator branch and no
+ * `isSupportedExpression` entry, so `evaluate()` silently never ran them (no trace event, no
+ * diagnostic — an uncontrolled silent failure, not a controlled one). `sin`/`cos` follow
+ * {@link evaluateUnaryMath}'s exact template; `tan` additionally guards the poles where cosine is
+ * `0` (`90` degrees plus any multiple of `180`) and raises the dedicated `ol-tan-undefined`
+ * (spec PR #392) rather than the huge-but-finite value IEEE-754 `Math.tan` actually returns there
+ * (never `NaN`/`Infinity`, per this section's opening sentence) — a per-domain educational code
+ * mirroring `ol-neg-sqrt`, not a reuse of `ol-div-zero`, since `spec/error-model.md` scopes that
+ * code to `/`/`mod` only. `pi` follows {@link evaluateRepcount}'s 0-arg template (no
+ * operand to evaluate, so nothing to fail). {@link evaluate} is a plain recursive
  * dispatch over {@link ExpressionNode.kind} so the evaluator slices that follow (#94-#105 —
  * variables, comparisons, `is`-predicates, lists, comprehensions, …) each add one more `case`
  * without restructuring this function. Issue #94 adds the {@link Environment} binding model,
@@ -610,7 +622,15 @@ export function requireWholeNumber(
 const BINARY_ARITHMETIC_OPERATORS = ["+", "-", "*", "/", "mod"] as const;
 type BinaryArithmeticOperator = (typeof BINARY_ARITHMETIC_OPERATORS)[number];
 
-const UNARY_MATH_BUILTINS = ["abs", "sqrt", "int", "round"] as const;
+const UNARY_MATH_BUILTINS = [
+  "abs",
+  "sqrt",
+  "int",
+  "round",
+  "sin",
+  "cos",
+  "tan",
+] as const;
 type UnaryMathBuiltin = (typeof UNARY_MATH_BUILTINS)[number];
 
 const BINARY_MATH_BUILTINS = ["power"] as const;
@@ -689,8 +709,12 @@ function isLogicalOperator(name: string): name is LogicalOperator {
  * emit no trace event. As of issue #234 the word-constructor `word` joins the known-callee list.
  * As of issue #287 the Core Math reporter `random` joins the known-callee list too — it reads and
  * mutates {@link Environment.randomNumberGenerator} but, like the turtle-state reporters above, is
- * otherwise a pure expression with no diagnostic beyond its own argument checks. As of issue #190
- * the Data-profile derived list reporters `reverse`/`pick`/`sort` join the known-callee list too.
+ * otherwise a pure expression with no diagnostic beyond its own argument checks. As of issue #323
+ * the trigonometric reporters `sin`/`cos`/`tan` (unary math builtins) and the 0-arg constant
+ * reporter `pi` join the known-callee list too — they were already registered in the parser's
+ * fixed-arity table but reached no evaluator branch, so a call to them silently produced no value
+ * and no diagnostic at all. As of issue #190 the Data-profile derived list reporters
+ * `reverse`/`pick`/`sort` join the known-callee list too.
  */
 export function isSupportedExpression(
   node: ExpressionNode,
@@ -753,6 +777,7 @@ export function isSupportedExpression(
         name === "towards" ||
         name === "distance" ||
         name === "random" ||
+        name === "pi" ||
         procedures.has(name) ||
         structs.has(name);
       return (
@@ -1789,6 +1814,9 @@ function evaluateCall(
   if (name === "random") {
     return evaluateRandom(node, environment);
   }
+  if (name === "pi") {
+    return evaluatePi();
+  }
   if (name === "type_of") {
     return evaluateTypeOf(node, environment);
   }
@@ -1884,7 +1912,53 @@ function evaluateUnaryMath(
       return ok(Math.trunc(operand.value));
     case "round":
       return ok(Math.round(operand.value));
+    case "sin":
+      return ok(Math.sin(degreesToRadians(operand.value)));
+    case "cos":
+      return ok(Math.cos(degreesToRadians(operand.value)));
+    case "tan":
+      if (isTanUndefinedAt(operand.value)) {
+        return fail(runtimeDiag.tanUndefined(node.source_span, operand.value));
+      }
+      return ok(Math.tan(degreesToRadians(operand.value)));
   }
+}
+
+/** Converts an angle in degrees to radians, for the `sin`/`cos`/`tan` reporters (`spec/
+ * commands.md`'s "Math" section: "Trigonometric functions use degrees"). */
+function degreesToRadians(degrees: number): number {
+  return (degrees * Math.PI) / 180;
+}
+
+/**
+ * Is `degrees` one of the poles where cosine is mathematically `0` and `tan` is therefore
+ * undefined — `90` plus any multiple of `180` (`…, -90, 90, 270, 450, …`)? IEEE-754
+ * `Math.tan(degreesToRadians(90))` does not itself return `Infinity` there (`Math.cos` of the
+ * rounded double closest to `π/2` is a tiny non-zero value, so the real division produces a huge
+ * but finite double, e.g. `1.633e16`), so this checks the mathematical input directly rather than
+ * trusting the floating-point output — matching this section's opening sentence that these
+ * results are educational errors, never `NaN`/`Infinity`.
+ *
+ * This compares `degrees % 180` directly against `90` and `-90` rather than shifting the
+ * remainder into `[0, 180)` by adding `180` first: that shift is lossy for doubles adjacent to a
+ * pole (e.g. `89.99999999999999`, one ULP below `90`) because `+ 180` doesn't have enough
+ * precision left at that magnitude and rounds the sum to exactly `270`, which then falsely
+ * normalizes back to `90` — misclassifying a defined, finite `tan` input as undefined.
+ * `degrees % 180` alone is exact for any double (no addition, so no precision loss), so comparing
+ * its two possible pole values directly avoids that false positive.
+ */
+function isTanUndefinedAt(degrees: number): boolean {
+  const remainder = degrees % 180;
+  return remainder === 90 || remainder === -90;
+}
+
+/**
+ * `pi` (`spec/commands.md`'s `pi` entry): a 0-arg reporter for the mathematical constant π.
+ * Mirrors {@link evaluateRepcount}'s 0-arg shape — no operand to evaluate, so there is nothing
+ * that can fail.
+ */
+function evaluatePi(): EvalResult {
+  return ok(Math.PI);
 }
 
 function evaluateBinaryMath(

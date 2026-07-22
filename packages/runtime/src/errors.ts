@@ -59,6 +59,12 @@
  * and a reuse of `ol-type` (via `orderingType`) for `sort` given elements that are not mutually
  * orderable (a mix of numbers and words, or any other type), following the exact ordering rule
  * `<`/`>`/`<=`/`>=` already use (`spec/data-structures.md:141`).
+ * Issue #323 adds the dedicated `ol-tan-undefined` for `tan` at a pole (`90` degrees plus any
+ * multiple of `180`, where cosine is `0`) — spec PR #392 ratified a per-domain educational code
+ * (mirroring `ol-neg-sqrt`) rather than widening `ol-div-zero`, since `tan`'s pole is a distinct
+ * concept from an explicit `/`/`mod` by zero (see {@link TanUndefinedParams}). `sin`/`cos`/`pi`
+ * raise no diagnostic of their own beyond the shared `ol-type` a non-number `sin`/`cos` operand
+ * already gets from {@link ArithmeticTypeErrorParams}.
  * Mirrors the parser's `errors.ts` pattern: every finding is a stable code from the
  * `@openlogo/core` registry with structured `params` (the diagnostic identity) plus warm,
  * lowercase learner prose derived from them — prose is presentation only.
@@ -439,6 +445,17 @@ export interface RandomRangeReversedParams {
   readonly high: number;
 }
 
+/**
+ * Params for the dedicated `ol-tan-undefined` raised by `tan` (issue #323) at a pole — `90`
+ * degrees plus any multiple of `180`, where cosine is mathematically `0`. Spec PR #392 ratified a
+ * per-domain educational code (`spec/error-model.md`'s registry row: `ol-tan-undefined | runtime |
+ * value | ...`), mirroring `ol-neg-sqrt`'s single-field shape, rather than widening `ol-div-zero`
+ * to a domain it was never scoped to (`/`/`mod` only).
+ */
+export interface TanUndefinedParams {
+  readonly value: number;
+}
+
 /** Runtime-stage diagnostics, one builder per `ol-*` code the evaluator can raise. */
 export const runtimeDiag = {
   /**
@@ -470,6 +487,21 @@ export const runtimeDiag = {
       source_span,
       { operation },
       `dividing by zero with ${operation} has no answer — try a number other than 0.`,
+    );
+  },
+
+  /**
+   * `tan` at a pole (issue #323): `90` degrees plus any multiple of `180`, where `tan θ = sin θ /
+   * cos θ` is mathematically undefined. Raises the dedicated `ol-tan-undefined` (spec PR #392),
+   * not `ol-div-zero` — the maintainer's ratified Path B, mirroring the per-domain precedent
+   * `ol-neg-sqrt` sets for `sqrt` of a negative.
+   */
+  tanUndefined(source_span: SourceSpan, value: number): Diagnostic {
+    return runtimeError(
+      "ol-tan-undefined",
+      source_span,
+      { value },
+      `tan has no answer at ${value} degrees — the cosine there is 0, so the tangent is undefined. try an angle other than 90 plus a multiple of 180.`,
     );
   },
 

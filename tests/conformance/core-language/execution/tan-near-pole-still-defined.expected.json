@@ -1,0 +1,28 @@
+{
+  "description": "`tan 89` (issue #323) is one degree short of the pole at 90 and is mathematically defined — a large but finite number, `57.289961630759876` — and must NOT raise `ol-tan-undefined`. Proves the pole guard fires only exactly at `degrees % 180 === 90` (or `-90`), not merely near it.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/tan-near-pole-still-defined",
+        "start": [1, 1],
+        "end": [1, 13]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/tan-near-pole-still-defined",
+        "start": [1, 1],
+        "end": [1, 13]
+      },
+      "payload": { "values": [57.289961630759876] }
+    }
+  ],
+  "diagnostics": []
+}
