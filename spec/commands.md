@@ -176,7 +176,7 @@ show [1 2 3]
 
 ## Math
 
-OpenLogo numbers are IEEE-754 double values. Trigonometric functions use degrees. Division by zero and invalid square roots are educational errors rather than NaN or Infinity.
+OpenLogo numbers are IEEE-754 double values. Trigonometric functions use degrees. Division by zero, invalid square roots, and undefined tangents are educational errors rather than NaN or Infinity.
 
 ### `+`
 

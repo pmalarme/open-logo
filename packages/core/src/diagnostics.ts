@@ -31,6 +31,7 @@ export const OL_DIAGNOSTIC_CODES = [
   "ol-bad-token",
   "ol-div-zero",
   "ol-neg-sqrt",
+  "ol-tan-undefined",
   "ol-no-output",
   "ol-no-value",
   "ol-return-outside-proc",

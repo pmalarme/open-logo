@@ -360,7 +360,7 @@ forward :side_length
 right :outside_turn
 ```
 
-Linter check: `ol-style-magic-number` warns on unexplained numeric literals outside small obvious values such as `0`, `1`, `2`, `4`, `90`, `120`, and `360`.
+Linter check: `ol-style-magic-number` is narrower than this advice — it warns only when the *same* unexplained numeric literal appears more than once, outside small obvious values such as `0`, `1`, `2`, `4`, `90`, `120`, and `360` (a literal already named as an assignment's right-hand side, such as `:side_length = 37`, does not count). Naming a one-off number is still good style; the linter just will not flag it.
 
 ### Useless values in effect blocks
 

@@ -132,9 +132,10 @@ codes only outside the `ol-*` namespace.
 Style findings reuse the diagnostic shape above with `severity: warning` and a
 code in the `ol-style-*` namespace. They are advisory: a warning MUST NOT change
 program meaning, and all style codes report at `stage: semantic`. The rules
-themselves are specified normatively in the [style guide](style-guide.md) and
-the linter's style layer in [tooling](tooling.md); the table below is the
-registry index, so this document catalogs every reserved `ol-*` code.
+themselves are specified normatively by the linter's style layer in
+[tooling](tooling.md) and explained informatively in the
+[style guide](style-guide.md); the table below is the registry index, so this
+document catalogs every reserved `ol-*` code.
 
 | Code | Rule |
 |---|---|
