@@ -45,6 +45,7 @@ export type {
   ParenCallNode,
   PlaceNode,
   PlaceSegment,
+  PostfixExpressionNode,
   ProcedureDefNode,
   ProcedureParam,
   ProgramNode,

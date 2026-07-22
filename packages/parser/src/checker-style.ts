@@ -472,6 +472,16 @@ function checkNamesIn(node: AnyNode, diagnostics: Diagnostic[]): void {
         }
       }
       return;
+    case "PostfixExpression":
+      // Unlike `Place`, the base is a walked expression (checked by `walk`'s own generic
+      // recursion via `childrenOf`), so only the dotted field segments — metadata, not their own
+      // walked node — need checking here.
+      for (const segment of node.segments) {
+        if (segment.kind === "field") {
+          checkNameCase(segment.name, diagnostics);
+        }
+      }
+      return;
     case "ProcedureDef":
       checkNameCase(node.name, diagnostics);
       for (const param of node.params) {

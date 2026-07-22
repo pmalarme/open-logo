@@ -1,0 +1,19 @@
+{
+  "description": "ol-duplicate-binder (issue #407/F8): a `reduce` whose accumulator name collides with ONE of its destructuring item-binder's pattern names (`reduce x [:x :y] in …` — the accumulator `x` reuses the pattern's first name) is exactly as ambiguous as the existing bare-name-vs-bare-name case, so it must also raise `ol-duplicate-binder` with `form:\"reduce\"` instead of silently letting the accumulator shadow/overwrite the pattern binding on every turn. The span points at the colliding pattern name `:x`.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-duplicate-binder",
+      "source_span": {
+        "document": "core-language/check/duplicate-binder-reduce-pattern-accumulator",
+        "start": [2, 20],
+        "end": [2, 22]
+      },
+      "params": { "name": "x", "form": "reduce" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

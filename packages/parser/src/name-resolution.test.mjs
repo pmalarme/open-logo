@@ -143,6 +143,35 @@ test("the AST fallback renders a field-selector Place call argument via renderPl
   assert.deepEqual(finding.params, { text: "count :point.x" });
 });
 
+test("the AST fallback renders a PostfixExpression target via renderPostfixExpression/renderSegments (issue #407/F7), e.g. [1 2][1] = 5", () => {
+  const [finding] = checkNoSource("[1 2][1] = 5").filter(isNotAPlace);
+  assert.deepEqual(finding.params, { text: "[1 2][1]" });
+});
+
+test("the AST fallback renders a field-selector PostfixExpression target, e.g. { tom: 8 }.tom = 9", () => {
+  const [finding] = checkNoSource("{ tom: 8 }.tom = 9", [
+    "core-language",
+    "data",
+  ]).filter(isNotAPlace);
+  assert.deepEqual(finding.params, { text: "{ tom: 8 }.tom" });
+});
+
+test("the AST fallback renders a dict literal PostfixExpression base with a numeric key, e.g. { 8: 1 }.foo = 9", () => {
+  const [finding] = checkNoSource("{ 8: 1 }.foo = 9", [
+    "core-language",
+    "data",
+  ]).filter(isNotAPlace);
+  assert.deepEqual(finding.params, { text: "{ 8: 1 }.foo" });
+});
+
+test("the AST fallback renders an empty dict literal PostfixExpression base as `{ }`, e.g. { }.foo = 9", () => {
+  const [finding] = checkNoSource("{ }.foo = 9", [
+    "core-language",
+    "data",
+  ]).filter(isNotAPlace);
+  assert.deepEqual(finding.params, { text: "{ }.foo" });
+});
+
 test("the AST fallback renders a zero-argument callee target with just its name, no trailing space", () => {
   const [finding] = checkNoSource("pi = 5").filter(isNotAPlace);
   assert.deepEqual(finding.params, { text: "pi" });

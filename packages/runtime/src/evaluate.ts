@@ -62,6 +62,7 @@ import type {
   ParenCallNode,
   PlaceNode,
   PlaceSegment,
+  PostfixExpressionNode,
   ProcedureDefNode,
   ProgramNode,
   RemoveKeyNode,
@@ -744,6 +745,8 @@ export function isSupportedExpression(
       );
     case "Place":
       return isSupportedPlace(node, procedures, structs);
+    case "PostfixExpression":
+      return isSupportedPostfixExpression(node, procedures, structs);
     case "IsPredicate":
       return isSupportedIsPredicate(node, procedures, structs);
     case "Call":
@@ -858,6 +861,26 @@ function isSupportedPlace(
 }
 
 /**
+ * Is a {@link PostfixExpressionNode} (issue #407/F7 — a postfix read over an arbitrary primary,
+ * e.g. `[1 2][1]`, `{tom: 8}.tom`, `(point 0 0).x`) in scope? Its `base` must itself be
+ * supported, plus every postfix segment exactly as {@link isSupportedPlace} requires.
+ */
+function isSupportedPostfixExpression(
+  node: PostfixExpressionNode,
+  procedures: ProcedureRegistry = EMPTY_PROCEDURES,
+  structs: StructRegistry = EMPTY_STRUCTS,
+): boolean {
+  return (
+    isSupportedExpression(node.base, procedures, structs) &&
+    node.segments.every(
+      (segment) =>
+        segment.kind === "field" ||
+        isSupportedExpression(segment.key, procedures, structs),
+    )
+  );
+}
+
+/**
  * Is an {@link IsPredicateNode} in scope? Its `operand` must always be supported; per
  * `test.form`, `member-of`'s `collection` and `between`'s `low`/`high` must be too — `empty`
  * takes no sub-expression, and `a`'s type word is a parse-time literal, never evaluated, so it
@@ -915,6 +938,8 @@ export function evaluate(
     }
     case "Place":
       return readPlace(node, environment);
+    case "PostfixExpression":
+      return readPostfixExpression(node, environment);
     case "Call":
     case "ParenCall":
       return evaluateCall(node, environment);
@@ -1013,6 +1038,31 @@ function readPlace(node: PlaceNode, environment: Environment): EvalResult {
   }
 
   let current: OLValue = base;
+  for (const segment of node.segments) {
+    const step = resolvePlaceSegment(current, segment, environment, false);
+    if (!step.ok) {
+      return step;
+    }
+    current = readPlaceSegmentValue(step);
+  }
+  return ok(current);
+}
+
+/**
+ * Resolve a {@link PostfixExpressionNode} read (`[1 2][1]`, `{tom: 8}.tom`, `(point 0 0).x` —
+ * issue #407/F7): evaluate the arbitrary base expression, then walk every postfix segment
+ * exactly as {@link readPlace} does. Read-only, same as `readPlace` — never upserts.
+ */
+function readPostfixExpression(
+  node: PostfixExpressionNode,
+  environment: Environment,
+): EvalResult {
+  const baseResult = evaluate(node.base, environment);
+  if (!baseResult.ok) {
+    return baseResult;
+  }
+
+  let current: OLValue = baseResult.value;
   for (const segment of node.segments) {
     const step = resolvePlaceSegment(current, segment, environment, false);
     if (!step.ok) {
@@ -4118,24 +4168,37 @@ function comprehensionBodyResult(
 /**
  * The `ol-duplicate-binder` a comprehension's own binders raise before any element is ever
  * bound — a static property of the comprehension's shape, checked once rather than per element.
- * Mirrors `checker-control-flow.ts`'s two rules (issue #114) exactly: a repeated name within one
- * destructuring item-binder pattern (`form: "destructuring"`), or — `reduce` only, and only when
- * the item binder is a bare name, not a pattern — the accumulator name colliding with the item
- * binder's own name (`form: "reduce"`; an accumulator-vs-pattern-name collision is out of scope,
- * matching the checker's own documented boundary).
+ * Mirrors `checker-control-flow.ts`'s rules (issue #114) exactly: a repeated name within one
+ * destructuring item-binder pattern (`form: "destructuring"`), or — `reduce` only — the
+ * accumulator name colliding with the item binder, whether that binder is a bare name or (issue
+ * #72/#407 F8) one of a destructuring pattern's names (`form: "reduce"` either way).
  */
 function comprehensionDuplicateBinder(
   node: ComprehensionNode,
 ): Diagnostic | undefined {
   if ("kind" in node.binder) {
     const duplicate = findDuplicateBinderName(node.binder);
-    return duplicate === undefined
-      ? undefined
-      : runtimeDiag.duplicateBinder(
-          duplicate.source_span,
-          duplicate.name,
-          "destructuring",
+    if (duplicate !== undefined) {
+      return runtimeDiag.duplicateBinder(
+        duplicate.source_span,
+        duplicate.name,
+        "destructuring",
+      );
+    }
+    if (node.form === "reduce") {
+      const accumulator = node.accumulator.name.toLowerCase();
+      const collision = node.binder.names.find(
+        (name) => name.name.toLowerCase() === accumulator,
+      );
+      if (collision !== undefined) {
+        return runtimeDiag.duplicateBinder(
+          collision.source_span,
+          collision.name,
+          "reduce",
         );
+      }
+    }
+    return undefined;
   }
   if (
     node.form === "reduce" &&

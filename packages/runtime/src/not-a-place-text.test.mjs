@@ -64,6 +64,34 @@ test("renders a list-literal argument with mixed element kinds (number, word, bo
   );
 });
 
+test("renders a PostfixExpression target with an index segment over a list literal (issue #407/F7), e.g. [1 2][1] = 5", () => {
+  assert.equal(
+    notAPlaceTargetText(targetOf("[1 2][1] = 5"), undefined),
+    "[1 2][1]",
+  );
+});
+
+test("renders a PostfixExpression target with a field segment over a dict literal (issue #407/F7), e.g. { tom: 8 }.tom = 9", () => {
+  assert.equal(
+    notAPlaceTargetText(targetOf("{ tom: 8 }.tom = 9"), undefined),
+    "{ tom: 8 }.tom",
+  );
+});
+
+test("renders an empty dict literal PostfixExpression base as `{ }` (issue #407/F7), e.g. { }.tom = 9", () => {
+  assert.equal(
+    notAPlaceTargetText(targetOf("{ }.tom = 9"), undefined),
+    "{ }.tom",
+  );
+});
+
+test("renders a dict literal PostfixExpression base with a numeric key (issue #407/F7), e.g. { 8: 1 }.foo = 9", () => {
+  assert.equal(
+    notAPlaceTargetText(targetOf("{ 8: 1 }.foo = 9"), undefined),
+    "{ 8: 1 }.foo",
+  );
+});
+
 // --- Source slicing (`source` provided) ------------------------------------------------------
 
 test("slices the exact single-line surface text, preserving non-canonical spacing", () => {

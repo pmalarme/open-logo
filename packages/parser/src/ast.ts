@@ -31,6 +31,7 @@ export const OL_NODE_KINDS = [
   "ValueOfKey",
   "VarRef",
   "Place",
+  "PostfixExpression",
   "Assign",
   "Local",
   "Call",
@@ -218,6 +219,23 @@ export type PlaceSegment = FieldSegment | SelectorSegment;
 export interface PlaceNode extends NodeBase {
   readonly kind: "Place";
   readonly base: SpannedName;
+  readonly segments: readonly PlaceSegment[];
+}
+
+/**
+ * A postfix read over an arbitrary expression base — `spec/grammar.md:188`'s
+ * `postfix-expression ::= primary { selector | "." identifier }`, which permits a postfix after
+ * *any* primary, not only a `:name` (that narrower, variable-rooted case stays a {@link PlaceNode}
+ * so assignment targets are unaffected). Covers a selector/field read directly off a list/dict
+ * literal (`[1 2][1]`, `{tom: 8}.tom`) or a constructor-call/parenthesized result
+ * (`(point 0 0).x`). Read-only: this node never appears as an assignment target — `parser.ts`'s
+ * assignment-target parsing builds a {@link PlaceNode} directly and never goes through
+ * `parsePostfix`, so a `PostfixExpression` base is always evaluated, then its segments are walked
+ * exactly like a `Place`'s (never upserted).
+ */
+export interface PostfixExpressionNode extends NodeBase {
+  readonly kind: "PostfixExpression";
+  readonly base: ExpressionNode;
   readonly segments: readonly PlaceSegment[];
 }
 
@@ -489,6 +507,7 @@ export type ExpressionNode =
   | ValueOfKeyNode
   | VarRefNode
   | PlaceNode
+  | PostfixExpressionNode
   | CallNode
   | ParenCallNode
   | ComparisonChainNode
@@ -577,6 +596,13 @@ export const ast = {
     span: SourceSpan,
   ): PlaceNode {
     return { kind: "Place", source_span: span, base, segments };
+  },
+  postfixExpression(
+    base: ExpressionNode,
+    segments: readonly PlaceSegment[],
+    span: SourceSpan,
+  ): PostfixExpressionNode {
+    return { kind: "PostfixExpression", source_span: span, base, segments };
   },
   assign(
     place: ExpressionNode,
@@ -796,6 +822,16 @@ export function childrenOf(node: AnyNode): readonly AnyNode[] {
       return node.segments.flatMap((segment) =>
         segment.kind === "index" ? [segment.key] : [],
       );
+    case "PostfixExpression":
+      // Unlike `Place`, the base itself is a walkable expression (a literal, constructor call,
+      // or any other primary) — see the field segments note on the "Place" case above for why
+      // only bracketed selectors contribute further children.
+      return [
+        node.base,
+        ...node.segments.flatMap((segment) =>
+          segment.kind === "index" ? [segment.key] : [],
+        ),
+      ];
     case "If":
       return node.elseBody === undefined
         ? [node.condition, node.thenBody]

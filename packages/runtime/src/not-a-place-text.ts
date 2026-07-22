@@ -25,20 +25,23 @@ import type { SourceSpan } from "@openlogo/core";
 import type {
   BooleanLitNode,
   CallNode,
+  DictEntryNode,
+  DictLitNode,
   ExpressionNode,
   ListLitNode,
   NumberLitNode,
   ParenCallNode,
   PlaceNode,
+  PostfixExpressionNode,
   VarRefNode,
   WordLitNode,
 } from "@openlogo/parser";
 
 /**
  * Every expression kind the parser can build in non-place assignment-target position, or nest
- * inside one as a call argument/list element/postfix selector key — the runtime's copy of
- * `checker-not-a-place.ts`'s `RenderableNode` (see that module's doc comment for why this set is
- * closed to exactly these eight kinds).
+ * inside one as a call argument/list element/dict entry value/postfix base/postfix selector key —
+ * the runtime's copy of `checker-not-a-place.ts`'s `RenderableNode` (see that module's doc
+ * comment for why this set is closed to exactly these ten kinds).
  */
 export type RenderableNode =
   | NumberLitNode
@@ -46,7 +49,9 @@ export type RenderableNode =
   | BooleanLitNode
   | VarRefNode
   | PlaceNode
+  | PostfixExpressionNode
   | ListLitNode
+  | DictLitNode
   | CallNode
   | ParenCallNode;
 
@@ -80,16 +85,45 @@ function isInfixOperatorCall(node: CallNode): boolean {
   return node.args.length === 2 && INFIX_OPERATORS.has(node.callee.name);
 }
 
-/** Renders a postfixed place `:base.field[key]` in its own surface spelling. */
-function renderPlace(node: PlaceNode): string {
-  const segments = node.segments
+/** Renders the shared `.field[key]` postfix segment suffix of a `Place`/`PostfixExpression`. */
+function renderSegments(segments: PlaceNode["segments"]): string {
+  return segments
     .map((segment) =>
       segment.kind === "field"
         ? `.${segment.name.name}`
         : `[${renderChild(segment.key)}]`,
     )
     .join("");
-  return `:${node.base.name}${segments}`;
+}
+
+/** Renders a postfixed place `:base.field[key]` in its own surface spelling. */
+function renderPlace(node: PlaceNode): string {
+  return `:${node.base.name}${renderSegments(node.segments)}`;
+}
+
+/**
+ * Renders a postfix read over an arbitrary primary — `[1 2][1]`, `{tom: 8}.tom`,
+ * `(point 0 0).x` (issue #407/F7) — never itself a valid place, so it only ever appears here as a
+ * non-place assignment target.
+ */
+function renderPostfixExpression(node: PostfixExpressionNode): string {
+  return `${renderChild(node.base)}${renderSegments(node.segments)}`;
+}
+
+/** Renders a dict-entry key (`spec/grammar.md`'s `dict-key`) — always bare, never quoted. */
+function renderDictKey(key: DictEntryNode["key"]): string {
+  return key.kind === "WordLit" ? key.value : String(key.value);
+}
+
+/** Renders a dict literal `{ key: value … }` (Data profile), an empty one as `{ }`. */
+function renderDictLit(node: DictLitNode): string {
+  if (node.entries.length === 0) {
+    return "{ }";
+  }
+  const entries = node.entries
+    .map((entry) => `${renderDictKey(entry.key)}: ${renderChild(entry.value)}`)
+    .join(" ");
+  return `{ ${entries} }`;
 }
 
 /** Renders a `Call`/`ParenCall`'s callee and arguments in prefix form: `name arg1 arg2`. */
@@ -114,8 +148,12 @@ function renderNode(node: RenderableNode): string {
       return `:${node.name}`;
     case "Place":
       return renderPlace(node);
+    case "PostfixExpression":
+      return renderPostfixExpression(node);
     case "ListLit":
       return `[${node.elements.map(renderChild).join(" ")}]`;
+    case "DictLit":
+      return renderDictLit(node);
     case "Call":
       // A two-argument call to one of the fixed infix operator names is always infix in
       // source — see INFIX_OPERATORS — everything else (including a zero/one/three-or-more

@@ -37,12 +37,18 @@ test("stops a number before a non-exponent letter or a trailing dot", () => {
   assert.equal(r.ast.body[0].args[0].value, 1);
   assert.equal(r.ast.body[1].callee.name, "e");
 
-  // `3.x`: the dot is not a decimal point (no digit follows), so it is a stray dot token.
+  // `3.x`: `.identifier` after any primary is a postfix field selector (issue #407/F7's
+  // `postfix-expression ::= primary { selector | "." identifier }`, `primary` includes `number`),
+  // so this parses cleanly as a `PostfixExpression` over a `NumberLit` base — the type mismatch
+  // (a number has no fields) is a runtime/semantic concern, not a parse error.
   r = parse("print 3.x");
-  assert.equal(r.ast.body[0].args[0].value, 3);
-  assert.ok(codesOf("print 3.x").includes("ol-bad-token"));
+  assert.deepEqual(codesOf("print 3.x"), []);
+  const postfix = r.ast.body[0].args[0];
+  assert.equal(postfix.kind, "PostfixExpression");
+  assert.equal(postfix.base.value, 3);
+  assert.equal(postfix.segments[0].name.name, "x");
 
-  // `1.` at end of input: number 1 then a stray dot.
+  // `1.` at end of input: no identifier follows the dot, so it is a stray dot token.
   r = parse("print 1.");
   assert.equal(r.ast.body[0].args[0].value, 1);
   assert.deepEqual(codesOf("print 1."), ["ol-bad-token"]);
@@ -752,6 +758,7 @@ const MEGA = [
   "local total",
   'print "a"',
   "print true",
+  "print [1 2][1]",
   "print [1 2]",
   "print :x",
   "print :x is empty",

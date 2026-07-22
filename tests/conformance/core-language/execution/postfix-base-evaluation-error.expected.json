@@ -1,0 +1,31 @@
+{
+  "description": "`(first [])[1]` (issue #407/F7): the postfix expression's arbitrary BASE fails to evaluate — `first` on an empty list raises `ol-range` before any segment is even resolved — exercising `readPostfixExpression`'s base-evaluation failure path in `evaluate.ts`, distinct from a segment-resolution failure.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/postfix-base-evaluation-error",
+        "start": [1, 1],
+        "end": [1, 20]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-range",
+      "source_span": {
+        "document": "core-language/execution/postfix-base-evaluation-error",
+        "start": [1, 14],
+        "end": [1, 16]
+      },
+      "params": { "operation": "first", "value": [] },
+      "message": "first needs a non-empty word or list, but got an empty one.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}
