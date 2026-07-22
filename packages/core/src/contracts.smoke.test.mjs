@@ -39,3 +39,14 @@ test("core exposes the trace/event registry and envelope", () => {
   assert.equal(event.seq, 1);
   assert.equal(event.payload.to[1], 100);
 });
+
+test("core exposes feature-detection metadata a host can query via the public API surface", () => {
+  const metadata = OL.getHostMetadata();
+  assert.equal(metadata.openlogo.version, "0.1.0");
+  assert.ok(metadata.supportedProfiles.includes("core-language"));
+  assert.ok(metadata.supportedProfiles.includes("turtle-rendering"));
+  assert.ok(!metadata.supportedProfiles.includes("data"));
+  assert.ok(!metadata.supportedProfiles.includes("geometry"));
+  assert.deepEqual(metadata.renderingTargets, ["canvas", "svg", "png"]);
+  assert.equal(Object.isFrozen(metadata), true);
+});
