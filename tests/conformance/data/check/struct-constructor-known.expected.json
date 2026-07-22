@@ -1,0 +1,7 @@
+{
+  "description": "M4 audit finding F3 (issue #405): a `struct`'s constructor call is registered as a known callee by `checker-names.ts` when the `data` profile is active, so `point 3 4` checks cleanly at the struct's declared arity instead of wrongly raising `ol-unknown-command`.",
+  "profiles": ["core-language", "data"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

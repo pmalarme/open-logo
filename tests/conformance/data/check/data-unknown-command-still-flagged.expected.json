@@ -1,0 +1,20 @@
+{
+  "description": "M4 audit finding F3 (issue #405): registering the Data profile's own primitives must not make every name visible — a genuinely unknown callee (`frobnicate`) is still flagged `ol-unknown-command` with the `data` profile active, exactly as it is under any other profile set.",
+  "profiles": ["core-language", "data"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "data/check/data-unknown-command-still-flagged",
+        "start": [1, 1],
+        "end": [1, 11]
+      },
+      "params": { "name": "frobnicate" },
+      "message": "i don't know how to frobnicate. check the spelling, or define it with 'define'.",
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

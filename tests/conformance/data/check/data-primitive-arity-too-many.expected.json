@@ -1,0 +1,20 @@
+{
+  "description": "M4 audit finding F3 (issue #405): `type_of` is a fixed-arity (1) Data primitive, so the parenthesized over-supply `(type_of 1 2)` raises `ol-too-many-inputs` under `check()`, statically, before execution.",
+  "profiles": ["core-language", "data"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-too-many-inputs",
+      "source_span": {
+        "document": "data/check/data-primitive-arity-too-many",
+        "start": [1, 2],
+        "end": [1, 9]
+      },
+      "params": { "callable": "type_of", "expected": 1, "actual": 2 },
+      "message": "type_of takes one input, but got 2.",
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

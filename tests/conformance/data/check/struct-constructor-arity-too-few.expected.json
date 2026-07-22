@@ -1,0 +1,20 @@
+{
+  "description": "M4 audit finding F3 (issue #405): `checker-arity.ts` collects each `struct`'s constructor arity (required = max = field count) at phase 1, so the 2-field `point`'s bare `point 3` under-supply raises `ol-not-enough-inputs` statically, mirroring the runtime constructor-arity check (issue #329) one stage earlier.",
+  "profiles": ["core-language", "data"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-not-enough-inputs",
+      "source_span": {
+        "document": "data/check/struct-constructor-arity-too-few",
+        "start": [2, 1],
+        "end": [2, 6]
+      },
+      "params": { "callable": "point", "expected": 2, "actual": 1 },
+      "message": "point needs two inputs.",
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}
