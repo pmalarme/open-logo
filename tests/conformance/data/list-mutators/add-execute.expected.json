@@ -1,0 +1,56 @@
+{
+  "description": "`add 4 to :nums` executes: the runtime appends to the shared list in place, so the following `print :nums` observes [1 2 3 4] (Data profile, issue #188, spec/data-structures.md:73-93). Proves the Add node reaches the runtime dispatch, not just the parser.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/list-mutators/add-execute",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/list-mutators/add-execute",
+        "start": [2, 1],
+        "end": [2, 15]
+      },
+      "payload": {
+        "statement_kind": "Add"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/list-mutators/add-execute",
+        "start": [3, 1],
+        "end": [3, 12]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "data/list-mutators/add-execute",
+        "start": [3, 1],
+        "end": [3, 12]
+      },
+      "payload": {
+        "values": [[1, 2, 3, 4]]
+      }
+    }
+  ],
+  "diagnostics": []
+}

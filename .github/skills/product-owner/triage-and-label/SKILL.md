@@ -22,8 +22,8 @@ tracks can pull their own work.
 - **`type:*`** — `feature-request`, `epic`, `slice`, `bug`, `conformance`, `foundation`, `docs`, `chore`.
 - **`profile:*`** — `core`, `turtle-rendering`, `data`, `geometry`, `heritage`, `sprites`,
   `interaction`, `sound`, `modules`, `localization`, `educational`, `tutor-ai`.
-- **`area:*`** — `grammar`, `highlighter`, `checker`, `runtime`, `rendering`, `studio`, `edu`, `ci`,
-  `docs` (the cross-cutting domain, orthogonal to the owning agent).
+- **`area:*`** — `grammar`, `highlighter`, `checker`, `core`, `runtime`, `rendering`, `studio`, `edu`,
+  `ci`, `docs` (the cross-cutting domain, orthogonal to the owning agent).
 - **`level:*`** — `1`–`8` for curriculum items (progression, not a profile).
 
 ## Rules

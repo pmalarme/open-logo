@@ -31,13 +31,17 @@ export type {
 
 export { isEventKind, OL_EVENT_KINDS } from "./events.js";
 export type {
+  AxesOverlayPayload,
   BackgroundChangePayload,
   ClearPayload,
   ColorChangePayload,
   DrawSegmentPayload,
   EventKind,
   FillPayload,
+  GridOverlayPayload,
+  MeasureOverlayPayload,
   MovePayload,
+  OverlayPayload,
   PenChangePayload,
   PenState,
   Point,
@@ -52,7 +56,19 @@ export type {
   TurtleId,
   VisibilityChangePayload,
   WidthChangePayload,
+  TutorCommand,
+  TutorHintStage,
+  TutorOutputPayload,
+  ExplainTutorOutputPayload,
+  WhyTutorOutputPayload,
+  HintTutorOutputPayload,
+  DebugTutorOutputPayload,
+  TutorOutputSegments,
+  WhyDiagnosticTutorOutputPayload,
+  WhyProgramTutorOutputPayload,
+  DebugDiagnosticTutorOutputPayload,
+  DebugProgramTutorOutputPayload,
 } from "./events.js";
 
-export { typeNameOf } from "./values.js";
-export type { OLTypeName, OLValue } from "./values.js";
+export { OLDict, OLRecord, typeNameOf } from "./values.js";
+export type { OLDictKey, OLTypeName, OLValue } from "./values.js";

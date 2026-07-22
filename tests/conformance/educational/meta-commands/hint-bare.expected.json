@@ -1,0 +1,7 @@
+{
+  "description": "issue #331 / spec/commands.md's Meta-commands note and spec/conformance.md#educational's signature table: `hint` is a Command, arity 0, invoked as the bare word `hint` — with the educational profile active it parses and checks clean, with no diagnostics. (`hint`'s progressive nudge->concept->partial->last-resort escalation is a runtime behavior owned by issue #332's A2 slice, not this parser-only fixture.)",
+  "profiles": ["core-language", "educational"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

@@ -1,0 +1,3 @@
+:nums = [1 2 3]
+add 4 to :nums
+print :nums

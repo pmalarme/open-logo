@@ -1,0 +1,58 @@
+{
+  "description": "`reverse` (Data profile, spec/data-structures.md:125-141) reports a fresh list with `:nums`'s elements in reverse order; the argument variable itself is unchanged on the following statement, proving `reverse` copies rather than mutates. Issue #190.",
+  "profiles": ["data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/lists/reverse-preserves-original",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": { "statement_kind": "Assign" }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/lists/reverse-preserves-original",
+        "start": [2, 1],
+        "end": [2, 20]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "data/lists/reverse-preserves-original",
+        "start": [2, 1],
+        "end": [2, 20]
+      },
+      "payload": { "values": [[2, 1, 3]] }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/lists/reverse-preserves-original",
+        "start": [3, 1],
+        "end": [3, 12]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 4,
+      "kind": "print",
+      "source_span": {
+        "document": "data/lists/reverse-preserves-original",
+        "start": [3, 1],
+        "end": [3, 12]
+      },
+      "payload": { "values": [[3, 1, 2]] }
+    }
+  ],
+  "diagnostics": []
+}

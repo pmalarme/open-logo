@@ -9,7 +9,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { makeSpan } from "@openlogo/core";
+import { makeSpan, OLDict } from "@openlogo/core";
 import * as Parser from "@openlogo/parser";
 import { evaluate, valuesEqual } from "@openlogo/runtime";
 
@@ -399,4 +399,54 @@ test("cyclic lists of differing length are unequal without recursing", () => {
   const b = [1];
   b.push(b, b); // length 3
   assert.equal(valuesEqual(a, b), false);
+});
+
+test("dict == dict is structural: same keys and pairwise ==, order-independent (issue #322)", () => {
+  const a = new OLDict();
+  a.set("x", 1);
+  a.set("y", 2);
+  const b = new OLDict();
+  b.set("y", 2);
+  b.set("x", 1);
+  assert.equal(valuesEqual(a, b), true);
+});
+
+test("dicts of differing size are unequal", () => {
+  const a = new OLDict();
+  a.set("x", 1);
+  const b = new OLDict();
+  b.set("x", 1);
+  b.set("y", 2);
+  assert.equal(valuesEqual(a, b), false);
+});
+
+test("dicts with the same size but different keys are unequal", () => {
+  const a = new OLDict();
+  a.set("x", 1);
+  const b = new OLDict();
+  b.set("y", 1);
+  assert.equal(valuesEqual(a, b), false);
+});
+
+test("dicts with the same keys but a differing value are unequal", () => {
+  const a = new OLDict();
+  a.set("x", 1);
+  const b = new OLDict();
+  b.set("x", 2);
+  assert.equal(valuesEqual(a, b), false);
+});
+
+test("dict cross-type with any non-dict is false", () => {
+  const a = new OLDict();
+  a.set("x", 1);
+  assert.equal(valuesEqual(a, [1]), false);
+  assert.equal(valuesEqual(a, 1), false);
+  assert.equal(valuesEqual(a, "x"), false);
+});
+
+test("a self-referential dict (nested via a shared list) equals itself, terminating on the cycle", () => {
+  const a = new OLDict();
+  const list = [a];
+  a.set("self", list);
+  assert.equal(valuesEqual(a, a), true);
 });

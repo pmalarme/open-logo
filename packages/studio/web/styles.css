@@ -17,6 +17,13 @@
   --ol-border: #d8dee5;
   --ol-error: #c0392b;
   --ol-warning: #b8860b;
+  /* #316 — dedicated, darker button backgrounds for the icon run-controls toolbar. Distinct from
+     --ol-green/--ol-orange/--ol-blue (used elsewhere for the tagline text and focus outline)
+     because those lighter shades fall short of WCAG AA's 4.5:1 text contrast against white
+     button-label text; these three are darkened just enough to clear it. */
+  --ol-button-start: #1f7a3d;
+  --ol-button-pause: #a85c14;
+  --ol-button-reset: #256ba8;
 }
 
 * {
@@ -72,12 +79,45 @@ header h1 {
   padding: 0 0.35em;
 }
 
+/*
+ * #313 — side-by-side code/run layout. Narrow (default/mobile) viewports keep the original
+ * single-column stack, in DOM order (editor, controls, turtle canvas, output, diagnostics) — the
+ * same order #279's REPL_FOCUS_ORDER/index.test.mjs already pin, so no reflow ever separates
+ * visual order from tab order there. From the 48rem (~768px) breakpoint up (media queries cannot
+ * reference custom properties, so the value is repeated in the @media rule below), a two-column
+ * grid places the editor above the run controls in the left column and the turtle canvas spans
+ * both rows in the right column — visually adjacent to the editor it draws for, while output and
+ * diagnostics stay full-width below. Only `grid-template-areas`/`-columns` change between the two
+ * layouts; every pane keeps its existing id/role/aria-label, so #279's landmarks and focus order
+ * are untouched by this purely presentational, CSS-only slice.
+ *
+ * Extension slot for the future lesson pane (#127/M3, target end-state
+ * "Lesson | Editor | Run/Canvas"): `#lesson-pane`/`.pane-lesson` in index.html starts `hidden`,
+ * so it has no box and no `grid-area` participation at all — none of the rules below reserve any
+ * space for it while hidden, in either layout (the collapsed-to-zero/freeform requirement: with
+ * no lesson loaded the layout is a clean `editor | canvas` two-region grid, width fully
+ * reclaimed). The `main:has(.pane-lesson:not([hidden]))` rules further down are the *only* place
+ * its column/row is defined; they activate automatically the moment a future lesson-pane module
+ * clears that `hidden` attribute, with zero further edits to this file, index.html, or
+ * app-shell.ts (whose "lesson" `RegionName` this reuses, unchanged since #123). `:has()` is
+ * supported by every evergreen browser this project targets. When present, the lesson pane is
+ * always its own leftmost column ahead of editor/turtle (`"lesson editor turtle"` below) — never
+ * sharing the editor's column — matching the learner flow and DOM/focus order (lesson pane first
+ * in `REPL_FOCUS_ORDER`).
+ */
 main {
   display: grid;
   gap: 1rem;
   padding: 1rem 1.5rem 2rem;
   max-width: 960px;
   margin: 0 auto;
+  grid-template-columns: 1fr;
+  grid-template-areas:
+    "editor"
+    "controls"
+    "turtle"
+    "output"
+    "diagnostics";
 }
 
 main section {
@@ -85,6 +125,144 @@ main section {
   border: 1px solid var(--ol-border);
   border-radius: 8px;
   padding: 0.75rem 1rem;
+}
+
+.pane-lesson {
+  grid-area: lesson;
+  /* #127 M3 enrichment: the lesson region's objective/worked-example/exercise-prompt content can
+     be taller than the space its neighboring editor+controls+turtle+output+diagnostics column
+     needs (or than the viewport, in the narrow stacked layout). Give it its own bounded,
+     independently scrolling box — matching #314's `#run-log` precedent — instead of stretching
+     the whole grid row (and therefore the editor/canvas) to match its height. `min-height: 0`
+     overrides the grid item's default content-based minimum so it can actually shrink enough to
+     scroll instead of overflowing. */
+  align-self: start;
+  min-height: 0;
+  max-height: calc(100vh - 10rem);
+  overflow-y: auto;
+}
+
+.pane-editor {
+  grid-area: editor;
+}
+
+.pane-controls {
+  grid-area: controls;
+}
+
+.pane-turtle {
+  grid-area: turtle;
+}
+
+.pane-output {
+  grid-area: output;
+}
+
+.pane-diagnostics {
+  grid-area: diagnostics;
+}
+
+/* #334 — the tutor-output pane: absent (no box, no `grid-area` participation) until
+   `explain`/`why`/`hint`/`debug` has ever run, exactly mirroring `.pane-lesson`'s
+   `:has(...:not([hidden]))` extension-slot pattern above — it never displaces or reserves space
+   ahead of the editor/diagnostics panes while hidden. */
+.pane-tutor {
+  grid-area: tutor;
+  align-self: start;
+  min-height: 0;
+  max-height: calc(100vh - 10rem);
+  overflow-y: auto;
+}
+
+/* The lesson pane is present (its `hidden` attribute was cleared) — reserve its row, stacked
+   above the rest, in the narrow single-column layout. */
+main:has(.pane-lesson:not([hidden])) {
+  grid-template-areas:
+    "lesson"
+    "editor"
+    "controls"
+    "turtle"
+    "output"
+    "diagnostics";
+}
+
+/* The tutor-output pane is present — append its own row after diagnostics, single-column layout. */
+main:has(.pane-tutor:not([hidden])) {
+  grid-template-areas:
+    "editor"
+    "controls"
+    "turtle"
+    "output"
+    "diagnostics"
+    "tutor";
+}
+
+/* Both the lesson and tutor-output panes are present at once — combine both extension rows. */
+main:has(.pane-lesson:not([hidden])):has(.pane-tutor:not([hidden])) {
+  grid-template-areas:
+    "lesson"
+    "editor"
+    "controls"
+    "turtle"
+    "output"
+    "diagnostics"
+    "tutor";
+}
+
+@media (min-width: 48rem) {
+  main {
+    max-width: 1200px;
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "editor turtle"
+      "controls turtle"
+      "output output"
+      "diagnostics diagnostics";
+  }
+
+  .pane-turtle {
+    /* Keeps the canvas vertically centered beside the shorter editor+controls column. */
+    align-self: start;
+  }
+
+  /* The lesson pane is present — add its own leftmost column ahead of editor/controls, matching
+     the target end-state "Lesson | Editor | Run/Canvas" three-pane layout. `minmax(0, 300px)`
+     gives it a ~300px starting width (a starting figure, not normative) that the grid track
+     sizing algorithm shrinks toward its 0 minimum first under width pressure — before the
+     `1fr` editor/turtle tracks (whose effective minimum is their own content) are ever squeezed
+     below their minimums. */
+  main:has(.pane-lesson:not([hidden])) {
+    max-width: 1400px;
+    grid-template-columns: minmax(0, 300px) 1fr 1fr;
+    grid-template-areas:
+      "lesson editor turtle"
+      "lesson controls turtle"
+      "lesson output output"
+      "lesson diagnostics diagnostics";
+  }
+
+  /* #334 — the tutor-output pane is present: append its own full-width row after diagnostics,
+     two-column layout. */
+  main:has(.pane-tutor:not([hidden])) {
+    grid-template-areas:
+      "editor turtle"
+      "controls turtle"
+      "output output"
+      "diagnostics diagnostics"
+      "tutor tutor";
+  }
+
+  /* Both the lesson and tutor-output panes are present at once — combine both extension areas. */
+  main:has(.pane-lesson:not([hidden])):has(.pane-tutor:not([hidden])) {
+    max-width: 1400px;
+    grid-template-columns: minmax(0, 300px) 1fr 1fr;
+    grid-template-areas:
+      "lesson editor turtle"
+      "lesson controls turtle"
+      "lesson output output"
+      "lesson diagnostics diagnostics"
+      "lesson tutor tutor";
+  }
 }
 
 #editor {
@@ -97,7 +275,7 @@ main section {
 }
 
 [role="toolbar"] button {
-  background: var(--ol-green);
+  background: var(--ol-button-start);
   color: var(--ol-surface);
   border: none;
   border-radius: 6px;
@@ -105,14 +283,64 @@ main section {
   margin-right: 0.5rem;
   font-weight: 600;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
-#stop-button {
-  background: var(--ol-orange);
+/* #316 — icon run-controls: the icon is a decorative pseudo-element (aria-hidden on its span),
+   never the only accessible signal — every button also keeps a visible text label plus an
+   `aria-label` set from `run-controls.ts`'s tested view model. Glyphs are plain Unicode
+   characters (no icon-font/SVG dependency needed for this slice) sized in `em`s so they scale
+   with the button's font size. */
+.control-icon::before {
+  display: inline-block;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+#run-toggle-button[data-icon="play"] .control-icon::before {
+  content: "\25B6"; /* ▶ */
+}
+
+#run-toggle-button[data-icon="pause"] .control-icon::before {
+  content: "\23F8"; /* ⏸ */
+}
+
+#reset-button .control-icon::before {
+  content: "\21BA"; /* ↺ */
+}
+
+#run-toggle-button[data-icon="pause"] {
+  background: var(--ol-button-pause);
 }
 
 #reset-button {
-  background: var(--ol-blue);
+  background: var(--ol-button-reset);
+}
+
+/* #310 — the turtle-speed slider control, inline with Run/Stop/Reset in the same toolbar. */
+.speed-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-right: 0.5rem;
+}
+
+.speed-control label {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+#speed-slider {
+  width: 8rem;
+  accent-color: var(--ol-purple);
+}
+
+#speed-description {
+  font-size: 0.8rem;
+  color: var(--ol-navy);
+  min-width: 4.5rem;
 }
 
 :focus-visible {
@@ -125,6 +353,10 @@ main section {
   border-radius: 6px;
   background: var(--ol-surface);
   display: block;
+  /* Scale down to fit its pane on narrow columns; the backing width/height attributes (and thus
+     the turtle's actual drawing resolution) are untouched — this is a visual-only scale. */
+  max-width: 100%;
+  height: auto;
 }
 
 #turtle-state {
@@ -159,6 +391,106 @@ main section {
 
 #diagnostics-list li[data-severity="warning"] {
   color: var(--ol-warning);
+}
+
+/* #314 — the run log pane: an ordered, append-only history of runs, hosted as the last child of
+   the existing Run controls toolbar (`.pane-controls`, `role="toolbar"`) rather than a new
+   top-level pane, so it never introduces a new landmark region (per the issue's "existing REPL
+   landmark region" acceptance criterion) — see `index.html`'s `.run-log-wrapper`. Each `<li>`
+   groups one run's heading, formatted output, and diagnostics; `data-has-errors="true"` (set by
+   web/main.ts from RunLogEntryViewItem.hasErrors) tints just that run's heading, never the whole
+   pane. */
+.run-log-wrapper {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--ol-border);
+}
+
+.run-log-heading-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ol-navy);
+}
+
+#run-log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 16rem;
+  overflow-y: auto;
+}
+
+#run-log li {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--ol-border);
+}
+
+#run-log li:last-child {
+  border-bottom: none;
+}
+
+.run-log-heading {
+  margin: 0 0 0.25rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--ol-navy);
+}
+
+#run-log li[data-has-errors="true"] .run-log-heading {
+  color: var(--ol-error);
+}
+
+.run-log-output {
+  margin: 0 0 0.25rem;
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.85rem;
+}
+
+.run-log-diagnostics {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.8rem;
+}
+
+.run-log-diagnostics li {
+  padding: 0.15rem 0;
+  border-bottom: none;
+}
+
+/* #334 — the tutor-output pane: an append-only history of `explain`/`why`/`hint`/`debug` results,
+   styled to match `#run-log`'s scrolling-list precedent immediately above. */
+#tutor-output {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+#tutor-output li {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--ol-border);
+}
+
+#tutor-output li:last-child {
+  border-bottom: none;
+}
+
+.tutor-output-heading {
+  margin: 0 0 0.25rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--ol-navy);
+}
+
+.tutor-output-segments p {
+  margin: 0 0 0.25rem;
+  font-size: 0.9rem;
+}
+
+.tutor-output-segments p:last-child {
+  margin-bottom: 0;
 }
 
 /* Visually hidden but still announced by assistive technology (the two always-live

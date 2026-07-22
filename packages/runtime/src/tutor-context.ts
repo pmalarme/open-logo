@@ -1,0 +1,95 @@
+/**
+ * The shared, data-only input/output contracts the baseline `explain`/`why`/`hint`/`debug`
+ * meta-commands consume and produce (`spec/educational-model.md#baseline-meta-commands`). A0
+ * (#324) originally placed this family in `@openlogo/edu`, intending it as the one agreed
+ * contract `@openlogo/runtime`'s dispatch (issue #332, A2) and `@openlogo/edu`'s per-command
+ * templates (A3/A4/A5) would build against instead of freelancing competing shapes. `edu` cannot
+ * host it, though: `@openlogo/edu` depends on `@openlogo/runtime`, and `runtime` is the sole
+ * `tutor-output` event emitter, so a type edu-only declaration would force a dependency cycle for
+ * runtime to ever use it. This issue's M3-orchestrator ruling relocates the family here — the
+ * package both `@openlogo/edu` (a downstream dependent) and `@openlogo/runtime` itself can
+ * reference without a cycle — and turns `@openlogo/edu/src/tutor-context.ts` into a thin
+ * re-export of these three types (plus its own `TutorOutput = TutorOutputPayload` alias), so
+ * A3/A4/A5's `@openlogo/edu` import path is unaffected. No type's shape changed in the move.
+ */
+
+import type {
+  Diagnostic,
+  TraceEvent,
+  TutorCommand,
+  TutorHintStage,
+} from "@openlogo/core";
+import type { AnyNode } from "@openlogo/parser";
+
+/**
+ * One of OpenLogo's curriculum levels (`spec/educational-model.md`'s level table: `"1"`
+ * movement, `"2"` repetition, `"3"` variables, `"4"` conditions, `"5"` procedures, `"6"`
+ * geometry, `"7a"`/`"7b"`/`"7c"` lists/dictionaries/records, `"8a"`/`"8b"` recursion/
+ * comprehensions). `TutorContext` treats this as an opaque identifier the caller supplies — it
+ * does not itself model curriculum sequencing, lesson content, or level transitions, which is
+ * `@openlogo/edu`'s curriculum contract to define separately.
+ */
+export type TutorLearnerLevel =
+  "1" | "2" | "3" | "4" | "5" | "6" | "7a" | "7b" | "7c" | "8a" | "8b";
+
+/**
+ * Known metadata about the primitive or procedure a target instruction calls, when the target
+ * is a call the tutor can identify (`spec/educational-model.md:420-434`'s "known command
+ * metadata" input). Absent when the target is not a call, or no target is selected.
+ */
+export interface TutorCommandMetadata {
+  /**
+   * The callee's canonical name (e.g. `"forward"`, `"repeat"`, or a learner-defined procedure
+   * name).
+   */
+  readonly name: string;
+  /**
+   * The callee's arity as known to the parser/runtime — its non-block input count (e.g. `1` for
+   * `forward`, `1` for `repeat`'s count input; a control form's block body is not itself an
+   * input and is not counted here).
+   */
+  readonly arity: number;
+  /**
+   * Whether the callee is a built-in primitive, a control/binding **special form** (e.g.
+   * `repeat`, `if`, `define` — `explain` MUST be able to name these, per
+   * `spec/educational-model.md:451`'s "Name the command or special form"), or a learner-defined
+   * procedure.
+   */
+  readonly kind: "primitive" | "special-form" | "procedure";
+}
+
+/**
+ * The shared input contract for a baseline meta-command invocation
+ * (`spec/educational-model.md:420-434`: "the parsed program, source spans, trace events,
+ * diagnostics, and known command metadata"), plus the hint-stage progression state the spec
+ * requires a host to track itself (`spec/execution-model.md:640-652` — progression state "is a
+ * property of the host implementation, not the wire event itself").
+ */
+export interface TutorContext {
+  /** Which baseline meta-command was invoked. */
+  readonly command: TutorCommand;
+  /** The full parsed program the invocation occurred within. */
+  readonly program: AnyNode;
+  /**
+   * The selected instruction or statement-range the command's output should describe, when one
+   * is selected (`explain`/`why`/`debug` MAY concern the whole program instead, per
+   * `spec/execution-model.md:626`'s `target-source-span` rule).
+   */
+  readonly target?: AnyNode;
+  /** The trace/event stream produced by execution so far, in increasing `seq` order. */
+  readonly events: readonly TraceEvent[];
+  /** The `ol-*` diagnostics produced by execution or analysis so far. */
+  readonly diagnostics: readonly Diagnostic[];
+  /** The learner's active curriculum level. */
+  readonly level: TutorLearnerLevel;
+  /** Metadata about the callee the target instruction invokes, when known. */
+  readonly commandMetadata?: TutorCommandMetadata;
+  /**
+   * The previous `hint` stage already shown for this `target`'s span, when `command` is
+   * `"hint"` and this is a repeated request — used to compute the next stage in the
+   * nudge → concept → partial → last-resort progression (`spec/execution-model.md:640-652`).
+   * Absent for a `target` whose progression has not started yet, and irrelevant for
+   * `explain`/`why`/`debug`.
+   */
+  readonly priorHintStage?: TutorHintStage;
+}

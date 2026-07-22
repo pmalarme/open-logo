@@ -1,0 +1,128 @@
+{
+  "description": "Records compare with `==` structurally by type and field values (issue #329, mirroring list/dict equality): two `point` records with equal fields are `==`, differing fields are not, and the worded `:p is a \"point\"` predicate agrees with `is_a?`.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-equality-structural",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "statement_kind": "StructDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-equality-structural",
+        "start": [2, 1],
+        "end": [2, 15]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-equality-structural",
+        "start": [3, 1],
+        "end": [3, 15]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-equality-structural",
+        "start": [4, 1],
+        "end": [4, 15]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-equality-structural",
+        "start": [5, 1],
+        "end": [5, 15]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "print",
+      "source_span": {
+        "document": "data/struct-runtime/struct-equality-structural",
+        "start": [5, 1],
+        "end": [5, 15]
+      },
+      "payload": {
+        "values": [true]
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-equality-structural",
+        "start": [6, 1],
+        "end": [6, 15]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "print",
+      "source_span": {
+        "document": "data/struct-runtime/struct-equality-structural",
+        "start": [6, 1],
+        "end": [6, 15]
+      },
+      "payload": {
+        "values": [false]
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-equality-structural",
+        "start": [7, 1],
+        "end": [7, 22]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "print",
+      "source_span": {
+        "document": "data/struct-runtime/struct-equality-structural",
+        "start": [7, 1],
+        "end": [7, 22]
+      },
+      "payload": {
+        "values": [true]
+      }
+    }
+  ],
+  "diagnostics": []
+}

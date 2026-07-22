@@ -213,3 +213,37 @@ test("ol-too-many-inputs' message pluralizes the expected count singularly for a
     actual: 2,
   });
 });
+
+test("a statement-position procedure call with an unsupported argument (e.g. an unknown callee) is left un-evaluated, not thrown", () => {
+  // A call to a name unknown to both the builtin whitelist and the procedure registry is
+  // unsupported — `isSupportedExpression` reports it unsupported. `print`'s own argument loop
+  // already leaves an unsupported operand un-evaluated rather than reaching `evaluate()`; a
+  // statement-position user-procedure call (`p (nonexistent_builtin 1)`, as opposed to an
+  // expression-position one, which `evaluate.ts`'s own gate already protects) must do the same,
+  // instead of falling straight into `evaluate()` and throwing a host exception for the
+  // still-unimplemented callee.
+  const result = execute(
+    'define p :x\n  print "ran"\nend\np (nonexistent_builtin 1)',
+    doc,
+  );
+  assert.deepEqual(result.diagnostics, []);
+  const printed = result.events.filter((event) => event.kind === "print");
+  assert.deepEqual(printed, []);
+  const instructions = result.events.filter(
+    (event) => event.kind === "instruction",
+  );
+  assert.deepEqual(
+    instructions.map((event) => event.payload.statement_kind),
+    ["ProcedureDef", "Call"],
+  );
+});
+
+test("a parenthesized statement-position procedure call with an unsupported argument is also left un-evaluated", () => {
+  const result = execute(
+    'define p :x :y\n  print "ran"\nend\n(p (nonexistent_builtin 1) 2)',
+    doc,
+  );
+  assert.deepEqual(result.diagnostics, []);
+  const printed = result.events.filter((event) => event.kind === "print");
+  assert.deepEqual(printed, []);
+});

@@ -80,7 +80,9 @@ slice may swap in a real renderer without changing this contract.
     returned trace-event stream to exactly what #126 surfaced: every `print` event becomes one
     `output` line (already in the runtime's canonical `printedForm`, never reformatted here), and
     the run's diagnostics replace the shared `diagnostics` list unchanged. This part is unchanged
-    since #126 and always synchronous/instant — `execute()` never yields.
+    since #126 and always synchronous/instant — `execute()` never yields. `runStatus` settles to
+    `"done"` (#311) once a run finishes on its own — distinct from `"idle"`, which now means only
+    "never run" / just after `reset()`.
   - **Turtle Canvas lockstep (#228)** — `run()` then replays that same already-complete
     trace-event stream through `@openlogo/turtle`'s `TurtleAnimationController` (#216), pushing
     each folded `{ state, scene }` snapshot into the shared `turtleState`/`turtleScene` fields (and
@@ -123,7 +125,105 @@ slice may swap in a real renderer without changing this contract.
   - `mountRunController(shell, controller)` composes the controller into the shell's `repl` region.
 - See `run-controller.ts`'s doc comment for the full same-thread cancellation rationale and the
   `runStatus`-vs-animation-completion decoupling #228 introduces (a still-paced Canvas view is
-  never reported `"idle"`/`"stopped"` before its animation has actually reached `"done"`).
+  never reported `"done"`/`"stopped"` before its animation has actually reached its own,
+  `@openlogo/turtle`-owned `"done"` status).
+
+## Friendlier run-status labels (#311)
+
+The `#run-status` region (`index.html`) shows a learner-facing label instead of the raw internal
+`RunStatus` state-machine name:
+
+- `state-model.ts`'s `RunStatus` gained a `"done"` value distinct from `"idle"`: `run-controller.ts`
+  now commits `"done"` (not `"idle"`) when a run finishes on its own, so a renderer can tell "never
+  run yet" apart from "just finished" — the state-machine names are otherwise unchanged.
+- `src/run-status-label.ts` — the single, fully-tested pure lookup `web/main.ts` reads instead of
+  rendering `runStatus` raw: `mapRunStatusToLabel(runStatus)` maps `"idle"` → `"Ready"`,
+  `"running"` → `"Running"`, `"done"` → `"Complete"`, `"stopped"` → `"Stopped"`
+  (`RUN_STATUS_LABELS` is the underlying table).
+- `a11y.ts`'s `describeRunStatus` gained the matching `"Run complete."` screen-reader announcement
+  for `"done"`, so the existing `aria-live` announcement stays in sync with the visible label.
+- Accessibility: `#run-status` keeps its existing `aria-live="polite"`/`role="status"` region (no
+  new markup needed beyond a `role`/`aria-label` for parity with the turtle-state region); the label
+  is plain text — color is never used to distinguish run states.
+
+## Icon Start/Pause run-toggle (#316)
+
+Presentation only, over the unchanged `run-controller.ts` — no new run-lifecycle semantics.
+
+- The separate `#run-button` ("Run") and `#stop-button` ("Stop") are replaced by a single
+  `#run-toggle-button` in `index.html`, an icon + label toggle: a play icon/"Start" label while
+  idle/done/stopped, a pause icon/"Pause" label while running. `#reset-button` is unchanged in
+  behavior and gains a matching icon.
+- `src/run-controls.ts` — the one tested, pure place that decides the toggle's presentation:
+  `mapRunStatusToRunToggleViewModel(runStatus)` maps every internal `RunStatus` to a
+  `RunToggleViewModel` (`action: "run" | "stop"`, `icon: "play" | "pause"`, `label`, `ariaLabel`,
+  `ariaPressed`). `"running"` is the only status that maps to `action: "stop"`/`ariaPressed: true`;
+  every other status maps to `action: "run"`/`ariaPressed: false`. `web/main.ts` never branches on
+  `runStatus` itself to decide the toggle's label/icon/click target — it looks the already-decided
+  `action` up in a small `Record<RunToggleAction, () => void>` (`run: () => runController.run()`,
+  `stop: () => runController.stop()`) and applies the view model's fields onto the DOM via plain
+  attribute assignment (`renderRunToggleButton`), matching this package's existing thin,
+  branch-free `web/main.ts` convention (`run-status-label.ts`/`turtle-speed.ts` follow the same
+  shape).
+- **Scope boundary:** clicking the toggle while running still calls the existing `stop()` — there
+  is no pause/resume method, and `run()`/`stop()`/`reset()` are otherwise byte-for-byte unchanged.
+  The toggle's "Pause" label is a learner-facing affordance over that same `stop()` call, not a new
+  runtime capability. There is still no `step()`/"Next step" control in the 0.1.0 UI (deferred to
+  Studio Stepper Wave 1 / #302 / milestone #12, per `a11y.ts`'s doc comment) — this slice does not
+  cross that boundary.
+- Accessibility: the icon (`.control-icon`, a CSS `::before`-rendered Unicode glyph keyed off the
+  button's `data-icon` attribute) is `aria-hidden="true"` and never the only accessible signal —
+  the toggle always carries an `aria-label` (`"Start run"`/`"Pause run"`) plus a visible text label
+  (`#run-toggle-label`, "Start"/"Pause") and an `aria-pressed` state reflecting whether a run is in
+  progress. `REPL_FOCUS_ORDER`/`REPL_LANDMARK_ROLES` (`a11y.ts`) collapse the former two Run/Stop
+  focus stops into the single `run-toggle-button` stop; Reset keeps its own stop. Button background
+  colors (`--ol-button-start`/`--ol-button-pause`/`--ol-button-reset` in `web/styles.css`) were
+  chosen to clear WCAG AA's 4.5:1 text-contrast threshold against the white button-label text,
+  distinct from the lighter `--ol-green`/`--ol-orange`/`--ol-blue` used elsewhere (tagline text,
+  focus outline) that fall short of it. No animation/transition is introduced, so there is nothing
+  for `prefers-reduced-motion` to suppress.
+
+## Turtle-speed control (#310)
+
+The Run/Stop/Reset animation pace, previously a hardcoded fixed delay `web/main.ts` ignored the
+runtime's own per-call pacing to enforce, is now a learner-controllable slider:
+
+- `src/turtle-speed.ts` — the single, fully-tested pure-function mapping the slider owns:
+  - `SPEED_SLIDER_MIN`/`SPEED_SLIDER_MAX` (`0`..`100`) bound the slider's range;
+    `DEFAULT_SPEED_SLIDER_VALUE` (`50`) is its initial position.
+  - `mapSpeedSliderValueToTickDelayMs(value)` linearly interpolates a slider position down from
+    `SLOWEST_TICK_DELAY_MS` (at `SPEED_SLIDER_MIN`) to `FASTEST_PACED_TICK_DELAY_MS` (at
+    `SPEED_SLIDER_MAX - 1`), clamping out-of-range input — **and** dedicates the slider's top end
+    (`SPEED_SLIDER_MAX`) to `INSTANT_TICK_DELAY_MS`, a distinct "no animation at all" position
+    rather than just an extreme pace.
+  - `isInstantTickDelay(delayMs)` / `tickDelayMsToStepsPerSecond(delayMs)` /
+    `describeSpeedTickDelayMs(delayMs)` (a short learner-facing string, e.g. `"Instant"` or
+    `"5 steps/second"`) round out the helper — every branch of the slider's behavior lives here,
+    fully covered by `turtle-speed.test.mjs`, so `web/main.ts` never has to.
+- `state-model.ts` gains `speedSliderValue` (defaulting to `DEFAULT_SPEED_SLIDER_VALUE`) and
+  `setSpeedSliderValue` — the same single-source-of-truth contract every other field follows.
+- `run-controller.ts`'s `prepare()` reads `speedSliderValue` on every `run()`/`step()` and maps it
+  to a tick delay: when paced, it constructs the `TurtleAnimationController` with the matching
+  `stepsPerSecond` (via `tickDelayMsToStepsPerSecond`) so each scheduled tick actually waits that
+  long; when the slider is at the dedicated instant position, `run()` paints the final scene
+  immediately via the same `seekToEnd()` path `reducedMotion` already used — **the slider's instant
+  position and the OS's `prefers-reduced-motion` are OR-combined**, so either one alone is enough to
+  skip the animation; neither replaces the other's own reason for existing.
+- The literal bug this issue targets: `web-bootstrap.ts`'s `createTimeoutScheduler` used to take an
+  outer, fixed `delayMs` and ignore the per-call one `TurtleAnimationController` passed on every
+  tick — so no matter what pace the caller asked for, every run animated at the same hardcoded
+  speed. It now takes no outer `delayMs` at all; its returned scheduler forwards each call's own
+  `delayMs` straight to the injected `setTimeout`, so the slider's chosen pace is what actually
+  plays back.
+- `web/main.ts` wires the `#speed-slider` `<input type="range">` straight to
+  `setSpeedSliderValue` on every `input` event (no branch — the mapping is already a plain function
+  call), and mirrors both the slider's position and its `describeSpeedTickDelayMs` text into
+  `#speed-description` whenever `speedSliderValue` changes, including on first paint.
+- Accessibility: the slider is a real `<input type="range">` (implicit `role="slider"`) with a
+  `<label for="speed-slider">`, so it is keyboard-operable (arrow keys) and announces its accessible
+  name to a screen reader; `#speed-description`'s live text is the *only* signal for the instant
+  position — color is never used to distinguish it. `a11y.ts`'s `REPL_FOCUS_ORDER` gains the
+  matching `speed-slider` stop (see below).
 
 ## Diagnostics pane (#125)
 
@@ -161,27 +261,29 @@ layer** (`src/a11y.ts`) that a later real renderer maps onto actual DOM attribut
 no DOM here to regress.
 
 - **Keyboard operability** — `REPL_FOCUS_ORDER` is a static, ordered list of every focusable stop
-  across the studio: the editor (one `textbox` stop), Run/Stop/Reset (three `button` stops,
-  matching `run-controller.ts`'s `run()`/`stop()`/`reset()`), the turtle Canvas (one `img`
-  stop), and the diagnostics list (one `log` stop). `nextFocusStop`/`previousFocusStop` cycle
-  through it, wrapping at both ends — proof there is no keyboard trap: from any stop you can always
-  reach every other stop moving forward or backward. `run-controller.ts`'s headless `step()` method
-  still exists (Wave 1/#302 rebuilds a UI on it), but 0.1.0 removed its `Next step` control (#305),
-  and has no `speed`/`export` control either (`@openlogo/turtle` exposes
-  `exportTurtleSvg`/`exportTurtlePng` and an animation `stepsPerSecond` option, but studio does not
-  wire either into a learner-facing action today), so
-  this module deliberately adds no focus stop for an action that does not exist — the same
-  "document the honest gap, never fake it" precedent #126/#228 set for `step()`/`stop()`.
+  across the studio: the editor (one `textbox` stop), the Start/Pause toggle and Reset (two
+  `button` stops, matching `run-controller.ts`'s `run()`/`stop()`/`reset()` — collapsed from three
+  stops to two by #316's icon toggle, see that section above), the turtle-speed slider (one
+  `slider` stop, #310), the turtle Canvas (one `img` stop), and the diagnostics list (one `log`
+  stop).
+  `nextFocusStop`/`previousFocusStop` cycle through it, wrapping at both ends — proof there is no
+  keyboard trap: from any stop you can always reach every other stop moving forward or backward.
+  `run-controller.ts`'s headless `step()` method still exists (Wave 1/#302 rebuilds a UI on it), but
+  0.1.0 removed its `Next step` control (#305), and has no `export` control either (`@openlogo/turtle`
+  exposes `exportTurtleSvg`/`exportTurtlePng`, but studio does not wire it into a learner-facing
+  action today), so this module deliberately adds no focus stop for that action that does not
+  exist — the same "document the honest gap, never fake it" precedent #126/#228 set for
+  `step()`/`stop()`.
 - **Semantic structure** — `REPL_LANDMARK_ROLES` declares each pane's container-level ARIA role +
   label (editor≈`textbox`, run controls≈`toolbar` "Run controls", the Canvas≈`img` "Turtle canvas",
   its non-visual state text≈`status` "Turtle state", diagnostics≈`log` "Diagnostics"), for a
   renderer to map onto real `role`/`aria-label` attributes.
 - **Screen-reader announcements** — `createA11yAnnouncer(state)` subscribes to the shared #123
   store (never a copy) and emits an `Announcement` (`{ politeness, message }`) whenever
-  `runStatus` or `diagnostics` changes: run-status transitions ("Run started."/"Run stopped."/
-  "Ready.") and diagnostics changes (e.g. "1 error found.", `politeness: "assertive"` when any
-  diagnostic is an error, else `"polite"`). Announcement text is built **only** from structured
-  fields (`runStatus`; diagnostics' `severity` counts) — it never reads or branches on a
+  `runStatus` or `diagnostics` changes: run-status transitions ("Run started."/"Run complete."/
+  "Run stopped."/"Ready.") and diagnostics changes (e.g. "1 error found.", `politeness: "assertive"`
+  when any diagnostic is an error, else `"polite"`). Announcement text is built **only** from
+  structured fields (`runStatus`; diagnostics' `severity` counts) — it never reads or branches on a
   `Diagnostic.message`'s prose, per the diagnostic-identity rule already followed by
   `diagnostics.ts`. `getAnnouncements()` returns the full history; `subscribeAnnouncements(...)`
   notifies every listener with the same events, so multiple consumers never desync (the #123
@@ -241,13 +343,132 @@ The package is now genuinely servable, not just headless-testable:
   `createStudioState`/`createAppShell`/`createEditorController`/`createCanvasViewController`/
   `createRunController` (every seam documented above) onto real DOM elements from `index.html`. It
   never reimplements any of them. Any non-trivial glue (the default boot program, a diagnostics
-  summary string) lives in `src/web-bootstrap.ts` instead, which has its own `.test.mjs` and stays
-  inside the 100% coverage gate — `web/**` is outside this package's `tsc -b` build graph (`src/`
-  only) and is never imported by a test, so it does not count toward that gate either way.
+  summary string, #310's slider→tick-delay mapping) lives in `src/web-bootstrap.ts` and
+  `src/turtle-speed.ts` instead, each with its own `.test.mjs` and staying inside the 100% coverage
+  gate — `web/**` is outside this package's `tsc -b` build graph (`src/` only) and is never imported
+  by a test, so it does not count toward that gate either way.
 - This is the **walking skeleton** (epic #276's slice 1): Stop/Reset with live animation, the
   full diagnostics list pane, and a11y/persistence/branding polish are later slices. A bad program
   (e.g. `forward`) does not crash the page on Run — its diagnostics render as a plain-text summary,
   not yet the full diagnostics pane. `Next step` was removed from the 0.1.0 UI (#305); the
   headless `step()` machinery it drove stays intact for Wave 1 (#302) to rebuild the control on.
 
+## Side-by-side code/run layout (#313)
+
+Presentation-only slice (epic #290, Studio UX polish milestone): from a 48rem (~768px) viewport up,
+the editor and the turtle Canvas render **side by side** — the editor and run controls stack in a
+left column, the Canvas fills a right column beside them, and output/diagnostics stay full-width
+below — so a learner sees code and the drawing it produces at the same time. Narrower (mobile)
+viewports keep the original single-column stack.
+
+- Pure CSS (`web/styles.css`): a `grid-template-areas` layout on `<main>`, switched at one
+  `@media (min-width: 48rem)` breakpoint. `index.html`'s `<section>`s each gained a `pane-*` class
+  purely to name their grid area — no element was reordered, and every existing `id`/`role`/
+  `aria-label` is unchanged, so #279's `REPL_LANDMARK_ROLES`/`REPL_FOCUS_ORDER` contracts (and their
+  `index.test.mjs` proofs) still hold: keyboard tab order still follows DOM order, which reads
+  editor → run controls → Canvas → output → diagnostics in both layouts.
+- The Canvas gained `max-width: 100%; height: auto` so it scales down to fit its column on
+  narrower screens; its `width`/`height` attributes (and thus the turtle's actual drawing
+  resolution `@openlogo/turtle` paints at) are untouched — purely a visual scale.
+- No `src/` or `web/main.ts` changes: there is no layout *decision* logic to test — CSS alone
+  decides when to switch columns, so `web/main.ts` stays exactly as thin and branch-free as before.
+
+**Shell write-set (declared)** — exactly these three files, nothing else:
+`index.html` (adds `pane-*` classes + the extension-slot placeholder below — no reordering, no
+`id`/`role`/`aria-label` change to any existing element), `web/styles.css` (the grid rules above +
+the extension-slot rules below), `README.md` (this section). `src/app-shell.ts` was **not**
+touched — its `"lesson"` region already existed (see below).
+
+### Extension slot for the future lesson pane (#127/M3)
+
+M11 and M3 build toward the same end-state three-pane layout — **Lesson pane (context) | Code
+editor | Run/Canvas** — so this slice reserves that third slot now, CSS-only, so `#127` never has
+to reshape `index.html`/`web/styles.css`/`src/app-shell.ts` again:
+
+- **DOM contract**: `index.html` gains `<section id="lesson-pane" class="pane-lesson"
+  hidden></section>` as `<main>`'s first child (matching the target reading order). It carries
+  **no `role`/`aria-label` of its own** — declaring one now would create an unmodelled implicit
+  `region` landmark the moment `hidden` is cleared, since `src/a11y.ts` has no entry for it yet.
+  It ships `hidden`, so it has no box, no grid participation, and — critically — is entirely
+  absent from the accessibility tree and the keyboard focus order while empty: nothing to regress,
+  no empty landmark, no focus-order gap (verified — see below).
+- **App-shell contract**: no change needed. `src/app-shell.ts`'s `APP_SHELL_REGIONS` has included
+  `"lesson"` as a named region since #123. A future lesson-pane module mounts exactly like
+  `canvas-view.ts`'s `mountCanvasView` does for `"turtle"`: call `shell.mount("lesson",
+  controller)`, then clear `#lesson-pane`'s `hidden` attribute (e.g.
+  `document.getElementById("lesson-pane").hidden = false`) once it has real content to show.
+- **CSS contract**: `web/styles.css`'s `main:has(.pane-lesson:not([hidden]))` rules are the *only*
+  place the `lesson` grid area is defined — in the narrow layout it inserts a `"lesson"` row above
+  `editor`; from 48rem up it inserts a column to the left of the existing editor/turtle columns.
+  Both activate automatically the instant the `hidden` attribute is cleared — no `styles.css` edit
+  required to add the third pane. (`:has()` is supported by every evergreen browser this project
+  targets.)
+- **What #127 still owns**: the lesson-pane module itself, plus updating `src/a11y.ts` to add a
+  `REPL_LANDMARK_ROLES` entry (region `"lesson"`) and any `REPL_FOCUS_ORDER` stops for its own
+  interactive content, and giving `#lesson-pane` (or its rendered content) a real `role`. #313
+  deliberately declares none of that for content that doesn't exist yet — declaring an empty
+  landmark ahead of time would itself be the accessibility regression this slice's DoD forbids.
+
+**#127 delivered** (see `src/lesson-pane.ts` for the full doc comment): `#lesson-pane` now carries
+`role="complementary"`/`aria-label="Lesson"` (`REPL_LANDMARK_ROLES`/`REPL_FOCUS_ORDER` in
+`src/a11y.ts`), M3's enrichment refined the wide-layout column from the placeholder
+`minmax(14rem, 22%)` above to `minmax(0, 300px)` (a ~300px starting width that collapses toward
+zero — the M3-required "collapses before editor/turtle drop below their own minimums" behavior —
+rather than a percentage), and `.pane-lesson` gained its own bounded, independently scrolling box
+(`max-height`/`overflow-y: auto`, matching the run log's `#run-log` precedent below) so long lesson
+content never pushes the editor/canvas down.
+
+## Run log pane (#314)
+
+Epic #290, Studio UX polish milestone: before this slice, the `#output` pane held only the LATEST
+run's printed output — a second `run()` silently overwrote whatever the first one printed, so a
+learner who ran two programs in a row lost the first one's output the moment the second finished.
+This slice adds an additive, append-only **run log** — a scrollable history/timeline of every run
+this session, each entry timestamped and carrying that run's own output and `ol-*` diagnostics —
+without changing `#output`'s existing "show the latest run" behavior at all.
+
+- **`src/run-log.ts`** (new, 100%-covered) is the tested model:
+  - `createRunLogController(state, options?)` watches the shared `StudioStateStore` and appends
+    exactly one `RunLogEntry` every time `runStatus` transitions from `"running"` into a terminal
+    status — `"done"` (finished on its own, including a run whose only outcome was an `ol-*`
+    diagnostic) or `"stopped"` (`stop()`, or an `ol-limit` runaway-program halt). It never appends
+    on `reset()` (`"…" → "idle"` is not a completed run) and never on a `"running"`→`"running"`
+    no-op update. Entries are only ever appended (`[...entries, entry]`), never replaced or
+    reordered, so earlier runs' history is preserved across later ones.
+  - `toRunLogListItems(entries)` is the pure rendering projection: one already-formatted item per
+    entry (a deterministic `"Run N — <ISO timestamp>"` heading, its output text via #278's
+    `formatOutput`, and its diagnostics via #278's `toDiagnosticListItems` — the exact same
+    source-span/code/severity/message formatting the diagnostics pane already uses), plus a
+    `hasErrors` flag for styling. Like `toDiagnosticListItems`, it always returns a **non-empty**
+    list — a single synthetic "No runs yet." placeholder when history is empty — so `web/main.ts`
+    only ever loops unconditionally, with no `if`/`for` decision of its own.
+- **`index.html`/`web/styles.css`** host the run log **inside the existing Run controls toolbar**
+  (`<section class="pane-controls" aria-label="Run controls" role="toolbar">`) as a final
+  `<div class="run-log-wrapper">` child, rather than as a new top-level `pane-*` section. The issue's
+  acceptance criteria require reusing "the existing REPL landmark region" with **no new landmark**:
+  in this codebase `REPL_LANDMARK_ROLES`/`REPL_FOCUS_ORDER` (`src/a11y.ts`) specifically name that
+  toolbar section as the "REPL" region, and a `<section>` with an `aria-label` (even without an
+  explicit `role`) still gets an *implicit* ARIA `role="region"` per the HTML-AAM spec — so a
+  sibling `pane-runlog` section, however additively placed, would in fact have introduced a brand
+  new landmark. Nesting inside `pane-controls` instead adds zero new `role`/`aria-label` attributes
+  anywhere: every existing Run/Stop/Reset/speed-slider/`#run-status` element keeps its exact
+  attributes and DOM position, so #279's `REPL_LANDMARK_ROLES`/`REPL_FOCUS_ORDER` contracts (and
+  `index.test.mjs`'s proofs of them) are unaffected — keyboard tab order still follows DOM order.
+  CSS-wise this means the log is no longer its own grid-area row; it renders within the "controls"
+  grid area (which grows to fit), separated from the Run/Stop/Reset row by a `.run-log-wrapper`
+  top border.
+- **`web/main.ts`** wires `createRunLogController`/`toRunLogListItems` onto `#run-log` the same
+  thin, branch-free way every other pane is wired: a `createRunLogEntryElement` mapping function
+  (unavoidably untested, like `createDiagnosticListItemElement`, since this repo's `node:test` has
+  no DOM) builds one `<li>` per already-computed view item, and `renderRunLog` re-renders the whole
+  list from `runLog.getEntries()` whenever a new entry is appended.
+- **`src/run-controller.ts`** gained a re-entrancy guard: `run()` now ignores a call while
+  `runStatus` is already `"running"`. With a real paced `Scheduler` (the browser's, not the
+  headless-test-default `IMMEDIATE_SCHEDULER`), `runStatus` stays `"running"` across many
+  event-loop turns while the Canvas animation plays out — a second Run click in that window used to
+  silently `prepare()` a new run, overwriting `output`/`diagnostics` with the in-flight run's data
+  and orphaning its animation, so the run log recorded only the second run and silently lost the
+  first. The guard makes a run always finish (or `stop()`) before another can start, matching the
+  "Stop is the only way to interrupt a run" contract the instruction budget already gives runaway
+  programs.
 

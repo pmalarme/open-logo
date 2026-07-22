@@ -66,6 +66,9 @@ responsibilities, spec files, boundaries, and conventions.
 | `@openlogo/studio` | **browser web app**: editor/REPL, Canvas turtle view, Run/Stop/Reset, diagnostics view, **LSP**, lesson pane, persistence, a11y | core, parser, runtime, turtle, edu | learner-experience |
 | `@openlogo/edu` | learner levels, `explain`/`why`/`hint`/`debug`, geometry stdlib (`.logo`), AI tutor, curriculum, examples | core, runtime | geometry-teacher, ai-tutor, curriculum |
 
+See the [Educational commands reference](educational-commands.md) and the
+[curriculum overview](curriculum-overview.md) for `@openlogo/edu`'s learner-facing documentation.
+
 ### Suggested module layout (KISS — not a straitjacket)
 
 - **core/src**: `values.ts`, `diagnostics.ts` (`ol-*` registry), `events.ts` (trace/event types +

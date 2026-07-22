@@ -1,0 +1,92 @@
+{
+  "description": "Slice #330 — place-chain composition across dict then record kinds, reproducing `spec/data-structures.md:30-39` verbatim (`struct person`, a dict literal holding a record, `print :people.tom.age`, `:people.tom.age = 9`) and extending it with a second `print` to assert the write actually mutated the nested record in place: `.tom` resolves as a dict-key segment, `.age` then resolves as a record-field segment against the value that segment produced — the same chain walker composes both kinds with no auto-vivification anywhere in the chain.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/place-chaining/dict-record-chain-read",
+        "start": [1, 1],
+        "end": [1, 27]
+      },
+      "payload": {
+        "statement_kind": "StructDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/place-chaining/dict-record-chain-read",
+        "start": [3, 1],
+        "end": [5, 2]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/place-chaining/dict-record-chain-read",
+        "start": [7, 1],
+        "end": [7, 22]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "data/place-chaining/dict-record-chain-read",
+        "start": [7, 1],
+        "end": [7, 22]
+      },
+      "payload": {
+        "values": [8]
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/place-chaining/dict-record-chain-read",
+        "start": [8, 1],
+        "end": [8, 20]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/place-chaining/dict-record-chain-read",
+        "start": [9, 1],
+        "end": [9, 22]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "print",
+      "source_span": {
+        "document": "data/place-chaining/dict-record-chain-read",
+        "start": [9, 1],
+        "end": [9, 22]
+      },
+      "payload": {
+        "values": [9]
+      }
+    }
+  ],
+  "diagnostics": []
+}

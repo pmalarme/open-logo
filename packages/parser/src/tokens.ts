@@ -31,6 +31,7 @@ export type LexTokenKind =
   | "lparen"
   | "rparen"
   | "dot"
+  | "colon"
   | "newline"
   | "eof";
 
@@ -242,8 +243,12 @@ export function tokenize(source: string, document: string): LexResult {
         }
         push("variable", `:${name}`, start, name);
       } else {
+        // A colon that doesn't lead a `:name` variable reference is the dict-entry
+        // key/value separator (`spec/grammar.md`'s `dict-entry ::= dict-key ":" expression`).
+        // It is a real token, not a lexical error — a lone colon in a place the parser
+        // doesn't expect one still surfaces `ol-bad-token` via `unexpected()`'s default case.
         advance();
-        diagnostics.push(parseDiag.badToken(span(start, pos()), ":"));
+        push("colon", ":", start);
       }
       continue;
     }

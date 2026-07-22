@@ -1,0 +1,35 @@
+{
+  "description": "`reverse` on a non-list argument raises `ol-type` naming the expected `list` concept (spec/data-structures.md:125-141, spec/error-model.md). Issue #190.",
+  "profiles": ["data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/lists/reverse-non-list-error",
+        "start": [1, 1],
+        "end": [1, 25]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "data/lists/reverse-non-list-error",
+        "start": [1, 15],
+        "end": [1, 25]
+      },
+      "params": {
+        "expected": "list",
+        "actual": "word",
+        "value": "notalist",
+        "operation": "reverse"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

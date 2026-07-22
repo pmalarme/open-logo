@@ -1,0 +1,19 @@
+{
+  "description": "An unclosed field list `struct point [ x y` reports ol-unmatched-bracket at the opening `[` (grammar.md's `field-list ::= \"[\" identifier { identifier } \"]\"`); it is not silently accepted. Parse-only negative fixture.",
+  "profiles": ["core-language", "data"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unmatched-bracket",
+      "source_span": {
+        "document": "data/structs/struct-unmatched-bracket",
+        "start": [4, 14],
+        "end": [4, 15]
+      },
+      "params": { "delimiter": "[" },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

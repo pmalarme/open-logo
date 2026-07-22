@@ -159,6 +159,25 @@ test("clear with mode clear_screen removes drawing items identically to clean", 
   assert.deepEqual(scene.items, []);
 });
 
+test("tutor-output (Educational profile) is inert: default branch returns the same scene reference unchanged", () => {
+  const scene = OL.reduceSceneEvents([
+    event("draw-segment", {
+      from: [0, 0],
+      to: [0, 50],
+      color: "black",
+      width: 1,
+    }),
+  ]);
+  const next = OL.reduceTurtleScene(
+    scene,
+    event("tutor-output", {
+      command: "explain",
+      segments: ["`repeat` runs the block four times."],
+    }),
+  );
+  assert.strictEqual(next, scene);
+});
+
 test("clear does not reset the background — clean and clear_screen preserve it", () => {
   const events = [
     event("background-change", { color: "yellow" }, undefined),

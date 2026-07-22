@@ -1,0 +1,9 @@
+struct person [ name age ]
+
+:people = {
+  tom: person "tom" 8
+}
+
+print :people.tom.age
+:people.tom.age = 9
+print :people.tom.age

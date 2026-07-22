@@ -145,9 +145,9 @@ test("execute evaluates a parenthesized `(print value)` call the same as the pla
 });
 
 test("execute leaves an unsupported print argument un-evaluated, emitting no print event", () => {
-  // A dotted `.field` place segment is Data/record-profile and deferred (issue #94 covers only
-  // the `index` selector), so `:ages.tom` stays unsupported the same way `:x` did before #94.
-  const result = execute("print :ages.tom", "main.logo");
+  // A call to a name unknown to both the builtin whitelist and the procedure registry stays
+  // unsupported (issue #322 made `.field` and dict literals themselves fully supported).
+  const result = execute("print (nonexistent_builtin 1)", "main.logo");
   assert.equal(result.diagnostics.length, 0);
   assert.equal(result.events.length, 1);
   assert.equal(result.events[0].kind, "instruction");
@@ -169,11 +169,11 @@ test("execute carries a boolean and a list value on a print event", () => {
 });
 
 test("execute leaves a variadic print un-evaluated when any one operand is unsupported", () => {
-  // Every operand must be an expression kind this issue's evaluator supports — `:ages.tom` (a
-  // dotted `.field` place, Data-profile and deferred) is not, so the whole `(print 1 :ages.tom)`
-  // statement stays un-evaluated (only its `instruction` event fires), even though its first
-  // operand (`1`) would evaluate cleanly on its own.
-  const result = execute("(print 1 :ages.tom)", "main.logo");
+  // Every operand must be an expression kind this issue's evaluator supports — a call to an
+  // unknown name is not, so the whole `(print 1 (nonexistent_builtin 1))` statement stays
+  // un-evaluated (only its `instruction` event fires), even though its first operand (`1`) would
+  // evaluate cleanly on its own.
+  const result = execute("(print 1 (nonexistent_builtin 1))", "main.logo");
   assert.equal(result.diagnostics.length, 0);
   assert.equal(result.events.length, 1);
   assert.equal(result.events[0].kind, "instruction");
@@ -273,9 +273,9 @@ test("execute raises ol-too-many-inputs for `show` given more than one argument"
 });
 
 test("execute leaves an unsupported `show` argument un-evaluated, emitting no print event", () => {
-  // A dotted `.field` place segment (Data-profile, deferred) is not yet a supported expression —
-  // the same deferral `print` uses.
-  const result = execute("show :ages.tom", "main.logo");
+  // A call to a name unknown to both the builtin whitelist and the procedure registry is not yet
+  // a supported expression — the same deferral `print` uses.
+  const result = execute("show (nonexistent_builtin 1)", "main.logo");
   assert.deepEqual(result.diagnostics, []);
   assert.deepEqual(
     result.events.map((event) => event.kind),

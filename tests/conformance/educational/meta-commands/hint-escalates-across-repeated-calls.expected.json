@@ -1,0 +1,157 @@
+{
+  "description": "issue #332 (A2), per M3-orchestrator sequencing note: proves the progressive-hint escalation contract end-to-end through the runtime's real dispatch (in-run per-`target-source-span` `hintProgress` Map + `nextHintStage`, `packages/runtime/src/tutor-templates.ts`), which A4 #333's `@openlogo/edu` hint-template unit tests could not exercise on their own (no `execute()` -> `tutor-output` path existed before A2). Five bare `hint` calls share the SAME target (the whole-program span, since each `hint` is itself an unshadowed Educational meta-command call and is skipped when resolving the PRECEDING one's target, per `findPrecedingSiblingStatement`) and MUST escalate `nudge` -> `concept` -> `partial` -> `last-resort`, then CLAMP at `last-resort` on the fifth call rather than ever producing a full solution (spec/conformance.md's Educational profile: hint MUST be progressive and MUST NOT reveal a full solution; spec/execution-model.md:640-652 defines the stage order).",
+  "profiles": ["core-language", "educational"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "educational/meta-commands/hint-escalates-across-repeated-calls",
+        "start": [1, 1],
+        "end": [1, 5]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "tutor-output",
+      "source_span": {
+        "document": "educational/meta-commands/hint-escalates-across-repeated-calls",
+        "start": [1, 1],
+        "end": [1, 5]
+      },
+      "payload": {
+        "command": "hint",
+        "stage": "nudge",
+        "target_source_span": {
+          "document": "educational/meta-commands/hint-escalates-across-repeated-calls",
+          "start": [1, 1],
+          "end": [6, 1]
+        },
+        "segments": ["Here is a small nudge about your program."]
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "educational/meta-commands/hint-escalates-across-repeated-calls",
+        "start": [2, 1],
+        "end": [2, 5]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 3,
+      "kind": "tutor-output",
+      "source_span": {
+        "document": "educational/meta-commands/hint-escalates-across-repeated-calls",
+        "start": [2, 1],
+        "end": [2, 5]
+      },
+      "payload": {
+        "command": "hint",
+        "stage": "concept",
+        "target_source_span": {
+          "document": "educational/meta-commands/hint-escalates-across-repeated-calls",
+          "start": [1, 1],
+          "end": [6, 1]
+        },
+        "segments": ["Think about the concept behind your program."]
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "educational/meta-commands/hint-escalates-across-repeated-calls",
+        "start": [3, 1],
+        "end": [3, 5]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 5,
+      "kind": "tutor-output",
+      "source_span": {
+        "document": "educational/meta-commands/hint-escalates-across-repeated-calls",
+        "start": [3, 1],
+        "end": [3, 5]
+      },
+      "payload": {
+        "command": "hint",
+        "stage": "partial",
+        "target_source_span": {
+          "document": "educational/meta-commands/hint-escalates-across-repeated-calls",
+          "start": [1, 1],
+          "end": [6, 1]
+        },
+        "segments": ["Here is a partial idea to move your program forward."]
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "educational/meta-commands/hint-escalates-across-repeated-calls",
+        "start": [4, 1],
+        "end": [4, 5]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 7,
+      "kind": "tutor-output",
+      "source_span": {
+        "document": "educational/meta-commands/hint-escalates-across-repeated-calls",
+        "start": [4, 1],
+        "end": [4, 5]
+      },
+      "payload": {
+        "command": "hint",
+        "stage": "last-resort",
+        "target_source_span": {
+          "document": "educational/meta-commands/hint-escalates-across-repeated-calls",
+          "start": [1, 1],
+          "end": [6, 1]
+        },
+        "segments": [
+          "Here is a strong nudge for your program — try it yourself first."
+        ]
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "educational/meta-commands/hint-escalates-across-repeated-calls",
+        "start": [5, 1],
+        "end": [5, 5]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 9,
+      "kind": "tutor-output",
+      "source_span": {
+        "document": "educational/meta-commands/hint-escalates-across-repeated-calls",
+        "start": [5, 1],
+        "end": [5, 5]
+      },
+      "payload": {
+        "command": "hint",
+        "stage": "last-resort",
+        "target_source_span": {
+          "document": "educational/meta-commands/hint-escalates-across-repeated-calls",
+          "start": [1, 1],
+          "end": [6, 1]
+        },
+        "segments": [
+          "Here is a strong nudge for your program — try it yourself first."
+        ]
+      }
+    }
+  ],
+  "diagnostics": []
+}

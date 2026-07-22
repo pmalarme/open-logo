@@ -1,5 +1,5 @@
 {
-  "description": "`tan 90` is mathematically undefined (cosine is 0 there) and raises `ol-div-zero` reusing the division-by-zero code family (issue #323: spec/commands.md names no dedicated code for trig's undefined case, and spec/commands.md's Math intro plus `tan θ = sin θ / cos θ` justify the reuse) instead of returning a huge finite double, NaN, or Infinity. Execution halts at the failing statement, so no `print` event is emitted.",
+  "description": "`tan 90` is mathematically undefined (cosine is 0 there) and raises the dedicated `ol-tan-undefined` (issue #323, spec PR #392 — a per-domain educational code mirroring `ol-neg-sqrt`, not a reuse of `ol-div-zero`) instead of returning a huge finite double, NaN, or Infinity. Execution halts at the failing statement, so no `print` event is emitted.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [
@@ -16,13 +16,13 @@
   ],
   "diagnostics": [
     {
-      "code": "ol-div-zero",
+      "code": "ol-tan-undefined",
       "source_span": {
         "document": "core-language/execution/tan-undefined-at-pole",
         "start": [1, 7],
         "end": [1, 13]
       },
-      "params": { "operation": "tan", "value": 90 },
+      "params": { "value": 90 },
       "stage": "runtime",
       "severity": "error"
     }

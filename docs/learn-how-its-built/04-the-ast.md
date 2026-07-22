@@ -3,32 +3,16 @@
 Last time, the lexer chopped your code into a flat list of **tokens**: `repeat`, `4`, `[`,
 `forward`, `100`, `right`, `90`, `]`. A flat list is easy to make but hard to *use* — nothing
 tells you that `100` belongs to `forward`, or that `forward 100` and `right 90` are both stuck
-*inside* the repeat. This page is about the machine that fixes that: the **reader**, and the
-**tree** it builds.
+*inside* the repeat. This page is about the **tree** that fixes that — the next page is about the
+machine that builds it.
 
-## Grammar: the rulebook
+## The AST: the tree that groups tokens together
 
-Before the reader can build anything, it needs a rulebook that says what's even allowed — this is
-the **grammar**. Think of it like the rules of a board game: the grammar doesn't play the game for
-you, it just says a turn looks like "roll, then move, then optionally buy something." OpenLogo's
-grammar says things like "a `repeat` is the word `repeat`, then a count, then a block." It lives in
-[`spec/grammar.md`](../../spec/grammar.md), and every shape the reader is allowed to build traces
-back to one of its rules.
-
-## The reader: the machine that follows the rulebook
-
-The **reader** (sometimes called the **parser**) is the machine that actually applies those rules
-to your tokens. It walks the token list left to right and, rule by rule, groups tokens that belong
-together.
-
-## The AST: the tree it builds
-
-The tree the reader builds is called the **AST** — the **Abstract Syntax Tree**. "Tree" because
-things nest inside other things, the same way a table of contents nests chapters inside a book,
-and sections inside chapters — each one of those boxes in the tree, like a single chapter or
-section, is called a **node**. "Abstract" because it throws away things that don't matter once
-you've understood the shape — like exactly which spaces you typed — while keeping everything that
-does.
+The tree is called the **AST** — the **Abstract Syntax Tree**. "Tree" because things nest inside
+other things, the same way a table of contents nests chapters inside a book, and sections inside
+chapters — each one of those boxes in the tree, like a single chapter or section, is called a
+**node**. "Abstract" because it throws away things that don't matter once you've understood the
+shape — like exactly which spaces you typed — while keeping everything that does.
 
 Let's build the tree for our square, one token at a time:
 
@@ -36,7 +20,7 @@ Let's build the tree for our square, one token at a time:
 repeat 4 [ forward 100 right 90 ]
 ```
 
-- `repeat` tells the reader "this is a repeat instruction — expect a count, then a block."
+- `repeat` tells the parser "this is a repeat instruction — expect a count, then a block."
 - `4` becomes that count.
 - `[` opens a **block** — a bundle of instructions grouped together, the way a chapter bundles its
   paragraphs. Everything up to the matching `]` belongs inside it.
@@ -44,7 +28,7 @@ repeat 4 [ forward 100 right 90 ]
 - `right 90` becomes another: "call `right`, with the argument `90`."
 - `]` closes the block.
 
-The tree that comes out — this is the *real* shape produced by OpenLogo's reader today, not a
+The tree that comes out — this is the *real* shape produced by OpenLogo's parser today, not a
 simplification:
 
 ```mermaid
@@ -81,8 +65,9 @@ the shape.
 
 ## What's real today
 
-✅ **The reader builds exactly this tree** — running the square example above through OpenLogo's
-reader today produces the `Repeat` / `Block` / `Call` shape shown here, node for node.
+✅ **The parser builds exactly this tree** — running the square example above through OpenLogo's
+parser today produces the `Repeat` / `Block` / `Call` shape shown here, node for node. The next
+page zooms into exactly how it does that.
 
 ✅ **Every node remembers where it came from** — each piece of the tree also carries a source span
 (which characters of your original text it came from), so later machines — like the checker or the
@@ -96,6 +81,6 @@ one rule in the grammar.
 
 Take any short turtle program you've written and, on paper, draw a box for each instruction and an
 arrow from each block to the instructions inside it — that's you building an AST by hand, the same
-way OpenLogo's reader does it automatically.
+way OpenLogo's parser does it automatically.
 
-**Next up →** [05 · The interpreter & runtime](05-the-interpreter-and-runtime.md)
+**Next up →** [05 · The parser](05-the-parser.md)

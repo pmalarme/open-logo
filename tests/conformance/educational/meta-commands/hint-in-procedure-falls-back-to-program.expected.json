@@ -1,0 +1,77 @@
+{
+  "description": "issue #332 (A2) regression: `hint` as the FIRST statement inside a called procedure body must fall back to the whole-program span, not the enclosing `procedure-enter` start event (the `ask` call site). `resolveTutorTargetSpan` must skip BOTH start-event kinds (`instruction` AND `procedure-enter`, `packages/core/src/events.ts`'s `OL_EVENT_KINDS` groups these as \"emitted before their effect\") when scanning backward for the last real effect, or it would wrongly treat the procedure call itself as the target.",
+  "profiles": ["core-language", "educational"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "educational/meta-commands/hint-in-procedure-falls-back-to-program",
+        "start": [1, 1],
+        "end": [3, 4]
+      },
+      "payload": { "statement_kind": "ProcedureDef" }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "educational/meta-commands/hint-in-procedure-falls-back-to-program",
+        "start": [4, 1],
+        "end": [4, 4]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 2,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "educational/meta-commands/hint-in-procedure-falls-back-to-program",
+        "start": [4, 1],
+        "end": [4, 4]
+      },
+      "payload": { "name": "ask", "args": [] }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "educational/meta-commands/hint-in-procedure-falls-back-to-program",
+        "start": [2, 1],
+        "end": [2, 5]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 4,
+      "kind": "tutor-output",
+      "source_span": {
+        "document": "educational/meta-commands/hint-in-procedure-falls-back-to-program",
+        "start": [2, 1],
+        "end": [2, 5]
+      },
+      "payload": {
+        "command": "hint",
+        "stage": "nudge",
+        "target_source_span": {
+          "document": "educational/meta-commands/hint-in-procedure-falls-back-to-program",
+          "start": [1, 1],
+          "end": [5, 1]
+        },
+        "segments": ["Here is a small nudge about your program."]
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "educational/meta-commands/hint-in-procedure-falls-back-to-program",
+        "start": [4, 1],
+        "end": [4, 4]
+      },
+      "payload": { "name": "ask", "result": null }
+    }
+  ],
+  "diagnostics": []
+}

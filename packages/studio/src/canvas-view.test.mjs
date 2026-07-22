@@ -131,9 +131,10 @@ test("createCanvasViewController.repaint() paints the state model's default turt
   controller.repaint();
 
   // Background fill (default "white"), then the visible default-shape ("turtle") avatar's full
-  // save/translate/rotate/beginPath/moveTo/lineTo/lineTo/closePath/fill/restore bracket at the
+  // save/translate/rotate/beginPath/moveTo/(eleven lineTo)/closePath/fill/restore bracket at the
   // origin, heading 0 — the exact sequence `paintScene`/`paintTurtle` produce for the program-start
-  // defaults, with no drawing items in the scene.
+  // defaults, with no drawing items in the scene. The eleven `lineTo` calls trace the real turtle
+  // glyph's head/leg/tail silhouette (`canvas.ts`'s `TURTLE_OUTLINE_POINTS`), not a bare triangle.
   assert.deepEqual(context.calls, [
     ["fillRect", 0, 0, 400, 400],
     ["save"],
@@ -141,8 +142,17 @@ test("createCanvasViewController.repaint() paints the state model's default turt
     ["rotate", 0],
     ["beginPath"],
     ["moveTo", 0, -10],
-    ["lineTo", 6, 6],
-    ["lineTo", -6, 6],
+    ["lineTo", 4, -6],
+    ["lineTo", 7, -6],
+    ["lineTo", 4, -3],
+    ["lineTo", 7, 3],
+    ["lineTo", 4, 6],
+    ["lineTo", 0, 9],
+    ["lineTo", -4, 6],
+    ["lineTo", -7, 3],
+    ["lineTo", -4, -3],
+    ["lineTo", -7, -6],
+    ["lineTo", -4, -6],
     ["closePath"],
     ["fill"],
     ["restore"],

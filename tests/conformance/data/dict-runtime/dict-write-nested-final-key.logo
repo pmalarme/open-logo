@@ -1,0 +1,7 @@
+:people = dict
+:people.tom = {
+  age: 8
+}
+:people.tom.height = 120
+print keys :people.tom
+print values :people.tom

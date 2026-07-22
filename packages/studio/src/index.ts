@@ -86,7 +86,22 @@
  *   rendered via `@openlogo/turtle`'s published `describeTurtleState` — never re-derived here —
  *   updating in lockstep with the Canvas view on every run tick, `step()`, and `reset()`.
  *
- * No lesson UI lands yet — that's #127.
+ * #127 adds the lesson pane, reading `@openlogo/edu`'s read-only `Lesson` contract (#189):
+ * - {@link createLessonPaneController} resolves the shared state model's `lesson` context
+ *   (`lessonId`/`title`) into a full render-ready {@link LessonPaneView} via a pluggable
+ *   {@link LessonLookup} (default: `@openlogo/edu`'s `findLessonById`); degrades to the fixed
+ *   {@link NO_LESSON_VIEW} (`isVisible: false`) both in freeform/sandbox mode and for a stale/
+ *   unresolvable `lessonId`, so `web/main.ts` never has to branch before reading a field. See
+ *   `lesson-pane.ts`.
+ * - {@link mountLessonPane} composes the controller into the shell's `lesson` region. This slice
+ *   also gives `#lesson-pane` its accessibility landmark and keyboard focus stop — see
+ *   `a11y.ts`'s `REPL_LANDMARK_ROLES`/`REPL_FOCUS_ORDER`.
+ * - M3's enrichment refined the layout/a11y delta in `web/styles.css`/`index.html`: the lesson
+ *   pane is a `complementary` landmark (not the generic `region`), stays its own leftmost column
+ *   ahead of editor/turtle, collapses to zero width/height entirely when `hidden`
+ *   (freeform/sandbox — a clean `editor | canvas` two-region layout), sizes to a ~300px starting
+ *   column that collapses toward zero before editor/turtle are squeezed below their own minimums,
+ *   and scrolls its own content independently of the editor/canvas below it.
  *
  * #218 adds the turtle Canvas view — static composition of `@openlogo/turtle`'s DOM-free renderer
  * into the app shell (the dynamic run-loop repaint is #228, above):
@@ -159,6 +174,69 @@
  *   browser entry never has to branch on either.
  * - `web/main.ts` applies the OpenLogo palette/tagline via a linked stylesheet
  *   (`web/styles.css`); no new `src/` logic is needed for static branding.
+ *
+ * #310 wires up a configurable turtle-speed control — a slider ranging from slow to fast, plus a
+ * dedicated "instant / no animation" end — that actually takes effect (previously,
+ * `TurtleAnimationController`'s own `stepsPerSecond` pacing was never wired from studio's side;
+ * every run played back at whatever pace the browser entry's scheduler happened to use):
+ * - {@link mapSpeedSliderValueToTickDelayMs} (`turtle-speed.ts`) is the one tested place that maps
+ *   a raw slider position (`SPEED_SLIDER_MIN`..`SPEED_SLIDER_MAX`) to a per-tick delay in
+ *   milliseconds — linear interpolation between {@link SLOWEST_TICK_DELAY_MS} and
+ *   {@link FASTEST_PACED_TICK_DELAY_MS} for every paced position, and {@link INSTANT_TICK_DELAY_MS}
+ *   (`0`) for the dedicated top position. {@link isInstantTickDelay}/
+ *   {@link tickDelayMsToStepsPerSecond}/{@link describeSpeedTickDelayMs} are the small, pure
+ *   functions built on top of that mapping `run-controller.ts` and a future renderer consume —
+ *   keeping every branch out of `web/main.ts`, which stays a thin, branch-free wiring layer.
+ * - `state-model.ts`'s {@link StudioState} gains `speedSliderValue` (default
+ *   {@link DEFAULT_SPEED_SLIDER_VALUE}), and {@link StudioStateStore.setSpeedSliderValue} replaces
+ *   it — the single source of truth for the slider position, exactly like every other learner
+ *   input.
+ * - `run-controller.ts`'s `prepare()` reads `speedSliderValue` and maps it to the
+ *   `TurtleAnimationController`'s `stepsPerSecond` option for a paced speed; for the instant
+ *   position, `run()` instead OR-combines it into the `reducedMotion` flag it already passes to
+ *   `playWithMotionPreference` — so the slider's instant end **complements**, never replaces, the
+ *   OS-level `prefers-reduced-motion` path (either alone is enough to force instant playback). See
+ *   `run-controller.ts`'s doc comment ("#310") for the full mechanism.
+ * - {@link createTimeoutScheduler} (`web-bootstrap.ts`) is fixed to honor each scheduled call's own
+ *   `delayMs` (previously it ignored it in favor of one fixed pace) — the actual bug this slice's
+ *   acceptance criteria center on.
+ * - {@link REPL_FOCUS_ORDER} (`a11y.ts`) gains a `slider` focus stop for the new control, in the
+ *   `repl` region alongside Run/Stop/Reset, so it is keyboard-reachable and screen-reader-labeled
+ *   like every other control.
+ * - `index.html`/`web/main.ts`/`web/styles.css` add the real `<input type="range">` element, its
+ *   accessible label + live speed-description text, and its `input` event wiring — a thin
+ *   forwarding call into the tested helpers above, never a branch of its own.
+ *
+ * #314 adds the run log pane — a history/timeline of every completed run, not just the latest:
+ * - {@link createRunLogController} watches the shared store's `runStatus` and appends one
+ *   {@link RunLogEntry} (id, completion timestamp, terminal status, output, diagnostics) every
+ *   time a run finishes — on its own (`"done"`) or via `stop()`/`ol-limit` (`"stopped"`) — never on
+ *   `reset()`. Entries are only ever appended, never replaced or dropped. See `run-log.ts`'s doc
+ *   comment for the exact `"running"` → `"done"`/`"stopped"` transition this keys off.
+ * - {@link toRunLogListItems} projects the history into ready-to-render {@link RunLogEntryViewItem}s
+ *   (a formatted heading, output text, and diagnostic lines reusing #278's `formatOutput`/
+ *   `toDiagnosticListItems`), always non-empty (a synthetic {@link NO_RUN_LOG_ENTRIES_LABEL}
+ *   placeholder when no run has completed yet), so `web/main.ts` only ever loops unconditionally.
+ * - `index.html`/`web/styles.css` host the run log INSIDE the existing Run controls toolbar
+ *   (`.pane-controls`, `role="toolbar"`) as a final `.run-log-wrapper` child — not a new top-level
+ *   pane — adding no new `role`/`aria-label`/`aria-labelledby` anywhere: #279's
+ *   `REPL_LANDMARK_ROLES`/`REPL_FOCUS_ORDER` contracts are untouched (a sibling section would still
+ *   pick up an implicit ARIA `role="region"` from its `aria-label` alone, per HTML-AAM, which is
+ *   why nesting inside the existing landmark — not merely placing it nearby — is what the issue's
+ *   "existing REPL landmark region, no new landmark" acceptance criterion requires).
+ *
+ * #311 gives the run-status region a friendlier, learner-facing label instead of the raw internal
+ * state-machine name:
+ * - `state-model.ts`'s {@link RunStatus} gains a `"done"` value, distinct from `"idle"`: `run-
+ *   controller.ts`'s `prepare()` now commits `"done"` (not `"idle"`) when a run finishes on its
+ *   own (no `stop()`, no `ol-limit`) — the state-machine names themselves are otherwise unchanged,
+ *   and `"idle"` still means only "never run" / just after `reset()`.
+ * - {@link mapRunStatusToLabel} (`run-status-label.ts`) is the one tested place that maps each
+ *   `RunStatus` value to its learner-facing label (`"idle"` → `"Ready"`, `"running"` →
+ *   `"Running"`, `"done"` → `"Complete"`, `"stopped"` → `"Stopped"`); `web/main.ts` calls it
+ *   instead of rendering `runStatus` raw, staying a thin, branch-free wiring layer.
+ * - `a11y.ts`'s `describeRunStatus` gains the matching `"Run complete."` announcement for the new
+ *   `"done"` value, keeping the existing `aria-live` announcement in sync with the visible label.
  */
 
 export type {
@@ -270,3 +348,70 @@ export {
   syncTextValue,
   toDiagnosticListItems,
 } from "./web-bootstrap.js";
+
+export {
+  DEFAULT_SPEED_SLIDER_VALUE,
+  describeSpeedTickDelayMs,
+  FASTEST_PACED_TICK_DELAY_MS,
+  INSTANT_TICK_DELAY_MS,
+  isInstantTickDelay,
+  mapSpeedSliderValueToTickDelayMs,
+  SLOWEST_TICK_DELAY_MS,
+  SPEED_SLIDER_MAX,
+  SPEED_SLIDER_MIN,
+  tickDelayMsToStepsPerSecond,
+} from "./turtle-speed.js";
+
+export { mapRunStatusToLabel, RUN_STATUS_LABELS } from "./run-status-label.js";
+
+export type {
+  RunToggleAction,
+  RunToggleIcon,
+  RunToggleViewModel,
+} from "./run-controls.js";
+export {
+  mapRunStatusToRunToggleViewModel,
+  RUN_TOGGLE_VIEW_MODELS,
+} from "./run-controls.js";
+
+export type {
+  RunLogController,
+  RunLogControllerOptions,
+  RunLogEntry,
+  RunLogEntryListener,
+  RunLogEntryViewItem,
+} from "./run-log.js";
+export {
+  createRunLogController,
+  NO_RUN_LOG_ENTRIES_LABEL,
+  NO_RUN_OUTPUT_LABEL,
+  toRunLogListItems,
+} from "./run-log.js";
+
+export type {
+  LessonLookup,
+  LessonPaneController,
+  LessonPaneControllerOptions,
+  LessonPaneView,
+  WorkedExampleViewItem,
+} from "./lesson-pane.js";
+export {
+  createLessonPaneController,
+  mountLessonPane,
+  NO_LESSON_VIEW,
+} from "./lesson-pane.js";
+
+export type {
+  TutorOutputController,
+  TutorOutputControllerOptions,
+  TutorOutputEntry,
+  TutorOutputEntryListener,
+  TutorOutputPaneView,
+  TutorOutputViewItem,
+} from "./tutor-output-pane.js";
+export {
+  createTutorOutputController,
+  eduTutorTemplate,
+  mountTutorOutputPane,
+  toTutorOutputListItems,
+} from "./tutor-output-pane.js";

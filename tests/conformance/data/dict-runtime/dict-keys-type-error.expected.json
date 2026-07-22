@@ -1,0 +1,38 @@
+{
+  "description": "`keys` requires a dict argument; calling it on a number raises `ol-type` (issue #322, `spec/error-model.md:126`).",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-runtime/dict-keys-type-error",
+        "start": [1, 1],
+        "end": [1, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "data/dict-runtime/dict-keys-type-error",
+        "start": [1, 12],
+        "end": [1, 13]
+      },
+      "params": {
+        "expected": "dict",
+        "actual": "number",
+        "value": 5,
+        "operation": "keys"
+      },
+      "message": "keys needs a dict, but got a number.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

@@ -1,0 +1,116 @@
+{
+  "description": "Dict place-writes upsert in place: `.field =`, `[:var] =`, and `set ... to` create new keys or overwrite existing ones (issue #322, `spec/data-structures.md:196-207`). Writing `max`, `who` (via a `:key` variable), then re-assigning `lee` all land in the same dict; `keys`/`values` confirm insertion order and final values.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-runtime/dict-write-upsert",
+        "start": [1, 1],
+        "end": [1, 13]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-runtime/dict-write-upsert",
+        "start": [2, 1],
+        "end": [2, 14]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-runtime/dict-write-upsert",
+        "start": [3, 1],
+        "end": [3, 13]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-runtime/dict-write-upsert",
+        "start": [4, 1],
+        "end": [4, 17]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-runtime/dict-write-upsert",
+        "start": [5, 1],
+        "end": [5, 18]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-runtime/dict-write-upsert",
+        "start": [6, 1],
+        "end": [6, 17]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "print",
+      "source_span": {
+        "document": "data/dict-runtime/dict-write-upsert",
+        "start": [6, 1],
+        "end": [6, 17]
+      },
+      "payload": {
+        "values": [["max", "who", "lee"]]
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-runtime/dict-write-upsert",
+        "start": [7, 1],
+        "end": [7, 19]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "print",
+      "source_span": {
+        "document": "data/dict-runtime/dict-write-upsert",
+        "start": [7, 1],
+        "end": [7, 19]
+      },
+      "payload": {
+        "values": [[9, 10, 7]]
+      }
+    }
+  ],
+  "diagnostics": []
+}

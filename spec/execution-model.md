@@ -513,9 +513,10 @@ code point. Other ordered pairs raise `ol-type`.
 
 Trigonometric reporters use degrees. `pi` reports the mathematical constant.
 Division or `mod` by zero raises `ol-div-zero`; `sqrt` of a negative number
-raises `ol-neg-sqrt`; a non-integer where an integer is required raises
-`ol-type`. OpenLogo never exposes NaN or Infinity as learner-facing results for
-these educational errors.
+raises `ol-neg-sqrt`; `tan` of an angle whose tangent is undefined (an odd
+multiple of 90°) raises `ol-tan-undefined`; a non-integer where an integer is
+required raises `ol-type`. OpenLogo never exposes NaN or Infinity as
+learner-facing results for these educational errors.
 
 `random n` reports an integer in `[0,n-1]`; `n` MUST be a whole number of at
 least `1`. `(random a b)` reports an integer in `[a,b]`; `a` and `b` MUST be
@@ -585,7 +586,7 @@ Normative `kind` values:
 | Timing | Kinds |
 |---|---|
 | Start | `instruction`, `procedure-enter` |
-| Effect | `move`, `turn`, `pen-change`, `width-change`, `color-change`, `background-change`, `draw-segment`, `fill`, `stamp`, `shape-change`, `visibility-change`, `clear`, `overlay`, `procedure-exit`, `return`, `print`, `sound`, `spawn-turtle`, `primitive`, `error` |
+| Effect | `move`, `turn`, `pen-change`, `width-change`, `color-change`, `background-change`, `draw-segment`, `fill`, `stamp`, `shape-change`, `visibility-change`, `clear`, `overlay`, `procedure-exit`, `return`, `print`, `sound`, `spawn-turtle`, `primitive`, `error`, `tutor-output` |
 
 Rendering-relevant events carry typed payloads. Examples:
 
@@ -597,6 +598,66 @@ Rendering-relevant events carry typed payloads. Examples:
 `primitive` is the generic catch-all for a primitive without a more specific
 event. Implementations may add extension events under a vendor namespace such as
 `vendor_name.event_name`.
+
+### `tutor-output` (Educational profile)
+
+**Status: Normative, scoped to the [Educational profile](conformance.md#educational).** A
+Core+Turtle & Rendering conformance claim never requires this kind: a Core-only implementation never
+claims the Educational profile, so it never emits `tutor-output`, and every existing event envelope
+and every existing kind's payload is unchanged by this addition — nothing here alters Core-only
+traces or requires a Core-only consumer to change. An implementation only emits `tutor-output` events
+when it claims the Educational profile, because only that profile defines the `explain`, `why`,
+`hint`, and `debug` baseline meta-commands specified in
+[educational-model.md](educational-model.md#baseline-meta-commands) and required normatively in
+[conformance.md#educational](conformance.md#educational).
+
+`tutor-output` is an **effect event**: it is emitted immediately after the baseline meta-command
+that triggered it produces its result, following the same start/effect convention as every other
+event in this registry. Its envelope `source-span` is always the span of the meta-command invocation
+itself (the bare-word call site), matching every other event kind's `source-span` meaning; it is
+never replaced by the span of whatever the command is explaining.
+
+Payload shape (data-only, stack-neutral — no host-language types):
+
+| Field | Meaning |
+|---|---|
+| `command` | One of `"explain"`, `"why"`, `"hint"`, `"debug"`. |
+| `segments` | A non-empty ordered list of learner-facing message segments (plain text strings). No markup is imposed by the spec. |
+| `stage` | Present only when `command` is `"hint"`. One of `"nudge"`, `"concept"`, `"partial"`, `"last-resort"` — the four stages of the progressive hint model in [educational-model.md](educational-model.md#hint). Absent for `explain`, `why`, and `debug`. |
+| `target-source-span` | The span of the instruction, statement range, or short program the command's `segments` describe. **MUST be present for `hint`**, using the whole-program span as its explicit value when no narrower challenge target is selected. **MUST be present for `explain`, `why`, and `debug`** whenever they describe a specific instruction, statement range, or diagnostic, and in that case MUST equal the diagnostic's own source span when `diagnostic-code` is also present. MAY be absent only for `explain`/`why`/`debug` output that concerns the program as a whole with no diagnostic and no narrower selection in scope. A span covering multiple instructions is permitted (`explain` MAY describe a short program, and `why`/`debug` MAY describe state produced across several instructions, not only one). |
+| `diagnostic-code` | Optional. The `ol-*` code from [error-model.md](error-model.md) that `debug` or `why` is explaining, when the explanation concerns a diagnostic rather than turtle/variable state. Absent otherwise. |
+
+Normative guardrail on the payload: **the `segments` of a single `tutor-output` event, read together in
+order, MUST NOT constitute a complete, ready-to-run OpenLogo solution program.** This is a normative
+pedagogical rule restating the no-full-solution requirement of
+[conformance.md#educational](conformance.md#educational) against a concrete payload shape. It is
+checkable only in a limited, structural sense — a conformance fixture MAY assert that the
+concatenation of a `segments` value does not itself parse as a standalone runnable program that
+satisfies the current challenge — but this check cannot prove absence of a solution conveyed through
+prose, split across otherwise-unrelated commands, or expressed without valid OpenLogo syntax; a
+fixture asserting this guardrail is necessary but not sufficient evidence of compliance, and human
+review of new baseline templates remains required. For `hint`, this guardrail applies independently
+at every `stage`, including `"last-resort"`.
+
+Progression state for `hint` is a property of the host implementation, not the wire event itself: this
+spec does not define learner sessions, challenge attempts, or any other lifecycle concept, so it does
+not mandate exactly when that state resets. What it requires is only the observable ordering among the
+`tutor-output` events an implementation actually emits for a given `target-source-span` value: the
+first such event with `command: "hint"` MUST have `stage: "nudge"`; each subsequent one for the *same*
+`target-source-span` value MUST escalate to the next stage in the nudge → concept → partial →
+last-resort order; and once `"last-resort"` has been emitted for that value, further `hint` events for
+it MUST repeat `stage: "last-resort"` rather than fabricate a fifth stage or reveal the solution. A
+`hint` event whose `target-source-span` is a *different* value starts its own independent progression
+at `"nudge"`. When (and whether) an implementation begins a fresh progression for what a learner
+perceives as "the same" hint request — for example after editing the program or restarting a
+challenge — is implementation-defined and out of scope for this event kind.
+
+An implementation that consumes traces from an Educational-profile host but does not itself
+special-case `tutor-output` MUST treat it as having no visible or semantic effect. This requirement
+applies only to consumers of Educational traces; it does not require any change to a Core-only
+implementation, which by definition never produces or consumes a `tutor-output` event, and it does
+not establish any general rule for handling other unrecognized event kinds. A host that does not claim
+the Educational profile MUST NOT emit `tutor-output` events.
 
 ## Worked traces
 

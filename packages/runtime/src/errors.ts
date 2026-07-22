@@ -52,12 +52,19 @@
  * Issue #287 adds `random`'s two `ol-range` cases — `n` below the minimum of `1`, and `(random a
  * b)` with `a` greater than `b` — reusing `requireWholeNumber`'s existing `ol-type` for a
  * non-whole bound, checked first (`spec/commands.md`'s `random` entry).
- * Issue #323 adds a reuse of `ol-div-zero` for `tan` at a pole (`90` degrees plus any multiple of
- * `180`, where cosine is `0`) — `spec/commands.md`'s `tan` entry specifies no dedicated code, and
- * `tan θ = sin θ / cos θ` is literally a division by zero there, so this widens the existing code
- * rather than inventing a new one (see {@link TanUndefinedParams}). `sin`/`cos`/`pi` raise no
- * diagnostic of their own beyond the shared `ol-type` a non-number `sin`/`cos` operand already
- * gets from {@link ArithmeticTypeErrorParams}.
+ * Issue #190 adds the Data-profile derived list reporters' diagnostics
+ * (`spec/data-structures.md:125-141`): a reuse of `ol-type` (via `listReporterType`) for
+ * `reverse`/`pick`/`sort`'s non-list argument, `ol-range` (via the new `emptyList`) for `pick` on
+ * an empty list — narrower than `emptyInput`'s "word or list" wording since `pick` is list-only —
+ * and a reuse of `ol-type` (via `orderingType`) for `sort` given elements that are not mutually
+ * orderable (a mix of numbers and words, or any other type), following the exact ordering rule
+ * `<`/`>`/`<=`/`>=` already use (`spec/data-structures.md:141`).
+ * Issue #323 adds the dedicated `ol-tan-undefined` for `tan` at a pole (`90` degrees plus any
+ * multiple of `180`, where cosine is `0`) — spec PR #392 ratified a per-domain educational code
+ * (mirroring `ol-neg-sqrt`) rather than widening `ol-div-zero`, since `tan`'s pole is a distinct
+ * concept from an explicit `/`/`mod` by zero (see {@link TanUndefinedParams}). `sin`/`cos`/`pi`
+ * raise no diagnostic of their own beyond the shared `ol-type` a non-number `sin`/`cos` operand
+ * already gets from {@link ArithmeticTypeErrorParams}.
  * Mirrors the parser's `errors.ts` pattern: every finding is a stable code from the
  * `@openlogo/core` registry with structured `params` (the diagnostic identity) plus warm,
  * lowercase learner prose derived from them — prose is presentation only.
@@ -79,6 +86,17 @@ function runtimeError(
     stage: "runtime",
     severity: "error",
   };
+}
+
+/**
+ * A small, self-contained learner-message rendering of a dict key for `ol-unknown-key`'s message
+ * text (a number prints bare, a word is quoted so it reads as the key it is). Cannot reuse
+ * `evaluate.ts`'s `printedForm`/`formatNumber` — `evaluate.ts` imports diagnostics *from* this
+ * module, so the reverse import would be a cycle; the key is always a word or number by the time
+ * a caller reaches here, so this only needs to cover those two shapes.
+ */
+function formatKeyForMessage(key: OLValue): string {
+  return typeof key === "number" ? String(key) : `"${String(key)}"`;
 }
 
 /** Params for an `ol-type` diagnostic raised by an arithmetic operator or math builtin. */
@@ -104,12 +122,15 @@ export interface OrderingTypeErrorParams {
 }
 
 /**
- * Params for an `ol-type` raised while resolving a postfix place — a non-list value indexed with
- * `[ … ]`, a non-number index key, or a non-word argument to `thing`
- * (`spec/error-model.md:99` — list indexing with a non-number key is `ol-type`, not `ol-range`).
+ * Params for an `ol-type` raised while resolving a postfix place — a non-list/non-dict value
+ * indexed with `[ … ]`/`.field`, a non-number list-index key, a non-word/non-number dict key, or
+ * a non-word argument to `thing` (`spec/error-model.md:99` — list indexing with a non-number key
+ * is `ol-type`, not `ol-range`; issue #322 extends the same postfix-resolution guard to dicts,
+ * `spec/data-structures.md:183-203`).
  */
 export interface PlaceTypeErrorParams {
-  readonly expected: "list" | "number" | "word";
+  readonly expected:
+    "list" | "number" | "word" | "dict" | "word or number" | "list or dict";
   readonly actual: string;
   readonly value: OLValue;
   readonly operation: string;
@@ -123,6 +144,45 @@ export interface ShapeTypeErrorParams {
 
 /** Params for an `ol-range` raised by an out-of-bounds 1-based list index. */
 export interface IndexRangeParams {
+  readonly index: OLValue;
+  readonly length: number;
+}
+
+/**
+ * Params for `ol-unknown-key` (`spec/error-model.md:126`): a required dictionary key is absent on
+ * read, or an intermediate dictionary key is absent in a nested access chain
+ * (`spec/data-structures.md:191,203`). Writing a missing *final* key upserts instead of raising
+ * this. `key` is the offending key exactly as the learner wrote it (a word or number).
+ */
+export interface UnknownKeyParams {
+  readonly key: OLValue;
+}
+
+/**
+ * Params for an `ol-type` raised by a list-mutator statement (`add`/`remove`/`insert`/`clear`,
+ * `spec/data-structures.md:73-93`, `spec/execution-model.md:447-482`) whose target is not a list,
+ * or by `insert`'s position argument that is not a number. Issue #322 widens this for the dict
+ * half of `clear` (target may be a list or dict) and for `remove key … from`, whose target must
+ * be a dict specifically (`spec/data-structures.md:221-234`). Same `{expected, actual, value,
+ * operation}` shape as the other `ol-type` param builders so every stage agrees on identity;
+ * `operation` names the mutator verb for the message.
+ */
+export interface ListMutatorTypeErrorParams {
+  readonly expected: "list" | "number" | "dict" | "list or dict";
+  readonly actual: string;
+  readonly value: OLValue;
+  readonly operation: "add" | "remove" | "insert" | "clear" | "remove key";
+}
+
+/**
+ * Params for an `ol-range` raised by `insert value in list at position` when the 1-based
+ * `position` is a number but not a whole number in `1..length + 1`
+ * (`spec/data-structures.md:81` — "inserts before the 1-based position"; a position of
+ * `length + 1` appends). Sibling of {@link IndexRangeParams} but its own interface/builder because
+ * `insert`'s valid ceiling is `length + 1`, not `length`, and its message names "insert position"
+ * rather than "index". `index` is the offending position exactly as the learner wrote it.
+ */
+export interface InsertPositionRangeParams {
   readonly index: OLValue;
   readonly length: number;
 }
@@ -279,13 +339,14 @@ export interface ReturnInComprehensionParams {
 
 /**
  * Params for an `ol-type` raised by a worded `is`-predicate's or a prefix `?`-predicate's operand
- * (`spec/execution-model.md:158-166`): `is empty`/`empty?` accepts a list or word, `is member of`/
- * `member?` accepts a list as the collection, and the prefix `is_a? value type` form's dynamically
- * evaluated `type` argument must itself be a word. Same shape as {@link OrderingTypeErrorParams}/
+ * (`spec/execution-model.md:158-166`): `is empty`/`empty?` accepts a list, dict, or word
+ * (`spec/commands.md:671`), `is member of`/`member?` accepts a list or dict as the collection
+ * (`spec/commands.md:689`), and the prefix `is_a? value type` form's dynamically evaluated `type`
+ * argument must itself be a word. Same shape as {@link OrderingTypeErrorParams}/
  * {@link PlaceTypeErrorParams} — `operation` names the offending predicate for the message.
  */
 export interface IsPredicateTypeErrorParams {
-  readonly expected: "list or word" | "list" | "word";
+  readonly expected: "list, dict, or word" | "list or dict" | "list" | "word";
   readonly actual: string;
   readonly value: OLValue;
   readonly operation: string;
@@ -293,14 +354,17 @@ export interface IsPredicateTypeErrorParams {
 
 /**
  * Params for an `ol-type` raised by a Core list reporter's wrong-typed argument
- * (`spec/commands.md` — `first`/`last`/`butfirst`/`butlast`/`count` accept a word or list; `fput`/
- * `lput` require their second argument to be a list; `word` requires every argument to be a word,
- * issue #234). Same `{expected, actual, value, operation}` shape as
- * {@link IsPredicateTypeErrorParams}/{@link OrderingTypeErrorParams} — `operation` names the
- * offending reporter for the message.
+ * (`spec/commands.md` — `first`/`last`/`butfirst`/`butlast` accept a word or list; `count` accepts
+ * a word, list, or dict (`spec/commands.md:1141`, issue #322); `fput`/`lput` require their second
+ * argument to be a list; `word` requires every argument to be a word, issue #234) or a
+ * Data-profile derived list reporter's wrong-typed argument (`spec/data-structures.md:125-141` —
+ * `reverse`/`pick`/`sort` each require a `list`, issue #190). Same `{expected, actual, value,
+ * operation}` shape as {@link IsPredicateTypeErrorParams}/{@link OrderingTypeErrorParams} —
+ * `operation` names the offending reporter for the message.
  */
 export interface ListReporterTypeErrorParams {
-  readonly expected: "word or list" | "list" | "word";
+  readonly expected:
+    "word or list" | "word, list, or dict" | "list" | "word" | "dict";
   readonly actual: string;
   readonly value: OLValue;
   readonly operation: string;
@@ -314,6 +378,19 @@ export interface ListReporterTypeErrorParams {
  */
 export interface EmptyInputRangeParams {
   readonly operation: "first" | "last" | "butfirst" | "butlast";
+  readonly value: OLValue;
+}
+
+/**
+ * Params for an `ol-range` raised by `pick` on an empty list (issue #190,
+ * `spec/error-model.md`'s `ol-range` row: "`pick` from an empty list"). Sibling of
+ * {@link EmptyInputRangeParams} but kept as its own interface/builder rather than widening that
+ * one's `operation` union: `pick`'s sole input type is `list` (`spec/data-structures.md:127`),
+ * unlike `first`/`last`/`butfirst`/`butlast`'s word-or-list, so the message names "list" rather
+ * than "word or list".
+ */
+export interface EmptyListParams {
+  readonly operation: "pick";
   readonly value: OLValue;
 }
 
@@ -369,15 +446,13 @@ export interface RandomRangeReversedParams {
 }
 
 /**
- * Params for the `ol-div-zero` raised by `tan` (issue #323) at a pole — `90` degrees plus any
- * multiple of `180`, where cosine is mathematically `0`. `spec/commands.md`'s `tan` entry lists no
- * dedicated error code for this case ("none specified beyond general type and arity
- * diagnostics"), so this reuses `ol-div-zero`'s existing `{ operation }` shape (widened to accept
- * `"tan"` alongside `/`/`mod`) plus the offending `value`, mirroring {@link
- * ArithmeticTypeErrorParams}'s convention of carrying the input that failed.
+ * Params for the dedicated `ol-tan-undefined` raised by `tan` (issue #323) at a pole — `90`
+ * degrees plus any multiple of `180`, where cosine is mathematically `0`. Spec PR #392 ratified a
+ * per-domain educational code (`spec/error-model.md`'s registry row: `ol-tan-undefined | runtime |
+ * value | ...`), mirroring `ol-neg-sqrt`'s single-field shape, rather than widening `ol-div-zero`
+ * to a domain it was never scoped to (`/`/`mod` only).
  */
 export interface TanUndefinedParams {
-  readonly operation: "tan";
   readonly value: number;
 }
 
@@ -417,16 +492,16 @@ export const runtimeDiag = {
 
   /**
    * `tan` at a pole (issue #323): `90` degrees plus any multiple of `180`, where `tan θ = sin θ /
-   * cos θ` divides by zero. Reuses `ol-div-zero` (see {@link TanUndefinedParams}) rather than a
-   * new code, since `spec/commands.md`'s `tan` entry specifies none and the section's opening
-   * sentence already treats "division by zero" as the umbrella for these educational errors.
+   * cos θ` is mathematically undefined. Raises the dedicated `ol-tan-undefined` (spec PR #392),
+   * not `ol-div-zero` — the maintainer's ratified Path B, mirroring the per-domain precedent
+   * `ol-neg-sqrt` sets for `sqrt` of a negative.
    */
   tanUndefined(source_span: SourceSpan, value: number): Diagnostic {
     return runtimeError(
-      "ol-div-zero",
+      "ol-tan-undefined",
       source_span,
-      { operation: "tan", value },
-      `tan has no answer at ${value} degrees — the cosine there is 0, so it is the same as dividing by zero. try an angle other than 90 plus a multiple of 180.`,
+      { value },
+      `tan has no answer at ${value} degrees — the cosine there is 0, so the tangent is undefined. try an angle other than 90 plus a multiple of 180.`,
     );
   },
 
@@ -493,6 +568,48 @@ export const runtimeDiag = {
     );
   },
 
+  /**
+   * `ol-unknown-key`: a required dictionary key is absent on read, or an intermediate dictionary
+   * key is absent in a nested access chain (`spec/error-model.md:126`,
+   * `spec/data-structures.md:191,203`). Never raised for a missing *final* write key (that
+   * upserts instead).
+   */
+  unknownKey(source_span: SourceSpan, params: UnknownKeyParams): Diagnostic {
+    return runtimeError(
+      "ol-unknown-key",
+      source_span,
+      { ...params },
+      `this dict has no key ${formatKeyForMessage(params.key)}.`,
+    );
+  },
+
+  /**
+   * `ol-unknown-field`: a `:record.field` read or write named a field the record's struct type
+   * does not declare (`spec/data-structures.md:266,309`, `spec/error-model.md:124`). Records have
+   * a fixed field set and never grow new fields, so an unknown field is an error on both read and
+   * write. Same `{ type, field }` params (plus `write: true` for a write) and message templates as
+   * the parser's `resolveRecordField` (`checker-type-field.ts`, issue #112) so the static and
+   * runtime halves agree on identity; raised here at `stage: "runtime"` because `execute()` runs
+   * `parse()` only, never `check()`, and because a variable's struct type is generally only known
+   * dynamically (issue #329).
+   */
+  unknownField(
+    source_span: SourceSpan,
+    params: { type: string; field: string; write?: boolean },
+  ): Diagnostic {
+    const outParams: Record<string, unknown> = params.write
+      ? { type: params.type, field: params.field, write: true }
+      : { type: params.type, field: params.field };
+    return runtimeError(
+      "ol-unknown-field",
+      source_span,
+      outParams,
+      params.write
+        ? `${params.type} has no field ${params.field}, and records can't grow new fields.`
+        : `${params.type} has no field ${params.field}. check the spelling.`,
+    );
+  },
+
   /** `ol-range`: a 1-based list index outside `1..length`. */
   indexRange(source_span: SourceSpan, params: IndexRangeParams): Diagnostic {
     return runtimeError(
@@ -500,6 +617,23 @@ export const runtimeDiag = {
       source_span,
       { operation: "index", index: params.index, length: params.length },
       `index ${String(params.index)} is out of range for a list of ${params.length}.`,
+    );
+  },
+
+  /**
+   * `ol-type` for `type_of` given a non-record argument (issue #329). `type_of` reports a
+   * record's struct type name, so its sole input must be a record
+   * (`spec/data-structures.md:286`); any other value is a type error. A dedicated builder because
+   * {@link PlaceTypeErrorParams}'s `expected` union does not include `"record"`. Same
+   * `{ operation, expected, actual }` shape and message voice as the other Core/Data `ol-type`
+   * builders so the diagnostics read uniformly.
+   */
+  typeOfType(source_span: SourceSpan, actual: string): Diagnostic {
+    return runtimeError(
+      "ol-type",
+      source_span,
+      { operation: "type_of", expected: "record", actual },
+      `type_of needs a record, but got a ${actual}.`,
     );
   },
 
@@ -513,6 +647,39 @@ export const runtimeDiag = {
       source_span,
       { ...params },
       `${params.operation} needs a ${params.expected}, but got a ${params.actual}.`,
+    );
+  },
+
+  /**
+   * `ol-type` for a list-mutator statement's non-list target or `insert`'s non-number position
+   * (issue #188, `spec/data-structures.md:73-93`) — see {@link ListMutatorTypeErrorParams}.
+   */
+  listMutatorType(
+    source_span: SourceSpan,
+    params: ListMutatorTypeErrorParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-type",
+      source_span,
+      { ...params },
+      `${params.operation} needs a ${params.expected}, but got a ${params.actual}.`,
+    );
+  },
+
+  /**
+   * `ol-range` for `insert`'s out-of-range 1-based position (issue #188) — see
+   * {@link InsertPositionRangeParams}. Valid positions are `1..length + 1`; a position of
+   * `length + 1` appends.
+   */
+  insertPositionRange(
+    source_span: SourceSpan,
+    params: InsertPositionRangeParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-range",
+      source_span,
+      { operation: "insert", index: params.index, length: params.length },
+      `insert position ${String(params.index)} is out of range for a list of ${params.length}.`,
     );
   },
 
@@ -765,6 +932,30 @@ export const runtimeDiag = {
   },
 
   /**
+   * `ol-reserved-word`: a top-level `struct` declaration's type name collides with a reserved
+   * word, a primitive, an existing procedure, or an earlier `struct` of the same name
+   * (`spec/data-structures.md:264`, `spec/error-model.md:123`). Same `{ name, namespace }` params
+   * shape as the parser's `checker-reserved-word.ts` semantic rule (issue #113) so both stages
+   * agree on identity — raised here at `stage: "runtime"` (the registry default is `semantic`)
+   * because `execute()` runs `parse()` only, never `check()`, so there is no double-report. This
+   * is the runtime's phase-1 registration guard (issue #329): a `struct` type name registers a
+   * constructor in the callable namespace, so a collision there is caught before any statement
+   * runs.
+   */
+  reservedWord(
+    source_span: SourceSpan,
+    name: string,
+    namespace: "reserved" | "primitive" | "procedure" | "struct",
+  ): Diagnostic {
+    return runtimeError(
+      "ol-reserved-word",
+      source_span,
+      { name, namespace },
+      `${name} is already a ${namespace}, so it can't be redefined here.`,
+    );
+  },
+
+  /**
    * `ol-no-output`: a procedure was called where a value is required, but the invocation reached
    * the end of its body (or `stop`) without ever executing `return`/`output`/`op`
    * (`spec/execution-model.md:346-349`, `spec/error-model.md:112`). Raised at the CALL site, not
@@ -977,6 +1168,18 @@ export const runtimeDiag = {
       source_span,
       { ...params },
       `${params.operation} needs a non-empty word or list, but got an empty one.`,
+    );
+  },
+
+  /**
+   * `ol-range` for `pick` given an empty list (issue #190) — see {@link EmptyListParams}.
+   */
+  emptyList(source_span: SourceSpan, params: EmptyListParams): Diagnostic {
+    return runtimeError(
+      "ol-range",
+      source_span,
+      { ...params },
+      `${params.operation} needs a non-empty list, but got an empty one.`,
     );
   },
 

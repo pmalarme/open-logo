@@ -162,14 +162,162 @@ export function turtlePrimitiveNames(): readonly string[] {
 }
 
 /**
+ * Default arities for the **Data** profile's derived list/dict reporters (issue #190 for
+ * `reverse`/`pick`/`sort`; issue #322 adds `dict`/`keys`/`values`; issue #329 adds `type_of`),
+ * derived from the "Derived list reporters in the Data profile" table, the dictionary operations
+ * table, and the record operations table in
+ * [`spec/data-structures.md`](../../../spec/data-structures.md): `reverse`/`pick`/`sort` each take
+ * one `list` argument, matching the spec's own worked example's bare-call form
+ * (`:backward = reverse :nums`); `dict` takes none (the empty-constructor reporter); `keys`/
+ * `values` each take one `dict` argument; `type_of` takes one `record` argument and reports its
+ * struct type name (`spec/data-structures.md:286`). Kept as its own table rather than folded into
+ * {@link CORE_PRIMITIVE_ARITY} for the same reason {@link TURTLE_PRIMITIVE_ARITY} is separate: the
+ * two profiles have independent visibility (the Layer-2 checker gates each on its own active
+ * profile, `spec/tooling.md:175-176`), while the reader (this table's only consumer, via
+ * {@link primitiveArity}) groups a bare call's arguments for *any* recognized primitive regardless
+ * of profile.
+ */
+const DATA_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
+  ["reverse", 1],
+  ["pick", 1],
+  ["sort", 1],
+  ["dict", 0],
+  ["keys", 1],
+  ["values", 1],
+  ["type_of", 1],
+]);
+
+/**
+ * The default arity of a Data-profile derived list reporter, or `undefined` when `name` is not one
+ * of the primitives registered in {@link DATA_PRIMITIVE_ARITY}. Matching is case-insensitive.
+ *
+ * `DATA_PRIMITIVE_ARITY` is this profile's single source-of-truth table. A future visibility slice
+ * (mirroring #136 for Turtle & Rendering) that makes these reporters visible to
+ * `ol-unknown-command` (`checker-names.ts`) and its static arity check (`checker-arity.ts`) should
+ * add its own name-enumeration accessor reading from this same table (mirroring
+ * {@link turtlePrimitiveNames}'s role for the Turtle & Rendering table) rather than re-deriving a
+ * separate name/arity list — not added yet since nothing consumes it until that slice lands.
+ */
+export function dataPrimitiveArity(name: string): number | undefined {
+  return DATA_PRIMITIVE_ARITY.get(name.toLowerCase());
+}
+
+/**
+ * Default arities for the **Educational** profile's baseline meta-commands (issue #331), derived
+ * from the signature table in [`spec/conformance.md`](../../../spec/conformance.md#educational):
+ * `explain`/`why`/`hint`/`debug` are each a Command, arity 0, invoked as a bare word — the exact
+ * same "zero-input bare Command" grammar production `home`/`pi`/`randomize` already use, so
+ * `spec/commands.md`'s "Meta-commands are commands taking no inputs" note needs no new grammar
+ * production or AST node kind (`ast-design` skill: "one node kind per grammar production"). Kept
+ * as its own table for the same reason {@link TURTLE_PRIMITIVE_ARITY}/{@link DATA_PRIMITIVE_ARITY}
+ * are separate: Educational has its own independent profile visibility (the Layer-2 checker gates
+ * it on its own active profile, `spec/tooling.md:175-176`), while the reader groups a bare call's
+ * arguments for *any* recognized primitive regardless of profile.
+ */
+const EDUCATIONAL_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
+  ["explain", 0],
+  ["why", 0],
+  ["hint", 0],
+  ["debug", 0],
+]);
+
+/**
+ * The default arity of an Educational-profile meta-command, or `undefined` when `name` is not one
+ * of `explain`/`why`/`hint`/`debug`. Matching is case-insensitive.
+ *
+ * `EDUCATIONAL_PRIMITIVE_ARITY` is this profile's single source-of-truth table — mirroring
+ * {@link turtlePrimitiveArity}/{@link dataPrimitiveArity} — for a future visibility slice's
+ * `educationalPrimitiveNames()` accessor to read from, exactly as {@link turtlePrimitiveNames} does
+ * for Turtle & Rendering.
+ */
+export function educationalPrimitiveArity(name: string): number | undefined {
+  return EDUCATIONAL_PRIMITIVE_ARITY.get(name.toLowerCase());
+}
+
+/**
+ * Every Educational-profile meta-command's canonical lowercase name, sorted for deterministic
+ * iteration. This is the enumerable counterpart to {@link educationalPrimitiveArity} — the
+ * checker's visible-name model (`checker-names.ts`) needs the full name *list*, gated on the
+ * `educational` profile, to make these meta-commands both callable without `ol-unknown-command`
+ * and candidates for its did-you-mean suggestions — mirroring {@link turtlePrimitiveNames}'s role
+ * for the Turtle & Rendering table.
+ */
+const EDUCATIONAL_PRIMITIVE_NAMES: readonly string[] = Object.freeze(
+  [...EDUCATIONAL_PRIMITIVE_ARITY.keys()].sort(),
+);
+
+/**
+ * The full list of Educational-profile meta-command names, in sorted order. See
+ * {@link EDUCATIONAL_PRIMITIVE_NAMES}. */
+export function educationalPrimitiveNames(): readonly string[] {
+  return EDUCATIONAL_PRIMITIVE_NAMES;
+}
+
+/**
+ * Default arities for the **Geometry** profile's renderer-backed overlay primitives (issue #341):
+ * `grid`/`axes`/`measure`, derived from
+ * [`spec/geometry-module.md`](../../../spec/geometry-module.md)'s `## grid`, `## axes`, and
+ * `## measure` sections —
+ * each is a Kind-C Command taking no inputs, invoked as a bare word exactly like
+ * `home`/`pi`/`randomize` and the Educational meta-commands. Unlike `polygon` and the rest of the
+ * Geometry standard library (discoverable OpenLogo `.logo` source, not primitives — team agreement
+ * §6), these three ARE primitives because they are renderer-backed: they emit an `overlay` trace
+ * event but never mutate turtle state, and only a real renderer can turn that event into a grid of
+ * guide lines, crossed axes, or a measurement marker. Kept as its own table for the same reason
+ * {@link TURTLE_PRIMITIVE_ARITY}/{@link EDUCATIONAL_PRIMITIVE_ARITY} are separate: Geometry has its
+ * own independent profile visibility (the Layer-2 checker gates it on its own active profile,
+ * `spec/tooling.md:175-176`), while the reader groups a bare call's arguments for *any* recognized
+ * primitive regardless of profile.
+ */
+const GEOMETRY_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
+  ["grid", 0],
+  ["axes", 0],
+  ["measure", 0],
+]);
+
+/**
+ * The default arity of a Geometry-profile overlay primitive, or `undefined` when `name` is not
+ * one of `grid`/`axes`/`measure`. Matching is case-insensitive.
+ *
+ * `GEOMETRY_PRIMITIVE_ARITY` is this profile's single source-of-truth table — mirroring
+ * {@link turtlePrimitiveArity}/{@link educationalPrimitiveArity}.
+ */
+export function geometryPrimitiveArity(name: string): number | undefined {
+  return GEOMETRY_PRIMITIVE_ARITY.get(name.toLowerCase());
+}
+
+/**
+ * Every Geometry-profile overlay primitive's canonical lowercase name, sorted for deterministic
+ * iteration. This is the enumerable counterpart to {@link geometryPrimitiveArity} — the checker's
+ * visible-name model (`checker-names.ts`) needs the full name *list*, gated on the `geometry`
+ * profile, to make these primitives both callable without `ol-unknown-command` and candidates for
+ * its did-you-mean suggestions — mirroring {@link turtlePrimitiveNames}'s/
+ * {@link educationalPrimitiveNames}'s role for their tables.
+ */
+const GEOMETRY_PRIMITIVE_NAMES: readonly string[] = Object.freeze(
+  [...GEOMETRY_PRIMITIVE_ARITY.keys()].sort(),
+);
+
+/**
+ * The full list of Geometry-profile overlay primitive names, in sorted order. See
+ * {@link GEOMETRY_PRIMITIVE_NAMES}. */
+export function geometryPrimitiveNames(): readonly string[] {
+  return GEOMETRY_PRIMITIVE_NAMES;
+}
+
+/**
  * Every profile's primitive-arity table the reader consults, in lookup order. Core Language is
  * checked first (today's only always-visible table), then each optional profile's Core-spelled
- * primitives as they are registered — currently just Turtle & Rendering. A later profile slice
- * adds its table here rather than editing {@link primitiveArity}'s body.
+ * primitives as they are registered — currently Turtle & Rendering, Data, Educational, and
+ * Geometry. A later profile slice adds its table here rather than editing {@link primitiveArity}'s
+ * body.
  */
 const PROFILE_PRIMITIVE_ARITY_TABLES: readonly ReadonlyMap<string, number>[] = [
   CORE_PRIMITIVE_ARITY,
   TURTLE_PRIMITIVE_ARITY,
+  DATA_PRIMITIVE_ARITY,
+  EDUCATIONAL_PRIMITIVE_ARITY,
+  GEOMETRY_PRIMITIVE_ARITY,
 ];
 
 /**

@@ -13,10 +13,11 @@
  * separate binary-expression kind.
  *
  * Scope for this slice is the Core surface: prefix calls, the precedence ladder, blocks,
- * assignment, `local`, dotted places (`:a.b.c`), worded `is`-predicates, comparison chains, and
- * the parenthesized variadic `(and …)`/`(or …)`. Index/key selectors (`:a[i]`), dict/struct and
- * the other Data forms, and the Heritage spellings (`make`/`to`/`output`/`op`/aliases) are
- * handled by their own later slices; until then those spellings degrade to ordinary calls or a
+ * assignment, `local`, dotted places (`:a.b.c`), worded `is`-predicates, comparison chains,
+ * the parenthesized variadic `(and …)`/`(or …)`, and dict literals (`{ key: value … }`, the
+ * Data profile's `dict-literal` production). Index/key selectors (`:a[i]`), struct and the
+ * other Data forms, and the Heritage spellings (`make`/`to`/`output`/`op`/aliases) are handled
+ * by their own later slices; until then those spellings degrade to ordinary calls or a
  * collected diagnostic rather than a crash.
  */
 
@@ -27,12 +28,15 @@ import type {
   Binder,
   BlockNode,
   DestructuringBinderNode,
+  DictEntryNode,
   ExpressionNode,
+  NumberLitNode,
   PlaceSegment,
   ProcedureParam,
   ProgramNode,
   SpannedName,
   StatementNode,
+  WordLitNode,
 } from "./ast.js";
 import { parseDiag } from "./errors.js";
 import { primitiveArity } from "./signatures.js";
@@ -95,9 +99,22 @@ const END_LABELS = new Set<string>([
 ]);
 
 /**
- * Pre-scan the token stream for `define <name> :p …` headers so a later prefix call to a user
- * procedure knows how many arguments to gather. Optional `( :name default )` parameters do not
- * count toward the default arity — only the leading required `:name` parameters do.
+ * Pre-scan the token stream for the two user-declared forms that register a callable name, so a
+ * later prefix call to either knows how many arguments to gather:
+ *
+ * - `define <name> :p …` — a user procedure; its default arity is the count of leading required
+ *   `:name` parameters (an optional `( :name default )` parameter does not count).
+ * - `struct <name> [ f1 f2 … ]` — a Data-profile record type whose type name becomes a constructor
+ *   reporter (`spec/data-structures.md:254,264`); its arity is the declared field count. Without
+ *   this, a bare constructor call like `point 3 4` would read `point` as a zero-arity call and
+ *   leave `3 4` as stray tokens (issue #329) — the same "reader needs a callee's arity to group a
+ *   bare call's arguments" mechanism `define` already relies on, extended to the other name-
+ *   registering form the grammar already parses (issue #321's `StructDef`).
+ *
+ * This pre-scan is purely about arity grouping for the reader; it performs no validation. A name
+ * that collides with a primitive or another declaration is still recorded here so parsing does not
+ * crash — the runtime's phase-1 `struct` registration is what raises `ol-reserved-word` for a real
+ * collision (`spec/data-structures.md:264`).
  */
 function collectUserArities(
   tokens: readonly LexToken[],
@@ -108,21 +125,39 @@ function collectUserArities(
   // name or a variable, so the scans stop before running off the end).
   for (let k = 0; k + 1 < tokens.length; k += 1) {
     const head = tokens[k] as LexToken;
-    if (head.kind !== "name" || head.text.toLowerCase() !== "define") {
+    if (head.kind !== "name") {
       continue;
     }
+    const headText = head.text.toLowerCase();
     const nameTok = tokens[k + 1] as LexToken;
     if (nameTok.kind !== "name") {
       continue;
     }
-    let arity = 0;
-    for (let j = k + 2; j < tokens.length; j += 1) {
-      if ((tokens[j] as LexToken).kind !== "variable") {
-        break;
+    if (headText === "define") {
+      let arity = 0;
+      for (let j = k + 2; j < tokens.length; j += 1) {
+        if ((tokens[j] as LexToken).kind !== "variable") {
+          break;
+        }
+        arity += 1;
       }
-      arity += 1;
+      arities.set(nameTok.text.toLowerCase(), arity);
+    } else if (
+      headText === "struct" &&
+      (tokens[k + 2] as LexToken).kind === "lbracket"
+    ) {
+      // `struct <name> [ f1 f2 … ]`: the constructor's arity is the number of bare field-name
+      // tokens between the brackets. The scan stops at the first non-name token (the `]`, or a
+      // stray token the parser itself will diagnose).
+      let fieldCount = 0;
+      for (let j = k + 3; j < tokens.length; j += 1) {
+        if ((tokens[j] as LexToken).kind !== "name") {
+          break;
+        }
+        fieldCount += 1;
+      }
+      arities.set(nameTok.text.toLowerCase(), fieldCount);
     }
-    arities.set(nameTok.text.toLowerCase(), arity);
   }
   return arities;
 }
@@ -130,7 +165,10 @@ function collectUserArities(
 /** Parse `source` into a Core AST plus diagnostics. Attribution spans point into `document`. */
 export function parse(source: string, document = "<input>"): ParseResult {
   const lexed = tokenize(source, document);
-  const tokens = lexed.tokens;
+  // A local, mutable copy — spliced by parseDictEntry()'s splitGluedColonToken() when a
+  // dict-entry's `:` lexed glued to its value (`{ a:foo }`, no gap after the colon) instead of
+  // as its own `colon` token, so the rest of the reader still walks a normal token stream.
+  const tokens: LexToken[] = lexed.tokens.slice();
   const diagnostics: Diagnostic[] = [...lexed.diagnostics];
   const userArities = collectUserArities(tokens);
 
@@ -607,7 +645,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * operand, not a negative literal, so the `-`'s end must equal the numeral's start on BOTH line
    * and column — a block comment is whitespace and may span lines (`spec/grammar.md:32`).
    */
-  function tryNegativeNumberLiteral(): ExpressionNode | undefined {
+  function tryNegativeNumberLiteral(): NumberLitNode | undefined {
     const token = current();
     const after = peek(1);
     const end = token.source_span.end;
@@ -782,6 +820,8 @@ export function parse(source: string, document = "<input>"): ParseResult {
         return ast.varRef(token.value, token.source_span);
       case "lbracket":
         return parseListLiteral();
+      case "lbrace":
+        return parseDictLiteral();
       case "lparen":
         return parseParenthesized();
       case "name":
@@ -812,10 +852,49 @@ export function parse(source: string, document = "<input>"): ParseResult {
     if (lower === "map" || lower === "filter" || lower === "reduce") {
       return parseComprehension(token, lower);
     }
+    if (
+      lower === "value" &&
+      peek(1).kind === "name" &&
+      peek(1).text.toLowerCase() === "of"
+    ) {
+      return parseValueOfKey(token);
+    }
     if (NON_PRIMARY_NAMES.has(lower)) {
       return undefined;
     }
     return parseFixedCall(token);
+  }
+
+  /**
+   * `value of expression "for" "key" expression` (`spec/grammar.md:213`'s `value-of-reader`), the
+   * Heritage dict reader — a read-only equivalent of `dictionary.key`/`dictionary[key]`
+   * (`spec/data-structures.md:183-195`). Both the dictionary and the key are full expressions
+   * (unlike a selector's narrower `key-term`), so `value of ( f ) for key ( g )` is legal. Only
+   * intercepted here when `value` is directly followed by `of`, so a bare `value` (not a known
+   * primitive today) still falls through to {@link parseFixedCall} unchanged.
+   */
+  function parseValueOfKey(token: LexToken): ExpressionNode | undefined {
+    advance(); // "value"
+    advance(); // "of"
+    const dictionary = requireExpression();
+    if (dictionary === undefined) {
+      return undefined;
+    }
+    if (!consumeKeyword("for")) {
+      return undefined;
+    }
+    if (!consumeKeyword("key")) {
+      return undefined;
+    }
+    const key = requireExpression();
+    if (key === undefined) {
+      return undefined;
+    }
+    return ast.valueOfKey(
+      dictionary,
+      key,
+      spanFrom(token.source_span.start, key),
+    );
   }
 
   function parseFixedCall(token: LexToken): ExpressionNode {
@@ -862,6 +941,124 @@ export function parse(source: string, document = "<input>"): ParseResult {
         advance();
       }
     }
+  }
+
+  /**
+   * Parse a dictionary literal `{ key: value … }` (`spec/grammar.md`'s `dict-literal ::= "{"
+   * { dict-entry } "}"`) — entries are separated only by whitespace/newlines, never commas, so
+   * `{ }` (matched, no entries) is a valid empty dict, not an error (`spec/error-model.md`'s
+   * `ol-unmatched-brace` fires only for a genuinely unmatched `{`/`}`).
+   */
+  function parseDictLiteral(): ExpressionNode {
+    const open = current();
+    advance();
+    const entries: DictEntryNode[] = [];
+    for (;;) {
+      skipNewlines();
+      const token = current();
+      if (token.kind === "rbrace") {
+        advance();
+        return ast.dictLit(entries, spanBetween(open, token));
+      }
+      if (token.kind === "eof") {
+        diagnostics.push(parseDiag.unmatchedBrace(open.source_span, "{"));
+        return ast.dictLit(entries, spanBetween(open, token));
+      }
+      const before = pos;
+      const entry = parseDictEntry();
+      if (entry !== undefined) {
+        entries.push(entry);
+      }
+      if (pos === before) {
+        diagnostics.push(unexpected(current()));
+        advance();
+      }
+    }
+  }
+
+  /**
+   * A dict-entry's `:` with no gap before its value's leading identifier lexes as one
+   * `variable` token — the lexer's `:name` rule (`tokens.ts`) has no notion of "dict-entry
+   * separator" and greedily reads `:foo` as a variable reference. Since whitespace is
+   * insignificant around the separator (`spec/grammar.md`), `{ a:foo }` must parse identically
+   * to `{ a: foo }` — a zero-arity call to `foo`, not a `VarRef` — so this splices the glued
+   * token back into the real `colon` it opens plus the bare `name` it swallowed, letting the
+   * ordinary {@link parseExpression} call read an ordinary name token next.
+   */
+  function splitGluedColonToken(): void {
+    const glued = current();
+    const colonStart = glued.source_span.start;
+    const colonEnd: Position = [colonStart[0], colonStart[1] + 1];
+    const colon: LexToken = {
+      kind: "colon",
+      text: ":",
+      value: "",
+      source_span: makeSpan(document, colonStart, colonEnd),
+    };
+    const name: LexToken = {
+      kind: "name",
+      text: glued.value,
+      value: "",
+      source_span: makeSpan(document, colonEnd, glued.source_span.end),
+    };
+    tokens.splice(pos, 1, colon, name);
+  }
+
+  /**
+   * Like {@link unexpected}, but for a token found where {@link parseDictEntry} expected a colon
+   * or a value. A `}` there is never an unmatched brace: {@link parseDictLiteral}'s own loop is
+   * about to consume that very token and close the dict correctly on its next pass (`{ a }` and
+   * `{ a: }` both still end up a well-formed, if empty or short, `DictLit`), so reporting
+   * `unexpected`'s `ol-unmatched-brace` here would claim a mismatch that never happens. This
+   * reports the accurate `ol-bad-token` instead — a colon/value was expected, not a brace — and
+   * defers to {@link unexpected} for every other token kind.
+   */
+  function unexpectedInDictEntry(token: LexToken): Diagnostic {
+    return token.kind === "rbrace"
+      ? parseDiag.badToken(token.source_span, token.text)
+      : unexpected(token);
+  }
+
+  /**
+   * Parse one `dict-entry ::= dict-key ":" expression` (`spec/grammar.md`). `dict-key` is only
+   * `identifier | number` — narrower than {@link parseKeyTerm}'s selector `key-term`, which also
+   * accepts `:name` reads, word literals, and parenthesized expressions — because a dict key is
+   * always a literal, never evaluated (`spec/data-structures.md:143-171`). A bare identifier
+   * reuses {@link WordLitNode} exactly like a bare selector key; reserved words are legal keys
+   * for free, since the lexer never special-cases them. Returns `undefined` for anything else so
+   * the caller can report the malformed entry.
+   */
+  function parseDictEntry(): DictEntryNode | undefined {
+    const negative = tryNegativeNumberLiteral();
+    const token = current();
+    let key: WordLitNode | NumberLitNode | undefined = negative;
+    if (key === undefined) {
+      if (token.kind === "number") {
+        advance();
+        key = ast.numberLit(Number(token.text), token.source_span);
+      } else if (token.kind === "name") {
+        advance();
+        key = ast.wordLit(token.text, token.source_span);
+      } else {
+        return undefined;
+      }
+    }
+    skipNewlines();
+    if (current().kind === "variable") {
+      splitGluedColonToken();
+    }
+    if (current().kind !== "colon") {
+      diagnostics.push(unexpectedInDictEntry(current()));
+      return undefined;
+    }
+    advance();
+    skipNewlines();
+    const value = parseExpression();
+    if (value === undefined) {
+      diagnostics.push(unexpectedInDictEntry(current()));
+      return undefined;
+    }
+    return { key, value, source_span: spanBetween(key, value) };
   }
 
   function parseParenthesized(): ExpressionNode | undefined {
@@ -1112,6 +1309,16 @@ export function parse(source: string, document = "<input>"): ParseResult {
           return parseStop();
         case "throw":
           return parseThrow();
+        case "add":
+          return parseAdd();
+        case "remove":
+          return parseRemove();
+        case "insert":
+          return parseInsert();
+        case "clear":
+          return parseClear();
+        case "struct":
+          return parseStructDef();
         default:
           break;
       }
@@ -1582,6 +1789,210 @@ export function parse(source: string, document = "<input>"): ParseResult {
       return undefined;
     }
     return ast.throwStmt(value, spanFrom(token.source_span.start, value));
+  }
+
+  /**
+   * Parse a required expression, reporting the offending token when none is present. Shared by the
+   * list-mutator statements below, whose operands (`spec/grammar.md:113-117`) are all required.
+   */
+  function requireExpression(): ExpressionNode | undefined {
+    const expr = parseExpression();
+    if (expr === undefined) {
+      diagnostics.push(unexpected(current()));
+    }
+    return expr;
+  }
+
+  /**
+   * Consume the contextual keyword `word` (`to`/`from`/`in`/`at`) if it is next, reporting the
+   * offending token and leaving the cursor put otherwise. The list-mutator separators are keywords
+   * only in these statement forms, so they are matched by surface spelling, not a token kind.
+   */
+  function consumeKeyword(word: string): boolean {
+    if (!isName(word)) {
+      diagnostics.push(unexpected(current()));
+      return false;
+    }
+    advance();
+    return true;
+  }
+
+  /** `add expression "to" expression` (`spec/grammar.md:113`, Data profile). */
+  function parseAdd(): StatementNode | undefined {
+    const token = current();
+    advance();
+    const value = requireExpression();
+    if (value === undefined) {
+      return undefined;
+    }
+    if (!consumeKeyword("to")) {
+      return undefined;
+    }
+    const target = requireExpression();
+    if (target === undefined) {
+      return undefined;
+    }
+    return ast.add(value, target, spanFrom(token.source_span.start, target));
+  }
+
+  /**
+   * `remove expression "from" expression` (`spec/grammar.md:114`) or, when `key` follows `remove`,
+   * the distinct `remove "key" key-term "from" expression` (`spec/grammar.md:115`). Both are Data
+   * profile.
+   */
+  function parseRemove(): StatementNode | undefined {
+    const token = current();
+    advance();
+    if (isName("key")) {
+      advance();
+      const key = parseKeyTerm();
+      if (key === undefined) {
+        diagnostics.push(unexpected(current()));
+        return undefined;
+      }
+      if (!consumeKeyword("from")) {
+        return undefined;
+      }
+      const target = requireExpression();
+      if (target === undefined) {
+        return undefined;
+      }
+      return ast.removeKey(
+        key,
+        target,
+        spanFrom(token.source_span.start, target),
+      );
+    }
+    const value = requireExpression();
+    if (value === undefined) {
+      return undefined;
+    }
+    if (!consumeKeyword("from")) {
+      return undefined;
+    }
+    const target = requireExpression();
+    if (target === undefined) {
+      return undefined;
+    }
+    return ast.remove(value, target, spanFrom(token.source_span.start, target));
+  }
+
+  /** `insert expression "in" expression "at" expression` (`spec/grammar.md:116`, Data profile). */
+  function parseInsert(): StatementNode | undefined {
+    const token = current();
+    advance();
+    const value = requireExpression();
+    if (value === undefined) {
+      return undefined;
+    }
+    if (!consumeKeyword("in")) {
+      return undefined;
+    }
+    const target = requireExpression();
+    if (target === undefined) {
+      return undefined;
+    }
+    if (!consumeKeyword("at")) {
+      return undefined;
+    }
+    const index = requireExpression();
+    if (index === undefined) {
+      return undefined;
+    }
+    return ast.insert(
+      value,
+      target,
+      index,
+      spanFrom(token.source_span.start, index),
+    );
+  }
+
+  /** `clear expression` (`spec/grammar.md:117`, Data profile). */
+  function parseClear(): StatementNode | undefined {
+    const token = current();
+    advance();
+    const target = requireExpression();
+    if (target === undefined) {
+      return undefined;
+    }
+    return ast.clear(target, spanFrom(token.source_span.start, target));
+  }
+
+  /**
+   * `struct type-name "[" identifier { identifier } "]"` (`spec/grammar.md:155-156`, Data profile).
+   * Declares a record type, its fixed fields, and a same-named constructor. The bracketed field
+   * list is not a list literal: it holds bare field names that perform no evaluation
+   * (`spec/data-structures.md:264`), so the fields are carried as {@link SpannedName} metadata, the
+   * same shape as procedure parameter and destructuring-binder names. Grammar/AST only — the
+   * constructor call and field access/mutation land in a later Data-profile slice.
+   */
+  function parseStructDef(): StatementNode | undefined {
+    const structTok = current();
+    advance();
+    const nameTok = current();
+    if (nameTok.kind !== "name") {
+      diagnostics.push(unexpected(nameTok));
+      return undefined;
+    }
+    advance();
+    const name = sname(nameTok.text, nameTok);
+    const open = current();
+    if (open.kind !== "lbracket") {
+      diagnostics.push(unexpected(open));
+      return undefined;
+    }
+    advance();
+    const fields: SpannedName[] = [];
+    while (current().kind === "name") {
+      const fieldTok = current();
+      advance();
+      fields.push(sname(fieldTok.text, fieldTok));
+    }
+    const closer = current();
+    if (closer.kind === "rbracket") {
+      advance();
+      if (fields.length === 0) {
+        // `struct point [ ]`: both brackets are present and matched, so the `]` is not itself
+        // unmatched — the field list is simply empty where at least one field name was
+        // required. Flag the stray closer as an `ol-bad-token`, mirroring how an empty group
+        // `( )` reports its matched `)` (see `parseParenthesized`). Consuming it above keeps
+        // recovery from re-diagnosing the same bracket as a stray top-level token.
+        diagnostics.push(parseDiag.badToken(closer.source_span, closer.text));
+        return undefined;
+      }
+      return ast.structDef(
+        name,
+        fields,
+        spanToHere(structTok.source_span.start),
+      );
+    }
+    if (closer.kind === "newline" || closer.kind === "eof") {
+      // The field list was opened but never closed before the statement ended: the opening `[`
+      // is the genuinely unmatched bracket (`spec/error-model.md:102`).
+      diagnostics.push(parseDiag.unmatchedBracket(open.source_span, "["));
+      return undefined;
+    }
+    // A non-identifier token (e.g. a number) interrupts the field list. Both brackets are
+    // present, so the problem is the stray token, not the bracket: report it as `ol-bad-token`
+    // at that token, then recover by skipping the balanced remainder up to and including the
+    // field list's own `]`. Tracking bracket depth means a nested `[ … ]` inside the garbage
+    // cannot end recovery early at the wrong `]` and leak a spurious second diagnostic.
+    diagnostics.push(unexpected(closer));
+    let depth = 1;
+    while (
+      depth > 0 &&
+      current().kind !== "newline" &&
+      current().kind !== "eof"
+    ) {
+      const kind = current().kind;
+      if (kind === "lbracket") {
+        depth += 1;
+      } else if (kind === "rbracket") {
+        depth -= 1;
+      }
+      advance();
+    }
+    return undefined;
   }
 
   function parseProgram(): ProgramNode {

@@ -1,0 +1,5 @@
+:ages = {
+  tom: 8
+}
+:flag = true
+print :ages[:flag]

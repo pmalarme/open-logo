@@ -1,0 +1,3 @@
+# `clear <collection>` empties a list or dictionary in place (Data profile, grammar.md's
+# `clear-statement ::= "clear" expression`). Parse-only.
+clear :nums

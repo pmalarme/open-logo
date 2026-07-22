@@ -34,6 +34,7 @@ import { makeSpan } from "@openlogo/core";
 import type { Position, SourceSpan } from "@openlogo/core";
 import type {
   AnyNode,
+  DictEntryNode,
   IsPredicateNode,
   NumberLitNode,
   SpannedName,
@@ -160,17 +161,23 @@ export function highlight(source: string, document = "<input>"): Token[] {
 
   // `dict-key` (`spec/tooling.md:41`) has two grammatical sources: a selector's bare-word key
   // (`:dict[key]`, handled by `markSelectorKey` below) and a dict-*literal*'s bare key before its
-  // `:` (`{ key: value }`). The literal form is not classifiable yet because `{ }` dict literals
-  // are not a parseable construct at all today — `parser.ts` has no brace-triggered production
-  // and `ast.ts` has no `DictLit` node (its own comment marks that as future Data-profile work),
-  // and the lexer's `:` handling (`tokens.ts`) only recognizes a `:name` variable prefix, emitting
-  // `ol-bad-token` and dropping any other `:` (so a literal's key-separator never becomes a real
-  // token to classify as `operator` either). This is a parser/lexer gap, not a highlighter one —
-  // tracked in issue #149 rather than guessed at here; only the selector-key half is implemented.
+  // `:` (`{ key: value }`, handled by the `"DictLit"` case in `visit()`, reusing the same
+  // `markSelectorKey` helper for each entry). Both share the identical bare-identifier-vs-quoted
+  // -word-literal disambiguation, since a dict-literal key parses to the same `WordLitNode` shape
+  // as a bare selector key.
   const roleByIndex = new Map<number, BracketRole>();
   const dictKeyIndexes = new Set<number>();
   const contextualKeywordIndexes = new Set<number>();
   const negativeMergeStarts = new Set<number>();
+
+  // A dict-entry's `:` with no gap before its value's leading identifier (`{ a:foo }`) lexes as
+  // one `variable` token — the same ambiguity `parser.ts`'s `splitGluedColonToken` resolves for
+  // parsing. Highlighting never re-lexes its own copy, so it re-derives the same split here from
+  // the raw `lex` array + the already-parsed AST (`markGluedDictColon` below) rather than sharing
+  // parser-internal state: keyed by the raw glued token's index, the stored `Position` is where
+  // the value's own AST span begins (one column past the colon), letting the final assembly loop
+  // recompute the split colon/name spans and text without re-parsing.
+  const dictColonSplits = new Map<number, Position>();
 
   // Semantic symbol discovery (#120): re-derived locally on every call, never shared with the
   // checker's own symbol table. `typeNames`/`fieldNames` (lowercased spellings) drive constructor
@@ -193,7 +200,11 @@ export function highlight(source: string, document = "<input>"): Token[] {
   /**
    * Tag the raw token starting at `name`'s span with `target`, when it is a real token of
    * `kind` (`"name"` by default; pass `"variable"` for a colon-prefixed binder such as a
-   * procedure parameter).
+   * procedure parameter). A dict-entry's glued `:name` value (`{ a:foo }`, resolved by
+   * {@link markGluedDictColon}) has no real raw token starting at its own AST span — the whole
+   * `:foo` is one `variable`-kind token — so an ordinary `"name"` lookup also accepts a glued
+   * split index there, letting a glued value still resolve to `procedure-name`/`type-name`/
+   * `field-name` like any other bare name.
    */
   function markNameIndex(
     name: SpannedName,
@@ -201,7 +212,11 @@ export function highlight(source: string, document = "<input>"): Token[] {
     kind: LexTokenKind = "name",
   ): void {
     const index = byStart.get(posKey(name.source_span.start));
-    if (index !== undefined && lex[index]?.kind === kind) {
+    if (
+      index !== undefined &&
+      (lex[index]?.kind === kind ||
+        (kind === "name" && dictColonSplits.has(index)))
+    ) {
       target.add(index);
     }
   }
@@ -246,6 +261,31 @@ export function highlight(source: string, document = "<input>"): Token[] {
     const index = byStart.get(posKey(key.source_span.start));
     if (index !== undefined && lex[index]?.kind === "name") {
       dictKeyIndexes.add(index);
+    }
+  }
+
+  /**
+   * Record `entry` in {@link dictColonSplits} when its value has no gap after the `:` (`{ a:foo
+   * }`), so the final assembly loop below can split that one glued `variable` token back into an
+   * `operator` `:` plus the value's own class. An ordinary, spaced entry's value always starts at
+   * a real raw token of its own, so `byStart` already resolves it — only the glued case needs
+   * this. The colon character always sits exactly one column before the value on the same line
+   * (`parser.ts`'s `splitGluedColonToken` only ever splits a same-line, zero-gap `variable`
+   * token), so that position is where the raw glued token must start.
+   */
+  function markGluedDictColon(entry: DictEntryNode): void {
+    const valueStart = entry.value.source_span.start;
+    if (byStart.has(posKey(valueStart))) {
+      return;
+    }
+    const colonPosition: Position = [valueStart[0], valueStart[1] - 1];
+    const rawIndex = byStart.get(posKey(colonPosition));
+    if (rawIndex !== undefined && lex[rawIndex]?.kind === "variable") {
+      dictColonSplits.set(rawIndex, valueStart);
+      // Let any AST node whose span starts exactly at the value (a `Call`'s callee, a
+      // `BooleanLit`, …) resolve back to this raw index too — `markNameIndex` above is the
+      // consumer that needs it.
+      byStart.set(posKey(valueStart), rawIndex);
     }
   }
 
@@ -334,6 +374,12 @@ export function highlight(source: string, document = "<input>"): Token[] {
     switch (node.kind) {
       case "ListLit":
         markBracketPair(node.source_span, "list");
+        break;
+      case "DictLit":
+        for (const entry of node.entries) {
+          markSelectorKey(entry.key);
+          markGluedDictColon(entry);
+        }
         break;
       case "If":
         markBracketPair(node.thenBody.source_span, "instruction-block");
@@ -620,6 +666,12 @@ export function highlight(source: string, document = "<input>"): Token[] {
           text: token.text,
           source_span: token.source_span,
         };
+      case "colon":
+        return {
+          class: "operator",
+          text: token.text,
+          source_span: token.source_span,
+        };
       case "op":
         return {
           class: "operator",
@@ -667,6 +719,29 @@ export function highlight(source: string, document = "<input>"): Token[] {
       commentCursor += 1;
     }
     if (!isContentToken(token) || mergedAway.has(index)) {
+      continue;
+    }
+    const splitValueStart = dictColonSplits.get(index);
+    if (splitValueStart !== undefined) {
+      // A glued dict-entry value (`{ a:foo }`) lexed as one `variable`-kind token spanning
+      // `:foo`; emit the operator `:` and the value's own real classification separately,
+      // matching a normally-spaced entry's two tokens (spec/tooling.md:39,41).
+      output.push({
+        class: "operator",
+        text: ":",
+        source_span: makeSpan(
+          document,
+          token.source_span.start,
+          splitValueStart,
+        ),
+      });
+      const nameToken: ContentToken = {
+        kind: "name",
+        text: token.text.slice(1),
+        value: "",
+        source_span: makeSpan(document, splitValueStart, token.source_span.end),
+      };
+      output.push(classifyName(index, nameToken));
       continue;
     }
     output.push(classifyToken(index, token));

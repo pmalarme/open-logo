@@ -30,13 +30,14 @@
  * encoding step here is pure arithmetic over those inputs, so the same inputs always produce a
  * byte-identical PNG. The background is always included (opaque, filled first); the avatar is
  * included only when `includeAvatar` (default `true`) says to and the turtle is visible, exactly
- * matching `svg.ts`. `includeOverlays` is accepted for API parity with `svg.ts` but is currently a
- * no-op, for the same reason: `TurtleScene` carries no overlay data yet (Geometry profile, M4).
+ * matching `svg.ts`. `includeOverlays` (default `true`) controls whether enabled overlays are
+ * rasterized before the avatar, when overlay data is passed in.
  */
 
 import type { Point } from "@openlogo/core";
 import type { RenderTarget, Viewport } from "./canvas.js";
 import { paintScene, paintTurtle } from "./canvas.js";
+import { INITIAL_OVERLAY_STATE, type OverlayState } from "./overlay.js";
 import type { TurtleScene } from "./scene.js";
 import type { TurtleState } from "./state.js";
 
@@ -46,8 +47,8 @@ export interface PngExportOptions {
   /** Whether to include the live turtle avatar (still gated on `state.visible`). Defaults to
    * `true`. */
   readonly includeAvatar?: boolean;
-  /** Reserved for the Geometry profile's overlays (M4); currently a no-op (see the module doc
-   * comment). Defaults to `true`. */
+  /** Whether to include enabled overlays (`grid`/`axes`/`measure`), when overlay data is passed
+   * to {@link exportTurtlePng}. Defaults to `true`. */
   readonly includeOverlays?: boolean;
 }
 
@@ -506,13 +507,16 @@ export function exportTurtlePng(
   state: TurtleState,
   viewport: Viewport,
   options: PngExportOptions = {},
+  overlay: OverlayState = INITIAL_OVERLAY_STATE,
 ): Uint8Array {
   const includeAvatar = options.includeAvatar ?? true;
+  const includeOverlays = options.includeOverlays ?? true;
+  const paintedOverlay = includeOverlays ? overlay : undefined;
   const target = new RasterRenderTarget(viewport.width, viewport.height);
   if (includeAvatar) {
-    paintTurtle(target, scene, state, viewport);
+    paintTurtle(target, scene, state, viewport, paintedOverlay);
   } else {
-    paintScene(target, scene, viewport);
+    paintScene(target, scene, viewport, paintedOverlay);
   }
   return encodePng(target.toPixelBuffer());
 }

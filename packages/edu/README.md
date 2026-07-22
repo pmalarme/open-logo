@@ -12,3 +12,60 @@ reasoning, and the AI tutor (Socratic, offline-degrading) behind a provider-neut
 - **Spec:** [`educational-model.md`](../../spec/educational-model.md),
   [`geometry-module.md`](../../spec/geometry-module.md), [`ai-tutor.md`](../../spec/ai-tutor.md).
 - **Depends on:** `@openlogo/runtime`, `@openlogo/core`.
+
+## Lesson contract
+
+`src/lesson.ts` exports the read-only, data-only `Lesson` type — the **single source of
+truth** the studio lesson pane ([#127](https://github.com/pmalarme/open-logo/issues/127))
+consumes. It has no authoring API, no runtime, and no AI (those land in later slices); a
+`Lesson` is just data:
+
+- `objective` — the single idea the lesson teaches, tied to a `LearnerLevel` (`"1"`–`"6"`,
+  `"7a"`/`"7b"`/`"7c"`, `"8a"`/`"8b"`, matching `spec/educational-model.md`'s 8 progressive
+  levels).
+- `workedExamples` — one or more annotated, runnable OpenLogo snippets the learner can read.
+- `exercisePrompt` — what the learner tries next, changing one thing at a time.
+
+Consumers that load lesson content from an untyped source (e.g. JSON) can validate it with the
+exported `isLesson`/`isWorkedExample`/`isLearnerLevel` type guards. Do not invent a competing
+lesson-content shape elsewhere in the codebase — extend this contract instead.
+
+## Curriculum content: Level 1, Level 2, and Level 3
+
+`src/lessons/` holds the first authored curriculum content, built on top of the read-only
+`Lesson` contract above:
+
+- `lessons/level-1.ts` — the Level 1 lesson ("Leaving a mark") + graded exercises, covering
+  turtle position/heading/pen/color/width and `forward`/`back`/`right`/`left`/`pen_up`/
+  `pen_down`/`clear_screen`/`home` (`spec/educational-model.md:39-64`). The open challenge
+  follows the compose-a-recognizable-object rule (`spec/educational-model.md`,
+  `.github/skills/curriculum/author-a-lesson/SKILL.md`): a house — a square body and a triangle
+  roof, each with a door and two windows — with every side of the square and roof typed out one
+  at a time, since `repeat` does not exist yet at this level.
+- `lessons/level-2.ts` — the Level 2 lesson ("One side, repeated") + graded exercises, covering
+  `repeat` as an effects-only block and `repcount`, including the canonical square worked
+  example (`spec/educational-model.md:66-87`). The graded exercises follow the same
+  compose-a-recognizable-object rule: a guided change to the square, the triangle pattern as
+  practice, then a tree (a trunk plus repeated triangle tiers, each tier the exact same `repeat`
+  body) as the open challenge, and a further "taller tree" exercise that changes only the
+  repeat count — the payoff moment for why `repeat` matters, since growing the tree by hand
+  would mean retyping every tier.
+- `lessons/level-3.ts` — the Level 3 lesson ("One name, many places") + graded exercises,
+  covering the `:name` variable idiom, `=` and worded `set ... to` assignment, and `==`
+  comparison (`spec/educational-model.md:89-121`). The worked examples reproduce the spec's
+  `:size` square verbatim; the graded exercises introduce `:size` into a fixed square, resize it
+  once with the worded form, then reuse the single `:size` name across a resizable house's walls
+  and roof together, so one change resizes the whole shape.
+- `lessons/exercise.ts` — the `Exercise` contract: a graded exercise additive to `Lesson`
+  (`lessonId`, a `LearnerLevel`, a `"guided" | "practice" | "challenge"` difficulty, a prompt,
+  and a runnable `referenceSolution`). `Lesson` itself only carries a single `exercisePrompt`
+  string, so `Exercise` is a separate, non-invasive contract rather than a change to `lesson.ts`.
+- `lessons/registry.ts` — aggregates every level's lessons/exercises into flat `LESSONS`/
+  `EXERCISES` lists, plus `getLessonsByLevel`/`getExercisesByLevel`/`getExercisesByLesson`/
+  `findLessonById`/`findExerciseById` helpers.
+
+Every worked example and reference solution is executed against `@openlogo/runtime` in this
+package's tests, so lesson content can never drift from real execution behavior. Later levels
+(Level 4 onward) add their own `lessons/level-N.ts` module and extend the registry additively —
+no shared file needs an ever-growing literal, and no level uses a concept from a later level
+(`spec/educational-model.md:37`'s discovery guardrail).

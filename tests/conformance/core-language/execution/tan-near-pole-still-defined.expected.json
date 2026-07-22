@@ -1,5 +1,5 @@
 {
-  "description": "`tan 89` (issue #323) is one degree short of the pole at 90 and is mathematically defined — a large but finite number, `57.289961630759876` — and must NOT raise `ol-div-zero`. Proves the pole guard fires only exactly at `degrees % 180 === 90` (or `-90`), not merely near it.",
+  "description": "`tan 89` (issue #323) is one degree short of the pole at 90 and is mathematically defined — a large but finite number, `57.289961630759876` — and must NOT raise `ol-tan-undefined`. Proves the pole guard fires only exactly at `degrees % 180 === 90` (or `-90`), not merely near it.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

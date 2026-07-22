@@ -1,0 +1,4 @@
+:ages = {
+  tom: 8
+}
+print :ages.nobody

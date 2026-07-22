@@ -1,0 +1,5 @@
+:ages = {
+  sophie: 6
+  tom: 8
+}
+print value of :ages for key "tom"

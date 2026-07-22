@@ -17,6 +17,11 @@
  */
 
 import {
+  INITIAL_OVERLAY_STATE,
+  reduceOverlayState,
+  type OverlayState,
+} from "./overlay.js";
+import {
   INITIAL_TURTLE_SCENE,
   reduceTurtleScene,
   type TurtleScene,
@@ -78,6 +83,8 @@ export interface TurtleAnimationOptions {
   readonly initialState?: TurtleState;
   /** Retained scene to start from; defaults to {@link INITIAL_TURTLE_SCENE}. */
   readonly initialScene?: TurtleScene;
+  /** Overlay state to start from; defaults to {@link INITIAL_OVERLAY_STATE}. */
+  readonly initialOverlay?: OverlayState;
   /** Pacing scheduler; defaults to {@link IMMEDIATE_SCHEDULER}. */
   readonly scheduler?: Scheduler;
   /** Initial speed in steps per second; clamped into range, defaults to `1`. */
@@ -94,6 +101,8 @@ export interface AnimationSnapshot {
   readonly state: TurtleState;
   /** Retained scene folded from every event consumed so far. */
   readonly scene: TurtleScene;
+  /** Overlay state folded from every event consumed so far. */
+  readonly overlay: OverlayState;
 }
 
 /**
@@ -115,11 +124,13 @@ export class TurtleAnimationController {
   private readonly events: readonly TraceEvent[];
   private readonly initialState: TurtleState;
   private readonly initialScene: TurtleScene;
+  private readonly initialOverlay: OverlayState;
   private readonly scheduler: Scheduler;
   private speed: number;
   private cursor = 0;
   private state: TurtleState;
   private scene: TurtleScene;
+  private overlay: OverlayState;
   private status: PlaybackStatus = "idle";
   private cancelPending: (() => void) | null = null;
 
@@ -130,19 +141,23 @@ export class TurtleAnimationController {
     this.events = events;
     this.initialState = options.initialState ?? INITIAL_TURTLE_STATE;
     this.initialScene = options.initialScene ?? INITIAL_TURTLE_SCENE;
+    this.initialOverlay = options.initialOverlay ?? INITIAL_OVERLAY_STATE;
     this.scheduler = options.scheduler ?? IMMEDIATE_SCHEDULER;
     this.speed = clampSpeed(options.stepsPerSecond ?? DEFAULT_STEPS_PER_SECOND);
     this.state = this.initialState;
     this.scene = this.initialScene;
+    this.overlay = this.initialOverlay;
   }
 
-  /** Reads the current cursor, status, and folded state/scene without changing anything. */
+  /** Reads the current cursor, status, and folded state/scene/overlay without changing
+   * anything. */
   getSnapshot(): AnimationSnapshot {
     return {
       cursor: this.cursor,
       status: this.status,
       state: this.state,
       scene: this.scene,
+      overlay: this.overlay,
     };
   }
 
@@ -243,6 +258,7 @@ export class TurtleAnimationController {
     this.cursor = 0;
     this.state = this.initialState;
     this.scene = this.initialScene;
+    this.overlay = this.initialOverlay;
     this.status = "idle";
   }
 
@@ -277,11 +293,13 @@ export class TurtleAnimationController {
     }
   }
 
-  /** Folds `events[start..end)` into the running state/scene, in order, one event at a time. */
+  /** Folds `events[start..end)` into the running state/scene/overlay, in order, one event at a
+   * time. */
   private applyRange(start: number, end: number): void {
     for (const event of this.events.slice(start, end)) {
       this.state = reduceTurtleState(this.state, event);
       this.scene = reduceTurtleScene(this.scene, event);
+      this.overlay = reduceOverlayState(this.overlay, event);
     }
   }
 

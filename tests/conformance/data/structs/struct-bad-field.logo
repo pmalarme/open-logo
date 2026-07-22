@@ -1,0 +1,4 @@
+# A field list holds only identifiers (grammar.md's `field-list ::= "[" identifier { identifier }
+# "]"`). A stray non-identifier token is reported as ol-bad-token at that token — the brackets
+# themselves match — and recovery consumes through the `]`. Parse-only negative fixture.
+struct point [ x 3 ]

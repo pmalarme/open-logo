@@ -1,0 +1,6 @@
+struct point [ x y ]
+:p = point 3 4
+print :p.x
+print :p.y
+print type_of :p
+print is_a? :p "point"

@@ -16,19 +16,24 @@
  */
 export { ast, OL_NODE_KINDS, walk } from "./ast.js";
 export type {
+  AddNode,
   AnyNode,
   AssignNode,
   BlockNode,
   BooleanLitNode,
   CallNode,
+  ClearNode,
   ComparisonChainNode,
   ComprehensionNode,
+  DictEntryNode,
+  DictLitNode,
   ExpressionNode,
   FieldSegment,
   ForeverNode,
   ForInNode,
   ForRangeNode,
   IfNode,
+  InsertNode,
   IsPredicateNode,
   IsTest,
   ListLitNode,
@@ -44,13 +49,17 @@ export type {
   ProcedureParam,
   ProgramNode,
   ReduceComprehensionNode,
+  RemoveKeyNode,
+  RemoveNode,
   RepeatNode,
   ReturnNode,
   SelectorSegment,
   SpannedName,
   StatementNode,
   StopNode,
+  StructDefNode,
   ThrowNode,
+  ValueOfKeyNode,
   VarRefNode,
   Visitor,
   WhileNode,
@@ -69,7 +78,13 @@ export type { RecordFieldAccess } from "./checker-type-field.js";
 export { isReservedWord, OL_RESERVED_WORDS } from "./reserved.js";
 export type { ReservedWord } from "./reserved.js";
 
-export { corePrimitiveArity, turtlePrimitiveArity } from "./signatures.js";
+export {
+  corePrimitiveArity,
+  turtlePrimitiveArity,
+  dataPrimitiveArity,
+  educationalPrimitiveArity,
+  geometryPrimitiveArity,
+} from "./signatures.js";
 
 export { highlight, OL_BRACKET_ROLES, OL_TOKEN_CLASSES } from "./highlight.js";
 export type { BracketRole, Token, TokenClass } from "./highlight.js";

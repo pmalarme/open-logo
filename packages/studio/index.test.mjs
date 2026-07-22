@@ -47,12 +47,14 @@ test("index.html maps every REPL_LANDMARK_ROLES role/label pair onto the same el
 
 test("index.html's focusable elements appear in exactly REPL_FOCUS_ORDER's DOM order", () => {
   const elementIdByStopId = {
+    "lesson-pane": "lesson-pane",
     editor: "editor",
-    "run-button": "run-button",
-    "stop-button": "stop-button",
+    "run-toggle-button": "run-toggle-button",
     "reset-button": "reset-button",
+    "speed-slider": "speed-slider",
     canvas: "turtle-canvas",
     "diagnostics-list": "diagnostics-list",
+    "tutor-output": "tutor-output",
   };
 
   const positions = OL.REPL_FOCUS_ORDER.map((stop) => {
@@ -77,7 +79,12 @@ test("index.html's focusable elements appear in exactly REPL_FOCUS_ORDER's DOM o
   );
 });
 
-test("index.html gives the Canvas and diagnostics list a tabindex (neither is natively focusable)", () => {
+test("index.html gives the lesson pane, Canvas, and diagnostics list a tabindex (none is natively focusable)", () => {
+  assert.match(
+    indexHtml,
+    /id="lesson-pane"[\s\S]*?tabindex="0"/,
+    "the lesson pane must be focusable to be a REPL_FOCUS_ORDER stop",
+  );
   assert.match(
     indexHtml,
     /id="turtle-canvas"[\s\S]*?tabindex="0"/,
@@ -96,6 +103,50 @@ test("index.html does not render a 'Next step' control (#305) — the headless s
     /id="step-button"/,
     "the step button was removed from the 0.1.0 studio UI",
   );
+});
+
+test("index.html's lesson pane starts hidden by default (freeform/sandbox mode) (#127)", () => {
+  assert.match(
+    indexHtml,
+    /id="lesson-pane"[\s\S]*?hidden/,
+    "the lesson pane must start hidden until a lesson is loaded",
+  );
+});
+
+test("index.html collapses Run/Stop into a single Start/Pause toggle button (#316), with no separate Run/Stop buttons", () => {
+  assert.match(indexHtml, /id="run-toggle-button"/);
+  assert.doesNotMatch(
+    indexHtml,
+    /id="run-button"/,
+    "the separate Run button was replaced by the Start/Pause toggle",
+  );
+  assert.doesNotMatch(
+    indexHtml,
+    /id="stop-button"/,
+    "the separate Stop button was replaced by the Start/Pause toggle",
+  );
+});
+
+test("index.html's Start/Pause toggle has an accessible name and pressed state distinct from its (decorative) icon", () => {
+  const toggleTag = openingTags.find((tag) =>
+    tag.includes('id="run-toggle-button"'),
+  );
+  assert.ok(toggleTag, "expected a #run-toggle-button element");
+  assert.match(toggleTag, /aria-label="[^"]+"/);
+  assert.match(toggleTag, /aria-pressed="(true|false)"/);
+  assert.match(toggleTag, /data-icon="(play|pause)"/);
+  assert.match(
+    indexHtml,
+    /id="run-toggle-button"[\s\S]*?class="control-icon" aria-hidden="true"/,
+    "the toggle's icon must be aria-hidden, since the button's own aria-label already supplies the accessible name",
+  );
+});
+
+test("index.html's Reset button has an icon and an accessible name", () => {
+  const resetTag = openingTags.find((tag) => tag.includes('id="reset-button"'));
+  assert.ok(resetTag, "expected a #reset-button element");
+  assert.match(resetTag, /aria-label="Reset"/);
+  assert.match(resetTag, /data-icon="reset"/);
 });
 
 test("index.html declares both always-live aria-live regions createA11yAnnouncer's announcements render into", () => {
@@ -170,4 +221,66 @@ test("web/main.ts asserts every DOM element lookup via the tested assertPresent 
 test("web/main.ts syncs the editor's value via the tested syncTextValue helper, not a manual equality check", () => {
   assert.match(mainTs, /syncTextValue\(editorElement, next\.source\)/);
   assert.doesNotMatch(mainTs, /if\s*\(\s*editorElement\.value/);
+});
+
+test("index.html declares a labeled #speed-slider range input for the turtle-speed control (#310)", () => {
+  assert.match(indexHtml, /id="speed-slider"[\s\S]*?type="range"/);
+  assert.match(indexHtml, /<label for="speed-slider">Turtle speed<\/label>/);
+});
+
+test("web/main.ts wires the speed slider straight to setSpeedSliderValue on input, with no hardcoded animation delay (#310)", () => {
+  assert.match(mainTs, /speedSliderElement\.addEventListener\(\s*"input"/);
+  assert.match(mainTs, /shell\.state\.setSpeedSliderValue\(/);
+  assert.doesNotMatch(mainTs, /ANIMATION_STEP_DELAY_MS/);
+});
+
+test("web/main.ts mirrors the slider's position and its learner-facing description via describeSpeedTickDelayMs, not raw ms (#310)", () => {
+  assert.match(mainTs, /describeSpeedTickDelayMs\(/);
+  assert.match(mainTs, /mapSpeedSliderValueToTickDelayMs\(/);
+  assert.match(
+    mainTs,
+    /syncTextValue\(speedSliderElement, String\(next\.speedSliderValue\)\)/,
+  );
+});
+
+test("web/main.ts mounts the lesson pane via createLessonPaneController + mountLessonPane and renders its view on every state change (#127)", () => {
+  assert.match(mainTs, /createLessonPaneController\(state\)/);
+  assert.match(mainTs, /mountLessonPane\(shell, lessonPane\)/);
+  assert.match(
+    mainTs,
+    /renderLessonPane\(lessonPaneElement, lessonPane\.getView\(\)\)/,
+  );
+  assert.match(mainTs, /element\.hidden\s*=\s*!view\.isVisible/);
+});
+
+test("web/main.ts wires the Start/Pause toggle via the tested mapRunStatusToRunToggleViewModel, not a branch on runStatus (#316)", () => {
+  assert.match(mainTs, /mapRunStatusToRunToggleViewModel\(/);
+  assert.match(mainTs, /runToggleButton\.addEventListener\(\s*"click"/);
+  assert.doesNotMatch(
+    mainTs,
+    /if\s*\(\s*(state\.getState\(\)\.)?runStatus\s*===/,
+    "the toggle's run()-vs-stop() dispatch must be an indexed lookup, not an if/else branch",
+  );
+});
+
+test("web/main.ts renders the toggle's icon/aria-label/aria-pressed/label from the view model on every state change (#316)", () => {
+  assert.match(mainTs, /renderRunToggleButton\(/);
+  assert.match(mainTs, /runToggleButton\.dataset\.icon\s*=\s*viewModel\.icon/);
+  assert.match(
+    mainTs,
+    /runToggleButton\.setAttribute\(\s*"aria-label",\s*viewModel\.ariaLabel\s*\)/,
+  );
+  assert.match(
+    mainTs,
+    /runToggleButton\.setAttribute\(\s*"aria-pressed",\s*String\(viewModel\.ariaPressed\)\s*\)/,
+  );
+  assert.match(
+    mainTs,
+    /runToggleLabelElement\.textContent\s*=\s*viewModel\.label/,
+  );
+});
+
+test("web/main.ts still calls runController.reset() directly from the Reset button (unchanged run-controller semantics, #316)", () => {
+  assert.match(mainTs, /resetButton\.addEventListener\(\s*"click"/);
+  assert.match(mainTs, /runController\.reset\(\)/);
 });

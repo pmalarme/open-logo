@@ -437,7 +437,7 @@ test("count on a number raises ol-type", () => {
   assert.equal(result.diagnostics.length, 1);
   assert.deepEqual(result.diagnostics[0].code, "ol-type");
   assert.deepEqual(result.diagnostics[0].params, {
-    expected: "word or list",
+    expected: "word, list, or dict",
     actual: "number",
     value: 5,
     operation: "count",
@@ -448,7 +448,7 @@ test("count on a boolean raises ol-type", () => {
   const result = execute("print count false", doc);
   assert.equal(result.diagnostics.length, 1);
   assert.deepEqual(result.diagnostics[0].params, {
-    expected: "word or list",
+    expected: "word, list, or dict",
     actual: "boolean",
     value: false,
     operation: "count",

@@ -337,13 +337,17 @@ test("a print call as a comprehension body's final statement is structurally sup
 });
 
 test("a comprehension whose body ends in an expression kind this evaluator does not implement is deferred entirely, no diagnostic", () => {
-  // `:ages.tom` is a dotted-field read (Data-profile, not yet supported): the whole comprehension
-  // is left unevaluated (the assignment target is simply never set), matching `print`/`ForIn`'s
-  // own "unsupported operand" convention, rather than misreporting `ol-no-value` for a shape that
-  // is actually value-producing syntactically. (No trailing `print` here — reading the never-set
-  // `:out` afterward would raise its own, unrelated `ol-undefined-var`.) Only the top-level
-  // `Assign` statement's own `instruction` event fires — nothing from inside the deferred body.
-  const result = execute(":out = map n in [1] [ :ages.tom ]", doc);
+  // `(nonexistent_builtin 1)` is a call to a name this evaluator does not know: the whole
+  // comprehension is left unevaluated (the assignment target is simply never set), matching
+  // `print`/`ForIn`'s own "unsupported operand" convention, rather than misreporting
+  // `ol-no-value` for a shape that is actually value-producing syntactically. (No trailing
+  // `print` here — reading the never-set `:out` afterward would raise its own, unrelated
+  // `ol-undefined-var`.) Only the top-level `Assign` statement's own `instruction` event fires —
+  // nothing from inside the deferred body.
+  const result = execute(
+    ":out = map n in [1] [ (nonexistent_builtin 1) ]",
+    doc,
+  );
   assert.deepEqual(result.diagnostics, []);
   assert.deepEqual(
     result.events.map((event) => event.kind),
@@ -364,7 +368,7 @@ test("a comprehension whose body has a leading statement kind this evaluator doe
 });
 
 test("a comprehension whose iterable is an expression kind this evaluator does not implement is deferred entirely, no diagnostic", () => {
-  const result = execute(":out = map n in :ages.tom [ :n ]", doc);
+  const result = execute(":out = map n in (nonexistent_builtin 1) [ :n ]", doc);
   assert.deepEqual(result.diagnostics, []);
   assert.deepEqual(
     result.events.map((event) => event.kind),
@@ -374,7 +378,7 @@ test("a comprehension whose iterable is an expression kind this evaluator does n
 
 test("a reduce whose `from` seed is an expression kind this evaluator does not implement is deferred entirely, no diagnostic", () => {
   const result = execute(
-    ":out = reduce sum n in [1] from :ages.tom [ :sum ]",
+    ":out = reduce sum n in [1] from (nonexistent_builtin 1) [ :sum ]",
     doc,
   );
   assert.deepEqual(result.diagnostics, []);

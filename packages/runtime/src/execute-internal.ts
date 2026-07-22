@@ -21,12 +21,15 @@
  */
 
 import type {
+  AxesOverlayPayload,
   BackgroundChangePayload,
   ClearPayload,
   ColorChangePayload,
   Diagnostic,
   DrawSegmentPayload,
   FillPayload,
+  GridOverlayPayload,
+  MeasureOverlayPayload,
   MovePayload,
   OLValue,
   PenChangePayload,
@@ -39,6 +42,7 @@ import type {
   SourceSpan,
   StampPayload,
   TurnPayload,
+  TutorCommand,
   VisibilityChangePayload,
   WidthChangePayload,
 } from "@openlogo/core";
@@ -50,8 +54,17 @@ import type {
   ProcedureDefNode,
   ProgramNode,
   StatementNode,
+  StructDefNode,
 } from "@openlogo/parser";
-import { parse, walk } from "@openlogo/parser";
+import {
+  corePrimitiveArity,
+  dataPrimitiveArity,
+  educationalPrimitiveArity,
+  isReservedWord,
+  parse,
+  turtlePrimitiveArity,
+  walk,
+} from "@openlogo/parser";
 import { normalizeColor } from "./color.js";
 import { isRecognizedShape, normalizeShape } from "./shape.js";
 import {
@@ -59,17 +72,24 @@ import {
   checkExecutionLimits,
   createDefaultTurtleState,
   evaluate,
+  executeAdd,
   executeAssign,
+  executeClear,
+  executeInsert,
+  executeRemove,
+  executeRemoveKey,
   findDuplicateBinderName,
-  isSupportedExpression,
+  isSupportedArgument,
   printedForm,
   pushLoopFrame,
   requireNumber,
   requireWholeNumber,
+  type AssignResult,
   type Environment,
   type EvalResult,
   type Frame,
   type ProcedureRegistry,
+  type StructRegistry,
 } from "./evaluate.js";
 import { runtimeDiag } from "./errors.js";
 import type {
@@ -81,6 +101,9 @@ import {
   createRandomNumberGeneratorState,
   seedFromText,
 } from "./random-number-generator.js";
+import type { TutorCommandMetadata, TutorContext } from "./tutor-context.js";
+import { defaultTutorTemplate } from "./tutor-templates.js";
+import type { TutorLearnerLevel } from "./tutor-context.js";
 import { normalizeHeading } from "./turtle-math.js";
 
 /**
@@ -249,7 +272,7 @@ function executeTurtleMoveCall(
     );
   }
   const [arg] = moveCall.args as [ExpressionNode];
-  if (!isSupportedExpression(arg, environment.procedures)) {
+  if (!isSupportedArgument(arg, environment)) {
     return undefined;
   }
   const argResult = evaluate(arg, environment);
@@ -360,7 +383,7 @@ function executeTurtleTurnCall(
     );
   }
   const [arg] = turnCall.args as [ExpressionNode];
-  if (!isSupportedExpression(arg, environment.procedures)) {
+  if (!isSupportedArgument(arg, environment)) {
     return undefined;
   }
   const argResult = evaluate(arg, environment);
@@ -677,7 +700,7 @@ function executeTurtleColorCall(
     );
   }
   const [arg] = colorCall.args as [ExpressionNode];
-  if (!isSupportedExpression(arg, environment.procedures)) {
+  if (!isSupportedArgument(arg, environment)) {
     return undefined;
   }
   const argResult = evaluate(arg, environment);
@@ -761,7 +784,7 @@ function executeTurtleBackgroundCall(
     );
   }
   const [arg] = backgroundCall.args as [ExpressionNode];
-  if (!isSupportedExpression(arg, environment.procedures)) {
+  if (!isSupportedArgument(arg, environment)) {
     return undefined;
   }
   const argResult = evaluate(arg, environment);
@@ -842,7 +865,7 @@ function executeTurtleWidthCall(
     );
   }
   const [arg] = widthCall.args as [ExpressionNode];
-  if (!isSupportedExpression(arg, environment.procedures)) {
+  if (!isSupportedArgument(arg, environment)) {
     return undefined;
   }
   const argResult = evaluate(arg, environment);
@@ -979,6 +1002,167 @@ function executeTurtleStampCall(
 }
 
 /**
+ * `grid`'s default guide-line spacing in canvas units (`spec/geometry-module.md:272`: "Default
+ * grid spacing is `20` canvas units"). `grid` takes no arguments (Kind C, arity 0), so this is the
+ * only spacing the runtime ever emits — a future slice adding a `grid :spacing` overload would
+ * change the arity table and this call site together, not this constant alone.
+ */
+const DEFAULT_GRID_SPACING = 20;
+
+/**
+ * Is `statement` a call to `grid` (issue #341; `spec/geometry-module.md:268-280`). Same
+ * shape/convention as {@link isTurtleStampCall}.
+ */
+function isTurtleGridCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  return statement.callee.name.toLowerCase() === "grid";
+}
+
+/**
+ * Validate and run a `grid` statement matched by {@link isTurtleGridCall}: exactly zero arguments
+ * (`ol-too-many-inputs` otherwise), then emit one `overlay` event carrying a
+ * {@link GridOverlayPayload} at the spec's default spacing of `20` canvas units
+ * (`spec/geometry-module.md:272`). `grid` is Kind C — it creates or refreshes a persistent
+ * renderer overlay, never turtle position, heading, pen, color, or width, and the overlay
+ * survives `clean` (`@openlogo/turtle`'s `overlay.ts` reducer has no `clear` case, so this event
+ * is never undone by one). No turtle-state change: the runtime only emits the one event. Returns
+ * an {@link ExecSignal} to halt on, or `undefined` for {@link executeStatements} to `continue` on
+ * success.
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeTurtleGridCall(
+  gridCall: CallNode | ParenCallNode,
+  environment: Environment,
+): ExecSignal | undefined {
+  const callableName = gridCall.callee.name;
+  if (gridCall.args.length !== 0) {
+    return halt(
+      runtimeDiag.tooManyInputs(
+        gridCall.callee.source_span,
+        callableName,
+        0,
+        gridCall.args.length,
+      ),
+    );
+  }
+  environment.events.push({
+    seq: environment.events.length,
+    kind: "overlay",
+    source_span: gridCall.source_span,
+    payload: {
+      overlay: "grid",
+      spacing: DEFAULT_GRID_SPACING,
+    } satisfies GridOverlayPayload,
+  });
+  return undefined;
+}
+
+/**
+ * Is `statement` a call to `axes` (issue #341; `spec/geometry-module.md:282-292`). Same
+ * shape/convention as {@link isTurtleGridCall}.
+ */
+function isTurtleAxesCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  return statement.callee.name.toLowerCase() === "axes";
+}
+
+/**
+ * Validate and run an `axes` statement matched by {@link isTurtleAxesCall}: exactly zero
+ * arguments (`ol-too-many-inputs` otherwise), then emit one `overlay` event carrying an
+ * {@link AxesOverlayPayload}. `axes` is Kind C — the crossed axes overlay through the origin
+ * (the turtle's `home` position, `spec/geometry-module.md:286`) never changes turtle state and
+ * survives `clean`. No turtle-state change: the runtime only emits the one event. Returns an
+ * {@link ExecSignal} to halt on, or `undefined` for {@link executeStatements} to `continue` on
+ * success.
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeTurtleAxesCall(
+  axesCall: CallNode | ParenCallNode,
+  environment: Environment,
+): ExecSignal | undefined {
+  const callableName = axesCall.callee.name;
+  if (axesCall.args.length !== 0) {
+    return halt(
+      runtimeDiag.tooManyInputs(
+        axesCall.callee.source_span,
+        callableName,
+        0,
+        axesCall.args.length,
+      ),
+    );
+  }
+  environment.events.push({
+    seq: environment.events.length,
+    kind: "overlay",
+    source_span: axesCall.source_span,
+    payload: {
+      overlay: "axes",
+    } satisfies AxesOverlayPayload,
+  });
+  return undefined;
+}
+
+/**
+ * Is `statement` a call to `measure` (issue #341; `spec/geometry-module.md:296-306`). Same
+ * shape/convention as {@link isTurtleGridCall}.
+ */
+function isTurtleMeasureCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  return statement.callee.name.toLowerCase() === "measure";
+}
+
+/**
+ * Validate and run a `measure` statement matched by {@link isTurtleMeasureCall}: exactly zero
+ * arguments (`ol-too-many-inputs` otherwise), then emit one `overlay` event snapshotting the
+ * turtle's current position and heading into a {@link MeasureOverlayPayload} — mirroring
+ * {@link executeTurtleStampCall}'s position/heading snapshot. `measure` is Kind C: "It returns no
+ * value and does not change the turtle state" (`spec/geometry-module.md:298`). No turtle-state
+ * change: the runtime only emits the one event. Returns an {@link ExecSignal} to halt on, or
+ * `undefined` for {@link executeStatements} to `continue` on success.
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeTurtleMeasureCall(
+  measureCall: CallNode | ParenCallNode,
+  environment: Environment,
+): ExecSignal | undefined {
+  const callableName = measureCall.callee.name;
+  if (measureCall.args.length !== 0) {
+    return halt(
+      runtimeDiag.tooManyInputs(
+        measureCall.callee.source_span,
+        callableName,
+        0,
+        measureCall.args.length,
+      ),
+    );
+  }
+  const { turtle } = environment;
+  environment.events.push({
+    seq: environment.events.length,
+    kind: "overlay",
+    source_span: measureCall.source_span,
+    payload: {
+      overlay: "measure",
+      position: [turtle.x, turtle.y],
+      heading: turtle.heading,
+    } satisfies MeasureOverlayPayload,
+  });
+  return undefined;
+}
+
+/**
  * Is `statement` a call to `set_shape` (issue #210; `spec/commands.md:1573`). Same
  * shape/convention as {@link isTurtleColorCall} — no Turtle & Rendering-profile alias is
  * registered for `set_shape` (unlike `set_color`/`set_width`/`set_xy`/`set_heading`, which each
@@ -1040,7 +1224,7 @@ function executeTurtleShapeCall(
     );
   }
   const [arg] = shapeCall.args as [ExpressionNode];
-  if (!isSupportedExpression(arg, environment.procedures)) {
+  if (!isSupportedArgument(arg, environment)) {
     return undefined;
   }
   const argResult = evaluate(arg, environment);
@@ -1205,8 +1389,8 @@ function executeTurtlePositionCall(
   }
   const [xArg, yArg] = positionCall.args as [ExpressionNode, ExpressionNode];
   if (
-    !isSupportedExpression(xArg, environment.procedures) ||
-    !isSupportedExpression(yArg, environment.procedures)
+    !isSupportedArgument(xArg, environment) ||
+    !isSupportedArgument(yArg, environment)
   ) {
     return undefined;
   }
@@ -1299,7 +1483,7 @@ function executeTurtleHeadingCall(
     );
   }
   const [arg] = headingCall.args as [ExpressionNode];
-  if (!isSupportedExpression(arg, environment.procedures)) {
+  if (!isSupportedArgument(arg, environment)) {
     return undefined;
   }
   const argResult = evaluate(arg, environment);
@@ -1432,6 +1616,24 @@ function dispatchTurtleCommand(
       environment,
     );
   }
+  if (isTurtleGridCall(statement)) {
+    return executeTurtleGridCall(
+      statement as unknown as CallNode | ParenCallNode,
+      environment,
+    );
+  }
+  if (isTurtleAxesCall(statement)) {
+    return executeTurtleAxesCall(
+      statement as unknown as CallNode | ParenCallNode,
+      environment,
+    );
+  }
+  if (isTurtleMeasureCall(statement)) {
+    return executeTurtleMeasureCall(
+      statement as unknown as CallNode | ParenCallNode,
+      environment,
+    );
+  }
   if (isTurtleShapeCall(statement)) {
     return executeTurtleShapeCall(
       statement as unknown as CallNode | ParenCallNode,
@@ -1439,6 +1641,44 @@ function dispatchTurtleCommand(
     );
   }
   return NOT_A_TURTLE_COMMAND;
+}
+
+/**
+ * Dispatch the statements that write a place or mutate a list/dict value in place — `Assign`
+ * (`set … to` / `<place> = …`) plus the five Data-profile mutators `add`/`remove`/`insert`/
+ * `clear` (issue #188, `spec/data-structures.md:73-93`) and `RemoveKey` (dict key deletion, issue
+ * #322, `spec/data-structures.md:229`) — to their evaluators in `evaluate.ts`. Returns the
+ * evaluator's {@link AssignResult} (a clean `ok`, or its `ol-type`/`ol-range` diagnostic), or
+ * `undefined` when `statement` is none of them — so {@link executeStatements} falls through to its
+ * remaining handlers.
+ *
+ * `Assign` and the five mutators share one dispatch — and therefore one result local in
+ * {@link executeStatements} — on purpose. `executeStatements` recurses once per procedure call, so
+ * every extra local it declares widens the per-level stack frame; a *second* result local there for
+ * the mutators pushed the 600-deep `recursionDepthLimit: 1000` regression test
+ * (`execution-budget.test.mjs`) over the native call-stack limit, exactly as {@link executeShowCall}'s
+ * doc comment warns. Folding them together keeps that frame at its original width.
+ */
+function dispatchAssignOrListMutator(
+  statement: StatementNode,
+  environment: Environment,
+): AssignResult | undefined {
+  switch (statement.kind) {
+    case "Assign":
+      return executeAssign(statement, environment);
+    case "Add":
+      return executeAdd(statement, environment);
+    case "Remove":
+      return executeRemove(statement, environment);
+    case "Insert":
+      return executeInsert(statement, environment);
+    case "Clear":
+      return executeClear(statement, environment);
+    case "RemoveKey":
+      return executeRemoveKey(statement, environment);
+    default:
+      return undefined;
+  }
 }
 
 /**
@@ -1477,7 +1717,7 @@ function executeShowCall(
   // evaluate `show` when its one operand is an expression kind this issue's evaluator gives
   // meaning to.
   const arg = statement.args[0] as ExpressionNode;
-  if (!isSupportedExpression(arg, environment.procedures)) {
+  if (!isSupportedArgument(arg, environment)) {
     return undefined;
   }
   const result = evaluate(arg, environment);
@@ -1537,7 +1777,7 @@ function executeRandomizeCall(
   // Same unsupported-operand deferral as `show`/`print` use: only evaluate the seed when it is
   // an expression kind this issue's evaluator gives meaning to.
   const seedNode = statement.args[0] as ExpressionNode;
-  if (!isSupportedExpression(seedNode, environment.procedures)) {
+  if (!isSupportedArgument(seedNode, environment)) {
     return undefined;
   }
   const result = evaluate(seedNode, environment);
@@ -1553,30 +1793,214 @@ function executeRandomizeCall(
 }
 
 /**
- * Sentinel `dispatchShowOrRandomizeCommand` returns when `statement` is neither a `show` nor a
- * `randomize` call, so {@link executeStatements} can fall through to its other statement-kind
- * checks. Distinct from `undefined`, which means "handled, continue" (same convention as
- * {@link NOT_A_TURTLE_COMMAND}/{@link dispatchTurtleCommand}).
+ * Is `statement` a call to one of the four Educational-profile baseline meta-commands
+ * (`explain`/`why`/`hint`/`debug`, `spec/educational-model.md#baseline-meta-commands`)? A1
+ * (issue #331) parses all four as ordinary zero-arity `Call`/`ParenCall` nodes — no dedicated AST
+ * node kind — matching the existing Turtle/Data precedent ({@link isShowCall}/
+ * {@link isRandomizeCall} above), so this predicate has the identical shape: a plain `boolean`
+ * checking `statement.callee.name` case-insensitively against the four command names.
  */
-const NOT_A_SHOW_OR_RANDOMIZE_COMMAND = Symbol(
-  "not-a-show-or-randomize-command",
+function isEducationalMetaCommandCall(
+  statement: StatementNode,
+): statement is CallNode | ParenCallNode {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  const name = statement.callee.name.toLowerCase();
+  return (
+    name === "explain" || name === "why" || name === "hint" || name === "debug"
+  );
+}
+
+/**
+ * The statement immediately preceding `statement` in `statements` (the same statement LIST it
+ * appears in — top-level program body, or a specific `if`/`while`/`repeat`/`for`/procedure
+ * body), skipping past any OTHER Educational meta-command call — {@link TutorContext.target}'s
+ * resolution rule (the M3-orchestrator's ruling on issue #332: a purely structural/AST rule,
+ * never an event-log scan). `undefined` when `statement` is the first entry, or every earlier
+ * entry is itself a meta-command call.
+ *
+ * `procedures` is `environment.procedures` — the SAME registry {@link executeStatements} itself
+ * consults ({@link isProcedureCallStatement}) to let a learner-defined procedure shadow one of
+ * the four meta-command names (matching the existing Turtle/Data shadowing convention). A
+ * candidate is only skipped as "just a meta-command call" when it is BOTH syntactically one of
+ * the four names AND not shadowed by a procedure — a candidate line like `hint` that a `define
+ * hint … end` shadows was executed as an ordinary procedure call, so it is a real preceding
+ * sibling here too, exactly as it was for {@link executeStatements}'s own dispatch. Without this
+ * check, a shadowed candidate would be wrongly skipped even though the run just treated it as a
+ * real statement.
+ *
+ * This is simpler than — and supersedes — an earlier event-log-based approach, and inherently
+ * avoids that approach's `procedure-enter` bug class: a meta-command with no preceding sibling in
+ * its OWN statement list (whether at top level or as the first statement of a procedure/loop
+ * body) simply has no target here, with no need to reason about trace-event kinds at all.
+ * Skipping past sibling meta-commands (rather than returning the immediately previous entry
+ * unconditionally) is what keeps a run of CONSECUTIVE meta-commands (e.g. `hint` called three
+ * times in a row with nothing in between) all resolving to the SAME real target, rather than
+ * each one targeting the previous meta-command's own call site — without that skip, `hint`'s
+ * progression (`spec/execution-model.md:641-652`, "for the SAME target") could never observe two
+ * calls sharing one target.
+ */
+function findPrecedingSiblingStatement(
+  statements: readonly StatementNode[],
+  statement: StatementNode,
+  procedures: ProcedureRegistry,
+): StatementNode | undefined {
+  const index = statements.indexOf(statement);
+  for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+    const candidate = statements[cursor];
+    if (
+      candidate !== undefined &&
+      !(
+        isEducationalMetaCommandCall(candidate) &&
+        !procedures.has(candidate.callee.name.toLowerCase())
+      )
+    ) {
+      return candidate;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * {@link TutorCommandMetadata} for `target`, when the runtime can identify one:  only when
+ * `target` is itself a call (`Call`/`ParenCall`) — `spec/educational-model.md:420-434`'s "known
+ * command metadata" input. `kind` is `"procedure"` when the callee names a learner-defined
+ * procedure in scope (`environment.procedures`), otherwise `"primitive"` — a call-position node
+ * is never itself a control/binding special form (`if`/`repeat`/`define`/… each parse as their
+ * OWN dedicated `StatementNode` kind, not a `Call`), so this function never returns
+ * `kind: "special-form"`. `undefined` when `target` is absent or not a call.
+ */
+function commandMetadataFor(
+  target: StatementNode | undefined,
+  procedures: ProcedureRegistry,
+): TutorCommandMetadata | undefined {
+  if (
+    target === undefined ||
+    (target.kind !== "Call" && target.kind !== "ParenCall")
+  ) {
+    return undefined;
+  }
+  const name = target.callee.name;
+  return {
+    name,
+    arity: target.args.length,
+    kind: procedures.has(name.toLowerCase()) ? "procedure" : "primitive",
+  };
+}
+
+/**
+ * Executes one of the four Educational baseline meta-commands once
+ * {@link isEducationalMetaCommandCall} has confirmed the statement. Three responsibilities:
+ *
+ * 1. Reject any nonzero-input parenthesized form — `(explain 1)`, `(hint "x" "y")`, etc. — at
+ *    runtime with the stable `ol-too-many-inputs` diagnostic (reusing
+ *    {@link runtimeDiag.tooManyInputs} with `expected: 0`, exactly like every other arity
+ *    violation in this file). This is the A1 reviewer's flagged gap: A1 reuses the ordinary
+ *    zero-arity `Call`/`ParenCall` shape with no static arity check, matching Turtle/Data
+ *    precedent, so nothing before this point ever rejects it.
+ * 2. Build a {@link TutorContext} from runtime-available data alone — never from edu's
+ *    curriculum knowledge, which this package must not import (issue #332's architecture
+ *    constraint) — using {@link findPrecedingSiblingStatement} for `target` and
+ *    {@link commandMetadataFor} for `commandMetadata`. `diagnostics` is always `[]` in a live
+ *    single `execute()` run: a runtime diagnostic halts `executeStatements` immediately and
+ *    terminally, so a meta-command in the SAME run can never observe one from its own execution.
+ *    Cross-run session persistence (a host re-invoking `why`/`debug` after a halted run with the
+ *    halting diagnostic supplied) is a host/studio concern (C2), out of this issue's scope — but
+ *    see `educational-meta-commands.test.mjs` for direct unit tests of the diagnostic-arm
+ *    construction path via a synthetic `TutorContext`.
+ * 3. Call `environment.tutorTemplate` (the resolved `ExecuteOptions.tutorTemplates`, or
+ *    {@link defaultTutorTemplate}) and faithfully emit whichever `TutorOutputPayload` arm it
+ *    returns as exactly one `tutor-output` event — this function never chooses pedagogy or the
+ *    diagnostic-vs-program arm itself (the M3-orchestrator's injectable-template ruling). For
+ *    `hint`, the returned payload's `stage` is persisted into `environment.hintProgress` keyed by
+ *    the resolved target (or whole-program) span, so a later `hint` for the SAME target sees it
+ *    as `priorHintStage`.
+ */
+function executeEducationalMetaCommand(
+  statement: CallNode | ParenCallNode,
+  statements: readonly StatementNode[],
+  environment: Environment,
+): ExecSignal | undefined {
+  const command = statement.callee.name.toLowerCase() as TutorCommand;
+  if (statement.args.length > 0) {
+    return halt(
+      runtimeDiag.tooManyInputs(
+        statement.callee.source_span,
+        statement.callee.name,
+        0,
+        statement.args.length,
+      ),
+    );
+  }
+
+  const target = findPrecedingSiblingStatement(
+    statements,
+    statement,
+    environment.procedures,
+  );
+  const targetOrProgramSpan =
+    target?.source_span ?? environment.program.source_span;
+  const hintKey = hintTargetKey(targetOrProgramSpan);
+  const priorHintStage =
+    command === "hint" ? environment.hintProgress.get(hintKey) : undefined;
+
+  const context: TutorContext = {
+    command,
+    program: environment.program,
+    target,
+    events: environment.events,
+    diagnostics: [],
+    level: environment.learnerLevel,
+    commandMetadata: commandMetadataFor(target, environment.procedures),
+    priorHintStage,
+  };
+
+  const payload = environment.tutorTemplate(context);
+  if (payload.command === "hint") {
+    environment.hintProgress.set(hintKey, payload.stage);
+  }
+
+  environment.events.push({
+    seq: environment.events.length,
+    kind: "tutor-output",
+    source_span: statement.source_span,
+    payload,
+  });
+  return undefined;
+}
+
+/**
+ * Sentinel `dispatchShowRandomizeOrEducationalCommand` returns when `statement` is none of
+ * `show`/`randomize`/the four Educational meta-commands, so {@link executeStatements} can fall
+ * through to its other statement-kind checks. Distinct from `undefined`, which means "handled,
+ * continue" (same convention as {@link NOT_A_TURTLE_COMMAND}/`dispatchTurtleCommand`).
+ */
+const NOT_A_SHOW_RANDOMIZE_OR_EDUCATIONAL_COMMAND = Symbol(
+  "not-a-show-randomize-or-educational-command",
 );
 
 /**
- * Single entry point {@link executeStatements} calls to try both `show` and `randomize` in one
- * step — the same amortization {@link dispatchTurtleCommand}'s doc comment explains: folding two
+ * Single entry point {@link executeStatements} calls to try `show`, `randomize`, and the four
+ * Educational meta-commands (`explain`/`why`/`hint`/`debug`, issue #332) in one step — the same
+ * amortization {@link dispatchTurtleCommand}'s doc comment explains: folding multiple
  * single-command predicate/dispatch pairs behind one call site keeps `executeStatements`'s own
  * body (and so every stack frame in a deep recursive program) from growing with each additional
- * statement kind it recognizes. `show` (issue #234) and `randomize` (issue #287) are combined
- * here because both were added as individually inline checks in `executeStatements` before this
- * consolidation, and the second inline check alone was enough to push the 600-deep
+ * statement kind it recognizes. `show` (issue #234) and `randomize` (issue #287) were already
+ * combined here for exactly this reason — the doc comment on the original two-command version
+ * of this function recorded that "the second inline check alone was enough to push the 600-deep
  * `recursionDepthLimit: 1000` regression test over the native call-stack limit under coverage
- * instrumentation.
+ * instrumentation" — and issue #332's own first attempt (a separate
+ * `dispatchEducationalMetaCommand` call site right after this one) reproduced precisely that
+ * regression, so the four meta-commands are folded into this SAME dispatcher rather than added
+ * as a new one. `statements` (the full statement list `statement` appears in) is threaded through
+ * only for the educational branch's sibling-statement lookup — `show`/`randomize` ignore it.
  */
-function dispatchShowOrRandomizeCommand(
+function dispatchShowRandomizeOrEducationalCommand(
   statement: StatementNode,
+  statements: readonly StatementNode[],
   environment: Environment,
-): ExecSignal | undefined | typeof NOT_A_SHOW_OR_RANDOMIZE_COMMAND {
+): ExecSignal | undefined | typeof NOT_A_SHOW_RANDOMIZE_OR_EDUCATIONAL_COMMAND {
   if (isShowCall(statement)) {
     return executeShowCall(
       statement as unknown as CallNode | ParenCallNode,
@@ -1589,7 +2013,22 @@ function dispatchShowOrRandomizeCommand(
       environment,
     );
   }
-  return NOT_A_SHOW_OR_RANDOMIZE_COMMAND;
+  if (isEducationalMetaCommandCall(statement)) {
+    return executeEducationalMetaCommand(statement, statements, environment);
+  }
+  return NOT_A_SHOW_RANDOMIZE_OR_EDUCATIONAL_COMMAND;
+}
+
+/**
+ * Serializes a `SourceSpan` into a stable string key for {@link Environment.hintProgress} —
+ * `document` plus both endpoints, so two different spans (even in the same document) never
+ * collide, and the whole-program fallback span (a distinct, wider span than any single
+ * statement) gets its own independent progression, per
+ * `spec/execution-model.md:641-652`'s "observable ordering ... for a given target-source-span
+ * value" requirement.
+ */
+function hintTargetKey(span: SourceSpan): string {
+  return `${span.document}:${span.start[0]}:${span.start[1]}:${span.end[0]}:${span.end[1]}`;
 }
 
 /**
@@ -1669,6 +2108,76 @@ function collectProcedures(program: ProgramNode): ProcedureRegistry {
     }
   });
   return procedures;
+}
+
+/** The outcome of {@link collectStructs}: either the built registry, or the first collision found. */
+type StructCollection =
+  | { readonly ok: true; readonly structs: StructRegistry }
+  | { readonly ok: false; readonly diagnostic: Diagnostic };
+
+/**
+ * Is `name` already a primitive in ANY profile's callable table? `struct` registers a constructor
+ * in the callable namespace, so a struct type name that shadows any built-in command/reporter —
+ * Core, Turtle, Data, or Educational — is a collision regardless of which profiles a given program
+ * happens to touch, mirroring how {@link runProgram} runs every profile's primitives unconditionally
+ * (`execute()` does not gate by profile).
+ */
+function isPrimitiveName(name: string): boolean {
+  return (
+    corePrimitiveArity(name) !== undefined ||
+    turtlePrimitiveArity(name) !== undefined ||
+    dataPrimitiveArity(name) !== undefined ||
+    educationalPrimitiveArity(name) !== undefined
+  );
+}
+
+/**
+ * The runtime phase-1 struct registration guard (issue #329): every top-level `struct <name>
+ * [ field… ]` registers its type name → declaration in the callable namespace BEFORE any statement
+ * runs, so a struct may be constructed before its textual declaration and so `type_of`/`is_a?` see
+ * every struct type up front — exactly mirroring {@link collectProcedures}'s whole-program pre-scan
+ * for `define`. Unlike procedures, a struct name that collides with a reserved word, a primitive
+ * (any profile), an already-collected procedure, or an earlier `struct` of the same name raises
+ * `ol-reserved-word` here at phase-1 (`spec/data-structures.md:264`), at `stage: "runtime"` —
+ * because `execute()` runs `parse()` only, never `check()`, so the parser's `checker-reserved-word`
+ * rule never runs. The `namespace` priority (`reserved` → `primitive` → `procedure` → `struct`)
+ * matches that checker's "more fundamental category wins" ordering, extended with `struct` for a
+ * duplicate type name. The first collision found (in source order) halts the whole program.
+ */
+function collectStructs(
+  program: ProgramNode,
+  procedures: ProcedureRegistry,
+): StructCollection {
+  const structs = new Map<string, StructDefNode>();
+  let collision: Diagnostic | undefined;
+  walk(program, (node) => {
+    if (collision !== undefined || node.kind !== "StructDef") {
+      return;
+    }
+    const name = node.name.name;
+    const namespace = isReservedWord(name)
+      ? "reserved"
+      : isPrimitiveName(name)
+        ? "primitive"
+        : procedures.has(name.toLowerCase())
+          ? "procedure"
+          : structs.has(name.toLowerCase())
+            ? "struct"
+            : undefined;
+    if (namespace !== undefined) {
+      collision = runtimeDiag.reservedWord(
+        node.name.source_span,
+        name,
+        namespace,
+      );
+      return;
+    }
+    structs.set(name.toLowerCase(), node);
+  });
+  if (collision !== undefined) {
+    return { ok: false, diagnostic: collision };
+  }
+  return { ok: true, structs };
 }
 
 /**
@@ -2030,6 +2539,37 @@ function callProcedureAsValue(
  * their body. A loop whose body is empty gets its own equivalent check directly in its own pass
  * (see e.g. `While`/`Forever` below) since it would otherwise never reach this loop at all.
  */
+/**
+ * Executes a statement-position user-procedure call (`star 5 100`) once
+ * {@link isProcedureCallStatement} has confirmed it. Extracted into its own function for the same
+ * reason {@link executeShowCall}'s doc comment gives: `executeStatements` recurses once per
+ * procedure call, so keeping this argument-gating logic out of its body keeps its own stack frame
+ * size fixed — inlining an `isSupportedExpression` gate directly there pushed the 600-deep
+ * `recursionDepthLimit: 1000` regression test (`execution-budget.test.mjs`) over the native
+ * call-stack limit.
+ *
+ * Unlike an expression-position call (`print area :r`), which only ever reaches `runProcedure`
+ * after `evaluate.ts`'s own `isSupportedExpression` gate already checked every argument, a
+ * statement-position call is dispatched straight from `executeStatements` — so this is the one
+ * call site that must gate its own arguments. An argument this issue's evaluator cannot yet give
+ * meaning to (e.g. a dict literal, `star { a: 1 }`) leaves the whole call un-evaluated, same as
+ * the "instruction event but no evaluation" convention documented above, rather than reaching
+ * `evaluate()` and throwing.
+ */
+function executeProcedureCallStatement(
+  call: CallNode | ParenCallNode,
+  environment: Environment,
+): ExecSignal {
+  if (!call.args.every((arg) => isSupportedArgument(arg, environment))) {
+    return NORMAL_SIGNAL;
+  }
+  const outcome = runProcedure(call, environment);
+  if (!outcome.ok) {
+    return halt(outcome.diagnostic);
+  }
+  return NORMAL_SIGNAL;
+}
+
 function executeStatements(
   statements: readonly StatementNode[],
   environment: Environment,
@@ -2049,21 +2589,21 @@ function executeStatements(
       payload: { statement_kind: statement.kind } satisfies InstructionPayload,
     });
 
-    if (statement.kind === "Assign") {
-      const result = executeAssign(statement, environment);
-      if (!result.ok) {
-        return halt(result.diagnostic);
+    const writeResult = dispatchAssignOrListMutator(statement, environment);
+    if (writeResult !== undefined) {
+      if (!writeResult.ok) {
+        return halt(writeResult.diagnostic);
       }
       continue;
     }
 
     if (isProcedureCallStatement(statement, environment.procedures)) {
-      const outcome = runProcedure(
+      const signal = executeProcedureCallStatement(
         statement as CallNode | ParenCallNode,
         environment,
       );
-      if (!outcome.ok) {
-        return halt(outcome.diagnostic);
+      if (signal.kind === "halt") {
+        return signal;
       }
       continue;
     }
@@ -2085,9 +2625,7 @@ function executeStatements(
       // event but are left un-evaluated for the slice that implements the unsupported
       // operand's expression kind.
       if (
-        statement.args.every((arg) =>
-          isSupportedExpression(arg, environment.procedures),
-        )
+        statement.args.every((arg) => isSupportedArgument(arg, environment))
       ) {
         const values: OLValue[] = [];
         let failure: Diagnostic | undefined;
@@ -2112,13 +2650,18 @@ function executeStatements(
       continue;
     }
 
-    const showOrRandomizeOutcome = dispatchShowOrRandomizeCommand(
-      statement,
-      environment,
-    );
-    if (showOrRandomizeOutcome !== NOT_A_SHOW_OR_RANDOMIZE_COMMAND) {
-      if (showOrRandomizeOutcome) {
-        return showOrRandomizeOutcome;
+    const showRandomizeOrEducationalOutcome =
+      dispatchShowRandomizeOrEducationalCommand(
+        statement,
+        statements,
+        environment,
+      );
+    if (
+      showRandomizeOrEducationalOutcome !==
+      NOT_A_SHOW_RANDOMIZE_OR_EDUCATIONAL_COMMAND
+    ) {
+      if (showRandomizeOrEducationalOutcome) {
+        return showRandomizeOrEducationalOutcome;
       }
       continue;
     }
@@ -2132,7 +2675,7 @@ function executeStatements(
     }
 
     if (statement.kind === "Return") {
-      if (!isSupportedExpression(statement.value, environment.procedures)) {
+      if (!isSupportedArgument(statement.value, environment)) {
         continue;
       }
       const result = evaluate(statement.value, environment);
@@ -2158,7 +2701,7 @@ function executeStatements(
     }
 
     if (statement.kind === "Throw") {
-      if (!isSupportedExpression(statement.value, environment.procedures)) {
+      if (!isSupportedArgument(statement.value, environment)) {
         continue;
       }
       const result = evaluate(statement.value, environment);
@@ -2173,7 +2716,7 @@ function executeStatements(
     }
 
     if (statement.kind === "If") {
-      if (!isSupportedExpression(statement.condition, environment.procedures)) {
+      if (!isSupportedArgument(statement.condition, environment)) {
         continue;
       }
       const condition = evaluateCondition(
@@ -2195,7 +2738,7 @@ function executeStatements(
     }
 
     if (statement.kind === "While") {
-      if (!isSupportedExpression(statement.condition, environment.procedures)) {
+      if (!isSupportedArgument(statement.condition, environment)) {
         continue;
       }
       for (;;) {
@@ -2226,7 +2769,7 @@ function executeStatements(
     }
 
     if (statement.kind === "Repeat") {
-      if (!isSupportedExpression(statement.count, environment.procedures)) {
+      if (!isSupportedArgument(statement.count, environment)) {
         continue;
       }
       const countResult = evaluate(statement.count, environment);
@@ -2298,7 +2841,7 @@ function executeStatements(
           );
         }
       }
-      if (!isSupportedExpression(statement.iterable, environment.procedures)) {
+      if (!isSupportedArgument(statement.iterable, environment)) {
         continue;
       }
       const iterableResult = evaluate(statement.iterable, environment);
@@ -2338,10 +2881,10 @@ function executeStatements(
 
     if (statement.kind === "ForRange") {
       if (
-        !isSupportedExpression(statement.from, environment.procedures) ||
-        !isSupportedExpression(statement.to, environment.procedures) ||
+        !isSupportedArgument(statement.from, environment) ||
+        !isSupportedArgument(statement.to, environment) ||
         (statement.by !== undefined &&
-          !isSupportedExpression(statement.by, environment.procedures))
+          !isSupportedArgument(statement.by, environment))
       ) {
         continue;
       }
@@ -2444,6 +2987,11 @@ function executeStatements(
 export const DEFAULT_RECURSION_DEPTH_LIMIT = 500;
 export const DEFAULT_INSTRUCTION_BUDGET = 1_000_000;
 
+/** {@link ExecuteOptions.learnerLevel}'s default when a caller does not supply one — the
+ * first/movement level (`spec/educational-model.md`'s level table), the least-prior-knowledge
+ * assumption when a caller does not track curriculum progression itself. */
+export const DEFAULT_LEARNER_LEVEL: TutorLearnerLevel = "1";
+
 /**
  * Resolve one of {@link ExecuteOptions}' two numeric limits, falling back to `fallback` for any
  * value that would not actually behave as a finite cap: `undefined` (omitted), `NaN`,
@@ -2466,8 +3014,10 @@ function resolvePositiveFiniteLimit(
 
 /**
  * Build a fresh execution environment for running `program` from the top: the root/global frame,
- * no active `repeat` turn, `program`'s whole-program {@link ProcedureRegistry}
- * ({@link collectProcedures}), an empty event sink, `foreverIterationLimit` threaded through
+ * no active `repeat` turn, `program`'s whole-program {@link ProcedureRegistry} and
+ * {@link StructRegistry} (collected by {@link collectProcedures}/{@link collectStructs} and passed
+ * in by {@link runProgram}, which runs the struct phase-1 collision check first), an empty event
+ * sink, `foreverIterationLimit` threaded through
  * unchanged, an empty `callDepth` stack ({@link runProcedure} checks and pushes/pops it), and
  * `callProcedure` wired to {@link callProcedureAsValue} — unlike
  * `evaluate.ts`'s bare `createEnvironment()` (whose `callProcedure` stub is intentionally
@@ -2485,10 +3035,19 @@ function resolvePositiveFiniteLimit(
  * `signal` is threaded through unchanged (`undefined` when the caller supplied none, which
  * `checkExecutionLimits` treats as "never cancelled"). `source` (issue #156) is `runProgram`'s own
  * `source` argument, threaded onto the environment so `executeAssign`'s `ol-not-a-place` guard can
- * slice the exact assignment-target surface text out of it.
+ * slice the exact assignment-target surface text out of it. Issue #332 threads `program` itself
+ * onto the environment (`TutorContext.program`, and the source of `hint`'s whole-program fallback
+ * span via `program.source_span`) and a fresh `hintProgress` map per run, so the Educational
+ * profile's `hint` progression (`spec/execution-model.md:641-652`) starts over — every target
+ * begins at `"nudge"` — for each new `execute()` call. `tutorTemplate` resolves
+ * `options?.tutorTemplates` to {@link defaultTutorTemplate} when omitted, and `learnerLevel`
+ * resolves `options?.learnerLevel` to {@link DEFAULT_LEARNER_LEVEL} when omitted (the
+ * M3-orchestrator's injectable-template ruling on issue #332).
  */
 function createExecutionEnvironment(
   program: ProgramNode,
+  procedures: ProcedureRegistry,
+  structs: StructRegistry,
   foreverIterationLimit: number | undefined,
   options: ExecuteOptions | undefined,
   source: string,
@@ -2496,7 +3055,8 @@ function createExecutionEnvironment(
   return {
     frames: [new Map()],
     repeatTurns: [],
-    procedures: collectProcedures(program),
+    procedures,
+    structs,
     events: [],
     foreverIterationLimit,
     callDepth: [],
@@ -2513,6 +3073,10 @@ function createExecutionEnvironment(
     turtle: createDefaultTurtleState(),
     randomNumberGenerator: createRandomNumberGeneratorState(),
     source,
+    program,
+    hintProgress: new Map(),
+    tutorTemplate: options?.tutorTemplates ?? defaultTutorTemplate,
+    learnerLevel: options?.learnerLevel ?? DEFAULT_LEARNER_LEVEL,
     callProcedure: callProcedureAsValue,
   };
 }
@@ -2543,8 +3107,16 @@ export function runProgram(
     return { events: [], diagnostics };
   }
 
+  const procedures = collectProcedures(program);
+  const structResult = collectStructs(program, procedures);
+  if (!structResult.ok) {
+    return { events: [], diagnostics: [structResult.diagnostic] };
+  }
+
   const environment = createExecutionEnvironment(
     program,
+    procedures,
+    structResult.structs,
     foreverIterationLimit,
     options,
     source,

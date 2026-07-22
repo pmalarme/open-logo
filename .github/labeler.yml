@@ -52,9 +52,13 @@
   - changed-files:
       - any-glob-to-any-file: ["packages/parser/**"]
 
+"area:core":
+  - changed-files:
+      - any-glob-to-any-file: ["packages/core/**"]
+
 "area:runtime":
   - changed-files:
-      - any-glob-to-any-file: ["packages/core/**", "packages/runtime/**"]
+      - any-glob-to-any-file: ["packages/runtime/**"]
 
 "area:rendering":
   - changed-files:

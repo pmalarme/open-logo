@@ -1,0 +1,61 @@
+{
+  "description": "Writing an undeclared field raises `ol-unknown-field` with `write: true` (issue #329, `spec/data-structures.md:266`): `point` has no `height` field, and a record's field set is fixed at construction, so `:p.height = 120` can never grow a new field.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-unknown-field-write",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "statement_kind": "StructDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-unknown-field-write",
+        "start": [2, 1],
+        "end": [2, 15]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-unknown-field-write",
+        "start": [3, 1],
+        "end": [3, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-field",
+      "source_span": {
+        "document": "data/struct-runtime/struct-unknown-field-write",
+        "start": [3, 3],
+        "end": [3, 10]
+      },
+      "params": {
+        "type": "point",
+        "field": "height",
+        "write": true
+      },
+      "message": "point has no field height, and records can't grow new fields.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

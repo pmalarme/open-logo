@@ -1,0 +1,140 @@
+{
+  "description": "Writing `:record.field` mutates the fixed slot in place, and a record is a reference type (issue #329, `spec/data-structures.md:266`, `spec/execution-model.md:13-40`): `:p.x = 10` changes `:p.x` from `3` to `10` with no fresh value, and after `:q = :p` the write `:q.y = 99` is observed through the alias `:p.y`.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-field-mutation-in-place",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "statement_kind": "StructDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-field-mutation-in-place",
+        "start": [2, 1],
+        "end": [2, 15]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-field-mutation-in-place",
+        "start": [3, 1],
+        "end": [3, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "data/struct-runtime/struct-field-mutation-in-place",
+        "start": [3, 1],
+        "end": [3, 11]
+      },
+      "payload": {
+        "values": [3]
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-field-mutation-in-place",
+        "start": [4, 1],
+        "end": [4, 10]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-field-mutation-in-place",
+        "start": [5, 1],
+        "end": [5, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "print",
+      "source_span": {
+        "document": "data/struct-runtime/struct-field-mutation-in-place",
+        "start": [5, 1],
+        "end": [5, 11]
+      },
+      "payload": {
+        "values": [10]
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-field-mutation-in-place",
+        "start": [6, 1],
+        "end": [6, 8]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-field-mutation-in-place",
+        "start": [7, 1],
+        "end": [7, 10]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-field-mutation-in-place",
+        "start": [8, 1],
+        "end": [8, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "print",
+      "source_span": {
+        "document": "data/struct-runtime/struct-field-mutation-in-place",
+        "start": [8, 1],
+        "end": [8, 11]
+      },
+      "payload": {
+        "values": [99]
+      }
+    }
+  ],
+  "diagnostics": []
+}

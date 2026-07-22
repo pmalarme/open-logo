@@ -1,0 +1,19 @@
+{
+  "description": "A non-identifier field `struct point [ x 3 ]` reports ol-bad-token at the stray `3` (grammar.md's `field-list ::= \"[\" identifier { identifier } \"]\"` allows only identifiers); the matched brackets are not the problem, so it is not an ol-unmatched-bracket. Parse-only negative fixture.",
+  "profiles": ["core-language", "data"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "data/structs/struct-bad-field",
+        "start": [4, 18],
+        "end": [4, 19]
+      },
+      "params": { "text": "3" },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

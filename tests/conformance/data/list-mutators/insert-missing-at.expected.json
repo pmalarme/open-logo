@@ -1,0 +1,19 @@
+{
+  "description": "Omitting `at` before the index leaves the index token where `at` was expected; the parser reports ol-bad-token there (spec/error-model.md). Parse-only negative fixture.",
+  "profiles": ["core-language", "data"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "data/list-mutators/insert-missing-at",
+        "start": [3, 19],
+        "end": [3, 20]
+      },
+      "params": { "text": "0" },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

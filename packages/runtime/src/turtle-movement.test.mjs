@@ -181,10 +181,10 @@ test("execute raises ol-range for a back distance that overflows to -Infinity", 
 });
 
 test("execute leaves an unsupported forward argument un-evaluated, emitting no move/draw-segment event", () => {
-  // Mirrors `print`'s equivalent test in `index.test.mjs`: `.field` place segments are
-  // Data/record-profile and deferred, so `isSupportedExpression` reports this operand
-  // unsupported and the statement is left un-evaluated (still no diagnostic).
-  const result = execute("forward :ages.tom", "main.logo");
+  // Mirrors `print`'s equivalent test in `index.test.mjs`: a call to an unregistered procedure
+  // is left un-evaluated so `isSupportedExpression` reports this operand unsupported and the
+  // statement is left un-evaluated (still no diagnostic).
+  const result = execute("forward (nonexistent_builtin 1)", "main.logo");
   assert.equal(result.events.length, 1);
   assert.equal(result.events[0].kind, "instruction");
   assert.deepEqual(result.diagnostics, []);

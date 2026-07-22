@@ -1,0 +1,68 @@
+{
+  "description": "Slice #330 — the worded `set <place> to <value>` write form (`spec/data-structures.md:41-45`) routes through the exact same chain-write path as the colon-place `:place = value` form: `set people.tom.age to 10` walks `.tom` (dict-key) then `.age` (record-field) and mutates the same nested-record slot the colon form would, with no leading colon in the target text.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/place-chaining/worded-set-chain-write",
+        "start": [1, 1],
+        "end": [1, 27]
+      },
+      "payload": {
+        "statement_kind": "StructDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/place-chaining/worded-set-chain-write",
+        "start": [3, 1],
+        "end": [5, 2]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/place-chaining/worded-set-chain-write",
+        "start": [7, 1],
+        "end": [7, 25]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/place-chaining/worded-set-chain-write",
+        "start": [8, 1],
+        "end": [8, 22]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "print",
+      "source_span": {
+        "document": "data/place-chaining/worded-set-chain-write",
+        "start": [8, 1],
+        "end": [8, 22]
+      },
+      "payload": {
+        "values": [10]
+      }
+    }
+  ],
+  "diagnostics": []
+}

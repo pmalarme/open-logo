@@ -1,0 +1,4 @@
+# `add <value> to <list>` appends a value to a list in place (Data profile,
+# grammar.md's `add-statement ::= "add" expression "to" expression`). Parse-only: the AST node is
+# produced here; runtime evaluation lands in a later Data-profile slice.
+add 5 to :nums

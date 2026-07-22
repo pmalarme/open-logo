@@ -1,0 +1,8 @@
+:ages = {
+  sophie: 6
+  tom: 8
+}
+:who = "tom"
+print :ages.tom
+print :ages[tom]
+print :ages[:who]

@@ -18,7 +18,8 @@ import type { SourceSpan } from "@openlogo/core";
 
 /**
  * The Core node-kind vocabulary, mirroring the grammar productions of `spec/grammar.md`.
- * Data-profile nodes (`DictLit`, `StructDef`, …) join with that profile.
+ * `DictLit` is the first Data-profile node kind; `StructDef` (the `struct` declaration) joins it,
+ * and further Data-profile nodes land in their own slices.
  */
 export const OL_NODE_KINDS = [
   "Program",
@@ -26,6 +27,8 @@ export const OL_NODE_KINDS = [
   "WordLit",
   "BooleanLit",
   "ListLit",
+  "DictLit",
+  "ValueOfKey",
   "VarRef",
   "Place",
   "Assign",
@@ -47,6 +50,12 @@ export const OL_NODE_KINDS = [
   "Return",
   "Stop",
   "Throw",
+  "Add",
+  "Remove",
+  "RemoveKey",
+  "Insert",
+  "Clear",
+  "StructDef",
 ] as const;
 
 /** One Core AST node kind. */
@@ -103,6 +112,39 @@ export interface BooleanLitNode extends NodeBase {
 export interface ListLitNode extends NodeBase {
   readonly kind: "ListLit";
   readonly elements: readonly ExpressionNode[];
+}
+
+/**
+ * One `key: value` entry of a {@link DictLitNode} (`spec/grammar.md`'s
+ * `dict-entry ::= dict-key ":" expression`). The key is a literal, never a variable read — a
+ * bare identifier reuses {@link WordLitNode} exactly like a bare {@link SelectorSegment} key, and
+ * a bare number key reuses {@link NumberLitNode}. Duplicate-key/insertion-order rules
+ * (`spec/data-structures.md:143-171`) are a runtime concern; the parser only has to preserve
+ * every entry in source order.
+ */
+export interface DictEntryNode {
+  readonly key: WordLitNode | NumberLitNode;
+  readonly value: ExpressionNode;
+  readonly source_span: SourceSpan;
+}
+
+/** A dictionary literal `{ key: value … }` (Data profile, `spec/grammar.md`'s `dict-literal`). */
+export interface DictLitNode extends NodeBase {
+  readonly kind: "DictLit";
+  readonly entries: readonly DictEntryNode[];
+}
+
+/**
+ * The Heritage dict reader `value of <dictionary> for key <key>` (Data profile,
+ * `spec/grammar.md:213`'s `value-of-reader ::= "value" "of" expression "for" "key" expression`).
+ * Read-only, equivalent to `dictionary.key`/`dictionary[key]` at runtime
+ * (`spec/data-structures.md:183-195`). Both `dictionary` and `key` are full expressions, not the
+ * narrower {@link SelectorSegment} key-term grammar.
+ */
+export interface ValueOfKeyNode extends NodeBase {
+  readonly kind: "ValueOfKey";
+  readonly dictionary: ExpressionNode;
+  readonly key: ExpressionNode;
 }
 
 /** A variable read `:name` (the name carries no leading colon). */
@@ -363,12 +405,88 @@ export interface ThrowNode extends NodeBase {
   readonly value: ExpressionNode;
 }
 
+/**
+ * `add value to target` — append `value` to the list `target` (Data profile,
+ * `spec/grammar.md`'s `add-statement ::= "add" expression "to" expression`;
+ * `spec/execution-model.md:447-482`). A statement, never a reporter — it mutates in place and
+ * returns nothing. Runtime evaluation lands in its own Data-profile slice.
+ */
+export interface AddNode extends NodeBase {
+  readonly kind: "Add";
+  readonly value: ExpressionNode;
+  readonly target: ExpressionNode;
+}
+
+/**
+ * `remove value from target` — remove `value` from the list `target` (Data profile,
+ * `spec/grammar.md`'s `remove-statement ::= "remove" expression "from" expression`). Distinct
+ * from {@link RemoveKeyNode}, which drops a dictionary entry by key rather than a list element by
+ * value.
+ */
+export interface RemoveNode extends NodeBase {
+  readonly kind: "Remove";
+  readonly value: ExpressionNode;
+  readonly target: ExpressionNode;
+}
+
+/**
+ * `remove key <key-term> from target` — drop the entry keyed `key` from the dictionary `target`
+ * (Data profile, `spec/grammar.md`'s
+ * `remove-key-statement ::= "remove" "key" key-term "from" expression`). Its own production,
+ * separate from {@link RemoveNode}: the `key` is a `key-term` (a literal word/number, a `:name`
+ * read, or a parenthesized expression), so a bare identifier such as `sophie` is carried as a
+ * {@link WordLitNode}, exactly like a bracketed selector key.
+ */
+export interface RemoveKeyNode extends NodeBase {
+  readonly kind: "RemoveKey";
+  readonly key: ExpressionNode;
+  readonly target: ExpressionNode;
+}
+
+/**
+ * `insert value in target at index` — insert `value` into the list `target` at position `index`
+ * (Data profile, `spec/grammar.md`'s
+ * `insert-statement ::= "insert" expression "in" expression "at" expression`).
+ */
+export interface InsertNode extends NodeBase {
+  readonly kind: "Insert";
+  readonly value: ExpressionNode;
+  readonly target: ExpressionNode;
+  readonly index: ExpressionNode;
+}
+
+/**
+ * `clear target` — empty the collection `target` (Data profile, `spec/grammar.md`'s
+ * `clear-statement ::= "clear" expression`).
+ */
+export interface ClearNode extends NodeBase {
+  readonly kind: "Clear";
+  readonly target: ExpressionNode;
+}
+
+/**
+ * `struct type-name "[" identifier { identifier } "]"` — declares a record type, its fixed field
+ * set, and a same-named constructor reporter (Data profile, `spec/grammar.md:155-156`'s
+ * `struct-declaration`/`field-list`; `spec/data-structures.md:252-266`). Both `name` and each
+ * `field` are {@link SpannedName} metadata, not walkable nodes: the bracketed field list contains
+ * bare field names that perform no evaluation (`spec/data-structures.md:264`), so a `StructDef` has
+ * no expression children (it falls through `childrenOf`'s default). Grammar/AST only — the
+ * constructor-call and field mutation semantics land in a later Data-profile slice.
+ */
+export interface StructDefNode extends NodeBase {
+  readonly kind: "StructDef";
+  readonly name: SpannedName;
+  readonly fields: readonly SpannedName[];
+}
+
 /** Nodes usable in value position. */
 export type ExpressionNode =
   | NumberLitNode
   | WordLitNode
   | BooleanLitNode
   | ListLitNode
+  | DictLitNode
+  | ValueOfKeyNode
   | VarRefNode
   | PlaceNode
   | CallNode
@@ -395,7 +513,13 @@ export type StatementNode =
   | ProcedureDefNode
   | ReturnNode
   | StopNode
-  | ThrowNode;
+  | ThrowNode
+  | AddNode
+  | RemoveNode
+  | RemoveKeyNode
+  | InsertNode
+  | ClearNode
+  | StructDefNode;
 
 /** Any concrete AST node. */
 export type AnyNode = ProgramNode | StatementNode | DestructuringBinderNode;
@@ -419,6 +543,16 @@ export const ast = {
   },
   listLit(elements: readonly ExpressionNode[], span: SourceSpan): ListLitNode {
     return { kind: "ListLit", source_span: span, elements };
+  },
+  dictLit(entries: readonly DictEntryNode[], span: SourceSpan): DictLitNode {
+    return { kind: "DictLit", source_span: span, entries };
+  },
+  valueOfKey(
+    dictionary: ExpressionNode,
+    key: ExpressionNode,
+    span: SourceSpan,
+  ): ValueOfKeyNode {
+    return { kind: "ValueOfKey", source_span: span, dictionary, key };
   },
   varRef(name: string, span: SourceSpan): VarRefNode {
     return { kind: "VarRef", source_span: span, name };
@@ -576,6 +710,45 @@ export const ast = {
   throwStmt(value: ExpressionNode, span: SourceSpan): ThrowNode {
     return { kind: "Throw", source_span: span, value };
   },
+  add(
+    value: ExpressionNode,
+    target: ExpressionNode,
+    span: SourceSpan,
+  ): AddNode {
+    return { kind: "Add", source_span: span, value, target };
+  },
+  remove(
+    value: ExpressionNode,
+    target: ExpressionNode,
+    span: SourceSpan,
+  ): RemoveNode {
+    return { kind: "Remove", source_span: span, value, target };
+  },
+  removeKey(
+    key: ExpressionNode,
+    target: ExpressionNode,
+    span: SourceSpan,
+  ): RemoveKeyNode {
+    return { kind: "RemoveKey", source_span: span, key, target };
+  },
+  insert(
+    value: ExpressionNode,
+    target: ExpressionNode,
+    index: ExpressionNode,
+    span: SourceSpan,
+  ): InsertNode {
+    return { kind: "Insert", source_span: span, value, target, index };
+  },
+  clear(target: ExpressionNode, span: SourceSpan): ClearNode {
+    return { kind: "Clear", source_span: span, target };
+  },
+  structDef(
+    name: SpannedName,
+    fields: readonly SpannedName[],
+    span: SourceSpan,
+  ): StructDefNode {
+    return { kind: "StructDef", source_span: span, name, fields };
+  },
 } as const;
 
 /** A visitor invoked once per node during {@link walk}. */
@@ -595,6 +768,10 @@ export function childrenOf(node: AnyNode): readonly AnyNode[] {
       return node.body;
     case "ListLit":
       return node.elements;
+    case "DictLit":
+      return node.entries.flatMap((entry) => [entry.key, entry.value]);
+    case "ValueOfKey":
+      return [node.dictionary, node.key];
     case "Call":
     case "ParenCall":
       return node.args;
@@ -657,6 +834,15 @@ export function childrenOf(node: AnyNode): readonly AnyNode[] {
     case "Return":
     case "Throw":
       return [node.value];
+    case "Add":
+    case "Remove":
+      return [node.value, node.target];
+    case "RemoveKey":
+      return [node.key, node.target];
+    case "Insert":
+      return [node.value, node.target, node.index];
+    case "Clear":
+      return [node.target];
     default:
       return [];
   }

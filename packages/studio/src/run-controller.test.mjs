@@ -10,7 +10,7 @@ test("run() executes the shared source via @openlogo/runtime and surfaces print 
 
   assert.deepEqual(store.getState().output, ["hi 2 3"]);
   assert.deepEqual(store.getState().diagnostics, []);
-  assert.equal(store.getState().runStatus, "idle");
+  assert.equal(store.getState().runStatus, "done");
 });
 
 test("run() surfaces one output line per print event, in order", () => {
@@ -22,7 +22,7 @@ test("run() surfaces one output line per print event, in order", () => {
   controller.run();
 
   assert.deepEqual(store.getState().output, ["1", "2", "3"]);
-  assert.equal(store.getState().runStatus, "idle");
+  assert.equal(store.getState().runStatus, "done");
 });
 
 test("run() surfaces parse/runtime diagnostics unchanged and leaves output empty", () => {
@@ -34,7 +34,7 @@ test("run() surfaces parse/runtime diagnostics unchanged and leaves output empty
   const { output, diagnostics, runStatus } = store.getState();
   assert.deepEqual(output, []);
   assert.ok(diagnostics.length > 0);
-  assert.equal(runStatus, "idle");
+  assert.equal(runStatus, "done");
 });
 
 test("run() reads the store's CURRENT source at call time, never a private copy", () => {
@@ -97,7 +97,7 @@ test("reset() re-arms cancellation, clears output/diagnostics, and returns runSt
   // The signal was re-armed, so a normal run() now completes instead of halting again.
   controller.run();
   assert.deepEqual(store.getState().output, ["1"]);
-  assert.equal(store.getState().runStatus, "idle");
+  assert.equal(store.getState().runStatus, "done");
 });
 
 test("reset() is deterministic even with no prior run()", () => {
@@ -241,7 +241,7 @@ test("run() with the default (immediate) scheduler drives the turtle state/scene
   );
   assert.equal(turtleState.heading, 90);
   assert.ok(turtleScene.items.length > 0);
-  assert.equal(runStatus, "idle");
+  assert.equal(runStatus, "done");
 });
 
 test("run() repaints a supplied canvasView as the animation advances", () => {
@@ -273,6 +273,39 @@ test("run() paces the turtle animation over an injected scheduler, one tick at a
 
   manual.fire();
   assert.notEqual(store.getState().turtleState, initialTurtleState);
+});
+
+test("run() ignores a second call while a paced animation is still running (#314) — it never overlaps a run mid-animation", () => {
+  const store = OL.createStudioState({
+    source: "forward 100\nright 90\nforward 100",
+  });
+  const manual = createManualScheduler();
+  const controller = OL.createRunController(store, {
+    scheduler: manual.scheduler,
+  });
+
+  controller.run();
+  manual.fire(); // consume the first step; the run is still "running", one tick still pending.
+  const outputAfterFirstRun = store.getState().output;
+  const turtleStateMidRun = store.getState().turtleState;
+  assert.equal(store.getState().runStatus, "running");
+  assert.ok(manual.hasPending());
+
+  // Change the source and press Run again while the first run is still animating.
+  store.setSource("print 1");
+  controller.run();
+
+  // The second call was ignored: output/diagnostics are still the FIRST run's, and the animation
+  // in flight is untouched (same pending tick, same turtle state) rather than restarted.
+  assert.equal(store.getState().output, outputAfterFirstRun);
+  assert.equal(store.getState().turtleState, turtleStateMidRun);
+  assert.ok(manual.hasPending());
+
+  // Draining the original run's ticks still completes normally afterward.
+  while (manual.fire()) {
+    // keep firing until the original run's animation is fully drained
+  }
+  assert.equal(store.getState().runStatus, "done");
 });
 
 test("stop() pauses the turtle animation: a stale, already-scheduled tick can never fire afterward and advance it further", () => {
@@ -336,7 +369,7 @@ test("step() before any run() lazily prepares even with a canvasView supplied, r
   assert.deepEqual(store.getState().turtleState.position, [0, 100]);
 });
 
-test("repeated step() from idle advances incrementally and settles to 'idle' once the animation is exhausted", () => {
+test("repeated step() from idle advances incrementally and settles to 'done' once the animation is exhausted", () => {
   const store = OL.createStudioState({
     source: "forward 100\nright 90",
   });
@@ -349,10 +382,10 @@ test("repeated step() from idle advances incrementally and settles to 'idle' onc
 
   controller.step(); // "right 90" — the last instruction, animation reaches "done".
   assert.equal(store.getState().turtleState.heading, 90);
-  assert.equal(store.getState().runStatus, "idle");
+  assert.equal(store.getState().runStatus, "done");
 
   controller.step(); // exhausted: a no-op, must not throw or change state.
-  assert.equal(store.getState().runStatus, "idle");
+  assert.equal(store.getState().runStatus, "done");
   assert.equal(store.getState().turtleState.heading, 90);
 });
 
@@ -482,5 +515,115 @@ test("run() with reducedMotion:true paints the final scene instantly rather than
   // seekToEnd() bypasses the scheduler entirely — nothing pending, already at the final frame.
   assert.equal(manual.hasPending(), false);
   assert.equal(store.getState().turtleState.heading, 90);
-  assert.equal(store.getState().runStatus, "idle");
+  assert.equal(store.getState().runStatus, "done");
+});
+
+// ---------------------------------------------------------------------------------------------
+// #310 — the turtle-speed slider actually paces (or instantly bypasses) the animation.
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Like {@link createManualScheduler}, but also records the `delayMs` argument of every scheduled
+ * call, so a test can assert the exact per-tick delay `prepare()` derived from `speedSliderValue`
+ * (via `turtle-speed.ts`'s `mapSpeedSliderValueToTickDelayMs`) without needing a real clock. These
+ * speed tests only need the recorded delay, never firing/cancelling a tick, so unlike
+ * `createManualScheduler` its returned cancel function is a no-op rather than tracked state.
+ */
+function createRecordingScheduler() {
+  const delays = [];
+  const scheduler = (_callback, delayMs) => {
+    delays.push(delayMs);
+    return () => {};
+  };
+  return { scheduler, delays };
+}
+
+test("run() paces the turtle animation at the tick delay speedSliderValue maps to", () => {
+  const store = OL.createStudioState({
+    source: "forward 100\nright 90",
+    speedSliderValue: OL.SPEED_SLIDER_MIN,
+  });
+  const manual = createRecordingScheduler();
+  const controller = OL.createRunController(store, {
+    scheduler: manual.scheduler,
+  });
+
+  controller.run();
+
+  assert.ok(manual.delays.length > 0);
+  for (const delay of manual.delays) {
+    assert.equal(delay, OL.SLOWEST_TICK_DELAY_MS);
+  }
+  // Exercises the scheduler's own cancel function too (stop() cancels the pending tick).
+  controller.stop();
+});
+
+test("run() paces the fastest paced slider position at FASTEST_PACED_TICK_DELAY_MS", () => {
+  const store = OL.createStudioState({
+    source: "forward 100\nright 90",
+    speedSliderValue: OL.SPEED_SLIDER_MAX - 1,
+  });
+  const manual = createRecordingScheduler();
+  const controller = OL.createRunController(store, {
+    scheduler: manual.scheduler,
+  });
+
+  controller.run();
+
+  assert.ok(manual.delays.length > 0);
+  for (const delay of manual.delays) {
+    assert.equal(delay, OL.FASTEST_PACED_TICK_DELAY_MS);
+  }
+  controller.stop();
+});
+
+test("run() drains instantly (bypassing the scheduler entirely) when speedSliderValue is at the dedicated instant position", () => {
+  const store = OL.createStudioState({
+    source: "forward 100\nright 90",
+    speedSliderValue: OL.SPEED_SLIDER_MAX,
+  });
+  const manual = createManualScheduler();
+  const controller = OL.createRunController(store, {
+    scheduler: manual.scheduler,
+  });
+
+  controller.run();
+
+  assert.equal(manual.hasPending(), false);
+  assert.equal(store.getState().turtleState.heading, 90);
+  assert.equal(store.getState().runStatus, "done");
+});
+
+test("run() with reducedMotion:true still paints instantly even when the slider is at a paced (non-instant) position — OS preference is honored regardless of the slider", () => {
+  const store = OL.createStudioState({
+    source: "forward 100\nright 90",
+    speedSliderValue: OL.SPEED_SLIDER_MIN,
+  });
+  const manual = createManualScheduler();
+  const controller = OL.createRunController(store, {
+    scheduler: manual.scheduler,
+    reducedMotion: true,
+  });
+
+  controller.run();
+
+  assert.equal(manual.hasPending(), false);
+  assert.equal(store.getState().turtleState.heading, 90);
+});
+
+test("run() with reducedMotion:false still paints instantly when the slider is at the instant position — the slider complements, never replaces, reducedMotion", () => {
+  const store = OL.createStudioState({
+    source: "forward 100\nright 90",
+    speedSliderValue: OL.SPEED_SLIDER_MAX,
+  });
+  const manual = createManualScheduler();
+  const controller = OL.createRunController(store, {
+    scheduler: manual.scheduler,
+    reducedMotion: false,
+  });
+
+  controller.run();
+
+  assert.equal(manual.hasPending(), false);
+  assert.equal(store.getState().turtleState.heading, 90);
 });

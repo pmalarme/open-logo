@@ -1,0 +1,5 @@
+# `struct <type> [ fields ]` declares a record type, its fixed fields, and a same-named
+# constructor (Data profile, grammar.md's `struct-declaration ::= "struct" type-name field-list`;
+# data-structures.md:252-266). Parse-only: the StructDef AST node is produced here; the constructor
+# call and field access/mutation land in a later Data-profile slice.
+struct point [ x y ]

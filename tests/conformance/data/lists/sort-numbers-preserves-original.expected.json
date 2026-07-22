@@ -1,0 +1,58 @@
+{
+  "description": "`sort` (Data profile, spec/data-structures.md:125-141) reports a fresh ascending-sorted list of numbers; the argument variable itself is unchanged on the following statement, proving `sort` copies rather than mutates. Issue #190.",
+  "profiles": ["data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/lists/sort-numbers-preserves-original",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": { "statement_kind": "Assign" }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/lists/sort-numbers-preserves-original",
+        "start": [2, 1],
+        "end": [2, 17]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "data/lists/sort-numbers-preserves-original",
+        "start": [2, 1],
+        "end": [2, 17]
+      },
+      "payload": { "values": [[1, 2, 3]] }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/lists/sort-numbers-preserves-original",
+        "start": [3, 1],
+        "end": [3, 12]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 4,
+      "kind": "print",
+      "source_span": {
+        "document": "data/lists/sort-numbers-preserves-original",
+        "start": [3, 1],
+        "end": [3, 12]
+      },
+      "payload": { "values": [[3, 1, 2]] }
+    }
+  ],
+  "diagnostics": []
+}

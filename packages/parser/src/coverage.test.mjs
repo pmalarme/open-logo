@@ -132,12 +132,13 @@ test("reports bad tokens for stray characters and a bare colon", () => {
   assert.deepEqual(codesOf("print :"), ["ol-bad-token"]);
 });
 
-test("lexes braces even though the core parser has no use for them", () => {
-  // `{`/`}` are Data-profile dict delimiters with no Core production; each is an unmatched brace.
-  assert.deepEqual(codesOf("{ }"), [
-    "ol-unmatched-brace",
-    "ol-unmatched-brace",
-  ]);
+test("lexes braces as real delimiters, matched or not — see dict-literal.test.mjs for the parseable literal", () => {
+  // `{ }` (matched) is a valid empty dict literal (spec/error-model.md), not an error — dict
+  // literal parsing is covered in its own dedicated dict-literal.test.mjs. Only a genuinely
+  // unmatched brace still reports `ol-unmatched-brace`.
+  assert.deepEqual(codesOf("{ }"), []);
+  assert.deepEqual(codesOf("{ a: 1"), ["ol-unmatched-brace"]);
+  assert.deepEqual(codesOf("}"), ["ol-unmatched-brace"]);
 });
 
 test("treats a CRLF as a single statement terminator", () => {
@@ -737,6 +738,13 @@ test("exposes the turtle & rendering primitive arities", () => {
   assert.equal(OL.turtlePrimitiveArity("home"), 0);
 });
 
+test("exposes the data profile's derived list reporter arities (issue #190)", () => {
+  assert.equal(OL.dataPrimitiveArity("reverse"), 1);
+  assert.equal(OL.dataPrimitiveArity("PICK"), 1);
+  assert.equal(OL.dataPrimitiveArity("sort"), 1);
+  assert.equal(OL.dataPrimitiveArity("wibble"), undefined);
+});
+
 // --- AST walker -------------------------------------------------------------
 
 const MEGA = [
@@ -760,6 +768,14 @@ const MEGA = [
   "print reduce a n in [1 2] from 0 [ :a ]",
   "define f :p ( :q 1 )\n return :p\nend",
   "throw 9",
+  "print { a: 1 }",
+  'print value of :x for key "a"',
+  "add 3 to :x",
+  "remove 3 from :x",
+  'remove key "a" from :x',
+  "insert 3 in :x at 0",
+  "clear :x",
+  "struct point [ p q ]",
 ].join("\n");
 
 test("walk visits every core node kind, pre-order", () => {

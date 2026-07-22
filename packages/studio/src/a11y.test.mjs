@@ -16,8 +16,8 @@ test("REPL_FOCUS_ORDER covers every studio region with unique, stable ids", () =
   const regions = new Set(order.map((stop) => stop.region));
   assert.deepEqual(
     [...regions].sort(),
-    ["diagnostics", "editor", "repl", "turtle"].sort(),
-    "focus order must span exactly the editor, repl, turtle, and diagnostics regions",
+    ["diagnostics", "editor", "lesson", "repl", "turtle", "tutor"].sort(),
+    "focus order must span exactly the lesson, editor, repl, turtle, diagnostics, and tutor regions",
   );
 
   for (const stop of order) {
@@ -28,24 +28,36 @@ test("REPL_FOCUS_ORDER covers every studio region with unique, stable ids", () =
   }
 });
 
-test("REPL_FOCUS_ORDER puts the editor first and diagnostics last, with Run/Stop/Reset and the canvas in between", () => {
+test("REPL_FOCUS_ORDER puts the lesson pane first and the tutor-output pane last, with the editor, Start/Pause toggle, Reset, Speed, the canvas, and diagnostics in between", () => {
   const order = OL.REPL_FOCUS_ORDER;
-  assert.equal(order[0]?.id, "editor");
-  assert.equal(order[order.length - 1]?.id, "diagnostics-list");
+  assert.equal(order[0]?.id, "lesson-pane");
+  assert.equal(order[1]?.id, "editor");
+  assert.equal(order[order.length - 1]?.id, "tutor-output");
+
+  const lessonStop = order.find((stop) => stop.id === "lesson-pane");
+  assert.ok(lessonStop, "the lesson pane must be a focus stop");
+  assert.equal(lessonStop.region, "lesson");
+  assert.equal(lessonStop.role, "complementary");
 
   const replStops = order.filter((stop) => stop.region === "repl");
   assert.deepEqual(
     replStops.map((stop) => stop.label),
-    ["Run", "Stop", "Reset"],
+    ["Start run", "Reset", "Turtle speed"],
   );
-  for (const stop of replStops) {
-    assert.equal(stop.role, "button");
-  }
+  assert.deepEqual(
+    replStops.map((stop) => stop.role),
+    ["button", "button", "slider"],
+  );
 
   const canvasStop = order.find((stop) => stop.id === "canvas");
   assert.ok(canvasStop, "the canvas must be a focus stop");
   assert.equal(canvasStop.region, "turtle");
   assert.equal(canvasStop.role, "img");
+
+  const tutorOutputStop = order.find((stop) => stop.id === "tutor-output");
+  assert.ok(tutorOutputStop, "the tutor-output pane must be a focus stop");
+  assert.equal(tutorOutputStop.region, "tutor");
+  assert.equal(tutorOutputStop.role, "log");
 });
 
 test("nextFocusStop cycles forward through every stop with no trap", () => {
@@ -99,7 +111,15 @@ test("REPL_LANDMARK_ROLES declares landmarks for every studio region with a role
   const landmarks = OL.REPL_LANDMARK_ROLES;
   assert.deepEqual(
     landmarks.map((landmark) => landmark.region).sort(),
-    ["diagnostics", "editor", "repl", "turtle", "turtle"].sort(),
+    [
+      "diagnostics",
+      "editor",
+      "lesson",
+      "repl",
+      "turtle",
+      "turtle",
+      "tutor",
+    ].sort(),
   );
   const byRegion = new Map(
     landmarks.map((landmark) => [
@@ -107,11 +127,13 @@ test("REPL_LANDMARK_ROLES declares landmarks for every studio region with a role
       landmark,
     ]),
   );
+  assert.equal(byRegion.get("lesson:complementary")?.role, "complementary");
   assert.equal(byRegion.get("editor:textbox")?.role, "textbox");
   assert.equal(byRegion.get("repl:toolbar")?.role, "toolbar");
   assert.equal(byRegion.get("turtle:img")?.role, "img");
   assert.equal(byRegion.get("turtle:status")?.role, "status");
   assert.equal(byRegion.get("diagnostics:log")?.role, "log");
+  assert.equal(byRegion.get("tutor:log")?.role, "log");
   for (const landmark of landmarks) {
     assert.ok(landmark.label.length > 0);
   }
@@ -128,11 +150,13 @@ test("createA11yAnnouncer announces run-status transitions with structured, dete
   const announcer = OL.createA11yAnnouncer(state);
 
   state.setRunStatus("running");
+  state.setRunStatus("done");
   state.setRunStatus("stopped");
   state.setRunStatus("idle");
 
   assert.deepEqual(announcer.getAnnouncements(), [
     { politeness: "polite", message: "Run started." },
+    { politeness: "polite", message: "Run complete." },
     { politeness: "polite", message: "Run stopped." },
     { politeness: "polite", message: "Ready." },
   ]);
@@ -319,7 +343,7 @@ test("createA11yAnnouncer composes with the real editor/run/diagnostics controll
   // starting (empty) diagnostics, so only the run-status transitions are announced — a clean run
   // does not spam a redundant "No diagnostics." announcement.
   const messages = announcer.getAnnouncements().map((a) => a.message);
-  assert.deepEqual(messages, ["Run started.", "Ready."]);
+  assert.deepEqual(messages, ["Run started.", "Run complete."]);
 });
 
 test("createTurtleStateRegion.getText describes the initial default turtle state immediately, via describeTurtleState", () => {
