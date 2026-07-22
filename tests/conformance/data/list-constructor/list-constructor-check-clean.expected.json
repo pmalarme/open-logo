@@ -1,0 +1,7 @@
+{
+  "description": "issue #397: with the data profile active, both the bare `list` empty-list constructor and the parenthesized variadic `(list a b ...)` form are recognized Data-profile primitives -- check() raises no ol-unknown-command diagnostic for either.",
+  "profiles": ["core-language", "data"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

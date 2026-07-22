@@ -195,15 +195,33 @@ const DATA_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
  * The default arity of a Data-profile derived list reporter, or `undefined` when `name` is not one
  * of the primitives registered in {@link DATA_PRIMITIVE_ARITY}. Matching is case-insensitive.
  *
- * `DATA_PRIMITIVE_ARITY` is this profile's single source-of-truth table. A future visibility slice
- * (mirroring #136 for Turtle & Rendering) that makes these reporters visible to
- * `ol-unknown-command` (`checker-names.ts`) and its static arity check (`checker-arity.ts`) should
- * add its own name-enumeration accessor reading from this same table (mirroring
- * {@link turtlePrimitiveNames}'s role for the Turtle & Rendering table) rather than re-deriving a
- * separate name/arity list — not added yet since nothing consumes it until that slice lands.
+ * `DATA_PRIMITIVE_ARITY` is this profile's single source-of-truth table. Its name-enumeration
+ * counterpart, {@link dataPrimitiveNames}, makes these reporters visible to `ol-unknown-command`
+ * (`checker-names.ts`, issue #397) the same way {@link turtlePrimitiveNames} does for Turtle &
+ * Rendering; the static arity check (`checker-arity.ts`) is not wired to this table yet, matching
+ * Turtle & Rendering/Educational/Geometry's own current arity-check gap.
  */
 export function dataPrimitiveArity(name: string): number | undefined {
   return DATA_PRIMITIVE_ARITY.get(name.toLowerCase());
+}
+
+/**
+ * Every Data-profile primitive's canonical lowercase name, sorted for deterministic iteration.
+ * This is the enumerable counterpart to {@link dataPrimitiveArity} — the checker's visible-name
+ * model (`checker-names.ts`, issue #397) needs the full name *list*, gated on the `data` profile,
+ * to make these primitives both callable without `ol-unknown-command` and candidates for its
+ * did-you-mean suggestions — mirroring {@link turtlePrimitiveNames}'s role for the Turtle &
+ * Rendering table.
+ */
+const DATA_PRIMITIVE_NAMES: readonly string[] = Object.freeze(
+  [...DATA_PRIMITIVE_ARITY.keys()].sort(),
+);
+
+/**
+ * The full list of Data-profile primitive names, in sorted order. See
+ * {@link DATA_PRIMITIVE_NAMES}. */
+export function dataPrimitiveNames(): readonly string[] {
+  return DATA_PRIMITIVE_NAMES;
 }
 
 /**
