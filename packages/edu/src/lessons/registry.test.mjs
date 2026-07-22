@@ -82,3 +82,65 @@ test("every exercise's lessonId resolves to a registered lesson", () => {
     );
   }
 });
+
+test("the exported registries and their nested entries are deep-frozen", () => {
+  assert.equal(Object.isFrozen(OL.LESSONS), true);
+  assert.equal(Object.isFrozen(OL.EXERCISES), true);
+
+  for (const lesson of OL.LESSONS) {
+    assert.equal(Object.isFrozen(lesson), true, `${lesson.id} is not frozen`);
+    assert.equal(
+      Object.isFrozen(lesson.workedExamples),
+      true,
+      `${lesson.id} workedExamples array is not frozen`,
+    );
+    for (const example of lesson.workedExamples) {
+      assert.equal(
+        Object.isFrozen(example),
+        true,
+        `${lesson.id} worked example is not frozen`,
+      );
+    }
+  }
+
+  for (const exercise of OL.EXERCISES) {
+    assert.equal(
+      Object.isFrozen(exercise),
+      true,
+      `${exercise.id} is not frozen`,
+    );
+    assert.equal(
+      Object.isFrozen(exercise.referenceSolution),
+      true,
+      `${exercise.id} referenceSolution is not frozen`,
+    );
+  }
+});
+
+test("mutating a frozen registry entry throws and does not take effect", () => {
+  const lesson = OL.LESSONS[0];
+  const originalTitle = lesson.title;
+  assert.throws(() => {
+    lesson.title = "mutated";
+  }, TypeError);
+  assert.equal(lesson.title, originalTitle);
+
+  const originalLength = OL.LESSONS.length;
+  assert.throws(() => {
+    OL.LESSONS.push(lesson);
+  }, TypeError);
+  assert.equal(OL.LESSONS.length, originalLength);
+
+  const exercise = OL.EXERCISES[0];
+  const originalPrompt = exercise.prompt;
+  assert.throws(() => {
+    exercise.prompt = "mutated";
+  }, TypeError);
+  assert.equal(exercise.prompt, originalPrompt);
+
+  const originalSource = exercise.referenceSolution.source;
+  assert.throws(() => {
+    exercise.referenceSolution.source = "mutated";
+  }, TypeError);
+  assert.equal(exercise.referenceSolution.source, originalSource);
+});
