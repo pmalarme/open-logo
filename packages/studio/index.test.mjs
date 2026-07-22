@@ -31,8 +31,11 @@ assert.ok(
   "index.html should contain at least one opening HTML tag",
 );
 
-test("index.html maps every REPL_LANDMARK_ROLES role/label pair onto the same element", () => {
+test("index.html maps every REPL_LANDMARK_ROLES role/label pair onto the same element, except the editor (#315: CM6 sets its own role/label dynamically — see the dedicated editor test below)", () => {
   for (const landmark of OL.REPL_LANDMARK_ROLES) {
+    if (landmark.region === "editor") {
+      continue;
+    }
     const matchingTag = openingTags.find(
       (tag) =>
         tag.includes(`role="${landmark.role}"`) &&
@@ -45,10 +48,38 @@ test("index.html maps every REPL_LANDMARK_ROLES role/label pair onto the same el
   }
 });
 
+test("#315: index.html declares a plain editor-host container with no static role/aria-label, so CM6's own content-editable (set via editor-cm6.ts's contentAttributes facet) is the only textbox landmark — never a duplicate", () => {
+  const hostTag = openingTags.find((tag) => tag.includes('id="editor-host"'));
+  assert.ok(hostTag, "expected a #editor-host element for CM6 to mount into");
+  assert.doesNotMatch(
+    hostTag,
+    /role="/,
+    'the static host container must not itself declare role="textbox" — CM6\'s real ' +
+      "content-editable child does, via editor-cm6.ts's EDITOR_ARIA_ROLE/EDITOR_ARIA_LABEL",
+  );
+  assert.doesNotMatch(
+    hostTag,
+    /aria-label="/,
+    "the static host container must not itself declare aria-label — see above",
+  );
+  assert.doesNotMatch(
+    indexHtml,
+    /<textarea/,
+    "the plain <textarea> editor was replaced by CM6 (#315)",
+  );
+  // The role/label CM6 actually applies (via web/main.ts's createEditorExtensions) must still
+  // match the #279 REPL_FOCUS_ORDER/REPL_LANDMARK_ROLES contract exactly.
+  const editorStop = OL.REPL_FOCUS_ORDER.find(
+    (stop) => stop.region === "editor",
+  );
+  assert.equal(OL.EDITOR_ARIA_ROLE, editorStop.role);
+  assert.equal(OL.EDITOR_ARIA_LABEL, editorStop.label);
+});
+
 test("index.html's focusable elements appear in exactly REPL_FOCUS_ORDER's DOM order", () => {
   const elementIdByStopId = {
     "lesson-pane": "lesson-pane",
-    editor: "editor",
+    editor: "editor-host",
     "run-toggle-button": "run-toggle-button",
     "reset-button": "reset-button",
     "speed-slider": "speed-slider",
@@ -218,9 +249,57 @@ test("web/main.ts asserts every DOM element lookup via the tested assertPresent 
   );
 });
 
-test("web/main.ts syncs the editor's value via the tested syncTextValue helper, not a manual equality check", () => {
-  assert.match(mainTs, /syncTextValue\(editorElement, next\.source\)/);
+test("#315: web/main.ts syncs CM6 from the store via the tested decideExternalSync + editorView.dispatch, not a manual textarea equality check", () => {
+  assert.match(
+    mainTs,
+    /decideExternalSync\(\s*externalSyncQueue,\s*editorView\.state,\s*editorView\.composing,\s*next\.source,\s*next\.selection,?\s*\)/,
+  );
+  assert.match(
+    mainTs,
+    /if\s*\(\s*spec\s*\)\s*\{\s*editorView\.dispatch\(spec\);/,
+  );
   assert.doesNotMatch(mainTs, /if\s*\(\s*editorElement\.value/);
+  assert.doesNotMatch(
+    mainTs,
+    /editorElement/,
+    "the plain <textarea> editor element was replaced by editorHostElement + a real CM6 EditorView (#315)",
+  );
+});
+
+test("#315: web/main.ts reconciles a deferred external sync via a real compositionend DOM event, not a guessed timeout", () => {
+  assert.match(
+    mainTs,
+    /editorView\.dom\.addEventListener\(\s*"compositionend",/,
+  );
+  assert.match(
+    mainTs,
+    /reconcileExternalSyncQueue\(\s*externalSyncQueue,\s*editorView\.state\s*\)/,
+  );
+});
+
+test("#315: web/main.ts constructs a real CM6 EditorView with createEditorExtensions and mounts it into #editor-host", () => {
+  assert.match(
+    mainTs,
+    /import\s*\{\s*EditorState\s*\}\s*from\s*"@codemirror\/state"/,
+  );
+  assert.match(
+    mainTs,
+    /import\s*\{\s*EditorView\s*\}\s*from\s*"@codemirror\/view"/,
+  );
+  assert.match(mainTs, /createEditorExtensions\(\{/);
+  assert.match(mainTs, /onLocalChange:/);
+  assert.match(mainTs, /onLocalSelectionChange:/);
+  assert.match(
+    mainTs,
+    /new EditorView\(\{\s*\n?\s*state:\s*initialEditorState,\s*\n?\s*parent:\s*editorHostElement,?\s*\n?\s*\}\)/,
+  );
+});
+
+test("#315: web/main.ts toggles a reduced-motion class on the CM6 host from the same matchMedia read used for the run scheduler", () => {
+  assert.match(
+    mainTs,
+    /editorHostElement\.classList\.toggle\(\s*"reduced-motion",\s*prefersReducedMotion\s*\)/,
+  );
 });
 
 test("index.html declares a labeled #speed-slider range input for the turtle-speed control (#310)", () => {

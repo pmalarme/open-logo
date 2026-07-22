@@ -266,6 +266,32 @@ export {
   noopHighlighter,
 } from "./editor.js";
 
+export type { FoldRange } from "./fold-ranges.js";
+export { computeFoldRanges } from "./fold-ranges.js";
+
+export type {
+  EditorExtensionsOptions,
+  ExternalSyncQueue,
+  ViewUpdateLike,
+} from "./editor-cm6.js";
+export {
+  EDITOR_ARIA_LABEL,
+  EDITOR_ARIA_ROLE,
+  buildStoreSyncSpec,
+  createEditorExtensions,
+  createExternalSyncQueue,
+  createUpdateListener,
+  decideExternalSync,
+  editorFocusStop,
+  externalSync,
+  handleViewUpdate,
+  isExternalSyncTransaction,
+  needsExternalSync,
+  openLogoFoldService,
+  reconcileExternalSyncQueue,
+  selectionFromEditorState,
+} from "./editor-cm6.js";
+
 export type { RunController, RunControllerOptions } from "./run-controller.js";
 export {
   DEFAULT_RUN_DOCUMENT,
