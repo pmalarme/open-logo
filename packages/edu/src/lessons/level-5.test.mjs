@@ -6,6 +6,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as OL from "@openlogo/edu";
+import * as Parser from "@openlogo/parser";
 import { execute } from "@openlogo/runtime";
 
 const level5Lessons = OL.getLessonsByLevel("5");
@@ -212,18 +213,43 @@ test("no Level 5 content defines a procedure that calls itself (no recursion —
   }
 });
 
-test("no Level 1–5 content uses a Level 6+ command (e.g. set_xy) — the concept→level ramp holds", () => {
-  // spec/educational-model.md's concept→level table introduces these commands at Level 6 or
-  // later; none may appear in any Level 1–5 lesson or exercise SOURCE (comments are prose and
-  // are stripped first, so an explanatory "# … set_xy is Level 6" note does not trip the gate).
-  // This is the guard that issue #399 added after `set_xy` escaped the B4 review: the DoD checks
-  // that a solution RUNS, and set_xy is a valid M2 command, so only a level-appropriateness
-  // assertion catches a later concept smuggled into an earlier level.
-  // Exhaustive Level-6+ denylist derived from spec/educational-model.md's "Concept to command
-  // map" (the "First level" column): every listed OpenLogo form whose first level is 6 or later.
-  // The learner-built `polygon` is Level 5 and intentionally absent. `set_heading` is not in that
-  // table but is the same absolute-placement idea as `set_xy` (Level 6), so it is included too.
-  const laterCommands = [
+test("no Level 1–5 content uses a Level 6+ concept — the concept→level ramp holds (AST-classified)", () => {
+  // spec/educational-model.md's "Concept to command map" fixes the FIRST level each OpenLogo form
+  // is taught. Levels are curriculum, not profiles, so the parser happily accepts a later-level
+  // form inside an earlier lesson and the runtime happily runs it — the DoD only asks "does it
+  // run?". This gate is what issue #399 added after a lowercase `set_xy` (Level 6) slipped past
+  // that check into an L5 challenge. We classify by parsing each Level 1–5 source and walking the
+  // AST rather than scanning text, so the guard is immune to the two ways a string scan leaks:
+  //   - casing — `SET_XY` / `:ITEMS[1]` — because keywords and identifiers are case-insensitive
+  //     (spec/grammar.md:13) and the lexer normalizes them before we ever see the node; and
+  //   - comments — an explanatory `# … set_xy is a Level 6 idea` never becomes a node because the
+  //     lexer drops `#…` comments.
+  // It also removes the block-vs-list-literal `[ ]` ambiguity a regex cannot resolve: a list is a
+  // `ListLit` node, a block is a `Block` node.
+
+  // AST node kinds whose grammar production is first taught at Level 6 or later. Core control
+  // forms that the concept→level map does not schedule (while, forever, for-from-to) are left to
+  // Core and intentionally absent; the learner-built `polygon` is an ordinary Call, not a kind.
+  const laterNodeKinds = new Set([
+    "ListLit", // list literal `[ … ]` — Level 7a
+    "DictLit", // dict literal `{ … }` — Level 7b
+    "ValueOfKey", // dict key read — Level 7b
+    "StructDef", // `struct` record declaration — Level 7c
+    "Add", // `add … to` a list — Level 7a
+    "Remove", // `remove … from` a list — Level 7a
+    "Insert", // list insert — Level 7a
+    "RemoveKey", // dict key removal — Level 7b
+    "ForIn", // `for … in` — Level 7a (and destructuring at 8b)
+    "DestructuringBinder", // `for [:x :y] in …` — Level 8b
+    "Comprehension", // `map` / `filter` / `reduce` — Level 8b
+    "Stop", // `stop` (recursion control) — Level 8a
+  ]);
+
+  // Built-in command/reporter names first taught at Level 6 or later. These share the `Call` /
+  // `ParenCall` node kind with every Core call, so the callee name — canonicalized (so a Heritage
+  // alias resolves to its Core spelling) and case-folded — is what sorts them by level. The
+  // learner-built `polygon` is Level 5 and intentionally absent.
+  const laterCallNames = new Set([
     // Level 6 — derived geometry beyond the learner-built polygon
     "star",
     "circle",
@@ -246,29 +272,14 @@ test("no Level 1–5 content uses a Level 6+ command (e.g. set_xy) — the conce
     "sqrt",
     "power",
     "pi",
-    // Level 7a — lists
+    // Level 7a — list constructor and inspectors that are calls (add/remove are their own kinds)
     "list",
-    "add",
-    "remove",
     "count",
     "first",
     "last",
-    "member",
-    // Level 7c — records
-    "struct",
-    // Level 8a — recursion control (self-calls are covered by the recursion test above)
-    "stop",
-    // Level 8b — comprehensions and destructuring
-    "map",
-    "filter",
-    "reduce",
-    "for",
-  ];
-  const stripComments = (source) =>
-    source
-      .split("\n")
-      .map((line) => line.replace(/#.*$/, ""))
-      .join("\n");
+    "member?",
+  ]);
+
   for (const level of ["1", "2", "3", "4", "5"]) {
     const sources = [
       ...OL.getLessonsByLevel(level).flatMap((lesson) =>
@@ -279,38 +290,37 @@ test("no Level 1–5 content uses a Level 6+ command (e.g. set_xy) — the conce
       ),
     ];
     for (const source of sources) {
-      const code = stripComments(source);
-      for (const command of laterCommands) {
+      const { ast } = Parser.parse(source, `level-${level}`);
+      Parser.walk(ast, (node) => {
         assert.equal(
-          new RegExp(`\\b${command}\\b`).test(code),
+          laterNodeKinds.has(node.kind),
           false,
-          `Level ${level} content uses the Level 6+ command "${command}" (not taught until Level 6+): ${source}`,
+          `Level ${level} content uses the Level 6+ form "${node.kind}" (not taught until Level 6+): ${source}`,
         );
-      }
-      // Dictionaries (Level 7b) are the only construct that uses brace literals; blocks use
-      // `[ ]` or `… end`, so a `{` in Level 1–5 source can only be a smuggled dict.
-      assert.equal(
-        code.includes("{"),
-        false,
-        `Level ${level} content uses a Level 7b dict literal "{": ${source}`,
-      );
-      // Later-level ACCESS forms are syntactic, not command words: reading or writing a place
-      // inside a value — list index `:l[i]` (7a), dict/record field `:d.k` / `:p.x` (7b/7c),
-      // nested chains, and their write forms — all attach `[` or `.` directly to a `:name`.
-      // A Level-2+ `[ ]` block is preceded by whitespace (never a `:name`), and a decimal literal
-      // puts a digit before the dot, so neither trips this guard.
-      assert.equal(
-        /:[a-z_][a-z0-9_]*[.[]/.test(code),
-        false,
-        `Level ${level} content uses a Level 7+ place access (:name. or :name[): ${source}`,
-      );
-      // Worded field write `set thing.key to value` (Level 7b/7c place-write), as opposed to the
-      // Level-3 `set name to value` whole-variable assignment.
-      assert.equal(
-        /\bset\s+[a-z_][a-z0-9_]*\./i.test(code),
-        false,
-        `Level ${level} content uses a Level 7+ worded field write (set name.field to …): ${source}`,
-      );
+        // A place with any postfix segment is field/index access INTO a value — list index `:l[i]`
+        // (Level 7a) or dict/record field `:d.k` / `:p.x` and nested chains (Level 7b/7c). A plain
+        // Level-3 `:name` assignment target is a zero-segment place, so this only fires on access.
+        assert.equal(
+          node.kind === "Place" && node.segments.length > 0,
+          false,
+          `Level ${level} content uses a Level 7+ place access (:name.field or :name[index]): ${source}`,
+        );
+        // The worded `… is member of …` predicate is Level 7a; the other IsPredicate forms
+        // (`is a`, `is between`) are the Level-4 worded predicates and stay allowed.
+        assert.equal(
+          node.kind === "IsPredicate" && node.test.form === "member-of",
+          false,
+          `Level ${level} content uses the Level 7a "… is member of" predicate: ${source}`,
+        );
+        if (node.kind === "Call" || node.kind === "ParenCall") {
+          const name = (node.canonical ?? node.callee.name).toLowerCase();
+          assert.equal(
+            laterCallNames.has(name),
+            false,
+            `Level ${level} content calls the Level 6+ command "${name}" (not taught until Level 6+): ${source}`,
+          );
+        }
+      });
     }
   }
 });
