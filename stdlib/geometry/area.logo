@@ -1,8 +1,16 @@
-# area :shape — the Geometry profile's shape-area reporter (spec/geometry-module.md:310-415).
-# Reads a shape-spec list (e.g. ["polygon" 5 100] or ["circle" 50]) and reports its area WITHOUT
-# moving, drawing, or inspecting the turtle. Polygon area is `sides * size^2 / (4 * tan (180 /
-# sides))`; circle area is `pi * radius^2`. Guards: polygon needs a whole number of sides (at
-# least 3) and a positive size; circle needs a positive radius; unknown shape names throw.
+# Reports the area of a shape-spec list — ["polygon" sides size] or ["circle" radius] —
+# WITHOUT moving, drawing, or inspecting the turtle: a pure reporter.
+#
+# @command area :shape
+# @spec spec/geometry-module.md:310-415
+# @param shape ["polygon" sides size] or ["circle" radius]
+# @formula polygon area = sides * size^2 / (4 * tan (180 / sides))
+# @formula circle area  = pi * radius^2
+# @returns the computed area (number)
+# @throws "area needs a polygon with a whole number of sides, at least 3" if sides < 3 or not a whole number
+# @throws "area needs a polygon with a positive side length" if size <= 0
+# @throws "area needs a circle with a positive radius" if radius <= 0
+# @throws "area knows only the polygon and circle shapes" if shape[1] is neither "polygon" nor "circle"
 define area :shape
   if :shape[1] == "polygon"
     local sides

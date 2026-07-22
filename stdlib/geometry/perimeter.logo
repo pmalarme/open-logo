@@ -1,9 +1,16 @@
-# perimeter :shape — the Geometry profile's shape-perimeter reporter
-# (spec/geometry-module.md:310-415). Reads a shape-spec list (e.g. ["polygon" 5 100] or
-# ["circle" 50]) and reports its perimeter WITHOUT moving, drawing, or inspecting the turtle.
-# Polygon perimeter is `sides * size`; circle perimeter (circumference) is `2 * pi * radius`.
-# Guards: polygon needs a whole number of sides (at least 3) and a positive size; circle needs a
-# positive radius; unknown shape names throw.
+# Reports the perimeter of a shape-spec list — ["polygon" sides size] or ["circle" radius] —
+# WITHOUT moving, drawing, or inspecting the turtle: a pure reporter.
+#
+# @command perimeter :shape
+# @spec spec/geometry-module.md:310-415
+# @param shape ["polygon" sides size] or ["circle" radius]
+# @formula polygon perimeter = sides * size
+# @formula circle perimeter (circumference) = 2 * pi * radius
+# @returns the computed perimeter (number)
+# @throws "perimeter needs a polygon with a whole number of sides, at least 3" if sides < 3 or not a whole number
+# @throws "perimeter needs a polygon with a positive side length" if size <= 0
+# @throws "perimeter needs a circle with a positive radius" if radius <= 0
+# @throws "perimeter knows only the polygon and circle shapes" if shape[1] is neither "polygon" nor "circle"
 define perimeter :shape
   if :shape[1] == "polygon"
     local sides

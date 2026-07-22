@@ -1,8 +1,16 @@
-# arc :angle :radius — the Geometry profile's arc packaged command
-# (spec/geometry-module.md:195-266). Approximates an arc of :angle degrees along a circle of
-# :radius with short chords (about one segment per 5 degrees), centering the first and last
-# half-steps so the turtle ends facing the true tangent direction. Guards: :angle must be 0 or
-# more, :radius must be positive.
+# Draws an arc of :angle degrees along a circle of :radius, approximated with short chords
+# (about one segment per 5 degrees); the first and last half-steps are centered so the turtle
+# ends facing the true tangent direction, exactly as if it had walked the middle of the arc.
+#
+# @command arc :angle :radius
+# @spec spec/geometry-module.md:195-266
+# @param angle  degrees to sweep, 0 or more
+# @param radius positive number
+# @formula segments = int (angle / 5) + 1
+# @formula step_angle = angle / segments
+# @formula step_length = 2 * radius * sin (step_angle / 2)
+# @throws "an arc needs an angle of 0 or more" if angle < 0
+# @throws "an arc needs a positive radius" if radius <= 0
 define arc :angle :radius
   local segments
   local step_angle

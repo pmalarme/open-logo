@@ -1,6 +1,13 @@
-# polygon :sides :size — the Geometry profile's regular-polygon packaged command
-# (spec/geometry-module.md:29-73). A regular polygon is a loop plus a turn angle: `360 /
-# :sides` degrees per side. Guards: `:sides` must be a whole number of at least 3.
+# Draws a regular polygon with :sides equal sides of length :size, turning 360/:sides degrees
+# after each side so the turtle closes the shape and returns to its starting pose.
+#
+# @command polygon :sides :size
+# @spec spec/geometry-module.md:29-73
+# @param sides whole number of sides, at least 3
+# @param size  length of each side
+# @formula turn = 360 / sides
+# @throws "a polygon needs at least 3 sides" if sides < 3
+# @throws "a polygon needs a whole number of sides" if sides is not a whole number
 define polygon :sides :size
   if :sides < 3
     throw "a polygon needs at least 3 sides"

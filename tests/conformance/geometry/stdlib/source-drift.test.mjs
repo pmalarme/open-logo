@@ -11,7 +11,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const STDLIB_DIR = join("stdlib", "geometry");
@@ -48,16 +48,24 @@ function normalizeNewlines(text) {
 /**
  * The shipped stdlib/geometry/*.logo files carry a leading `#`-comment header documenting the
  * command (spec reference, formula, guards) — that documentation is additive and is NOT part of
- * the fixtures' inlined copies, which stay bare `define ... end` bodies. Stripping the leading
- * comment/blank lines here isolates the executable source so the drift check still asserts exact
- * equality of the part that must never drift: the `define ... end` block itself.
+ * the fixtures' inlined copies, which stay bare `define ... end` bodies. Stripping only the
+ * leading contiguous comment/blank prefix (not every `#` line anywhere in the file) isolates the
+ * executable source so the drift check still asserts exact equality of the part that must never
+ * drift — the `define ... end` block itself — while still catching a stray `#` comment written
+ * inside the body, which would otherwise silently escape the fixture-drift check.
  */
 function stripLeadingComments(text) {
-  return text
-    .split("\n")
-    .filter((line) => !line.trimStart().startsWith("#"))
-    .join("\n")
-    .replace(/^\n+/, "");
+  const lines = text.split("\n");
+  let index = 0;
+  while (index < lines.length) {
+    const line = lines[index].trimStart();
+    if (line === "" || line.startsWith("#")) {
+      index += 1;
+    } else {
+      break;
+    }
+  }
+  return lines.slice(index).join("\n");
 }
 
 for (const [command, fixtureNames] of Object.entries(FIXTURES_BY_COMMAND)) {
@@ -83,3 +91,18 @@ for (const [command, fixtureNames] of Object.entries(FIXTURES_BY_COMMAND)) {
     }
   });
 }
+
+test("FIXTURES_BY_COMMAND accounts for every .logo fixture in this directory", () => {
+  // Guards against a future fixture being added without drift coverage: every `.logo` file
+  // physically present here must appear in the mapping above, and vice versa.
+  const actualFixtureNames = readdirSync(FIXTURES_DIR)
+    .filter((name) => name.endsWith(".logo"))
+    .map((name) => name.slice(0, -".logo".length))
+    .sort();
+  const mappedFixtureNames = Object.values(FIXTURES_BY_COMMAND).flat().sort();
+  assert.deepEqual(
+    actualFixtureNames,
+    mappedFixtureNames,
+    "every *.logo fixture in tests/conformance/geometry/stdlib/ must be listed exactly once in FIXTURES_BY_COMMAND",
+  );
+});
