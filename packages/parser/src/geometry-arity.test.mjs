@@ -9,6 +9,11 @@ import * as OL from "@openlogo/parser";
  * active profile (the reader has no profile concept — that's `check()`'s job), and `check()` must
  * only recognize them as known callees when the `geometry` profile is active. Behavior is verified
  * against the built `@openlogo/parser` entry point per the shared black-box test convention.
+ *
+ * Also covers issue #427 (M4 audit): `define`/`local`/`struct` registrations that redefine
+ * `grid`/`axes`/`measure` must raise `ol-reserved-word` (`namespace: "primitive"`) when the
+ * `geometry` profile is active — the checker's static parity counterpart to the runtime's own
+ * `isPrimitiveName()` collision guard (#403) — and must not raise when it is inactive.
  */
 
 function parseClean(source) {
@@ -73,5 +78,66 @@ test("without the geometry profile active, grid/axes/measure parse cleanly but a
     assert.equal(diagnostics.length, 1);
     assert.equal(diagnostics[0].code, "ol-unknown-command");
     assert.equal(diagnostics[0].stage, "semantic");
+  }
+});
+
+// --- reserved-word collisions (issue #427, M4 audit) ---------------------------
+
+test("a struct type name colliding with a Geometry primitive raises ol-reserved-word (primitive wins)", () => {
+  for (const name of ["grid", "axes", "measure"]) {
+    const ast = parseClean(`struct ${name} [ x ]`);
+    const { diagnostics } = OL.check(ast, {
+      profiles: ["core-language", "data", "geometry"],
+    });
+    assert.equal(diagnostics.length, 1);
+    assert.equal(diagnostics[0].code, "ol-reserved-word");
+    assert.equal(diagnostics[0].params.namespace, "primitive");
+    assert.equal(diagnostics[0].params.name, name);
+  }
+});
+
+test("a define colliding with a Geometry primitive raises ol-reserved-word", () => {
+  for (const name of ["grid", "axes", "measure"]) {
+    const ast = parseClean(`define ${name}\nend`);
+    const { diagnostics } = OL.check(ast, {
+      profiles: ["core-language", "geometry"],
+    });
+    assert.equal(diagnostics.length, 1);
+    assert.equal(diagnostics[0].code, "ol-reserved-word");
+    assert.equal(diagnostics[0].params.namespace, "primitive");
+  }
+});
+
+test("a local colliding with a Geometry primitive raises ol-reserved-word", () => {
+  for (const name of ["grid", "axes", "measure"]) {
+    const ast = parseClean(`define greet\n  local ${name}\nend`);
+    const { diagnostics } = OL.check(ast, {
+      profiles: ["core-language", "geometry"],
+    });
+    assert.equal(diagnostics.length, 1);
+    assert.equal(diagnostics[0].code, "ol-reserved-word");
+    assert.equal(diagnostics[0].params.namespace, "primitive");
+  }
+});
+
+test("without the geometry profile active, define/local/struct grid/axes/measure raise no reserved-word collision", () => {
+  for (const name of ["grid", "axes", "measure"]) {
+    const defineOnly = parseClean(`define ${name}\nend`);
+    assert.deepEqual(
+      OL.check(defineOnly, { profiles: ["core-language"] }).diagnostics,
+      [],
+    );
+
+    const localOnly = parseClean(`define greet\n  local ${name}\nend`);
+    assert.deepEqual(
+      OL.check(localOnly, { profiles: ["core-language"] }).diagnostics,
+      [],
+    );
+
+    const structOnly = parseClean(`struct ${name} [ x ]`);
+    assert.deepEqual(
+      OL.check(structOnly, { profiles: ["core-language", "data"] }).diagnostics,
+      [],
+    );
   }
 });
