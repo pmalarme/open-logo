@@ -339,11 +339,12 @@ test("the concept→level gate flags every Level 6+ form, command, alias, and ac
   // what proves the gate above actually fires — an all-Core corpus alone would pass a gate that
   // detected nothing. It deliberately includes the exact bypasses a string scan leaks through: an
   // uppercase `SET_XY` (identifiers are case-insensitive) and a `[ 30 50 ]` list literal (which a
-  // regex cannot tell from a Level-2 block), plus the `setxy`/`seth` one-word Heritage aliases.
+  // regex cannot tell from a Level-2 block), plus the `setxy`/`seth` one-word Turtle & Rendering
+  // short aliases (spec/commands.md:14 — short aliases of the canonical names, not Heritage).
   const laterLevelSamples = [
     "set_xy 120 0", // the original regression: Level 6 placement …
     "SET_XY 120 0", // … caught case-insensitively (a string scan would miss this)
-    "setxy 120 0", // … and through its one-word Heritage alias
+    "setxy 120 0", // … and through its one-word short alias
     "set_heading 0", // Level 6 absolute heading …
     "seth 0", // … and its alias
     "stamp", // Level 6 marking
