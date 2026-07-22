@@ -9,8 +9,22 @@
  * The version constant keeps the `@openlogo/*` tuple in lockstep; the cross-cutting
  * contracts below (source spans, `ol-*` diagnostics, and the trace/event registry) are the
  * seams every other package builds against. See `docs/adr/0006-cross-cutting-contracts.md`.
+ * `getHostMetadata` exposes feature-detection metadata (spec version, supported profiles,
+ * extensions, rendering targets) per `spec/conformance.md:266-291`.
  */
-export const OPENLOGO_VERSION = "0.1.0";
+export { OPENLOGO_VERSION } from "./version.js";
+
+export {
+  getHostMetadata,
+  SUPPORTED_EXTENSIONS,
+  SUPPORTED_PROFILES,
+  SUPPORTED_RENDERING_TARGETS,
+} from "./host-metadata.js";
+export type {
+  HostMetadata,
+  RenderingTarget,
+  SupportedProfile,
+} from "./host-metadata.js";
 
 export { makeSpan } from "./spans.js";
 export type { Position, SourceSpan } from "./spans.js";
