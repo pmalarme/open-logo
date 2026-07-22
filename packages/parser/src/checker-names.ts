@@ -8,21 +8,22 @@
  * conformance profile set when deciding which primitives and profile block-heads are
  * available"), never a hardcoded "every optional profile active".
  *
- * Core Language, Turtle & Rendering, and Educational each contribute a name table today (issue
- * #136 added Turtle & Rendering, sourced from `signatures.ts`'s `TURTLE_PRIMITIVE_ARITY`; issue
- * #331 added Educational's `explain`/`why`/`hint`/`debug` meta-commands the same way, sourced from
- * `EDUCATIONAL_PRIMITIVE_ARITY` — each profile's single source-of-truth table, so this module
- * never keeps a second, duplicate name list); later optional-profile primitive/block-head tables
- * (Data, Geometry, …) do not exist yet in this package, so this function is intentionally written
- * to *gate* on `profiles` rather than to assume any profile is always present — see the module's
- * own unit test for the gating shape. A future profile slice registers its own name table here,
- * following the same `if (active.has(<profile>)) { … }` shape.
+ * Core Language, Turtle & Rendering, Educational, and Geometry each contribute a name table today
+ * (issue #136 added Turtle & Rendering, sourced from `signatures.ts`'s `TURTLE_PRIMITIVE_ARITY`;
+ * issue #331 added Educational's `explain`/`why`/`hint`/`debug` meta-commands the same way,
+ * sourced from `EDUCATIONAL_PRIMITIVE_ARITY`; issue #341 added Geometry's `grid`/`axes`/`measure`
+ * overlay primitives, sourced from `GEOMETRY_PRIMITIVE_ARITY` — each profile's single
+ * source-of-truth table, so this module never keeps a second, duplicate name list); later
+ * optional-profile primitive/block-head tables (Data, …) do not exist yet in this package, so this
+ * function is intentionally written to *gate* on `profiles` rather than to assume any profile is
+ * always present — see the module's own unit test for the gating shape. A future profile slice
+ * registers its own name table here, following the same `if (active.has(<profile>)) { … }` shape.
  *
  * {@link isOptionalProfileName} is this module's companion export for `ol-unknown-command`'s
  * did-you-mean tie-break (`spec/error-model.md:145-146`: "prefer Core words over optional-profile
- * words" on a distance tie) — now that optional profiles (Turtle & Rendering, Educational)
- * contribute real candidates, a tie between a Core name and an optional-profile name is reachable
- * and MUST resolve in Core's favor, not by lexicographic order alone.
+ * words" on a distance tie) — now that optional profiles (Turtle & Rendering, Educational,
+ * Geometry) contribute real candidates, a tie between a Core name and an optional-profile name is
+ * reachable and MUST resolve in Core's favor, not by lexicographic order alone.
  */
 
 import type { CheckProfile } from "./check.js";
@@ -32,20 +33,22 @@ import { OL_RESERVED_WORDS } from "./reserved.js";
 import {
   corePrimitiveNames,
   educationalPrimitiveNames,
+  geometryPrimitiveNames,
   turtlePrimitiveNames,
 } from "./signatures.js";
 
 /**
  * Every canonical lowercase name contributed by an optional (non-Core) conformance profile's
- * primitive table — currently Turtle & Rendering's and Educational's. Computed once as a frozen
- * union so {@link isOptionalProfileName} stays a pure, allocation-free lookup; a future
- * optional-profile table (Data, Geometry, …) adds its `...someProfileNames()` spread here
- * alongside these, exactly mirroring how {@link collectVisibleNames} itself is extended one
- * profile at a time.
+ * primitive table — currently Turtle & Rendering's, Educational's, and Geometry's. Computed once
+ * as a frozen union so {@link isOptionalProfileName} stays a pure, allocation-free lookup; a
+ * future optional-profile table (Data, …) adds its `...someProfileNames()` spread here alongside
+ * these, exactly mirroring how {@link collectVisibleNames} itself is extended one profile at a
+ * time.
  */
 const OPTIONAL_PROFILE_NAMES: ReadonlySet<string> = new Set([
   ...turtlePrimitiveNames(),
   ...educationalPrimitiveNames(),
+  ...geometryPrimitiveNames(),
 ]);
 
 /**
@@ -64,9 +67,10 @@ export function isOptionalProfileName(name: string): boolean {
  * OpenLogo's canonical spelling (identifiers are case-insensitive). Includes Core primitives and
  * reserved structural words only when `"core-language"` is active, Turtle & Rendering primitives
  * only when `"turtle-rendering"` is active, the `explain`/`why`/`hint`/`debug` meta-commands only
- * when `"educational"` is active, plus every procedure declared anywhere in `program` (declaration
- * order and position do not matter — OpenLogo procedures are available program-wide, not just
- * after their `define`).
+ * when `"educational"` is active, the `grid`/`axes`/`measure` overlay primitives only when
+ * `"geometry"` is active, plus every procedure declared anywhere in `program` (declaration order
+ * and position do not matter — OpenLogo procedures are available program-wide, not just after
+ * their `define`).
  */
 export function collectVisibleNames(
   program: ProgramNode,
@@ -96,8 +100,14 @@ export function collectVisibleNames(
     }
   }
 
-  // Future optional-profile primitive/block-head tables (Data, Geometry, …) register here,
-  // gated the same way, once their tables exist (see issue #117's follow-up issue).
+  if (active.has("geometry")) {
+    for (const name of geometryPrimitiveNames()) {
+      names.add(name);
+    }
+  }
+
+  // Future optional-profile primitive/block-head tables (Data, …) register here, gated the
+  // same way, once their tables exist (see issue #117's follow-up issue).
 
   walk(program, (node) => {
     if (node.kind === "ProcedureDef") {

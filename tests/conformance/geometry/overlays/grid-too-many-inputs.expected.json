@@ -1,0 +1,30 @@
+{
+  "description": "issue #341: `grid` takes no arguments; the parenthesized form `(grid 50)` supplies one, raising `ol-too-many-inputs` at runtime (the bare form's extra tokens would instead fail at parse time as a stray-token diagnostic, since grid's registered arity is 0 - see packages/parser/src/signatures.ts's GEOMETRY_PRIMITIVE_ARITY).",
+  "profiles": ["geometry"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/overlays/grid-too-many-inputs",
+        "start": [1, 1],
+        "end": [1, 10]
+      },
+      "payload": { "statement_kind": "ParenCall" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-too-many-inputs",
+      "source_span": {
+        "document": "geometry/overlays/grid-too-many-inputs",
+        "start": [1, 2],
+        "end": [1, 6]
+      },
+      "params": { "callable": "grid", "expected": 0, "actual": 1 },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

@@ -21,12 +21,15 @@
  */
 
 import type {
+  AxesOverlayPayload,
   BackgroundChangePayload,
   ClearPayload,
   ColorChangePayload,
   Diagnostic,
   DrawSegmentPayload,
   FillPayload,
+  GridOverlayPayload,
+  MeasureOverlayPayload,
   MovePayload,
   OLValue,
   PenChangePayload,
@@ -999,6 +1002,167 @@ function executeTurtleStampCall(
 }
 
 /**
+ * `grid`'s default guide-line spacing in canvas units (`spec/geometry-module.md:272`: "Default
+ * grid spacing is `20` canvas units"). `grid` takes no arguments (Kind C, arity 0), so this is the
+ * only spacing the runtime ever emits — a future slice adding a `grid :spacing` overload would
+ * change the arity table and this call site together, not this constant alone.
+ */
+const DEFAULT_GRID_SPACING = 20;
+
+/**
+ * Is `statement` a call to `grid` (issue #341; `spec/geometry-module.md:268-280`). Same
+ * shape/convention as {@link isTurtleStampCall}.
+ */
+function isTurtleGridCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  return statement.callee.name.toLowerCase() === "grid";
+}
+
+/**
+ * Validate and run a `grid` statement matched by {@link isTurtleGridCall}: exactly zero arguments
+ * (`ol-too-many-inputs` otherwise), then emit one `overlay` event carrying a
+ * {@link GridOverlayPayload} at the spec's default spacing of `20` canvas units
+ * (`spec/geometry-module.md:272`). `grid` is Kind C — it creates or refreshes a persistent
+ * renderer overlay, never turtle position, heading, pen, color, or width, and the overlay
+ * survives `clean` (`@openlogo/turtle`'s `overlay.ts` reducer has no `clear` case, so this event
+ * is never undone by one). No turtle-state change: the runtime only emits the one event. Returns
+ * an {@link ExecSignal} to halt on, or `undefined` for {@link executeStatements} to `continue` on
+ * success.
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeTurtleGridCall(
+  gridCall: CallNode | ParenCallNode,
+  environment: Environment,
+): ExecSignal | undefined {
+  const callableName = gridCall.callee.name;
+  if (gridCall.args.length !== 0) {
+    return halt(
+      runtimeDiag.tooManyInputs(
+        gridCall.callee.source_span,
+        callableName,
+        0,
+        gridCall.args.length,
+      ),
+    );
+  }
+  environment.events.push({
+    seq: environment.events.length,
+    kind: "overlay",
+    source_span: gridCall.source_span,
+    payload: {
+      overlay: "grid",
+      spacing: DEFAULT_GRID_SPACING,
+    } satisfies GridOverlayPayload,
+  });
+  return undefined;
+}
+
+/**
+ * Is `statement` a call to `axes` (issue #341; `spec/geometry-module.md:282-292`). Same
+ * shape/convention as {@link isTurtleGridCall}.
+ */
+function isTurtleAxesCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  return statement.callee.name.toLowerCase() === "axes";
+}
+
+/**
+ * Validate and run an `axes` statement matched by {@link isTurtleAxesCall}: exactly zero
+ * arguments (`ol-too-many-inputs` otherwise), then emit one `overlay` event carrying an
+ * {@link AxesOverlayPayload}. `axes` is Kind C — the crossed axes overlay through the origin
+ * (the turtle's `home` position, `spec/geometry-module.md:286`) never changes turtle state and
+ * survives `clean`. No turtle-state change: the runtime only emits the one event. Returns an
+ * {@link ExecSignal} to halt on, or `undefined` for {@link executeStatements} to `continue` on
+ * success.
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeTurtleAxesCall(
+  axesCall: CallNode | ParenCallNode,
+  environment: Environment,
+): ExecSignal | undefined {
+  const callableName = axesCall.callee.name;
+  if (axesCall.args.length !== 0) {
+    return halt(
+      runtimeDiag.tooManyInputs(
+        axesCall.callee.source_span,
+        callableName,
+        0,
+        axesCall.args.length,
+      ),
+    );
+  }
+  environment.events.push({
+    seq: environment.events.length,
+    kind: "overlay",
+    source_span: axesCall.source_span,
+    payload: {
+      overlay: "axes",
+    } satisfies AxesOverlayPayload,
+  });
+  return undefined;
+}
+
+/**
+ * Is `statement` a call to `measure` (issue #341; `spec/geometry-module.md:296-306`). Same
+ * shape/convention as {@link isTurtleGridCall}.
+ */
+function isTurtleMeasureCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  return statement.callee.name.toLowerCase() === "measure";
+}
+
+/**
+ * Validate and run a `measure` statement matched by {@link isTurtleMeasureCall}: exactly zero
+ * arguments (`ol-too-many-inputs` otherwise), then emit one `overlay` event snapshotting the
+ * turtle's current position and heading into a {@link MeasureOverlayPayload} — mirroring
+ * {@link executeTurtleStampCall}'s position/heading snapshot. `measure` is Kind C: "It returns no
+ * value and does not change the turtle state" (`spec/geometry-module.md:298`). No turtle-state
+ * change: the runtime only emits the one event. Returns an {@link ExecSignal} to halt on, or
+ * `undefined` for {@link executeStatements} to `continue` on success.
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeTurtleMeasureCall(
+  measureCall: CallNode | ParenCallNode,
+  environment: Environment,
+): ExecSignal | undefined {
+  const callableName = measureCall.callee.name;
+  if (measureCall.args.length !== 0) {
+    return halt(
+      runtimeDiag.tooManyInputs(
+        measureCall.callee.source_span,
+        callableName,
+        0,
+        measureCall.args.length,
+      ),
+    );
+  }
+  const { turtle } = environment;
+  environment.events.push({
+    seq: environment.events.length,
+    kind: "overlay",
+    source_span: measureCall.source_span,
+    payload: {
+      overlay: "measure",
+      position: [turtle.x, turtle.y],
+      heading: turtle.heading,
+    } satisfies MeasureOverlayPayload,
+  });
+  return undefined;
+}
+
+/**
  * Is `statement` a call to `set_shape` (issue #210; `spec/commands.md:1573`). Same
  * shape/convention as {@link isTurtleColorCall} — no Turtle & Rendering-profile alias is
  * registered for `set_shape` (unlike `set_color`/`set_width`/`set_xy`/`set_heading`, which each
@@ -1448,6 +1612,24 @@ function dispatchTurtleCommand(
   }
   if (isTurtleStampCall(statement)) {
     return executeTurtleStampCall(
+      statement as unknown as CallNode | ParenCallNode,
+      environment,
+    );
+  }
+  if (isTurtleGridCall(statement)) {
+    return executeTurtleGridCall(
+      statement as unknown as CallNode | ParenCallNode,
+      environment,
+    );
+  }
+  if (isTurtleAxesCall(statement)) {
+    return executeTurtleAxesCall(
+      statement as unknown as CallNode | ParenCallNode,
+      environment,
+    );
+  }
+  if (isTurtleMeasureCall(statement)) {
+    return executeTurtleMeasureCall(
       statement as unknown as CallNode | ParenCallNode,
       environment,
     );

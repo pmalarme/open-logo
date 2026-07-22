@@ -688,3 +688,145 @@ test("reduced-motion playback never changes the final scene/state/export vs step
   OL.renderFrame(steppedTarget.target, steppedController, VIEWPORT);
   assert.deepEqual(reducedTarget.calls, steppedTarget.calls);
 });
+
+test("paintScene with no overlay argument paints no overlay calls", () => {
+  const { target, calls } = makeRecordingTarget();
+  const scene = { background: "white", items: [] };
+  OL.paintScene(target, scene, VIEWPORT);
+  // Only the background fill — no overlay save/restore bracket at all.
+  assert.deepEqual(calls, [
+    ["set fillStyle", "white"],
+    ["fillRect", 0, 0, 400, 300],
+  ]);
+});
+
+test("paintScene with an empty overlay (INITIAL_OVERLAY_STATE) paints the save/restore bracket but no guide lines/marker", () => {
+  const { target, calls } = makeRecordingTarget();
+  const scene = { background: "white", items: [] };
+  OL.paintScene(target, scene, VIEWPORT, OL.INITIAL_OVERLAY_STATE);
+  assert.deepEqual(calls, [
+    ["set fillStyle", "white"],
+    ["fillRect", 0, 0, 400, 300],
+    ["save"],
+    ["restore"],
+  ]);
+});
+
+test("paintOverlay draws grid guide lines through every multiple of the spacing", () => {
+  const { target, calls } = makeRecordingTarget();
+  OL.paintOverlay(target, { axes: false, grid: { spacing: 100 } }, VIEWPORT);
+  const lineToCalls = calls.filter((call) => call[0] === "lineTo");
+  // VIEWPORT is 400x300 (center [200,150]): world x in [-200,200] has 5 multiples of 100
+  // (-200,-100,0,100,200); world y in [-150,150] has 3 multiples of 100 (-100,0,100).
+  // 8 lines total, one lineTo call each.
+  assert.equal(lineToCalls.length, 8);
+  assert.ok(calls.some((call) => call[0] === "set strokeStyle"));
+});
+
+test("paintOverlay's grid ignores a non-positive/non-finite spacing (no lines, no infinite loop)", () => {
+  const { target, calls } = makeRecordingTarget();
+  OL.paintOverlay(target, { axes: false, grid: { spacing: 0 } }, VIEWPORT);
+  assert.equal(calls.filter((call) => call[0] === "lineTo").length, 0);
+});
+
+test("paintOverlay draws exactly two axes lines crossing at the origin", () => {
+  const { target, calls } = makeRecordingTarget();
+  OL.paintOverlay(target, { axes: true }, VIEWPORT);
+  const moveToCalls = calls.filter((call) => call[0] === "moveTo");
+  assert.deepEqual(moveToCalls, [
+    ["moveTo", 0, 150],
+    ["moveTo", 200, 0],
+  ]);
+});
+
+test("paintOverlay draws the measure marker at the last-measured position with a heading tick", () => {
+  const { target, calls } = makeRecordingTarget();
+  OL.paintOverlay(
+    target,
+    { axes: false, measure: { position: [0, 0], heading: 0 } },
+    VIEWPORT,
+  );
+  assert.ok(calls.some((call) => call[0] === "arc"));
+  assert.ok(calls.some((call) => call[0] === "fill"));
+  const lineToCall = calls.find((call) => call[0] === "lineTo");
+  // Heading 0 points "up" (screen -y): tick x stays at center, y decreases.
+  assert.ok(lineToCall[2] < 150);
+});
+
+test("paintOverlay draws grid, then axes, then measure, in that fixed order, wrapped in save/restore", () => {
+  const { target, calls } = makeRecordingTarget();
+  OL.paintOverlay(
+    target,
+    {
+      axes: true,
+      grid: { spacing: 100 },
+      measure: { position: [0, 0], heading: 0 },
+    },
+    VIEWPORT,
+  );
+  assert.equal(calls[0][0], "save");
+  assert.equal(calls[calls.length - 1][0], "restore");
+  const firstArcIndex = calls.findIndex((call) => call[0] === "arc");
+  const firstAxesMoveIndex = calls.findIndex(
+    (call) => call[0] === "moveTo" && call[1] === 0 && call[2] === 150,
+  );
+  const firstGridLineIndex = calls.findIndex((call) => call[0] === "lineTo");
+  assert.ok(firstGridLineIndex < firstAxesMoveIndex);
+  assert.ok(firstAxesMoveIndex < firstArcIndex);
+});
+
+test("paintScene paints overlays after every drawing item but before returning", () => {
+  const { target, calls } = makeRecordingTarget();
+  const scene = {
+    background: "white",
+    items: [
+      {
+        kind: "segment",
+        segment: { from: [0, 0], to: [10, 0], color: "black", width: 1 },
+      },
+    ],
+  };
+  OL.paintScene(target, scene, VIEWPORT, { axes: true });
+  const segmentStrokeIndex = calls.findIndex(
+    (call, index) =>
+      call[0] === "stroke" &&
+      calls.slice(0, index).some((prior) => prior[0] === "moveTo"),
+  );
+  const overlaySaveIndex = calls.findIndex((call) => call[0] === "save");
+  assert.ok(segmentStrokeIndex < overlaySaveIndex);
+});
+
+test("paintTurtle paints overlays before the avatar, and threads overlay through to paintScene", () => {
+  const { target, calls } = makeRecordingTarget();
+  const scene = { background: "white", items: [] };
+  const state = {
+    position: [0, 0],
+    heading: 0,
+    penDown: true,
+    color: "black",
+    width: 1,
+    shape: "arrow",
+    visible: true,
+  };
+  OL.paintTurtle(target, scene, state, VIEWPORT, { axes: true });
+  const overlaySaveIndex = calls.findIndex((call) => call[0] === "save");
+  const avatarRestoreIndex = calls.findIndex((call) => call[0] === "restore");
+  assert.ok(overlaySaveIndex >= 0);
+  assert.ok(avatarRestoreIndex > overlaySaveIndex);
+});
+
+test("renderFrame threads the source's overlay snapshot through to paintTurtle", () => {
+  const snapshot = {
+    cursor: 0,
+    status: "done",
+    state: { ...OL.INITIAL_TURTLE_STATE, visible: false },
+    scene: { background: "white", items: [] },
+    overlay: { axes: true },
+  };
+  const source = { getSnapshot: () => snapshot };
+  const { target, calls } = makeRecordingTarget();
+  OL.renderFrame(target, source, VIEWPORT);
+  assert.ok(calls.some((call) => call[0] === "save"));
+  const moveToCalls = calls.filter((call) => call[0] === "moveTo");
+  assert.equal(moveToCalls.length, 2);
+});

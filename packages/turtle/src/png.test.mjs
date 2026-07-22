@@ -278,7 +278,7 @@ test("exportTurtlePng's includeAvatar: false omits the avatar even when the turt
   assert.deepEqual(center, { r: 255, g: 255, b: 255, a: 255 });
 });
 
-test("exportTurtlePng's includeOverlays option is accepted but has no observable effect yet", () => {
+test("exportTurtlePng's includeOverlays option has no observable effect when no overlay data is supplied", () => {
   const scene = { background: "white", items: [] };
   const withOverlays = OL.exportTurtlePng(scene, HIDDEN_STATE, VIEWPORT, {
     includeOverlays: true,
@@ -287,6 +287,32 @@ test("exportTurtlePng's includeOverlays option is accepted but has no observable
     includeOverlays: false,
   });
   assert.deepEqual(withOverlays, withoutOverlays);
+});
+
+test("exportTurtlePng rasterizes overlay markers by default when overlay data is supplied", () => {
+  const scene = { background: "white", items: [] };
+  const withOverlay = OL.exportTurtlePng(
+    scene,
+    HIDDEN_STATE,
+    VIEWPORT,
+    {},
+    { axes: true },
+  );
+  const withoutOverlay = OL.exportTurtlePng(scene, HIDDEN_STATE, VIEWPORT, {});
+  assert.notDeepEqual(withOverlay, withoutOverlay);
+});
+
+test("exportTurtlePng's includeOverlays:false omits overlay pixels even when overlay data is supplied", () => {
+  const scene = { background: "white", items: [] };
+  const excluded = OL.exportTurtlePng(
+    scene,
+    HIDDEN_STATE,
+    VIEWPORT,
+    { includeOverlays: false },
+    { axes: true },
+  );
+  const noOverlay = OL.exportTurtlePng(scene, HIDDEN_STATE, VIEWPORT, {});
+  assert.deepEqual(excluded, noOverlay);
 });
 
 test("exportTurtlePng is image-stable: the same scene/state/viewport exported twice is byte-identical", () => {

@@ -13,12 +13,14 @@
  * Repainting always happens from the retained scene alone — the program is never re-run
  * (`spec/rendering.md`'s "Drawing model": "Repainting a target MUST be possible from retained
  * scene data without re-running the program"). Draw order is normative: background, then
- * drawing items in execution order, then the visible turtle avatar (overlays are a later
- * Canvas-epic slice, out of scope here).
+ * drawing items in execution order, then overlays, then the visible turtle avatar
+ * (`spec/rendering.md:32`: "The logical draw order is background first, then drawing items in
+ * execution order, then overlays, then the visible turtle avatar").
  */
 
 import type { Point } from "@openlogo/core";
 import type { AnimationSnapshot } from "./animation.js";
+import type { GridOverlay, OverlayState } from "./overlay.js";
 import type { SceneItem, TurtleScene } from "./scene.js";
 import type { TurtleState } from "./state.js";
 
@@ -256,11 +258,169 @@ function paintAvatar(
   target.restore();
 }
 
+/** Grid overlay guide-line color (`spec/rendering.md:139`: color must not be the sole carrier —
+ * see {@link AXES_STROKE_STYLE}'s distinct width for how the axes overlay stays distinguishable
+ * without relying on color alone). */
+const GRID_STROKE_STYLE = "#cccccc";
+/** Grid guide lines are thin — distinguishable from the bolder axes overlay by width, not just
+ * color. */
+const GRID_LINE_WIDTH = 1;
+
+/** Axes overlay line color, deliberately distinct from {@link GRID_STROKE_STYLE}. */
+const AXES_STROKE_STYLE = "#888888";
+/** Axes lines are drawn bolder than grid lines — a non-color (width) distinction, per
+ * `spec/rendering.md:139` ("axes can use labels or line patterns"). */
+const AXES_LINE_WIDTH = 2;
+
+/** `measure` overlay marker color and size, in world units before viewport scaling. */
+const MEASURE_STROKE_STYLE = "#ff8800";
+const MEASURE_MARKER_RADIUS = 4;
+
+/**
+ * The multiples of `spacing` that fall within `[minValue, maxValue]`, ascending — shared by
+ * {@link paintOverlay}'s grid vertical/horizontal line generation. Returns `[]` when `spacing`
+ * is not a positive finite number, so a malformed grid spacing degrades to "no lines" rather
+ * than looping forever.
+ */
+function multiplesInRange(
+  spacing: number,
+  minValue: number,
+  maxValue: number,
+): number[] {
+  if (!Number.isFinite(spacing) || spacing <= 0) {
+    return [];
+  }
+  const values: number[] = [];
+  const start = Math.ceil(minValue / spacing) * spacing;
+  for (let value = start; value <= maxValue; value += spacing) {
+    values.push(value);
+  }
+  return values;
+}
+
+/**
+ * Draws the grid overlay's guide lines: vertical lines at every world-x multiple of
+ * `grid.spacing`, horizontal lines at every world-y multiple, each spanning the full viewport
+ * (`spec/geometry-module.md:272`: "Grid lines are parallel to the canvas axes and pass through
+ * every multiple of the spacing").
+ */
+function paintGridOverlay(
+  target: RenderTarget,
+  grid: GridOverlay,
+  viewport: Viewport,
+): void {
+  const scale = viewport.scale ?? DEFAULT_SCALE;
+  const centerX = viewport.width / 2;
+  const centerY = viewport.height / 2;
+  target.strokeStyle = GRID_STROKE_STYLE;
+  target.lineWidth = GRID_LINE_WIDTH * scale;
+
+  for (const worldX of multiplesInRange(
+    grid.spacing,
+    -centerX / scale,
+    centerX / scale,
+  )) {
+    const [targetX] = worldToTarget([worldX, 0], viewport);
+    target.beginPath();
+    target.moveTo(targetX, 0);
+    target.lineTo(targetX, viewport.height);
+    target.stroke();
+  }
+  for (const worldY of multiplesInRange(
+    grid.spacing,
+    -centerY / scale,
+    centerY / scale,
+  )) {
+    const [, targetY] = worldToTarget([0, worldY], viewport);
+    target.beginPath();
+    target.moveTo(0, targetY);
+    target.lineTo(viewport.width, targetY);
+    target.stroke();
+  }
+}
+
+/**
+ * Draws the axes overlay: the horizontal line `y == 0` and the vertical line `x == 0`, crossing
+ * at `home` (`spec/geometry-module.md:286`), each spanning the full viewport.
+ */
+function paintAxesOverlay(target: RenderTarget, viewport: Viewport): void {
+  const [originX, originY] = worldToTarget([0, 0], viewport);
+  target.strokeStyle = AXES_STROKE_STYLE;
+  target.lineWidth = AXES_LINE_WIDTH;
+  target.beginPath();
+  target.moveTo(0, originY);
+  target.lineTo(viewport.width, originY);
+  target.stroke();
+  target.beginPath();
+  target.moveTo(originX, 0);
+  target.lineTo(originX, viewport.height);
+  target.stroke();
+}
+
+/**
+ * Draws the `measure` overlay's marker: a small filled dot at the last-measured position plus a
+ * short tick pointing along the last-measured heading — an educational annotation, not turtle
+ * drawing (`spec/geometry-module.md:298-300`).
+ */
+function paintMeasureOverlay(
+  target: RenderTarget,
+  position: Point,
+  heading: number,
+  viewport: Viewport,
+): void {
+  const [screenX, screenY] = worldToTarget(position, viewport);
+  target.fillStyle = MEASURE_STROKE_STYLE;
+  target.beginPath();
+  target.arc(screenX, screenY, MEASURE_MARKER_RADIUS, 0, 2 * Math.PI);
+  target.fill();
+
+  const radians = heading * DEGREES_TO_RADIANS;
+  const tickLength = MEASURE_MARKER_RADIUS * 3;
+  const tickX = screenX + Math.sin(radians) * tickLength;
+  const tickY = screenY - Math.cos(radians) * tickLength;
+  target.strokeStyle = MEASURE_STROKE_STYLE;
+  target.lineWidth = 1;
+  target.beginPath();
+  target.moveTo(screenX, screenY);
+  target.lineTo(tickX, tickY);
+  target.stroke();
+}
+
+/**
+ * Draws every enabled overlay (`grid`/`axes`/`measure`) on top of the retained scene, in that
+ * fixed order, matching the Geometry profile's overlays (`spec/rendering.md:129-139`). A `save`/
+ * `restore` bracket isolates the overlay draw calls' `strokeStyle`/`fillStyle`/`lineWidth` from
+ * whatever the caller sets afterwards (mirroring {@link paintAvatar}'s isolation).
+ */
+export function paintOverlay(
+  target: RenderTarget,
+  overlay: OverlayState,
+  viewport: Viewport,
+): void {
+  target.save();
+  if (overlay.grid !== undefined) {
+    paintGridOverlay(target, overlay.grid, viewport);
+  }
+  if (overlay.axes) {
+    paintAxesOverlay(target, viewport);
+  }
+  if (overlay.measure !== undefined) {
+    paintMeasureOverlay(
+      target,
+      overlay.measure.position,
+      overlay.measure.heading,
+      viewport,
+    );
+  }
+  target.restore();
+}
+
 /**
  * Repaints the target from the retained scene alone: background, then each drawing item in
  * execution order (a `draw-segment` strokes a line with the color/width captured in that
  * segment; a `fill` fills the enclosed path formed by the immediately preceding contiguous
- * segments; a `stamp` paints a fixed avatar at its own recorded position/heading/shape/color).
+ * segments; a `stamp` paints a fixed avatar at its own recorded position/heading/shape/color),
+ * then any enabled overlays ({@link paintOverlay}; `overlay` defaults to none, painting nothing).
  * Never re-runs the program and never reads live turtle state — that is {@link paintTurtle}'s
  * job, layered on top.
  */
@@ -268,6 +428,7 @@ export function paintScene(
   target: RenderTarget,
   scene: TurtleScene,
   viewport: Viewport,
+  overlay?: OverlayState,
 ): void {
   target.fillStyle = scene.background;
   target.fillRect(0, 0, viewport.width, viewport.height);
@@ -311,23 +472,30 @@ export function paintScene(
       item.stamp.color,
     );
   });
+
+  if (overlay !== undefined) {
+    paintOverlay(target, overlay, viewport);
+  }
 }
 
 /**
- * Repaints the whole target: the retained scene (background + drawing items), then the live
- * turtle avatar on top — but only when `state.visible` (`spec/rendering.md`: "A hidden turtle
- * still moves, turns, draws when the pen is down, and reports its state normally" — hiding it
- * only omits the avatar, never the scene). This is the renderer's one public entry point for a
- * full repaint; production code calls it with a real Canvas 2D context, tests with a recording
- * fake, both satisfying {@link RenderTarget} structurally.
+ * Repaints the whole target: the retained scene (background + drawing items), then any enabled
+ * overlays, then the live turtle avatar on top — but only when `state.visible`
+ * (`spec/rendering.md`: "A hidden turtle still moves, turns, draws when the pen is down, and
+ * reports its state normally" — hiding it only omits the avatar, never the scene or overlays).
+ * `overlay` defaults to omitted (no overlays painted) for callers that have not yet reduced
+ * overlay state. This is the renderer's one public entry point for a full repaint; production
+ * code calls it with a real Canvas 2D context, tests with a recording fake, both satisfying
+ * {@link RenderTarget} structurally.
  */
 export function paintTurtle(
   target: RenderTarget,
   scene: TurtleScene,
   state: TurtleState,
   viewport: Viewport,
+  overlay?: OverlayState,
 ): void {
-  paintScene(target, scene, viewport);
+  paintScene(target, scene, viewport, overlay);
   if (state.visible) {
     paintAvatar(
       target,
@@ -383,8 +551,8 @@ export function renderFrame(
   source: ReducedMotionSource,
   viewport: Viewport,
 ): void {
-  const { state, scene } = source.getSnapshot();
-  paintTurtle(target, scene, state, viewport);
+  const { state, scene, overlay } = source.getSnapshot();
+  paintTurtle(target, scene, state, viewport, overlay);
 }
 
 /**

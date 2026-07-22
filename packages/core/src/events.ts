@@ -211,6 +211,53 @@ export interface ReturnPayload {
 }
 
 /**
+ * Payload for an `overlay` event emitted by `grid` (Geometry profile,
+ * `spec/geometry-module.md:268-278`): creates/refreshes the persistent grid guide-line overlay.
+ * `spacing` is the world-unit distance between adjacent guide lines (default `20`,
+ * `spec/geometry-module.md:272`/`spec/rendering.md:133`). Never changes turtle position,
+ * heading, pen, color, or width, and survives `clean` (the overlay reducer has no `clear` case —
+ * see `@openlogo/turtle`'s `overlay.ts`).
+ */
+export interface GridOverlayPayload {
+  readonly overlay: "grid";
+  readonly spacing: number;
+}
+
+/**
+ * Payload for an `overlay` event emitted by `axes` (Geometry profile,
+ * `spec/geometry-module.md:282-291`): creates/refreshes the persistent coordinate-axes overlay
+ * (the line `y == 0` and the line `x == 0`, crossing at `home`). Carries no extra data — the
+ * overlay is a fixed pair of lines through the origin. Never changes turtle state and survives
+ * `clean`.
+ */
+export interface AxesOverlayPayload {
+  readonly overlay: "axes";
+}
+
+/**
+ * Payload for an `overlay` event emitted by `measure` (Geometry profile,
+ * `spec/geometry-module.md:296-306`): creates/refreshes the educational annotation overlay,
+ * snapshotting the turtle's `position`/`heading` at the moment of the call — one of the
+ * spec-permitted annotation kinds ("current position, heading" — `spec/geometry-module.md:300`).
+ * Returns no value and never changes turtle state; the overlay survives `clean` and is excluded
+ * from exported drawing geometry unless an export format explicitly includes overlays.
+ */
+export interface MeasureOverlayPayload {
+  readonly overlay: "measure";
+  readonly position: Point;
+  readonly heading: number;
+}
+
+/**
+ * The `overlay` event's payload — a discriminated union on `overlay`, one arm per Geometry-profile
+ * overlay primitive ({@link GridOverlayPayload}, {@link AxesOverlayPayload},
+ * {@link MeasureOverlayPayload}). See `spec/geometry-module.md:268-308` and
+ * `spec/rendering.md:129-139` ("Grid, axes, and measure overlays").
+ */
+export type OverlayPayload =
+  GridOverlayPayload | AxesOverlayPayload | MeasureOverlayPayload;
+
+/**
  * The four baseline meta-commands that emit `tutor-output` events
  * (`spec/educational-model.md#baseline-meta-commands`), owned by the Educational profile.
  */
@@ -327,10 +374,10 @@ export type TutorOutputPayload =
  * The trace-event envelope. `payload` is kind-specific typed data — the payload interfaces
  * above cover every Turtle & Rendering kind (`move`, `turn`, `pen-change`, `width-change`,
  * `color-change`, `background-change`, `draw-segment`, `fill`, `stamp`, `shape-change`,
- * `visibility-change`, `clear`) plus `print`/`procedure-enter`/`procedure-exit`/`return`, and
- * `tutor-output` (Educational profile, via {@link TutorOutputPayload}); other kinds (e.g.
- * `overlay`, `sound`, `spawn-turtle`, `primitive`, `error`) refine their payload with their
- * feature slice.
+ * `visibility-change`, `clear`), `print`/`procedure-enter`/`procedure-exit`/`return`,
+ * `tutor-output` (Educational profile, via {@link TutorOutputPayload}), and `overlay` (Geometry
+ * profile, via {@link OverlayPayload}); other kinds (e.g. `sound`, `spawn-turtle`, `primitive`,
+ * `error`) refine their payload with their feature slice.
  */
 export interface TraceEvent<P = unknown> {
   /** Monotonic sequence number, ordering the stream. */

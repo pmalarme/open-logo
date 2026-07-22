@@ -1,0 +1,28 @@
+{
+  "description": "issue #341: bare `axes` (Kind C, arity 0) emits exactly one `overlay` event with payload {overlay:\"axes\"} and no turtle-state-changing event (no move/turn/draw-segment).",
+  "profiles": ["geometry"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/overlays/axes-basic",
+        "start": [1, 1],
+        "end": [1, 5]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "overlay",
+      "source_span": {
+        "document": "geometry/overlays/axes-basic",
+        "start": [1, 1],
+        "end": [1, 5]
+      },
+      "payload": { "overlay": "axes" }
+    }
+  ],
+  "diagnostics": []
+}
