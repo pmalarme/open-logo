@@ -64,3 +64,31 @@ export { hint } from "./tutor/hint.js";
 
 // A5 (#335): the deterministic, offline, template-based `debug` baseline meta-command.
 export { debug } from "./debug.js";
+
+// #342: @geometry-teacher's deterministic geometric-reasoning primitives — exterior angle,
+// turn total, closure, and heading facts as structured data, plus a stable-id misconception
+// signal for a non-closing path. No AI, no prose, no new trace-event kinds — pure functions over
+// shape parameters or the existing `@openlogo/core` trace-event stream
+// (`.github/skills/geometry-teacher/geometry-reasoning/SKILL.md`). Append-only, like the exports
+// above it.
+export type {
+  ArcReasoning,
+  CircleReasoning,
+  ClosureMisconceptionSignal,
+  GeometryReasoningConcept,
+  PolygonReasoning,
+  StarReasoning,
+  TurtlePathClosureReasoning,
+} from "./geometry-reasoning/index.js";
+export {
+  analyzeTurtlePathClosure,
+  clockwiseTurnDelta,
+  degreesToRadians,
+  isMultipleOf360,
+  normalizeDegrees,
+  reasonAboutArc,
+  reasonAboutCircle,
+  reasonAboutPolygon,
+  reasonAboutStar,
+  sumClockwiseTurns,
+} from "./geometry-reasoning/index.js";
