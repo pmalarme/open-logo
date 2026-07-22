@@ -1,0 +1,6 @@
+struct point [ x y ]
+:records = []
+add (point 1 2) to :records
+add (point 3 4) to :records
+:total = reduce acc [:x :y] in :records from 0 [ :acc + :x + :y ]
+print :total

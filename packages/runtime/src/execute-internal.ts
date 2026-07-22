@@ -60,6 +60,7 @@ import {
   corePrimitiveArity,
   dataPrimitiveArity,
   educationalPrimitiveArity,
+  geometryPrimitiveArity,
   isReservedWord,
   parse,
   turtlePrimitiveArity,
@@ -2118,16 +2119,18 @@ type StructCollection =
 /**
  * Is `name` already a primitive in ANY profile's callable table? `struct` registers a constructor
  * in the callable namespace, so a struct type name that shadows any built-in command/reporter —
- * Core, Turtle, Data, or Educational — is a collision regardless of which profiles a given program
- * happens to touch, mirroring how {@link runProgram} runs every profile's primitives unconditionally
- * (`execute()` does not gate by profile).
+ * Core, Turtle, Data, Educational, or the Geometry overlay (`grid`/`axes`/`measure`) — is a
+ * collision regardless of which profiles a given program happens to touch, mirroring how
+ * {@link runProgram} runs every profile's primitives unconditionally (`execute()` does not gate by
+ * profile).
  */
 function isPrimitiveName(name: string): boolean {
   return (
     corePrimitiveArity(name) !== undefined ||
     turtlePrimitiveArity(name) !== undefined ||
     dataPrimitiveArity(name) !== undefined ||
-    educationalPrimitiveArity(name) !== undefined
+    educationalPrimitiveArity(name) !== undefined ||
+    geometryPrimitiveArity(name) !== undefined
   );
 }
 

@@ -1,0 +1,8 @@
+struct point [ x y ]
+:records = []
+add (point 1 2) to :records
+add (point 3 4) to :records
+for [:x :y] in :records [
+  print :x
+  print :y
+]

@@ -1,0 +1,37 @@
+{
+  "description": "F4: `is_a?` takes exactly two inputs; a parenthesized under-supply raises ol-not-enough-inputs at runtime instead of arg() throwing a raw, non-ol-* Error. Issue #403.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/is-a-not-enough-inputs",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-not-enough-inputs",
+      "source_span": {
+        "document": "core-language/execution/is-a-not-enough-inputs",
+        "start": [1, 8],
+        "end": [1, 13]
+      },
+      "params": {
+        "callable": "is_a?",
+        "expected": 2,
+        "actual": 1
+      },
+      "message": "is_a? needs 2 inputs, but got 1.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

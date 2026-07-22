@@ -1,0 +1,6 @@
+struct point [ x y ]
+:records = []
+add (point 1 2) to :records
+add (point 3 4) to :records
+:big = filter [:x :y] in :records [ :x > 2 ]
+print count :big
