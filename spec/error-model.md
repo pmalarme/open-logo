@@ -82,9 +82,9 @@ Most registry codes below have `severity: error`: execution cannot continue norm
 the offending construct.
 
 Style findings from the linter reuse the same diagnostic shape with `severity: warning`
-and `ol-style-*` codes. The style namespace includes `ol-style-useless-value`, used when
-a control block's last line is a bare value that will be discarded by the block-result
-rule. A warning MUST NOT change program meaning.
+and `ol-style-*` codes; a warning MUST NOT change program meaning. Those codes are
+registered normatively in [tooling](tooling.md), not in this registry (see Style linter
+codes below).
 
 ## Normative code registry
 
