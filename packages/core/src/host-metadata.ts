@@ -13,13 +13,14 @@
  * `turtle-rendering`, `geometry`, `data`, `heritage`, `sprites`, `interaction-events`, `sound`,
  * `modules`, `localization`, `educational`, `tutor-ai`.
  *
- * IMPORTANT — sequencing constraint (issue #406, part of the M4 audit #396, finding F9): the
- * `data` and `geometry` profile ids MUST NOT be added to {@link SUPPORTED_PROFILES} until the
- * Data/Geometry correctness gaps tracked by issues #397 and the sibling F2-F6 remediation slices
- * are merged (list constructor, record destructuring, semantic-checker registration, runtime
- * arity guards, and the struct/Geometry primitive collision). Claiming those profiles earlier
- * would be a false conformance claim — exactly the failure mode the M4 audit exists to catch. Add
- * them only once ground truth supports it.
+ * {@link SUPPORTED_PROFILES} MUST list only the profiles this implementation currently and
+ * correctly supports (issue #406, part of the M4 audit #396, finding F9). `data` and `geometry`
+ * were added once their M4 correctness gaps (issue #397 and the sibling F2-F6 remediation
+ * slices — list constructor, record destructuring, semantic-checker registration, runtime arity
+ * guards, and the struct/Geometry primitive collision) merged and conformance went green.
+ * Claiming a profile before it is conformant would be a false conformance claim — exactly the
+ * failure mode the M4 audit exists to catch — so any future profile addition here must follow
+ * the same rule: land the profile's conformance fixes first, then claim it.
  */
 
 import { OPENLOGO_VERSION } from "./version.js";
@@ -31,13 +32,14 @@ export type SupportedProfile = (typeof SUPPORTED_PROFILES)[number];
 export type RenderingTarget = (typeof SUPPORTED_RENDERING_TARGETS)[number];
 
 /**
- * Profiles this implementation currently and correctly supports. Do not add `data` or `geometry`
- * here until the F2-F6 remediation slices (issue #397 and siblings) have merged — see the module
- * doc comment above.
+ * Profiles this implementation currently and correctly supports. Only add a profile here once its
+ * conformance fixes have merged and gone green — see the module doc comment above.
  */
 export const SUPPORTED_PROFILES = [
   "core-language",
   "turtle-rendering",
+  "data",
+  "geometry",
 ] as const;
 
 /**

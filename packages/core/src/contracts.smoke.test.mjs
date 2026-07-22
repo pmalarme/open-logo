@@ -45,8 +45,8 @@ test("core exposes feature-detection metadata a host can query via the public AP
   assert.equal(metadata.openlogo.version, "0.1.0");
   assert.ok(metadata.supportedProfiles.includes("core-language"));
   assert.ok(metadata.supportedProfiles.includes("turtle-rendering"));
-  assert.ok(!metadata.supportedProfiles.includes("data"));
-  assert.ok(!metadata.supportedProfiles.includes("geometry"));
+  assert.ok(metadata.supportedProfiles.includes("data"));
+  assert.ok(metadata.supportedProfiles.includes("geometry"));
   assert.deepEqual(metadata.renderingTargets, ["canvas", "svg", "png"]);
   assert.equal(Object.isFrozen(metadata), true);
 });

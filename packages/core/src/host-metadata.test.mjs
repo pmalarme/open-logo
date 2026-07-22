@@ -8,14 +8,16 @@ test("getHostMetadata exposes the exact spec version", () => {
   assert.equal(metadata.openlogo.version, OL.OPENLOGO_VERSION);
 });
 
-test("getHostMetadata does not over-claim data or geometry", () => {
+test("getHostMetadata reports the full M4-delivered profile set", () => {
   const metadata = OL.getHostMetadata();
   assert.deepEqual(metadata.supportedProfiles, [
     "core-language",
     "turtle-rendering",
+    "data",
+    "geometry",
   ]);
-  assert.ok(!metadata.supportedProfiles.includes("data"));
-  assert.ok(!metadata.supportedProfiles.includes("geometry"));
+  assert.ok(metadata.supportedProfiles.includes("data"));
+  assert.ok(metadata.supportedProfiles.includes("geometry"));
 });
 
 test("getHostMetadata exposes rendering targets because turtle-rendering is claimed", () => {
@@ -39,7 +41,7 @@ test("getHostMetadata is immutable: top-level and nested objects are frozen", ()
   assert.throws(() => {
     "use strict";
     // @ts-expect-error -- intentionally mutating a readonly array to prove it is frozen.
-    metadata.supportedProfiles.push("data");
+    metadata.supportedProfiles.push("sprites");
   }, TypeError);
 });
 
