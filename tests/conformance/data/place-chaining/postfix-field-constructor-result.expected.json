@@ -1,0 +1,44 @@
+{
+  "description": "`(point 3 4).x` (issue #407/F7): a postfix field selector reads directly off a parenthesized constructor-call result, not just a `:var`-rooted place — `print` sees the resulting `3`, proving the parser no longer requires the base to be a variable read.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/place-chaining/postfix-field-constructor-result",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "statement_kind": "StructDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/place-chaining/postfix-field-constructor-result",
+        "start": [3, 1],
+        "end": [3, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "data/place-chaining/postfix-field-constructor-result",
+        "start": [3, 1],
+        "end": [3, 20]
+      },
+      "payload": {
+        "values": [3]
+      }
+    }
+  ],
+  "diagnostics": []
+}

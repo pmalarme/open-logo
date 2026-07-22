@@ -1,0 +1,56 @@
+{
+  "description": "issue #407/F8 (clean/positive control): `reduce acc [:x :y] in :pairs from 0 [...]` — the accumulator `acc` is distinct from both pattern names `x`/`y`, so no `ol-duplicate-binder` fires and the fold computes the correct value (`1+2+3+4=10`), proving the new accumulator-vs-pattern check only rejects real collisions.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/reduce-destructuring-pattern-clean",
+        "start": [1, 1],
+        "end": [1, 23]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/reduce-destructuring-pattern-clean",
+        "start": [2, 1],
+        "end": [2, 64]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/reduce-destructuring-pattern-clean",
+        "start": [3, 1],
+        "end": [3, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/reduce-destructuring-pattern-clean",
+        "start": [3, 1],
+        "end": [3, 13]
+      },
+      "payload": {
+        "values": [10]
+      }
+    }
+  ],
+  "diagnostics": []
+}

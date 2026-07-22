@@ -413,6 +413,7 @@ export function highlight(source: string, document = "<input>"): Token[] {
         break;
       }
       case "Place":
+      case "PostfixExpression":
         for (const segment of node.segments) {
           if (segment.kind === "index") {
             markBracketPair(segment.source_span, "selector");

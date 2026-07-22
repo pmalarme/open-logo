@@ -165,6 +165,15 @@ test("ol-style-name-case: an UPPERCASE place field name is flagged", () => {
   assert.deepEqual(diagnostics[0].params, { name: "TurnAngle" });
 });
 
+test("ol-style-name-case: an UPPERCASE field name on a PostfixExpression base is flagged (issue #407/F7)", () => {
+  const diagnostics = checkStyle("print { tom: 8 }.TomAge", [
+    "core-language",
+    "data",
+  ]).filter((d) => d.code === "ol-style-name-case");
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, { name: "TomAge" });
+});
+
 test("ol-style-name-case: an UPPERCASE procedure name and its params are each flagged", () => {
   const diagnostics = checkStyle(
     "define DrawSquare :Size\n  print :Size\nend",

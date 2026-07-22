@@ -784,26 +784,89 @@ export function parse(source: string, document = "<input>"): ParseResult {
     return segments;
   }
 
+  /**
+   * Counts how many redundant bare-grouping `( … )` wrappers `parseParenthesized` stripped
+   * around the expression that starts at `innerStart`, by walking the raw token stream forward
+   * from `startIndex` (the token `parsePrimary` began consuming from). Its bare-grouping branch
+   * never wraps or extends the inner expression's own span, so each stripped level leaves exactly
+   * one more leading `lparen` token before reaching `innerStart` — while a callee-form `ParenCall`
+   * (e.g. `(first :x)`) already spans its *own* `(`, so `innerStart` equals that very `(` token's
+   * position and the scan stops immediately at 0, never double-counting its self-preserved parens
+   * (issue #407/F7 follow-up: rubber-duck found a single boolean cannot represent `((1 + 2)).x`'s
+   * two stripped levels, and that the same gap let `(:x)` — genuinely parenthesized — wrongly
+   * parse as an assignable bare `:x` place).
+   */
+  function countStrippedGroupingParens(
+    startIndex: number,
+    innerStart: Position,
+  ): number {
+    let count = 0;
+    let index = startIndex;
+    for (;;) {
+      const token = tokens[Math.min(index, tokens.length - 1)] as LexToken;
+      if (token.kind === "newline") {
+        index += 1;
+        continue;
+      }
+      const atInnerStart =
+        token.source_span.start[0] === innerStart[0] &&
+        token.source_span.start[1] === innerStart[1];
+      if (token.kind !== "lparen" || atInnerStart) {
+        return count;
+      }
+      count += 1;
+      index += 1;
+    }
+  }
+
   function parsePostfix(): ExpressionNode | undefined {
+    const primaryStart = current();
+    const primaryStartIndex = pos;
     const primary = parsePrimary();
     if (primary === undefined) {
       return undefined;
     }
     // A postfix read `:a.b.c` or `:nums[1]` grows the bare variable into a place; a plain `:a`
     // stays a VarRef. A `[` counts only when adjacent, so a spaced `[ … ]` stays a separate token.
-    if (
-      primary.kind === "VarRef" &&
-      ((current().kind === "dot" && peek(1).kind === "name") ||
-        (current().kind === "lbracket" && currentAdjacentToPrev()))
-    ) {
+    const hasPostfixAhead =
+      (current().kind === "dot" && peek(1).kind === "name") ||
+      (current().kind === "lbracket" && currentAdjacentToPrev());
+    if (!hasPostfixAhead) {
+      return primary;
+    }
+    const parenGroupCount = countStrippedGroupingParens(
+      primaryStartIndex,
+      primary.source_span.start,
+    );
+    // Only a genuinely bare `:name` — never a parenthesized `(:name)` — grows into an assignable
+    // Place; `(:x).foo` is a read of `:x`'s own value, not a place chain rooted at `:x` (spec's
+    // closed place grammar, `colon-place ::= ":" name { postfix }`, is the bare form only).
+    if (primary.kind === "VarRef" && parenGroupCount === 0) {
       const base: SpannedName = {
         name: primary.name,
         source_span: primary.source_span,
       };
       const segments = collectPostfixSegments();
-      return ast.place(base, segments, spanToHere(primary.source_span.start));
+      return ast.place(
+        base,
+        segments,
+        spanToHere(primaryStart.source_span.start),
+      );
     }
-    return primary;
+    // `spec/grammar.md:188` — `postfix-expression ::= primary { selector | "." identifier }` —
+    // permits a postfix read after *any* primary, not only a `:name`. A literal-list read
+    // (`[1 2][1]`), a dict-literal field read (`{tom: 8}.tom`), a constructor-call-result field
+    // read (`(point 0 0).x`), or a parenthesized variable read (`(:x).foo`) all grow their
+    // primary into a read-only PostfixExpression. Assignment targets never reach this branch —
+    // `set`/`=` parsing builds a `Place` directly from a `:name`/bare-name base without going
+    // through `parsePostfix`.
+    const segments = collectPostfixSegments();
+    return ast.postfixExpression(
+      primary,
+      segments,
+      spanToHere(primaryStart.source_span.start),
+      parenGroupCount,
+    );
   }
 
   function parsePrimary(): ExpressionNode | undefined {
@@ -1325,12 +1388,14 @@ export function parse(source: string, document = "<input>"): ParseResult {
     }
     const expr = parseExpression();
     // A reporter/call or a bare literal used as an assignment target — `first :x = 5`,
-    // `count :nums = 3`, `3 = 5` — is not a place. Recognize the structure here so the semantic
-    // checker can flag it with `ol-not-a-place` (spec/tooling.md:213-219) instead of a blunt parse
-    // error; `=` is the only op that survives to this fall-through, so a bare `text === "="` guard
-    // is sufficient. A bare `:name` never reaches this fall-through (it is always routed through
-    // `colonAssignmentAhead()`/`parseColonAssignment()` into a proper `Place`), so `VarRef` is not
-    // one of the kinds recognized here.
+    // `count :nums = 3`, `3 = 5`, `[1 2][1] = 5` — is not a place. Recognize the structure here so
+    // the semantic checker can flag it with `ol-not-a-place` (spec/tooling.md:213-219) instead of
+    // a blunt parse error; `=` is the only op that survives to this fall-through, so a bare
+    // `text === "="` guard is sufficient. A bare `:name` never reaches this fall-through (it is
+    // always routed through `colonAssignmentAhead()`/`parseColonAssignment()` into a proper
+    // `Place`), so `VarRef` is not one of the kinds recognized here. `PostfixExpression` (issue
+    // #407/F7) is the postfix-after-any-primary read shape `parsePostfix` builds for a non-`:name`
+    // base — never itself a valid place, since a valid place is always variable-rooted.
     if (expr === undefined) {
       return undefined;
     }
@@ -1340,7 +1405,8 @@ export function parse(source: string, document = "<input>"): ParseResult {
       expr.kind === "NumberLit" ||
       expr.kind === "WordLit" ||
       expr.kind === "BooleanLit" ||
-      expr.kind === "ListLit";
+      expr.kind === "ListLit" ||
+      expr.kind === "PostfixExpression";
     if (isNonPlaceTarget && current().text === "=") {
       advance();
       const value = parseExpression();

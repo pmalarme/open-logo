@@ -31,6 +31,7 @@ export const OL_NODE_KINDS = [
   "ValueOfKey",
   "VarRef",
   "Place",
+  "PostfixExpression",
   "Assign",
   "Local",
   "Call",
@@ -219,6 +220,36 @@ export interface PlaceNode extends NodeBase {
   readonly kind: "Place";
   readonly base: SpannedName;
   readonly segments: readonly PlaceSegment[];
+}
+
+/**
+ * A postfix read over an arbitrary expression base — `spec/grammar.md:188`'s
+ * `postfix-expression ::= primary { selector | "." identifier }`, which permits a postfix after
+ * *any* primary, not only a `:name` (that narrower, variable-rooted case stays a {@link PlaceNode}
+ * so assignment targets are unaffected). Covers a selector/field read directly off a list/dict
+ * literal (`[1 2][1]`, `{tom: 8}.tom`) or a constructor-call/parenthesized result
+ * (`(point 0 0).x`). Read-only: this node never appears as an assignment target — `parser.ts`'s
+ * assignment-target parsing builds a {@link PlaceNode} directly and never goes through
+ * `parsePostfix`, so a `PostfixExpression` base is always evaluated, then its segments are walked
+ * exactly like a `Place`'s (never upserted).
+ */
+export interface PostfixExpressionNode extends NodeBase {
+  readonly kind: "PostfixExpression";
+  readonly base: ExpressionNode;
+  readonly segments: readonly PlaceSegment[];
+  /**
+   * How many redundant bare-grouping `( … )` wrappers the surface source put around `base` —
+   * `(1 + 2).x` is 1, `((1 + 2)).x` is 2, `1 + 2.x` (no wrapping) is 0 (issue #407/F7 follow-up:
+   * rubber-duck found a single boolean cannot represent more than one level). `parsePostfix`
+   * strips every one of those parens when it re-derives `base`'s span from the primary-start
+   * token, so this count is the only remaining signal for the AST-fallback renderer
+   * (`checker-not-a-place.ts`'s `renderPostfixExpression`) to re-add them; source-slicing needs no
+   * such count because `source_span` already spans the parens. A callee-form `(first :x)` is a
+   * `ParenCall`, which already preserves its own parens in its own `source_span` — it is never
+   * counted here, so its `PostfixExpression` wrapper (if any) starts at 0 and only counts any
+   * *additional* bare grouping around it, e.g. `((first :x)).foo` is 1.
+   */
+  readonly parenGroupCount: number;
 }
 
 /**
@@ -489,6 +520,7 @@ export type ExpressionNode =
   | ValueOfKeyNode
   | VarRefNode
   | PlaceNode
+  | PostfixExpressionNode
   | CallNode
   | ParenCallNode
   | ComparisonChainNode
@@ -577,6 +609,20 @@ export const ast = {
     span: SourceSpan,
   ): PlaceNode {
     return { kind: "Place", source_span: span, base, segments };
+  },
+  postfixExpression(
+    base: ExpressionNode,
+    segments: readonly PlaceSegment[],
+    span: SourceSpan,
+    parenGroupCount: number,
+  ): PostfixExpressionNode {
+    return {
+      kind: "PostfixExpression",
+      source_span: span,
+      base,
+      segments,
+      parenGroupCount,
+    };
   },
   assign(
     place: ExpressionNode,
@@ -796,6 +842,16 @@ export function childrenOf(node: AnyNode): readonly AnyNode[] {
       return node.segments.flatMap((segment) =>
         segment.kind === "index" ? [segment.key] : [],
       );
+    case "PostfixExpression":
+      // Unlike `Place`, the base itself is a walkable expression (a literal, constructor call,
+      // or any other primary) — see the field segments note on the "Place" case above for why
+      // only bracketed selectors contribute further children.
+      return [
+        node.base,
+        ...node.segments.flatMap((segment) =>
+          segment.kind === "index" ? [segment.key] : [],
+        ),
+      ];
     case "If":
       return node.elseBody === undefined
         ? [node.condition, node.thenBody]

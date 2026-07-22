@@ -143,6 +143,35 @@ test("the AST fallback renders a field-selector Place call argument via renderPl
   assert.deepEqual(finding.params, { text: "count :point.x" });
 });
 
+test("the AST fallback renders a PostfixExpression target via renderPostfixExpression/renderSegments (issue #407/F7), e.g. [1 2][1] = 5", () => {
+  const [finding] = checkNoSource("[1 2][1] = 5").filter(isNotAPlace);
+  assert.deepEqual(finding.params, { text: "[1 2][1]" });
+});
+
+test("the AST fallback renders a field-selector PostfixExpression target, e.g. { tom: 8 }.tom = 9", () => {
+  const [finding] = checkNoSource("{ tom: 8 }.tom = 9", [
+    "core-language",
+    "data",
+  ]).filter(isNotAPlace);
+  assert.deepEqual(finding.params, { text: "{ tom: 8 }.tom" });
+});
+
+test("the AST fallback renders a dict literal PostfixExpression base with a numeric key, e.g. { 8: 1 }.foo = 9", () => {
+  const [finding] = checkNoSource("{ 8: 1 }.foo = 9", [
+    "core-language",
+    "data",
+  ]).filter(isNotAPlace);
+  assert.deepEqual(finding.params, { text: "{ 8: 1 }.foo" });
+});
+
+test("the AST fallback renders an empty dict literal PostfixExpression base as `{ }`, e.g. { }.foo = 9", () => {
+  const [finding] = checkNoSource("{ }.foo = 9", [
+    "core-language",
+    "data",
+  ]).filter(isNotAPlace);
+  assert.deepEqual(finding.params, { text: "{ }.foo" });
+});
+
 test("the AST fallback renders a zero-argument callee target with just its name, no trailing space", () => {
   const [finding] = checkNoSource("pi = 5").filter(isNotAPlace);
   assert.deepEqual(finding.params, { text: "pi" });
@@ -204,6 +233,139 @@ test("the AST fallback renders a genuine two-argument prefix call target in pref
     "define combine :a :b\n  print :a\nend\ncombine 1 2 = 5\n",
   ).filter(isNotAPlace);
   assert.deepEqual(finding.params, { text: "combine 1 2" });
+});
+
+// ── The AST fallback's postfix-base render paths for the newly-legal `primary` bases (issue
+// #407/F7 follow-up: a comparison chain, `is`-predicate, comprehension, or `value of … for
+// key …` reader can be a postfix base directly or via a parenthesized grouping) ────────────────
+
+test("the AST fallback wraps a parenthesized infix-call postfix base back in its own parens, e.g. (1 + 2).x = 3 (rubber-duck finding: the base's own leading paren was dropped from both the span and the render)", () => {
+  const [finding] = checkNoSource("(1 + 2).x = 3").filter(isNotAPlace);
+  assert.deepEqual(finding.params, { text: "(1 + 2).x" });
+});
+
+test("the AST fallback renders a parenthesized comparison-chain postfix base, e.g. (1 < 2 < 3).x = 3", () => {
+  const [finding] = checkNoSource("(1 < 2 < 3).x = 3").filter(isNotAPlace);
+  assert.deepEqual(finding.params, { text: "(1 < 2 < 3).x" });
+});
+
+test("the AST fallback renders a parenthesized `is empty` predicate postfix base, e.g. (1 is empty).x = 3", () => {
+  const [finding] = checkNoSource("(1 is empty).x = 3").filter(isNotAPlace);
+  assert.deepEqual(finding.params, { text: "(1 is empty).x" });
+});
+
+test("the AST fallback renders every worded is-predicate form nested inside a list-literal postfix base", () => {
+  assert.deepEqual(
+    checkNoSource("[:x is member of [1 2]].y = 3").filter(isNotAPlace)[0]
+      .params,
+    { text: "[:x is member of [1 2]].y" },
+  );
+  assert.deepEqual(
+    checkNoSource('[:x is a "number"].y = 3').filter(isNotAPlace)[0].params,
+    { text: '[:x is a "number"].y' },
+  );
+  assert.deepEqual(
+    checkNoSource("[:n is between 1 and 10].y = 3").filter(isNotAPlace)[0]
+      .params,
+    { text: "[:n is between 1 and 10].y" },
+  );
+  assert.deepEqual(
+    checkNoSource("[:n is strictly between 1 and 10].y = 3").filter(
+      isNotAPlace,
+    )[0].params,
+    { text: "[:n is strictly between 1 and 10].y" },
+  );
+});
+
+test("the AST fallback renders a comprehension postfix base with a bare-name binder, e.g. (map n in [1] [ :n ]).x = 3", () => {
+  const [finding] = checkNoSource("(map n in [1] [ :n ]).x = 3").filter(
+    isNotAPlace,
+  );
+  assert.deepEqual(finding.params, { text: "(map n in [1] [ :n ]).x" });
+});
+
+test("the AST fallback renders a reduce comprehension postfix base with its accumulator/from clause, e.g. (reduce total n in [1] from 0 [ :total ]).x = 3", () => {
+  const [finding] = checkNoSource(
+    "(reduce total n in [1] from 0 [ :total ]).x = 3",
+  ).filter(isNotAPlace);
+  assert.deepEqual(finding.params, {
+    text: "(reduce total n in [1] from 0 [ :total ]).x",
+  });
+});
+
+test("the AST fallback renders a comprehension postfix base with a destructuring binder pattern, e.g. (map [ :a :b ] in [[1 2]] [ :a ]).x = 3", () => {
+  const [finding] = checkNoSource(
+    "(map [ :a :b ] in [[1 2]] [ :a ]).x = 3",
+  ).filter(isNotAPlace);
+  assert.deepEqual(finding.params, {
+    text: "(map [ :a :b ] in [[1 2]] [ :a ]).x",
+  });
+});
+
+test("the AST fallback falls back to a bounded placeholder for a comprehension body that is not a single bracketed expression, e.g. map n in [1] [ local z ].x = 3 (a statement-only form, not an ExpressionNode)", () => {
+  const [finding] = checkNoSource("map n in [1] [ local z ].x = 3").filter(
+    isNotAPlace,
+  );
+  assert.deepEqual(finding.params, { text: "map n in [1] [ … ].x" });
+});
+
+test('the AST fallback renders a value-of-key reader nested inside a list-literal postfix base, e.g. [value of { a: 1 } for key "a"][0].y = 3 (issue #407/F7 postfix base)', () => {
+  const [finding] = checkNoSource('[value of { a: 1 } for key "a"][0].y = 3', [
+    "core-language",
+    "data",
+  ]).filter(isNotAPlace);
+  assert.deepEqual(finding.params, {
+    text: '[value of { a: 1 } for key "a"][0].y',
+  });
+});
+
+test("a parenthesized bare-variable postfix base (:x).foo = 1 is NOT a place — only the unparenthesized :x.foo form roots a place chain (rubber-duck round-2: a single boolean paren flag let (:x) wrongly parse as an assignable bare variable)", () => {
+  const [finding] = checkSource(":x = 1\n(:x).foo = 1\n").filter(isNotAPlace);
+  assert.deepEqual(finding.params, { text: "(:x).foo" });
+});
+
+test("the AST fallback renders the same parenthesized bare-variable postfix base (:x).foo = 1 with no source", () => {
+  const [finding] = checkNoSource(":x = 1\n(:x).foo = 1\n").filter(isNotAPlace);
+  assert.deepEqual(finding.params, { text: "(:x).foo" });
+});
+
+test("(:x).foo = 1 parses as a PostfixExpression target (base VarRef, one grouping paren), never a Place — the unparenthesized :x.foo = 1 still parses as a Place", () => {
+  const parenthesized = OL.parse(":x = 1\n(:x).foo = 1\n", "unit.logo").ast
+    .body[1].place;
+  assert.equal(parenthesized.kind, "PostfixExpression");
+  assert.equal(parenthesized.base.kind, "VarRef");
+  assert.equal(parenthesized.base.name, "x");
+  assert.equal(parenthesized.parenGroupCount, 1);
+
+  const bare = OL.parse(":x = 1\n:x.foo = 1\n", "unit.logo").ast.body[1].place;
+  assert.equal(bare.kind, "Place");
+  assert.equal(bare.base.name, "x");
+});
+
+test("the AST fallback wraps a DOUBLY-parenthesized infix-call postfix base in BOTH grouping levels, e.g. ((1 + 2)).x = 3 (rubber-duck round-2: a single boolean flag can only restore one level)", () => {
+  const [finding] = checkNoSource("((1 + 2)).x = 3").filter(isNotAPlace);
+  assert.deepEqual(finding.params, { text: "((1 + 2)).x" });
+});
+
+test("the AST fallback wraps one EXTRA grouping level around an already-self-parenthesizing ParenCall base, e.g. ((first :x)).foo = 1 renders both the callee-form parens AND the outer bare grouping", () => {
+  const [finding] = checkNoSource("((first :x)).foo = 1").filter(isNotAPlace);
+  assert.deepEqual(finding.params, { text: "((first :x)).foo" });
+});
+
+test("the depth-counting scan skips a newline token sitting between two grouping parens, e.g. ((\\n1 + 2\\n)).x = 3", () => {
+  const [finding] = checkNoSource("((\n1 + 2\n)).x = 3").filter(isNotAPlace);
+  assert.deepEqual(finding.params, { text: "((1 + 2)).x" });
+});
+
+test("source-slicing already renders both grouping levels correctly (the fallback now matches it): ((1 + 2)).x = 3 and ((first :x)).foo = 1", () => {
+  assert.deepEqual(
+    checkSource("((1 + 2)).x = 3").filter(isNotAPlace)[0].params,
+    { text: "((1 + 2)).x" },
+  );
+  assert.deepEqual(
+    checkSource("((first :x)).foo = 1").filter(isNotAPlace)[0].params,
+    { text: "((first :x)).foo" },
+  );
 });
 
 // ── ol-undefined-var: static reads of an unbound `:name` ─────────────────────────────────────

@@ -1,0 +1,32 @@
+{
+  "description": "`{ tom: 8 }.tom` (issue #407/F7): a postfix field selector reads directly off a dict-literal primary, not just a `:var`-rooted place — `print` sees the resulting `8`, proving the parser no longer requires the base to be a variable read.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/place-chaining/postfix-field-dict-literal",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "data/place-chaining/postfix-field-dict-literal",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "values": [8]
+      }
+    }
+  ],
+  "diagnostics": []
+}

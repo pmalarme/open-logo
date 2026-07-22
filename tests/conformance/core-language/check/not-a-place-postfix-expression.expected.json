@@ -1,0 +1,19 @@
+{
+  "description": "ol-not-a-place (issue #407/F7): `[1 2][1] = 5` targets a postfix read over a list-literal base — not a `:var`-rooted place — so the checker flags it as a value, not a place, rendering the FULL target surface text `[1 2][1]` via the new `PostfixExpression` case in `checker-not-a-place.ts`'s renderer.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-not-a-place",
+      "source_span": {
+        "document": "core-language/check/not-a-place-postfix-expression",
+        "start": [1, 1],
+        "end": [1, 9]
+      },
+      "params": { "text": "[1 2][1]" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

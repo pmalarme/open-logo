@@ -23,36 +23,35 @@
 
 import type { SourceSpan } from "@openlogo/core";
 import type {
-  BooleanLitNode,
+  Binder,
+  BlockNode,
   CallNode,
+  ComparisonChainNode,
+  ComprehensionNode,
+  DictEntryNode,
+  DictLitNode,
   ExpressionNode,
-  ListLitNode,
-  NumberLitNode,
+  IsPredicateNode,
+  IsTest,
   ParenCallNode,
   PlaceNode,
-  VarRefNode,
-  WordLitNode,
+  PostfixExpressionNode,
+  SpannedName,
+  StatementNode,
+  ValueOfKeyNode,
 } from "@openlogo/parser";
 
 /**
  * Every expression kind the parser can build in non-place assignment-target position, or nest
- * inside one as a call argument/list element/postfix selector key — the runtime's copy of
- * `checker-not-a-place.ts`'s `RenderableNode` (see that module's doc comment for why this set is
- * closed to exactly these eight kinds).
+ * inside one as a call argument/list element/dict entry value/postfix base/postfix selector key —
+ * the runtime's copy of `checker-not-a-place.ts`'s `RenderableNode`: exactly `ExpressionNode`,
+ * kept exhaustive by `renderNode`'s switch (see that module's doc comment).
  */
-export type RenderableNode =
-  | NumberLitNode
-  | WordLitNode
-  | BooleanLitNode
-  | VarRefNode
-  | PlaceNode
-  | ListLitNode
-  | CallNode
-  | ParenCallNode;
+export type RenderableNode = ExpressionNode;
 
 /** Renders a nested expression (a call argument or a list element). See {@link RenderableNode}. */
 function renderChild(node: ExpressionNode): string {
-  return renderNode(node as RenderableNode);
+  return renderNode(node);
 }
 
 /**
@@ -80,22 +79,155 @@ function isInfixOperatorCall(node: CallNode): boolean {
   return node.args.length === 2 && INFIX_OPERATORS.has(node.callee.name);
 }
 
-/** Renders a postfixed place `:base.field[key]` in its own surface spelling. */
-function renderPlace(node: PlaceNode): string {
-  const segments = node.segments
+/** Renders the shared `.field[key]` postfix segment suffix of a `Place`/`PostfixExpression`. */
+function renderSegments(segments: PlaceNode["segments"]): string {
+  return segments
     .map((segment) =>
       segment.kind === "field"
         ? `.${segment.name.name}`
         : `[${renderChild(segment.key)}]`,
     )
     .join("");
-  return `:${node.base.name}${segments}`;
+}
+
+/** Renders a postfixed place `:base.field[key]` in its own surface spelling. */
+function renderPlace(node: PlaceNode): string {
+  return `:${node.base.name}${renderSegments(node.segments)}`;
+}
+
+/**
+ * Renders a postfix read over an arbitrary primary — `[1 2][1]`, `{tom: 8}.tom`,
+ * `(point 0 0).x`, `(1 + 2).x`, `((1 + 2)).x` (issue #407/F7) — never itself a valid place, so it
+ * only ever appears here as a non-place assignment target. `parenGroupCount` re-adds every level
+ * of bare-grouping `( … )` the surface source wrapped `base` in (`ast.ts`'s `PostfixExpressionNode`
+ * doc comment).
+ */
+function renderPostfixExpression(node: PostfixExpressionNode): string {
+  const base = renderChild(node.base);
+  const baseText = `${"(".repeat(node.parenGroupCount)}${base}${")".repeat(node.parenGroupCount)}`;
+  return `${baseText}${renderSegments(node.segments)}`;
+}
+
+/** Renders a dict-entry key (`spec/grammar.md`'s `dict-key`) — always bare, never quoted. */
+function renderDictKey(key: DictEntryNode["key"]): string {
+  return key.kind === "WordLit" ? key.value : String(key.value);
+}
+
+/** Renders a dict literal `{ key: value … }` (Data profile), an empty one as `{ }`. */
+function renderDictLit(node: DictLitNode): string {
+  if (node.entries.length === 0) {
+    return "{ }";
+  }
+  const entries = node.entries
+    .map((entry) => `${renderDictKey(entry.key)}: ${renderChild(entry.value)}`)
+    .join(" ");
+  return `{ ${entries} }`;
 }
 
 /** Renders a `Call`/`ParenCall`'s callee and arguments in prefix form: `name arg1 arg2`. */
 function renderPrefixCall(node: CallNode | ParenCallNode): string {
   const args = node.args.map(renderChild).join(" ");
   return args === "" ? node.callee.name : `${node.callee.name} ${args}`;
+}
+
+/** Renders a comprehension binder: a bare name, or a destructuring `[ :a :b ]` pattern. */
+function renderBinder(binder: Binder): string {
+  return "kind" in binder
+    ? `[ ${binder.names.map((name) => `:${name.name}`).join(" ")} ]`
+    : binder.name;
+}
+
+/**
+ * The set of `StatementNode` kinds that are also {@link ExpressionNode} kinds — i.e. a bare
+ * expression used as a statement. Used to recognize a comprehension body's common,
+ * spec-conventional shape: a single bracketed expression, no lambda.
+ */
+const EXPRESSION_STATEMENT_KINDS: ReadonlySet<string> = new Set([
+  "NumberLit",
+  "WordLit",
+  "BooleanLit",
+  "ListLit",
+  "DictLit",
+  "ValueOfKey",
+  "VarRef",
+  "Place",
+  "PostfixExpression",
+  "Call",
+  "ParenCall",
+  "ComparisonChain",
+  "IsPredicate",
+  "Comprehension",
+]);
+
+/** Whether a statement is a bare expression (see {@link EXPRESSION_STATEMENT_KINDS}). */
+function isExpressionStatement(
+  statement: StatementNode,
+): statement is ExpressionNode {
+  return EXPRESSION_STATEMENT_KINDS.has(statement.kind);
+}
+
+/**
+ * Renders a comprehension body block. `map`/`filter`/`reduce` bodies are, by spec convention, a
+ * single bracketed expression (no lambda), so a one-statement expression body renders that
+ * expression exactly; any other shape renders as a bounded placeholder instead of risking a full
+ * statement-level unparser here — see `checker-not-a-place.ts`'s identical helper.
+ */
+function renderComprehensionBody(body: BlockNode): string {
+  if (body.body.length === 1) {
+    const [statement] = body.body as readonly [StatementNode];
+    if (isExpressionStatement(statement)) {
+      return renderChild(statement);
+    }
+  }
+  return "…";
+}
+
+/** Renders a `map`/`filter`/`reduce` comprehension (issue #407/F7 postfix base). */
+function renderComprehension(node: ComprehensionNode): string {
+  const binderText = renderBinder(node.binder);
+  const bodyText = renderComprehensionBody(node.body);
+  if (node.form === "reduce") {
+    return `reduce ${node.accumulator.name} ${binderText} in ${renderChild(node.iterable)} from ${renderChild(node.initial)} [ ${bodyText} ]`;
+  }
+  return `${node.form} ${binderText} in ${renderChild(node.iterable)} [ ${bodyText} ]`;
+}
+
+/** Renders the tail of a worded `is`-predicate (`spec/grammar.md`'s `is-test`). */
+function renderIsTest(test: IsTest): string {
+  switch (test.form) {
+    case "empty":
+      return "is empty";
+    case "member-of":
+      return `is member of ${renderChild(test.collection)}`;
+    case "a":
+      return `is a ${renderChild(test.type)}`;
+    case "between":
+      return `is ${test.strict ? "strictly " : ""}between ${renderChild(test.low)} and ${renderChild(test.high)}`;
+  }
+}
+
+/** Renders a worded `is`-predicate such as `:x is empty` or `:n is between 1 and 10`. */
+function renderIsPredicate(node: IsPredicateNode): string {
+  return `${renderChild(node.operand)} ${renderIsTest(node.test)}`;
+}
+
+/**
+ * Renders a comparison chain `1 < :x < 10` — each operand once, operators interleaved
+ * (`ast.ts`'s `ComparisonChainNode` doc comment).
+ */
+function renderComparisonChain(node: ComparisonChainNode): string {
+  const parts: string[] = [renderChild(node.operands[0] as ExpressionNode)];
+  for (let index = 0; index < node.operators.length; index += 1) {
+    const operator = node.operators[index] as SpannedName;
+    const operand = node.operands[index + 1] as ExpressionNode;
+    parts.push(operator.name, renderChild(operand));
+  }
+  return parts.join(" ");
+}
+
+/** Renders a `value of <dictionary> for key <key>` reader (issue #407/F7 postfix base). */
+function renderValueOfKey(node: ValueOfKeyNode): string {
+  return `value of ${renderChild(node.dictionary)} for key ${renderChild(node.key)}`;
 }
 
 /**
@@ -114,8 +246,20 @@ function renderNode(node: RenderableNode): string {
       return `:${node.name}`;
     case "Place":
       return renderPlace(node);
+    case "PostfixExpression":
+      return renderPostfixExpression(node);
     case "ListLit":
       return `[${node.elements.map(renderChild).join(" ")}]`;
+    case "DictLit":
+      return renderDictLit(node);
+    case "ValueOfKey":
+      return renderValueOfKey(node);
+    case "ComparisonChain":
+      return renderComparisonChain(node);
+    case "IsPredicate":
+      return renderIsPredicate(node);
+    case "Comprehension":
+      return renderComprehension(node);
     case "Call":
       // A two-argument call to one of the fixed infix operator names is always infix in
       // source — see INFIX_OPERATORS — everything else (including a zero/one/three-or-more

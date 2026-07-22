@@ -1,0 +1,3 @@
+struct point [ x y ]
+
+print (point 3 4).x

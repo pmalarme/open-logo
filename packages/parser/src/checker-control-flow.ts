@@ -85,6 +85,7 @@ export const VALUE_PRODUCING_KINDS: ReadonlySet<NodeKind> = new Set<NodeKind>([
   "ListLit",
   "VarRef",
   "Place",
+  "PostfixExpression",
   "ComparisonChain",
   "IsPredicate",
   "Comprehension",
@@ -147,18 +148,27 @@ function duplicateBinderDiagnostic(
 }
 
 /**
- * A `reduce` whose accumulator and item binder are the same bare name raises one duplicate-binder.
- * The item binder may also be a destructuring pattern (issue #72) — diagnosing an accumulator that
- * collides with one of *those* names is #162/#114's future territory, not this check's; only the
- * bare-name-vs-bare-name collision this rule always covered is reported here.
+ * A `reduce` whose accumulator collides with its item binder raises one duplicate-binder — whether
+ * the item binder is a bare name (`reduce sum sum in …`) or, since the item binder may also be a
+ * destructuring pattern (issue #72), the accumulator reusing any ONE of the pattern's names
+ * (`reduce x [ :x :y ] in …`, issue #407/F8: without this check the accumulator silently
+ * shadows/overwrites the pattern binding on every turn). The span points at the colliding pattern
+ * name — the later-appearing occurrence, same convention as {@link patternDuplicateDiagnostics}'s
+ * second-occurrence span.
  */
 function reduceDuplicateDiagnostic(
   node: ReduceComprehensionNode,
 ): Diagnostic | undefined {
+  const accumulator = node.accumulator.name.toLowerCase();
   if ("kind" in node.binder) {
-    return undefined;
+    const collision = node.binder.names.find(
+      (name) => name.name.toLowerCase() === accumulator,
+    );
+    return collision === undefined
+      ? undefined
+      : duplicateBinderDiagnostic(collision, "reduce");
   }
-  if (node.accumulator.name.toLowerCase() !== node.binder.name.toLowerCase()) {
+  if (accumulator !== node.binder.name.toLowerCase()) {
     return undefined;
   }
   return duplicateBinderDiagnostic(node.binder, "reduce");

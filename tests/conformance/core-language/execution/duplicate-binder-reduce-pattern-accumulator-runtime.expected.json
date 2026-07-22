@@ -1,0 +1,44 @@
+{
+  "description": "ol-duplicate-binder (issue #407/F8): the runtime's own comprehensionDuplicateBinder mirror of the checker rule — a `reduce` accumulator colliding with one of its destructuring item-binder's pattern names, reached here without `check()` running first (`execute()` only), same as the checker-level `duplicate-binder-reduce-pattern-accumulator` fixture.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/duplicate-binder-reduce-pattern-accumulator-runtime",
+        "start": [1, 1],
+        "end": [1, 23]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/duplicate-binder-reduce-pattern-accumulator-runtime",
+        "start": [2, 1],
+        "end": [2, 55]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-duplicate-binder",
+      "source_span": {
+        "document": "core-language/execution/duplicate-binder-reduce-pattern-accumulator-runtime",
+        "start": [2, 20],
+        "end": [2, 22]
+      },
+      "params": { "name": "x", "form": "reduce" },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}
