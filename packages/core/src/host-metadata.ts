@@ -18,6 +18,10 @@
  * were added once their M4 correctness gaps (issue #397 and the sibling F2-F6 remediation
  * slices — list constructor, record destructuring, semantic-checker registration, runtime arity
  * guards, and the struct/Geometry primitive collision) merged and conformance went green.
+ * `educational` was added once M3 shipped it: the runtime implements and emits Educational
+ * `tutor-output` events, `explain`/`why`/`hint`/`debug` are gated behind the `educational`
+ * profile in the checker, and the Educational conformance fixtures are green in the full DAG
+ * (issue #425, found by the M3 milestone-completion re-gate audit #419).
  * Claiming a profile before it is conformant would be a false conformance claim — exactly the
  * failure mode the M4 audit exists to catch — so any future profile addition here must follow
  * the same rule: land the profile's conformance fixes first, then claim it.
@@ -40,6 +44,7 @@ export const SUPPORTED_PROFILES = [
   "turtle-rendering",
   "data",
   "geometry",
+  "educational",
 ] as const;
 
 /**
