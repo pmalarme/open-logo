@@ -266,7 +266,9 @@ export function reconcileExternalSyncQueue(
  * already flat and source-ordered (see `highlight.ts`'s doc comment), matching
  * `RangeSetBuilder`'s ascending-order requirement, so no extra sort is needed. Zero-width spans
  * (an `end` position that never moved past `start`, which the parser's own contract never
- * produces but a future edge case could) are skipped — `RangeSetBuilder` requires `from < to`.
+ * produces but a future edge case could) are skipped, and so is any span that falls outside the
+ * classified document (also never produced by the parser against its own input, but not
+ * guaranteed by the `HighlightProvider` seam type itself) — `RangeSetBuilder` requires `from < to`.
  * Coloring is purely a `class` attribute on a `mark` decoration: it never replaces, hides, or
  * reorders any text node, so it cannot change the accessible text, DOM reading order, or focus
  * model CM6's `contenteditable` host already provides (the #285 a11y hard gate).
@@ -280,7 +282,7 @@ function buildHighlightDecorations(
   for (const token of highlighter(text)) {
     const from = offsetFromPosition(text, token.start);
     const to = offsetFromPosition(text, token.end);
-    if (from >= to) {
+    if (from < 0 || to > state.doc.length || from >= to) {
       continue;
     }
     builder.add(from, to, Decoration.mark({ class: token.class }));

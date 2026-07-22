@@ -476,6 +476,22 @@ test("createHighlightExtension skips a zero-width token span rather than throwin
   assert.deepEqual(collectDecorations(state.field(field), 1), []);
 });
 
+test("createHighlightExtension skips a token span past the end of the document rather than throwing", () => {
+  // A misbehaving (or stale, e.g. classifying against text from before an external edit) provider
+  // could report a span beyond `state.doc.length`; `RangeSetBuilder.add` throws if given such an
+  // offset, so `buildHighlightDecorations` must bounds-check every span against the current doc
+  // rather than trusting the provider's contract.
+  const outOfRangeHighlighter = () => [
+    { text: "x", class: "ol-tok-word", start: [1, 1], end: [2, 2] },
+  ];
+  const field = createHighlightExtension(outOfRangeHighlighter);
+
+  assert.doesNotThrow(() => {
+    const state = EditorState.create({ doc: "x", extensions: [field] });
+    assert.deepEqual(collectDecorations(state.field(field), 1), []);
+  });
+});
+
 test("createEditorExtensions adds the #285 highlight extension only when a highlighter is configured", () => {
   const withoutHighlighter = createEditorExtensions();
   const withHighlighter = createEditorExtensions({
