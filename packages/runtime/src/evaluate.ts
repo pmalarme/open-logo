@@ -766,6 +766,7 @@ export function isSupportedExpression(
         name === "reverse" ||
         name === "pick" ||
         name === "sort" ||
+        name === "list" ||
         name === "dict" ||
         name === "keys" ||
         name === "values" ||
@@ -1783,6 +1784,9 @@ function evaluateCall(
   }
   if (name === "sort") {
     return evaluateSort(node, environment);
+  }
+  if (name === "list") {
+    return evaluateListConstructor(node, environment);
   }
   if (name === "dict") {
     return evaluateDict(node, environment);
@@ -3380,6 +3384,30 @@ function evaluateSort(
     compareSortElements(category, a, b),
   );
   return ok(sorted);
+}
+
+/**
+ * `list` — the list constructor reporter (issue #397, `spec/data-structures.md:77-78`). The bare
+ * call `list` takes no arguments and yields a fresh, empty, mutable list; the parenthesized
+ * variadic form `(list a b …)` yields a fresh, mutable list containing each evaluated argument as
+ * its own element (no `sentence`-style flattening of a list-typed argument). Every call produces
+ * an independent array instance — structural equality (`==`, {@link valuesEqual}) still compares
+ * two separately-constructed lists as equal when their elements match, but mutating one (`add`/
+ * `insert`/`clear`/…) never affects the other.
+ */
+function evaluateListConstructor(
+  node: ArithmeticCallNode,
+  environment: Environment,
+): EvalResult {
+  const values: OLValue[] = [];
+  for (const argNode of node.args) {
+    const argResult = evaluate(argNode, environment);
+    if (!argResult.ok) {
+      return argResult;
+    }
+    values.push(argResult.value);
+  }
+  return ok(values);
 }
 
 /**

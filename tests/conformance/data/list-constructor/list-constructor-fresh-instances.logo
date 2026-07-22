@@ -1,0 +1,5 @@
+:a = list
+:b = list
+add 1 to :a
+print count :a
+print count :b

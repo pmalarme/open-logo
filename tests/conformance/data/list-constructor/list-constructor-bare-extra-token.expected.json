@@ -1,0 +1,22 @@
+{
+  "description": "The bare-word `list` reporter takes exactly zero arguments (issue #397): a trailing token after it is not silently swallowed as an argument but becomes a stray token, raising `ol-bad-token` at parse time.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "data/list-constructor/list-constructor-bare-extra-token",
+        "start": [1, 12],
+        "end": [1, 13]
+      },
+      "params": {
+        "text": "5"
+      },
+      "message": "each instruction needs a new line of its own. i didn't expect 5 to keep going on this line.",
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

@@ -163,24 +163,28 @@ export function turtlePrimitiveNames(): readonly string[] {
 
 /**
  * Default arities for the **Data** profile's derived list/dict reporters (issue #190 for
- * `reverse`/`pick`/`sort`; issue #322 adds `dict`/`keys`/`values`; issue #329 adds `type_of`),
- * derived from the "Derived list reporters in the Data profile" table, the dictionary operations
- * table, and the record operations table in
- * [`spec/data-structures.md`](../../../spec/data-structures.md): `reverse`/`pick`/`sort` each take
- * one `list` argument, matching the spec's own worked example's bare-call form
- * (`:backward = reverse :nums`); `dict` takes none (the empty-constructor reporter); `keys`/
- * `values` each take one `dict` argument; `type_of` takes one `record` argument and reports its
- * struct type name (`spec/data-structures.md:286`). Kept as its own table rather than folded into
- * {@link CORE_PRIMITIVE_ARITY} for the same reason {@link TURTLE_PRIMITIVE_ARITY} is separate: the
- * two profiles have independent visibility (the Layer-2 checker gates each on its own active
- * profile, `spec/tooling.md:175-176`), while the reader (this table's only consumer, via
- * {@link primitiveArity}) groups a bare call's arguments for *any* recognized primitive regardless
- * of profile.
+ * `reverse`/`pick`/`sort`; issue #322 adds `dict`/`keys`/`values`; issue #329 adds `type_of`;
+ * issue #397 adds `list`), derived from the "Mutating list operations" table, the "Derived list
+ * reporters in the Data profile" table, the dictionary operations table, and the record operations
+ * table in [`spec/data-structures.md`](../../../spec/data-structures.md): `reverse`/`pick`/`sort`
+ * each take one `list` argument, matching the spec's own worked example's bare-call form
+ * (`:backward = reverse :nums`); `list` takes none as a bare call (`spec/data-structures.md:77`'s
+ * empty-list constructor reporter — its variadic parenthesized form `(list a b …)`,
+ * `spec/data-structures.md:78`, is not a fixed arity and so is not represented in this table, the
+ * same way `dict` has no parenthesized variadic form to register); `dict` takes none (the
+ * empty-constructor reporter); `keys`/`values` each take one `dict` argument; `type_of` takes one
+ * `record` argument and reports its struct type name (`spec/data-structures.md:286`). Kept as its
+ * own table rather than folded into {@link CORE_PRIMITIVE_ARITY} for the same reason
+ * {@link TURTLE_PRIMITIVE_ARITY} is separate: the two profiles have independent visibility (the
+ * Layer-2 checker gates each on its own active profile, `spec/tooling.md:175-176`), while the
+ * reader (this table's only consumer, via {@link primitiveArity}) groups a bare call's arguments
+ * for *any* recognized primitive regardless of profile.
  */
 const DATA_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
   ["reverse", 1],
   ["pick", 1],
   ["sort", 1],
+  ["list", 0],
   ["dict", 0],
   ["keys", 1],
   ["values", 1],
@@ -191,15 +195,33 @@ const DATA_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
  * The default arity of a Data-profile derived list reporter, or `undefined` when `name` is not one
  * of the primitives registered in {@link DATA_PRIMITIVE_ARITY}. Matching is case-insensitive.
  *
- * `DATA_PRIMITIVE_ARITY` is this profile's single source-of-truth table. A future visibility slice
- * (mirroring #136 for Turtle & Rendering) that makes these reporters visible to
- * `ol-unknown-command` (`checker-names.ts`) and its static arity check (`checker-arity.ts`) should
- * add its own name-enumeration accessor reading from this same table (mirroring
- * {@link turtlePrimitiveNames}'s role for the Turtle & Rendering table) rather than re-deriving a
- * separate name/arity list — not added yet since nothing consumes it until that slice lands.
+ * `DATA_PRIMITIVE_ARITY` is this profile's single source-of-truth table. Its name-enumeration
+ * counterpart, {@link dataPrimitiveNames}, makes these reporters visible to `ol-unknown-command`
+ * (`checker-names.ts`, issue #397) the same way {@link turtlePrimitiveNames} does for Turtle &
+ * Rendering; the static arity check (`checker-arity.ts`) is not wired to this table yet, matching
+ * Turtle & Rendering/Educational/Geometry's own current arity-check gap.
  */
 export function dataPrimitiveArity(name: string): number | undefined {
   return DATA_PRIMITIVE_ARITY.get(name.toLowerCase());
+}
+
+/**
+ * Every Data-profile primitive's canonical lowercase name, sorted for deterministic iteration.
+ * This is the enumerable counterpart to {@link dataPrimitiveArity} — the checker's visible-name
+ * model (`checker-names.ts`, issue #397) needs the full name *list*, gated on the `data` profile,
+ * to make these primitives both callable without `ol-unknown-command` and candidates for its
+ * did-you-mean suggestions — mirroring {@link turtlePrimitiveNames}'s role for the Turtle &
+ * Rendering table.
+ */
+const DATA_PRIMITIVE_NAMES: readonly string[] = Object.freeze(
+  [...DATA_PRIMITIVE_ARITY.keys()].sort(),
+);
+
+/**
+ * The full list of Data-profile primitive names, in sorted order. See
+ * {@link DATA_PRIMITIVE_NAMES}. */
+export function dataPrimitiveNames(): readonly string[] {
+  return DATA_PRIMITIVE_NAMES;
 }
 
 /**

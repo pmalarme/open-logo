@@ -1,0 +1,23 @@
+{
+  "description": "issue #397: with the data profile NOT active (core-language only), `list` is not a recognized command -- the reader still parses `:path = list` as a bare zero-argument Call (the profile-legality decision belongs to check(), not the reader -- mirroring how a Turtle & Rendering primitive like `forward` behaves when turtle-rendering is inactive, spec/tooling.md:175-176), so check() raises ol-unknown-command (with `last` as its nearest-Core-name did-you-mean suggestion).",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "data/list-constructor/list-constructor-unknown-without-data-profile",
+        "start": [1, 9],
+        "end": [1, 13]
+      },
+      "params": {
+        "name": "list",
+        "suggestion": "last"
+      },
+      "message": "i don't know how to list. did you mean last?",
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

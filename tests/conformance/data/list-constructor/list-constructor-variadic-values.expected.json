@@ -1,0 +1,68 @@
+{
+  "description": "The parenthesized variadic `(list a b ...)` form (issue #397, `spec/data-structures.md:78`) returns a fresh list containing each evaluated argument as its own element, in order.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/list-constructor/list-constructor-variadic-values",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/list-constructor/list-constructor-variadic-values",
+        "start": [2, 1],
+        "end": [2, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "data/list-constructor/list-constructor-variadic-values",
+        "start": [2, 1],
+        "end": [2, 18]
+      },
+      "payload": {
+        "values": [3]
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/list-constructor/list-constructor-variadic-values",
+        "start": [3, 1],
+        "end": [3, 15]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "print",
+      "source_span": {
+        "document": "data/list-constructor/list-constructor-variadic-values",
+        "start": [3, 1],
+        "end": [3, 15]
+      },
+      "payload": {
+        "values": [2]
+      }
+    }
+  ],
+  "diagnostics": []
+}

@@ -1,0 +1,68 @@
+{
+  "description": "`(list a b ...)` places each argument as its own element without `sentence`-style flattening (issue #397): a list-typed argument stays nested rather than splicing its elements into the result.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/list-constructor/list-constructor-no-flatten",
+        "start": [1, 1],
+        "end": [1, 30]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/list-constructor/list-constructor-no-flatten",
+        "start": [2, 1],
+        "end": [2, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "data/list-constructor/list-constructor-no-flatten",
+        "start": [2, 1],
+        "end": [2, 20]
+      },
+      "payload": {
+        "values": [2]
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/list-constructor/list-constructor-no-flatten",
+        "start": [3, 1],
+        "end": [3, 23]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "print",
+      "source_span": {
+        "document": "data/list-constructor/list-constructor-no-flatten",
+        "start": [3, 1],
+        "end": [3, 23]
+      },
+      "payload": {
+        "values": [2]
+      }
+    }
+  ],
+  "diagnostics": []
+}

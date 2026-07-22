@@ -33,7 +33,12 @@ export const MANIFEST_PATH = join("scripts", "examples-profiles.json");
  * fixtures (see `tests/conformance/README.md`); keeping it in lockstep is what lets this gate
  * SKIP (rather than wrongly fail or wrongly pass) an example that needs a profile not yet built.
  */
-export const IMPLEMENTED_PROFILES = ["core-language", "turtle-rendering"];
+export const IMPLEMENTED_PROFILES = [
+  "core-language",
+  "turtle-rendering",
+  "data",
+  "geometry",
+];
 
 /** Load the filename -> required-profile-id[] manifest from `manifestPath`. */
 export function loadManifest(manifestPath = MANIFEST_PATH) {
