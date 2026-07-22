@@ -30,6 +30,15 @@ test("every geometry overlay primitive gathers zero arguments", () => {
   }
 });
 
+test("geometryPrimitiveArity reports 0 for grid/axes/measure, case-insensitively, and undefined otherwise", () => {
+  for (const name of ["grid", "axes", "measure"]) {
+    assert.equal(OL.geometryPrimitiveArity(name), 0);
+    assert.equal(OL.geometryPrimitiveArity(name.toUpperCase()), 0);
+  }
+  assert.equal(OL.geometryPrimitiveArity("forward"), undefined);
+  assert.equal(OL.geometryPrimitiveArity("polygon"), undefined);
+});
+
 test("a parenthesized call with arguments still parses cleanly at Layer 1 (arity is a Layer 2 concern)", () => {
   for (const name of ["grid", "axes", "measure"]) {
     const [call] = parseClean(`(${name} 1)`).body;
