@@ -253,6 +253,7 @@ test("no Level 1–5 content uses a Level 6+ command (e.g. set_xy) — the conce
     "count",
     "first",
     "last",
+    "member",
     // Level 7c — records
     "struct",
     // Level 8a — recursion control (self-calls are covered by the recursion test above)
@@ -292,6 +293,23 @@ test("no Level 1–5 content uses a Level 6+ command (e.g. set_xy) — the conce
         code.includes("{"),
         false,
         `Level ${level} content uses a Level 7b dict literal "{": ${source}`,
+      );
+      // Later-level ACCESS forms are syntactic, not command words: reading or writing a place
+      // inside a value — list index `:l[i]` (7a), dict/record field `:d.k` / `:p.x` (7b/7c),
+      // nested chains, and their write forms — all attach `[` or `.` directly to a `:name`.
+      // A Level-2+ `[ ]` block is preceded by whitespace (never a `:name`), and a decimal literal
+      // puts a digit before the dot, so neither trips this guard.
+      assert.equal(
+        /:[a-z_][a-z0-9_]*[.[]/.test(code),
+        false,
+        `Level ${level} content uses a Level 7+ place access (:name. or :name[): ${source}`,
+      );
+      // Worded field write `set thing.key to value` (Level 7b/7c place-write), as opposed to the
+      // Level-3 `set name to value` whole-variable assignment.
+      assert.equal(
+        /\bset\s+[a-z_][a-z0-9_]*\./i.test(code),
+        false,
+        `Level ${level} content uses a Level 7+ worded field write (set name.field to …): ${source}`,
       );
     }
   }
