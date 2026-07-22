@@ -785,6 +785,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
   }
 
   function parsePostfix(): ExpressionNode | undefined {
+    const primaryStart = current();
     const primary = parsePrimary();
     if (primary === undefined) {
       return undefined;
@@ -797,13 +798,26 @@ export function parse(source: string, document = "<input>"): ParseResult {
     if (!hasPostfixAhead) {
       return primary;
     }
+    // `parseParenthesized`'s bare-grouping branch discards its own `( … )` and returns the inner
+    // primary unwrapped, so `primary.source_span` never includes them — using `primaryStart`
+    // (the token `parsePrimary` was called on, before it consumed anything) instead of
+    // `primary.source_span.start` keeps the overall span paren-inclusive for both branches below,
+    // so `(1 + 2).x`'s span covers the leading `(` and source-slicing renders it exactly
+    // (issue #407/F7). `primary.kind !== "ParenCall"` excludes the callee-form parenthesization
+    // (`(first :x)`), which already preserves its own parens in `primary.source_span`.
+    const parenthesizedBase =
+      primaryStart.kind === "lparen" && primary.kind !== "ParenCall";
     if (primary.kind === "VarRef") {
       const base: SpannedName = {
         name: primary.name,
         source_span: primary.source_span,
       };
       const segments = collectPostfixSegments();
-      return ast.place(base, segments, spanToHere(primary.source_span.start));
+      return ast.place(
+        base,
+        segments,
+        spanToHere(primaryStart.source_span.start),
+      );
     }
     // `spec/grammar.md:188` — `postfix-expression ::= primary { selector | "." identifier }` —
     // permits a postfix read after *any* primary, not only a `:name`. A literal-list read
@@ -815,7 +829,8 @@ export function parse(source: string, document = "<input>"): ParseResult {
     return ast.postfixExpression(
       primary,
       segments,
-      spanToHere(primary.source_span.start),
+      spanToHere(primaryStart.source_span.start),
+      parenthesizedBase,
     );
   }
 

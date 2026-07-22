@@ -237,6 +237,14 @@ export interface PostfixExpressionNode extends NodeBase {
   readonly kind: "PostfixExpression";
   readonly base: ExpressionNode;
   readonly segments: readonly PlaceSegment[];
+  /**
+   * Whether the surface source wrapped `base` in its own `( … )` — `(1 + 2).x`, not `1 + 2.x`
+   * (issue #407/F7). `parsePostfix` strips those parens when it re-derives `base`'s span from the
+   * primary-start token, so this flag is the only remaining signal for the AST-fallback renderer
+   * (`checker-not-a-place.ts`'s `renderPostfixExpression`) to re-add them; source-slicing needs no
+   * such flag because `source_span` already spans the parens.
+   */
+  readonly parenthesizedBase: boolean;
 }
 
 /**
@@ -601,8 +609,15 @@ export const ast = {
     base: ExpressionNode,
     segments: readonly PlaceSegment[],
     span: SourceSpan,
+    parenthesizedBase: boolean,
   ): PostfixExpressionNode {
-    return { kind: "PostfixExpression", source_span: span, base, segments };
+    return {
+      kind: "PostfixExpression",
+      source_span: span,
+      base,
+      segments,
+      parenthesizedBase,
+    };
   },
   assign(
     place: ExpressionNode,

@@ -235,6 +235,90 @@ test("the AST fallback renders a genuine two-argument prefix call target in pref
   assert.deepEqual(finding.params, { text: "combine 1 2" });
 });
 
+// ── The AST fallback's postfix-base render paths for the newly-legal `primary` bases (issue
+// #407/F7 follow-up: a comparison chain, `is`-predicate, comprehension, or `value of … for
+// key …` reader can be a postfix base directly or via a parenthesized grouping) ────────────────
+
+test("the AST fallback wraps a parenthesized infix-call postfix base back in its own parens, e.g. (1 + 2).x = 3 (rubber-duck finding: the base's own leading paren was dropped from both the span and the render)", () => {
+  const [finding] = checkNoSource("(1 + 2).x = 3").filter(isNotAPlace);
+  assert.deepEqual(finding.params, { text: "(1 + 2).x" });
+});
+
+test("the AST fallback renders a parenthesized comparison-chain postfix base, e.g. (1 < 2 < 3).x = 3", () => {
+  const [finding] = checkNoSource("(1 < 2 < 3).x = 3").filter(isNotAPlace);
+  assert.deepEqual(finding.params, { text: "(1 < 2 < 3).x" });
+});
+
+test("the AST fallback renders a parenthesized `is empty` predicate postfix base, e.g. (1 is empty).x = 3", () => {
+  const [finding] = checkNoSource("(1 is empty).x = 3").filter(isNotAPlace);
+  assert.deepEqual(finding.params, { text: "(1 is empty).x" });
+});
+
+test("the AST fallback renders every worded is-predicate form nested inside a list-literal postfix base", () => {
+  assert.deepEqual(
+    checkNoSource("[:x is member of [1 2]].y = 3").filter(isNotAPlace)[0]
+      .params,
+    { text: "[:x is member of [1 2]].y" },
+  );
+  assert.deepEqual(
+    checkNoSource('[:x is a "number"].y = 3').filter(isNotAPlace)[0].params,
+    { text: '[:x is a "number"].y' },
+  );
+  assert.deepEqual(
+    checkNoSource("[:n is between 1 and 10].y = 3").filter(isNotAPlace)[0]
+      .params,
+    { text: "[:n is between 1 and 10].y" },
+  );
+  assert.deepEqual(
+    checkNoSource("[:n is strictly between 1 and 10].y = 3").filter(
+      isNotAPlace,
+    )[0].params,
+    { text: "[:n is strictly between 1 and 10].y" },
+  );
+});
+
+test("the AST fallback renders a comprehension postfix base with a bare-name binder, e.g. (map n in [1] [ :n ]).x = 3", () => {
+  const [finding] = checkNoSource("(map n in [1] [ :n ]).x = 3").filter(
+    isNotAPlace,
+  );
+  assert.deepEqual(finding.params, { text: "(map n in [1] [ :n ]).x" });
+});
+
+test("the AST fallback renders a reduce comprehension postfix base with its accumulator/from clause, e.g. (reduce total n in [1] from 0 [ :total ]).x = 3", () => {
+  const [finding] = checkNoSource(
+    "(reduce total n in [1] from 0 [ :total ]).x = 3",
+  ).filter(isNotAPlace);
+  assert.deepEqual(finding.params, {
+    text: "(reduce total n in [1] from 0 [ :total ]).x",
+  });
+});
+
+test("the AST fallback renders a comprehension postfix base with a destructuring binder pattern, e.g. (map [ :a :b ] in [[1 2]] [ :a ]).x = 3", () => {
+  const [finding] = checkNoSource(
+    "(map [ :a :b ] in [[1 2]] [ :a ]).x = 3",
+  ).filter(isNotAPlace);
+  assert.deepEqual(finding.params, {
+    text: "(map [ :a :b ] in [[1 2]] [ :a ]).x",
+  });
+});
+
+test("the AST fallback falls back to a bounded placeholder for a comprehension body that is not a single bracketed expression, e.g. map n in [1] [ local z ].x = 3 (a statement-only form, not an ExpressionNode)", () => {
+  const [finding] = checkNoSource("map n in [1] [ local z ].x = 3").filter(
+    isNotAPlace,
+  );
+  assert.deepEqual(finding.params, { text: "map n in [1] [ … ].x" });
+});
+
+test('the AST fallback renders a value-of-key reader nested inside a list-literal postfix base, e.g. [value of { a: 1 } for key "a"][0].y = 3 (issue #407/F7 postfix base)', () => {
+  const [finding] = checkNoSource('[value of { a: 1 } for key "a"][0].y = 3', [
+    "core-language",
+    "data",
+  ]).filter(isNotAPlace);
+  assert.deepEqual(finding.params, {
+    text: '[value of { a: 1 } for key "a"][0].y',
+  });
+});
+
 // ── ol-undefined-var: static reads of an unbound `:name` ─────────────────────────────────────
 
 test("a bare :missing read with no declaration anywhere raises ol-undefined-var at the variable's span", () => {
