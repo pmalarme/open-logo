@@ -310,6 +310,79 @@ main:has(.pane-lesson:not([hidden])):has(.pane-tutor:not([hidden])) {
   }
 }
 
+/*
+ * #285 — syntax-highlighting theme. Each `.ol-tok-*` class is a purely presentational CM6 `mark`
+ * decoration (`highlighter.ts`'s `OL_HIGHLIGHT_CSS_CLASS`, one per `spec/tooling.md` normative
+ * token class); it never wraps/replaces/hides text, so it changes only color, never the
+ * accessible text, DOM reading order, or focus model. Every color here is checked (see
+ * `highlighter.test.mjs`'s contrast assertion, which parses this exact file) for at least a
+ * 4.5:1 contrast ratio (WCAG AA, normal text) against the editor's white background — nothing is
+ * conveyed by color alone; the tokens remain the same readable text either way.
+ */
+.ol-tok-keyword {
+  color: #7c3aed;
+  font-weight: 600;
+}
+
+.ol-tok-primitive {
+  color: #1d4ed8;
+}
+
+.ol-tok-number {
+  color: #b45309;
+}
+
+.ol-tok-string {
+  color: #047857;
+}
+
+.ol-tok-variable {
+  color: #be123c;
+}
+
+.ol-tok-comment {
+  color: #5b6472;
+  font-style: italic;
+}
+
+.ol-tok-bracket {
+  color: #334155;
+}
+
+.ol-tok-brace {
+  color: #1e293b;
+}
+
+.ol-tok-paren {
+  color: #475569;
+}
+
+.ol-tok-operator {
+  color: #b91c1c;
+}
+
+.ol-tok-index-dot {
+  color: #0f766e;
+}
+
+.ol-tok-dict-key {
+  color: #a16207;
+}
+
+.ol-tok-procedure-name {
+  color: #1e40af;
+  font-weight: 600;
+}
+
+.ol-tok-type-name {
+  color: #7e22ce;
+  font-weight: 600;
+}
+
+.ol-tok-field-name {
+  color: #0e7490;
+}
+
 [role="toolbar"] button {
   background: var(--ol-button-start);
   color: var(--ol-surface);

@@ -20,10 +20,12 @@
  *   into CM6 (via a tagged, loop-safe transaction — see `editor-cm6.ts`'s `externalSync`
  *   annotation) when they change from elsewhere (e.g. persistence #128 restoring a document) —
  *   this one-way bind-back is what keeps CM6 and the store from ever drifting apart.
- * - Render `controller.getTokens()` for syntax coloring (still highlighter-free as of #315; #285
- *   wires a real `HighlightProvider` in a later slice), and call
- *   `mountEditorPane(shell, controller)` to compose the controller into the shell's `editor`
- *   region (see `app-shell.ts`).
+ * - Render `controller.getTokens()` for syntax coloring — #285 wires the real
+ *   `@openlogo/parser`-backed `HighlightProvider` (`highlighter.ts`'s `createParserHighlighter`)
+ *   into both this controller and, separately, `editor-cm6.ts`'s decoration extension, which is
+ *   what actually paints CM6's colors (this controller's own `getTokens()` stays available for
+ *   any future non-CM6 consumer). Call `mountEditorPane(shell, controller)` to compose the
+ *   controller into the shell's `editor` region (see `app-shell.ts`).
  * - Keyboard operability/screen-reader labeling (#129) falls out of CM6's own natively focusable,
  *   editable `contenteditable` host, with `role="textbox"`/`aria-label` set via CM6's
  *   `contentAttributes` facet (`editor-cm6.ts`) — this headless module has no DOM to regress.
@@ -34,10 +36,11 @@
  *
  * ## Highlighting integration point
  * {@link HighlightProvider} is the pluggable syntax-highlighting seam. The default,
- * {@link noopHighlighter}, returns no tokens (plain text), so this slice has **no hard
- * dependency** on the highlighter (epic #118): pass any `HighlightProvider` — including one built
- * from `@openlogo/parser`'s own `semanticTokens` once a caller wants real coloring — without this
- * module ever re-implementing token classification itself.
+ * {@link noopHighlighter}, returns no tokens (plain text), keeping this module itself free of any
+ * hard dependency on a highlighter (epic #118). #285's `highlighter.ts` (`@openlogo/studio`, not
+ * this module) supplies the real one — `createParserHighlighter()`, backed by
+ * `@openlogo/parser`'s own grammar-derived `highlight()` — without this module ever
+ * re-implementing token classification itself.
  */
 
 import type { Position } from "@openlogo/core";

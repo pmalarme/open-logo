@@ -60,6 +60,7 @@ import {
   createExternalSyncQueue,
   createKeyValueStorageAdapter,
   createLessonPaneController,
+  createParserHighlighter,
   createRunController,
   createRunLogController,
   createStudioState,
@@ -207,9 +208,14 @@ mountLessonPane(shell, lessonPane);
  * #315 — the CM6 `EditorView`. `editorController` is the same headless seam every other pane
  * binds through (`editor.ts`); its `onLocalChange`/`onLocalSelectionChange` callbacks below are
  * the *only* place a real CM6 edit reaches the shared store, and the `state.subscribe` sync below
- * is the *only* place the store reaches back into CM6 — matching `editor.ts`'s doc comment.
+ * is the *only* place the store reaches back into CM6 — matching `editor.ts`'s doc comment. #285
+ * wires the real `@openlogo/parser`-backed highlighter (`highlighter.ts`'s
+ * `createParserHighlighter`) into both the controller (`getTokens()`, for any future non-CM6
+ * consumer) and the CM6 extension list (the actual painted decorations) — one shared instance, so
+ * both read the exact same classification.
  */
-const editorController = createEditorController(state);
+const highlighter = createParserHighlighter();
+const editorController = createEditorController(state, { highlighter });
 mountEditorPane(shell, editorController);
 
 const prefersReducedMotion = window.matchMedia(
@@ -219,6 +225,7 @@ const prefersReducedMotion = window.matchMedia(
 let initialEditorState = EditorState.create({
   doc: state.getState().source,
   extensions: createEditorExtensions({
+    highlighter,
     onLocalChange: (text, selection) => {
       editorController.setTextAndSelection(text, selection);
     },

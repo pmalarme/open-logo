@@ -1,16 +1,17 @@
 /**
- * The CodeMirror 6 integration for #315 (`docs/adr/0013-studio-editor-component.md`): the
- * `Extension[]` bundle (line numbers, AST-derived code folding, undo/redo history, keymap, the
- * `role`/`aria-label` content attributes) and the sync-protocol helpers that keep a real CM6
- * `EditorView` and the shared {@link StudioStateStore} (via `editor.ts`'s
- * {@link EditorController}) from ever drifting apart.
+ * The CodeMirror 6 integration for #315 (`docs/adr/0013-studio-editor-component.md`), extended by
+ * #285's syntax coloring: the `Extension[]` bundle (line numbers, AST-derived code folding,
+ * undo/redo history, keymap, the `role`/`aria-label` content attributes, and — when a
+ * {@link HighlightProvider} is configured — a `Decoration`-based highlight `StateField`) and the
+ * sync-protocol helpers that keep a real CM6 `EditorView` and the shared {@link StudioStateStore}
+ * (via `editor.ts`'s {@link EditorController}) from ever drifting apart.
  *
- * Despite the name, this module imports only `@codemirror/state`, `@codemirror/language`, and
- * `@codemirror/commands` — never `@codemirror/view`'s `EditorView` *constructor* (only its static
- * facets, which need no DOM to build). Every export here is exercised purely through
- * `EditorState.create`/`state.update(...)` in `editor-cm6.test.mjs`; only the actual
- * `new EditorView({ state, parent })` call and native DOM event registration live in
- * `web/main.ts`, matching `canvas-view.ts`'s untested-DOM-glue split (see `editor.ts`'s doc
+ * Despite the name, this module imports only `@codemirror/state`, `@codemirror/language`,
+ * `@codemirror/commands`, and `@codemirror/view`'s **static** facets/decoration API — never
+ * `@codemirror/view`'s `EditorView` *constructor* (which needs a DOM). Every export here is
+ * exercised purely through `EditorState.create`/`state.update(...)` in `editor-cm6.test.mjs`;
+ * only the actual `new EditorView({ state, parent })` call and native DOM event registration live
+ * in `web/main.ts`, matching `canvas-view.ts`'s untested-DOM-glue split (see `editor.ts`'s doc
  * comment for the full integration contract).
  *
  * ## The sync protocol
@@ -27,12 +28,20 @@
 import {
   Annotation,
   EditorSelection,
+  RangeSetBuilder,
+  StateField,
   type EditorState,
   type Extension,
   type Transaction,
   type TransactionSpec,
 } from "@codemirror/state";
-import { EditorView, keymap, lineNumbers } from "@codemirror/view";
+import {
+  Decoration,
+  type DecorationSet,
+  EditorView,
+  keymap,
+  lineNumbers,
+} from "@codemirror/view";
 import {
   codeFolding,
   foldGutter,
@@ -41,6 +50,7 @@ import {
 } from "@codemirror/language";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { REPL_FOCUS_ORDER, type FocusStop } from "./a11y.js";
+import type { HighlightProvider } from "./editor.js";
 import { offsetFromPosition, positionFromOffset } from "./editor.js";
 import { computeFoldRanges, type FoldRange } from "./fold-ranges.js";
 import type { Selection } from "./state-model.js";
@@ -248,12 +258,82 @@ export function reconcileExternalSyncQueue(
     : undefined;
 }
 
+/**
+ * Build the `Decoration.mark` range set #285's syntax coloring paints: classify `state`'s current
+ * document via `highlighter` (`@openlogo/parser`'s token classifier, wired in by
+ * `highlighter.ts`'s {@link createParserHighlighter}) and map each resulting
+ * `{ text, class, start, end }` span onto one CM6 mark decoration. `highlight()`'s token stream is
+ * already flat and source-ordered (see `highlight.ts`'s doc comment), matching
+ * `RangeSetBuilder`'s ascending-order requirement, so no extra sort is needed. Zero-width spans
+ * (an `end` position that never moved past `start`, which the parser's own contract never
+ * produces but a future edge case could) are skipped — `RangeSetBuilder` requires `from < to`.
+ * Coloring is purely a `class` attribute on a `mark` decoration: it never replaces, hides, or
+ * reorders any text node, so it cannot change the accessible text, DOM reading order, or focus
+ * model CM6's `contenteditable` host already provides (the #285 a11y hard gate).
+ */
+function buildHighlightDecorations(
+  state: EditorState,
+  highlighter: HighlightProvider,
+): DecorationSet {
+  const text = state.doc.toString();
+  const builder = new RangeSetBuilder<Decoration>();
+  for (const token of highlighter(text)) {
+    const from = offsetFromPosition(text, token.start);
+    const to = offsetFromPosition(text, token.end);
+    if (from >= to) {
+      continue;
+    }
+    builder.add(from, to, Decoration.mark({ class: token.class }));
+  }
+  return builder.finish();
+}
+
+/**
+ * The `StateField<DecorationSet>` behind #285's syntax coloring: recomputes decorations from
+ * `highlighter` whenever the document actually changes, and otherwise just maps the existing set
+ * through the transaction's changes (a selection-only or external-sync-with-no-text-change
+ * transaction never needs a full reclassification).
+ */
+function createHighlightField(
+  highlighter: HighlightProvider,
+): StateField<DecorationSet> {
+  return StateField.define<DecorationSet>({
+    create(state) {
+      return buildHighlightDecorations(state, highlighter);
+    },
+    update(decorations, transaction) {
+      if (!transaction.docChanged) {
+        return decorations.map(transaction.changes);
+      }
+      return buildHighlightDecorations(transaction.state, highlighter);
+    },
+    provide: (field) => EditorView.decorations.from(field),
+  });
+}
+
+/**
+ * Build the syntax-coloring `Extension` for #285: a `StateField<DecorationSet>` fed by
+ * `highlighter` (see {@link createHighlightField}), provided to CM6 via `EditorView.decorations`.
+ * Purely additive over `createEditorExtensions`' existing extension list — omitted entirely when
+ * no highlighter is configured, matching #315's highlighter-free default.
+ */
+export function createHighlightExtension(
+  highlighter: HighlightProvider,
+): Extension {
+  return createHighlightField(highlighter);
+}
+
 /** Callbacks {@link createEditorExtensions} invokes for a real local (non-synced) CM6 edit. */
 export interface EditorExtensionsOptions {
   /** Called once per local doc edit, with the resulting text *and* selection together. */
   readonly onLocalChange?: (text: string, selection: Selection) => void;
   /** Called once per local selection-only move (no doc edit). */
   readonly onLocalSelectionChange?: (selection: Selection) => void;
+  /**
+   * #285 — the real syntax highlighter to paint decorations with. Omit to keep the editor
+   * highlighter-free, matching #315's original default.
+   */
+  readonly highlighter?: HighlightProvider;
 }
 
 /**
@@ -314,10 +394,13 @@ export function createUpdateListener(
 /**
  * Build the full CM6 `Extension[]` for the OpenLogo editor surface: line-number gutter, AST-derived
  * code folding (gutter + keyboard `foldKeymap` + click-to-toggle), undo/redo history (`defaultKeymap`
- * has no undo/redo of its own), and the `role`/`aria-label` content attributes the #279 a11y
- * contracts require. Highlighter-free by design (#285 wires real syntax highlighting later — see
- * `editor.ts`'s doc comment); no `@codemirror/lang-*`/`basicSetup`/autocomplete/search/lint
- * packages, matching ADR-0013's modular/tree-shaken import plan.
+ * has no undo/redo of its own), the `role`/`aria-label` content attributes the #279 a11y contracts
+ * require, and — when `options.highlighter` is given (#285, see `highlighter.ts`'s
+ * `createParserHighlighter`) — the real syntax-coloring decoration extension from
+ * {@link createHighlightExtension}. Omitting `options.highlighter` keeps the editor exactly as
+ * highlighter-free as #315 left it (plain text, no decorations); no `@codemirror/lang-*`/
+ * `basicSetup`/autocomplete/search/lint packages, matching ADR-0013's modular/tree-shaken import
+ * plan.
  */
 export function createEditorExtensions(
   options: EditorExtensionsOptions = {},
@@ -334,6 +417,10 @@ export function createEditorExtensions(
       "aria-label": EDITOR_ARIA_LABEL,
     }),
   ];
+
+  if (options.highlighter) {
+    extensions.push(createHighlightExtension(options.highlighter));
+  }
 
   if (options.onLocalChange || options.onLocalSelectionChange) {
     extensions.push(
