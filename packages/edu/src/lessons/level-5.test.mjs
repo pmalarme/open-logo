@@ -219,20 +219,49 @@ test("no Level 1–5 content uses a Level 6+ command (e.g. set_xy) — the conce
   // This is the guard that issue #399 added after `set_xy` escaped the B4 review: the DoD checks
   // that a solution RUNS, and set_xy is a valid M2 command, so only a level-appropriateness
   // assertion catches a later concept smuggled into an earlier level.
+  // Exhaustive Level-6+ denylist derived from spec/educational-model.md's "Concept to command
+  // map" (the "First level" column): every listed OpenLogo form whose first level is 6 or later.
+  // The learner-built `polygon` is Level 5 and intentionally absent. `set_heading` is not in that
+  // table but is the same absolute-placement idea as `set_xy` (Level 6), so it is included too.
   const laterCommands = [
-    "set_xy",
-    "set_heading",
-    "stamp",
+    // Level 6 — derived geometry beyond the learner-built polygon
     "star",
     "circle",
     "arc",
     "grid",
     "axes",
     "measure",
+    // Level 6 — turtle placement and marking (absolute)
+    "set_xy",
+    "set_heading",
+    "stamp",
+    // Level 6 — number tools and math
     "mod",
     "abs",
     "int",
     "round",
+    "sin",
+    "cos",
+    "tan",
+    "sqrt",
+    "power",
+    "pi",
+    // Level 7a — lists
+    "list",
+    "add",
+    "remove",
+    "count",
+    "first",
+    "last",
+    // Level 7c — records
+    "struct",
+    // Level 8a — recursion control (self-calls are covered by the recursion test above)
+    "stop",
+    // Level 8b — comprehensions and destructuring
+    "map",
+    "filter",
+    "reduce",
+    "for",
   ];
   const stripComments = (source) =>
     source
@@ -257,6 +286,13 @@ test("no Level 1–5 content uses a Level 6+ command (e.g. set_xy) — the conce
           `Level ${level} content uses the Level 6+ command "${command}" (not taught until Level 6+): ${source}`,
         );
       }
+      // Dictionaries (Level 7b) are the only construct that uses brace literals; blocks use
+      // `[ ]` or `… end`, so a `{` in Level 1–5 source can only be a smuggled dict.
+      assert.equal(
+        code.includes("{"),
+        false,
+        `Level ${level} content uses a Level 7b dict literal "{": ${source}`,
+      );
     }
   }
 });
