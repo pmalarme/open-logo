@@ -17,10 +17,15 @@ export type GeometryReasoningConcept =
 /**
  * A structured misconception signal — never prose — a caller can pattern-match on by `id`
  * (the skill's "Detect misconceptions ... label them with stable concept ids"). `turnTotal` and
- * `expectedMultipleOf` state how far off closure is without editorializing about why.
+ * `expectedMultipleOf` state how far off heading closure is, and `displacement` states how far
+ * the final position sits from the start position, without editorializing about why.
  */
 export interface ClosureMisconceptionSignal {
   readonly id: "non-closing-path";
   readonly turnTotal: number;
   readonly expectedMultipleOf: 360;
+  /** Euclidean distance between the path's start and final position — non-zero whenever the
+   * path fails to close positionally, even when its heading returns to the start heading (e.g.
+   * a bare `forward 100`, which never turns at all). */
+  readonly displacement: number;
 }

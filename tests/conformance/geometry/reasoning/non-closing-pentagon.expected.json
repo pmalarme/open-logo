@@ -1,0 +1,350 @@
+{
+  "description": "issue #408 (F6): `repeat 5 [ forward 100 right 80 ]` turns a total of 400° (not a multiple of 360) and must fail to close by heading, reported as a structured misconception signal.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/non-closing-pentagon",
+        "start": [1, 1],
+        "end": [4, 11]
+      },
+      "payload": {
+        "statement_kind": "Repeat"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/non-closing-pentagon",
+        "start": [2, 3],
+        "end": [2, 14]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/reasoning/non-closing-pentagon",
+        "start": [2, 3],
+        "end": [2, 14]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 100],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/reasoning/non-closing-pentagon",
+        "start": [2, 3],
+        "end": [2, 14]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 100],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/non-closing-pentagon",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/reasoning/non-closing-pentagon",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": {
+        "from": 0,
+        "to": 80
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/non-closing-pentagon",
+        "start": [2, 3],
+        "end": [2, 14]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/reasoning/non-closing-pentagon",
+        "start": [2, 3],
+        "end": [2, 14]
+      },
+      "payload": {
+        "from": [0, 100],
+        "to": [98.4807753012208, 117.36481776669304],
+        "heading": 80
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/reasoning/non-closing-pentagon",
+        "start": [2, 3],
+        "end": [2, 14]
+      },
+      "payload": {
+        "from": [0, 100],
+        "to": [98.4807753012208, 117.36481776669304],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/non-closing-pentagon",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/reasoning/non-closing-pentagon",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": {
+        "from": 80,
+        "to": 160
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/non-closing-pentagon",
+        "start": [2, 3],
+        "end": [2, 14]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/reasoning/non-closing-pentagon",
+        "start": [2, 3],
+        "end": [2, 14]
+      },
+      "payload": {
+        "from": [98.4807753012208, 117.36481776669304],
+        "to": [132.6827896337877, 23.395555688102206],
+        "heading": 160
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/reasoning/non-closing-pentagon",
+        "start": [2, 3],
+        "end": [2, 14]
+      },
+      "payload": {
+        "from": [98.4807753012208, 117.36481776669304],
+        "to": [132.6827896337877, 23.395555688102206],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/non-closing-pentagon",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/reasoning/non-closing-pentagon",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": {
+        "from": 160,
+        "to": 240
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/non-closing-pentagon",
+        "start": [2, 3],
+        "end": [2, 14]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/reasoning/non-closing-pentagon",
+        "start": [2, 3],
+        "end": [2, 14]
+      },
+      "payload": {
+        "from": [132.6827896337877, 23.395555688102206],
+        "to": [46.08024925534386, -26.604444311897836],
+        "heading": 240
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/reasoning/non-closing-pentagon",
+        "start": [2, 3],
+        "end": [2, 14]
+      },
+      "payload": {
+        "from": [132.6827896337877, 23.395555688102206],
+        "to": [46.08024925534386, -26.604444311897836],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 19,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/non-closing-pentagon",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 20,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/reasoning/non-closing-pentagon",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": {
+        "from": 240,
+        "to": 320
+      }
+    },
+    {
+      "seq": 21,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/non-closing-pentagon",
+        "start": [2, 3],
+        "end": [2, 14]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 22,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/reasoning/non-closing-pentagon",
+        "start": [2, 3],
+        "end": [2, 14]
+      },
+      "payload": {
+        "from": [46.08024925534386, -26.604444311897836],
+        "to": [-18.198511713310097, 49.99999999999994],
+        "heading": 320
+      }
+    },
+    {
+      "seq": 23,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/reasoning/non-closing-pentagon",
+        "start": [2, 3],
+        "end": [2, 14]
+      },
+      "payload": {
+        "from": [46.08024925534386, -26.604444311897836],
+        "to": [-18.198511713310097, 49.99999999999994],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 24,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/non-closing-pentagon",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 25,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/reasoning/non-closing-pentagon",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": {
+        "from": 320,
+        "to": 40
+      }
+    }
+  ],
+  "diagnostics": []
+}

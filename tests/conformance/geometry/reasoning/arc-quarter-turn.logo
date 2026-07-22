@@ -1,0 +1,25 @@
+define arc :angle :radius
+  local segments
+  local step_angle
+  local step_length
+  if :angle < 0
+    throw "an arc needs an angle of 0 or more"
+  end if
+  if :radius <= 0
+    throw "an arc needs a positive radius"
+  end if
+  :segments = (int (:angle / 5)) + 1
+  :step_angle = :angle / :segments
+  :step_length = 2 * :radius * sin (:step_angle / 2)
+
+  left :step_angle / 2
+  repeat :segments
+    forward :step_length
+    left :step_angle
+  end repeat
+  right :step_angle / 2
+end
+arc 90 50
+print xcor
+print ycor
+print heading

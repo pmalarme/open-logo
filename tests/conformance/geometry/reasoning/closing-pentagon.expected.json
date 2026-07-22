@@ -1,0 +1,350 @@
+{
+  "description": "issue #408 (F6): `repeat 5 [ forward 100 right 72 ]` traces a regular pentagon that closes both positionally and by heading — the ordinary case for analyzeTurtlePathClosure.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/closing-pentagon",
+        "start": [1, 1],
+        "end": [4, 11]
+      },
+      "payload": {
+        "statement_kind": "Repeat"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/closing-pentagon",
+        "start": [2, 3],
+        "end": [2, 14]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/reasoning/closing-pentagon",
+        "start": [2, 3],
+        "end": [2, 14]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 100],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/reasoning/closing-pentagon",
+        "start": [2, 3],
+        "end": [2, 14]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 100],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/closing-pentagon",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/reasoning/closing-pentagon",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": {
+        "from": 0,
+        "to": 72
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/closing-pentagon",
+        "start": [2, 3],
+        "end": [2, 14]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/reasoning/closing-pentagon",
+        "start": [2, 3],
+        "end": [2, 14]
+      },
+      "payload": {
+        "from": [0, 100],
+        "to": [95.10565162951535, 130.90169943749476],
+        "heading": 72
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/reasoning/closing-pentagon",
+        "start": [2, 3],
+        "end": [2, 14]
+      },
+      "payload": {
+        "from": [0, 100],
+        "to": [95.10565162951535, 130.90169943749476],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/closing-pentagon",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/reasoning/closing-pentagon",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": {
+        "from": 72,
+        "to": 144
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/closing-pentagon",
+        "start": [2, 3],
+        "end": [2, 14]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/reasoning/closing-pentagon",
+        "start": [2, 3],
+        "end": [2, 14]
+      },
+      "payload": {
+        "from": [95.10565162951535, 130.90169943749476],
+        "to": [153.88417685876266, 50.00000000000003],
+        "heading": 144
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/reasoning/closing-pentagon",
+        "start": [2, 3],
+        "end": [2, 14]
+      },
+      "payload": {
+        "from": [95.10565162951535, 130.90169943749476],
+        "to": [153.88417685876266, 50.00000000000003],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/closing-pentagon",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/reasoning/closing-pentagon",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": {
+        "from": 144,
+        "to": 216
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/closing-pentagon",
+        "start": [2, 3],
+        "end": [2, 14]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/reasoning/closing-pentagon",
+        "start": [2, 3],
+        "end": [2, 14]
+      },
+      "payload": {
+        "from": [153.88417685876266, 50.00000000000003],
+        "to": [95.10565162951536, -30.901699437494713],
+        "heading": 216
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/reasoning/closing-pentagon",
+        "start": [2, 3],
+        "end": [2, 14]
+      },
+      "payload": {
+        "from": [153.88417685876266, 50.00000000000003],
+        "to": [95.10565162951536, -30.901699437494713],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 19,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/closing-pentagon",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 20,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/reasoning/closing-pentagon",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": {
+        "from": 216,
+        "to": 288
+      }
+    },
+    {
+      "seq": 21,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/closing-pentagon",
+        "start": [2, 3],
+        "end": [2, 14]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 22,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/reasoning/closing-pentagon",
+        "start": [2, 3],
+        "end": [2, 14]
+      },
+      "payload": {
+        "from": [95.10565162951536, -30.901699437494713],
+        "to": [0, 1.0658141036401503e-14],
+        "heading": 288
+      }
+    },
+    {
+      "seq": 23,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/reasoning/closing-pentagon",
+        "start": [2, 3],
+        "end": [2, 14]
+      },
+      "payload": {
+        "from": [95.10565162951536, -30.901699437494713],
+        "to": [0, 1.0658141036401503e-14],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 24,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/closing-pentagon",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 25,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/reasoning/closing-pentagon",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": {
+        "from": 288,
+        "to": 0
+      }
+    }
+  ],
+  "diagnostics": []
+}
