@@ -1,0 +1,104 @@
+{
+  "description": "F2: for-in's binder destructures a record's fields in DECLARED order (y before x), not alphabetical order, proving bindElement() uses fields() rather than sorting. Issue #403.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/record-destructuring/for-in-record-destructuring-declared-order",
+        "start": [1, 1],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "StructDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/record-destructuring/for-in-record-destructuring-declared-order",
+        "start": [2, 1],
+        "end": [2, 14]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/record-destructuring/for-in-record-destructuring-declared-order",
+        "start": [3, 1],
+        "end": [3, 29]
+      },
+      "payload": {
+        "statement_kind": "Add"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/record-destructuring/for-in-record-destructuring-declared-order",
+        "start": [4, 1],
+        "end": [7, 2]
+      },
+      "payload": {
+        "statement_kind": "ForIn"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/record-destructuring/for-in-record-destructuring-declared-order",
+        "start": [5, 3],
+        "end": [5, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "print",
+      "source_span": {
+        "document": "data/record-destructuring/for-in-record-destructuring-declared-order",
+        "start": [5, 3],
+        "end": [5, 11]
+      },
+      "payload": {
+        "values": [10]
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/record-destructuring/for-in-record-destructuring-declared-order",
+        "start": [6, 3],
+        "end": [6, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "print",
+      "source_span": {
+        "document": "data/record-destructuring/for-in-record-destructuring-declared-order",
+        "start": [6, 3],
+        "end": [6, 11]
+      },
+      "payload": {
+        "values": [20]
+      }
+    }
+  ],
+  "diagnostics": []
+}

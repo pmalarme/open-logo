@@ -1,0 +1,7 @@
+struct pair [ y x ]
+:records = []
+add (pair 10 20) to :records
+for [:y :x] in :records [
+  print :y
+  print :x
+]

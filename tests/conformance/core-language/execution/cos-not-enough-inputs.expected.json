@@ -1,0 +1,37 @@
+{
+  "description": "F4: `cos` takes exactly one input; a parenthesized under-supply raises ol-not-enough-inputs at runtime. Issue #403.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/cos-not-enough-inputs",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-not-enough-inputs",
+      "source_span": {
+        "document": "core-language/execution/cos-not-enough-inputs",
+        "start": [1, 8],
+        "end": [1, 11]
+      },
+      "params": {
+        "callable": "cos",
+        "expected": 1,
+        "actual": 0
+      },
+      "message": "cos needs one input, but got 0.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}
