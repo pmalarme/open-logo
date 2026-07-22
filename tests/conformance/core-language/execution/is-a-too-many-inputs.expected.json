@@ -1,0 +1,37 @@
+{
+  "description": "F4: `is_a?` takes exactly two inputs; a parenthesized over-supply raises ol-too-many-inputs at runtime. Issue #403.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/is-a-too-many-inputs",
+        "start": [1, 1],
+        "end": [1, 27]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-too-many-inputs",
+      "source_span": {
+        "document": "core-language/execution/is-a-too-many-inputs",
+        "start": [1, 8],
+        "end": [1, 13]
+      },
+      "params": {
+        "callable": "is_a?",
+        "expected": 2,
+        "actual": 3
+      },
+      "message": "is_a? takes 2 inputs, but got 3.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

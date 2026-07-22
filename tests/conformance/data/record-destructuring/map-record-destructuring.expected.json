@@ -1,0 +1,80 @@
+{
+  "description": "F2: `map`'s item binder destructures a list of records positionally in declared field order, parity with for-in. Issue #403.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/record-destructuring/map-record-destructuring",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "statement_kind": "StructDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/record-destructuring/map-record-destructuring",
+        "start": [2, 1],
+        "end": [2, 14]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/record-destructuring/map-record-destructuring",
+        "start": [3, 1],
+        "end": [3, 28]
+      },
+      "payload": {
+        "statement_kind": "Add"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/record-destructuring/map-record-destructuring",
+        "start": [4, 1],
+        "end": [4, 28]
+      },
+      "payload": {
+        "statement_kind": "Add"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/record-destructuring/map-record-destructuring",
+        "start": [5, 1],
+        "end": [5, 42]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "print",
+      "source_span": {
+        "document": "data/record-destructuring/map-record-destructuring",
+        "start": [5, 1],
+        "end": [5, 42]
+      },
+      "payload": {
+        "values": [[3, 7]]
+      }
+    }
+  ],
+  "diagnostics": []
+}

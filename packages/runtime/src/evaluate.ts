@@ -488,13 +488,16 @@ export function findDuplicateBinderName(
 
 /**
  * Bind one iterated element against `binder`: a bare name binds the whole element, while a
- * destructuring pattern destructures it positionally (`spec/execution-model.md:435-439`). A
- * non-list element, or one whose length disagrees with the pattern's arity, raises `ol-range` — a
- * non-list element's length is treated as `0`, since it can never match a non-empty pattern.
- * `"kind" in binder` — not `binder.kind` — distinguishes a bare-name binder (a plain
- * {@link SpannedName}, with no `kind` field at all) from a destructuring one without a false
- * discriminated-union assumption. Shared by `ForIn` (`execute-internal.ts`) and every comprehension
- * form (`map`/`filter`/`reduce`, below).
+ * destructuring pattern destructures it positionally (`spec/execution-model.md:435-439`). A list
+ * element destructures by index; an {@link OLRecord} element destructures by its declared field
+ * order (`fields()`/`get()`, `spec/data-structures.md:329-345`) — derived into a plain values array
+ * *before* the arity check below, so a record whose field count disagrees with the pattern's arity
+ * fails the same length check a list would. Any other element (or a record/list whose length
+ * disagrees with the pattern's arity) raises `ol-range` — a non-destructurable element's length is
+ * treated as `0`, since it can never match a non-empty pattern. `"kind" in binder` — not
+ * `binder.kind` — distinguishes a bare-name binder (a plain {@link SpannedName}, with no `kind`
+ * field at all) from a destructuring one without a false discriminated-union assumption. Shared by
+ * `ForIn` (`execute-internal.ts`) and every comprehension form (`map`/`filter`/`reduce`, below).
  */
 export function bindElement(
   binder: Binder,
@@ -505,7 +508,11 @@ export function bindElement(
   if (!("kind" in binder)) {
     return { ok: true, bindings: new Map([[binder.name, element]]) };
   }
-  const values = Array.isArray(element) ? element : undefined;
+  const values = Array.isArray(element)
+    ? element
+    : element instanceof OLRecord
+      ? element.fields().map((field) => element.get(field) as OLValue)
+      : undefined;
   if (values === undefined || values.length !== binder.names.length) {
     return {
       ok: false,
@@ -1819,7 +1826,7 @@ function evaluateCall(
     return evaluateRandom(node, environment);
   }
   if (name === "pi") {
-    return evaluatePi();
+    return evaluatePi(node);
   }
   if (name === "type_of") {
     return evaluateTypeOf(node, environment);
@@ -1894,6 +1901,10 @@ function evaluateUnaryMath(
   builtin: UnaryMathBuiltin,
   environment: Environment,
 ): EvalResult {
+  const arityDiagnostic = requireExactArgs(node, builtin, 1);
+  if (arityDiagnostic) {
+    return fail(arityDiagnostic);
+  }
   const argNode = arg(node, 0);
   const argResult = evaluate(argNode, environment);
   if (!argResult.ok) {
@@ -1958,10 +1969,14 @@ function isTanUndefinedAt(degrees: number): boolean {
 
 /**
  * `pi` (`spec/commands.md`'s `pi` entry): a 0-arg reporter for the mathematical constant π.
- * Mirrors {@link evaluateRepcount}'s 0-arg shape — no operand to evaluate, so there is nothing
- * that can fail.
+ * Mirrors {@link evaluateXcor}'s 0-arg shape — no operand to evaluate, so the only way this can
+ * fail is a parenthesized over-supply (`(pi 1)`), guarded the same way.
  */
-function evaluatePi(): EvalResult {
+function evaluatePi(node: ArithmeticCallNode): EvalResult {
+  const arityDiagnostic = requireExactArgs(node, "pi", 0);
+  if (arityDiagnostic) {
+    return fail(arityDiagnostic);
+  }
   return ok(Math.PI);
 }
 
@@ -2868,6 +2883,10 @@ function evaluatePrefixIsA(
   node: ArithmeticCallNode,
   environment: Environment,
 ): EvalResult {
+  const arityDiagnostic = requireExactArgs(node, "is_a?", 2);
+  if (arityDiagnostic) {
+    return fail(arityDiagnostic);
+  }
   const valueNode = arg(node, 0);
   const typeNode = arg(node, 1);
   const valueResult = evaluate(valueNode, environment);
