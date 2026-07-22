@@ -434,7 +434,7 @@ print cos 0
 print tan 45
 ```
 
-- **Possible errors:** none specified beyond general type and arity diagnostics.
+- **Possible errors:** `ol-type`, `ol-tan-undefined`.
 
 ### `pi`
 

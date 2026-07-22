@@ -513,9 +513,10 @@ code point. Other ordered pairs raise `ol-type`.
 
 Trigonometric reporters use degrees. `pi` reports the mathematical constant.
 Division or `mod` by zero raises `ol-div-zero`; `sqrt` of a negative number
-raises `ol-neg-sqrt`; a non-integer where an integer is required raises
-`ol-type`. OpenLogo never exposes NaN or Infinity as learner-facing results for
-these educational errors.
+raises `ol-neg-sqrt`; `tan` of an angle whose tangent is undefined (an odd
+multiple of 90°) raises `ol-tan-undefined`; a non-integer where an integer is
+required raises `ol-type`. OpenLogo never exposes NaN or Infinity as
+learner-facing results for these educational errors.
 
 `random n` reports an integer in `[0,n-1]`; `n` MUST be a whole number of at
 least `1`. `(random a b)` reports an integer in `[a,b]`; `a` and `b` MUST be

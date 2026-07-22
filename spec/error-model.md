@@ -109,6 +109,7 @@ codes only outside the `ol-*` namespace.
 | `ol-bad-token` | parse | `text` | The lexer found characters that are not valid OpenLogo tokens. The message SHOULD point at the unexpected text and mention the closest legal form when clear. |
 | `ol-div-zero` | runtime | `operation` | `/` or `mod` attempted to divide by zero. OpenLogo reports this instead of producing infinity or NaN. |
 | `ol-neg-sqrt` | runtime | `value` | `sqrt` received a negative number. |
+| `ol-tan-undefined` | runtime | `value` | `tan` received an angle whose tangent is undefined — an odd multiple of 90° (for example 90, 270, or -90). OpenLogo reports this instead of producing a huge finite value, infinity, or NaN. |
 | `ol-no-output` | runtime | `procedure` | A procedure was used as a reporter but reached the end without `return`, `output`, or `op`. The error is reported at the call site. |
 | `ol-no-value` | semantic | `form` | A `map`, `filter`, or `reduce` body produced no final value. This is for a comprehension body with no value-producing final expression. |
 | `ol-return-outside-proc` | semantic | `keyword` | `return`, `output`, or `op` appears outside any procedure. |
@@ -125,6 +126,31 @@ codes only outside the `ol-*` namespace.
 | `ol-unknown-field` | runtime | `type`, `field`, optional `write` | A record has no such field. This includes writing an unknown struct field; records are fixed-field values. |
 | `ol-unknown-key` | runtime | `key` | A required dictionary key is absent on read, or an intermediate dictionary key is absent in a nested access chain. Writing a missing final dictionary key upserts and MUST NOT raise this error. |
 | `ol-not-a-place` | semantic | optional `text` | The target of `=` or `set … to` is not assignable. Reporters such as `first`, `count`, and `keys` are not places. |
+
+## Style linter code registry
+
+Style findings reuse the diagnostic shape above with `severity: warning` and a
+code in the `ol-style-*` namespace. They are advisory: a warning MUST NOT change
+program meaning, and all style codes report at `stage: semantic`. The rules
+themselves are specified normatively in the [style guide](style-guide.md) and
+the linter's style layer in [tooling](tooling.md); the table below is the
+registry index, so this document catalogs every reserved `ol-*` code.
+
+| Code | Rule |
+|---|---|
+| `ol-style-useless-value` | A control block ends with a value-producing expression whose value is discarded by the block-result rule. |
+| `ol-style-name-case` | User identifiers should be lowercase snake_case with optional `?` or `!`; built-ins should be shown lowercase. |
+| `ol-style-full-name` | Prefer primary full underscored primitive names over short aliases in teaching material, such as `pen_down` over `pd`. |
+| `ol-style-one-command-per-line` | Prefer one command or special form per line outside compact one-line examples. |
+| `ol-style-block-indentation` | Indent the contents of `[ ]` and long `... end` blocks consistently. |
+| `ol-style-prefer-block` | Suggest a `... end` block when a bracketed `[ ]` control body spans multiple lines. |
+| `ol-style-predicate-name` | Procedures that return booleans should end in `?`, such as `is_ready?`. |
+| `ol-style-procedure-name` | Procedure names should describe the learner-visible action or question, often `draw_*`, `make_*`, or `is_*?`. |
+| `ol-style-comment-style` | Prefer `#` comments in examples; `//` and `/* ... */` remain valid syntax. |
+| `ol-style-magic-number` | Repeated unexplained numeric literals should be named with a variable. |
+| `ol-style-equality-confusion` | A standalone comparison statement whose boolean result is discarded, which usually means an assignment `=` was intended. |
+| `ol-style-deep-nesting` | Deep unlabeled nesting should be refactored or labeled with a matching `end <form>` where long blocks are used. |
+| `ol-style-hidden-abstraction` | A shortcut procedure such as `draw_square 100` hides a concept the surrounding lesson expects the learner to build from `repeat`. |
 
 ## Did-you-mean
 
@@ -201,8 +227,8 @@ source location.
 ## Relationship to tooling and tracing
 
 The syntax checker and linter use this shape for all findings. Lex/parse and semantic
-checker findings use the registry above; style findings use `ol-style-*` warning codes,
-including `ol-style-useless-value`.
+checker findings use the registry above; style findings use the `ol-style-*` warning
+codes catalogued in the style linter code registry above.
 
 Runtime errors SHOULD also emit the `error` trace event defined by the execution model,
 with the diagnostic embedded or referenced. The trace event is for replay and rendering;
