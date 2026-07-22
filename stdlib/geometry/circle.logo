@@ -1,0 +1,29 @@
+# Approximates a circle of :radius by drawing an inscribed regular polygon of :segments sides
+# (default 36); the side length comes from the chord formula so more segments make a rounder
+# circle, teaching that curves are built from many tiny straight lines.
+#
+# @command circle :radius (:segments 36)
+# @spec spec/geometry-module.md:135-193
+# @param radius   positive number
+# @param segments optional whole number of sides (default 36), at least 3
+# @formula side = 2 * radius * sin (180 / segments)
+# @throws "a circle needs a positive radius" if radius <= 0
+# @throws "a circle needs at least 3 segments" if segments < 3
+# @throws "a circle needs a whole number of segments" if segments is not a whole number
+define circle :radius (:segments 36)
+  local side
+  if :radius <= 0
+    throw "a circle needs a positive radius"
+  end if
+  if :segments < 3
+    throw "a circle needs at least 3 segments"
+  end if
+  if not (:segments == int :segments)
+    throw "a circle needs a whole number of segments"
+  end if
+  :side = 2 * :radius * sin (180 / :segments)
+  repeat :segments
+    forward :side
+    right 360 / :segments
+  end repeat
+end

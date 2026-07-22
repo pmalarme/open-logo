@@ -1,0 +1,496 @@
+{
+  "description": "issue #338: `polygon 5 100` draws a regular pentagon (5 equal sides/turns) and returns to its start position/heading, subject to numeric rounding (spec/geometry-module.md:29-73).",
+  "profiles": ["geometry"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [1, 1],
+        "end": [12, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [13, 1],
+        "end": [13, 14]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [13, 1],
+        "end": [13, 14]
+      },
+      "payload": {
+        "name": "polygon",
+        "args": [5, 100]
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [2, 3],
+        "end": [4, 9]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [5, 3],
+        "end": [7, 9]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [8, 3],
+        "end": [11, 13]
+      },
+      "payload": {
+        "statement_kind": "Repeat"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [9, 5],
+        "end": [9, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [9, 5],
+        "end": [9, 18]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 100],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [9, 5],
+        "end": [9, 18]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 100],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [10, 5],
+        "end": [10, 23]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [10, 5],
+        "end": [10, 23]
+      },
+      "payload": {
+        "from": 0,
+        "to": 72
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [9, 5],
+        "end": [9, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [9, 5],
+        "end": [9, 18]
+      },
+      "payload": {
+        "from": [0, 100],
+        "to": [95.10565162951535, 130.90169943749476],
+        "heading": 72
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [9, 5],
+        "end": [9, 18]
+      },
+      "payload": {
+        "from": [0, 100],
+        "to": [95.10565162951535, 130.90169943749476],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [10, 5],
+        "end": [10, 23]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [10, 5],
+        "end": [10, 23]
+      },
+      "payload": {
+        "from": 72,
+        "to": 144
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [9, 5],
+        "end": [9, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [9, 5],
+        "end": [9, 18]
+      },
+      "payload": {
+        "from": [95.10565162951535, 130.90169943749476],
+        "to": [153.88417685876266, 50.00000000000003],
+        "heading": 144
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [9, 5],
+        "end": [9, 18]
+      },
+      "payload": {
+        "from": [95.10565162951535, 130.90169943749476],
+        "to": [153.88417685876266, 50.00000000000003],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 19,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [10, 5],
+        "end": [10, 23]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 20,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [10, 5],
+        "end": [10, 23]
+      },
+      "payload": {
+        "from": 144,
+        "to": 216
+      }
+    },
+    {
+      "seq": 21,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [9, 5],
+        "end": [9, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 22,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [9, 5],
+        "end": [9, 18]
+      },
+      "payload": {
+        "from": [153.88417685876266, 50.00000000000003],
+        "to": [95.10565162951536, -30.901699437494713],
+        "heading": 216
+      }
+    },
+    {
+      "seq": 23,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [9, 5],
+        "end": [9, 18]
+      },
+      "payload": {
+        "from": [153.88417685876266, 50.00000000000003],
+        "to": [95.10565162951536, -30.901699437494713],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 24,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [10, 5],
+        "end": [10, 23]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 25,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [10, 5],
+        "end": [10, 23]
+      },
+      "payload": {
+        "from": 216,
+        "to": 288
+      }
+    },
+    {
+      "seq": 26,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [9, 5],
+        "end": [9, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 27,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [9, 5],
+        "end": [9, 18]
+      },
+      "payload": {
+        "from": [95.10565162951536, -30.901699437494713],
+        "to": [0, 1.0658141036401503e-14],
+        "heading": 288
+      }
+    },
+    {
+      "seq": 28,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [9, 5],
+        "end": [9, 18]
+      },
+      "payload": {
+        "from": [95.10565162951536, -30.901699437494713],
+        "to": [0, 1.0658141036401503e-14],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 29,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [10, 5],
+        "end": [10, 23]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 30,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [10, 5],
+        "end": [10, 23]
+      },
+      "payload": {
+        "from": 288,
+        "to": 0
+      }
+    },
+    {
+      "seq": 31,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [13, 1],
+        "end": [13, 14]
+      },
+      "payload": {
+        "name": "polygon",
+        "result": null
+      }
+    },
+    {
+      "seq": 32,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [14, 1],
+        "end": [14, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 33,
+      "kind": "print",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [14, 1],
+        "end": [14, 11]
+      },
+      "payload": {
+        "values": [0]
+      }
+    },
+    {
+      "seq": 34,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [15, 1],
+        "end": [15, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 35,
+      "kind": "print",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [15, 1],
+        "end": [15, 11]
+      },
+      "payload": {
+        "values": [1.0658141036401503e-14]
+      }
+    },
+    {
+      "seq": 36,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [16, 1],
+        "end": [16, 14]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 37,
+      "kind": "print",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-happy",
+        "start": [16, 1],
+        "end": [16, 14]
+      },
+      "payload": {
+        "values": [0]
+      }
+    }
+  ],
+  "diagnostics": []
+}

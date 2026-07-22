@@ -1,0 +1,28 @@
+# Draws the star polygon {points/step}: like polygon, but skips :step vertices ahead each
+# side instead of just the next one, so the exterior turn is 360*step/points. Default :step
+# is 2, giving the familiar pentagram when :points is 5.
+#
+# @command star :points :size (:step 2)
+# @spec spec/geometry-module.md:75-133
+# @param points whole number of points, SHOULD be at least 5 for a recognizable star
+# @param size   length of each side
+# @param step   optional vertex skip (default 2), whole number with 1 < step < points
+# @formula turn = 360 * step / points
+# @throws "a star needs a whole number of points" if points is not a whole number
+# @throws "a star step must be a whole number between 2 and one less than the number of points" if step is not strictly between 1 and points
+# @throws "a star step must be a whole number" if step is not a whole number
+define star :points :size (:step 2)
+  if not (:points == int :points)
+    throw "a star needs a whole number of points"
+  end if
+  if not (:step is strictly between 1 and :points)
+    throw "a star step must be a whole number between 2 and one less than the number of points"
+  end if
+  if not (:step == int :step)
+    throw "a star step must be a whole number"
+  end if
+  repeat :points
+    forward :size
+    right 360 * :step / :points
+  end repeat
+end

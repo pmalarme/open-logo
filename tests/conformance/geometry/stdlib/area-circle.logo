@@ -1,0 +1,27 @@
+define area :shape
+  if :shape[1] == "polygon"
+    local sides
+    local size
+    :sides = :shape[2]
+    :size = :shape[3]
+    if :sides < 3 or not (:sides == int :sides)
+      throw "area needs a polygon with a whole number of sides, at least 3"
+    end if
+    if :size <= 0
+      throw "area needs a polygon with a positive side length"
+    end if
+    return :sides * (power :size 2) / (4 * tan (180 / :sides))
+  end if
+
+  if :shape[1] == "circle"
+    local radius
+    :radius = :shape[2]
+    if :radius <= 0
+      throw "area needs a circle with a positive radius"
+    end if
+    return pi * power :radius 2
+  end if
+
+  throw "area knows only the polygon and circle shapes"
+end
+print area ["circle" 50]

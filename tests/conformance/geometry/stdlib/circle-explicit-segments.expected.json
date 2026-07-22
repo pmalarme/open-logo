@@ -1,0 +1,4882 @@
+{
+  "description": "issue #338: `(circle 50 72)` supplies the optional trailing `:segments` and draws a 72-segment approximation without diagnostics (spec/geometry-module.md:186-191).",
+  "profiles": ["geometry"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [1, 1],
+        "end": [17, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [18, 1],
+        "end": [18, 15]
+      },
+      "payload": {
+        "statement_kind": "ParenCall"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [18, 1],
+        "end": [18, 15]
+      },
+      "payload": {
+        "name": "circle",
+        "args": [50, 72]
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [2, 3],
+        "end": [2, 13]
+      },
+      "payload": {
+        "statement_kind": "Local"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [3, 3],
+        "end": [5, 9]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [6, 3],
+        "end": [8, 9]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [9, 3],
+        "end": [11, 9]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [12, 3],
+        "end": [12, 45]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [13, 3],
+        "end": [16, 13]
+      },
+      "payload": {
+        "statement_kind": "Repeat"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 4.3619387365336],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 4.3619387365336],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 0,
+        "to": 5
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [0, 4.3619387365336],
+        "to": [0.38016801040236753, 8.707278979269379],
+        "heading": 5
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [0, 4.3619387365336],
+        "to": [0.38016801040236753, 8.707278979269379],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 5,
+        "to": 10
+      }
+    },
+    {
+      "seq": 19,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 20,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [0.38016801040236753, 8.707278979269379],
+        "to": [1.1376107230962196, 13.002950065171943],
+        "heading": 10
+      }
+    },
+    {
+      "seq": 21,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [0.38016801040236753, 8.707278979269379],
+        "to": [1.1376107230962196, 13.002950065171943],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 22,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 23,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 10,
+        "to": 15
+      }
+    },
+    {
+      "seq": 24,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 25,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [1.1376107230962196, 13.002950065171943],
+        "to": [2.266563541681542, 17.216259343480456],
+        "heading": 15
+      }
+    },
+    {
+      "seq": 26,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [1.1376107230962196, 13.002950065171943],
+        "to": [2.266563541681542, 17.216259343480456],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 27,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 28,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 15,
+        "to": 20
+      }
+    },
+    {
+      "seq": 29,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 30,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [2.266563541681542, 17.216259343480456],
+        "to": [3.75843445352855, 21.31514098652129],
+        "heading": 20
+      }
+    },
+    {
+      "seq": 31,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [2.266563541681542, 17.216259343480456],
+        "to": [3.75843445352855, 21.31514098652129],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 32,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 33,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 20,
+        "to": 25
+      }
+    },
+    {
+      "seq": 34,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 35,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [3.75843445352855, 21.31514098652129],
+        "to": [5.601869420181803, 25.268400030018498],
+        "heading": 25
+      }
+    },
+    {
+      "seq": 36,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [3.75843445352855, 21.31514098652129],
+        "to": [5.601869420181803, 25.268400030018498],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 37,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 38,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 25,
+        "to": 30
+      }
+    },
+    {
+      "seq": 39,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 40,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [5.601869420181803, 25.268400030018498],
+        "to": [7.782838788448602, 29.04594978560799],
+        "heading": 30
+      }
+    },
+    {
+      "seq": 41,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [5.601869420181803, 25.268400030018498],
+        "to": [7.782838788448602, 29.04594978560799],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 42,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 43,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 30,
+        "to": 35
+      }
+    },
+    {
+      "seq": 44,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 45,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [7.782838788448602, 29.04594978560799],
+        "to": [10.284744064531129, 32.61904081870283],
+        "heading": 35
+      }
+    },
+    {
+      "seq": 46,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [7.782838788448602, 29.04594978560799],
+        "to": [10.284744064531129, 32.61904081870283],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 47,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 48,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 35,
+        "to": 40
+      }
+    },
+    {
+      "seq": 49,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 50,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [10.284744064531129, 32.61904081870283],
+        "to": [13.088544238586685, 35.96047974904981],
+        "heading": 40
+      }
+    },
+    {
+      "seq": 51,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [10.284744064531129, 32.61904081870283],
+        "to": [13.088544238586685, 35.96047974904981],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 52,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 53,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 40,
+        "to": 45
+      }
+    },
+    {
+      "seq": 54,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 55,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [13.088544238586685, 35.96047974904981],
+        "to": [16.172900698309874, 39.044836208773],
+        "heading": 45
+      }
+    },
+    {
+      "seq": 56,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [13.088544238586685, 35.96047974904981],
+        "to": [16.172900698309874, 39.044836208773],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 57,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 58,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 45,
+        "to": 50
+      }
+    },
+    {
+      "seq": 59,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 60,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [16.172900698309874, 39.044836208773],
+        "to": [19.514339628656856, 41.84863638282855],
+        "heading": 50
+      }
+    },
+    {
+      "seq": 61,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [16.172900698309874, 39.044836208773],
+        "to": [19.514339628656856, 41.84863638282855],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 62,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 63,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 50,
+        "to": 55
+      }
+    },
+    {
+      "seq": 64,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 65,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [19.514339628656856, 41.84863638282855],
+        "to": [23.087430661751696, 44.35054165891108],
+        "heading": 55
+      }
+    },
+    {
+      "seq": 66,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [19.514339628656856, 41.84863638282855],
+        "to": [23.087430661751696, 44.35054165891108],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 67,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 68,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 55,
+        "to": 60
+      }
+    },
+    {
+      "seq": 69,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 70,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [23.087430661751696, 44.35054165891108],
+        "to": [26.86498041734119, 46.53151102717788],
+        "heading": 60
+      }
+    },
+    {
+      "seq": 71,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [23.087430661751696, 44.35054165891108],
+        "to": [26.86498041734119, 46.53151102717788],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 72,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 73,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 60,
+        "to": 65
+      }
+    },
+    {
+      "seq": 74,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 75,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [26.86498041734119, 46.53151102717788],
+        "to": [30.8182394608384, 48.37494599383113],
+        "heading": 65
+      }
+    },
+    {
+      "seq": 76,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [26.86498041734119, 46.53151102717788],
+        "to": [30.8182394608384, 48.37494599383113],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 77,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 78,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 65,
+        "to": 70
+      }
+    },
+    {
+      "seq": 79,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 80,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [30.8182394608384, 48.37494599383113],
+        "to": [34.91712110387923, 49.86681690567814],
+        "heading": 70
+      }
+    },
+    {
+      "seq": 81,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [30.8182394608384, 48.37494599383113],
+        "to": [34.91712110387923, 49.86681690567814],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 82,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 83,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 70,
+        "to": 75
+      }
+    },
+    {
+      "seq": 84,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 85,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [34.91712110387923, 49.86681690567814],
+        "to": [39.13043038218775, 50.99576972426347],
+        "heading": 75
+      }
+    },
+    {
+      "seq": 86,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [34.91712110387923, 49.86681690567814],
+        "to": [39.13043038218775, 50.99576972426347],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 87,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 88,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 75,
+        "to": 80
+      }
+    },
+    {
+      "seq": 89,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 90,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [39.13043038218775, 50.99576972426347],
+        "to": [43.42610146809031, 51.75321243695732],
+        "heading": 80
+      }
+    },
+    {
+      "seq": 91,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [39.13043038218775, 50.99576972426347],
+        "to": [43.42610146809031, 51.75321243695732],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 92,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 93,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 80,
+        "to": 85
+      }
+    },
+    {
+      "seq": 94,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 95,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [43.42610146809031, 51.75321243695732],
+        "to": [47.77144171082609, 52.133380447359684],
+        "heading": 85
+      }
+    },
+    {
+      "seq": 96,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [43.42610146809031, 51.75321243695732],
+        "to": [47.77144171082609, 52.133380447359684],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 97,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 98,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 85,
+        "to": 90
+      }
+    },
+    {
+      "seq": 99,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 100,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [47.77144171082609, 52.133380447359684],
+        "to": [52.13338044735969, 52.133380447359684],
+        "heading": 90
+      }
+    },
+    {
+      "seq": 101,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [47.77144171082609, 52.133380447359684],
+        "to": [52.13338044735969, 52.133380447359684],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 102,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 103,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 90,
+        "to": 95
+      }
+    },
+    {
+      "seq": 104,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 105,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [52.13338044735969, 52.133380447359684],
+        "to": [56.47872069009547, 51.75321243695732],
+        "heading": 95
+      }
+    },
+    {
+      "seq": 106,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [52.13338044735969, 52.133380447359684],
+        "to": [56.47872069009547, 51.75321243695732],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 107,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 108,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 95,
+        "to": 100
+      }
+    },
+    {
+      "seq": 109,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 110,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [56.47872069009547, 51.75321243695732],
+        "to": [60.77439177599803, 50.99576972426347],
+        "heading": 100
+      }
+    },
+    {
+      "seq": 111,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [56.47872069009547, 51.75321243695732],
+        "to": [60.77439177599803, 50.99576972426347],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 112,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 113,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 100,
+        "to": 105
+      }
+    },
+    {
+      "seq": 114,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 115,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [60.77439177599803, 50.99576972426347],
+        "to": [64.98770105430654, 49.86681690567814],
+        "heading": 105
+      }
+    },
+    {
+      "seq": 116,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [60.77439177599803, 50.99576972426347],
+        "to": [64.98770105430654, 49.86681690567814],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 117,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 118,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 105,
+        "to": 110
+      }
+    },
+    {
+      "seq": 119,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 120,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [64.98770105430654, 49.86681690567814],
+        "to": [69.08658269734737, 48.37494599383113],
+        "heading": 110
+      }
+    },
+    {
+      "seq": 121,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [64.98770105430654, 49.86681690567814],
+        "to": [69.08658269734737, 48.37494599383113],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 122,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 123,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 110,
+        "to": 115
+      }
+    },
+    {
+      "seq": 124,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 125,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [69.08658269734737, 48.37494599383113],
+        "to": [73.03984174084458, 46.53151102717788],
+        "heading": 115
+      }
+    },
+    {
+      "seq": 126,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [69.08658269734737, 48.37494599383113],
+        "to": [73.03984174084458, 46.53151102717788],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 127,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 128,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 115,
+        "to": 120
+      }
+    },
+    {
+      "seq": 129,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 130,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [73.03984174084458, 46.53151102717788],
+        "to": [76.81739149643407, 44.35054165891108],
+        "heading": 120
+      }
+    },
+    {
+      "seq": 131,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [73.03984174084458, 46.53151102717788],
+        "to": [76.81739149643407, 44.35054165891108],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 132,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 133,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 120,
+        "to": 125
+      }
+    },
+    {
+      "seq": 134,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 135,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [76.81739149643407, 44.35054165891108],
+        "to": [80.39048252952891, 41.84863638282855],
+        "heading": 125
+      }
+    },
+    {
+      "seq": 136,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [76.81739149643407, 44.35054165891108],
+        "to": [80.39048252952891, 41.84863638282855],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 137,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 138,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 125,
+        "to": 130
+      }
+    },
+    {
+      "seq": 139,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 140,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [80.39048252952891, 41.84863638282855],
+        "to": [83.73192145987589, 39.044836208773],
+        "heading": 130
+      }
+    },
+    {
+      "seq": 141,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [80.39048252952891, 41.84863638282855],
+        "to": [83.73192145987589, 39.044836208773],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 142,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 143,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 130,
+        "to": 135
+      }
+    },
+    {
+      "seq": 144,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 145,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [83.73192145987589, 39.044836208773],
+        "to": [86.81627791959909, 35.96047974904981],
+        "heading": 135
+      }
+    },
+    {
+      "seq": 146,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [83.73192145987589, 39.044836208773],
+        "to": [86.81627791959909, 35.96047974904981],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 147,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 148,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 135,
+        "to": 140
+      }
+    },
+    {
+      "seq": 149,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 150,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [86.81627791959909, 35.96047974904981],
+        "to": [89.62007809365464, 32.61904081870283],
+        "heading": 140
+      }
+    },
+    {
+      "seq": 151,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [86.81627791959909, 35.96047974904981],
+        "to": [89.62007809365464, 32.61904081870283],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 152,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 153,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 140,
+        "to": 145
+      }
+    },
+    {
+      "seq": 154,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 155,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [89.62007809365464, 32.61904081870283],
+        "to": [92.12198336973717, 29.045949785607988],
+        "heading": 145
+      }
+    },
+    {
+      "seq": 156,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [89.62007809365464, 32.61904081870283],
+        "to": [92.12198336973717, 29.045949785607988],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 157,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 158,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 145,
+        "to": 150
+      }
+    },
+    {
+      "seq": 159,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 160,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [92.12198336973717, 29.045949785607988],
+        "to": [94.30295273800397, 25.268400030018494],
+        "heading": 150
+      }
+    },
+    {
+      "seq": 161,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [92.12198336973717, 29.045949785607988],
+        "to": [94.30295273800397, 25.268400030018494],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 162,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 163,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 150,
+        "to": 155
+      }
+    },
+    {
+      "seq": 164,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 165,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [94.30295273800397, 25.268400030018494],
+        "to": [96.14638770465722, 21.315140986521286],
+        "heading": 155
+      }
+    },
+    {
+      "seq": 166,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [94.30295273800397, 25.268400030018494],
+        "to": [96.14638770465722, 21.315140986521286],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 167,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 168,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 155,
+        "to": 160
+      }
+    },
+    {
+      "seq": 169,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 170,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [96.14638770465722, 21.315140986521286],
+        "to": [97.63825861650422, 17.216259343480452],
+        "heading": 160
+      }
+    },
+    {
+      "seq": 171,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [96.14638770465722, 21.315140986521286],
+        "to": [97.63825861650422, 17.216259343480452],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 172,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 173,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 160,
+        "to": 165
+      }
+    },
+    {
+      "seq": 174,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 175,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [97.63825861650422, 17.216259343480452],
+        "to": [98.76721143508954, 13.002950065171941],
+        "heading": 165
+      }
+    },
+    {
+      "seq": 176,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [97.63825861650422, 17.216259343480452],
+        "to": [98.76721143508954, 13.002950065171941],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 177,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 178,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 165,
+        "to": 170
+      }
+    },
+    {
+      "seq": 179,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 180,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [98.76721143508954, 13.002950065171941],
+        "to": [99.5246541477834, 8.707278979269377],
+        "heading": 170
+      }
+    },
+    {
+      "seq": 181,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [98.76721143508954, 13.002950065171941],
+        "to": [99.5246541477834, 8.707278979269377],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 182,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 183,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 170,
+        "to": 175
+      }
+    },
+    {
+      "seq": 184,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 185,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [99.5246541477834, 8.707278979269377],
+        "to": [99.90482215818577, 4.361938736533598],
+        "heading": 175
+      }
+    },
+    {
+      "seq": 186,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [99.5246541477834, 8.707278979269377],
+        "to": [99.90482215818577, 4.361938736533598],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 187,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 188,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 175,
+        "to": 180
+      }
+    },
+    {
+      "seq": 189,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 190,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [99.90482215818577, 4.361938736533598],
+        "to": [99.90482215818577, -1.7763568394002505e-15],
+        "heading": 180
+      }
+    },
+    {
+      "seq": 191,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [99.90482215818577, 4.361938736533598],
+        "to": [99.90482215818577, -1.7763568394002505e-15],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 192,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 193,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 180,
+        "to": 185
+      }
+    },
+    {
+      "seq": 194,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 195,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [99.90482215818577, -1.7763568394002505e-15],
+        "to": [99.5246541477834, -4.345340242735781],
+        "heading": 185
+      }
+    },
+    {
+      "seq": 196,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [99.90482215818577, -1.7763568394002505e-15],
+        "to": [99.5246541477834, -4.345340242735781],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 197,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 198,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 185,
+        "to": 190
+      }
+    },
+    {
+      "seq": 199,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 200,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [99.5246541477834, -4.345340242735781],
+        "to": [98.76721143508954, -8.641011328638346],
+        "heading": 190
+      }
+    },
+    {
+      "seq": 201,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [99.5246541477834, -4.345340242735781],
+        "to": [98.76721143508954, -8.641011328638346],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 202,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 203,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 190,
+        "to": 195
+      }
+    },
+    {
+      "seq": 204,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 205,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [98.76721143508954, -8.641011328638346],
+        "to": [97.63825861650422, -12.854320606946859],
+        "heading": 195
+      }
+    },
+    {
+      "seq": 206,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [98.76721143508954, -8.641011328638346],
+        "to": [97.63825861650422, -12.854320606946859],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 207,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 208,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 195,
+        "to": 200
+      }
+    },
+    {
+      "seq": 209,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 210,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [97.63825861650422, -12.854320606946859],
+        "to": [96.14638770465722, -16.95320224998769],
+        "heading": 200
+      }
+    },
+    {
+      "seq": 211,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [97.63825861650422, -12.854320606946859],
+        "to": [96.14638770465722, -16.95320224998769],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 212,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 213,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 200,
+        "to": 205
+      }
+    },
+    {
+      "seq": 214,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 215,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [96.14638770465722, -16.95320224998769],
+        "to": [94.30295273800397, -20.9064612934849],
+        "heading": 205
+      }
+    },
+    {
+      "seq": 216,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [96.14638770465722, -16.95320224998769],
+        "to": [94.30295273800397, -20.9064612934849],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 217,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 218,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 205,
+        "to": 210
+      }
+    },
+    {
+      "seq": 219,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 220,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [94.30295273800397, -20.9064612934849],
+        "to": [92.12198336973717, -24.684011049074392],
+        "heading": 210
+      }
+    },
+    {
+      "seq": 221,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [94.30295273800397, -20.9064612934849],
+        "to": [92.12198336973717, -24.684011049074392],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 222,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 223,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 210,
+        "to": 215
+      }
+    },
+    {
+      "seq": 224,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 225,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [92.12198336973717, -24.684011049074392],
+        "to": [89.62007809365464, -28.257102082169233],
+        "heading": 215
+      }
+    },
+    {
+      "seq": 226,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [92.12198336973717, -24.684011049074392],
+        "to": [89.62007809365464, -28.257102082169233],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 227,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 228,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 215,
+        "to": 220
+      }
+    },
+    {
+      "seq": 229,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 230,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [89.62007809365464, -28.257102082169233],
+        "to": [86.81627791959909, -31.598541012516215],
+        "heading": 220
+      }
+    },
+    {
+      "seq": 231,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [89.62007809365464, -28.257102082169233],
+        "to": [86.81627791959909, -31.598541012516215],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 232,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 233,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 220,
+        "to": 225
+      }
+    },
+    {
+      "seq": 234,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 235,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [86.81627791959909, -31.598541012516215],
+        "to": [83.73192145987589, -34.682897472239404],
+        "heading": 225
+      }
+    },
+    {
+      "seq": 236,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [86.81627791959909, -31.598541012516215],
+        "to": [83.73192145987589, -34.682897472239404],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 237,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 238,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 225,
+        "to": 230
+      }
+    },
+    {
+      "seq": 239,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 240,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [83.73192145987589, -34.682897472239404],
+        "to": [80.39048252952891, -37.48669764629496],
+        "heading": 230
+      }
+    },
+    {
+      "seq": 241,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [83.73192145987589, -34.682897472239404],
+        "to": [80.39048252952891, -37.48669764629496],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 242,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 243,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 230,
+        "to": 235
+      }
+    },
+    {
+      "seq": 244,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 245,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [80.39048252952891, -37.48669764629496],
+        "to": [76.81739149643407, -39.98860292237748],
+        "heading": 235
+      }
+    },
+    {
+      "seq": 246,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [80.39048252952891, -37.48669764629496],
+        "to": [76.81739149643407, -39.98860292237748],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 247,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 248,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 235,
+        "to": 240
+      }
+    },
+    {
+      "seq": 249,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 250,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [76.81739149643407, -39.98860292237748],
+        "to": [73.03984174084458, -42.16957229064428],
+        "heading": 240
+      }
+    },
+    {
+      "seq": 251,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [76.81739149643407, -39.98860292237748],
+        "to": [73.03984174084458, -42.16957229064428],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 252,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 253,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 240,
+        "to": 245
+      }
+    },
+    {
+      "seq": 254,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 255,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [73.03984174084458, -42.16957229064428],
+        "to": [69.08658269734737, -44.01300725729754],
+        "heading": 245
+      }
+    },
+    {
+      "seq": 256,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [73.03984174084458, -42.16957229064428],
+        "to": [69.08658269734737, -44.01300725729754],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 257,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 258,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 245,
+        "to": 250
+      }
+    },
+    {
+      "seq": 259,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 260,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [69.08658269734737, -44.01300725729754],
+        "to": [64.98770105430654, -45.50487816914455],
+        "heading": 250
+      }
+    },
+    {
+      "seq": 261,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [69.08658269734737, -44.01300725729754],
+        "to": [64.98770105430654, -45.50487816914455],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 262,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 263,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 250,
+        "to": 255
+      }
+    },
+    {
+      "seq": 264,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 265,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [64.98770105430654, -45.50487816914455],
+        "to": [60.774391775998026, -46.633830987729866],
+        "heading": 255
+      }
+    },
+    {
+      "seq": 266,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [64.98770105430654, -45.50487816914455],
+        "to": [60.774391775998026, -46.633830987729866],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 267,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 268,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 255,
+        "to": 260
+      }
+    },
+    {
+      "seq": 269,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 270,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [60.774391775998026, -46.633830987729866],
+        "to": [56.478720690095464, -47.39127370042372],
+        "heading": 260
+      }
+    },
+    {
+      "seq": 271,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [60.774391775998026, -46.633830987729866],
+        "to": [56.478720690095464, -47.39127370042372],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 272,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 273,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 260,
+        "to": 265
+      }
+    },
+    {
+      "seq": 274,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 275,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [56.478720690095464, -47.39127370042372],
+        "to": [52.133380447359684, -47.77144171082608],
+        "heading": 265
+      }
+    },
+    {
+      "seq": 276,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [56.478720690095464, -47.39127370042372],
+        "to": [52.133380447359684, -47.77144171082608],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 277,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 278,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 265,
+        "to": 270
+      }
+    },
+    {
+      "seq": 279,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 280,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [52.133380447359684, -47.77144171082608],
+        "to": [47.77144171082608, -47.77144171082608],
+        "heading": 270
+      }
+    },
+    {
+      "seq": 281,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [52.133380447359684, -47.77144171082608],
+        "to": [47.77144171082608, -47.77144171082608],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 282,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 283,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 270,
+        "to": 275
+      }
+    },
+    {
+      "seq": 284,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 285,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [47.77144171082608, -47.77144171082608],
+        "to": [43.4261014680903, -47.39127370042372],
+        "heading": 275
+      }
+    },
+    {
+      "seq": 286,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [47.77144171082608, -47.77144171082608],
+        "to": [43.4261014680903, -47.39127370042372],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 287,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 288,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 275,
+        "to": 280
+      }
+    },
+    {
+      "seq": 289,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 290,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [43.4261014680903, -47.39127370042372],
+        "to": [39.13043038218774, -46.633830987729866],
+        "heading": 280
+      }
+    },
+    {
+      "seq": 291,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [43.4261014680903, -47.39127370042372],
+        "to": [39.13043038218774, -46.633830987729866],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 292,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 293,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 280,
+        "to": 285
+      }
+    },
+    {
+      "seq": 294,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 295,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [39.13043038218774, -46.633830987729866],
+        "to": [34.917121103879225, -45.50487816914454],
+        "heading": 285
+      }
+    },
+    {
+      "seq": 296,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [39.13043038218774, -46.633830987729866],
+        "to": [34.917121103879225, -45.50487816914454],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 297,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 298,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 285,
+        "to": 290
+      }
+    },
+    {
+      "seq": 299,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 300,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [34.917121103879225, -45.50487816914454],
+        "to": [30.81823946083839, -44.01300725729753],
+        "heading": 290
+      }
+    },
+    {
+      "seq": 301,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [34.917121103879225, -45.50487816914454],
+        "to": [30.81823946083839, -44.01300725729753],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 302,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 303,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 290,
+        "to": 295
+      }
+    },
+    {
+      "seq": 304,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 305,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [30.81823946083839, -44.01300725729753],
+        "to": [26.864980417341183, -42.169572290644275],
+        "heading": 295
+      }
+    },
+    {
+      "seq": 306,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [30.81823946083839, -44.01300725729753],
+        "to": [26.864980417341183, -42.169572290644275],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 307,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 308,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 295,
+        "to": 300
+      }
+    },
+    {
+      "seq": 309,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 310,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [26.864980417341183, -42.169572290644275],
+        "to": [23.08743066175169, -39.988602922377474],
+        "heading": 300
+      }
+    },
+    {
+      "seq": 311,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [26.864980417341183, -42.169572290644275],
+        "to": [23.08743066175169, -39.988602922377474],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 312,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 313,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 300,
+        "to": 305
+      }
+    },
+    {
+      "seq": 314,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 315,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [23.08743066175169, -39.988602922377474],
+        "to": [19.51433962865685, -37.48669764629495],
+        "heading": 305
+      }
+    },
+    {
+      "seq": 316,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [23.08743066175169, -39.988602922377474],
+        "to": [19.51433962865685, -37.48669764629495],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 317,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 318,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 305,
+        "to": 310
+      }
+    },
+    {
+      "seq": 319,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 320,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [19.51433962865685, -37.48669764629495],
+        "to": [16.172900698309867, -34.6828974722394],
+        "heading": 310
+      }
+    },
+    {
+      "seq": 321,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [19.51433962865685, -37.48669764629495],
+        "to": [16.172900698309867, -34.6828974722394],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 322,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 323,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 310,
+        "to": 315
+      }
+    },
+    {
+      "seq": 324,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 325,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [16.172900698309867, -34.6828974722394],
+        "to": [13.088544238586676, -31.598541012516208],
+        "heading": 315
+      }
+    },
+    {
+      "seq": 326,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [16.172900698309867, -34.6828974722394],
+        "to": [13.088544238586676, -31.598541012516208],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 327,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 328,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 315,
+        "to": 320
+      }
+    },
+    {
+      "seq": 329,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 330,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [13.088544238586676, -31.598541012516208],
+        "to": [10.28474406453112, -28.25710208216923],
+        "heading": 320
+      }
+    },
+    {
+      "seq": 331,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [13.088544238586676, -31.598541012516208],
+        "to": [10.28474406453112, -28.25710208216923],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 332,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 333,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 320,
+        "to": 325
+      }
+    },
+    {
+      "seq": 334,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 335,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [10.28474406453112, -28.25710208216923],
+        "to": [7.782838788448592, -24.68401104907439],
+        "heading": 325
+      }
+    },
+    {
+      "seq": 336,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [10.28474406453112, -28.25710208216923],
+        "to": [7.782838788448592, -24.68401104907439],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 337,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 338,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 325,
+        "to": 330
+      }
+    },
+    {
+      "seq": 339,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 340,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [7.782838788448592, -24.68401104907439],
+        "to": [5.6018694201817905, -20.906461293484895],
+        "heading": 330
+      }
+    },
+    {
+      "seq": 341,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [7.782838788448592, -24.68401104907439],
+        "to": [5.6018694201817905, -20.906461293484895],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 342,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 343,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 330,
+        "to": 335
+      }
+    },
+    {
+      "seq": 344,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 345,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [5.6018694201817905, -20.906461293484895],
+        "to": [3.7584344535285354, -16.95320224998769],
+        "heading": 335
+      }
+    },
+    {
+      "seq": 346,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [5.6018694201817905, -20.906461293484895],
+        "to": [3.7584344535285354, -16.95320224998769],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 347,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 348,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 335,
+        "to": 340
+      }
+    },
+    {
+      "seq": 349,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 350,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [3.7584344535285354, -16.95320224998769],
+        "to": [2.2665635416815277, -12.854320606946857],
+        "heading": 340
+      }
+    },
+    {
+      "seq": 351,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [3.7584344535285354, -16.95320224998769],
+        "to": [2.2665635416815277, -12.854320606946857],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 352,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 353,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 340,
+        "to": 345
+      }
+    },
+    {
+      "seq": 354,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 355,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [2.2665635416815277, -12.854320606946857],
+        "to": [1.1376107230962058, -8.641011328638346],
+        "heading": 345
+      }
+    },
+    {
+      "seq": 356,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [2.2665635416815277, -12.854320606946857],
+        "to": [1.1376107230962058, -8.641011328638346],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 357,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 358,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 345,
+        "to": 350
+      }
+    },
+    {
+      "seq": 359,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 360,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [1.1376107230962058, -8.641011328638346],
+        "to": [0.3801680104023496, -4.345340242735782],
+        "heading": 350
+      }
+    },
+    {
+      "seq": 361,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [1.1376107230962058, -8.641011328638346],
+        "to": [0.3801680104023496, -4.345340242735782],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 362,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 363,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 350,
+        "to": 355
+      }
+    },
+    {
+      "seq": 364,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 365,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [0.3801680104023496, -4.345340242735782],
+        "to": [-1.8596235662471372e-14, -2.6645352591003757e-15],
+        "heading": 355
+      }
+    },
+    {
+      "seq": 366,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [14, 5],
+        "end": [14, 18]
+      },
+      "payload": {
+        "from": [0.3801680104023496, -4.345340242735782],
+        "to": [-1.8596235662471372e-14, -2.6645352591003757e-15],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 367,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 368,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [15, 5],
+        "end": [15, 26]
+      },
+      "payload": {
+        "from": 355,
+        "to": 0
+      }
+    },
+    {
+      "seq": 369,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "geometry/stdlib/circle-explicit-segments",
+        "start": [18, 1],
+        "end": [18, 15]
+      },
+      "payload": {
+        "name": "circle",
+        "result": null
+      }
+    }
+  ],
+  "diagnostics": []
+}

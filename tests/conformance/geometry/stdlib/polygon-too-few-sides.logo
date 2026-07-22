@@ -1,0 +1,13 @@
+define polygon :sides :size
+  if :sides < 3
+    throw "a polygon needs at least 3 sides"
+  end if
+  if not (:sides == int :sides)
+    throw "a polygon needs a whole number of sides"
+  end if
+  repeat :sides
+    forward :size
+    right 360 / :sides
+  end repeat
+end
+polygon 2 100

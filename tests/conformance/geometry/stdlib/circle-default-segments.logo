@@ -1,0 +1,18 @@
+define circle :radius (:segments 36)
+  local side
+  if :radius <= 0
+    throw "a circle needs a positive radius"
+  end if
+  if :segments < 3
+    throw "a circle needs at least 3 segments"
+  end if
+  if not (:segments == int :segments)
+    throw "a circle needs a whole number of segments"
+  end if
+  :side = 2 * :radius * sin (180 / :segments)
+  repeat :segments
+    forward :side
+    right 360 / :segments
+  end repeat
+end
+circle 50
