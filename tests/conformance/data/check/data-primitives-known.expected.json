@@ -1,0 +1,7 @@
+{
+  "description": "M4 audit finding F3 (issue #405, `spec/tooling.md:172-185`): with the `data` profile active, every Data primitive — `dict`, `keys`, `values`, `type_of`, `reverse`, `pick`, `sort` — is a visible, known callee, so a fully-applied call to each checks cleanly under `check()` instead of wrongly raising `ol-unknown-command`.",
+  "profiles": ["core-language", "data"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

@@ -15,16 +15,21 @@
  * Geometry's `grid`/`axes`/`measure` overlay primitives, sourced from `GEOMETRY_PRIMITIVE_ARITY`;
  * issue #397 added Data's `list`/`dict`/`reverse`/`pick`/`sort`/`keys`/`values`/`type_of`
  * primitives, sourced from `DATA_PRIMITIVE_ARITY` — each profile's single source-of-truth table, so
- * this module never keeps a second, duplicate name list); this function is written to *gate* on
- * `profiles` rather than to assume any profile is always present — see the module's own unit test
- * for the gating shape. A future profile slice registers its own name table here, following the
- * same `if (active.has(<profile>)) { … }` shape.
+ * this module never keeps a second, duplicate name list); issue #405 adds every `struct` type's
+ * constructor name, collected straight from the program's own `StructDef` declarations (mirroring
+ * `@openlogo/runtime`'s phase-1 struct registration, `execute-internal.ts`'s `collectStructs`),
+ * gated on the `data` profile being active, exactly like this module's other optional-profile
+ * tables; this function is written to *gate* on `profiles` rather than to assume any profile is
+ * always present — see the module's own unit test for the gating shape. A future profile slice
+ * registers its own name table here, following the same `if (active.has(<profile>)) { … }` shape.
  *
  * {@link isOptionalProfileName} is this module's companion export for `ol-unknown-command`'s
  * did-you-mean tie-break (`spec/error-model.md:145-146`: "prefer Core words over optional-profile
  * words" on a distance tie) — now that optional profiles (Turtle & Rendering, Educational,
  * Geometry, Data) contribute real candidates, a tie between a Core name and an optional-profile
- * name is reachable and MUST resolve in Core's favor, not by lexicographic order alone.
+ * name is reachable and MUST resolve in Core's favor, not by lexicographic order alone. Struct
+ * constructor names are program-declared (like procedure names), not part of this frozen table —
+ * the same reason procedure names are excluded.
  */
 
 import type { CheckProfile } from "./check.js";
@@ -71,9 +76,11 @@ export function isOptionalProfileName(name: string): boolean {
  * only when `"turtle-rendering"` is active, the `explain`/`why`/`hint`/`debug` meta-commands only
  * when `"educational"` is active, the `grid`/`axes`/`measure` overlay primitives only when
  * `"geometry"` is active, the `list`/`dict`/`reverse`/`pick`/`sort`/`keys`/`values`/`type_of`
- * primitives only when `"data"` is active, plus every procedure declared anywhere in `program`
- * (declaration order and position do not matter — OpenLogo procedures are available program-wide,
- * not just after their `define`).
+ * primitives (plus every `struct` type's constructor name declared anywhere in `program`) only
+ * when `"data"` is active, plus every procedure declared anywhere in `program` (declaration order
+ * and position do not matter — OpenLogo procedures are available program-wide, not just after
+ * their `define`, and the same is true of struct constructors, which register at phase-1 exactly
+ * like procedures do — `@openlogo/runtime`'s `collectStructs`).
  */
 export function collectVisibleNames(
   program: ProgramNode,
@@ -113,6 +120,11 @@ export function collectVisibleNames(
     for (const name of dataPrimitiveNames()) {
       names.add(name);
     }
+    walk(program, (node) => {
+      if (node.kind === "StructDef") {
+        names.add(node.name.name.toLowerCase());
+      }
+    });
   }
 
   // Future optional-profile primitive/block-head tables register here, gated the same way, once

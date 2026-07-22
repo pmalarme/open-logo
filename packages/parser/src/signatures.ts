@@ -208,10 +208,10 @@ export function dataPrimitiveArity(name: string): number | undefined {
 /**
  * Every Data-profile primitive's canonical lowercase name, sorted for deterministic iteration.
  * This is the enumerable counterpart to {@link dataPrimitiveArity} — the checker's visible-name
- * model (`checker-names.ts`, issue #397) needs the full name *list*, gated on the `data` profile,
- * to make these primitives both callable without `ol-unknown-command` and candidates for its
- * did-you-mean suggestions — mirroring {@link turtlePrimitiveNames}'s role for the Turtle &
- * Rendering table.
+ * model (`checker-names.ts`, issue #397 and issue #405) needs the full name *list*, gated on the
+ * `data` profile, to make these primitives both callable without `ol-unknown-command` and
+ * candidates for its did-you-mean suggestions — mirroring {@link turtlePrimitiveNames}'s role for
+ * the Turtle & Rendering table.
  */
 const DATA_PRIMITIVE_NAMES: readonly string[] = Object.freeze(
   [...DATA_PRIMITIVE_ARITY.keys()].sort(),

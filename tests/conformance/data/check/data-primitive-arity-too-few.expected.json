@@ -1,0 +1,20 @@
+{
+  "description": "M4 audit finding F3 (issue #405): `checker-arity.ts` now checks Data-primitive arity statically, so a bare `keys` call short of its one required input raises `ol-not-enough-inputs` under `check()` — mirroring the runtime call-time arity check (issue #97) one stage earlier.",
+  "profiles": ["core-language", "data"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-not-enough-inputs",
+      "source_span": {
+        "document": "data/check/data-primitive-arity-too-few",
+        "start": [1, 1],
+        "end": [1, 5]
+      },
+      "params": { "callable": "keys", "expected": 1, "actual": 0 },
+      "message": "keys needs one input.",
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

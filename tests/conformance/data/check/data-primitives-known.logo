@@ -1,0 +1,7 @@
+:d = dict
+keys :d
+values :d
+type_of :d
+reverse [ 1 2 3 ]
+pick [ 1 2 3 ]
+sort [ 1 2 3 ]

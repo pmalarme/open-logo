@@ -32,10 +32,16 @@
  */
 
 import type { Diagnostic, SourceSpan } from "@openlogo/core";
-import type { AnyNode, CallNode, ParenCallNode, ProgramNode } from "./ast.js";
+import type {
+  AnyNode,
+  CallNode,
+  ParenCallNode,
+  ProgramNode,
+  StructDefNode,
+} from "./ast.js";
 import { walk } from "./ast.js";
 import type { CheckProfile } from "./check.js";
-import { corePrimitiveArityRange } from "./signatures.js";
+import { corePrimitiveArityRange, dataPrimitiveArity } from "./signatures.js";
 
 /** The statically-known arity of a callee: a required floor and a total ceiling. */
 interface Arity {
@@ -65,6 +71,36 @@ function collectProcedureArities(
       arities.set(node.name.name.toLowerCase(), {
         required,
         max: node.params.length,
+      });
+    }
+  });
+  return arities;
+}
+
+function isStructDef(node: AnyNode): node is StructDefNode {
+  return node.kind === "StructDef";
+}
+
+/**
+ * Every `struct` type's constructor arity, keyed by its canonical lowercase name — the required
+ * floor and ceiling are both its declared field count, since a constructor call is always exact
+ * (`spec/data-structures.md:252-266`), never optional/variadic. Mirrors
+ * {@link collectProcedureArities} exactly, including "a later `struct` of the same name overwrites
+ * the earlier one here" (redefinition collisions are `ol-reserved-word`'s concern,
+ * `checker-reserved-word.ts`, not this rule's) — and mirrors `@openlogo/runtime`'s own phase-1
+ * struct registration (`execute-internal.ts`'s `collectStructs`), which likewise collects every
+ * `StructDef` before any statement runs.
+ */
+function collectStructConstructorArities(
+  program: ProgramNode,
+): ReadonlyMap<string, Arity> {
+  const arities = new Map<string, Arity>();
+  walk(program, (node) => {
+    if (isStructDef(node)) {
+      const fieldCount = node.fields.length;
+      arities.set(node.name.name.toLowerCase(), {
+        required: fieldCount,
+        max: fieldCount,
       });
     }
   });
@@ -127,6 +163,27 @@ function tooManyDiagnostic(
 }
 
 /**
+ * Compares `actual` against `arity`'s `[required, max]` bounds and pushes the matching
+ * `ol-not-enough-inputs`/`ol-too-many-inputs` diagnostic when they disagree. Shared by every
+ * exact-arity callable this rule checks — user procedures and, since issue #405, Data-profile
+ * primitives and struct constructors — since all three have a statically-known, non-variadic
+ * arity checked identically regardless of call form (bare or parenthesized).
+ */
+function checkExactArity(
+  raw: string,
+  arity: Arity,
+  actual: number,
+  span: SourceSpan,
+  diagnostics: Diagnostic[],
+): void {
+  if (actual < arity.required) {
+    diagnostics.push(notEnoughDiagnostic(raw, arity.required, actual, span));
+  } else if (actual > arity.max) {
+    diagnostics.push(tooManyDiagnostic(raw, arity.max, actual, span));
+  }
+}
+
+/**
  * The `ol-not-enough-inputs` / `ol-too-many-inputs` rule. For each call site whose callee has a
  * statically-known arity, compares the supplied argument count against that arity and, when they
  * disagree, raises one diagnostic pointing at the callee. Parenthesized primitive calls are left
@@ -143,6 +200,13 @@ export function arityRule(
   // never double-reported here. User procedures come from the program's own `define`s, so their
   // arity is checked regardless of the active profile set (mirroring `collectVisibleNames`).
   const coreActive = profiles.includes("core-language");
+  // Data-profile primitives and struct constructors are likewise only visible — and so only
+  // arity-checkable — when the `data` profile is active (issue #405), mirroring
+  // `collectVisibleNames`'s own `data` gate.
+  const dataActive = profiles.includes("data");
+  const structs = dataActive
+    ? collectStructConstructorArities(program)
+    : undefined;
   const diagnostics: Diagnostic[] = [];
 
   walk(program, (node) => {
@@ -156,14 +220,27 @@ export function arityRule(
 
     const procedure = procedures.get(lower);
     if (procedure !== undefined) {
-      if (actual < procedure.required) {
-        diagnostics.push(
-          notEnoughDiagnostic(raw, procedure.required, actual, span),
-        );
-      } else if (actual > procedure.max) {
-        diagnostics.push(tooManyDiagnostic(raw, procedure.max, actual, span));
-      }
+      checkExactArity(raw, procedure, actual, span, diagnostics);
       return;
+    }
+
+    if (structs !== undefined) {
+      const structArity = structs.get(lower);
+      if (structArity !== undefined) {
+        checkExactArity(raw, structArity, actual, span, diagnostics);
+        return;
+      }
+      const dataArity = dataPrimitiveArity(lower);
+      if (dataArity !== undefined) {
+        checkExactArity(
+          raw,
+          { required: dataArity, max: dataArity },
+          actual,
+          span,
+          diagnostics,
+        );
+        return;
+      }
     }
 
     if (!coreActive) {
