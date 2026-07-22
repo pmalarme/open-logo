@@ -118,6 +118,11 @@ They coordinate by sending each other messages, which land as new turns in the o
 conversation. (This very post was written by one such session, dispatched by the orchestrator and
 reporting back to it.)
 
+(Heads-up for later: it didn't *start* this layered. For the first three milestones there was just one
+orchestrator dispatching authors and merging them; the middle tier of milestone orchestrators only
+appeared once the parallel profile work did — and it turned out to have a cost. More in "The honest
+hard parts.")
+
 ## The gate: nobody merges their own unreviewed work
 
 Speed is worthless if `main` breaks. So every change has to clear a **Definition of Done** and an
@@ -207,6 +212,15 @@ package set was tagged *together* as **v0.1.0** — one version tuple, one spec 
 profiles. A tag isn't "whatever happens to be on `main`"; it's a green, coherent snapshot you can point
 a learner at.
 
+**And it's the orchestrator's source of truth — not its memory.** This is the part that matters most.
+The orchestrator doesn't decide what's done by reading its plan or its notes; it asks GitHub. What's
+merged, what's in flight, what's ready — re-derived from `git` and `gh` every time, because its own
+memory goes stale the instant another session merges something. That literally happened: one morning a
+plain `git log` showed **four PRs already merged that the orchestrator had never recorded** — the
+maintainer had been merging in parallel — and GitHub, not the plan, was right. So the roles are clean:
+the **board is the maintainer's window** into progress, **issues and PRs are the traceability** trail,
+and **git's refs are the source of truth** that overrules any agent's memory.
+
 And — keeping the promise to be honest — this is where real gaps live. `add-to-project` needs a secret
 that wasn't always set, so new issues weren't always auto-added *at all*. And even when it runs, it only
 ever files a card as *Todo* — nothing advances it, so every Status move (Todo → In Progress → Done) is
@@ -230,9 +244,10 @@ The fix isn't cleverer prompts — it's **classic distributed-systems discipline
   `gh` first. The truth was always the actual branch, never a cached status field.
 - **Freeze the commit and bind decisions to it.** Wait for one final push, *then* review; a moving head
   invalidates everything downstream.
-- **Keep one authoritative record.** The orchestrator tracks its merge queue in a structured store it
-  owns, so "what's merged vs. pending" has a single answer that doesn't depend on which message arrived
-  when.
+- **Keep one reconciled ledger.** The orchestrator tracks its merge queue in a structured store it
+  owns, so "what's merged vs. pending" has one working answer that doesn't depend on which message
+  arrived when — while still treating GitHub, not that store, as the source of truth it reconciles
+  against.
 
 **Manual board hygiene.** Two independent gaps here. The board's auto-add automation needs a secret that
 wasn't always set — so new cards sometimes weren't added *at all*. And even when it runs, that automation
@@ -246,6 +261,39 @@ in-progress fix. Reviews run against committed, isolated state, always.
 
 Notice the pattern: none of these are *reasoning* failures. They're *coordination* failures — the exact
 bugs distributed systems have had for decades, now wearing an LLM costume.
+
+### One orchestrator, then a whole hierarchy — and it wasn't free
+
+Here's a twist the metrics hide: the biggest burst of shipping happened *before* the fancy hierarchy
+existed. The first three milestones — everything up to and including the tagged **v0.1.0** — ran under a
+*single* root orchestrator dispatching author sessions and merging them one at a time. That
+56-PRs-in-a-day peak? Single orchestrator. The milestone-orchestrator tier only appeared *minutes*
+after v0.1.0 shipped, to soak up the parallel profile work that came next. (The later days show fewer
+merges — but that's not apples-to-apples: the optional-profile work was a smaller body than the
+Core-language burst, and it's later in the calendar. Topology isn't the controlled variable here.)
+
+And the extra tier came with a bill. The root is one funnel that every milestone reports into, so it
+**repeatedly compacts its own conversation context** just to stay under its context limit — and the token cost climbs,
+because each milestone orchestrator keeps its own context and the root re-checks their verdicts from
+scratch. It also *created* work: more coordination chores, more verdict re-stamping, more chances to act
+on a stale commit. So the honest question the maintainer is left asking: would **several independent
+orchestrators, each owning a disjoint chunk of the code over one thin merge gate**, have been leaner
+than a deep hierarchy? The maintainer's own hunch is *probably* — *except* the code doesn't partition cleanly. The syntax tree, the
+event registry, the error codes, the shared evaluator — they all get touched from everywhere, so
+*someone* still has to own a single integration gate. Tellingly, the orchestrator's own read is that
+once the parallel rush subsided, the maintainer pulled the whole thing back to one PR at a time.
+
+Two smaller versions of the same lesson:
+
+- **Slices that were too big.** The very first lexer/parser/AST slice landed as one ~3,600-line marathon
+  PR (#35) — so hard to review that the team wrote a "keep slices small" rule (#42) rather than ever do
+  that again. In the maintainer's retrospective, oversized slices still cropped up once milestone
+  orchestrators were cutting the work — a slice cut too big stalls at the review-and-merge gate and has
+  to be re-decomposed.
+- **Shared seams that refuse to parallelize.** Three Data features all had to edit the same
+  evaluator-dispatch file, so they queued behind each other instead of running in parallel. Worse, a
+  command wired into the parser but not the runtime silently did *nothing* — no error at all — and it
+  happened *twice*, because two parallel sessions each owned one half of the contract.
 
 ## What actually shipped
 
@@ -273,7 +321,10 @@ model was the easy part.** The leverage came from *structure* —
 - an **org chart** of specialist agents with real playbooks, not thin personas,
 - a **hard definition of done** and an **independent review gate** so speed never costs correctness,
 - and treating **shared state as a distributed-systems problem**, because that's exactly what it is once
-  your agents run in parallel.
+  your agents run in parallel,
+- and **right-sizing the hierarchy** — in this project the extra orchestration layer added token and
+  relay overhead, which suggests adding layers only when parallel load demands them, and flattening
+  again when it doesn't.
 
 Prompt engineering gets you a patch. *Coordination* engineering gets you a language that runs. If you're
 assembling an agent fleet, spend your time on the contract, the gate, and the org chart — and respect the

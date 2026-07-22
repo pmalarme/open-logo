@@ -33,7 +33,13 @@ including the AI Tutor — still planned. We also give an honest account of the 
 *stale-crossing* class of coordination bug in which asynchronous inter-agent messages cross in
 flight and orchestrators mis-track their own already-merged work — and the disciplines that contain
 them: live-verify before acting, freeze the head commit, bind review verdicts to the full commit
-SHA, and treat an explicit orchestrator-owned queue as authoritative state. We close with
+SHA, and maintain an explicit orchestrator-owned merge queue as a coordination ledger continually
+reconciled against the repository's own state. We further report that the layered
+tier was *emergent* — introduced only after `v0.1.0` and carrying real coordination and context-token
+overhead, leaving open whether a flatter organization of independent owners over a single integration
+gate would be leaner — and that the fleet's authoritative state lived in **GitHub objects** (issues,
+pull requests, a project board, and `git` refs), against which agents reconcile rather than trusting
+their own memory. We close with
 threats to validity and lessons for anyone assembling agent fleets to build specified systems.
 
 **Keywords:** LLM agents, multi-agent systems, agentic software engineering, spec-driven
@@ -405,6 +411,16 @@ and board **Status** transitions (Todo→In Progress→Done) are performed *by h
 step that was, in practice, sometimes missed. We report this because the boundary between automated and
 manual is exactly where coordination bugs live (§6).
 
+Beyond routing work, these objects are the orchestration's **external source of truth**. An
+orchestrator does not trust its own plan, memory, or the app's cached session metadata for what is
+done, in-flight, or merge-ready; it *re-derives* that state from `git`/`gh` refs, issues, and pull
+requests, which override any cached belief. The reconciliation is load-bearing: on 2026-07-21 a
+`git log origin/main` surfaced four merges (PRs #360, #363, #365, #366) the root had never logged,
+because the maintainer was batch-merging in parallel — GitHub corrected the plan, not the reverse. The
+division of labor is deliberate: **the Project board is the maintainer's progress window, issues and
+pull requests are the traceability backbone, and `git`/`gh` refs are the authoritative state** that
+supersedes any agent's memory — the repository analogue of the live-verify discipline of §6.2.
+
 ---
 
 ## 4. Case Study: OpenLogo
@@ -432,6 +448,15 @@ M5 (Heritage · Sprites · Interaction & Events · Sound) proceed concurrently a
 contracts, alongside cross-cutting tracks such as documentation ("Learn How It's Built") and studio
 UX. A milestone completes only when its profile conformance is green across *all* domains — engine,
 tooling, rendering, studio, education, tests, and docs — not when a single package finishes.
+
+This parallel fan-out coincided with an **organizational inflection**. Milestones M0–M2 — through the
+tagged `v0.1.0` — ran under a *single* orchestrator with no Layer-2 tier: the root dispatched author
+sessions and drained merges directly. The milestone-orchestrator layer (Figure 2, Layer 2) was
+introduced at a sharp, datable moment — within minutes of M2/`v0.1.0` closing (2026-07-20 17:35 UTC),
+four dedicated milestone orchestrators (M3 Educational, M4 Data & Geometry, Studio UX, then Docs) were
+spun up (session-creation timestamps 17:40–17:44 UTC). The layering was thus not an a-priori design but
+a *response* to the parallel workload the optional profiles created; §6.3 weighs whether it paid for
+itself.
 
 ```mermaid
 flowchart LR
@@ -508,7 +533,11 @@ explicit `--limit` bounds so counts are not silently truncated by pagination.
 **Timeline and throughput.** The first commit landed 2026-07-16; the first PR merged 2026-07-17; the
 `v0.1.0` release commit is dated 2026-07-20; the most recent merge in our window is 2026-07-21. Merged
 PRs per day were 12 / 45 / 56 / 26 / 12 across 2026-07-17…21 (UTC; the last bucket keeps growing after
-measurement) — a pronounced burst reflecting Layer-3 parallelism once the M0 contracts were frozen. The **minimal
+measurement) — a pronounced burst reflecting Layer-3 parallelism once the M0 contracts were frozen. Notably, both the
+peak (56 merges on 2026-07-19) and the `v0.1.0` release itself were reached under the *single* root
+orchestrator; the Layer-2 milestone-orchestrator tier was introduced only after the release (§4.1), so
+the hierarchy cannot explain the peak; our operational reading — not a measured result (§7) — is that
+it reflects Layer-3 author parallelism behind frozen contracts. The **minimal
 conformant language therefore went from empty repository to tagged, conformance-backed `v0.1.0` in
 roughly four days** of agent-driven work.
 
@@ -557,6 +586,13 @@ as void.
 whole method depends on. The maintainer could let hundreds of PRs flow and still guarantee that the
 contract never changed without review.
 
+**GitHub as the reconciliation substrate.** Anchoring state in durable, queryable GitHub objects —
+issues, pull requests, a project board, and `git` refs — rather than in agent memory gave the fleet a
+single *external* source of truth that survived stale messages, context compaction, and session
+restarts. Repeatedly, `git`/`gh` corrected an orchestrator's in-memory plan rather than the reverse
+(§3.7). It also made the maintainer's oversight cheap: the board is a live progress window and the
+issue/PR graph is a complete audit trail, with no bespoke tooling to build or trust.
+
 ### 6.2 Failure modes
 
 **Stale-crossing.** The dominant coordination hazard is what we call *stale-crossing*: because
@@ -576,10 +612,11 @@ The disciplines that contain stale-crossing are consistent:
 - **Freeze the head SHA and bind verdicts to it.** A review `pass` attests to one 40-character commit;
   a later commit voids it. Correspondingly, one waits for a *single, final* confirmed push before
   freezing a head and dispatching the gate, rather than gating a head that is still moving.
-- **Treat an explicit, orchestrator-owned queue as authoritative state.** Rather than trusting message
+- **Keep an explicit, orchestrator-owned queue as a reconciled ledger.** Rather than trusting message
   history, the orchestrator keeps its merge-queue and drain state in a structured store it controls, so
-  "what is merged / merge-ready / pending" has one authoritative answer that does not depend on whether
-  an async message arrived.
+  "what is merged / merge-ready / pending" has one internal answer that does not depend on whether an
+  async message arrived — but that ledger is a *materialized view*, continually reconciled against (and
+  overridden by) the authoritative `git`/`gh` state of §3.7, never a substitute for it.
 
 **Post-merge integration races.** Per-PR green CI does not guarantee a green `main`. On three occasions
 an independently green PR merged onto a base that had moved under it and briefly turned `main` red on
@@ -608,7 +645,61 @@ the Git sync and branch creation and then idled; it needed a second explicit "be
 start building. Dispatch, in other words, is not always idempotent, and the orchestrator must confirm
 that a dispatched session actually *started*, not merely acknowledged.
 
-### 6.3 Why the structure, not the model, is the lesson
+**Contention on shared seams.** Parallelism paid off only where the work was genuinely independent; on
+shared cross-cutting seams it degenerated into serialization. The runtime's evaluation-dispatch file
+(`packages/runtime/src/evaluate.ts`) became a bottleneck across the parallel M4 Data slices —
+dictionaries (issue #322/PR #384), records (#329/PR #389), and place-chaining (#330/PR #390) all extend
+the *same* dispatch gate, so they had to be ordered rather than run concurrently. The parser/runtime
+split bit harder: a callee registered in the parser's arity table but absent from the runtime's
+dispatch list is silently a no-op — no event, no diagnostic — a trap that recurred (PRs #352 and #355)
+precisely because two parallel sessions edited the two sides of one contract. A shared seam is
+effectively a lock: it must be owned and serialized, and both sides of a contract belong in a single
+slice.
+
+**Oversized slices.** Right-sizing a slice proved a recurring tension. The canonical case is the M1
+bootstrapping change that seeded the lexer, parser, and AST (PR #35, closing issue #9): roughly 3,600
+lines across 12 files, a long and hard-to-review marathon. It was kept deliberately as a *one-time
+exception* rather than retro-split, and the lesson was written back into the playbooks as a
+small-dedicated-slice rule (chore #42). The maintainer's own reflection is that oversized slices
+nonetheless recurred once milestone orchestrators were cutting the work — a slice cut too large stalls
+at the two-review-plus-merge gate and must be re-decomposed, self-organized between the milestone
+orchestrator and the root — one of the coordination costs the next subsection weighs.
+
+### 6.3 The cost of the hierarchy
+
+The five-layer model of §3.4 was not designed up front; it *emerged*. Milestones M0–M2, through the
+tagged `v0.1.0`, ran under a single root orchestrator, and the project's highest-throughput days —
+including the 56-merge peak of 2026-07-19 — fell in that single-orchestrator regime (§5). The Layer-2
+milestone-orchestrator tier appeared only minutes after `v0.1.0` shipped (§4.1), to absorb the parallel
+optional-profile workload. Whether that added tier paid for itself is, honestly, unresolved.
+
+Its costs were observable. The root is a single integration point that receives every milestone's
+status reports, and it **compacts its own conversation heavily** to stay within its context window — an
+added cost that grows with relay volume. Each milestone orchestrator also maintains its own running
+context, and the root re-verifies their verdicts from scratch, so the token overhead of the hierarchy
+is qualitatively higher than in the single-orchestrator phase. (We deliberately report no multiplier:
+the figure was not instrumented, and we decline to estimate one.) The tier also *inflated* coordination
+work — the root re-verifying each milestone orchestrator's review verdicts from scratch, and rebase
+cascades among the stacked PRs the milestone orchestrators dispatched (as in M3) — and it multiplied
+stale-crossing opportunities, with milestone orchestrators reasoning from cached SHAs of work that had
+already merged (the same class of error as the 2026-07-21 re-baseline, §3.7).
+
+The maintainer's hypothesis is that a **flatter organization — several independent orchestrators each
+owning a disjoint region of the codebase over a single thin integration gate — might have cut the relay
+overhead without sacrificing integrity.** The orchestrator's own reflection tempers it: the domains are
+*not* cleanly partitionable, because the cross-cutting contracts (the AST in `@openlogo/parser`; the
+event registry and `ol-*` diagnostics in `@openlogo/core`; the shared evaluation dispatch; the
+grammar↔highlighter lockstep) are edited from several domains at once and force *some* serialized
+integration authority however ownership is drawn. The defensible synthesis is that the *gate* — one
+authority that verifies non-author verdicts against the live head and merges — is irreducible, but the
+*relay hierarchy* around it is not, and a shallower structure may be preferable once the initial
+parallel build-out subsides. Consistent with this, the orchestrator reports that the maintainer
+subsequently flattened the process itself (2026-07-22, just after our measurement window), standing down
+turn-by-turn autopilot in favor
+of one PR at a time. These are operational readings of a single, uncontrolled trajectory, not measured
+comparisons (§7).
+
+### 6.4 Why the structure, not the model, is the lesson
 
 None of the above is about a cleverer base model. The wins came from *structure* — a contract, an org
 chart, executable playbooks, a hard definition of done, and an independent review gate — and the
@@ -635,7 +726,14 @@ describe the two-review, SHA-bound merge gate as the policy the project *converg
 audited property of every PR: ADR-0004 (17 July) mandated one independent review, and ADR-0008
 (18 July) tightened it to two non-author reviews bound to the full head SHA. Early PRs predate that
 final gate — some recorded only abbreviated SHAs — and per-PR compliance is self-reported on PR
-bodies rather than independently verified here across all 151 merges.
+bodies rather than independently verified here across all 151 merges. Relatedly, the
+single-orchestrator (M0–M2) and multi-layer (M3+) phases are *not* a controlled comparison: they differ
+not only in orchestration topology but in the nature of the work (the Core-language burst versus smaller
+optional-profile slices) and in calendar position, so the lower post-`v0.1.0` daily throughput cannot be
+attributed to the hierarchy alone, and our discussion of whether a flatter organization would be
+preferable (§6.3) is an operational reflection, not an evaluated result. The early-phase ceiling of
+roughly five concurrent author sessions was likewise attention- and merge-drain-bound, not a measured
+platform quota.
 
 **External validity.** OpenLogo is a mid-sized, greenfield, well-specified educational language with an
 unusually crisp conformance model. The method leans heavily on the *existence of a normative spec*;
@@ -669,7 +767,13 @@ The honest other half of the story is that autonomy at the seams is where the bu
 — acting on a snapshot that has already moved — and its cousins (voided verdicts, drifting boards, WIP
 clobbered by an over-eager cleaner) are coordination failures, not reasoning failures, and they are
 contained by classical disciplines: live-verify, freeze and bind to a commit SHA, and keep one
-authoritative, orchestrator-owned record of state. For practitioners assembling agent fleets, the
+orchestrator-owned ledger of state continually reconciled against the GitHub repository
+itself — issues, pull requests, a board, and `git` refs — the external source of truth every agent
+reconciles against rather than its own memory. A final honest note concerns *how much* orchestration is
+optimal: the layered tier was emergent and not free, and this single trajectory leaves open — for
+future controlled study — whether a flatter federation of independent owners over one thin integration
+gate would achieve the same coherence at lower coordination and token cost. For practitioners assembling
+agent fleets, the
 takeaway is that the prompt is the easy part; the org chart, the contract, the gate, and the treatment
 of state as a distributed-systems problem are what make the difference between a pile of patches and a
 language that runs.
