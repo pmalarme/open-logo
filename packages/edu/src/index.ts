@@ -64,3 +64,19 @@ export { hint } from "./tutor/hint.js";
 
 // A5 (#335): the deterministic, offline, template-based `debug` baseline meta-command.
 export { debug } from "./debug.js";
+
+// M4 (#338): the Geometry standard library — polygon/star/circle/arc/area/perimeter shipped as
+// discoverable OpenLogo `.logo` source strings (not primitives) plus a name -> source registry,
+// in the source-strings-plus-registry shape a future M6 Modules loader can wrap directly.
+export {
+  AREA_SOURCE,
+  ARC_SOURCE,
+  CIRCLE_SOURCE,
+  GEOMETRY_STDLIB,
+  GEOMETRY_STDLIB_NAMES,
+  isGeometryStdlibName,
+  PERIMETER_SOURCE,
+  POLYGON_SOURCE,
+  STAR_SOURCE,
+} from "./geometry/registry.js";
+export type { GeometryStdlibName } from "./geometry/registry.js";

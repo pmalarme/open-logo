@@ -1,0 +1,16 @@
+define star :points :size (:step 2)
+  if not (:points == int :points)
+    throw "a star needs a whole number of points"
+  end if
+  if not (:step is strictly between 1 and :points)
+    throw "a star step must be a whole number between 2 and one less than the number of points"
+  end if
+  if not (:step == int :step)
+    throw "a star step must be a whole number"
+  end if
+  repeat :points
+    forward :size
+    right 360 * :step / :points
+  end repeat
+end
+star 5 100

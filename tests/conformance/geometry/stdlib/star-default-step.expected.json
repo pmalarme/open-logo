@@ -1,0 +1,436 @@
+{
+  "description": "issue #338: `star 5 100` draws the default pentagram {5/2} without diagnostics (spec/geometry-module.md:75-133).",
+  "profiles": ["geometry"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-default-step",
+        "start": [1, 1],
+        "end": [15, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-default-step",
+        "start": [16, 1],
+        "end": [16, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "geometry/stdlib/star-default-step",
+        "start": [16, 1],
+        "end": [16, 11]
+      },
+      "payload": {
+        "name": "star",
+        "args": [5, 100, 2]
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-default-step",
+        "start": [2, 3],
+        "end": [4, 9]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-default-step",
+        "start": [5, 3],
+        "end": [7, 9]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-default-step",
+        "start": [8, 3],
+        "end": [10, 9]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-default-step",
+        "start": [11, 3],
+        "end": [14, 13]
+      },
+      "payload": {
+        "statement_kind": "Repeat"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-default-step",
+        "start": [12, 5],
+        "end": [12, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/star-default-step",
+        "start": [12, 5],
+        "end": [12, 18]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 100],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/star-default-step",
+        "start": [12, 5],
+        "end": [12, 18]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 100],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-default-step",
+        "start": [13, 5],
+        "end": [13, 32]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/star-default-step",
+        "start": [13, 5],
+        "end": [13, 32]
+      },
+      "payload": {
+        "from": 0,
+        "to": 144
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-default-step",
+        "start": [12, 5],
+        "end": [12, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/star-default-step",
+        "start": [12, 5],
+        "end": [12, 18]
+      },
+      "payload": {
+        "from": [0, 100],
+        "to": [58.77852522924732, 19.098300562505273],
+        "heading": 144
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/star-default-step",
+        "start": [12, 5],
+        "end": [12, 18]
+      },
+      "payload": {
+        "from": [0, 100],
+        "to": [58.77852522924732, 19.098300562505273],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-default-step",
+        "start": [13, 5],
+        "end": [13, 32]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/star-default-step",
+        "start": [13, 5],
+        "end": [13, 32]
+      },
+      "payload": {
+        "from": 144,
+        "to": 288
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-default-step",
+        "start": [12, 5],
+        "end": [12, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/star-default-step",
+        "start": [12, 5],
+        "end": [12, 18]
+      },
+      "payload": {
+        "from": [58.77852522924732, 19.098300562505273],
+        "to": [-36.32712640026804, 50],
+        "heading": 288
+      }
+    },
+    {
+      "seq": 19,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/star-default-step",
+        "start": [12, 5],
+        "end": [12, 18]
+      },
+      "payload": {
+        "from": [58.77852522924732, 19.098300562505273],
+        "to": [-36.32712640026804, 50],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 20,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-default-step",
+        "start": [13, 5],
+        "end": [13, 32]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 21,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/star-default-step",
+        "start": [13, 5],
+        "end": [13, 32]
+      },
+      "payload": {
+        "from": 288,
+        "to": 72
+      }
+    },
+    {
+      "seq": 22,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-default-step",
+        "start": [12, 5],
+        "end": [12, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 23,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/star-default-step",
+        "start": [12, 5],
+        "end": [12, 18]
+      },
+      "payload": {
+        "from": [-36.32712640026804, 50],
+        "to": [58.77852522924731, 80.90169943749474],
+        "heading": 72
+      }
+    },
+    {
+      "seq": 24,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/star-default-step",
+        "start": [12, 5],
+        "end": [12, 18]
+      },
+      "payload": {
+        "from": [-36.32712640026804, 50],
+        "to": [58.77852522924731, 80.90169943749474],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 25,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-default-step",
+        "start": [13, 5],
+        "end": [13, 32]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 26,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/star-default-step",
+        "start": [13, 5],
+        "end": [13, 32]
+      },
+      "payload": {
+        "from": 72,
+        "to": 216
+      }
+    },
+    {
+      "seq": 27,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-default-step",
+        "start": [12, 5],
+        "end": [12, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 28,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/star-default-step",
+        "start": [12, 5],
+        "end": [12, 18]
+      },
+      "payload": {
+        "from": [58.77852522924731, 80.90169943749474],
+        "to": [7.105427357601002e-15, 0],
+        "heading": 216
+      }
+    },
+    {
+      "seq": 29,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/star-default-step",
+        "start": [12, 5],
+        "end": [12, 18]
+      },
+      "payload": {
+        "from": [58.77852522924731, 80.90169943749474],
+        "to": [7.105427357601002e-15, 0],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 30,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-default-step",
+        "start": [13, 5],
+        "end": [13, 32]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 31,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/star-default-step",
+        "start": [13, 5],
+        "end": [13, 32]
+      },
+      "payload": {
+        "from": 216,
+        "to": 0
+      }
+    },
+    {
+      "seq": 32,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "geometry/stdlib/star-default-step",
+        "start": [16, 1],
+        "end": [16, 11]
+      },
+      "payload": {
+        "name": "star",
+        "result": null
+      }
+    }
+  ],
+  "diagnostics": []
+}

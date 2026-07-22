@@ -1,0 +1,96 @@
+{
+  "description": "issue #338: `area [\"hexagon\" 5]` (unsupported shape word) raises `ol-user-error` with the exact spec message \"area knows only the polygon and circle shapes\" (spec/geometry-module.md:354).",
+  "profiles": ["geometry"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/area-bad-shape",
+        "start": [1, 1],
+        "end": [26, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/area-bad-shape",
+        "start": [27, 1],
+        "end": [27, 25]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "geometry/stdlib/area-bad-shape",
+        "start": [27, 7],
+        "end": [27, 25]
+      },
+      "payload": {
+        "name": "area",
+        "args": [["hexagon", 5]]
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/area-bad-shape",
+        "start": [2, 3],
+        "end": [14, 9]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/area-bad-shape",
+        "start": [16, 3],
+        "end": [23, 9]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/area-bad-shape",
+        "start": [25, 3],
+        "end": [25, 56]
+      },
+      "payload": {
+        "statement_kind": "Throw"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-user-error",
+      "source_span": {
+        "document": "geometry/stdlib/area-bad-shape",
+        "start": [25, 3],
+        "end": [25, 56]
+      },
+      "params": {
+        "message": "area knows only the polygon and circle shapes"
+      },
+      "message": "area knows only the polygon and circle shapes",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}
