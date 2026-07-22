@@ -96,9 +96,7 @@ test("the objective states define/return/local and the build-polygon-from-repeat
     true,
   );
   assert.equal(
-    lesson.objective.includes(
-      "local names a variable that lives only inside the procedure",
-    ),
+    lesson.objective.includes("local (a procedure's own private variable)"),
     true,
   );
   assert.equal(
@@ -214,6 +212,55 @@ test("no Level 5 content defines a procedure that calls itself (no recursion —
   }
 });
 
+test("no Level 1–5 content uses a Level 6+ command (e.g. set_xy) — the concept→level ramp holds", () => {
+  // spec/educational-model.md's concept→level table introduces these commands at Level 6 or
+  // later; none may appear in any Level 1–5 lesson or exercise SOURCE (comments are prose and
+  // are stripped first, so an explanatory "# … set_xy is Level 6" note does not trip the gate).
+  // This is the guard that issue #399 added after `set_xy` escaped the B4 review: the DoD checks
+  // that a solution RUNS, and set_xy is a valid M2 command, so only a level-appropriateness
+  // assertion catches a later concept smuggled into an earlier level.
+  const laterCommands = [
+    "set_xy",
+    "set_heading",
+    "stamp",
+    "star",
+    "circle",
+    "arc",
+    "grid",
+    "axes",
+    "measure",
+    "mod",
+    "abs",
+    "int",
+    "round",
+  ];
+  const stripComments = (source) =>
+    source
+      .split("\n")
+      .map((line) => line.replace(/#.*$/, ""))
+      .join("\n");
+  for (const level of ["1", "2", "3", "4", "5"]) {
+    const sources = [
+      ...OL.getLessonsByLevel(level).flatMap((lesson) =>
+        lesson.workedExamples.map((example) => example.source),
+      ),
+      ...OL.getExercisesByLevel(level).map(
+        (exercise) => exercise.referenceSolution.source,
+      ),
+    ];
+    for (const source of sources) {
+      const code = stripComments(source);
+      for (const command of laterCommands) {
+        assert.equal(
+          new RegExp(`\\b${command}\\b`).test(code),
+          false,
+          `Level ${level} content uses the Level 6+ command "${command}" (not taught until Level 6+): ${source}`,
+        );
+      }
+    }
+  }
+});
+
 test("no executable Heritage to … end or output source is present (Heritage may only be mentioned in prose)", () => {
   const sources = [
     ...level5Lessons.flatMap((lesson) =>
@@ -285,6 +332,20 @@ test("the challenge exercise reuses house by calling it exactly twice, composed 
   const houseCallMatches = source.match(/^house 70$/gm);
   assert.ok(houseCallMatches);
   assert.equal(houseCallMatches.length, 2);
+  // Reposition between the two houses with relative movement only — never set_xy/set_heading,
+  // which name an absolute coordinate/heading and are a Level 6 concept (issue #399,
+  // spec/educational-model.md's concept→level table). Strip comments first: the source's own
+  // "# … set_xy is a Level 6 idea" note explains what to avoid and must not trip the gate. The
+  // pen is lifted and lowered so the repositioning move draws nothing.
+  const code = source
+    .split("\n")
+    .map((line) => line.replace(/#.*$/, ""))
+    .join("\n");
+  assert.equal(/\bset_xy\b/.test(code), false);
+  assert.equal(/\bset_heading\b/.test(code), false);
+  assert.equal(/\bstamp\b/.test(code), false);
+  assert.equal(/\bpen_up\b/.test(code), true);
+  assert.equal(/\bpen_down\b/.test(code), true);
 });
 
 test("every Level 5 worked example parses and runs with no diagnostics", () => {

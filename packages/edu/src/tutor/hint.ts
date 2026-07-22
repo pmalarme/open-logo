@@ -79,7 +79,7 @@ const LEVEL_CONCEPTS: Record<
   },
   "5": {
     name: "procedures (`define … end`)",
-    skeleton: "define ‹name› local :‹parameter› ‹body› end",
+    skeleton: "define ‹name› :‹parameter› ‹body› end",
   },
   "6": {
     name: "geometry built from `repeat` and turns",
@@ -95,12 +95,12 @@ const LEVEL_CONCEPTS: Record<
   },
   "7c": {
     name: "records",
-    skeleton: "struct ‹TypeName› { ‹field›: ‹value› }",
+    skeleton: "struct ‹TypeName› [ ‹field› ]",
   },
   "8a": {
     name: "recursion",
     skeleton:
-      "define ‹name› if ‹condition› [ return ‹value› ] ‹name› ‹smaller-input› end",
+      "define ‹name› :‹parameter› if ‹condition› [ return ‹value› ] ‹name› ‹smaller-input› end",
   },
   "8b": {
     name: "comprehensions",

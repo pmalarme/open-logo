@@ -32,7 +32,7 @@ export const level5Lessons: readonly Lesson[] = [
     title: "define names a reusable idea; return hands back its answer",
     level: "5",
     objective:
-      "See that define … end names a reusable procedure, that parameters such as :sides and :size are variables scoped to it, that return hands a value back from a reporter, that a command procedure may draw without returning a value, and that local names a variable that lives only inside the procedure. Learners build polygon from repeat; it is never introduced as a black-box drawing trick. Heritage spellings to … end and output are recognized, but define and return are taught first.",
+      "See that define … end names a reusable procedure and that parameters such as :sides and :size are variables scoped to it, so calling the procedure again with different values reuses the same steps — the procedure reuse the exercises practice. return (a reporter handing a value back) and local (a procedure's own private variable) are supporting ideas the worked examples show. Learners build polygon from repeat; it is never introduced as a black-box drawing trick. Heritage spellings to … end and output are recognized, but define and return are taught first.",
     workedExamples: [
       {
         source: [
@@ -86,8 +86,11 @@ export const level5Lessons: readonly Lesson[] = [
  * Graded Level 5 exercises for `l5-polygon-procedure`, ramping from a single-line change to the
  * lesson's own polygon call (guided), to defining a second, smaller procedure that calls
  * `polygon` — the procedure-reuse idea this level is about (practice) — to the composition step:
- * `spec/examples/06-geometry.logo`'s `polygon` → `triangle` → `house` chain, called **twice** to
- * draw a small row of houses (challenge), per the maintainer's scope-trim comment on issue #327
+ * `spec/examples/06-geometry.logo`'s `polygon` → `triangle` → `house` chain, called **twice**,
+ * stepping between the two calls with already-taught **relative** movement (`pen_up`, turns and
+ * `forward` moves, `pen_down`) — never `set_xy`/`set_heading`, which name a coordinate and are a
+ * Level 6 concept (`spec/educational-model.md`'s concept→level table) — to draw a small row of
+ * houses (challenge), per the maintainer's scope-trim comment on issue #327
  * (compose-a-recognizable-object, `spec/educational-model.md:23`/issue #359 — procedure reuse,
  * not recursion). The guided exercise is a literal single-line diff of the lesson's first worked
  * example (see level-5.test.mjs's diff assertion): only the `polygon 5 60` call changes, to
@@ -150,7 +153,7 @@ export const level5Exercises: readonly Exercise[] = [
     level: "5",
     difficulty: "challenge",
     prompt:
-      "This is the composition step (spec/educational-model.md's compose-a-recognizable-object rule, issue #359), not a single-line change: reuse spec/examples/06-geometry.logo's polygon → triangle → house chain (a square body plus a triangular roof, both of side :size) to define house :size, then call house 70 twice — repositioning the turtle with pen_up / set_heading / set_xy / pen_down between calls, without drawing — so the two houses sit side by side as a small street. Reuse the already-defined house by calling it again; do not make house call itself.",
+      "This is the composition step (spec/educational-model.md's compose-a-recognizable-object rule, issue #359), not a single-line change: reuse spec/examples/06-geometry.logo's polygon → triangle → house chain (a square body plus a triangular roof, both of side :size) to define house :size, then call house 70 twice — stepping to the next plot between calls with the relative movement you already know (pen_up, then turns and forward moves, then pen_down) so the two houses sit side by side as a small street. Do not use set_xy or set_heading to place the turtle at a coordinate: naming a coordinate is a Level 6 idea, so reposition by turning and moving instead. Reuse the already-defined house by calling it again; do not make house call itself.",
     referenceSolution: {
       source: [
         "# why: polygon is the side-and-turn pattern with names for the parts",
@@ -181,15 +184,21 @@ export const level5Exercises: readonly Exercise[] = [
         "# why: reuse house by calling it again, not by making house call itself",
         "house 70",
         "",
+        "# why: step to the next plot with relative moves only — turn to face across the",
+        "# street, cross the gap, come back down to the ground, and face up again — so the",
+        "# pen never draws and no coordinate is named (set_xy is a Level 6 idea)",
         "pen_up",
-        "set_heading 0",
-        "set_xy 120 0",
+        "right 180",
+        "forward 70",
+        "right 90",
+        "forward 70",
+        "right 180",
         "pen_down",
         "",
         "house 70",
       ].join("\n"),
       explanation:
-        "house :size is defined once and reused: the first house 70 draws a square body and triangular roof, then pen_up / set_heading 0 / set_xy 120 0 / pen_down repositions the turtle without drawing, and the second house 70 calls the very same procedure again to draw an identical house next to the first — two houses forming a small street, built by reusing one procedure twice rather than defining it twice or having it call itself.",
+        "house :size is defined once and reused: the first house 70 draws a square body and triangular roof, leaving the turtle at the top of the house facing left. pen_up lifts the pen, then relative moves only — right 180 to face across the street, forward 70 over the gap, right 90 then forward 70 down to the ground, right 180 to face up again — carry the turtle to the next plot without drawing and without naming a coordinate (set_xy/set_heading are the Level 6 way, not yet taught). pen_down and a second house 70 call the very same procedure again, so two identical houses stand side by side — a small street built by reusing one procedure twice rather than defining it twice or having it call itself.",
     },
   },
 ];

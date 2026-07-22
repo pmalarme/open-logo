@@ -1,0 +1,10 @@
+# Regression (issue #399): a Level-5 "street" repositions between drawings with
+# already-taught RELATIVE movement only — never set_xy/set_heading, which name a
+# coordinate/absolute heading and are a Level-6 concept. pen_up lifts the pen so the
+# turn-and-forward reposition moves the turtle WITHOUT drawing; pen_down resumes drawing.
+forward 10
+pen_up
+right 90
+forward 10
+pen_down
+forward 10
