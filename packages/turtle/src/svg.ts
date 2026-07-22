@@ -28,10 +28,11 @@
  *   ({@link COORDINATE_PRECISION} decimal places) via {@link formatNumber}.
  * - The background is always included (there is no option to omit it, matching "include the
  *   background by default").
- * - Overlays are not yet part of {@link TurtleScene} (they land with the Geometry profile, M4);
- *   `SvgExportOptions.includeOverlays` is accepted and documented now so the option shape is
- *   stable, but it has no effect yet — there is nothing to include or exclude until overlay data
- *   exists in the retained scene.
+ * - `includeOverlays` (default `true`) controls whether enabled overlays (`grid`/`axes`/
+ *   `measure`, folded by `overlay.ts`'s `reduceOverlayEvents`) are painted before the avatar —
+ *   `spec/geometry-module.md:300`: "not part of exported drawing geometry unless an export format
+ *   explicitly includes overlays." When the caller passes no `overlay` argument (or omits overlay
+ *   data entirely), there is nothing to include either way.
  * - `includeAvatar` (default `true`) is the "export option [that] says to include it"; when
  *   `true`, the avatar is still only drawn if `state.visible` (delegated to `paintTurtle`,
  *   unchanged from Canvas); when `false`, the avatar is omitted regardless of visibility.
@@ -39,6 +40,7 @@
 
 import type { RenderTarget, Viewport } from "./canvas.js";
 import { paintScene, paintTurtle } from "./canvas.js";
+import { INITIAL_OVERLAY_STATE, type OverlayState } from "./overlay.js";
 import type { TurtleScene } from "./scene.js";
 import type { TurtleState } from "./state.js";
 
@@ -69,10 +71,8 @@ export interface SvgExportOptions {
   /** Whether to include the live turtle avatar (still gated on `state.visible`). Defaults to
    * `true`. */
   readonly includeAvatar?: boolean;
-  /** Whether to include exportable overlays. Reserved for the Geometry profile's overlays
-   * (M4) — {@link TurtleScene} carries no overlay data yet, so this option currently has no
-   * effect either way; it is accepted now so the option shape does not need to change once
-   * overlays exist. Defaults to `true`. */
+  /** Whether to include enabled overlays (`grid`/`axes`/`measure`), when overlay data is passed
+   * to {@link exportTurtleSvg}. Defaults to `true`. */
   readonly includeOverlays?: boolean;
 }
 
@@ -209,13 +209,16 @@ export function exportTurtleSvg(
   state: TurtleState,
   viewport: Viewport,
   options: SvgExportOptions = {},
+  overlay: OverlayState = INITIAL_OVERLAY_STATE,
 ): string {
   const includeAvatar = options.includeAvatar ?? true;
+  const includeOverlays = options.includeOverlays ?? true;
+  const paintedOverlay = includeOverlays ? overlay : undefined;
   const target = new SvgRenderTarget();
   if (includeAvatar) {
-    paintTurtle(target, scene, state, viewport);
+    paintTurtle(target, scene, state, viewport, paintedOverlay);
   } else {
-    paintScene(target, scene, viewport);
+    paintScene(target, scene, viewport, paintedOverlay);
   }
   return target.toMarkup(viewport);
 }

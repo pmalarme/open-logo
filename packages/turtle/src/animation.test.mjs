@@ -55,7 +55,7 @@ function repeat4ForwardRightEvents() {
   return events;
 }
 
-test("controller starts idle at cursor 0 with initial state/scene", () => {
+test("controller starts idle at cursor 0 with initial state/scene/overlay", () => {
   const controller = new OL.TurtleAnimationController(
     repeat4ForwardRightEvents(),
   );
@@ -64,6 +64,7 @@ test("controller starts idle at cursor 0 with initial state/scene", () => {
   assert.equal(snapshot.status, "idle");
   assert.deepEqual(snapshot.state, OL.INITIAL_TURTLE_STATE);
   assert.deepEqual(snapshot.scene, OL.INITIAL_TURTLE_SCENE);
+  assert.deepEqual(snapshot.overlay, OL.INITIAL_OVERLAY_STATE);
 });
 
 test("step once at the first `forward 100` consumes only that instruction's effects", () => {
@@ -537,21 +538,48 @@ test("a genuinely asynchronous scheduler resumes driveRun from its own callback"
   });
 });
 
-test("custom initialState/initialScene seed the controller", () => {
+test("custom initialState/initialScene/initialOverlay seed the controller", () => {
   const customState = { ...OL.INITIAL_TURTLE_STATE, color: "red" };
   const customScene = { ...OL.INITIAL_TURTLE_SCENE, background: "blue" };
+  const customOverlay = { axes: true };
   const controller = new OL.TurtleAnimationController([], {
     initialState: customState,
     initialScene: customScene,
+    initialOverlay: customOverlay,
   });
   const snapshot = controller.getSnapshot();
   assert.deepEqual(snapshot.state, customState);
   assert.deepEqual(snapshot.scene, customScene);
+  assert.deepEqual(snapshot.overlay, customOverlay);
 
   controller.reset();
   const afterReset = controller.getSnapshot();
   assert.deepEqual(afterReset.state, customState);
   assert.deepEqual(afterReset.scene, customScene);
+  assert.deepEqual(afterReset.overlay, customOverlay);
+});
+
+test("an overlay event folds into the snapshot's overlay state and survives a subsequent clear", () => {
+  const events = [
+    event("overlay", { overlay: "axes" }),
+    event("overlay", { overlay: "grid", spacing: 20 }),
+    event("clear", {}),
+  ];
+  const controller = new OL.TurtleAnimationController(events);
+  controller.seekToEnd();
+  const snapshot = controller.getSnapshot();
+  assert.deepEqual(snapshot.overlay, { axes: true, grid: { spacing: 20 } });
+  // The clear event resets the retained scene but leaves the overlay untouched.
+  assert.deepEqual(snapshot.scene, OL.INITIAL_TURTLE_SCENE);
+});
+
+test("reset rewinds overlay state back to its initial value, not just state/scene", () => {
+  const events = [event("overlay", { overlay: "axes" })];
+  const controller = new OL.TurtleAnimationController(events);
+  controller.seekToEnd();
+  assert.deepEqual(controller.getSnapshot().overlay, { axes: true });
+  controller.reset();
+  assert.deepEqual(controller.getSnapshot().overlay, OL.INITIAL_OVERLAY_STATE);
 });
 
 test("IMMEDIATE_SCHEDULER invokes its callback synchronously and returns a callable no-op cancel", () => {

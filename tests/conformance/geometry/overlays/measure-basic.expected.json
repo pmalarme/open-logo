@@ -1,0 +1,83 @@
+{
+  "description": "issue #341: `forward 100` then `right 90` then `measure` emits a single `overlay` event snapshotting the turtle's CURRENT position ([0, 100]) and heading (90) - not home - matching stamp's existing position/heading snapshot pattern (spec/geometry-module.md's `## measure` section). No turtle-state change from `measure` itself.",
+  "profiles": ["geometry"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/overlays/measure-basic",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/overlays/measure-basic",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": { "from": [0, 0], "to": [0, 100], "heading": 0 }
+    },
+    {
+      "seq": 2,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/overlays/measure-basic",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 100],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/overlays/measure-basic",
+        "start": [2, 1],
+        "end": [2, 9]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 4,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/overlays/measure-basic",
+        "start": [2, 1],
+        "end": [2, 9]
+      },
+      "payload": { "from": 0, "to": 90 }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/overlays/measure-basic",
+        "start": [3, 1],
+        "end": [3, 8]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 6,
+      "kind": "overlay",
+      "source_span": {
+        "document": "geometry/overlays/measure-basic",
+        "start": [3, 1],
+        "end": [3, 8]
+      },
+      "payload": { "overlay": "measure", "position": [0, 100], "heading": 90 }
+    }
+  ],
+  "diagnostics": []
+}

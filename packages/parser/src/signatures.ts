@@ -254,16 +254,70 @@ export function educationalPrimitiveNames(): readonly string[] {
 }
 
 /**
+ * Default arities for the **Geometry** profile's renderer-backed overlay primitives (issue #341):
+ * `grid`/`axes`/`measure`, derived from
+ * [`spec/geometry-module.md`](../../../spec/geometry-module.md)'s `## grid`, `## axes`, and
+ * `## measure` sections —
+ * each is a Kind-C Command taking no inputs, invoked as a bare word exactly like
+ * `home`/`pi`/`randomize` and the Educational meta-commands. Unlike `polygon` and the rest of the
+ * Geometry standard library (discoverable OpenLogo `.logo` source, not primitives — team agreement
+ * §6), these three ARE primitives because they are renderer-backed: they emit an `overlay` trace
+ * event but never mutate turtle state, and only a real renderer can turn that event into a grid of
+ * guide lines, crossed axes, or a measurement marker. Kept as its own table for the same reason
+ * {@link TURTLE_PRIMITIVE_ARITY}/{@link EDUCATIONAL_PRIMITIVE_ARITY} are separate: Geometry has its
+ * own independent profile visibility (the Layer-2 checker gates it on its own active profile,
+ * `spec/tooling.md:175-176`), while the reader groups a bare call's arguments for *any* recognized
+ * primitive regardless of profile.
+ */
+const GEOMETRY_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
+  ["grid", 0],
+  ["axes", 0],
+  ["measure", 0],
+]);
+
+/**
+ * The default arity of a Geometry-profile overlay primitive, or `undefined` when `name` is not
+ * one of `grid`/`axes`/`measure`. Matching is case-insensitive.
+ *
+ * `GEOMETRY_PRIMITIVE_ARITY` is this profile's single source-of-truth table — mirroring
+ * {@link turtlePrimitiveArity}/{@link educationalPrimitiveArity}.
+ */
+export function geometryPrimitiveArity(name: string): number | undefined {
+  return GEOMETRY_PRIMITIVE_ARITY.get(name.toLowerCase());
+}
+
+/**
+ * Every Geometry-profile overlay primitive's canonical lowercase name, sorted for deterministic
+ * iteration. This is the enumerable counterpart to {@link geometryPrimitiveArity} — the checker's
+ * visible-name model (`checker-names.ts`) needs the full name *list*, gated on the `geometry`
+ * profile, to make these primitives both callable without `ol-unknown-command` and candidates for
+ * its did-you-mean suggestions — mirroring {@link turtlePrimitiveNames}'s/
+ * {@link educationalPrimitiveNames}'s role for their tables.
+ */
+const GEOMETRY_PRIMITIVE_NAMES: readonly string[] = Object.freeze(
+  [...GEOMETRY_PRIMITIVE_ARITY.keys()].sort(),
+);
+
+/**
+ * The full list of Geometry-profile overlay primitive names, in sorted order. See
+ * {@link GEOMETRY_PRIMITIVE_NAMES}. */
+export function geometryPrimitiveNames(): readonly string[] {
+  return GEOMETRY_PRIMITIVE_NAMES;
+}
+
+/**
  * Every profile's primitive-arity table the reader consults, in lookup order. Core Language is
  * checked first (today's only always-visible table), then each optional profile's Core-spelled
- * primitives as they are registered — currently Turtle & Rendering, Data, and Educational. A later
- * profile slice adds its table here rather than editing {@link primitiveArity}'s body.
+ * primitives as they are registered — currently Turtle & Rendering, Data, Educational, and
+ * Geometry. A later profile slice adds its table here rather than editing {@link primitiveArity}'s
+ * body.
  */
 const PROFILE_PRIMITIVE_ARITY_TABLES: readonly ReadonlyMap<string, number>[] = [
   CORE_PRIMITIVE_ARITY,
   TURTLE_PRIMITIVE_ARITY,
   DATA_PRIMITIVE_ARITY,
   EDUCATIONAL_PRIMITIVE_ARITY,
+  GEOMETRY_PRIMITIVE_ARITY,
 ];
 
 /**

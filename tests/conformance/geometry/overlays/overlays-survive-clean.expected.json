@@ -1,0 +1,88 @@
+{
+  "description": "issue #341: `grid`, `axes`, and `measure` each emit their own `overlay` event, and a following `clean` emits its own independent `clear{mode:\"clean\"}` event with no relationship to the overlay events - proving the runtime treats them as independent, ordered events. The renderer-side reducer (`@openlogo/turtle`'s overlay.ts, which has no `\"clear\"` case at all) is what actually makes overlays survive `clean`/`clear_screen` visually; this fixture proves the runtime-level event stream those reducers consume.",
+  "profiles": ["geometry"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/overlays/overlays-survive-clean",
+        "start": [1, 1],
+        "end": [1, 5]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "overlay",
+      "source_span": {
+        "document": "geometry/overlays/overlays-survive-clean",
+        "start": [1, 1],
+        "end": [1, 5]
+      },
+      "payload": { "overlay": "grid", "spacing": 20 }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/overlays/overlays-survive-clean",
+        "start": [2, 1],
+        "end": [2, 5]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 3,
+      "kind": "overlay",
+      "source_span": {
+        "document": "geometry/overlays/overlays-survive-clean",
+        "start": [2, 1],
+        "end": [2, 5]
+      },
+      "payload": { "overlay": "axes" }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/overlays/overlays-survive-clean",
+        "start": [3, 1],
+        "end": [3, 8]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 5,
+      "kind": "overlay",
+      "source_span": {
+        "document": "geometry/overlays/overlays-survive-clean",
+        "start": [3, 1],
+        "end": [3, 8]
+      },
+      "payload": { "overlay": "measure", "position": [0, 0], "heading": 0 }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/overlays/overlays-survive-clean",
+        "start": [4, 1],
+        "end": [4, 6]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 7,
+      "kind": "clear",
+      "source_span": {
+        "document": "geometry/overlays/overlays-survive-clean",
+        "start": [4, 1],
+        "end": [4, 6]
+      },
+      "payload": { "mode": "clean" }
+    }
+  ],
+  "diagnostics": []
+}

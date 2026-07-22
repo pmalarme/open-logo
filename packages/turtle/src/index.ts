@@ -47,6 +47,7 @@ export type {
 } from "./scene.js";
 
 export {
+  paintOverlay,
   paintScene,
   paintTurtle,
   playWithMotionPreference,
@@ -60,6 +61,13 @@ export type {
   RenderTarget,
   Viewport,
 } from "./canvas.js";
+
+export {
+  INITIAL_OVERLAY_STATE,
+  reduceOverlayEvents,
+  reduceOverlayState,
+} from "./overlay.js";
+export type { GridOverlay, MeasureOverlay, OverlayState } from "./overlay.js";
 
 export { exportTurtleSvg } from "./svg.js";
 export type { SvgExportOptions } from "./svg.js";

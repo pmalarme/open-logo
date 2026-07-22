@@ -83,6 +83,7 @@ export {
   turtlePrimitiveArity,
   dataPrimitiveArity,
   educationalPrimitiveArity,
+  geometryPrimitiveArity,
 } from "./signatures.js";
 
 export { highlight, OL_BRACKET_ROLES, OL_TOKEN_CLASSES } from "./highlight.js";

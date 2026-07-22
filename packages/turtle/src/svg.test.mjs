@@ -302,7 +302,7 @@ test("exportTurtleSvg is byte-stable: the same scene/state/viewport exported twi
   assert.equal(first, second);
 });
 
-test("exportTurtleSvg's includeOverlays option is accepted but has no observable effect yet (no overlay data exists)", () => {
+test("exportTurtleSvg's includeOverlays option has no observable effect when no overlay data is supplied", () => {
   const scene = { background: "white", items: [] };
   const state = {
     position: [0, 0],
@@ -320,4 +320,48 @@ test("exportTurtleSvg's includeOverlays option is accepted but has no observable
     includeOverlays: false,
   });
   assert.equal(withOverlays, withoutOverlays);
+});
+
+test("exportTurtleSvg includes overlay markup by default when overlay data is supplied", () => {
+  const scene = { background: "white", items: [] };
+  const state = {
+    position: [0, 0],
+    heading: 0,
+    penDown: true,
+    color: "black",
+    width: 1,
+    shape: "turtle",
+    visible: false,
+  };
+  const withOverlay = OL.exportTurtleSvg(
+    scene,
+    state,
+    VIEWPORT,
+    {},
+    { axes: true },
+  );
+  const withoutOverlay = OL.exportTurtleSvg(scene, state, VIEWPORT, {});
+  assert.notEqual(withOverlay, withoutOverlay);
+});
+
+test("exportTurtleSvg's includeOverlays:false omits overlay markup even when overlay data is supplied", () => {
+  const scene = { background: "white", items: [] };
+  const state = {
+    position: [0, 0],
+    heading: 0,
+    penDown: true,
+    color: "black",
+    width: 1,
+    shape: "turtle",
+    visible: false,
+  };
+  const excluded = OL.exportTurtleSvg(
+    scene,
+    state,
+    VIEWPORT,
+    { includeOverlays: false },
+    { axes: true },
+  );
+  const noOverlay = OL.exportTurtleSvg(scene, state, VIEWPORT, {});
+  assert.equal(excluded, noOverlay);
 });

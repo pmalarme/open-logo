@@ -31,13 +31,17 @@ export type {
 
 export { isEventKind, OL_EVENT_KINDS } from "./events.js";
 export type {
+  AxesOverlayPayload,
   BackgroundChangePayload,
   ClearPayload,
   ColorChangePayload,
   DrawSegmentPayload,
   EventKind,
   FillPayload,
+  GridOverlayPayload,
+  MeasureOverlayPayload,
   MovePayload,
+  OverlayPayload,
   PenChangePayload,
   PenState,
   Point,
