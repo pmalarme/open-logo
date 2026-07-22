@@ -167,3 +167,26 @@ test("without the data profile active, a struct name is not registered so no col
   const { diagnostics } = OL.check(ast, { profiles: ["core-language"] });
   assert.deepEqual(diagnostics, []);
 });
+
+test("without the data profile active, a struct name colliding with a procedure is not checked either way", () => {
+  const defineFirst = parseClean("define point\nend\nstruct point [ x ]");
+  assert.deepEqual(
+    OL.check(defineFirst, { profiles: ["core-language"] }).diagnostics,
+    [],
+  );
+  const structFirst = parseClean("struct point [ x ]\ndefine point\nend");
+  assert.deepEqual(
+    OL.check(structFirst, { profiles: ["core-language"] }).diagnostics,
+    [],
+  );
+});
+
+test("without the data profile active, a local colliding with a struct name is not checked", () => {
+  const ast = parseClean(
+    "struct point [ x ]\ndefine greet\n  local point\nend",
+  );
+  assert.deepEqual(
+    OL.check(ast, { profiles: ["core-language"] }).diagnostics,
+    [],
+  );
+});

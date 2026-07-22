@@ -105,8 +105,8 @@ function isStructDef(node: AnyNode): node is StructDefNode {
 /**
  * The `ol-reserved-word` rule: every `define`/`local`/`struct` registration whose name collides
  * with a reserved word, a Core or Data primitive, or an existing procedure/struct raises one
- * diagnostic at that name's own span. A `local` is checked against every procedure and struct name
- * in the program, since both are visible program-wide regardless of declaration order
+ * diagnostic at that name's own span. A `local` is checked against every procedure name in the
+ * program, since procedures are visible program-wide regardless of declaration order
  * (`checker-names.ts`, `@openlogo/runtime`'s phase-1 registration). A `define`/`struct`, though, is
  * checked only against procedures and structs *already seen earlier in source order* — including
  * across the two kinds — so the first registration of a name stays clean and each later one
@@ -114,17 +114,26 @@ function isStructDef(node: AnyNode): node is StructDefNode {
  * name are already handled: "already defined" needs a first occurrence to compare against, and
  * checking the full program symmetrically would flag both sides of a single collision instead of
  * just the later one.
+ *
+ * Struct participation — both `StructDef`'s own collision check and a `struct` colliding with a
+ * `local`/`define` — is gated on `"data"` being active (issue #405), mirroring
+ * `checker-names.ts`'s and `checker-arity.ts`'s own `data` gate: with `data` inactive, a struct
+ * declaration registers no constructor at all (`collectVisibleNames`), so it must not participate
+ * in collision checks here either, or a Core-only program could be flagged for a name that isn't
+ * actually registered.
  */
 export function reservedWordRule(
   program: ProgramNode,
   profiles: readonly CheckProfile[],
 ): readonly Diagnostic[] {
+  const dataActive = profiles.includes("data");
+
   const declaredProcedures = new Set<string>();
   const declaredStructs = new Set<string>();
   walk(program, (node) => {
     if (isProcedureDef(node)) {
       declaredProcedures.add(node.name.name.toLowerCase());
-    } else if (isStructDef(node)) {
+    } else if (dataActive && isStructDef(node)) {
       declaredStructs.add(node.name.name.toLowerCase());
     }
   });
@@ -148,7 +157,7 @@ export function reservedWordRule(
       seenProcedures.add(name);
       return;
     }
-    if (isStructDef(node)) {
+    if (dataActive && isStructDef(node)) {
       const name = node.name.name.toLowerCase();
       const namespace = collidingNamespace(
         name,
