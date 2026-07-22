@@ -1,0 +1,108 @@
+{
+  "description": "issue #338: `(circle 50 2)` (`:segments` below 3) raises `ol-user-error` with the exact spec message \"a circle needs at least 3 segments\" (spec/geometry-module.md:156-158).",
+  "profiles": ["geometry"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-too-few-segments",
+        "start": [1, 1],
+        "end": [17, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-too-few-segments",
+        "start": [18, 1],
+        "end": [18, 14]
+      },
+      "payload": {
+        "statement_kind": "ParenCall"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "geometry/stdlib/circle-too-few-segments",
+        "start": [18, 1],
+        "end": [18, 14]
+      },
+      "payload": {
+        "name": "circle",
+        "args": [50, 2]
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-too-few-segments",
+        "start": [2, 3],
+        "end": [2, 13]
+      },
+      "payload": {
+        "statement_kind": "Local"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-too-few-segments",
+        "start": [3, 3],
+        "end": [5, 9]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-too-few-segments",
+        "start": [6, 3],
+        "end": [8, 9]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-too-few-segments",
+        "start": [7, 5],
+        "end": [7, 47]
+      },
+      "payload": {
+        "statement_kind": "Throw"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-user-error",
+      "source_span": {
+        "document": "geometry/stdlib/circle-too-few-segments",
+        "start": [7, 5],
+        "end": [7, 47]
+      },
+      "params": {
+        "message": "a circle needs at least 3 segments"
+      },
+      "message": "a circle needs at least 3 segments",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

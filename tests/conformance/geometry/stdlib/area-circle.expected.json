@@ -1,0 +1,154 @@
+{
+  "description": "issue #338: `print area [\"circle\" 50]` reports `pi * r^2` and emits no turtle/draw events (spec/geometry-module.md:325-368,415).",
+  "profiles": ["geometry"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/area-circle",
+        "start": [1, 1],
+        "end": [26, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/area-circle",
+        "start": [27, 1],
+        "end": [27, 25]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "geometry/stdlib/area-circle",
+        "start": [27, 7],
+        "end": [27, 25]
+      },
+      "payload": {
+        "name": "area",
+        "args": [["circle", 50]]
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/area-circle",
+        "start": [2, 3],
+        "end": [14, 9]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/area-circle",
+        "start": [16, 3],
+        "end": [23, 9]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/area-circle",
+        "start": [17, 5],
+        "end": [17, 17]
+      },
+      "payload": {
+        "statement_kind": "Local"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/area-circle",
+        "start": [18, 5],
+        "end": [18, 24]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/area-circle",
+        "start": [19, 5],
+        "end": [21, 11]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/area-circle",
+        "start": [22, 5],
+        "end": [22, 32]
+      },
+      "payload": {
+        "statement_kind": "Return"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "return",
+      "source_span": {
+        "document": "geometry/stdlib/area-circle",
+        "start": [22, 5],
+        "end": [22, 32]
+      },
+      "payload": {
+        "value": 7853.981633974483
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "geometry/stdlib/area-circle",
+        "start": [27, 7],
+        "end": [27, 25]
+      },
+      "payload": {
+        "name": "area",
+        "result": 7853.981633974483
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "print",
+      "source_span": {
+        "document": "geometry/stdlib/area-circle",
+        "start": [27, 1],
+        "end": [27, 25]
+      },
+      "payload": {
+        "values": [7853.981633974483]
+      }
+    }
+  ],
+  "diagnostics": []
+}

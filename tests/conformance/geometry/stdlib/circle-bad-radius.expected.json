@@ -1,0 +1,96 @@
+{
+  "description": "issue #338: `circle 0` (non-positive `:radius`) raises `ol-user-error` with the exact spec message \"a circle needs a positive radius\" (spec/geometry-module.md:153-155).",
+  "profiles": ["geometry"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-bad-radius",
+        "start": [1, 1],
+        "end": [17, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-bad-radius",
+        "start": [18, 1],
+        "end": [18, 9]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "geometry/stdlib/circle-bad-radius",
+        "start": [18, 1],
+        "end": [18, 9]
+      },
+      "payload": {
+        "name": "circle",
+        "args": [0, 36]
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-bad-radius",
+        "start": [2, 3],
+        "end": [2, 13]
+      },
+      "payload": {
+        "statement_kind": "Local"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-bad-radius",
+        "start": [3, 3],
+        "end": [5, 9]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/circle-bad-radius",
+        "start": [4, 5],
+        "end": [4, 45]
+      },
+      "payload": {
+        "statement_kind": "Throw"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-user-error",
+      "source_span": {
+        "document": "geometry/stdlib/circle-bad-radius",
+        "start": [4, 5],
+        "end": [4, 45]
+      },
+      "params": {
+        "message": "a circle needs a positive radius"
+      },
+      "message": "a circle needs a positive radius",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

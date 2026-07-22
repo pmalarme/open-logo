@@ -1,0 +1,160 @@
+# OpenLogo example 13: geometry standard library
+# Demonstrates the Geometry profile's packaged commands from spec/geometry-module.md —
+# polygon, star, circle, arc, area, and perimeter — authored as discoverable OpenLogo source
+# (see stdlib/geometry/*.logo, issue #338). Every fixture/example inlines this verbatim source
+# because there is no import/prelude hook until the Modules profile (M6).
+
+clear_screen
+set_color "purple"
+
+define polygon :sides :size
+  if :sides < 3
+    throw "a polygon needs at least 3 sides"
+  end if
+  if not (:sides == int :sides)
+    throw "a polygon needs a whole number of sides"
+  end if
+  repeat :sides
+    forward :size
+    right 360 / :sides
+  end repeat
+end
+
+define star :points :size (:step 2)
+  if not (:points == int :points)
+    throw "a star needs a whole number of points"
+  end if
+  if not (:step is strictly between 1 and :points)
+    throw "a star step must be a whole number between 2 and one less than the number of points"
+  end if
+  if not (:step == int :step)
+    throw "a star step must be a whole number"
+  end if
+  repeat :points
+    forward :size
+    right 360 * :step / :points
+  end repeat
+end
+
+define circle :radius (:segments 36)
+  local side
+  if :radius <= 0
+    throw "a circle needs a positive radius"
+  end if
+  if :segments < 3
+    throw "a circle needs at least 3 segments"
+  end if
+  if not (:segments == int :segments)
+    throw "a circle needs a whole number of segments"
+  end if
+  :side = 2 * :radius * sin (180 / :segments)
+  repeat :segments
+    forward :side
+    right 360 / :segments
+  end repeat
+end
+
+define arc :angle :radius
+  local segments
+  local step_angle
+  local step_length
+  if :angle < 0
+    throw "an arc needs an angle of 0 or more"
+  end if
+  if :radius <= 0
+    throw "an arc needs a positive radius"
+  end if
+  :segments = (int (:angle / 5)) + 1
+  :step_angle = :angle / :segments
+  :step_length = 2 * :radius * sin (:step_angle / 2)
+
+  left :step_angle / 2
+  repeat :segments
+    forward :step_length
+    left :step_angle
+  end repeat
+  right :step_angle / 2
+end
+
+define area :shape
+  if :shape[1] == "polygon"
+    local sides
+    local size
+    :sides = :shape[2]
+    :size = :shape[3]
+    if :sides < 3 or not (:sides == int :sides)
+      throw "area needs a polygon with a whole number of sides, at least 3"
+    end if
+    if :size <= 0
+      throw "area needs a polygon with a positive side length"
+    end if
+    return :sides * (power :size 2) / (4 * tan (180 / :sides))
+  end if
+
+  if :shape[1] == "circle"
+    local radius
+    :radius = :shape[2]
+    if :radius <= 0
+      throw "area needs a circle with a positive radius"
+    end if
+    return pi * power :radius 2
+  end if
+
+  throw "area knows only the polygon and circle shapes"
+end
+
+define perimeter :shape
+  if :shape[1] == "polygon"
+    local sides
+    local size
+    :sides = :shape[2]
+    :size = :shape[3]
+    if :sides < 3 or not (:sides == int :sides)
+      throw "perimeter needs a polygon with a whole number of sides, at least 3"
+    end if
+    if :size <= 0
+      throw "perimeter needs a polygon with a positive side length"
+    end if
+    return :sides * :size
+  end if
+
+  if :shape[1] == "circle"
+    local radius
+    :radius = :shape[2]
+    if :radius <= 0
+      throw "perimeter needs a circle with a positive radius"
+    end if
+    return 2 * pi * :radius
+  end if
+
+  throw "perimeter knows only the polygon and circle shapes"
+end
+
+pen_up
+set_xy -260 120
+pen_down
+polygon 5 40
+
+pen_up
+set_xy -140 120
+pen_down
+(star 7 40 3)
+
+pen_up
+set_xy 20 90
+pen_down
+circle 40
+
+pen_up
+set_xy 140 90
+pen_down
+arc 90 40
+
+print area ["polygon" 5 100]
+print area ["circle" 50]
+print perimeter ["polygon" 5 100]
+print perimeter ["circle" 50]
+
+# expected final state: a pentagon, a 7-point/step-3 star, a circle, and a quarter arc drawn
+# left to right, followed by four printed values: 17204.77400588967, 7853.981633974483, 500,
+# and 314.1592653589793 (area/perimeter never move the turtle or draw).

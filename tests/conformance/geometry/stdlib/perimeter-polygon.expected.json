@@ -1,0 +1,178 @@
+{
+  "description": "issue #338: `print perimeter [\"polygon\" 5 100]` reports `n * s` and emits no turtle/draw events (spec/geometry-module.md:370-415).",
+  "profiles": ["geometry"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/perimeter-polygon",
+        "start": [1, 1],
+        "end": [26, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/perimeter-polygon",
+        "start": [27, 1],
+        "end": [27, 34]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "geometry/stdlib/perimeter-polygon",
+        "start": [27, 7],
+        "end": [27, 34]
+      },
+      "payload": {
+        "name": "perimeter",
+        "args": [["polygon", 5, 100]]
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/perimeter-polygon",
+        "start": [2, 3],
+        "end": [14, 9]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/perimeter-polygon",
+        "start": [3, 5],
+        "end": [3, 16]
+      },
+      "payload": {
+        "statement_kind": "Local"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/perimeter-polygon",
+        "start": [4, 5],
+        "end": [4, 15]
+      },
+      "payload": {
+        "statement_kind": "Local"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/perimeter-polygon",
+        "start": [5, 5],
+        "end": [5, 23]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/perimeter-polygon",
+        "start": [6, 5],
+        "end": [6, 22]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/perimeter-polygon",
+        "start": [7, 5],
+        "end": [9, 11]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/perimeter-polygon",
+        "start": [10, 5],
+        "end": [12, 11]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/perimeter-polygon",
+        "start": [13, 5],
+        "end": [13, 26]
+      },
+      "payload": {
+        "statement_kind": "Return"
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "return",
+      "source_span": {
+        "document": "geometry/stdlib/perimeter-polygon",
+        "start": [13, 5],
+        "end": [13, 26]
+      },
+      "payload": {
+        "value": 500
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "geometry/stdlib/perimeter-polygon",
+        "start": [27, 7],
+        "end": [27, 34]
+      },
+      "payload": {
+        "name": "perimeter",
+        "result": 500
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "print",
+      "source_span": {
+        "document": "geometry/stdlib/perimeter-polygon",
+        "start": [27, 1],
+        "end": [27, 34]
+      },
+      "payload": {
+        "values": [500]
+      }
+    }
+  ],
+  "diagnostics": []
+}

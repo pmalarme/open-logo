@@ -230,7 +230,7 @@ test("runExamplesGate defaults exercise the real spec/examples/ corpus and manif
     false,
     "every spec/examples/*.logo file must have a scripts/examples-profiles.json entry",
   );
-  assert.equal(result.ran + result.skipped, 12);
+  assert.equal(result.ran + result.skipped, 13);
 });
 
 test("runExamplesGate skips every example that needs a not-yet-implemented profile in the real corpus", () => {

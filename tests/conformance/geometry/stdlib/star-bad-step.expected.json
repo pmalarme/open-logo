@@ -1,0 +1,96 @@
+{
+  "description": "issue #338: `(star 5 100 1)` (a `:step` not strictly between 1 and `:points`) raises `ol-user-error` with the exact spec message \"a star step must be a whole number between 2 and one less than the number of points\" (spec/geometry-module.md:93-95).",
+  "profiles": ["geometry"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-bad-step",
+        "start": [1, 1],
+        "end": [15, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-bad-step",
+        "start": [16, 1],
+        "end": [16, 15]
+      },
+      "payload": {
+        "statement_kind": "ParenCall"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "geometry/stdlib/star-bad-step",
+        "start": [16, 1],
+        "end": [16, 15]
+      },
+      "payload": {
+        "name": "star",
+        "args": [5, 100, 1]
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-bad-step",
+        "start": [2, 3],
+        "end": [4, 9]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-bad-step",
+        "start": [5, 3],
+        "end": [7, 9]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-bad-step",
+        "start": [6, 5],
+        "end": [6, 96]
+      },
+      "payload": {
+        "statement_kind": "Throw"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-user-error",
+      "source_span": {
+        "document": "geometry/stdlib/star-bad-step",
+        "start": [6, 5],
+        "end": [6, 96]
+      },
+      "params": {
+        "message": "a star step must be a whole number between 2 and one less than the number of points"
+      },
+      "message": "a star step must be a whole number between 2 and one less than the number of points",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

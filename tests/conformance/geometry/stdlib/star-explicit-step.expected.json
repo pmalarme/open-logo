@@ -1,0 +1,568 @@
+{
+  "description": "issue #338: `(star 7 80 3)` supplies the optional trailing `:step` via the parenthesized call form and draws the {7/3} star without diagnostics (spec/geometry-module.md:124-131).",
+  "profiles": ["geometry"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [1, 1],
+        "end": [15, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [16, 1],
+        "end": [16, 14]
+      },
+      "payload": {
+        "statement_kind": "ParenCall"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [16, 1],
+        "end": [16, 14]
+      },
+      "payload": {
+        "name": "star",
+        "args": [7, 80, 3]
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [2, 3],
+        "end": [4, 9]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [5, 3],
+        "end": [7, 9]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [8, 3],
+        "end": [10, 9]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [11, 3],
+        "end": [14, 13]
+      },
+      "payload": {
+        "statement_kind": "Repeat"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [12, 5],
+        "end": [12, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [12, 5],
+        "end": [12, 18]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 80],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [12, 5],
+        "end": [12, 18]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 80],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [13, 5],
+        "end": [13, 32]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [13, 5],
+        "end": [13, 32]
+      },
+      "payload": {
+        "from": 0,
+        "to": 154.28571428571428
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [12, 5],
+        "end": [12, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [12, 5],
+        "end": [12, 18]
+      },
+      "payload": {
+        "from": [0, 80],
+        "to": [34.71069912940466, 7.922490567806477],
+        "heading": 154.28571428571428
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [12, 5],
+        "end": [12, 18]
+      },
+      "payload": {
+        "from": [0, 80],
+        "to": [34.71069912940466, 7.922490567806477],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [13, 5],
+        "end": [13, 32]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [13, 5],
+        "end": [13, 32]
+      },
+      "payload": {
+        "from": 154.28571428571428,
+        "to": 308.57142857142856
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [12, 5],
+        "end": [12, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [12, 5],
+        "end": [12, 18]
+      },
+      "payload": {
+        "from": [34.71069912940466, 7.922490567806477],
+        "to": [-27.835819468037734, 57.80167471650515],
+        "heading": 308.57142857142856
+      }
+    },
+    {
+      "seq": 19,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [12, 5],
+        "end": [12, 18]
+      },
+      "payload": {
+        "from": [34.71069912940466, 7.922490567806477],
+        "to": [-27.835819468037734, 57.80167471650515],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 20,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [13, 5],
+        "end": [13, 32]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 21,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [13, 5],
+        "end": [13, 32]
+      },
+      "payload": {
+        "from": 308.57142857142856,
+        "to": 102.85714285714283
+      }
+    },
+    {
+      "seq": 22,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [12, 5],
+        "end": [12, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 23,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [12, 5],
+        "end": [12, 18]
+      },
+      "payload": {
+        "from": [-27.835819468037734, 57.80167471650515],
+        "to": [50.15841350650816, 40.000000000000014],
+        "heading": 102.85714285714283
+      }
+    },
+    {
+      "seq": 24,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [12, 5],
+        "end": [12, 18]
+      },
+      "payload": {
+        "from": [-27.835819468037734, 57.80167471650515],
+        "to": [50.15841350650816, 40.000000000000014],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 25,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [13, 5],
+        "end": [13, 32]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 26,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [13, 5],
+        "end": [13, 32]
+      },
+      "payload": {
+        "from": 102.85714285714283,
+        "to": 257.1428571428571
+      }
+    },
+    {
+      "seq": 27,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [12, 5],
+        "end": [12, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 28,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [12, 5],
+        "end": [12, 18]
+      },
+      "payload": {
+        "from": [50.15841350650816, 40.000000000000014],
+        "to": [-27.835819468037705, 22.19832528349478],
+        "heading": 257.1428571428571
+      }
+    },
+    {
+      "seq": 29,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [12, 5],
+        "end": [12, 18]
+      },
+      "payload": {
+        "from": [50.15841350650816, 40.000000000000014],
+        "to": [-27.835819468037705, 22.19832528349478],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 30,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [13, 5],
+        "end": [13, 32]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 31,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [13, 5],
+        "end": [13, 32]
+      },
+      "payload": {
+        "from": 257.1428571428571,
+        "to": 51.42857142857139
+      }
+    },
+    {
+      "seq": 32,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [12, 5],
+        "end": [12, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 33,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [12, 5],
+        "end": [12, 18]
+      },
+      "payload": {
+        "from": [-27.835819468037705, 22.19832528349478],
+        "to": [34.710699129404645, 72.07750943219351],
+        "heading": 51.42857142857139
+      }
+    },
+    {
+      "seq": 34,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [12, 5],
+        "end": [12, 18]
+      },
+      "payload": {
+        "from": [-27.835819468037705, 22.19832528349478],
+        "to": [34.710699129404645, 72.07750943219351],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 35,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [13, 5],
+        "end": [13, 32]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 36,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [13, 5],
+        "end": [13, 32]
+      },
+      "payload": {
+        "from": 51.42857142857139,
+        "to": 205.71428571428567
+      }
+    },
+    {
+      "seq": 37,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [12, 5],
+        "end": [12, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 38,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [12, 5],
+        "end": [12, 18]
+      },
+      "payload": {
+        "from": [34.710699129404645, 72.07750943219351],
+        "to": [3.552713678800501e-14, -4.263256414560601e-14],
+        "heading": 205.71428571428567
+      }
+    },
+    {
+      "seq": 39,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [12, 5],
+        "end": [12, 18]
+      },
+      "payload": {
+        "from": [34.710699129404645, 72.07750943219351],
+        "to": [3.552713678800501e-14, -4.263256414560601e-14],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 40,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [13, 5],
+        "end": [13, 32]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 41,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [13, 5],
+        "end": [13, 32]
+      },
+      "payload": {
+        "from": 205.71428571428567,
+        "to": 359.99999999999994
+      }
+    },
+    {
+      "seq": 42,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "geometry/stdlib/star-explicit-step",
+        "start": [16, 1],
+        "end": [16, 14]
+      },
+      "payload": {
+        "name": "star",
+        "result": null
+      }
+    }
+  ],
+  "diagnostics": []
+}

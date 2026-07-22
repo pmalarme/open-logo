@@ -1,0 +1,84 @@
+{
+  "description": "issue #338: `polygon 2 100` (fewer than 3 sides) raises `ol-user-error` with the exact spec message \"a polygon needs at least 3 sides\" (spec/geometry-module.md:44-46).",
+  "profiles": ["geometry"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-too-few-sides",
+        "start": [1, 1],
+        "end": [12, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-too-few-sides",
+        "start": [13, 1],
+        "end": [13, 14]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-too-few-sides",
+        "start": [13, 1],
+        "end": [13, 14]
+      },
+      "payload": {
+        "name": "polygon",
+        "args": [2, 100]
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-too-few-sides",
+        "start": [2, 3],
+        "end": [4, 9]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-too-few-sides",
+        "start": [3, 5],
+        "end": [3, 45]
+      },
+      "payload": {
+        "statement_kind": "Throw"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-user-error",
+      "source_span": {
+        "document": "geometry/stdlib/polygon-too-few-sides",
+        "start": [3, 5],
+        "end": [3, 45]
+      },
+      "params": {
+        "message": "a polygon needs at least 3 sides"
+      },
+      "message": "a polygon needs at least 3 sides",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}
