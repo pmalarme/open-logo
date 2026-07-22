@@ -128,14 +128,14 @@ function renderPlace(node: PlaceNode): string {
 
 /**
  * Renders a postfix read over an arbitrary primary — `[1 2][1]`, `{tom: 8}.tom`,
- * `(point 0 0).x`, `(1 + 2).x` (issue #407/F7) — never itself a valid place, so it only ever
- * appears here as a non-place assignment target. `parenthesizedBase` re-adds the `( … )` the
- * surface source wrapped `base` in and `parsePostfix` otherwise strips from the AST (see that
- * field's doc comment in `ast.ts`).
+ * `(point 0 0).x`, `(1 + 2).x`, `((1 + 2)).x` (issue #407/F7) — never itself a valid place, so it
+ * only ever appears here as a non-place assignment target. `parenGroupCount` re-adds every level
+ * of bare-grouping `( … )` the surface source wrapped `base` in and `parsePostfix` otherwise
+ * strips from the AST (see that field's doc comment in `ast.ts`).
  */
 function renderPostfixExpression(node: PostfixExpressionNode): string {
   const base = renderChild(node.base);
-  const baseText = node.parenthesizedBase ? `(${base})` : base;
+  const baseText = `${"(".repeat(node.parenGroupCount)}${base}${")".repeat(node.parenGroupCount)}`;
   return `${baseText}${renderSegments(node.segments)}`;
 }
 

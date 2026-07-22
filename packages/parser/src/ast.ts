@@ -238,13 +238,18 @@ export interface PostfixExpressionNode extends NodeBase {
   readonly base: ExpressionNode;
   readonly segments: readonly PlaceSegment[];
   /**
-   * Whether the surface source wrapped `base` in its own `( … )` — `(1 + 2).x`, not `1 + 2.x`
-   * (issue #407/F7). `parsePostfix` strips those parens when it re-derives `base`'s span from the
-   * primary-start token, so this flag is the only remaining signal for the AST-fallback renderer
+   * How many redundant bare-grouping `( … )` wrappers the surface source put around `base` —
+   * `(1 + 2).x` is 1, `((1 + 2)).x` is 2, `1 + 2.x` (no wrapping) is 0 (issue #407/F7 follow-up:
+   * rubber-duck found a single boolean cannot represent more than one level). `parsePostfix`
+   * strips every one of those parens when it re-derives `base`'s span from the primary-start
+   * token, so this count is the only remaining signal for the AST-fallback renderer
    * (`checker-not-a-place.ts`'s `renderPostfixExpression`) to re-add them; source-slicing needs no
-   * such flag because `source_span` already spans the parens.
+   * such count because `source_span` already spans the parens. A callee-form `(first :x)` is a
+   * `ParenCall`, which already preserves its own parens in its own `source_span` — it is never
+   * counted here, so its `PostfixExpression` wrapper (if any) starts at 0 and only counts any
+   * *additional* bare grouping around it, e.g. `((first :x)).foo` is 1.
    */
-  readonly parenthesizedBase: boolean;
+  readonly parenGroupCount: number;
 }
 
 /**
@@ -609,14 +614,14 @@ export const ast = {
     base: ExpressionNode,
     segments: readonly PlaceSegment[],
     span: SourceSpan,
-    parenthesizedBase: boolean,
+    parenGroupCount: number,
   ): PostfixExpressionNode {
     return {
       kind: "PostfixExpression",
       source_span: span,
       base,
       segments,
-      parenthesizedBase,
+      parenGroupCount,
     };
   },
   assign(

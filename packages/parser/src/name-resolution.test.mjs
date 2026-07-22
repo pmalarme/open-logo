@@ -319,6 +319,55 @@ test('the AST fallback renders a value-of-key reader nested inside a list-litera
   });
 });
 
+test("a parenthesized bare-variable postfix base (:x).foo = 1 is NOT a place — only the unparenthesized :x.foo form roots a place chain (rubber-duck round-2: a single boolean paren flag let (:x) wrongly parse as an assignable bare variable)", () => {
+  const [finding] = checkSource(":x = 1\n(:x).foo = 1\n").filter(isNotAPlace);
+  assert.deepEqual(finding.params, { text: "(:x).foo" });
+});
+
+test("the AST fallback renders the same parenthesized bare-variable postfix base (:x).foo = 1 with no source", () => {
+  const [finding] = checkNoSource(":x = 1\n(:x).foo = 1\n").filter(isNotAPlace);
+  assert.deepEqual(finding.params, { text: "(:x).foo" });
+});
+
+test("(:x).foo = 1 parses as a PostfixExpression target (base VarRef, one grouping paren), never a Place — the unparenthesized :x.foo = 1 still parses as a Place", () => {
+  const parenthesized = OL.parse(":x = 1\n(:x).foo = 1\n", "unit.logo").ast
+    .body[1].place;
+  assert.equal(parenthesized.kind, "PostfixExpression");
+  assert.equal(parenthesized.base.kind, "VarRef");
+  assert.equal(parenthesized.base.name, "x");
+  assert.equal(parenthesized.parenGroupCount, 1);
+
+  const bare = OL.parse(":x = 1\n:x.foo = 1\n", "unit.logo").ast.body[1].place;
+  assert.equal(bare.kind, "Place");
+  assert.equal(bare.base.name, "x");
+});
+
+test("the AST fallback wraps a DOUBLY-parenthesized infix-call postfix base in BOTH grouping levels, e.g. ((1 + 2)).x = 3 (rubber-duck round-2: a single boolean flag can only restore one level)", () => {
+  const [finding] = checkNoSource("((1 + 2)).x = 3").filter(isNotAPlace);
+  assert.deepEqual(finding.params, { text: "((1 + 2)).x" });
+});
+
+test("the AST fallback wraps one EXTRA grouping level around an already-self-parenthesizing ParenCall base, e.g. ((first :x)).foo = 1 renders both the callee-form parens AND the outer bare grouping", () => {
+  const [finding] = checkNoSource("((first :x)).foo = 1").filter(isNotAPlace);
+  assert.deepEqual(finding.params, { text: "((first :x)).foo" });
+});
+
+test("the depth-counting scan skips a newline token sitting between two grouping parens, e.g. ((\\n1 + 2\\n)).x = 3", () => {
+  const [finding] = checkNoSource("((\n1 + 2\n)).x = 3").filter(isNotAPlace);
+  assert.deepEqual(finding.params, { text: "((1 + 2)).x" });
+});
+
+test("source-slicing already renders both grouping levels correctly (the fallback now matches it): ((1 + 2)).x = 3 and ((first :x)).foo = 1", () => {
+  assert.deepEqual(
+    checkSource("((1 + 2)).x = 3").filter(isNotAPlace)[0].params,
+    { text: "((1 + 2)).x" },
+  );
+  assert.deepEqual(
+    checkSource("((first :x)).foo = 1").filter(isNotAPlace)[0].params,
+    { text: "((first :x)).foo" },
+  );
+});
+
 // ── ol-undefined-var: static reads of an unbound `:name` ─────────────────────────────────────
 
 test("a bare :missing read with no declaration anywhere raises ol-undefined-var at the variable's span", () => {

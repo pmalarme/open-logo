@@ -183,6 +183,28 @@ test('renders a value-of-key reader nested inside a list-literal postfix base, e
   );
 });
 
+test("renders a parenthesized bare-variable postfix base (:x).foo = 1 — never a Place, only the unparenthesized :x.foo form roots one (rubber-duck round-2)", () => {
+  const target = targetOf("(:x).foo = 1");
+  assert.equal(target.kind, "PostfixExpression");
+  assert.equal(target.base.kind, "VarRef");
+  assert.equal(target.parenGroupCount, 1);
+  assert.equal(notAPlaceTargetText(target, undefined), "(:x).foo");
+});
+
+test("renders a DOUBLY-parenthesized infix-call postfix base with BOTH grouping levels, e.g. ((1 + 2)).x = 3 (rubber-duck round-2: a single boolean flag can only restore one level)", () => {
+  assert.equal(
+    notAPlaceTargetText(targetOf("((1 + 2)).x = 3"), undefined),
+    "((1 + 2)).x",
+  );
+});
+
+test("renders one EXTRA grouping level around an already-self-parenthesizing ParenCall base, e.g. ((first :x)).foo = 1", () => {
+  assert.equal(
+    notAPlaceTargetText(targetOf("((first :x)).foo = 1"), undefined),
+    "((first :x)).foo",
+  );
+});
+
 // --- Source slicing (`source` provided) ------------------------------------------------------
 
 test("slices the exact single-line surface text, preserving non-canonical spacing", () => {

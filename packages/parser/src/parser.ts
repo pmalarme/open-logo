@@ -784,8 +784,44 @@ export function parse(source: string, document = "<input>"): ParseResult {
     return segments;
   }
 
+  /**
+   * Counts how many redundant bare-grouping `( … )` wrappers `parseParenthesized` stripped
+   * around the expression that starts at `innerStart`, by walking the raw token stream forward
+   * from `startIndex` (the token `parsePrimary` began consuming from). Its bare-grouping branch
+   * never wraps or extends the inner expression's own span, so each stripped level leaves exactly
+   * one more leading `lparen` token before reaching `innerStart` — while a callee-form `ParenCall`
+   * (e.g. `(first :x)`) already spans its *own* `(`, so `innerStart` equals that very `(` token's
+   * position and the scan stops immediately at 0, never double-counting its self-preserved parens
+   * (issue #407/F7 follow-up: rubber-duck found a single boolean cannot represent `((1 + 2)).x`'s
+   * two stripped levels, and that the same gap let `(:x)` — genuinely parenthesized — wrongly
+   * parse as an assignable bare `:x` place).
+   */
+  function countStrippedGroupingParens(
+    startIndex: number,
+    innerStart: Position,
+  ): number {
+    let count = 0;
+    let index = startIndex;
+    for (;;) {
+      const token = tokens[Math.min(index, tokens.length - 1)] as LexToken;
+      if (token.kind === "newline") {
+        index += 1;
+        continue;
+      }
+      const atInnerStart =
+        token.source_span.start[0] === innerStart[0] &&
+        token.source_span.start[1] === innerStart[1];
+      if (token.kind !== "lparen" || atInnerStart) {
+        return count;
+      }
+      count += 1;
+      index += 1;
+    }
+  }
+
   function parsePostfix(): ExpressionNode | undefined {
     const primaryStart = current();
+    const primaryStartIndex = pos;
     const primary = parsePrimary();
     if (primary === undefined) {
       return undefined;
@@ -798,16 +834,14 @@ export function parse(source: string, document = "<input>"): ParseResult {
     if (!hasPostfixAhead) {
       return primary;
     }
-    // `parseParenthesized`'s bare-grouping branch discards its own `( … )` and returns the inner
-    // primary unwrapped, so `primary.source_span` never includes them — using `primaryStart`
-    // (the token `parsePrimary` was called on, before it consumed anything) instead of
-    // `primary.source_span.start` keeps the overall span paren-inclusive for both branches below,
-    // so `(1 + 2).x`'s span covers the leading `(` and source-slicing renders it exactly
-    // (issue #407/F7). `primary.kind !== "ParenCall"` excludes the callee-form parenthesization
-    // (`(first :x)`), which already preserves its own parens in `primary.source_span`.
-    const parenthesizedBase =
-      primaryStart.kind === "lparen" && primary.kind !== "ParenCall";
-    if (primary.kind === "VarRef") {
+    const parenGroupCount = countStrippedGroupingParens(
+      primaryStartIndex,
+      primary.source_span.start,
+    );
+    // Only a genuinely bare `:name` — never a parenthesized `(:name)` — grows into an assignable
+    // Place; `(:x).foo` is a read of `:x`'s own value, not a place chain rooted at `:x` (spec's
+    // closed place grammar, `colon-place ::= ":" name { postfix }`, is the bare form only).
+    if (primary.kind === "VarRef" && parenGroupCount === 0) {
       const base: SpannedName = {
         name: primary.name,
         source_span: primary.source_span,
@@ -821,16 +855,17 @@ export function parse(source: string, document = "<input>"): ParseResult {
     }
     // `spec/grammar.md:188` — `postfix-expression ::= primary { selector | "." identifier }` —
     // permits a postfix read after *any* primary, not only a `:name`. A literal-list read
-    // (`[1 2][1]`), a dict-literal field read (`{tom: 8}.tom`), or a constructor-call-result
-    // field read (`(point 0 0).x`) all grow their primary into a read-only PostfixExpression.
-    // Assignment targets never reach this branch — `set`/`=` parsing builds a `Place` directly
-    // from a `:name`/bare-name base without going through `parsePostfix`.
+    // (`[1 2][1]`), a dict-literal field read (`{tom: 8}.tom`), a constructor-call-result field
+    // read (`(point 0 0).x`), or a parenthesized variable read (`(:x).foo`) all grow their
+    // primary into a read-only PostfixExpression. Assignment targets never reach this branch —
+    // `set`/`=` parsing builds a `Place` directly from a `:name`/bare-name base without going
+    // through `parsePostfix`.
     const segments = collectPostfixSegments();
     return ast.postfixExpression(
       primary,
       segments,
       spanToHere(primaryStart.source_span.start),
-      parenthesizedBase,
+      parenGroupCount,
     );
   }
 
