@@ -1,0 +1,92 @@
+{
+  "description": "Every call to `list` yields an independent list instance (issue #397): mutating one via `add` never affects a separately-constructed list, mirroring `dict`'s own fresh-instance guarantee.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/list-constructor/list-constructor-fresh-instances",
+        "start": [1, 1],
+        "end": [1, 10]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/list-constructor/list-constructor-fresh-instances",
+        "start": [2, 1],
+        "end": [2, 10]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/list-constructor/list-constructor-fresh-instances",
+        "start": [3, 1],
+        "end": [3, 12]
+      },
+      "payload": {
+        "statement_kind": "Add"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/list-constructor/list-constructor-fresh-instances",
+        "start": [4, 1],
+        "end": [4, 15]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "print",
+      "source_span": {
+        "document": "data/list-constructor/list-constructor-fresh-instances",
+        "start": [4, 1],
+        "end": [4, 15]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/list-constructor/list-constructor-fresh-instances",
+        "start": [5, 1],
+        "end": [5, 15]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "print",
+      "source_span": {
+        "document": "data/list-constructor/list-constructor-fresh-instances",
+        "start": [5, 1],
+        "end": [5, 15]
+      },
+      "payload": {
+        "values": [0]
+      }
+    }
+  ],
+  "diagnostics": []
+}

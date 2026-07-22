@@ -1,0 +1,3 @@
+:path = list
+add "a" to :path
+print count :path

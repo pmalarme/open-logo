@@ -1,0 +1,56 @@
+{
+  "description": "The bare-word `list` reporter (issue #397, `spec/data-structures.md:77`) returns a fresh, empty, mutable list; `add ... to` then mutates it in place.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/list-constructor/list-constructor-bare-empty",
+        "start": [1, 1],
+        "end": [1, 13]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/list-constructor/list-constructor-bare-empty",
+        "start": [2, 1],
+        "end": [2, 17]
+      },
+      "payload": {
+        "statement_kind": "Add"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/list-constructor/list-constructor-bare-empty",
+        "start": [3, 1],
+        "end": [3, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "data/list-constructor/list-constructor-bare-empty",
+        "start": [3, 1],
+        "end": [3, 18]
+      },
+      "payload": {
+        "values": [1]
+      }
+    }
+  ],
+  "diagnostics": []
+}

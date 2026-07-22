@@ -1,0 +1,32 @@
+{
+  "description": "Two independently-constructed `(list ...)` values with the same elements compare equal under `==` (structural equality, issue #397) even though they are distinct instances.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/list-constructor/list-constructor-equality-structural",
+        "start": [1, 1],
+        "end": [1, 32]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "data/list-constructor/list-constructor-equality-structural",
+        "start": [1, 1],
+        "end": [1, 32]
+      },
+      "payload": {
+        "values": [true]
+      }
+    }
+  ],
+  "diagnostics": []
+}

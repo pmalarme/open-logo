@@ -163,24 +163,28 @@ export function turtlePrimitiveNames(): readonly string[] {
 
 /**
  * Default arities for the **Data** profile's derived list/dict reporters (issue #190 for
- * `reverse`/`pick`/`sort`; issue #322 adds `dict`/`keys`/`values`; issue #329 adds `type_of`),
- * derived from the "Derived list reporters in the Data profile" table, the dictionary operations
- * table, and the record operations table in
- * [`spec/data-structures.md`](../../../spec/data-structures.md): `reverse`/`pick`/`sort` each take
- * one `list` argument, matching the spec's own worked example's bare-call form
- * (`:backward = reverse :nums`); `dict` takes none (the empty-constructor reporter); `keys`/
- * `values` each take one `dict` argument; `type_of` takes one `record` argument and reports its
- * struct type name (`spec/data-structures.md:286`). Kept as its own table rather than folded into
- * {@link CORE_PRIMITIVE_ARITY} for the same reason {@link TURTLE_PRIMITIVE_ARITY} is separate: the
- * two profiles have independent visibility (the Layer-2 checker gates each on its own active
- * profile, `spec/tooling.md:175-176`), while the reader (this table's only consumer, via
- * {@link primitiveArity}) groups a bare call's arguments for *any* recognized primitive regardless
- * of profile.
+ * `reverse`/`pick`/`sort`; issue #322 adds `dict`/`keys`/`values`; issue #329 adds `type_of`;
+ * issue #397 adds `list`), derived from the "Mutating list operations" table, the "Derived list
+ * reporters in the Data profile" table, the dictionary operations table, and the record operations
+ * table in [`spec/data-structures.md`](../../../spec/data-structures.md): `reverse`/`pick`/`sort`
+ * each take one `list` argument, matching the spec's own worked example's bare-call form
+ * (`:backward = reverse :nums`); `list` takes none as a bare call (`spec/data-structures.md:77`'s
+ * empty-list constructor reporter — its variadic parenthesized form `(list a b …)`,
+ * `spec/data-structures.md:78`, is not a fixed arity and so is not represented in this table, the
+ * same way `dict` has no parenthesized variadic form to register); `dict` takes none (the
+ * empty-constructor reporter); `keys`/`values` each take one `dict` argument; `type_of` takes one
+ * `record` argument and reports its struct type name (`spec/data-structures.md:286`). Kept as its
+ * own table rather than folded into {@link CORE_PRIMITIVE_ARITY} for the same reason
+ * {@link TURTLE_PRIMITIVE_ARITY} is separate: the two profiles have independent visibility (the
+ * Layer-2 checker gates each on its own active profile, `spec/tooling.md:175-176`), while the
+ * reader (this table's only consumer, via {@link primitiveArity}) groups a bare call's arguments
+ * for *any* recognized primitive regardless of profile.
  */
 const DATA_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
   ["reverse", 1],
   ["pick", 1],
   ["sort", 1],
+  ["list", 0],
   ["dict", 0],
   ["keys", 1],
   ["values", 1],
