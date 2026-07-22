@@ -1,0 +1,1542 @@
+{
+  "description": "issue #408 (F6): a real `arc 90 50` execution (inlined stdlib source) whose actual final position/heading validate reasonAboutArc's closed-form center/finalPosition/finalHeading formulas.",
+  "profiles": ["geometry"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [1, 1],
+        "end": [21, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [22, 1],
+        "end": [22, 10]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [22, 1],
+        "end": [22, 10]
+      },
+      "payload": {
+        "name": "arc",
+        "args": [90, 50]
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [2, 3],
+        "end": [2, 17]
+      },
+      "payload": {
+        "statement_kind": "Local"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [3, 3],
+        "end": [3, 19]
+      },
+      "payload": {
+        "statement_kind": "Local"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [4, 3],
+        "end": [4, 20]
+      },
+      "payload": {
+        "statement_kind": "Local"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [5, 3],
+        "end": [7, 9]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [8, 3],
+        "end": [10, 9]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [11, 3],
+        "end": [11, 37]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [12, 3],
+        "end": [12, 35]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [13, 3],
+        "end": [13, 52]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [15, 3],
+        "end": [15, 23]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [15, 3],
+        "end": [15, 23]
+      },
+      "payload": {
+        "from": 0,
+        "to": 357.63157894736844
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [16, 3],
+        "end": [19, 13]
+      },
+      "payload": {
+        "statement_kind": "Repeat"
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [-0.17077534966650712, 4.128967273616615],
+        "heading": 357.63157894736844
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [-0.17077534966650712, 4.128967273616615],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "from": 357.63157894736844,
+        "to": 352.89473684210526
+      }
+    },
+    {
+      "seq": 19,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 20,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [-0.17077534966650712, 4.128967273616615],
+        "to": [-0.681934829863885, 8.229729514036691],
+        "heading": 352.89473684210526
+      }
+    },
+    {
+      "seq": 21,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [-0.17077534966650712, 4.128967273616615],
+        "to": [-0.681934829863885, 8.229729514036691],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 22,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 23,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "from": 352.89473684210526,
+        "to": 348.1578947368421
+      }
+    },
+    {
+      "seq": 24,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 25,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [-0.681934829863885, 8.229729514036691],
+        "to": [-1.5299867030334877, 12.274274357039953],
+        "heading": 348.1578947368421
+      }
+    },
+    {
+      "seq": 26,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [-0.681934829863885, 8.229729514036691],
+        "to": [-1.5299867030334877, 12.274274357039953],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 27,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 28,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "from": 348.1578947368421,
+        "to": 343.4210526315789
+      }
+    },
+    {
+      "seq": 29,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 30,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [-1.5299867030334877, 12.274274357039953],
+        "to": [-2.7091379149682764, 16.23497346023417],
+        "heading": 343.4210526315789
+      }
+    },
+    {
+      "seq": 31,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [-1.5299867030334877, 12.274274357039953],
+        "to": [-2.7091379149682764, 16.23497346023417],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 32,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 33,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "from": 343.4210526315789,
+        "to": 338.6842105263157
+      }
+    },
+    {
+      "seq": 34,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 35,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [-2.7091379149682764, 16.23497346023417],
+        "to": [-4.211333667247141, 20.084771232648464],
+        "heading": 338.6842105263157
+      }
+    },
+    {
+      "seq": 36,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [-2.7091379149682764, 16.23497346023417],
+        "to": [-4.211333667247141, 20.084771232648464],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 37,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 38,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "from": 338.6842105263157,
+        "to": 333.94736842105254
+      }
+    },
+    {
+      "seq": 39,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 40,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [-4.211333667247141, 20.084771232648464],
+        "to": [-6.0263124396755625, 23.797369651853664],
+        "heading": 333.94736842105254
+      }
+    },
+    {
+      "seq": 41,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [-4.211333667247141, 20.084771232648464],
+        "to": [-6.0263124396755625, 23.797369651853664],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 42,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 43,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "from": 333.94736842105254,
+        "to": 329.21052631578937
+      }
+    },
+    {
+      "seq": 44,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 45,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [-6.0263124396755625, 23.797369651853664],
+        "to": [-8.141676086873591, 27.347407906121326],
+        "heading": 329.21052631578937
+      }
+    },
+    {
+      "seq": 46,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [-6.0263124396755625, 23.797369651853664],
+        "to": [-8.141676086873591, 27.347407906121326],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 47,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 48,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "from": 329.21052631578937,
+        "to": 324.4736842105262
+      }
+    },
+    {
+      "seq": 49,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 50,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [-8.141676086873591, 27.347407906121326],
+        "to": [-10.542974530180349, 30.710635634483367],
+        "heading": 324.4736842105262
+      }
+    },
+    {
+      "seq": 51,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [-8.141676086873591, 27.347407906121326],
+        "to": [-10.542974530180349, 30.710635634483367],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 52,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 53,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "from": 324.4736842105262,
+        "to": 319.736842105263
+      }
+    },
+    {
+      "seq": 54,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 55,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [-10.542974530180349, 30.710635634483367],
+        "to": [-13.213804466343454, 33.864078581287025],
+        "heading": 319.736842105263
+      }
+    },
+    {
+      "seq": 56,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [-10.542974530180349, 30.710635634483367],
+        "to": [-13.213804466343454, 33.864078581287025],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 57,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 58,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "from": 319.736842105263,
+        "to": 314.99999999999983
+      }
+    },
+    {
+      "seq": 59,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 60,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [-13.213804466343454, 33.864078581287025],
+        "to": [-16.13592141871299, 36.786195533656546],
+        "heading": 314.99999999999983
+      }
+    },
+    {
+      "seq": 61,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [-13.213804466343454, 33.864078581287025],
+        "to": [-16.13592141871299, 36.786195533656546],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 62,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 63,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "from": 314.99999999999983,
+        "to": 310.26315789473665
+      }
+    },
+    {
+      "seq": 64,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 65,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [-16.13592141871299, 36.786195533656546],
+        "to": [-19.28936436551666, 39.457025469819634],
+        "heading": 310.26315789473665
+      }
+    },
+    {
+      "seq": 66,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [-16.13592141871299, 36.786195533656546],
+        "to": [-19.28936436551666, 39.457025469819634],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 67,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 68,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "from": 310.26315789473665,
+        "to": 305.5263157894735
+      }
+    },
+    {
+      "seq": 69,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 70,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [-19.28936436551666, 39.457025469819634],
+        "to": [-22.652592093878717, 41.85832391312637],
+        "heading": 305.5263157894735
+      }
+    },
+    {
+      "seq": 71,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [-19.28936436551666, 39.457025469819634],
+        "to": [-22.652592093878717, 41.85832391312637],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 72,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 73,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "from": 305.5263157894735,
+        "to": 300.7894736842103
+      }
+    },
+    {
+      "seq": 74,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 75,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [-22.652592093878717, 41.85832391312637],
+        "to": [-26.202630348146393, 43.97368756032438],
+        "heading": 300.7894736842103
+      }
+    },
+    {
+      "seq": 76,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [-22.652592093878717, 41.85832391312637],
+        "to": [-26.202630348146393, 43.97368756032438],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 77,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 78,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "from": 300.7894736842103,
+        "to": 296.0526315789471
+      }
+    },
+    {
+      "seq": 79,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 80,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [-26.202630348146393, 43.97368756032438],
+        "to": [-29.915228767351604, 45.78866633275278],
+        "heading": 296.0526315789471
+      }
+    },
+    {
+      "seq": 81,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [-26.202630348146393, 43.97368756032438],
+        "to": [-29.915228767351604, 45.78866633275278],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 82,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 83,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "from": 296.0526315789471,
+        "to": 291.31578947368394
+      }
+    },
+    {
+      "seq": 84,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 85,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [-29.915228767351604, 45.78866633275278],
+        "to": [-33.765026539765906, 47.29086208503163],
+        "heading": 291.31578947368394
+      }
+    },
+    {
+      "seq": 86,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [-29.915228767351604, 45.78866633275278],
+        "to": [-33.765026539765906, 47.29086208503163],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 87,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 88,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "from": 291.31578947368394,
+        "to": 286.57894736842076
+      }
+    },
+    {
+      "seq": 89,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 90,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [-33.765026539765906, 47.29086208503163],
+        "to": [-37.72572564296013, 48.47001329696639],
+        "heading": 286.57894736842076
+      }
+    },
+    {
+      "seq": 91,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [-33.765026539765906, 47.29086208503163],
+        "to": [-37.72572564296013, 48.47001329696639],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 92,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 93,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "from": 286.57894736842076,
+        "to": 281.8421052631576
+      }
+    },
+    {
+      "seq": 94,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 95,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [-37.72572564296013, 48.47001329696639],
+        "to": [-41.770270485963394, 49.31806517013597],
+        "heading": 281.8421052631576
+      }
+    },
+    {
+      "seq": 96,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [-37.72572564296013, 48.47001329696639],
+        "to": [-41.770270485963394, 49.31806517013597],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 97,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 98,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "from": 281.8421052631576,
+        "to": 277.1052631578944
+      }
+    },
+    {
+      "seq": 99,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 100,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [-41.770270485963394, 49.31806517013597],
+        "to": [-45.871032726383476, 49.829224650333316],
+        "heading": 277.1052631578944
+      }
+    },
+    {
+      "seq": 101,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [-41.770270485963394, 49.31806517013597],
+        "to": [-45.871032726383476, 49.829224650333316],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 102,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 103,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "from": 277.1052631578944,
+        "to": 272.3684210526312
+      }
+    },
+    {
+      "seq": 104,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 105,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [-45.871032726383476, 49.829224650333316],
+        "to": [-50.00000000000009, 49.999999999999794],
+        "heading": 272.3684210526312
+      }
+    },
+    {
+      "seq": 106,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [17, 5],
+        "end": [17, 25]
+      },
+      "payload": {
+        "from": [-45.871032726383476, 49.829224650333316],
+        "to": [-50.00000000000009, 49.999999999999794],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 107,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 108,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [18, 5],
+        "end": [18, 21]
+      },
+      "payload": {
+        "from": 272.3684210526312,
+        "to": 267.63157894736804
+      }
+    },
+    {
+      "seq": 109,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [20, 3],
+        "end": [20, 24]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 110,
+      "kind": "turn",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [20, 3],
+        "end": [20, 24]
+      },
+      "payload": {
+        "from": 267.63157894736804,
+        "to": 269.9999999999996
+      }
+    },
+    {
+      "seq": 111,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [22, 1],
+        "end": [22, 10]
+      },
+      "payload": {
+        "name": "arc",
+        "result": null
+      }
+    },
+    {
+      "seq": 112,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [23, 1],
+        "end": [23, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 113,
+      "kind": "print",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [23, 1],
+        "end": [23, 11]
+      },
+      "payload": {
+        "values": [-50.00000000000009]
+      }
+    },
+    {
+      "seq": 114,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [24, 1],
+        "end": [24, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 115,
+      "kind": "print",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [24, 1],
+        "end": [24, 11]
+      },
+      "payload": {
+        "values": [49.999999999999794]
+      }
+    },
+    {
+      "seq": 116,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [25, 1],
+        "end": [25, 14]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 117,
+      "kind": "print",
+      "source_span": {
+        "document": "geometry/reasoning/arc-quarter-turn",
+        "start": [25, 1],
+        "end": [25, 14]
+      },
+      "payload": {
+        "values": [269.9999999999996]
+      }
+    }
+  ],
+  "diagnostics": []
+}

@@ -1,0 +1,49 @@
+{
+  "description": "issue #408 (F6): a bare `forward 100` with no turn must NOT be reported as closing — the previous turn-total-only heuristic wrongly said closes:true; positionCloses now catches the 100-unit displacement.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/reasoning/non-closing-forward",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "move",
+      "source_span": {
+        "document": "geometry/reasoning/non-closing-forward",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 100],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "geometry/reasoning/non-closing-forward",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 100],
+        "color": "black",
+        "width": 1
+      }
+    }
+  ],
+  "diagnostics": []
+}

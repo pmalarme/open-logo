@@ -37,6 +37,30 @@ const FIXTURES_BY_COMMAND = {
 };
 
 /**
+ * Files *outside* this directory that also inline packaged-command source and therefore must be
+ * covered by the same drift guard (issue #408, F11): the runnable spec example — the one place a
+ * learner reads to see every packaged command used together — and the geometric-reasoning
+ * conformance fixture that cross-validates `reasonAboutArc` against a real `arc` execution.
+ */
+const EXTERNAL_SOURCES_BY_COMMAND = {
+  polygon: [join("spec", "examples", "13-geometry-stdlib.logo")],
+  star: [join("spec", "examples", "13-geometry-stdlib.logo")],
+  circle: [join("spec", "examples", "13-geometry-stdlib.logo")],
+  arc: [
+    join("spec", "examples", "13-geometry-stdlib.logo"),
+    join(
+      "tests",
+      "conformance",
+      "geometry",
+      "reasoning",
+      "arc-quarter-turn.logo",
+    ),
+  ],
+  area: [join("spec", "examples", "13-geometry-stdlib.logo")],
+  perimeter: [join("spec", "examples", "13-geometry-stdlib.logo")],
+};
+
+/**
  * Line endings are a checkout/platform detail (this repo's Windows working copies normalize to
  * CRLF while git blobs — and Linux CI checkouts — stay LF); normalizing to `\n` before comparing
  * keeps this a pure content/drift check, not a line-ending check.
@@ -90,6 +114,28 @@ for (const [command, fixtureNames] of Object.entries(FIXTURES_BY_COMMAND)) {
       );
     }
   });
+}
+
+for (const [command, externalPaths] of Object.entries(
+  EXTERNAL_SOURCES_BY_COMMAND,
+)) {
+  for (const externalPath of externalPaths) {
+    test(`${command}: ${externalPath} inlines the real stdlib/geometry/${command}.logo source verbatim (issue #408 F11)`, () => {
+      const realSource = stripLeadingComments(
+        normalizeNewlines(
+          readFileSync(join(STDLIB_DIR, `${command}.logo`), "utf8"),
+        ),
+      );
+      const externalSource = normalizeNewlines(
+        readFileSync(externalPath, "utf8"),
+      );
+      assert.ok(
+        externalSource.includes(realSource),
+        `${externalPath} does not inline the exact stdlib/geometry/${command}.logo source — ` +
+          "it has drifted from the shipped stdlib file (docs/adr/0012-standard-library-location.md)",
+      );
+    });
+  }
 }
 
 test("FIXTURES_BY_COMMAND accounts for every .logo fixture in this directory", () => {

@@ -131,7 +131,30 @@ test("reasonAboutCircle's turnTotal and closure match a real `circle 50` executi
 
 test("reasonAboutArc's finalHeading matches the heading left by a real `arc 90 50` execution starting at heading 0", () => {
   const events = executeEvents(ARC_SOURCE);
-  const formula = reasonAboutArc(90, 50, 0);
+  const formula = reasonAboutArc(90, 50, [0, 0], 0);
   const actualFinalHeading = finalHeadingFromEvents(events);
   assert.ok(Math.abs(formula.finalHeading - actualFinalHeading) < 1e-9);
+});
+
+test("reasonAboutArc's center and finalPosition match the position left by a real `arc 90 50` execution starting at [0, 0] heading 0", () => {
+  const events = executeEvents(ARC_SOURCE);
+  const formula = reasonAboutArc(90, 50, [0, 0], 0);
+  const moveEvents = events.filter((event) => event.kind === "move");
+  const actualFinalPosition = moveEvents[moveEvents.length - 1].payload.to;
+  assert.ok(Math.abs(formula.finalPosition[0] - actualFinalPosition[0]) < 1e-6);
+  assert.ok(Math.abs(formula.finalPosition[1] - actualFinalPosition[1]) < 1e-6);
+});
+
+test("analyzeTurtlePathClosure's headingCloses over a real `arc 90 50` execution is direction-agnostic and correctly false — `arc` mostly turns left (`spec/geometry-module.md:241`), reconstructed here as large clockwise deltas close to 360", () => {
+  const events = executeEvents(ARC_SOURCE);
+  const closure = analyzeTurtlePathClosure(events);
+  // The stepped construction turns left `:segments` times (reconstructed as deltas close to
+  // 360, the "long way around" clockwise) plus a small final `right :step_angle / 2` correction
+  // (a small positive delta) — so most, but not all, deltas are close to 360.
+  const mostlyLeftTurns = closure.headingDeltas.filter((delta) => delta > 180);
+  assert.ok(mostlyLeftTurns.length >= closure.headingDeltas.length - 1);
+  assert.ok(Math.abs(closure.finalHeading - 270) < 1e-9);
+  // headingCloses is computed from the trace's absolute start/final heading, never from this
+  // reconstruction, so it is correct regardless of the left/right reconstruction ambiguity above.
+  assert.equal(closure.headingCloses, false);
 });
