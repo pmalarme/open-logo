@@ -6,10 +6,111 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as OL from "@openlogo/edu";
+import * as Parser from "@openlogo/parser";
 import { execute } from "@openlogo/runtime";
 
 const level5Lessons = OL.getLessonsByLevel("5");
 const level5Exercises = OL.getExercisesByLevel("5");
+
+// spec/educational-model.md's "Concept to command map" fixes the FIRST level each OpenLogo form is
+// taught. Levels are curriculum, not profiles, so the parser accepts a later-level form inside an
+// earlier lesson and the runtime runs it — the DoD only asks "does it run?". The guard below is
+// what issue #399 added after a lowercase `set_xy` (Level 6) slipped into an L5 challenge. It
+// classifies on the parsed AST, not on text, so it is immune to the two ways a string scan leaks:
+// casing (`SET_XY` — identifiers are case-insensitive, spec/grammar.md:13, and the lexer normalizes
+// them) and comments (an explanatory `# … set_xy is a Level 6 idea` never becomes a node). It also
+// resolves the block-vs-list-literal `[ ]` ambiguity a regex cannot: a list is a `ListLit` node, a
+// block is not.
+
+// AST node kinds whose grammar production is first taught at Level 6 or later. Core control forms
+// the concept→level map does not schedule (while, forever, for-from-to) stay Core and are absent;
+// the learner-built `polygon` is an ordinary Call, not a kind.
+const LATER_LEVEL_NODE_KINDS = new Set([
+  "ListLit", // list literal `[ … ]` — Level 7a
+  "DictLit", // dict literal `{ … }` — Level 7b
+  "ValueOfKey", // dict key read — Level 7b
+  "StructDef", // `struct` record declaration — Level 7c
+  "Add", // `add … to` a list — Level 7a
+  "Remove", // `remove … from` a list — Level 7a
+  "Insert", // list insert — Level 7a
+  "RemoveKey", // dict key removal — Level 7b
+  "ForIn", // `for … in` — Level 7a (destructuring at 8b)
+  "DestructuringBinder", // `for [:x :y] in …` — Level 8b
+  "Comprehension", // `map` / `filter` / `reduce` — Level 8b
+  "Stop", // `stop` (recursion control) — Level 8a
+]);
+
+// Built-in command/reporter names first taught at Level 6 or later. They share the `Call` /
+// `ParenCall` node kind with every Core call, so the case-folded callee name (identifiers are
+// case-insensitive) sorts them by level. The parser preserves the surface spelling and does not
+// canonicalize aliases today, so every documented one-word alias of a denied command is listed
+// beside its canonical spelling; among the denied commands only `set_xy`/`set_heading` have one
+// (`setxy`/`seth` — spec/commands.md:1279,1296). The learner-built `polygon` is Level 5 and absent.
+const LATER_LEVEL_CALL_NAMES = new Set([
+  // Level 6 — derived geometry beyond the learner-built polygon
+  "star",
+  "circle",
+  "arc",
+  "grid",
+  "axes",
+  "measure",
+  // Level 6 — turtle placement and marking (absolute); `setxy`/`seth` are the one-word aliases
+  "set_xy",
+  "setxy",
+  "set_heading",
+  "seth",
+  "stamp",
+  // Level 6 — number tools and math
+  "mod",
+  "abs",
+  "int",
+  "round",
+  "sin",
+  "cos",
+  "tan",
+  "sqrt",
+  "power",
+  "pi",
+  // Level 7a — list constructor and inspectors that are calls (add/remove are their own kinds)
+  "list",
+  "count",
+  "first",
+  "last",
+  "member?",
+]);
+
+/**
+ * Classifies `source` against the concept→level ramp: parses it, walks the AST, and returns a short
+ * description of the FIRST Level-6+ concept it contains, or null when the source stays within
+ * Levels 1–5. Used both to guard the real lesson corpus and — with crafted inputs — to prove the
+ * gate actually fires on later-level forms rather than merely passing an all-Core corpus.
+ */
+function firstLaterLevelConcept(source, label) {
+  const { ast } = Parser.parse(source, label);
+  let found = null;
+  Parser.walk(ast, (node) => {
+    if (found !== null) {
+      return;
+    }
+    if (LATER_LEVEL_NODE_KINDS.has(node.kind)) {
+      found = `the Level 6+ form "${node.kind}"`;
+    } else if (node.kind === "Place" && node.segments.length > 0) {
+      // A place with a postfix segment is field/index access INTO a value — `:l[i]` (7a) or `:d.k`
+      // / `:p.x` and nested chains (7b/7c). A Level-3 `:name` assignment target is a zero-segment
+      // place, so this fires only on access, never on a plain variable.
+      found = "a Level 7+ place access (:name.field or :name[index])";
+    } else if (node.kind === "IsPredicate" && node.test.form === "member-of") {
+      // Worded `… is member of …` is Level 7a; `is a` / `is between` are the Level-4 predicates.
+      found = 'the Level 7a "… is member of" predicate';
+    } else if (
+      (node.kind === "Call" || node.kind === "ParenCall") &&
+      LATER_LEVEL_CALL_NAMES.has(node.callee.name.toLowerCase())
+    ) {
+      found = `the Level 6+ command "${node.callee.name.toLowerCase()}"`;
+    }
+  });
+  return found;
+}
 
 /**
  * Extracts the exact source lines of `define <name> …` … `end` from `source`, matching nested
@@ -96,9 +197,7 @@ test("the objective states define/return/local and the build-polygon-from-repeat
     true,
   );
   assert.equal(
-    lesson.objective.includes(
-      "local names a variable that lives only inside the procedure",
-    ),
+    lesson.objective.includes("local (a procedure's own private variable)"),
     true,
   );
   assert.equal(
@@ -214,6 +313,90 @@ test("no Level 5 content defines a procedure that calls itself (no recursion —
   }
 });
 
+test("no Level 1–5 lesson or exercise source uses a Level 6+ concept — the concept→level ramp holds", () => {
+  for (const level of ["1", "2", "3", "4", "5"]) {
+    const sources = [
+      ...OL.getLessonsByLevel(level).flatMap((lesson) =>
+        lesson.workedExamples.map((example) => example.source),
+      ),
+      ...OL.getExercisesByLevel(level).map(
+        (exercise) => exercise.referenceSolution.source,
+      ),
+    ];
+    for (const source of sources) {
+      const concept = firstLaterLevelConcept(source, `level-${level}`);
+      assert.equal(
+        concept,
+        null,
+        `Level ${level} content uses ${concept}: ${source}`,
+      );
+    }
+  }
+});
+
+test("the concept→level gate flags every Level 6+ form, command, alias, and access — including the casing and list-literal bypasses a text scan misses", () => {
+  // Crafted later-level sources: each must be classified as containing a Level 6+ concept. This is
+  // what proves the gate above actually fires — an all-Core corpus alone would pass a gate that
+  // detected nothing. It deliberately includes the exact bypasses a string scan leaks through: an
+  // uppercase `SET_XY` (identifiers are case-insensitive) and a `[ 30 50 ]` list literal (which a
+  // regex cannot tell from a Level-2 block), plus the `setxy`/`seth` one-word Turtle & Rendering
+  // short aliases (spec/commands.md:14 — short aliases of the canonical names, not Heritage).
+  const laterLevelSamples = [
+    "set_xy 120 0", // the original regression: Level 6 placement …
+    "SET_XY 120 0", // … caught case-insensitively (a string scan would miss this)
+    "setxy 120 0", // … and through its one-word short alias
+    "set_heading 0", // Level 6 absolute heading …
+    "seth 0", // … and its alias
+    "stamp", // Level 6 marking
+    "print sin 30", // Level 6 math
+    ":steps = [ 30 50 ]", // Level 7a list literal (a block-vs-list case a regex cannot resolve)
+    "print :items[ 1 ]", // Level 7a list index …
+    "print :ITEMS[ 1 ]", // … case-insensitively
+    ":d = { name: 1 }", // Level 7b dict literal
+    "print :person.age", // Level 7b/7c field access
+    "struct Point [ x y ]", // Level 7c record declaration
+    ":doubled = map n in :nums [ :n ]", // Level 8b comprehension
+    "for [:x :y] in :points\n  print :x\nend for", // Level 8b destructuring for-in
+    "if :x is member of [ 1 2 ] [ print :x ]", // Level 7a worded membership
+    "add 1 to :xs", // Level 7a list mutation
+    "remove 1 from :xs", // Level 7a list mutation
+  ];
+  for (const source of laterLevelSamples) {
+    assert.notEqual(
+      firstLaterLevelConcept(source, "later-level-sample"),
+      null,
+      `expected the gate to flag a Level 6+ concept in: ${source}`,
+    );
+  }
+});
+
+test("the concept→level gate passes Core Level 1–5 forms — no false positives on procedures, blocks, bare places, decimals, learner-built polygon, or Level-4 predicates", () => {
+  // Core sources that must stay clean, exercising the shapes closest to a later-level form: a bare
+  // `:name` assignment is a zero-segment place (not access), a decimal has a `.` that is not field
+  // access, the learner-built `polygon` is an ordinary Level-5 call, and `is a` is a Level-4 worded
+  // predicate (not `is member of`).
+  const coreSamples = [
+    "forward 100",
+    "repeat 4 [ forward 50 right 90 ]",
+    "if :x > 0 [ forward 10 ] else [ back 10 ]",
+    "define square :size\n  repeat 4 [ forward :size right 90 ]\nend",
+    ":count = 0",
+    "set count to 5",
+    "forward 1.5",
+    "define polygon :n :len\n  repeat :n [ forward :len right 360 / :n ]\nend\npolygon 5 100",
+    'if :x is a "number" [ print :x ]',
+    "print :size",
+    "home",
+  ];
+  for (const source of coreSamples) {
+    assert.equal(
+      firstLaterLevelConcept(source, "core-sample"),
+      null,
+      `expected no Level 6+ concept in Core source: ${source}`,
+    );
+  }
+});
+
 test("no executable Heritage to … end or output source is present (Heritage may only be mentioned in prose)", () => {
   const sources = [
     ...level5Lessons.flatMap((lesson) =>
@@ -285,6 +468,20 @@ test("the challenge exercise reuses house by calling it exactly twice, composed 
   const houseCallMatches = source.match(/^house 70$/gm);
   assert.ok(houseCallMatches);
   assert.equal(houseCallMatches.length, 2);
+  // Reposition between the two houses with relative movement only — never set_xy/set_heading,
+  // which name an absolute coordinate/heading and are a Level 6 concept (issue #399,
+  // spec/educational-model.md's concept→level table). Strip comments first: the source's own
+  // "# … set_xy is a Level 6 idea" note explains what to avoid and must not trip the gate. The
+  // pen is lifted and lowered so the repositioning move draws nothing.
+  const code = source
+    .split("\n")
+    .map((line) => line.replace(/#.*$/, ""))
+    .join("\n");
+  assert.equal(/\bset_xy\b/.test(code), false);
+  assert.equal(/\bset_heading\b/.test(code), false);
+  assert.equal(/\bstamp\b/.test(code), false);
+  assert.equal(/\bpen_up\b/.test(code), true);
+  assert.equal(/\bpen_down\b/.test(code), true);
 });
 
 test("every Level 5 worked example parses and runs with no diagnostics", () => {

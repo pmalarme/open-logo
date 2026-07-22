@@ -210,3 +210,104 @@ test("hint()'s tutor-output payload matches the shared TutorOutput/HintTutorOutp
   assert.ok(ALL_STAGES.includes(event.payload.stage));
   assert.ok(event.payload.target_source_span !== undefined);
 });
+
+// Issue #399: the partial/last-resort skeletons must be *canonically shaped* — not merely
+// unparseable-with-placeholders. Each level's skeleton, with its ‹placeholder› markers replaced
+// by concrete tokens, must compact (whitespace-insensitively) to a known-canonical OpenLogo
+// program that itself parses clean. This catches a non-canonical skeleton — such as the old L5
+// `define … local :‹parameter› …` (parameters belong on the `define` header; `local` takes a
+// BARE name) or the old L7c `struct … { ‹field›: ‹value› }` (records use `[ ‹field› ]` brackets,
+// not dict braces) — that the placeholder-unparseability tests above cannot distinguish from a
+// canonical one, because BOTH shapes fail to parse while the ‹markers› are present.
+const PLACEHOLDER_FILL = {
+  distance: "1",
+  angle: "1",
+  count: "1",
+  sides: "1",
+  length: "1",
+  value: "1",
+  "smaller-input": "1",
+  expression: "1",
+  condition: "1 > 0",
+  name: "n",
+  parameter: "n",
+  item: "each",
+  list: "items",
+  key: "color",
+  field: "x",
+  TypeName: "Point",
+  body: "forward 1",
+};
+
+// The canonical program each level's filled skeleton must compact to (whitespace-insensitive).
+// OpenLogo is line-oriented (one instruction per line), so a compact space-joined skeleton such
+// as `forward ‹distance› right ‹angle›` maps to a two-line program here.
+const CANONICAL_PROGRAM = {
+  1: "forward 1\nright 1",
+  2: "repeat 1 [ forward 1 right 1 ]",
+  3: ":n = 1\nforward :n",
+  4: "if :n > 1 [ forward :n ]",
+  5: "define n :n\n  forward 1\nend",
+  6: "repeat 1 [ forward 1 right 360 / 1 ]",
+  "7a": ":n = [ each each ]",
+  "7b": ":n = { color: 1 }",
+  "7c": "struct Point [ x ]",
+  "8a": "define n :n\n  if 1 > 0 [ return 1 ]\n  n 1\nend",
+  "8b": "map each in :items [ 1 ]",
+};
+
+/** The single backtick-quoted `‹placeholder›` skeleton fragment from a level's partial hint. */
+function skeletonFragment(level) {
+  const output = OL.hint(makeHintContext({ level, priorHintStage: "concept" }));
+  assert.equal(output.stage, "partial");
+  const fragment = [...output.segments[0].matchAll(/`([^`]+)`/g)]
+    .map((match) => match[1])
+    .find((candidate) => candidate.includes("‹"));
+  assert.ok(
+    fragment,
+    `expected a ‹placeholder› skeleton fragment for level ${level}`,
+  );
+  return fragment;
+}
+
+const fillPlaceholders = (skeleton) =>
+  skeleton.replace(/‹([^›]+)›/g, (_, token) => {
+    assert.ok(token in PLACEHOLDER_FILL, `no canonical fill for ‹${token}›`);
+    return PLACEHOLDER_FILL[token];
+  });
+const collapseWhitespace = (text) => text.replace(/\s+/g, " ").trim();
+
+for (const level of ALL_LEVELS) {
+  test(`hint()'s level ${level} skeleton is canonically shaped: fills to a clean-parsing OpenLogo program`, () => {
+    const canonical = CANONICAL_PROGRAM[level];
+    // The canonical program is real, valid OpenLogo (parses with no diagnostics) …
+    const { diagnostics } = Parser.parse(canonical, "canonical.logo");
+    assert.deepEqual(
+      diagnostics,
+      [],
+      `canonical program for level ${level} should parse clean: ${canonical}`,
+    );
+    // … and the skeleton, once its placeholders are filled, IS that program up to whitespace.
+    const filled = fillPlaceholders(skeletonFragment(level));
+    assert.equal(
+      collapseWhitespace(filled),
+      collapseWhitespace(canonical),
+      `level ${level} skeleton does not compact to its canonical shape`,
+    );
+  });
+}
+
+test("hint()'s level 5 skeleton puts the parameter on the define header (‹name› :‹parameter›), never via `local :`", () => {
+  const skeleton = skeletonFragment("5");
+  assert.match(skeleton, /^define ‹name› :‹parameter›/);
+  // `local` takes a BARE name (`local total`, per spec/commands.md), never `local :param`; a
+  // procedure's parameters are declared on the header. The old skeleton
+  // `define ‹name› local :‹parameter› …` violated both rules at once.
+  assert.doesNotMatch(skeleton, /local\s*:/);
+});
+
+test("hint()'s level 7c record skeleton declares fields with brackets (struct … [ … ]), not dict braces", () => {
+  const skeleton = skeletonFragment("7c");
+  assert.match(skeleton, /^struct ‹TypeName› \[ ‹field› \]$/);
+  assert.doesNotMatch(skeleton, /[{}]/);
+});

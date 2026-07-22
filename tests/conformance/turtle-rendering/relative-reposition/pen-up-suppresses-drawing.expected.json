@@ -1,0 +1,191 @@
+{
+  "description": "Regression (issue #399): a Level-5 street repositions between drawings with relative movement only (pen_up, right, forward, pen_down) — no set_xy/set_heading (Level-6 placement). The forward under pen_up (seq 8) emits a `move` but NO `draw-segment`, while the forwards under pen_down (seq 1-2 and 12-13) each move AND draw. Proves relative repositioning without drawing and without naming a coordinate.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/relative-reposition/pen-up-suppresses-drawing",
+        "start": [5, 1],
+        "end": [5, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "move",
+      "source_span": {
+        "document": "turtle-rendering/relative-reposition/pen-up-suppresses-drawing",
+        "start": [5, 1],
+        "end": [5, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "turtle-rendering/relative-reposition/pen-up-suppresses-drawing",
+        "start": [5, 1],
+        "end": [5, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/relative-reposition/pen-up-suppresses-drawing",
+        "start": [6, 1],
+        "end": [6, 7]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "pen-change",
+      "source_span": {
+        "document": "turtle-rendering/relative-reposition/pen-up-suppresses-drawing",
+        "start": [6, 1],
+        "end": [6, 7]
+      },
+      "payload": {
+        "from": "down",
+        "to": "up"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/relative-reposition/pen-up-suppresses-drawing",
+        "start": [7, 1],
+        "end": [7, 9]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "turn",
+      "source_span": {
+        "document": "turtle-rendering/relative-reposition/pen-up-suppresses-drawing",
+        "start": [7, 1],
+        "end": [7, 9]
+      },
+      "payload": {
+        "from": 0,
+        "to": 90
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/relative-reposition/pen-up-suppresses-drawing",
+        "start": [8, 1],
+        "end": [8, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "move",
+      "source_span": {
+        "document": "turtle-rendering/relative-reposition/pen-up-suppresses-drawing",
+        "start": [8, 1],
+        "end": [8, 11]
+      },
+      "payload": {
+        "from": [0, 10],
+        "to": [10, 10],
+        "heading": 90
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/relative-reposition/pen-up-suppresses-drawing",
+        "start": [9, 1],
+        "end": [9, 9]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "pen-change",
+      "source_span": {
+        "document": "turtle-rendering/relative-reposition/pen-up-suppresses-drawing",
+        "start": [9, 1],
+        "end": [9, 9]
+      },
+      "payload": {
+        "from": "up",
+        "to": "down"
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/relative-reposition/pen-up-suppresses-drawing",
+        "start": [10, 1],
+        "end": [10, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "move",
+      "source_span": {
+        "document": "turtle-rendering/relative-reposition/pen-up-suppresses-drawing",
+        "start": [10, 1],
+        "end": [10, 11]
+      },
+      "payload": {
+        "from": [10, 10],
+        "to": [20, 10],
+        "heading": 90
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "turtle-rendering/relative-reposition/pen-up-suppresses-drawing",
+        "start": [10, 1],
+        "end": [10, 11]
+      },
+      "payload": {
+        "from": [10, 10],
+        "to": [20, 10],
+        "color": "black",
+        "width": 1
+      }
+    }
+  ],
+  "diagnostics": []
+}
