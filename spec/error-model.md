@@ -82,9 +82,9 @@ Most registry codes below have `severity: error`: execution cannot continue norm
 the offending construct.
 
 Style findings from the linter reuse the same diagnostic shape with `severity: warning`
-and `ol-style-*` codes. The style namespace includes `ol-style-useless-value`, used when
-a control block's last line is a bare value that will be discarded by the block-result
-rule. A warning MUST NOT change program meaning.
+and `ol-style-*` codes; a warning MUST NOT change program meaning. Those codes are
+registered normatively in [tooling](tooling.md), not in this registry (see Style linter
+codes below).
 
 ## Normative code registry
 
@@ -109,6 +109,7 @@ codes only outside the `ol-*` namespace.
 | `ol-bad-token` | parse | `text` | The lexer found characters that are not valid OpenLogo tokens. The message SHOULD point at the unexpected text and mention the closest legal form when clear. |
 | `ol-div-zero` | runtime | `operation` | `/` or `mod` attempted to divide by zero. OpenLogo reports this instead of producing infinity or NaN. |
 | `ol-neg-sqrt` | runtime | `value` | `sqrt` received a negative number. |
+| `ol-tan-undefined` | runtime | `value` | `tan` received an angle whose tangent is undefined — an odd multiple of 90° (for example 90, 270, or -90). OpenLogo reports this instead of producing a huge finite value, infinity, or NaN. |
 | `ol-no-output` | runtime | `procedure` | A procedure was used as a reporter but reached the end without `return`, `output`, or `op`. The error is reported at the call site. |
 | `ol-no-value` | semantic | `form` | A `map`, `filter`, or `reduce` body produced no final value. This is for a comprehension body with no value-producing final expression. |
 | `ol-return-outside-proc` | semantic | `keyword` | `return`, `output`, or `op` appears outside any procedure. |
@@ -125,6 +126,14 @@ codes only outside the `ol-*` namespace.
 | `ol-unknown-field` | runtime | `type`, `field`, optional `write` | A record has no such field. This includes writing an unknown struct field; records are fixed-field values. |
 | `ol-unknown-key` | runtime | `key` | A required dictionary key is absent on read, or an intermediate dictionary key is absent in a nested access chain. Writing a missing final dictionary key upserts and MUST NOT raise this error. |
 | `ol-not-a-place` | semantic | optional `text` | The target of `=` or `set … to` is not assignable. Reporters such as `first`, `count`, and `keys` are not places. |
+
+## Style linter codes
+
+Advisory style findings reuse the diagnostic shape above with `severity: warning`
+and `stage: semantic`, using codes in the `ol-style-*` namespace; a style warning
+MUST NOT change program meaning. Those codes are not catalogued here: their single
+normative registry is [tooling](tooling.md)'s "Layer 3: style lints", and each
+rule is described informatively in the [style guide](style-guide.md).
 
 ## Did-you-mean
 
@@ -201,8 +210,8 @@ source location.
 ## Relationship to tooling and tracing
 
 The syntax checker and linter use this shape for all findings. Lex/parse and semantic
-checker findings use the registry above; style findings use `ol-style-*` warning codes,
-including `ol-style-useless-value`.
+checker findings use the registry above; style findings use the `ol-style-*` warning
+codes registered in [tooling](tooling.md).
 
 Runtime errors SHOULD also emit the `error` trace event defined by the execution model,
 with the diagnostic embedded or referenced. The trace event is for replay and rendering;
