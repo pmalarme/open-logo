@@ -239,23 +239,6 @@ const PLACEHOLDER_FILL = {
   body: "forward 1",
 };
 
-// The canonical program each level's filled skeleton must compact to (whitespace-insensitive).
-// OpenLogo is line-oriented (one instruction per line), so a compact space-joined skeleton such
-// as `forward ‹distance› right ‹angle›` maps to a two-line program here.
-const CANONICAL_PROGRAM = {
-  1: "forward 1\nright 1",
-  2: "repeat 1 [ forward 1 right 1 ]",
-  3: ":n = 1\nforward :n",
-  4: "if :n > 1 [ forward :n ]",
-  5: "define n :n\n  forward 1\nend",
-  6: "repeat 1 [ forward 1 right 360 / 1 ]",
-  "7a": ":n = [ each each ]",
-  "7b": ":n = { color: 1 }",
-  "7c": "struct Point [ x ]",
-  "8a": "define n :n\n  if 1 > 0 [ return 1 ]\n  n 1\nend",
-  "8b": "map each in :items [ 1 ]",
-};
-
 /** The single backtick-quoted `‹placeholder›` skeleton fragment from a level's partial hint. */
 function skeletonFragment(level) {
   const output = OL.hint(makeHintContext({ level, priorHintStage: "concept" }));
@@ -275,24 +258,24 @@ const fillPlaceholders = (skeleton) =>
     assert.ok(token in PLACEHOLDER_FILL, `no canonical fill for ‹${token}›`);
     return PLACEHOLDER_FILL[token];
   });
-const collapseWhitespace = (text) => text.replace(/\s+/g, " ").trim();
 
+// Each level's partial/last-resort skeleton must be *canonically shaped*: with its ‹placeholder›
+// markers replaced by concrete tokens, the ACTUAL skeleton string must itself parse as a clean
+// OpenLogo program (zero diagnostics). We fill and parse the real skeleton — not a separately
+// authored "canonical" program compared by collapsed whitespace — so the test proves the exact
+// bytes a learner sees are valid OpenLogo. OpenLogo is line-oriented (spec/execution-model.md:
+// 60-69, 197-200): a `define … end` body and successive statements need real newlines, so the
+// skeletons carry `\n`; a single-line `define ‹name› :‹parameter› ‹body› end` (issue #418) or the
+// old non-canonical `define … local :‹parameter›` / `struct … { ‹field›: ‹value› }` shapes would
+// fail to parse once filled, which this test catches.
 for (const level of ALL_LEVELS) {
-  test(`hint()'s level ${level} skeleton is canonically shaped: fills to a clean-parsing OpenLogo program`, () => {
-    const canonical = CANONICAL_PROGRAM[level];
-    // The canonical program is real, valid OpenLogo (parses with no diagnostics) …
-    const { diagnostics } = Parser.parse(canonical, "canonical.logo");
+  test(`hint()'s level ${level} skeleton is canonically shaped: the filled skeleton parses clean`, () => {
+    const filled = fillPlaceholders(skeletonFragment(level));
+    const { diagnostics } = Parser.parse(filled, `filled-level-${level}.logo`);
     assert.deepEqual(
       diagnostics,
       [],
-      `canonical program for level ${level} should parse clean: ${canonical}`,
-    );
-    // … and the skeleton, once its placeholders are filled, IS that program up to whitespace.
-    const filled = fillPlaceholders(skeletonFragment(level));
-    assert.equal(
-      collapseWhitespace(filled),
-      collapseWhitespace(canonical),
-      `level ${level} skeleton does not compact to its canonical shape`,
+      `level ${level} filled skeleton must parse with zero diagnostics: ${JSON.stringify(filled)}`,
     );
   });
 }

@@ -63,7 +63,7 @@ const LEVEL_CONCEPTS: Record<
 > = {
   "1": {
     name: "movement and turning",
-    skeleton: "forward ‹distance› right ‹angle›",
+    skeleton: "forward ‹distance›\nright ‹angle›",
   },
   "2": {
     name: "repetition with `repeat`",
@@ -71,7 +71,7 @@ const LEVEL_CONCEPTS: Record<
   },
   "3": {
     name: "variables (`:name`)",
-    skeleton: ":‹name› = ‹value› forward :‹name›",
+    skeleton: ":‹name› = ‹value›\nforward :‹name›",
   },
   "4": {
     name: "conditions (`if`)",
@@ -79,7 +79,7 @@ const LEVEL_CONCEPTS: Record<
   },
   "5": {
     name: "procedures (`define … end`)",
-    skeleton: "define ‹name› :‹parameter› ‹body› end",
+    skeleton: "define ‹name› :‹parameter›\n  ‹body›\nend",
   },
   "6": {
     name: "geometry built from `repeat` and turns",
@@ -100,7 +100,7 @@ const LEVEL_CONCEPTS: Record<
   "8a": {
     name: "recursion",
     skeleton:
-      "define ‹name› :‹parameter› if ‹condition› [ return ‹value› ] ‹name› ‹smaller-input› end",
+      "define ‹name› :‹parameter›\n  if ‹condition› [ return ‹value› ]\n  ‹name› ‹smaller-input›\nend",
   },
   "8b": {
     name: "comprehensions",

@@ -49,11 +49,17 @@ test("debug never emits a complete ready-to-run solution program", () => {
     level: "3",
   });
   const output = OL.debug(context);
-  for (const segment of output.segments) {
-    // A full OpenLogo solution would need at least one newline-separated block of multiple
-    // instructions; every `debug` segment here is a single learner-facing sentence.
-    assert.ok(!segment.includes("\n"));
-  }
+  // Don't rely on newline-absence: a full solution can be a runnable one-liner
+  // (`repeat 4 [ forward 80 right 90 ]`), so "no `\n`" proves nothing. Instead, concatenate the
+  // segments the way a program's statements are separated and assert the result is NOT a runnable
+  // standalone OpenLogo program — every `debug` segment is learner-facing prose, so the combined
+  // text must fail to parse (diagnostics), never compile clean into instructions.
+  const combined = output.segments.join("\n");
+  const { diagnostics } = Parser.parse(combined, "debug-output.logo");
+  assert.ok(
+    diagnostics.length > 0,
+    `debug output must not parse as a runnable program, got: ${combined}`,
+  );
 });
 
 test("debug on a call target names the callee via commandMetadata and reports a type-mismatch diagnostic with the variable in play", () => {
