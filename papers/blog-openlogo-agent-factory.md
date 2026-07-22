@@ -330,6 +330,14 @@ Prompt engineering gets you a patch. *Coordination* engineering gets you a langu
 assembling an agent fleet, spend your time on the contract, the gate, and the org chart — and respect the
 seams between your autonomous processes, because that's where the bugs live.
 
+**And no, we didn't invent this.** The "team of agents that live in your repo, on Copilot" idea is
+already being productized — most directly by [Squad](https://github.com/bradygaster/squad), which ships
+a repo-native roster, a routing coordinator, and an issue-polling dispatch loop out of the box. That's
+reassuring, not deflating: it means the pattern is real and reusable. What's different here is the
+*multi-layer* twist — orchestrators dispatching orchestrators — and the honest finding that the extra
+layer often wasn't worth its overhead. If you want the flat version, a tool like Squad will hand it to
+you today; the story above is what happens when you stack orchestrators on top of it.
+
 OpenLogo is open source. Go read the `.github/agents/` folder and count the specialists — then see if you
 can match each one to the part of the language it owns.
 

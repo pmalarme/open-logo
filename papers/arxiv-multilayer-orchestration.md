@@ -85,7 +85,11 @@ We contribute: (a) a description of the orchestration architecture and its commu
 between autonomous sessions; (b) a case study mapping the architecture onto a real six-package
 language implementation and its profile dependency graph; (c) quantitative results measured directly
 from repository history; and (d) a candid catalog of failure modes — especially the *stale-crossing*
-coordination bug — and the disciplines that contain them. Throughout, we distinguish **designed
+coordination bug — and the disciplines that contain them; and (e) a within-project *natural
+experiment* — an initial single-orchestrator phase followed by an emergent multi-layer phase on the
+same codebase — whose candid result is that the added hierarchy contributed coordination and
+context-token overhead without a clear throughput gain, tempering the case for deep agent hierarchies.
+Throughout, we distinguish **designed
 intent** (recorded in the spec, the architecture decision records, and the agents' instructions)
 from **what actually happened** (recovered from Git and GitHub history and from the orchestrators'
 operational notes), because the gap between the two is itself part of the finding.
@@ -117,6 +121,23 @@ largely on *isolated* problems — fix this bug, pass these tests. OpenLogo inst
 *sustained, multi-milestone* construction of a coherent codebase, where the hard part is not any one
 patch but keeping hundreds of patches mutually consistent and spec-faithful over time.
 
+**Agent-team frameworks and productized orchestration.** Casting LLM agents as a *virtual software
+company* — product manager, architect, engineers, reviewer — is by now established in research
+systems such as ChatDev [Qian et al. 2023] and MetaGPT [Hong et al. 2023] and in general multi-agent
+frameworks such as AutoGen [Wu et al. 2023]. More pointedly, the specific arrangement this paper
+enacts — a persistent team of specialist agents that live *as files in the repository*, are routed by
+a coordinator, draw work from GitHub issues, open pull requests, and keep a human in the loop — has
+since been *productized* on the same GitHub Copilot platform, most directly by Squad [Gaster and
+Dresher 2026] and by the platform's own autonomous Copilot coding agent. Squad scaffolds a repo-native
+roster whose members accumulate knowledge across sessions, a shared decision log, and an issue-polling
+dispatch loop — an off-the-shelf embodiment of the *agent factory* thesis. We read this convergence as
+corroboration rather than a threat to the account: the pattern is real and reusable. OpenLogo differs
+along three axes that the flat, general-purpose frameworks do not prescribe — a *recursive* multi-layer
+orchestration (orchestrators dispatching orchestrators) rather than a single coordinator over a flat
+roster; a *spec-first* normative contract with a merge-integrity gate tuned to a language's
+un-partitionable cross-cutting seams; and GitHub objects treated as the authoritative reconciliation
+substrate against which agents correct their own state.
+
 **Spec-driven development.** Contract-first and specification-driven methods predate LLMs, but they
 acquire new force with agents: a normative spec gives every agent an unambiguous, shared ground
 truth, converting "write good code" into the more checkable "implement this clause." OpenLogo treats
@@ -124,9 +145,15 @@ the spec as *normative and human-owned*, with a formal conformance model (profil
 graph, and feature detection) that turns "is it done?" into "does the conformance suite for this
 profile pass?"
 
-Against this backdrop, OpenLogo's novelty is the **combination**: a human-owned formal contract, a
-role-specialized agent factory with executable playbooks, and an explicit multi-layer orchestration
-with machine-executed but human-delegated merge authority.
+Against this backdrop, the contribution is not the *idea* of an agent team — which, as just noted, is
+now embodied in off-the-shelf tools — but the **combination and the evidence**: a human-owned formal
+contract, a role-specialized agent factory with executable playbooks, and an explicit multi-layer
+orchestration with machine-executed but human-delegated merge authority, applied to the sustained
+construction of a *specified* language and reported with outcomes measured from repository history.
+Because the multi-layer tier was itself introduced only partway through the project (§4.1), the study
+also affords a rare *natural experiment* — a single-orchestrator phase followed by a multi-layer phase
+on the same codebase and team — whose candid result is that the added hierarchy carried coordination
+and context-token overhead without a clear throughput gain (§5, §6.3).
 
 ---
 
@@ -164,7 +191,7 @@ blocking/non-blocking/nit verdicts until the cross-references reached a zero-blo
 maintainer performed the final review and merge (PR #2, squash `142551b`, 2026-07-17: 32 files,
 roughly 7,500 lines; 17 documents plus 12 runnable `.logo` examples and the license). The same
 layered, review-gated pattern that would later build the compiler thus also built the compiler's
-contract — first evidence that the method generalizes beyond code.
+contract — an early indication that the method generalizes beyond code.
 
 ### 3.2 The agent factory
 
@@ -790,6 +817,13 @@ language that runs.
    `spec/`, `docs/architecture.md`, `docs/delivery.md`, `docs/adr/0000–0011`,
    `.github/agents/*.agent.md`, `.github/skills/**/SKILL.md`,
    `.github/instructions/openlogo-team.instructions.md`, `.github/workflows/*.yml`. 2026.
+5. C. Qian et al. "Communicative Agents for Software Development" (ChatDev). arXiv:2307.07924, 2023.
+6. S. Hong et al. "MetaGPT: Meta Programming for a Multi-Agent Collaborative Framework."
+   arXiv:2308.00352, 2023.
+7. Q. Wu et al. "AutoGen: Enabling Next-Gen LLM Applications via Multi-Agent Conversation."
+   arXiv:2308.08155, 2023.
+8. B. Gaster and T. Dresher. *Squad: Human-Led AI Agent Teams for Any Project.* GitHub repository
+   `bradygaster/squad` (alpha), 2026.
 
 ---
 
