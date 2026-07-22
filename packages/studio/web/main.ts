@@ -1,5 +1,5 @@
 /**
- * The browser entry (#277, extended by #278, #279, #310, #311, #127, and #316) — a thin,
+ * The browser entry (#277, extended by #278, #279, #310, #311, #127, #316, and #315) — a thin,
  * logic-free,
  * branch-free wiring layer only. It composes the published `@openlogo/studio` seams (state model,
  * app shell, editor/canvas/run/diagnostics/lesson-pane/a11y/persistence controllers) onto the real
@@ -9,21 +9,28 @@
  * imported by a test, so it does not need to be, and does not count toward, that gate, and any
  * untested branch here would be invisible to it). Every decision this file would otherwise have to
  * branch on — which scheduler to pace a run through, which `aria-live` region an announcement
- * belongs in, whether a looked-up element is missing, whether the editor's value actually needs
- * rewriting, how a turtle-speed slider position maps to a tick delay or a learner-facing
- * description, which learner-facing label a `runStatus` value maps to, which icon/label/aria state
- * the Start/Pause toggle button shows and which of `run()`/`stop()` a click invokes, whether a
- * lesson is loaded and what its objective/worked-examples/exercise-prompt content is — is made by a
- * tested `src/` helper instead (`selectScheduler`, `selectAnnouncerElementId`, `assertPresent`,
- * `syncTextValue`, #310's `mapSpeedSliderValueToTickDelayMs` / `describeSpeedTickDelayMs` in
- * `turtle-speed.ts`, #311's `mapRunStatusToLabel` in `run-status-label.ts`, #127's
- * `createLessonPaneController` / `LessonPaneView` in `lesson-pane.ts`, and #316's
- * `mapRunStatusToRunToggleViewModel` in `run-controls.ts`); this file only reads the raw browser
- * input (`matchMedia`, `localStorage`, `document.getElementById`, the slider's `input` event) and
- * forwards it. The turtle-speed slider (`#speed-slider`) writes straight to the shared state
- * model via `setSpeedSliderValue` on every `input` event — `run-controller.ts`'s `prepare()`
- * reads that value on the next `run()`/`step()`, so no scheduler is rebuilt here. `runToggleActionHandlers`
- * and `renderRunToggleButton` (#316) apply an already-decided `RunToggleViewModel` onto the single
+ * belongs in, whether a looked-up element is missing, whether the CM6 editor's doc/selection
+ * actually needs re-syncing from the store, how a turtle-speed slider position maps to a tick
+ * delay or a learner-facing description, which learner-facing label a `runStatus` value maps to,
+ * which icon/label/aria state the Start/Pause toggle button shows and which of `run()`/`stop()` a
+ * click invokes, whether a lesson is loaded and what its objective/worked-examples/exercise-prompt
+ * content is — is made by a tested `src/` helper instead (`selectScheduler`,
+ * `selectAnnouncerElementId`, `assertPresent`, `syncTextValue`, #315's `createEditorExtensions` /
+ * `buildStoreSyncSpec` / `decideExternalSync` / `reconcileExternalSyncQueue` in `editor-cm6.ts`,
+ * #310's `mapSpeedSliderValueToTickDelayMs` /
+ * `describeSpeedTickDelayMs` in `turtle-speed.ts`, #311's `mapRunStatusToLabel` in
+ * `run-status-label.ts`, #127's `createLessonPaneController` / `LessonPaneView` in
+ * `lesson-pane.ts`, and #316's `mapRunStatusToRunToggleViewModel` in `run-controls.ts`); this file
+ * only reads the raw browser input (`matchMedia`, `localStorage`, `document.getElementById`, CM6's
+ * own `updateListener`, the `compositionend` DOM event, the slider's `input` event) and forwards
+ * it. #315's `new EditorView({
+ * state, parent })` construction and its `onLocalChange`/`onLocalSelectionChange` wiring is the one
+ * piece of DOM-only glue `editor-cm6.ts` cannot hold itself (that module is DOM-free by design —
+ * see its own doc comment), matching `canvas-view.ts`'s existing untested-DOM-glue split. The
+ * turtle-speed slider (`#speed-slider`) writes straight to the shared state model via
+ * `setSpeedSliderValue` on every `input` event — `run-controller.ts`'s `prepare()` reads that value
+ * on the next `run()`/`step()`, so no scheduler is rebuilt here. `runToggleActionHandlers` and
+ * `renderRunToggleButton` (#316) apply an already-decided `RunToggleViewModel` onto the single
  * `#run-toggle-button` via an indexed lookup and plain attribute assignment — never a branch on
  * `runStatus` itself, matching every other mapping this file consumes. The remaining loop-shaped
  * statements (`.map(createDiagnosticListItemElement)`, `.map(createRunLogEntryElement)`,
@@ -35,17 +42,22 @@
  */
 
 import "./styles.css";
+import { EditorState } from "@codemirror/state";
+import { EditorView } from "@codemirror/view";
 import {
   ANNOUNCER_ASSERTIVE_ELEMENT_ID,
   ANNOUNCER_POLITE_ELEMENT_ID,
   assertPresent,
   attachPersistence,
+  buildStoreSyncSpec,
   createA11yAnnouncer,
   createAppShell,
   createCanvasRenderTarget,
   createCanvasViewController,
   createDiagnosticsController,
   createEditorController,
+  createEditorExtensions,
+  createExternalSyncQueue,
   createKeyValueStorageAdapter,
   createLessonPaneController,
   createRunController,
@@ -54,6 +66,7 @@ import {
   createTimeoutScheduler,
   createTurtleStateRegion,
   createTutorOutputController,
+  decideExternalSync,
   DEFAULT_RUN_PROGRAM,
   describeSpeedTickDelayMs,
   formatOutput,
@@ -66,6 +79,7 @@ import {
   mountLessonPane,
   mountRunController,
   mountTutorOutputPane,
+  reconcileExternalSyncQueue,
   selectAnnouncerElementId,
   selectScheduler,
   SPEED_SLIDER_MAX,
@@ -94,10 +108,9 @@ const lessonPaneElement = assertPresent<HTMLElement>(
   document.getElementById("lesson-pane"),
   "lesson-pane",
 );
-const editorElement = assertPresent(
-  document.getElementById("editor"),
-  "editor",
-  (value): value is HTMLTextAreaElement => value instanceof HTMLTextAreaElement,
+const editorHostElement = assertPresent<HTMLElement>(
+  document.getElementById("editor-host"),
+  "editor-host",
 );
 const canvasElement = assertPresent(
   document.getElementById("turtle-canvas"),
@@ -190,7 +203,60 @@ const shell = createAppShell(state);
 const lessonPane = createLessonPaneController(state);
 mountLessonPane(shell, lessonPane);
 
-mountEditorPane(shell, createEditorController(state));
+/**
+ * #315 — the CM6 `EditorView`. `editorController` is the same headless seam every other pane
+ * binds through (`editor.ts`); its `onLocalChange`/`onLocalSelectionChange` callbacks below are
+ * the *only* place a real CM6 edit reaches the shared store, and the `state.subscribe` sync below
+ * is the *only* place the store reaches back into CM6 — matching `editor.ts`'s doc comment.
+ */
+const editorController = createEditorController(state);
+mountEditorPane(shell, editorController);
+
+const prefersReducedMotion = window.matchMedia(
+  "(prefers-reduced-motion: reduce)",
+).matches;
+
+let initialEditorState = EditorState.create({
+  doc: state.getState().source,
+  extensions: createEditorExtensions({
+    onLocalChange: (text, selection) => {
+      editorController.setTextAndSelection(text, selection);
+    },
+    onLocalSelectionChange: (selection) => {
+      editorController.setSelection(selection);
+    },
+  }),
+});
+// Reuse buildStoreSyncSpec (rather than re-deriving the initial cursor offset here) so the
+// initial selection is positioned exactly the same way every later store-driven sync is.
+initialEditorState = initialEditorState.update(
+  buildStoreSyncSpec(
+    initialEditorState,
+    state.getState().source,
+    state.getState().selection,
+  ),
+).state;
+const editorView = new EditorView({
+  state: initialEditorState,
+  parent: editorHostElement,
+});
+// #315 IME-composition safety: ADR-0013 requires store→CM6 sync to be suppressed while the user is
+// mid-composition, and the deferred snapshot reconciled once composition genuinely ends — the real
+// `compositionend` DOM event is that signal (there is no CM6 `ViewUpdate` field for it). The
+// `externalSyncQueue`/`decideExternalSync`/`reconcileExternalSyncQueue` decision logic itself is
+// DOM-free and unit-tested in `editor-cm6.test.mjs`; only this event registration is untested glue.
+const externalSyncQueue = createExternalSyncQueue();
+editorView.dom.addEventListener("compositionend", () => {
+  const spec = reconcileExternalSyncQueue(externalSyncQueue, editorView.state);
+  if (spec) {
+    editorView.dispatch(spec);
+  }
+});
+// #315 a11y acceptance: reduced-motion disables fold/scroll animation. CM6's fold/unfold itself
+// is instant (state-driven, no JS animation to disable — confirmed against `foldGutter`'s
+// source); this class only suppresses the CSS transitions `web/styles.css` adds for the fold
+// gutter's own hover/appearance chrome.
+editorHostElement.classList.toggle("reduced-motion", prefersReducedMotion);
 
 const canvasView = createCanvasViewController(state, {
   target: createCanvasRenderTarget(canvasContext),
@@ -200,9 +266,6 @@ mountCanvasView(shell, canvasView);
 
 mountDiagnosticsPane(shell, createDiagnosticsController(state));
 
-const prefersReducedMotion = window.matchMedia(
-  "(prefers-reduced-motion: reduce)",
-).matches;
 const timeoutScheduler = createTimeoutScheduler({
   setTimeout: (callback, delayMs) => globalThis.setTimeout(callback, delayMs),
   clearTimeout: (handle) => globalThis.clearTimeout(handle),
@@ -244,10 +307,6 @@ const runToggleActionHandlers: Readonly<Record<RunToggleAction, () => void>> = {
   stop: () => runController.stop(),
 };
 
-editorElement.value = state.getState().source;
-editorElement.addEventListener("input", () => {
-  shell.state.setSource(editorElement.value);
-});
 runToggleButton.addEventListener("click", () => {
   const { action } = mapRunStatusToRunToggleViewModel(
     state.getState().runStatus,
@@ -435,7 +494,21 @@ function renderLessonPane(element: HTMLElement, view: LessonPaneView): void {
 }
 
 state.subscribe((next) => {
-  syncTextValue(editorElement, next.source);
+  // `state.subscribe` fires on every store change (turtle animation, run status, diagnostics, the
+  // speed slider, …), not just document/selection edits — `decideExternalSync` is the tested
+  // decision (`editor-cm6.ts`) for whether this notification needs a real CM6 sync transaction, a
+  // deferred one (mid IME composition — reconciled on `compositionend`, registered above), or
+  // nothing at all, per ADR-0013's synchronization protocol.
+  const spec = decideExternalSync(
+    externalSyncQueue,
+    editorView.state,
+    editorView.composing,
+    next.source,
+    next.selection,
+  );
+  if (spec) {
+    editorView.dispatch(spec);
+  }
   runStatusElement.textContent = mapRunStatusToLabel(next.runStatus);
   renderRunToggleButton(next.runStatus);
   outputElement.textContent = formatOutput(next.output);

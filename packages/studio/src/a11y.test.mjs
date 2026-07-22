@@ -60,6 +60,38 @@ test("REPL_FOCUS_ORDER puts the lesson pane first and the tutor-output pane last
   assert.equal(tutorOutputStop.role, "log");
 });
 
+test("#315: the editor stays exactly one `textbox` focus stop, and CM6's own aria-role/aria-label (editor-cm6.ts) are derived from it, never a second literal that could drift", () => {
+  const order = OL.REPL_FOCUS_ORDER;
+  const editorStops = order.filter((stop) => stop.region === "editor");
+  assert.equal(
+    editorStops.length,
+    1,
+    "CM6 must remain a single textbox focus stop, not one stop per internal widget " +
+      "(gutter/fold icons are chrome, not separate focusable stops)",
+  );
+  const [editorStop] = editorStops;
+  assert.equal(editorStop.role, "textbox");
+  assert.equal(editorStop.label, "OpenLogo source editor");
+
+  // editor-cm6.ts's EDITOR_ARIA_ROLE/EDITOR_ARIA_LABEL read straight from this same stop (see
+  // that module's own test asserting the converse), so this list is the one place that can
+  // regress CM6's aria-role/aria-label and this list's role/label together, by construction.
+  assert.equal(OL.EDITOR_ARIA_ROLE, editorStop.role);
+  assert.equal(OL.EDITOR_ARIA_LABEL, editorStop.label);
+});
+
+test("#315: REPL_LANDMARK_ROLES' editor landmark matches the focus stop exactly, so the CM6 host container and its content-editable share one consistent role/label", () => {
+  const editorLandmark = OL.REPL_LANDMARK_ROLES.find(
+    (landmark) => landmark.region === "editor",
+  );
+  assert.ok(editorLandmark, "the editor must have a landmark role");
+  const editorStop = OL.REPL_FOCUS_ORDER.find(
+    (stop) => stop.region === "editor",
+  );
+  assert.equal(editorLandmark.role, editorStop.role);
+  assert.equal(editorLandmark.label, editorStop.label);
+});
+
 test("nextFocusStop cycles forward through every stop with no trap", () => {
   const order = OL.REPL_FOCUS_ORDER;
   let currentId = order[0].id;

@@ -51,9 +51,41 @@ slice may swap in a real renderer without changing this contract.
   `noopHighlighter`, i.e. plain text). This slice has no hard dependency on the epic #118
   highlighter — pass a provider built from `@openlogo/parser`'s `semanticTokens` once you want
   real coloring; this module never re-implements token classification itself.
-- See `editor.ts`'s doc comment for the DOM/mount integration contract a later real-widget slice
-  (e.g. a `<textarea>`/CodeMirror/Monaco host) should follow to stay headless-first and avoid
-  ever forking the document text or regressing keyboard operability.
+- See `editor.ts`'s doc comment for the DOM/mount integration contract the real-widget slice below
+  follows to stay headless-first and avoid ever forking the document text or regressing keyboard
+  operability.
+
+## Rich editor surface — CodeMirror 6 (#315)
+
+- The browser now mounts a real **CodeMirror 6** `EditorView` (`web/main.ts`) into a plain
+  `#editor-host` container (`index.html`) instead of the old `<textarea>`, giving the editor a
+  **line-number gutter** and **code folding** of `[ ... ]`/`... end` blocks. The choice, its
+  accessibility analysis, and its measured bundle cost are recorded in
+  [`docs/adr/0013-studio-editor-component.md`](../../docs/adr/0013-studio-editor-component.md).
+- **Modular, pinned deps** — only `@codemirror/{state,view,commands,language}` (exact versions
+  pinned in `package.json`/`package-lock.json`, no `^`/`~`); no `codemirror` convenience bundle, no
+  `@codemirror/lang-*`, no autocomplete/search/lint packages.
+- **Fold ranges are AST-derived, not text-scanned**: `src/fold-ranges.ts` walks
+  `@openlogo/parser`'s own AST and only folds a control-form/procedure body's `instruction-block`
+  span — never a list literal, selector index, or pattern/field-list bracket — and falls back to no
+  folds while the source doesn't parse, rather than guessing from raw text.
+- **`src/editor-cm6.ts`** builds the CM6 extension list (`lineNumbers()`, `foldGutter()`, the AST
+  fold service, the default/history/fold keymaps) and owns the origin-tagged sync protocol between
+  CM6's own transactional state and the shared `StudioStateStore` (`buildStoreSyncSpec`,
+  `handleViewUpdate`) — this module stays DOM-free and fully unit-tested; only the one-line
+  `new EditorView({ state, parent })` construction and its native event wiring live in `web/main.ts`
+  (the same tested-helper/thin-DOM-glue split every other pane in this package follows).
+- **Accessibility parity (non-negotiable, #279):** CM6's own content-editable — not the static
+  `#editor-host` div — carries `role="textbox"`/`aria-label="OpenLogo source editor"` via its
+  `contentAttributes` facet, so the editor remains exactly one `textbox` focus stop/landmark
+  (`REPL_FOCUS_ORDER`/`REPL_LANDMARK_ROLES`, cross-checked by `src/a11y.test.mjs`). CM6's own
+  `.cm-gutters` (line numbers + fold icons) is `aria-hidden` by the library itself. Reduced motion
+  (`prefers-reduced-motion: reduce`) disables transition/scroll animation on the editor via a
+  `reduced-motion` class plus a CSS media-query fallback; CM6's fold/unfold is itself instant
+  (a synchronous state effect), so there is no fold animation to suppress in JS.
+- **Measured bundle cost:** adding the four packages took the `web-dist/` production JS from
+  46.11 KB to 141.01 KB gzip (~+95 KB gzip) — see the ADR's KISS section for the full before/after
+  table and why the real number landed above the ADR's original 50-80 KB estimate.
 
 ## Persistence (#128)
 

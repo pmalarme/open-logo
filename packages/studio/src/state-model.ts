@@ -124,6 +124,16 @@ export interface StudioStateStore {
   setSource(source: string): void;
   /** Replace the cursor/selection. */
   setSelection(selection: Selection): void;
+  /**
+   * Replace the document text and cursor/selection together in one notification (#315). A real
+   * editor widget's own edit commits both at once (e.g. typing a character replaces the doc *and*
+   * advances the cursor); calling {@link setSource} then {@link setSelection} separately would
+   * notify every listener twice per keystroke — once with the new text at the *old* selection,
+   * which for a growing document can be a temporarily out-of-range position — and would cost
+   * twice the render work for no benefit. Prefer this over the two separate calls whenever both
+   * are changing together.
+   */
+  setSourceAndSelection(source: string, selection: Selection): void;
   /** Replace the run status. */
   setRunStatus(runStatus: RunStatus): void;
   /** Replace the diagnostics list. */
@@ -202,6 +212,9 @@ export function createStudioState(
     },
     setSelection(selection) {
       commit({ selection });
+    },
+    setSourceAndSelection(source, selection) {
+      commit({ source, selection });
     },
     setRunStatus(runStatus) {
       commit({ runStatus });

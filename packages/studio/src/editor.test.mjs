@@ -45,6 +45,20 @@ test("setSelection moves the cursor without changing the text", () => {
   });
 });
 
+test("setTextAndSelection replaces text and selection together in one call (#315)", () => {
+  const store = OL.createStudioState({ source: "forward 10" });
+  const controller = OL.createEditorController(store);
+  const seen = [];
+  store.subscribe((state) => seen.push(state));
+
+  controller.setTextAndSelection("forward 100", collapsed(pos(1, 12)));
+
+  assert.equal(controller.getText(), "forward 100");
+  assert.deepEqual(controller.getSelection(), collapsed(pos(1, 12)));
+  // Exactly one notification for both fields together (see state-model.ts's own doc comment).
+  assert.equal(seen.length, 1);
+});
+
 test("insertText inserts at a collapsed cursor and advances it", () => {
   const store = OL.createStudioState({ source: "forward " });
   const controller = OL.createEditorController(store);

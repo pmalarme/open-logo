@@ -265,13 +265,49 @@ main:has(.pane-lesson:not([hidden])):has(.pane-tutor:not([hidden])) {
   }
 }
 
-#editor {
+#editor-host {
   width: 100%;
+}
+
+/*
+ * #315 — the CodeMirror 6 host. `.cm-editor` is CM6's own root element (created by
+ * `new EditorView({ parent: editorHostElement })`); these rules only apply the same
+ * monospace/border/padding treatment the old `#editor` textarea had, never anything CM6 doesn't
+ * already expose a class for. `.cm-gutters` (line numbers + the fold-icon gutter) already ships
+ * `aria-hidden="true"` from `@codemirror/view` itself — no extra a11y wiring needed here.
+ */
+.cm-editor {
+  width: 100%;
+  min-height: 12rem;
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-size: 0.95rem;
   border: 1px solid var(--ol-border);
   border-radius: 6px;
-  padding: 0.5rem;
+}
+
+.cm-editor.cm-focused {
+  outline: 3px solid var(--ol-orange);
+  outline-offset: 2px;
+}
+
+/* #315 a11y acceptance: reduced-motion disables fold/scroll animation. CM6's own fold/unfold is
+   instant (state-driven, confirmed against `foldGutter`'s source — no JS animation to disable);
+   this only strips any CSS transition on the gutter/scroller chrome for a user who asked for
+   less motion, matching the `prefers-reduced-motion` media query below for browsers that don't
+   run JS before first paint. `web/main.ts` also toggles this class explicitly from the same
+   `matchMedia` read it already uses for the run scheduler/canvas animation, so both paths agree. */
+.reduced-motion .cm-editor,
+.reduced-motion .cm-editor * {
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cm-editor,
+  .cm-editor * {
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 [role="toolbar"] button {

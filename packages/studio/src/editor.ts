@@ -4,25 +4,33 @@
  * shared {@link StudioStateStore}; there is **no private text buffer**, so this pane can never
  * hold a stale/forked copy of the document (the #123 single-source-of-truth contract).
  *
- * ## DOM/mount integration contract (for a later real-widget slice)
- * ADR-0001 leaves the studio shell framework undecided, so — exactly like #123's state model and
- * app shell — this slice keeps the editor headless: plain data + functions, no DOM. A later
- * slice that introduces a real `<textarea>`/CodeMirror/Monaco widget wires it to
- * {@link EditorController} like this:
- * - On every keystroke/paste/etc., call `controller.insertText(...)` / `deleteBackward()` /
- *   `deleteForward()` (or `setText(...)` for a wholesale replace, e.g. loading a document) so the
- *   state model stays authoritative — never let the widget keep its own copy of the value.
- * - On every native selection change, call `controller.setSelection(...)`.
- * - Subscribe to `state.subscribe(...)` and reflect `state.getState().source` / `.selection`
- *   back into the widget's own value/cursor when they change from elsewhere (e.g. persistence
- *   #128 restoring a document) — this one-way bind-back is what keeps the widget and the store
- *   from ever drifting apart.
- * - Render `controller.getTokens()` for syntax coloring, and call
+ * ## DOM/mount integration contract
+ * ADR-0001 leaves the studio shell framework undecided, so this controller stays headless: plain
+ * data + functions, no DOM of its own. #315 (`docs/adr/0013-studio-editor-component.md`) picks
+ * CodeMirror 6 for the real widget and wires it to {@link EditorController} like this
+ * (`web/main.ts` is the only place that constructs the real `EditorView` — this module never
+ * imports `@codemirror/view`):
+ * - On every native edit, call `controller.setTextAndSelection(...)` once with the resulting text
+ *   *and* selection together (not `setText`/`insertText` then `setSelection` separately) — a CM6
+ *   `ViewUpdate` already reports both post-edit, and one call keeps the state model's single
+ *   `commit` in sync with CM6's own single transaction instead of raising two separate
+ *   notifications per keystroke.
+ * - On every native selection-only change (no doc edit), call `controller.setSelection(...)`.
+ * - Subscribe to `state.subscribe(...)` and reflect `state.getState().source` / `.selection` back
+ *   into CM6 (via a tagged, loop-safe transaction — see `editor-cm6.ts`'s `externalSync`
+ *   annotation) when they change from elsewhere (e.g. persistence #128 restoring a document) —
+ *   this one-way bind-back is what keeps CM6 and the store from ever drifting apart.
+ * - Render `controller.getTokens()` for syntax coloring (still highlighter-free as of #315; #285
+ *   wires a real `HighlightProvider` in a later slice), and call
  *   `mountEditorPane(shell, controller)` to compose the controller into the shell's `editor`
  *   region (see `app-shell.ts`).
- * - Keyboard operability/screen-reader labeling (#129) falls out of using a real, natively
- *   focusable and editable host element (e.g. a `<textarea>` or a properly-`tabindex`ed
- *   `contenteditable`) for that later widget — this headless slice has no DOM to regress.
+ * - Keyboard operability/screen-reader labeling (#129) falls out of CM6's own natively focusable,
+ *   editable `contenteditable` host, with `role="textbox"`/`aria-label` set via CM6's
+ *   `contentAttributes` facet (`editor-cm6.ts`) — this headless module has no DOM to regress.
+ * - `editor-cm6.ts` builds the CM6 `Extension[]` (line numbers, AST-derived code folding, history,
+ *   keymap) and the sync-protocol helpers as plain, DOM-free `@codemirror/state` data, so they stay
+ *   inside the 100% coverage gate; only the final `new EditorView({ state, parent })` call and its
+ *   native event wiring live in `web/main.ts`, matching `canvas-view.ts`'s untested-DOM-glue split.
  *
  * ## Highlighting integration point
  * {@link HighlightProvider} is the pluggable syntax-highlighting seam. The default,
@@ -66,6 +74,13 @@ export interface EditorController {
   setText(text: string): void;
   /** Move the cursor/selection without changing the text. */
   setSelection(selection: Selection): void;
+  /**
+   * Replace the document text and cursor/selection together in one notification (#315) — the
+   * seam a real widget's native edit (which already knows its own post-edit selection) binds
+   * through, so the shared store never sees a stale selection against the new text (see
+   * {@link StudioStateStore.setSourceAndSelection}).
+   */
+  setTextAndSelection(text: string, selection: Selection): void;
   /** Insert text at the current selection, replacing it, and collapse the cursor after it. */
   insertText(text: string): void;
   /** Delete the current selection, or the character before a collapsed cursor. */
@@ -77,7 +92,7 @@ export interface EditorController {
 }
 
 /** Convert a 1-based `[line, column]` {@link Position} into a 0-based string offset into `text`. */
-function offsetFromPosition(text: string, position: Position): number {
+export function offsetFromPosition(text: string, position: Position): number {
   const [line, column] = position;
   const priorLines = text.split("\n").slice(0, line - 1);
   const priorLength = priorLines.reduce(
@@ -88,7 +103,7 @@ function offsetFromPosition(text: string, position: Position): number {
 }
 
 /** Convert a 0-based string offset into `text` back into a 1-based `[line, column]` {@link Position}. */
-function positionFromOffset(text: string, offset: number): Position {
+export function positionFromOffset(text: string, offset: number): Position {
   const before = text.slice(0, offset).split("\n");
   // `String.prototype.split` always returns at least one element, so this index is always in range.
   const lastLine = before[before.length - 1] as string;
@@ -136,6 +151,9 @@ export function createEditorController(
     },
     setSelection(selection) {
       state.setSelection(selection);
+    },
+    setTextAndSelection(text, selection) {
+      state.setSourceAndSelection(text, selection);
     },
     insertText(text) {
       const { source, selection } = state.getState();

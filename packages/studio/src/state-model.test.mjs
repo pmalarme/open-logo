@@ -56,6 +56,24 @@ test("two consumers of the same store observe identical state after an update (n
   assert.equal(paneA.readSource(), paneB.readSource());
 });
 
+test("setSourceAndSelection replaces both fields in one notification (#315)", () => {
+  const store = OL.createStudioState({ source: "forward 10" });
+  const seen = [];
+  store.subscribe((state) => seen.push(state));
+
+  store.setSourceAndSelection("forward 100", {
+    anchor: [1, 12],
+    head: [1, 12],
+  });
+
+  assert.equal(seen.length, 1);
+  assert.equal(store.getState().source, "forward 100");
+  assert.deepEqual(store.getState().selection, {
+    anchor: [1, 12],
+    head: [1, 12],
+  });
+});
+
 test("subscribe notifies listeners synchronously with the new snapshot on every set*", () => {
   const store = OL.createStudioState();
   const seen = [];

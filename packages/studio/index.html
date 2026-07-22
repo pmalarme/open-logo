@@ -68,14 +68,19 @@
         hidden
       ></section>
       <section class="pane-editor" aria-label="Editor">
-        <textarea
-          id="editor"
-          rows="10"
-          cols="60"
-          spellcheck="false"
-          role="textbox"
-          aria-label="OpenLogo source editor"
-        ></textarea>
+        <!--
+          #315 (`docs/adr/0013-studio-editor-component.md`): CodeMirror 6 mounts its own
+          `contenteditable` host into this plain container (`web/main.ts`'s
+          `new EditorView({ state, parent: editorHostElement })`) rather than reusing the old
+          plain textarea element. CM6's `EditorView.contentAttributes` facet (wired in
+          `src/editor-cm6.ts`'s `createEditorExtensions`) sets `role="textbox"`/`aria-label`
+          directly on that real content-editable element — the single #279 `REPL_FOCUS_ORDER`
+          `textbox` focus stop — so this container itself carries neither attribute (that would
+          create a second, redundant textbox landmark). CM6's own line-number/fold gutter
+          (`.cm-gutters`) is marked `aria-hidden="true"` by `@codemirror/view` itself, with no
+          extra wiring needed here.
+        -->
+        <div id="editor-host"></div>
       </section>
       <section class="pane-controls" aria-label="Run controls" role="toolbar">
         <button
