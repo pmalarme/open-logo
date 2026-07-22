@@ -192,17 +192,50 @@ const DATA_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
 ]);
 
 /**
- * The default arity of a Data-profile derived list reporter, or `undefined` when `name` is not one
- * of the primitives registered in {@link DATA_PRIMITIVE_ARITY}. Matching is case-insensitive.
+ * The default (bare-call) arity of a Data-profile derived list reporter, or `undefined` when
+ * `name` is not one of the primitives registered in {@link DATA_PRIMITIVE_ARITY}. Matching is
+ * case-insensitive.
  *
  * `DATA_PRIMITIVE_ARITY` is this profile's single source-of-truth table. Its name-enumeration
  * counterpart, {@link dataPrimitiveNames}, makes these reporters visible to `ol-unknown-command`
- * (`checker-names.ts`, issue #397) the same way {@link turtlePrimitiveNames} does for Turtle &
- * Rendering; the static arity check (`checker-arity.ts`) is not wired to this table yet, matching
- * Turtle & Rendering/Educational/Geometry's own current arity-check gap.
+ * (`checker-names.ts`, issue #397); its range counterpart, {@link dataPrimitiveArityRange}, is what
+ * the static arity check (`checker-arity.ts`, issue #405) actually consults — mirroring
+ * {@link corePrimitiveArityRange}'s role for Core primitives.
  */
 export function dataPrimitiveArity(name: string): number | undefined {
   return DATA_PRIMITIVE_ARITY.get(name.toLowerCase());
+}
+
+/**
+ * Data-profile primitives whose parenthesized call form accepts more inputs than their bare
+ * default arity, keyed by canonical lowercase name to the maximum the paren form accepts
+ * (`Number.POSITIVE_INFINITY` for an open variadic) — mirrors {@link CORE_PRIMITIVE_MAX_ARITY}
+ * exactly. `list`'s bare form is the empty-list constructor (arity 0), but its parenthesized
+ * alternate `(list a b …)` (`spec/data-structures.md:78`) is open variadic, just like `(print …)`.
+ * Every other Data primitive absent here is strictly fixed-arity.
+ */
+const DATA_PRIMITIVE_MAX_ARITY: ReadonlyMap<string, number> = new Map([
+  ["list", Number.POSITIVE_INFINITY],
+]);
+
+/**
+ * The inclusive input-count range a Data-profile primitive accepts, or `undefined` when `name` is
+ * not a known Data primitive. `min` is the bare default arity ({@link dataPrimitiveArity}); `max`
+ * is the most its parenthesized alternate/variadic form accepts
+ * ({@link DATA_PRIMITIVE_MAX_ARITY}) — `Number.POSITIVE_INFINITY` for an open variadic (`list`),
+ * and equal to `min` for every other, strictly fixed-arity Data primitive. Mirrors
+ * {@link corePrimitiveArityRange} exactly; the static arity checker (issue #405) uses this to tell
+ * `list`'s genuine variadic paren form (`(list 1 2)`) from a fixed-arity Data primitive given too
+ * many inputs (`(reverse :a :b)`). Matching is case-insensitive.
+ */
+export function dataPrimitiveArityRange(
+  name: string,
+): { readonly min: number; readonly max: number } | undefined {
+  const min = dataPrimitiveArity(name);
+  if (min === undefined) {
+    return undefined;
+  }
+  return { min, max: DATA_PRIMITIVE_MAX_ARITY.get(name.toLowerCase()) ?? min };
 }
 
 /**
