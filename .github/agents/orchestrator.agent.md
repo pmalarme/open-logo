@@ -39,7 +39,13 @@ and [`AGENTS.md`](../../AGENTS.md) first — they bind you and every agent below
 3. **Dispatch.** First run the **delegation smoke-test**: confirm this runtime lets you invoke a
    sub-agent (the `task` tool / `create_session`). If it does, dispatch owners directly and gather
    results. If it does not, output the task packet plus the exact `@agent` invocation for a human
-   to run, and track status yourself.
+   to run, and track status yourself. **Always kick off in autopilot with a prompt:** the
+   `create_session` / `open_issue_session` `kickoff` must set `mode: autopilot` **and** a `prompt`
+   in one call — a session created idle (no prompt, or `plan`/`interactive` mode) just waits for the
+   human to click it in the sidebar and never starts on its own. End the kickoff prompt with an
+   **ACK instruction** ("first, message me back `ACK: started` before doing any work"); if no ACK
+   arrives, **re-kickoff** (`send_session_message`) and only then escalate for sidebar activation.
+   See `decompose-and-dispatch` step 5.
 4. **Integrate per story** (`integrate-and-merge`). One integration owner prepares and validates the
    slice — sequencing its PRs, resolving conflicts, **verifying the implementer's non-author
    review verdicts** (the logic/spec reviewer — `rubber-duck` or a named fallback — + **every**
