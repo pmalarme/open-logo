@@ -334,7 +334,6 @@ function renderRunToggleButton(runStatus: RunStatus): void {
   const viewModel = mapRunStatusToRunToggleViewModel(runStatus);
   runToggleButton.dataset.icon = viewModel.icon;
   runToggleButton.setAttribute("aria-label", viewModel.ariaLabel);
-  runToggleButton.setAttribute("aria-pressed", String(viewModel.ariaPressed));
   runToggleLabelElement.textContent = viewModel.label;
 }
 

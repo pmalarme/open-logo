@@ -176,13 +176,19 @@ test("index.html collapses Run/Stop into a single Start/Stop toggle button (#316
   );
 });
 
-test("index.html's Start/Stop toggle has an accessible name and pressed state distinct from its (decorative) icon", () => {
+test("index.html's Start/Stop toggle has an accessible name, but no aria-pressed (#410: a one-shot Stop action is not a toggle)", () => {
   const toggleTag = openingTags.find((tag) =>
     tag.includes('id="run-toggle-button"'),
   );
   assert.ok(toggleTag, "expected a #run-toggle-button element");
   assert.match(toggleTag, /aria-label="[^"]+"/);
-  assert.match(toggleTag, /aria-pressed="(true|false)"/);
+  assert.doesNotMatch(
+    toggleTag,
+    /aria-pressed/,
+    'the run-toggle-button must not declare aria-pressed at all — even "false" tells ' +
+      "assistive technology this is a toggle button with a resumable pressed state, which #410 " +
+      "explicitly disavows (the button only ever performs a one-shot Start or Stop action)",
+  );
   assert.match(toggleTag, /data-icon="(play|stop)"/);
   assert.match(
     indexHtml,
@@ -371,16 +377,18 @@ test("web/main.ts wires the Start/Stop toggle via the tested mapRunStatusToRunTo
   );
 });
 
-test("web/main.ts renders the toggle's icon/aria-label/aria-pressed/label from the view model on every state change (#316)", () => {
+test("web/main.ts renders the toggle's icon/aria-label/label from the view model on every state change, and never sets aria-pressed (#410)", () => {
   assert.match(mainTs, /renderRunToggleButton\(/);
   assert.match(mainTs, /runToggleButton\.dataset\.icon\s*=\s*viewModel\.icon/);
   assert.match(
     mainTs,
     /runToggleButton\.setAttribute\(\s*"aria-label",\s*viewModel\.ariaLabel\s*\)/,
   );
-  assert.match(
+  assert.doesNotMatch(
     mainTs,
-    /runToggleButton\.setAttribute\(\s*"aria-pressed",\s*String\(viewModel\.ariaPressed\)\s*\)/,
+    /aria-pressed/,
+    "#410: the toggle is a one-shot Start/Stop action, not a resumable pause toggle — it must " +
+      "never set aria-pressed",
   );
   assert.match(
     mainTs,

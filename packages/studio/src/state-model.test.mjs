@@ -74,6 +74,36 @@ test("setSourceAndSelection replaces both fields in one notification (#315)", ()
   });
 });
 
+test("setSource clears a stale currentInstructionSourceSpan (#410 — an edit invalidates the last-known instruction location)", () => {
+  const store = OL.createStudioState({ source: "forward 10" });
+  store.setCurrentInstructionSourceSpan({
+    document: "editor",
+    start: [1, 1],
+    end: [1, 12],
+  });
+  assert.notEqual(store.getState().currentInstructionSourceSpan, null);
+
+  store.setSource("forward 100");
+
+  assert.equal(store.getState().currentInstructionSourceSpan, null);
+});
+
+test("setSourceAndSelection clears a stale currentInstructionSourceSpan (#410 — same guard as setSource)", () => {
+  const store = OL.createStudioState({ source: "forward 10" });
+  store.setCurrentInstructionSourceSpan({
+    document: "editor",
+    start: [1, 1],
+    end: [1, 12],
+  });
+
+  store.setSourceAndSelection("forward 100", {
+    anchor: [1, 12],
+    head: [1, 12],
+  });
+
+  assert.equal(store.getState().currentInstructionSourceSpan, null);
+});
+
 test("subscribe notifies listeners synchronously with the new snapshot on every set*", () => {
   const store = OL.createStudioState();
   const seen = [];

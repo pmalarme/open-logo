@@ -188,9 +188,9 @@ Presentation only, over the unchanged `run-controller.ts` — no new run-lifecyc
   behavior and gains a matching icon.
 - `src/run-controls.ts` — the one tested, pure place that decides the toggle's presentation:
   `mapRunStatusToRunToggleViewModel(runStatus)` maps every internal `RunStatus` to a
-  `RunToggleViewModel` (`action: "run" | "stop"`, `icon: "play" | "pause"`, `label`, `ariaLabel`,
-  `ariaPressed`). `"running"` is the only status that maps to `action: "stop"`/`ariaPressed: true`;
-  every other status maps to `action: "run"`/`ariaPressed: false`. `web/main.ts` never branches on
+  `RunToggleViewModel` (`action: "run" | "stop"`, `icon: "play" | "stop"`, `label`, `ariaLabel`).
+  `"running"` is the only status that maps to `action: "stop"`; every other status maps to
+  `action: "run"`. `web/main.ts` never branches on
   `runStatus` itself to decide the toggle's label/icon/click target — it looks the already-decided
   `action` up in a small `Record<RunToggleAction, () => void>` (`run: () => runController.run()`,
   `stop: () => runController.stop()`) and applies the view model's fields onto the DOM via plain
@@ -203,15 +203,17 @@ Presentation only, over the unchanged `run-controller.ts` — no new run-lifecyc
   action was always `stop()`, which latches cancellation irreversibly (only `reset()` re-arms it),
   so "Pause" falsely promised a resume that never existed — `spec/rendering.md` defines "pause" as
   a genuinely resumable control, distinct from cancellation. The toggle is now honestly a one-shot
-  Stop affordance with `ariaPressed: false` in every state (nothing here is a real pressed toggle).
+  Stop affordance with **no `aria-pressed` attribute at all** (nothing here is a real pressed
+  toggle — `aria-pressed`, even set to `"false"`, still tells assistive technology this is a toggle
+  button with a resumable state, which #410 explicitly disavows).
   There is still no `step()`/"Next step" control in the 0.1.0 UI, and no genuine resumable pause
   (deferred to Studio Stepper Wave 1 / #302 / milestone #12, per `a11y.ts`'s doc comment) — this
   slice does not cross that boundary.
 - Accessibility: the icon (`.control-icon`, a CSS `::before`-rendered Unicode glyph keyed off the
   button's `data-icon` attribute) is `aria-hidden="true"` and never the only accessible signal —
   the toggle always carries an `aria-label` (`"Start run"`/`"Stop run"`) plus a visible text label
-  (`#run-toggle-label`, "Start"/"Stop") and an `aria-pressed` state that is `"false"` in every
-  status (#410 — a plain Stop is not a pressed toggle promising resume).
+  (`#run-toggle-label`, "Start"/"Stop"), and **no `aria-pressed` attribute** (#410 — a plain Stop
+  is not a pressed toggle promising resume, so it does not claim toggle semantics at all).
   `REPL_FOCUS_ORDER`/`REPL_LANDMARK_ROLES` (`a11y.ts`) collapse the former two Run/Stop
   focus stops into the single `run-toggle-button` stop; Reset keeps its own stop. Button background
   colors (`--ol-button-start`/`--ol-button-stop`/`--ol-button-reset` in `web/styles.css`) were

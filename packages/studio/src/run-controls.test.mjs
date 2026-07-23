@@ -10,7 +10,6 @@ test("mapRunStatusToRunToggleViewModel maps 'idle' to the play/Start affordance"
     icon: "play",
     label: "Start",
     ariaLabel: "Start run",
-    ariaPressed: false,
   });
 });
 
@@ -20,7 +19,6 @@ test("mapRunStatusToRunToggleViewModel maps 'running' to the honest Stop afforda
     icon: "stop",
     label: "Stop",
     ariaLabel: "Stop run",
-    ariaPressed: false,
   });
 });
 
@@ -30,7 +28,6 @@ test("mapRunStatusToRunToggleViewModel maps 'done' back to the play/Start afford
     icon: "play",
     label: "Start",
     ariaLabel: "Start run",
-    ariaPressed: false,
   });
 });
 
@@ -40,7 +37,6 @@ test("mapRunStatusToRunToggleViewModel maps 'stopped' back to the play/Start aff
     icon: "play",
     label: "Start",
     ariaLabel: "Start run",
-    ariaPressed: false,
   });
 });
 
@@ -60,11 +56,13 @@ test("only 'running' invokes stop(); every other status invokes run()", () => {
   assert.equal(mapRunStatusToRunToggleViewModel("running").action, "stop");
 });
 
-test("no status reports ariaPressed true — a plain Stop is not a resumable toggle (#410)", () => {
+test("no view model declares an ariaPressed field — a plain Stop must not claim toggle semantics (#410)", () => {
   for (const runStatus of ["idle", "running", "done", "stopped"]) {
     assert.equal(
-      mapRunStatusToRunToggleViewModel(runStatus).ariaPressed,
+      "ariaPressed" in mapRunStatusToRunToggleViewModel(runStatus),
       false,
+      `${runStatus} view model must not have an ariaPressed field — even "false" would tell ` +
+        "assistive technology this is a resumable toggle button, which #410 explicitly disavows",
     );
   }
 });

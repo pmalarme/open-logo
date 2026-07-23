@@ -618,7 +618,14 @@ test("createTurtleStateRegion joins a multi-line current-instruction source span
   );
 });
 
-test("createTurtleStateRegion tolerates a current-instruction span whose lines no longer exist in source (a stale span after the learner edits mid-run), degrading to empty text per missing line rather than throwing (#410)", () => {
+test("createTurtleStateRegion defensively tolerates a current-instruction span whose lines are out of range for the current source, degrading to empty text per missing line rather than throwing (#410)", () => {
+  // In normal operation this can't happen: state-model.ts's setSource()/setSourceAndSelection()
+  // always clear currentInstructionSourceSpan to null on every edit (see the "clears the
+  // current-instruction span whenever the source is edited" tests below), so a real learner
+  // editing mid-run can never observe a stale span. This test bypasses that guard by calling
+  // setCurrentInstructionSourceSpan() directly (as a headless test double for a future producer,
+  // not via the editor) purely to exercise extractSourceSpanText's defensive out-of-range
+  // fallback and keep it under coverage, not to describe a reachable user scenario.
   const state = OL.createStudioState();
   state.setSource("forward 100");
   state.setCurrentInstructionSourceSpan({

@@ -3,18 +3,17 @@
  * over the existing, unchanged `run-controller.ts` (#126/#228). Studio previously showed separate
  * "Run" and "Stop" buttons; this module is the one tested place that collapses them into a single
  * toggle, so `web/main.ts` never branches on `runStatus` itself to decide the toggle's
- * label/icon/accessible name/pressed state, or which of `run()`/`stop()` a click should invoke
- * (per this package's "thin, branch-free wiring layer" rule).
+ * label/icon/accessible name, or which of `run()`/`stop()` a click should invoke (per this
+ * package's "thin, branch-free wiring layer" rule).
  *
  * ## The mapping
  * {@link mapRunStatusToRunToggleViewModel} maps every internal `RunStatus`
  * (`state-model.ts`: `"idle" | "running" | "done" | "stopped"`) to a {@link RunToggleViewModel}:
- * - `"running"` shows the Stop affordance — label `"Stop"`, `icon: "stop"`, `ariaPressed: false`,
- *   and `action: "stop"` (clicking calls the existing `stop()`; this module adds no pause/resume
- *   semantics of its own — see the hard scope boundary below).
+ * - `"running"` shows the Stop affordance — label `"Stop"`, `icon: "stop"`, and `action: "stop"`
+ *   (clicking calls the existing `stop()`; this module adds no pause/resume semantics of its own —
+ *   see the hard scope boundary below).
  * - every other status (`"idle"`, `"done"`, `"stopped"`) shows the play affordance — label
- *   `"Start"`, `icon: "play"`, `ariaPressed: false`, and `action: "run"` (clicking calls the
- *   existing `run()`).
+ *   `"Start"`, `icon: "play"`, and `action: "run"` (clicking calls the existing `run()`).
  *
  * ## #410 — "Pause" was dishonest; this is Stop, not resumable pause
  * The button's `action` has always been `stop()`, which latches `signal.aborted` and
@@ -24,11 +23,12 @@
  * from cancellation — so labeling this affordance "Pause" (icon `⏸`, `aria-pressed="true"` as a
  * held-down toggle) promised a resume that never existed: there is no `resume()`, and a learner
  * pressing what looks like "Pause" and expecting to continue instead finds the run permanently
- * halted. This slice renames it to the honest "Stop" (icon `⏹`) and drops `ariaPressed` to
- * `false` for the `"running"` state: a plain Stop is not a pressed toggle promising to un-press
- * back to "resume" — it is a one-shot cancellation action, exactly like the `"idle"`/`"done"`/
- * `"stopped"` states' own `ariaPressed: false`. No other state's `ariaPressed` was ever `true`, so
- * this makes the whole view-model table internally consistent: nothing here is a real toggle.
+ * halted. This slice renames it to the honest "Stop" (icon `⏹`) and **removes `aria-pressed`
+ * entirely** rather than merely setting it to `false`: `aria-pressed` (at any value, including
+ * `"false"`) tells assistive technology this is a *toggle* button with two states it switches
+ * between — exactly the resumable-pause semantics being disavowed. A plain one-shot action button
+ * (no `aria-pressed` at all) is the only honest ARIA role for a control that cancels and can never
+ * be "un-pressed" back to a running state.
  *
  * ## Scope boundary
  * This is presentation over the existing tested run-controller only. It does **not** add a
@@ -57,8 +57,6 @@ export interface RunToggleViewModel {
   readonly label: string;
   /** The accessible name (`aria-label`) — present even though the icon is decorative. */
   readonly ariaLabel: string;
-  /** The `aria-pressed` state a toggle button exposes to assistive technology. */
-  readonly ariaPressed: boolean;
 }
 
 /** The toggle's view model for every internal {@link RunStatus} value. */
@@ -70,28 +68,24 @@ export const RUN_TOGGLE_VIEW_MODELS: Readonly<
     icon: "play",
     label: "Start",
     ariaLabel: "Start run",
-    ariaPressed: false,
   },
   running: {
     action: "stop",
     icon: "stop",
     label: "Stop",
     ariaLabel: "Stop run",
-    ariaPressed: false,
   },
   done: {
     action: "run",
     icon: "play",
     label: "Start",
     ariaLabel: "Start run",
-    ariaPressed: false,
   },
   stopped: {
     action: "run",
     icon: "play",
     label: "Start",
     ariaLabel: "Start run",
-    ariaPressed: false,
   },
 };
 

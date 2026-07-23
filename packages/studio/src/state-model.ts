@@ -134,7 +134,10 @@ export interface StudioStateStore {
   getState(): StudioState;
   /** Register a listener notified synchronously after every state change. */
   subscribe(listener: StudioStateListener): Unsubscribe;
-  /** Replace the document text. */
+  /** Replace the document text. Also clears {@link currentInstructionSourceSpan} (#410): any edit
+   * invalidates the previous run's instruction span against the new text, so the non-visual
+   * turtle-state text must stop quoting it rather than risk slicing the wrong (or out-of-range)
+   * source once the learner has changed the program. */
   setSource(source: string): void;
   /** Replace the cursor/selection. */
   setSelection(selection: Selection): void;
@@ -145,7 +148,8 @@ export interface StudioStateStore {
    * notify every listener twice per keystroke — once with the new text at the *old* selection,
    * which for a growing document can be a temporarily out-of-range position — and would cost
    * twice the render work for no benefit. Prefer this over the two separate calls whenever both
-   * are changing together.
+   * are changing together. Also clears {@link currentInstructionSourceSpan} (#410) — see
+   * {@link setSource}.
    */
   setSourceAndSelection(source: string, selection: Selection): void;
   /** Replace the run status. */
@@ -231,13 +235,13 @@ export function createStudioState(
       };
     },
     setSource(source) {
-      commit({ source });
+      commit({ source, currentInstructionSourceSpan: null });
     },
     setSelection(selection) {
       commit({ selection });
     },
     setSourceAndSelection(source, selection) {
-      commit({ source, selection });
+      commit({ source, selection, currentInstructionSourceSpan: null });
     },
     setRunStatus(runStatus) {
       commit({ runStatus });
