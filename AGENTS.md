@@ -117,6 +117,16 @@ workspaces, `tsc -b`, Prettier, Biome, `node:test`), why coverage is pinned to N
 `typescript-eslint`/Vitest traps it avoids. Work in small, reviewable PRs and keep this file and the
 ADRs in sync as the toolchain evolves.
 
+`npm run coverage` runs through a thin deterministic wrapper (`scripts/coverage.mjs`, logic in
+`scripts/coverage-gate/classify.mjs`) rather than invoking `node --test` directly. Node's parallel
+`--experimental-test-coverage` occasionally under-reports coverage by a hundredth of a percent — a
+stochastic cross-process V8 block-coverage **merge artifact** at the hot recursive `printedForm` in
+`@openlogo/runtime` — failing the 100% gate on a fully-covered tree. The wrapper retries any coverage
+shortfall that has no failing test a bounded number of times (a genuine gap is deterministic and
+still fails after every retry, so a real regression is never masked); only test failures, an
+unreadable report, or an anomalous fully-100 exit fail fast. See
+[`docs/adr/0014-deterministic-coverage-gate.md`](docs/adr/0014-deterministic-coverage-gate.md).
+
 ## The agent team
 
 The specialized agents in [`.github/agents/`](.github/agents/) map to the packages above. In
