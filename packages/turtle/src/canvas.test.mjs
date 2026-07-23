@@ -830,3 +830,259 @@ test("renderFrame threads the source's overlay snapshot through to paintTurtle",
   const moveToCalls = calls.filter((call) => call[0] === "moveTo");
   assert.equal(moveToCalls.length, 2);
 });
+
+// --- resolveBackingResolution (#474 — DPR-aware crisp Canvas backing) --------------------------
+
+test("resolveBackingResolution leaves the default (referenceSize CSS px @ DPR 1) unchanged", () => {
+  const { backingPixels, viewport } = OL.resolveBackingResolution({
+    referenceSize: 500,
+    renderedCssSize: 500,
+    devicePixelRatio: 1,
+  });
+  assert.equal(backingPixels, 500);
+  assert.deepEqual(viewport, { width: 500, height: 500, scale: 1 });
+});
+
+test("resolveBackingResolution sizes the backing store to renderedCssSize * devicePixelRatio", () => {
+  // The acceptance example: 900 CSS px on a devicePixelRatio=2 display -> 1800x1800 backing.
+  const { backingPixels, viewport } = OL.resolveBackingResolution({
+    referenceSize: 500,
+    renderedCssSize: 900,
+    devicePixelRatio: 2,
+  });
+  assert.equal(backingPixels, 1800);
+  assert.equal(viewport.width, 1800);
+  assert.equal(viewport.height, 1800);
+  // scale = backingPixels / referenceSize, so the 500-unit reference extent fills the backing.
+  assert.equal(viewport.scale, 1800 / 500);
+});
+
+test("resolveBackingResolution keeps a HiDPI canvas crisp at its default CSS size", () => {
+  // Same 500 CSS px, but on a retina display: 1000x1000 backing at scale 2 — sharper, same picture.
+  const { backingPixels, viewport } = OL.resolveBackingResolution({
+    referenceSize: 500,
+    renderedCssSize: 500,
+    devicePixelRatio: 2,
+  });
+  assert.equal(backingPixels, 1000);
+  assert.equal(viewport.scale, 2);
+});
+
+test("resolveBackingResolution rounds a fractional device-pixel product to a whole backing size", () => {
+  const { backingPixels } = OL.resolveBackingResolution({
+    referenceSize: 500,
+    renderedCssSize: 333,
+    devicePixelRatio: 1.5,
+  });
+  // 333 * 1.5 = 499.5 -> rounds to 500 (a canvas backing store must be an integer pixel count).
+  assert.equal(backingPixels, 500);
+});
+
+test("resolveBackingResolution falls back to referenceSize when renderedCssSize is unusable (pre-layout 0 / NaN)", () => {
+  for (const renderedCssSize of [
+    0,
+    -10,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+  ]) {
+    const { backingPixels, viewport } = OL.resolveBackingResolution({
+      referenceSize: 500,
+      renderedCssSize,
+      devicePixelRatio: 1,
+    });
+    assert.equal(backingPixels, 500, `renderedCssSize ${renderedCssSize}`);
+    assert.equal(viewport.scale, 1, `renderedCssSize ${renderedCssSize}`);
+  }
+});
+
+test("resolveBackingResolution falls back to devicePixelRatio 1 when it is unusable (0 / NaN)", () => {
+  for (const devicePixelRatio of [
+    0,
+    -2,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+  ]) {
+    const { backingPixels } = OL.resolveBackingResolution({
+      referenceSize: 500,
+      renderedCssSize: 900,
+      devicePixelRatio,
+    });
+    assert.equal(backingPixels, 900, `devicePixelRatio ${devicePixelRatio}`);
+  }
+});
+
+test("resolveBackingResolution never produces a zero-size backing store", () => {
+  const { backingPixels, viewport } = OL.resolveBackingResolution({
+    referenceSize: 500,
+    renderedCssSize: 0.2,
+    devicePixelRatio: 0.2,
+  });
+  // 0.2 * 0.2 = 0.04 -> rounds to 0, but a canvas backing store must be at least 1x1.
+  assert.equal(backingPixels, 1);
+  assert.equal(viewport.width, 1);
+  assert.equal(viewport.height, 1);
+});
+
+test("resolveBackingResolution rejects a non-positive/non-finite referenceSize (programming error)", () => {
+  for (const referenceSize of [0, -500, Number.NaN, Number.POSITIVE_INFINITY]) {
+    assert.throws(
+      () =>
+        OL.resolveBackingResolution({
+          referenceSize,
+          renderedCssSize: 900,
+          devicePixelRatio: 2,
+        }),
+      RangeError,
+      `referenceSize ${referenceSize}`,
+    );
+  }
+});
+
+// Slice B (#474): world-unit *presentation* dimensions (avatar size, overlay marker/stroke widths)
+// must flow through the viewport scale exactly like coordinates and pen width — otherwise they would
+// stay a fixed number of BACKING pixels and visibly shrink as the backing store grows for a larger
+// or high-DPI canvas, so the picture would NOT look the same (only crisper). These prove each keeps a
+// constant ON-SCREEN size across devicePixelRatio while world geometry stays identical.
+const dprBacking = (renderedCssSize, devicePixelRatio) =>
+  OL.resolveBackingResolution({
+    referenceSize: 500,
+    renderedCssSize,
+    devicePixelRatio,
+  });
+
+test("the avatar keeps a constant on-screen size as the backing store grows (scales with the viewport)", () => {
+  const circleState = {
+    position: [0, 0],
+    heading: 0,
+    shape: "circle",
+    color: "green",
+    visible: true,
+  };
+  const emptyScene = { background: "white", items: [] };
+  const avatarRadius = (renderedCssSize, devicePixelRatio) => {
+    const { target, calls } = makeRecordingTarget();
+    const { viewport } = dprBacking(renderedCssSize, devicePixelRatio);
+    OL.paintTurtle(target, emptyScene, circleState, viewport);
+    return calls.find((call) => call[0] === "arc")[3];
+  };
+
+  // 500 CSS @ DPR 1 => scale 1 => radius AVATAR_SIZE/2 = 5 backing px (unchanged from before this slice).
+  assert.equal(avatarRadius(500, 1), 5);
+  // Same 500 CSS @ DPR 2 => backing 1000, scale 2 => 10 backing px, i.e. STILL 5 CSS px (crisper, not smaller).
+  assert.equal(avatarRadius(500, 2), 10);
+  // Proof of constant on-screen size: radius as a fraction of the backing store is identical across DPR.
+  assert.equal(
+    avatarRadius(500, 1) / dprBacking(500, 1).backingPixels,
+    avatarRadius(500, 2) / dprBacking(500, 2).backingPixels,
+  );
+});
+
+test("the axes overlay keeps a constant on-screen stroke width across DPR (scales with the viewport)", () => {
+  const axesLineWidth = (renderedCssSize, devicePixelRatio) => {
+    const { target, calls } = makeRecordingTarget();
+    const { viewport } = dprBacking(renderedCssSize, devicePixelRatio);
+    OL.paintOverlay(target, { axes: true }, viewport);
+    return calls.find((call) => call[0] === "set lineWidth")[1];
+  };
+
+  assert.equal(axesLineWidth(500, 1), 2); // AXES_LINE_WIDTH at scale 1 — unchanged.
+  assert.equal(axesLineWidth(500, 2), 4); // doubled backing px = same on-screen width.
+  assert.equal(
+    axesLineWidth(500, 1) / dprBacking(500, 1).backingPixels,
+    axesLineWidth(500, 2) / dprBacking(500, 2).backingPixels,
+  );
+});
+
+test("the measure overlay marker + tick keep a constant on-screen size across DPR (scales with the viewport)", () => {
+  const measureDims = (renderedCssSize, devicePixelRatio) => {
+    const { target, calls } = makeRecordingTarget();
+    const { viewport } = dprBacking(renderedCssSize, devicePixelRatio);
+    OL.paintOverlay(
+      target,
+      { axes: false, measure: { position: [0, 0], heading: 0 } },
+      viewport,
+    );
+    return {
+      radius: calls.find((call) => call[0] === "arc")[3],
+      tickWidth: calls.find((call) => call[0] === "set lineWidth")[1],
+    };
+  };
+
+  // MEASURE_MARKER_RADIUS / MEASURE_TICK_WIDTH at scale 1 — unchanged from before this slice.
+  assert.deepEqual(measureDims(500, 1), { radius: 4, tickWidth: 1 });
+  // Doubled backing px = same on-screen marker + tick.
+  assert.deepEqual(measureDims(500, 2), { radius: 8, tickWidth: 2 });
+  const base = measureDims(500, 1);
+  const hidpi = measureDims(500, 2);
+  const baseBacking = dprBacking(500, 1).backingPixels;
+  const hidpiBacking = dprBacking(500, 2).backingPixels;
+  assert.equal(base.radius / baseBacking, hidpi.radius / hidpiBacking);
+  assert.equal(base.tickWidth / baseBacking, hidpi.tickWidth / hidpiBacking);
+});
+
+test("world geometry is provably identical across every backing resolution (no drift)", () => {
+  // The core acceptance guarantee: world coordinates, headings, and segment endpoints map to the
+  // same NORMALIZED target position (fraction of the backing store) regardless of rendered size or
+  // devicePixelRatio. We prove it by mapping a spread of world points through the viewport
+  // resolveBackingResolution returns for several very different resolutions and asserting the
+  // normalized results match the 500x500 @ DPR 1 baseline — and the resolution-independent closed
+  // form `0.5 +/- world/referenceSize` — to within a tolerance far below any sub-pixel drift.
+  // (Exact bitwise equality is unattainable: `worldToTarget` computes `center + world*scale` then
+  // divides by `backingPixels` at genuinely different magnitudes per resolution, so IEEE-754
+  // rounding lands in the last ~1e-15 of the mantissa. EPSILON is ~4 orders of magnitude tighter
+  // than a single device pixel even on an 1800px backing, so anything within it is provably not a
+  // real coordinate shift.)
+  const EPSILON = 1e-9;
+  const referenceSize = 500;
+  const worldPoints = [
+    [0, 0],
+    [100, 0],
+    [-100, 0],
+    [0, 100],
+    [0, -100],
+    [123.5, -67.25],
+    [-249, 249],
+  ];
+  const resolutions = [
+    { renderedCssSize: 500, devicePixelRatio: 1 }, // baseline / default
+    { renderedCssSize: 900, devicePixelRatio: 2 }, // wide HiDPI (1800x1800)
+    { renderedCssSize: 500, devicePixelRatio: 2 }, // retina at default CSS size
+    { renderedCssSize: 1200, devicePixelRatio: 1 }, // very wide standard display
+    { renderedCssSize: 333, devicePixelRatio: 1.5 }, // fractional product
+  ];
+
+  const normalizedFor = ({ renderedCssSize, devicePixelRatio }) => {
+    const { backingPixels, viewport } = OL.resolveBackingResolution({
+      referenceSize,
+      renderedCssSize,
+      devicePixelRatio,
+    });
+    return worldPoints.map((point) => {
+      const [targetX, targetY] = OL.worldToTarget(point, viewport);
+      return [targetX / backingPixels, targetY / backingPixels];
+    });
+  };
+
+  const baseline = normalizedFor(resolutions[0]);
+  // The baseline matches the resolution-independent closed form 0.5 +/- world/referenceSize.
+  baseline.forEach(([nx, ny], index) => {
+    const [worldX, worldY] = worldPoints[index];
+    assert.ok(Math.abs(nx - (0.5 + worldX / referenceSize)) < EPSILON);
+    assert.ok(Math.abs(ny - (0.5 - worldY / referenceSize)) < EPSILON);
+  });
+  for (const resolution of resolutions.slice(1)) {
+    const normalized = normalizedFor(resolution);
+    normalized.forEach(([nx, ny], index) => {
+      const [baseX, baseY] = baseline[index];
+      const where = `renderedCssSize ${resolution.renderedCssSize} @ DPR ${resolution.devicePixelRatio}, point ${index}`;
+      assert.ok(
+        Math.abs(nx - baseX) < EPSILON,
+        `normalized x drifted at ${where}`,
+      );
+      assert.ok(
+        Math.abs(ny - baseY) < EPSILON,
+        `normalized y drifted at ${where}`,
+      );
+    });
+  }
+});

@@ -52,9 +52,11 @@ export {
   paintTurtle,
   playWithMotionPreference,
   renderFrame,
+  resolveBackingResolution,
   worldToTarget,
 } from "./canvas.js";
 export type {
+  BackingResolution,
   MotionPreference,
   MotionPreferencePlayer,
   ReducedMotionSource,

@@ -124,10 +124,18 @@ export interface CanvasViewOptions {
 
 /** The headless Canvas view controller. Paints the shared state model's turtle state/scene. */
 export interface CanvasViewController {
-  /** The viewport this controller paints at. */
+  /** The viewport this controller currently paints at (updated by {@link setViewport}). */
   readonly viewport: Viewport;
   /** Repaint the target from the state model's current `turtleState`/`turtleScene`. */
   repaint(): void;
+  /**
+   * Adopt a new {@link Viewport} — the DPR-aware backing size + scale studio recomputes when the
+   * canvas is resized or the display's `devicePixelRatio` changes (#474). The next {@link repaint}
+   * paints through it. Only the raster resolution changes: `@openlogo/turtle`'s `worldToTarget`
+   * maps every world coordinate to the same *normalized* target position at any viewport
+   * (`resolveBackingResolution`), so turtle positions, headings, and segment endpoints never drift.
+   */
+  setViewport(viewport: Viewport): void;
 }
 
 /**
@@ -141,13 +149,19 @@ export function createCanvasViewController(
   options: CanvasViewOptions,
 ): CanvasViewController {
   const renderTarget = createCanvasRenderTarget(options.target);
+  let viewport = options.viewport;
 
   function paint(turtleState: TurtleState, turtleScene: TurtleScene): void {
-    paintTurtle(renderTarget, turtleScene, turtleState, options.viewport);
+    paintTurtle(renderTarget, turtleScene, turtleState, viewport);
   }
 
   return {
-    viewport: options.viewport,
+    get viewport(): Viewport {
+      return viewport;
+    },
+    setViewport(next: Viewport): void {
+      viewport = next;
+    },
     repaint() {
       const { turtleState, turtleScene } = state.getState();
       paint(turtleState, turtleScene);
