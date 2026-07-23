@@ -106,7 +106,10 @@ import type {
   RunStatus,
 } from "../src/index.js";
 import type { Diagnostic, DiagnosticSeverity } from "@openlogo/core";
-import { IMMEDIATE_SCHEDULER } from "@openlogo/turtle";
+import {
+  IMMEDIATE_SCHEDULER,
+  resolveBackingResolution,
+} from "@openlogo/turtle";
 
 const lessonPaneElement = assertPresent<HTMLElement>(
   document.getElementById("lesson-pane"),
@@ -329,6 +332,61 @@ const canvasView = createCanvasViewController(state, {
   viewport: { width: canvasElement.width, height: canvasElement.height },
 });
 mountCanvasView(shell, canvasView);
+
+// #474 — keep the turtle Canvas crisp at any rendered size / device pixel ratio. The `<canvas>`'s
+// original `width`/`height` attributes are the design reference extent: at that CSS size on a
+// `devicePixelRatio === 1` display the backing store is unchanged, so nothing regresses at the
+// default. As Slice A's `width:100%`/`aspect-ratio` CSS grows the canvas, or on a HiDPI display,
+// `resolveBackingResolution` (pure scale math in `@openlogo/turtle`, no DOM) resizes the backing
+// store to `renderedCssSize * devicePixelRatio` and returns the `Viewport` scale to paint through,
+// so the drawing fills the pane at full sharpness. `clientWidth` is the canvas's content-box width
+// (the area the bitmap is stretched over, excluding the 1px border under the global `border-box`),
+// so device pixels map 1:1. World coordinates, headings, and segment
+// endpoints are provably identical to the default case (proven in `@openlogo/turtle`'s
+// `resolveBackingResolution` geometry-invariance test) — only the raster resolution improves. The
+// repaint is a single deterministic frame from the retained scene (never a re-run and not an
+// animation), so it is inherently reduced-motion-safe, and the canvas's `role="img"`/`aria-label`
+// and the separate non-visual turtle-state description are untouched here.
+const canvasReferenceSize = canvasElement.width;
+function syncCanvasResolution(): void {
+  const { backingPixels, viewport } = resolveBackingResolution({
+    referenceSize: canvasReferenceSize,
+    renderedCssSize: canvasElement.clientWidth,
+    devicePixelRatio: window.devicePixelRatio,
+  });
+  // Assigning `width`/`height` clears the canvas surface, so only touch it when the backing size
+  // actually changes — an unconditional write on every observer callback would needlessly blank
+  // and repaint the pane.
+  if (canvasElement.width !== backingPixels) {
+    canvasElement.width = backingPixels;
+    canvasElement.height = backingPixels;
+  }
+  canvasView.setViewport(viewport);
+  canvasView.repaint();
+}
+// Paint once at the correct resolution as soon as layout is known, then whenever the canvas's
+// rendered CSS size changes (`ResizeObserver`) or the display's `devicePixelRatio` changes
+// (`matchMedia` on a `dppx` query — e.g. browser zoom or dragging the window to a different-DPI
+// monitor, which a `ResizeObserver` alone can miss when the CSS box stays the same). Both are pure
+// DOM signals; all the scale math lives in `@openlogo/turtle`.
+syncCanvasResolution();
+new ResizeObserver(() => {
+  syncCanvasResolution();
+}).observe(canvasElement);
+function observeDevicePixelRatioChanges(): void {
+  window
+    .matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`)
+    .addEventListener(
+      "change",
+      () => {
+        syncCanvasResolution();
+        // Re-arm for the new ratio — a `dppx` media query only fires while the ratio matches.
+        observeDevicePixelRatioChanges();
+      },
+      { once: true },
+    );
+}
+observeDevicePixelRatioChanges();
 
 mountDiagnosticsPane(shell, createDiagnosticsController(state));
 

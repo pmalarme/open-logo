@@ -97,6 +97,80 @@ export function worldToTarget(
   return [centerX + worldX * scale, centerY - worldY * scale];
 }
 
+/**
+ * The backing-store pixel size and the {@link Viewport} to paint through so the Canvas surface
+ * stays crisp when it is displayed larger than its default design size, or on a high-DPI display,
+ * **without moving a single world coordinate** (#474 — `spec/rendering.md`'s "Coordinate mapping
+ * and viewport": pan/zoom-style view transforms "MUST NOT change the retained scene, turtle
+ * coordinates, exported world geometry, or program-visible values").
+ *
+ * `backingPixels` is what the DOM `<canvas>`'s `width`/`height` (its device-pixel backing store)
+ * should be set to; `viewport` is what {@link paintTurtle}/{@link paintScene} paint through. Its
+ * `scale` (target pixels per world unit — also applied to pen width, `spec/rendering.md`'s
+ * "Width") is chosen as `backingPixels / referenceSize` so the fixed `referenceSize` world extent
+ * always fills the backing store identically at any resolution.
+ */
+export interface BackingResolution {
+  /** The device-pixel backing size to assign to the canvas's `width`/`height`. Always `>= 1`. */
+  readonly backingPixels: number;
+  /** The square viewport (`width === height === backingPixels`) and its world-to-target scale. */
+  readonly viewport: Viewport;
+}
+
+/** Returns `value` when it is a finite positive number, otherwise `fallback`. Guards the two
+ * DOM-sourced inputs of {@link resolveBackingResolution} (`renderedCssSize`, `devicePixelRatio`),
+ * which can legitimately be `0`/`NaN` before layout settles or in headless environments. */
+function finitePositiveOr(value: number, fallback: number): number {
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+/**
+ * Compute the DPR-aware backing resolution for a **square** Canvas surface (#474). Pure scale math
+ * only — no DOM: the caller (studio) reads `renderedCssSize` (the canvas's rendered CSS width) and
+ * `devicePixelRatio` from the browser and applies the returned `backingPixels`/`viewport`.
+ *
+ * The world-to-target mapping is invariant across resolutions: because `scale =
+ * backingPixels / referenceSize` and the viewport is `backingPixels` wide, every world point's
+ * *normalized* target position — `worldToTarget(point) / backingPixels` — reduces to
+ * `0.5 + worldX / referenceSize` (and `0.5 - worldY / referenceSize`), which depends only on the
+ * fixed `referenceSize`, never on `renderedCssSize` or `devicePixelRatio`. Enlarging the canvas or
+ * moving to a HiDPI display therefore adds raster pixels without any geometry drift; at
+ * `renderedCssSize === referenceSize` and `devicePixelRatio === 1` the result is the unchanged
+ * default (`backingPixels === referenceSize`, `scale === 1`).
+ *
+ * @throws RangeError if `referenceSize` is not a finite positive number (an internal design
+ *   constant, so an invalid value is a programming error rather than transient DOM state).
+ */
+export function resolveBackingResolution(options: {
+  /** The design reference extent, in CSS pixels — the canvas's default square backing size. */
+  readonly referenceSize: number;
+  /** The canvas's current rendered CSS width, in CSS pixels. */
+  readonly renderedCssSize: number;
+  /** The display's `window.devicePixelRatio`. */
+  readonly devicePixelRatio: number;
+}): BackingResolution {
+  const { referenceSize } = options;
+  if (!(Number.isFinite(referenceSize) && referenceSize > 0)) {
+    throw new RangeError(
+      `resolveBackingResolution: referenceSize must be a finite positive number, got ${referenceSize}`,
+    );
+  }
+  const devicePixelRatio = finitePositiveOr(options.devicePixelRatio, 1);
+  const renderedCssSize = finitePositiveOr(
+    options.renderedCssSize,
+    referenceSize,
+  );
+  const backingPixels = Math.max(
+    1,
+    Math.round(renderedCssSize * devicePixelRatio),
+  );
+  const scale = backingPixels / referenceSize;
+  return {
+    backingPixels,
+    viewport: { width: backingPixels, height: backingPixels, scale },
+  };
+}
+
 const DEGREES_TO_RADIANS = Math.PI / 180;
 
 /**

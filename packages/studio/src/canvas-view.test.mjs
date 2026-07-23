@@ -277,3 +277,33 @@ test("setTurtleState/setTurtleScene replace the shared snapshot, observed by eve
   state.setTurtleScene(nextTurtleScene);
   assert.equal(state.getState().turtleScene, nextTurtleScene);
 });
+
+test("setViewport adopts a new viewport that the next repaint() paints through (#474 DPR resize)", () => {
+  const state = OL.createStudioState();
+  const context = createRecordingContext();
+  const controller = OL.createCanvasViewController(state, {
+    target: context,
+    viewport: VIEWPORT,
+  });
+
+  // A DPR-aware resize: 400x400 backing at scale 1 grows to an 1800x1800 backing at scale 3.6.
+  const enlarged = { width: 1800, height: 1800, scale: 3.6 };
+  controller.setViewport(enlarged);
+  assert.deepEqual(
+    controller.viewport,
+    enlarged,
+    "the controller must expose the viewport most recently set",
+  );
+
+  controller.repaint();
+
+  // The background fill spans the NEW backing size, and the avatar sits at the new center, proving
+  // repaint() paints through the updated viewport rather than the one captured at construction.
+  assert.deepEqual(context.calls[0], ["fillRect", 0, 0, 1800, 1800]);
+  const saveIndex = context.calls.findIndex((call) => call[0] === "save");
+  assert.deepEqual(
+    context.calls[saveIndex + 1],
+    ["translate", 900, 900],
+    "the avatar must translate to the enlarged viewport's center",
+  );
+});
