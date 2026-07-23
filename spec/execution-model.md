@@ -505,6 +505,19 @@ pair is encountered again while in progress, that pair is treated as equal for
 that branch. This pair memoization, not identity short-circuiting alone, is
 normative and covers distinct but isomorphic cycles.
 
+Rendering a value's printed form — the text produced for `print`, `show`, or a
+`throw`'s learner-facing message — must terminate on cyclic or shared structure
+by the same means: implementations maintain a memo set of the reference values
+(list, dict, or record) currently being rendered on the current path, and a
+reference already on that path is rendered as a bounded, implementation-defined
+placeholder (for example an ellipsis or a repeated-reference marker) instead of
+being recursed into again. This mirrors the pair-memoization requirement for
+structural equality above, applies to any value reachable through a cyclic or
+repeatedly-shared reference chain, and MUST NOT allow rendering to overflow the
+host call stack; an implementation that would otherwise overflow instead raises
+the friendly `ol-limit` diagnostic defined in [error-model.md](error-model.md),
+which — per that document — MUST NOT itself expose a host stack overflow.
+
 Ordering operators `<`, `>`, `<=`, and `>=` are defined only for numbers and
 words. Numbers compare numerically. Words compare lexicographically by Unicode
 code point. Other ordered pairs raise `ol-type`.
@@ -580,6 +593,15 @@ There are two timing classes:
 A step is the span from one `instruction` event to the next. The `instruction`
 event is the unit of "one step"; effect events caused by that instruction follow
 it before the next `instruction`.
+
+An effect event's `payload` captures the value or values it describes as a
+point-in-time snapshot taken at the moment of emission, not a live reference to
+mutable state. When a payload includes a list, dict, or record, its contents are
+captured as of that instant; a later mutation through that same reference (see
+the mutation-and-copy table above) MUST NOT retroactively change the payload of
+an event already emitted. This snapshot rule is what makes deterministic replay,
+stepping, and `why`/`debug` inspection of prior events well-defined even though
+OpenLogo's list, dict, and record values are ordinarily mutable references.
 
 Normative `kind` values:
 
