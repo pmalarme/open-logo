@@ -30,7 +30,7 @@ Consumers that load lesson content from an untyped source (e.g. JSON) can valida
 exported `isLesson`/`isWorkedExample`/`isLearnerLevel` type guards. Do not invent a competing
 lesson-content shape elsewhere in the codebase — extend this contract instead.
 
-## Curriculum content: Level 1, Level 2, and Level 3
+## Curriculum content: Level 1 through Level 5
 
 `src/lessons/` holds the first authored curriculum content, built on top of the read-only
 `Lesson` contract above:
@@ -56,6 +56,25 @@ lesson-content shape elsewhere in the codebase — extend this contract instead.
   `:size` square verbatim; the graded exercises introduce `:size` into a fixed square, resize it
   once with the worded form, then reuse the single `:size` name across a resizable house's walls
   and roof together, so one change resizes the whole shape.
+- `lessons/level-4.ts` — the Level 4 lesson ("A condition must already be true or false") +
+  graded exercises, covering `if … else`, the comparisons `==`/`!=`/`<`/`>`/`<=`/`>=`, the boolean
+  combinators `and`/`or`/`not`, and a worded predicate such as `is between`
+  (`spec/educational-model.md:123-154`). The first worked example reproduces the spec's
+  `:sides == 4` color-choice program verbatim; the graded exercises follow the same
+  compose-a-recognizable-object rule: a guided single-operator change (`==` to `!=`), a practice
+  single-operator change (`!=` to `>=`) on the same shape and value, then a challenge that
+  reuses Level 3's house and colors it with one condition on `:size`.
+- `lessons/level-5.ts` — the Level 5 lesson ("`define` names a reusable idea; `return` hands
+  back its answer") + graded exercises, covering `define … end` procedures, parameters as
+  variables scoped to the procedure, `return` for reporters, and `local` for a procedure's own
+  scratch variable (`spec/educational-model.md:156-203`). The worked examples reproduce the
+  spec's `polygon` and `double` examples verbatim — `polygon` is always built up from `repeat`,
+  never handed over as an opaque primitive. The graded exercises ramp from a single-line change
+  to the lesson's `polygon` call (guided), to a new `triangle` procedure that calls `polygon`
+  (practice), to composing `spec/examples/06-geometry.logo`'s `polygon` → `triangle` → `house`
+  chain and calling `house` twice to build a small street (challenge) — procedure reuse, not
+  recursion; Heritage's `to … end`/`output` spellings are mentioned in prose only, taught after
+  `define`/`return`.
 - `lessons/exercise.ts` — the `Exercise` contract: a graded exercise additive to `Lesson`
   (`lessonId`, a `LearnerLevel`, a `"guided" | "practice" | "challenge"` difficulty, a prompt,
   and a runnable `referenceSolution`). `Lesson` itself only carries a single `exercisePrompt`
@@ -66,6 +85,6 @@ lesson-content shape elsewhere in the codebase — extend this contract instead.
 
 Every worked example and reference solution is executed against `@openlogo/runtime` in this
 package's tests, so lesson content can never drift from real execution behavior. Later levels
-(Level 4 onward) add their own `lessons/level-N.ts` module and extend the registry additively —
+(Level 6 onward) add their own `lessons/level-N.ts` module and extend the registry additively —
 no shared file needs an ever-growing literal, and no level uses a concept from a later level
 (`spec/educational-model.md:37`'s discovery guardrail).
