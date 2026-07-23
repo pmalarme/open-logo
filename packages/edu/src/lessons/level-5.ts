@@ -32,7 +32,7 @@ export const level5Lessons: readonly Lesson[] = [
     title: "define names a reusable idea; return hands back its answer",
     level: "5",
     objective:
-      "See that define … end names a reusable procedure and that parameters such as :sides and :size are variables scoped to it, so calling the procedure again with different values reuses the same steps — the procedure reuse the exercises practice. return (a reporter handing a value back) and local (a procedure's own private variable) are supporting ideas the worked examples show. Learners build polygon from repeat; it is never introduced as a black-box drawing trick. Heritage spellings to … end and output are recognized, but define and return are taught first.",
+      "See that define … end names a reusable procedure and that parameters such as :sides and :size are variables scoped to it, so calling the procedure again with different values reuses the same steps — the procedure reuse the exercises practice. return (a reporter handing a value back) and local (a procedure's own private variable) are supporting ideas the worked examples show. Learners build polygon from repeat; it is never introduced as a black-box drawing trick.",
     workedExamples: [
       {
         source: [
@@ -154,7 +154,7 @@ export const level5Exercises: readonly Exercise[] = [
     level: "5",
     difficulty: "challenge",
     prompt:
-      "This is the composition step (spec/educational-model.md's compose-a-recognizable-object rule, issue #359), not a single-line change: reuse spec/examples/06-geometry.logo's polygon → triangle → house chain (a square body plus a triangular roof, both of side :size) to define house :size, then call house 70 twice — stepping to the next plot between calls with the relative movement you already know (pen_up, then turns and forward moves, then pen_down) so the two houses sit side by side as a small street. Reposition using relative turns and movement, not an absolute-placement command (that comes at Level 6). Reuse the already-defined house by calling it again; do not make house call itself.",
+      "This is the composition step (spec/educational-model.md's compose-a-recognizable-object rule, issue #359), not a single-line change: reuse spec/examples/06-geometry.logo's polygon → triangle → house chain (a square body plus a triangular roof, both of side :size) to define house :size, then call house 70 twice — stepping to the next plot between calls with the relative movement you already know (pen_up, then turns and forward moves, then pen_down) so the two houses sit side by side as a small street. Reposition using only turns and forward moves you already know. Reuse the already-defined house by calling it again; do not make house call itself.",
     referenceSolution: {
       source: [
         "# why: polygon is the side-and-turn pattern with names for the parts",
@@ -187,7 +187,7 @@ export const level5Exercises: readonly Exercise[] = [
         "",
         "# why: step to the next plot with relative moves only — turn to face across the",
         "# street, cross the gap, come back down to the ground, and face up again — so the",
-        "# pen never draws and no absolute placement is used (that comes at Level 6)",
+        "# pen never draws while moving to the next plot",
         "pen_up",
         "right 180",
         "forward 70",
@@ -199,7 +199,7 @@ export const level5Exercises: readonly Exercise[] = [
         "house 70",
       ].join("\n"),
       explanation:
-        "house :size is defined once and reused: the first house 70 draws a square body and triangular roof, leaving the turtle at the top of the house facing left. pen_up lifts the pen, then relative moves only — right 180 to face across the street, forward 70 over the gap, right 90 then forward 70 down to the ground, right 180 to face up again — carry the turtle to the next plot without drawing and without any absolute placement (the Level 6 way, not yet taught). pen_down and a second house 70 call the very same procedure again, so two identical houses stand side by side — a small street built by reusing one procedure twice rather than defining it twice or having it call itself.",
+        "house :size is defined once and reused: the first house 70 draws a square body and triangular roof, leaving the turtle at the top of the house facing left. pen_up lifts the pen, then relative moves only — right 180 to face across the street, forward 70 over the gap, right 90 then forward 70 down to the ground, right 180 to face up again — carry the turtle to the next plot without drawing, using only the turns and forward moves already taught. pen_down and a second house 70 call the very same procedure again, so two identical houses stand side by side — a small street built by reusing one procedure twice rather than defining it twice or having it call itself.",
     },
   },
 ];
