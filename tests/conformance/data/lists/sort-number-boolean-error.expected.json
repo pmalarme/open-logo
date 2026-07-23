@@ -1,0 +1,35 @@
+{
+  "description": "`sort` on a list mixing a number and a boolean raises `ol-type` — the category is established by the first element (`number`), and every later element must match it (spec/data-structures.md:141). Issue #513 (M4 re-audit finding G6).",
+  "profiles": ["data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/lists/sort-number-boolean-error",
+        "start": [1, 1],
+        "end": [1, 20]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "data/lists/sort-number-boolean-error",
+        "start": [1, 12],
+        "end": [1, 20]
+      },
+      "params": {
+        "expected": "number",
+        "actual": "boolean",
+        "value": true,
+        "operation": "sort"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

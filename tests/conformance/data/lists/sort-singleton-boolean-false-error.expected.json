@@ -1,0 +1,35 @@
+{
+  "description": "`sort` on `[false]` raises `ol-type` too — the singleton orderability check applies to every boolean value, not just `true` (spec/data-structures.md:141). Issue #513 (M4 re-audit finding G6).",
+  "profiles": ["data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/lists/sort-singleton-boolean-false-error",
+        "start": [1, 1],
+        "end": [1, 19]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "data/lists/sort-singleton-boolean-false-error",
+        "start": [1, 12],
+        "end": [1, 19]
+      },
+      "params": {
+        "expected": "number or word",
+        "actual": "boolean",
+        "value": false,
+        "operation": "sort"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

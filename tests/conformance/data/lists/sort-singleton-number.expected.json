@@ -1,0 +1,28 @@
+{
+  "description": "`sort` on a singleton number list `[5]` passes the orderability check (its one element is a number) and returns `[5]` unchanged (spec/data-structures.md:141). Issue #513 (M4 re-audit finding G6).",
+  "profiles": ["data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/lists/sort-singleton-number",
+        "start": [1, 1],
+        "end": [1, 15]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "data/lists/sort-singleton-number",
+        "start": [1, 1],
+        "end": [1, 15]
+      },
+      "payload": { "values": [[5]] }
+    }
+  ],
+  "diagnostics": []
+}

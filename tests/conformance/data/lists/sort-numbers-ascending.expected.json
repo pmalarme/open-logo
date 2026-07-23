@@ -1,0 +1,28 @@
+{
+  "description": "`sort` on a multi-element number list `[3 1 2]` orders numerically ascending, per the same ordering `<`/`>`/`<=`/`>=` already define over numbers (spec/data-structures.md:141). Issue #513 (M4 re-audit finding G6).",
+  "profiles": ["data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/lists/sort-numbers-ascending",
+        "start": [1, 1],
+        "end": [1, 19]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "data/lists/sort-numbers-ascending",
+        "start": [1, 1],
+        "end": [1, 19]
+      },
+      "payload": { "values": [[1, 2, 3]] }
+    }
+  ],
+  "diagnostics": []
+}

@@ -1,0 +1,28 @@
+{
+  "description": "`sort` on a singleton word list `[\"a\"]` passes the orderability check (its one element is a word) and returns `[\"a\"]` unchanged (spec/data-structures.md:141). Issue #513 (M4 re-audit finding G6).",
+  "profiles": ["data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/lists/sort-singleton-word",
+        "start": [1, 1],
+        "end": [1, 17]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "data/lists/sort-singleton-word",
+        "start": [1, 1],
+        "end": [1, 17]
+      },
+      "payload": { "values": [["a"]] }
+    }
+  ],
+  "diagnostics": []
+}
