@@ -438,6 +438,21 @@ and `reduce` (its item binder, not the accumulator). Records destructure in
 declared field order; lists destructure by item order. A short or long pattern
 mismatch raises `ol-range`.
 
+Profile ownership of this binder-pattern behavior follows the value being
+destructured, not the iteration form: `for ... in`, `map`, `filter`, and
+`reduce` are themselves Core control/comprehension forms, so a destructuring
+pattern applied to a plain **list** item (positional unpacking of `[ ]`
+elements, as in `for [:x :y] in [[1 2] [3 4]]`) is **Core** — it needs only
+Core list values and the Core `binder ::= name | destructuring-pattern`
+grammar production. The same pattern applied to a **record** item — as in the
+`:corners` example above, which destructures `point` records in declared field
+order — requires the **Data** profile, because `record` values, `struct`
+declarations, and declared field order are Data-profile concepts (see
+[conformance.md#data](conformance.md#data)); an implementation that claims only
+Core Language and Turtle & Rendering supports list-binder destructuring but
+does not support record-binder destructuring, since it has no record values to
+destructure.
+
 ```logo
 :corners = (list (point 0 0) (point 100 90))
 :xs = map [:x :y] in :corners [ :x ]
