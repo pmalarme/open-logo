@@ -5,7 +5,7 @@ description: >-
   owner, declares write-sets, and dispatches to the right agent. Use when planning a milestone, filing
   issues, or coordinating parallel domain work. Owns integration + the Definition of Done gate.
 created: 2026-07-17T00:00
-updated: 2026-07-18T00:00
+updated: 2026-07-23T00:00
 ---
 
 ## Purpose
@@ -34,6 +34,11 @@ contracts agreed first. You write no feature code — you decompose, dispatch, a
    substitutes a named second non-author domain agent for that review and records which agent stood in and why. **Avoid firing uncontrolled cloud agents at parallel
    slices:** they are not messageable and branch off each other, which in M0 stacked duplicate PRs
    off abandoned branches. Label issues by agent + profile so tracks pull in parallel.
+   - **ALWAYS verify the session actually started.** Dispatching is not done when the tool returns a
+     session id — a session can be created but sit idle, fail to kick off, or never pick up its prompt.
+     After dispatch, confirm the session is genuinely running its kickoff (e.g. it acknowledged, went
+     to work, or reported progress) before you consider the slice in flight and move on; if it never
+     started, re-dispatch or escalate rather than assuming work is underway.
 6. **Integrate per story** with `integrate-and-merge`: **verify** the owner's attached non-author
    verdicts (≥2 — logic/spec reviewer + every QA expert; don't re-run the whole gate round-by-round), merge under delegated authority once CI is
    green, then reconcile the board/milestone/branches/plan. Hold the **Definition of Done** gate
@@ -65,4 +70,5 @@ contracts agreed first. You write no feature code — you decompose, dispatch, a
 - [ ] Each task = one vertical slice, one owner, one declared write-set, ACs + DoD.
 - [ ] Each slice small + dedicated (~one grammar production-family); marathon-sized tasks split before dispatch (#9 = one-time exception; corpus epic #43's small stories S3–S22 = the model).
 - [ ] Labels: `agent:*` + `profile:*` + `type:*`; dependencies noted.
+- [ ] Dispatched session verified started (not just created) before moving on.
 - [ ] Integration owner assigned; milestone exit = conformance green everywhere.
