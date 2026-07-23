@@ -83,6 +83,7 @@ import {
   isSupportedArgument,
   printedForm,
   pushLoopFrame,
+  snapshotValue,
   requireNumber,
   requireWholeNumber,
   type AssignResult,
@@ -1683,6 +1684,61 @@ function dispatchAssignOrListMutator(
 }
 
 /**
+ * Executes a `print value1 [value2 ...]` statement (`spec/commands.md`'s `print`) once
+ * {@link executeStatements} has confirmed it via {@link isPrintCall}. Extracted into its own
+ * function for the same reason {@link dispatchTurtleCommand}'s doc comment gives: `executeStatements`
+ * recurses once per procedure call, so keeping this arity/evaluation/snapshot logic (including the
+ * per-print `snapshotValue` memo, issue #495's point-in-time-snapshot rule) out of its body keeps
+ * its own stack frame size fixed — inlining it there is exactly what pushed the 600-deep
+ * `recursionDepthLimit: 1000` regression test (`execution-budget.test.mjs`) over the native
+ * call-stack limit.
+ */
+function executePrintCall(
+  statement: CallNode | ParenCallNode,
+  environment: Environment,
+): ExecSignal | undefined {
+  if (statement.args.length === 0) {
+    return halt(
+      runtimeDiag.notEnoughInputs(
+        statement.callee.source_span,
+        statement.callee.name,
+        1,
+        0,
+      ),
+    );
+  }
+  // Only evaluate a `print` whose every operand is an expression kind this issue's
+  // evaluator gives meaning to (Core literals, arithmetic, variable/place reads, user
+  // procedure calls). `(print 1 :ages.tom)` and similar still emit their `instruction`
+  // event but are left un-evaluated for the slice that implements the unsupported
+  // operand's expression kind.
+  if (!statement.args.every((arg) => isSupportedArgument(arg, environment))) {
+    return undefined;
+  }
+  const values: OLValue[] = [];
+  let failure: Diagnostic | undefined;
+  const memo = new Map<object, OLValue>();
+  for (const arg of statement.args) {
+    const result = evaluate(arg, environment);
+    if (!result.ok) {
+      failure = result.diagnostic;
+      break;
+    }
+    values.push(snapshotValue(result.value, memo));
+  }
+  if (failure) {
+    return halt(failure);
+  }
+  environment.events.push({
+    seq: environment.events.length,
+    kind: "print",
+    source_span: statement.source_span,
+    payload: { values } satisfies PrintPayload,
+  });
+  return undefined;
+}
+
+/**
  * Executes a `show value` statement (issue #234, `spec/commands.md`'s `show`) once
  * {@link executeStatements} has confirmed it via {@link isShowCall}. Extracted into its own
  * function for the same reason {@link dispatchTurtleCommand}'s doc comment gives: `executeStatements`
@@ -1732,7 +1788,7 @@ function executeShowCall(
     seq: environment.events.length,
     kind: "print",
     source_span: statement.source_span,
-    payload: { values: [result.value] } satisfies PrintPayload,
+    payload: { values: [snapshotValue(result.value)] } satisfies PrintPayload,
   });
   return undefined;
 }
@@ -2612,43 +2668,11 @@ function executeStatements(
     }
 
     if (isPrintCall(statement)) {
-      if (statement.args.length === 0) {
-        return halt(
-          runtimeDiag.notEnoughInputs(
-            statement.callee.source_span,
-            statement.callee.name,
-            1,
-            0,
-          ),
-        );
-      }
-      // Only evaluate a `print` whose every operand is an expression kind this issue's
-      // evaluator gives meaning to (Core literals, arithmetic, variable/place reads, user
-      // procedure calls). `(print 1 :ages.tom)` and similar still emit their `instruction`
-      // event but are left un-evaluated for the slice that implements the unsupported
-      // operand's expression kind.
-      if (
-        statement.args.every((arg) => isSupportedArgument(arg, environment))
-      ) {
-        const values: OLValue[] = [];
-        let failure: Diagnostic | undefined;
-        for (const arg of statement.args) {
-          const result = evaluate(arg, environment);
-          if (!result.ok) {
-            failure = result.diagnostic;
-            break;
-          }
-          values.push(result.value);
+      const signal = executePrintCall(statement, environment);
+      if (signal !== undefined) {
+        if (signal.kind === "halt") {
+          return signal;
         }
-        if (failure) {
-          return halt(failure);
-        }
-        environment.events.push({
-          seq: environment.events.length,
-          kind: "print",
-          source_span: statement.source_span,
-          payload: { values } satisfies PrintPayload,
-        });
       }
       continue;
     }

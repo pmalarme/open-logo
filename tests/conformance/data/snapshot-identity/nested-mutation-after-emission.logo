@@ -1,0 +1,5 @@
+:outer = [1 2]
+:m = (list :outer 99)
+print :m
+add 3 to :outer
+print :m

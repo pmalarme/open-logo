@@ -60,6 +60,7 @@ export {
   formatNumber,
   isSupportedExpression,
   printedForm,
+  snapshotValue,
   valuesEqual,
 } from "./evaluate.js";
 export type {

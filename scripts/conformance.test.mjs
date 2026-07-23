@@ -19,6 +19,10 @@ import {
   fixtureErrors,
   compare,
   diffStream,
+  hasGraphMarkers,
+  graphEqual,
+  safeStringify,
+  itemsMatch,
   parseArgs,
   runHarness,
 } from "./harness/index.mjs";
@@ -458,6 +462,270 @@ test("compare matches diagnostic without message field", () => {
     result.matched,
     "Expected without message should match actual with message",
   );
+});
+
+// --- Graph fixtures: $id/$ref reference-identity extension (issue #495 fixture-format
+// follow-up) -----------------------------------------------------------------------------------
+
+test("hasGraphMarkers is false for plain values (no markers anywhere)", () => {
+  assert.equal(hasGraphMarkers(42), false);
+  assert.equal(hasGraphMarkers("word"), false);
+  assert.equal(hasGraphMarkers(null), false);
+  assert.equal(hasGraphMarkers([1, 2, { a: [3, 4] }]), false);
+  assert.equal(hasGraphMarkers({ code: "ol-foo", params: {} }), false);
+});
+
+test("hasGraphMarkers finds a $id or $ref marker at any depth", () => {
+  assert.ok(hasGraphMarkers({ $id: "n1", $value: [1, 2] }));
+  assert.ok(hasGraphMarkers({ $ref: "n1" }));
+  assert.ok(hasGraphMarkers([1, { nested: { $ref: "n1" } }]));
+  assert.ok(hasGraphMarkers({ values: [[{ $id: "n1", $value: 1 }]] }));
+});
+
+test("graphEqual: two $ref to the same $id match only the same actual reference", () => {
+  const sharedActual = [1, 2];
+  const expected = {
+    $id: "n1",
+    $value: [1, 2],
+  };
+  const first = graphEqual(expected, sharedActual);
+  assert.ok(first.matched, first.reason);
+
+  // A second position tagged with $ref "n1" must resolve to that exact same actual reference.
+  const ctx = { idToActual: new Map(), actualToId: new Map() };
+  assert.ok(graphEqual({ $id: "n1", $value: [1, 2] }, sharedActual, ctx).matched);
+  assert.ok(graphEqual({ $ref: "n1" }, sharedActual, ctx).matched);
+
+  // ...but not an equal-but-distinct copy.
+  const ctx2 = { idToActual: new Map(), actualToId: new Map() };
+  assert.ok(graphEqual({ $id: "n1", $value: [1, 2] }, sharedActual, ctx2).matched);
+  const mismatch = graphEqual({ $ref: "n1" }, [1, 2], ctx2);
+  assert.ok(!mismatch.matched);
+  assert.match(mismatch.reason, /different reference/);
+});
+
+test("graphEqual: a $ref with no earlier $id is a clean mismatch, not a crash", () => {
+  const result = graphEqual({ $ref: "missing" }, [1, 2]);
+  assert.ok(!result.matched);
+  assert.match(result.reason, /no earlier \$id/);
+});
+
+test("graphEqual: $id against a primitive actual delegates to plain value equality (identity is moot for primitives)", () => {
+  const matched = graphEqual({ $id: "n1", $value: 1 }, 1);
+  assert.ok(matched.matched, matched.reason);
+
+  const mismatched = graphEqual({ $id: "n1", $value: 1 }, 2);
+  assert.ok(!mismatched.matched);
+  assert.match(mismatched.reason, /value mismatch/);
+});
+
+test("graphEqual: a self-referential actual list terminates via $ref back-reference", () => {
+  const cyclic = [1, 2];
+  cyclic.push(cyclic);
+  const expected = { $id: "n1", $value: [1, 2, { $ref: "n1" }] };
+  const result = graphEqual(expected, cyclic);
+  assert.ok(result.matched, result.reason);
+});
+
+test("graphEqual: an unrelated second path reaching the same actual reference must be tagged", () => {
+  const shared = [1];
+  const outer = [shared, shared];
+  // Both positions correctly tagged: matches.
+  const tagged = graphEqual(
+    [{ $id: "n1", $value: [1] }, { $ref: "n1" }],
+    outer,
+  );
+  assert.ok(tagged.matched, tagged.reason);
+
+  // Second position left untagged (plain [1]): the fixture didn't declare the aliasing, so an
+  // actual reference already bound to "n1" reappearing here is reported, not silently accepted.
+  const untagged = graphEqual([{ $id: "n1", $value: [1] }, [1]], outer);
+  assert.ok(!untagged.matched);
+  assert.match(untagged.reason, /unexpected aliasing/);
+});
+
+test("graphEqual: same actual reference under two distinct $id labels is a mismatch", () => {
+  const shared = [1];
+  const outer = [shared, shared];
+  const result = graphEqual(
+    [
+      { $id: "n1", $value: [1] },
+      { $id: "n2", $value: [1] },
+    ],
+    outer,
+  );
+  assert.ok(!result.matched);
+  assert.match(result.reason, /unexpected aliasing/);
+});
+
+test("graphEqual: reusing the same $id label for two different actual references is a mismatch, not a silent rebind", () => {
+  const a = [1];
+  const b = [2];
+  const result = graphEqual(
+    [
+      { $id: "n1", $value: [1] },
+      { $id: "n1", $value: [2] },
+    ],
+    [a, b],
+  );
+  assert.ok(!result.matched);
+  assert.match(result.reason, /declared more than once/);
+});
+
+test("graphEqual falls through to plain structural comparison beneath a tagged node", () => {
+  const matched = graphEqual(
+    { $id: "n1", $value: { a: 1, b: [1, 2] } },
+    { a: 1, b: [1, 2] },
+  );
+  assert.ok(matched.matched, matched.reason);
+
+  const mismatched = graphEqual(
+    { $id: "n1", $value: { a: 1, b: [1, 2] } },
+    { a: 1, b: [1, 3] },
+  );
+  assert.ok(!mismatched.matched);
+});
+
+test("graphEqual reports plain object/array shape mismatches with a reason", () => {
+  assert.match(
+    graphEqual([1, 2], [1, 2, 3]).reason,
+    /array shape mismatch/,
+  );
+  assert.match(graphEqual({ a: 1 }, { a: 1, b: 2 }).reason, /object shape/);
+  assert.match(graphEqual({ a: 1 }, { b: 1 }).reason, /missing key/);
+  assert.match(graphEqual(1, "1").reason, /value mismatch/);
+  assert.match(graphEqual(null, {}).reason, /value mismatch/);
+});
+
+test("safeStringify replaces an already-visited reference with a circular marker", () => {
+  const cyclic = [1, 2];
+  cyclic.push(cyclic);
+  const text = safeStringify(cyclic);
+  assert.ok(text.includes("[[circular]]"));
+  assert.doesNotThrow(() => text);
+});
+
+test("safeStringify renders an acyclic-but-shared reference in full at each occurrence", () => {
+  const shared = [1, 2];
+  const outer = [shared, shared];
+  const text = safeStringify(outer);
+  assert.strictEqual(text, "[[1,2],[1,2]]");
+  assert.ok(!text.includes("[[circular]]"));
+});
+
+test("safeStringify falls back gracefully for an unstringifiable value", () => {
+  const withBigInt = { n: 10n };
+  const text = safeStringify(withBigInt);
+  assert.match(text, /unstringifiable/);
+});
+
+test("itemsMatch dispatches to graphEqual only when the expected side has graph markers", () => {
+  assert.ok(itemsMatch({ a: 1 }, { a: 1 }).matched);
+  assert.ok(!itemsMatch({ a: 1 }, { a: 2 }).matched);
+
+  const shared = [1];
+  const ctx = { idToActual: new Map(), actualToId: new Map() };
+  assert.ok(
+    itemsMatch({ $id: "n1", $value: [1] }, shared, ctx).matched,
+  );
+  assert.ok(itemsMatch({ $ref: "n1" }, shared, ctx).matched);
+});
+
+test("itemsMatch reports a clean mismatch instead of crashing on an undeclared cyclic actual", () => {
+  const cyclicActual = [1];
+  cyclicActual.push(cyclicActual);
+  const cyclicExpected = [1];
+  cyclicExpected.push(cyclicExpected);
+  // Both sides are genuinely cyclic (no $id/$ref), so plain deepEqual would recurse forever;
+  // itemsMatch must catch the resulting stack overflow and report it, not crash the harness.
+  const result = itemsMatch(cyclicExpected, cyclicActual);
+  assert.ok(!result.matched);
+  assert.match(result.reason, /comparison error/);
+});
+
+test("diffStream uses graphEqual for a $id/$ref-tagged expected item and reports its reason", () => {
+  const expected = [{ seq: 0, $id: "n1", $value: { list: [1] } }];
+  const actual = [{ seq: 0, list: [1] }];
+  // Not graph-tagged at this level (the whole event object isn't wrapped) -- demonstrate the
+  // more realistic nested case instead: a payload value tagged inside a normal event object.
+  const expectedEvents = [
+    { seq: 0, kind: "print", payload: { values: [{ $id: "n1", $value: [1, 2] }] } },
+  ];
+  const sharedList = [1, 2];
+  const actualEvents = [
+    { seq: 0, kind: "print", payload: { values: [sharedList] } },
+  ];
+  const ctx = { idToActual: new Map(), actualToId: new Map() };
+  assert.equal(
+    diffStream("event", "seq", expectedEvents, actualEvents, ctx),
+    null,
+  );
+
+  const wrongActualEvents = [
+    { seq: 0, kind: "print", payload: { values: [[1, 2, 3]] } },
+  ];
+  const report = diffStream(
+    "event",
+    "seq",
+    expectedEvents,
+    wrongActualEvents,
+    { idToActual: new Map(), actualToId: new Map() },
+  );
+  assert.ok(report);
+  assert.ok(report.includes("event mismatch"));
+
+  // silence unused-var lint for the illustrative-but-unused variables above
+  void expected;
+  void actual;
+});
+
+test("compare() shares one graph-identity ctx across the event and diagnostic streams", () => {
+  const sharedList = [1, 2];
+  const expected = {
+    events: [
+      {
+        seq: 0,
+        kind: "print",
+        payload: { values: [{ $id: "shared", $value: [1, 2] }] },
+      },
+      { seq: 1, kind: "print", payload: { values: [{ $ref: "shared" }] } },
+    ],
+    diagnostics: [],
+  };
+  const actual = {
+    events: [
+      { seq: 0, kind: "print", payload: { values: [sharedList] } },
+      { seq: 1, kind: "print", payload: { values: [sharedList] } },
+    ],
+    diagnostics: [],
+  };
+  const result = compare(expected, actual);
+  assert.ok(result.matched, result.report);
+});
+
+test("compare() reports a graph-identity violation across the event stream", () => {
+  const expected = {
+    events: [
+      {
+        seq: 0,
+        kind: "print",
+        payload: { values: [{ $id: "shared", $value: [1, 2] }] },
+      },
+      { seq: 1, kind: "print", payload: { values: [{ $ref: "shared" }] } },
+    ],
+    diagnostics: [],
+  };
+  const actual = {
+    events: [
+      { seq: 0, kind: "print", payload: { values: [[1, 2]] } },
+      // A later mutation-independent snapshot: NOT the same reference as seq 0's.
+      { seq: 1, kind: "print", payload: { values: [[1, 2]] } },
+    ],
+    diagnostics: [],
+  };
+  const result = compare(expected, actual);
+  assert.ok(!result.matched);
+  assert.ok(result.report.includes("event mismatch"));
 });
 
 test("parseArgs extracts --profile flag", () => {

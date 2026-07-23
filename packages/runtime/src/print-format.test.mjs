@@ -70,3 +70,33 @@ test("printedForm prints a dict nested inside a list, and vice versa", () => {
   assert.equal(printedForm(dict), "{x: [1 2]}");
   assert.equal(printedForm([dict]), "[{x: [1 2]}]");
 });
+
+// Rendering must terminate on cyclic/shared structure via a whole-render identity memo
+// (issue #495, `spec/execution-model.md`'s rendering-termination rule + `spec/error-model.md`'s
+// `ol-limit` guardrail this is tied to): a self-referential list gets a bounded placeholder at
+// the repeat occurrence, not infinite recursion or a host stack overflow.
+test("printedForm terminates a self-referential list via CYCLIC_PLACEHOLDER, not infinite recursion", () => {
+  const list = [1, 2];
+  list.push(list);
+  assert.equal(printedForm(list), "[1 2 ...]");
+});
+
+test("printedForm terminates a self-referential dict the same way", () => {
+  const dict = new OLDict();
+  dict.set("self", dict);
+  assert.equal(printedForm(dict), "{self: ...}");
+});
+
+// Per `spec/execution-model.md`'s rendering-termination rule, the printed-form memo is a
+// *whole-render* identity memo, not just current-path cycle detection — so a repeated (but
+// acyclic) shared reference is also bounded on its second occurrence, the same as a true cycle.
+// (Contrast with the conformance-fixture `$id`/`$ref` convention, which asserts the underlying
+// *value graph*'s reference identity, independent of how `printedForm` chooses to render it.)
+test("printedForm bounds a repeated (acyclic-but-shared) reference on its second occurrence, per the whole-render memo rule", () => {
+  const shared = [1, 2];
+  assert.equal(printedForm([shared, shared]), "[[1 2] ...]");
+});
+
+test("printedForm renders two independent, non-aliased lists with equal contents in full at each occurrence", () => {
+  assert.equal(printedForm([[1, 2], [1, 2]]), "[[1 2] [1 2]]");
+});

@@ -2215,7 +2215,12 @@ export function formatNumber(value: number): string {
  * (issue #322 — the spec does not give dict printing a normative literal syntax, so this mirrors
  * the dict-literal surface for legibility).
  */
-export function printedForm(value: OLValue): string {
+export const CYCLIC_PLACEHOLDER = "...";
+
+export function printedForm(
+  value: OLValue,
+  seen: Set<object> = new Set(),
+): string {
   if (typeof value === "number") {
     return formatNumber(value);
   }
@@ -2225,19 +2230,78 @@ export function printedForm(value: OLValue): string {
   if (typeof value === "boolean") {
     return value ? "true" : "false";
   }
+  if (seen.has(value)) {
+    return CYCLIC_PLACEHOLDER;
+  }
+  seen.add(value);
   if (value instanceof OLDict) {
     const entries = value
       .keys()
-      .map((key) => `${key}: ${printedForm(value.get(key) as OLValue)}`);
+      .map(
+        (key) => `${key}: ${printedForm(value.get(key) as OLValue, seen)}`,
+      );
     return `{${entries.join(" ")}}`;
   }
   if (value instanceof OLRecord) {
     const entries = value
       .fields()
-      .map((field) => `${field}: ${printedForm(value.get(field) as OLValue)}`);
+      .map(
+        (field) =>
+          `${field}: ${printedForm(value.get(field) as OLValue, seen)}`,
+      );
     return `${value.type} {${entries.join(" ")}}`;
   }
-  return `[${value.map(printedForm).join(" ")}]`;
+  return `[${value.map((element) => printedForm(element, seen)).join(" ")}]`;
+}
+
+/**
+ * Effect-event payload snapshot capture (`spec/execution-model.md`'s point-in-time-snapshot
+ * rule, added alongside issue #495): produces a transitive, immutable copy of `value`'s
+ * reachable value graph, as of this instant, so a later mutation through the original live
+ * reference cannot retroactively change an already-emitted event's payload. Aliasing/cycle
+ * structure is preserved via snapshot-local reference identity: `memo` is shared across one
+ * whole capture, so two positions that were the same live reference remain the same
+ * snapshotted reference, and a self-referential list (via `add :l to :l`) is captured once.
+ */
+export function snapshotValue(
+  value: OLValue,
+  memo: Map<object, OLValue> = new Map(),
+): OLValue {
+  if (typeof value !== "object" || value === null) {
+    return value;
+  }
+  const existing = memo.get(value);
+  if (existing !== undefined) {
+    return existing;
+  }
+  if (Array.isArray(value)) {
+    const clone: OLValue[] = [];
+    memo.set(value, clone);
+    for (const element of value) {
+      clone.push(snapshotValue(element, memo));
+    }
+    return clone;
+  }
+  if (value instanceof OLDict) {
+    const clone = new OLDict();
+    memo.set(value, clone);
+    for (const key of value.keys()) {
+      clone.set(key, snapshotValue(value.get(key) as OLValue, memo));
+    }
+    return clone;
+  }
+  const record = value as OLRecord;
+  const fields = record.fields();
+  const clone = new OLRecord(
+    record.type,
+    fields,
+    fields.map(() => false),
+  );
+  memo.set(record, clone);
+  for (const field of fields) {
+    clone.set(field, snapshotValue(record.get(field) as OLValue, memo));
+  }
+  return clone;
 }
 
 /**

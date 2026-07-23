@@ -70,6 +70,102 @@ profile or the whole DAG. The runner discovers every `*.expected.json` and pairs
 The harness validates every `kind`, `code`, and `profiles` tag against the `@openlogo/core`
 registries, so a fixture can never assert an off-contract shape.
 
+## Graph fixtures: asserting reference identity and cycles (`$id` / `$ref`)
+
+`events`/`diagnostics` are compared with plain JSON deep-equality by default. JSON alone cannot
+express two things `spec/execution-model.md` now requires of effect-event payloads and of
+`print`/`show` rendering:
+
+1. Effect-event payloads are **point-in-time snapshots** (transitive/recursive capture) of mutable
+   program values at emission time — not live references — and MUST preserve alias/cycle topology
+   via **snapshot-local reference identity**, terminating via a whole-capture memo.
+2. Rendering a value's printed form (`print`/`throw`/`show`) MUST terminate on cyclic or shared
+   structure via a **whole-render identity memo** (not just current-path cycle detection), so
+   repeated/self-referential structure gets bounded placeholder treatment instead of infinite
+   recursion or host stack overflow (tied to `spec/error-model.md`'s `ol-limit` guardrail).
+
+Neither claim — "these two positions are the same underlying reference" or "this structure
+contains itself" — can be written as plain JSON. To make both provable, an `expected` `events` or
+`diagnostics` item may tag any node (list, dict, record, or even a primitive) with one of two
+markers:
+
+- `{"$id": "<label>", "$value": <expected-shape-of-the-first-occurrence>}` — marks the **first**
+  occurrence of a reference and gives it a fixture-local `label` (any string, unique within the
+  fixture — reusing the same `label` for two different actual references is itself a fixture error
+  the harness reports, not a silent rebind). The harness compares `$value` structurally/recursively
+  as usual, then remembers which **actual** reference occupied this position under `label`. Tagging
+  a primitive with `$id` is allowed for readability, but since JS primitives compare by value, not
+  reference, it only asserts the value matches — it does not register or require any alias binding.
+- `{"$ref": "<label>"}` — asserts that this position holds **the same actual reference** as the
+  `$id` earlier bound to `label` (identity, i.e. `===` on the runtime value — not "an equal but
+  distinct copy"). A fixture can use this both ways: to prove sharing/aliasing *was* preserved
+  (matching `$ref`s), and — because the harness also rejects any *unexpected* aliasing it wasn't
+  told about — to prove two positions are independent clones when the fixture leaves them
+  untagged (or gives them different `$id` labels) while the actual runtime output reuses one
+  reference for both, or a plain untagged position reuses a reference already bound to some
+  `$id`. Either case is reported as a mismatch, so accidental sharing/cloning bugs surface exactly
+  like any other event/diagnostic mismatch.
+
+`$id`/`$ref` labels are scoped to the whole fixture (shared across both the `events` and
+`diagnostics` streams), not just one event, so a fixture can assert that a reference captured in
+one effect event is the very same reference seen in a later one.
+
+A cycle is simply a `$ref` that resolves back to an ancestor `$id` still being compared — the
+harness registers the `$id` binding *before* recursing into `$value`, so a self-referential
+`$ref` inside that same `$value` resolves correctly instead of recursing forever.
+
+Example — a self-referential list (`:l = [1 2]`, then `add :l to :l`, per
+`spec/data-structures.md`'s `add` semantics) printed with `print :l`:
+
+```json
+{
+  "events": [
+    {
+      "seq": 0,
+      "kind": "print",
+      "source_span": {},
+      "payload": {
+        "values": [{ "$id": "l", "$value": [1, 2, { "$ref": "l" }] }]
+      }
+    }
+  ]
+}
+```
+
+Example — an acyclic but *shared* sub-list appearing twice (`:a = [1 2]`, `:s = (list :a :a)`,
+`print :s`) proving the snapshot did **not** collapse the repeated structure and did preserve the
+sharing:
+
+```json
+{
+  "events": [
+    {
+      "seq": 0,
+      "kind": "print",
+      "source_span": {},
+      "payload": {
+        "values": [
+          [{ "$id": "a", "$value": [1, 2] }, { "$ref": "a" }]
+        ]
+      }
+    }
+  ]
+}
+```
+
+Fixtures with **no** `$id`/`$ref` marker anywhere are entirely unaffected: the harness detects
+markers up front and only takes the identity-aware comparison path when at least one is present,
+so the existing marker-free corpus keeps comparing exactly as before (plain recursive
+deep-equality) — this extension is purely additive and fully backward compatible.
+
+**Implementation-status note:** the exact placeholder text/shape `printedForm` emits for a
+repeated/cyclic reference is left implementation-defined by `spec/execution-model.md` (it gives
+"an ellipsis or a repeated-reference marker" as an example, not a mandated literal). This corpus
+and the reference runtime currently render it as the literal `...` (see `CYCLIC_PLACEHOLDER` in
+`packages/runtime/src/evaluate.ts`); a future spec clarification may pin this down more precisely,
+at which point both the runtime and any fixture asserting rendered text would need to move
+together.
+
 ## Running
 
 ```bash
