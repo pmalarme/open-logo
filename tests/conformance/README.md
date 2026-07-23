@@ -91,11 +91,15 @@ markers:
 
 - `{"$id": "<label>", "$value": <expected-shape-of-the-first-occurrence>}` — marks the **first**
   occurrence of a reference and gives it a fixture-local `label` (any string, unique within the
-  fixture — reusing the same `label` for two different actual references is itself a fixture error
-  the harness reports, not a silent rebind). The harness compares `$value` structurally/recursively
-  as usual, then remembers which **actual** reference occupied this position under `label`. Tagging
-  a primitive with `$id` is allowed for readability, but since JS primitives compare by value, not
-  reference, it only asserts the value matches — it does not register or require any alias binding.
+  fixture — a second `$id` reusing the same `label`, anywhere later in the fixture, is itself a
+  fixture error the harness reports, never silently accepted: this holds whether the second `$id`'s
+  actual reference turns out to be a different object than the first (a genuine label collision)
+  or turns out to be the exact same one the first `$id` already bound (a fixture that should have
+  used `$ref` for the repeat instead of redeclaring `$id`). The harness compares `$value`
+  structurally/recursively as usual, then remembers which **actual** reference occupied this
+  position under `label`. Tagging a primitive with `$id` is allowed for readability, but since JS
+  primitives compare by value, not reference, it only asserts the value matches — it does not
+  register or require any alias binding.
 - `{"$ref": "<label>"}` — asserts that this position holds **the same actual reference** as the
   `$id` earlier bound to `label` (identity, i.e. `===` on the runtime value — not "an equal but
   distinct copy"). A fixture can use this both ways: to prove sharing/aliasing *was* preserved

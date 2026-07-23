@@ -2338,6 +2338,26 @@ function runProcedure(
   }
 }
 
+/**
+ * Builds a {@link ProcedureEnterPayload} whose `args` are point-in-time snapshots
+ * (issue #495's rule, `spec/execution-model.md`'s effect-event-snapshot section) rather than
+ * the live bound-argument values, sharing a single memo across all of a call's arguments so
+ * two arguments that alias the same live value (e.g. `(foo :l :l)`) remain aliased in the
+ * snapshot too. Extracted into its own function — rather than inlined at
+ * {@link runProcedureBody}'s `procedure-enter` push — for the same stack-frame-size reason
+ * {@link executePrintCall}'s doc comment gives: `runProcedureBody` is on the
+ * `recursionDepthLimit`-checked recursive call path, so any inline growth there (a `Map`
+ * allocation, a `.map()` call) risks reproducing the 600-deep `recursionDepthLimit: 1000`
+ * regression (`execution-budget.test.mjs`) over the native call-stack limit.
+ */
+function snapshotProcedureEnterPayload(
+  name: string,
+  args: readonly OLValue[],
+): ProcedureEnterPayload {
+  const memo = new Map<object, OLValue>();
+  return { name, args: args.map((arg) => snapshotValue(arg, memo)) };
+}
+
 /** The body of {@link runProcedure}, run once the recursion-depth check and push have happened. */
 function runProcedureBody(
   node: CallNode | ParenCallNode,
@@ -2417,10 +2437,7 @@ function runProcedureBody(
     seq: environment.events.length,
     kind: "procedure-enter",
     source_span: node.source_span,
-    payload: {
-      name: def.name.name,
-      args: boundArgs,
-    } satisfies ProcedureEnterPayload,
+    payload: snapshotProcedureEnterPayload(def.name.name, boundArgs),
   });
 
   const signal = executeStatements(def.body.body, calleeEnv);
@@ -2433,7 +2450,18 @@ function runProcedureBody(
     seq: environment.events.length,
     kind: "procedure-exit",
     source_span: node.source_span,
-    payload: { name: def.name.name, result } satisfies ProcedureExitPayload,
+    payload: {
+      name: def.name.name,
+      // Snapshotted inline (issue #495), unlike `procedure-enter`'s payload just above, which
+      // uses the extracted `snapshotProcedureEnterPayload` helper: an equivalent extracted
+      // helper here was tried and regressed the 600-deep `recursionDepthLimit: 1000` regression
+      // test (`execution-budget.test.mjs`) over the native call-stack limit, since this push is
+      // in `runProcedureBody`'s own frame on the recursion-depth-checked call path — every byte
+      // added to this frame's own size is multiplied by the recursion depth. `procedure-enter`'s
+      // extraction stayed under that budget; this one and `executeStatements`'s `"Return"`
+      // branch below did not, so both are inlined as the smallest correct fix instead.
+      result: result === null ? null : snapshotValue(result),
+    } satisfies ProcedureExitPayload,
   });
 
   return { ok: true, result };
@@ -2712,8 +2740,13 @@ function executeStatements(
       environment.events.push({
         seq: environment.events.length,
         kind: "return",
+        // Snapshotted inline (issue #495) rather than via an extracted helper — see
+        // `runProcedureBody`'s `procedure-exit` push's comment: `executeStatements` is on the
+        // same recursion-depth-checked call path, and an extracted helper here reproduced the
+        // 600-deep `recursionDepthLimit: 1000` regression (`execution-budget.test.mjs`), so this
+        // is the smallest correct fix instead.
         source_span: statement.source_span,
-        payload: { value: result.value } satisfies ReturnPayload,
+        payload: { value: snapshotValue(result.value) } satisfies ReturnPayload,
       });
       return {
         kind: "return",

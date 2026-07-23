@@ -500,10 +500,13 @@ export function graphEqual(
       return graphEqual(expected[GRAPH_VALUE_KEY], actual, ctx, false);
     }
     const existingActual = ctx.idToActual.get(id);
-    if (existingActual !== undefined && existingActual !== actual) {
+    if (existingActual !== undefined) {
       return {
         matched: false,
-        reason: `$id "${id}" is declared more than once for different references — each $id label must be unique within a fixture`,
+        reason:
+          existingActual === actual
+            ? `$id "${id}" is declared more than once — a repeat occurrence of the same reference must use $ref "${id}" instead of redeclaring $id`
+            : `$id "${id}" is declared more than once for different references — each $id label must be unique within a fixture`,
       };
     }
     const boundId = ctx.actualToId.get(actual);

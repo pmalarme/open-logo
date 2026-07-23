@@ -572,6 +572,20 @@ test("graphEqual: reusing the same $id label for two different actual references
   assert.match(result.reason, /declared more than once/);
 });
 
+test("graphEqual: reusing the same $id label for the SAME actual reference is still a mismatch — a repeat occurrence must use $ref, not a second $id", () => {
+  const shared = [1];
+  const result = graphEqual(
+    [
+      { $id: "n1", $value: [1] },
+      { $id: "n1", $value: [1] },
+    ],
+    [shared, shared],
+  );
+  assert.ok(!result.matched);
+  assert.match(result.reason, /declared more than once/);
+  assert.match(result.reason, /\$ref "n1"/);
+});
+
 test("graphEqual falls through to plain structural comparison beneath a tagged node", () => {
   const matched = graphEqual(
     { $id: "n1", $value: { a: 1, b: [1, 2] } },

@@ -8,7 +8,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { formatNumber, printedForm } from "@openlogo/runtime";
+import { CYCLIC_PLACEHOLDER, formatNumber, printedForm } from "@openlogo/runtime";
 import { OLDict } from "@openlogo/core";
 
 test("formatNumber prints a whole value without a decimal", () => {
@@ -85,6 +85,29 @@ test("printedForm terminates a self-referential dict the same way", () => {
   const dict = new OLDict();
   dict.set("self", dict);
   assert.equal(printedForm(dict), "{self: ...}");
+});
+
+// A value can be perfectly acyclic yet nested far deeper than any host call stack can recurse
+// into natively — cycle detection alone does not stop that from throwing a host
+// `RangeError: Maximum call stack size exceeded`, which is exactly the uncontrolled failure
+// `spec/error-model.md`'s `ol-limit` guardrail exists to avoid (issue #495 fixup). `printedForm`
+// must walk arbitrarily deep acyclic structure without overflowing the native stack.
+test("printedForm renders a very deeply nested (but acyclic) list without a host stack overflow", () => {
+  let list = [0];
+  for (let i = 0; i < 20000; i += 1) {
+    list = [list];
+  }
+  const depth = 20001; // the initial `[0]` plus 20000 further wraps
+  const printed = printedForm(list);
+  assert.equal(printed.length, depth + "0".length + depth);
+  assert.ok(printed.startsWith("[".repeat(depth)));
+  assert.ok(printed.endsWith("]".repeat(depth)));
+});
+
+test("printedForm's optional `seen` parameter lets a caller share one whole-render memo across multiple top-level calls: a value already registered in a passed-in `seen` set renders as the cyclic placeholder even on its very first call", () => {
+  const list = [1, 2];
+  const seen = new Set([list]);
+  assert.equal(printedForm(list, seen), CYCLIC_PLACEHOLDER);
 });
 
 // Per `spec/execution-model.md`'s rendering-termination rule, the printed-form memo is a
