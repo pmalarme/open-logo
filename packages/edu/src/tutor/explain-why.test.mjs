@@ -3,6 +3,7 @@ import { test } from "node:test";
 import * as Core from "@openlogo/core";
 import { explain, why } from "@openlogo/edu";
 import * as Parser from "@openlogo/parser";
+import { execute } from "@openlogo/runtime";
 
 /**
  * Unit tests for the M3 A3 (#336) deterministic `explain`/`why` baseline meta-commands
@@ -583,7 +584,7 @@ test("why: with no target selected and no AST node matching the event's span, st
   assert.deepEqual(output.target_source_span, eventSpan);
 });
 
-test("why: describes every known trace-event kind", () => {
+test("why: describes every known effect trace-event kind (excludes the `instruction`/`procedure-enter` start events, covered separately below)", () => {
   const span = Core.makeSpan(doc, [1, 1], [1, 2]);
   const cases = [
     [
@@ -612,14 +613,6 @@ test("why: describes every known trace-event kind", () => {
     ],
     [makeEvent("print", { values: [1, "hi"] }, span), /OpenLogo showed 1, hi/],
     [makeEvent("return", { value: 5 }, span), /procedure answered 5/],
-    [
-      makeEvent("procedure-enter", { name: "square", args: [10] }, span),
-      /`square` started with 10/,
-    ],
-    [
-      makeEvent("procedure-enter", { name: "home", args: [] }, span),
-      /`home` started with no arguments/,
-    ],
     [
       makeEvent("procedure-exit", { name: "square", result: null }, span),
       /`square` finished without answering a value/,
@@ -665,4 +658,114 @@ test("why: same context always produces byte-identical output (determinism)", ()
   });
 
   assert.deepEqual(why(context), why(context));
+});
+
+// --- issue #435 regression: `why` must never describe an `instruction`/`procedure-enter` -------
+// --- start event as if it were the effect that happened -----------------------------------------
+
+/** Every non-tutor-output `tutor-output` filtered trace event `execute` recorded, in order. */
+function tutorOutputPayload(result) {
+  const [event] = result.events.filter((e) => e.kind === "tutor-output");
+  assert.ok(event, "expected exactly one tutor-output event");
+  return event.payload;
+}
+
+/**
+ * Drives the REAL `execute()` → `TutorContext` → `why` path (the same wiring the shipped studio
+ * uses via `eduTutorTemplate`, `packages/studio/src/run-controller.ts:397`), so `context.events`
+ * is whatever the runtime actually records — including its `instruction` start event for every
+ * statement, the exact bookkeeping issue #435 reported `why` was leaking as a fake effect.
+ */
+function runWhy(source) {
+  const result = execute(source, doc, {
+    tutorTemplates: (context) => {
+      assert.equal(context.command, "why");
+      return why(context);
+    },
+  });
+  assert.deepEqual(result.diagnostics, []);
+  return tutorOutputPayload(result);
+}
+
+test("why: bare `why` never describes the runtime's own `instruction` bookkeeping event for itself", () => {
+  const payload = runWhy("why");
+  for (const segment of payload.segments) {
+    assert.doesNotMatch(segment, /instruction. change happened/);
+    assert.doesNotMatch(segment, /because `why` ran/);
+  }
+  // Nothing with an observable effect ran yet, so `why` gives the honest "nothing recorded" arm.
+  assert.equal(
+    payload.segments[0],
+    "Nothing has run yet, so there is no recorded state to explain.",
+  );
+});
+
+test("why: assignment-then-`why` never describes the assignment's `instruction` bookkeeping event", () => {
+  const payload = runWhy(":x = 1\nwhy");
+  for (const segment of payload.segments) {
+    assert.doesNotMatch(segment, /instruction. change happened/);
+    assert.doesNotMatch(segment, /because `set` ran/);
+  }
+});
+
+test("why: `forward 80` then `why` still correctly describes the move (no regression)", () => {
+  const payload = runWhy("forward 80\nwhy");
+  assert.equal(
+    payload.segments[0],
+    "The turtle drew a black line, width 1, from (0, 0) to (0, 80).",
+  );
+  assert.equal(payload.segments[1], "This happened because `forward` ran.");
+});
+
+test("why: a lone `instruction`/`procedure-enter` start event (no earlier effect) yields the honest fallback, not a description of the start event itself", () => {
+  const program = parse("forward 80");
+  const instructionEvent = makeEvent(
+    "instruction",
+    {},
+    program.body[0].source_span,
+  );
+  const procedureEnterEvent = makeEvent(
+    "procedure-enter",
+    { name: "square", args: [10] },
+    program.body[0].source_span,
+  );
+
+  for (const event of [instructionEvent, procedureEnterEvent]) {
+    const context = baseContext({
+      program,
+      command: "why",
+      events: [event],
+    });
+    const output = why(context);
+    assert.equal(
+      output.segments[0],
+      "Nothing has run yet, so there is no recorded state to explain.",
+      `event kind ${event.kind}`,
+    );
+  }
+});
+
+test("why: skips a trailing `instruction` start event to find the real effect event behind it", () => {
+  const program = parse("forward 80\nwhy");
+  const target = program.body[0];
+  const moveEvent = makeEvent(
+    "move",
+    { from: [0, 0], to: [0, 80], heading: 0 },
+    target.source_span,
+  );
+  const trailingInstructionEvent = makeEvent(
+    "instruction",
+    {},
+    program.body[1].source_span,
+  );
+  const context = baseContext({
+    program,
+    command: "why",
+    events: [moveEvent, trailingInstructionEvent],
+    commandMetadata: { name: "forward", arity: 1, kind: "primitive" },
+  });
+
+  const output = why(context);
+  assert.equal(output.segments[0], "The turtle moved from (0, 0) to (0, 80).");
+  assert.equal(output.segments[1], "This happened because `forward` ran.");
 });
