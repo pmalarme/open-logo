@@ -1,0 +1,35 @@
+{
+  "description": "`sort` on a length-1 list still checks orderability — a singleton `[true]` raises `ol-type` the same as any other non-orderable element; there is no length exception (spec/data-structures.md:141). Issue #513 (M4 re-audit finding G6).",
+  "profiles": ["data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/lists/sort-singleton-boolean-error",
+        "start": [1, 1],
+        "end": [1, 18]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "data/lists/sort-singleton-boolean-error",
+        "start": [1, 12],
+        "end": [1, 18]
+      },
+      "params": {
+        "expected": "number or word",
+        "actual": "boolean",
+        "value": true,
+        "operation": "sort"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

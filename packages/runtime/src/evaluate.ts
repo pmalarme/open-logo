@@ -3393,7 +3393,8 @@ function compareSortElements(
  * mutually orderable (a mix of numbers and words, or any other type) raise `ol-type` too — checked
  * across *every* element before any sorting happens, per the same rule
  * `spec/data-structures.md:141` states ("is not mutually orderable and raises `ol-type`"), so a
- * rejected list is never partially reordered. A list of 0 or 1 elements is trivially sorted and
+ * rejected list is never partially reordered. There is no length exception: a single-element list
+ * still has its one element checked for orderability. Only the empty list is trivially sorted and
  * needs no orderability check at all.
  */
 function evaluateSort(
@@ -3420,8 +3421,8 @@ function evaluateSort(
       }),
     );
   }
-  if (list.length <= 1) {
-    return ok([...list]);
+  if (list.length === 0) {
+    return ok([]);
   }
   const first = list[0] as OLValue;
   if (typeof first !== "number" && typeof first !== "string") {
