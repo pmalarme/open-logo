@@ -1,0 +1,41 @@
+{
+  "description": "ol-not-a-place (issue #442/F3): a FULLY-parenthesized assignment target is not an assignable place. spec/tooling.md:187 requires rejecting `parenthesized expressions as targets` as a SEMANTIC `ol-not-a-place`, not the blunt parse `ol-bad-token` main produced pre-#442. `parseParenthesized` strips grouping and returns the inner node unchanged, so `(:x)`/`(:x.a)` land as a bare `VarRef`/`Place` byte-identical to the assignable `:x`/`:x.a`; the parser now re-wraps such a target into the zero-segment `PostfixExpression` (the empty-segment shape #407/F7 designed) the checker already renders parenthesized, routing it to the semantic rule. The `=` form (`(:x) = 2`, `(:x.a) = 2`) and the `set … to` form (`set (:x) to 2`) share this recovery. The first line assigns `:x` so this fixture stays focused on `ol-not-a-place` alone, without also tripping `ol-undefined-var` on the same `:x` reads.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-not-a-place",
+      "source_span": {
+        "document": "core-language/check/not-a-place-parenthesized-target",
+        "start": [2, 1],
+        "end": [2, 5]
+      },
+      "params": { "text": "(:x)" },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-not-a-place",
+      "source_span": {
+        "document": "core-language/check/not-a-place-parenthesized-target",
+        "start": [3, 1],
+        "end": [3, 7]
+      },
+      "params": { "text": "(:x.a)" },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-not-a-place",
+      "source_span": {
+        "document": "core-language/check/not-a-place-parenthesized-target",
+        "start": [4, 5],
+        "end": [4, 9]
+      },
+      "params": { "text": "(:x)" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}
