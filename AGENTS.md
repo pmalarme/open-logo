@@ -31,6 +31,7 @@ Modules→Localization, Educational→Tutor (AI)). See [`spec/conformance.md`](s
 ```text
 spec/            Normative language specification (maintainer-owned) — the contract
 docs/adr/        Architecture Decision Records (why we built it this way)
+docs/design-notes/     Language Design Records (why the language is shaped this way)
 docs/architecture.md   Monorepo definition + cross-cutting contracts (AST, highlighting, events, UI)
 docs/delivery.md       Release + milestone strategy
 .github/agents/  The OpenLogo agent team (*.agent.md)
@@ -67,6 +68,14 @@ parallelization map, and [`docs/delivery.md`](docs/delivery.md) for the release 
 6. **KISS + Boy Scout**: keep the design as simple as the spec allows, and leave each file a little
    better than you found it — but only within your task's declared write-set, never unrelated
    refactors. (Full rules in the team working agreement.)
+
+**Docs have four surfaces**, each answering a different question: `spec/` (what is normatively
+true), `docs/adr/` (why we chose this toolchain/engineering approach),
+`docs/learn-how-its-built/` (how the implementation is coded), and `docs/design-notes/` (why the
+**language itself** is shaped this way, with cross-language comparisons for advanced readers —
+**Language Design Records**, one per decision, each citing the `spec/` section(s) it explains). See
+the [`documentation/author-a-language-design-record`](.github/skills/documentation/author-a-language-design-record/SKILL.md)
+skill for how to write one.
 
 When editing under `packages/<name>/`, read that package's
 `.github/instructions/<name>.instructions.md` first. To open work, **file an issue from a template**
