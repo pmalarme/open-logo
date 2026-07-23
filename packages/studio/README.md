@@ -528,3 +528,63 @@ without changing `#output`'s existing "show the latest run" behavior at all.
   "Stop is the only way to interrupt a run" contract the instruction budget already gives runaway
   programs.
 
+## Browser visual-regression for the responsive layout (#475)
+
+`web/layout.test.mjs` can only assert the **text** of `web/styles.css` — the monorepo's `node:test`
+runner has no CSS engine or browser, so it proves the #313/#472 grid *rules* are present but not
+that the drawing pane actually renders at a usable size. This slice (epic #473) adds the real
+browser-rendered proof with **Playwright**.
+
+- **`playwright.config.ts`** defines two projects — a **narrow** (390px, `< 48rem`) and a **wide**
+  (1440px, `>= 48rem`) Chromium viewport — and a `webServer` that runs `npm run build:web` then
+  serves the production bundle with `vite preview` (not the dev server, so no HMR client leaks into
+  a snapshot).
+- **`e2e/layout.spec.ts`** seeds a program with a long, non-wrapping line (via the persistence
+  `localStorage` key), loads the studio, and asserts the drawing pane's real geometry: single-column
+  stacking with a usably-sized square canvas on narrow; and on wide, the turtle pane sits beside the
+  editor and stays the **larger** column (never squeezed to a thumbnail). These geometry assertions
+  are the primary regression guard — they fail exactly when a change lets the editor column steal the
+  turtle track's width (the #472 regression). A masked pixel snapshot (`toHaveScreenshot`, the editor
+  pane masked because its caret/text are volatile) adds a second, whole-layout check.
+
+### Running it
+
+```bash
+npm run test:visual -w @openlogo/studio          # run against committed baselines
+npm run test:visual -w @openlogo/studio -- --update-snapshots   # regenerate baselines
+```
+
+These `e2e/*.spec.ts` files are deliberately **outside** the Node-22 `node:test` coverage gate: they
+are not `*.test.mjs`, so `node --test` never discovers them and the 100% line/branch/function
+denominator is unchanged.
+
+### Baselines are Linux-only — regenerate in Docker
+
+Pixel baselines depend on the exact browser + system fonts, so they are committed **per platform**
+(`snapshotPathTemplate` keeps the `{platform}` token). Only the `…-linux.png` files under
+`e2e/__screenshots__/` are committed; a local Windows/macOS `--update-snapshots` produces distinct
+`…-win32.png`/`…-darwin.png` files that `.gitignore` excludes. CI runs inside the
+`mcr.microsoft.com/playwright:v1.61.1-jammy` container, so committed baselines **must** be generated
+in that same image:
+
+```bash
+docker run --rm -v "$PWD:/work" -w /work mcr.microsoft.com/playwright:v1.61.1-jammy \
+  bash -lc "npm ci && npm run test:visual -w @openlogo/studio -- --update-snapshots"
+```
+
+### Flaky-run guidance
+
+The snapshot tolerates sub-pixel anti-aliasing via `maxDiffPixelRatio: 0.02` and masks the volatile
+editor pane, so the geometry — not font hinting — is what regresses. If a legitimate layout change
+lands, regenerate the baselines with the Docker command above and commit the updated `-linux.png`
+files in the **same** PR. If a run flakes on width by a pixel, re-run; a genuine squeeze is
+deterministic and fails every time.
+
+### CI wiring (`@devops`)
+
+A path-scoped, required **`studio-visual`** job in [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)
+runs this suite inside the matching Playwright container. A `dorny/paths-filter` step in the `meta`
+job gates it so it only runs when the studio (or a package it composes) changes, keeping unrelated
+PRs fast.
+
+

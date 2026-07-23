@@ -9,6 +9,15 @@ web-dist/
 # Test / coverage
 coverage/
 
+# Playwright (studio visual-regression, #475) — report + per-run output are never committed.
+playwright-report/
+test-results/
+.playwright/
+# Only Linux-generated baselines are committed; ignore snapshots produced on other platforms
+# (a local Windows/macOS `--update-snapshots` run) so they can't be checked in by accident.
+**/__screenshots__/**/*-win32.png
+**/__screenshots__/**/*-darwin.png
+
 # Logs and local env
 *.log
 .env
