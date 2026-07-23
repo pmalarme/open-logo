@@ -383,6 +383,66 @@ main:has(.pane-lesson:not([hidden])):has(.pane-tutor:not([hidden])) {
   color: #0e7490;
 }
 
+/*
+ * #317 — inline error markers. Two independent, additive cues per severity so nothing is
+ * conveyed by color alone (spec/rendering.md's a11y requirement): the squiggle mark uses a
+ * `text-decoration-style: wavy` underline (a shape distinct from `#285`'s syntax-coloring marks,
+ * which never underline), and the gutter marker uses a distinct glyph per severity (an "x" for
+ * error, a "!" for warning) rather than only a color swatch. Both are purely presentational
+ * `class`/`title` attributes on a CM6 `mark`/gutter decoration — see `editor-cm6.ts`'s
+ * `buildDiagnosticMarkDecorations` doc comment — so neither changes the accessible text, DOM
+ * reading order, or focus model; the diagnostics pane (`#diagnostics-list` below) remains the
+ * primary, always-reachable surface for every diagnostic's message.
+ */
+.ol-diagnostic-error-mark {
+  text-decoration: underline;
+  text-decoration-style: wavy;
+  text-decoration-color: var(--ol-error);
+  text-decoration-thickness: 2px;
+}
+
+.ol-diagnostic-warning-mark {
+  text-decoration: underline;
+  text-decoration-style: wavy;
+  text-decoration-color: var(--ol-warning);
+  text-decoration-thickness: 2px;
+}
+
+/* `.cm-gutters` (this gutter included) ships `aria-hidden="true"` from `@codemirror/view` itself
+   — see the `.cm-editor` comment above — so this gutter's `title` is a sighted/mouse-hover
+   convenience only; the diagnostics pane is what makes every message reachable to assistive
+   tech. */
+.ol-diagnostic-gutter {
+  width: 1.1rem;
+}
+
+.ol-diagnostic-gutter-marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.ol-diagnostic-gutter-marker-error {
+  color: var(--ol-error);
+}
+
+.ol-diagnostic-gutter-marker-error::before {
+  content: "\2716"; /* ✖ */
+}
+
+.ol-diagnostic-gutter-marker-warning {
+  color: var(--ol-warning);
+}
+
+.ol-diagnostic-gutter-marker-warning::before {
+  content: "\26A0"; /* ⚠ */
+}
+
 [role="toolbar"] button {
   background: var(--ol-button-start);
   color: var(--ol-surface);

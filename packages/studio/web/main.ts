@@ -43,13 +43,14 @@
 
 import "./styles.css";
 import { EditorState } from "@codemirror/state";
-import { EditorView } from "@codemirror/view";
+import { EditorView, gutter, GutterMarker } from "@codemirror/view";
 import {
   ANNOUNCER_ASSERTIVE_ELEMENT_ID,
   ANNOUNCER_POLITE_ELEMENT_ID,
   assertPresent,
   attachPersistence,
   buildStoreSyncSpec,
+  computeDiagnosticGutterLines,
   createA11yAnnouncer,
   createAppShell,
   createCanvasRenderTarget,
@@ -70,6 +71,7 @@ import {
   decideExternalSync,
   DEFAULT_RUN_PROGRAM,
   describeSpeedTickDelayMs,
+  diagnosticsField,
   formatOutput,
   mapRunStatusToLabel,
   mapRunStatusToRunToggleViewModel,
@@ -83,6 +85,7 @@ import {
   reconcileExternalSyncQueue,
   selectAnnouncerElementId,
   selectScheduler,
+  setDiagnosticsEffect,
   SPEED_SLIDER_MAX,
   SPEED_SLIDER_MIN,
   syncTextValue,
@@ -102,7 +105,7 @@ import type {
   RunStatus,
   RunToggleAction,
 } from "../src/index.js";
-import type { Diagnostic } from "@openlogo/core";
+import type { Diagnostic, DiagnosticSeverity } from "@openlogo/core";
 import { IMMEDIATE_SCHEDULER } from "@openlogo/turtle";
 
 const lessonPaneElement = assertPresent<HTMLElement>(
@@ -222,17 +225,73 @@ const prefersReducedMotion = window.matchMedia(
   "(prefers-reduced-motion: reduce)",
 ).matches;
 
+/**
+ * #317 — the gutter half of the inline error markers: a `GutterMarker` per line that has at least
+ * one diagnostic, glyphed by severity (a non-color cue distinct from the squiggle's — see
+ * `web/styles.css`) with the combined `message`(s) as its hover `title`. `toDOM()` needs
+ * `document.createElement`, so — like `createDiagnosticListItemElement` above — this class lives
+ * here rather than in `editor-cm6.ts`, matching this repo's no-jsdom untested-DOM-glue convention;
+ * `computeDiagnosticGutterLines` (the DOM-free, unit-tested decision of *which* line gets *which*
+ * severity/messages) is the only thing this class reads from that module.
+ */
+class DiagnosticGutterMarker extends GutterMarker {
+  constructor(
+    private readonly severity: DiagnosticSeverity,
+    private readonly messages: readonly string[],
+  ) {
+    super();
+  }
+
+  override eq(other: DiagnosticGutterMarker): boolean {
+    return (
+      other.severity === this.severity &&
+      other.messages.length === this.messages.length &&
+      other.messages.every((message, index) => message === this.messages[index])
+    );
+  }
+
+  override toDOM(): HTMLElement {
+    const element = document.createElement("span");
+    element.className = `ol-diagnostic-gutter-marker ol-diagnostic-gutter-marker-${this.severity}`;
+    element.title = this.messages.join("\n");
+    return element;
+  }
+}
+
+/** The gutter `Extension` itself: for each visible line, ask {@link computeDiagnosticGutterLines}
+ * (reading the live diagnostics `diagnosticsField` holds — the same list the squiggle decorations
+ * and the diagnostics pane already render) whether that line has a diagnostic, and if so return
+ * its marker. `lineMarkerChange: () => true` keeps this simple and correct rather than
+ * fast-pathing an equality check CM6 already performs marker-by-marker via `eq()` above. */
+const diagnosticGutterExtension = gutter({
+  class: "ol-diagnostic-gutter",
+  lineMarker(view, line) {
+    const { diagnostics } = view.state.field(diagnosticsField);
+    const lineNumber = view.state.doc.lineAt(line.from).number;
+    const match = computeDiagnosticGutterLines(view.state, diagnostics).find(
+      (entry) => entry.line === lineNumber,
+    );
+    return match
+      ? new DiagnosticGutterMarker(match.severity, match.messages)
+      : null;
+  },
+  lineMarkerChange: () => true,
+});
+
 let initialEditorState = EditorState.create({
   doc: state.getState().source,
-  extensions: createEditorExtensions({
-    highlighter,
-    onLocalChange: (text, selection) => {
-      editorController.setTextAndSelection(text, selection);
-    },
-    onLocalSelectionChange: (selection) => {
-      editorController.setSelection(selection);
-    },
-  }),
+  extensions: [
+    ...createEditorExtensions({
+      highlighter,
+      onLocalChange: (text, selection) => {
+        editorController.setTextAndSelection(text, selection);
+      },
+      onLocalSelectionChange: (selection) => {
+        editorController.setSelection(selection);
+      },
+    }),
+    diagnosticGutterExtension,
+  ],
 });
 // Reuse buildStoreSyncSpec (rather than re-deriving the initial cursor offset here) so the
 // initial selection is positioned exactly the same way every later store-driven sync is.
@@ -499,6 +558,12 @@ function renderLessonPane(element: HTMLElement, view: LessonPaneView): void {
   );
 }
 
+/** #317 — tracks the diagnostics list last synced into CM6's {@link diagnosticsField}, so the
+ * `state.subscribe` callback below only dispatches a fresh {@link setDiagnosticsEffect} when the
+ * store's `diagnostics` reference actually changed — mirroring `needsExternalSync`'s guard against
+ * redundant transactions on unrelated store notifications (turtle animation, run status, …). */
+let lastSyncedDiagnostics: readonly Diagnostic[] = state.getState().diagnostics;
+
 state.subscribe((next) => {
   // `state.subscribe` fires on every store change (turtle animation, run status, diagnostics, the
   // speed slider, …), not just document/selection edits — `decideExternalSync` is the tested
@@ -512,8 +577,20 @@ state.subscribe((next) => {
     next.source,
     next.selection,
   );
+  // #317 — the diagnostics half: `next.diagnostics` is a fresh array reference every time the
+  // diagnostics pipeline re-checks (`diagnostics.ts`'s `runChecks`), so a reference comparison is
+  // exactly the "did diagnostics actually change" signal `setDiagnosticsEffect` needs.
+  const diagnosticsChanged = next.diagnostics !== lastSyncedDiagnostics;
+  if (diagnosticsChanged) {
+    lastSyncedDiagnostics = next.diagnostics;
+  }
+  const diagnosticsEffects = diagnosticsChanged
+    ? [setDiagnosticsEffect.of(next.diagnostics)]
+    : [];
   if (spec) {
-    editorView.dispatch(spec);
+    editorView.dispatch({ ...spec, effects: diagnosticsEffects });
+  } else if (diagnosticsEffects.length > 0) {
+    editorView.dispatch({ effects: diagnosticsEffects });
   }
   runStatusElement.textContent = mapRunStatusToLabel(next.runStatus);
   renderRunToggleButton(next.runStatus);
@@ -539,6 +616,13 @@ runStatusElement.textContent = mapRunStatusToLabel(state.getState().runStatus);
 renderRunToggleButton(state.getState().runStatus);
 outputElement.textContent = formatOutput(state.getState().output);
 renderDiagnostics(diagnosticsListElement, state.getState().diagnostics);
+// #317 — seed CM6's diagnosticsField with whatever the diagnostics controller already computed
+// before this subscription was registered (`createDiagnosticsController`, mounted above, runs its
+// first `refresh()` synchronously at construction — before `editorView` even had a chance to
+// subscribe), matching the other initial-paint calls in this block.
+editorView.dispatch({
+  effects: setDiagnosticsEffect.of(state.getState().diagnostics),
+});
 renderRunLog(runLogElement, runLog.getEntries());
 renderTutorOutput(
   tutorOutputPaneElement,
