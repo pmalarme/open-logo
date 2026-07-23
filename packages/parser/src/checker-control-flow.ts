@@ -22,7 +22,8 @@
  *   it is already the more specific `ol-return-in-comprehension`.
  * - `ol-duplicate-binder` — a binder name repeated where names must be distinct: a `reduce`
  *   accumulator equal to its item binder (`spec/execution-model.md:404,741`), or a repeated name in
- *   a `for [:x :x] in …` destructuring pattern (`spec/error-model.md:116`).
+ *   a destructuring pattern — `for [:x :x] in …` or a `map`/`filter`/`reduce [:x :x] in …`
+ *   comprehension (issue #440) — (`spec/error-model.md:116`, `spec/tooling.md:191`).
  *
  * The rule walks the Core AST once, threading two pieces of lexical context — whether we are inside
  * a procedure body, and the form of the nearest enclosing comprehension body — so an escape is
@@ -192,6 +193,40 @@ function patternDuplicateDiagnostics(
 }
 
 /**
+ * Every `ol-duplicate-binder` a comprehension's binders raise. All three forms accept a
+ * destructuring item binder (issue #72), so a name repeated *inside* the pattern
+ * (`map [:x :x] in …`, issue #440) is a duplicate for `map`/`filter`/`reduce` exactly as it is for
+ * `for … in` — reported via {@link patternDuplicateDiagnostics} at each repeat's later occurrence.
+ * `reduce` additionally reports its accumulator colliding with the item binder
+ * ({@link reduceDuplicateDiagnostic}, issue #407/F8); that collision is suppressed when the
+ * accumulator name is *itself* a repeated pattern name, because the pattern-internal repeat already
+ * reports that name at its later occurrence — one finding, no double-report. When the accumulator
+ * instead collides with a name that appears only once in the pattern, both still fire: two distinct
+ * names, two distinct problems.
+ */
+function comprehensionBinderDiagnostics(
+  node: ComprehensionNode,
+): readonly Diagnostic[] {
+  const patternDuplicates =
+    "kind" in node.binder ? patternDuplicateDiagnostics(node.binder) : [];
+  if (node.form !== "reduce") {
+    return patternDuplicates;
+  }
+  const accumulatorCollision = reduceDuplicateDiagnostic(node);
+  if (accumulatorCollision === undefined) {
+    return patternDuplicates;
+  }
+  const accumulator = node.accumulator.name.toLowerCase();
+  const accumulatorRepeatsInPattern =
+    "kind" in node.binder &&
+    node.binder.names.filter((name) => name.name.toLowerCase() === accumulator)
+      .length > 1;
+  return accumulatorRepeatsInPattern
+    ? patternDuplicates
+    : [...patternDuplicates, accumulatorCollision];
+}
+
+/**
  * The diagnostic a `return`/`stop` raises given its lexical context, or `undefined` when it is
  * validly placed (inside a procedure and not inside a comprehension). A comprehension context wins
  * over the outside-a-procedure check, so a nested escape is always the comprehension code.
@@ -289,11 +324,10 @@ export function controlFlowRule(
         if (noValue !== undefined) {
           diagnostics.push(noValue);
         }
+        for (const duplicate of comprehensionBinderDiagnostics(node)) {
+          diagnostics.push(duplicate);
+        }
         if (node.form === "reduce") {
-          const duplicate = reduceDuplicateDiagnostic(node);
-          if (duplicate !== undefined) {
-            diagnostics.push(duplicate);
-          }
           visit(node.initial, context);
         }
         visit(node.iterable, context);

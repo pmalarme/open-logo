@@ -228,10 +228,10 @@ test("accepts a `reduce` whose accumulator and item binder differ", () => {
 });
 
 test("accepts a `reduce` whose item binder destructures (issue #72)", () => {
-  // The accumulator/item-binder duplicate check only applies to a bare-name item binder; a
-  // destructuring item binder (`[:x :y]`) never triggers the reduce-specific `ol-duplicate-binder`
-  // check here — a same-named collision against one of the destructured names is #162/#114's
-  // future territory, not this rule's.
+  // `reduce acc [:x :y]`: the accumulator is distinct from the pattern and the pattern's own
+  // names are distinct, so neither the accumulator-vs-pattern collision (#407/F8) nor the
+  // pattern-internal duplicate (#440) fires. A colliding accumulator or a repeated pattern name
+  // would — see the map/filter/reduce destructuring tests below.
   const diagnostics = controlFlowFindings(
     "print reduce acc [:x :y] in :pairs from 0 [ :acc ]",
   );
@@ -258,6 +258,108 @@ test("accepts a `for … in` destructuring pattern whose names are distinct", ()
 
 test("accepts a plain (non-destructuring) `for … in` binder", () => {
   const diagnostics = controlFlowFindings("for n in :nums [ print :n ]");
+  assert.deepEqual(diagnostics, []);
+});
+
+// issue #440: a repeated name inside a comprehension's destructuring pattern is an
+// `ol-duplicate-binder` for `map`/`filter`/`reduce`, just as it is for `for … in` — before #440
+// the semantic checker caught it only for `for … in`, so the map/filter/reduce cases reached the
+// runtime unflagged (a semantic/runtime parity gap).
+
+test("flags a repeated name inside a `map` destructuring pattern", () => {
+  const diagnostics = controlFlowFindings("print map [:x :x] in :pairs [ :x ]");
+  assert.equal(diagnostics.length, 1);
+  const [finding] = diagnostics;
+  assert.equal(finding.code, "ol-duplicate-binder");
+  assert.equal(finding.stage, "semantic");
+  assert.equal(finding.severity, "error");
+  assert.deepEqual(finding.params, { name: "x", form: "destructuring" });
+  // Span points at the second `:x` occurrence, same convention as `for … in`.
+  assert.deepEqual(finding.source_span, {
+    document: "unit.logo",
+    start: [1, 15],
+    end: [1, 17],
+  });
+});
+
+test("flags a repeated name inside a `filter` destructuring pattern", () => {
+  const diagnostics = controlFlowFindings(
+    "print filter [:x :x] in :pairs [ :x ]",
+  );
+  assert.equal(diagnostics.length, 1);
+  const [finding] = diagnostics;
+  assert.equal(finding.code, "ol-duplicate-binder");
+  assert.deepEqual(finding.params, { name: "x", form: "destructuring" });
+  assert.deepEqual(finding.source_span, {
+    document: "unit.logo",
+    start: [1, 18],
+    end: [1, 20],
+  });
+});
+
+test("flags a repeated name inside a `reduce` destructuring pattern (accumulator distinct)", () => {
+  const diagnostics = controlFlowFindings(
+    "print reduce a [:x :x] in :pairs from 0 [ :a ]",
+  );
+  assert.equal(diagnostics.length, 1);
+  const [finding] = diagnostics;
+  assert.equal(finding.code, "ol-duplicate-binder");
+  assert.deepEqual(finding.params, { name: "x", form: "destructuring" });
+  assert.deepEqual(finding.source_span, {
+    document: "unit.logo",
+    start: [1, 20],
+    end: [1, 22],
+  });
+});
+
+test("reports one finding when a `reduce` name both collides with the accumulator and repeats in the pattern", () => {
+  // `reduce x [:x :x]`: `x` collides with the accumulator (#407/F8) AND repeats inside the
+  // pattern (#440). Exactly one `ol-duplicate-binder` — the pattern-internal repeat wins (later
+  // occurrence, `form:"destructuring"`) and the accumulator collision for that same name is
+  // suppressed, so there is no double-report.
+  const diagnostics = controlFlowFindings(
+    "print reduce x [:x :x] in :pairs from 0 [ :x ]",
+  );
+  assert.equal(diagnostics.length, 1);
+  const [finding] = diagnostics;
+  assert.equal(finding.code, "ol-duplicate-binder");
+  assert.deepEqual(finding.params, { name: "x", form: "destructuring" });
+  assert.deepEqual(finding.source_span, {
+    document: "unit.logo",
+    start: [1, 20],
+    end: [1, 22],
+  });
+});
+
+test("flags a `reduce` accumulator colliding with one distinct destructuring pattern name (issue #407/F8)", () => {
+  // `reduce x [:x :y]`: the accumulator reuses the pattern's first name, which appears only once,
+  // so the accumulator-collision check reports it with `form:"reduce"` — the pattern has no
+  // internal duplicate, so no destructuring finding is added and the collision is not suppressed.
+  const diagnostics = controlFlowFindings(
+    "print reduce x [:x :y] in :pairs from 0 [ :x + :y ]",
+  );
+  assert.equal(diagnostics.length, 1);
+  const [finding] = diagnostics;
+  assert.equal(finding.code, "ol-duplicate-binder");
+  assert.deepEqual(finding.params, { name: "x", form: "reduce" });
+  assert.deepEqual(finding.source_span, {
+    document: "unit.logo",
+    start: [1, 17],
+    end: [1, 19],
+  });
+});
+
+test("accepts a `map` destructuring pattern whose names are distinct", () => {
+  const diagnostics = controlFlowFindings(
+    "print map [:x :y] in :pairs [ :x + :y ]",
+  );
+  assert.deepEqual(diagnostics, []);
+});
+
+test("accepts a `filter` destructuring pattern whose names are distinct", () => {
+  const diagnostics = controlFlowFindings(
+    "print filter [:x :y] in :pairs [ :x > :y ]",
+  );
   assert.deepEqual(diagnostics, []);
 });
 

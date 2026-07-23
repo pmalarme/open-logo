@@ -1,0 +1,2 @@
+:pairs = [[1 2] [3 4]]
+:kept = filter [:x :x] in :pairs [ :x ]

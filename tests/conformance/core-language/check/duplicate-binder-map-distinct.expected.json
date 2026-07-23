@@ -1,0 +1,7 @@
+{
+  "description": "ol-duplicate-binder clean case (issue #440): a `map` comprehension whose destructuring item binder names are all distinct (`map [:x :y] in …`) produces no diagnostic — the positive-clean pair for the comprehension destructuring check. `:pairs` is declared first so no `ol-undefined-var` fires.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

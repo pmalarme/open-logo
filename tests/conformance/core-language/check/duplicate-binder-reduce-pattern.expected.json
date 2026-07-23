@@ -1,0 +1,19 @@
+{
+  "description": "ol-duplicate-binder (issue #440): a `reduce` whose destructuring item binder repeats a name (`reduce a [:x :x] in …`) is a pattern-internal duplicate — distinct from the accumulator-vs-pattern collision of #407/F8. Here the accumulator `a` is distinct from the pattern, so the only finding is the repeated `:x`, reported with `form:\"destructuring\"` at the second `:x` (the same later-occurrence span convention as `for … in`). `:pairs` is declared first so no `ol-undefined-var` fires.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-duplicate-binder",
+      "source_span": {
+        "document": "core-language/check/duplicate-binder-reduce-pattern",
+        "start": [2, 23],
+        "end": [2, 25]
+      },
+      "params": { "name": "x", "form": "destructuring" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "description": "ol-duplicate-binder clean case (issue #440): a `reduce` whose accumulator is distinct from a destructuring item binder with all-distinct names (`reduce a [:x :y] in …`) produces no diagnostic — neither the pattern-internal check nor the #407/F8 accumulator-collision check fires. `:pairs` is declared first so no `ol-undefined-var` fires.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}
