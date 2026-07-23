@@ -261,7 +261,9 @@ function collectOutput(events: readonly TraceEvent[]): string[] {
   const output: string[] = [];
   for (const event of events) {
     if (isPrintEvent(event)) {
-      output.push(event.payload.values.map(printedForm).join(" "));
+      output.push(
+        event.payload.values.map((value) => printedForm(value)).join(" "),
+      );
     }
   }
   return output;

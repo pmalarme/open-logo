@@ -1,0 +1,3 @@
+:l = [1 2]
+add :l to :l
+print :l
