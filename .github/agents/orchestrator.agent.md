@@ -41,11 +41,14 @@ and [`AGENTS.md`](../../AGENTS.md) first — they bind you and every agent below
    results. If it does not, output the task packet plus the exact `@agent` invocation for a human
    to run, and track status yourself. **Always kick off in autopilot with a prompt:** the
    `create_session` / `open_issue_session` `kickoff` must set `mode: autopilot` **and** a `prompt`
-   in one call — a session created idle (no prompt, or `plan`/`interactive` mode) just waits for the
-   human to click it in the sidebar and never starts on its own. End the kickoff prompt with an
-   **ACK instruction** ("first, message me back `ACK: started` before doing any work"); if no ACK
-   arrives, **re-kickoff** (`send_session_message`) and only then escalate for sidebar activation.
-   See `decompose-and-dispatch` step 5.
+   in one call — a session created **without a prompt** is born idle and just waits for the human to
+   click it in the sidebar, and one with a prompt but in `plan`/`interactive` mode auto-starts yet
+   pauses for approval/input instead of running unattended to a PR. Only autopilot + prompt runs the
+   slice to completion on its own. End the kickoff prompt with an
+   **ACK instruction** ("first, message me back `ACK: started` before doing any work") — the ACK is
+   your immediate proof it started. If no ACK arrives, **re-kickoff** once
+   (`send_session_message` with `mode: autopilot`), confirm via git ground truth, and only then
+   escalate for sidebar activation. See `decompose-and-dispatch` step 5.
 4. **Integrate per story** (`integrate-and-merge`). One integration owner prepares and validates the
    slice — sequencing its PRs, resolving conflicts, **verifying the implementer's non-author
    review verdicts** (the logic/spec reviewer — `rubber-duck` or a named fallback — + **every**

@@ -30,10 +30,12 @@ contracts agreed first. You write no feature code — you decompose, dispatch, a
    **without** a kickoff prompt is born **idle** and sits waiting for the human to click it in the
    sidebar — the single most common reason a dispatched slice "never started"; and one created with
    a prompt but in `plan`/`interactive` mode auto-starts yet **pauses for approval/input** instead of
-   running unattended to a PR. Only autopilot + prompt runs the slice to completion on its own. Never create an idle session and expect a follow-up
-   `send_session_message` to launch it: a cold session won't wake from a message, and a warm one
-   typically only does the git-sync/new-branch step then idles again, needing a second explicit
-   go-kick. **One call, autopilot + prompt, or it will not run.**
+   running unattended to a PR. Only autopilot + prompt runs the slice to completion on its own.
+   **Dispatch = autopilot + prompt at creation, never "create idle now, launch later."** A cold
+   session may not wake from a `send_session_message` at all, and a warm one often only does the
+   git-sync/new-branch step then idles again — so a follow-up message is a **recovery attempt**
+   (see the re-kickoff loop below), not a dispatch strategy. **One call, autopilot + prompt, or it
+   will not run.**
    **The kickoff must require in-session self-review** (`shared/review-gate`): before opening the PR
    the owner dispatches at least two non-author sub-agents — the **logic/spec reviewer** (`rubber-duck`, or a named fallback)
    + **every** domain-adaptive **QA** expert (`@testing` and/or the changed area's owner) — and iterates
@@ -48,14 +50,15 @@ contracts agreed first. You write no feature code — you decompose, dispatch, a
      kick off, or never pick up its prompt. Make the kickoff **self-reporting** — end the kickoff
      `prompt` with an explicit instruction: _"As your very first action, before any planning or
      work, send a cross-session message back to me (the orchestrator, session `<my-id>`) with
-     `ACK: started <issue> in autopilot`, then proceed to build and open the PR."_ The ACK is the
-     only reliable proof the session actually woke and began running its kickoff.
+     `ACK: started <issue> in autopilot`, then proceed to build and open the PR."_ The ACK is your
+     **preferred, immediate proof** the session woke and began running its kickoff.
    - **Re-kickoff loop.** After dispatch, wait for that ACK (you'll also get an idle notification via
-     `notify_on_idle`). If **no ACK arrives**, the session is almost certainly born-idle waiting for
+     `notify_on_idle`). If **no ACK arrives**, the session may be born-idle waiting for
      UI activation: (1) **re-send the go-kick** — `send_session_message` with the same prompt + ACK
      instruction **and `mode: autopilot`** (the tool's `mode` is a separate parameter — "same
-     autopilot prompt" alone does not set it); (2) cross-check ground truth, since `get_session` metadata is stale —
-     `git -C <session_path> rev-list --count origin/main..HEAD` and `git status --porcelain` reveal a
+     autopilot prompt" alone does not set it); (2) since a re-kick may still not wake a cold session,
+     cross-check ground truth as the **fallback proof** — `get_session` metadata is stale, so use
+     `git -C <session_path> rev-list --count origin/main..HEAD` and `git status --porcelain`, which reveal a
      session that is in fact working before any push; (3) if it still hasn't started after a re-kick,
      **escalate to the human to activate it in the sidebar** rather than assuming work is underway.
      Never mark a slice "in flight" on the strength of a session id alone.
