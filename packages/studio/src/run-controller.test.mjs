@@ -13,6 +13,46 @@ test("run() executes the shared source via @openlogo/runtime and surfaces print 
   assert.equal(store.getState().runStatus, "done");
 });
 
+test("run() captures an immutable lastRunResult snapshot alongside the live output/diagnostics (#432 finding 2)", () => {
+  const source = "flibbertigibbet 5";
+  const store = OL.createStudioState({ source });
+  const controller = OL.createRunController(store);
+
+  controller.run();
+
+  const { output, diagnostics, lastRunResult } = store.getState();
+  assert.ok(lastRunResult);
+  assert.equal(lastRunResult.source, source);
+  assert.deepEqual(lastRunResult.output, output);
+  assert.deepEqual(lastRunResult.diagnostics, diagnostics);
+});
+
+test("run() snapshots the source it actually executed, not a later live edit (#432 finding 2)", () => {
+  const originalSource = "print 1\nflibbertigibbet 5";
+  const store = OL.createStudioState({ source: originalSource });
+  const controller = OL.createRunController(store);
+
+  controller.run();
+  // Simulate the learner editing the editor after the (synchronous) run has already completed —
+  // `lastRunResult.source` must still reflect what `execute()` actually ran, not this later edit.
+  store.setSource("print 1");
+
+  const { lastRunResult } = store.getState();
+  assert.equal(lastRunResult.source, originalSource);
+  assert.notEqual(store.getState().source, lastRunResult.source);
+});
+
+test("reset() clears lastRunResult back to null, mirroring output/diagnostics (#432 finding 2)", () => {
+  const store = OL.createStudioState({ source: "print 1" });
+  const controller = OL.createRunController(store);
+
+  controller.run();
+  assert.notEqual(store.getState().lastRunResult, null);
+
+  controller.reset();
+  assert.equal(store.getState().lastRunResult, null);
+});
+
 test("run() surfaces one output line per print event, in order", () => {
   const store = OL.createStudioState({
     source: "print 1\nprint 2\nprint 3",

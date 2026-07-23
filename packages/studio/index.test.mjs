@@ -76,6 +76,43 @@ test("#315: index.html declares a plain editor-host container with no static rol
   assert.equal(OL.EDITOR_ARIA_LABEL, editorStop.label);
 });
 
+test("index.html surfaces the fold keybinding to screen readers via aria-describedby (#432 finding 3)", () => {
+  // editor-cm6.ts's createEditorExtensions sets aria-describedby to OL.EDITOR_FOLD_HELP_ELEMENT_ID
+  // on CM6's real content-editable element; the id it points at must actually exist in the DOM,
+  // and the element it names must be reachable by an assistive technology (never `hidden`, and
+  // its wording must match the exported EDITOR_FOLD_HELP_TEXT so the two can never drift apart).
+  const helpTagPattern = new RegExp(
+    `<p id="${OL.EDITOR_FOLD_HELP_ELEMENT_ID}" class="sr-only">([\\s\\S]*?)</p>`,
+  );
+  const match = indexHtml.match(helpTagPattern);
+  assert.ok(
+    match,
+    `expected a visually-hidden <p id="${OL.EDITOR_FOLD_HELP_ELEMENT_ID}" class="sr-only"> element`,
+  );
+  const normalize = (text) => text.replace(/\s+/g, " ").trim();
+  assert.equal(
+    normalize(match[1]),
+    normalize(OL.EDITOR_FOLD_HELP_TEXT),
+    "the help paragraph's wording must match editor-cm6.ts's EDITOR_FOLD_HELP_TEXT exactly " +
+      "(whitespace differences from HTML line-wrapping aside)",
+  );
+  // The real keybindings foldKeymap registers (@codemirror/language) must actually appear, not a
+  // generic "there's a fold shortcut" placeholder.
+  for (const key of [
+    "Ctrl-Shift-[",
+    "Ctrl-Shift-]",
+    "Ctrl-Alt-[",
+    "Ctrl-Alt-]",
+    "Cmd-Alt-[",
+    "Cmd-Alt-]",
+  ]) {
+    assert.ok(
+      OL.EDITOR_FOLD_HELP_TEXT.includes(key),
+      `expected EDITOR_FOLD_HELP_TEXT to mention the real foldKeymap binding "${key}"`,
+    );
+  }
+});
+
 test("index.html's focusable elements appear in exactly REPL_FOCUS_ORDER's DOM order", () => {
   const elementIdByStopId = {
     "lesson-pane": "lesson-pane",

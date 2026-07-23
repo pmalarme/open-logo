@@ -407,8 +407,21 @@ export function createRunController(
     currentEvents = result.events;
     preparedSource = state.getState().source;
 
-    state.setOutput(collectOutput(result.events));
+    const output = collectOutput(result.events);
+    state.setOutput(output);
     state.setDiagnostics(result.diagnostics);
+    // #432 finding 2 — snapshot this run's output/diagnostics immutably, separate from the live
+    // `output`/`diagnostics` fields above. Those live fields get overwritten by
+    // `diagnostics.ts`'s parse-as-you-type re-checking on every subsequent source edit — including
+    // mid-run, since a paced (non-instant) run leaves `runStatus` at `"running"` across many
+    // event-loop turns while the editor stays fully live. `run-log.ts` reads this snapshot instead
+    // of the live fields at the terminal transition, so an entry always reflects the run that
+    // produced it, never a later edit's parse result.
+    state.setLastRunResult({
+      source: preparedSource,
+      output,
+      diagnostics: result.diagnostics,
+    });
     state.setTutorOutput(collectTutorOutput(result.events));
     finalRunStatus = result.diagnostics.some(
       (diagnostic) => diagnostic.code === "ol-limit",
@@ -471,6 +484,7 @@ export function createRunController(
     state.setOutput([]);
     state.setDiagnostics([]);
     state.setTutorOutput([]);
+    state.setLastRunResult(null);
     animation?.reset();
     animation = null;
     currentEvents = [];
