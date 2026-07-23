@@ -1,0 +1,2 @@
+struct point [ x y ]
+print (point 0 0).z

@@ -1,0 +1,7 @@
+{
+  "description": "M4 audit finding F2 (issue #441): the speculation boundary. Even though `:p` is assigned a `point` on the line above, the checker does NOT infer `:p`'s struct type — statically resolving `:p.z` would require tracking a variable's type across assignments, exactly the inference `spec/tooling.md:196-200` forbids. So `print :p.z` produces no semantic `ol-unknown-field`; the runtime stays authoritative for the variable-base case (issue #329). This fixture locks that boundary.",
+  "profiles": ["core-language", "data"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

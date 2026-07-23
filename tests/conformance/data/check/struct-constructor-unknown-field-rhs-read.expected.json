@@ -1,0 +1,20 @@
+{
+  "description": "M4 audit finding F2 (issue #441): a struct-constructor field read is checked in any read position, including an assignment's right-hand side. `(point 0 0).z` on the RHS of `:x = …` is `Assign.value`, not an assignment target, so it is checked and raises `ol-unknown-field` (stage semantic); the `:x` place the assignment defines is not itself flagged, so exactly one diagnostic is reported.",
+  "profiles": ["core-language", "data"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-field",
+      "source_span": {
+        "document": "data/check/struct-constructor-unknown-field-rhs-read",
+        "start": [2, 17],
+        "end": [2, 19]
+      },
+      "params": { "type": "point", "field": "z" },
+      "message": "point has no field z. check the spelling.",
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

@@ -13,22 +13,32 @@
  * call argument, and `spec/tooling.md:198-200` requires tools MUST NOT report speculative type
  * errors when dynamic values are unknown.
  *
- * **`ol-unknown-field`** ({@link resolveRecordField}) is the record-field half. Field resolution
- * needs a record's statically known struct type and its declared field set — both of which come
- * from a `struct` declaration, formally part of the **Data** profile (`spec/data-structures.md`).
- * This module exposes the pure resolution *logic* ({@link resolveRecordField}) and unit-tests it
- * directly. It is deliberately **not** wired into `check()`'s walk: statically resolving a
- * `:p.field` access needs `:p`'s struct type, which in turn needs tracking a variable's type
- * across assignments — exactly the speculative inference `spec/tooling.md:198-200` forbids when a
- * value is only known dynamically. The runtime (`@openlogo/runtime`) is therefore the authoritative
- * source of `ol-unknown-field`: it validates every field read/write against the record's actual
- * declared fields at execution time (issue #329), reusing this module's `params`/message shape so
- * both layers agree on the diagnostic's identity. {@link knownTypeWords}, by contrast, *is* wired
- * into `check()` and now collects declared struct type names so `is a <struct-type>` resolves.
+ * **`ol-unknown-field`** is the record-field half, split between a pure resolver
+ * ({@link resolveRecordField}) and a narrowly scoped static rule ({@link unknownFieldRule}). Field
+ * resolution needs a record's statically known struct type and its declared field set — both from a
+ * `struct` declaration, formally part of the **Data** profile (`spec/data-structures.md`).
+ * {@link unknownFieldRule} wires the *statically knowable* slice: a `.field` **read** whose base is
+ * a direct struct-constructor call — `(point 0 0).z` — has a type the checker knows exactly, so an
+ * unknown field is reported at `check()` time (`spec/tooling.md:193`: a tool SHOULD report a
+ * statically knowable use of an otherwise-runtime code; `:186` lists `ol-unknown-field` in the
+ * checker table). It deliberately does **not** touch a `:p.field` access: statically resolving that
+ * needs `:p`'s struct type, which in turn needs tracking a variable's type across assignments —
+ * exactly the speculative inference `spec/tooling.md:196-200` forbids when a value is only known
+ * dynamically. The runtime (`@openlogo/runtime`) therefore stays the authoritative source of
+ * `ol-unknown-field` for the variable-base case: it validates every field read/write against the
+ * record's actual declared fields at execution time (issue #329), reusing this module's
+ * `params`/message shape so both layers agree on the diagnostic's identity. {@link knownTypeWords}
+ * is likewise wired into `check()` and collects declared struct type names so `is a <struct-type>`
+ * resolves.
  */
 
 import type { Diagnostic, SourceSpan } from "@openlogo/core";
-import type { ProgramNode } from "./ast.js";
+import type {
+  ExpressionNode,
+  PostfixExpressionNode,
+  ProgramNode,
+  StructDefNode,
+} from "./ast.js";
 import { walk } from "./ast.js";
 import type { CheckProfile } from "./check.js";
 
@@ -155,10 +165,10 @@ export interface RecordFieldAccess {
  * static tool is reporting a statically knowable use of this otherwise-runtime code
  * (`spec/tooling.md:132`, `:196-198`).
  *
- * This is the pure resolution logic for `ol-unknown-field`. It is not yet reachable from
- * `check()` — Core has no way to declare a struct, so no `RecordFieldAccess` can be built from a
- * Core program (module doc comment). The Data profile's struct-access slice supplies the walk that
- * calls this and the matching Data-profile conformance fixtures.
+ * This is the pure resolution logic for `ol-unknown-field`. {@link unknownFieldRule} is the
+ * Data-profile walk that builds a {@link RecordFieldAccess} for every statically typed
+ * struct-constructor field read and calls this resolver; a Core program declares no `struct`, so
+ * that walk collects no types and this stays unreached from a Core `check()` (module doc comment).
  */
 export function resolveRecordField(
   access: RecordFieldAccess,
@@ -186,4 +196,123 @@ function messageForField(type: string, field: string, write: boolean): string {
   return write
     ? `${type} has no field ${field}, and records can't grow new fields.`
     : `${type} has no field ${field}. check the spelling.`;
+}
+
+/**
+ * Every declared `struct` type in `program`, keyed by its canonical **lowercased** type name —
+ * mirroring `@openlogo/runtime`'s phase-1 struct registry (`execute-internal.ts`'s `collectStructs`,
+ * `evaluate.ts`'s `StructRegistry`), which keys by the same lowercased name so a constructor call
+ * resolves case-insensitively like every other command name. The stored {@link StructDefNode}
+ * carries the declared type name (case-preserved, exactly as the runtime records on a value's
+ * `type`) and its declared field names in order, so {@link unknownFieldRule} resolves against the
+ * very same type name and field set the runtime does. A later `struct` of the same name overwrites
+ * the earlier one — a duplicate type name is a collision the runtime/reserved-word checks own, not
+ * this rule's.
+ */
+function collectStructTypes(
+  program: ProgramNode,
+): ReadonlyMap<string, StructDefNode> {
+  const structs = new Map<string, StructDefNode>();
+  walk(program, (node) => {
+    if (node.kind === "StructDef") {
+      structs.set(node.name.name.toLowerCase(), node);
+    }
+  });
+  return structs;
+}
+
+/**
+ * The lowercased struct type name `base` denotes when it is a *direct* struct-constructor call — a
+ * {@link CallNode} or a parenthesized {@link ParenCallNode}, the same two call shapes
+ * `checker-arity.ts` recognizes as struct constructors. Any other base — a `:variable` read, a
+ * list/dict literal, a nested postfix read — returns `undefined`: its value's struct type is only
+ * known dynamically, so {@link unknownFieldRule} leaves it to the runtime (the speculation boundary
+ * described in the module doc comment).
+ *
+ * In practice a struct constructor *with arguments* only ever reaches a postfix base parenthesized
+ * (`(point 0 0).z`, a `ParenCall`) — a bare `point 0 0 .z` is not a parseable postfix base — so a
+ * struct match always arrives via `ParenCall`. The `Call` arm still keeps the recognition uniform
+ * with `checker-arity.ts` for any bare zero-argument call base (a struct match through it just never
+ * happens today), rather than silently diverging from the sibling rule.
+ */
+function structConstructorType(base: ExpressionNode): string | undefined {
+  if (base.kind === "Call" || base.kind === "ParenCall") {
+    return base.callee.name.toLowerCase();
+  }
+  return undefined;
+}
+
+/**
+ * The `ol-unknown-field` static rule (issue #441): a postfix `.field` **read** whose base is a
+ * direct struct-constructor call of a declared `struct` type raises `ol-unknown-field` when `field`
+ * is not one of that struct's declared fields, reusing {@link resolveRecordField}'s params, message,
+ * and field-segment span so the static and runtime halves share the diagnostic's identity. Gated on
+ * the `data` profile, since `struct` — hence any statically known record type — is a Data-profile
+ * feature; when Data is inactive the constructor name is not a known callee at all
+ * (`ol-unknown-command`'s concern) and there is no static record type to resolve against.
+ *
+ * Scope is deliberately narrow (`spec/tooling.md:196` forbids speculative inference):
+ * - **Direct struct-constructor base only.** `(point 0 0).z` is checked; a `:variable.field` base
+ *   is not — inferring `:p`'s struct type across assignments is the forbidden speculation, so the
+ *   runtime stays authoritative there (issue #329).
+ * - **Read positions only.** A postfix in assignment-target position (`Assign.place`, both the `=`
+ *   and `set … to` forms) is excluded: a constructor result is not an assignable place whether or
+ *   not the field exists (`ol-not-a-place`, `checker-not-a-place.ts`, owns that case), so field
+ *   existence is irrelevant to the write. The read on an assignment's RHS (`:x = (point 0 0).z`) is
+ *   not a target and *is* checked.
+ * - **One level deep.** Only the first segment is resolved; a struct field's own value type is not
+ *   statically tracked, so `(point 0 0).x.foo` checks the valid `.x` (⇒ clean) and leaves `.foo`
+ *   to the runtime.
+ */
+export function unknownFieldRule(
+  program: ProgramNode,
+  profiles: readonly CheckProfile[],
+): readonly Diagnostic[] {
+  if (!profiles.includes("data")) {
+    return [];
+  }
+  const structs = collectStructTypes(program);
+
+  // A postfix in assignment-target position is excluded from field checking (see "Read positions
+  // only"). A pre-order `walk` visits an `Assign` before its `place` child, so recording the target
+  // here reliably excludes it by identity when the walk later reaches that same postfix node.
+  const assignmentTargets = new Set<PostfixExpressionNode>();
+  const diagnostics: Diagnostic[] = [];
+
+  walk(program, (node) => {
+    if (node.kind === "Assign") {
+      if (node.place.kind === "PostfixExpression") {
+        assignmentTargets.add(node.place);
+      }
+      return;
+    }
+    if (node.kind !== "PostfixExpression" || assignmentTargets.has(node)) {
+      return;
+    }
+    const typeName = structConstructorType(node.base);
+    if (typeName === undefined) {
+      return;
+    }
+    const def = structs.get(typeName);
+    if (def === undefined) {
+      return;
+    }
+    const declaredFields = def.fields.map((field) => field.name);
+    for (const [index, segment] of node.segments.entries()) {
+      if (index === 0 && segment.kind === "field") {
+        const diagnostic = resolveRecordField({
+          type: def.name.name,
+          field: segment.name.name,
+          declaredFields,
+          write: false,
+          span: segment.source_span,
+        });
+        if (diagnostic !== undefined) {
+          diagnostics.push(diagnostic);
+        }
+      }
+    }
+  });
+
+  return diagnostics;
 }

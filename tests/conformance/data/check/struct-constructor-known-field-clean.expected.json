@@ -1,0 +1,7 @@
+{
+  "description": "M4 audit finding F2 (issue #441): a declared field read on a struct-constructor result checks cleanly. `x` is one of `point`'s declared fields, so `(point 0 0).x` produces no `ol-unknown-field` — the static rule only flags fields the struct does not declare.",
+  "profiles": ["core-language", "data"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}
