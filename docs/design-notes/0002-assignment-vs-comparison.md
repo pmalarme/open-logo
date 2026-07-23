@@ -116,10 +116,15 @@ Three deliberate choices are packed into this decision:
 - **BASIC-family languages** (BASIC, Visual Basic) spell assignment `LET x = 5` (or bare `x = 5`)
   and reuse the identical `=` token for equality inside `IF x = 5 THEN`; there is no distinct
   comparison spelling at all, so `=`'s meaning depends entirely on statement position.
-- **Python and JavaScript** spell assignment `x = 5` and equality `x == 5` (JavaScript further
-  distinguishes loose `==` from strict `===`) — closest in spirit to OpenLogo's split, but the two
-  operators are one character and one keystroke apart, which is exactly the typo class ("if x = 5"
-  instead of "if x == 5") style guides and linters in those languages exist to catch.
+- **JavaScript** spells assignment `x = 5` and equality `x == 5` (further distinguishing loose `==`
+  from strict `===`) — closest in spirit to OpenLogo's split, but assignment is a valid *expression*,
+  so `if (x = 5)` is accepted by the parser and only flagged by style guides and linters; the two
+  operators sit one keystroke apart, which is exactly the typo class those linters exist to catch.
+- **Python** also spells assignment `x = 5` and equality `x == 5`, but goes further than a lint rule:
+  a bare `=` is a *statement*, not an expression, so `if x = 5:` is a hard `SyntaxError` at parse time
+  (assignment-as-expression requires the distinct walrus operator `:=`). OpenLogo takes the same
+  parser-enforced stance — `=` assigns only in statement position — so the mistake is a diagnostic,
+  not a silently-accepted truthiness bug.
 - **Pascal** spells assignment `:=` (a distinct two-character token) and equality `=`, giving
   assignment and comparison genuinely different symbols — the same design goal as OpenLogo, reached
   by inventing a new symbol for assignment instead of a new word. OpenLogo instead reuses the

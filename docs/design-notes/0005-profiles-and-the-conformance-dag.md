@@ -113,25 +113,29 @@ that exact same DAG rather than an arbitrarily chosen phase list.
 Most language ecosystems pick one of two strategies, and OpenLogo deliberately takes the second:
 
 - **Edition/version gating.** ECMAScript ships one yearly edition (ES2015, ES2016, …) that is a
-  strict superset of the previous one; a *specification* conformance claim is keyed to that
+  cumulative, predominantly backward-compatible revision of the previous one; a *specification*
+  conformance claim is keyed to that
   edition as a whole, so a feature (e.g. optional chaining) is not independently declarable apart
   from the year it shipped in, even though individual engines are free to implement features ahead
   of a formal claim. Python's `__future__` imports are a finer-grained variant of the same idea —
   a single flag opt-in per upcoming *language* change — but they are still keyed to specific
-  interpreter versions and are retired once the behavior becomes the version default, so they
+  interpreter versions and become unnecessary (though they remain accepted, as no-ops) once the
+  behavior becomes the version default, so they
   describe a *migration path* through one version timeline rather than a standing, independently
   composable capability. Both approaches make "which version do you support" the central
   conformance question, and both make an unrelated pair of features (say, generators and a new
   numeric literal syntax) ship in lockstep purely because they landed in the same edition cycle.
 - **Modular/profile-based standards.** WebAssembly instead ships a small stable **core**
   specification plus a long list of independently developed **proposals** (e.g. reference types,
-  tail calls, threads), each maturing on its own timeline with its own feature-detection
-  mechanism; a runtime is a conformant WebAssembly Core implementation on its own, and tooling
+  tail calls, threads), each maturing on its own timeline; a
+  runtime is a conformant WebAssembly Core implementation on its own, and tooling
   queries *which proposals* it additionally supports rather than treating proposal adoption as
-  part of one indivisible edition. OpenLogo's profiles go a step further than WASM's
-  proposal-by-proposal detection by standardizing the capability names and their dependency
+  part of one indivisible edition. That per-proposal detection is not itself standardized, though:
+  hosts probe support empirically (validating a small module that uses the feature) or lean on
+  community libraries such as `wasm-feature-detect`. OpenLogo's profiles go a step further than
+  WASM's proposal-by-proposal detection by standardizing the capability names and their dependency
   closure directly in the spec, rather than leaving "which combination is coherent" to tooling
-  convention. POSIX takes a related approach with its
+  convention. POSIX takes a
   related approach with its named conformance **option groups** (e.g. `_POSIX_THREADS`,
   `_POSIX_REALTIME_SIGNALS`): a system is POSIX-conformant at a base level and separately declares
   which optional facilities it provides, rather than claiming one indivisible "POSIX edition."

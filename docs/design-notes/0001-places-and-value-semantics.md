@@ -105,15 +105,17 @@ to; a place that could be an arbitrary sub-expression would have nothing stable 
 | Python (reference semantics) | Yes | `Point(0, 0).z = 1` is ordinarily legal syntax: it sets an attribute on the freshly constructed object, which is then normally unreachable once the statement ends — unless `Point` overrides `__setattr__`, uses `__slots__`, or otherwise customizes attribute assignment, in which case the write can raise or have other observable effects. |
 | JavaScript (reference semantics) | Yes | `new Point(0, 0).z = 1;` ordinarily assigns a new property to the temporary object and is simply lost once the statement ends; it can throw in strict mode if the object is frozen/non-extensible, or behave differently through a setter or `Proxy`. |
 | Ruby (reference semantics) | Rarely, but "yes" for open objects | `Point.new(0, 0).z = 1` calls the `z=` setter method on the temporary receiver if defined; otherwise it raises `NoMethodError` at the *method-dispatch* layer, not because the target is unassignable in principle — any object able to receive `foo=` accepts writes to a transient receiver. |
-| Rust (value semantics) | No | `Point::new(0, 0).z = 1;` is a compile-time error: "cannot assign to this expression" — the compiler requires the left side of `=` to be a mutable *place expression* rooted in a mutable binding, and a temporary produced by a function call is not such a place. |
-| Swift (value semantics) | No | Assigning to a field of a temporary struct value produced by a call/initializer is a compile-time error ("cannot assign to property: function call returns immutable value") for the same reason: structs are values, and a call result is not an lvalue. |
-| C++ (value semantics, prvalues) | No (for the field itself) | A function call producing a `struct`/class *prvalue* is not addressable; `Point(0, 0).z = 1;` is rejected because a prvalue cannot be the left operand of a non-member assignment operator without first materializing and binding it to a named (or reference) object. |
+| Rust | Yes (the temporary is mutated, then dropped) | `Point::new(0, 0).z = 1;` compiles: the call result is materialized into an implicit temporary, `.z` names a mutable place within it, and the write succeeds — but the temporary is never bound to a name, so it is dropped at the end of the statement and the write is unobservable, exactly like the reference-semantics cases above. Value semantics does *not* by itself forbid the write. |
+| Swift (value semantics) | No | Assigning to a field of a temporary struct value produced by a call/initializer is a compile-time error ("cannot assign to property: function call returns immutable value"): a call result is not an lvalue. |
+| C++ (prvalue temporaries) | No (for a scalar field) | `Point(0, 0).z = 1;` is rejected: the call yields a prvalue that is automatically materialized so that `.z` is an xvalue, but built-in assignment requires its left operand to be a *modifiable lvalue*, and that materialized field is not one. (A class-type field whose type overloads `operator=` can still be assigned, since that dispatches to a member function rather than built-in assignment.) |
 
-The reference-semantics languages let the syntax through because *any* object reference can receive
-a write — the temporary just doesn't survive to be read again, so the mistake is invisible. The
-value-semantics languages agree with OpenLogo's shape: assignment targets must be *places*, rooted in
-a named, addressable binding, and a call result is never one of those, so the error surfaces where
-the mistake is made, not silently downstream.
+The reference-semantics languages — and Rust — let the syntax through: the field write executes but
+targets a temporary that is immediately discarded, so the mistake is invisible. Swift and C++ instead
+reject a call result as an assignment target at compile time — the same shape OpenLogo takes:
+assignment targets must be *places*, rooted in a named, addressable binding, and a call result is never
+one of those, so the error surfaces where the mistake is made, not silently downstream. Rust shows the
+two axes are independent: it has value semantics yet still permits the transient write, because it
+materializes an implicit mutable temporary rather than requiring a named binding.
 
 ## Consequences
 
