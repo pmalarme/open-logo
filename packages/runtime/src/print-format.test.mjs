@@ -8,7 +8,11 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { CYCLIC_PLACEHOLDER, formatNumber, printedForm } from "@openlogo/runtime";
+import {
+  CYCLIC_PLACEHOLDER,
+  formatNumber,
+  printedForm,
+} from "@openlogo/runtime";
 import { OLDict } from "@openlogo/core";
 
 test("formatNumber prints a whole value without a decimal", () => {
@@ -121,5 +125,11 @@ test("printedForm bounds a repeated (acyclic-but-shared) reference on its second
 });
 
 test("printedForm renders two independent, non-aliased lists with equal contents in full at each occurrence", () => {
-  assert.equal(printedForm([[1, 2], [1, 2]]), "[[1 2] [1 2]]");
+  assert.equal(
+    printedForm([
+      [1, 2],
+      [1, 2],
+    ]),
+    "[[1 2] [1 2]]",
+  );
 });

@@ -144,9 +144,7 @@ test("a procedure's `procedure-exit` event is a point-in-time snapshot: mutating
     "acceptance.logo",
   );
   assert.deepEqual(result.diagnostics, []);
-  const exited = result.events.find(
-    (event) => event.kind === "procedure-exit",
-  );
+  const exited = result.events.find((event) => event.kind === "procedure-exit");
   assert.ok(exited, "expected a procedure-exit event");
   assert.deepEqual(exited.payload.result, [1, 2, 3]);
 });

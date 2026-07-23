@@ -493,12 +493,16 @@ test("graphEqual: two $ref to the same $id match only the same actual reference"
 
   // A second position tagged with $ref "n1" must resolve to that exact same actual reference.
   const ctx = { idToActual: new Map(), actualToId: new Map() };
-  assert.ok(graphEqual({ $id: "n1", $value: [1, 2] }, sharedActual, ctx).matched);
+  assert.ok(
+    graphEqual({ $id: "n1", $value: [1, 2] }, sharedActual, ctx).matched,
+  );
   assert.ok(graphEqual({ $ref: "n1" }, sharedActual, ctx).matched);
 
   // ...but not an equal-but-distinct copy.
   const ctx2 = { idToActual: new Map(), actualToId: new Map() };
-  assert.ok(graphEqual({ $id: "n1", $value: [1, 2] }, sharedActual, ctx2).matched);
+  assert.ok(
+    graphEqual({ $id: "n1", $value: [1, 2] }, sharedActual, ctx2).matched,
+  );
   const mismatch = graphEqual({ $ref: "n1" }, [1, 2], ctx2);
   assert.ok(!mismatch.matched);
   assert.match(mismatch.reason, /different reference/);
@@ -601,10 +605,7 @@ test("graphEqual falls through to plain structural comparison beneath a tagged n
 });
 
 test("graphEqual reports plain object/array shape mismatches with a reason", () => {
-  assert.match(
-    graphEqual([1, 2], [1, 2, 3]).reason,
-    /array shape mismatch/,
-  );
+  assert.match(graphEqual([1, 2], [1, 2, 3]).reason, /array shape mismatch/);
   assert.match(graphEqual({ a: 1 }, { a: 1, b: 2 }).reason, /object shape/);
   assert.match(graphEqual({ a: 1 }, { b: 1 }).reason, /missing key/);
   assert.match(graphEqual(1, "1").reason, /value mismatch/);
@@ -639,9 +640,7 @@ test("itemsMatch dispatches to graphEqual only when the expected side has graph 
 
   const shared = [1];
   const ctx = { idToActual: new Map(), actualToId: new Map() };
-  assert.ok(
-    itemsMatch({ $id: "n1", $value: [1] }, shared, ctx).matched,
-  );
+  assert.ok(itemsMatch({ $id: "n1", $value: [1] }, shared, ctx).matched);
   assert.ok(itemsMatch({ $ref: "n1" }, shared, ctx).matched);
 });
 
@@ -663,7 +662,11 @@ test("diffStream uses graphEqual for a $id/$ref-tagged expected item and reports
   // Not graph-tagged at this level (the whole event object isn't wrapped) -- demonstrate the
   // more realistic nested case instead: a payload value tagged inside a normal event object.
   const expectedEvents = [
-    { seq: 0, kind: "print", payload: { values: [{ $id: "n1", $value: [1, 2] }] } },
+    {
+      seq: 0,
+      kind: "print",
+      payload: { values: [{ $id: "n1", $value: [1, 2] }] },
+    },
   ];
   const sharedList = [1, 2];
   const actualEvents = [
@@ -678,13 +681,10 @@ test("diffStream uses graphEqual for a $id/$ref-tagged expected item and reports
   const wrongActualEvents = [
     { seq: 0, kind: "print", payload: { values: [[1, 2, 3]] } },
   ];
-  const report = diffStream(
-    "event",
-    "seq",
-    expectedEvents,
-    wrongActualEvents,
-    { idToActual: new Map(), actualToId: new Map() },
-  );
+  const report = diffStream("event", "seq", expectedEvents, wrongActualEvents, {
+    idToActual: new Map(),
+    actualToId: new Map(),
+  });
   assert.ok(report);
   assert.ok(report.includes("event mismatch"));
 

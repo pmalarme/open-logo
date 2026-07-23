@@ -478,7 +478,10 @@ export function graphEqual(
   if (isGraphRefNode(expected)) {
     const id = expected[GRAPH_REF_KEY];
     if (!ctx.idToActual.has(id)) {
-      return { matched: false, reason: `$ref "${id}" has no earlier $id in this fixture` };
+      return {
+        matched: false,
+        reason: `$ref "${id}" has no earlier $id in this fixture`,
+      };
     }
     const bound = ctx.idToActual.get(id);
     if (actual !== bound) {

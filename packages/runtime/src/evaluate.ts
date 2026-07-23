@@ -2393,7 +2393,12 @@ export function printedForm(
  * ancestor's own contents are still mid-copy.
  */
 type SnapshotFrame =
-  | { kind: "array"; source: readonly OLValue[]; index: number; clone: OLValue[] }
+  | {
+      kind: "array";
+      source: readonly OLValue[];
+      index: number;
+      clone: OLValue[];
+    }
   | {
       kind: "dict";
       source: OLDict;
