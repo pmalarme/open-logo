@@ -127,6 +127,15 @@ codes only outside the `ol-*` namespace.
 | `ol-unknown-key` | runtime | `key` | A required dictionary key is absent on read, or an intermediate dictionary key is absent in a nested access chain. Writing a missing final dictionary key upserts and MUST NOT raise this error. |
 | `ol-not-a-place` | semantic | optional `text` | The target of `=` or `set … to` is not assignable. Reporters such as `first`, `count`, and `keys` are not places. |
 
+A malformed nested dict-key literal, such as `print { { a: 1 }: 2 }`, is a specific instance of
+`ol-bad-token`: the dict-key grammar position accepts only an identifier or number
+(`dict-key ::= identifier | number` in [grammar.md](grammar.md)), so encountering `{` there is an
+unexpected token, not an unmatched brace. `ol-bad-token` alone is authoritative for this
+malformed-input class, spanning only the offending nested-literal token; parser recovery MUST NOT
+additionally raise `ol-unmatched-brace` for the enclosing dict literal, whose own braces are
+correctly matched. See [data-structures.md](data-structures.md#dictionaries) for the full dict-key
+grammar and this rule's normative statement.
+
 ## Style linter codes
 
 Advisory style findings reuse the diagnostic shape above with `severity: warning`
