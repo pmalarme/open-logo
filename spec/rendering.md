@@ -83,7 +83,9 @@ Rendering consumes the normative execution-event stream defined by [the trace an
 
 Start events are emitted before their effect. Effect events are emitted immediately after the state change they describe. The renderer MUST apply effect events in increasing `seq` order. If multiple turtles are supported by the Sprites profile, `turtle-id` identifies which turtle state or scene operation the event affects.
 
-The renderer MUST treat the `instruction` event as exactly one user-visible step. A step begins at an `instruction` event and continues until the next `instruction` event or program end. All effect events in that interval belong to that step.
+A user-visible step spans from an instruction that produces an observable change — a change to turtle state (position, heading, pen, color, width, shape, visibility) or to the retained scene (segments, fills, stamps, background) — up to, but not including, the next such instruction, or program end. Effect events belong to the step of the instruction that produced them.
+
+When advancing manually with **step**, or when the animation cursor rests between steps, the renderer MUST fold any run of leading events that produce no observable change into the following visible step, so that a single **step** always advances to the next observable change. Such foldable leading events include the `instruction` start events of zero-effect structural containers (`repeat`, `if`, `while`, `for`, `forever`), `procedure-enter`, and effect events that draw nothing on the Canvas such as `print` and `sound`. The renderer MUST NOT fold two observable changes together: every instruction that produces at least one observable change is its own visible step. Folding non-observable leading events into the following step is not coalescing visible state changes.
 
 ## Animation and execution control
 
@@ -93,7 +95,7 @@ Implementations MUST provide these controls for the Canvas target:
 
 - **run**: consume events continuously until pause, error, cancellation, or program end
 - **pause**: stop consuming new events after the current event or current step boundary
-- **step**: consume exactly one `instruction` step, including all effect events until the next `instruction` event or program end
+- **step**: advance exactly one visible step — fold any leading events that produce no observable change (zero-effect containers, `procedure-enter`, and non-drawing effects like `print`/`sound`), then consume the next instruction that produces an observable change and its effect events, up to the following such instruction or program end
 - **speed**: choose how quickly steps are consumed without changing program semantics
 - **reset/replay**: clear renderer runtime state and replay the retained or regenerated event stream from the beginning
 
@@ -108,7 +110,7 @@ repeat 4
 end repeat
 ```
 
-In the program above, each source instruction produces its own `instruction` event. Pressing **step** once at the first `forward 100` consumes that one instruction and the resulting `move` and `draw-segment` effects. The following `right 90` is a separate step.
+In the program above, each source instruction produces its own `instruction` event. The `repeat 4` header produces no effect events of its own, so from the start (or immediately after **reset/replay**) the first **step** folds that zero-effect header into the first `forward 100`: it consumes the header and the `forward 100` instruction together with the resulting `move` and `draw-segment` effects, and the turtle visibly moves on that first step. The following `right 90` is a separate step. Across the whole program the turtle takes eight visible steps (four `forward`, four `right`).
 
 ## Turtle avatar and shapes
 
