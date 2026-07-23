@@ -208,17 +208,41 @@ test("the objective states define/return/local and the build-polygon-from-repeat
   );
 });
 
-test("the objective mentions Heritage to … end / output only in prose, taught second", () => {
+test("no learner-facing L5 string names Heritage spellings, Level 6, or absolute placement (issue #436)", () => {
   const lesson = level5Lessons.find(
     (item) => item.id === "l5-polygon-procedure",
   );
   assert.ok(lesson);
-  assert.equal(
-    lesson.objective.includes(
-      "Heritage spellings to … end and output are recognized, but define and return are taught first",
-    ),
-    true,
-  );
+
+  const learnerStrings = [
+    lesson.objective,
+    lesson.exercisePrompt,
+    ...lesson.workedExamples.map((example) => example.explanation),
+    ...level5Exercises.flatMap((exercise) => [
+      exercise.prompt,
+      exercise.referenceSolution.source,
+      exercise.referenceSolution.explanation,
+    ]),
+  ];
+
+  const bannedPatterns = [
+    /heritage/i,
+    /\bto\s*…\s*end\b/i,
+    /\boutput\b/,
+    /level\s*6/i,
+    /absolute[- ]placement/i,
+    /absolute\s+heading/i,
+  ];
+
+  for (const text of learnerStrings) {
+    for (const pattern of bannedPatterns) {
+      assert.equal(
+        pattern.test(text),
+        false,
+        `found banned pattern ${pattern} in learner-facing text: ${text}`,
+      );
+    }
+  }
 });
 
 test("the first worked example matches spec/educational-model.md's polygon-from-repeat program verbatim", () => {

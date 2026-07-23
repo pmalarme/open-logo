@@ -133,8 +133,6 @@ that a command procedure may draw without returning a value, and that `local` na
 that lives only inside the procedure. `polygon` is always **built up** from `repeat` here — never
 handed to the learner as an opaque primitive.
 
-Heritage spellings `to … end` and `output` are recognized, but `define`/`return` are taught first.
-
 ```logo
 # why: polygon is the side-and-turn pattern with names for the parts
 define polygon :sides :size
