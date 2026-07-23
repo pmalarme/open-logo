@@ -14,13 +14,13 @@ test("mapRunStatusToRunToggleViewModel maps 'idle' to the play/Start affordance"
   });
 });
 
-test("mapRunStatusToRunToggleViewModel maps 'running' to the pause/stop affordance", () => {
+test("mapRunStatusToRunToggleViewModel maps 'running' to the honest Stop affordance (#410)", () => {
   assert.deepEqual(mapRunStatusToRunToggleViewModel("running"), {
     action: "stop",
-    icon: "pause",
-    label: "Pause",
-    ariaLabel: "Pause run",
-    ariaPressed: true,
+    icon: "stop",
+    label: "Stop",
+    ariaLabel: "Stop run",
+    ariaPressed: false,
   });
 });
 
@@ -60,14 +60,13 @@ test("only 'running' invokes stop(); every other status invokes run()", () => {
   assert.equal(mapRunStatusToRunToggleViewModel("running").action, "stop");
 });
 
-test("only 'running' reports ariaPressed true (the toggle's pressed state)", () => {
-  for (const runStatus of ["idle", "done", "stopped"]) {
+test("no status reports ariaPressed true — a plain Stop is not a resumable toggle (#410)", () => {
+  for (const runStatus of ["idle", "running", "done", "stopped"]) {
     assert.equal(
       mapRunStatusToRunToggleViewModel(runStatus).ariaPressed,
       false,
     );
   }
-  assert.equal(mapRunStatusToRunToggleViewModel("running").ariaPressed, true);
 });
 
 test("every view model has a non-empty accessible name distinct from the icon alone", () => {

@@ -12,7 +12,7 @@
  * belongs in, whether a looked-up element is missing, whether the CM6 editor's doc/selection
  * actually needs re-syncing from the store, how a turtle-speed slider position maps to a tick
  * delay or a learner-facing description, which learner-facing label a `runStatus` value maps to,
- * which icon/label/aria state the Start/Pause toggle button shows and which of `run()`/`stop()` a
+ * which icon/label/aria state the Start/Stop toggle button shows and which of `run()`/`stop()` a
  * click invokes, whether a lesson is loaded and what its objective/worked-examples/exercise-prompt
  * content is — is made by a tested `src/` helper instead (`selectScheduler`,
  * `selectAnnouncerElementId`, `assertPresent`, `syncTextValue`, #315's `createEditorExtensions` /
@@ -306,7 +306,7 @@ turtleStateRegion.subscribeText((text) => {
   turtleStateElement.textContent = text;
 });
 
-/** Looks up the `RunController` method a Start/Pause toggle click should invoke for the
+/** Looks up the `RunController` method a Start/Stop toggle click should invoke for the
  * `RunToggleAction` `mapRunStatusToRunToggleViewModel` already decided — an indexed lookup, not a
  * branch on `runStatus` itself (see this module's doc comment). */
 const runToggleActionHandlers: Readonly<Record<RunToggleAction, () => void>> = {
@@ -327,7 +327,7 @@ speedSliderElement.addEventListener("input", () => {
   shell.state.setSpeedSliderValue(speedSliderElement.valueAsNumber);
 });
 
-/** Applies the Start/Pause toggle button's already-decided presentation
+/** Applies the Start/Stop toggle button's already-decided presentation
  * ({@link mapRunStatusToRunToggleViewModel}) onto the real DOM button — plain attribute/text
  * assignment, no decision of its own (#316). */
 function renderRunToggleButton(runStatus: RunStatus): void {

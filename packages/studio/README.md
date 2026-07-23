@@ -178,13 +178,13 @@ The `#run-status` region (`index.html`) shows a learner-facing label instead of 
   new markup needed beyond a `role`/`aria-label` for parity with the turtle-state region); the label
   is plain text — color is never used to distinguish run states.
 
-## Icon Start/Pause run-toggle (#316)
+## Icon Start/Stop run-toggle (#316, relabeled to honest "Stop" in #410)
 
 Presentation only, over the unchanged `run-controller.ts` — no new run-lifecycle semantics.
 
 - The separate `#run-button` ("Run") and `#stop-button` ("Stop") are replaced by a single
   `#run-toggle-button` in `index.html`, an icon + label toggle: a play icon/"Start" label while
-  idle/done/stopped, a pause icon/"Pause" label while running. `#reset-button` is unchanged in
+  idle/done/stopped, a stop icon/"Stop" label while running. `#reset-button` is unchanged in
   behavior and gains a matching icon.
 - `src/run-controls.ts` — the one tested, pure place that decides the toggle's presentation:
   `mapRunStatusToRunToggleViewModel(runStatus)` maps every internal `RunStatus` to a
@@ -199,17 +199,22 @@ Presentation only, over the unchanged `run-controller.ts` — no new run-lifecyc
   shape).
 - **Scope boundary:** clicking the toggle while running still calls the existing `stop()` — there
   is no pause/resume method, and `run()`/`stop()`/`reset()` are otherwise byte-for-byte unchanged.
-  The toggle's "Pause" label is a learner-facing affordance over that same `stop()` call, not a new
-  runtime capability. There is still no `step()`/"Next step" control in the 0.1.0 UI (deferred to
-  Studio Stepper Wave 1 / #302 / milestone #12, per `a11y.ts`'s doc comment) — this slice does not
-  cross that boundary.
+  **#410 relabeled the toggle's `"running"` presentation from "Pause" to "Stop"**: the button's
+  action was always `stop()`, which latches cancellation irreversibly (only `reset()` re-arms it),
+  so "Pause" falsely promised a resume that never existed — `spec/rendering.md` defines "pause" as
+  a genuinely resumable control, distinct from cancellation. The toggle is now honestly a one-shot
+  Stop affordance with `ariaPressed: false` in every state (nothing here is a real pressed toggle).
+  There is still no `step()`/"Next step" control in the 0.1.0 UI, and no genuine resumable pause
+  (deferred to Studio Stepper Wave 1 / #302 / milestone #12, per `a11y.ts`'s doc comment) — this
+  slice does not cross that boundary.
 - Accessibility: the icon (`.control-icon`, a CSS `::before`-rendered Unicode glyph keyed off the
   button's `data-icon` attribute) is `aria-hidden="true"` and never the only accessible signal —
-  the toggle always carries an `aria-label` (`"Start run"`/`"Pause run"`) plus a visible text label
-  (`#run-toggle-label`, "Start"/"Pause") and an `aria-pressed` state reflecting whether a run is in
-  progress. `REPL_FOCUS_ORDER`/`REPL_LANDMARK_ROLES` (`a11y.ts`) collapse the former two Run/Stop
+  the toggle always carries an `aria-label` (`"Start run"`/`"Stop run"`) plus a visible text label
+  (`#run-toggle-label`, "Start"/"Stop") and an `aria-pressed` state that is `"false"` in every
+  status (#410 — a plain Stop is not a pressed toggle promising resume).
+  `REPL_FOCUS_ORDER`/`REPL_LANDMARK_ROLES` (`a11y.ts`) collapse the former two Run/Stop
   focus stops into the single `run-toggle-button` stop; Reset keeps its own stop. Button background
-  colors (`--ol-button-start`/`--ol-button-pause`/`--ol-button-reset` in `web/styles.css`) were
+  colors (`--ol-button-start`/`--ol-button-stop`/`--ol-button-reset` in `web/styles.css`) were
   chosen to clear WCAG AA's 4.5:1 text-contrast threshold against the white button-label text,
   distinct from the lighter `--ol-green`/`--ol-orange`/`--ol-blue` used elsewhere (tagline text,
   focus outline) that fall short of it. No animation/transition is introduced, so there is nothing
@@ -293,11 +298,12 @@ layer** (`src/a11y.ts`) that a later real renderer maps onto actual DOM attribut
 no DOM here to regress.
 
 - **Keyboard operability** — `REPL_FOCUS_ORDER` is a static, ordered list of every focusable stop
-  across the studio: the editor (one `textbox` stop), the Start/Pause toggle and Reset (two
+  across the studio: the editor (one `textbox` stop), the Start/Stop toggle and Reset (two
   `button` stops, matching `run-controller.ts`'s `run()`/`stop()`/`reset()` — collapsed from three
-  stops to two by #316's icon toggle, see that section above), the turtle-speed slider (one
-  `slider` stop, #310), the turtle Canvas (one `img` stop), and the diagnostics list (one `log`
-  stop).
+  stops to two by #316's icon toggle, relabeled "Stop" in #410, see that section above), the
+  turtle-speed slider (one `slider` stop, #310), the run log (one `log` stop, #410), the turtle
+  Canvas (one `img` stop), the non-visual turtle-state text (one `status` stop, #410), the program
+  output pane (one `status` stop, #410), and the diagnostics list (one `log` stop).
   `nextFocusStop`/`previousFocusStop` cycle through it, wrapping at both ends — proof there is no
   keyboard trap: from any stop you can always reach every other stop moving forward or backward.
   `run-controller.ts`'s headless `step()` method still exists (Wave 1/#302 rebuilds a UI on it), but
@@ -308,8 +314,9 @@ no DOM here to regress.
   `step()`/`stop()`.
 - **Semantic structure** — `REPL_LANDMARK_ROLES` declares each pane's container-level ARIA role +
   label (editor≈`textbox`, run controls≈`toolbar` "Run controls", the Canvas≈`img` "Turtle canvas",
-  its non-visual state text≈`status` "Turtle state", diagnostics≈`log` "Diagnostics"), for a
-  renderer to map onto real `role`/`aria-label` attributes.
+  its non-visual state text≈`status` "Turtle state", the program output pane≈`status` "Program
+  output" (#410), diagnostics≈`log` "Diagnostics"), for a renderer to map onto real
+  `role`/`aria-label` attributes.
 - **Screen-reader announcements** — `createA11yAnnouncer(state)` subscribes to the shared #123
   store (never a copy) and emits an `Announcement` (`{ politeness, message }`) whenever
   `runStatus` or `diagnostics` changes: run-status transitions ("Run started."/"Run complete."/
@@ -320,15 +327,22 @@ no DOM here to regress.
   `diagnostics.ts`. `getAnnouncements()` returns the full history; `subscribeAnnouncements(...)`
   notifies every listener with the same events, so multiple consumers never desync (the #123
   single-source-of-truth contract, once again).
-- **Non-visual turtle state (#229)** — `createTurtleStateRegion(state)` is a single, always-current
-  `status`/`aria-live="polite"` text region over the shared store's `turtleState` slot (the same
-  one #218 paints from and #228 pushes into on every run tick/`step()`/`reset()`), rendered via
-  `@openlogo/turtle`'s published `describeTurtleState` — this module never re-derives
-  position/heading/pen wording itself. Unlike the announcer's growing log, `getText()` always
-  returns the *current* description (available immediately, even before any run), and
-  `subscribeText(listener)` notifies every listener with the new text whenever `turtleState`
-  changes — so the region reads in lockstep with the Canvas view as a program runs, and multiple
-  consumers never desync.
+- **Non-visual turtle state (#229, extended in #410 to include the current source instruction)** —
+  `createTurtleStateRegion(state)` is a single, always-current `status`/`aria-live="polite"` text
+  region over the shared store's `turtleState` slot (the same one #218 paints from and #228 pushes
+  into on every run tick/`step()`/`reset()`), built from `@openlogo/turtle`'s published
+  `describeTurtleState` (position/heading/pen wording, never re-derived here) plus, when available,
+  a trailing "current instruction `<exact source text>`" clause — `spec/rendering.md`'s Non-visual
+  state descriptions minimum requires surfacing the current instruction alongside pen/visibility
+  state. `run-controller.ts` maps each pushed turtle snapshot to the `source_span` of the most
+  recently consumed `"instruction"` trace event (`state.currentInstructionSourceSpan`), and this
+  module slices that exact span out of `state.source` — the learner's own spelling, verbatim, never
+  reformatted. The clause is omitted entirely (not a placeholder) before any run/step has happened,
+  or after `reset()`. Unlike the announcer's growing log, `getText()` always returns the *current*
+  description (available immediately, even before any run), and `subscribeText(listener)` notifies
+  every listener with the new text whenever `turtleState`/`currentInstructionSourceSpan` changes —
+  so the region reads in lockstep with the Canvas view as a program runs, and multiple consumers
+  never desync.
 - No shell region/mount function is added for the announcer or the turtle-state region — both are
   cross-cutting services over the existing store, not panes with their own mount lifecycle.
 
@@ -404,6 +418,14 @@ viewports keep the original single-column stack.
   resolution `@openlogo/turtle` paints at) are untouched — purely a visual scale.
 - No `src/` or `web/main.ts` changes: there is no layout *decision* logic to test — CSS alone
   decides when to switch columns, so `web/main.ts` stays exactly as thin and branch-free as before.
+- **#410** — a holistic-audit found that no test actually loaded `web/styles.css`, so a change that
+  silently broke this grid (e.g. dropping a `grid-area`, or deleting the `48rem` breakpoint) would
+  have passed the full suite untouched. `web/layout.test.mjs` closes that gap: it reads
+  `web/styles.css` and `index.html` as text and asserts the real contract — `main` is a grid
+  container, every `.pane-*` class both exists in `index.html` and owns the `grid-area` this section
+  documents, the default single-column stack is exactly `editor → controls → turtle → output →
+  diagnostics`, and the `48rem` breakpoint switches to the two-column `editor/controls | turtle`
+  layout with output/diagnostics full-width below.
 
 **Shell write-set (declared)** — exactly these three files, nothing else:
 `index.html` (adds `pane-*` classes + the extension-slot placeholder below — no reordering, no

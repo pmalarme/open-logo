@@ -124,7 +124,7 @@
         ></p>
         <div class="run-log-wrapper">
           <h2 class="run-log-heading-title">Run log</h2>
-          <ol id="run-log"></ol>
+          <ol id="run-log" role="log" aria-label="Run log" tabindex="0"></ol>
         </div>
       </section>
       <section class="pane-turtle" aria-label="Turtle canvas">
@@ -141,10 +141,17 @@
           role="status"
           aria-live="polite"
           aria-label="Turtle state"
+          tabindex="0"
         ></p>
       </section>
       <section class="pane-output" aria-label="Output">
-        <pre id="output"></pre>
+        <pre
+          id="output"
+          role="status"
+          aria-live="polite"
+          aria-label="Program output"
+          tabindex="0"
+        ></pre>
       </section>
       <section class="pane-diagnostics" aria-label="Diagnostics">
         <ul

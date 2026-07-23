@@ -16,7 +16,11 @@ import type { StudioStateStore } from "./state-model.js";
 /**
  * The named composition points later panes mount into. `"tutor"` (#334) holds the tutor-output
  * pane's `explain`/`why`/`hint`/`debug` results — absent until a meta-command runs, exactly like
- * `"lesson"` is absent in sandbox mode (see `tutor-output-pane.ts`).
+ * `"lesson"` is absent in sandbox mode (see `tutor-output-pane.ts`). `"output"` (#410) names the
+ * learner-visible program-output pane (`#output` in `index.html`) — added so `a11y.ts`'s new
+ * `output` focus stop/landmark has a real region to belong to; no pane currently `mount()`s into
+ * it (`web/main.ts` still wires `#output` directly), matching how several other regions were
+ * declared ahead of their first mount (e.g. `"lesson"` since #123, `"tutor"` since #334).
  */
 export const APP_SHELL_REGIONS = [
   "editor",
@@ -25,6 +29,7 @@ export const APP_SHELL_REGIONS = [
   "lesson",
   "repl",
   "tutor",
+  "output",
 ] as const;
 
 /** One of the app shell's named regions. */

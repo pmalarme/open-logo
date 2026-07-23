@@ -46,6 +46,14 @@
  *   `diagnostics` above — never invented or reformatted here. `tutor-output-pane.ts`'s controller
  *   is what accumulates these across runs into a growing history (mirroring `run-log.ts`'s
  *   pattern), so this field only ever needs to hold the latest run's own events.
+ * - `currentInstructionSourceSpan` (#410) — the `source_span` of the most recently consumed
+ *   `"instruction"` trace event, or `null` before any instruction has been consumed (program-start/
+ *   `reset()`, or before the first `run()`/`step()`). `run-controller.ts` derives this from the
+ *   same already-complete event stream it replays through the turtle animation (never a second
+ *   execution) and updates it in lockstep with `turtleState`/`turtleScene` on every pushed
+ *   snapshot. `a11y.ts`'s turtle-state region reads it to append the current source instruction's
+ *   own text to the non-visual state description (`spec/rendering.md`'s Non-visual state
+ *   descriptions minimum) — omitted entirely, never a placeholder, while `null`.
  *
  * ## Update contract
  * - State changes **only** through the store's `set*` methods below; the object returned by
@@ -57,7 +65,12 @@
  *   notified synchronously with the new snapshot; `subscribe` returns an unsubscribe function.
  */
 
-import type { Diagnostic, Position, TutorOutputPayload } from "@openlogo/core";
+import type {
+  Diagnostic,
+  Position,
+  SourceSpan,
+  TutorOutputPayload,
+} from "@openlogo/core";
 import type { TurtleScene, TurtleState } from "@openlogo/turtle";
 import { INITIAL_TURTLE_SCENE, INITIAL_TURTLE_STATE } from "@openlogo/turtle";
 import { DEFAULT_SPEED_SLIDER_VALUE } from "./turtle-speed.js";
@@ -103,6 +116,7 @@ export interface StudioState {
   readonly turtleScene: TurtleScene;
   readonly speedSliderValue: number;
   readonly tutorOutput: readonly TutorOutputPayload[];
+  readonly currentInstructionSourceSpan: SourceSpan | null;
 }
 
 /** A subscriber notified with the new snapshot after every state change. */
@@ -163,6 +177,14 @@ export interface StudioStateStore {
    * controller accumulates these across runs into its own growing history.
    */
   setTutorOutput(tutorOutput: readonly TutorOutputPayload[]): void;
+  /**
+   * Replace the current instruction's `source_span` (#410), or `null` when none is available
+   * (program-start/`reset()`, or before the first `run()`/`step()`). `run-controller.ts` calls
+   * this in lockstep with `setTurtleState`/`setTurtleScene` on every pushed animation snapshot.
+   */
+  setCurrentInstructionSourceSpan(
+    currentInstructionSourceSpan: SourceSpan | null,
+  ): void;
 }
 
 const INITIAL_POSITION: Position = [1, 1];
@@ -188,6 +210,7 @@ export function createStudioState(
     turtleScene: initial?.turtleScene ?? INITIAL_TURTLE_SCENE,
     speedSliderValue: initial?.speedSliderValue ?? DEFAULT_SPEED_SLIDER_VALUE,
     tutorOutput: initial?.tutorOutput ?? [],
+    currentInstructionSourceSpan: initial?.currentInstructionSourceSpan ?? null,
   };
 
   const listeners = new Set<StudioStateListener>();
@@ -242,6 +265,9 @@ export function createStudioState(
     },
     setTutorOutput(tutorOutput) {
       commit({ tutorOutput });
+    },
+    setCurrentInstructionSourceSpan(currentInstructionSourceSpan) {
+      commit({ currentInstructionSourceSpan });
     },
   };
 }
