@@ -106,8 +106,11 @@ test("web/styles.css switches to a two-column grid at the 48rem breakpoint, with
   );
   assert.match(
     mainRuleMatch[1],
-    /grid-template-columns:\s*1fr 1fr;/,
-    "the 48rem breakpoint must switch to a two-column grid",
+    /grid-template-columns:\s*minmax\(0,\s*1fr\)\s+minmax\(\s*[1-9][\d.]*rem\s*,\s*[1-9][\d.]*fr\s*\);/,
+    "the 48rem two-column grid must floor the editor track at 0 (`minmax(0, 1fr)`) so long, " +
+      "non-wrapping lines scroll inside the editor instead of stealing width, and give the " +
+      "turtle track a NON-ZERO rem-based minimum floor (not `0rem`/`0fr`) so the drawing pane " +
+      "keeps a usable minimum size (#472)",
   );
   const areasMatch = mainRuleMatch[1].match(
     /grid-template-areas:\s*((?:"[^"]*"\s*)+)/,
@@ -129,5 +132,104 @@ test("web/styles.css switches to a two-column grid at the 48rem breakpoint, with
     ],
     "the two-column layout must place editor above controls in the left column, with the turtle " +
       "canvas spanning both rows in the right column, and output/diagnostics full-width below",
+  );
+});
+
+test("web/styles.css floors every grid item's min-width at 0 so a long editor line can't inflate its column (#472)", () => {
+  const sectionRuleMatch = stylesCss.match(/main section\s*\{([^}]*)\}/);
+  assert.ok(
+    sectionRuleMatch,
+    "expected a `main section { ... }` rule in styles.css",
+  );
+  assert.match(
+    sectionRuleMatch[1],
+    /min-width:\s*0;/,
+    "grid items must set `min-width: 0` — a grid item's default `auto` (min-content) minimum " +
+      "would otherwise let a long, non-wrapping CodeMirror line stretch the editor track and " +
+      "squeeze the turtle track (#472)",
+  );
+});
+
+test("web/styles.css makes the turtle canvas grow to its column width and stay square with a usable minimum-size floor (#472)", () => {
+  const canvasRuleMatch = stylesCss.match(/#turtle-canvas\s*\{([^}]*)\}/);
+  assert.ok(
+    canvasRuleMatch,
+    "expected a `#turtle-canvas { ... }` rule in styles.css",
+  );
+  const canvasRule = canvasRuleMatch[1];
+  assert.match(
+    canvasRule,
+    /width:\s*100%;/,
+    "the canvas must grow to fill the width available to its column",
+  );
+  assert.match(
+    canvasRule,
+    /aspect-ratio:\s*1\s*\/\s*1;/,
+    "the canvas must keep a 1:1 aspect ratio as it scales, matching its square backing store",
+  );
+  assert.match(
+    canvasRule,
+    /min-width:\s*min\(\s*100%\s*,\s*[1-9][\d.]*rem\s*\);/,
+    "the canvas needs a usable minimum size (never a thumbnail), capped at 100% of its pane so a " +
+      "very narrow column still scales it down to fit instead of overflowing (#472)",
+  );
+});
+
+test("web/styles.css keeps the turtle track floored in the lesson-pane :has() three-column layouts too, so the canvas never collapses there (#472)", () => {
+  const mediaStart = stylesCss.indexOf("@media (min-width: 48rem)");
+  assert.ok(
+    mediaStart >= 0,
+    "expected a `@media (min-width: 48rem)` breakpoint in styles.css",
+  );
+  const mediaBody = stylesCss.slice(mediaStart);
+  // The lesson-only and lesson+tutor rules both override grid-template-columns with a third
+  // (turtle) track; each must keep a non-zero rem floor rather than a bare `1fr`.
+  const lessonSelectors = [
+    "main:has(.pane-lesson:not([hidden]))",
+    "main:has(.pane-lesson:not([hidden])):has(.pane-tutor:not([hidden]))",
+  ];
+  for (const selector of lessonSelectors) {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const ruleMatch = mediaBody.match(
+      new RegExp(`${escaped}\\s*\\{([^}]*)\\}`),
+    );
+    assert.ok(
+      ruleMatch,
+      `expected a 48rem-breakpoint \`${selector}\` rule in styles.css`,
+    );
+    const columnsMatch = ruleMatch[1].match(
+      /grid-template-columns:\s*([^;]*);/,
+    );
+    assert.ok(
+      columnsMatch,
+      `expected \`${selector}\` to declare grid-template-columns`,
+    );
+    assert.match(
+      columnsMatch[1],
+      /minmax\(\s*[1-9][\d.]*rem\s*,\s*[1-9][\d.]*fr\s*\)\s*$/,
+      `the turtle track (last column) in \`${selector}\` must keep a non-zero rem-based minimum ` +
+        `floor so the drawing pane never collapses to a thumbnail when the lesson pane is visible (#472)`,
+    );
+  }
+});
+
+test("web/styles.css keeps the turtle canvas 500x500 backing resolution unchanged — Slice B (#474), not this slice (#472)", () => {
+  const canvasTagMatch = indexHtml.match(
+    /<canvas\b[^>]*\bid="turtle-canvas"[^>]*>/,
+  );
+  assert.ok(
+    canvasTagMatch,
+    'expected a `<canvas id="turtle-canvas" ...>` opening tag in index.html',
+  );
+  const canvasTag = canvasTagMatch[0];
+  assert.match(
+    canvasTag,
+    /\bwidth="500"/,
+    "the canvas backing width attribute must stay 500 (drawing resolution is Slice B #474)",
+  );
+  assert.match(
+    canvasTag,
+    /\bheight="500"/,
+    "the canvas backing height attribute must stay 500 (drawing resolution is Slice B #474)",
   );
 });
