@@ -160,14 +160,11 @@ Bare keys are literal keys, not variable reads. Keys preserve case and are compa
 A dict-key position accepts only a bare identifier or a number literal —
 `dict-key ::= identifier | number` in [grammar.md](grammar.md) — never a general
 expression, and never a nested list or dict literal. A malformed key, such as a
-nested dict literal used as a key (`print { { a: 1 }: 2 }`), is rejected at
-parse time with exactly one diagnostic: `ol-bad-token`, whose `text` param
-names the offending token (the nested literal's opening `{`) and whose span
-covers only that unexpected token, not the enclosing dict literal. Because the
-enclosing dict literal's own `{` and `}` are not unmatched — only the content
-in key position is invalid — parser recovery from this malformed shape MUST
-NOT additionally emit an `ol-unmatched-brace` diagnostic; `ol-bad-token` alone
-is authoritative for this malformed-input class.
+nested dict literal used as a key (`print { { a: 1 }: 2 }`), raises exactly one
+diagnostic, `ol-bad-token`; see [error-model.md](error-model.md#normative-code-registry)
+for the full normative statement — including why `ol-unmatched-brace` MUST NOT also fire
+for the enclosing (correctly matched) dict literal — and the exact conformance-fixture
+diagnostic shape.
 
 If a literal repeats a key, the last entry wins. The key keeps its first insertion position for iteration, and the final value is the value from the last duplicate entry.
 
