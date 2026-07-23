@@ -21,6 +21,11 @@
  * `thing`, which is both a reserved word and a Core primitive): reserved word, then primitive,
  * then existing procedure, then existing struct — checked in that order, so the more fundamental
  * category wins.
+ *
+ * Issue #427 (M4 audit) extends the primitive branch again to the Geometry profile: `grid`,
+ * `axes`, and `measure` (`signatures.ts`'s `geometryPrimitiveArity`) collide the same way a Core
+ * or Data primitive does when `"geometry"` is active, mirroring the Data branch #405 added — gated
+ * the same way, so a Core-only program is free to `define grid`.
  */
 
 import type { Diagnostic } from "@openlogo/core";
@@ -34,7 +39,11 @@ import type {
 } from "./ast.js";
 import { walk } from "./ast.js";
 import { isReservedWord } from "./reserved.js";
-import { corePrimitiveArity, dataPrimitiveArity } from "./signatures.js";
+import {
+  corePrimitiveArity,
+  dataPrimitiveArity,
+  geometryPrimitiveArity,
+} from "./signatures.js";
 import type { CheckProfile } from "./check.js";
 
 /** One collision category a redefined name can fall into, in priority order. */
@@ -60,6 +69,12 @@ function collidingNamespace(
     return "primitive";
   }
   if (profiles.includes("data") && dataPrimitiveArity(name) !== undefined) {
+    return "primitive";
+  }
+  if (
+    profiles.includes("geometry") &&
+    geometryPrimitiveArity(name) !== undefined
+  ) {
     return "primitive";
   }
   if (declaredProcedures.has(name)) {
@@ -104,8 +119,8 @@ function isStructDef(node: AnyNode): node is StructDefNode {
 
 /**
  * The `ol-reserved-word` rule: every `define`/`local`/`struct` registration whose name collides
- * with a reserved word, a Core or Data primitive, or an existing procedure/struct raises one
- * diagnostic at that name's own span. A `local` is checked against every procedure name in the
+ * with a reserved word, a Core, Data, or Geometry primitive, or an existing procedure/struct raises
+ * one diagnostic at that name's own span. A `local` is checked against every procedure name in the
  * program, since procedures are visible program-wide regardless of declaration order
  * (`checker-names.ts`, `@openlogo/runtime`'s phase-1 registration). A `define`/`struct`, though, is
  * checked only against procedures and structs *already seen earlier in source order* — including

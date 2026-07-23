@@ -1,0 +1,19 @@
+{
+  "description": "ol-reserved-word (issue #427, M4 audit): `struct grid [ x ]` redefines `grid`, a Geometry overlay primitive (spec/geometry-module.md's `## grid`). The static checker flags the struct type name at its own span with `namespace: \"primitive\"`, gated on the active `geometry` profile — the static counterpart to the runtime fixture `data/struct-runtime/struct-reserved-word-geometry-grid`.",
+  "profiles": ["core-language", "data", "geometry"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "geometry/check/reserved-word-struct-grid",
+        "start": [1, 8],
+        "end": [1, 12]
+      },
+      "params": { "name": "grid", "namespace": "primitive" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

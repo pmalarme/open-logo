@@ -1,0 +1,7 @@
+{
+  "description": "issue #427 negative case (M4 audit): without the `geometry` profile active, `grid` is not a registered primitive, so `define grid ... end` is an ordinary procedure declaration and raises no `ol-reserved-word` diagnostic — mirroring the `data`-gating discipline the Data branch (#405) already follows for `dict`/`keys`/etc.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

@@ -1,0 +1,4 @@
+define g
+  local measure
+  print 1
+end
