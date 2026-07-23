@@ -16,7 +16,6 @@ import {
   type PenChangePayload,
   type Point,
   type PrintPayload,
-  type ProcedureEnterPayload,
   type ProcedureExitPayload,
   type ReturnPayload,
   type SourceSpan,
@@ -371,7 +370,11 @@ function findRelevantDiagnostic(
   return olDiagnostics[olDiagnostics.length - 1];
 }
 
-/** Describes one trace event's effect in one plain-language sentence. */
+/**
+ * Describes one trace event's effect in one plain-language sentence. Only ever called with an
+ * effect event — {@link findRelevantEvent} filters out the `instruction`/`procedure-enter`
+ * start events before selecting what to describe, so this never has to (issue #435).
+ */
 function describeEvent(event: TraceEvent): string {
   switch (event.kind) {
     case "move": {
@@ -409,10 +412,6 @@ function describeEvent(event: TraceEvent): string {
     case "return": {
       const { value } = event.payload as ReturnPayload;
       return `The procedure answered ${printedForm(value)}.`;
-    }
-    case "procedure-enter": {
-      const { name, args } = event.payload as ProcedureEnterPayload;
-      return `\`${name}\` started with ${args.map(printedForm).join(", ") || "no arguments"}.`;
     }
     case "procedure-exit": {
       const { name, result } = event.payload as ProcedureExitPayload;
@@ -453,29 +452,43 @@ function findInstructionAtSpan(
 }
 
 /**
- * Finds the trace event `why` should explain: the most recent event whose `source_span` is
- * contained by `target` when a target is selected — a selected range (e.g. a `repeat` body)
- * only carries child-instruction spans in the trace, never its own enclosing span — otherwise
- * the most recent event overall (`spec/educational-model.md#why`'s "Use the turtle state or
- * variable value at that moment").
+ * The two `kind`s the runtime pushes as bookkeeping *before* their effect
+ * (`spec/execution-model.md:575`, `packages/core/src/events.ts`'s `OL_EVENT_KINDS`): every
+ * statement — including the `why`/`explain` meta-command's own — gets an `instruction` start
+ * event, and every procedure call gets a `procedure-enter` start event before its body runs.
+ * Neither describes anything that actually happened yet, so `findRelevantEvent` must never
+ * select one as "the effect" to explain (issue #435).
+ */
+const START_EVENT_KINDS: ReadonlySet<TraceEvent["kind"]> = new Set([
+  "instruction",
+  "procedure-enter",
+]);
+
+/**
+ * Finds the trace event `why` should explain: the most recent *effect* event (never an
+ * `instruction`/`procedure-enter` start event, see {@link START_EVENT_KINDS}) whose
+ * `source_span` is contained by `target` when a target is selected — a selected range (e.g. a
+ * `repeat` body) only carries child-instruction spans in the trace, never its own enclosing
+ * span — otherwise the most recent effect event overall
+ * (`spec/educational-model.md#why`'s "Use the turtle state or variable value at that moment").
  */
 function findRelevantEvent(
   context: TutorContext,
   target: AnyNode,
 ): TraceEvent | undefined {
-  if (context.events.length === 0) {
-    return undefined;
-  }
-  if (context.target) {
-    for (let index = context.events.length - 1; index >= 0; index -= 1) {
-      const event = context.events[index];
-      if (event && spanContains(target.source_span, event.source_span)) {
-        return event;
-      }
+  for (let index = context.events.length - 1; index >= 0; index -= 1) {
+    const event = context.events[index];
+    if (!event || START_EVENT_KINDS.has(event.kind)) {
+      continue;
     }
-    return undefined;
+    if (
+      !context.target ||
+      spanContains(target.source_span, event.source_span)
+    ) {
+      return event;
+    }
   }
-  return context.events[context.events.length - 1];
+  return undefined;
 }
 
 /**
