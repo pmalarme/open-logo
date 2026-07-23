@@ -938,6 +938,88 @@ test("resolveBackingResolution rejects a non-positive/non-finite referenceSize (
   }
 });
 
+// Slice B (#474): world-unit *presentation* dimensions (avatar size, overlay marker/stroke widths)
+// must flow through the viewport scale exactly like coordinates and pen width — otherwise they would
+// stay a fixed number of BACKING pixels and visibly shrink as the backing store grows for a larger
+// or high-DPI canvas, so the picture would NOT look the same (only crisper). These prove each keeps a
+// constant ON-SCREEN size across devicePixelRatio while world geometry stays identical.
+const dprBacking = (renderedCssSize, devicePixelRatio) =>
+  OL.resolveBackingResolution({
+    referenceSize: 500,
+    renderedCssSize,
+    devicePixelRatio,
+  });
+
+test("the avatar keeps a constant on-screen size as the backing store grows (scales with the viewport)", () => {
+  const circleState = {
+    position: [0, 0],
+    heading: 0,
+    shape: "circle",
+    color: "green",
+    visible: true,
+  };
+  const emptyScene = { background: "white", items: [] };
+  const avatarRadius = (renderedCssSize, devicePixelRatio) => {
+    const { target, calls } = makeRecordingTarget();
+    const { viewport } = dprBacking(renderedCssSize, devicePixelRatio);
+    OL.paintTurtle(target, emptyScene, circleState, viewport);
+    return calls.find((call) => call[0] === "arc")[3];
+  };
+
+  // 500 CSS @ DPR 1 => scale 1 => radius AVATAR_SIZE/2 = 5 backing px (unchanged from before this slice).
+  assert.equal(avatarRadius(500, 1), 5);
+  // Same 500 CSS @ DPR 2 => backing 1000, scale 2 => 10 backing px, i.e. STILL 5 CSS px (crisper, not smaller).
+  assert.equal(avatarRadius(500, 2), 10);
+  // Proof of constant on-screen size: radius as a fraction of the backing store is identical across DPR.
+  assert.equal(
+    avatarRadius(500, 1) / dprBacking(500, 1).backingPixels,
+    avatarRadius(500, 2) / dprBacking(500, 2).backingPixels,
+  );
+});
+
+test("the axes overlay keeps a constant on-screen stroke width across DPR (scales with the viewport)", () => {
+  const axesLineWidth = (renderedCssSize, devicePixelRatio) => {
+    const { target, calls } = makeRecordingTarget();
+    const { viewport } = dprBacking(renderedCssSize, devicePixelRatio);
+    OL.paintOverlay(target, { axes: true }, viewport);
+    return calls.find((call) => call[0] === "set lineWidth")[1];
+  };
+
+  assert.equal(axesLineWidth(500, 1), 2); // AXES_LINE_WIDTH at scale 1 — unchanged.
+  assert.equal(axesLineWidth(500, 2), 4); // doubled backing px = same on-screen width.
+  assert.equal(
+    axesLineWidth(500, 1) / dprBacking(500, 1).backingPixels,
+    axesLineWidth(500, 2) / dprBacking(500, 2).backingPixels,
+  );
+});
+
+test("the measure overlay marker + tick keep a constant on-screen size across DPR (scales with the viewport)", () => {
+  const measureDims = (renderedCssSize, devicePixelRatio) => {
+    const { target, calls } = makeRecordingTarget();
+    const { viewport } = dprBacking(renderedCssSize, devicePixelRatio);
+    OL.paintOverlay(
+      target,
+      { axes: false, measure: { position: [0, 0], heading: 0 } },
+      viewport,
+    );
+    return {
+      radius: calls.find((call) => call[0] === "arc")[3],
+      tickWidth: calls.find((call) => call[0] === "set lineWidth")[1],
+    };
+  };
+
+  // MEASURE_MARKER_RADIUS / MEASURE_TICK_WIDTH at scale 1 — unchanged from before this slice.
+  assert.deepEqual(measureDims(500, 1), { radius: 4, tickWidth: 1 });
+  // Doubled backing px = same on-screen marker + tick.
+  assert.deepEqual(measureDims(500, 2), { radius: 8, tickWidth: 2 });
+  const base = measureDims(500, 1);
+  const hidpi = measureDims(500, 2);
+  const baseBacking = dprBacking(500, 1).backingPixels;
+  const hidpiBacking = dprBacking(500, 2).backingPixels;
+  assert.equal(base.radius / baseBacking, hidpi.radius / hidpiBacking);
+  assert.equal(base.tickWidth / baseBacking, hidpi.tickWidth / hidpiBacking);
+});
+
 test("world geometry is provably identical across every backing resolution (no drift)", () => {
   // The core acceptance guarantee: world coordinates, headings, and segment endpoints map to the
   // same NORMALIZED target position (fraction of the backing store) regardless of rendered size or

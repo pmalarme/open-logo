@@ -75,9 +75,11 @@ export interface Viewport {
 
 const DEFAULT_SCALE = 1;
 
-/** The turtle avatar's presentation size, in world units. A presentation detail only — it must
- * never affect turtle coordinates, line geometry, or exports (`spec/rendering.md`: "Shape size
- * is a renderer presentation property"). */
+/** The turtle avatar's presentation size, in world units — {@link paintAvatar} multiplies it by
+ * the viewport scale (like every coordinate) so the avatar keeps a constant on-screen size as the
+ * backing store grows for a larger or high-DPI canvas. A presentation detail only: it must never
+ * affect turtle coordinates, line geometry, or exports (`spec/rendering.md`: "Shape size is a
+ * renderer presentation property"). */
 const AVATAR_SIZE = 10;
 
 /**
@@ -262,35 +264,40 @@ const TURTLE_OUTLINE_POINTS: ReadonlyArray<readonly [number, number]> = [
 ];
 
 /**
- * Draws one avatar shape centered at the origin of the current (already translated + rotated)
- * transform, nose pointing toward local `-y` — which is "up" in target-pixel space, matching
- * heading `0°` pointing up once the caller has rotated by the heading (`spec/rendering.md`:
- * "The avatar MUST be positioned at the turtle's world position and rotated so heading `0°`
- * points upward").
+ * Draws one avatar shape of the given target-pixel `size`, centered at the origin of the current
+ * (already translated + rotated) transform, nose pointing toward local `-y` — which is "up" in
+ * target-pixel space, matching heading `0°` pointing up once the caller has rotated by the heading
+ * (`spec/rendering.md`: "The avatar MUST be positioned at the turtle's world position and rotated
+ * so heading `0°` points upward"). The caller passes `AVATAR_SIZE` already multiplied by the
+ * viewport scale so the avatar keeps a constant on-screen size as the backing store grows.
  */
-function drawShapeOutline(target: RenderTarget, shape: string): void {
+function drawShapeOutline(
+  target: RenderTarget,
+  shape: string,
+  size: number,
+): void {
   const resolved: KnownShape = isKnownShape(shape) ? shape : "turtle";
   if (resolved === "circle") {
     target.beginPath();
-    target.arc(0, 0, AVATAR_SIZE / 2, 0, 2 * Math.PI);
+    target.arc(0, 0, size / 2, 0, 2 * Math.PI);
     target.fill();
     return;
   }
   if (resolved === "arrow") {
     target.beginPath();
-    target.moveTo(0, -AVATAR_SIZE);
-    target.lineTo(AVATAR_SIZE * 0.6, AVATAR_SIZE * 0.5);
-    target.lineTo(0, AVATAR_SIZE * 0.2);
-    target.lineTo(-AVATAR_SIZE * 0.6, AVATAR_SIZE * 0.5);
+    target.moveTo(0, -size);
+    target.lineTo(size * 0.6, size * 0.5);
+    target.lineTo(0, size * 0.2);
+    target.lineTo(-size * 0.6, size * 0.5);
     target.closePath();
     target.fill();
     return;
   }
   if (resolved === "triangle") {
     target.beginPath();
-    target.moveTo(0, -AVATAR_SIZE);
-    target.lineTo(AVATAR_SIZE * 0.6, AVATAR_SIZE * 0.6);
-    target.lineTo(-AVATAR_SIZE * 0.6, AVATAR_SIZE * 0.6);
+    target.moveTo(0, -size);
+    target.lineTo(size * 0.6, size * 0.6);
+    target.lineTo(-size * 0.6, size * 0.6);
     target.closePath();
     target.fill();
     return;
@@ -298,8 +305,8 @@ function drawShapeOutline(target: RenderTarget, shape: string): void {
   // "turtle" (the default): a real turtle silhouette, not a bare triangle/arrow.
   target.beginPath();
   TURTLE_OUTLINE_POINTS.forEach(([fractionX, fractionY], index) => {
-    const x = fractionX * AVATAR_SIZE;
-    const y = fractionY * AVATAR_SIZE;
+    const x = fractionX * size;
+    const y = fractionY * size;
     if (index === 0) {
       target.moveTo(x, y);
     } else {
@@ -324,11 +331,12 @@ function paintAvatar(
   color: string,
 ): void {
   const [screenX, screenY] = worldToTarget(position, viewport);
+  const size = AVATAR_SIZE * (viewport.scale ?? DEFAULT_SCALE);
   target.save();
   target.translate(screenX, screenY);
   target.rotate(heading * DEGREES_TO_RADIANS);
   target.fillStyle = color;
-  drawShapeOutline(target, shape);
+  drawShapeOutline(target, shape, size);
   target.restore();
 }
 
@@ -346,9 +354,13 @@ const AXES_STROKE_STYLE = "#888888";
  * `spec/rendering.md:139` ("axes can use labels or line patterns"). */
 const AXES_LINE_WIDTH = 2;
 
-/** `measure` overlay marker color and size, in world units before viewport scaling. */
+/** `measure` overlay marker color and size, in world units before viewport scaling
+ * ({@link paintMeasureOverlay} multiplies the radius and tick width by the viewport scale so the
+ * annotation keeps a constant on-screen size as the backing store grows). */
 const MEASURE_STROKE_STYLE = "#ff8800";
 const MEASURE_MARKER_RADIUS = 4;
+/** `measure` tick line width, in world units before viewport scaling (thin, like the grid). */
+const MEASURE_TICK_WIDTH = 1;
 
 /**
  * The multiples of `spacing` that fall within `[minValue, maxValue]`, ascending — shared by
@@ -420,7 +432,7 @@ function paintGridOverlay(
 function paintAxesOverlay(target: RenderTarget, viewport: Viewport): void {
   const [originX, originY] = worldToTarget([0, 0], viewport);
   target.strokeStyle = AXES_STROKE_STYLE;
-  target.lineWidth = AXES_LINE_WIDTH;
+  target.lineWidth = AXES_LINE_WIDTH * (viewport.scale ?? DEFAULT_SCALE);
   target.beginPath();
   target.moveTo(0, originY);
   target.lineTo(viewport.width, originY);
@@ -443,17 +455,19 @@ function paintMeasureOverlay(
   viewport: Viewport,
 ): void {
   const [screenX, screenY] = worldToTarget(position, viewport);
+  const scale = viewport.scale ?? DEFAULT_SCALE;
+  const radius = MEASURE_MARKER_RADIUS * scale;
   target.fillStyle = MEASURE_STROKE_STYLE;
   target.beginPath();
-  target.arc(screenX, screenY, MEASURE_MARKER_RADIUS, 0, 2 * Math.PI);
+  target.arc(screenX, screenY, radius, 0, 2 * Math.PI);
   target.fill();
 
   const radians = heading * DEGREES_TO_RADIANS;
-  const tickLength = MEASURE_MARKER_RADIUS * 3;
+  const tickLength = radius * 3;
   const tickX = screenX + Math.sin(radians) * tickLength;
   const tickY = screenY - Math.cos(radians) * tickLength;
   target.strokeStyle = MEASURE_STROKE_STYLE;
-  target.lineWidth = 1;
+  target.lineWidth = MEASURE_TICK_WIDTH * scale;
   target.beginPath();
   target.moveTo(screenX, screenY);
   target.lineTo(tickX, tickY);
