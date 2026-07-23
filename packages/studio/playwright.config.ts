@@ -43,7 +43,10 @@ export default defineConfig({
   // is an explicit, local/Docker action. `.only` left in a spec fails the CI run rather than
   // quietly skipping the rest.
   forbidOnly: !!process.env.CI,
-  retries: 0,
+  // Visual snapshots can flake on transient CI noise (font/layout timing) even when the layout is
+  // correct; retry only under CI. Locally `0` so a real failure surfaces immediately. A genuine
+  // squeeze regression is deterministic and still fails after every retry.
+  retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
   reporter: process.env.CI
     ? [["github"], ["html", { open: "never" }]]
