@@ -61,6 +61,26 @@ test('`thing "name"` reads the same binding as `:name`', () => {
   });
 });
 
+test("variable reads fold case: `:X` finds a binding made as `x` (spec/grammar.md:13)", () => {
+  const env = envWith("x", 5);
+  assert.deepEqual(evaluate(parseExpr(":X"), env), { ok: true, value: 5 });
+  assert.deepEqual(evaluate(parseExpr(":x"), env), { ok: true, value: 5 });
+  // `thing` reads the same case-folded binding as `:name`.
+  assert.deepEqual(evaluate(parseExpr('thing "X"'), env), {
+    ok: true,
+    value: 5,
+  });
+});
+
+test("assignment folds case: `:X = …` mutates the binding `:x` reads (spec/grammar.md:13)", () => {
+  const env = createEnvironment();
+  executeAssign(parseStatement(":count = 1"), env);
+  executeAssign(parseStatement(":COUNT = :count + 1"), env);
+  // A single binding was created and mutated — no second global under the other casing.
+  assert.deepEqual(evaluate(parseExpr(":Count"), env), { ok: true, value: 2 });
+  assert.equal(env.frames[env.frames.length - 1].size, 1);
+});
+
 test("thing raises ol-undefined-var for an unbound name", () => {
   const result = evaluate(parseExpr('thing "missing"'), createEnvironment());
   assert.equal(result.ok, false);

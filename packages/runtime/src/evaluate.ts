@@ -104,9 +104,11 @@ function fail(diagnostic: Diagnostic): EvalResult {
 // A frame is one lexical scope's name→value table. `Environment.frames` is nearest-first, and
 // the last frame is always the root/global frame — the top-level program runs directly in it.
 // Issue #94 only ever has the root frame; procedure call frames (issue #97) push additional
-// entries onto the front of `frames` without otherwise changing this shape.
+// entries onto the front of `frames` without otherwise changing this shape. Keys are always the
+// case-folded (lowercased) identifier: identifiers are case-insensitive (`spec/grammar.md:13`),
+// so every binder and every `lookupVar`/`assignVar` folds the name before it touches a frame.
 
-/** One lexical scope: a mutable name→value binding table. */
+/** One lexical scope: a mutable name→value binding table, keyed by case-folded identifier. */
 export type Frame = Map<string, OLValue>;
 
 /**
@@ -395,8 +397,9 @@ function lookupVar(
   environment: Environment,
   name: string,
 ): OLValue | undefined {
+  const key = name.toLowerCase();
   for (const frame of environment.frames) {
-    const value = frame.get(name);
+    const value = frame.get(key);
     if (value !== undefined) {
       return value;
     }
@@ -416,14 +419,15 @@ function assignVar(
   name: string,
   value: OLValue,
 ): void {
+  const key = name.toLowerCase();
   for (const frame of environment.frames) {
-    if (frame.has(name)) {
-      frame.set(name, value);
+    if (frame.has(key)) {
+      frame.set(key, value);
       return;
     }
   }
   const root = environment.frames[environment.frames.length - 1] as Frame;
-  root.set(name, value);
+  root.set(key, value);
 }
 
 // --- Loop/comprehension binder helpers (spec/execution-model.md:435-439) --------------------
@@ -507,7 +511,10 @@ export function bindElement(
   | { readonly ok: true; readonly bindings: Map<string, OLValue> }
   | { readonly ok: false; readonly diagnostic: Diagnostic } {
   if (!("kind" in binder)) {
-    return { ok: true, bindings: new Map([[binder.name, element]]) };
+    return {
+      ok: true,
+      bindings: new Map([[binder.name.toLowerCase(), element]]),
+    };
   }
   const values = Array.isArray(element)
     ? element
@@ -526,7 +533,7 @@ export function bindElement(
   }
   const bindings = new Map<string, OLValue>();
   binder.names.forEach((name, index) => {
-    bindings.set(name.name, values[index] as OLValue);
+    bindings.set(name.name.toLowerCase(), values[index] as OLValue);
   });
   return { ok: true, bindings };
 }
@@ -4267,7 +4274,7 @@ function evaluateComprehension(
         return fail(bound.diagnostic);
       }
       const bindings = new Map(bound.bindings);
-      bindings.set(node.accumulator.name, accumulator);
+      bindings.set(node.accumulator.name.toLowerCase(), accumulator);
       const outcome = runComprehensionBody(
         node.body,
         pushLoopFrame(environment, bindings),

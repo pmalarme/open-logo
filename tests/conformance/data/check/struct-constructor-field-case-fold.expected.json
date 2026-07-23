@@ -1,0 +1,7 @@
+{
+  "description": "The static struct-constructor field check case-folds (issue #512, `spec/grammar.md:13`): `point` declares fields `X`/`Y`, so the lower-case read `(point 3 4).x` folds to a declared field and produces no `ol-unknown-field`. Guards the constructor-result path from #441 against spurious case-only field errors.",
+  "profiles": ["core-language", "data"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

@@ -247,3 +247,12 @@ test("a parenthesized statement-position procedure call with an unsupported argu
   const printed = result.events.filter((event) => event.kind === "print");
   assert.deepEqual(printed, []);
 });
+
+test("a procedure parameter binding folds case: a differently-cased :read in the body sees the argument (spec/grammar.md:13)", () => {
+  const result = execute("define echo :X\n  return :x\nend\nprint echo 5", doc);
+  assert.deepEqual(result.diagnostics, []);
+  const printed = result.events
+    .filter((event) => event.kind === "print")
+    .map((event) => event.payload.values[0]);
+  assert.deepEqual(printed, [5]);
+});

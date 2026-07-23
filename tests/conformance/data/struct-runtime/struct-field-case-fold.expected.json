@@ -1,0 +1,80 @@
+{
+  "description": "Struct field names case-fold at runtime (issue #512, `spec/grammar.md:13`): `point` declares fields `X`/`Y`, and a lower-case field read `:p.x`/`:p.y` folds to match, printing `3`/`4` rather than raising `ol-unknown-field`. The declared spelling stays authoritative for display; only access folds.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-field-case-fold",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "statement_kind": "StructDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-field-case-fold",
+        "start": [2, 1],
+        "end": [2, 15]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-field-case-fold",
+        "start": [3, 1],
+        "end": [3, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "data/struct-runtime/struct-field-case-fold",
+        "start": [3, 1],
+        "end": [3, 11]
+      },
+      "payload": {
+        "values": [3]
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/struct-runtime/struct-field-case-fold",
+        "start": [4, 1],
+        "end": [4, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "print",
+      "source_span": {
+        "document": "data/struct-runtime/struct-field-case-fold",
+        "start": [4, 1],
+        "end": [4, 11]
+      },
+      "payload": {
+        "values": [4]
+      }
+    }
+  ],
+  "diagnostics": []
+}

@@ -128,6 +128,30 @@ test("resolveRecordField returns undefined for a declared field", () => {
   assert.equal(result, undefined);
 });
 
+test("resolveRecordField folds field case: `.X` resolves against a declared `x` (spec/grammar.md:13)", () => {
+  assert.equal(
+    OL.resolveRecordField({
+      type: "point",
+      field: "X",
+      declaredFields: ["x", "y"],
+      write: false,
+      span,
+    }),
+    undefined,
+  );
+  // …and the declared spelling itself may be upper-case while the access is lower-case.
+  assert.equal(
+    OL.resolveRecordField({
+      type: "Point",
+      field: "x",
+      declaredFields: ["X", "Y"],
+      write: false,
+      span,
+    }),
+    undefined,
+  );
+});
+
 test("resolveRecordField flags an unknown field read", () => {
   const result = OL.resolveRecordField({
     type: "point",
@@ -197,6 +221,14 @@ test("ignores a bare zero-argument call base that is not a struct", () => {
 test("leaves a declared field read on a struct-constructor result clean", () => {
   assert.deepEqual(
     fieldFindings("struct point [ x y ]\nprint (point 0 0).x", DATA),
+    [],
+  );
+});
+
+test("folds field case on a struct-constructor result (spec/grammar.md:13)", () => {
+  // The declared field is `X`; the access `.x` folds to match, so no static ol-unknown-field.
+  assert.deepEqual(
+    fieldFindings("struct point [ X Y ]\nprint (point 0 0).x", DATA),
     [],
   );
 });
