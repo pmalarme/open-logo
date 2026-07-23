@@ -280,6 +280,7 @@ export {
   buildStoreSyncSpec,
   createEditorExtensions,
   createExternalSyncQueue,
+  createHighlightExtension,
   createUpdateListener,
   decideExternalSync,
   editorFocusStop,
@@ -291,6 +292,12 @@ export {
   reconcileExternalSyncQueue,
   selectionFromEditorState,
 } from "./editor-cm6.js";
+
+export {
+  OL_HIGHLIGHT_CSS_CLASS,
+  OL_HIGHLIGHT_CSS_CLASS_PREFIX,
+  createParserHighlighter,
+} from "./highlighter.js";
 
 export type { RunController, RunControllerOptions } from "./run-controller.js";
 export {

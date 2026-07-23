@@ -17,6 +17,7 @@ const {
   buildStoreSyncSpec,
   createEditorExtensions,
   createExternalSyncQueue,
+  createHighlightExtension,
   createUpdateListener,
   decideExternalSync,
   editorFocusStop,
@@ -382,4 +383,123 @@ test("createUpdateListener's returned callback forwards a real local edit to han
 
   assert.equal(seen.length, 1);
   assert.equal(seen[0].text, "abcd");
+});
+
+/** A minimal stub `HighlightProvider`: one `ol-tok-word` token per non-space run. */
+function wordHighlighter(source) {
+  const tokens = [];
+  const re = /\S+/g;
+  let match;
+  while ((match = re.exec(source)) !== null) {
+    tokens.push({
+      text: match[0],
+      class: "ol-tok-word",
+      start: [1, match.index + 1],
+      end: [1, match.index + match[0].length + 1],
+    });
+  }
+  return tokens;
+}
+
+/** Collect `{ from, to, class }` for every decoration in `decorations` over `[0, length]`. */
+function collectDecorations(decorations, length) {
+  const spans = [];
+  decorations.between(0, length, (from, to, value) => {
+    spans.push({ from, to, class: value.spec.class });
+  });
+  return spans;
+}
+
+test("createHighlightExtension paints one mark decoration per token from the given HighlightProvider (#285)", () => {
+  const field = createHighlightExtension(wordHighlighter);
+  const doc = "forward 100";
+  const state = EditorState.create({ doc, extensions: [field] });
+
+  const spans = collectDecorations(state.field(field), doc.length);
+
+  assert.deepEqual(spans, [
+    { from: 0, to: 7, class: "ol-tok-word" },
+    { from: 8, to: 11, class: "ol-tok-word" },
+  ]);
+});
+
+test("createHighlightExtension recomputes decorations from the highlighter when the doc changes", () => {
+  let calls = 0;
+  const countingHighlighter = (source) => {
+    calls += 1;
+    return wordHighlighter(source);
+  };
+  const field = createHighlightExtension(countingHighlighter);
+  const state = EditorState.create({ doc: "forward 100", extensions: [field] });
+  assert.equal(calls, 1);
+
+  const next = state.update({
+    changes: { from: 8, to: 11, insert: "200" },
+  }).state;
+
+  assert.equal(calls, 2);
+  const spans = collectDecorations(next.field(field), next.doc.length);
+  assert.deepEqual(spans, [
+    { from: 0, to: 7, class: "ol-tok-word" },
+    { from: 8, to: 11, class: "ol-tok-word" },
+  ]);
+});
+
+test("createHighlightExtension only maps existing decorations (no reclassification) for a selection-only update", () => {
+  let calls = 0;
+  const countingHighlighter = (source) => {
+    calls += 1;
+    return wordHighlighter(source);
+  };
+  const field = createHighlightExtension(countingHighlighter);
+  const state = EditorState.create({ doc: "forward 100", extensions: [field] });
+  assert.equal(calls, 1);
+
+  const next = state.update({ selection: { anchor: 0, head: 3 } }).state;
+
+  // The doc did not change, so the field's `update` must not call the highlighter again.
+  assert.equal(calls, 1);
+  const spans = collectDecorations(next.field(field), next.doc.length);
+  assert.deepEqual(spans, [
+    { from: 0, to: 7, class: "ol-tok-word" },
+    { from: 8, to: 11, class: "ol-tok-word" },
+  ]);
+});
+
+test("createHighlightExtension skips a zero-width token span rather than throwing", () => {
+  const zeroWidthHighlighter = () => [
+    { text: "", class: "ol-tok-word", start: [1, 1], end: [1, 1] },
+  ];
+  const field = createHighlightExtension(zeroWidthHighlighter);
+  const state = EditorState.create({ doc: "x", extensions: [field] });
+
+  assert.deepEqual(collectDecorations(state.field(field), 1), []);
+});
+
+test("createHighlightExtension skips a token span past the end of the document rather than throwing", () => {
+  // A misbehaving (or stale, e.g. classifying against text from before an external edit) provider
+  // could report a span beyond `state.doc.length`; `RangeSetBuilder.add` throws if given such an
+  // offset, so `buildHighlightDecorations` must bounds-check every span against the current doc
+  // rather than trusting the provider's contract.
+  const outOfRangeHighlighter = () => [
+    { text: "x", class: "ol-tok-word", start: [1, 1], end: [2, 2] },
+  ];
+  const field = createHighlightExtension(outOfRangeHighlighter);
+
+  assert.doesNotThrow(() => {
+    const state = EditorState.create({ doc: "x", extensions: [field] });
+    assert.deepEqual(collectDecorations(state.field(field), 1), []);
+  });
+});
+
+test("createEditorExtensions adds the #285 highlight extension only when a highlighter is configured", () => {
+  const withoutHighlighter = createEditorExtensions();
+  const withHighlighter = createEditorExtensions({
+    highlighter: wordHighlighter,
+  });
+
+  assert.ok(withHighlighter.length > withoutHighlighter.length);
+  assert.doesNotThrow(() => {
+    EditorState.create({ doc: "forward 100", extensions: withHighlighter });
+  });
 });
