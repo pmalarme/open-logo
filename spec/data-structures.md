@@ -60,7 +60,8 @@ A list is an ordered mutable sequence. A list literal uses `[ … ]`; elements a
 :nums = [1 2 3]
 ```
 
-List indexing is 1-based:
+List indexing is 1-based. List indexing (read and write) is a **Data**-profile behavior — see
+[conformance.md#data](conformance.md#data) — even though the `list` value type itself is Core:
 
 ```logo
 print :nums[1]     # => 1
