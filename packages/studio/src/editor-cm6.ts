@@ -50,7 +50,7 @@ import {
   foldService,
 } from "@codemirror/language";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
-import type { Diagnostic, DiagnosticSeverity } from "@openlogo/core";
+import type { Diagnostic, DiagnosticSeverity, Position } from "@openlogo/core";
 import { REPL_FOCUS_ORDER, type FocusStop } from "./a11y.js";
 import type { HighlightProvider } from "./editor.js";
 import { offsetFromPosition, positionFromOffset } from "./editor.js";
@@ -355,26 +355,60 @@ interface DiagnosticSpanEntry {
 }
 
 /**
+ * Resolve one 1-based `[line, column]` {@link Position} to a CM6 document offset, validated
+ * against `state.doc`'s actual line structure rather than {@link offsetFromPosition}'s plain
+ * string-splitting arithmetic. `offsetFromPosition` never checks that `column` actually falls
+ * within its own line — an out-of-range column (e.g. a stale diagnostic's span computed against
+ * text the editor has since changed) can silently spill past the line's end and land inside the
+ * *next* line's text, marking the wrong span instead of being skipped. This resolves against
+ * `state.doc.line(line)` (CM6's own per-line accessor) so any out-of-range line or column is
+ * rejected outright, returning `undefined` rather than a bogus in-bounds offset.
+ */
+function resolveDiagnosticOffset(
+  state: EditorState,
+  position: Position,
+): number | undefined {
+  const [line, column] = position;
+  if (
+    !Number.isInteger(line) ||
+    !Number.isInteger(column) ||
+    line < 1 ||
+    column < 1 ||
+    line > state.doc.lines
+  ) {
+    return undefined;
+  }
+  const docLine = state.doc.line(line);
+  // `docLine.length + 1` allows a column immediately after the line's last character (e.g. an
+  // exclusive end position at end-of-line), matching `positionFromOffset`'s own convention.
+  if (column > docLine.length + 1) {
+    return undefined;
+  }
+  return docLine.from + column - 1;
+}
+
+/**
  * Resolve `diagnostics`' `source_span`s (1-based `[line, column]`, from `@openlogo/core`) to CM6
  * document offsets, in ascending `(from, to)` order — `RangeSetBuilder`'s ascending-order
  * requirement (see {@link buildHighlightDecorations}'s doc comment), except here the input isn't
  * already guaranteed source-ordered (unlike `highlight()`'s token stream), so this explicitly
- * sorts rather than assuming. A span that falls outside the current document (a stale span from
- * before an edit the diagnostics pipeline hasn't re-checked yet, or a zero-width span) is skipped
- * rather than thrown — the same defensive bounds check {@link buildHighlightDecorations} applies,
- * learned from #285's out-of-range `RangeSetBuilder` fix.
+ * sorts rather than assuming. A span that falls outside the current document, or whose start/end
+ * line or column no longer exists on the document's current line structure (a stale span from
+ * before an edit the diagnostics pipeline hasn't re-checked yet), or a zero-width span, is skipped
+ * rather than thrown — see {@link resolveDiagnosticOffset} and, for the same defensive-bounds-check
+ * precedent, {@link buildHighlightDecorations}'s doc comment (learned from #285's out-of-range
+ * `RangeSetBuilder` fix).
  */
 function diagnosticSpanEntries(
   state: EditorState,
   diagnostics: readonly Diagnostic[],
 ): readonly DiagnosticSpanEntry[] {
-  const text = state.doc.toString();
   const entries: DiagnosticSpanEntry[] = [];
   for (const diagnostic of diagnostics) {
     const span = diagnostic.source_span;
-    const from = offsetFromPosition(text, span.start);
-    const to = offsetFromPosition(text, span.end);
-    if (from < 0 || to > state.doc.length || from >= to) {
+    const from = resolveDiagnosticOffset(state, span.start);
+    const to = resolveDiagnosticOffset(state, span.end);
+    if (from === undefined || to === undefined || from >= to) {
       continue;
     }
     entries.push({

@@ -680,6 +680,61 @@ test("diagnosticsField skips a zero-width diagnostic span rather than painting a
   );
 });
 
+test("diagnosticsField skips a diagnostic whose line number does not exist in the current document, rather than throwing", () => {
+  // A stale diagnostic from before an edit that removed lines (or a malformed span) referencing a
+  // line beyond `state.doc.lines` must be rejected outright, not spill into some other offset.
+  const state = EditorState.create({
+    doc: "x",
+    extensions: [diagnosticsField],
+  });
+
+  assert.doesNotThrow(() => {
+    const withDiagnostics = state.update({
+      effects: setDiagnosticsEffect.of([
+        fakeDiagnostic({
+          source_span: { document: "x", start: [5, 1], end: [5, 2] },
+        }),
+        fakeDiagnostic({
+          source_span: { document: "x", start: [0, 1], end: [0, 2] },
+        }),
+      ]),
+    }).state;
+    assert.equal(
+      collectDecorations(
+        withDiagnostics.field(diagnosticsField).decorations,
+        withDiagnostics.doc.length,
+      ).length,
+      0,
+    );
+  });
+});
+
+test("diagnosticsField skips a diagnostic whose column overruns its own line, rather than spilling into the next line's text (#317)", () => {
+  // A column past the end of line 1 ("abc", length 3, so valid columns are 1..4) must not resolve
+  // to an offset inside line 2's text just because the raw absolute offset happens to still be
+  // < doc.length — that would silently mark the wrong span instead of being skipped.
+  const state = EditorState.create({
+    doc: "abc\nxyz",
+    extensions: [diagnosticsField],
+  });
+
+  const withDiagnostics = state.update({
+    effects: setDiagnosticsEffect.of([
+      fakeDiagnostic({
+        source_span: { document: "x", start: [1, 6], end: [1, 8] },
+      }),
+    ]),
+  }).state;
+
+  assert.equal(
+    collectDecorations(
+      withDiagnostics.field(diagnosticsField).decorations,
+      withDiagnostics.doc.length,
+    ).length,
+    0,
+  );
+});
+
 test("diagnosticsField sorts out-of-order diagnostics into ascending (from, to) order before building marks", () => {
   const state = EditorState.create({
     doc: "forward 100\nfd 50",
