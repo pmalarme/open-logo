@@ -1,0 +1,20 @@
+{
+  "description": "M4 audit finding F2 (issue #441): the field of a statically-known struct-constructor result is checked at check() time. After `struct point [ x y ]`, reading `.z` off `(point 0 0)` — whose type the checker knows exactly — raises `ol-unknown-field` (stage semantic), reporting the same `{ type, field }` and message the runtime does one stage earlier (`spec/tooling.md:193` — a tool SHOULD report a statically-knowable use of an otherwise-runtime code; `spec/error-model.md:126`). The span points at the `.z` field segment, matching the runtime's own span.",
+  "profiles": ["core-language", "data"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-field",
+      "source_span": {
+        "document": "data/check/struct-constructor-unknown-field-read",
+        "start": [2, 18],
+        "end": [2, 20]
+      },
+      "params": { "type": "point", "field": "z" },
+      "message": "point has no field z. check the spelling.",
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

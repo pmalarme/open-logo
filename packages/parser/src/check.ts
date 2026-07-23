@@ -33,7 +33,7 @@ import { reservedWordRule } from "./checker-reserved-word.js";
 import { STYLE_RULES } from "./checker-style.js";
 import { undefinedVarRule } from "./checker-undefined-var.js";
 import { unknownCommandRule } from "./checker-unknown-command.js";
-import { unknownTypeRule } from "./checker-type-field.js";
+import { unknownTypeRule, unknownFieldRule } from "./checker-type-field.js";
 
 /**
  * Every OpenLogo conformance profile identifier from the spec's dependency DAG
@@ -131,6 +131,7 @@ export type CheckRule = (
 const RULES: readonly CheckRule[] = [
   unknownCommandRule,
   unknownTypeRule,
+  unknownFieldRule,
   arityRule,
   notAPlaceRule,
   undefinedVarRule,
