@@ -60,9 +60,10 @@ end repeat
 ```
 
 The graded exercises ramp from changing the repeat count, to matching the turn angle to a
-triangle, to the open challenge: a **tree** — a trunk drawn with plain Level 1 moves, then
-`repeat 3 [ ... ]` stacking three identical triangle tiers on top of it — followed by a "taller
-tree" exercise that changes only the repeat count, the payoff moment for why `repeat` matters.
+triangle, to the open challenge: a **fir tree** — a trunk drawn with plain Level 1 moves, then
+`repeat 3 [ ... ]` stacking three identical up-pointing triangles, each started only part way up
+the one below so the branches overlap into layered fir sides — followed by a "taller tree" exercise
+that changes only the repeat count, the payoff moment for why `repeat` matters.
 
 **Lesson content:** [`level-2.ts`](../packages/edu/src/lessons/level-2.ts) (lesson
 `l2-square-repeat`).
