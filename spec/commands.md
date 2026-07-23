@@ -1227,34 +1227,63 @@ back 50
 - **Signature:** `left number`
 - **Aliases:** `lt`
 - **Kind:** Command
-- **Argument types:** number in degrees
+- **Argument types:** number in degrees, signed
 - **Result:** —
-- **Description:** Turns the turtle counter-clockwise by the given number of degrees.
+- **Description:** Turns the turtle counter-clockwise by the given number of degrees. A negative
+  angle reverses the direction: `left -n` turns exactly as `right n` does, for any `n`.
 - **Concept:** Angle and rotation.
 - **Example:**
 
 ```logo
 left 90
+left -90   # same as right 90
 ```
 
-- **Possible errors:** none specified in C3 beyond general type and arity diagnostics.
+- **Possible errors:** none specified in C3 beyond general type and arity diagnostics; a negative
+  argument alone raises no additional diagnostic.
 
 ### `right`
 
 - **Signature:** `right number`
 - **Aliases:** `rt`
 - **Kind:** Command
-- **Argument types:** number in degrees
+- **Argument types:** number in degrees, signed
 - **Result:** —
-- **Description:** Turns the turtle clockwise by the given number of degrees.
+- **Description:** Turns the turtle clockwise by the given number of degrees. A negative angle
+  reverses the direction: `right -n` turns exactly as `left n` does, for any `n`.
 - **Concept:** Angle and rotation.
 - **Example:**
 
 ```logo
 right 90
+right -90   # same as left 90
 ```
 
-- **Possible errors:** none specified in C3 beyond general type and arity diagnostics.
+- **Possible errors:** none specified in C3 beyond general type and arity diagnostics; a negative
+  argument alone raises no additional diagnostic.
+
+### `turn`
+
+- **Signature:** `turn signed-degrees`
+- **Aliases:** none
+- **Kind:** Command
+- **Argument types:** number in degrees, signed
+- **Result:** —
+- **Description:** Turns the turtle by a signed number of degrees, unifying `right` and `left`
+  under one primitive: `turn n` turns exactly as `right n` does, and `turn -n` turns exactly as
+  `left n` does. `turn` is additive with `right`/`left`; neither existing command is deprecated.
+- **Concept:** Angle and rotation can be expressed as a single signed quantity.
+- **Example:**
+
+```logo
+turn 90    # same as right 90
+turn -90   # same as left 90
+turn 720   # two full clockwise rotations; heading is unchanged, but the `turn` trace event's
+           # delta is 720, not reduced mod 360
+```
+
+- **Possible errors:** none specified in C3 beyond general type and arity diagnostics; a negative
+  argument alone raises no additional diagnostic.
 
 ### `home`
 
