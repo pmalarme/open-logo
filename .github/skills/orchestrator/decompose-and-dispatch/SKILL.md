@@ -26,10 +26,11 @@ contracts agreed first. You write no feature code — you decompose, dispatch, a
    **local, coordinated** session per slice: `open_issue_session` / `create_session` with the
    issue's **owning custom agent**, `coordinate_with_creator: true`, and `notify_on_idle` so it
    reports its PR back. **The `kickoff` object is mandatory and MUST carry both a `prompt` and
-   `mode: autopilot`** — this is what makes the session auto-start and run autonomously to a PR. A
-   session created **without** a kickoff prompt (or in `plan`/`interactive` mode) is born **idle**
-   and sits waiting for the human to click it in the sidebar — the single most common reason a
-   dispatched slice "never started." Never create an idle session and expect a follow-up
+   `mode: autopilot`** — this is what makes the session run autonomously to a PR. A session created
+   **without** a kickoff prompt is born **idle** and sits waiting for the human to click it in the
+   sidebar — the single most common reason a dispatched slice "never started"; and one created with
+   a prompt but in `plan`/`interactive` mode auto-starts yet **pauses for approval/input** instead of
+   running unattended to a PR. Only autopilot + prompt runs the slice to completion on its own. Never create an idle session and expect a follow-up
    `send_session_message` to launch it: a cold session won't wake from a message, and a warm one
    typically only does the git-sync/new-branch step then idles again, needing a second explicit
    go-kick. **One call, autopilot + prompt, or it will not run.**
@@ -51,8 +52,9 @@ contracts agreed first. You write no feature code — you decompose, dispatch, a
      only reliable proof the session actually woke and began running its kickoff.
    - **Re-kickoff loop.** After dispatch, wait for that ACK (you'll also get an idle notification via
      `notify_on_idle`). If **no ACK arrives**, the session is almost certainly born-idle waiting for
-     UI activation: (1) **re-send the go-kick** — `send_session_message` with the same autopilot
-     prompt + ACK instruction; (2) cross-check ground truth, since `get_session` metadata is stale —
+     UI activation: (1) **re-send the go-kick** — `send_session_message` with the same prompt + ACK
+     instruction **and `mode: autopilot`** (the tool's `mode` is a separate parameter — "same
+     autopilot prompt" alone does not set it); (2) cross-check ground truth, since `get_session` metadata is stale —
      `git -C <session_path> rev-list --count origin/main..HEAD` and `git status --porcelain` reveal a
      session that is in fact working before any push; (3) if it still hasn't started after a re-kick,
      **escalate to the human to activate it in the sidebar** rather than assuming work is underway.
@@ -89,5 +91,5 @@ contracts agreed first. You write no feature code — you decompose, dispatch, a
 - [ ] Each slice small + dedicated (~one grammar production-family); marathon-sized tasks split before dispatch (#9 = one-time exception; corpus epic #43's small stories S3–S22 = the model).
 - [ ] Labels: `agent:*` + `profile:*` + `type:*`; dependencies noted.
 - [ ] Dispatched via one `kickoff` call with `mode: autopilot` **and** a prompt (never idle-then-message); ACK requested in the prompt.
-- [ ] Dispatched session verified **started** — ACK received (or re-kicked/escalated), not just created — before moving on.
+- [ ] Dispatched session verified **started** — ACK received (or, after re-kick, confirmed via `git rev-list`/`git status`; escalated to a human and left **blocked** if neither), not just created — before moving on.
 - [ ] Integration owner assigned; milestone exit = conformance green everywhere.
