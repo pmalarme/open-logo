@@ -506,17 +506,28 @@ that branch. This pair memoization, not identity short-circuiting alone, is
 normative and covers distinct but isomorphic cycles.
 
 Rendering a value's printed form — the text produced for `print`, `show`, or a
-`throw`'s learner-facing message — must terminate on cyclic or shared structure
-by the same means: implementations maintain a memo set of the reference values
-(list, dict, or record) currently being rendered on the current path, and a
-reference already on that path is rendered as a bounded, implementation-defined
-placeholder (for example an ellipsis or a repeated-reference marker) instead of
-being recursed into again. This mirrors the pair-memoization requirement for
-structural equality above, applies to any value reachable through a cyclic or
-repeatedly-shared reference chain, and MUST NOT allow rendering to overflow the
-host call stack; an implementation that would otherwise overflow instead raises
-the friendly `ol-limit` diagnostic defined in [error-model.md](error-model.md),
-which — per that document — MUST NOT itself expose a host stack overflow.
+`throw`'s learner-facing message — must terminate on cyclic structure and must
+not silently re-expand large shared substructure: implementations maintain a
+memo of every reference value (list, dict, or record) encountered anywhere
+earlier in the *same render* — not only on the current recursive path — keyed
+by reference identity. The first time a reference is encountered, its contents
+are rendered by recursing as usual, and the reference is added to the memo
+*before* recursing into it, so that a reference reachable from itself, directly
+or transitively, is caught as a cycle. Every later encounter of that same
+reference anywhere else in the same render — whether by a genuine cycle or by
+an unrelated second path reaching the same shared value, for example
+`print (list :shared :shared)` — is rendered as the same bounded,
+implementation-defined placeholder (for example an ellipsis or a
+repeated-reference marker) instead of being recursed into again. This
+whole-render memo is normative and is a *stronger* requirement than the
+in-progress pair memoization used for structural equality above: equality's
+memo only needs to track pairs currently being compared to guarantee
+termination, while rendering must recognize a repeated reference across the
+*entire* render, cyclic or not, to guarantee a single, bounded printed
+representation. Rendering MUST NOT overflow the host call
+stack; an implementation that would otherwise overflow instead raises the friendly `ol-limit` diagnostic defined in
+[error-model.md](error-model.md), which — per that document — MUST NOT itself
+expose a host stack overflow.
 
 Ordering operators `<`, `>`, `<=`, and `>=` are defined only for numbers and
 words. Numbers compare numerically. Words compare lexicographically by Unicode
@@ -596,12 +607,40 @@ it before the next `instruction`.
 
 An effect event's `payload` captures the value or values it describes as a
 point-in-time snapshot taken at the moment of emission, not a live reference to
-mutable state. When a payload includes a list, dict, or record, its contents are
-captured as of that instant; a later mutation through that same reference (see
-the mutation-and-copy table above) MUST NOT retroactively change the payload of
-an event already emitted. This snapshot rule is what makes deterministic replay,
-stepping, and `why`/`debug` inspection of prior events well-defined even though
-OpenLogo's list, dict, and record values are ordinarily mutable references.
+mutable state. The snapshot is a **transitive, immutable copy of the value
+graph** reachable from the payload: for a list, dict, or record, every element,
+entry, or field is itself captured by this same rule, recursively, as of that
+instant — capture is not shallow, so a nested mutable value nested several
+levels deep is protected from later mutation exactly as a top-level one is. A
+later mutation through the original live reference, at any depth (see the
+mutation-and-copy table above), MUST NOT retroactively change any part of the
+payload of an event already emitted.
+
+OpenLogo list/dict/record values may alias each other or contain cycles — for
+example, a self-referential list constructed by `add :l to :l` (see
+[data-structures.md](data-structures.md)). Snapshot capture MUST preserve the
+aliasing and cycle structure of the value graph as of the moment of capture,
+using snapshot-local reference identity: two positions in the snapshot that
+were the same live reference at capture time remain the same snapshotted
+reference, and a position reachable from itself, directly or transitively,
+remains a cycle in the snapshot rather than being expanded without bound.
+Capturing a snapshot MUST terminate using a memo of live references already
+captured earlier in the *same capture* — not only on the current recursive
+path — so that both a direct cycle and a value reached twice via two different,
+non-cyclic paths are recognized as the same snapshot-local reference and
+captured only once; this is the same whole-operation memoization discipline
+required above for rendering a value's printed form (a stronger discipline
+than the in-progress pair memoization used for structural equality, which only
+needs to guarantee termination, not dedupe shared-but-acyclic structure). This
+snapshot rule is what makes deterministic replay,
+stepping, and `why`/`debug` inspection of **prior effect events** well-defined
+even though OpenLogo's list, dict, and record values are ordinarily mutable,
+aliasable, and — through operations such as `add … to` — possibly
+self-referential. This snapshot rule applies to effect-event payloads
+specifically; `procedure-enter`'s `args` payload (a **start** event, emitted
+*before* its effect, per the timing classes above) is not in scope here and MAY
+still observe subsequent mutation of a mutable argument before the procedure
+body's own effect events are emitted.
 
 Normative `kind` values:
 
