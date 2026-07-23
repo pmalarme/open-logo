@@ -22,9 +22,20 @@ contracts agreed first. You write no feature code — you decompose, dispatch, a
 3. **Cut vertical slices — small, dedicated, not phases** (see `shared/vertical-slice`): each slice is one feature end to end (semantics → runtime/events → render/UI → tests → teaching → docs) **and** small — roughly **one grammar production-family** (e.g. arithmetic precedence, comparison chains, `local` declarations) or an equivalently narrow unit, small enough to implement, self-review, and review in one focused session. **Any task large enough to become a marathon session MUST be split into smaller stories before dispatch.** #9 (the foundational lex → parse → AST slice, +3580/−15 lines across 12 files) is a **one-time bootstrapping exception**, not a template; the conformance-corpus epic #43 is the model — it organizes parser validation into ~22 small, single-production stories (S3 literals, S7 arithmetic, S9 chained comparisons … S22 reserved words and diagnostics), each designed to be independently dispatched, reviewed, and merged. When in doubt, cut smaller (KISS, charter §11).
 4. **Emit a task packet per slice:** owning agent (`@agent`), the exact spec sections, acceptance
    criteria (Given/When/Then), the **declared write-set** (files/globs), dependencies, and the DoD.
-5. **Dispatch to a controllable session.** Prefer a **local, coordinated** session per slice —
-   `open_issue_session` / `create_session` with the issue's **owning custom agent**, `mode:
-   autopilot`, and `coordinate_with_creator: true` (set `notify_on_idle`) so it reports its PR back.
+5. **Dispatch to a controllable session — always kick off in autopilot, with a prompt.** Prefer a
+   **local, coordinated** session per slice: `open_issue_session` / `create_session` with the
+   issue's **owning custom agent**, `coordinate_with_creator: true`, and `notify_on_idle` so it
+   reports its PR back. **The `kickoff` object is mandatory and MUST carry both a `prompt` and
+   `mode: autopilot`** — this is what makes the session run autonomously to a PR. A session created
+   **without** a kickoff prompt is born **idle** and sits waiting for the human to click it in the
+   sidebar — the single most common reason a dispatched slice "never started"; and one created with
+   a prompt but in `plan`/`interactive` mode auto-starts yet **pauses for approval/input** instead of
+   running unattended to a PR. Only autopilot + prompt runs the slice to completion on its own.
+   **Dispatch = autopilot + prompt at creation, never "create idle now, launch later."** A cold
+   session may not wake from a `send_session_message` at all, and a warm one often only does the
+   git-sync/new-branch step then idles again — so a follow-up message is a **recovery attempt**
+   (see the re-kickoff loop below), not a dispatch strategy. **One call, autopilot + prompt, or it
+   will not run.**
    **The kickoff must require in-session self-review** (`shared/review-gate`): before opening the PR
    the owner dispatches at least two non-author sub-agents — the **logic/spec reviewer** (`rubber-duck`, or a named fallback)
    + **every** domain-adaptive **QA** expert (`@testing` and/or the changed area's owner) — and iterates
@@ -34,11 +45,23 @@ contracts agreed first. You write no feature code — you decompose, dispatch, a
    substitutes a named second non-author domain agent for that review and records which agent stood in and why. **Avoid firing uncontrolled cloud agents at parallel
    slices:** they are not messageable and branch off each other, which in M0 stacked duplicate PRs
    off abandoned branches. Label issues by agent + profile so tracks pull in parallel.
-   - **ALWAYS verify the session actually started.** Dispatching is not done when the tool returns a
-     session id — a session can be created but sit idle, fail to kick off, or never pick up its prompt.
-     After dispatch, confirm the session is genuinely running its kickoff (e.g. it acknowledged, went
-     to work, or reported progress) before you consider the slice in flight and move on; if it never
-     started, re-dispatch or escalate rather than assuming work is underway.
+   - **Require an explicit ACK, then verify — don't trust the returned session id.** Dispatching is
+     not done when the tool returns a session id: a session can be created but sit idle, fail to
+     kick off, or never pick up its prompt. Make the kickoff **self-reporting** — end the kickoff
+     `prompt` with an explicit instruction: _"As your very first action, before any planning or
+     work, send a cross-session message back to me (the orchestrator, session `<my-id>`) with
+     `ACK: started <issue> in autopilot`, then proceed to build and open the PR."_ The ACK is your
+     **preferred, immediate proof** the session woke and began running its kickoff.
+   - **Re-kickoff loop.** After dispatch, wait for that ACK (you'll also get an idle notification via
+     `notify_on_idle`). If **no ACK arrives**, the session may be born-idle waiting for
+     UI activation: (1) **re-send the go-kick** — `send_session_message` with the same prompt + ACK
+     instruction **and `mode: autopilot`** (the tool's `mode` is a separate parameter — "same
+     autopilot prompt" alone does not set it); (2) since a re-kick may still not wake a cold session,
+     cross-check ground truth as the **fallback proof** — `get_session` metadata is stale, so use
+     `git -C <session_path> rev-list --count origin/main..HEAD` and `git status --porcelain`, which reveal a
+     session that is in fact working before any push; (3) if it still hasn't started after a re-kick,
+     **escalate to the human to activate it in the sidebar** rather than assuming work is underway.
+     Never mark a slice "in flight" on the strength of a session id alone.
 6. **Integrate per story** with `integrate-and-merge`: **verify** the owner's attached non-author
    verdicts (≥2 — logic/spec reviewer + every QA expert; don't re-run the whole gate round-by-round), merge under delegated authority once CI is
    green, then reconcile the board/milestone/branches/plan. Hold the **Definition of Done** gate
@@ -70,5 +93,6 @@ contracts agreed first. You write no feature code — you decompose, dispatch, a
 - [ ] Each task = one vertical slice, one owner, one declared write-set, ACs + DoD.
 - [ ] Each slice small + dedicated (~one grammar production-family); marathon-sized tasks split before dispatch (#9 = one-time exception; corpus epic #43's small stories S3–S22 = the model).
 - [ ] Labels: `agent:*` + `profile:*` + `type:*`; dependencies noted.
-- [ ] Dispatched session verified started (not just created) before moving on.
+- [ ] Dispatched via one `kickoff` call with `mode: autopilot` **and** a prompt (never idle-then-message); ACK requested in the prompt.
+- [ ] Dispatched session verified **started** — ACK received (or, after re-kick, confirmed via `git rev-list`/`git status`; escalated to a human and left **blocked** if neither), not just created — before moving on.
 - [ ] Integration owner assigned; milestone exit = conformance green everywhere.
