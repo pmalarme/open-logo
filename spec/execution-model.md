@@ -244,6 +244,18 @@ Runtime meaning depends on the base value:
 - A word may be indexed by number to read a Unicode scalar-value position.
 - `.identifier` is always a literal field/key, never evaluated.
 
+This selector grammar (`postfix-expr`, `selector`) is unconditional Core syntax: every conforming
+implementation parses it uniformly regardless of which optional profiles it claims. Profile
+ownership of a specific *base-value case* is a separate, semantic-level requirement, defined by
+[conformance.md#data](conformance.md#data): the list case above — `:list[i]` read and write — and
+the dict and record cases above are Data-profile-owned, so a conforming implementation supports
+executing them only when it claims Data. This specification does not define a dedicated diagnostic
+for an implementation that parses this shared grammar but does not support one of these Data-owned
+cases; per conformance.md's portability rule, a program using `:list[i]`, a dict selector, or a
+record `.field` is simply not portable to an implementation that does not claim Data — the same way
+any other Data-only, Sprites-only, or Interaction-only program is not portable to an implementation
+that omits that profile.
+
 Inside a selector, a bare identifier is a literal word key and preserves case:
 `:ages[tom]` uses key `"tom"`. `:ages[:who]` evaluates variable `:who` to obtain
 the key. Arithmetic or other general expressions inside selectors must be
@@ -288,6 +300,13 @@ index out of range raises `ol-range`. Reporters such as `first`, `count`, and
 
 Collection mutators such as `add`, `remove`, `insert`, and `clear` take an
 evaluated mutable reference, not a place, and return no value.
+
+The list-index case of a place — `:nums[1] = 9`, `set nums[1] to 9`, and the intermediate/final
+list-index cases of a chained place such as `:people.tom.pets[1] = "cat"` — is Data-profile-owned on
+the write side exactly as it is on the read side (see "Postfix reads" above and
+[conformance.md#data](conformance.md#data)); the dict and record place cases in this section are
+likewise Data-owned. The place grammar itself is unconditional Core syntax; only execution of the
+list, dict, and record cases requires the Data profile.
 
 ## Special-form delimiter rules
 
@@ -438,6 +457,16 @@ and `reduce` (its item binder, not the accumulator). Records destructure in
 declared field order; lists destructure by item order. A short or long pattern
 mismatch raises `ol-range`.
 
+The `destructuring-pattern` grammar production (`binder ::= name | destructuring-pattern`,
+[grammar.md](grammar.md)) contains only `:name` tokens and never nests another
+`destructuring-pattern`, so destructuring is flat in v0.1: there is no nested or recursive
+destructuring pattern in either profile, and this document does not add one. List and record are
+the only destructurable item kinds. A dict or scalar (number, word, boolean) item is not a
+positionally-destructurable value: binding a destructuring pattern against one raises `ol-type`,
+the general wrong-type-for-the-operation diagnostic used elsewhere in this spec, in every
+conforming implementation — this is not a Data-profile dict-destructuring feature, because v0.1
+defines none.
+
 Profile ownership of this binder-pattern behavior follows the value being
 destructured, not the iteration form: `for ... in`, `map`, `filter`, and
 `reduce` are themselves Core control/comprehension forms, so a destructuring
@@ -445,7 +474,7 @@ pattern applied to a plain **list** item (positional unpacking of `[ ]`
 elements, as in `for [:x :y] in [[1 2] [3 4]]`) is **Core** — it needs only
 Core list values and the Core `binder ::= name | destructuring-pattern`
 grammar production. The same pattern applied to a **record** item — as in the
-`:corners` example above, which destructures `point` records in declared field
+`:corners` example below, which destructures `point` records in declared field
 order — requires the **Data** profile, because `record` values, `struct`
 declarations, and declared field order are Data-profile concepts (see
 [conformance.md#data](conformance.md#data)); an implementation that claims only
