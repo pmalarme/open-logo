@@ -12,5 +12,5 @@
   "10-game.logo": ["core-language", "turtle-rendering", "interaction-events"],
   "11-music.logo": ["core-language", "turtle-rendering", "sound"],
   "12-fractal.logo": ["core-language", "turtle-rendering"],
-  "13-geometry-stdlib.logo": ["core-language", "turtle-rendering"]
+  "13-geometry-stdlib.logo": ["core-language", "turtle-rendering", "data"]
 }
