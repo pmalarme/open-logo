@@ -1,0 +1,32 @@
+{
+  "description": "`(:x) = 2` (issue #442/F3): assigning to a fully-parenthesized colon target raises the runtime's own `ol-not-a-place`, reached without `check()` (mirroring `not-a-place-runtime-postfix-expression.expected.json`'s postfix case). The parser re-wraps the grouping-stripped `(:x)` into a zero-segment `PostfixExpression`, so `executeAssign`'s non-`Place` guard fires and `not-a-place-text.ts`'s runtime-side `PostfixExpressionNode` renderer produces the same full target text `(:x)` the checker renders. The whole statement first emits an `instruction` event; `:x` is never read because the non-place target is rejected before the assignment's value or base is evaluated.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/not-a-place-runtime-parenthesized",
+        "start": [1, 1],
+        "end": [1, 9]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-not-a-place",
+      "source_span": {
+        "document": "core-language/execution/not-a-place-runtime-parenthesized",
+        "start": [1, 1],
+        "end": [1, 5]
+      },
+      "params": { "text": "(:x)" },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

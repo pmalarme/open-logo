@@ -368,6 +368,134 @@ test("source-slicing already renders both grouping levels correctly (the fallbac
   );
 });
 
+// ── ol-not-a-place: a FULLY-parenthesized assignment target (issue #442/F3) ──────────────────
+// spec/tooling.md:187 requires "reject … parenthesized expressions as targets" as a SEMANTIC
+// `ol-not-a-place`, not a parse error. `parseParenthesized` strips grouping and returns the inner
+// node unchanged, so `(:x)`/`(:x.a)` land as a bare `VarRef`/`Place` — byte-identical to the
+// assignable `:x`/`:x.a`. The parser now re-wraps such a target into the zero-segment
+// `PostfixExpression` the checker already renders parenthesized (`(:x)`), routing it to the
+// semantic rule instead of the pre-#442 blunt parse `ol-bad-token`. The postfix form `(:x).foo`
+// (#407/F7, a NON-empty segment list) is unchanged.
+
+test("a parenthesized colon-variable target (:x) = 2 is a SEMANTIC ol-not-a-place, not a parse error (issue #442/F3; spec/tooling.md:187)", () => {
+  const [finding] = checkSource(":x = 1\n(:x) = 2\n").filter(isNotAPlace);
+  assert.equal(finding.code, "ol-not-a-place");
+  assert.equal(finding.stage, "semantic");
+  assert.equal(finding.severity, "error");
+  assert.deepEqual(finding.params, { text: "(:x)" });
+});
+
+test("(:x) = 2 leaves NO parse diagnostic — the target is recognized structurally so only the semantic checker flags it (issue #442/F3)", () => {
+  const { diagnostics } = OL.parse(":x = 1\n(:x) = 2\n", "unit.logo");
+  assert.deepEqual(diagnostics, []);
+});
+
+test("a parenthesized dotted-place target (:x.a) = 2 renders its inner field chain, ol-not-a-place (issue #442/F3)", () => {
+  const [finding] = checkSource(":x = 1\n(:x.a) = 2\n").filter(isNotAPlace);
+  assert.deepEqual(finding.params, { text: "(:x.a)" });
+});
+
+test("a DOUBLY-parenthesized colon target ((:x)) = 2 renders BOTH grouping levels, ol-not-a-place (issue #442/F3)", () => {
+  const [finding] = checkSource(":x = 1\n((:x)) = 2\n").filter(isNotAPlace);
+  assert.deepEqual(finding.params, { text: "((:x))" });
+});
+
+test("the AST fallback (no source) renders the parenthesized colon target (:x) = 2 identically to source-slicing (issue #442/F3)", () => {
+  const [finding] = checkNoSource(":x = 1\n(:x) = 2\n").filter(isNotAPlace);
+  assert.deepEqual(finding.params, { text: "(:x)" });
+});
+
+test("(:x) = 2 parses as a PostfixExpression target — base VarRef, one grouping paren, NO segments (the empty-segment shape #407/F7 designed) — never a Place (issue #442/F3)", () => {
+  const target = OL.parse(":x = 1\n(:x) = 2\n", "unit.logo").ast.body[1].place;
+  assert.equal(target.kind, "PostfixExpression");
+  assert.equal(target.base.kind, "VarRef");
+  assert.equal(target.base.name, "x");
+  assert.equal(target.parenGroupCount, 1);
+  assert.deepEqual(target.segments, []);
+});
+
+test("(:x.a) = 2 parses as a PostfixExpression whose base is the inner Place (:x.a), never a bare Place (issue #442/F3)", () => {
+  const target = OL.parse(":x = 1\n(:x.a) = 2\n", "unit.logo").ast.body[1]
+    .place;
+  assert.equal(target.kind, "PostfixExpression");
+  assert.equal(target.base.kind, "Place");
+  assert.equal(target.parenGroupCount, 1);
+  assert.deepEqual(target.segments, []);
+});
+
+test("a bare (:x) statement (no `=`) is still just a VarRef read, NOT an assignment target — the =-guard keeps grouping-only reads out of the not-a-place path (issue #442/F3)", () => {
+  const { ast, diagnostics } = OL.parse(":x = 1\n(:x)\n", "unit.logo");
+  assert.deepEqual(diagnostics, []);
+  assert.equal(ast.body[1].kind, "VarRef");
+  assert.deepEqual(checkSource(":x = 1\n(:x)\n").filter(isNotAPlace), []);
+});
+
+test("(:x) = with no value still recovers gracefully — the target is returned and the missing value is a parse error, no crash (issue #442/F3)", () => {
+  const { ast, diagnostics } = OL.parse(":x = 1\n(:x) =\n", "unit.logo");
+  assert.equal(ast.body[1].kind, "PostfixExpression");
+  assert.ok(diagnostics.length >= 1);
+});
+
+test("set (:x) to 2 — a parenthesized set target — is a SEMANTIC ol-not-a-place with set form, mirroring the `=` path (issue #442/F3)", () => {
+  const [finding] = checkSource(":x = 1\nset (:x) to 2\n").filter(isNotAPlace);
+  assert.equal(finding.code, "ol-not-a-place");
+  assert.equal(finding.stage, "semantic");
+  assert.deepEqual(finding.params, { text: "(:x)" });
+  const target = OL.parse(":x = 1\nset (:x) to 2\n", "unit.logo").ast.body[1];
+  assert.equal(target.kind, "Assign");
+  assert.equal(target.form, "set");
+  assert.equal(target.place.kind, "PostfixExpression");
+});
+
+test("set (:x.a) to 2 renders its inner field chain, ol-not-a-place (issue #442/F3)", () => {
+  const [finding] = checkSource(":x = 1\nset (:x.a) to 2\n").filter(
+    isNotAPlace,
+  );
+  assert.deepEqual(finding.params, { text: "(:x.a)" });
+});
+
+test("set (first :x) to 2 — a parenthesized REPORTER call target — is ol-not-a-place, passed through unwrapped by asNonPlaceTarget's non-place branch (issue #442/F3)", () => {
+  const [finding] = checkSource(":x = 1\nset (first :x) to 2\n").filter(
+    isNotAPlace,
+  );
+  assert.deepEqual(finding.params, { text: "(first :x)" });
+  const target = OL.parse(":x = 1\nset (first :x) to 2\n", "unit.logo").ast
+    .body[1].place;
+  assert.equal(target.kind, "ParenCall");
+});
+
+test("set ( with an unparseable target recovers gracefully — no set-form Assign, no ol-not-a-place, just the parse error (issue #442/F3)", () => {
+  const { ast, diagnostics } = OL.parse("set (\n", "unit.logo");
+  assert.ok(diagnostics.length >= 1);
+  const checkDiagnostics = OL.check(ast, {
+    profiles: ["core-language"],
+  }).diagnostics;
+  assert.deepEqual(checkDiagnostics.filter(isNotAPlace), []);
+  // `set (` consumes `set`, then the unparseable `(` target makes `parseSetTarget` return
+  // undefined (the `parsed === undefined` branch), so `parseSetAssignment` builds no Assign and
+  // recovery discards the whole statement — the body is empty, so there is nothing to assign to.
+  assert.equal(ast.body.length, 0);
+});
+
+// #442/F3 regression guards: the fix must NOT broaden a bare colon-place `set` target or a valid
+// assignment. `set :x` stays a parse `ol-bad-token` (spec/grammar.md:104 wants a bare place, and
+// `:x` is a colon read, not a bare name); `:x = 100` stays a clean equals-form assignment.
+test("set :x still reports exactly one parse ol-bad-token on the colon read and recovers as a VarRef (issue #442/F3 regression guard for #55)", () => {
+  const { ast, diagnostics } = OL.parse("set :x\n", "unit.logo");
+  const badTokens = diagnostics.filter((d) => d.code === "ol-bad-token");
+  assert.equal(badTokens.length, 1);
+  assert.deepEqual(badTokens[0].params, { text: ":x" });
+  assert.equal(ast.body[0].kind, "VarRef");
+});
+
+test(":x = 100 is still a clean equals-form Assign onto a Place — the fix does not disturb valid assignment (issue #442/F3 regression guard)", () => {
+  const { ast, diagnostics } = OL.parse(":x = 100\n", "unit.logo");
+  assert.deepEqual(diagnostics, []);
+  assert.equal(ast.body[0].kind, "Assign");
+  assert.equal(ast.body[0].form, "equals");
+  assert.equal(ast.body[0].place.kind, "Place");
+});
+
 // ── ol-undefined-var: static reads of an unbound `:name` ─────────────────────────────────────
 
 test("a bare :missing read with no declaration anywhere raises ol-undefined-var at the variable's span", () => {

@@ -1336,6 +1336,35 @@ export function parse(source: string, document = "<input>"): ParseResult {
 
   // --- Statements ----------------------------------------------------------
 
+  /**
+   * Re-wraps a fully-parenthesized assignment target — `(:x)`, `(:x.a)`, `((:x))`, `(first :x)` —
+   * into the zero-selector `PostfixExpression` shape `parsePostfix` builds for every other
+   * parenthesized read (issue #407/F7), so the semantic checker flags it with `ol-not-a-place`
+   * (spec/tooling.md:187, "reject … parenthesized expressions as targets") instead of the blunt
+   * parse `ol-bad-token` that discarding the grouping (`parseParenthesized`) would otherwise leave
+   * (issue #442/F3). `parseParenthesized` strips the grouping parens, so a `(:x)` target parses to
+   * the same bare `VarRef`/`Place` an assignable `:x` does; `countStrippedGroupingParens` recovers
+   * how many grouping levels the source wrapped `expr` in — always ≥1 here, since a genuinely bare
+   * `:name` before `=` is pre-routed by `colonAssignmentAhead()` and a bare `name`/`(` `set` target
+   * is handled before this helper is reached. Any already-non-place kind (a reporter `ParenCall`, a
+   * literal) is passed through unchanged.
+   */
+  function asNonPlaceTarget(
+    expr: ExpressionNode,
+    groupStartIndex: number,
+    groupStartToken: LexToken,
+  ): ExpressionNode {
+    if (expr.kind === "VarRef" || expr.kind === "Place") {
+      return ast.postfixExpression(
+        expr,
+        [],
+        spanToHere(groupStartToken.source_span.start),
+        countStrippedGroupingParens(groupStartIndex, expr.source_span.start),
+      );
+    }
+    return expr;
+  }
+
   function parseStatement(): StatementNode | undefined {
     const token = current();
     if (colonAssignmentAhead()) {
@@ -1386,42 +1415,51 @@ export function parse(source: string, document = "<input>"): ParseResult {
           break;
       }
     }
+    const targetStartIndex = pos;
+    const targetStartToken = current();
     const expr = parseExpression();
-    // A reporter/call or a bare literal used as an assignment target — `first :x = 5`,
-    // `count :nums = 3`, `3 = 5`, `[1 2][1] = 5` — is not a place. Recognize the structure here so
-    // the semantic checker can flag it with `ol-not-a-place` (spec/tooling.md:213-219) instead of
-    // a blunt parse error; `=` is the only op that survives to this fall-through, so a bare
-    // `text === "="` guard is sufficient. A bare `:name` never reaches this fall-through (it is
-    // always routed through `colonAssignmentAhead()`/`parseColonAssignment()` into a proper
-    // `Place`), so `VarRef` is not one of the kinds recognized here. `PostfixExpression` (issue
-    // #407/F7) is the postfix-after-any-primary read shape `parsePostfix` builds for a non-`:name`
-    // base — never itself a valid place, since a valid place is always variable-rooted.
+    // A reporter/call, a bare literal, or a parenthesized expression used as an assignment target —
+    // `first :x = 5`, `count :nums = 3`, `3 = 5`, `[1 2][1] = 5`, `(:x) = 2` — is not a place.
+    // Recognize the structure here so the semantic checker can flag it with `ol-not-a-place`
+    // (spec/tooling.md:187, :213-219) instead of a blunt parse error; `=` is the only op that
+    // survives to this fall-through, so a bare `text === "="` guard is sufficient. A genuinely bare
+    // `:name` never reaches this fall-through before `=` (it is always routed through
+    // `colonAssignmentAhead()`/`parseColonAssignment()` into a proper `Place`), so a `VarRef`/`Place`
+    // here before `=` is necessarily a *parenthesized* one (`(:x)`/`(:x.a)`), which
+    // `parseParenthesized` stripped to a bare kind; {@link asNonPlaceTarget} re-wraps it into the
+    // `PostfixExpression` (issue #407/F7) read shape a valid place can never take. Other kinds pass
+    // through and are matched directly by `isNonPlaceTarget` below.
     if (expr === undefined) {
       return undefined;
     }
+    const target =
+      (expr.kind === "VarRef" || expr.kind === "Place") &&
+      current().text === "="
+        ? asNonPlaceTarget(expr, targetStartIndex, targetStartToken)
+        : expr;
     const isNonPlaceTarget =
-      expr.kind === "Call" ||
-      expr.kind === "ParenCall" ||
-      expr.kind === "NumberLit" ||
-      expr.kind === "WordLit" ||
-      expr.kind === "BooleanLit" ||
-      expr.kind === "ListLit" ||
-      expr.kind === "PostfixExpression";
+      target.kind === "Call" ||
+      target.kind === "ParenCall" ||
+      target.kind === "NumberLit" ||
+      target.kind === "WordLit" ||
+      target.kind === "BooleanLit" ||
+      target.kind === "ListLit" ||
+      target.kind === "PostfixExpression";
     if (isNonPlaceTarget && current().text === "=") {
       advance();
       const value = parseExpression();
       if (value === undefined) {
         diagnostics.push(unexpected(current()));
-        return expr;
+        return target;
       }
       return ast.assign(
-        expr,
+        target,
         value,
         "equals",
-        spanFrom(expr.source_span.start, value),
+        spanFrom(target.source_span.start, value),
       );
     }
-    return expr;
+    return target;
   }
 
   function parseLocal(): StatementNode | undefined {
@@ -1489,19 +1527,10 @@ export function parse(source: string, document = "<input>"): ParseResult {
   function parseSetAssignment(): StatementNode | undefined {
     const setTok = current();
     advance();
-    const nameTok = current();
-    if (nameTok.kind !== "name") {
-      diagnostics.push(unexpected(nameTok));
+    const target = parseSetTarget();
+    if (target === undefined) {
       return undefined;
     }
-    advance();
-    const base = sname(nameTok.text, nameTok);
-    const segments = collectPostfixSegments();
-    const place = ast.place(
-      base,
-      segments,
-      spanToHere(nameTok.source_span.start),
-    );
     if (!isName("to")) {
       diagnostics.push(unexpected(current()));
       return undefined;
@@ -1513,11 +1542,45 @@ export function parse(source: string, document = "<input>"): ParseResult {
       return undefined;
     }
     return ast.assign(
-      place,
+      target,
       value,
       "set",
       spanFrom(setTok.source_span.start, value),
     );
+  }
+
+  /**
+   * Parses the target of a `set … to` assignment. The spec's
+   * `set-assignment ::= "set" bare-place "to" expression` (spec/grammar.md:104) requires a
+   * *bare* place — a `name` optionally postfixed — which is the one well-formed, assignable case.
+   * A parenthesized target (`set (:x) to …`, `set (first :x) to …`) is not a place; like the
+   * `<place> = <value>` form it is recognized structurally and re-wrapped by
+   * {@link asNonPlaceTarget} (issue #442/F3) so the semantic checker reports `ol-not-a-place`
+   * (spec/tooling.md:187) rather than a blunt parse error. Anything else — a colon-place `set :x`
+   * (issue #55), a literal `set 5` — is left to the parse `ol-bad-token` the bare-place grammar
+   * demands, with the offending token unconsumed so statement recovery re-parses it.
+   */
+  function parseSetTarget(): ExpressionNode | undefined {
+    const targetStartIndex = pos;
+    const targetStartToken = current();
+    if (targetStartToken.kind === "name") {
+      advance();
+      const segments = collectPostfixSegments();
+      return ast.place(
+        sname(targetStartToken.text, targetStartToken),
+        segments,
+        spanToHere(targetStartToken.source_span.start),
+      );
+    }
+    if (targetStartToken.kind === "lparen") {
+      const parsed = parseExpression();
+      if (parsed === undefined) {
+        return undefined;
+      }
+      return asNonPlaceTarget(parsed, targetStartIndex, targetStartToken);
+    }
+    diagnostics.push(unexpected(targetStartToken));
+    return undefined;
   }
 
   function parseIf(): StatementNode | undefined {
