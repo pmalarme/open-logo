@@ -23,7 +23,7 @@ import { expect, test } from "@playwright/test";
  */
 const LONG_LINE_PROGRAM = [
   "repeat 4 [ forward 100 right 90 ]",
-  `; ${"a-really-long-non-wrapping-comment-line ".repeat(12)}`,
+  `# ${"a-really-long-non-wrapping-comment-line ".repeat(12)}`,
 ].join("\n");
 
 /** The `localStorage` key the studio's browser persistence adapter restores `source` from. */
