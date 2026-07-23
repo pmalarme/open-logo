@@ -64,6 +64,7 @@ import {
   createParserHighlighter,
   createRunController,
   createRunLogController,
+  createRunToggleActionHandlers,
   createStudioState,
   createTimeoutScheduler,
   createTurtleStateRegion,
@@ -103,7 +104,6 @@ import type {
   TutorOutputViewItem,
   WorkedExampleViewItem,
   RunStatus,
-  RunToggleAction,
 } from "../src/index.js";
 import type { Diagnostic, DiagnosticSeverity } from "@openlogo/core";
 import { IMMEDIATE_SCHEDULER } from "@openlogo/turtle";
@@ -365,13 +365,12 @@ turtleStateRegion.subscribeText((text) => {
   turtleStateElement.textContent = text;
 });
 
-/** Looks up the `RunController` method a Start/Stop toggle click should invoke for the
- * `RunToggleAction` `mapRunStatusToRunToggleViewModel` already decided — an indexed lookup, not a
- * branch on `runStatus` itself (see this module's doc comment). */
-const runToggleActionHandlers: Readonly<Record<RunToggleAction, () => void>> = {
-  run: () => runController.run(),
-  stop: () => runController.stop(),
-};
+/** Looks up the `RunController` method(s) a Start/Stop toggle click should invoke for the
+ * `RunToggleAction` `mapRunStatusToRunToggleViewModel` already decided — this file only builds the
+ * handler map via `run-controls.ts`'s `createRunToggleActionHandlers` (the actual `"restart"`
+ * composition — #432 finding 1 — lives there, fully tested; this file makes no decision of its
+ * own, matching this module's doc comment). */
+const runToggleActionHandlers = createRunToggleActionHandlers(runController);
 
 runToggleButton.addEventListener("click", () => {
   const { action } = mapRunStatusToRunToggleViewModel(

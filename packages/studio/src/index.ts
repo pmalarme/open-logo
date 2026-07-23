@@ -242,6 +242,7 @@
 export type {
   LessonContext,
   Notice,
+  RunResult,
   RunStatus,
   Selection,
   StudioState,
@@ -279,6 +280,8 @@ export type {
 export {
   EDITOR_ARIA_LABEL,
   EDITOR_ARIA_ROLE,
+  EDITOR_FOLD_HELP_ELEMENT_ID,
+  EDITOR_FOLD_HELP_TEXT,
   buildStoreSyncSpec,
   computeDiagnosticGutterLines,
   createEditorExtensions,
@@ -408,6 +411,7 @@ export type {
   RunToggleViewModel,
 } from "./run-controls.js";
 export {
+  createRunToggleActionHandlers,
   mapRunStatusToRunToggleViewModel,
   RUN_TOGGLE_VIEW_MODELS,
 } from "./run-controls.js";

@@ -38,10 +38,16 @@ function createManualScheduler() {
   return {
     scheduler,
     cancel,
+    /** Fires the pending tick, if any, returning whether one was pending — lets a test drain a
+     * multi-tick paced animation with `while (manual.fire()) {}` without tracking tick count. */
     fire() {
       const tick = pending;
+      if (!tick) {
+        return false;
+      }
       pending = null;
       tick();
+      return true;
     },
   };
 }
@@ -237,6 +243,69 @@ test("createRunLogController never loses a run to an overlapping Run click durin
     entries[0].output,
     [],
     "the recorded entry must be the FIRST run (forward 1, no print output), not the ignored second run's 'print 2'",
+  );
+});
+
+test("createRunLogController captures the run's OWN output/diagnostics even when a mid-run edit wipes the live diagnostics field (#432 finding 2)", () => {
+  const originalSource = "print 1\nforever [ forward 1 ]";
+  const store = OL.createStudioState({
+    source: originalSource,
+  });
+  const runLog = OL.createRunLogController(store);
+  const manual = createManualScheduler();
+  const controller = OL.createRunController(store, {
+    scheduler: manual.scheduler,
+    instructionBudget: 10,
+  });
+  // Real, live parse-as-you-type wiring — the actual mechanism this regression proves no longer
+  // corrupts a completed run's logged entry.
+  OL.createDiagnosticsController(store);
+
+  controller.run();
+  assert.equal(
+    store.getState().runStatus,
+    "running",
+    "a paced run with real turtle events must still be mid-animation here",
+  );
+  assert.deepEqual(store.getState().output, ["1"]);
+  assert.ok(
+    store
+      .getState()
+      .diagnostics.some((diagnostic) => diagnostic.code === "ol-limit"),
+    "the runaway forever loop must have already hit its instruction budget",
+  );
+  assert.equal(store.getState().lastRunResult.source, originalSource);
+
+  // The learner edits the source mid-run, removing the runaway loop entirely. This triggers
+  // `diagnostics.ts`'s live parse-as-you-type re-check, which republishes the EDITED (now
+  // perfectly valid) source's diagnostics — wiping the shared `diagnostics` field well before
+  // this run's own terminal transition.
+  store.setSource("print 1\nforward 1");
+  assert.deepEqual(
+    store.getState().diagnostics,
+    [],
+    "the live diagnostics field must really have been corrupted by the mid-run edit",
+  );
+  assert.equal(
+    store.getState().lastRunResult.source,
+    originalSource,
+    "the immutable snapshot's source must survive the live mid-run edit unchanged",
+  );
+
+  // Drain the paced animation until the run reaches its terminal transition.
+  while (manual.fire()) {
+    // keep firing until fully drained
+  }
+  assert.equal(store.getState().runStatus, "stopped");
+
+  const entries = runLog.getEntries();
+  assert.equal(entries.length, 1);
+  // The logged entry must still be the RUN's own output/diagnostics — not the edited source's
+  // (now clean) diagnostics the live field was corrupted to.
+  assert.deepEqual(entries[0].output, ["1"]);
+  assert.ok(
+    entries[0].diagnostics.some((diagnostic) => diagnostic.code === "ol-limit"),
+    "the logged entry must retain the run's own ol-limit diagnostic, not the edited source's empty diagnostics",
   );
 });
 

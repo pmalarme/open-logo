@@ -13,6 +13,30 @@ test("createStudioState returns the documented initial snapshot", () => {
   assert.deepEqual(state.output, []);
   assert.deepEqual(state.lesson, { lessonId: null, title: null });
   assert.equal(state.speedSliderValue, OL.DEFAULT_SPEED_SLIDER_VALUE);
+  assert.equal(state.lastRunResult, null);
+});
+
+test("setLastRunResult replaces the immutable per-run snapshot and notifies subscribers (#432 finding 2)", () => {
+  const store = OL.createStudioState();
+  const seen = [];
+  store.subscribe((state) => seen.push(state.lastRunResult));
+
+  const runResult = { source: "print 1", output: ["1"], diagnostics: [] };
+  store.setLastRunResult(runResult);
+
+  assert.equal(store.getState().lastRunResult, runResult);
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0], runResult);
+
+  store.setLastRunResult(null);
+  assert.equal(store.getState().lastRunResult, null);
+});
+
+test("createStudioState honors a provided initial lastRunResult (#432 finding 2)", () => {
+  const runResult = { source: "print 1", output: ["hi"], diagnostics: [] };
+  const store = OL.createStudioState({ lastRunResult: runResult });
+
+  assert.equal(store.getState().lastRunResult, runResult);
 });
 
 test("createStudioState honors provided initial values", () => {

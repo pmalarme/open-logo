@@ -18,10 +18,22 @@
  * that `"running"` → `"done"`/`"stopped"` transition — never `"idle"` → anything, which is what
  * `reset()` does, and must never create a log entry, since `reset()` clears the CURRENT run's
  * fields rather than completing a run — and appends one immutable {@link RunLogEntry} snapshotting
- * the store's `output`/`diagnostics` at that instant. Because `output`/`diagnostics` are already
- * the completed run's final values by the time either terminal status commits, this captures the
- * full run — including any `ol-*` diagnostic, parse- or runtime-stage, per the issue's "prints and
- * then errors" scenario — whether the run finished on its own or was stopped mid-animation.
+ * `state.lastRunResult` (#432 finding 2 — an immutable per-run `source`/`output`/`diagnostics`
+ * triple `run-controller.ts`'s `prepare()` captures at run start, falling back to the live
+ * `output`/`diagnostics` fields only when no such snapshot exists, e.g. a test driving the store
+ * directly). `RunLogEntry` itself still only carries `output`/`diagnostics` (#314's original
+ * acceptance criteria never asked the log to display the source), but the snapshot's `source` is
+ * what makes it verifiably "this run's own" result rather than a coincidentally-matching one.
+ * Reading `lastRunResult` rather than the live fields matters because a paced (non-instant) run
+ * leaves `runStatus` at `"running"` across many event-loop turns while the editor stays fully
+ * live: `diagnostics.ts`'s parse-as-you-type re-checking keeps replacing the live `diagnostics`
+ * field with the CURRENT source's parse result on every edit, so a learner who edits mid-run
+ * (e.g. removing the bug that caused the run's own `ol-*` runtime error) could otherwise have that
+ * error silently vanish from the completed run's own log entry by the time this subscriber reads
+ * it — the immutable snapshot means the logged entry always captures the full run — including any
+ * `ol-*` diagnostic, parse- or runtime-stage, per the issue's "prints and then errors" scenario —
+ * whether the run finished on its own or was stopped mid-animation, and regardless of what the
+ * learner does to the editor in the meantime.
  *
  * ## Append, never replace
  * `entries` only ever grows via `[...entries, entry]`: a later run's entry is appended after every
@@ -119,8 +131,18 @@ export function createRunLogController(
       id: nextId,
       completedAt: now(),
       runStatus: next.runStatus,
-      output: next.output,
-      diagnostics: next.diagnostics,
+      // #432 finding 2 — prefer the immutable per-run snapshot `run-controller.ts`'s `prepare()`
+      // captures (`state.lastRunResult`) over the live `output`/`diagnostics` fields. A paced
+      // (non-instant) run leaves `runStatus` at `"running"` across many event-loop turns, during
+      // which the editor stays fully live; `diagnostics.ts`'s parse-as-you-type re-checking keeps
+      // overwriting the live `diagnostics` field on every source edit, so reading it here — AFTER
+      // the run has already finished and the learner may have already started editing again —
+      // could log the edited source's diagnostics instead of the run's own. Falls back to the live
+      // fields when no snapshot exists, so callers that drive `runStatus`/`output`/`diagnostics`
+      // directly (without a real `RunController`) — as most of this module's own tests do — keep
+      // working unchanged.
+      output: next.lastRunResult?.output ?? next.output,
+      diagnostics: next.lastRunResult?.diagnostics ?? next.diagnostics,
     };
     nextId += 1;
     entries = [...entries, entry];

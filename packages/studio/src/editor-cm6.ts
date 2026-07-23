@@ -97,6 +97,36 @@ export const EDITOR_ARIA_ROLE: string = editorFocusStop().role;
 /** The editor's ARIA label — see {@link EDITOR_ARIA_ROLE}'s doc comment. */
 export const EDITOR_ARIA_LABEL: string = editorFocusStop().label;
 
+/**
+ * The DOM id of the visually-hidden help paragraph `index.html` provides inside `.pane-editor`,
+ * describing the keyboard fold shortcut. ADR-0013 (`docs/adr/0013-studio-editor-component.md`)
+ * made "a screen-reader-discoverable way to learn the fold shortcut" an explicit accepted
+ * acceptance sub-item, but nothing ever connected one — {@link createEditorExtensions} wires
+ * `foldKeymap` in and sets the editor's `aria-label`/`role`, yet a screen-reader user landing on
+ * the editor hears only the region's *name* ("OpenLogo code editor"), never that folding exists or
+ * how to trigger it; the fold gutter itself is `aria-hidden` (see `index.html`'s doc comment), so
+ * it offers no discovery path either (#432 finding 3). `createEditorExtensions` sets this id as the
+ * editor content element's `aria-describedby`, so a screen reader announces
+ * {@link EDITOR_FOLD_HELP_TEXT} right after the `aria-label` on focus — exactly the same pattern
+ * `aria-describedby` is designed for (a supplementary description, distinct from the primary
+ * accessible name).
+ */
+export const EDITOR_FOLD_HELP_ELEMENT_ID = "editor-fold-help-text";
+
+/**
+ * The exact help text `index.html`'s {@link EDITOR_FOLD_HELP_ELEMENT_ID} element must contain,
+ * describing the REAL keybindings `@codemirror/language`'s `foldKeymap` registers — verified
+ * directly against `@codemirror/language`'s source (`foldKeymap = [{ key: "Ctrl-Shift-[", mac:
+ * "Cmd-Alt-[", run: foldCode }, { key: "Ctrl-Shift-]", mac: "Cmd-Alt-]", run: unfoldCode }, { key:
+ * "Ctrl-Alt-[", run: foldAll }, { key: "Ctrl-Alt-]", run: unfoldAll }]`), not guessed or copied
+ * from an unrelated editor's shortcut list. Exported as the single source of truth so the literal
+ * HTML text, this doc comment, and `editor-cm6.test.mjs`/`index.test.mjs`'s assertions can never
+ * drift out of sync with each other or with the keymap itself.
+ */
+export const EDITOR_FOLD_HELP_TEXT: string =
+  "Keyboard shortcut: fold the current block with Ctrl-Shift-[ (Cmd-Alt-[ on Mac), or unfold it " +
+  "with Ctrl-Shift-] (Cmd-Alt-] on Mac). Fold or unfold everything with Ctrl-Alt-[ / Ctrl-Alt-].";
+
 let lastFoldSource: string | undefined;
 let lastFoldRanges: readonly FoldRange[] = [];
 
@@ -261,16 +291,55 @@ export function reconcileExternalSyncQueue(
 }
 
 /**
+ * Resolve one 1-based `[line, column]` {@link Position} to a CM6 document offset, validated
+ * against `state.doc`'s actual line structure rather than {@link offsetFromPosition}'s plain
+ * string-splitting arithmetic. `offsetFromPosition` never checks that `column` actually falls
+ * within its own line — an out-of-range column (e.g. a stale diagnostic's span computed against
+ * text the editor has since changed, or #432 finding 4's highlighter-token case below) can
+ * silently spill past the line's end and land inside the *next* line's text, marking the wrong
+ * span instead of being skipped. This resolves against `state.doc.line(line)` (CM6's own per-line
+ * accessor) so any out-of-range line or column is rejected outright, returning `undefined` rather
+ * than a bogus in-bounds offset. Shared by both bounds-checked span paths this module builds:
+ * {@link diagnosticSpanEntries} (diagnostic squiggles, #317) and
+ * {@link buildHighlightDecorations} (syntax coloring, #432 finding 4) — one resolver, one bounds
+ * contract, never two divergent implementations of the same "is this span still valid?" check.
+ */
+function resolvePositionOffset(
+  state: EditorState,
+  position: Position,
+): number | undefined {
+  const [line, column] = position;
+  if (
+    !Number.isInteger(line) ||
+    !Number.isInteger(column) ||
+    line < 1 ||
+    column < 1 ||
+    line > state.doc.lines
+  ) {
+    return undefined;
+  }
+  const docLine = state.doc.line(line);
+  // `docLine.length + 1` allows a column immediately after the line's last character (e.g. an
+  // exclusive end position at end-of-line), matching `positionFromOffset`'s own convention.
+  if (column > docLine.length + 1) {
+    return undefined;
+  }
+  return docLine.from + column - 1;
+}
+
+/**
  * Build the `Decoration.mark` range set #285's syntax coloring paints: classify `state`'s current
  * document via `highlighter` (`@openlogo/parser`'s token classifier, wired in by
  * `highlighter.ts`'s {@link createParserHighlighter}) and map each resulting
  * `{ text, class, start, end }` span onto one CM6 mark decoration. `highlight()`'s token stream is
  * already flat and source-ordered (see `highlight.ts`'s doc comment), matching
- * `RangeSetBuilder`'s ascending-order requirement, so no extra sort is needed. Zero-width spans
- * (an `end` position that never moved past `start`, which the parser's own contract never
- * produces but a future edge case could) are skipped, and so is any span that falls outside the
- * classified document (also never produced by the parser against its own input, but not
- * guaranteed by the `HighlightProvider` seam type itself) — `RangeSetBuilder` requires `from < to`.
+ * `RangeSetBuilder`'s ascending-order requirement, so no extra sort is needed. Each token's
+ * `start`/`end` {@link Position} is resolved via {@link resolvePositionOffset} — the SAME
+ * line-aware resolver #317 built for the diagnostics path ({@link diagnosticSpanEntries}) — rather
+ * than {@link offsetFromPosition}'s plain string-splitting arithmetic (#432 finding 4): a token
+ * whose column overruns its own line's actual length (e.g. a stale span computed against text the
+ * highlighter hasn't re-classified yet) is REJECTED outright instead of silently spilling past the
+ * line's end and decorating the *next* line's text. A zero-width or inverted span is skipped too.
  * Coloring is purely a `class` attribute on a `mark` decoration: it never replaces, hides, or
  * reorders any text node, so it cannot change the accessible text, DOM reading order, or focus
  * model CM6's `contenteditable` host already provides (the #285 a11y hard gate).
@@ -282,9 +351,9 @@ function buildHighlightDecorations(
   const text = state.doc.toString();
   const builder = new RangeSetBuilder<Decoration>();
   for (const token of highlighter(text)) {
-    const from = offsetFromPosition(text, token.start);
-    const to = offsetFromPosition(text, token.end);
-    if (from < 0 || to > state.doc.length || from >= to) {
+    const from = resolvePositionOffset(state, token.start);
+    const to = resolvePositionOffset(state, token.end);
+    if (from === undefined || to === undefined || from >= to) {
       continue;
     }
     builder.add(from, to, Decoration.mark({ class: token.class }));
@@ -355,39 +424,6 @@ interface DiagnosticSpanEntry {
 }
 
 /**
- * Resolve one 1-based `[line, column]` {@link Position} to a CM6 document offset, validated
- * against `state.doc`'s actual line structure rather than {@link offsetFromPosition}'s plain
- * string-splitting arithmetic. `offsetFromPosition` never checks that `column` actually falls
- * within its own line — an out-of-range column (e.g. a stale diagnostic's span computed against
- * text the editor has since changed) can silently spill past the line's end and land inside the
- * *next* line's text, marking the wrong span instead of being skipped. This resolves against
- * `state.doc.line(line)` (CM6's own per-line accessor) so any out-of-range line or column is
- * rejected outright, returning `undefined` rather than a bogus in-bounds offset.
- */
-function resolveDiagnosticOffset(
-  state: EditorState,
-  position: Position,
-): number | undefined {
-  const [line, column] = position;
-  if (
-    !Number.isInteger(line) ||
-    !Number.isInteger(column) ||
-    line < 1 ||
-    column < 1 ||
-    line > state.doc.lines
-  ) {
-    return undefined;
-  }
-  const docLine = state.doc.line(line);
-  // `docLine.length + 1` allows a column immediately after the line's last character (e.g. an
-  // exclusive end position at end-of-line), matching `positionFromOffset`'s own convention.
-  if (column > docLine.length + 1) {
-    return undefined;
-  }
-  return docLine.from + column - 1;
-}
-
-/**
  * Resolve `diagnostics`' `source_span`s (1-based `[line, column]`, from `@openlogo/core`) to CM6
  * document offsets, in ascending `(from, to)` order — `RangeSetBuilder`'s ascending-order
  * requirement (see {@link buildHighlightDecorations}'s doc comment), except here the input isn't
@@ -395,9 +431,9 @@ function resolveDiagnosticOffset(
  * sorts rather than assuming. A span that falls outside the current document, or whose start/end
  * line or column no longer exists on the document's current line structure (a stale span from
  * before an edit the diagnostics pipeline hasn't re-checked yet), or a zero-width span, is skipped
- * rather than thrown — see {@link resolveDiagnosticOffset} and, for the same defensive-bounds-check
+ * rather than thrown — see {@link resolvePositionOffset} and, for the same defensive-bounds-check
  * precedent, {@link buildHighlightDecorations}'s doc comment (learned from #285's out-of-range
- * `RangeSetBuilder` fix).
+ * `RangeSetBuilder` fix, and reused for the highlighter path itself by #432 finding 4).
  */
 function diagnosticSpanEntries(
   state: EditorState,
@@ -406,8 +442,8 @@ function diagnosticSpanEntries(
   const entries: DiagnosticSpanEntry[] = [];
   for (const diagnostic of diagnostics) {
     const span = diagnostic.source_span;
-    const from = resolveDiagnosticOffset(state, span.start);
-    const to = resolveDiagnosticOffset(state, span.end);
+    const from = resolvePositionOffset(state, span.start);
+    const to = resolvePositionOffset(state, span.end);
     if (from === undefined || to === undefined || from >= to) {
       continue;
     }
@@ -619,16 +655,18 @@ export function createUpdateListener(
 /**
  * Build the full CM6 `Extension[]` for the OpenLogo editor surface: line-number gutter, AST-derived
  * code folding (gutter + keyboard `foldKeymap` + click-to-toggle), undo/redo history (`defaultKeymap`
- * has no undo/redo of its own), the `role`/`aria-label` content attributes the #279 a11y contracts
- * require, {@link diagnosticsField} (#317 — the inline squiggle-underline markers over every
- * `ol-*` diagnostic's `source_span`; always included, not opt-in, since `web/main.ts` dispatches
- * {@link setDiagnosticsEffect} into it unconditionally from the same store the diagnostics pane
- * already renders), and — when `options.highlighter` is given (#285, see `highlighter.ts`'s
- * `createParserHighlighter`) — the real syntax-coloring decoration extension from
- * {@link createHighlightExtension}. Omitting `options.highlighter` keeps the editor exactly as
- * highlighter-free as #315 left it (plain text, no decorations); no `@codemirror/lang-*`/
- * `basicSetup`/autocomplete/search/lint packages, matching ADR-0013's modular/tree-shaken import
- * plan.
+ * has no undo/redo of its own), the `role`/`aria-label`/`aria-describedby` content attributes the
+ * #279 a11y contracts require (`aria-describedby` pointing at `index.html`'s
+ * {@link EDITOR_FOLD_HELP_ELEMENT_ID} help text — #432 finding 3, so the fold shortcut `foldKeymap`
+ * registers is actually screen-reader-discoverable rather than silently keyboard-only), the always-on
+ * {@link diagnosticsField} (#317 — the inline squiggle-underline markers over every `ol-*`
+ * diagnostic's `source_span`; not opt-in, since `web/main.ts` dispatches {@link setDiagnosticsEffect}
+ * into it unconditionally from the same store the diagnostics pane already renders), and — when
+ * `options.highlighter` is given (#285, see `highlighter.ts`'s `createParserHighlighter`) — the real
+ * syntax-coloring decoration extension from {@link createHighlightExtension}. Omitting
+ * `options.highlighter` keeps the editor exactly as highlighter-free as #315 left it (plain text, no
+ * decorations); no `@codemirror/lang-*`/`basicSetup`/autocomplete/search/lint packages, matching
+ * ADR-0013's modular/tree-shaken import plan.
  */
 export function createEditorExtensions(
   options: EditorExtensionsOptions = {},
@@ -643,6 +681,7 @@ export function createEditorExtensions(
     EditorView.contentAttributes.of({
       role: EDITOR_ARIA_ROLE,
       "aria-label": EDITOR_ARIA_LABEL,
+      "aria-describedby": EDITOR_FOLD_HELP_ELEMENT_ID,
     }),
     diagnosticsField,
   ];

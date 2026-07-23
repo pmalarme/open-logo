@@ -8,12 +8,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { EditorState } from "@codemirror/state";
-import { foldable } from "@codemirror/language";
+import { EditorView } from "@codemirror/view";
+import { foldKeymap, foldable } from "@codemirror/language";
 import * as OL from "@openlogo/studio";
 
 const {
   EDITOR_ARIA_LABEL,
   EDITOR_ARIA_ROLE,
+  EDITOR_FOLD_HELP_ELEMENT_ID,
+  EDITOR_FOLD_HELP_TEXT,
   buildStoreSyncSpec,
   computeDiagnosticGutterLines,
   createEditorExtensions,
@@ -72,6 +75,38 @@ function stateFor(doc) {
 test("EDITOR_ARIA_ROLE/EDITOR_ARIA_LABEL match the #279 a11y contracts' editor focus stop", () => {
   assert.equal(EDITOR_ARIA_ROLE, "textbox");
   assert.equal(EDITOR_ARIA_LABEL, "OpenLogo source editor");
+});
+
+test("createEditorExtensions sets aria-describedby to EDITOR_FOLD_HELP_ELEMENT_ID, alongside role/aria-label (#432 finding 3)", () => {
+  const state = EditorState.create({
+    doc: "forward 100",
+    extensions: createEditorExtensions(),
+  });
+  // createEditorExtensions contributes exactly one EditorView.contentAttributes.of({...}) entry
+  // (a plain object, never a function form of the facet) — see the module doc comment.
+  const [attributes] = state.facet(EditorView.contentAttributes);
+  assert.equal(attributes.role, EDITOR_ARIA_ROLE);
+  assert.equal(attributes["aria-label"], EDITOR_ARIA_LABEL);
+  assert.equal(attributes["aria-describedby"], EDITOR_FOLD_HELP_ELEMENT_ID);
+});
+
+test("EDITOR_FOLD_HELP_TEXT mentions every real keybinding @codemirror/language's foldKeymap registers, not a placeholder (#432 finding 3)", () => {
+  // Read the actual keymap CM6 wires in (createEditorExtensions's keymap.of([...foldKeymap]))
+  // rather than hardcoding a copy of the bindings, so a future @codemirror/language upgrade that
+  // changes them would fail this test instead of silently leaving stale help text.
+  assert.ok(foldKeymap.length > 0);
+  for (const binding of foldKeymap) {
+    assert.ok(
+      EDITOR_FOLD_HELP_TEXT.includes(binding.key),
+      `EDITOR_FOLD_HELP_TEXT must mention the real foldKeymap key "${binding.key}"`,
+    );
+    if (binding.mac) {
+      assert.ok(
+        EDITOR_FOLD_HELP_TEXT.includes(binding.mac),
+        `EDITOR_FOLD_HELP_TEXT must mention the real foldKeymap Mac key "${binding.mac}"`,
+      );
+    }
+  }
 });
 
 test("editorFocusStop throws if the injected focus-order list is missing an 'editor' stop", () => {
@@ -508,6 +543,23 @@ test("createHighlightExtension skips a token span past the end of the document r
     const state = EditorState.create({ doc: "x", extensions: [field] });
     assert.deepEqual(collectDecorations(state.field(field), 1), []);
   });
+});
+
+test("createHighlightExtension skips a token whose column overruns its own line, rather than spilling into the next line's text (#432 finding 4)", () => {
+  // Same class of bug #317 already fixed for the diagnostics path: a column past the end of
+  // line 1 ("abc", length 3, so valid columns are 1..4) must not resolve to an offset inside
+  // line 2's text just because the raw absolute offset happens to still be < doc.length — the
+  // stale/out-of-line-range span must be skipped, never decorate the next line.
+  const overrunHighlighter = () => [
+    { text: "z", class: "ol-tok-word", start: [1, 6], end: [1, 8] },
+  ];
+  const field = createHighlightExtension(overrunHighlighter);
+  const state = EditorState.create({ doc: "abc\nxyz", extensions: [field] });
+
+  assert.deepEqual(
+    collectDecorations(state.field(field), state.doc.length),
+    [],
+  );
 });
 
 test("createEditorExtensions adds the #285 highlight extension only when a highlighter is configured", () => {

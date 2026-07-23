@@ -54,6 +54,22 @@
  *   snapshot. `a11y.ts`'s turtle-state region reads it to append the current source instruction's
  *   own text to the non-visual state description (`spec/rendering.md`'s Non-visual state
  *   descriptions minimum) — omitted entirely, never a placeholder, while `null`.
+ * - `lastRunResult` (#432 finding 2) — an **immutable** snapshot of the most recently *completed*
+ *   run's `output`/`diagnostics`, taken by `run-controller.ts`'s `prepare()` at the same moment it
+ *   calls `setOutput`/`setDiagnostics`, and left untouched by anything else — in particular, it is
+ *   NEVER overwritten by `diagnostics.ts`'s live parse-as-you-type re-checking, which keeps
+ *   re-publishing fresh parse diagnostics into the plain `diagnostics` field as the learner edits,
+ *   including mid-run (a paced, non-instant run leaves `runStatus` at `"running"` across many
+ *   event-loop turns, during which the editor is still fully live). Before this field existed,
+ *   `run-log.ts` read `output`/`diagnostics` straight off the shared store at the run's terminal
+ *   transition — exactly the field a mid-run edit had already clobbered — so a run that printed
+ *   output and then hit a runtime `ol-*` error could have that error silently replaced by the
+ *   edited-to source's own (possibly diagnostic-free) parse result by the time the run log
+ *   snapshot it. `run-log.ts` reads `lastRunResult` instead, so the logged entry always reflects
+ *   the run that actually produced it. `null` before any run has ever completed, and reset by
+ *   `reset()` back to `null` alongside `output`/`diagnostics` (cosmetic only — `run-log.ts` never
+ *   observes a `reset()`-driven transition, since `reset()` always lands on `"idle"`, never a
+ *   terminal status).
  *
  * ## Update contract
  * - State changes **only** through the store's `set*` methods below; the object returned by
@@ -103,6 +119,18 @@ export interface Notice {
   readonly message: string;
 }
 
+/**
+ * An immutable snapshot of one completed run's `source`/`output`/`diagnostics` (#432 finding 2) —
+ * see {@link StudioState.lastRunResult}'s doc comment for why this exists as a field distinct from
+ * the live `output`/`diagnostics`. `source` is the exact program text `execute()` ran, captured
+ * before any subsequent mid-run edit, so a consumer can always tell what produced this result.
+ */
+export interface RunResult {
+  readonly source: string;
+  readonly output: readonly string[];
+  readonly diagnostics: readonly Diagnostic[];
+}
+
 /** The single source-of-truth snapshot every studio pane renders from. */
 export interface StudioState {
   readonly source: string;
@@ -117,6 +145,7 @@ export interface StudioState {
   readonly speedSliderValue: number;
   readonly tutorOutput: readonly TutorOutputPayload[];
   readonly currentInstructionSourceSpan: SourceSpan | null;
+  readonly lastRunResult: RunResult | null;
 }
 
 /** A subscriber notified with the new snapshot after every state change. */
@@ -189,6 +218,14 @@ export interface StudioStateStore {
   setCurrentInstructionSourceSpan(
     currentInstructionSourceSpan: SourceSpan | null,
   ): void;
+  /**
+   * Replace the most recently completed run's immutable `output`/`diagnostics` snapshot (#432
+   * finding 2), or `null` to clear it (`reset()`'s convention — see
+   * {@link StudioState.lastRunResult}'s doc comment). `run-controller.ts`'s `prepare()` calls this
+   * once per run, alongside `setOutput`/`setDiagnostics`; nothing else may call it, or the
+   * snapshot would no longer be trustworthy.
+   */
+  setLastRunResult(lastRunResult: RunResult | null): void;
 }
 
 const INITIAL_POSITION: Position = [1, 1];
@@ -215,6 +252,7 @@ export function createStudioState(
     speedSliderValue: initial?.speedSliderValue ?? DEFAULT_SPEED_SLIDER_VALUE,
     tutorOutput: initial?.tutorOutput ?? [],
     currentInstructionSourceSpan: initial?.currentInstructionSourceSpan ?? null,
+    lastRunResult: initial?.lastRunResult ?? null,
   };
 
   const listeners = new Set<StudioStateListener>();
@@ -272,6 +310,9 @@ export function createStudioState(
     },
     setCurrentInstructionSourceSpan(currentInstructionSourceSpan) {
       commit({ currentInstructionSourceSpan });
+    },
+    setLastRunResult(lastRunResult) {
+      commit({ lastRunResult });
     },
   };
 }

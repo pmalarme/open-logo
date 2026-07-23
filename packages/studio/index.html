@@ -79,7 +79,23 @@
           create a second, redundant textbox landmark). CM6's own line-number/fold gutter
           (`.cm-gutters`) is marked `aria-hidden="true"` by `@codemirror/view` itself, with no
           extra wiring needed here.
+
+          #432 finding 3: the fold gutter being `aria-hidden` (and the fold *keybinding* having no
+          visible affordance at all) left the `foldKeymap` shortcut ADR-0013 explicitly promised a
+          "screen-reader-discoverable way to learn" completely undiscoverable — nothing referenced
+          it. This visually-hidden paragraph (`.sr-only`, never shown sighted, always in the
+          accessibility tree) is that discovery path: `createEditorExtensions` sets its id as the
+          CM6 content element's `aria-describedby`, so a screen reader announces this text right
+          after the editor's `aria-label` on focus. Its wording must stay in sync with
+          `src/editor-cm6.ts`'s `EDITOR_FOLD_HELP_TEXT` (whitespace-normalized equality asserted by
+          `index.test.mjs`), which is itself verified against `@codemirror/language`'s actual
+          `foldKeymap` bindings.
         -->
+        <p id="editor-fold-help-text" class="sr-only">
+          Keyboard shortcut: fold the current block with Ctrl-Shift-[ (Cmd-Alt-[
+          on Mac), or unfold it with Ctrl-Shift-] (Cmd-Alt-] on Mac). Fold or
+          unfold everything with Ctrl-Alt-[ / Ctrl-Alt-].
+        </p>
         <div id="editor-host"></div>
       </section>
       <section class="pane-controls" aria-label="Run controls" role="toolbar">
