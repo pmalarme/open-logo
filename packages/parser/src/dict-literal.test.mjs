@@ -151,14 +151,27 @@ test("reports ol-bad-token, not ol-unmatched-brace, when a dict entry has neithe
   assert.equal(badToken.params.text, "}");
 });
 
-test("reports ol-unmatched-brace when a dict key is not an identifier or number", () => {
-  // `dict-key ::= identifier | number` (`spec/grammar.md`) — a nested `{ … }` is not a legal key,
-  // so it is reported and skipped rather than recursively parsed as a nested dict literal.
-  const diagnosticCodes = codesOf("print { { a: 1 }: 2 }");
-  assert.ok(diagnosticCodes.includes("ol-unmatched-brace"));
-  const first = parse("print { { a: 1 }: 2 }").diagnostics[0];
-  assert.equal(first.code, "ol-unmatched-brace");
-  assert.equal(first.params.delimiter, "{");
+test("reports exactly one ol-bad-token, not ol-unmatched-brace, when a dict key is a nested dict literal", () => {
+  // `dict-key ::= identifier | number` (`spec/grammar.md`) — a nested `{ … }` is not a legal key.
+  // Per `spec/error-model.md` and `spec/data-structures.md#dictionaries` (issue #520), this is a
+  // grammar-position error, not a brace-matching one: the inner `{` and its balanced nested
+  // literal, plus its `: 2` trailing entry, are all skipped as one malformed entry, so exactly
+  // one `ol-bad-token` fires for the inner `{` itself — never `ol-unmatched-brace` — and the
+  // outer dict literal (whose own braces are correctly matched) still closes cleanly with zero
+  // entries.
+  const source = "print { { a: 1 }: 2 }";
+  assert.deepEqual(codesOf(source), ["ol-bad-token"]);
+  const diagnostic = parse(source).diagnostics[0];
+  assert.equal(diagnostic.code, "ol-bad-token");
+  assert.equal(diagnostic.stage, "parse");
+  assert.equal(diagnostic.params.text, "{");
+  // The span covers only the inner opening brace (offset 8, the second `{`), not the outer
+  // dict's braces and not the `a: 1 }` that follows.
+  assert.deepEqual(diagnostic.source_span.start, [1, 9]);
+  assert.deepEqual(diagnostic.source_span.end, [1, 10]);
+  const dict = firstArg(source);
+  assert.equal(dict.kind, "DictLit");
+  assert.deepEqual(dict.entries, []);
 });
 
 test("a dict-entry colon glued to its value with no gap parses identically to one with a space", () => {
