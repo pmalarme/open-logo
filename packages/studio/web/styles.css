@@ -125,6 +125,10 @@ main section {
   border: 1px solid var(--ol-border);
   border-radius: 8px;
   padding: 0.75rem 1rem;
+  /* #472 — a grid item's default min-width is `auto` (its min-content), so a long,
+     non-wrapping CodeMirror line would inflate the editor column and steal width from the
+     turtle track. Flooring it at 0 lets long lines scroll inside the editor instead. */
+  min-width: 0;
 }
 
 .pane-lesson {
@@ -211,8 +215,13 @@ main:has(.pane-lesson:not([hidden])):has(.pane-tutor:not([hidden])) {
 
 @media (min-width: 48rem) {
   main {
-    max-width: 1200px;
-    grid-template-columns: 1fr 1fr;
+    /* #472 — use the available page width instead of the old 1200px cap. */
+    max-width: 1400px;
+    /* #472 — the editor track floors at 0 (`minmax(0, 1fr)`) so its long lines scroll rather
+       than stretch the column; the turtle track has a rem-based minimum floor so the drawing
+       pane keeps a usable minimum size, and is weighted (1.2fr) toward the canvas so it grows
+       to fill the width available to it rather than being squeezed to a thumbnail. */
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 1.2fr);
     grid-template-areas:
       "editor turtle"
       "controls turtle"
@@ -228,12 +237,13 @@ main:has(.pane-lesson:not([hidden])):has(.pane-tutor:not([hidden])) {
   /* The lesson pane is present — add its own leftmost column ahead of editor/controls, matching
      the target end-state "Lesson | Editor | Run/Canvas" three-pane layout. `minmax(0, 300px)`
      gives it a ~300px starting width (a starting figure, not normative) that the grid track
-     sizing algorithm shrinks toward its 0 minimum first under width pressure — before the
-     `1fr` editor/turtle tracks (whose effective minimum is their own content) are ever squeezed
-     below their minimums. */
+     sizing algorithm shrinks toward its 0 minimum first under width pressure. The editor track
+     floors at 0 so its long lines scroll, and the turtle track keeps the same `minmax(18rem, …)`
+     minimum floor as the two-column layout above, so the drawing pane never collapses to a
+     thumbnail even when the lesson pane is visible in this narrower three-column split (#472). */
   main:has(.pane-lesson:not([hidden])) {
     max-width: 1400px;
-    grid-template-columns: minmax(0, 300px) 1fr 1fr;
+    grid-template-columns: minmax(0, 300px) minmax(0, 1fr) minmax(18rem, 1.2fr);
     grid-template-areas:
       "lesson editor turtle"
       "lesson controls turtle"
@@ -252,10 +262,12 @@ main:has(.pane-lesson:not([hidden])):has(.pane-tutor:not([hidden])) {
       "tutor tutor";
   }
 
-  /* Both the lesson and tutor-output panes are present at once — combine both extension areas. */
+  /* Both the lesson and tutor-output panes are present at once — combine both extension areas.
+     Same floored three-column tracks as the lesson-only rule above so the turtle keeps its
+     minimum size here too (#472). */
   main:has(.pane-lesson:not([hidden])):has(.pane-tutor:not([hidden])) {
     max-width: 1400px;
-    grid-template-columns: minmax(0, 300px) 1fr 1fr;
+    grid-template-columns: minmax(0, 300px) minmax(0, 1fr) minmax(18rem, 1.2fr);
     grid-template-areas:
       "lesson editor turtle"
       "lesson controls turtle"
@@ -522,10 +534,16 @@ main:has(.pane-lesson:not([hidden])):has(.pane-tutor:not([hidden])) {
   border-radius: 6px;
   background: var(--ol-surface);
   display: block;
-  /* Scale down to fit its pane on narrow columns; the backing width/height attributes (and thus
-     the turtle's actual drawing resolution) are untouched — this is a visual-only scale. */
+  /* #472 — grow to fill the column width and stay square via `aspect-ratio`, so the drawing
+     pane is full-width friendly rather than capped at its 500px backing size. The `min-width`
+     floor keeps it a usable minimum size (never a thumbnail); `min(100%, …)` caps that floor at
+     the pane's own width so a very narrow column still scales the canvas down to fit (no
+     overflow). The backing width/height="500" attributes (and thus the turtle's drawing
+     resolution) are untouched — crispness at large sizes is Slice B (#474), not this slice. */
+  width: 100%;
   max-width: 100%;
-  height: auto;
+  min-width: min(100%, 18rem);
+  aspect-ratio: 1 / 1;
 }
 
 #turtle-state {
