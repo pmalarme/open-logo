@@ -65,19 +65,24 @@ function treeSource(repeatCount: number): string {
     "right 90",
     "forward 20",
     "right 90",
+    "# why: step once with the pen up to the base of the lowest branch, so the branches sit centered above the trunk",
     "pen_up",
     "forward 40",
+    "left 90",
+    "forward 30",
+    "right 90",
     "pen_down",
-    "# why: the same repeat body draws a triangle tier, then walks up to where the next tier starts",
+    "# why: the same repeat body draws one up-pointing triangle, then walks only part way up, so each branch overlaps the one below into layered fir branches",
     `repeat ${repeatCount} [`,
+    "  right 30",
     "  forward 80",
     "  right 120",
     "  forward 80",
     "  right 120",
     "  forward 80",
-    "  right 120",
+    "  right 90",
     "  pen_up",
-    "  forward 80",
+    "  forward 40",
     "  pen_down",
     "]",
   ].join("\n");
@@ -86,13 +91,15 @@ function treeSource(repeatCount: number): string {
 /**
  * Graded Level 2 exercises for `l2-square-repeat`. Follows the compose-a-recognizable-object
  * rule (`spec/educational-model.md`, `.github/skills/curriculum/author-a-lesson/SKILL.md`):
- * guided change to the square, then the triangle pattern as a practice exercise, then a tree —
- * a trunk plus repeated triangle tiers — as the open challenge, so the learner composes a real
- * object out of `repeat` rather than an abstract shape. Each tier is drawn by the exact same
- * repeat body (a fixed-size triangle, then a fixed-size walk upward), so the tiers stack purely
- * from repeating one rule — no variables or arithmetic needed. A further "taller tree" exercise
- * then changes only the repeat count to make the learner feel why `repeat` matters: growing the
- * tree by hand would mean retyping every tier, but here one bigger number grows it instead.
+ * guided change to the square, then the triangle pattern as a practice exercise, then a fir tree —
+ * a trunk plus repeated up-pointing triangular branches — as the open challenge, so the learner
+ * composes a real object out of `repeat` rather than an abstract shape. Every branch is drawn by
+ * the exact same repeat body (a fixed-size up-pointing triangle, then a fixed-size walk that
+ * climbs only part of a triangle's height), so identical branches overlap and their slanted edges
+ * layer into the stepped sides of a fir — no variables or arithmetic needed to widen a tier. A
+ * further "taller tree" exercise then changes only the repeat count to make the learner feel why
+ * `repeat` matters: adding branches by hand would mean retyping every triangle, but here one
+ * bigger number grows it instead.
  */
 export const level2Exercises: readonly Exercise[] = [
   {
@@ -127,11 +134,11 @@ export const level2Exercises: readonly Exercise[] = [
     level: "2",
     difficulty: "challenge",
     prompt:
-      "Draw a tree: a trunk made from Level 1 moves and turns, then repeat 3 [ ... ] to stack three identical triangle tiers on top of it, each tier followed by a walk further up before the next tier starts.",
+      "Draw a fir tree: a trunk made from Level 1 moves and turns, then repeat 3 [ ... ] to stack three identical up-pointing triangles, each started only part of the way up the one below so they overlap into layered branches.",
     referenceSolution: {
       source: treeSource(3),
       explanation:
-        "The trunk only happens once, so it is four plain forward/right pairs like any Level 1 rectangle. Repeat then runs one rule three times: draw a triangle tier (three forward/right pairs that close back to where they started), then walk 80 further up -- exactly one tier's height -- before the next tier begins, so each tier's base touches the one below without overlapping it. The trunk plus three touching tiers become a tree without ever typing a tier's three sides more than once.",
+        "The trunk only happens once, so it is four plain forward/right pairs like any Level 1 rectangle. After a one-time pen_up step across and up to the base of the lowest branch, repeat runs one rule three times: draw an up-pointing triangle (three forward/right pairs that close back to where they started), then walk 40 straight up -- well short of a full triangle's height -- before the next triangle starts. Because each triangle begins part way up the one below, the identical triangles overlap, and their slanted edges layer into the stepped, branch-like sides of a fir, with the highest triangle's point forming the treetop. The trunk plus three overlapping triangles read as a tree without ever typing a triangle's three sides more than once.",
     },
   },
   {
@@ -140,11 +147,11 @@ export const level2Exercises: readonly Exercise[] = [
     level: "2",
     difficulty: "challenge",
     prompt:
-      "Make the tree taller without retyping any tier: change only the repeat count in the tree exercise from 3 to 6 and predict how much taller the tree grows before you run it.",
+      "Make the tree taller and fuller without retyping any branch: change only the repeat count in the tree exercise from 3 to 6 and predict how much taller the tree grows before you run it.",
     referenceSolution: {
       source: treeSource(6),
       explanation:
-        "Changing the repeat count from 3 to 6 is the only change, and the tree grows six tiers tall instead of three -- this is exactly why repeat matters: growing the tree by hand would mean retyping three more tiers, but here a single bigger number grows it instead.",
+        "Changing the repeat count from 3 to 6 is the only change, and the tree grows six overlapping triangle branches instead of three -- this is exactly why repeat matters: adding branches by hand would mean retyping every triangle, but here a single bigger number grows it instead.",
     },
   },
 ];
