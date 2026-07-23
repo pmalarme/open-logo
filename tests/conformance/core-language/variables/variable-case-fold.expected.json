@@ -1,0 +1,44 @@
+{
+  "description": "Identifiers case-fold (issue #512, `spec/grammar.md:13` — \"Keywords and identifiers are case-insensitive; lowercase is canonical\"): a variable assigned as `:size` reads back through `:SIZE`, so `print :SIZE` prints `100` rather than raising `ol-undefined-var`.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/variables/variable-case-fold",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/variables/variable-case-fold",
+        "start": [2, 1],
+        "end": [2, 12]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/variables/variable-case-fold",
+        "start": [2, 1],
+        "end": [2, 12]
+      },
+      "payload": {
+        "values": [100]
+      }
+    }
+  ],
+  "diagnostics": []
+}

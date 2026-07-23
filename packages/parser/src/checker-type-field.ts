@@ -159,10 +159,11 @@ export interface RecordFieldAccess {
 /**
  * Resolve a record-field access against its struct type's declared fields: returns an
  * `ol-unknown-field` {@link Diagnostic} when `field` is not one of the record's fixed fields
- * (records never upsert; `spec/data-structures.md`), or `undefined` when the field resolves. The
- * diagnostic carries `params = { type, field }`, plus `write: true` for a write
- * (`spec/error-model.md`: `type`, `field`, optional `write`), at `stage: "semantic"` because a
- * static tool is reporting a statically knowable use of this otherwise-runtime code
+ * (records never upsert; `spec/data-structures.md`), or `undefined` when the field resolves. Field
+ * names are identifiers, so matching folds case (`spec/grammar.md:13`): `(point 0 0).X` resolves
+ * against a declared `x`. The diagnostic carries `params = { type, field }`, plus `write: true` for
+ * a write (`spec/error-model.md`: `type`, `field`, optional `write`), at `stage: "semantic"`
+ * because a static tool is reporting a statically knowable use of this otherwise-runtime code
  * (`spec/tooling.md:132`, `:196-198`).
  *
  * This is the pure resolution logic for `ol-unknown-field`. {@link unknownFieldRule} is the
@@ -173,7 +174,10 @@ export interface RecordFieldAccess {
 export function resolveRecordField(
   access: RecordFieldAccess,
 ): Diagnostic | undefined {
-  if (access.declaredFields.includes(access.field)) {
+  const field = access.field.toLowerCase();
+  if (
+    access.declaredFields.some((declared) => declared.toLowerCase() === field)
+  ) {
     return undefined;
   }
 

@@ -59,6 +59,15 @@ test("reduce folds an accumulator across every element, seeded by `from` (spec's
   assert.deepEqual(printedValues(result), [6]);
 });
 
+test("reduce's accumulator name case-folds: declared `Sum`, read `:sum` (issue #512, spec/grammar.md:13)", () => {
+  const result = execute(
+    ":nums = [1 2 3]\n:total = reduce Sum n in :nums from 0 [ :sum + :n ]\nprint :total",
+    doc,
+  );
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(printedValues(result), [6]);
+});
+
 test("reduce over an empty list returns `from` unchanged (spec/execution-model.md:402)", () => {
   const result = execute(
     ":total = reduce sum n in [] from 42 [ :sum + :n ]\nprint :total",

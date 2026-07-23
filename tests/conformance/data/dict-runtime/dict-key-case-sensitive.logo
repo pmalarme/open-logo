@@ -1,0 +1,6 @@
+:ages = {
+  Tom: 8
+  tom: 9
+}
+print :ages.Tom
+print :ages.tom

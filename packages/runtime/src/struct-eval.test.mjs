@@ -89,6 +89,24 @@ test("a record is a reference type — aliases observe in-place mutation", () =>
   assert.deepEqual(printedValues(result), [99]);
 });
 
+test("field reads fold case: `:p.x` reads a field declared `X` (spec/grammar.md:13)", () => {
+  const result = execute(
+    "struct point [ X Y ]\n:p = point 3 4\nprint :p.x\nprint :p.Y",
+    doc,
+  );
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(printedValues(result), [3, 4]);
+});
+
+test("field writes fold case: `:p.X = …` mutates the slot `:p.x` reads (spec/grammar.md:13)", () => {
+  const result = execute(
+    "struct point [ x y ]\n:p = point 3 4\n:p.X = 10\nprint :p.x",
+    doc,
+  );
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(printedValues(result), [10]);
+});
+
 test("writing an unknown field raises ol-unknown-field with write:true", () => {
   const result = execute(
     "struct point [ x y ]\n:p = point 3 4\n:p.height = 1",

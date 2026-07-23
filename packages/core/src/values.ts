@@ -121,13 +121,32 @@ export class OLDict {
 export class OLRecord {
   /** The struct type name this record was constructed from (`type_of`/`is_a?` read it). */
   readonly type: string;
+  /**
+   * The declared field names, in declaration order and original spelling — `fields()` (and thus
+   * `type_of`, destructuring, and the printed form) reports these, so a struct declared
+   * `[ X Y ]` keeps its `X`/`Y` display while access folds case (below). Names that fold to the
+   * same identifier are collapsed to their first spelling, so this list stays 1:1 with {@link
+   * slots}: identifiers are case-insensitive (`spec/grammar.md:13`), so a declaration like
+   * `[ x X ]` names one field, not two, and `fields()` must not report a phantom position that no
+   * slot backs.
+   */
+  private readonly declaredFields: readonly string[];
+  /**
+   * Field values keyed by the case-folded field name. Identifiers are case-insensitive
+   * (`spec/grammar.md:13`), so `.x`, `.X`, and `.x` all address one slot; the folded key is the
+   * single canonical form the accessors resolve against.
+   */
   private readonly slots: Map<string, OLValue>;
 
   /**
    * Build a record of struct type `type` binding each of `fields` (declared order) to the value
    * at the same index in `values`. The caller (the constructor dispatch in `@openlogo/runtime`)
    * has already checked that `values.length` equals the declared field count, so every field has
-   * a value.
+   * a value. Field names are stored case-folded so access is case-insensitive
+   * (`spec/grammar.md:13`), while `declaredFields` preserves their original spelling for display.
+   * Because identifiers fold, two declared names that differ only in case denote one field: the
+   * folded `slots` map and the deduplicated `declaredFields` both keep the last value / first
+   * spelling for such a collision, so the two views never disagree on the field count.
    */
   constructor(
     type: string,
@@ -135,32 +154,46 @@ export class OLRecord {
     values: readonly OLValue[],
   ) {
     this.type = type;
+    const declaredFields: string[] = [];
+    const seen = new Set<string>();
+    for (const field of fields) {
+      const key = field.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        declaredFields.push(field);
+      }
+    }
+    this.declaredFields = declaredFields;
     this.slots = new Map(
-      fields.map((field, index) => [field, values[index] as OLValue]),
+      fields.map((field, index) => [
+        field.toLowerCase(),
+        values[index] as OLValue,
+      ]),
     );
   }
 
-  /** Whether `field` is one of this record's fixed, declared fields. */
+  /** Whether `field` is one of this record's fixed, declared fields (case-insensitive). */
   has(field: string): boolean {
-    return this.slots.has(field);
+    return this.slots.has(field.toLowerCase());
   }
 
   /** The value stored in `field`, or `undefined` when `field` is not a declared field. */
   get(field: string): OLValue | undefined {
-    return this.slots.get(field);
+    return this.slots.get(field.toLowerCase());
   }
 
   /**
    * Write `value` into `field` in place. The caller must have confirmed `field` is declared (via
-   * {@link has}) — a record's field set is fixed, so this never creates a new field.
+   * {@link has}) — a record's field set is fixed, so this never creates a new field. The lookup
+   * folds case (`spec/grammar.md:13`), so `:p.X = …` mutates the same slot `:p.x` reads.
    */
   set(field: string, value: OLValue): void {
-    this.slots.set(field, value);
+    this.slots.set(field.toLowerCase(), value);
   }
 
-  /** The record's field names, in declared order. */
+  /** The record's field names, in declared order and original spelling. */
   fields(): string[] {
-    return [...this.slots.keys()];
+    return [...this.declaredFields];
   }
 }
 

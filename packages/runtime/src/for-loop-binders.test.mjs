@@ -235,3 +235,33 @@ test("the boundary tolerance does not admit a pass genuinely beyond a fractional
     .map((event) => event.payload.values[0]);
   assert.deepEqual(printedValues, [0]);
 });
+
+test("for ... in folds the bare-name binder: a differently-cased :read sees the binding (spec/grammar.md:13)", () => {
+  const result = execute("for N in [1 2 3] [\n  print :n\n]", doc);
+  assert.deepEqual(result.diagnostics, []);
+  const printed = result.events
+    .filter((event) => event.kind === "print")
+    .map((event) => event.payload.values[0]);
+  assert.deepEqual(printed, [1, 2, 3]);
+});
+
+test("for ... from ... to folds the range binder: a differently-cased :read sees the binding (spec/grammar.md:13)", () => {
+  const result = execute("for I from 1 to 3 [\n  print :i\n]", doc);
+  assert.deepEqual(result.diagnostics, []);
+  const printed = result.events
+    .filter((event) => event.kind === "print")
+    .map((event) => event.payload.values[0]);
+  assert.deepEqual(printed, [1, 2, 3]);
+});
+
+test("for ... in folds destructuring binders: differently-cased reads see each binding (spec/grammar.md:13)", () => {
+  const result = execute(
+    "for [:A :B] in [[1 2]] [\n  print :a\n  print :b\n]",
+    doc,
+  );
+  assert.deepEqual(result.diagnostics, []);
+  const printed = result.events
+    .filter((event) => event.kind === "print")
+    .map((event) => event.payload.values[0]);
+  assert.deepEqual(printed, [1, 2]);
+});

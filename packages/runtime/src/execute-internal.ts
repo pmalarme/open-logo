@@ -2339,7 +2339,7 @@ function runProcedureBody(
   for (const [index, param] of def.params.entries()) {
     if (index < argValues.length) {
       const value = argValues[index] as OLValue;
-      calleeFrame.set(param.name.name, value);
+      calleeFrame.set(param.name.name.toLowerCase(), value);
       boundArgs.push(value);
       continue;
     }
@@ -2353,7 +2353,7 @@ function runProcedureBody(
     if (!defaultResult.ok) {
       return { ok: false, diagnostic: defaultResult.diagnostic };
     }
-    calleeFrame.set(param.name.name, defaultResult.value);
+    calleeFrame.set(param.name.name.toLowerCase(), defaultResult.value);
     boundArgs.push(defaultResult.value);
   }
 
@@ -2963,7 +2963,7 @@ function executeStatements(
           statement.body.body,
           pushLoopFrame(
             environment,
-            new Map([[statement.variable.name, current]]),
+            new Map([[statement.variable.name.toLowerCase(), current]]),
           ),
         );
         if (signal.kind !== "normal") {

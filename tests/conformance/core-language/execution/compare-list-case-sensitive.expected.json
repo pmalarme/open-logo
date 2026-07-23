@@ -1,0 +1,32 @@
+{
+  "description": "Case-folding stops at identifiers: list contents stay case-sensitive (issue #512 guard, `spec/grammar.md:13` folds keywords/identifiers only, not word data). The list elements `\"Cat\"` and `\"cat\"` differ, so `print [\"Cat\"] == [\"cat\"]` prints `false`.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/compare-list-case-sensitive",
+        "start": [1, 1],
+        "end": [1, 25]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/compare-list-case-sensitive",
+        "start": [1, 1],
+        "end": [1, 25]
+      },
+      "payload": {
+        "values": [false]
+      }
+    }
+  ],
+  "diagnostics": []
+}
