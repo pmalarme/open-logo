@@ -18,6 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       has_toolchain: ${{ steps.detect.outputs.has_toolchain }}
+      studio_changed: ${{ steps.filter.outputs.studio }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
@@ -38,6 +39,22 @@ jobs:
           else
             echo "has_toolchain=false" >> "$GITHUB_OUTPUT"
           fi
+      - id: filter
+        name: Detect studio-affecting changes
+        # Path-scopes the (heavy, browser-based) studio visual-regression job so it only runs when
+        # the studio or a package it composes actually changes. Output consumed by `studio-visual`.
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            studio:
+              - 'packages/studio/**'
+              - 'packages/core/**'
+              - 'packages/parser/**'
+              - 'packages/runtime/**'
+              - 'packages/turtle/**'
+              - 'packages/edu/**'
+              - 'package-lock.json'
+              - '.github/workflows/ci.yml'
 
   build:
     name: Build & type-check
@@ -103,3 +120,35 @@ jobs:
           cache: "npm"
       - run: npm ci
       - run: npm run -s coverage
+
+  studio-visual:
+    name: Studio visual regression
+    needs: meta
+    # Path-scoped: only runs when the studio (or a package it composes) changes — see the `filter`
+    # step in `meta`. Runs in the Playwright-maintained container so the headless Chromium + system
+    # fonts exactly match the image the committed `-linux.png` baselines were generated in
+    # (packages/studio/playwright.config.ts documents the matching `docker run` command). Kept out
+    # of the `node:test` coverage gate: these are `e2e/*.spec.ts` files, not `*.test.mjs`.
+    if: ${{ needs.meta.outputs.has_toolchain == 'true' && needs.meta.outputs.studio_changed == 'true' }}
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.61.1-jammy
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci
+      # `test:visual` builds the studio web bundle and serves it via `vite preview`, then renders it
+      # at the narrow + wide viewports. CI is set, so Playwright fails on a missing baseline instead
+      # of silently creating one, and never reuses an external server.
+      - name: Run studio visual-regression tests
+        run: npm run -s test:visual --workspace @openlogo/studio
+      - name: Upload Playwright report on failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: studio-visual-playwright-report
+          path: packages/studio/playwright-report/
+          retention-days: 7

@@ -23,7 +23,8 @@
     "dev": "vite",
     "prebuild:web": "npm run -s build",
     "build:web": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:visual": "playwright test"
   },
   "dependencies": {
     "@codemirror/commands": "6.10.4",
@@ -31,12 +32,13 @@
     "@codemirror/state": "6.7.1",
     "@codemirror/view": "6.43.6",
     "@openlogo/core": "0.1.0",
+    "@openlogo/edu": "0.1.0",
     "@openlogo/parser": "0.1.0",
     "@openlogo/runtime": "0.1.0",
-    "@openlogo/turtle": "0.1.0",
-    "@openlogo/edu": "0.1.0"
+    "@openlogo/turtle": "0.1.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "vite": "^7.1.0"
   }
 }
