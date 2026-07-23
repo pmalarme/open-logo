@@ -118,7 +118,7 @@ the mistake is made, not silently downstream.
 ## Consequences
 
 - **Predictable mutation, traceable to a binding.** Every successful assignment in OpenLogo targets
-  a named binding (`:name` plus a chain of literal selectors/fields), so the runtime, the
+  a   named binding (`:name` plus a chain of selectors/fields), so the runtime, the
   trace/event stream, and tutoring commands (`explain`, `why`, `hint`) can always describe *which
   binding changed*. This does not make records copy-on-assign — they remain mutable reference
   values once bound (`spec/execution-model.md`, "Lists, dicts, records, and turtles are mutable

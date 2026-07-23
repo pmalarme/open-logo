@@ -107,10 +107,12 @@ Three deliberate choices are packed into this decision:
 
 ## How other languages do it
 
-- **Classic Logo** spells assignment `make "var value` (an open-quote word naming the variable,
-  followed by the new value) and equality with a bare `=` used inside predicates like `if :x = 5
-  [...]` — the same token serves both assignment-adjacent naming and comparison depending on
-  context, and the open-quote word syntax is a lexical special case OpenLogo deliberately drops.
+- **Classic Logo** already uses *distinct* spellings for the two roles: assignment is the
+  `make "var value` command (an open-quote word naming the variable, followed by the new value)
+  and equality is a bare `=` inside predicates like `if :x = 5 [...]`. The two roles never share a
+  token, so the tension OpenLogo resolves here is not operator overloading but the open-quote word
+  syntax — a lexical special case OpenLogo deliberately drops, which is why `make` survives only as
+  the fully-quoted `make "var" value` Heritage alias.
 - **BASIC-family languages** (BASIC, Visual Basic) spell assignment `LET x = 5` (or bare `x = 5`)
   and reuse the identical `=` token for equality inside `IF x = 5 THEN`; there is no distinct
   comparison spelling at all, so `=`'s meaning depends entirely on statement position.
