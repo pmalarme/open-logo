@@ -29,6 +29,7 @@ import {
   Annotation,
   EditorSelection,
   RangeSetBuilder,
+  StateEffect,
   StateField,
   type EditorState,
   type Extension,
@@ -49,6 +50,7 @@ import {
   foldService,
 } from "@codemirror/language";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
+import type { Diagnostic, DiagnosticSeverity } from "@openlogo/core";
 import { REPL_FOCUS_ORDER, type FocusStop } from "./a11y.js";
 import type { HighlightProvider } from "./editor.js";
 import { offsetFromPosition, positionFromOffset } from "./editor.js";
@@ -325,6 +327,193 @@ export function createHighlightExtension(
   return createHighlightField(highlighter);
 }
 
+/**
+ * Dispatched (from `web/main.ts`'s store subscription) whenever the shared studio state model's
+ * `diagnostics` field changes, carrying the fresh `Diagnostic[]` straight through — see
+ * {@link diagnosticsField}'s doc comment for why a `StateEffect` rather than a `docChanged` hook is
+ * needed: diagnostics live in the store, not the CM6 document, so nothing about a CM6 transaction
+ * alone can tell this field they changed.
+ */
+export const setDiagnosticsEffect = StateEffect.define<readonly Diagnostic[]>();
+
+/** The CSS class a diagnostic squiggle {@link Decoration.mark} paints, keyed by severity — the
+ * non-color cue (a wavy underline shape, see `web/styles.css`) that satisfies
+ * `spec/rendering.md`'s "never color alone" a11y requirement; the color itself is a second,
+ * reinforcing cue for sighted users, never the only one. */
+function diagnosticMarkClass(severity: DiagnosticSeverity): string {
+  return severity === "error"
+    ? "ol-diagnostic-error-mark"
+    : "ol-diagnostic-warning-mark";
+}
+
+/** One diagnostic's span resolved to CM6 document offsets, bounds-checked against `state.doc`. */
+interface DiagnosticSpanEntry {
+  readonly from: number;
+  readonly to: number;
+  readonly severity: DiagnosticSeverity;
+  readonly message: string;
+}
+
+/**
+ * Resolve `diagnostics`' `source_span`s (1-based `[line, column]`, from `@openlogo/core`) to CM6
+ * document offsets, in ascending `(from, to)` order — `RangeSetBuilder`'s ascending-order
+ * requirement (see {@link buildHighlightDecorations}'s doc comment), except here the input isn't
+ * already guaranteed source-ordered (unlike `highlight()`'s token stream), so this explicitly
+ * sorts rather than assuming. A span that falls outside the current document (a stale span from
+ * before an edit the diagnostics pipeline hasn't re-checked yet, or a zero-width span) is skipped
+ * rather than thrown — the same defensive bounds check {@link buildHighlightDecorations} applies,
+ * learned from #285's out-of-range `RangeSetBuilder` fix.
+ */
+function diagnosticSpanEntries(
+  state: EditorState,
+  diagnostics: readonly Diagnostic[],
+): readonly DiagnosticSpanEntry[] {
+  const text = state.doc.toString();
+  const entries: DiagnosticSpanEntry[] = [];
+  for (const diagnostic of diagnostics) {
+    const span = diagnostic.source_span;
+    const from = offsetFromPosition(text, span.start);
+    const to = offsetFromPosition(text, span.end);
+    if (from < 0 || to > state.doc.length || from >= to) {
+      continue;
+    }
+    entries.push({
+      from,
+      to,
+      severity: diagnostic.severity,
+      message: diagnostic.message,
+    });
+  }
+  return entries.sort((a, b) => a.from - b.from || a.to - b.to);
+}
+
+/**
+ * Build the squiggle-underline `Decoration.mark` range set for `diagnostics`: one mark per
+ * bounds-checked span, classed by severity (the a11y non-color cue) and carrying the diagnostic's
+ * `message` as a `title` attribute so it is reachable on hover, in addition to the diagnostics pane
+ * (`diagnostics.ts`) already listing/announcing every diagnostic — this decoration never
+ * duplicates or reinterprets that pane, it only adds an inline visual anchor at the offending
+ * span. A `class`+`title` attribute pair on a `mark` decoration never replaces, hides, or reorders
+ * any text node, so — exactly like #285's syntax-coloring marks — it cannot change the accessible
+ * text, DOM reading order, or focus model.
+ */
+function buildDiagnosticMarkDecorations(
+  state: EditorState,
+  diagnostics: readonly Diagnostic[],
+): DecorationSet {
+  const builder = new RangeSetBuilder<Decoration>();
+  for (const entry of diagnosticSpanEntries(state, diagnostics)) {
+    builder.add(
+      entry.from,
+      entry.to,
+      Decoration.mark({
+        class: diagnosticMarkClass(entry.severity),
+        attributes: { title: entry.message },
+      }),
+    );
+  }
+  return builder.finish();
+}
+
+/** {@link diagnosticsField}'s value: the diagnostics it was last told about, plus the squiggle
+ * decorations derived from them — kept together so `web/main.ts`'s gutter (see
+ * {@link computeDiagnosticGutterLines}) can read the same live `diagnostics` list the decorations
+ * were built from, without a second copy drifting out of sync. */
+export interface DiagnosticsFieldValue {
+  readonly diagnostics: readonly Diagnostic[];
+  readonly decorations: DecorationSet;
+}
+
+function buildDiagnosticsFieldValue(
+  state: EditorState,
+  diagnostics: readonly Diagnostic[],
+): DiagnosticsFieldValue {
+  return {
+    diagnostics,
+    decorations: buildDiagnosticMarkDecorations(state, diagnostics),
+  };
+}
+
+/**
+ * The `StateField<DiagnosticsFieldValue>` behind #317's inline error markers: recomputes the
+ * squiggle decorations whenever a {@link setDiagnosticsEffect} arrives (the store's `diagnostics`
+ * changed), and otherwise just maps the existing decorations through the transaction's changes —
+ * matching {@link createHighlightField}'s "recompute only when there's new information" shape,
+ * except the trigger here is an explicit effect rather than `docChanged`, since a diagnostic can
+ * change independently of the document (e.g. a future semantic/style check re-running) and a
+ * document edit alone carries no new diagnostics until the studio's diagnostics controller
+ * re-checks and republishes them.
+ */
+export const diagnosticsField = StateField.define<DiagnosticsFieldValue>({
+  create(state) {
+    return buildDiagnosticsFieldValue(state, []);
+  },
+  update(value, transaction) {
+    for (const effect of transaction.effects) {
+      if (effect.is(setDiagnosticsEffect)) {
+        return buildDiagnosticsFieldValue(transaction.state, effect.value);
+      }
+    }
+    if (!transaction.docChanged) {
+      return value;
+    }
+    return {
+      diagnostics: value.diagnostics,
+      decorations: value.decorations.map(transaction.changes),
+    };
+  },
+  provide: (field) =>
+    EditorView.decorations.from(field, (value) => value.decorations),
+});
+
+/** One line's worst-severity diagnostic summary for the gutter marker (#317). `line` is the CM6
+ * 1-based line number; `messages` lists every diagnostic's `message` on that line (gutter marker
+ * order), for `web/main.ts`'s `GutterMarker.toDOM()` to join into one hover title. */
+export interface DiagnosticGutterLine {
+  readonly line: number;
+  readonly severity: DiagnosticSeverity;
+  readonly messages: readonly string[];
+}
+
+/**
+ * Group `diagnostics`' bounds-checked spans by the line they start on, keeping the worst severity
+ * ("error" outranks "warning") seen on each line — the data {@link DiagnosticGutterLine} the
+ * gutter marker needs. Pure and DOM-free (unlike the gutter marker's own `toDOM()`, which needs
+ * `document.createElement` and so lives in `web/main.ts`, matching this repo's no-jsdom
+ * untested-DOM-glue convention — see `editor.ts`'s doc comment).
+ */
+export function computeDiagnosticGutterLines(
+  state: EditorState,
+  diagnostics: readonly Diagnostic[],
+): readonly DiagnosticGutterLine[] {
+  const byLine = new Map<
+    number,
+    { severity: DiagnosticSeverity; messages: string[] }
+  >();
+  for (const entry of diagnosticSpanEntries(state, diagnostics)) {
+    const lineNumber = state.doc.lineAt(entry.from).number;
+    const existing = byLine.get(lineNumber);
+    if (!existing) {
+      byLine.set(lineNumber, {
+        severity: entry.severity,
+        messages: [entry.message],
+      });
+      continue;
+    }
+    existing.messages.push(entry.message);
+    if (entry.severity === "error") {
+      existing.severity = "error";
+    }
+  }
+  return [...byLine.entries()]
+    .sort(([lineA], [lineB]) => lineA - lineB)
+    .map(([line, info]) => ({
+      line,
+      severity: info.severity,
+      messages: info.messages,
+    }));
+}
+
 /** Callbacks {@link createEditorExtensions} invokes for a real local (non-synced) CM6 edit. */
 export interface EditorExtensionsOptions {
   /** Called once per local doc edit, with the resulting text *and* selection together. */
@@ -397,7 +586,10 @@ export function createUpdateListener(
  * Build the full CM6 `Extension[]` for the OpenLogo editor surface: line-number gutter, AST-derived
  * code folding (gutter + keyboard `foldKeymap` + click-to-toggle), undo/redo history (`defaultKeymap`
  * has no undo/redo of its own), the `role`/`aria-label` content attributes the #279 a11y contracts
- * require, and — when `options.highlighter` is given (#285, see `highlighter.ts`'s
+ * require, {@link diagnosticsField} (#317 — the inline squiggle-underline markers over every
+ * `ol-*` diagnostic's `source_span`; always included, not opt-in, since `web/main.ts` dispatches
+ * {@link setDiagnosticsEffect} into it unconditionally from the same store the diagnostics pane
+ * already renders), and — when `options.highlighter` is given (#285, see `highlighter.ts`'s
  * `createParserHighlighter`) — the real syntax-coloring decoration extension from
  * {@link createHighlightExtension}. Omitting `options.highlighter` keeps the editor exactly as
  * highlighter-free as #315 left it (plain text, no decorations); no `@codemirror/lang-*`/
@@ -418,6 +610,7 @@ export function createEditorExtensions(
       role: EDITOR_ARIA_ROLE,
       "aria-label": EDITOR_ARIA_LABEL,
     }),
+    diagnosticsField,
   ];
 
   if (options.highlighter) {

@@ -270,6 +270,8 @@ export type { FoldRange } from "./fold-ranges.js";
 export { computeFoldRanges } from "./fold-ranges.js";
 
 export type {
+  DiagnosticGutterLine,
+  DiagnosticsFieldValue,
   EditorExtensionsOptions,
   ExternalSyncQueue,
   ViewUpdateLike,
@@ -278,11 +280,13 @@ export {
   EDITOR_ARIA_LABEL,
   EDITOR_ARIA_ROLE,
   buildStoreSyncSpec,
+  computeDiagnosticGutterLines,
   createEditorExtensions,
   createExternalSyncQueue,
   createHighlightExtension,
   createUpdateListener,
   decideExternalSync,
+  diagnosticsField,
   editorFocusStop,
   externalSync,
   handleViewUpdate,
@@ -291,6 +295,7 @@ export {
   openLogoFoldService,
   reconcileExternalSyncQueue,
   selectionFromEditorState,
+  setDiagnosticsEffect,
 } from "./editor-cm6.js";
 
 export {

@@ -319,7 +319,7 @@ test("#315: web/main.ts constructs a real CM6 EditorView with createEditorExtens
   );
   assert.match(
     mainTs,
-    /import\s*\{\s*EditorView\s*\}\s*from\s*"@codemirror\/view"/,
+    /import\s*\{[^}]*\bEditorView\b[^}]*\}\s*from\s*"@codemirror\/view"/,
   );
   assert.match(mainTs, /createEditorExtensions\(\{/);
   assert.match(mainTs, /onLocalChange:/);

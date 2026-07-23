@@ -15,11 +15,13 @@ const {
   EDITOR_ARIA_LABEL,
   EDITOR_ARIA_ROLE,
   buildStoreSyncSpec,
+  computeDiagnosticGutterLines,
   createEditorExtensions,
   createExternalSyncQueue,
   createHighlightExtension,
   createUpdateListener,
   decideExternalSync,
+  diagnosticsField,
   editorFocusStop,
   externalSync,
   handleViewUpdate,
@@ -28,7 +30,23 @@ const {
   openLogoFoldService,
   reconcileExternalSyncQueue,
   selectionFromEditorState,
+  setDiagnosticsEffect,
 } = OL;
+
+/** A `fakeDiagnostic` matching `diagnostics.test.mjs`'s fixture shape, for the #317 inline
+ * error-marker tests below — only the fields {@link computeDiagnosticGutterLines} and the
+ * decoration builders actually read (`source_span`, `severity`, `message`) matter here. */
+function fakeDiagnostic(overrides = {}) {
+  return {
+    code: "ol-bad-token",
+    source_span: { document: "x", start: [1, 1], end: [1, 2] },
+    params: {},
+    message: "irrelevant prose",
+    stage: "parse",
+    severity: "error",
+    ...overrides,
+  };
+}
 
 /**
  * Build a {@link ViewUpdateLike} from a real CM6 `Transaction` — everything `handleViewUpdate`
@@ -502,4 +520,269 @@ test("createEditorExtensions adds the #285 highlight extension only when a highl
   assert.doesNotThrow(() => {
     EditorState.create({ doc: "forward 100", extensions: withHighlighter });
   });
+});
+
+test("createEditorExtensions always includes the #317 diagnosticsField, unlike the opt-in highlighter", () => {
+  const extensions = createEditorExtensions();
+  const state = EditorState.create({ doc: "forward 100", extensions });
+
+  // `state.field` throws if the field isn't actually part of `extensions` — this alone proves
+  // #317's field is unconditionally wired in, with no `diagnostics`-only opt-in like the
+  // highlighter's `highlighter` option.
+  assert.deepEqual(state.field(diagnosticsField), {
+    diagnostics: [],
+    decorations: state.field(diagnosticsField).decorations,
+  });
+  assert.equal(
+    collectDecorations(
+      state.field(diagnosticsField).decorations,
+      state.doc.length,
+    ).length,
+    0,
+  );
+});
+
+test("diagnosticsField paints one squiggle mark per diagnostic, classed by severity, with the message as a title (#317)", () => {
+  const state = EditorState.create({
+    doc: "forward 100\nfd 50",
+    extensions: [diagnosticsField],
+  });
+
+  const withDiagnostics = state.update({
+    effects: setDiagnosticsEffect.of([
+      fakeDiagnostic({
+        code: "ol-unknown-command",
+        message: "unknown command 'forward'",
+        severity: "error",
+        source_span: { document: "x", start: [1, 1], end: [1, 8] },
+      }),
+      fakeDiagnostic({
+        code: "ol-style-heritage-alias",
+        message: "prefer the Core spelling",
+        severity: "warning",
+        source_span: { document: "x", start: [2, 1], end: [2, 3] },
+      }),
+    ]),
+  }).state;
+
+  const spans = [];
+  withDiagnostics
+    .field(diagnosticsField)
+    .decorations.between(0, withDiagnostics.doc.length, (from, to, value) => {
+      spans.push({
+        from,
+        to,
+        class: value.spec.class,
+        title: value.spec.attributes.title,
+      });
+    });
+
+  assert.deepEqual(spans, [
+    {
+      from: 0,
+      to: 7,
+      class: "ol-diagnostic-error-mark",
+      title: "unknown command 'forward'",
+    },
+    {
+      from: 12,
+      to: 14,
+      class: "ol-diagnostic-warning-mark",
+      title: "prefer the Core spelling",
+    },
+  ]);
+});
+
+test("diagnosticsField only maps existing decorations (no rebuild) for a doc change with no new diagnostics effect", () => {
+  const state = EditorState.create({
+    doc: "forward 100",
+    extensions: [diagnosticsField],
+  });
+  const withDiagnostics = state.update({
+    effects: setDiagnosticsEffect.of([
+      fakeDiagnostic({
+        source_span: { document: "x", start: [1, 1], end: [1, 8] },
+      }),
+    ]),
+  }).state;
+
+  const next = withDiagnostics.update({
+    changes: { from: 8, to: 11, insert: "200" },
+  }).state;
+
+  assert.equal(next.field(diagnosticsField).diagnostics.length, 1);
+  const spans = collectDecorations(
+    next.field(diagnosticsField).decorations,
+    next.doc.length,
+  );
+  assert.deepEqual(spans, [
+    { from: 0, to: 7, class: "ol-diagnostic-error-mark" },
+  ]);
+});
+
+test("diagnosticsField is a pure no-op passthrough for a transaction that neither changes the doc nor carries the effect", () => {
+  const state = EditorState.create({
+    doc: "forward 100",
+    extensions: [diagnosticsField],
+  });
+  const before = state.field(diagnosticsField);
+
+  const next = state.update({ selection: { anchor: 0, head: 3 } }).state;
+
+  assert.equal(next.field(diagnosticsField), before);
+});
+
+test("diagnosticsField skips a stale diagnostic span past the end of the document rather than throwing (#317, mirrors #285)", () => {
+  const state = EditorState.create({
+    doc: "x",
+    extensions: [diagnosticsField],
+  });
+
+  assert.doesNotThrow(() => {
+    const withDiagnostics = state.update({
+      effects: setDiagnosticsEffect.of([
+        fakeDiagnostic({
+          source_span: { document: "x", start: [1, 1], end: [2, 2] },
+        }),
+      ]),
+    }).state;
+    assert.equal(withDiagnostics.field(diagnosticsField).diagnostics.length, 1);
+    assert.equal(
+      collectDecorations(
+        withDiagnostics.field(diagnosticsField).decorations,
+        withDiagnostics.doc.length,
+      ).length,
+      0,
+    );
+  });
+});
+
+test("diagnosticsField skips a zero-width diagnostic span rather than painting an empty mark", () => {
+  const state = EditorState.create({
+    doc: "x",
+    extensions: [diagnosticsField],
+  });
+
+  const withDiagnostics = state.update({
+    effects: setDiagnosticsEffect.of([
+      fakeDiagnostic({
+        source_span: { document: "x", start: [1, 1], end: [1, 1] },
+      }),
+    ]),
+  }).state;
+
+  assert.equal(
+    collectDecorations(
+      withDiagnostics.field(diagnosticsField).decorations,
+      withDiagnostics.doc.length,
+    ).length,
+    0,
+  );
+});
+
+test("diagnosticsField sorts out-of-order diagnostics into ascending (from, to) order before building marks", () => {
+  const state = EditorState.create({
+    doc: "forward 100\nfd 50",
+    extensions: [diagnosticsField],
+  });
+
+  const withDiagnostics = state.update({
+    effects: setDiagnosticsEffect.of([
+      // Given last, but its span starts earlier — `RangeSetBuilder` requires ascending order.
+      fakeDiagnostic({
+        message: "second in the array, first on the line",
+        source_span: { document: "x", start: [2, 1], end: [2, 3] },
+      }),
+      fakeDiagnostic({
+        message: "first in the array, second on the line",
+        source_span: { document: "x", start: [1, 1], end: [1, 8] },
+      }),
+    ]),
+  }).state;
+
+  const spans = collectDecorations(
+    withDiagnostics.field(diagnosticsField).decorations,
+    withDiagnostics.doc.length,
+  );
+  assert.deepEqual(spans, [
+    { from: 0, to: 7, class: "ol-diagnostic-error-mark" },
+    { from: 12, to: 14, class: "ol-diagnostic-error-mark" },
+  ]);
+});
+
+test("diagnosticSpanEntries breaks a tie on equal `from` by ascending `to`, via the same shared-start line #317 exercises", () => {
+  const state = EditorState.create({
+    doc: "forward 100",
+    extensions: [diagnosticsField],
+  });
+
+  const withDiagnostics = state.update({
+    effects: setDiagnosticsEffect.of([
+      // Same start, given with the wider span first — the `a.from - b.from` tiebreak is 0, so
+      // the sort must fall through to `a.to - b.to` to still order them ascending by end.
+      fakeDiagnostic({
+        message: "wider span given first",
+        source_span: { document: "x", start: [1, 1], end: [1, 8] },
+      }),
+      fakeDiagnostic({
+        message: "narrower span given second",
+        source_span: { document: "x", start: [1, 1], end: [1, 3] },
+      }),
+    ]),
+  }).state;
+
+  const spans = collectDecorations(
+    withDiagnostics.field(diagnosticsField).decorations,
+    withDiagnostics.doc.length,
+  );
+  assert.deepEqual(spans, [
+    { from: 0, to: 2, class: "ol-diagnostic-error-mark" },
+    { from: 0, to: 7, class: "ol-diagnostic-error-mark" },
+  ]);
+});
+
+test("computeDiagnosticGutterLines groups bounds-checked diagnostics by line, escalating to error when both severities land on the same line (#317)", () => {
+  const state = EditorState.create({ doc: "forward 100\nfd 50\nbk 20" });
+
+  const lines = computeDiagnosticGutterLines(state, [
+    fakeDiagnostic({
+      severity: "warning",
+      message: "prefer forward over fd",
+      source_span: { document: "x", start: [2, 1], end: [2, 3] },
+    }),
+    fakeDiagnostic({
+      severity: "error",
+      message: "unknown command 'bk'",
+      source_span: { document: "x", start: [3, 1], end: [3, 3] },
+    }),
+    // A second diagnostic on line 2 escalates that line's severity from warning to error.
+    fakeDiagnostic({
+      severity: "error",
+      message: "second problem on the same line",
+      source_span: { document: "x", start: [2, 4], end: [2, 6] },
+    }),
+  ]);
+
+  assert.deepEqual(lines, [
+    {
+      line: 2,
+      severity: "error",
+      messages: ["prefer forward over fd", "second problem on the same line"],
+    },
+    { line: 3, severity: "error", messages: ["unknown command 'bk'"] },
+  ]);
+});
+
+test("computeDiagnosticGutterLines returns nothing for an empty diagnostics list or an out-of-range span", () => {
+  const state = EditorState.create({ doc: "x" });
+
+  assert.deepEqual(computeDiagnosticGutterLines(state, []), []);
+  assert.deepEqual(
+    computeDiagnosticGutterLines(state, [
+      fakeDiagnostic({
+        source_span: { document: "x", start: [1, 1], end: [2, 2] },
+      }),
+    ]),
+    [],
+  );
 });
