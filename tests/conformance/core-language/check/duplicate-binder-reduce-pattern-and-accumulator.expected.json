@@ -1,0 +1,19 @@
+{
+  "description": "ol-duplicate-binder (issue #440), no double-report: in `reduce x [:x :x] in …` the name `x` both collides with the accumulator (#407/F8) AND repeats inside the pattern. It must raise exactly ONE `ol-duplicate-binder`, not two — the pattern-internal repeat already points at the later occurrence, so the accumulator collision for that same name is suppressed. The single finding is `form:\"destructuring\"` at the second `:x`. Contrast `duplicate-binder-reduce-pattern-accumulator` (`reduce x [:x :y]`), where the collided name is not repeated and the finding stays `form:\"reduce\"`. `:pairs` is declared first so no `ol-undefined-var` fires.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-duplicate-binder",
+      "source_span": {
+        "document": "core-language/check/duplicate-binder-reduce-pattern-and-accumulator",
+        "start": [2, 23],
+        "end": [2, 25]
+      },
+      "params": { "name": "x", "form": "destructuring" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

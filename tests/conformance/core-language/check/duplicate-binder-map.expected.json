@@ -1,0 +1,19 @@
+{
+  "description": "ol-duplicate-binder (issue #440): a `map` comprehension whose destructuring item binder repeats a name (`map [:x :x] in …`) binds the same name twice in one pattern — a duplicate for `map`/`filter`/`reduce` exactly as for `for … in` (issue #72 gave all forms destructuring binders). Before #440 the semantic checker only caught this for `for … in`, so the runtime flagged it but the editor/LSP did not. `params` carry the repeated `name` and `form:\"destructuring\"`; the span points at the second `:x`. `:pairs` is declared first so no `ol-undefined-var` fires.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-duplicate-binder",
+      "source_span": {
+        "document": "core-language/check/duplicate-binder-map",
+        "start": [2, 20],
+        "end": [2, 22]
+      },
+      "params": { "name": "x", "form": "destructuring" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

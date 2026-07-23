@@ -1,0 +1,2 @@
+:pairs = [[1 2] [3 4]]
+:total = reduce a [:x :y] in :pairs from 0 [ :a ]
