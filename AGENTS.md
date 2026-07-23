@@ -31,6 +31,7 @@ Modules→Localization, Educational→Tutor (AI)). See [`spec/conformance.md`](s
 ```text
 spec/            Normative language specification (maintainer-owned) — the contract
 docs/adr/        Architecture Decision Records (why we built it this way)
+docs/design-notes/     Language Design Records (why the language is shaped this way)
 docs/architecture.md   Monorepo definition + cross-cutting contracts (AST, highlighting, events, UI)
 docs/delivery.md       Release + milestone strategy
 .github/agents/  The OpenLogo agent team (*.agent.md)
