@@ -10,17 +10,15 @@ test("mapRunStatusToRunToggleViewModel maps 'idle' to the play/Start affordance"
     icon: "play",
     label: "Start",
     ariaLabel: "Start run",
-    ariaPressed: false,
   });
 });
 
-test("mapRunStatusToRunToggleViewModel maps 'running' to the pause/stop affordance", () => {
+test("mapRunStatusToRunToggleViewModel maps 'running' to the honest Stop affordance (#410)", () => {
   assert.deepEqual(mapRunStatusToRunToggleViewModel("running"), {
     action: "stop",
-    icon: "pause",
-    label: "Pause",
-    ariaLabel: "Pause run",
-    ariaPressed: true,
+    icon: "stop",
+    label: "Stop",
+    ariaLabel: "Stop run",
   });
 });
 
@@ -30,7 +28,6 @@ test("mapRunStatusToRunToggleViewModel maps 'done' back to the play/Start afford
     icon: "play",
     label: "Start",
     ariaLabel: "Start run",
-    ariaPressed: false,
   });
 });
 
@@ -40,7 +37,6 @@ test("mapRunStatusToRunToggleViewModel maps 'stopped' back to the play/Start aff
     icon: "play",
     label: "Start",
     ariaLabel: "Start run",
-    ariaPressed: false,
   });
 });
 
@@ -60,14 +56,15 @@ test("only 'running' invokes stop(); every other status invokes run()", () => {
   assert.equal(mapRunStatusToRunToggleViewModel("running").action, "stop");
 });
 
-test("only 'running' reports ariaPressed true (the toggle's pressed state)", () => {
-  for (const runStatus of ["idle", "done", "stopped"]) {
+test("no view model declares an ariaPressed field — a plain Stop must not claim toggle semantics (#410)", () => {
+  for (const runStatus of ["idle", "running", "done", "stopped"]) {
     assert.equal(
-      mapRunStatusToRunToggleViewModel(runStatus).ariaPressed,
+      "ariaPressed" in mapRunStatusToRunToggleViewModel(runStatus),
       false,
+      `${runStatus} view model must not have an ariaPressed field — even "false" would tell ` +
+        "assistive technology this is a resumable toggle button, which #410 explicitly disavows",
     );
   }
-  assert.equal(mapRunStatusToRunToggleViewModel("running").ariaPressed, true);
 });
 
 test("every view model has a non-empty accessible name distinct from the icon alone", () => {

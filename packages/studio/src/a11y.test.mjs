@@ -16,8 +16,16 @@ test("REPL_FOCUS_ORDER covers every studio region with unique, stable ids", () =
   const regions = new Set(order.map((stop) => stop.region));
   assert.deepEqual(
     [...regions].sort(),
-    ["diagnostics", "editor", "lesson", "repl", "turtle", "tutor"].sort(),
-    "focus order must span exactly the lesson, editor, repl, turtle, diagnostics, and tutor regions",
+    [
+      "diagnostics",
+      "editor",
+      "lesson",
+      "output",
+      "repl",
+      "turtle",
+      "tutor",
+    ].sort(),
+    "focus order must span exactly the lesson, editor, repl, turtle, output, diagnostics, and tutor regions",
   );
 
   for (const stop of order) {
@@ -28,7 +36,7 @@ test("REPL_FOCUS_ORDER covers every studio region with unique, stable ids", () =
   }
 });
 
-test("REPL_FOCUS_ORDER puts the lesson pane first and the tutor-output pane last, with the editor, Start/Pause toggle, Reset, Speed, the canvas, and diagnostics in between", () => {
+test("REPL_FOCUS_ORDER puts the lesson pane first and the tutor-output pane last, with the editor, Start/Stop toggle, Reset, Speed, run log, canvas, turtle state, output, and diagnostics in between (#410)", () => {
   const order = OL.REPL_FOCUS_ORDER;
   assert.equal(order[0]?.id, "lesson-pane");
   assert.equal(order[1]?.id, "editor");
@@ -42,11 +50,11 @@ test("REPL_FOCUS_ORDER puts the lesson pane first and the tutor-output pane last
   const replStops = order.filter((stop) => stop.region === "repl");
   assert.deepEqual(
     replStops.map((stop) => stop.label),
-    ["Start run", "Reset", "Turtle speed"],
+    ["Start run", "Reset", "Turtle speed", "Run log"],
   );
   assert.deepEqual(
     replStops.map((stop) => stop.role),
-    ["button", "button", "slider"],
+    ["button", "button", "slider", "log"],
   );
 
   const canvasStop = order.find((stop) => stop.id === "canvas");
@@ -54,10 +62,41 @@ test("REPL_FOCUS_ORDER puts the lesson pane first and the tutor-output pane last
   assert.equal(canvasStop.region, "turtle");
   assert.equal(canvasStop.role, "img");
 
+  const turtleStateStop = order.find((stop) => stop.id === "turtle-state");
+  assert.ok(
+    turtleStateStop,
+    "the non-visual turtle-state text must be a focus stop (#410)",
+  );
+  assert.equal(turtleStateStop.region, "turtle");
+  assert.equal(turtleStateStop.role, "status");
+  assert.equal(turtleStateStop.label, "Turtle state");
+
+  const outputStop = order.find((stop) => stop.id === "output");
+  assert.ok(outputStop, "the program output pane must be a focus stop (#410)");
+  assert.equal(outputStop.region, "output");
+  assert.equal(outputStop.role, "status");
+  assert.equal(outputStop.label, "Program output");
+
   const tutorOutputStop = order.find((stop) => stop.id === "tutor-output");
   assert.ok(tutorOutputStop, "the tutor-output pane must be a focus stop");
   assert.equal(tutorOutputStop.region, "tutor");
   assert.equal(tutorOutputStop.role, "log");
+});
+
+test("REPL_FOCUS_ORDER orders the new #410 stops between Speed and diagnostics: run log, canvas, turtle state, output", () => {
+  const order = OL.REPL_FOCUS_ORDER;
+  const ids = order.map((stop) => stop.id);
+  assert.deepEqual(
+    ids.slice(ids.indexOf("speed-slider"), ids.indexOf("diagnostics-list") + 1),
+    [
+      "speed-slider",
+      "run-log",
+      "canvas",
+      "turtle-state",
+      "output",
+      "diagnostics-list",
+    ],
+  );
 });
 
 test("#315: the editor stays exactly one `textbox` focus stop, and CM6's own aria-role/aria-label (editor-cm6.ts) are derived from it, never a second literal that could drift", () => {
@@ -147,6 +186,7 @@ test("REPL_LANDMARK_ROLES declares landmarks for every studio region with a role
       "diagnostics",
       "editor",
       "lesson",
+      "output",
       "repl",
       "turtle",
       "turtle",
@@ -164,6 +204,7 @@ test("REPL_LANDMARK_ROLES declares landmarks for every studio region with a role
   assert.equal(byRegion.get("repl:toolbar")?.role, "toolbar");
   assert.equal(byRegion.get("turtle:img")?.role, "img");
   assert.equal(byRegion.get("turtle:status")?.role, "status");
+  assert.equal(byRegion.get("output:status")?.role, "status");
   assert.equal(byRegion.get("diagnostics:log")?.role, "log");
   assert.equal(byRegion.get("tutor:log")?.role, "log");
   for (const landmark of landmarks) {
@@ -498,7 +539,7 @@ test("two independent consumers of the same turtle-state region observe identica
   assert.deepEqual(consumerA, [region.getText()]);
 });
 
-test("createTurtleStateRegion composes with the real run controller end to end, in lockstep with the canvas turtle state", () => {
+test("createTurtleStateRegion composes with the real run controller end to end, in lockstep with the canvas turtle state, and includes the current source instruction (#410)", () => {
   const state = OL.createStudioState();
   const shell = OL.createAppShell(state);
   const editor = OL.createEditorController(state);
@@ -512,6 +553,87 @@ test("createTurtleStateRegion composes with the real run controller end to end, 
 
   assert.equal(
     region.getText(),
-    "turtle at x 0 y 100 heading 0 degrees pen down color black width 1",
+    "turtle at x 0 y 100 heading 0 degrees pen down color black width 1 current instruction forward 100",
   );
+});
+
+test("createTurtleStateRegion omits the current-instruction clause entirely before any run/step (#410)", () => {
+  const state = OL.createStudioState();
+  const region = OL.createTurtleStateRegion(state);
+  assert.equal(
+    region.getText(),
+    "turtle at x 0 y 0 heading 0 degrees pen down color black width 1",
+  );
+  assert.doesNotMatch(region.getText(), /current instruction/);
+});
+
+test("createTurtleStateRegion appends the current instruction's exact source text per step (#410)", () => {
+  const state = OL.createStudioState();
+  const shell = OL.createAppShell(state);
+  const editor = OL.createEditorController(state);
+  OL.mountEditorPane(shell, editor);
+  const runController = OL.createRunController(state);
+  OL.mountRunController(shell, runController);
+  const region = OL.createTurtleStateRegion(state);
+
+  editor.setText("forward 100\nright 90");
+  runController.step(); // consumes "forward 100" — the first instruction.
+
+  assert.match(region.getText(), /current instruction forward 100$/);
+
+  runController.step(); // consumes "right 90" — the second instruction.
+
+  assert.match(region.getText(), /current instruction right 90$/);
+});
+
+test("createTurtleStateRegion's current-instruction clause is cleared by reset() (#410)", () => {
+  const state = OL.createStudioState();
+  const shell = OL.createAppShell(state);
+  const editor = OL.createEditorController(state);
+  OL.mountEditorPane(shell, editor);
+  const runController = OL.createRunController(state);
+  OL.mountRunController(shell, runController);
+  const region = OL.createTurtleStateRegion(state);
+
+  editor.setText("forward 100");
+  runController.run();
+  assert.match(region.getText(), /current instruction/);
+
+  runController.reset();
+  assert.doesNotMatch(region.getText(), /current instruction/);
+});
+
+test("createTurtleStateRegion joins a multi-line current-instruction source span verbatim, across every covered line (#410)", () => {
+  const state = OL.createStudioState();
+  state.setSource("forward 100\nright 90\nback 50");
+  state.setCurrentInstructionSourceSpan({
+    document: "editor",
+    start: [1, 1],
+    end: [3, 8],
+  });
+  const region = OL.createTurtleStateRegion(state);
+  assert.match(
+    region.getText(),
+    /current instruction forward 100\nright 90\nback 50$/,
+  );
+});
+
+test("createTurtleStateRegion defensively tolerates a current-instruction span whose lines are out of range for the current source, degrading to empty text per missing line rather than throwing (#410)", () => {
+  // In normal operation this can't happen: state-model.ts's setSource()/setSourceAndSelection()
+  // always clear currentInstructionSourceSpan to null on every edit (see the "clears the
+  // current-instruction span whenever the source is edited" tests below), so a real learner
+  // editing mid-run can never observe a stale span. This test bypasses that guard by calling
+  // setCurrentInstructionSourceSpan() directly (as a headless test double for a future producer,
+  // not via the editor) purely to exercise extractSourceSpanText's defensive out-of-range
+  // fallback and keep it under coverage, not to describe a reachable user scenario.
+  const state = OL.createStudioState();
+  state.setSource("forward 100");
+  state.setCurrentInstructionSourceSpan({
+    document: "editor",
+    start: [2, 1],
+    end: [4, 5],
+  });
+  const region = OL.createTurtleStateRegion(state);
+  assert.doesNotThrow(() => region.getText());
+  assert.match(region.getText(), /current instruction \n\n$/);
 });

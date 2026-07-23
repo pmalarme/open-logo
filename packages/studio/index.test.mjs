@@ -83,7 +83,10 @@ test("index.html's focusable elements appear in exactly REPL_FOCUS_ORDER's DOM o
     "run-toggle-button": "run-toggle-button",
     "reset-button": "reset-button",
     "speed-slider": "speed-slider",
+    "run-log": "run-log",
     canvas: "turtle-canvas",
+    "turtle-state": "turtle-state",
+    output: "output",
     "diagnostics-list": "diagnostics-list",
     "tutor-output": "tutor-output",
   };
@@ -110,7 +113,7 @@ test("index.html's focusable elements appear in exactly REPL_FOCUS_ORDER's DOM o
   );
 });
 
-test("index.html gives the lesson pane, Canvas, and diagnostics list a tabindex (none is natively focusable)", () => {
+test("index.html gives the lesson pane, Canvas, run log, turtle state, output, and diagnostics list a tabindex (none is natively focusable) (#410)", () => {
   assert.match(
     indexHtml,
     /id="lesson-pane"[\s\S]*?tabindex="0"/,
@@ -120,6 +123,21 @@ test("index.html gives the lesson pane, Canvas, and diagnostics list a tabindex 
     indexHtml,
     /id="turtle-canvas"[\s\S]*?tabindex="0"/,
     "the turtle canvas must be focusable to be a REPL_FOCUS_ORDER stop",
+  );
+  assert.match(
+    indexHtml,
+    /id="run-log"[\s\S]*?tabindex="0"/,
+    "the run log must be focusable to be a REPL_FOCUS_ORDER stop (#410)",
+  );
+  assert.match(
+    indexHtml,
+    /id="turtle-state"[\s\S]*?tabindex="0"/,
+    "the non-visual turtle-state text must be focusable to be a REPL_FOCUS_ORDER stop (#410)",
+  );
+  assert.match(
+    indexHtml,
+    /id="output"[\s\S]*?tabindex="0"/,
+    "the program output pane must be focusable to be a REPL_FOCUS_ORDER stop (#410)",
   );
   assert.match(
     indexHtml,
@@ -144,28 +162,34 @@ test("index.html's lesson pane starts hidden by default (freeform/sandbox mode) 
   );
 });
 
-test("index.html collapses Run/Stop into a single Start/Pause toggle button (#316), with no separate Run/Stop buttons", () => {
+test("index.html collapses Run/Stop into a single Start/Stop toggle button (#316, relabeled by #410), with no separate Run/Stop buttons", () => {
   assert.match(indexHtml, /id="run-toggle-button"/);
   assert.doesNotMatch(
     indexHtml,
     /id="run-button"/,
-    "the separate Run button was replaced by the Start/Pause toggle",
+    "the separate Run button was replaced by the Start/Stop toggle",
   );
   assert.doesNotMatch(
     indexHtml,
     /id="stop-button"/,
-    "the separate Stop button was replaced by the Start/Pause toggle",
+    "the separate Stop button was replaced by the Start/Stop toggle",
   );
 });
 
-test("index.html's Start/Pause toggle has an accessible name and pressed state distinct from its (decorative) icon", () => {
+test("index.html's Start/Stop toggle has an accessible name, but no aria-pressed (#410: a one-shot Stop action is not a toggle)", () => {
   const toggleTag = openingTags.find((tag) =>
     tag.includes('id="run-toggle-button"'),
   );
   assert.ok(toggleTag, "expected a #run-toggle-button element");
   assert.match(toggleTag, /aria-label="[^"]+"/);
-  assert.match(toggleTag, /aria-pressed="(true|false)"/);
-  assert.match(toggleTag, /data-icon="(play|pause)"/);
+  assert.doesNotMatch(
+    toggleTag,
+    /aria-pressed/,
+    'the run-toggle-button must not declare aria-pressed at all — even "false" tells ' +
+      "assistive technology this is a toggle button with a resumable pressed state, which #410 " +
+      "explicitly disavows (the button only ever performs a one-shot Start or Stop action)",
+  );
+  assert.match(toggleTag, /data-icon="(play|stop)"/);
   assert.match(
     indexHtml,
     /id="run-toggle-button"[\s\S]*?class="control-icon" aria-hidden="true"/,
@@ -199,6 +223,17 @@ test("index.html declares the non-visual turtle-state status region createTurtle
   assert.match(
     indexHtml,
     /id="turtle-state"[\s\S]*?role="status"[\s\S]*?aria-live="polite"/,
+  );
+});
+
+test("index.html declares the run-log and program-output panes as keyboard-reachable landmarks (#410)", () => {
+  assert.match(
+    indexHtml,
+    /id="run-log"[\s\S]*?role="log"[\s\S]*?aria-label="Run log"/,
+  );
+  assert.match(
+    indexHtml,
+    /id="output"[\s\S]*?role="status"[\s\S]*?aria-live="polite"[\s\S]*?aria-label="Program output"/,
   );
 });
 
@@ -332,7 +367,7 @@ test("web/main.ts mounts the lesson pane via createLessonPaneController + mountL
   assert.match(mainTs, /element\.hidden\s*=\s*!view\.isVisible/);
 });
 
-test("web/main.ts wires the Start/Pause toggle via the tested mapRunStatusToRunToggleViewModel, not a branch on runStatus (#316)", () => {
+test("web/main.ts wires the Start/Stop toggle via the tested mapRunStatusToRunToggleViewModel, not a branch on runStatus (#316)", () => {
   assert.match(mainTs, /mapRunStatusToRunToggleViewModel\(/);
   assert.match(mainTs, /runToggleButton\.addEventListener\(\s*"click"/);
   assert.doesNotMatch(
@@ -342,16 +377,18 @@ test("web/main.ts wires the Start/Pause toggle via the tested mapRunStatusToRunT
   );
 });
 
-test("web/main.ts renders the toggle's icon/aria-label/aria-pressed/label from the view model on every state change (#316)", () => {
+test("web/main.ts renders the toggle's icon/aria-label/label from the view model on every state change, and never sets aria-pressed (#410)", () => {
   assert.match(mainTs, /renderRunToggleButton\(/);
   assert.match(mainTs, /runToggleButton\.dataset\.icon\s*=\s*viewModel\.icon/);
   assert.match(
     mainTs,
     /runToggleButton\.setAttribute\(\s*"aria-label",\s*viewModel\.ariaLabel\s*\)/,
   );
-  assert.match(
+  assert.doesNotMatch(
     mainTs,
-    /runToggleButton\.setAttribute\(\s*"aria-pressed",\s*String\(viewModel\.ariaPressed\)\s*\)/,
+    /aria-pressed/,
+    "#410: the toggle is a one-shot Start/Stop action, not a resumable pause toggle — it must " +
+      "never set aria-pressed",
   );
   assert.match(
     mainTs,

@@ -22,7 +22,7 @@
      because those lighter shades fall short of WCAG AA's 4.5:1 text contrast against white
      button-label text; these three are darkened just enough to clear it. */
   --ol-button-start: #1f7a3d;
-  --ol-button-pause: #a85c14;
+  --ol-button-stop: #a85c14;
   --ol-button-reset: #256ba8;
 }
 
@@ -412,16 +412,16 @@ main:has(.pane-lesson:not([hidden])):has(.pane-tutor:not([hidden])) {
   content: "\25B6"; /* ▶ */
 }
 
-#run-toggle-button[data-icon="pause"] .control-icon::before {
-  content: "\23F8"; /* ⏸ */
+#run-toggle-button[data-icon="stop"] .control-icon::before {
+  content: "\23F9"; /* ⏹ */
 }
 
 #reset-button .control-icon::before {
   content: "\21BA"; /* ↺ */
 }
 
-#run-toggle-button[data-icon="pause"] {
-  background: var(--ol-button-pause);
+#run-toggle-button[data-icon="stop"] {
+  background: var(--ol-button-stop);
 }
 
 #reset-button {

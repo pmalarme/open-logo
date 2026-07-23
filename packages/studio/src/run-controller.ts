@@ -143,6 +143,7 @@ import { execute, printedForm } from "@openlogo/runtime";
 import type { CancellationSignal, ExecuteOptions } from "@openlogo/runtime";
 import type {
   PrintPayload,
+  SourceSpan,
   TraceEvent,
   TutorOutputPayload,
 } from "@openlogo/core";
@@ -289,6 +290,34 @@ function collectTutorOutput(
   return tutorOutput;
 }
 
+/**
+ * Finds the `source_span` of the most recently consumed `"instruction"` event as of `cursor`
+ * (`TurtleAnimationController.getSnapshot().cursor`, the index of the *next* unconsumed event in
+ * `events`) — this is #410's "current source instruction", surfaced non-visually by
+ * `a11y.ts`'s turtle-state region (`spec/rendering.md`'s Non-visual state descriptions minimum).
+ * `events` already carries one `"instruction"` event per executed statement
+ * (`execute-internal.ts`'s `executeStatements`), each stamped with that statement's own
+ * `source_span` — this never re-derives a span, only looks one up in the already-complete stream.
+ * Returns `null` before any instruction has been consumed (cursor at or before the first one), so
+ * the turtle-state text can omit the clause entirely rather than show a placeholder.
+ */
+function findCurrentInstructionSourceSpan(
+  events: readonly TraceEvent[],
+  cursor: number,
+): SourceSpan | null {
+  for (
+    let index = Math.min(cursor, events.length) - 1;
+    index >= 0;
+    index -= 1
+  ) {
+    const event = events[index];
+    if (event !== undefined && event.kind === "instruction") {
+      return event.source_span;
+    }
+  }
+  return null;
+}
+
 /** Construct the Run/Stop/Reset/Step controller over an existing state model (never a copy). */
 export function createRunController(
   state: StudioStateStore,
@@ -315,6 +344,20 @@ export function createRunController(
   let finalRunStatus: RunStatus = "idle";
   let userStopped = false;
   let currentIsInstant = false;
+  // The most recent prepare()'s complete trace-event stream (#410) — kept alongside `animation`
+  // so pushTurtleSnapshot() can look up the current instruction's source_span against the same
+  // stream the animation is replaying, without re-executing or re-deriving anything. Cleared back
+  // to empty by reset(), exactly like `animation` itself.
+  let currentEvents: readonly TraceEvent[] = [];
+  // The exact source text prepare() executed to produce `currentEvents` (#410). A paced run's
+  // scheduler callback can fire pushTurtleSnapshot() well after prepare() ran — if the learner
+  // edited the editor in between (state-model.ts's setSource()/setSourceAndSelection() already
+  // clear currentInstructionSourceSpan on that edit), this run's *next* animation tick would
+  // otherwise republish a span looked up against the now-stale `currentEvents`, reintroducing the
+  // exact bug that clearing was meant to prevent. Comparing against the live store source lets
+  // pushTurtleSnapshot omit the clause instead of re-publishing a span for text that's no longer
+  // on screen. Cleared back to "" by reset(), exactly like `currentEvents` itself.
+  let preparedSource = "";
 
   /** Push `current`'s folded state/scene into the shared store and repaint (never called with a
    * null animation — callers only invoke this once `animation` has been assigned). */
@@ -322,6 +365,15 @@ export function createRunController(
     const snapshot = current.getSnapshot();
     state.setTurtleState(snapshot.state);
     state.setTurtleScene(snapshot.scene);
+    // #410 — only trust `currentEvents`' spans while the editor still holds the exact source they
+    // were derived from; a mid-run edit means the store's own currentInstructionSourceSpan was
+    // already cleared to null by setSource()/setSourceAndSelection(), and republishing a lookup
+    // against the old stream here would silently undo that.
+    state.setCurrentInstructionSourceSpan(
+      state.getState().source === preparedSource
+        ? findCurrentInstructionSourceSpan(currentEvents, snapshot.cursor)
+        : null,
+    );
     options?.canvasView?.repaint();
   }
 
@@ -352,6 +404,8 @@ export function createRunController(
     };
 
     const result = execute(state.getState().source, document, execOptions);
+    currentEvents = result.events;
+    preparedSource = state.getState().source;
 
     state.setOutput(collectOutput(result.events));
     state.setDiagnostics(result.diagnostics);
@@ -419,6 +473,9 @@ export function createRunController(
     state.setTutorOutput([]);
     animation?.reset();
     animation = null;
+    currentEvents = [];
+    preparedSource = "";
+    state.setCurrentInstructionSourceSpan(null);
     state.setTurtleState(INITIAL_TURTLE_STATE);
     state.setTurtleScene(INITIAL_TURTLE_SCENE);
     options?.canvasView?.repaint();
