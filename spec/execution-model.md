@@ -604,9 +604,13 @@ Rendering-relevant events carry typed payloads. Examples:
 - `move`: `{from:[x y], to:[x y], heading}`;
 - `draw-segment`: `{from:[x y], to:[x y], color, width}`;
 - `turn`: `{from, to, delta}`, where `delta` is the exact signed number of degrees requested by
-  `right`, `left`, or `turn` — positive for a `right`/`turn n` turn and negative for a `left`/
-  `turn -n` turn (`left n` is equivalent to `right -n`, so it carries `delta: -n`), unreduced by
-  any modulo-360 normalization. `turn 720` therefore produces a `turn` event whose `delta` is
+  `right`, `left`, or `turn`, unreduced by any modulo-360 normalization. For an evaluated numeric
+  input `a`, `delta` is defined by this formula, with no exceptions for any sign of `a`: `right a`
+  emits `delta: a`; `left a` emits `delta: -a`; `turn a` emits `delta: a` (`turn` carries its
+  argument through unchanged; `left a` is exactly `right (0 - a)`, i.e. `turn (0 - a)`). This
+  formula covers every signed-input combination, including a negative-of-negative: `left -90`
+  emits `delta: -(-90)`, i.e. `delta: 90` — a positive (clockwise) turn, because turning left by a
+  negative amount turns clockwise. `turn 720` therefore produces a `turn` event whose `delta` is
   `720`, not `0` and not reduced mod `360`, even though `from`/`to` are still normalized to
   `[0,360)` per the existing heading semantics above. `right -90` and `left 90` both produce a
   `turn` event with `delta: -90`, demonstrating that direction and full requested rotation count
