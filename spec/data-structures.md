@@ -157,6 +157,15 @@ Dictionary literals use bare keys, a colon, no commas, and may span lines:
 
 Bare keys are literal keys, not variable reads. Keys preserve case and are compared using OpenLogo equality. Reserved words are legal dictionary keys because they are data.
 
+A dict-key position accepts only a bare identifier or a number literal —
+`dict-key ::= identifier | number` in [grammar.md](grammar.md) — never a general
+expression, and never a nested list or dict literal. A malformed key, such as a
+nested dict literal used as a key (`print { { a: 1 }: 2 }`), raises exactly one
+diagnostic, `ol-bad-token`; see [error-model.md](error-model.md#normative-code-registry)
+for the full normative statement — including why `ol-unmatched-brace` MUST NOT also fire
+for the enclosing (correctly matched) dict literal — and the exact conformance-fixture
+diagnostic shape.
+
 If a literal repeats a key, the last entry wins. The key keeps its first insertion position for iteration, and the final value is the value from the last duplicate entry.
 
 ```logo
