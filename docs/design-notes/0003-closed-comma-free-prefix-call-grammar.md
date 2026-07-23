@@ -68,7 +68,7 @@ print :result
 
 (word "a" "b" "c")           # parenthesized call: word's default arity is 2, three values need parens
 :nums = (list 1 2 3)         # parenthesized call: list's default arity is 0 (bare list returns [])
-print :nums                  # -> [1, 2, 3]
+print :nums                  # -> [1 2 3]
 
 struct point [ x y ]
 :p = point 3 4               # fixed call: point's arity is 2 (its field count), no parens needed
@@ -76,7 +76,7 @@ print :p.x                   # -> 3
 print :p.y                   # -> 4
 
 print (sentence 1 2 3)       # parenthesized call: sentence's default arity is 2, three values need parens
-                              # -> [1, 2, 3]
+                              # -> [1 2 3]
 ```
 
 The contrasting failure case confirms the fixed-arity rule is enforced, not just documented:

@@ -11,7 +11,7 @@ decisions are recorded as Architecture Decision Records (ADRs) in `docs/adr/`. N
 answers a question contributors and learners keep asking: **why is the language shaped this
 way?** The spec states *what* `define … end` or `=` vs `==` mean; it does not explain why Core
 chose `define … end` over `to … end`, why assignment and comparison use different operators, or
-why the grammar is comma-free and prefix-only. Without a durable place for that rationale, the
+why calls are comma-free and prefix. Without a durable place for that rationale, the
 team re-litigates settled language-design questions every time someone (human or agent) asks
 "why not just do it like classic Logo / Python / Scheme?"
 
@@ -77,9 +77,9 @@ argument is made a single time and can be pointed to instead of re-derived.
 
 ## How other languages do it
 
-Most language projects either bury design rationale in mailing-list threads and PEPs (Python),
-scatter it across RFCs (Rust, ECMAScript), or never write it down at all (classic Logo dialects,
-which mostly diverged by implementation accident rather than documented intent). OpenLogo instead
+Most language projects either bury design rationale in mailing-list threads and design proposals
+(Python PEPs), scatter it across RFCs and proposals (Rust RFCs, ECMAScript/TC39 proposals), or
+never write it down in one discoverable place at all. OpenLogo instead
 follows the same lightweight, numbered, immutable-record pattern popularized for architecture
 decisions (Michael Nygard's ADR format) and applies it to language design, so the same
 discoverability and "propose a superseding record" discipline is available for *why the language
