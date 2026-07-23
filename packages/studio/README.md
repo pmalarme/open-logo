@@ -575,10 +575,12 @@ docker run --rm -v "$PWD:/work" -w /work mcr.microsoft.com/playwright:v1.61.1-ja
 ### Flaky-run guidance
 
 The snapshot tolerates sub-pixel anti-aliasing via `maxDiffPixelRatio: 0.02` and masks the volatile
-editor pane, so the geometry — not font hinting — is what regresses. If a legitimate layout change
-lands, regenerate the baselines with the Docker command above and commit the updated `-linux.png`
-files in the **same** PR. If a run flakes on width by a pixel, re-run; a genuine squeeze is
-deterministic and fails every time.
+editor pane, so the geometry — not font hinting — is what regresses. Under CI the suite retries a
+failing spec twice (`retries: 2`, CI-only; `0` locally) to ride out transient rendering/timing
+noise, while a genuine squeeze fails deterministically on every attempt. If a legitimate layout
+change lands, regenerate the baselines with the Docker command above and commit the updated
+`-linux.png` files in the **same** PR. If a run flakes on width by a pixel, re-run; a genuine
+squeeze is deterministic and fails every time.
 
 ### CI wiring (`@devops`)
 
