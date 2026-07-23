@@ -69,6 +69,14 @@ parallelization map, and [`docs/delivery.md`](docs/delivery.md) for the release 
    better than you found it — but only within your task's declared write-set, never unrelated
    refactors. (Full rules in the team working agreement.)
 
+**Docs have four surfaces**, each answering a different question: `spec/` (what is normatively
+true), `docs/adr/` (why we chose this toolchain/engineering approach),
+`docs/learn-how-its-built/` (how the implementation is coded), and `docs/design-notes/` (why the
+**language itself** is shaped this way, with cross-language comparisons for advanced readers —
+**Language Design Records**, one per decision, each citing the `spec/` section(s) it explains). See
+the [`documentation/author-a-language-design-record`](.github/skills/documentation/author-a-language-design-record/SKILL.md)
+skill for how to write one.
+
 When editing under `packages/<name>/`, read that package's
 `.github/instructions/<name>.instructions.md` first. To open work, **file an issue from a template**
 in [`.github/ISSUE_TEMPLATE/`](.github/ISSUE_TEMPLATE) (labels come from
