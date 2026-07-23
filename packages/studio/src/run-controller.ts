@@ -349,6 +349,15 @@ export function createRunController(
   // stream the animation is replaying, without re-executing or re-deriving anything. Cleared back
   // to empty by reset(), exactly like `animation` itself.
   let currentEvents: readonly TraceEvent[] = [];
+  // The exact source text prepare() executed to produce `currentEvents` (#410). A paced run's
+  // scheduler callback can fire pushTurtleSnapshot() well after prepare() ran — if the learner
+  // edited the editor in between (state-model.ts's setSource()/setSourceAndSelection() already
+  // clear currentInstructionSourceSpan on that edit), this run's *next* animation tick would
+  // otherwise republish a span looked up against the now-stale `currentEvents`, reintroducing the
+  // exact bug that clearing was meant to prevent. Comparing against the live store source lets
+  // pushTurtleSnapshot omit the clause instead of re-publishing a span for text that's no longer
+  // on screen. Cleared back to "" by reset(), exactly like `currentEvents` itself.
+  let preparedSource = "";
 
   /** Push `current`'s folded state/scene into the shared store and repaint (never called with a
    * null animation — callers only invoke this once `animation` has been assigned). */
@@ -356,8 +365,14 @@ export function createRunController(
     const snapshot = current.getSnapshot();
     state.setTurtleState(snapshot.state);
     state.setTurtleScene(snapshot.scene);
+    // #410 — only trust `currentEvents`' spans while the editor still holds the exact source they
+    // were derived from; a mid-run edit means the store's own currentInstructionSourceSpan was
+    // already cleared to null by setSource()/setSourceAndSelection(), and republishing a lookup
+    // against the old stream here would silently undo that.
     state.setCurrentInstructionSourceSpan(
-      findCurrentInstructionSourceSpan(currentEvents, snapshot.cursor),
+      state.getState().source === preparedSource
+        ? findCurrentInstructionSourceSpan(currentEvents, snapshot.cursor)
+        : null,
     );
     options?.canvasView?.repaint();
   }
@@ -390,6 +405,7 @@ export function createRunController(
 
     const result = execute(state.getState().source, document, execOptions);
     currentEvents = result.events;
+    preparedSource = state.getState().source;
 
     state.setOutput(collectOutput(result.events));
     state.setDiagnostics(result.diagnostics);
@@ -458,6 +474,7 @@ export function createRunController(
     animation?.reset();
     animation = null;
     currentEvents = [];
+    preparedSource = "";
     state.setCurrentInstructionSourceSpan(null);
     state.setTurtleState(INITIAL_TURTLE_STATE);
     state.setTurtleScene(INITIAL_TURTLE_SCENE);

@@ -308,6 +308,37 @@ test("run() ignores a second call while a paced animation is still running (#314
   assert.equal(store.getState().runStatus, "done");
 });
 
+test("editing the source mid-paced-run keeps the current-instruction span cleared, even once the next already-scheduled tick fires (#410)", () => {
+  const store = OL.createStudioState({
+    source: "forward 100\nright 90\nforward 100",
+  });
+  const manual = createManualScheduler();
+  const controller = OL.createRunController(store, {
+    scheduler: manual.scheduler,
+  });
+
+  controller.run();
+  manual.fire(); // consume the first step, scheduling the next tick and publishing a real span.
+  assert.notEqual(store.getState().currentInstructionSourceSpan, null);
+  assert.ok(manual.hasPending());
+
+  // The learner edits the source while the run is still animating (setSource() itself clears
+  // the span synchronously — this reproduces the deeper bug: does a later, already-in-flight
+  // tick silently republish a stale one looked up against the OLD source's event stream?).
+  store.setSource("print 1");
+  assert.equal(store.getState().currentInstructionSourceSpan, null);
+
+  manual.fire(); // fire the tick that was scheduled before the edit.
+
+  assert.equal(
+    store.getState().currentInstructionSourceSpan,
+    null,
+    "a tick scheduled for a run over stale source must not resurrect a current-instruction span " +
+      "once the editor has moved on — it must keep omitting the clause, not reintroduce garbage " +
+      "or empty-but-present text for a source that's no longer on screen",
+  );
+});
+
 test("stop() pauses the turtle animation: a stale, already-scheduled tick can never fire afterward and advance it further", () => {
   const store = OL.createStudioState({
     source: "forward 100\nright 90\nforward 100",
