@@ -140,16 +140,11 @@ jobs:
           node-version: "22"
           cache: "npm"
       - run: npm ci
-      # BOOTSTRAP (temporary): regenerate the Linux baselines in the pinned Playwright container and
-      # upload them as an artifact so they can be committed. Reverted to plain verify mode in the
-      # same PR once the baselines are committed.
-      - name: Regenerate studio visual-regression baselines
-        run: npm run -s test:visual --workspace @openlogo/studio -- --update-snapshots
-      - name: Upload regenerated baselines
-        uses: actions/upload-artifact@v4
-        with:
-          name: studio-visual-snapshots
-          path: packages/studio/e2e/__screenshots__/*-linux.png
+      # `test:visual` builds the studio web bundle and serves it via `vite preview`, then renders it
+      # at the narrow + wide viewports. CI is set, so Playwright fails on a missing baseline instead
+      # of silently creating one, and never reuses an external server.
+      - name: Run studio visual-regression tests
+        run: npm run -s test:visual --workspace @openlogo/studio
       - name: Upload Playwright report on failure
         if: ${{ failure() }}
         uses: actions/upload-artifact@v4
