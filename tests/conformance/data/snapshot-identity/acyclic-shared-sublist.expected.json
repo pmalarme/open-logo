@@ -1,0 +1,56 @@
+{
+  "description": "spec/execution-model.md's snapshot rule: preserving alias/cycle topology means an acyclic-but-shared sub-list must render fully at each occurrence, not be collapsed. `:s = (list :a :a)` shares the same `:a` reference at both positions (not two independent copies); `$id`/`$ref` assert both positions resolve to the same underlying reference AND that the harness still requires the full `[1, 2]` shape to match at the `$ref` position (a collapsed/omitted second occurrence would fail shape validation). Issue #495, PR #530.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/snapshot-identity/acyclic-shared-sublist",
+        "start": [1, 1],
+        "end": [1, 11]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/snapshot-identity/acyclic-shared-sublist",
+        "start": [2, 1],
+        "end": [2, 18]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/snapshot-identity/acyclic-shared-sublist",
+        "start": [3, 1],
+        "end": [3, 9]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "data/snapshot-identity/acyclic-shared-sublist",
+        "start": [3, 1],
+        "end": [3, 9]
+      },
+      "payload": {
+        "values": [[{ "$id": "a", "$value": [1, 2] }, { "$ref": "a" }]]
+      }
+    }
+  ],
+  "diagnostics": []
+}

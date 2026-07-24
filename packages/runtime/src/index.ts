@@ -50,6 +50,7 @@ import type { TutorTemplateFn } from "./tutor-templates.js";
 import type { TutorLearnerLevel } from "./tutor-context.js";
 
 export {
+  CYCLIC_PLACEHOLDER,
   createEnvironment,
   evaluate,
   executeAdd,
@@ -60,6 +61,7 @@ export {
   formatNumber,
   isSupportedExpression,
   printedForm,
+  snapshotValue,
   valuesEqual,
 } from "./evaluate.js";
 export type {
