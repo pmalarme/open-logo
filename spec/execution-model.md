@@ -244,6 +244,18 @@ Runtime meaning depends on the base value:
 - A word may be indexed by number to read a Unicode scalar-value position.
 - `.identifier` is always a literal field/key, never evaluated.
 
+This selector grammar (`postfix-expr`, `selector`) is unconditional Core syntax: every conforming
+implementation parses it uniformly regardless of which optional profiles it claims. Profile
+ownership of a specific *base-value case* is a separate, semantic-level requirement, defined by
+[conformance.md#data](conformance.md#data): the list case above — `:list[i]` read and write — and
+the dict and record cases above are Data-profile-owned, so a conforming implementation supports
+executing them only when it claims Data. This specification does not define a dedicated diagnostic
+for an implementation that parses this shared grammar but does not support one of these Data-owned
+cases; per conformance.md's portability rule, a program using `:list[i]`, a dict selector, or a
+record `.field` is simply not portable to an implementation that does not claim Data — the same way
+any other Data-only, Sprites-only, or Interaction-only program is not portable to an implementation
+that omits that profile.
+
 Inside a selector, a bare identifier is a literal word key and preserves case:
 `:ages[tom]` uses key `"tom"`. `:ages[:who]` evaluates variable `:who` to obtain
 the key. Arithmetic or other general expressions inside selectors must be
@@ -288,6 +300,13 @@ index out of range raises `ol-range`. Reporters such as `first`, `count`, and
 
 Collection mutators such as `add`, `remove`, `insert`, and `clear` take an
 evaluated mutable reference, not a place, and return no value.
+
+The list-index case of a place — `:nums[1] = 9`, `set nums[1] to 9`, and the intermediate/final
+list-index cases of a chained place such as `:people.tom.pets[1] = "cat"` — is Data-profile-owned on
+the write side exactly as it is on the read side (see "Postfix reads" above and
+[conformance.md#data](conformance.md#data)); the dict and record place cases in this section are
+likewise Data-owned. The place grammar itself is unconditional Core syntax; only execution of the
+list, dict, and record cases requires the Data profile.
 
 ## Special-form delimiter rules
 
@@ -438,6 +457,31 @@ and `reduce` (its item binder, not the accumulator). Records destructure in
 declared field order; lists destructure by item order. A short or long pattern
 mismatch raises `ol-range`.
 
+The `destructuring-pattern` grammar production (`binder ::= name | destructuring-pattern`,
+[grammar.md](grammar.md)) contains only `:name` tokens and never nests another
+`destructuring-pattern`, so destructuring is flat in v0.1: there is no nested or recursive
+destructuring pattern in either profile, and this document does not add one. List and record are
+the only destructurable item kinds. A dict or scalar (number, word, boolean) item is not a
+positionally-destructurable value: binding a destructuring pattern against one raises `ol-type`,
+the general wrong-type-for-the-operation diagnostic used elsewhere in this spec, in every
+conforming implementation — this is not a Data-profile dict-destructuring feature, because v0.1
+defines none.
+
+Profile ownership of this binder-pattern behavior follows the value being
+destructured, not the iteration form: `for ... in`, `map`, `filter`, and
+`reduce` are themselves Core control/comprehension forms, so a destructuring
+pattern applied to a plain **list** item (positional unpacking of `[ ]`
+elements, as in `for [:x :y] in [[1 2] [3 4]]`) is **Core** — it needs only
+Core list values and the Core `binder ::= name | destructuring-pattern`
+grammar production. The same pattern applied to a **record** item — as in the
+`:corners` example below, which destructures `point` records in declared field
+order — requires the **Data** profile, because `record` values, `struct`
+declarations, and declared field order are Data-profile concepts (see
+[conformance.md#data](conformance.md#data)); an implementation that claims only
+Core Language and Turtle & Rendering supports list-binder destructuring but
+does not support record-binder destructuring, since it has no record values to
+destructure.
+
 ```logo
 :corners = (list (point 0 0) (point 100 90))
 :xs = map [:x :y] in :corners [ :x ]
@@ -504,6 +548,30 @@ maintain a memo set of reference pairs currently being compared. If the same
 pair is encountered again while in progress, that pair is treated as equal for
 that branch. This pair memoization, not identity short-circuiting alone, is
 normative and covers distinct but isomorphic cycles.
+
+Rendering a value's printed form — the text produced for `print`, `show`, or a
+`throw`'s learner-facing message — must terminate on cyclic structure and must
+not silently re-expand large shared substructure: implementations maintain a
+memo of every reference value (list, dict, or record) encountered anywhere
+earlier in the *same render* — not only on the current recursive path — keyed
+by reference identity. The first time a reference is encountered, its contents
+are rendered by recursing as usual, and the reference is added to the memo
+*before* recursing into it, so that a reference reachable from itself, directly
+or transitively, is caught as a cycle. Every later encounter of that same
+reference anywhere else in the same render — whether by a genuine cycle or by
+an unrelated second path reaching the same shared value, for example
+`print (list :shared :shared)` — is rendered as the same bounded,
+implementation-defined placeholder (for example an ellipsis or a
+repeated-reference marker) instead of being recursed into again. This
+whole-render memo is normative and is a *stronger* requirement than the
+in-progress pair memoization used for structural equality above: equality's
+memo only needs to track pairs currently being compared to guarantee
+termination, while rendering must recognize a repeated reference across the
+*entire* render, cyclic or not, to guarantee a single, bounded printed
+representation. Rendering MUST NOT overflow the host call
+stack; an implementation that would otherwise overflow instead raises the friendly `ol-limit` diagnostic defined in
+[error-model.md](error-model.md), which — per that document — MUST NOT itself
+expose a host stack overflow.
 
 Ordering operators `<`, `>`, `<=`, and `>=` are defined only for numbers and
 words. Numbers compare numerically. Words compare lexicographically by Unicode
@@ -580,6 +648,43 @@ There are two timing classes:
 A step is the span from one `instruction` event to the next. The `instruction`
 event is the unit of "one step"; effect events caused by that instruction follow
 it before the next `instruction`.
+
+An effect event's `payload` captures the value or values it describes as a
+point-in-time snapshot taken at the moment of emission, not a live reference to
+mutable state. The snapshot is a **transitive, immutable copy of the value
+graph** reachable from the payload: for a list, dict, or record, every element,
+entry, or field is itself captured by this same rule, recursively, as of that
+instant — capture is not shallow, so a nested mutable value nested several
+levels deep is protected from later mutation exactly as a top-level one is. A
+later mutation through the original live reference, at any depth (see the
+mutation-and-copy table above), MUST NOT retroactively change any part of the
+payload of an event already emitted.
+
+OpenLogo list/dict/record values may alias each other or contain cycles — for
+example, a self-referential list constructed by `add :l to :l` (see
+[data-structures.md](data-structures.md)). Snapshot capture MUST preserve the
+aliasing and cycle structure of the value graph as of the moment of capture,
+using snapshot-local reference identity: two positions in the snapshot that
+were the same live reference at capture time remain the same snapshotted
+reference, and a position reachable from itself, directly or transitively,
+remains a cycle in the snapshot rather than being expanded without bound.
+Capturing a snapshot MUST terminate using a memo of live references already
+captured earlier in the *same capture* — not only on the current recursive
+path — so that both a direct cycle and a value reached twice via two different,
+non-cyclic paths are recognized as the same snapshot-local reference and
+captured only once; this is the same whole-operation memoization discipline
+required above for rendering a value's printed form (a stronger discipline
+than the in-progress pair memoization used for structural equality, which only
+needs to guarantee termination, not dedupe shared-but-acyclic structure). This
+snapshot rule is what makes deterministic replay,
+stepping, and `why`/`debug` inspection of **prior effect events** well-defined
+even though OpenLogo's list, dict, and record values are ordinarily mutable,
+aliasable, and — through operations such as `add … to` — possibly
+self-referential. This snapshot rule applies to effect-event payloads
+specifically; `procedure-enter`'s `args` payload (a **start** event, emitted
+*before* its effect, per the timing classes above) is not in scope here and MAY
+still observe subsequent mutation of a mutable argument before the procedure
+body's own effect events are emitted.
 
 Normative `kind` values:
 

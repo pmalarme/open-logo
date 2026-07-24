@@ -1,0 +1,19 @@
+{
+  "description": "A well-formed nested dict literal in a dict-entry's separator position (`print { a { b: 1 } }` — `a` parses as a valid key, but the required `:` is missing and a nested, itself well-formed and balanced, `{ b: 1 }` appears instead) is a grammar-position error, not a brace-matching one: it reports exactly one ol-bad-token for the inner `{` — never ol-unmatched-brace — and both dict literals' braces, which are in fact correctly matched, close cleanly (spec/error-model.md, spec/data-structures.md#dictionaries, issue #546).",
+  "profiles": ["core-language", "data"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-separator-nested-dict",
+        "start": [5, 11],
+        "end": [5, 12]
+      },
+      "params": { "text": "{" },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

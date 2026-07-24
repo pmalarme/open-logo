@@ -106,7 +106,7 @@ codes only outside the `ol-*` namespace.
 | `ol-mismatched-end` | parse | `expected`, `actual` | An `end` label is orphaned or does not match its opener; includes an `else` with no still-open `if`. |
 | `ol-unclosed-comment` | parse | `opened_at` | A `/* … */` comment reached end of file before `*/`. |
 | `ol-unclosed-string` | parse | `opened_at` | A single-line `"…"` word reached end of line or end of file, or a triple-quoted `"""…"""` word reached end of file, before its closing quote. |
-| `ol-bad-token` | parse | `text` | The lexer found characters that are not valid OpenLogo tokens. The message SHOULD point at the unexpected text and mention the closest legal form when clear. |
+| `ol-bad-token` | parse | `text` | The lexer found characters that are not valid OpenLogo tokens, **or** the parser encountered a token that is itself a valid OpenLogo token but is not permitted at the current grammar position **and no more-specific parse diagnostic** (`ol-unmatched-bracket`, `ol-unmatched-brace`, `ol-unmatched-paren`, `ol-missing-end`, `ol-mismatched-end`, etc.) **applies** — for example, a `{` opening a nested, self-balanced literal at either position of a `dict-entry` (`spec/grammar.md`) where the grammar instead requires a `dict-key`, or a `:` (see the malformed-dict-entry examples below the registry). `text` names the offending token in every case. The message SHOULD point at the unexpected text and mention the closest legal form when clear. |
 | `ol-div-zero` | runtime | `operation` | `/` or `mod` attempted to divide by zero. OpenLogo reports this instead of producing infinity or NaN. |
 | `ol-neg-sqrt` | runtime | `value` | `sqrt` received a negative number. |
 | `ol-tan-undefined` | runtime | `value` | `tan` received an angle whose tangent is undefined — an odd multiple of 90° (for example 90, 270, or -90). OpenLogo reports this instead of producing a huge finite value, infinity, or NaN. |
@@ -126,6 +126,32 @@ codes only outside the `ol-*` namespace.
 | `ol-unknown-field` | runtime | `type`, `field`, optional `write` | A record has no such field. This includes writing an unknown struct field; records are fixed-field values. |
 | `ol-unknown-key` | runtime | `key` | A required dictionary key is absent on read, or an intermediate dictionary key is absent in a nested access chain. Writing a missing final dictionary key upserts and MUST NOT raise this error. |
 | `ol-not-a-place` | semantic | optional `text` | The target of `=` or `set … to` is not assignable. Reporters such as `first`, `count`, and `keys` are not places. |
+
+A malformed `dict-entry` (`dict-entry ::= dict-key ":" expression` in [grammar.md](grammar.md)) is
+the canonical example of the grammar-position case in the `ol-bad-token` row above, at **either**
+of the production's two positions:
+
+- **Key position** — `dict-key ::= identifier | number` accepts no general expression, so a nested
+  dict literal used as a key (`print { { a: 1 }: 2 }`) is unexpected there: the inner `{` is itself
+  a lexically valid delimiter, just not one legal in this position.
+- **Separator position** — once a valid key parses, only `:` is legal next (an `expression` for
+  the value only becomes legal after that `:`). A `{` opening a nested (and itself well-formed)
+  dict literal there instead (`print { a { b: 1 } }`, where `a` parses as a valid key but no `:`
+  follows) is unexpected for the same reason: the `{` is a valid token, just misplaced.
+
+In both cases `ol-bad-token` alone is authoritative for the malformed-input class; parser recovery
+MUST NOT additionally raise `ol-unmatched-brace` for a brace that is, in fact, correctly matched —
+the enclosing dict literal's own braces (key-position case) and the well-formed nested literal's own
+braces (separator-position case) are unaffected by the malformed entry around them.
+
+A conformance fixture for either example MUST observe exactly this diagnostic shape: the
+diagnostics list is exactly `["ol-bad-token"]` (no `ol-unmatched-brace`, no other code); `stage` is
+`parse`; `params.text` is `"{"` (the inner opening brace's own text, not the whole nested literal);
+and the diagnostic's span covers only that inner `{` character — for `print { { a: 1 }: 2 }`, from
+the offset of the second `{` to immediately after it; for `print { a { b: 1 } }`, from the offset of
+the `{` following `a` to immediately after it — not the outer dict literal's braces and not the
+`b: 1 }`/`a: 1 }` that follows. See [data-structures.md](data-structures.md#dictionaries) for the
+full dict-key grammar and this rule's normative statement.
 
 ## Style linter codes
 

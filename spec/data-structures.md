@@ -60,7 +60,8 @@ A list is an ordered mutable sequence. A list literal uses `[ … ]`; elements a
 :nums = [1 2 3]
 ```
 
-List indexing is 1-based:
+List indexing is 1-based. List indexing (read and write) is a **Data**-profile behavior — see
+[conformance.md#data](conformance.md#data) — even though the `list` value type itself is Core:
 
 ```logo
 print :nums[1]     # => 1
@@ -157,6 +158,15 @@ Dictionary literals use bare keys, a colon, no commas, and may span lines:
 
 Bare keys are literal keys, not variable reads. Keys preserve case and are compared using OpenLogo equality. Reserved words are legal dictionary keys because they are data.
 
+A dict-key position accepts only a bare identifier or a number literal —
+`dict-key ::= identifier | number` in [grammar.md](grammar.md) — never a general
+expression, and never a nested list or dict literal. A malformed key, such as a
+nested dict literal used as a key (`print { { a: 1 }: 2 }`), raises exactly one
+diagnostic, `ol-bad-token`; see [error-model.md](error-model.md#normative-code-registry)
+for the full normative statement — including why `ol-unmatched-brace` MUST NOT also fire
+for the enclosing (correctly matched) dict literal — and the exact conformance-fixture
+diagnostic shape.
+
 If a literal repeats a key, the last entry wins. The key keeps its first insertion position for iteration, and the final value is the value from the last duplicate entry.
 
 ```logo
@@ -169,6 +179,29 @@ print :settings.speed  # => 3
 ```
 
 Dictionary iteration order is insertion order. `keys :d` and `values :d` return lists in that order.
+
+### Malformed dictionary literal entries
+
+`dict-entry ::= dict-key ":" expression` (see [grammar.md](grammar.md)) has exactly two positions
+where a token can be well-formed on its own yet illegal for the grammar: the **key** position,
+which accepts only `dict-key ::= identifier | number`, and the **separator/value** position that
+follows a valid key, which requires `:` and then an `expression`. Both positions raise
+`ol-bad-token`, never `ol-unmatched-brace`, whenever the offending token is itself a balanced,
+lexically valid construct — see [error-model.md](error-model.md#normative-code-registry) for the
+full normative statement, including why `ol-unmatched-brace` MUST NOT also fire for braces that
+are, in fact, correctly matched.
+
+A malformed **key**, such as a nested dict literal used as a key (`print { { a: 1 }: 2 }`), raises
+exactly one diagnostic, `ol-bad-token`, at the nested literal's own opening `{`.
+
+A malformed **separator**, such as a `{` opening a nested (and itself well-formed) dict literal
+where `:` was required after a valid key instead — `print { a { b: 1 } }`, where `a` parses as a
+valid key but no `:` follows it — likewise raises exactly one `ol-bad-token`, at that `{`, not
+`ol-unmatched-brace`: the inner `{ b: 1 }` is a balanced, well-formed dict literal in its own
+right, simply in the wrong grammar position, and all braces in the input are in fact correctly
+matched. A value entirely missing before the closing `}` (`print { a: }`) is the same case with no
+offending token to name beyond the `}` itself, and is likewise one `ol-bad-token`, never
+`ol-unmatched-brace`.
 
 ### Dictionary reads
 

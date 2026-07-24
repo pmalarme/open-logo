@@ -1,0 +1,3 @@
+# A nested dict literal used as a dict key is a grammar-position error, not a brace-matching
+# one: exactly one ol-bad-token fires for the inner `{`, never ol-unmatched-brace (issue #520).
+print { { a: 1 }: 2 }

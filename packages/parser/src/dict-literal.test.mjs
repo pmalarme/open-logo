@@ -151,14 +151,104 @@ test("reports ol-bad-token, not ol-unmatched-brace, when a dict entry has neithe
   assert.equal(badToken.params.text, "}");
 });
 
-test("reports ol-unmatched-brace when a dict key is not an identifier or number", () => {
-  // `dict-key ::= identifier | number` (`spec/grammar.md`) — a nested `{ … }` is not a legal key,
-  // so it is reported and skipped rather than recursively parsed as a nested dict literal.
-  const diagnosticCodes = codesOf("print { { a: 1 }: 2 }");
-  assert.ok(diagnosticCodes.includes("ol-unmatched-brace"));
-  const first = parse("print { { a: 1 }: 2 }").diagnostics[0];
-  assert.equal(first.code, "ol-unmatched-brace");
-  assert.equal(first.params.delimiter, "{");
+test("reports exactly one ol-bad-token, not ol-unmatched-brace, when a dict key is a nested dict literal", () => {
+  // `dict-key ::= identifier | number` (`spec/grammar.md`) — a nested `{ … }` is not a legal key.
+  // Per `spec/error-model.md` and `spec/data-structures.md#dictionaries` (issue #520), this is a
+  // grammar-position error, not a brace-matching one: the inner `{` and its balanced nested
+  // literal, plus its `: 2` trailing entry, are all skipped as one malformed entry, so exactly
+  // one `ol-bad-token` fires for the inner `{` itself — never `ol-unmatched-brace` — and the
+  // outer dict literal (whose own braces are correctly matched) still closes cleanly with zero
+  // entries.
+  const source = "print { { a: 1 }: 2 }";
+  assert.deepEqual(codesOf(source), ["ol-bad-token"]);
+  const diagnostic = parse(source).diagnostics[0];
+  assert.equal(diagnostic.code, "ol-bad-token");
+  assert.equal(diagnostic.stage, "parse");
+  assert.equal(diagnostic.params.text, "{");
+  // The span covers only the inner opening brace (offset 8, the second `{`), not the outer
+  // dict's braces and not the `a: 1 }` that follows.
+  assert.deepEqual(diagnostic.source_span.start, [1, 9]);
+  assert.deepEqual(diagnostic.source_span.end, [1, 10]);
+  const dict = firstArg(source);
+  assert.equal(dict.kind, "DictLit");
+  assert.deepEqual(dict.entries, []);
+});
+
+test("a doubly-nested dict literal used as a key is still skipped as one malformed entry", () => {
+  // `skipMalformedDictKeyLiteral` tracks brace depth so an inner `{ … }` inside the malformed
+  // key cannot end the balanced skip early — a `{ { { a: 1 } }: 2 }` key still yields exactly
+  // one `ol-bad-token` for the outermost inner `{`, not one per nesting level.
+  assert.deepEqual(codesOf("print { { { a: 1 } }: 2 }"), ["ol-bad-token"]);
+});
+
+test("a glued colon-to-name after a malformed nested-dict-key entry still parses as its trailing value", () => {
+  // The malformed key's recovery also splices a glued `:name` token exactly like a normal
+  // entry's separator (`splitGluedColonToken` only glues onto a following identifier, never a
+  // number — see `tokens.ts`'s `:name` lexer rule), so `{ { a:1 }:foo }` — no space anywhere
+  // around either colon — still yields exactly one diagnostic, not a second one for the glued
+  // `:foo`.
+  assert.deepEqual(codesOf("print { { a:1 }:foo }"), ["ol-bad-token"]);
+});
+
+test("a nested list literal used as a dict key raises ol-bad-token, not ol-unmatched-bracket", () => {
+  // `dict-key ::= identifier | number` (`spec/grammar.md`) excludes list literals exactly like
+  // dict literals (`spec/data-structures.md#dictionaries`, issue #546): a `[` opening a nested
+  // list where a key was expected is a grammar-position error, not a bracket-matching one, so
+  // `print { [ 1 2 ]: 3 }` (list literals are whitespace-separated, never comma-separated) still
+  // yields exactly one `ol-bad-token` for the inner `[`, and the outer dict literal (whose own
+  // braces are correctly matched) still closes cleanly with zero entries.
+  const source = "print { [ 1 2 ]: 3 }";
+  assert.deepEqual(codesOf(source), ["ol-bad-token"]);
+  const diagnostic = parse(source).diagnostics[0];
+  assert.equal(diagnostic.stage, "parse");
+  assert.equal(diagnostic.params.text, "[");
+  // The span covers only the inner opening bracket (offset 8), not the whole `[ 1 2 ]` literal.
+  assert.deepEqual(diagnostic.source_span.start, [1, 9]);
+  assert.deepEqual(diagnostic.source_span.end, [1, 10]);
+  const dict = firstArg(source);
+  assert.equal(dict.kind, "DictLit");
+  assert.deepEqual(dict.entries, []);
+});
+
+test("a doubly-nested list literal used as a key is still skipped as one malformed entry", () => {
+  // Mirrors the doubly-nested dict-key case: `skipBalancedNestedLiteral` tracks bracket depth so
+  // an inner `[ … ]` inside the malformed key cannot end the balanced skip early.
+  assert.deepEqual(codesOf("print { [ [ 1 ] 2 ]: 3 }"), ["ol-bad-token"]);
+});
+
+test("a `{` in a dict entry's separator position (missing `:`) raises exactly one ol-bad-token, never ol-unmatched-brace", () => {
+  // This is a different malformed shape than a nested dict *key* (issue #520): `a` is a valid
+  // key that gets consumed, but the `:` separator is missing and a `{` appears where the
+  // separator/value was expected instead (issue #546). `unexpectedInDictEntry` special-cases
+  // this `{` exactly like the key-position case — the nested `{ b: 1 }` is itself a balanced,
+  // well-formed dict literal, simply in the wrong grammar position, so both dict literals'
+  // braces are in fact correctly matched and only one `ol-bad-token` fires for the inner `{`,
+  // never `ol-unmatched-brace` for either.
+  const source = "print { a { b: 1 } }";
+  assert.deepEqual(codesOf(source), ["ol-bad-token"]);
+  const diagnostic = parse(source).diagnostics[0];
+  assert.equal(diagnostic.stage, "parse");
+  assert.equal(diagnostic.params.text, "{");
+  // The span covers only the inner opening brace (offset 10, the second `{`), not the outer
+  // dict's braces and not the `b: 1 }` that follows.
+  assert.deepEqual(diagnostic.source_span.start, [1, 11]);
+  assert.deepEqual(diagnostic.source_span.end, [1, 12]);
+  const dict = firstArg(source);
+  assert.equal(dict.kind, "DictLit");
+  assert.deepEqual(dict.entries, []);
+});
+
+test("a token that cannot even start a dict-key (e.g. a stray `:`) is reported by parseDictLiteral's own fallback", () => {
+  // Unlike the nested-dict-key case (issue #520) or any other malformed entry above,
+  // `parseDictEntry` returns `undefined` here *without consuming any token at all* — a bare
+  // `:` is neither `number`, `name`, `lbrace`, nor `lbracket` — so it is
+  // {@link parseDictLiteral}'s own `pos === before` fallback (not `unexpectedInDictEntry`) that
+  // reports and skips it, one token at a time: the stray `:` as `ol-bad-token`, then the
+  // entry-less `1` closes the loop fine, leaving only the trailing `}` — which is not actually
+  // unmatched, so it also reports as `ol-bad-token` rather than `ol-unmatched-brace`.
+  assert.deepEqual(codesOf("print { : 1 }"), ["ol-bad-token", "ol-bad-token"]);
+  const [first] = parse("print { : 1 }").diagnostics;
+  assert.equal(first.params.text, ":");
 });
 
 test("a dict-entry colon glued to its value with no gap parses identically to one with a space", () => {

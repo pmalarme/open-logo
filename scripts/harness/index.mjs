@@ -10,6 +10,8 @@ import {
   OL_DIAGNOSTIC_CODES,
   OL_EVENT_KINDS,
   OL_STYLE_DIAGNOSTIC_CODES,
+  OLDict,
+  OLRecord,
 } from "@openlogo/core";
 import { check, parse } from "@openlogo/parser";
 import { execute } from "@openlogo/runtime";
@@ -376,32 +378,314 @@ export function produce(
   return { events, diagnostics };
 }
 
+/**
+ * Unwrap an {@link OLDict} or {@link OLRecord} runtime value into the plain key→value object the
+ * comparator already knows how to deep-compare, so a fixture's exact dict/record CONTENTS are
+ * genuinely compared instead of the harness treating the instance as an opaque, always-unequal
+ * reference. Every other value (primitive, array, plain object) passes through unchanged. Dict
+ * keys are rendered via `String()` — a JSON object key is always a string anyway, so a fixture's
+ * expected side already writes a numeric key the same way; record fields use their declared
+ * spelling ({@link OLRecord.fields}). Only the immediate level is unwrapped: a nested dict/record
+ * held by a value is unwrapped in turn the next time the comparator recurses into it.
+ */
+function unwrapDataValue(value) {
+  if (value instanceof OLDict) {
+    const entries = {};
+    for (const key of value.keys()) {
+      entries[String(key)] = value.get(key);
+    }
+    return entries;
+  }
+  if (value instanceof OLRecord) {
+    const entries = {};
+    for (const field of value.fields()) {
+      entries[field] = value.get(field);
+    }
+    return entries;
+  }
+  return value;
+}
+
 /** Order-insensitive structural equality for the plain JSON values in a fixture. */
 export function deepEqual(a, b) {
-  if (a === b) {
+  const actual = unwrapDataValue(b);
+  if (a === actual) {
     return true;
   }
   if (
     a === null ||
-    b === null ||
+    actual === null ||
     typeof a !== "object" ||
-    typeof b !== "object"
+    typeof actual !== "object"
   ) {
     return false;
   }
-  if (Array.isArray(a) || Array.isArray(b)) {
-    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) {
+  if (Array.isArray(a) || Array.isArray(actual)) {
+    if (
+      !Array.isArray(a) ||
+      !Array.isArray(actual) ||
+      a.length !== actual.length
+    ) {
       return false;
     }
-    return a.every((value, index) => deepEqual(value, b[index]));
+    return a.every((value, index) => deepEqual(value, actual[index]));
   }
   const keys = Object.keys(a);
-  if (keys.length !== Object.keys(b).length) {
+  if (keys.length !== Object.keys(actual).length) {
     return false;
   }
   return keys.every(
-    (key) => Object.hasOwn(b, key) && deepEqual(a[key], b[key]),
+    (key) => Object.hasOwn(actual, key) && deepEqual(a[key], actual[key]),
   );
+}
+
+// --- Graph fixtures: $id/$ref reference-identity extension -----------------------------------
+//
+// Per tests/conformance/README.md's "Graph fixtures" section (issue #495's fixture-format
+// follow-up): a plain fixture asserts exact JSON deep-equality, which cannot express "this node
+// is the same reference as that earlier node" or "this structure contains itself" — JSON is
+// acyclic by construction and has no identity concept. A fixture opts into reference-identity
+// assertions by wrapping any expected node once as `{"$id": "<label>", "$value": <node>}` (its
+// first occurrence) and every later occurrence of that SAME reference as `{"$ref": "<label>"}`.
+// Every other expected value stays plain JSON and is compared exactly as before — this
+// extension is purely additive, so no existing fixture's meaning changes.
+
+const GRAPH_ID_KEY = "$id";
+const GRAPH_VALUE_KEY = "$value";
+const GRAPH_REF_KEY = "$ref";
+
+function isPlainObject(node) {
+  return node !== null && typeof node === "object" && !Array.isArray(node);
+}
+
+/** Whether `node` is a `{"$id": "...", "$value": ...}` reference-definition wrapper. */
+function isGraphIdNode(node) {
+  return isPlainObject(node) && Object.hasOwn(node, GRAPH_ID_KEY);
+}
+
+/** Whether `node` is a `{"$ref": "..."}` back-reference to an earlier `$id`. */
+function isGraphRefNode(node) {
+  return isPlainObject(node) && Object.hasOwn(node, GRAPH_REF_KEY);
+}
+
+/**
+ * Whether `value` (an expected fixture value) contains a `$id`/`$ref` graph marker anywhere,
+ * so the harness only pays for identity-aware comparison on fixtures that opt in — every
+ * pre-existing fixture (no markers) keeps using the plain {@link deepEqual} path unchanged.
+ */
+export function hasGraphMarkers(value) {
+  if (value === null || typeof value !== "object") {
+    return false;
+  }
+  if (isGraphIdNode(value) || isGraphRefNode(value)) {
+    return true;
+  }
+  if (Array.isArray(value)) {
+    return value.some(hasGraphMarkers);
+  }
+  return Object.values(value).some(hasGraphMarkers);
+}
+
+/**
+ * Identity-aware structural comparison for one expected/actual pair, understanding the
+ * `$id`/`$value`/`$ref` graph-fixture convention (see above). Returns `{ matched, reason? }`.
+ *
+ * `ctx.idToActual` accumulates label → actual-reference bindings as `$id` nodes are visited,
+ * registered *before* recursing into `$value` — so a `$ref` nested inside its own `$value`
+ * (a genuine cycle, e.g. a self-referential list built via `add :l to :l`) resolves to the
+ * correct, still-being-compared reference instead of recursing forever. This mirrors the
+ * whole-capture/whole-render memo discipline `spec/execution-model.md` requires of a real
+ * snapshot or a real render (issue #495). `ctx` is scoped to exactly ONE event's (or one
+ * diagnostic's) payload comparison — per `spec/execution-model.md`'s effect-event snapshot rule,
+ * every event is an independently captured, sealed snapshot, so the spec makes no identity
+ * guarantee ACROSS two different events. A `$ref` may therefore only resolve to an `$id` declared
+ * earlier within the SAME event; one declared in a different event is an undefined reference (a
+ * clean mismatch, not a silent cross-event resolution) — see {@link diffStream}, which creates a
+ * fresh `ctx` per stream item for exactly this reason.
+ *
+ * `ctx.actualToId` is the reverse binding. It also catches the opposite fixture bug: an actual
+ * reference already bound to one label reappearing at a position the fixture left untagged (or
+ * tagged with a different, unrelated `$id`) — an aliasing the fixture did not declare.
+ */
+export function graphEqual(
+  expected,
+  actual,
+  ctx = { idToActual: new Map(), actualToId: new Map() },
+  skipAliasCheckOnce = false,
+) {
+  if (isGraphRefNode(expected)) {
+    const id = expected[GRAPH_REF_KEY];
+    if (!ctx.idToActual.has(id)) {
+      return {
+        matched: false,
+        reason: `$ref "${id}" has no earlier $id in this fixture`,
+      };
+    }
+    const bound = ctx.idToActual.get(id);
+    if (actual !== bound) {
+      return {
+        matched: false,
+        reason: `$ref "${id}" expected the same reference $id "${id}" captured, but actual holds a different reference (or an equal-but-distinct copy)`,
+      };
+    }
+    return { matched: true };
+  }
+
+  if (isGraphIdNode(expected)) {
+    const id = expected[GRAPH_ID_KEY];
+    // A primitive (number/word/boolean) is compared by value in JS, so reference identity is
+    // moot for it — `$id` still asserts the wrapped value matches, but does not register (or
+    // require) any alias binding. This keeps `$id`/`$ref` usable to label a primitive purely for
+    // readability without the harness demanding a reference type it can never be.
+    if (actual === null || typeof actual !== "object") {
+      return graphEqual(expected[GRAPH_VALUE_KEY], actual, ctx, false);
+    }
+    const existingActual = ctx.idToActual.get(id);
+    if (existingActual !== undefined) {
+      return {
+        matched: false,
+        reason:
+          existingActual === actual
+            ? `$id "${id}" is declared more than once — a repeat occurrence of the same reference must use $ref "${id}" instead of redeclaring $id`
+            : `$id "${id}" is declared more than once for different references — each $id label must be unique within a fixture`,
+      };
+    }
+    const boundId = ctx.actualToId.get(actual);
+    if (boundId !== undefined && boundId !== id) {
+      return {
+        matched: false,
+        reason: `actual reference is already bound to $id "${boundId}" but reappears where the fixture declared a distinct $id "${id}" (unexpected aliasing)`,
+      };
+    }
+    ctx.idToActual.set(id, actual);
+    ctx.actualToId.set(actual, id);
+    // `skipAliasCheckOnce`: the immediate recursion into this same $id's own `$value` compares
+    // `actual` against itself/its own contents — the binding just registered above must not be
+    // mistaken for a second, unrelated encounter of that reference by the generic check below.
+    return graphEqual(expected[GRAPH_VALUE_KEY], actual, ctx, true);
+  }
+
+  if (
+    !skipAliasCheckOnce &&
+    actual !== null &&
+    typeof actual === "object" &&
+    ctx.actualToId.has(actual)
+  ) {
+    return {
+      matched: false,
+      reason: `actual reference is already bound to $id "${ctx.actualToId.get(actual)}" but reappears at a position the fixture did not tag with a matching $ref (unexpected aliasing)`,
+    };
+  }
+
+  if (expected === actual) {
+    return { matched: true };
+  }
+  // An OLDict/OLRecord actual isn't a plain array/object, so unwrap it into the equivalent
+  // key/value shape for the structural comparison below. Reference-identity tracking above
+  // (isGraphIdNode/isGraphRefNode and the alias check) already used the original `actual`
+  // reference, so this unwrap cannot affect aliasing/cycle detection — only structural content.
+  const actualShape = unwrapDataValue(actual);
+  if (
+    expected === null ||
+    actualShape === null ||
+    typeof expected !== "object" ||
+    typeof actualShape !== "object"
+  ) {
+    return { matched: false, reason: "value mismatch" };
+  }
+  if (Array.isArray(expected) || Array.isArray(actualShape)) {
+    if (
+      !Array.isArray(expected) ||
+      !Array.isArray(actualShape) ||
+      expected.length !== actualShape.length
+    ) {
+      return { matched: false, reason: "array shape mismatch" };
+    }
+    for (let i = 0; i < expected.length; i++) {
+      const result = graphEqual(expected[i], actualShape[i], ctx);
+      if (!result.matched) {
+        return result;
+      }
+    }
+    return { matched: true };
+  }
+  const keys = Object.keys(expected);
+  if (keys.length !== Object.keys(actualShape).length) {
+    return { matched: false, reason: "object shape mismatch" };
+  }
+  for (const key of keys) {
+    if (!Object.hasOwn(actualShape, key)) {
+      return { matched: false, reason: `missing key "${key}"` };
+    }
+    const result = graphEqual(expected[key], actualShape[key], ctx);
+    if (!result.matched) {
+      return result;
+    }
+  }
+  return { matched: true };
+}
+
+/**
+ * `JSON.stringify`, but replaces any reference that is its own ancestor (a genuine cycle) with
+ * `"[[circular]]"` instead of throwing. Needed for mismatch reporting: a fixture exercising issue
+ * #495's cyclic/aliased values may hold a genuinely cyclic actual value, which plain
+ * `JSON.stringify` cannot serialize at all.
+ *
+ * Deliberately tracks only the *current path* (a stack of in-progress ancestors), not every
+ * reference ever visited — a plain acyclic-but-shared reference (the same sub-list appearing
+ * twice, unrelated to each other) must still render its full contents at each occurrence rather
+ * than being collapsed to a placeholder the second time; only an actual self-reference (a node
+ * that is its own ancestor while still being rendered) gets the placeholder.
+ */
+export function safeStringify(value) {
+  const onPath = new Set();
+  function walk(node) {
+    if (node === null || typeof node !== "object") {
+      return node;
+    }
+    if (onPath.has(node)) {
+      return "[[circular]]";
+    }
+    onPath.add(node);
+    try {
+      if (Array.isArray(node)) {
+        return node.map((item) => walk(item));
+      }
+      const out = {};
+      for (const key of Object.keys(node)) {
+        out[key] = walk(node[key]);
+      }
+      return out;
+    } finally {
+      onPath.delete(node);
+    }
+  }
+  try {
+    return JSON.stringify(walk(value));
+  } catch (err) {
+    return `[[unstringifiable: ${err.message}]]`;
+  }
+}
+
+/**
+ * One expected/actual comparison, dispatching to the identity-aware {@link graphEqual} when the
+ * expected side opted in via a `$id`/`$ref` marker, or the plain {@link deepEqual} otherwise
+ * (every pre-existing fixture). Either path is wrapped so a comparison that would otherwise
+ * overflow the host call stack — e.g. a genuinely cyclic actual value the fixture forgot to
+ * encode with `$id`/`$ref` — is reported as a clean mismatch instead of crashing the harness.
+ */
+export function itemsMatch(expectedItem, actualItem, ctx) {
+  try {
+    if (hasGraphMarkers(expectedItem)) {
+      return graphEqual(expectedItem, actualItem, ctx);
+    }
+    return { matched: deepEqual(expectedItem, actualItem) };
+  } catch (err) {
+    return {
+      matched: false,
+      reason: `comparison error (an actual cyclic/shared value may need the fixture's expected side to use $id/$ref — see tests/conformance/README.md): ${err.message}`,
+    };
+  }
 }
 
 /** Diff two streams element-by-element; return a readable report of the first mismatch, or null. */
@@ -410,14 +694,22 @@ export function diffStream(label, keyField, expected, actual) {
   for (let index = 0; index < count; index++) {
     const expectedItem = expected[index];
     const actualItem = actual[index];
-    if (deepEqual(expectedItem, actualItem)) {
+    // A fresh `ctx` per item: per spec/execution-model.md's effect-event snapshot rule, each
+    // event (or diagnostic) is an independently captured, sealed snapshot. The spec guarantees
+    // alias/cycle identity WITHIN one event's payload but makes no identity guarantee ACROSS two
+    // different events, so a fixture's $id/$ref graph markers must only ever resolve within the
+    // SAME item — never leak into (or out of) a sibling item's payload.
+    const ctx = { idToActual: new Map(), actualToId: new Map() };
+    const result = itemsMatch(expectedItem, actualItem, ctx);
+    if (result.matched) {
       continue;
     }
     const key = expectedItem?.[keyField] ?? actualItem?.[keyField] ?? index;
+    const reasonLine = result.reason ? `\n    reason:   ${result.reason}` : "";
     return [
       `  ${label} mismatch at ${keyField}=${JSON.stringify(key)} (index ${index}):`,
-      `    expected: ${expectedItem === undefined ? "(missing)" : JSON.stringify(expectedItem)}`,
-      `    actual:   ${actualItem === undefined ? "(missing)" : JSON.stringify(actualItem)}`,
+      `    expected: ${expectedItem === undefined ? "(missing)" : safeStringify(expectedItem)}`,
+      `    actual:   ${actualItem === undefined ? "(missing)" : safeStringify(actualItem)}${reasonLine}`,
     ].join("\n");
   }
   return null;
@@ -435,6 +727,9 @@ export function compare(expected, actual) {
     severity: d.severity,
   });
 
+  // No ctx is created (or shared) here: diffStream gives every individual event/diagnostic its
+  // own fresh graph-identity ctx, so $id/$ref aliasing can never leak across two events, across
+  // two diagnostics, or between the event stream and the diagnostic stream.
   const reports = [
     diffStream("event", "seq", expected.events, actual.events),
     diffStream(

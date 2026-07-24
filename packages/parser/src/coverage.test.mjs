@@ -317,6 +317,18 @@ test("parses map, filter, and reduce comprehensions", () => {
 test("reports comprehension syntax errors", () => {
   assert.deepEqual(codesOf("print reduce 5"), ["ol-bad-token"]); // accumulator not a name
   assert.deepEqual(codesOf("print map 5"), ["ol-bad-token"]); // binder not a name
+  // A `{` binder is a different malformed shape than a number: it is itself a lexically valid,
+  // balanced delimiter (unlike `5`), so it takes the `unexpected()` helper's dedicated `lbrace`
+  // branch rather than its generic `default` — `ol-unmatched-brace`, not `ol-bad-token`. This is
+  // an unrelated grammar production from the `dict-entry` malformed-key/separator fix (issues
+  // #520/#546, `unexpectedInDictEntry`/`skipMalformedDictKeyLiteral`): a comprehension binder
+  // position, not a dict-entry position, so it is out of scope for that fix and keeps its
+  // original `unexpected()` fallthrough behavior.
+  assert.deepEqual(codesOf("print map { a: 1 } in [1 2 3] [ :a ]"), [
+    "ol-unmatched-brace",
+    "ol-bad-token",
+    "ol-bad-token",
+  ]);
   assert.deepEqual(codesOf("print map x"), ["ol-bad-token"]); // missing `in`
   assert.deepEqual(codesOf("print map x in"), ["ol-bad-token"]); // iterable missing
   assert.deepEqual(codesOf("print reduce acc x in [1]"), ["ol-bad-token"]); // missing `from`

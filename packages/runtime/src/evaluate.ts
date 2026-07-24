@@ -2215,7 +2215,40 @@ export function formatNumber(value: number): string {
  * (issue #322 — the spec does not give dict printing a normative literal syntax, so this mirrors
  * the dict-literal surface for legibility).
  */
-export function printedForm(value: OLValue): string {
+export const CYCLIC_PLACEHOLDER = "...";
+
+/**
+ * One in-progress container being rendered by {@link printedForm}'s explicit work stack. `parts`
+ * accumulates each child's already-rendered text (in order) as children finish; `resultPrefix` is
+ * the `"key: "`/`"field: "` text (empty for a list element) that must be prepended once *this*
+ * frame's own rendering completes and it is appended to its parent's `parts`.
+ */
+type PrintFrame =
+  | {
+      kind: "array";
+      items: readonly OLValue[];
+      index: number;
+      parts: string[];
+      resultPrefix: string;
+    }
+  | {
+      kind: "dict";
+      source: OLDict;
+      keys: readonly OLDictKey[];
+      index: number;
+      parts: string[];
+      resultPrefix: string;
+    }
+  | {
+      kind: "record";
+      source: OLRecord;
+      fields: readonly string[];
+      index: number;
+      parts: string[];
+      resultPrefix: string;
+    };
+
+function primitivePrintedForm(value: OLValue): string | undefined {
   if (typeof value === "number") {
     return formatNumber(value);
   }
@@ -2225,19 +2258,277 @@ export function printedForm(value: OLValue): string {
   if (typeof value === "boolean") {
     return value ? "true" : "false";
   }
+  return undefined;
+}
+
+function pushPrintFrame(value: object, resultPrefix: string): PrintFrame {
+  if (Array.isArray(value)) {
+    return { kind: "array", items: value, index: 0, parts: [], resultPrefix };
+  }
   if (value instanceof OLDict) {
-    const entries = value
-      .keys()
-      .map((key) => `${key}: ${printedForm(value.get(key) as OLValue)}`);
-    return `{${entries.join(" ")}}`;
+    return {
+      kind: "dict",
+      source: value,
+      keys: value.keys(),
+      index: 0,
+      parts: [],
+      resultPrefix,
+    };
   }
-  if (value instanceof OLRecord) {
-    const entries = value
-      .fields()
-      .map((field) => `${field}: ${printedForm(value.get(field) as OLValue)}`);
-    return `${value.type} {${entries.join(" ")}}`;
+  const record = value as OLRecord;
+  return {
+    kind: "record",
+    source: record,
+    fields: record.fields(),
+    index: 0,
+    parts: [],
+    resultPrefix,
+  };
+}
+
+function printFrameLength(frame: PrintFrame): number {
+  return frame.kind === "array"
+    ? frame.items.length
+    : frame.kind === "dict"
+      ? frame.keys.length
+      : frame.fields.length;
+}
+
+function finishPrintFrame(frame: PrintFrame): string {
+  if (frame.kind === "array") {
+    return `${frame.resultPrefix}[${frame.parts.join(" ")}]`;
   }
-  return `[${value.map(printedForm).join(" ")}]`;
+  if (frame.kind === "dict") {
+    return `${frame.resultPrefix}{${frame.parts.join(" ")}}`;
+  }
+  return `${frame.resultPrefix}${frame.source.type} {${frame.parts.join(" ")}}`;
+}
+
+/**
+ * The canonical printed form of any Core value (`spec/execution-model.md:19` for numbers;
+ * `print`/`show` in `spec/commands.md:142-175` for the command surface). Used to render the
+ * `print value`/`(print …)` trace event as learner-visible text: numbers follow
+ * {@link formatNumber}; a word prints verbatim (no surrounding quotes); a boolean prints
+ * `true`/`false`; a list prints space-separated and bracketed, recursively, so a nested list
+ * renders as `[1 [2 3]]`; a dict prints its entries in insertion order as `{key: value …}`
+ * (issue #322 — the spec does not give dict printing a normative literal syntax, so this mirrors
+ * the dict-literal surface for legibility).
+ *
+ * Rendering MUST terminate on cyclic *or merely repeated/shared* structure via a whole-render
+ * identity memo (`seen`, issue #495's rendering-termination rule, tied to `spec/error-model.md`'s
+ * `ol-limit` guardrail) — a repeat reference gets {@link CYCLIC_PLACEHOLDER} instead of recursing
+ * again. That guardrail is only half the story: a value can also be perfectly acyclic yet nested
+ * far deeper than any host call stack can recurse into natively (e.g. 20,000 lists each wrapping
+ * the last, with no self-reference at all) — cycle detection alone does not stop that from
+ * throwing a host `RangeError: Maximum call stack size exceeded`, which is exactly the uncontrolled
+ * failure `ol-limit` exists to avoid. So this walks the value with an explicit work stack
+ * ({@link PrintFrame}) instead of native recursion: each container being rendered is one frame on
+ * an array in the heap, not one frame on the (bounded) native call stack, so traversal depth is
+ * limited only by available heap, not by V8's stack size — an acyclic value of any depth renders
+ * without overflowing, exactly like a cyclic one is bounded by the `seen` memo.
+ */
+export function printedForm(
+  value: OLValue,
+  seen: Set<object> = new Set(),
+): string {
+  const rootPrimitive = primitivePrintedForm(value);
+  if (rootPrimitive !== undefined) {
+    return rootPrimitive;
+  }
+  const root = value as object;
+  if (seen.has(root)) {
+    return CYCLIC_PLACEHOLDER;
+  }
+  seen.add(root);
+
+  const stack: PrintFrame[] = [pushPrintFrame(root, "")];
+  while (true) {
+    const frame = stack[stack.length - 1] as PrintFrame;
+    if (frame.index >= printFrameLength(frame)) {
+      stack.pop();
+      const result = finishPrintFrame(frame);
+      if (stack.length === 0) {
+        return result;
+      }
+      stack[stack.length - 1]?.parts.push(result);
+      continue;
+    }
+
+    let child: OLValue;
+    let prefix: string;
+    if (frame.kind === "array") {
+      child = frame.items[frame.index] as OLValue;
+      prefix = "";
+    } else if (frame.kind === "dict") {
+      const key = frame.keys[frame.index] as OLDictKey;
+      child = frame.source.get(key) as OLValue;
+      prefix = `${key}: `;
+    } else {
+      const field = frame.fields[frame.index] as string;
+      child = frame.source.get(field) as OLValue;
+      prefix = `${field}: `;
+    }
+    frame.index += 1;
+
+    const childPrimitive = primitivePrintedForm(child);
+    if (childPrimitive !== undefined) {
+      frame.parts.push(`${prefix}${childPrimitive}`);
+      continue;
+    }
+    const childObject = child as object;
+    if (seen.has(childObject)) {
+      frame.parts.push(`${prefix}${CYCLIC_PLACEHOLDER}`);
+      continue;
+    }
+    seen.add(childObject);
+    stack.push(pushPrintFrame(childObject, prefix));
+  }
+}
+
+/**
+ * One in-progress container being cloned by {@link snapshotValue}'s explicit work stack. `clone`
+ * is the already-`memo`-registered target object for `source` — its *identity* is fixed the
+ * moment the frame is created (before any of its children are filled in), which is what lets a
+ * self-reference (or a cycle several levels back) resolve correctly via `memo` even though that
+ * ancestor's own contents are still mid-copy.
+ */
+type SnapshotFrame =
+  | {
+      kind: "array";
+      source: readonly OLValue[];
+      index: number;
+      clone: OLValue[];
+    }
+  | {
+      kind: "dict";
+      source: OLDict;
+      keys: readonly OLDictKey[];
+      index: number;
+      clone: OLDict;
+    }
+  | {
+      kind: "record";
+      source: OLRecord;
+      fields: readonly string[];
+      index: number;
+      clone: OLRecord;
+    };
+
+function makeSnapshotFrame(
+  source: object,
+  memo: Map<object, OLValue>,
+): SnapshotFrame {
+  if (Array.isArray(source)) {
+    const clone: OLValue[] = [];
+    memo.set(source, clone);
+    return { kind: "array", source, index: 0, clone };
+  }
+  if (source instanceof OLDict) {
+    const clone = new OLDict();
+    memo.set(source, clone);
+    return { kind: "dict", source, keys: source.keys(), index: 0, clone };
+  }
+  const record = source as OLRecord;
+  const fields = record.fields();
+  const clone = new OLRecord(
+    record.type,
+    fields,
+    fields.map(() => false),
+  );
+  memo.set(record, clone);
+  return { kind: "record", source: record, fields, index: 0, clone };
+}
+
+function snapshotFrameLength(frame: SnapshotFrame): number {
+  return frame.kind === "array"
+    ? frame.source.length
+    : frame.kind === "dict"
+      ? frame.keys.length
+      : frame.fields.length;
+}
+
+function storeSnapshotChild(frame: SnapshotFrame, childClone: OLValue): void {
+  if (frame.kind === "array") {
+    frame.clone.push(childClone);
+    return;
+  }
+  // `frame.index` was already advanced past this child by the caller, so the key/field this
+  // child belongs to is the one just consumed, at `index - 1`.
+  if (frame.kind === "dict") {
+    const key = frame.keys[frame.index - 1] as OLDictKey;
+    frame.clone.set(key, childClone);
+    return;
+  }
+  const field = frame.fields[frame.index - 1] as string;
+  frame.clone.set(field, childClone);
+}
+
+/**
+ * Effect-event payload snapshot capture (`spec/execution-model.md`'s point-in-time-snapshot
+ * rule, added alongside issue #495): produces a transitive, immutable copy of `value`'s
+ * reachable value graph, as of this instant, so a later mutation through the original live
+ * reference cannot retroactively change an already-emitted event's payload. Aliasing/cycle
+ * structure is preserved via snapshot-local reference identity: `memo` is shared across one
+ * whole capture, so two positions that were the same live reference remain the same
+ * snapshotted reference, and a self-referential list (via `add :l to :l`) is captured once.
+ *
+ * Like {@link printedForm}, this walks `value` with an explicit work stack ({@link
+ * SnapshotFrame}) rather than native recursion: a value can be perfectly acyclic yet nested far
+ * deeper than any host call stack can recurse into (e.g. 20,000 lists each wrapping the last), and
+ * a snapshot capturing an effect-event payload must not itself throw a host
+ * `RangeError: Maximum call stack size exceeded` — exactly the uncontrolled failure
+ * `spec/error-model.md`'s `ol-limit` guardrail exists to avoid. Each container's clone is created
+ * and registered in `memo` up front (before any of its own children are copied), so a
+ * self-reference or a cycle several frames back still resolves to the right (possibly
+ * still-filling-in) clone via the ordinary `memo.get` lookup below.
+ */
+export function snapshotValue(
+  value: OLValue,
+  memo: Map<object, OLValue> = new Map(),
+): OLValue {
+  if (typeof value !== "object" || value === null) {
+    return value;
+  }
+  const existing = memo.get(value);
+  if (existing !== undefined) {
+    return existing;
+  }
+
+  const stack: SnapshotFrame[] = [makeSnapshotFrame(value, memo)];
+  while (stack.length > 0) {
+    const frame = stack[stack.length - 1] as SnapshotFrame;
+    if (frame.index >= snapshotFrameLength(frame)) {
+      stack.pop();
+      continue;
+    }
+
+    let child: OLValue;
+    if (frame.kind === "array") {
+      child = frame.source[frame.index] as OLValue;
+    } else if (frame.kind === "dict") {
+      const key = frame.keys[frame.index] as OLDictKey;
+      child = frame.source.get(key) as OLValue;
+    } else {
+      const field = frame.fields[frame.index] as string;
+      child = frame.source.get(field) as OLValue;
+    }
+    frame.index += 1;
+
+    if (typeof child !== "object" || child === null) {
+      storeSnapshotChild(frame, child);
+      continue;
+    }
+    const existingChildClone = memo.get(child);
+    if (existingChildClone !== undefined) {
+      storeSnapshotChild(frame, existingChildClone);
+      continue;
+    }
+    const childFrame = makeSnapshotFrame(child, memo);
+    storeSnapshotChild(frame, childFrame.clone);
+    stack.push(childFrame);
+  }
+
+  return memo.get(value) as OLValue;
 }
 
 /**
