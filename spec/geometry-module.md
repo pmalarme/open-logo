@@ -26,6 +26,21 @@ The Geometry profile adds these derived commands and reporters:
 
 Drawing commands use the current turtle state defined by the turtle model: origin at the canvas center, heading `0` upward, `right` clockwise, `left` counter-clockwise, degrees, and pen-down drawing by default. Unless otherwise stated, geometry commands preserve the current pen state and use ordinary turtle movement. The `area` and `perimeter` reporters read their shape-spec list by index (`:shape[2]`), so they additionally require the **Data** profile's list indexing.
 
+The exterior-turn reasoning in this document uses a positive, unsigned exterior-angle magnitude
+throughout: `polygon`, `star`, and `circle` use positive `right` turn magnitudes, and `arc` uses
+positive `left` turn magnitudes (see `arc`'s own construction below). None of these established
+constructions need a negative angle or the signed `turn` command to close a shape or draw its
+curve, since every exterior turn each of them computes is a positive quantity by construction, in
+whichever direction (`right` or `left`) that construction already uses; this proposal does not
+change any of them. `right`, `left`, and `turn` accept signed angles as specified in
+[commands.md](commands.md); a geometry helper or learner program that wants a turn in the opposite
+sense from what is shown here MAY substitute a negated angle or `turn` freely, since `right :angle`
+and `left :angle` remain exactly `turn :angle` and `turn (0 - :angle)` respectively — and mirroring
+an entire construction (running it left-for-right) reverses the algebraic sign of every turn it
+performs, without changing the magnitude reasoning above. Renderers animate every turn here, like
+any other `turn` event, through its signed `delta` rather than the shortest arc between headings,
+per [rendering.md](rendering.md#turtle-avatar-and-shapes).
+
 ## `polygon :sides :size`
 
 Source first:

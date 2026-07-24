@@ -120,6 +120,8 @@ The default avatar shape is an implementation-defined turtle-like shape whose no
 
 The avatar MUST be positioned at the turtle's world position and rotated so heading `0°` points upward. Shape size is a renderer presentation property and MUST NOT affect turtle coordinates, collision semantics, line geometry, or exports except for the visible avatar when exported.
 
+When animating a `turn` event (see [the trace and event registry](execution-model.md#trace-and-event-registry)), the renderer MUST rotate the avatar through the event's signed `delta` — the exact direction and full requested magnitude, including any number of whole rotations, such as `720` for two full clockwise turns — and MUST NOT instead animate the shortest arc between the event's `from` and `to` headings. Animating the shortest arc would silently discard direction and winding-count information that the `delta` field exists to preserve, and would make `turn` animation depend on `from`/`to` alone even though the signed `delta` is the source of truth for the rotation actually requested.
+
 ## Background
 
 `set_background` changes the scene background color and emits a `background-change` event. The background is not a drawn rectangle in turtle coordinates; it covers the whole target viewport or export surface. `clear_screen` and `clean` do not reset the background. The initial background is `"white"`.
