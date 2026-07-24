@@ -161,9 +161,14 @@ test("detectUsedProfiles finds data for add/remove/insert/clear collection mutat
   assert.deepEqual(detectUsedProfiles("clear :colors\n"), ["data"]);
 });
 
-test("detectUsedProfiles finds data for the Heritage 'value of ... for key' dict reader", () => {
+test("detectUsedProfiles finds BOTH heritage and data for the 'value of ... for key' dict reader", () => {
+  // spec/conformance.md:273/:301: `value of ... for key` is classified as Heritage, but that
+  // spelling "also needs Data" because it operates on dicts — an example using it must declare
+  // BOTH profiles, or the missing one goes undetected (the same G8 masking class this whole gate
+  // exists to close; a first draft classified this construct as "data" only and missed heritage).
   assert.deepEqual(detectUsedProfiles('print value of :ages for key "tom"\n'), [
     "data",
+    "heritage",
   ]);
 });
 
@@ -352,6 +357,45 @@ test("runExamplesGate: catches masking via a Data derived-reporter primitive too
       (line) =>
         line.startsWith("FAIL masked-primitive.logo:") && line.includes("data"),
     ),
+  );
+});
+
+test("runExamplesGate: catches masking of the Heritage half of 'value of ... for key' too (integration-owner review follow-up)", () => {
+  // spec/conformance.md:273/:301: `value of ... for key` is Heritage AND (because it operates on
+  // dicts) Data. A manifest that declares "data" + an unrelated unimplemented profile ("sound")
+  // but omits "heritage" must still FAIL loudly naming heritage, not SKIP — the exact G8 masking
+  // class this gate exists to close, this time on the Heritage side of the dependency.
+  writeExample(
+    "masked-value-of.logo",
+    'set_tempo 120\nprint value of :ages for key "tom"\n',
+  );
+  const result = runExamplesGate({
+    dir: TEMP_DIR,
+    manifest: {
+      "masked-value-of.logo": [
+        "core-language",
+        "turtle-rendering",
+        "sound",
+        "data",
+      ],
+    },
+    implementedProfiles: ["core-language", "turtle-rendering", "data"],
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.skipped,
+    0,
+    "must FAIL, not SKIP — the missing heritage declaration must not be masked",
+  );
+  assert.equal(result.failed, 1);
+  assert.ok(
+    result.lines.some(
+      (line) =>
+        line.startsWith("FAIL masked-value-of.logo:") &&
+        line.includes("heritage"),
+    ),
+    "the failure line must name the example and the missing profile (heritage)",
   );
 });
 

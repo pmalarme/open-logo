@@ -66,8 +66,12 @@ export const IMPLEMENTED_PROFILES = [
  * AST node kinds that `spec/conformance.md`'s feature table classifies as unconditionally
  * **Data**-profile behavior, regardless of what implementation-status other profiles the example
  * also declares: dictionary literals (`{ key: value }`), `struct` type declarations, and the
- * `add`/`remove`/`clear`/`insert` collection-mutation forms, plus the Heritage `value of … for
- * key` dictionary reader (which "also needs the Data profile", `spec/conformance.md:273`).
+ * `add`/`remove`/`clear`/`insert` collection-mutation forms.
+ *
+ * `ValueOfKey` (the Heritage `value of … for key` dictionary reader) is deliberately NOT in this
+ * set: `spec/conformance.md:273`/`:301` classify that spelling as **Heritage**, which *also*
+ * depends on **Data** because the reader operates on dicts — so a source using it needs BOTH
+ * profiles, not just Data. It gets its own check below so it can add both.
  *
  * This does NOT cover the Data profile's derived-reporter *primitives* (`dict`, `list`, `reverse`,
  * `pick`, `sort`, `keys`, `values`, `type_of`, `spec/data-structures.md`'s "Derived list
@@ -84,7 +88,6 @@ const DATA_NODE_KINDS = new Set([
   "RemoveKey",
   "Insert",
   "Clear",
-  "ValueOfKey",
 ]);
 
 /**
@@ -179,6 +182,16 @@ export function detectUsedProfiles(source) {
   const used = new Set();
 
   walk(ast, (node) => {
+    if (node.kind === "ValueOfKey") {
+      // The Heritage `value of ... for key` dictionary reader (`spec/conformance.md:273`,`:301`):
+      // classified as Heritage, but it "also needs Data" because it operates on dicts — an
+      // example using it must declare BOTH, or the missing one goes undetected (issue #519
+      // masking class: declaring only `data` would silently under-declare `heritage`, and vice
+      // versa).
+      used.add("heritage");
+      used.add("data");
+      return;
+    }
     if (DATA_NODE_KINDS.has(node.kind)) {
       used.add("data");
       return;
