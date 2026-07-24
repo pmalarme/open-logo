@@ -133,25 +133,34 @@ of the production's two positions:
 
 - **Key position** — `dict-key ::= identifier | number` accepts no general expression, so a nested
   dict literal used as a key (`print { { a: 1 }: 2 }`) is unexpected there: the inner `{` is itself
-  a lexically valid delimiter, just not one legal in this position.
+  a lexically valid delimiter, just not one legal in this position. A nested **list** literal used
+  as a key (`print { [ 1 2 ]: 2 }`) is unexpected for the identical reason: the inner `[` is a
+  lexically valid, balanced delimiter, just not one legal in `dict-key` position.
 - **Separator position** — once a valid key parses, only `:` is legal next (an `expression` for
   the value only becomes legal after that `:`). A `{` opening a nested (and itself well-formed)
   dict literal there instead (`print { a { b: 1 } }`, where `a` parses as a valid key but no `:`
-  follows) is unexpected for the same reason: the `{` is a valid token, just misplaced.
+  follows) is unexpected for the same reason: the `{` is a valid token, just misplaced. A `[`
+  opening a nested (and itself well-formed) list literal there instead (`print { a [ 1 2 ] }`,
+  where `a` parses as a valid key but no `:` follows) is unexpected identically: the `[` is a valid,
+  balanced token, just misplaced.
 
-In both cases `ol-bad-token` alone is authoritative for the malformed-input class; parser recovery
-MUST NOT additionally raise `ol-unmatched-brace` for a brace that is, in fact, correctly matched —
-the enclosing dict literal's own braces (key-position case) and the well-formed nested literal's own
-braces (separator-position case) are unaffected by the malformed entry around them.
+In all cases `ol-bad-token` alone is authoritative for the malformed-input class; parser recovery
+MUST NOT additionally raise `ol-unmatched-brace` or `ol-unmatched-bracket` for a brace or bracket
+that is, in fact, correctly matched - the enclosing dict literal's own braces (key-position case)
+and the well-formed nested literal's own delimiters, whether `{ }` or `[ ]` (separator-position
+case), are unaffected by the malformed entry around them.
 
-A conformance fixture for either example MUST observe exactly this diagnostic shape: the
-diagnostics list is exactly `["ol-bad-token"]` (no `ol-unmatched-brace`, no other code); `stage` is
-`parse`; `params.text` is `"{"` (the inner opening brace's own text, not the whole nested literal);
-and the diagnostic's span covers only that inner `{` character — for `print { { a: 1 }: 2 }`, from
-the offset of the second `{` to immediately after it; for `print { a { b: 1 } }`, from the offset of
-the `{` following `a` to immediately after it — not the outer dict literal's braces and not the
-`b: 1 }`/`a: 1 }` that follows. See [data-structures.md](data-structures.md#dictionaries) for the
-full dict-key grammar and this rule's normative statement.
+A conformance fixture for any of these examples MUST observe exactly this diagnostic shape: the
+diagnostics list is exactly `["ol-bad-token"]` (no `ol-unmatched-brace`, no `ol-unmatched-bracket`,
+no other code); `stage` is `parse`; `params.text` is the inner opening delimiter's own text - `"{"`
+for a nested dict literal, `"["` for a nested list literal - not the whole nested literal; and the
+diagnostic's span covers only that inner delimiter character - for `print { { a: 1 }: 2 }`, from the
+offset of the second `{` to immediately after it; for `print { a { b: 1 } }`, from the offset of the
+`{` following `a` to immediately after it; for `print { [ 1 2 ]: 2 }`, from the offset of the `[` to
+immediately after it; for `print { a [ 1 2 ] }`, from the offset of the `[` following `a` to
+immediately after it - not the outer dict literal's braces and not the nested literal's own contents
+that follow. See [data-structures.md](data-structures.md#dictionaries) for the full dict-key grammar
+and this rule's normative statement.
 
 ## Style linter codes
 
