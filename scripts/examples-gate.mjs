@@ -14,6 +14,23 @@
  * not throw, or the gate fails. An example that needs a profile not yet implemented is SKIPPED
  * with a visible notice — it is never silently counted as a pass.
  *
+ * **Profile under-declaration (issue #519, finding G8):** the SKIP path above is necessary
+ * (a not-yet-implemented profile cannot be executed), but it must never become a way for an
+ * example's manifest entry to *under*-declare a profile it actually depends on. A source file
+ * that needs, say, Data (e.g. `:list[i]` list-index) but also declares an unrelated
+ * not-yet-implemented profile (e.g. Sound) would previously be skipped in its entirety before
+ * `data` was ever checked — silently masking the missing declaration. {@link detectUsedProfiles}
+ * statically scans the parsed AST for the constructs `spec/conformance.md` classifies as
+ * normatively belonging to an optional profile (list-index/dict/struct/mutation-form usage for
+ * Data; `note`/`beep`/`play`/`rest`/`set_tempo` for Sound; `input`/`when`/`every`/`on_key`/
+ * `on_click`/`wait` for Interaction & Events; `new_turtle`/`tell`/`ask`/`each`/`turtles`/`who` for
+ * Sprites; the closed Heritage short-alias list plus `value of … for key` for Heritage), and
+ * {@link runExamplesGate} compares that detected set against the manifest's declared profiles
+ * (expanded to their full dependency closure via `scripts/harness/index.mjs`'s `PROFILE_DEPS`)
+ * for **every** example — before the SKIP decision, so an under-declaration FAILS the gate loudly
+ * (naming the example and the missing profile) even when the file would otherwise be skipped for
+ * an unrelated reason.
+ *
  * The profile manifest (`scripts/examples-profiles.json`) is owned here, not under `spec/` —
  * `spec/` is maintainer-owned (AGENTS.md), so this gate must never add tags/headers to the
  * `.logo` files themselves.
@@ -21,7 +38,9 @@
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { parse, walk } from "@openlogo/parser";
 import { execute } from "@openlogo/runtime";
+import { closureOf } from "./harness/index.mjs";
 
 export const EXAMPLES_DIR = join("spec", "examples");
 export const MANIFEST_PATH = join("scripts", "examples-profiles.json");
@@ -39,6 +58,141 @@ export const IMPLEMENTED_PROFILES = [
   "data",
   "geometry",
 ];
+
+/**
+ * AST node kinds that `spec/conformance.md`'s feature table classifies as unconditionally
+ * **Data**-profile behavior, regardless of what implementation-status other profiles the example
+ * also declares: dictionary literals (`{ key: value }`), `struct` type declarations, and the
+ * `add`/`remove`/`clear`/`insert` collection-mutation forms, plus the Heritage `value of … for
+ * key` dictionary reader (which "also needs the Data profile", `spec/conformance.md:273`).
+ */
+const DATA_NODE_KINDS = new Set([
+  "DictLit",
+  "StructDef",
+  "Add",
+  "Remove",
+  "RemoveKey",
+  "Insert",
+  "Clear",
+  "ValueOfKey",
+]);
+
+/**
+ * Call-site names that `spec/interaction-events.md` reserves for the **Sound** primitives
+ * (`set_tempo`/`note`/`play`/`beep`/`rest`).
+ */
+const SOUND_CALLEE_NAMES = new Set([
+  "note",
+  "play",
+  "beep",
+  "rest",
+  "set_tempo",
+]);
+
+/**
+ * Call-site names `spec/interaction-events.md` reserves for the **Interaction & Events**
+ * primitives (`input`, `wait`, and the `when`/`every`/`on_key`/`on_click` block-heads).
+ */
+const INTERACTION_EVENTS_CALLEE_NAMES = new Set([
+  "input",
+  "wait",
+  "when",
+  "every",
+  "on_key",
+  "on_click",
+]);
+
+/**
+ * Call-site names `spec/turtles-and-sprites.md`'s canonical-forms list reserves for the
+ * **Sprites** profile (`new_turtle`, `tell`, `ask`, `each`, `turtles`, `who`).
+ */
+const SPRITES_CALLEE_NAMES = new Set([
+  "new_turtle",
+  "tell",
+  "ask",
+  "each",
+  "turtles",
+  "who",
+]);
+
+/**
+ * The **Heritage** profile's closed short-alias list (`spec/conformance.md:105-117`,`:271-272`):
+ * `fd`/`bk`/`lt`/`rt`/`pu`/`pd`/`st`/`ht`/`cs`/`pr` plus the list-reporter alias spellings
+ * `bf`/`bl`/`se`. `make`/`to`/`output`/`op` are also Heritage spellings but are not yet
+ * parseable call-site names (the parser has no AST production for them today), so they cannot be
+ * detected this way; the closed alias list below is what a real example can actually contain.
+ */
+const HERITAGE_CALLEE_NAMES = new Set([
+  "fd",
+  "bk",
+  "lt",
+  "rt",
+  "pu",
+  "pd",
+  "st",
+  "ht",
+  "cs",
+  "pr",
+  "bf",
+  "bl",
+  "se",
+]);
+
+/**
+ * Statically detect the set of optional conformance profiles `source` actually uses, per
+ * `spec/conformance.md`'s normative feature-to-profile classification. This is independent of
+ * which profiles are implemented today (see {@link IMPLEMENTED_PROFILES}) and independent of the
+ * manifest's declared profiles — it is a fact about the source text alone, used to catch a
+ * manifest entry that under-declares what the example needs (issue #519, finding G8).
+ *
+ * Deliberately conservative: it flags only constructs the spec ties to one profile in *every*
+ * context (list-index/field-selector reads, dict/struct/mutation-form syntax, and each profile's
+ * reserved primitive/alias names). It does not attempt to detect Core Language or Turtle &
+ * Rendering (every example needs both, and nothing here would ever contradict that), nor
+ * record-binder destructuring (`spec/conformance.md`'s Data-vs-Core split for `for [:x :y] in
+ * ...` depends on the *runtime* value being destructured — list vs record — which a static AST
+ * walk cannot decide; see the spec's "List-binder destructuring classification").
+ *
+ * Never throws: a source that fails to parse cleanly still returns whatever partial AST
+ * `@openlogo/parser`'s `parse()` recovered, and this function only ever reads node `kind`s and
+ * callee names off it.
+ *
+ * @returns a sorted, de-duplicated array of profile ids, e.g. `["data"]` or `["data", "sound"]`.
+ */
+export function detectUsedProfiles(source) {
+  const { ast } = parse(source);
+  const used = new Set();
+
+  walk(ast, (node) => {
+    if (DATA_NODE_KINDS.has(node.kind)) {
+      used.add("data");
+      return;
+    }
+    if (node.kind === "Place" || node.kind === "PostfixExpression") {
+      for (const segment of node.segments) {
+        if (segment.kind === "index" || segment.kind === "field") {
+          used.add("data");
+        }
+      }
+      return;
+    }
+    if (node.kind !== "Call" && node.kind !== "ParenCall") {
+      return;
+    }
+    const name = node.callee.name.toLowerCase();
+    if (SOUND_CALLEE_NAMES.has(name)) {
+      used.add("sound");
+    } else if (INTERACTION_EVENTS_CALLEE_NAMES.has(name)) {
+      used.add("interaction-events");
+    } else if (SPRITES_CALLEE_NAMES.has(name)) {
+      used.add("sprites");
+    } else if (HERITAGE_CALLEE_NAMES.has(name)) {
+      used.add("heritage");
+    }
+  });
+
+  return [...used].sort();
+}
 
 /** Load the filename -> required-profile-id[] manifest from `manifestPath`. */
 export function loadManifest(manifestPath = MANIFEST_PATH) {
@@ -83,6 +237,12 @@ export function classifyExample(source, name) {
  * from `manifestPath`) to determine each file's required profiles. Never calls `process.exit` —
  * the CLI shell (`check-examples.mjs`) does that from the returned `ok` flag.
  *
+ * For every example with a manifest entry, this also runs the profile under-declaration check
+ * (issue #519, finding G8, see {@link detectUsedProfiles}) BEFORE deciding whether to run or skip
+ * it: an example whose source uses a construct outside its declared profiles' dependency closure
+ * FAILS loudly, naming the example and the missing profile(s), regardless of whether the example
+ * would otherwise have run, passed, or been skipped for an unrelated not-yet-implemented profile.
+ *
  * @returns `{ ok, ran, skipped, failed, lines }` — `lines` is the printable report (one
  *   `PASS`/`FAIL`/`SKIP` line per example plus a trailing summary line); `ok` is `false` when any
  *   example failed or the manifest/directory itself is invalid.
@@ -125,6 +285,31 @@ export function runExamplesGate({
       continue;
     }
 
+    const source = readFileSync(join(dir, file), "utf8");
+
+    // Profile under-declaration check (issue #519, finding G8) runs for EVERY example, before
+    // the SKIP decision below — so it can never be masked by an unrelated not-yet-implemented
+    // profile. `requiredProfiles` is expanded to its full dependency closure (declaring
+    // "geometry" already implies "data", for example) before comparing against what the source
+    // actually uses.
+    const declaredClosure = new Set(
+      requiredProfiles.flatMap((profile) => [...closureOf(profile)]),
+    );
+    const usedProfiles = detectUsedProfiles(source);
+    const underDeclared = usedProfiles.filter(
+      (profile) => !declaredClosure.has(profile),
+    );
+    if (underDeclared.length > 0) {
+      failed += 1;
+      lines.push(
+        `FAIL ${file}: under-declared profile(s) ${underDeclared.join(", ")} — ` +
+          `the source uses a construct that requires ${underDeclared.length === 1 ? "profile" : "profiles"} ` +
+          `${underDeclared.join(", ")} but ${manifestPath}'s entry (${requiredProfiles.join(", ")}) does not cover ` +
+          `${underDeclared.length === 1 ? "it" : "them"}`,
+      );
+      continue;
+    }
+
     if (!isRunnable(requiredProfiles, implementedProfiles)) {
       const missing = requiredProfiles.filter(
         (profile) => !implementedProfiles.includes(profile),
@@ -136,7 +321,6 @@ export function runExamplesGate({
       continue;
     }
 
-    const source = readFileSync(join(dir, file), "utf8");
     ran += 1;
     const outcome = classifyExample(source, file);
     if (outcome.status === "pass") {

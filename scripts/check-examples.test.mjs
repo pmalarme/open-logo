@@ -13,6 +13,7 @@ import {
   IMPLEMENTED_PROFILES,
   MANIFEST_PATH,
   classifyExample,
+  detectUsedProfiles,
   isRunnable,
   loadManifest,
   parseArgs,
@@ -101,6 +102,97 @@ test("parseArgs returns undefined overrides when no flags are given", () => {
   assert.deepEqual(parseArgs([]), { dir: undefined, manifestPath: undefined });
 });
 
+// --- detectUsedProfiles unit tests (issue #519, finding G8) -------------------------------
+//
+// One case per construct spec/conformance.md ties to an optional profile in every context,
+// plus the plain-Core baseline and the record-vs-list-binder destructuring case the task
+// explicitly rules Core (spec/conformance.md's list-binder-over-plain-lists classification).
+
+test("detectUsedProfiles finds no optional profile in a plain Core/Turtle program", () => {
+  assert.deepEqual(
+    detectUsedProfiles("clear_screen\nforward 50\nright 90\n"),
+    [],
+  );
+});
+
+test("detectUsedProfiles: plain-list-binder destructuring stays Core, not Data", () => {
+  // Mirrors 08-algorithms.logo's real usage: destructuring a *plain list* of coordinate pairs.
+  // spec/conformance.md rules this Core — only record-binder destructuring needs Data, and that
+  // depends on the runtime value being destructured, which a static AST walk cannot decide.
+  assert.deepEqual(
+    detectUsedProfiles(
+      ":points = [[0 0] [10 0]]\nfor [:x :y] in :points\n  forward :x\nend for\n",
+    ),
+    [],
+  );
+});
+
+test("detectUsedProfiles finds data for a list-index read", () => {
+  assert.deepEqual(detectUsedProfiles("print :colors[1]\n"), ["data"]);
+});
+
+test("detectUsedProfiles finds data for a list-index write (place assignment)", () => {
+  assert.deepEqual(detectUsedProfiles(':colors[2] = "purple"\n'), ["data"]);
+});
+
+test("detectUsedProfiles finds data for dotted field access", () => {
+  assert.deepEqual(detectUsedProfiles("print :ages.tom\n"), ["data"]);
+});
+
+test("detectUsedProfiles finds data for a dict literal", () => {
+  assert.deepEqual(detectUsedProfiles(":ages = {\n  tom: 8\n}\n"), ["data"]);
+});
+
+test("detectUsedProfiles finds data for a struct declaration", () => {
+  assert.deepEqual(detectUsedProfiles("struct point [ x y ]\n"), ["data"]);
+});
+
+test("detectUsedProfiles finds data for add/remove/insert/clear collection mutation forms", () => {
+  assert.deepEqual(detectUsedProfiles('add "orange" to :colors\n'), ["data"]);
+  assert.deepEqual(detectUsedProfiles('remove "orange" from :colors\n'), [
+    "data",
+  ]);
+  assert.deepEqual(detectUsedProfiles("remove key sophie from :ages\n"), [
+    "data",
+  ]);
+  assert.deepEqual(detectUsedProfiles('insert "x" in :colors at 1\n'), [
+    "data",
+  ]);
+  assert.deepEqual(detectUsedProfiles("clear :colors\n"), ["data"]);
+});
+
+test("detectUsedProfiles finds data for the Heritage 'value of ... for key' dict reader", () => {
+  assert.deepEqual(detectUsedProfiles('print value of :ages for key "tom"\n'), [
+    "data",
+  ]);
+});
+
+test("detectUsedProfiles finds sound for the Sound primitive names", () => {
+  assert.deepEqual(detectUsedProfiles("note 440 1\n"), ["sound"]);
+  assert.deepEqual(detectUsedProfiles('play "C4"\n'), ["sound"]);
+});
+
+test("detectUsedProfiles finds interaction-events for wait/when/every/on_key/on_click/input", () => {
+  assert.deepEqual(detectUsedProfiles("wait 1\n"), ["interaction-events"]);
+});
+
+test("detectUsedProfiles finds sprites for new_turtle/tell/ask/each/turtles/who", () => {
+  assert.deepEqual(detectUsedProfiles("ask :leader [ forward 10 ]\n"), [
+    "sprites",
+  ]);
+});
+
+test("detectUsedProfiles finds heritage for a short-alias call", () => {
+  assert.deepEqual(detectUsedProfiles("fd 10\n"), ["heritage"]);
+});
+
+test("detectUsedProfiles returns every distinct profile a source uses, sorted", () => {
+  assert.deepEqual(detectUsedProfiles("print :durations[:i]\nnote 440 1\n"), [
+    "data",
+    "sound",
+  ]);
+});
+
 // --- runExamplesGate regression tests -----------------------------------------------------
 
 test("runExamplesGate: a known-good Core example passes", () => {
@@ -186,6 +278,62 @@ test("runExamplesGate: a manifest requiring several missing profiles lists all o
       line.startsWith("SKIP needs-many.logo (requires sprites, sound"),
     ),
   );
+});
+
+test("runExamplesGate: catches an under-declared profile even when masked by an unrelated unimplemented profile (issue #519, finding G8)", () => {
+  // Reproduces the exact bug: a source using a Data construct (list-index) whose manifest
+  // entry declares an unrelated, not-yet-implemented profile (sound) but omits "data". Before
+  // this hardening, the SKIP-for-sound path ran first and this gap was never even checked —
+  // the gate would have wrongly printed SKIP. It must now FAIL loudly instead, naming both the
+  // example and the missing "data" profile, regardless of the also-declared unimplemented
+  // profile.
+  writeExample("masked.logo", "set_tempo 120\nprint :durations[1]\n");
+  const result = runExamplesGate({
+    dir: TEMP_DIR,
+    manifest: { "masked.logo": ["core-language", "turtle-rendering", "sound"] },
+    implementedProfiles: ["core-language", "turtle-rendering"],
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.skipped,
+    0,
+    "must FAIL, not SKIP — the under-declaration must not be masked",
+  );
+  assert.equal(result.failed, 1);
+  assert.ok(
+    result.lines.some(
+      (line) => line.startsWith("FAIL masked.logo:") && line.includes("data"),
+    ),
+    "the failure line must name the example and the missing profile (data)",
+  );
+});
+
+test("runExamplesGate: an example whose declared profiles are a superset of actual usage still passes", () => {
+  // Declaring "geometry" implies "data" via closureOf's dependency closure (spec/conformance.md
+  // Geometry -> Data), which is a strict superset of what this source actually uses (data only).
+  // Acceptance criterion 3: correctly (over-)declared examples still pass, not fail.
+  writeExample(
+    "superset.logo",
+    ':colors = ["red" "green"]\nprint :colors[1]\n',
+  );
+  const result = runExamplesGate({
+    dir: TEMP_DIR,
+    manifest: {
+      "superset.logo": ["core-language", "turtle-rendering", "geometry"],
+    },
+    implementedProfiles: [
+      "core-language",
+      "turtle-rendering",
+      "data",
+      "geometry",
+    ],
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.ran, 1);
+  assert.equal(result.failed, 0);
+  assert.ok(result.lines.some((line) => line === "PASS superset.logo"));
 });
 
 test("runExamplesGate: loads the manifest from disk when none is passed in", () => {
