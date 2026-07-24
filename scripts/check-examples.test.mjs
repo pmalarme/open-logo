@@ -257,7 +257,7 @@ test("detectUsedProfiles does NOT flag a user-defined procedure that shadows an 
   );
 });
 
-test("detectUsedProfiles STILL flags Data usage even when a same-named procedure is locally defined (round-6 rubber-duck review)", () => {
+test("detectUsedProfiles STILL flags Data usage even when a same-named procedure is locally defined, in EXPRESSION position (round-6 rubber-duck review)", () => {
   // Round-6 rubber-duck review found the round-5 shadow-guard was overbroad: `@openlogo/runtime`'s
   // expression evaluator (evaluate.ts) resolves the 8 Data derived-reporter names (list/dict/
   // reverse/pick/sort/keys/values/type_of) to the Data builtin BEFORE it ever consults
@@ -270,6 +270,31 @@ test("detectUsedProfiles STILL flags Data usage even when a same-named procedure
     ),
     ["data"],
   );
+});
+
+test("detectUsedProfiles does NOT flag Data usage when a same-named procedure is locally defined AND called in STATEMENT position (round-7 rubber-duck review)", () => {
+  // Round-7 rubber-duck review found the round-6 fix was itself overbroad in the OPPOSITE
+  // direction: unlike expression position, `@openlogo/runtime`'s STATEMENT dispatch
+  // (`execute-internal.ts`'s `isProcedureCallStatement`) checks `environment.procedures.has(name)`
+  // FIRST, with no builtin exclusion at all — confirmed by direct `execute()` repro: with this
+  // exact `define list ... end` in scope, the bare statement `list 1 2` emits a `procedure-enter`
+  // for the user's `list` (printing `1`), never touching the Data builtin. So a Core-only example
+  // whose own procedure happens to be named `list` and is called as a bare statement must NOT be
+  // flagged for Data, or acceptance criterion 3 (a correctly-declared example still passes) would
+  // break — the same round-5 false-positive class, just for a name the round-6 fix had exempted
+  // from the shadow-guard.
+  assert.deepEqual(
+    detectUsedProfiles("define list :a :b\n  print :a\nend\nlist 1 2\n"),
+    [],
+  );
+});
+
+test("detectUsedProfiles flags Data usage for a bare statement-position call when there is NO colliding local define", () => {
+  // Sanity check for the round-7 fix: the statement/expression distinction only matters when a
+  // local `define` actually collides with the name. With no such collision, a statement-position
+  // call to a Data derived reporter (via the parenthesized-call spelling the grammar requires for
+  // a reporter in statement position) is still attributed to Data.
+  assert.deepEqual(detectUsedProfiles("(list 1 2)\n"), ["data"]);
 });
 
 test("detectUsedProfiles still detects the real primitive when no same-named procedure is defined", () => {

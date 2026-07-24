@@ -237,6 +237,30 @@ const HERITAGE_CALLEE_NAMES = new Set([
  * usage — the same "ambiguous with a user procedure ⇒ don't guess" principle already applied to
  * `challenge`, just made structural instead of one-off.
  *
+ * **The Data shadow-guard exception depends on AST *position*, not just the name** (round-6 and
+ * round-7 rubber-duck reviews — two runtime dispatch paths, two opposite bugs):
+ * - Round 6: `@openlogo/runtime`'s **expression** evaluator (`evaluate.ts`) resolves the 8 Data
+ *   derived-reporter names (`list`/`dict`/`reverse`/`pick`/`sort`/`keys`/`values`/`type_of`) to
+ *   the Data builtin *before* it ever consults `environment.procedures` — so a colliding local
+ *   `define` does NOT shadow them in expression position (e.g. `define list ... end` then
+ *   `print list 1 2` still prints the builtin's result). Applying the shadow-guard there would
+ *   under-detect a real Data dependency, reopening G8.
+ * - Round 7: but `@openlogo/runtime`'s **statement**-position dispatch
+ *   (`execute-internal.ts`'s `isProcedureCallStatement`) checks `environment.procedures.has(name)`
+ *   FIRST, with no builtin exclusion at all — confirmed by direct `execute()` repro: with
+ *   `define list :a :b / print :a / end` in scope, the bare statement `list 1 2` emits a
+ *   `procedure-enter` for the user's `list` and prints `1`, never touching the Data builtin. So a
+ *   colliding local `define` DOES shadow these 8 names in statement position, and unconditionally
+ *   attributing `"data"` there — as round 6's fix did — reopens the exact round-5 false-positive
+ *   class (a Core-only example whose own procedure happens to be named `list`/`dict`/etc. would be
+ *   wrongly failed for omitting Data, violating acceptance criterion 3).
+ *
+ * The fix tracks which `Call`/`ParenCall` nodes are themselves direct statements (elements of a
+ * `Program`/`Block`'s `body`, i.e. every position `execute()`'s `executeStatements` dispatches via
+ * `isProcedureCallStatement`) versus nested inside an expression. Only the latter gets the
+ * unconditional Data attribution; a statement-position Data-reporter call still goes through the
+ * ordinary shadow-guard, exactly like every other profile's callee names.
+ *
  * @returns a sorted, de-duplicated array of profile ids, e.g. `["data"]` or `["data", "sound"]`.
  */
 export function detectUsedProfiles(source) {
@@ -247,6 +271,24 @@ export function detectUsedProfiles(source) {
   walk(ast, (node) => {
     if (node.kind === "ProcedureDef") {
       definedProcedureNames.add(node.name.name.toLowerCase());
+    }
+  });
+
+  // Every `Call`/`ParenCall` that is itself a direct element of a `Program`/`Block`'s `body` —
+  // i.e. a statement, not an expression nested inside one (an argument, a condition, a `print`
+  // operand, ...). `childrenOf`'s `Program`/`Block` case returns `node.body` verbatim
+  // (`packages/parser/src/ast.ts`), and every control-flow body (`If`/`While`/`Repeat`/`Forever`/
+  // `ForIn`/`ForRange`/`ProcedureDef`) wraps its body in a `BlockNode`, so this single check
+  // covers every statement position the runtime's `executeStatements` iterates.
+  const statementPositionCalls = new Set();
+  walk(ast, (node) => {
+    if (node.kind !== "Program" && node.kind !== "Block") {
+      return;
+    }
+    for (const statement of node.body) {
+      if (statement.kind === "Call" || statement.kind === "ParenCall") {
+        statementPositionCalls.add(statement);
+      }
     }
   });
 
@@ -284,16 +326,21 @@ export function detectUsedProfiles(source) {
       // (issue #519 rubber-duck review: a hand-maintained second list would drift and reopen the
       // exact masking gap this fix closes).
       //
-      // Deliberately checked BEFORE the `definedProcedureNames` shadow-guard below (round-6
-      // rubber-duck review): `@openlogo/runtime`'s expression evaluator (`evaluate.ts`) resolves
-      // these exact 8 names to the Data builtin BEFORE it ever consults
-      // `environment.procedures.has(name)` — a locally `define`d procedure of the same name does
-      // NOT shadow the builtin at runtime in expression position (e.g. `define list ... end` then
-      // `print list 1 2` still prints the Data builtin's result, not the user procedure's). So
-      // unlike every other check below, a colliding local `define` must never suppress this one:
-      // doing so would silently under-detect a real Data dependency, reopening the exact G8
-      // masking class this fix exists to close.
-      used.add("data");
+      // A colliding local `define` shadows one of these 8 names ONLY in statement position, not
+      // expression position (round-6 vs. round-7 rubber-duck reviews; see this function's own
+      // doc comment for the full runtime-dispatch evidence from `evaluate.ts` and
+      // `execute-internal.ts`). So: in expression position, always attribute `"data"`
+      // unconditionally (a local `define` can never suppress it, or a real Data dependency goes
+      // undetected); in statement position, fall through to the ordinary
+      // `definedProcedureNames` shadow-guard below, exactly like every other profile's callee
+      // names (or a Core-only example whose own procedure happens to be named e.g. `list` would
+      // be wrongly failed for omitting Data).
+      if (
+        !statementPositionCalls.has(node) ||
+        !definedProcedureNames.has(name)
+      ) {
+        used.add("data");
+      }
       return;
     }
     if (definedProcedureNames.has(name)) {
