@@ -139,6 +139,35 @@ test("deepEqual unwraps an actual OLRecord into its field contents, so its exact
   assert.ok(!deepEqual({ x: 3 }, point)); // missing field
 });
 
+test("deepEqual: a type-less expected shape matches ANY struct type with the same field contents (documented default; opting into __type below is how a fixture asks for more)", () => {
+  const point = new OLRecord("point", ["x", "y"], [3, 4]);
+  const vector = new OLRecord("vector", ["x", "y"], [3, 4]);
+  const typelessExpected = { x: 3, y: 4 };
+  // Neither struct type is rejected: without an explicit "__type" opt-in, a plain field shape
+  // genuinely cannot tell "point" and "vector" apart (rubber-duck-reported gap). This is exactly
+  // why the "__type" opt-in test below exists — to prove the gap is now closeable, not that this
+  // permissive default itself is a bug.
+  assert.ok(deepEqual(typelessExpected, point));
+  assert.ok(deepEqual(typelessExpected, vector));
+});
+
+test("deepEqual's __type opt-in distinguishes two records with identical field contents but different struct types (Bug 5 follow-up)", () => {
+  const point = new OLRecord("point", ["x", "y"], [3, 4]);
+  const vector = new OLRecord("vector", ["x", "y"], [3, 4]);
+  const expectedPoint = { __type: "point", x: 3, y: 4 };
+  // Same struct type, same fields: still correctly reported as equal (don't break the existing,
+  // correct case).
+  assert.ok(deepEqual(expectedPoint, point));
+  // Same field contents, DIFFERENT struct type: before this fix, `unwrapDataValue` discarded the
+  // record's type entirely, so this and `point` above were indistinguishable to `deepEqual`. Now
+  // correctly reported as NOT equal.
+  assert.ok(!deepEqual(expectedPoint, vector));
+  // The type mismatch is caught even when the fields also happen to differ, not merely deferred
+  // to (and masked by) a field-level mismatch.
+  const otherVector = new OLRecord("vector", ["x", "y"], [3, 999]);
+  assert.ok(!deepEqual(expectedPoint, otherVector));
+});
+
 test("deepEqual deep-compares a dict nested inside a list/object, unwrapping at every level", () => {
   const inner = new OLDict();
   inner.set("count", 2);
@@ -655,6 +684,22 @@ test("graphEqual unwraps an actual OLRecord for structural comparison, so its ex
   assert.ok(!mismatch.matched);
 });
 
+test("graphEqual's __type opt-in distinguishes two records with identical field contents but different struct types (Bug 5 follow-up)", () => {
+  const point = new OLRecord("point", ["x", "y"], [3, 4]);
+  const vector = new OLRecord("vector", ["x", "y"], [3, 4]);
+  const expectedPoint = { __type: "point", x: 3, y: 4 };
+  // Same struct type, same fields: still correctly reported as equal.
+  assert.ok(graphEqual(expectedPoint, point).matched);
+  // Same field contents, different struct type: must now be reported as NOT equal, with a
+  // reason identifying the type mismatch (previously indistinguishable via unwrapped fields alone).
+  const mismatch = graphEqual(expectedPoint, vector);
+  assert.ok(!mismatch.matched);
+  assert.match(mismatch.reason, /record type mismatch/);
+  // Without the opt-in, a type-less expected shape still matches either struct type (unchanged,
+  // backward-compatible default).
+  assert.ok(graphEqual({ x: 3, y: 4 }, vector).matched);
+});
+
 test("graphEqual tracks $id/$ref identity on the original OLDict reference, not the unwrapped view", () => {
   const dict = new OLDict();
   dict.set("count", 1);
@@ -937,6 +982,54 @@ test("compare() genuinely deep-compares a real executed record's printed content
     diagnostics: [],
   };
   const failResult = compare(corruptedExpected, { events, diagnostics });
+  assert.ok(!failResult.matched);
+  assert.match(failResult.report, /event mismatch/);
+});
+
+test("compare() with the __type opt-in genuinely distinguishes a real executed record's struct type, not just its field contents (Bug 5 follow-up: rubber-duck-reported gap)", () => {
+  const { events, diagnostics } = produce(
+    "struct point [ x y ]\nstruct vector [ x y ]\nprint point 3 4\nprint vector 3 4",
+    "record-type-fixture-check",
+    true,
+  );
+  assert.equal(diagnostics.length, 0);
+  const printEvents = events.filter((event) => event.kind === "print");
+  assert.equal(printEvents.length, 2);
+
+  const withPrintPayloads = (payloads) => {
+    let index = 0;
+    return (event) =>
+      event.kind === "print"
+        ? { ...event, payload: { values: payloads[index++] } }
+        : event;
+  };
+
+  // Correct expectation: each record's declared struct type is asserted via "__type" and matches.
+  const correctExpected = {
+    events: events.map(
+      withPrintPayloads([
+        [{ __type: "point", x: 3, y: 4 }],
+        [{ __type: "vector", x: 3, y: 4 }],
+      ]),
+    ),
+    diagnostics: [],
+  };
+  const passResult = compare(correctExpected, { events, diagnostics });
+  assert.ok(passResult.matched, passResult.report);
+
+  // Swap the expected "__type" labels: identical field contents, but the WRONG struct type at
+  // each position — this is exactly the gap a type-less expected shape could never catch, and
+  // must now genuinely fail rather than silently pass.
+  const swappedExpected = {
+    events: events.map(
+      withPrintPayloads([
+        [{ __type: "vector", x: 3, y: 4 }],
+        [{ __type: "point", x: 3, y: 4 }],
+      ]),
+    ),
+    diagnostics: [],
+  };
+  const failResult = compare(swappedExpected, { events, diagnostics });
   assert.ok(!failResult.matched);
   assert.match(failResult.report, /event mismatch/);
 });

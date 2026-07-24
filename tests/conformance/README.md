@@ -98,6 +98,16 @@ shape as a plain JSON object either way (e.g. `{"tom": 8, "sophie": 6}` for a di
 the unwrapped view, so two positions holding the same live dict/record still resolve as the same
 reference).
 
+**Record struct type (optional):** a plain field shape alone cannot distinguish two different
+`struct` types that happen to declare identical field names (e.g. `struct point [ x y ]` and
+`struct vector [ x y ]` both built with `3 4`) — both would unwrap to the same `{"x": 3, "y": 4}`.
+A fixture that needs to assert WHICH struct type an actual record is (not just its field contents)
+opts in by adding the reserved `"__type"` key alongside the record's usual field keys, e.g.
+`{"__type": "point", "x": 3, "y": 4}`; the harness then rejects a record of any other struct type
+at that position before comparing fields. Omitting `__type` (every existing fixture) keeps the
+previous behavior exactly: any record with matching field contents matches, regardless of its
+struct type.
+
 - `{"$id": "<label>", "$value": <expected-shape-of-the-first-occurrence>}` — marks the **first**
   occurrence of a reference and gives it a fixture-local `label` (any string, unique within the
   fixture — a second `$id` reusing the same `label`, anywhere later in the fixture, is itself a
