@@ -1,0 +1,4 @@
+# A nested list literal used as a dict key is a grammar-position error, not a
+# bracket-matching one: exactly one ol-bad-token fires for the inner `[`, never
+# ol-unmatched-bracket (issue #546).
+print { [ 1 2 ]: 3 }
