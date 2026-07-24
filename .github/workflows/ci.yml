@@ -21,7 +21,7 @@ jobs:
       studio_changed: ${{ steps.filter.outputs.studio }}
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.x"
       - run: pip install pyyaml
@@ -43,7 +43,7 @@ jobs:
         name: Detect studio-affecting changes
         # Path-scopes the (heavy, browser-based) studio visual-regression job so it only runs when
         # the studio or a package it composes actually changes. Output consumed by `studio-visual`.
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@v4
         with:
           filters: |
             studio:
@@ -147,7 +147,7 @@ jobs:
         run: npm run -s test:visual --workspace @openlogo/studio
       - name: Upload Playwright report on failure
         if: ${{ failure() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: studio-visual-playwright-report
           path: packages/studio/playwright-report/
