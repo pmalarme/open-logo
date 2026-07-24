@@ -226,11 +226,29 @@ const HERITAGE_CALLEE_NAMES = new Set([
  * `@openlogo/parser`'s `parse()` recovered, and this function only ever reads node `kind`s and
  * callee names off it.
  *
+ * **User-defined procedures never masquerade as profile usage** (round-5 rubber-duck review):
+ * `define` accepts any `name` token (`packages/parser/src/parser.ts`'s `parseProcedureDef` has no
+ * reserved-name check), so a Core-only example is free to `define` its own procedure that happens
+ * to share a name with an optional profile's callee (e.g. `define note :duration ... end`). Bare
+ * callee-name matching alone would then misattribute that call to Sound/Geometry/Data/etc., and
+ * acceptance criterion 3 (a correctly-declared example still passes) would break for a program
+ * that needs no optional profile at all. This function therefore precollects every name the
+ * source itself `define`s and never treats a call to one of those names as profile-primitive
+ * usage — the same "ambiguous with a user procedure ⇒ don't guess" principle already applied to
+ * `challenge`, just made structural instead of one-off.
+ *
  * @returns a sorted, de-duplicated array of profile ids, e.g. `["data"]` or `["data", "sound"]`.
  */
 export function detectUsedProfiles(source) {
   const { ast } = parse(source);
   const used = new Set();
+
+  const definedProcedureNames = new Set();
+  walk(ast, (node) => {
+    if (node.kind === "ProcedureDef") {
+      definedProcedureNames.add(node.name.name.toLowerCase());
+    }
+  });
 
   walk(ast, (node) => {
     if (node.kind === "ValueOfKey") {
@@ -259,6 +277,12 @@ export function detectUsedProfiles(source) {
       return;
     }
     const name = node.callee.name.toLowerCase();
+    if (definedProcedureNames.has(name)) {
+      // A locally `define`d procedure of this name shadows any optional-profile callee it happens
+      // to collide with — see this function's doc comment. Treat the call as ordinary Core user
+      // code, not as evidence of profile usage.
+      return;
+    }
     if (dataPrimitiveArity(name) !== undefined) {
       // The Data profile's derived list/dict/record reporters (`dict`, `list`, `reverse`,
       // `pick`, `sort`, `keys`, `values`, `type_of`) are call-site names, not distinct AST node

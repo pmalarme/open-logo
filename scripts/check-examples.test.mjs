@@ -239,6 +239,31 @@ test("detectUsedProfiles finds heritage for the 'make' assignment spelling", () 
   assert.deepEqual(detectUsedProfiles('make "x" 1\n'), ["heritage"]);
 });
 
+test("detectUsedProfiles does NOT flag a user-defined procedure that shadows an optional-profile callee name (round-5 rubber-duck review)", () => {
+  // `define` accepts any name token (no reserved-name check) — a Core-only example is free to
+  // define its own `note` procedure. Bare callee-name matching alone would misattribute the call
+  // below to Sound, breaking acceptance criterion 3 (a correctly-declared Core example must still
+  // pass). Cover both a hand-maintained callee-name set (Sound's `note`) and a parser-table-driven
+  // check (Geometry's `grid`) to prove the fix applies uniformly, not just to the one name found.
+  assert.deepEqual(
+    detectUsedProfiles(
+      "define note :duration\n  print :duration\nend\nnote 500\n",
+    ),
+    [],
+  );
+  assert.deepEqual(
+    detectUsedProfiles("define grid :n\n  print :n\nend\ngrid 4\n"),
+    [],
+  );
+});
+
+test("detectUsedProfiles still detects the real primitive when no same-named procedure is defined", () => {
+  // Sanity check for the shadow-guard above: it must not over-suppress detection of genuine
+  // profile usage when there is no colliding `define`.
+  assert.deepEqual(detectUsedProfiles("note 440 1\n"), ["sound"]);
+  assert.deepEqual(detectUsedProfiles("grid 4\n"), ["geometry"]);
+});
+
 test("detectUsedProfiles returns every distinct profile a source uses, sorted", () => {
   assert.deepEqual(detectUsedProfiles("print :durations[:i]\nnote 440 1\n"), [
     "data",
