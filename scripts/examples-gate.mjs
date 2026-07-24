@@ -183,6 +183,15 @@ const HERITAGE_CALLEE_NAMES = new Set([
  * | Data | `DATA_NODE_KINDS`, index/field segments, `dataPrimitiveArity()` | |
  * | Turtle & Rendering | *(not detected)* | every example needs it; never contradicts a declaration |
  * | Geometry | `geometryPrimitiveArity()` (`grid`/`axes`/`measure`) | implemented profile — a live masking case |
+ * |  |  | `polygon`/`star`/`circle`/`arc`/`area`/`perimeter` are Geometry-owned per
+ *   `spec/geometry-module.md`, but they are **derived stdlib source procedures** an example
+ *   `define`s for itself (see `spec/examples/13-geometry-stdlib.logo`), not parser primitives, so
+ *   they have no callee name a shared detector could recognize — same undetectable-by-design
+ *   class as `challenge`/`to`/`output`/`op`. This is not a live masking risk: they need no runtime
+ *   capability beyond Core+Turtle+Data (`geometry: ["turtle-rendering", "data"]` in
+ *   `harness/index.mjs`'s `PROFILE_DEPS`), and the checker only rejects an undeclared `geometry`
+ *   claim for the renderer-backed `grid`/`axes`/`measure` overlay primitives above, which *are*
+ *   detected. |
  * | Heritage | `HERITAGE_CALLEE_NAMES`, `ValueOfKey` (adds `data` too) | `to`/`output`/`op` excluded, see below |
  * | Sprites | `SPRITES_CALLEE_NAMES` | |
  * | Interaction & Events | `INTERACTION_EVENTS_CALLEE_NAMES` | |
