@@ -28,7 +28,7 @@
     "clean": "tsc -b --clean"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.3",
+    "@biomejs/biome": "^2.5.4",
     "prettier": "^3.4.2",
     "typescript": "^7.0.2"
   }
