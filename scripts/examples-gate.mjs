@@ -231,11 +231,12 @@ const GEOMETRY_STDLIB_ALSO_DATA_NAMES = new Set(["area", "perimeter"]);
  *
  * Every occurrence of `import`/`export`/`alias` produces a parser diagnostic today (none of the
  * three has any legitimate grammar role, so there is no "clean" use to miss). `to` is the one
- * exception with two legitimate roles that consume it with **zero** diagnostics when used
- * correctly — the `for … from … to` range bound and the `set … to` assignment preposition
- * (`spec/grammar.md:104`,`:128`; confirmed directly: `parse("for i from 1 to 5 [ ]")` and
- * `parse("set x to 5")` both return `diagnostics: []`) — so a diagnostic naming `to` only ever
- * fires when it appears outside those two roles, i.e. genuinely as the Heritage procedure-opener
+ * exception, with THREE legitimate roles that all consume it with **zero** diagnostics when used
+ * correctly — the `for … from … to` range bound, the `set … to` assignment preposition, and the
+ * Data profile's `add … to …` list-mutation preposition (`spec/grammar.md:104`,`:113`,`:128`;
+ * confirmed directly: `parse("for i from 1 to 5 [ ]")`, `parse("set x to 5")`, and
+ * `parse("add 3 to colors")` all return `diagnostics: []`) — so a diagnostic naming `to` only ever
+ * fires when it appears outside those three roles, i.e. genuinely as the Heritage procedure-opener
  * (or beside an already-unrelated parse error, which is not a live masking risk: such a source
  * would already fail `classifyExample`'s diagnostics check whenever it is actually run, and
  * over-attributing `heritage` to an already-broken file is the opposite of under-declaration).
@@ -284,7 +285,7 @@ const RESERVED_WORD_PROFILES = new Map([
  * `NON_PRIMARY_NAMES`), so the AST walk below can never see them directly; {@link
  * RESERVED_WORD_PROFILES} detects them instead from the parser's own `ol-bad-token` diagnostics,
  * which always carry the offending token text even though no AST node results — see that map's own
- * doc comment for why this is safe (in particular, why `to`'s two legitimate non-Heritage roles
+ * doc comment for why this is safe (in particular, why `to`'s three legitimate non-Heritage roles
  * never produce a false positive).
  *
  * **After this round, every optional profile in the DAG is detected by at least one signal** —

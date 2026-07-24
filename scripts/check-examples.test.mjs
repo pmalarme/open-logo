@@ -301,13 +301,19 @@ test("detectUsedProfiles finds heritage for the 'to'/'output'/'op' reserved word
   assert.deepEqual(detectUsedProfiles("op 5\n"), ["heritage"]);
 });
 
-test("detectUsedProfiles does NOT flag heritage for 'to' in its two legitimate Core roles (for-range bound, set-assignment preposition)", () => {
-  // `to` is also a plain keyword in two Core grammar productions that consume it with zero
-  // diagnostics (spec/grammar.md:104, :128) — the reserved-word scan must not conflate those with
-  // the Heritage `to … end` procedure-definition spelling, or a plain Core example would be
-  // spuriously flagged as needing Heritage (breaking acceptance criterion 3).
+test("detectUsedProfiles does NOT flag heritage for 'to' in its three legitimate non-Heritage roles (for-range bound, set-assignment preposition, add-to-list preposition)", () => {
+  // `to` is also a plain keyword in three grammar productions that consume it with zero
+  // diagnostics (spec/grammar.md:104, :113, :128) — the reserved-word scan must not conflate
+  // those with the Heritage `to … end` procedure-definition spelling, or a plain example using
+  // one of them would be spuriously flagged as needing Heritage (breaking acceptance criterion 3).
   assert.deepEqual(detectUsedProfiles("for i from 1 to 5 [ print :i ]\n"), []);
   assert.deepEqual(detectUsedProfiles("local x\nset x to 5\nprint :x\n"), []);
+  // `add … to …` is itself a Data-profile construct (rubber-duck-v11 review), so this must
+  // report "data" (already covered by DATA_NODE_KINDS) but never "heritage".
+  assert.deepEqual(
+    detectUsedProfiles("local colors\nset colors to [1 2]\nadd 3 to colors\n"),
+    ["data"],
+  );
 });
 
 test("detectUsedProfiles finds modules for the 'import'/'export' reserved words", () => {
