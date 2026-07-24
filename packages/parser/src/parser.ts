@@ -1083,6 +1083,43 @@ export function parse(source: string, document = "<input>"): ParseResult {
   }
 
   /**
+   * A dict-key position accepts only `dict-key ::= identifier | number` (`spec/grammar.md`), so a
+   * `{` opening a nested literal there is unexpected — but its own braces are still balanced, and
+   * the enclosing dict literal's braces are unaffected: this is a grammar-position error, not a
+   * brace-matching one (`spec/error-model.md` and `spec/data-structures.md#dictionaries`, issue
+   * #520). Reports exactly one `ol-bad-token` for the inner `{` itself (not `ol-unmatched-brace`,
+   * and not a second diagnostic for anything that follows), then silently recovers by skipping
+   * past the whole malformed entry — the balanced nested literal, tracking brace depth so an
+   * inner `{ … }` cannot end the skip early, plus its trailing `: value` if one follows — so the
+   * caller's loop resumes cleanly at the next real dict-entry or the enclosing `}` without
+   * cascading into spurious diagnostics for tokens that were never actually malformed.
+   */
+  function skipMalformedDictKeyLiteral(): void {
+    const badBrace = current();
+    diagnostics.push(parseDiag.badToken(badBrace.source_span, badBrace.text));
+    let depth = 1;
+    advance();
+    while (depth > 0 && current().kind !== "eof") {
+      const kind = current().kind;
+      if (kind === "lbrace") {
+        depth += 1;
+      } else if (kind === "rbrace") {
+        depth -= 1;
+      }
+      advance();
+    }
+    skipNewlines();
+    if (current().kind === "variable") {
+      splitGluedColonToken();
+    }
+    if (current().kind === "colon") {
+      advance();
+      skipNewlines();
+      parseExpression();
+    }
+  }
+
+  /**
    * Parse one `dict-entry ::= dict-key ":" expression` (`spec/grammar.md`). `dict-key` is only
    * `identifier | number` — narrower than {@link parseKeyTerm}'s selector `key-term`, which also
    * accepts `:name` reads, word literals, and parenthesized expressions — because a dict key is
@@ -1102,6 +1139,9 @@ export function parse(source: string, document = "<input>"): ParseResult {
       } else if (token.kind === "name") {
         advance();
         key = ast.wordLit(token.text, token.source_span);
+      } else if (token.kind === "lbrace") {
+        skipMalformedDictKeyLiteral();
+        return undefined;
       } else {
         return undefined;
       }
