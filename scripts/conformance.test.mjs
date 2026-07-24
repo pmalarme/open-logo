@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { text } from "node:stream/consumers";
+import { OLDict, OLRecord } from "@openlogo/core";
 import {
   closureOf,
   deepEqual,
@@ -117,6 +118,32 @@ test("deepEqual compares objects", () => {
 test("deepEqual compares nested structures", () => {
   assert.ok(deepEqual({ a: [1, { b: 2 }] }, { a: [1, { b: 2 }] }));
   assert.ok(!deepEqual({ a: [1, { b: 2 }] }, { a: [1, { b: 3 }] }));
+});
+
+test("deepEqual unwraps an actual OLDict into its key/value contents, so its exact contents are genuinely compared", () => {
+  const dict = new OLDict();
+  dict.set("tom", 8);
+  dict.set("sophie", 6);
+  assert.ok(deepEqual({ tom: 8, sophie: 6 }, dict));
+  // Deliberately corrupt the expected contents: this must now genuinely fail, not silently pass.
+  assert.ok(!deepEqual({ tom: 8, sophie: 999 }, dict));
+  assert.ok(!deepEqual({ tom: 8 }, dict)); // missing key
+  assert.ok(!deepEqual({ tom: 8, sophie: 6, extra: 1 }, dict)); // extra key
+});
+
+test("deepEqual unwraps an actual OLRecord into its field contents, so its exact contents are genuinely compared", () => {
+  const point = new OLRecord("point", ["x", "y"], [3, 4]);
+  assert.ok(deepEqual({ x: 3, y: 4 }, point));
+  // Deliberately corrupt the expected contents: this must now genuinely fail, not silently pass.
+  assert.ok(!deepEqual({ x: 3, y: 999 }, point));
+  assert.ok(!deepEqual({ x: 3 }, point)); // missing field
+});
+
+test("deepEqual deep-compares a dict nested inside a list/object, unwrapping at every level", () => {
+  const inner = new OLDict();
+  inner.set("count", 2);
+  assert.ok(deepEqual({ values: [{ count: 2 }] }, { values: [inner] }));
+  assert.ok(!deepEqual({ values: [{ count: 3 }] }, { values: [inner] }));
 });
 
 test("produce calls real parser and returns diagnostics", () => {
@@ -612,6 +639,37 @@ test("graphEqual reports plain object/array shape mismatches with a reason", () 
   assert.match(graphEqual(null, {}).reason, /value mismatch/);
 });
 
+test("graphEqual unwraps an actual OLDict for structural comparison, so its exact contents are genuinely compared", () => {
+  const dict = new OLDict();
+  dict.set("tom", 8);
+  dict.set("sophie", 6);
+  assert.ok(graphEqual({ tom: 8, sophie: 6 }, dict).matched);
+  const mismatch = graphEqual({ tom: 8, sophie: 999 }, dict);
+  assert.ok(!mismatch.matched);
+});
+
+test("graphEqual unwraps an actual OLRecord for structural comparison, so its exact contents are genuinely compared", () => {
+  const point = new OLRecord("point", ["x", "y"], [3, 4]);
+  assert.ok(graphEqual({ x: 3, y: 4 }, point).matched);
+  const mismatch = graphEqual({ x: 3, y: 999 }, point);
+  assert.ok(!mismatch.matched);
+});
+
+test("graphEqual tracks $id/$ref identity on the original OLDict reference, not the unwrapped view", () => {
+  const dict = new OLDict();
+  dict.set("count", 1);
+  const ctx = { idToActual: new Map(), actualToId: new Map() };
+  assert.ok(graphEqual({ $id: "d1", $value: { count: 1 } }, dict, ctx).matched);
+  // A later $ref to the same label must resolve to this exact OLDict reference again, even
+  // though each visit unwraps it into a brand-new plain-object view for structural comparison.
+  assert.ok(graphEqual({ $ref: "d1" }, dict, ctx).matched);
+  // A different (but structurally equal) OLDict is NOT the same reference.
+  const otherDict = new OLDict();
+  otherDict.set("count", 1);
+  const mismatch = graphEqual({ $ref: "d1" }, otherDict, ctx);
+  assert.ok(!mismatch.matched);
+});
+
 test("safeStringify replaces an already-visited reference with a circular marker", () => {
   const cyclic = [1, 2];
   cyclic.push(cyclic);
@@ -672,19 +730,14 @@ test("diffStream uses graphEqual for a $id/$ref-tagged expected item and reports
   const actualEvents = [
     { seq: 0, kind: "print", payload: { values: [sharedList] } },
   ];
-  const ctx = { idToActual: new Map(), actualToId: new Map() };
-  assert.equal(
-    diffStream("event", "seq", expectedEvents, actualEvents, ctx),
-    null,
-  );
+  // diffStream gives every item its own fresh graph-identity ctx internally — no ctx argument
+  // is passed (or needed) by callers.
+  assert.equal(diffStream("event", "seq", expectedEvents, actualEvents), null);
 
   const wrongActualEvents = [
     { seq: 0, kind: "print", payload: { values: [[1, 2, 3]] } },
   ];
-  const report = diffStream("event", "seq", expectedEvents, wrongActualEvents, {
-    idToActual: new Map(),
-    actualToId: new Map(),
-  });
+  const report = diffStream("event", "seq", expectedEvents, wrongActualEvents);
   assert.ok(report);
   assert.ok(report.includes("event mismatch"));
 
@@ -693,7 +746,49 @@ test("diffStream uses graphEqual for a $id/$ref-tagged expected item and reports
   void actual;
 });
 
-test("compare() shares one graph-identity ctx across the event and diagnostic streams", () => {
+test("diffStream gives each stream item its own fresh $id/$ref ctx: an $id declared in one event is invisible to another", () => {
+  const sharedList = [1, 2];
+  // seq 1's $ref points at seq 0's $id — per spec/execution-model.md, effect events are
+  // independently captured, sealed snapshots with no cross-event identity guarantee, so this
+  // must be reported as an undefined reference even though the actual runtime output happens to
+  // reuse the very same underlying reference at both positions.
+  const expectedEvents = [
+    {
+      seq: 0,
+      kind: "print",
+      payload: { values: [{ $id: "shared", $value: [1, 2] }] },
+    },
+    { seq: 1, kind: "print", payload: { values: [{ $ref: "shared" }] } },
+  ];
+  const actualEvents = [
+    { seq: 0, kind: "print", payload: { values: [sharedList] } },
+    { seq: 1, kind: "print", payload: { values: [sharedList] } },
+  ];
+  const report = diffStream("event", "seq", expectedEvents, actualEvents);
+  assert.ok(report);
+  assert.match(report, /has no earlier \$id in this fixture/);
+});
+
+test("diffStream still resolves a $ref against an $id declared earlier in the SAME event", () => {
+  // Both the $id and its $ref live inside seq 0's own payload — this must keep working exactly
+  // as before; only cross-event resolution is rejected.
+  const expectedEvents = [
+    {
+      seq: 0,
+      kind: "print",
+      payload: {
+        values: [{ $id: "a", $value: [1, 2] }, { $ref: "a" }],
+      },
+    },
+  ];
+  const sharedList = [1, 2];
+  const actualEvents = [
+    { seq: 0, kind: "print", payload: { values: [sharedList, sharedList] } },
+  ];
+  assert.equal(diffStream("event", "seq", expectedEvents, actualEvents), null);
+});
+
+test("compare() scopes $id/$ref to a single event: a $ref naming a DIFFERENT event's $id is an undefined reference, not a silent cross-event resolution", () => {
   const sharedList = [1, 2];
   const expected = {
     events: [
@@ -706,6 +801,9 @@ test("compare() shares one graph-identity ctx across the event and diagnostic st
     ],
     diagnostics: [],
   };
+  // The actual output legitimately reuses the same underlying reference at both positions (a
+  // real implementation detail an aliasing-unaware fixture might once have relied on) — the fix
+  // must reject this regardless, since the spec makes no cross-event identity guarantee.
   const actual = {
     events: [
       { seq: 0, kind: "print", payload: { values: [sharedList] } },
@@ -714,10 +812,40 @@ test("compare() shares one graph-identity ctx across the event and diagnostic st
     diagnostics: [],
   };
   const result = compare(expected, actual);
+  assert.ok(!result.matched);
+  assert.match(result.report, /has no earlier \$id in this fixture/);
+});
+
+test("compare() still resolves a $ref against an $id declared earlier in the SAME event (issue #495 fixtures keep passing)", () => {
+  const sharedList = [1, 2];
+  const expected = {
+    events: [
+      {
+        seq: 0,
+        kind: "print",
+        payload: {
+          values: [[{ $id: "a", $value: [1, 2] }, { $ref: "a" }]],
+        },
+      },
+    ],
+    diagnostics: [],
+  };
+  const actual = {
+    events: [
+      {
+        seq: 0,
+        kind: "print",
+        payload: { values: [[sharedList, sharedList]] },
+      },
+    ],
+    diagnostics: [],
+  };
+  const result = compare(expected, actual);
   assert.ok(result.matched, result.report);
 });
 
-test("compare() reports a graph-identity violation across the event stream", () => {
+test("compare() does not leak $id/$ref ctx between the event stream and the diagnostic stream", () => {
+  const sharedParams = { value: [1, 2] };
   const expected = {
     events: [
       {
@@ -725,21 +853,92 @@ test("compare() reports a graph-identity violation across the event stream", () 
         kind: "print",
         payload: { values: [{ $id: "shared", $value: [1, 2] }] },
       },
-      { seq: 1, kind: "print", payload: { values: [{ $ref: "shared" }] } },
     ],
-    diagnostics: [],
+    diagnostics: [
+      {
+        code: "ol-type",
+        source_span: {},
+        params: { $ref: "shared" },
+        stage: "runtime",
+        severity: "error",
+      },
+    ],
   };
   const actual = {
     events: [
-      { seq: 0, kind: "print", payload: { values: [[1, 2]] } },
-      // A later mutation-independent snapshot: NOT the same reference as seq 0's.
-      { seq: 1, kind: "print", payload: { values: [[1, 2]] } },
+      { seq: 0, kind: "print", payload: { values: [sharedParams.value] } },
     ],
-    diagnostics: [],
+    diagnostics: [
+      {
+        code: "ol-type",
+        source_span: {},
+        params: sharedParams.value,
+        stage: "runtime",
+        severity: "error",
+      },
+    ],
   };
   const result = compare(expected, actual);
   assert.ok(!result.matched);
-  assert.ok(result.report.includes("event mismatch"));
+  assert.match(result.report, /has no earlier \$id in this fixture/);
+});
+
+test("compare() genuinely deep-compares a real executed dict's printed contents (Bug 5 fixture-level proof), passing on a match and failing on a deliberately corrupted expectation", () => {
+  const { events, diagnostics } = produce(
+    ":d = { tom: 8 sophie: 6 }\nprint :d",
+    "dict-contents-fixture-check",
+    true,
+  );
+  assert.equal(diagnostics.length, 0);
+  assert.ok(events.some((event) => event.kind === "print"));
+
+  const withPrintPayload = (values) => (event) =>
+    event.kind === "print" ? { ...event, payload: { values } } : event;
+
+  const correctExpected = {
+    events: events.map(withPrintPayload([{ tom: 8, sophie: 6 }])),
+    diagnostics: [],
+  };
+  const passResult = compare(correctExpected, { events, diagnostics });
+  assert.ok(passResult.matched, passResult.report);
+
+  // Deliberately corrupt the expected dict contents: this must now genuinely fail.
+  const corruptedExpected = {
+    events: events.map(withPrintPayload([{ tom: 8, sophie: 999 }])),
+    diagnostics: [],
+  };
+  const failResult = compare(corruptedExpected, { events, diagnostics });
+  assert.ok(!failResult.matched);
+  assert.match(failResult.report, /event mismatch/);
+});
+
+test("compare() genuinely deep-compares a real executed record's printed contents (Bug 5 fixture-level proof), passing on a match and failing on a deliberately corrupted expectation", () => {
+  const { events, diagnostics } = produce(
+    "struct point [ x y ]\nprint point 3 4",
+    "record-contents-fixture-check",
+    true,
+  );
+  assert.equal(diagnostics.length, 0);
+  assert.ok(events.some((event) => event.kind === "print"));
+
+  const withPrintPayload = (values) => (event) =>
+    event.kind === "print" ? { ...event, payload: { values } } : event;
+
+  const correctExpected = {
+    events: events.map(withPrintPayload([{ x: 3, y: 4 }])),
+    diagnostics: [],
+  };
+  const passResult = compare(correctExpected, { events, diagnostics });
+  assert.ok(passResult.matched, passResult.report);
+
+  // Deliberately corrupt the expected record contents: this must now genuinely fail.
+  const corruptedExpected = {
+    events: events.map(withPrintPayload([{ x: 3, y: 999 }])),
+    diagnostics: [],
+  };
+  const failResult = compare(corruptedExpected, { events, diagnostics });
+  assert.ok(!failResult.matched);
+  assert.match(failResult.report, /event mismatch/);
 });
 
 test("parseArgs extracts --profile flag", () => {

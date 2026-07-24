@@ -10,6 +10,8 @@ import {
   OL_DIAGNOSTIC_CODES,
   OL_EVENT_KINDS,
   OL_STYLE_DIAGNOSTIC_CODES,
+  OLDict,
+  OLRecord,
 } from "@openlogo/core";
 import { check, parse } from "@openlogo/parser";
 import { execute } from "@openlogo/runtime";
@@ -376,31 +378,64 @@ export function produce(
   return { events, diagnostics };
 }
 
+/**
+ * Unwrap an {@link OLDict} or {@link OLRecord} runtime value into the plain key→value object the
+ * comparator already knows how to deep-compare, so a fixture's exact dict/record CONTENTS are
+ * genuinely compared instead of the harness treating the instance as an opaque, always-unequal
+ * reference. Every other value (primitive, array, plain object) passes through unchanged. Dict
+ * keys are rendered via `String()` — a JSON object key is always a string anyway, so a fixture's
+ * expected side already writes a numeric key the same way; record fields use their declared
+ * spelling ({@link OLRecord.fields}). Only the immediate level is unwrapped: a nested dict/record
+ * held by a value is unwrapped in turn the next time the comparator recurses into it.
+ */
+function unwrapDataValue(value) {
+  if (value instanceof OLDict) {
+    const entries = {};
+    for (const key of value.keys()) {
+      entries[String(key)] = value.get(key);
+    }
+    return entries;
+  }
+  if (value instanceof OLRecord) {
+    const entries = {};
+    for (const field of value.fields()) {
+      entries[field] = value.get(field);
+    }
+    return entries;
+  }
+  return value;
+}
+
 /** Order-insensitive structural equality for the plain JSON values in a fixture. */
 export function deepEqual(a, b) {
-  if (a === b) {
+  const actual = unwrapDataValue(b);
+  if (a === actual) {
     return true;
   }
   if (
     a === null ||
-    b === null ||
+    actual === null ||
     typeof a !== "object" ||
-    typeof b !== "object"
+    typeof actual !== "object"
   ) {
     return false;
   }
-  if (Array.isArray(a) || Array.isArray(b)) {
-    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) {
+  if (Array.isArray(a) || Array.isArray(actual)) {
+    if (
+      !Array.isArray(a) ||
+      !Array.isArray(actual) ||
+      a.length !== actual.length
+    ) {
       return false;
     }
-    return a.every((value, index) => deepEqual(value, b[index]));
+    return a.every((value, index) => deepEqual(value, actual[index]));
   }
   const keys = Object.keys(a);
-  if (keys.length !== Object.keys(b).length) {
+  if (keys.length !== Object.keys(actual).length) {
     return false;
   }
   return keys.every(
-    (key) => Object.hasOwn(b, key) && deepEqual(a[key], b[key]),
+    (key) => Object.hasOwn(actual, key) && deepEqual(a[key], actual[key]),
   );
 }
 
@@ -460,10 +495,13 @@ export function hasGraphMarkers(value) {
  * (a genuine cycle, e.g. a self-referential list built via `add :l to :l`) resolves to the
  * correct, still-being-compared reference instead of recursing forever. This mirrors the
  * whole-capture/whole-render memo discipline `spec/execution-model.md` requires of a real
- * snapshot or a real render (issue #495). `ctx` is shared across an entire `compare()` call (both
- * the event stream and the diagnostic stream), so a fixture can assert identity that spans two
- * different effect events, e.g. "the list `print` showed here is unaffected by a later mutation
- * shown there."
+ * snapshot or a real render (issue #495). `ctx` is scoped to exactly ONE event's (or one
+ * diagnostic's) payload comparison — per `spec/execution-model.md`'s effect-event snapshot rule,
+ * every event is an independently captured, sealed snapshot, so the spec makes no identity
+ * guarantee ACROSS two different events. A `$ref` may therefore only resolve to an `$id` declared
+ * earlier within the SAME event; one declared in a different event is an undefined reference (a
+ * clean mismatch, not a silent cross-event resolution) — see {@link diffStream}, which creates a
+ * fresh `ctx` per stream item for exactly this reason.
  *
  * `ctx.actualToId` is the reverse binding. It also catches the opposite fixture bug: an actual
  * reference already bound to one label reappearing at a position the fixture left untagged (or
@@ -542,24 +580,29 @@ export function graphEqual(
   if (expected === actual) {
     return { matched: true };
   }
+  // An OLDict/OLRecord actual isn't a plain array/object, so unwrap it into the equivalent
+  // key/value shape for the structural comparison below. Reference-identity tracking above
+  // (isGraphIdNode/isGraphRefNode and the alias check) already used the original `actual`
+  // reference, so this unwrap cannot affect aliasing/cycle detection — only structural content.
+  const actualShape = unwrapDataValue(actual);
   if (
     expected === null ||
-    actual === null ||
+    actualShape === null ||
     typeof expected !== "object" ||
-    typeof actual !== "object"
+    typeof actualShape !== "object"
   ) {
     return { matched: false, reason: "value mismatch" };
   }
-  if (Array.isArray(expected) || Array.isArray(actual)) {
+  if (Array.isArray(expected) || Array.isArray(actualShape)) {
     if (
       !Array.isArray(expected) ||
-      !Array.isArray(actual) ||
-      expected.length !== actual.length
+      !Array.isArray(actualShape) ||
+      expected.length !== actualShape.length
     ) {
       return { matched: false, reason: "array shape mismatch" };
     }
     for (let i = 0; i < expected.length; i++) {
-      const result = graphEqual(expected[i], actual[i], ctx);
+      const result = graphEqual(expected[i], actualShape[i], ctx);
       if (!result.matched) {
         return result;
       }
@@ -567,14 +610,14 @@ export function graphEqual(
     return { matched: true };
   }
   const keys = Object.keys(expected);
-  if (keys.length !== Object.keys(actual).length) {
+  if (keys.length !== Object.keys(actualShape).length) {
     return { matched: false, reason: "object shape mismatch" };
   }
   for (const key of keys) {
-    if (!Object.hasOwn(actual, key)) {
+    if (!Object.hasOwn(actualShape, key)) {
       return { matched: false, reason: `missing key "${key}"` };
     }
-    const result = graphEqual(expected[key], actual[key], ctx);
+    const result = graphEqual(expected[key], actualShape[key], ctx);
     if (!result.matched) {
       return result;
     }
@@ -646,11 +689,17 @@ export function itemsMatch(expectedItem, actualItem, ctx) {
 }
 
 /** Diff two streams element-by-element; return a readable report of the first mismatch, or null. */
-export function diffStream(label, keyField, expected, actual, ctx) {
+export function diffStream(label, keyField, expected, actual) {
   const count = Math.max(expected.length, actual.length);
   for (let index = 0; index < count; index++) {
     const expectedItem = expected[index];
     const actualItem = actual[index];
+    // A fresh `ctx` per item: per spec/execution-model.md's effect-event snapshot rule, each
+    // event (or diagnostic) is an independently captured, sealed snapshot. The spec guarantees
+    // alias/cycle identity WITHIN one event's payload but makes no identity guarantee ACROSS two
+    // different events, so a fixture's $id/$ref graph markers must only ever resolve within the
+    // SAME item — never leak into (or out of) a sibling item's payload.
+    const ctx = { idToActual: new Map(), actualToId: new Map() };
     const result = itemsMatch(expectedItem, actualItem, ctx);
     if (result.matched) {
       continue;
@@ -678,18 +727,16 @@ export function compare(expected, actual) {
     severity: d.severity,
   });
 
-  // One `ctx`, shared across the event stream AND the diagnostic stream, so a graph fixture's
-  // $id/$ref labels can span the whole fixture (e.g. asserting identity across two events).
-  const ctx = { idToActual: new Map(), actualToId: new Map() };
-
+  // No ctx is created (or shared) here: diffStream gives every individual event/diagnostic its
+  // own fresh graph-identity ctx, so $id/$ref aliasing can never leak across two events, across
+  // two diagnostics, or between the event stream and the diagnostic stream.
   const reports = [
-    diffStream("event", "seq", expected.events, actual.events, ctx),
+    diffStream("event", "seq", expected.events, actual.events),
     diffStream(
       "diagnostic",
       "code",
       expected.diagnostics.map(projectDiagnostic),
       actual.diagnostics.map(projectDiagnostic),
-      ctx,
     ),
   ].filter((report) => report !== null);
   return { matched: reports.length === 0, report: reports.join("\n") };
