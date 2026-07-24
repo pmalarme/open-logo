@@ -72,6 +72,46 @@ mutation `mutate` performed, because the whole statement's evaluation (both argu
 `mutate`'s side effect) completes before the single snapshot for the whole payload is taken. The
 statement never produces `{values: [[1], 0]}`.
 
+**The snapshot boundary is anchored to instruction/expression evaluation, not to wall-clock time or
+variable identity.** "Emission-time" does not mean "whatever `:l` happens to hold at some fixed
+point independent of the code that is running" — it means "whatever `:l` holds once *this specific
+instruction's* evaluation has finished, and not a moment later." Two contrasting cases make the
+boundary precise:
+
+```logo
+:x = [1, 2, 3]
+print :x
+:x[0] = 99
+```
+
+Here, `print :x` is one instruction; `:x[0] = 99` is a separate, later instruction. The snapshot for
+`print`'s event is taken when instruction 2 (`print :x`) finishes evaluating — before instruction 3
+runs at all. The later mutation on line 3 has no effect on the payload already emitted by line 2:
+the `print` event's payload is `{values: [[1, 2, 3]]}`, permanently, regardless of what line 3 later
+does to `:x`.
+
+```logo
+:x = [1, 2, 3]
+define mutateAndTag
+  add 99 to :x
+  return "tagged"
+end
+(print :x mutateAndTag)
+```
+
+Here, by contrast, the mutation happens *as part of the same instruction's* argument evaluation —
+`(print :x mutateAndTag)` is one instruction whose two arguments are both evaluated, left to right,
+before that instruction's snapshot is taken. Because `mutateAndTag`'s mutation of `:x` runs during
+this instruction's own evaluation (not a later one), the snapshot — taken only once that evaluation
+is complete — captures the post-mutation value: `{values: [[1, 2, 3, 99], "tagged"]}`.
+
+The rule that reconciles both cases: the snapshot is taken once, immediately after the *triggering
+instruction's own evaluation* (all of its arguments, and every side effect that evaluation causes)
+completes, and immediately before that instruction's effect event is emitted — never before, and
+never deferred past a later, separate instruction. Whether a mutation is "seen" depends entirely on
+whether it happened during the evaluation of the instruction being snapshotted, not on how much
+wall-clock time has passed or which variable was mutated.
+
 This is not a new rule invented for this decision: it restates, precisely, the snapshot-timing
 paragraph already normative in `spec/execution-model.md`'s "Trace and event registry" section — "An
 effect event's `payload` captures the value or values it describes as a point-in-time snapshot
@@ -120,21 +160,30 @@ Emission-time was chosen over evaluation-time for five compounding reasons:
 
 | Language family | What happens with a shared mutable value across sibling arguments | Relationship to OpenLogo's decision |
 |---|---|---|
-| Python | `print(l, mutate())` evaluates every argument (running every side effect) before `print` produces any output; if `mutate()` mutates `l`, the printed value reflects the mutation. Verified directly: `print(l, mutate())` prints `[1, 2] 0`. | Same family: reference semantics, emission/output reflects state after all arguments (and their side effects) finish evaluating. |
-| JavaScript (Node) | `console.log(l, mutate())` behaves identically for the same reason — arrays are shared references, and every argument expression, including any mutation, runs before `console.log` is invoked. Verified directly: `console.log(l, mutate())` prints `[1, 2] 0`. | Same family as OpenLogo and Python. |
+| Python | `print(l, mutate())` evaluates every argument (running every side effect) before `print` produces any output; if `mutate()` mutates `l`, the printed value reflects the mutation. `print` also builds its output **string immediately**, during that statement's own evaluation — each argument's `repr`/`str` conversion happens then and there, right at the call, producing a real, immutable snapshot of characters. Verified directly: `print(l, mutate())` prints `[1, 2] 0`. | Same family, and closest precedent: reference semantics, argument evaluation order matches OpenLogo, *and* the value is genuinely captured (formatted to its final, immutable form) at that one instant — the same guarantee OpenLogo's snapshot rule makes. |
+| JavaScript (Node) | `console.log(l, mutate())` evaluates every argument (running every side effect) before `console.log` is invoked, so argument-order behavior matches Python and OpenLogo: `console.log(l, mutate())` prints `[1, 2] 0`. But most engines' console **lazily/live-format** logged objects: `console.log(obj)` in a browser or Node REPL can keep a live reference to `obj` for its inspector, so a mutation *after* the `console.log` call still visibly changes what is shown when a developer later expands that logged object — a well-known source of debugging confusion for JS beginners, distinct from (and in addition to) the argument-evaluation-order question. | Same family as OpenLogo and Python for *argument evaluation order*, but not for the *display itself*: OpenLogo deliberately follows Python's simpler, fully-baked-at-capture-time model — once an effect event's payload is snapshotted, nothing that runs afterward can change what it shows — rather than JS's live/lazy console formatting, which is exactly the "payload silently changes after the fact" behavior OpenLogo's snapshot rule exists to rule out. |
 | Go | Slices alias their backing array the same way, so a function that mutates a shared slice's elements in place is visible to a sibling expression evaluated afterward — with the caveat that an `append` which triggers reallocation detaches the mutated slice from the original backing array, so that particular mutation would *not* be visible through the original variable. | Same family in the common case; the `append`-reallocation caveat is a Go-specific wrinkle in *how* aliasing is preserved, not a different timing model. |
 | Rust | This exact aliasing pattern is normally rejected at compile time by the borrow checker: you cannot hold a shared reference to `l` for printing while also holding a mutable reference for `mutate` to write through, in the same expression. Reaching the OpenLogo scenario at all requires opting in explicitly via `Rc<RefCell<...>>`. | Rust does not reject emission-time timing; it rejects the *aliasing precondition* by default, making the "surprising" case require deliberate effort rather than happening by accident. |
 | Swift | Arrays and dictionaries passed as ordinary parameters use copy-on-write value semantics: a callee cannot mutate the caller's original collection unless the parameter is `inout` or the value is captured by a closure. | The aliasing precondition mostly does not arise by default, similar in spirit to Rust, via a different mechanism (value semantics rather than ownership). |
 | Haskell, Elm, Clojure, Erlang | Immutable-by-default: there is no in-place mutation to observe, so this scenario cannot be constructed at all — `mutate` could not mutate `:l`'s equivalent; it could only return a new value. | Structurally sidesteps the question rather than choosing a timing model; not applicable to a language, like OpenLogo, that has already chosen mutable reference collections. |
 | Classic Logo | Predominantly built around immutable list operations (`first`, `butfirst`, `fput`); true in-place mutation (`.setfirst`, `setitem`) exists but is a rarely taught, advanced corner. | Also mostly sidesteps the question; OpenLogo's Data profile deliberately embraces first-class mutable collections instead, so the question is live for OpenLogo in a way it barely is for classic Logo. |
 
-Python, JavaScript, and Go's common case are the closest precedent, and OpenLogo's decision matches
-them precisely, for the same underlying reason: once a language chooses shared, mutable reference
-collections, "evaluate everything (including side effects), then observe/print/emit" is the timing
-that keeps observed state consistent with actual state. Languages that avoid the surprise do so by
-avoiding the *precondition* (no mutation at all, or no aliasing by default) rather than by adopting
-a different snapshot-timing rule on top of aliasable mutation — which is exactly the "novel,
-inconsistent carve-out" OpenLogo chose not to introduce (Rationale, point 4).
+Python, JavaScript, and Go's common case are the closest precedent for *argument evaluation order*,
+and OpenLogo's decision matches them precisely, for the same underlying reason: once a language
+chooses shared, mutable reference collections, "evaluate everything (including side effects), then
+observe/print/emit" is the timing that keeps observed state consistent with actual state. Languages
+that avoid the surprise entirely do so by avoiding the *precondition* (no mutation at all, or no
+aliasing by default) rather than by adopting a different snapshot-timing rule on top of aliasable
+mutation — which is exactly the "novel, inconsistent carve-out" OpenLogo chose not to introduce
+(Rationale, point 4).
+
+Python is the closer precedent still for the *snapshot guarantee itself*, not just argument order:
+`print`'s formatting happens immediately, at the call, producing a genuinely immutable result.
+JavaScript's console tooling shares OpenLogo's argument-order behavior but not this guarantee — its
+common lazy/live object formatting means a logged value can keep changing after the statement that
+logged it has finished, which is precisely the kind of "payload changes after the fact" surprise
+OpenLogo's snapshot rule is designed to prevent. OpenLogo deliberately follows Python's simpler,
+fully-baked-at-capture-time model rather than JS's live-formatting one.
 
 ## Consequences
 
