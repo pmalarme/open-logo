@@ -1,0 +1,4 @@
+struct node [ next ]
+:a = node 0
+:a.next = :a
+throw :a
