@@ -49,8 +49,9 @@ The modern variable idiom is:
 
 The access idiom is:
 
-- `:x[i]` reads or writes a 1-based list slot.
-- `:x.f` reads or writes a record field or dictionary key.
+- `:x[i]` reads or writes a 1-based list slot. List indexing is a **Data**-profile behavior — see
+  [conformance.md#data](conformance.md#data) — even though `list` itself is a Core value type.
+- `:x.f` reads or writes a record field or dictionary key. Both are **Data**-profile behavior.
 - `:d.k` and `:d[k]` read or write dictionary keys.
 - `:d[:k]` uses the value of variable `:k` as the key.
 - Nested chains such as `:people.tom.age` are places when used on the left of `=`.

@@ -1,0 +1,19 @@
+{
+  "description": "A well-formed nested list literal in a dict-entry's separator position (`print { a [ 1 2 ] }` — `a` parses as a valid key, but the required `:` is missing and a nested, itself well-formed and balanced, `[ 1 2 ]` appears instead) is a grammar-position error, not a bracket-matching one: it reports exactly one ol-bad-token for the inner `[` — never ol-unmatched-bracket — and both the list literal's brackets and the dict literal's braces, which are in fact correctly matched, close cleanly (spec/error-model.md, spec/data-structures.md#dictionaries, issue #546).",
+  "profiles": ["core-language", "data"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-separator-nested-list",
+        "start": [5, 11],
+        "end": [5, 12]
+      },
+      "params": { "text": "[" },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

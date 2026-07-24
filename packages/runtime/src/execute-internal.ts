@@ -83,6 +83,7 @@ import {
   isSupportedArgument,
   printedForm,
   pushLoopFrame,
+  snapshotValue,
   requireNumber,
   requireWholeNumber,
   type AssignResult,
@@ -1683,6 +1684,74 @@ function dispatchAssignOrListMutator(
 }
 
 /**
+ * Executes a `print value1 [value2 ...]` statement (`spec/commands.md`'s `print`) once
+ * {@link executeStatements} has confirmed it via {@link isPrintCall}. Extracted into its own
+ * function for the same reason {@link dispatchTurtleCommand}'s doc comment gives: `executeStatements`
+ * recurses once per procedure call, so keeping this arity/evaluation/snapshot logic (including the
+ * per-print `snapshotValue` memo, issue #495's point-in-time-snapshot rule) out of its body keeps
+ * its own stack frame size fixed — inlining it there is exactly what pushed the 600-deep
+ * `recursionDepthLimit: 1000` regression test (`execution-budget.test.mjs`) over the native
+ * call-stack limit.
+ *
+ * All arguments are evaluated first into `rawValues`, and only once every argument has finished
+ * evaluating is that whole list snapshotted, in one pass sharing a single memo (issue #543): a
+ * later argument's evaluation can mutate a live value an earlier argument also reads, and the
+ * spec's snapshot rule requires the entire payload to reflect state as of the *whole
+ * statement's* evaluation — not, incorrectly, each argument's own evaluation instant.
+ */
+function executePrintCall(
+  statement: CallNode | ParenCallNode,
+  environment: Environment,
+): ExecSignal | undefined {
+  if (statement.args.length === 0) {
+    return halt(
+      runtimeDiag.notEnoughInputs(
+        statement.callee.source_span,
+        statement.callee.name,
+        1,
+        0,
+      ),
+    );
+  }
+  // Only evaluate a `print` whose every operand is an expression kind this issue's
+  // evaluator gives meaning to (Core literals, arithmetic, variable/place reads, user
+  // procedure calls). `(print 1 :ages.tom)` and similar still emit their `instruction`
+  // event but are left un-evaluated for the slice that implements the unsupported
+  // operand's expression kind.
+  if (!statement.args.every((arg) => isSupportedArgument(arg, environment))) {
+    return undefined;
+  }
+  const rawValues: OLValue[] = [];
+  let failure: Diagnostic | undefined;
+  for (const arg of statement.args) {
+    const result = evaluate(arg, environment);
+    if (!result.ok) {
+      failure = result.diagnostic;
+      break;
+    }
+    rawValues.push(result.value);
+  }
+  if (failure) {
+    return halt(failure);
+  }
+  // Every argument is evaluated first, and only *then* is the whole argument list snapshotted
+  // in one pass sharing a single memo (`spec/execution-model.md`'s point-in-time-snapshot rule):
+  // a later argument's evaluation may mutate a live value an earlier argument also reads (e.g.
+  // `(print :l (mutate))` where `mutate` does `add 2 to :l`), and the snapshot rule requires
+  // every part of this event's payload to reflect state as of the *whole statement's*
+  // evaluation, not each argument's own evaluation instant.
+  const memo = new Map<object, OLValue>();
+  const values = rawValues.map((value) => snapshotValue(value, memo));
+  environment.events.push({
+    seq: environment.events.length,
+    kind: "print",
+    source_span: statement.source_span,
+    payload: { values } satisfies PrintPayload,
+  });
+  return undefined;
+}
+
+/**
  * Executes a `show value` statement (issue #234, `spec/commands.md`'s `show`) once
  * {@link executeStatements} has confirmed it via {@link isShowCall}. Extracted into its own
  * function for the same reason {@link dispatchTurtleCommand}'s doc comment gives: `executeStatements`
@@ -1732,7 +1801,7 @@ function executeShowCall(
     seq: environment.events.length,
     kind: "print",
     source_span: statement.source_span,
-    payload: { values: [result.value] } satisfies PrintPayload,
+    payload: { values: [snapshotValue(result.value)] } satisfies PrintPayload,
   });
   return undefined;
 }
@@ -2282,6 +2351,26 @@ function runProcedure(
   }
 }
 
+/**
+ * Builds a {@link ProcedureEnterPayload} whose `args` are point-in-time snapshots
+ * (issue #495's rule, `spec/execution-model.md`'s effect-event-snapshot section) rather than
+ * the live bound-argument values, sharing a single memo across all of a call's arguments so
+ * two arguments that alias the same live value (e.g. `(foo :l :l)`) remain aliased in the
+ * snapshot too. Extracted into its own function — rather than inlined at
+ * {@link runProcedureBody}'s `procedure-enter` push — for the same stack-frame-size reason
+ * {@link executePrintCall}'s doc comment gives: `runProcedureBody` is on the
+ * `recursionDepthLimit`-checked recursive call path, so any inline growth there (a `Map`
+ * allocation, a `.map()` call) risks reproducing the 600-deep `recursionDepthLimit: 1000`
+ * regression (`execution-budget.test.mjs`) over the native call-stack limit.
+ */
+function snapshotProcedureEnterPayload(
+  name: string,
+  args: readonly OLValue[],
+): ProcedureEnterPayload {
+  const memo = new Map<object, OLValue>();
+  return { name, args: args.map((arg) => snapshotValue(arg, memo)) };
+}
+
 /** The body of {@link runProcedure}, run once the recursion-depth check and push have happened. */
 function runProcedureBody(
   node: CallNode | ParenCallNode,
@@ -2361,10 +2450,7 @@ function runProcedureBody(
     seq: environment.events.length,
     kind: "procedure-enter",
     source_span: node.source_span,
-    payload: {
-      name: def.name.name,
-      args: boundArgs,
-    } satisfies ProcedureEnterPayload,
+    payload: snapshotProcedureEnterPayload(def.name.name, boundArgs),
   });
 
   const signal = executeStatements(def.body.body, calleeEnv);
@@ -2377,7 +2463,18 @@ function runProcedureBody(
     seq: environment.events.length,
     kind: "procedure-exit",
     source_span: node.source_span,
-    payload: { name: def.name.name, result } satisfies ProcedureExitPayload,
+    payload: {
+      name: def.name.name,
+      // Snapshotted inline (issue #495), unlike `procedure-enter`'s payload just above, which
+      // uses the extracted `snapshotProcedureEnterPayload` helper: an equivalent extracted
+      // helper here was tried and regressed the 600-deep `recursionDepthLimit: 1000` regression
+      // test (`execution-budget.test.mjs`) over the native call-stack limit, since this push is
+      // in `runProcedureBody`'s own frame on the recursion-depth-checked call path — every byte
+      // added to this frame's own size is multiplied by the recursion depth. `procedure-enter`'s
+      // extraction stayed under that budget; this one and `executeStatements`'s `"Return"`
+      // branch below did not, so both are inlined as the smallest correct fix instead.
+      result: result === null ? null : snapshotValue(result),
+    } satisfies ProcedureExitPayload,
   });
 
   return { ok: true, result };
@@ -2612,43 +2709,11 @@ function executeStatements(
     }
 
     if (isPrintCall(statement)) {
-      if (statement.args.length === 0) {
-        return halt(
-          runtimeDiag.notEnoughInputs(
-            statement.callee.source_span,
-            statement.callee.name,
-            1,
-            0,
-          ),
-        );
-      }
-      // Only evaluate a `print` whose every operand is an expression kind this issue's
-      // evaluator gives meaning to (Core literals, arithmetic, variable/place reads, user
-      // procedure calls). `(print 1 :ages.tom)` and similar still emit their `instruction`
-      // event but are left un-evaluated for the slice that implements the unsupported
-      // operand's expression kind.
-      if (
-        statement.args.every((arg) => isSupportedArgument(arg, environment))
-      ) {
-        const values: OLValue[] = [];
-        let failure: Diagnostic | undefined;
-        for (const arg of statement.args) {
-          const result = evaluate(arg, environment);
-          if (!result.ok) {
-            failure = result.diagnostic;
-            break;
-          }
-          values.push(result.value);
+      const signal = executePrintCall(statement, environment);
+      if (signal !== undefined) {
+        if (signal.kind === "halt") {
+          return signal;
         }
-        if (failure) {
-          return halt(failure);
-        }
-        environment.events.push({
-          seq: environment.events.length,
-          kind: "print",
-          source_span: statement.source_span,
-          payload: { values } satisfies PrintPayload,
-        });
       }
       continue;
     }
@@ -2688,8 +2753,13 @@ function executeStatements(
       environment.events.push({
         seq: environment.events.length,
         kind: "return",
+        // Snapshotted inline (issue #495) rather than via an extracted helper — see
+        // `runProcedureBody`'s `procedure-exit` push's comment: `executeStatements` is on the
+        // same recursion-depth-checked call path, and an extracted helper here reproduced the
+        // 600-deep `recursionDepthLimit: 1000` regression (`execution-budget.test.mjs`), so this
+        // is the smallest correct fix instead.
         source_span: statement.source_span,
-        payload: { value: result.value } satisfies ReturnPayload,
+        payload: { value: snapshotValue(result.value) } satisfies ReturnPayload,
       });
       return {
         kind: "return",

@@ -1,0 +1,92 @@
+{
+  "description": "spec/execution-model.md's snapshot rule: effect-event payloads are point-in-time snapshots (transitive/recursive capture) of mutable program values at emission time, not live references. `:m` embeds `:outer` by reference at construction time; the first `print :m` must show `[1 2]` for `:outer` even though `:outer` is mutated by `add 3 to :outer` afterward — the second `print :m` observes the mutation, but the first print's already-emitted payload must not retroactively change. Issue #495, PR #530.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/snapshot-identity/nested-mutation-after-emission",
+        "start": [1, 1],
+        "end": [1, 15]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/snapshot-identity/nested-mutation-after-emission",
+        "start": [2, 1],
+        "end": [2, 22]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/snapshot-identity/nested-mutation-after-emission",
+        "start": [3, 1],
+        "end": [3, 9]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "data/snapshot-identity/nested-mutation-after-emission",
+        "start": [3, 1],
+        "end": [3, 9]
+      },
+      "payload": {
+        "values": [[[1, 2], 99]]
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/snapshot-identity/nested-mutation-after-emission",
+        "start": [4, 1],
+        "end": [4, 16]
+      },
+      "payload": {
+        "statement_kind": "Add"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/snapshot-identity/nested-mutation-after-emission",
+        "start": [5, 1],
+        "end": [5, 9]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "print",
+      "source_span": {
+        "document": "data/snapshot-identity/nested-mutation-after-emission",
+        "start": [5, 1],
+        "end": [5, 9]
+      },
+      "payload": {
+        "values": [[[1, 2, 3], 99]]
+      }
+    }
+  ],
+  "diagnostics": []
+}

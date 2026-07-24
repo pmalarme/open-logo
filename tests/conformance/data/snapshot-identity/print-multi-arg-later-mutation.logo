@@ -1,0 +1,6 @@
+define mutate
+  add 2 to :l
+  return 0
+end
+:l = [1]
+(print :l mutate)

@@ -15,3 +15,4 @@ first — it defines the LDR format, numbering convention, and citation requirem
 | [0003](0003-closed-comma-free-prefix-call-grammar.md) | A closed, comma-free, prefix-call grammar | Accepted | `spec/grammar.md`, `spec/commands.md`, `spec/data-structures.md` |
 | [0004](0004-no-lambda-first-class-procedures.md) | No lambda or first-class procedure values in v0.1 | Accepted | `spec/grammar.md`, `spec/conformance.md` |
 | [0005](0005-profiles-and-the-conformance-dag.md) | Profiles and the conformance DAG | Accepted | `spec/conformance.md` |
+| [0006](0006-effect-event-snapshot-timing.md) | Effect-event snapshot timing is emission-time, not evaluation-time | Accepted | `spec/execution-model.md` |

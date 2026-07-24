@@ -1,0 +1,5 @@
+# A well-formed nested list literal in a dict-entry's separator position (a valid
+# key with no `:` following it) is a grammar-position error, not a
+# bracket-matching one: exactly one ol-bad-token fires for the inner `[`, never
+# ol-unmatched-bracket (issue #546).
+print { a [ 1 2 ] }

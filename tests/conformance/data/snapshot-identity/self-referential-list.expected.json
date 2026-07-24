@@ -1,0 +1,56 @@
+{
+  "description": "spec/execution-model.md's snapshot rule: effect-event payloads MUST preserve alias/cycle topology via snapshot-local reference identity, terminating via a whole-capture memo. `add :l to :l` (spec/data-structures.md's `add` semantics) makes `:l` a genuinely self-referential list; the `print :l` payload must capture that cycle rather than crashing (host stack overflow) or silently truncating it. `$id`/`$ref` assert that the third element IS the very same reference as the outer list itself. Issue #495, PR #530.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/snapshot-identity/self-referential-list",
+        "start": [1, 1],
+        "end": [1, 11]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/snapshot-identity/self-referential-list",
+        "start": [2, 1],
+        "end": [2, 13]
+      },
+      "payload": {
+        "statement_kind": "Add"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/snapshot-identity/self-referential-list",
+        "start": [3, 1],
+        "end": [3, 9]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "data/snapshot-identity/self-referential-list",
+        "start": [3, 1],
+        "end": [3, 9]
+      },
+      "payload": {
+        "values": [{ "$id": "l", "$value": [1, 2, { "$ref": "l" }] }]
+      }
+    }
+  ],
+  "diagnostics": []
+}

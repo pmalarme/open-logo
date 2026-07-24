@@ -407,7 +407,7 @@ function describeEvent(event: TraceEvent): string {
     }
     case "print": {
       const { values } = event.payload as PrintPayload;
-      return `OpenLogo showed ${values.map(printedForm).join(", ")}.`;
+      return `OpenLogo showed ${values.map((value) => printedForm(value)).join(", ")}.`;
     }
     case "return": {
       const { value } = event.payload as ReturnPayload;
