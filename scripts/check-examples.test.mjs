@@ -204,12 +204,46 @@ test("detectUsedProfiles finds sprites for new_turtle/tell/ask/each/turtles/who"
 
 test("detectUsedProfiles finds geometry for the grid/axes/measure overlay primitives", () => {
   // spec/geometry-module.md's grid/axes/measure are renderer-backed primitives (unlike
-  // polygon/area/perimeter, which are discoverable OpenLogo stdlib source, not primitives), and
+  // polygon/area/perimeter, which are discoverable OpenLogo stdlib source an example typically
+  // `define`s for itself — but a bare call to one is still detected too, see the next test), and
   // Geometry IS an implemented profile (IMPLEMENTED_PROFILES), so this is a live masking case
   // (issue #519, third review round).
   assert.deepEqual(detectUsedProfiles("grid\n"), ["geometry"]);
   assert.deepEqual(detectUsedProfiles("axes\n"), ["geometry"]);
   assert.deepEqual(detectUsedProfiles("measure\n"), ["geometry"]);
+});
+
+test("detectUsedProfiles finds geometry for the polygon/star/circle/arc derived stdlib procedures", () => {
+  // Fifth review round (issue #519): these have no arity-table entry (they are discoverable
+  // OpenLogo source, per spec/geometry-module.md), but a bare call site is an ordinary,
+  // recognizable Call — exactly as detectable-by-bare-name as SOUND_CALLEE_NAMES etc. above.
+  assert.deepEqual(detectUsedProfiles("polygon 5 100\n"), ["geometry"]);
+  assert.deepEqual(detectUsedProfiles("star 5 100\n"), ["geometry"]);
+  assert.deepEqual(detectUsedProfiles("circle 50\n"), ["geometry"]);
+  assert.deepEqual(detectUsedProfiles("arc 50 90\n"), ["geometry"]);
+});
+
+test("detectUsedProfiles finds BOTH geometry and data for area/perimeter (spec/conformance.md:261)", () => {
+  // "area/perimeter read a shape spec by list index, so they also need Data" — the same
+  // "this construct's own semantics always need a second profile" rule already applied to
+  // ValueOfKey, scoped to just these two of the six derived stdlib names.
+  assert.deepEqual(detectUsedProfiles("area [4 4]\n"), ["data", "geometry"]);
+  assert.deepEqual(detectUsedProfiles("perimeter [4 4]\n"), [
+    "data",
+    "geometry",
+  ]);
+});
+
+test("detectUsedProfiles does NOT flag geometry when an example defines its own polygon/area/perimeter (mirrors 13-geometry-stdlib.logo)", () => {
+  // The real spec/examples/13-geometry-stdlib.logo defines these procedures itself; the
+  // definedProcedureNames shadow-guard (checked before GEOMETRY_STDLIB_CALLEE_NAMES) must
+  // continue to treat that as ordinary Core user code, not evidence of Geometry usage.
+  assert.deepEqual(
+    detectUsedProfiles(
+      "define polygon :sides :length\n  repeat :sides [ forward :length right 90 ]\nend\npolygon 4 50\n",
+    ),
+    [],
+  );
 });
 
 test("detectUsedProfiles finds educational for the explain/why/hint/debug meta-commands", () => {
@@ -252,6 +286,43 @@ test("detectUsedProfiles finds heritage for the 'make' assignment spelling", () 
   // `make` has no dedicated AST node (it's not a registered-arity primitive), but it still
   // parses as an ordinary zero-arity Call, so its callee name alone is enough to detect it.
   assert.deepEqual(detectUsedProfiles('make "x" 1\n'), ["heritage"]);
+});
+
+test("detectUsedProfiles finds heritage for the 'to'/'output'/'op' reserved words (fifth review round)", () => {
+  // Fifth review round (rubber-duck-v10): to/output/op have NO Call/ParenCall — or any other —
+  // AST production at all (packages/parser/src/parser.ts's NON_PRIMARY_NAMES), so an example
+  // using them always produces an ol-bad-token diagnostic naming the exact reserved word; that
+  // diagnostic, not any AST node, is what RESERVED_WORD_PROFILES scans for.
+  assert.deepEqual(
+    detectUsedProfiles("to draw_tick :size\nforward :size\nend\n"),
+    ["heritage"],
+  );
+  assert.deepEqual(detectUsedProfiles("output 5\n"), ["heritage"]);
+  assert.deepEqual(detectUsedProfiles("op 5\n"), ["heritage"]);
+});
+
+test("detectUsedProfiles does NOT flag heritage for 'to' in its two legitimate Core roles (for-range bound, set-assignment preposition)", () => {
+  // `to` is also a plain keyword in two Core grammar productions that consume it with zero
+  // diagnostics (spec/grammar.md:104, :128) — the reserved-word scan must not conflate those with
+  // the Heritage `to … end` procedure-definition spelling, or a plain Core example would be
+  // spuriously flagged as needing Heritage (breaking acceptance criterion 3).
+  assert.deepEqual(detectUsedProfiles("for i from 1 to 5 [ print :i ]\n"), []);
+  assert.deepEqual(detectUsedProfiles("local x\nset x to 5\nprint :x\n"), []);
+});
+
+test("detectUsedProfiles finds modules for the 'import'/'export' reserved words", () => {
+  // Like to/output/op, import/export have no AST production at all today
+  // (NON_PRIMARY_NAMES) — every occurrence is an ol-bad-token diagnostic.
+  assert.deepEqual(detectUsedProfiles("import foo\n"), ["modules"]);
+  assert.deepEqual(detectUsedProfiles("export foo\n"), ["modules"]);
+});
+
+test("detectUsedProfiles finds localization for the 'alias' reserved word (spec/localization.md:18-21)", () => {
+  // `alias new_name existing_name` is THE Localization aliasing mechanism; like import/export it
+  // has no AST production today, so it is detected the same way.
+  assert.deepEqual(detectUsedProfiles("alias avancer forward\n"), [
+    "localization",
+  ]);
 });
 
 test("detectUsedProfiles does NOT flag a user-defined procedure that shadows an optional-profile callee name (round-5 rubber-duck review)", () => {
@@ -650,6 +721,128 @@ test("runExamplesGate: catches masking of the Tutor (AI) 'challenge' entry point
         line.includes("tutor-ai"),
     ),
     "the failure line must name the example and the missing profile (tutor-ai)",
+  );
+});
+
+test("runExamplesGate: catches masking of the Geometry derived stdlib (polygon) too (fifth review round)", () => {
+  // An example calling `polygon` at the top level (not defining its own), declaring only an
+  // unrelated unimplemented profile (sound) but omitting "geometry", must FAIL loudly naming
+  // geometry, not SKIP.
+  writeExample("masked-polygon.logo", "set_tempo 120\npolygon 5 100\n");
+  const result = runExamplesGate({
+    dir: TEMP_DIR,
+    manifest: {
+      "masked-polygon.logo": ["core-language", "turtle-rendering", "sound"],
+    },
+    implementedProfiles: ["core-language", "turtle-rendering", "geometry"],
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.skipped,
+    0,
+    "must FAIL, not SKIP — the missing geometry declaration must not be masked",
+  );
+  assert.equal(result.failed, 1);
+  assert.ok(
+    result.lines.some(
+      (line) =>
+        line.startsWith("FAIL masked-polygon.logo:") &&
+        line.includes("geometry"),
+    ),
+    "the failure line must name the example and the missing profile (geometry)",
+  );
+});
+
+test("runExamplesGate: catches masking of the Heritage 'to ... end' reserved word too (fifth review round)", () => {
+  // An example using the Heritage `to … end` procedure-definition spelling, declaring only an
+  // unrelated unimplemented profile (sound) but omitting "heritage", must FAIL loudly naming
+  // heritage, not SKIP — `to` has no AST node at all, so this proves the diagnostic-based
+  // RESERVED_WORD_PROFILES detection (not just the AST walk) participates in the under-declaration
+  // check.
+  writeExample(
+    "masked-to.logo",
+    "set_tempo 120\nto draw_tick :size\nforward :size\nend\n",
+  );
+  const result = runExamplesGate({
+    dir: TEMP_DIR,
+    manifest: {
+      "masked-to.logo": ["core-language", "turtle-rendering", "sound"],
+    },
+    implementedProfiles: ["core-language", "turtle-rendering"],
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.skipped,
+    0,
+    "must FAIL, not SKIP — the missing heritage declaration must not be masked",
+  );
+  assert.equal(result.failed, 1);
+  assert.ok(
+    result.lines.some(
+      (line) =>
+        line.startsWith("FAIL masked-to.logo:") && line.includes("heritage"),
+    ),
+    "the failure line must name the example and the missing profile (heritage)",
+  );
+});
+
+test("runExamplesGate: catches masking of the Modules 'import' reserved word too (fifth review round)", () => {
+  // An example using `import`, declaring only an unrelated unimplemented profile (sound) but
+  // omitting "modules", must FAIL loudly naming modules, not SKIP.
+  writeExample("masked-import.logo", "set_tempo 120\nimport shapes\n");
+  const result = runExamplesGate({
+    dir: TEMP_DIR,
+    manifest: {
+      "masked-import.logo": ["core-language", "turtle-rendering", "sound"],
+    },
+    implementedProfiles: ["core-language", "turtle-rendering"],
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.skipped,
+    0,
+    "must FAIL, not SKIP — the missing modules declaration must not be masked",
+  );
+  assert.equal(result.failed, 1);
+  assert.ok(
+    result.lines.some(
+      (line) =>
+        line.startsWith("FAIL masked-import.logo:") && line.includes("modules"),
+    ),
+    "the failure line must name the example and the missing profile (modules)",
+  );
+});
+
+test("runExamplesGate: catches masking of the Localization 'alias' reserved word too (fifth review round)", () => {
+  // An example using `alias`, declaring only an unrelated unimplemented profile (sound) but
+  // omitting "localization" (and its transitive "modules" dependency), must FAIL loudly naming
+  // localization, not SKIP.
+  writeExample("masked-alias.logo", "set_tempo 120\nalias avancer forward\n");
+  const result = runExamplesGate({
+    dir: TEMP_DIR,
+    manifest: {
+      "masked-alias.logo": ["core-language", "turtle-rendering", "sound"],
+    },
+    implementedProfiles: ["core-language", "turtle-rendering"],
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.skipped,
+    0,
+    "must FAIL, not SKIP — the missing localization declaration must not be masked",
+  );
+  assert.equal(result.failed, 1);
+  assert.ok(
+    result.lines.some(
+      (line) =>
+        line.startsWith("FAIL masked-alias.logo:") &&
+        line.includes("localization"),
+    ),
+    "the failure line must name the example and the missing profile (localization)",
   );
 });
 

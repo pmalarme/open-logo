@@ -20,19 +20,23 @@
  * that needs, say, Data (e.g. `:list[i]` list-index) but also declares an unrelated
  * not-yet-implemented profile (e.g. Sound) would previously be skipped in its entirety before
  * `data` was ever checked — silently masking the missing declaration. {@link detectUsedProfiles}
- * statically scans the parsed AST for the constructs `spec/conformance.md` classifies as
+ * statically scans the parsed AST (plus the parser's own diagnostics, for the handful of reserved
+ * words with no AST production at all) for the constructs `spec/conformance.md` classifies as
  * normatively belonging to an optional profile (list-index/dict/struct/mutation-form usage and
  * the Data-profile derived reporters `dict`/`list`/`reverse`/`pick`/`sort`/`keys`/`values`/
  * `type_of` — detected via `@openlogo/parser`'s own `dataPrimitiveArity()` name table, not a
  * second hand-maintained list — for Data; `grid`/`axes`/`measure` via `geometryPrimitiveArity()`
- * for Geometry; `explain`/`why`/`hint`/`debug` via `educationalPrimitiveArity()` for Educational;
- * `note`/`beep`/`play`/`rest`/`set_tempo` for Sound;
- * `input`/`when`/`every`/`on_key`/`on_click`/`wait` for Interaction & Events;
+ * plus the derived stdlib procedures `polygon`/`star`/`circle`/`arc`/`area`/`perimeter` (the
+ * latter two also needing Data) for Geometry; `explain`/`why`/`hint`/`debug` via
+ * `educationalPrimitiveArity()` for Educational; `note`/`beep`/`play`/`rest`/`set_tempo` for
+ * Sound; `input`/`when`/`every`/`on_key`/`on_click`/`wait` for Interaction & Events;
  * `new_turtle`/`tell`/`ask`/`each`/`turtles`/`who` for Sprites; the closed Heritage short-alias
  * list plus `make` plus `value of … for key` (which also needs Data) for Heritage; `challenge` for
- * Tutor (AI) — see {@link detectUsedProfiles}'s own doc comment for the full per-profile audit,
- * including the profiles/spellings that are honestly undetectable today (Modules, Localization,
- * and the Heritage `to`/`output`/`op` spellings) and why), and
+ * Tutor (AI); and the reserved words `to`/`output`/`op` (Heritage), `import`/`export` (Modules),
+ * and `alias` (Localization) via the parser's own `ol-bad-token` diagnostics, since those six have
+ * no `Call`/`ParenCall` production at all — see {@link detectUsedProfiles}'s own doc comment for
+ * the full per-profile audit and the one remaining, genuinely-undetectable case (locale-pack
+ * syntax beyond `alias` itself, none of which exists in the grammar today), and
  * {@link runExamplesGate} compares that detected set against the manifest's declared profiles
  * (expanded to their full dependency closure via `scripts/harness/index.mjs`'s `PROFILE_DEPS`)
  * for **every** example — before the SKIP decision, so an under-declaration FAILS the gate loudly
@@ -161,8 +165,9 @@ const TUTOR_AI_CALLEE_NAMES = new Set(["challenge"]);
  * no arity entry for it, so the reader that provides its `"x" 1` operands is left for the next
  * statement, producing `ol-bad-token` diagnostics), so its *callee name* is still detectable here.
  * `to`/`output`/`op` are also Heritage spellings but are reserved words with no `Call`/`ParenCall`
- * production at all today, so they cannot be detected this way; the list below is what a real
- * example's parsed callee names can actually contain.
+ * production at all today, so a bare-name check like this one can never see them — they are
+ * detected separately, via {@link RESERVED_WORD_PROFILES}, from the parser's own parse-time
+ * diagnostics rather than from the AST.
  */
 const HERITAGE_CALLEE_NAMES = new Set([
   "fd",
@@ -182,6 +187,69 @@ const HERITAGE_CALLEE_NAMES = new Set([
 ]);
 
 /**
+ * The Geometry profile's derived standard-library procedures (`spec/geometry-module.md`,
+ * `spec/conformance.md:261`): `polygon`, `star`, `circle`, `arc`, `area`, `perimeter`. Unlike
+ * `grid`/`axes`/`measure` (renderer-backed overlay primitives with a `geometryPrimitiveArity()`
+ * table entry), these are **discoverable OpenLogo source** an example is expected to `define`
+ * for itself (`spec/examples/13-geometry-stdlib.logo`), never a parser primitive — but a call
+ * site invoking one of them is still an ordinary, recognizable `Call`/`ParenCall` node, exactly
+ * like `SOUND_CALLEE_NAMES`/`SPRITES_CALLEE_NAMES`/etc. above. The `definedProcedureNames`
+ * shadow-guard (checked before this set) already covers the "this example defines these itself"
+ * case correctly, so leaving them out of a shared detector was an unprincipled gap, not a genuine
+ * undetectability (fifth review round, issue #519): an example calling `polygon` without
+ * defining it, while declaring only an unrelated unimplemented profile, reached SKIP with the
+ * missing `geometry` declaration never surfaced.
+ *
+ * `area` and `perimeter` specifically also add `data`: `spec/conformance.md:261` states their
+ * canonical stdlib implementation "read[s] a shape spec by list index, so they also need Data" —
+ * the same "this construct's own semantics always need a second profile" reasoning already
+ * applied to `ValueOfKey` above, scoped to just the two names the spec calls out.
+ */
+const GEOMETRY_STDLIB_CALLEE_NAMES = new Set([
+  "polygon",
+  "star",
+  "circle",
+  "arc",
+  "area",
+  "perimeter",
+]);
+
+/** Of {@link GEOMETRY_STDLIB_CALLEE_NAMES}, the two whose canonical implementation also needs Data. */
+const GEOMETRY_STDLIB_ALSO_DATA_NAMES = new Set(["area", "perimeter"]);
+
+/**
+ * Reserved words (`packages/parser/src/parser.ts`'s `NON_PRIMARY_NAMES`) that have no
+ * `Call`/`ParenCall` — or any other — AST production at all today, so no AST walk can ever see
+ * them: the Heritage `to`/`output`/`op` procedure-definition/return spellings
+ * (`spec/conformance.md:257`,`:270`), and the Modules/Localization `import`/`export`/`alias`
+ * module-and-keyword-pack-aliasing forms (`spec/conformance.md:177-186`,`:277-278`;
+ * `spec/localization.md:18-21`'s `alias new_name existing_name`). `struct` is deliberately
+ * excluded from this map: unlike the six words above, it DOES have a dedicated production
+ * (`parser.ts`'s `parseStructDef`, reached via its own statement-level dispatch), so it already
+ * surfaces as a `StructDef` node in {@link DATA_NODE_KINDS} and needs no diagnostic-based
+ * fallback.
+ *
+ * Every occurrence of `import`/`export`/`alias` produces a parser diagnostic today (none of the
+ * three has any legitimate grammar role, so there is no "clean" use to miss). `to` is the one
+ * exception with two legitimate roles that consume it with **zero** diagnostics when used
+ * correctly — the `for … from … to` range bound and the `set … to` assignment preposition
+ * (`spec/grammar.md:104`,`:128`; confirmed directly: `parse("for i from 1 to 5 [ ]")` and
+ * `parse("set x to 5")` both return `diagnostics: []`) — so a diagnostic naming `to` only ever
+ * fires when it appears outside those two roles, i.e. genuinely as the Heritage procedure-opener
+ * (or beside an already-unrelated parse error, which is not a live masking risk: such a source
+ * would already fail `classifyExample`'s diagnostics check whenever it is actually run, and
+ * over-attributing `heritage` to an already-broken file is the opposite of under-declaration).
+ */
+const RESERVED_WORD_PROFILES = new Map([
+  ["to", "heritage"],
+  ["output", "heritage"],
+  ["op", "heritage"],
+  ["import", "modules"],
+  ["export", "modules"],
+  ["alias", "localization"],
+]);
+
+/**
  * Statically detect the set of optional conformance profiles `source` actually uses, per
  * `spec/conformance.md`'s normative feature-to-profile classification. This is independent of
  * which profiles are implemented today (see {@link IMPLEMENTED_PROFILES}) and independent of the
@@ -189,54 +257,41 @@ const HERITAGE_CALLEE_NAMES = new Set([
  * manifest entry that under-declares what the example needs (issue #519, finding G8).
  *
  * **Exhaustiveness audit against every optional profile in `spec/conformance.md`'s dependency
- * DAG** (issue #519, third review round — see git history for the two prior rounds that added
- * Data-derived-reporter and Heritage `value of … for key` detection):
+ * DAG** (issue #519, fifth review round — see git history for the earlier rounds that added
+ * Data-derived-reporter, Heritage `value of … for key`, Geometry/Educational/Tutor-AI table-driven
+ * detection, and the reserved-word/Geometry-stdlib rounds below):
  *
  * | Profile | Detected via | Notes |
  * | --- | --- | --- |
  * | Data | `DATA_NODE_KINDS`, index/field segments, `dataPrimitiveArity()` | |
  * | Turtle & Rendering | *(not detected)* | every example needs it; never contradicts a declaration |
- * | Geometry | `geometryPrimitiveArity()` (`grid`/`axes`/`measure`) | implemented profile — a live masking case |
- * |  |  | `polygon`/`star`/`circle`/`arc`/`area`/`perimeter` are Geometry-owned per
- *   `spec/geometry-module.md`, but they are **derived stdlib source procedures** an example
- *   `define`s for itself (see `spec/examples/13-geometry-stdlib.logo`), not parser primitives, so
- *   they have no callee name a shared detector could recognize — same undetectable-by-design
- *   class as `to`/`output`/`op`. This is not a live masking risk: they need no runtime
- *   capability beyond Core+Turtle+Data (`geometry: ["turtle-rendering", "data"]` in
- *   `harness/index.mjs`'s `PROFILE_DEPS`), and the checker only rejects an undeclared `geometry`
- *   claim for the renderer-backed `grid`/`axes`/`measure` overlay primitives above, which *are*
- *   detected. |
- * | Heritage | `HERITAGE_CALLEE_NAMES`, `ValueOfKey` (adds `data` too) | `to`/`output`/`op` excluded, see below |
+ * | Geometry | `geometryPrimitiveArity()` (`grid`/`axes`/`measure`) plus `GEOMETRY_STDLIB_CALLEE_NAMES`
+ *   (`polygon`/`star`/`circle`/`arc`/`area`/`perimeter`, the latter two also adding `data` per
+ *   `spec/conformance.md:261`) | implemented profile — a live masking case |
+ * | Heritage | `HERITAGE_CALLEE_NAMES`, `ValueOfKey` (adds `data` too), `RESERVED_WORD_PROFILES`
+ *   (`to`/`output`/`op`, via diagnostics) | |
  * | Sprites | `SPRITES_CALLEE_NAMES` | |
  * | Interaction & Events | `INTERACTION_EVENTS_CALLEE_NAMES` | |
  * | Sound | `SOUND_CALLEE_NAMES` | |
  * | Educational | `educationalPrimitiveArity()` (`explain`/`why`/`hint`/`debug`) | |
- * | Modules | *(not detectable today)* | `import`/`export`/`alias` are reserved words
- *   (`packages/parser/src/parser.ts`'s `NON_PRIMARY_NAMES`) with no dedicated AST production or
- *   parse function today — they cannot begin an expression/Call, so an example using them fails
- *   to parse cleanly rather than silently masking a manifest gap. |
- * | Localization | *(not detectable today)* | depends on Modules, which has no parseable form yet
- *   (no locale-pack keyword/production exists in the grammar today either). |
- * | Tutor (AI) | `TUTOR_AI_CALLEE_NAMES` (`challenge`, `spec/conformance.md:279-280`) | fourth
- *   review round found this excluded for the same reason `to`/`output`/`op` is (no arity-table
- *   entry — `packages/parser/src/educational-meta-commands.test.mjs:64` asserts
- *   `educationalPrimitiveArity("challenge")` is `undefined`) — but that reasoning does not apply:
- *   `challenge` parses as an ordinary, recognizable `Call` (it is not in `NON_PRIMARY_NAMES`), and
- *   is exactly as detectable-by-bare-name as `SOUND_CALLEE_NAMES`/`SPRITES_CALLEE_NAMES`/
- *   `INTERACTION_EVENTS_CALLEE_NAMES` above, none of which are arity-registered either. The
- *   `definedProcedureNames` shadow-guard (checked before any hand-list) already neutralizes the
- *   "collides with a user's own `define challenge ... end`" risk identically for all four, so
- *   there was no principled reason to detect three of them but not this one. Now detected. |
+ * | Modules | `RESERVED_WORD_PROFILES` (`import`/`export`, via diagnostics) | |
+ * | Localization | `RESERVED_WORD_PROFILES` (`alias`, via diagnostics) | depends on Modules,
+ *   expanded by `closureOf` on the declared side |
+ * | Tutor (AI) | `TUTOR_AI_CALLEE_NAMES` (`challenge`, `spec/conformance.md:279-280`) | |
  *
- * `to`/`output`/`op` are Heritage spellings that are reserved words with no `Call`/`ParenCall`
- * production at all today (same `NON_PRIMARY_NAMES` set), so — like Modules/Localization above —
- * they cannot be detected this way either; see {@link HERITAGE_CALLEE_NAMES}'s doc comment.
+ * `to`/`output`/`op` (Heritage) and `import`/`export`/`alias` (Modules/Localization) have no
+ * `Call`/`ParenCall` — or any other — AST production at all today (`packages/parser/src/parser.ts`'s
+ * `NON_PRIMARY_NAMES`), so the AST walk below can never see them directly; {@link
+ * RESERVED_WORD_PROFILES} detects them instead from the parser's own `ol-bad-token` diagnostics,
+ * which always carry the offending token text even though no AST node results — see that map's own
+ * doc comment for why this is safe (in particular, why `to`'s two legitimate non-Heritage roles
+ * never produce a false positive).
  *
- * **After this round, every optional profile with a parseable, recognizable callee is detected.**
- * The only remaining undetectable-by-design gaps are constructs with genuinely no parser
- * production at all today (Modules/Localization's `import`/`export`/`alias`/locale syntax, and the
- * Heritage `to`/`output`/`op` reserved words) — an example using any of those fails to parse
- * cleanly rather than silently masking a manifest gap, so they are not a live G8 masking risk.
+ * **After this round, every optional profile in the DAG is detected by at least one signal** —
+ * either an AST construct/callee name, or (for the six reserved words with no production at all) a
+ * parser diagnostic. There is no remaining profile-classified construct this function cannot see;
+ * the only thing it deliberately does NOT attempt is record-binder destructuring (see below), which
+ * is a Data-vs-Core split decided by a *runtime* value, not a static one.
  *
  * Deliberately conservative otherwise: it flags only constructs the spec ties to one profile in
  * *every* context (list-index/field-selector reads, dict/struct/mutation-form syntax, and each
@@ -298,8 +353,29 @@ const HERITAGE_CALLEE_NAMES = new Set([
  * @returns a sorted, de-duplicated array of profile ids, e.g. `["data"]` or `["data", "sound"]`.
  */
 export function detectUsedProfiles(source) {
-  const { ast } = parse(source);
+  const { ast, diagnostics } = parse(source);
   const used = new Set();
+
+  // Reserved words with no AST production at all (`to`/`output`/`op`/`import`/`export`/`alias`,
+  // see {@link RESERVED_WORD_PROFILES}) can never be found by the AST walk below, so they are
+  // detected from the parser's own diagnostics instead: `packages/parser/src/errors.ts`'s
+  // `badToken` (and its `missingTerminator` cascade sibling, both `ol-bad-token`) always carries
+  // the exact offending token text in `params.text`. Matched on the diagnostic `code` plus an
+  // exact, case-insensitive `params.text` value — never on `message` prose, which is not part of
+  // a diagnostic's stable identity (`spec/localization.md:221`).
+  for (const diagnostic of diagnostics) {
+    if (diagnostic.code !== "ol-bad-token") {
+      continue;
+    }
+    const text = diagnostic.params?.text;
+    if (typeof text !== "string") {
+      continue;
+    }
+    const profile = RESERVED_WORD_PROFILES.get(text.toLowerCase());
+    if (profile !== undefined) {
+      used.add(profile);
+    }
+  }
 
   const definedProcedureNames = new Set();
   walk(ast, (node) => {
@@ -413,6 +489,16 @@ export function detectUsedProfiles(source) {
       // implemented (see {@link IMPLEMENTED_PROFILES}), so an example using one of these while
       // under-declaring `geometry` is a live, catchable masking case, not a hypothetical.
       used.add("geometry");
+    } else if (GEOMETRY_STDLIB_CALLEE_NAMES.has(name)) {
+      // The Geometry profile's derived stdlib procedures `polygon`/`star`/`circle`/`arc`/`area`/
+      // `perimeter` (`spec/geometry-module.md`, `spec/conformance.md:261`) — an ordinary,
+      // recognizable call site an example either `define`s for itself (already excluded above by
+      // the `definedProcedureNames` shadow-guard) or calls while relying on the profile's
+      // stdlib semantics (fifth review round, issue #519).
+      used.add("geometry");
+      if (GEOMETRY_STDLIB_ALSO_DATA_NAMES.has(name)) {
+        used.add("data");
+      }
     } else if (educationalPrimitiveArity(name) !== undefined) {
       // The Educational profile's baseline meta-commands `explain`/`why`/`hint`/`debug`
       // (`packages/parser/src/signatures.ts`'s `EDUCATIONAL_PRIMITIVE_ARITY`).
