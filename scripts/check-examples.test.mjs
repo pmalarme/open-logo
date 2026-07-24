@@ -167,6 +167,21 @@ test("detectUsedProfiles finds data for the Heritage 'value of ... for key' dict
   ]);
 });
 
+test("detectUsedProfiles finds data for the Data profile's derived call-site reporters", () => {
+  // These are call-site names, not distinct AST node kinds — detected via
+  // @openlogo/parser's own dataPrimitiveArity() name table (issue #519 rubber-duck review:
+  // a bare `dict`/`list` constructor call has no DictLit/list-index/field AST shape at all, so
+  // without this the exact G8 masking bug would still be reproducible via these primitives).
+  assert.deepEqual(detectUsedProfiles(":d = dict\n"), ["data"]);
+  assert.deepEqual(detectUsedProfiles(":l = list\n"), ["data"]);
+  assert.deepEqual(detectUsedProfiles("print reverse :nums\n"), ["data"]);
+  assert.deepEqual(detectUsedProfiles("print pick :nums\n"), ["data"]);
+  assert.deepEqual(detectUsedProfiles("print sort :nums\n"), ["data"]);
+  assert.deepEqual(detectUsedProfiles("print keys :ages\n"), ["data"]);
+  assert.deepEqual(detectUsedProfiles("print values :ages\n"), ["data"]);
+  assert.deepEqual(detectUsedProfiles("print type_of :p\n"), ["data"]);
+});
+
 test("detectUsedProfiles finds sound for the Sound primitive names", () => {
   assert.deepEqual(detectUsedProfiles("note 440 1\n"), ["sound"]);
   assert.deepEqual(detectUsedProfiles('play "C4"\n'), ["sound"]);
@@ -184,6 +199,12 @@ test("detectUsedProfiles finds sprites for new_turtle/tell/ask/each/turtles/who"
 
 test("detectUsedProfiles finds heritage for a short-alias call", () => {
   assert.deepEqual(detectUsedProfiles("fd 10\n"), ["heritage"]);
+});
+
+test("detectUsedProfiles finds heritage for the 'make' assignment spelling", () => {
+  // `make` has no dedicated AST node (it's not a registered-arity primitive), but it still
+  // parses as an ordinary zero-arity Call, so its callee name alone is enough to detect it.
+  assert.deepEqual(detectUsedProfiles('make "x" 1\n'), ["heritage"]);
 });
 
 test("detectUsedProfiles returns every distinct profile a source uses, sorted", () => {
@@ -306,6 +327,31 @@ test("runExamplesGate: catches an under-declared profile even when masked by an 
       (line) => line.startsWith("FAIL masked.logo:") && line.includes("data"),
     ),
     "the failure line must name the example and the missing profile (data)",
+  );
+});
+
+test("runExamplesGate: catches masking via a Data derived-reporter primitive too, not just list-index (rubber-duck review follow-up)", () => {
+  // The rubber-duck non-author review of this exact fix flagged that a bare Data primitive call
+  // (e.g. `dict`) has no DictLit/index/field AST shape, so a first draft that only recognized
+  // those node kinds would have let this masking scenario back in. `set_tempo` (Sound) is
+  // declared but Data (via the `dict` call) is omitted — must still FAIL loudly, not SKIP.
+  writeExample("masked-primitive.logo", "set_tempo 120\n:d = dict\n");
+  const result = runExamplesGate({
+    dir: TEMP_DIR,
+    manifest: {
+      "masked-primitive.logo": ["core-language", "turtle-rendering", "sound"],
+    },
+    implementedProfiles: ["core-language", "turtle-rendering"],
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.skipped, 0);
+  assert.equal(result.failed, 1);
+  assert.ok(
+    result.lines.some(
+      (line) =>
+        line.startsWith("FAIL masked-primitive.logo:") && line.includes("data"),
+    ),
   );
 });
 

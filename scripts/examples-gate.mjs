@@ -21,10 +21,13 @@
  * not-yet-implemented profile (e.g. Sound) would previously be skipped in its entirety before
  * `data` was ever checked — silently masking the missing declaration. {@link detectUsedProfiles}
  * statically scans the parsed AST for the constructs `spec/conformance.md` classifies as
- * normatively belonging to an optional profile (list-index/dict/struct/mutation-form usage for
- * Data; `note`/`beep`/`play`/`rest`/`set_tempo` for Sound; `input`/`when`/`every`/`on_key`/
- * `on_click`/`wait` for Interaction & Events; `new_turtle`/`tell`/`ask`/`each`/`turtles`/`who` for
- * Sprites; the closed Heritage short-alias list plus `value of … for key` for Heritage), and
+ * normatively belonging to an optional profile (list-index/dict/struct/mutation-form usage and
+ * the Data-profile derived reporters `dict`/`list`/`reverse`/`pick`/`sort`/`keys`/`values`/
+ * `type_of` — detected via `@openlogo/parser`'s own `dataPrimitiveArity()` name table, not a
+ * second hand-maintained list — for Data; `note`/`beep`/`play`/`rest`/`set_tempo` for Sound;
+ * `input`/`when`/`every`/`on_key`/`on_click`/`wait` for Interaction & Events;
+ * `new_turtle`/`tell`/`ask`/`each`/`turtles`/`who` for Sprites; the closed Heritage short-alias
+ * list plus `make` plus `value of … for key` for Heritage), and
  * {@link runExamplesGate} compares that detected set against the manifest's declared profiles
  * (expanded to their full dependency closure via `scripts/harness/index.mjs`'s `PROFILE_DEPS`)
  * for **every** example — before the SKIP decision, so an under-declaration FAILS the gate loudly
@@ -38,7 +41,7 @@
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { parse, walk } from "@openlogo/parser";
+import { dataPrimitiveArity, parse, walk } from "@openlogo/parser";
 import { execute } from "@openlogo/runtime";
 import { closureOf } from "./harness/index.mjs";
 
@@ -65,6 +68,13 @@ export const IMPLEMENTED_PROFILES = [
  * also declares: dictionary literals (`{ key: value }`), `struct` type declarations, and the
  * `add`/`remove`/`clear`/`insert` collection-mutation forms, plus the Heritage `value of … for
  * key` dictionary reader (which "also needs the Data profile", `spec/conformance.md:273`).
+ *
+ * This does NOT cover the Data profile's derived-reporter *primitives* (`dict`, `list`, `reverse`,
+ * `pick`, `sort`, `keys`, `values`, `type_of`, `spec/data-structures.md`'s "Derived list
+ * reporters"/dictionary/record-operation tables) — those are call-site names, not distinct node
+ * kinds (they parse as ordinary `Call`/`ParenCall` nodes), so {@link detectUsedProfiles} detects
+ * them via `@openlogo/parser`'s own `dataPrimitiveArity()` name table instead of a second,
+ * hand-maintained name list that could drift from the parser's.
  */
 const DATA_NODE_KINDS = new Set([
   "DictLit",
@@ -118,9 +128,13 @@ const SPRITES_CALLEE_NAMES = new Set([
 /**
  * The **Heritage** profile's closed short-alias list (`spec/conformance.md:105-117`,`:271-272`):
  * `fd`/`bk`/`lt`/`rt`/`pu`/`pd`/`st`/`ht`/`cs`/`pr` plus the list-reporter alias spellings
- * `bf`/`bl`/`se`. `make`/`to`/`output`/`op` are also Heritage spellings but are not yet
- * parseable call-site names (the parser has no AST production for them today), so they cannot be
- * detected this way; the closed alias list below is what a real example can actually contain.
+ * `bf`/`bl`/`se`, plus `make` (the Heritage assignment spelling, `spec/conformance.md:107`) — it
+ * has no dedicated AST node, but it still parses as an ordinary zero-arity `Call` (the parser has
+ * no arity entry for it, so the reader that provides its `"x" 1` operands is left for the next
+ * statement, producing `ol-bad-token` diagnostics), so its *callee name* is still detectable here.
+ * `to`/`output`/`op` are also Heritage spellings but are reserved words with no `Call`/`ParenCall`
+ * production at all today, so they cannot be detected this way; the list below is what a real
+ * example's parsed callee names can actually contain.
  */
 const HERITAGE_CALLEE_NAMES = new Set([
   "fd",
@@ -136,6 +150,7 @@ const HERITAGE_CALLEE_NAMES = new Set([
   "bf",
   "bl",
   "se",
+  "make",
 ]);
 
 /**
@@ -180,7 +195,14 @@ export function detectUsedProfiles(source) {
       return;
     }
     const name = node.callee.name.toLowerCase();
-    if (SOUND_CALLEE_NAMES.has(name)) {
+    if (dataPrimitiveArity(name) !== undefined) {
+      // The Data profile's derived list/dict/record reporters (`dict`, `list`, `reverse`,
+      // `pick`, `sort`, `keys`, `values`, `type_of`) are call-site names, not distinct AST node
+      // kinds — detected via the parser's own name table so this stays in lockstep with it
+      // (issue #519 rubber-duck review: a hand-maintained second list would drift and reopen the
+      // exact masking gap this fix closes).
+      used.add("data");
+    } else if (SOUND_CALLEE_NAMES.has(name)) {
       used.add("sound");
     } else if (INTERACTION_EVENTS_CALLEE_NAMES.has(name)) {
       used.add("interaction-events");
