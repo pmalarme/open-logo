@@ -41,7 +41,7 @@ import type {
 import { parseDiag } from "./errors.js";
 import { primitiveArity } from "./signatures.js";
 import { tokenize } from "./tokens.js";
-import type { LexToken } from "./tokens.js";
+import type { LexToken, LexTokenKind } from "./tokens.js";
 
 /** The result of {@link parse}: a best-effort AST plus every collected diagnostic. */
 export interface ParseResult {
@@ -1068,46 +1068,85 @@ export function parse(source: string, document = "<input>"): ParseResult {
   }
 
   /**
-   * Like {@link unexpected}, but for a token found where {@link parseDictEntry} expected a colon
-   * or a value. A `}` there is never an unmatched brace: {@link parseDictLiteral}'s own loop is
-   * about to consume that very token and close the dict correctly on its next pass (`{ a }` and
-   * `{ a: }` both still end up a well-formed, if empty or short, `DictLit`), so reporting
-   * `unexpected`'s `ol-unmatched-brace` here would claim a mismatch that never happens. This
-   * reports the accurate `ol-bad-token` instead — a colon/value was expected, not a brace — and
-   * defers to {@link unexpected} for every other token kind.
+   * Skip a balanced nested literal starting at the current token (assumed to be its own opening
+   * delimiter, `{` or `[`), tracking nesting depth so an inner literal of the same kind cannot
+   * end the skip early. Shared by {@link skipMalformedDictKeyLiteral} (key position) and
+   * {@link unexpectedInDictEntry}'s `lbrace` case (separator position) to recover past a
+   * well-formed nested dict/list literal that appeared in an illegal `dict-entry` grammar
+   * position (`spec/grammar.md`), without misreporting its own, correctly matched delimiters as
+   * unmatched.
    */
-  function unexpectedInDictEntry(token: LexToken): Diagnostic {
-    return token.kind === "rbrace"
-      ? parseDiag.badToken(token.source_span, token.text)
-      : unexpected(token);
-  }
-
-  /**
-   * A dict-key position accepts only `dict-key ::= identifier | number` (`spec/grammar.md`), so a
-   * `{` opening a nested literal there is unexpected — but its own braces are still balanced, and
-   * the enclosing dict literal's braces are unaffected: this is a grammar-position error, not a
-   * brace-matching one (`spec/error-model.md` and `spec/data-structures.md#dictionaries`, issue
-   * #520). Reports exactly one `ol-bad-token` for the inner `{` itself (not `ol-unmatched-brace`,
-   * and not a second diagnostic for anything that follows), then silently recovers by skipping
-   * past the whole malformed entry — the balanced nested literal, tracking brace depth so an
-   * inner `{ … }` cannot end the skip early, plus its trailing `: value` if one follows — so the
-   * caller's loop resumes cleanly at the next real dict-entry or the enclosing `}` without
-   * cascading into spurious diagnostics for tokens that were never actually malformed.
-   */
-  function skipMalformedDictKeyLiteral(): void {
-    const badBrace = current();
-    diagnostics.push(parseDiag.badToken(badBrace.source_span, badBrace.text));
+  function skipBalancedNestedLiteral(
+    openKind: LexTokenKind,
+    closeKind: LexTokenKind,
+  ): void {
     let depth = 1;
     advance();
     while (depth > 0 && current().kind !== "eof") {
       const kind = current().kind;
-      if (kind === "lbrace") {
+      if (kind === openKind) {
         depth += 1;
-      } else if (kind === "rbrace") {
+      } else if (kind === closeKind) {
         depth -= 1;
       }
       advance();
     }
+  }
+
+  /**
+   * Like {@link unexpected}, but for a token found where {@link parseDictEntry} expected a colon
+   * or a value. A `}` there is never an unmatched brace: {@link parseDictLiteral}'s own loop is
+   * about to consume that very token and close the dict correctly on its next pass (`{ a }` and
+   * `{ a: }` both still end up a well-formed, if empty or short, `DictLit`), so this pushes the
+   * accurate `ol-bad-token` instead — a colon/value was expected, not a brace — without consuming
+   * the `}` so the caller's loop still sees and closes it.
+   *
+   * A `{` there is a different malformed shape, at the **separator** position rather than the
+   * key position (`print { a { b: 1 } }` — `a` parses as a valid key, but no `:` follows before
+   * the nested, itself well-formed and balanced, `{ b: 1 }`): `spec/data-structures.md`'s
+   * malformed-`dict-entry` rule requires exactly one `ol-bad-token` for that inner `{`, never
+   * `ol-unmatched-brace` for either dict literal's braces — both are, in fact, correctly matched.
+   * Falling through to {@link unexpected} would misreport it as unmatched, and leaving it
+   * unconsumed would let the caller's loop re-enter {@link parseDictEntry}, which would treat it
+   * as a *second*, separately diagnosed malformed key. So this reports the one diagnostic and
+   * consumes the whole nested literal itself, reusing {@link skipBalancedNestedLiteral} exactly
+   * like the key-position case.
+   *
+   * Every other token kind defers to {@link unexpected}.
+   */
+  function unexpectedInDictEntry(token: LexToken): void {
+    if (token.kind === "rbrace") {
+      diagnostics.push(parseDiag.badToken(token.source_span, token.text));
+      return;
+    }
+    if (token.kind === "lbrace") {
+      diagnostics.push(parseDiag.badToken(token.source_span, token.text));
+      skipBalancedNestedLiteral("lbrace", "rbrace");
+      return;
+    }
+    diagnostics.push(unexpected(token));
+  }
+
+  /**
+   * A dict-key position accepts only `dict-key ::= identifier | number` (`spec/grammar.md`), so a
+   * `{` or `[` opening a nested dict/list literal there is unexpected — but its own delimiters
+   * are still balanced, and the enclosing dict literal's braces are unaffected: this is a
+   * grammar-position error, not a brace/bracket-matching one (`spec/error-model.md` and
+   * `spec/data-structures.md#dictionaries`, issue #520). Reports exactly one `ol-bad-token` for
+   * the inner opening delimiter itself (never `ol-unmatched-brace`/`ol-unmatched-bracket`, and
+   * never a second diagnostic for anything that follows), then silently recovers by skipping past
+   * the whole malformed entry — the balanced nested literal, tracking nesting depth so an inner
+   * literal of the same kind cannot end the skip early, plus its trailing `: value` if one
+   * follows — so the caller's loop resumes cleanly at the next real dict-entry or the enclosing
+   * `}` without cascading into spurious diagnostics for tokens that were never actually
+   * malformed.
+   */
+  function skipMalformedDictKeyLiteral(): void {
+    const badToken = current();
+    const closeKind: LexTokenKind =
+      badToken.kind === "lbrace" ? "rbrace" : "rbracket";
+    diagnostics.push(parseDiag.badToken(badToken.source_span, badToken.text));
+    skipBalancedNestedLiteral(badToken.kind, closeKind);
     skipNewlines();
     if (current().kind === "variable") {
       splitGluedColonToken();
@@ -1139,7 +1178,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
       } else if (token.kind === "name") {
         advance();
         key = ast.wordLit(token.text, token.source_span);
-      } else if (token.kind === "lbrace") {
+      } else if (token.kind === "lbrace" || token.kind === "lbracket") {
         skipMalformedDictKeyLiteral();
         return undefined;
       } else {
@@ -1151,14 +1190,14 @@ export function parse(source: string, document = "<input>"): ParseResult {
       splitGluedColonToken();
     }
     if (current().kind !== "colon") {
-      diagnostics.push(unexpectedInDictEntry(current()));
+      unexpectedInDictEntry(current());
       return undefined;
     }
     advance();
     skipNewlines();
     const value = parseExpression();
     if (value === undefined) {
-      diagnostics.push(unexpectedInDictEntry(current()));
+      unexpectedInDictEntry(current());
       return undefined;
     }
     return { key, value, source_span: spanBetween(key, value) };

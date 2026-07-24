@@ -1,0 +1,5 @@
+# A well-formed nested dict literal in a dict-entry's separator position (a valid
+# key with no `:` following it) is a grammar-position error, not a brace-matching
+# one: exactly one ol-bad-token fires for the inner `{`, never ol-unmatched-brace
+# (issue #546).
+print { a { b: 1 } }
