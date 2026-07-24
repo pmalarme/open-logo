@@ -297,6 +297,61 @@ test("detectUsedProfiles flags Data usage for a bare statement-position call whe
   assert.deepEqual(detectUsedProfiles("(list 1 2)\n"), ["data"]);
 });
 
+test("detectUsedProfiles does NOT flag Data usage when a same-named procedure shadows a call NESTED in an if-block's statement body (round-8 rubber-duck review)", () => {
+  // Round-8 rubber-duck review stress-tested the round-7 fix's statement-position detection
+  // beyond the top-level Program body: a call inside an `If`'s `thenBody` block is *also*
+  // genuine statement position (`execute-internal.ts`'s `executeStatements` recurses into
+  // `statement.thenBody.body`), so it must be shadow-guarded exactly like a top-level statement.
+  assert.deepEqual(
+    detectUsedProfiles(
+      "define list :a :b\n  print :a\nend\nif 1 == 1 [\n  list 1 2\n]\n",
+    ),
+    [],
+  );
+});
+
+test("detectUsedProfiles STILL flags Data usage for a same-named procedure called inside a comprehension body (round-8 rubber-duck review)", () => {
+  // Round-8 rubber-duck review found the round-7 fix was itself incomplete: `Comprehension.body`
+  // is ALSO typed `BlockNode` (`packages/parser/src/ast.ts:381-386`), so a naive "every Block's
+  // body is a statement" rule would have wrongly shadow-guarded a call inside a `map`/`filter`/
+  // `reduce` body — but a comprehension body is evaluated as an EXPRESSION per iteration, never
+  // through `executeStatements`. Confirmed by direct `execute()` repro: with this exact
+  // `define list ... end` in scope, `print map x in [1 2] [ list :x :x ]` prints the Data
+  // builtin's `[[1, 1], [2, 2]]`, with no `procedure-enter` for the user's `list` — so this must
+  // still be flagged, not shadow-guarded.
+  assert.deepEqual(
+    detectUsedProfiles(
+      'define list :a :b\n  return "shadowed"\nend\nprint map x in [1 2] [ list :x :x ]\n',
+    ),
+    ["data"],
+  );
+});
+
+test("detectUsedProfiles does NOT flag Data usage for a same-named procedure called inside a while/forever/for-range/repeat body", () => {
+  // Every `BlockNode`-holding control form that dispatches its body through `executeStatements`
+  // (not just `Program`/`If`, already covered above) must apply the same statement-position
+  // shadow-guard. `while`/`forever`/`for ... from ... to` never appear in the real
+  // spec/examples/*.logo corpus, so this also exercises those switch arms that the corpus alone
+  // does not reach.
+  const preamble = "define list :a :b\n  print :a\nend\n";
+  assert.deepEqual(
+    detectUsedProfiles(`${preamble}while 1 == 1\n  list 1 2\n  stop\nend\n`),
+    [],
+  );
+  assert.deepEqual(
+    detectUsedProfiles(`${preamble}forever\n  list 1 2\n  stop\nend\n`),
+    [],
+  );
+  assert.deepEqual(
+    detectUsedProfiles(`${preamble}for i from 1 to 1\n  list 1 2\nend\n`),
+    [],
+  );
+  assert.deepEqual(
+    detectUsedProfiles(`${preamble}repeat 1\n  list 1 2\nend\n`),
+    [],
+  );
+});
+
 test("detectUsedProfiles still detects the real primitive when no same-named procedure is defined", () => {
   // Sanity check for the shadow-guard above: it must not over-suppress detection of genuine
   // profile usage when there is no colliding `define`.

@@ -255,11 +255,22 @@ const HERITAGE_CALLEE_NAMES = new Set([
  *   class (a Core-only example whose own procedure happens to be named `list`/`dict`/etc. would be
  *   wrongly failed for omitting Data, violating acceptance criterion 3).
  *
- * The fix tracks which `Call`/`ParenCall` nodes are themselves direct statements (elements of a
- * `Program`/`Block`'s `body`, i.e. every position `execute()`'s `executeStatements` dispatches via
- * `isProcedureCallStatement`) versus nested inside an expression. Only the latter gets the
- * unconditional Data attribution; a statement-position Data-reporter call still goes through the
- * ordinary shadow-guard, exactly like every other profile's callee names.
+ * The fix tracks which `Call`/`ParenCall` nodes are themselves direct statements — elements of
+ * `Program.body`, or of the `BlockNode` a genuine control-flow construct (`If`'s `thenBody`/
+ * `elseBody`, `While`/`Repeat`/`Forever`/`ForIn`/`ForRange`/`ProcedureDef`'s `body`) dispatches
+ * through `executeStatements` — versus nested inside an expression. Deliberately enumerated by
+ * parent node kind rather than "any `Block`-shaped node" (round-8 rubber-duck review): a
+ * `Comprehension`'s `body` field is ALSO typed `BlockNode` (`packages/parser/src/ast.ts:381-386`)
+ * but is evaluated as a bracketed *expression* per iteration
+ * (`packages/runtime/src/evaluate.ts`'s comprehension evaluator), never through
+ * `executeStatements` — confirmed by direct `execute()` repro: with the round-7 `define list`
+ * shadow in scope, `print map x in [1 2] [ list :x :x ]` prints the Data builtin's
+ * `[[1, 1], [2, 2]]`, with no `procedure-enter` for the user's `list`. A generic "every `Block`'s
+ * body is a statement" rule would have wrongly classified that call as statement position and
+ * shadow-guarded it, silently under-detecting a real Data dependency again. Only the latter
+ * (expression position, including `Comprehension` bodies) gets the unconditional Data
+ * attribution; a statement-position Data-reporter call still goes through the ordinary
+ * shadow-guard, exactly like every other profile's callee names.
  *
  * @returns a sorted, de-duplicated array of profile ids, e.g. `["data"]` or `["data", "sound"]`.
  */
@@ -274,21 +285,41 @@ export function detectUsedProfiles(source) {
     }
   });
 
-  // Every `Call`/`ParenCall` that is itself a direct element of a `Program`/`Block`'s `body` —
-  // i.e. a statement, not an expression nested inside one (an argument, a condition, a `print`
-  // operand, ...). `childrenOf`'s `Program`/`Block` case returns `node.body` verbatim
-  // (`packages/parser/src/ast.ts`), and every control-flow body (`If`/`While`/`Repeat`/`Forever`/
-  // `ForIn`/`ForRange`/`ProcedureDef`) wraps its body in a `BlockNode`, so this single check
-  // covers every statement position the runtime's `executeStatements` iterates.
+  // Every `Call`/`ParenCall` that is itself a direct statement — a member of `Program.body`, or
+  // of the `BlockNode` that a genuine control-flow construct runs through `executeStatements`.
+  // Enumerated by exact parent node kind (not "any node whose shape happens to hold a
+  // `BlockNode`") specifically so `Comprehension.body` — a `BlockNode`-typed field that is really
+  // an expression, evaluated once per iteration, never dispatched via `executeStatements` — is
+  // excluded; see this function's doc comment for the round-8 evidence.
   const statementPositionCalls = new Set();
-  walk(ast, (node) => {
-    if (node.kind !== "Program" && node.kind !== "Block") {
-      return;
-    }
-    for (const statement of node.body) {
+  const collectStatementBody = (block) => {
+    for (const statement of block.body) {
       if (statement.kind === "Call" || statement.kind === "ParenCall") {
         statementPositionCalls.add(statement);
       }
+    }
+  };
+  walk(ast, (node) => {
+    switch (node.kind) {
+      case "Program":
+        collectStatementBody(node);
+        return;
+      case "If":
+        collectStatementBody(node.thenBody);
+        if (node.elseBody !== undefined) {
+          collectStatementBody(node.elseBody);
+        }
+        return;
+      case "While":
+      case "Repeat":
+      case "Forever":
+      case "ForIn":
+      case "ForRange":
+      case "ProcedureDef":
+        collectStatementBody(node.body);
+        return;
+      default:
+        return;
     }
   });
 
