@@ -15,6 +15,7 @@ safe-outputs:
   assign-to-agent:
     custom-agent: "devops"
     model: "claude-sonnet-5"
+    github-token: ${{ secrets.GH_AW_AGENT_TOKEN }}
   add-comment:
     max: 5
 ---
