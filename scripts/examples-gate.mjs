@@ -29,10 +29,10 @@
  * `note`/`beep`/`play`/`rest`/`set_tempo` for Sound;
  * `input`/`when`/`every`/`on_key`/`on_click`/`wait` for Interaction & Events;
  * `new_turtle`/`tell`/`ask`/`each`/`turtles`/`who` for Sprites; the closed Heritage short-alias
- * list plus `make` plus `value of … for key` (which also needs Data) for Heritage — see
- * {@link detectUsedProfiles}'s own doc comment for the full per-profile audit, including the
- * profiles/spellings that are honestly undetectable today (Modules, Localization, Tutor (AI)'s
- * `challenge`, and the Heritage `to`/`output`/`op` spellings) and why), and
+ * list plus `make` plus `value of … for key` (which also needs Data) for Heritage; `challenge` for
+ * Tutor (AI) — see {@link detectUsedProfiles}'s own doc comment for the full per-profile audit,
+ * including the profiles/spellings that are honestly undetectable today (Modules, Localization,
+ * and the Heritage `to`/`output`/`op` spellings) and why), and
  * {@link runExamplesGate} compares that detected set against the manifest's declared profiles
  * (expanded to their full dependency closure via `scripts/harness/index.mjs`'s `PROFILE_DEPS`)
  * for **every** example — before the SKIP decision, so an under-declaration FAILS the gate loudly
@@ -140,6 +140,20 @@ const SPRITES_CALLEE_NAMES = new Set([
 ]);
 
 /**
+ * Call-site name `spec/conformance.md:279-280` reserves for the **Tutor (AI)** profile's
+ * Socratic-challenge entry point. Not in a parser arity table (same as `SOUND_CALLEE_NAMES`/
+ * `SPRITES_CALLEE_NAMES`/`INTERACTION_EVENTS_CALLEE_NAMES` above — none of those are
+ * arity-registered either), so it is a bare-name hand-list identical in kind to those three. The
+ * `definedProcedureNames` shadow-guard (checked before any of these hand-lists are consulted)
+ * already neutralizes the "collides with a user's own `define challenge ... end`" risk for all
+ * four, so there is no principled reason to hardcode Sound/Sprites/Interaction & Events this way
+ * but leave Tutor (AI) undetected — doing so left a live G8 masking hole (issue #519, fourth
+ * review round): an example calling `challenge` while declaring only an unrelated unimplemented
+ * profile (omitting `tutor-ai`) reached SKIP undetected.
+ */
+const TUTOR_AI_CALLEE_NAMES = new Set(["challenge"]);
+
+/**
  * The **Heritage** profile's closed short-alias list (`spec/conformance.md:105-117`,`:271-272`):
  * `fd`/`bk`/`lt`/`rt`/`pu`/`pd`/`st`/`ht`/`cs`/`pr` plus the list-reporter alias spellings
  * `bf`/`bl`/`se`, plus `make` (the Heritage assignment spelling, `spec/conformance.md:107`) — it
@@ -187,7 +201,7 @@ const HERITAGE_CALLEE_NAMES = new Set([
  *   `spec/geometry-module.md`, but they are **derived stdlib source procedures** an example
  *   `define`s for itself (see `spec/examples/13-geometry-stdlib.logo`), not parser primitives, so
  *   they have no callee name a shared detector could recognize — same undetectable-by-design
- *   class as `challenge`/`to`/`output`/`op`. This is not a live masking risk: they need no runtime
+ *   class as `to`/`output`/`op`. This is not a live masking risk: they need no runtime
  *   capability beyond Core+Turtle+Data (`geometry: ["turtle-rendering", "data"]` in
  *   `harness/index.mjs`'s `PROFILE_DEPS`), and the checker only rejects an undeclared `geometry`
  *   claim for the renderer-backed `grid`/`axes`/`measure` overlay primitives above, which *are*
@@ -196,24 +210,33 @@ const HERITAGE_CALLEE_NAMES = new Set([
  * | Sprites | `SPRITES_CALLEE_NAMES` | |
  * | Interaction & Events | `INTERACTION_EVENTS_CALLEE_NAMES` | |
  * | Sound | `SOUND_CALLEE_NAMES` | |
- * | Educational | `educationalPrimitiveArity()` (`explain`/`why`/`hint`/`debug`) | `challenge` excluded, see below |
+ * | Educational | `educationalPrimitiveArity()` (`explain`/`why`/`hint`/`debug`) | |
  * | Modules | *(not detectable today)* | `import`/`export`/`alias` are reserved words
  *   (`packages/parser/src/parser.ts`'s `NON_PRIMARY_NAMES`) with no dedicated AST production or
  *   parse function today — they cannot begin an expression/Call, so an example using them fails
  *   to parse cleanly rather than silently masking a manifest gap. |
  * | Localization | *(not detectable today)* | depends on Modules, which has no parseable form yet
  *   (no locale-pack keyword/production exists in the grammar today either). |
- * | Tutor (AI) | *(not detectable today)* | `challenge` has no registered primitive-arity entry
- *   (`packages/parser/src/educational-meta-commands.test.mjs:64` asserts
- *   `educationalPrimitiveArity("challenge")` is `undefined`) — it parses as an ordinary,
- *   unrecognized `Call`, indistinguishable from a user-defined procedure named `challenge`.
- *   Detecting it by bare callee name would risk false positives on a learner's own procedure, so
- *   it is deliberately NOT hardcoded; this is the same class of honest limitation as
- *   `to`/`output`/`op` below, not an oversight. |
+ * | Tutor (AI) | `TUTOR_AI_CALLEE_NAMES` (`challenge`, `spec/conformance.md:279-280`) | fourth
+ *   review round found this excluded for the same reason `to`/`output`/`op` is (no arity-table
+ *   entry — `packages/parser/src/educational-meta-commands.test.mjs:64` asserts
+ *   `educationalPrimitiveArity("challenge")` is `undefined`) — but that reasoning does not apply:
+ *   `challenge` parses as an ordinary, recognizable `Call` (it is not in `NON_PRIMARY_NAMES`), and
+ *   is exactly as detectable-by-bare-name as `SOUND_CALLEE_NAMES`/`SPRITES_CALLEE_NAMES`/
+ *   `INTERACTION_EVENTS_CALLEE_NAMES` above, none of which are arity-registered either. The
+ *   `definedProcedureNames` shadow-guard (checked before any hand-list) already neutralizes the
+ *   "collides with a user's own `define challenge ... end`" risk identically for all four, so
+ *   there was no principled reason to detect three of them but not this one. Now detected. |
  *
  * `to`/`output`/`op` are Heritage spellings that are reserved words with no `Call`/`ParenCall`
  * production at all today (same `NON_PRIMARY_NAMES` set), so — like Modules/Localization above —
  * they cannot be detected this way either; see {@link HERITAGE_CALLEE_NAMES}'s doc comment.
+ *
+ * **After this round, every optional profile with a parseable, recognizable callee is detected.**
+ * The only remaining undetectable-by-design gaps are constructs with genuinely no parser
+ * production at all today (Modules/Localization's `import`/`export`/`alias`/locale syntax, and the
+ * Heritage `to`/`output`/`op` reserved words) — an example using any of those fails to parse
+ * cleanly rather than silently masking a manifest gap, so they are not a live G8 masking risk.
  *
  * Deliberately conservative otherwise: it flags only constructs the spec ties to one profile in
  * *every* context (list-index/field-selector reads, dict/struct/mutation-form syntax, and each
@@ -230,12 +253,12 @@ const HERITAGE_CALLEE_NAMES = new Set([
  * `define` accepts any `name` token (`packages/parser/src/parser.ts`'s `parseProcedureDef` has no
  * reserved-name check), so a Core-only example is free to `define` its own procedure that happens
  * to share a name with an optional profile's callee (e.g. `define note :duration ... end`). Bare
- * callee-name matching alone would then misattribute that call to Sound/Geometry/Data/etc., and
- * acceptance criterion 3 (a correctly-declared example still passes) would break for a program
- * that needs no optional profile at all. This function therefore precollects every name the
- * source itself `define`s and never treats a call to one of those names as profile-primitive
- * usage — the same "ambiguous with a user procedure ⇒ don't guess" principle already applied to
- * `challenge`, just made structural instead of one-off.
+ * callee-name matching alone would then misattribute that call to Sound/Geometry/Data/Tutor
+ * (AI)/etc., and acceptance criterion 3 (a correctly-declared example still passes) would break
+ * for a program that needs no optional profile at all. This function therefore precollects every
+ * name the source itself `define`s and never treats a call to one of those names as
+ * profile-primitive usage — a structural guard, not a one-off exclusion, so it covers every
+ * bare-name hand-list (including `TUTOR_AI_CALLEE_NAMES`) uniformly.
  *
  * **The Data shadow-guard exception depends on AST *position*, not just the name** (round-6 and
  * round-7 rubber-duck reviews — two runtime dispatch paths, two opposite bugs):
@@ -402,6 +425,8 @@ export function detectUsedProfiles(source) {
       used.add("sprites");
     } else if (HERITAGE_CALLEE_NAMES.has(name)) {
       used.add("heritage");
+    } else if (TUTOR_AI_CALLEE_NAMES.has(name)) {
+      used.add("tutor-ai");
     }
   });
 

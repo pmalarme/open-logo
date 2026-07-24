@@ -219,14 +219,29 @@ test("detectUsedProfiles finds educational for the explain/why/hint/debug meta-c
   assert.deepEqual(detectUsedProfiles("debug\n"), ["educational"]);
 });
 
-test("detectUsedProfiles does NOT flag 'challenge' as Tutor (AI) — no registered primitive, would risk false positives", () => {
-  // packages/parser/src/educational-meta-commands.test.mjs:64 asserts
-  // educationalPrimitiveArity("challenge") is undefined: it has no registered arity entry, so it
-  // parses as an ordinary, unrecognized Call indistinguishable from a user-defined procedure
-  // named "challenge". Detecting it by bare callee name would risk a false positive on a
-  // learner's own procedure, so it is deliberately left undetected (same honest-limitation class
-  // as to/output/op), not silently missing due to an oversight.
-  assert.deepEqual(detectUsedProfiles("challenge\n"), []);
+test("detectUsedProfiles finds tutor-ai for the 'challenge' Socratic entry point (spec/conformance.md:279-280)", () => {
+  // Fourth review round: `challenge` was previously excluded on the theory that, like
+  // `to`/`output`/`op`, it has no registered primitive-arity entry
+  // (packages/parser/src/educational-meta-commands.test.mjs:64 confirms
+  // educationalPrimitiveArity("challenge") is undefined) and so would be indistinguishable from a
+  // user-defined procedure. But `to`/`output`/`op` are reserved words with NO Call/ParenCall
+  // production at all (an example using them fails to parse), whereas `challenge` parses as an
+  // ordinary, recognizable Call — exactly as detectable-by-bare-name as SOUND_CALLEE_NAMES'
+  // note/play/beep or SPRITES_CALLEE_NAMES' tell/ask, neither of which is arity-registered either.
+  // The definedProcedureNames shadow-guard (see the next test) already neutralizes the
+  // user-procedure collision risk identically for all of these, so there was no principled reason
+  // to leave `challenge` undetected.
+  assert.deepEqual(detectUsedProfiles("challenge\n"), ["tutor-ai"]);
+});
+
+test("detectUsedProfiles does NOT flag tutor-ai when 'challenge' is the example's own defined procedure", () => {
+  // Mirrors the existing shadow-guard tests for Sound/Geometry/etc.: a Core-only example that
+  // happens to `define` its own procedure named "challenge" and calls it must NOT be misattributed
+  // to Tutor (AI), or acceptance criterion 3 (a correctly-declared example still passes) breaks.
+  assert.deepEqual(
+    detectUsedProfiles("define challenge\n  print 1\nend\nchallenge\n"),
+    [],
+  );
 });
 
 test("detectUsedProfiles finds heritage for a short-alias call", () => {
@@ -605,6 +620,36 @@ test("runExamplesGate: catches masking of the Educational meta-commands too (orc
         line.includes("educational"),
     ),
     "the failure line must name the example and the missing profile (educational)",
+  );
+});
+
+test("runExamplesGate: catches masking of the Tutor (AI) 'challenge' entry point too (fourth review round)", () => {
+  // An example using `challenge` while declaring only an unrelated unimplemented profile (sound)
+  // but omitting "tutor-ai" must FAIL loudly naming tutor-ai, not SKIP — the exact G8 masking
+  // class this whole slice exists to close, now closed for every profile with a parseable callee.
+  writeExample("masked-challenge.logo", "set_tempo 120\nchallenge\n");
+  const result = runExamplesGate({
+    dir: TEMP_DIR,
+    manifest: {
+      "masked-challenge.logo": ["core-language", "turtle-rendering", "sound"],
+    },
+    implementedProfiles: ["core-language", "turtle-rendering"],
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.skipped,
+    0,
+    "must FAIL, not SKIP — the missing tutor-ai declaration must not be masked",
+  );
+  assert.equal(result.failed, 1);
+  assert.ok(
+    result.lines.some(
+      (line) =>
+        line.startsWith("FAIL masked-challenge.logo:") &&
+        line.includes("tutor-ai"),
+    ),
+    "the failure line must name the example and the missing profile (tutor-ai)",
   );
 });
 
