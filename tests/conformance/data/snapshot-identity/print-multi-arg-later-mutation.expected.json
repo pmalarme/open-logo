@@ -1,0 +1,98 @@
+{
+  "description": "Issue #543: a `(print …)` statement's snapshot rule applies to the whole statement's evaluation, not each argument's own evaluation instant — a later argument's evaluation (calling `mutate`, which does `add 2 to :l`) mutates a live value an earlier argument (`:l`) also reads, so the `print` event's payload must show `:l` as `[1 2]` (post-mutation), not `[1]` (its value when only that argument had been evaluated). Both operands are snapshotted together, sharing one memo, only after every argument in the statement has finished evaluating.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/snapshot-identity/print-multi-arg-later-mutation",
+        "start": [1, 1],
+        "end": [4, 4]
+      },
+      "payload": { "statement_kind": "ProcedureDef" }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/snapshot-identity/print-multi-arg-later-mutation",
+        "start": [5, 1],
+        "end": [5, 9]
+      },
+      "payload": { "statement_kind": "Assign" }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/snapshot-identity/print-multi-arg-later-mutation",
+        "start": [6, 1],
+        "end": [6, 18]
+      },
+      "payload": { "statement_kind": "ParenCall" }
+    },
+    {
+      "seq": 3,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "data/snapshot-identity/print-multi-arg-later-mutation",
+        "start": [6, 11],
+        "end": [6, 17]
+      },
+      "payload": { "name": "mutate", "args": [] }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/snapshot-identity/print-multi-arg-later-mutation",
+        "start": [2, 3],
+        "end": [2, 14]
+      },
+      "payload": { "statement_kind": "Add" }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/snapshot-identity/print-multi-arg-later-mutation",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": { "statement_kind": "Return" }
+    },
+    {
+      "seq": 6,
+      "kind": "return",
+      "source_span": {
+        "document": "data/snapshot-identity/print-multi-arg-later-mutation",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": { "value": 0 }
+    },
+    {
+      "seq": 7,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "data/snapshot-identity/print-multi-arg-later-mutation",
+        "start": [6, 11],
+        "end": [6, 17]
+      },
+      "payload": { "name": "mutate", "result": 0 }
+    },
+    {
+      "seq": 8,
+      "kind": "print",
+      "source_span": {
+        "document": "data/snapshot-identity/print-multi-arg-later-mutation",
+        "start": [6, 1],
+        "end": [6, 18]
+      },
+      "payload": { "values": [[1, 2], 0] }
+    }
+  ],
+  "diagnostics": []
+}

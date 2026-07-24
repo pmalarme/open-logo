@@ -1692,6 +1692,12 @@ function dispatchAssignOrListMutator(
  * its own stack frame size fixed — inlining it there is exactly what pushed the 600-deep
  * `recursionDepthLimit: 1000` regression test (`execution-budget.test.mjs`) over the native
  * call-stack limit.
+ *
+ * All arguments are evaluated first into `rawValues`, and only once every argument has finished
+ * evaluating is that whole list snapshotted, in one pass sharing a single memo (issue #543): a
+ * later argument's evaluation can mutate a live value an earlier argument also reads, and the
+ * spec's snapshot rule requires the entire payload to reflect state as of the *whole
+ * statement's* evaluation — not, incorrectly, each argument's own evaluation instant.
  */
 function executePrintCall(
   statement: CallNode | ParenCallNode,
@@ -1715,20 +1721,27 @@ function executePrintCall(
   if (!statement.args.every((arg) => isSupportedArgument(arg, environment))) {
     return undefined;
   }
-  const values: OLValue[] = [];
+  const rawValues: OLValue[] = [];
   let failure: Diagnostic | undefined;
-  const memo = new Map<object, OLValue>();
   for (const arg of statement.args) {
     const result = evaluate(arg, environment);
     if (!result.ok) {
       failure = result.diagnostic;
       break;
     }
-    values.push(snapshotValue(result.value, memo));
+    rawValues.push(result.value);
   }
   if (failure) {
     return halt(failure);
   }
+  // Every argument is evaluated first, and only *then* is the whole argument list snapshotted
+  // in one pass sharing a single memo (`spec/execution-model.md`'s point-in-time-snapshot rule):
+  // a later argument's evaluation may mutate a live value an earlier argument also reads (e.g.
+  // `(print :l (mutate))` where `mutate` does `add 2 to :l`), and the snapshot rule requires
+  // every part of this event's payload to reflect state as of the *whole statement's*
+  // evaluation, not each argument's own evaluation instant.
+  const memo = new Map<object, OLValue>();
+  const values = rawValues.map((value) => snapshotValue(value, memo));
   environment.events.push({
     seq: environment.events.length,
     kind: "print",

@@ -167,3 +167,40 @@ test("a procedure's `procedure-enter` args are point-in-time snapshots that pres
     "both parameters aliased the same live list, so their snapshots must alias each other too",
   );
 });
+
+// --- issue #543: a `print` statement's whole argument list must be snapshotted together, once
+// every argument has finished evaluating — not each argument snapshotted immediately after its
+// own evaluation, which let a later argument's side effect escape an earlier argument's snapshot
+// -------------------------------------------------------------------------------------------------
+
+test("print's payload reflects mutation caused by evaluating a *later* argument, in an *earlier* argument's snapshot: all arguments finish evaluating before any of them is snapshotted", () => {
+  const result = execute(
+    "define mutate\n  add 2 to :l\n  return 0\nend\n:l = [1]\n(print :l mutate)",
+    "acceptance.logo",
+  );
+  assert.deepEqual(result.diagnostics, []);
+  const printed = result.events.find((event) => event.kind === "print");
+  assert.ok(printed, "expected a print event");
+  assert.deepEqual(
+    printed.payload.values,
+    [[1, 2], 0],
+    "the first argument's snapshot must reflect :l's state after `mutate` (the second argument) ran, since both arguments belong to the same statement",
+  );
+});
+
+test("print's multi-argument snapshot preserves alias identity: two arguments sharing one live list remain the same snapshotted reference", () => {
+  const result = execute(
+    ":l = [1 2 3]\n(print :l :l)\nadd 4 to :l",
+    "acceptance.logo",
+  );
+  assert.deepEqual(result.diagnostics, []);
+  const printed = result.events.find((event) => event.kind === "print");
+  assert.ok(printed, "expected a print event");
+  const [a, b] = printed.payload.values;
+  assert.deepEqual(a, [1, 2, 3]);
+  assert.strictEqual(
+    a,
+    b,
+    "both print arguments aliased the same live list, so their snapshots must alias each other too",
+  );
+});
