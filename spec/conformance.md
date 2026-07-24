@@ -102,6 +102,45 @@ collection mutation forms including `add`, `remove`, `clear`, and `insert`, as s
 record construction, destructuring behavior for data values, and dictionary/record-related
 reporters.
 
+**List-index classification (normative, generalizing the existing `:shape[2]` example above):**
+list indexing — `:list[i]` in both read and write/place position, for example `:nums[1]`,
+`:nums[1] = 9`, and `set nums[1] to 9` — is **Data**-profile behavior, not Core, in every context it
+appears, not only when read by a Geometry helper such as `area`/`perimeter`. This applies uniformly
+regardless of what value is stored at the index — the classification is about the indexing
+operation, not the value's type. A conforming implementation supports executing `:list[i]` only
+when it claims **Data**; see
+[execution-model.md#postfix-reads](execution-model.md#postfix-reads) for the corresponding
+semantic-level requirement on the list case of the postfix-read/selector rules. As with any
+optional-profile feature, this is a requirement on *which profile a conforming implementation must
+claim to support the behavior*, not a prohibition on what a Core-only implementation's reader does
+with the shared postfix-read/selector grammar (that grammar is unconditional Core syntax, per
+[grammar.md](grammar.md) and execution-model.md#postfix-reads): per the existing portability rule
+below, a program using `:list[i]` is simply not portable to an implementation that does not claim
+Data, the same way any other Data-only or Sprites-only or Interaction-only program is not portable
+to an implementation that omits that profile.
+
+**List-binder destructuring classification (normative):** the destructuring-pattern binder form
+(`for [:x :y] in ...`, `map [:x :y] in ...`, `filter [:x :y] in ...`, `reduce`'s item binder) is
+split by the value being destructured, not by the Core iteration/comprehension form that hosts it:
+
+- Destructuring a plain **list** item (unpacking `[ ]` elements positionally, e.g.
+  `for [:x :y] in [[1 2] [3 4]]`) is **Core**. It needs only Core list values and the Core
+  `destructuring-pattern` grammar production defined in [grammar.md](grammar.md); `for ... in`,
+  `map`, `filter`, and `reduce` remain Core control/comprehension forms whether or not their binder
+  is a destructuring pattern.
+- Destructuring a **record** item in declared field order is **Data**, because `record` values and
+  `struct` field order only exist under the Data profile (see
+  [execution-model.md](execution-model.md#records-and-destructuring)). An implementation claiming
+  only Core Language and Turtle & Rendering supports list-binder destructuring but has no record
+  values to destructure, so it does not support record-binder destructuring.
+- v0.1 destructuring is **flat only**: the `destructuring-pattern` grammar production
+  (`[grammar.md](grammar.md)`) contains only `:name` tokens, never a nested pattern, so there is no
+  nested/recursive destructuring in either profile and none is added by this classification. A
+  **dict** or scalar (number, word, boolean) item is not a positionally-destructurable value in
+  either profile: applying a destructuring-pattern binder to one raises `ol-type`, the same
+  general wrong-type-for-the-operation diagnostic used elsewhere in this spec — it does not
+  introduce a Data-profile dict-destructuring feature, because none exists in v0.1.
+
 ### Heritage
 
 The **Heritage** profile is **alternate spellings only**. It does not add new semantics. It includes:
@@ -223,6 +262,10 @@ purposes.
 | Dictionaries and dictionary literals | Data | No | `{ key: value }`, dictionary access, mutation, keys, values. |
 | Records/structs and record field access | Data | No | Fixed fields; unknown field errors. |
 | Mutable indexing and field access for Data collections | Data | No | Includes nested places and final-key dict upsert. |
+| List-index read/write, `:list[i]` | Data | No | Applies in every context, including reporters (e.g. `area`/`perimeter`'s `:shape[2]`) that read a plain list by index; syntax is unconditional Core postfix-read grammar, but only Data-claiming implementations execute the list case. |
+| List-binder destructuring over plain lists (`for [:x :y] in ...`) | Core Language | Yes | Positional unpacking of list elements; needs only Core list values and the Core `destructuring-pattern` grammar production. |
+| Record-binder destructuring in declared field order | Data | No | Needs `record`/`struct` values, which are Data-only. |
+| Dict-item or scalar-item destructuring | N/A — unsupported | — | Not a feature of either profile: v0.1 destructuring is flat and applies only to list and record items; applying a pattern binder to a dict or scalar item raises `ol-type` in every implementation. |
 | `add`, `remove`, `clear`, `insert` mutation forms | Data | No | Collection mutation profile. |
 | `make`, `to`, `output`, `op` spellings | Heritage | No | Alternate spellings only. |
 | `fd`, `bk`, `lt`, `rt`, `pu`, `pd`, `st`, `ht`, `cs`, `pr` | Heritage | No | Short command aliases only. |
