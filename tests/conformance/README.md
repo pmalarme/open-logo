@@ -89,6 +89,15 @@ contains itself" — can be written as plain JSON. To make both provable, an `ex
 `diagnostics` item may tag any node (list, dict, record, or even a primitive) with one of two
 markers:
 
+**Dict/record contents:** an actual value that is an `OLDict` or `OLRecord` runtime instance is
+unwrapped into a plain key→value object (dict keys via their canonical string form; record fields
+via their declared spelling) before the comparator recurses into it — a fixture writes the expected
+shape as a plain JSON object either way (e.g. `{"tom": 8, "sophie": 6}` for a dict, `{"x": 1, "y":
+2}` for a `point` record), and its exact contents are genuinely deep-compared, including through
+`$id`/`$ref` aliasing (the identity binding tracks the original `OLDict`/`OLRecord` reference, not
+the unwrapped view, so two positions holding the same live dict/record still resolve as the same
+reference).
+
 - `{"$id": "<label>", "$value": <expected-shape-of-the-first-occurrence>}` — marks the **first**
   occurrence of a reference and gives it a fixture-local `label` (any string, unique within the
   fixture — a second `$id` reusing the same `label`, anywhere later in the fixture, is itself a
@@ -110,9 +119,13 @@ markers:
   `$id`. Either case is reported as a mismatch, so accidental sharing/cloning bugs surface exactly
   like any other event/diagnostic mismatch.
 
-`$id`/`$ref` labels are scoped to the whole fixture (shared across both the `events` and
-`diagnostics` streams), not just one event, so a fixture can assert that a reference captured in
-one effect event is the very same reference seen in a later one.
+`$id`/`$ref` labels are scoped to a single `events` item or a single `diagnostics` item — never
+shared across two different items, and never across the `events`/`diagnostics` streams. Per
+`spec/execution-model.md`'s effect-event snapshot rule, each event (or diagnostic) is an
+independently captured, sealed snapshot: the spec guarantees alias/cycle identity WITHIN one
+event's payload, but makes no identity guarantee ACROSS two different events. A `$ref` naming an
+`$id` declared in a different fixture item is therefore an undefined reference — the harness
+reports it as a clean mismatch, not a silent (and false) cross-item resolution.
 
 A cycle is simply a `$ref` that resolves back to an ancestor `$id` still being compared — the
 harness registers the `$id` binding *before* recursing into `$value`, so a self-referential
