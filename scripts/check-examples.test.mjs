@@ -202,6 +202,33 @@ test("detectUsedProfiles finds sprites for new_turtle/tell/ask/each/turtles/who"
   ]);
 });
 
+test("detectUsedProfiles finds geometry for the grid/axes/measure overlay primitives", () => {
+  // spec/geometry-module.md's grid/axes/measure are renderer-backed primitives (unlike
+  // polygon/area/perimeter, which are discoverable OpenLogo stdlib source, not primitives), and
+  // Geometry IS an implemented profile (IMPLEMENTED_PROFILES), so this is a live masking case
+  // (issue #519, third review round).
+  assert.deepEqual(detectUsedProfiles("grid\n"), ["geometry"]);
+  assert.deepEqual(detectUsedProfiles("axes\n"), ["geometry"]);
+  assert.deepEqual(detectUsedProfiles("measure\n"), ["geometry"]);
+});
+
+test("detectUsedProfiles finds educational for the explain/why/hint/debug meta-commands", () => {
+  assert.deepEqual(detectUsedProfiles("explain\n"), ["educational"]);
+  assert.deepEqual(detectUsedProfiles("why\n"), ["educational"]);
+  assert.deepEqual(detectUsedProfiles("hint\n"), ["educational"]);
+  assert.deepEqual(detectUsedProfiles("debug\n"), ["educational"]);
+});
+
+test("detectUsedProfiles does NOT flag 'challenge' as Tutor (AI) — no registered primitive, would risk false positives", () => {
+  // packages/parser/src/educational-meta-commands.test.mjs:64 asserts
+  // educationalPrimitiveArity("challenge") is undefined: it has no registered arity entry, so it
+  // parses as an ordinary, unrecognized Call indistinguishable from a user-defined procedure
+  // named "challenge". Detecting it by bare callee name would risk a false positive on a
+  // learner's own procedure, so it is deliberately left undetected (same honest-limitation class
+  // as to/output/op), not silently missing due to an oversight.
+  assert.deepEqual(detectUsedProfiles("challenge\n"), []);
+});
+
 test("detectUsedProfiles finds heritage for a short-alias call", () => {
   assert.deepEqual(detectUsedProfiles("fd 10\n"), ["heritage"]);
 });
@@ -396,6 +423,68 @@ test("runExamplesGate: catches masking of the Heritage half of 'value of ... for
         line.includes("heritage"),
     ),
     "the failure line must name the example and the missing profile (heritage)",
+  );
+});
+
+test("runExamplesGate: catches masking of the Geometry overlay primitives too (orchestrator review, third round)", () => {
+  // Geometry IS an implemented profile (unlike sound), so this is not hypothetical: an example
+  // using `grid` while omitting "geometry" from its declared profiles, alongside an unrelated
+  // unimplemented profile (interaction-events), must FAIL loudly naming geometry, not SKIP.
+  writeExample("masked-grid.logo", "wait 1\ngrid\n");
+  const result = runExamplesGate({
+    dir: TEMP_DIR,
+    manifest: {
+      "masked-grid.logo": [
+        "core-language",
+        "turtle-rendering",
+        "interaction-events",
+      ],
+    },
+    implementedProfiles: ["core-language", "turtle-rendering", "geometry"],
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.skipped,
+    0,
+    "must FAIL, not SKIP — the missing geometry declaration must not be masked",
+  );
+  assert.equal(result.failed, 1);
+  assert.ok(
+    result.lines.some(
+      (line) =>
+        line.startsWith("FAIL masked-grid.logo:") && line.includes("geometry"),
+    ),
+    "the failure line must name the example and the missing profile (geometry)",
+  );
+});
+
+test("runExamplesGate: catches masking of the Educational meta-commands too (orchestrator review, third round)", () => {
+  // An example using `explain` while declaring only an unrelated unimplemented profile (sound)
+  // but omitting "educational" must FAIL loudly naming educational, not SKIP.
+  writeExample("masked-explain.logo", "set_tempo 120\nexplain\n");
+  const result = runExamplesGate({
+    dir: TEMP_DIR,
+    manifest: {
+      "masked-explain.logo": ["core-language", "turtle-rendering", "sound"],
+    },
+    implementedProfiles: ["core-language", "turtle-rendering"],
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.skipped,
+    0,
+    "must FAIL, not SKIP — the missing educational declaration must not be masked",
+  );
+  assert.equal(result.failed, 1);
+  assert.ok(
+    result.lines.some(
+      (line) =>
+        line.startsWith("FAIL masked-explain.logo:") &&
+        line.includes("educational"),
+    ),
+    "the failure line must name the example and the missing profile (educational)",
   );
 });
 

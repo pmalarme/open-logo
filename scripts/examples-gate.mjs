@@ -24,10 +24,15 @@
  * normatively belonging to an optional profile (list-index/dict/struct/mutation-form usage and
  * the Data-profile derived reporters `dict`/`list`/`reverse`/`pick`/`sort`/`keys`/`values`/
  * `type_of` — detected via `@openlogo/parser`'s own `dataPrimitiveArity()` name table, not a
- * second hand-maintained list — for Data; `note`/`beep`/`play`/`rest`/`set_tempo` for Sound;
+ * second hand-maintained list — for Data; `grid`/`axes`/`measure` via `geometryPrimitiveArity()`
+ * for Geometry; `explain`/`why`/`hint`/`debug` via `educationalPrimitiveArity()` for Educational;
+ * `note`/`beep`/`play`/`rest`/`set_tempo` for Sound;
  * `input`/`when`/`every`/`on_key`/`on_click`/`wait` for Interaction & Events;
  * `new_turtle`/`tell`/`ask`/`each`/`turtles`/`who` for Sprites; the closed Heritage short-alias
- * list plus `make` plus `value of … for key` for Heritage), and
+ * list plus `make` plus `value of … for key` (which also needs Data) for Heritage — see
+ * {@link detectUsedProfiles}'s own doc comment for the full per-profile audit, including the
+ * profiles/spellings that are honestly undetectable today (Modules, Localization, Tutor (AI)'s
+ * `challenge`, and the Heritage `to`/`output`/`op` spellings) and why), and
  * {@link runExamplesGate} compares that detected set against the manifest's declared profiles
  * (expanded to their full dependency closure via `scripts/harness/index.mjs`'s `PROFILE_DEPS`)
  * for **every** example — before the SKIP decision, so an under-declaration FAILS the gate loudly
@@ -41,7 +46,13 @@
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { dataPrimitiveArity, parse, walk } from "@openlogo/parser";
+import {
+  dataPrimitiveArity,
+  educationalPrimitiveArity,
+  geometryPrimitiveArity,
+  parse,
+  walk,
+} from "@openlogo/parser";
 import { execute } from "@openlogo/runtime";
 import { closureOf } from "./harness/index.mjs";
 
@@ -163,13 +174,44 @@ const HERITAGE_CALLEE_NAMES = new Set([
  * manifest's declared profiles — it is a fact about the source text alone, used to catch a
  * manifest entry that under-declares what the example needs (issue #519, finding G8).
  *
- * Deliberately conservative: it flags only constructs the spec ties to one profile in *every*
- * context (list-index/field-selector reads, dict/struct/mutation-form syntax, and each profile's
- * reserved primitive/alias names). It does not attempt to detect Core Language or Turtle &
- * Rendering (every example needs both, and nothing here would ever contradict that), nor
- * record-binder destructuring (`spec/conformance.md`'s Data-vs-Core split for `for [:x :y] in
- * ...` depends on the *runtime* value being destructured — list vs record — which a static AST
- * walk cannot decide; see the spec's "List-binder destructuring classification").
+ * **Exhaustiveness audit against every optional profile in `spec/conformance.md`'s dependency
+ * DAG** (issue #519, third review round — see git history for the two prior rounds that added
+ * Data-derived-reporter and Heritage `value of … for key` detection):
+ *
+ * | Profile | Detected via | Notes |
+ * | --- | --- | --- |
+ * | Data | `DATA_NODE_KINDS`, index/field segments, `dataPrimitiveArity()` | |
+ * | Turtle & Rendering | *(not detected)* | every example needs it; never contradicts a declaration |
+ * | Geometry | `geometryPrimitiveArity()` (`grid`/`axes`/`measure`) | implemented profile — a live masking case |
+ * | Heritage | `HERITAGE_CALLEE_NAMES`, `ValueOfKey` (adds `data` too) | `to`/`output`/`op` excluded, see below |
+ * | Sprites | `SPRITES_CALLEE_NAMES` | |
+ * | Interaction & Events | `INTERACTION_EVENTS_CALLEE_NAMES` | |
+ * | Sound | `SOUND_CALLEE_NAMES` | |
+ * | Educational | `educationalPrimitiveArity()` (`explain`/`why`/`hint`/`debug`) | `challenge` excluded, see below |
+ * | Modules | *(not detectable today)* | `import`/`export`/`alias` are reserved words
+ *   (`packages/parser/src/parser.ts`'s `NON_PRIMARY_NAMES`) with no dedicated AST production or
+ *   parse function today — they cannot begin an expression/Call, so an example using them fails
+ *   to parse cleanly rather than silently masking a manifest gap. |
+ * | Localization | *(not detectable today)* | depends on Modules, which has no parseable form yet
+ *   (no locale-pack keyword/production exists in the grammar today either). |
+ * | Tutor (AI) | *(not detectable today)* | `challenge` has no registered primitive-arity entry
+ *   (`packages/parser/src/educational-meta-commands.test.mjs:64` asserts
+ *   `educationalPrimitiveArity("challenge")` is `undefined`) — it parses as an ordinary,
+ *   unrecognized `Call`, indistinguishable from a user-defined procedure named `challenge`.
+ *   Detecting it by bare callee name would risk false positives on a learner's own procedure, so
+ *   it is deliberately NOT hardcoded; this is the same class of honest limitation as
+ *   `to`/`output`/`op` below, not an oversight. |
+ *
+ * `to`/`output`/`op` are Heritage spellings that are reserved words with no `Call`/`ParenCall`
+ * production at all today (same `NON_PRIMARY_NAMES` set), so — like Modules/Localization above —
+ * they cannot be detected this way either; see {@link HERITAGE_CALLEE_NAMES}'s doc comment.
+ *
+ * Deliberately conservative otherwise: it flags only constructs the spec ties to one profile in
+ * *every* context (list-index/field-selector reads, dict/struct/mutation-form syntax, and each
+ * profile's reserved primitive/alias names). It does not attempt record-binder destructuring
+ * (`spec/conformance.md`'s Data-vs-Core split for `for [:x :y] in ...` depends on the *runtime*
+ * value being destructured — list vs record — which a static AST walk cannot decide; see the
+ * spec's "List-binder destructuring classification").
  *
  * Never throws: a source that fails to parse cleanly still returns whatever partial AST
  * `@openlogo/parser`'s `parse()` recovered, and this function only ever reads node `kind`s and
@@ -215,6 +257,16 @@ export function detectUsedProfiles(source) {
       // (issue #519 rubber-duck review: a hand-maintained second list would drift and reopen the
       // exact masking gap this fix closes).
       used.add("data");
+    } else if (geometryPrimitiveArity(name) !== undefined) {
+      // The Geometry profile's renderer-backed overlay primitives `grid`/`axes`/`measure`
+      // (`packages/parser/src/signatures.ts`'s `GEOMETRY_PRIMITIVE_ARITY`) — Geometry IS
+      // implemented (see {@link IMPLEMENTED_PROFILES}), so an example using one of these while
+      // under-declaring `geometry` is a live, catchable masking case, not a hypothetical.
+      used.add("geometry");
+    } else if (educationalPrimitiveArity(name) !== undefined) {
+      // The Educational profile's baseline meta-commands `explain`/`why`/`hint`/`debug`
+      // (`packages/parser/src/signatures.ts`'s `EDUCATIONAL_PRIMITIVE_ARITY`).
+      used.add("educational");
     } else if (SOUND_CALLEE_NAMES.has(name)) {
       used.add("sound");
     } else if (INTERACTION_EVENTS_CALLEE_NAMES.has(name)) {
