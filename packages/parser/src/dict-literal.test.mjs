@@ -238,6 +238,28 @@ test("a `{` in a dict entry's separator position (missing `:`) raises exactly on
   assert.deepEqual(dict.entries, []);
 });
 
+test("a `[` in a dict entry's separator position (missing `:`) raises exactly one ol-bad-token, never ol-unmatched-bracket", () => {
+  // Mirrors the `{`-in-separator-position case above, but for a nested list literal (issue
+  // #546): `a` is a valid key that gets consumed, but the `:` separator is missing and a `[`
+  // appears where the separator/value was expected instead. `unexpectedInDictEntry` special-cases
+  // this `[` exactly like the `{` case — the nested `[ 1 2 ]` is itself a balanced, well-formed
+  // list literal, simply in the wrong grammar position, so both the list's brackets and the
+  // dict's braces are in fact correctly matched and only one `ol-bad-token` fires for the inner
+  // `[`, never `ol-unmatched-bracket`.
+  const source = "print { a [ 1 2 ] }";
+  assert.deepEqual(codesOf(source), ["ol-bad-token"]);
+  const diagnostic = parse(source).diagnostics[0];
+  assert.equal(diagnostic.stage, "parse");
+  assert.equal(diagnostic.params.text, "[");
+  // The span covers only the inner opening bracket (offset 10), not the outer dict's braces and
+  // not the `1 2 ] }` that follows.
+  assert.deepEqual(diagnostic.source_span.start, [1, 11]);
+  assert.deepEqual(diagnostic.source_span.end, [1, 12]);
+  const dict = firstArg(source);
+  assert.equal(dict.kind, "DictLit");
+  assert.deepEqual(dict.entries, []);
+});
+
 test("a token that cannot even start a dict-key (e.g. a stray `:`) is reported by parseDictLiteral's own fallback", () => {
   // Unlike the nested-dict-key case (issue #520) or any other malformed entry above,
   // `parseDictEntry` returns `undefined` here *without consuming any token at all* — a bare

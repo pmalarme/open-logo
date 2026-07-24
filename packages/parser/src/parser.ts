@@ -1071,8 +1071,8 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * Skip a balanced nested literal starting at the current token (assumed to be its own opening
    * delimiter, `{` or `[`), tracking nesting depth so an inner literal of the same kind cannot
    * end the skip early. Shared by {@link skipMalformedDictKeyLiteral} (key position) and
-   * {@link unexpectedInDictEntry}'s `lbrace` case (separator position) to recover past a
-   * well-formed nested dict/list literal that appeared in an illegal `dict-entry` grammar
+   * {@link unexpectedInDictEntry}'s `lbrace`/`lbracket` cases (separator position) to recover
+   * past a well-formed nested dict/list literal that appeared in an illegal `dict-entry` grammar
    * position (`spec/grammar.md`), without misreporting its own, correctly matched delimiters as
    * unmatched.
    */
@@ -1101,14 +1101,15 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * accurate `ol-bad-token` instead — a colon/value was expected, not a brace — without consuming
    * the `}` so the caller's loop still sees and closes it.
    *
-   * A `{` there is a different malformed shape, at the **separator** position rather than the
-   * key position (`print { a { b: 1 } }` — `a` parses as a valid key, but no `:` follows before
-   * the nested, itself well-formed and balanced, `{ b: 1 }`): `spec/data-structures.md`'s
-   * malformed-`dict-entry` rule requires exactly one `ol-bad-token` for that inner `{`, never
-   * `ol-unmatched-brace` for either dict literal's braces — both are, in fact, correctly matched.
-   * Falling through to {@link unexpected} would misreport it as unmatched, and leaving it
-   * unconsumed would let the caller's loop re-enter {@link parseDictEntry}, which would treat it
-   * as a *second*, separately diagnosed malformed key. So this reports the one diagnostic and
+   * A `{` or `[` there is a different malformed shape, at the **separator** position rather than
+   * the key position (`print { a { b: 1 } }` — `a` parses as a valid key, but no `:` follows
+   * before the nested, itself well-formed and balanced, `{ b: 1 }`; likewise `print { a [1, 2] }`
+   * with a nested `[1, 2]`): `spec/data-structures.md`'s malformed-`dict-entry` rule requires
+   * exactly one `ol-bad-token` for that inner opening delimiter, never `ol-unmatched-brace`/
+   * `ol-unmatched-bracket` for either literal's delimiters — both are, in fact, correctly
+   * matched. Falling through to {@link unexpected} would misreport it as unmatched, and leaving
+   * it unconsumed would let the caller's loop re-enter {@link parseDictEntry}, which would treat
+   * it as a *second*, separately diagnosed malformed key. So this reports the one diagnostic and
    * consumes the whole nested literal itself, reusing {@link skipBalancedNestedLiteral} exactly
    * like the key-position case.
    *
@@ -1122,6 +1123,11 @@ export function parse(source: string, document = "<input>"): ParseResult {
     if (token.kind === "lbrace") {
       diagnostics.push(parseDiag.badToken(token.source_span, token.text));
       skipBalancedNestedLiteral("lbrace", "rbrace");
+      return;
+    }
+    if (token.kind === "lbracket") {
+      diagnostics.push(parseDiag.badToken(token.source_span, token.text));
+      skipBalancedNestedLiteral("lbracket", "rbracket");
       return;
     }
     diagnostics.push(unexpected(token));
