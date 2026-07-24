@@ -257,6 +257,21 @@ test("detectUsedProfiles does NOT flag a user-defined procedure that shadows an 
   );
 });
 
+test("detectUsedProfiles STILL flags Data usage even when a same-named procedure is locally defined (round-6 rubber-duck review)", () => {
+  // Round-6 rubber-duck review found the round-5 shadow-guard was overbroad: `@openlogo/runtime`'s
+  // expression evaluator (evaluate.ts) resolves the 8 Data derived-reporter names (list/dict/
+  // reverse/pick/sort/keys/values/type_of) to the Data builtin BEFORE it ever consults
+  // environment.procedures — unlike every other checked name, a local `define` of one of these
+  // names does NOT shadow the builtin at runtime in expression position. A Core-only manifest
+  // declaration would therefore still execute Data behavior and must still be flagged.
+  assert.deepEqual(
+    detectUsedProfiles(
+      'define list :a :b\n  return "shadowed"\nend\nprint list 1 2\n',
+    ),
+    ["data"],
+  );
+});
+
 test("detectUsedProfiles still detects the real primitive when no same-named procedure is defined", () => {
   // Sanity check for the shadow-guard above: it must not over-suppress detection of genuine
   // profile usage when there is no colliding `define`.

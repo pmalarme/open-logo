@@ -277,20 +277,36 @@ export function detectUsedProfiles(source) {
       return;
     }
     const name = node.callee.name.toLowerCase();
-    if (definedProcedureNames.has(name)) {
-      // A locally `define`d procedure of this name shadows any optional-profile callee it happens
-      // to collide with — see this function's doc comment. Treat the call as ordinary Core user
-      // code, not as evidence of profile usage.
-      return;
-    }
     if (dataPrimitiveArity(name) !== undefined) {
       // The Data profile's derived list/dict/record reporters (`dict`, `list`, `reverse`,
       // `pick`, `sort`, `keys`, `values`, `type_of`) are call-site names, not distinct AST node
       // kinds — detected via the parser's own name table so this stays in lockstep with it
       // (issue #519 rubber-duck review: a hand-maintained second list would drift and reopen the
       // exact masking gap this fix closes).
+      //
+      // Deliberately checked BEFORE the `definedProcedureNames` shadow-guard below (round-6
+      // rubber-duck review): `@openlogo/runtime`'s expression evaluator (`evaluate.ts`) resolves
+      // these exact 8 names to the Data builtin BEFORE it ever consults
+      // `environment.procedures.has(name)` — a locally `define`d procedure of the same name does
+      // NOT shadow the builtin at runtime in expression position (e.g. `define list ... end` then
+      // `print list 1 2` still prints the Data builtin's result, not the user procedure's). So
+      // unlike every other check below, a colliding local `define` must never suppress this one:
+      // doing so would silently under-detect a real Data dependency, reopening the exact G8
+      // masking class this fix exists to close.
       used.add("data");
-    } else if (geometryPrimitiveArity(name) !== undefined) {
+      return;
+    }
+    if (definedProcedureNames.has(name)) {
+      // A locally `define`d procedure of this name shadows every OTHER optional-profile callee it
+      // happens to collide with: `@openlogo/runtime`'s statement dispatch
+      // (`execute-internal.ts`'s `isProcedureCallStatement`) checks `environment.procedures` with
+      // no builtin exclusion, and none of Geometry/Educational/Sound/Interaction & Events/
+      // Sprites/Heritage's names appear in `evaluate.ts`'s expression dispatch chain either — so a
+      // user procedure of one of those names always wins, at both statement and expression
+      // position. Treat the call as ordinary Core user code, not as evidence of profile usage.
+      return;
+    }
+    if (geometryPrimitiveArity(name) !== undefined) {
       // The Geometry profile's renderer-backed overlay primitives `grid`/`axes`/`measure`
       // (`packages/parser/src/signatures.ts`'s `GEOMETRY_PRIMITIVE_ARITY`) — Geometry IS
       // implemented (see {@link IMPLEMENTED_PROFILES}), so an example using one of these while
