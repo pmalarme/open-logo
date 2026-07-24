@@ -387,6 +387,11 @@ export function produce(
  * expected side already writes a numeric key the same way; record fields use their declared
  * spelling ({@link OLRecord.fields}). Only the immediate level is unwrapped: a nested dict/record
  * held by a value is unwrapped in turn the next time the comparator recurses into it.
+ *
+ * This deliberately does NOT fold the record's struct type name (`OLRecord.type`) into the
+ * unwrapped shape — {@link checkRecordType} handles that separately, as an opt-in check, so the
+ * plain field-object this returns stays exactly what the README documents a fixture writes for a
+ * record's expected shape (`{"x": 1, "y": 2}`, no type marker) by default.
  */
 function unwrapDataValue(value) {
   if (value instanceof OLDict) {
@@ -406,8 +411,59 @@ function unwrapDataValue(value) {
   return value;
 }
 
+// Reserved expected-side key an `OLRecord` comparison may opt into (see `checkRecordType` below):
+// a fixture that cares WHICH struct type an actual record is (not just its field contents) adds
+// `"__type": "<struct name>"` alongside the record's usual field keys in its expected shape.
+const RECORD_TYPE_KEY = "__type";
+
+/**
+ * Two records of different struct types can have identical declared field names/values (e.g.
+ * `struct point [ x y ]` and `struct vector [ x y ]` both constructed with `3 4`) — since
+ * {@link unwrapDataValue} unwraps an `OLRecord` to ONLY its field contents, such records are
+ * otherwise indistinguishable to `deepEqual`/`graphEqual`: both would match the very same
+ * type-less expected shape `{"x": 3, "y": 4}`. This verifies the struct type name BEFORE the
+ * field-by-field comparison proceeds, whenever a fixture opts in by including the reserved
+ * {@link RECORD_TYPE_KEY} in its expected shape (mirroring the `$id`/`$ref` graph markers'
+ * additive, opt-in convention: existing fixtures that never mention `__type` are unaffected).
+ *
+ * Returns `true`/`false` when `actual` is an `OLRecord` and `expected` opted in (a verdict the
+ * caller must respect before comparing anything else), or `undefined` when there is nothing to
+ * check (`actual` isn't a record, or `expected` didn't ask) — the caller then falls through to
+ * the ordinary structural comparison unchanged.
+ */
+function checkRecordType(expected, actual) {
+  if (
+    !(actual instanceof OLRecord) ||
+    expected === null ||
+    typeof expected !== "object" ||
+    Array.isArray(expected) ||
+    !Object.hasOwn(expected, RECORD_TYPE_KEY)
+  ) {
+    return undefined;
+  }
+  return expected[RECORD_TYPE_KEY] === actual.type;
+}
+
+/**
+ * The keys of an expected object to structurally compare against an unwrapped record's fields:
+ * the reserved {@link RECORD_TYPE_KEY} (when present) was already verified by
+ * {@link checkRecordType}, so it must be excluded here — `unwrapDataValue`'s output never
+ * contains it, and leaving it in would make every opted-in record fixture fail on a spurious
+ * key-count mismatch.
+ */
+function comparableKeys(expected, typeChecked) {
+  const keys = Object.keys(expected);
+  return typeChecked === undefined
+    ? keys
+    : keys.filter((key) => key !== RECORD_TYPE_KEY);
+}
+
 /** Order-insensitive structural equality for the plain JSON values in a fixture. */
 export function deepEqual(a, b) {
+  const typeChecked = checkRecordType(a, b);
+  if (typeChecked === false) {
+    return false;
+  }
   const actual = unwrapDataValue(b);
   if (a === actual) {
     return true;
@@ -430,7 +486,7 @@ export function deepEqual(a, b) {
     }
     return a.every((value, index) => deepEqual(value, actual[index]));
   }
-  const keys = Object.keys(a);
+  const keys = comparableKeys(a, typeChecked);
   if (keys.length !== Object.keys(actual).length) {
     return false;
   }
@@ -580,6 +636,17 @@ export function graphEqual(
   if (expected === actual) {
     return { matched: true };
   }
+  // Same struct-type opt-in as `deepEqual` (see `checkRecordType`'s doc comment): when `expected`
+  // includes the reserved `__type` key, a mismatching actual record's struct type is rejected
+  // BEFORE the field-by-field shape comparison below — otherwise two differently-typed records
+  // with identical field contents would be indistinguishable from the same expected shape.
+  const typeChecked = checkRecordType(expected, actual);
+  if (typeChecked === false) {
+    return {
+      matched: false,
+      reason: `record type mismatch: expected "${expected[RECORD_TYPE_KEY]}" but actual is "${actual.type}"`,
+    };
+  }
   // An OLDict/OLRecord actual isn't a plain array/object, so unwrap it into the equivalent
   // key/value shape for the structural comparison below. Reference-identity tracking above
   // (isGraphIdNode/isGraphRefNode and the alias check) already used the original `actual`
@@ -609,7 +676,7 @@ export function graphEqual(
     }
     return { matched: true };
   }
-  const keys = Object.keys(expected);
+  const keys = comparableKeys(expected, typeChecked);
   if (keys.length !== Object.keys(actualShape).length) {
     return { matched: false, reason: "object shape mismatch" };
   }
