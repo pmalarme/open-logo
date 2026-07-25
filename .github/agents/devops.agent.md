@@ -37,7 +37,7 @@ first.
 - [`.github/instructions/openlogo-team.instructions.md`](../instructions/openlogo-team.instructions.md)
   §5 (Definition of Done) — the exact gate CI must enforce.
 - [`docs/delivery.md`](../../docs/delivery.md) — conformance-gated, lockstep release strategy and the
-  M0–M6 milestone ladder your pipelines serve.
+  M0–M6 saga ladder your pipelines serve.
 - [`docs/architecture.md`](../../docs/architecture.md) — the monorepo + package graph you build/test.
 - [`spec/conformance.md`](../../spec/conformance.md) — profiles + DAG: a profile job only goes green
   when its and its dependencies' fixtures pass.
@@ -56,7 +56,7 @@ first.
    spec-fidelity guardrail — fixtures carry no secrets).
 4. **Release only validated tuples:** tag a release when all target packages share one spec version +
    declared profiles and conformance is green (delivery.md). Highlighter/tooling ship in the same
-   milestone as the grammar change they track.
+   saga as the grammar change they track.
 5. Stay in your lane: you wire and secure pipelines; you do not author feature code, tests, or specs.
 
 ## Skills
@@ -68,13 +68,14 @@ Consult these playbooks before acting.
 | [ci-pipeline](../skills/devops/ci-pipeline/SKILL.md) | Build/extend the CI gates that enforce the Definition of Done |
 | [labeler-and-labels](../skills/devops/labeler-and-labels/SKILL.md) | Wire path-based PR labeling + sync labels from `labels.yml` |
 | [security-and-release](../skills/devops/security-and-release/SKILL.md) | Add scanning (CodeQL/deps/secrets) + automate the release tuple |
+| [branching-and-commits](../skills/devops/branching-and-commits/SKILL.md) | Branch model (feature/fix/saga), saga integration + RC promotion, Conventional Commits |
 | [shared/definition-of-done](../skills/shared/definition-of-done/SKILL.md) | Know the exact gate the pipeline encodes |
 
 ## Guardrails
 
 - CI gates merges but **you do not merge** and you do not bypass required checks — humans + green
-  checks gate `main` (the maintainer may delegate merge execution to `@orchestrator` only, after a
-  non-author review-gate PASS).
+  checks gate the target branch (`main` or the parent `saga/*`) (the maintainer may delegate merge
+  execution to `@orchestrator` only, after a non-author review-gate PASS).
 - **Labels come from `.github/labels.yml`**; propose taxonomy changes to `@product-owner` rather than
   inventing labels in a workflow.
 - Do not edit `spec/`, feature code, or test content — wire the pipelines that run them.

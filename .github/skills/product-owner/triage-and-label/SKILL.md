@@ -3,7 +3,7 @@ name: triage-and-label
 description: >-
   How @product-owner (the "labeler") maintains and applies the OpenLogo issue label taxonomy —
   agent/type/profile/area/level — and keeps it in sync with .github/labels.yml. Use when triaging a new
-  issue, creating labels, or relabeling. Pairs with github-project and epics-and-milestones.
+  issue, creating labels, or relabeling. Pairs with github-project and sagas-epics-and-issues.
 created: 2026-07-17T00:00
 updated: 2026-07-18T00:00
 ---
@@ -19,7 +19,8 @@ tracks can pull their own work.
 - **`agent:*`** — one owner: `orchestrator`, `product-owner`, `language-designer`, `interpreter`,
   `turtle-engine`, `learner-experience`, `geometry-teacher`, `ai-tutor`, `curriculum`, `testing`,
   `documentation`, `devops`.
-- **`type:*`** — `feature-request`, `epic`, `slice`, `bug`, `conformance`, `foundation`, `docs`, `chore`.
+- **`type:*`** — `feature-request`, `saga`, `epic`, `spec`, `slice`, `bug`, `conformance`,
+  `foundation`, `docs`, `chore`.
 - **`profile:*`** — `core`, `turtle-rendering`, `data`, `geometry`, `heritage`, `sprites`,
   `interaction`, `sound`, `modules`, `localization`, `educational`, `tutor-ai`.
 - **`area:*`** — `grammar`, `highlighter`, `checker`, `core`, `runtime`, `rendering`, `studio`, `edu`,
@@ -29,12 +30,16 @@ tracks can pull their own work.
 ## Rules
 
 - **Exactly one `agent:*` and one `type:*`** per issue; add `profile:*`/`area:*`/`level:*` as they apply.
-- **Milestone ≠ label:** the profile-DAG milestone is set via the milestone field, not a `profile:*`
-  label (the label says which profile the work touches; the milestone says where it lands).
+- **Hierarchy ≠ label:** an issue's place in the DAG is its **native sub-issue parent** (epic → saga,
+  work issue → epic), **not** a `profile:*` label (the label says which profile the work touches; the
+  sub-issue link says where it lands). GitHub milestones are **no longer used** — sagas replace them.
+- `type:saga` and `type:spec` are **non-delegable for approval, merge, and closure**; the
+  product-owner **may create/propose** them, but only the **maintainer approves and closes** them
+  (their `spec/**`/template PRs are maintainer-merged via CODEOWNERS + the branch ruleset).
 - Issue **forms apply only their static `labels:` defaults** (`type:*`, sometimes `area:*`).
   **Dropdown/checkbox answers inside a form do _not_ become labels** — e.g. a "Profile" dropdown
   selection never creates `profile:*`. Triage reads those answers and adds `agent:*` + `profile:*`
-  + `level:*` and the milestone by hand. Treat every new issue as needing a manual triage pass.
+  + `level:*` and the sub-issue parent by hand. Treat every new issue as needing a manual triage pass.
 - Labels are data — keep `.github/labels.yml` the source of truth; don't hand-create ad-hoc labels.
 
 ## Procedure
@@ -72,13 +77,19 @@ Confirm or add the required labels:
 gh issue edit <n> --add-label "agent:interpreter,profile:core,area:runtime"
 ```
 
-#### (b) Milestone
+#### (b) Sub-issue link (replaces the milestone field)
 
-Set the **profile-DAG milestone** via the milestone field, not a `profile:*` label. The milestone
-says where the work lands (M0–M6); the `profile:*` label says which profile(s) it touches.
+Attach the issue to its **parent in the hierarchy** as a **native GitHub sub-issue** — this is what
+places the work on the profile DAG (milestones are retired). An **epic** becomes a sub-issue of its
+**saga**; a **work issue** (slice/bug/spec/task) becomes a sub-issue of its **epic** (or, only when it
+is small foundation/chore work with no natural epic, directly under a saga — it still clears its own
+Issue Gate). See [`github-project`](../github-project/SKILL.md#native-sub-issues) for
+the `addSubIssue` GraphQL mechanics:
 
 ```bash
-gh issue edit <n> --milestone "M1 Core Language"
+# link child issue <child#> under parent issue <parent#> (numeric database IDs, see github-project)
+gh api graphql -f query='mutation($p:ID!,$c:ID!){addSubIssue(input:{issueId:$p,subIssueId:$c}){issue{number}}}' \
+  -f p=<parent-node-id> -f c=<child-node-id>
 ```
 
 #### (c) Board membership (required manual step)
@@ -100,10 +111,12 @@ apply this automatically; **non-template creation must add the prefix by hand**.
 
 | Type label | Title prefix | Template |
 |---|---|---|
+| `type:saga` | `[saga]:` | saga.yml |
+| `type:epic` | `[epic]:` | epic.yml |
+| `type:spec` | `[spec]:` | spec.yml |
 | `type:bug` | `[bug]:` | bug.yml |
 | `type:conformance` | `[conformance]:` | conformance-task.yml |
 | `type:docs` | `[docs]:` | docs.yml |
-| `type:epic` | `[epic]:` | epic.yml |
 | `type:feature-request` | `[request]:` | feature-request.yml |
 | `type:slice` | `[slice]:` | feature-slice.yml |
 | `type:foundation` | `[foundation]:` | foundation.yml |
@@ -120,22 +133,23 @@ List issues missing an `agent:*` or `type:*` and fix them:
 gh issue list --search 'no:label' --json number,title
 ```
 
-### 4. Audit epic Status on every pass
+### 4. Audit epic and saga Status on every pass
 
-**Every triage/dispatch/merge pass, also check every `type:epic` issue's board Status against its
-children:** any child (leaf slice, or nested sub-epic) that is `In Progress` or `Done` means the epic
-must be `In Progress` too; `Done` only once every child is `Done`. This is not a one-off cleanup — epic
-Status drifts constantly as leaf slices move, so re-check it every time you touch the board. Full
-mechanics (finding children, board field IDs) are in
+**Every triage/dispatch/merge pass, check every `type:epic` and `type:saga` issue's board Status
+against its children:** any child (sub-issue) that is `In Progress` or `Done` means the parent must be
+`In Progress` too; `Done` only once **every** child is `Done` **and** the parent has passed its gate
+(Epic Gate / Saga Gate — see `shared/epic-gate` and `shared/definition-of-done`). This is not a
+one-off cleanup — parent Status drifts constantly as children move, so re-check it every time you
+touch the board. Full mechanics (finding children via sub-issues, board field IDs) are in
 [`github-project`](../github-project/SKILL.md#epic-status-must-reflect-its-children).
 
 ## Checklist
 - [ ] `.github/labels.yml` is the single source; labels synced from it.
 - [ ] Every issue has exactly one `agent:*` + one `type:*`; extras added as applicable.
-- [ ] Milestone set via the milestone field, not a profile label.
+- [ ] Hierarchy set via a **native sub-issue** link (epic→saga, work→epic, or work→saga for epic-less foundation/chore work), not a milestone/profile label.
 - [ ] Issue added to the Project board with Status (default `Todo`) and Agent fields set.
 - [ ] Title prefix `[<type>]:` matches the `type:*` label (applied automatically by templates;
       manual for non-template creation).
 - [ ] No ad-hoc labels outside the manifest.
-- [ ] Every `type:epic` issue's Status reflects its children (any child In Progress/Done → epic
-      In Progress; all Done → epic Done).
+- [ ] Every `type:epic` / `type:saga` issue's Status reflects its children (any child In Progress/Done
+      → parent In Progress; all Done + gate passed → parent Done).

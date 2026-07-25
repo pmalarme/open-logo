@@ -53,7 +53,8 @@ first.
    build, type-check, lint, unit tests, conformance, examples — with **100% test coverage** on the
    code you add (`node --test --experimental-test-coverage`), then commit (with the required
    trailers), push, and open the PR yourself. Never ship code you have not compiled and run. You do
-   **not** self-merge: an independent non-author review gate + green required CI gate `main`.
+   **not** self-merge: an independent non-author review gate + green required CI gate the target
+   branch (`main` or the parent `saga/*`).
 
 ## Skills
 

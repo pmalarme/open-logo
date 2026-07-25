@@ -68,8 +68,12 @@ Learner **levels are a curriculum sequencing model, not profiles** — do not co
 - **Vertical slices, not horizontal phases.** Deliver one language feature end to end:
   grammar → AST → runtime + trace events → renderer/UI → conformance + integration tests →
   teaching hooks → docs. Do **not** build "all parsing", then "all runtime".
-- **One task = one PR** on a feature branch. Each task **declares its write-set** (the files/
-  packages it will touch) up front.
+- **One task = one PR** on the right branch type — `feature/*` for work (incl. `[spec]`), `fix/*` for a
+  bug; an epic has no branch. Each task **declares its write-set** (the files/packages it will touch)
+  up front, and **targets its parent saga's `saga/*` branch** (or `main` for Maintenance work). See
+  [`devops/branching-and-commits`](../skills/devops/branching-and-commits/SKILL.md).
+- **Conventional Commits.** Every commit subject **and** the PR title follow `type(scope): subject`
+  (scope = a profile or area); CI lints both (`.github/workflows/commitlint.yml`).
 - **Serialize shared-file edits.** Grammar, cross-package contracts, `package.json`/workspace
   manifests, and anything under `spec/` change one PR at a time to avoid conflicts.
 - **One integration owner per story** (the orchestrator or the story's primary agent) prepares
@@ -102,10 +106,18 @@ A change is done only when, for the artifacts it touches:
    verdicts are attached to the PR. Reviewer ≠ author.
 
 Agents do not self-merge; the implementer's non-author reviewers (at least two) record the pass verdicts, then
-humans and required CI checks (pipelines wired by `@devops`) gate `main` by default. The maintainer
+humans and required CI checks (pipelines wired by `@devops`) gate the target branch by default. The maintainer
 may delegate merge **execution** to `@orchestrator`, which then does a final verification (all
 non-author verdicts attached — at least two, CI green) before merging (`shared/review-gate`, `integrate-and-merge`).
-The implementer is never the sole attester.
+The implementer is never the sole attester. **`[spec]` and `[saga]` changes are maintainer-only and
+NON-delegable** — never merged by an agent: on the PR, `CODEOWNERS` (`spec/**` + the saga/spec
+templates) plus the target branch's required code-owner-review ruleset block the merge until the
+maintainer approves; closing a `[saga]` issue is maintainer policy.
+
+This 9-point DoD is the **Issue Gate** — the bottom of a three-tier ladder. Above it, a whole
+capability clears the **Epic Gate** (`shared/epic-gate`) before its epic closes, and a release clears
+the **Saga Gate** (the Saga-completion audit in `orchestrator/integrate-and-merge`) before its saga
+closes and a tuple is tagged. Each tier = DoD-style checklist + specialist review + rubber-duck review.
 
 ## 6. Spec fidelity — canonical OpenLogo, not classic Logo
 
@@ -187,20 +199,22 @@ Match the merged spec exactly. Common mistakes to avoid:
 ## 12. Architecture, contracts & parallel work
 
 - The monorepo layout, package internals, and cross-cutting contracts are defined in
-  [`docs/architecture.md`](../../docs/architecture.md); the release + milestone strategy in
-  [`docs/delivery.md`](../../docs/delivery.md) and
-  [`docs/adr/0003-versioning-and-release.md`](../../docs/adr/0003-versioning-and-release.md).
+  [`docs/architecture.md`](../../docs/architecture.md); the release + saga strategy in
+  [`docs/delivery.md`](../../docs/delivery.md),
+  [`docs/adr/0003-versioning-and-release.md`](../../docs/adr/0003-versioning-and-release.md), and
+  [`docs/adr/0015-sagas-branching-governance.md`](../../docs/adr/0015-sagas-branching-governance.md).
 - **Four shared contracts cross package boundaries:** the **AST** (`@openlogo/parser`), the
   **trace/event stream** and the **`ol-*` diagnostics** (`@openlogo/core`), and the **token classes /
   syntax highlighting** (`@openlogo/parser`, normative in `spec/tooling.md`). Agree them
-  **contract-first** — one serialized PR — before a milestone's domain work fans out. Changing any of
+  **contract-first** — one serialized PR — before a saga's domain work fans out. Changing any of
   them later is a serialized, owner-reviewed PR.
 - **Domains run in parallel** (language, engine, highlighter/tooling, rendering, studio/UI, education,
   tests, docs) against those contracts — see the parallelization map in `architecture.md`.
 - **The highlighter and tooling track the grammar version:** any grammar or reserved-word change ships
-  its highlighting + LSP update in the **same milestone**; a grammar PR is not done until the tooling
+  its highlighting + LSP update in the **same saga**; a grammar PR is not done until the tooling
   fixtures are updated.
-- **Milestones are profile-based synchronization points** on the spec DAG. A milestone completes when
+- **Sagas are profile-based synchronization points** on the spec DAG (they replace GitHub milestones;
+  each is a `type:saga` issue with epics/work linked as native sub-issues). A saga completes when
   its profile conformance is green across **all** domains (not when one package finishes); from M2
   (Turtle & Rendering = minimal conformance) onward a release tuple is tagged.
 
@@ -213,21 +227,23 @@ Match the merged spec exactly. Common mistakes to avoid:
   charter and pins that package's responsibilities, spec files, boundaries, and conventions. Read your
   package's file before editing under it.
 - **File issues from templates**, never freehand:
-  [`.github/ISSUE_TEMPLATE/`](../ISSUE_TEMPLATE) — `feature-request` (inbound idea), `epic`,
-  `feature-slice` (user story), `conformance-task`, `foundation`, `bug`, `docs`. Each seeds the right
-  `type:*`/`agent:*` labels.
+  [`.github/ISSUE_TEMPLATE/`](../ISSUE_TEMPLATE) — `feature-request` (inbound idea), `saga`, `epic`,
+  `spec`, `feature-slice` (user story), `conformance-task`, `foundation`, `bug`, `docs`. Each seeds the
+  right `type:*`/`agent:*` labels. `saga` and `spec` are maintainer-owned.
 - **Labels are a manifest.** [`.github/labels.yml`](../labels.yml) is the single source of truth
   (`agent:*` owner, `type:*` kind, `profile:*`, `area:*`, `level:*`). Exactly one `agent:*` and one
-  `type:*` per issue; the milestone — not a label — says which M0–M6 it lands in.
+  `type:*` per issue; the **native sub-issue parent** — not a label or milestone — places it in the
+  saga → epic → issue hierarchy.
 - **CI/CD is owned by `@devops`.** Pipelines live in `.github/workflows/` (with `.github/scripts/` +
   [`.github/labeler.yml`](../labeler.yml)) under
   [`workflows.instructions.md`](workflows.instructions.md): CI enforces the Definition of Done, PRs are
   auto-labeled by path, and `labels.yml` is reconciled on change. `@product-owner` owns the label
   *taxonomy*; `@devops` owns the *automation*.
-- **The product-owner runs the board** (Project, milestones, issues, labels) via `gh`; see the
-  `product-owner/github-project`, `epics-and-milestones`, and `triage-and-label` skills. Other agents
+- **The product-owner runs the board** (Project, sagas, issues, labels) via `gh`; see the
+  `product-owner/github-project`, `sagas-epics-and-issues`, and `triage-and-label` skills. Other agents
   request work through issues and let the product-owner/orchestrator schedule it.
-- **Every issue/PR must land on the board.** `.github/workflows/add-to-project.yml` auto-adds new
-  issues and PRs to Project #5 as `Status = Todo` (needs the maintainer-provisioned
-  `ADD_TO_PROJECT_PAT` secret). If automation is ever off, use the manual fallback documented in the
+- **Every issue/PR must land on the board.** Once the maintainer enables GitHub's built-in "Auto-add
+  to project" workflow (Project #5, filter `is:issue,pr is:open`, no token needed) it adds new issues
+  and PRs as `Status = Todo`. Until then (and any time automation
+  is off), use the manual fallback documented in the
   `product-owner/github-project` skill's "Board hygiene" section.

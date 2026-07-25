@@ -1,8 +1,8 @@
 ---
 name: decompose-and-dispatch
 description: >-
-  How @orchestrator turns a spec area or milestone into vertical-slice task packets, assigns a primary
-  owner, declares write-sets, and dispatches to the right agent. Use when planning a milestone, filing
+  How @orchestrator turns a spec area or saga into vertical-slice task packets, assigns a primary
+  owner, declares write-sets, and dispatches to the right agent. Use when planning a saga, filing
   issues, or coordinating parallel domain work. Owns integration + the Definition of Done gate.
 created: 2026-07-17T00:00
 updated: 2026-07-23T00:00
@@ -15,7 +15,7 @@ contracts agreed first. You write no feature code — you decompose, dispatch, a
 
 ## Procedure
 
-1. **Pick the milestone's profile set** from the spec DAG (`spec/conformance.md`) and confirm its
+1. **Pick the saga's profile set** from the spec DAG (`spec/conformance.md`) and confirm its
    dependency profiles are already conformant (entry criteria in `docs/delivery.md`).
 2. **Fix the shared contracts first.** If the slice needs new AST nodes, event types, `ol-*` codes, or
    token classes, open one serialized contract PR (owner-reviewed) before fanning out.
@@ -58,15 +58,17 @@ contracts agreed first. You write no feature code — you decompose, dispatch, a
      instruction **and `mode: autopilot`** (the tool's `mode` is a separate parameter — "same
      autopilot prompt" alone does not set it); (2) since a re-kick may still not wake a cold session,
      cross-check ground truth as the **fallback proof** — `get_session` metadata is stale, so use
-     `git -C <session_path> rev-list --count origin/main..HEAD` and `git status --porcelain`, which reveal a
+     `git -C <session_path> rev-list --count <base>..HEAD` (where `<base>` is the branch's base —
+     the parent `saga/*`, or `origin/main` for Maintenance work) and `git status --porcelain`, which reveal a
      session that is in fact working before any push; (3) if it still hasn't started after a re-kick,
      **escalate to the human to activate it in the sidebar** rather than assuming work is underway.
      Never mark a slice "in flight" on the strength of a session id alone.
 6. **Integrate per story** with `integrate-and-merge`: **verify** the owner's attached non-author
    verdicts (≥2 — logic/spec reviewer + every QA expert; don't re-run the whole gate round-by-round), merge under delegated authority once CI is
-   green, then reconcile the board/milestone/branches/plan. Hold the **Definition of Done** gate
-   (`shared/definition-of-done`); an integration issue closes each milestone once conformance is
-   green across all domains.
+   green, then reconcile the board/saga/branches/plan. Hold the **Definition of Done** gate
+   (`shared/definition-of-done`); a per-saga integration issue tracks conformance across all domains and,
+   when green, the orchestrator **recommends closeout — the maintainer closes the saga** (`[saga]` is
+   non-delegable).
 
 ## Critical rules
 
@@ -74,7 +76,7 @@ contracts agreed first. You write no feature code — you decompose, dispatch, a
   time** — the AST reserves every name in `OL_NODE_KINDS` but types each node shape only in the
   grammar slice that adds it, so a consumer slice (evaluate, highlight) is **hard-blocked** on the
   slice defining its nodes. _Agreed ≠ frozen_: parallelize only against a contract already merged to
-  `main`.
+  the target branch (the parent `saga/*`, or `main` for Maintenance work).
 - Every task names exactly one primary owner and a write-set; overlapping write-sets are serialized.
 - **`@openlogo/parser` is co-owned — split slices by pipeline stage.** The **lex → reader → parse →
   AST** construction, semantic analysis, and evaluation are **`@interpreter`** (e.g. #9 lex/parse→AST,
@@ -95,4 +97,4 @@ contracts agreed first. You write no feature code — you decompose, dispatch, a
 - [ ] Labels: `agent:*` + `profile:*` + `type:*`; dependencies noted.
 - [ ] Dispatched via one `kickoff` call with `mode: autopilot` **and** a prompt (never idle-then-message); ACK requested in the prompt.
 - [ ] Dispatched session verified **started** — ACK received (or, after re-kick, confirmed via `git rev-list`/`git status`; escalated to a human and left **blocked** if neither), not just created — before moving on.
-- [ ] Integration owner assigned; milestone exit = conformance green everywhere.
+- [ ] Integration owner assigned; saga exit = conformance green everywhere.

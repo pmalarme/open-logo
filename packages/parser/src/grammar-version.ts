@@ -3,7 +3,7 @@
  * grammar version"). `@openlogo/parser`'s grammar — and everything derived from it, including
  * {@link highlight} and {@link semanticTokens} — is versioned in lockstep with
  * `@openlogo/core`'s `OPENLOGO_VERSION`. A grammar or reserved-word change that bumps one without
- * shipping the matching highlighting/tooling update in the same milestone is exactly the drift
+ * shipping the matching highlighting/tooling update in the same saga is exactly the drift
  * this module exists to catch: {@link OL_GRAMMAR_VERSION} and `OPENLOGO_VERSION` are asserted
  * equal both at import time (so a stale build fails immediately, in CI or otherwise) and by
  * `grammar-version.test.mjs` (so the drift is provably detectable, not just asserted never to
@@ -33,7 +33,7 @@ export function assertGrammarVersionInSync(
     throw new Error(
       `@openlogo/parser's grammar version "${grammarVersion}" is out of sync with ` +
         `@openlogo/core's OPENLOGO_VERSION "${coreVersion}" — a grammar/reserved-word change ` +
-        "must ship its highlighting/tooling update in the same milestone " +
+        "must ship its highlighting/tooling update in the same saga " +
         "(team charter §12; spec/tooling.md).",
     );
   }

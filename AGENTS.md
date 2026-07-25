@@ -33,7 +33,7 @@ spec/            Normative language specification (maintainer-owned) — the con
 docs/adr/        Architecture Decision Records (why we built it this way)
 docs/design-notes/     Language Design Records (why the language is shaped this way)
 docs/architecture.md   Monorepo definition + cross-cutting contracts (AST, highlighting, events, UI)
-docs/delivery.md       Release + milestone strategy
+docs/delivery.md       Release + saga strategy
 .github/agents/  The OpenLogo agent team (*.agent.md)
 .github/skills/  Agent skill playbooks (shared + per-agent)
 .github/instructions/  Team working agreement (always on) + per-package rules (applyTo packages/<name>/**)
@@ -50,7 +50,7 @@ tests/conformance/     Stack-neutral source→events/diagnostics fixtures (grow 
 
 Domains build **in parallel** against four shared contracts (AST, events, `ol-*` diagnostics, token
 classes). See [`docs/architecture.md`](docs/architecture.md) for the packages, contracts, and
-parallelization map, and [`docs/delivery.md`](docs/delivery.md) for the release + milestone strategy.
+parallelization map, and [`docs/delivery.md`](docs/delivery.md) for the release + saga strategy.
 
 1. **Read the spec area you are touching** plus the team agreement before coding.
 2. **Work in vertical slices**: grammar → AST → runtime + trace → renderer/UI → conformance +
@@ -62,7 +62,8 @@ parallelization map, and [`docs/delivery.md`](docs/delivery.md) for the release 
    the implementing agent ran [`shared/review-gate`](.github/skills/shared/review-gate/SKILL.md),
    dispatching at least two non-author sub-agents (the logic/spec reviewer — `rubber-duck` or a named
    fallback — plus every domain QA expert) and iterating until all `pass`. Do not self-merge — humans +
-   required CI checks gate `main` by default; the maintainer may delegate merge execution to
+   required CI checks gate the target branch (`main` or the parent `saga/*`) by default; the maintainer
+   may delegate merge execution to
    `@orchestrator`, which does the final verification of those non-author verdicts + green CI (the
    implementer is never the sole attester).
 6. **KISS + Boy Scout**: keep the design as simple as the spec allows, and leave each file a little
@@ -80,11 +81,13 @@ skill for how to write one.
 When editing under `packages/<name>/`, read that package's
 `.github/instructions/<name>.instructions.md` first. To open work, **file an issue from a template**
 in [`.github/ISSUE_TEMPLATE/`](.github/ISSUE_TEMPLATE) (labels come from
-[`.github/labels.yml`](.github/labels.yml)); the `product-owner` schedules it onto a milestone.
+[`.github/labels.yml`](.github/labels.yml)); the `product-owner` links it into the **saga → epic →
+issue** hierarchy as a native sub-issue.
 
-Every issue must be on the Project #5 board — `.github/workflows/add-to-project.yml` auto-adds new
-issues/PRs (once the maintainer has provisioned the `ADD_TO_PROJECT_PAT` secret); if that automation
-is ever off, use the manual fallback in the
+Every issue must be on the Project #5 board — once the maintainer enables GitHub's built-in "Auto-add
+to project" workflow (filter `is:issue,pr is:open`, no token needed) it adds new issues/PRs
+automatically; until then (and any time it is off), use the
+manual fallback in the
 [`product-owner/github-project`](.github/skills/product-owner/github-project/SKILL.md) skill.
 
 ## Spec fidelity cheatsheet (canonical OpenLogo, not classic Logo)

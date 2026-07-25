@@ -1,0 +1,18 @@
+# OpenLogo code ownership — GitHub requests a listed owner's review on matching paths, and
+# (when the branch's protection/ruleset has "Require review from Code Owners" enabled) BLOCKS
+# merge until that owner approves. CODEOWNERS assigns the required *reviewer*; it does not by
+# itself restrict who clicks merge — the branch ruleset does. This is the teeth behind the
+# "maintainer-only, non-delegable" rule for spec/ and the saga/spec governance surfaces, and it
+# only holds while the rulesets on `main` and `saga/*` require code-owner review (see
+# devops/branching-and-commits/SKILL.md → "Required branch protection"). See also
+# .github/skills/shared/definition-of-done.md (merge authority).
+
+# Everything in the spec is maintainer-owned language/architecture governance ([spec]).
+/spec/                                  @pmalarme
+
+# The saga and spec issue templates define the maintainer-only governance surfaces.
+/.github/ISSUE_TEMPLATE/saga.yml        @pmalarme
+/.github/ISSUE_TEMPLATE/spec.yml        @pmalarme
+
+# Governance config itself (ownership + merge convention) stays maintainer-owned.
+/.github/CODEOWNERS                     @pmalarme

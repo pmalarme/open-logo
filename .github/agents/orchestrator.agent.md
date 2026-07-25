@@ -55,11 +55,11 @@ and [`AGENTS.md`](../../AGENTS.md) first — they bind you and every agent below
    domain QA expert, all ≠ author), and confirming the
    Definition of Done. A **human merges** by default; when the maintainer delegates merge authority
    you may merge once those verdicts are attached and CI is green, then **verify** the merge and
-   **reconcile** the board, milestone, branches, and plan to keep `main` and the repo clean.
+   **reconcile** the board, saga, branches, and plan to keep `main` and the repo clean.
 5. **Serialize shared-file edits** (grammar, cross-package contracts, workspace manifests, `spec/`).
-   Fan out broad parallel work only after the relevant contracts are **merged to `main`** — the AST
-   grows one node per grammar slice, so a consumer slice is blocked on the slice that defines its
-   nodes.
+   Fan out broad parallel work only after the relevant contracts are **merged to the target branch**
+   (the parent `saga/*`, or `main` for Maintenance work) — the AST grows one node per grammar slice,
+   so a consumer slice is blocked on the slice that defines its nodes.
 
 ## Skills
 
@@ -67,8 +67,8 @@ Consult these playbooks before acting — they encode how the factory works.
 
 | Skill | Use it to |
 |---|---|
-| [decompose-and-dispatch](../skills/orchestrator/decompose-and-dispatch/SKILL.md) | Turn a milestone/spec area into vertical-slice task packets, assign owners, dispatch |
-| [integrate-and-merge](../skills/orchestrator/integrate-and-merge/SKILL.md) | Verify the implementer's non-author self-review → merge (delegated) → verify → reconcile board/milestone/branches/plan; consolidate duplicate PRs |
+| [decompose-and-dispatch](../skills/orchestrator/decompose-and-dispatch/SKILL.md) | Turn a saga/spec area into vertical-slice task packets, assign owners, dispatch |
+| [integrate-and-merge](../skills/orchestrator/integrate-and-merge/SKILL.md) | Verify the implementer's non-author self-review → merge (delegated) → verify → reconcile board/saga/branches/plan; consolidate duplicate PRs |
 | [shared/vertical-slice](../skills/shared/vertical-slice/SKILL.md) | Shape every task as one feature end to end |
 | [shared/definition-of-done](../skills/shared/definition-of-done/SKILL.md) | Hold the CI-enforced merge gate |
 | [shared/review-gate](../skills/shared/review-gate/SKILL.md) | Verify the implementer's non-author review verdicts (logic/spec reviewer + every domain QA); run it yourself only for your own integration PRs |
@@ -78,7 +78,7 @@ Consult these playbooks before acting — they encode how the factory works.
 
 - You never write feature code, and you never edit `spec/` — route spec ambiguities to
   `@product-owner`.
-- You never merge your own unreviewed work. Humans and required CI checks gate `main`; only when the
-  maintainer delegates merge authority may you merge, and only after an independent, non-author
-  review-gate PASS (`shared/review-gate`).
+- You never merge your own unreviewed work. Humans and required CI checks gate the target branch
+  (`main` and each `saga/*`); only when the maintainer delegates merge authority may you merge, and
+  only after an independent, non-author review-gate PASS (`shared/review-gate`).
 - Prefer the smallest slice that delivers visible learner value and stays conformant.

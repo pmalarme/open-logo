@@ -18,7 +18,9 @@
 
 # --- Kind of work (exactly one) ---
 - { name: "type:feature-request", color: "a2eeef", description: "Inbound idea / enhancement request, before triage" }
+- { name: "type:saga",        color: "0b0b6e", description: "Top-level release/planning container (profile-DAG sync point); replaces GitHub milestones" }
 - { name: "type:epic",        color: "3e4b9e", description: "Large capability, usually one profile / major feature" }
+- { name: "type:spec",        color: "b60205", description: "Design/architecture/language decision or any spec/ change — maintainer-owned governance artifact" }
 - { name: "type:slice",       color: "1d76db", description: "One vertical slice / user story, end to end" }
 - { name: "type:bug",         color: "d73a4a", description: "A defect with a reproduction" }
 - { name: "type:conformance", color: "0e8a16", description: "Conformance fixtures / harness work" }
@@ -26,7 +28,7 @@
 - { name: "type:docs",        color: "0075ca", description: "Documentation task" }
 - { name: "type:chore",       color: "bfdadc", description: "Small maintenance task" }
 
-# --- Spec profile the work touches (the milestone, set separately, says where it lands) ---
+# --- Spec profile the work touches (the parent saga, set via native sub-issue, says where it lands) ---
 - { name: "profile:core",             color: "fbca04", description: "Core Language profile" }
 - { name: "profile:turtle-rendering", color: "fbca04", description: "Turtle & Rendering profile" }
 - { name: "profile:data",             color: "fbca04", description: "Data profile" }

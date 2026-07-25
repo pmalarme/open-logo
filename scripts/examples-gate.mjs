@@ -66,7 +66,7 @@ export const MANIFEST_PATH = join("scripts", "examples-profiles.json");
 /**
  * Profiles with real conformance fixtures today (`tests/conformance/<profile>/`) — i.e. the
  * spec's profile DAG (`spec/conformance.md`) nodes that are actually implemented, not just
- * planned. Update this list only alongside a milestone that lands a new profile's conformance
+ * planned. Update this list only alongside a saga that lands a new profile's conformance
  * fixtures (see `tests/conformance/README.md`); keeping it in lockstep is what lets this gate
  * SKIP (rather than wrongly fail or wrongly pass) an example that needs a profile not yet built.
  */

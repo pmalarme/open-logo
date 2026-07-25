@@ -40,7 +40,7 @@ right is what makes OpenLogo readable to learners.
 
 Token classes are derived from the grammar, so the highlighter is **pinned to the grammar/spec
 version** (see `docs/delivery.md`). Any grammar or reserved-word change ships its highlighter update
-in the **same milestone** — a grammar PR is not done until highlighting fixtures are updated.
+in the **same saga** — a grammar PR is not done until highlighting fixtures are updated.
 
 ## Procedure
 
@@ -55,4 +55,4 @@ in the **same milestone** — a grammar PR is not done until highlighting fixtur
 - [ ] All 15 classes produced; final class respects grammatical position.
 - [ ] Keywords case-insensitive; comments/strings atomic.
 - [ ] Reserved words sourced from the shared C19 registry.
-- [ ] Disambiguation fixtures pass; highlighter updated with the grammar in the same PR/milestone.
+- [ ] Disambiguation fixtures pass; highlighter updated with the grammar in the same PR/saga.

@@ -41,7 +41,7 @@
  * doc comment used to defer: {@link REPL_FOCUS_ORDER} now has a `slider` stop for it, in the
  * `repl` region alongside Run/Stop/Reset. **ORCHESTRATOR DECISION (#410, locked):** this module
  * still builds no genuine resumable pause and no `step()`/"Next step" control — that remains the
- * Studio stepper Wave 1 milestone's (#12/#302) deliberate scope.
+ * Studio Stepper epic's (#302) deliberate scope.
  *
  * ## Semantic structure — {@link REPL_LANDMARK_ROLES}
  * The ARIA role + label a future renderer gives each pane's *container* (as opposed to the

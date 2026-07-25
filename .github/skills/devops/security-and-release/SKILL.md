@@ -42,7 +42,7 @@ A release is a **validated tuple**, not one package version:
 1. All target `@openlogo/*` packages advertise the **same** `openlogo.version` + declared profiles
    (feature-detection metadata is the compat contract, not npm semver).
 2. **Conformance is green** for every claimed profile **and its DAG dependencies**.
-3. The **highlighter/tooling** shipped in the same milestone as any grammar change it tracks.
+3. The **highlighter/tooling** shipped in the same saga as any grammar change it tracks.
 4. Then tag once (all packages lockstep) and publish; the first release is **M2** (Turtle &
    Rendering = minimal conformance), `0.1.0`.
 

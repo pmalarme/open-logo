@@ -19,8 +19,9 @@ first.
 - **Stewardship of `spec/` changes.** `spec/` is maintainer-owned. When the build reveals an
   ambiguity or gap, you draft a precise change proposal (as an issue or a PR to `spec/`) for the
   **maintainer to review** — you never merge spec changes unilaterally.
-- **The GitHub backlog.** The Project board, milestones (M0–M6, the profile-DAG sync points),
-  issue templates in [`.github/ISSUE_TEMPLATE/`](../ISSUE_TEMPLATE), and the label taxonomy in
+- **The GitHub backlog.** The Project board, sagas (M0–M6 + Maintenance, the profile-DAG sync points
+  that replace GitHub milestones), issue templates in [`.github/ISSUE_TEMPLATE/`](../ISSUE_TEMPLATE),
+  and the label taxonomy in
   [`.github/labels.yml`](../labels.yml). You create and maintain them (via `gh`).
 
 ## Read first
@@ -57,8 +58,8 @@ Consult these playbooks before acting.
 | Skill | Use it to |
 |---|---|
 | [write-a-user-story](../skills/product-owner/write-a-user-story/SKILL.md) | Turn a spec area into epic → stories → Given/When/Then ACs |
-| [epics-and-milestones](../skills/product-owner/epics-and-milestones/SKILL.md) | Structure epics/stories/tasks and map them to profiles + milestones |
-| [github-project](../skills/product-owner/github-project/SKILL.md) | Create/manipulate the Project, milestones, and issues via `gh` |
+| [sagas-epics-and-issues](../skills/product-owner/sagas-epics-and-issues/SKILL.md) | Structure sagas → epics → issues (native sub-issues) and map them to profiles |
+| [github-project](../skills/product-owner/github-project/SKILL.md) | Create/manipulate the Project, sagas, and issues via `gh` |
 | [triage-and-label](../skills/product-owner/triage-and-label/SKILL.md) | Apply + maintain the label taxonomy (the labeler) |
 | [shared/spec-fidelity](../skills/shared/spec-fidelity/SKILL.md) | Use exact OpenLogo vocabulary + profile placement |
 | [shared/definition-of-done](../skills/shared/definition-of-done/SKILL.md) | Know when a story is truly complete |

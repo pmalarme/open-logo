@@ -73,6 +73,14 @@ def main():
     labels = load(".github/labels.yml")
     label_names = {entry["name"] for entry in labels}
 
+    # No label name may be declared twice in the manifest.
+    seen = set()
+    for entry in labels:
+        name = entry["name"]
+        if name in seen:
+            errors.append(f".github/labels.yml: label '{name}' is declared more than once")
+        seen.add(name)
+
     # Every issue form's default labels must exist in the manifest.
     for fp in sorted(glob.glob(".github/ISSUE_TEMPLATE/*.yml")):
         if os.path.basename(fp) == "config.yml":

@@ -147,7 +147,7 @@ WASM proposals or POSIX option groups than to an ECMAScript yearly edition or a 
 
 ## Consequences
 
-- **Enables incremental, parallel implementation.** This repository's own milestone structure
+- **Enables incremental, parallel implementation.** This repository's own saga structure
   mirrors the DAG directly: Core Language and Turtle & Rendering land first as the minimal
   conforming path, and optional profiles (Data, Geometry, Heritage, Sprites, Interaction & Events,
   Sound, Modules → Localization, Educational → Tutor (AI)) are built out afterward, each only
