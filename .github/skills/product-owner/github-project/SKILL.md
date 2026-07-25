@@ -153,15 +153,18 @@ run the `actions/add-to-project` action, we use the built-in workflow, which nee
 **Configuration (source of truth — the built-in workflow is NOT version-controlled, so it is recorded
 here):**
 
-- **Filter:** `(is:issue AND state:open) OR (is:pr AND (state:open OR state:draft))` — adds every open
-  issue and every open **or draft** PR (label-agnostic; do **not** add a `label:` clause, which would
-  silently skip unlabeled work). Draft PRs are matched explicitly so in-progress work lands on the board.
+- **Filter:** `is:issue,pr is:open` — adds every open issue and every open PR. The auto-add filter
+  field only supports space-separated qualifiers (AND) with comma-OR **within** one field; it does
+  **not** support parentheses or cross-field `OR`, so a boolean form like `(is:issue AND state:open) OR
+  (is:pr AND ...)` is rejected. **Draft PRs are open PRs** (state = open), so `is:open` already
+  includes them — no separate draft clause is needed. Do **not** add a `label:` clause, which would
+  silently skip unlabeled work.
 - **Action:** *Add the item to the project* (Status defaults to `Todo` via the board's default column).
 
 > **Activation status (as of this writing): NOT active.** The built-in "Auto-add to project" toggle
 > is off, so newly-created issues/PRs do **not** land on the board automatically yet and need the
 > manual fallback below. The maintainer enables it once (Project #5 → Workflows → Auto-add to project
-> → set filter `(is:issue AND state:open) OR (is:pr AND (state:open OR state:draft))` → Save/enable).
+> → set filter `is:issue,pr is:open` → Save/enable).
 > See ADR-0015 / issue #225.
 
 Use this **manual fallback** if the automation is off or an issue was created before it was enabled:
