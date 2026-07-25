@@ -7,11 +7,13 @@ name: Add to project
 # `gh project item-add` (documented fallback:
 # .github/skills/product-owner/github-project/SKILL.md).
 #
-# Requires the ADD_TO_PROJECT_PAT secret: a fine-grained PAT scoped to @pmalarme's user
-# projects with Projects (read/write) plus Issues (read) and Pull requests (read) repo
-# permissions, or a classic PAT with the `project` scope. The default GITHUB_TOKEN cannot
-# write to a user-owned Projects (v2) board, so this workflow is INERT (no failing red-X
-# runs) until a maintainer creates that secret — see the HAS_PAT guard below.
+# Requires the ADD_TO_PROJECT_PAT secret. Project #5 is USER-owned
+# (github.com/users/pmalarme/projects/5), and fine-grained PATs do NOT support user-owned
+# Projects (v2) — the "Projects" read/write permission only exists under a fine-grained token's
+# *Organization* permissions, never for user projects. So this must be a **classic PAT with the
+# `project` scope** (the repo is public, so no `repo` scope is needed). The default GITHUB_TOKEN
+# also cannot write to a user-owned Projects (v2) board, so this workflow is INERT (no failing
+# red-X runs) until a maintainer creates that secret — see the HAS_PAT guard below.
 #
 # No-secret alternative: GitHub's built-in Project *Workflows* settings has an "Auto-add
 # to project" toggle that needs no secret, but it is configured in the Project UI and is
@@ -19,8 +21,9 @@ name: Add to project
 # version-controlled equivalent.
 #
 # Maintainer activation (one-time):
-#   1. Create a PAT with the scopes above and save it as the repo secret ADD_TO_PROJECT_PAT
-#      (Settings > Secrets and variables > Actions), OR enable the built-in UI toggle instead.
+#   1. Create a CLASSIC PAT with the `project` scope and save it as the repo secret
+#      ADD_TO_PROJECT_PAT (Settings > Secrets and variables > Actions), OR enable the built-in
+#      UI toggle instead.
 #   2. Verify: file a throwaway test issue, confirm it appears as Todo on Project #5, close it.
 
 on:

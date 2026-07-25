@@ -147,8 +147,19 @@ gh project item-edit --id <parentItemId> --project-id <projectId> \
 
 `.github/workflows/add-to-project.yml` (owned by `@devops`) auto-adds every newly-opened issue and
 PR to Project #5 as `Status = Todo`, once the maintainer has created the `ADD_TO_PROJECT_PAT`
-secret (see the workflow's header comment). Use this **manual fallback** if the automation is ever
-off, the secret is missing, or an issue was created before the workflow existed:
+secret (see the workflow's header comment).
+
+> **Activation status (as of this writing): NOT active.** The `ADD_TO_PROJECT_PAT` secret does not
+> exist yet, and the Project's built-in "Auto-add to project" toggle is off — so newly-created
+> issues/PRs do **not** land on the board automatically and need the manual fallback below. To make
+> it hands-off, the maintainer must **either** create the `ADD_TO_PROJECT_PAT` secret (activates the
+> version-controlled workflow) **or** enable the built-in "Auto-add to project" workflow in Project
+> #5 settings (no secret, but not version-controlled). **Note:** Project #5 is **user-owned**, and
+> fine-grained PATs do not support user-owned Projects (v2), so the secret must be a **classic PAT
+> with the `project` scope** (the repo is public, so no `repo` scope is needed). See issue #225 / ADR-0015.
+
+Use this **manual fallback** if the automation is off, the secret is missing, or an issue was
+created before the workflow existed:
 
 ```bash
 gh project item-add 5 --owner pmalarme --url <issue-or-pr-url>
