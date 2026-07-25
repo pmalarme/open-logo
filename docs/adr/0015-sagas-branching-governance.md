@@ -78,3 +78,10 @@ subject`, scope drawn from the profile/area taxonomy. `.github/workflows/commitl
   promotions rather than ad-hoc merges to `main`.
 - Migration: only the **open** milestones are re-created as sagas (titles preserved); closed milestones
   are left as historical records. Saga branches are **not** pre-created.
+- Board membership: every issue/PR is auto-added to Project #5 (`Status = Todo`) by GitHub's
+  **built-in "Auto-add to project" workflow** (filter `is:issue,pr`). Project #5 is **user-owned**, and
+  fine-grained PATs cannot access user-owned Projects (v2); the built-in workflow needs **no token**, so
+  it is preferred over a version-controlled `actions/add-to-project` workflow (which would require a
+  broad-scoped **classic** PAT secret). The built-in workflow is configured in the Project UI and is not
+  version-controlled, so its filter/action are recorded in the `product-owner/github-project` skill's
+  "Board hygiene" section. Ref #225.

@@ -242,7 +242,7 @@ Match the merged spec exactly. Common mistakes to avoid:
 - **The product-owner runs the board** (Project, sagas, issues, labels) via `gh`; see the
   `product-owner/github-project`, `sagas-epics-and-issues`, and `triage-and-label` skills. Other agents
   request work through issues and let the product-owner/orchestrator schedule it.
-- **Every issue/PR must land on the board.** `.github/workflows/add-to-project.yml` auto-adds new
-  issues and PRs to Project #5 as `Status = Todo` (needs the maintainer-provisioned
-  `ADD_TO_PROJECT_PAT` secret). If automation is ever off, use the manual fallback documented in the
+- **Every issue/PR must land on the board.** GitHub's built-in "Auto-add to project" workflow (Project
+  #5, filter `is:issue,pr`, no token needed) adds new issues and PRs as `Status = Todo`. If automation
+  is ever off, use the manual fallback documented in the
   `product-owner/github-project` skill's "Board hygiene" section.

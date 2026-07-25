@@ -83,9 +83,9 @@ in [`.github/ISSUE_TEMPLATE/`](.github/ISSUE_TEMPLATE) (labels come from
 [`.github/labels.yml`](.github/labels.yml)); the `product-owner` links it into the **saga → epic →
 issue** hierarchy as a native sub-issue.
 
-Every issue must be on the Project #5 board — `.github/workflows/add-to-project.yml` auto-adds new
-issues/PRs (once the maintainer has provisioned the `ADD_TO_PROJECT_PAT` secret); if that automation
-is ever off, use the manual fallback in the
+Every issue must be on the Project #5 board — GitHub's built-in "Auto-add to project" workflow
+(filter `is:issue,pr`, no token needed) adds new issues/PRs; if that automation is ever off, use the
+manual fallback in the
 [`product-owner/github-project`](.github/skills/product-owner/github-project/SKILL.md) skill.
 
 ## Spec fidelity cheatsheet (canonical OpenLogo, not classic Logo)

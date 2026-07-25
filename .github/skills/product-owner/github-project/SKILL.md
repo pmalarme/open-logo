@@ -145,21 +145,25 @@ gh project item-edit --id <parentItemId> --project-id <projectId> \
 
 ## Board hygiene — every issue must be on the board
 
-`.github/workflows/add-to-project.yml` (owned by `@devops`) auto-adds every newly-opened issue and
-PR to Project #5 as `Status = Todo`, once the maintainer has created the `ADD_TO_PROJECT_PAT`
-secret (see the workflow's header comment).
+Board membership is automated by GitHub's **built-in Project "Auto-add to project" workflow** (Project
+#5 → **⋯ → Workflows → Auto-add to project**). Project #5 is **user-owned**, and fine-grained PATs
+cannot access user-owned Projects (v2); rather than provision a broad-scoped **classic** PAT just to
+run the `actions/add-to-project` action, we use the built-in workflow, which needs **no token at all**.
 
-> **Activation status (as of this writing): NOT active.** The `ADD_TO_PROJECT_PAT` secret does not
-> exist yet, and the Project's built-in "Auto-add to project" toggle is off — so newly-created
-> issues/PRs do **not** land on the board automatically and need the manual fallback below. To make
-> it hands-off, the maintainer must **either** create the `ADD_TO_PROJECT_PAT` secret (activates the
-> version-controlled workflow) **or** enable the built-in "Auto-add to project" workflow in Project
-> #5 settings (no secret, but not version-controlled). **Note:** Project #5 is **user-owned**, and
-> fine-grained PATs do not support user-owned Projects (v2), so the secret must be a **classic PAT
-> with the `project` scope** (the repo is public, so no `repo` scope is needed). See issue #225 / ADR-0015.
+**Configuration (source of truth — the built-in workflow is NOT version-controlled, so it is recorded
+here):**
 
-Use this **manual fallback** if the automation is off, the secret is missing, or an issue was
-created before the workflow existed:
+- **Filter:** `is:issue,pr` — matches **every** new/updated issue and PR (label-agnostic; do **not**
+  add a `label:` clause, which would silently skip unlabeled work). Add `is:open` only if you want to
+  ignore items updated while closed.
+- **Action:** *Add the item to the project* (Status defaults to `Todo` via the board's default column).
+
+> **Activation status (as of this writing): NOT active.** The built-in "Auto-add to project" toggle
+> is off, so newly-created issues/PRs do **not** land on the board automatically yet and need the
+> manual fallback below. The maintainer enables it once (Project #5 → Workflows → Auto-add to project
+> → set filter `is:issue,pr` → Save/enable). See ADR-0015 / issue #225.
+
+Use this **manual fallback** if the automation is off or an issue was created before it was enabled:
 
 ```bash
 gh project item-add 5 --owner pmalarme --url <issue-or-pr-url>
