@@ -1,5 +1,5 @@
 name: "Foundation / chore"
-description: Toolchain, monorepo, CI, or other cross-cutting setup work (mostly milestone M0).
+description: Toolchain, monorepo, CI, or other cross-cutting setup work (typically under the Maintenance saga).
 title: "[foundation]: "
 labels: ["type:foundation"]
 body:

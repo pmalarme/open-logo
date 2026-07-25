@@ -1,0 +1,62 @@
+name: "Spec / design decision"
+description: A design decision, architecture decision, language proposal, semantic clarification, or ANY change to spec/. Maintainer-owned governance artifact.
+title: "[spec]: "
+labels: ["type:spec", "agent:language-designer"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A **spec** issue is a governance artifact: a language/architecture decision, a semantic
+        clarification, an open question, or **any modification to `spec/`**. `[spec]` is
+        **maintainer-owned and non-delegable** — agents may draft a precise proposal (as this issue or
+        a PR to `spec/`), but only the maintainer merges or closes it. Ground everything in the current
+        spec and use canonical OpenLogo vocabulary.
+  - type: dropdown
+    id: profile
+    attributes:
+      label: Profile / area
+      options:
+        - "not sure"
+        - core
+        - turtle-rendering
+        - data
+        - geometry
+        - heritage
+        - sprites
+        - interaction
+        - sound
+        - modules
+        - localization
+        - educational
+        - tutor-ai
+    validations:
+      required: false
+  - type: input
+    id: spec
+    attributes:
+      label: Spec sections affected
+      description: The exact spec/ paths this decision creates or changes.
+      placeholder: spec/execution-model.md, spec/error-model.md
+    validations:
+      required: true
+  - type: textarea
+    id: decision
+    attributes:
+      label: Decision / question
+      description: The design question or the change under consideration.
+    validations:
+      required: true
+  - type: textarea
+    id: options
+    attributes:
+      label: Options considered
+      description: The alternatives and their trade-offs (cross-language prior art welcome).
+    validations:
+      required: true
+  - type: textarea
+    id: rationale
+    attributes:
+      label: Proposed decision + rationale
+      description: The recommended resolution and why, for maintainer review. Leave open questions explicit — never guess silently.
+    validations:
+      required: true

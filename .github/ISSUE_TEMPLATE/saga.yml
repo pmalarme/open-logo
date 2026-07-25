@@ -1,0 +1,52 @@
+name: "Saga"
+description: Top-level release / planning container — a profile-DAG synchronization point that groups epics toward a release. Replaces GitHub milestones. Maintainer-owned.
+title: "[saga]: "
+labels: ["type:saga", "agent:product-owner"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A **saga** is the top of the planning hierarchy (**saga → epic → issue**). It groups epics
+        toward a release and closes only when its whole profile set is conformant across every domain
+        (the **Saga Gate**). Sagas replace GitHub milestones so autonomous agents can create and govern
+        them as ordinary issues. Child epics are attached as **native GitHub sub-issues**, not a body
+        checklist. `[saga]` is **maintainer-owned and non-delegable** — agents may propose, only the
+        maintainer merges/closes.
+  - type: input
+    id: profiles
+    attributes:
+      label: Profile set reached
+      description: The spec profile(s) this saga brings to conformance across all domains.
+      placeholder: data, geometry
+    validations:
+      required: true
+  - type: input
+    id: release
+    attributes:
+      label: Release tuple (if any)
+      description: The version this saga tags on merge to main (release sagas only; leave blank for a continuous/maintenance saga).
+      placeholder: 0.3.0
+    validations:
+      required: false
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What release objective this saga delivers and why it matters.
+    validations:
+      required: true
+  - type: textarea
+    id: exit
+    attributes:
+      label: Saga Gate — exit criteria
+      value: |
+        - [ ] All child epics closed (each passed its Epic Gate)
+        - [ ] All release-blocking bugs resolved
+        - [ ] Cross-profile integration succeeds; full conformance suite green across all domains
+        - [ ] Runnable examples execute; docs + spec cross-links synced
+        - [ ] Accessibility + pedagogy review pass
+        - [ ] Release notes complete; versioning + packaging ready
+        - [ ] Specialist review + rubber-duck review recorded at release level
+        - [ ] Maintainer approval (non-delegable) — the release can be published with no known blockers
+    validations:
+      required: true

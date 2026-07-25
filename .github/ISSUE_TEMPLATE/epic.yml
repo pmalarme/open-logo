@@ -6,7 +6,10 @@ body:
   - type: markdown
     attributes:
       value: |
-        An **epic** groups feature slices toward a milestone. It closes when its profile is conformant across all domains.
+        An **epic** is a capability under a **saga** (**saga → epic → issue**). It closes — via the
+        **Epic Gate** capability audit — when its profile is conformant across all domains. Attach the
+        epic to its parent saga, and its child issues to the epic, as **native GitHub sub-issues**
+        (not a body checklist). An epic has **no branch** of its own.
   - type: dropdown
     id: profile
     attributes:
@@ -27,13 +30,6 @@ body:
     validations:
       required: true
   - type: input
-    id: milestone
-    attributes:
-      label: Target milestone
-      placeholder: M2 Turtle & Rendering
-    validations:
-      required: true
-  - type: input
     id: spec
     attributes:
       label: Spec sections (normative)
@@ -48,22 +44,15 @@ body:
     validations:
       required: true
   - type: textarea
-    id: slices
-    attributes:
-      label: Child slices
-      value: |
-        - [ ] #
-        - [ ] #
-    validations:
-      required: false
-  - type: textarea
     id: exit
     attributes:
-      label: Exit criteria
+      label: Epic Gate — exit criteria
       value: |
-        - [ ] The profile's conformance suite is green across all domains
-        - [ ] Cross-cutting contracts (AST / events / diagnostics / token classes) agreed and stable
-        - [ ] Docs + highlighting + examples updated
-        - [ ] Release tuple tagged (M2 onward)
+        - [ ] All child issues closed (each passed the Issue Gate)
+        - [ ] No blocker bugs open; required `[spec]` decisions approved
+        - [ ] The capability's conformance suite is green across all domains
+        - [ ] Cross-cutting contracts (AST / events / diagnostics / token classes) stable
+        - [ ] Docs + highlighting + examples updated; no unresolved architecture questions
+        - [ ] Specialist review + rubber-duck review recorded at capability level
     validations:
       required: true
