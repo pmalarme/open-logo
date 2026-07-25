@@ -3,9 +3,9 @@ name: integrate-and-merge
 description: >-
   How @orchestrator runs the operational half of the loop after dispatch — verifying each slice's
   in-session non-author self-review, merging under maintainer-delegated authority (or handing to a
-  human), verifying the merge, and keeping main, the board, milestones, branches, and the plan clean.
+  human), verifying the merge, and keeping main, the board, sagas, branches, and the plan clean.
   Use when a dispatched slice opens a PR, when consolidating duplicate/superseded PRs, or when closing
-  out a milestone.
+  out a saga.
 created: 2026-07-17T00:00
 updated: 2026-07-18T00:00
 ---
@@ -14,8 +14,8 @@ updated: 2026-07-18T00:00
 
 `decompose-and-dispatch` gets a slice **built**; this skill gets it **landed without leaving mess.**
 The orchestrator writes no feature code, but it is the **integration owner**: it **verifies each PR's
-non-author self-review**, records the merge, and reconciles every tracker — board, milestone,
-branches, plan — so the repo stays clean and `main` stays green.
+non-author self-review**, records the merge, and reconciles every tracker — board, saga, branches,
+plan — so the repo stays clean and `main` stays green.
 
 ## The per-PR run-loop
 
@@ -49,6 +49,12 @@ own work on your own say-so; the review gate is the safeguard that keeps the "im
 the sole attester" rule (`shared/review-gate`) intact, and the maintainer can reclaim the button any
 time. Merge with `gh pr merge <n> --squash --delete-branch`.
 
+**Merge target = the parent saga's `saga/*` branch, not `main`** (see `devops/branching-and-commits`):
+work issues integrate into their saga branch, which is later promoted to `main` as a Release
+Candidate. **Maintenance-saga work merges straight to `main`** (that saga has no branch). `[spec]` and
+`[saga]` PRs are **maintainer-only, non-delegable** — never merge them, even under delegated authority;
+hand them to the maintainer (`CODEOWNERS` enforces this).
+
 ### 3. Verify the merge — trust state, not the exit code
 
 `gh pr merge --delete-branch` **always errors on the local git cleanup here**, because `main` is
@@ -60,9 +66,10 @@ checked out in the shared main worktree — the error is harmless. Confirm the _
 ### 4. Reconcile every tracker
 
 - **Board (Projects v2):** set the issue's **Status** + **Agent** at dispatch (`In Progress` + owning
-  agent) and **Done** at merge; `0 open` on the milestone is necessary but **not sufficient** to close
-  it — close the **milestone** only once it also reads `0 open` **and** the milestone-completion audit
-  below is green. Field/option IDs and the `gh project item-edit` recipe live in
+  agent) and **Done** at merge; `0 open` on the saga's children is necessary but **not sufficient** to
+  close it — close a **saga** only once every child epic passed its **Epic Gate** and the
+  Saga-completion audit below is green, and close an **epic** only once its **Epic Gate**
+  (`shared/epic-gate`) passes. Field/option IDs and the `gh project item-edit` recipe live in
   `product-owner/github-project`. Watch for **drift** — an issue closed on GitHub can still read
   "In Progress" on the board.
 - **Branch hygiene:** merged-PR branches auto-delete; **closed (non-merged) PR branches do not —
@@ -87,17 +94,31 @@ retargeting re-introduces the abandoned commits. Instead:
    attached, and **close each superseded PR with a credit comment** to its author. Then delete the
    orphan branches (hygiene, above).
 
-## Milestone-completion audit
+## Saga-branch integration (main → saga pullback, saga → main = RC)
 
-A milestone (M0–M6) is a **profile-based synchronization point** (charter §12): it completes when its
-profile's conformance is green **across all domains**, not when one package finishes. `0 open issues`
-on the milestone is **necessary but not sufficient** — issues can close on thin or missing coverage.
-Before the orchestrator closes a milestone (and before a release tuple is tagged, from M2 onward), run
-a full **in-depth coverage audit** and attach it, written, to the milestone-closeout issue: map every
-profile requirement to **both** its implementation **and** its conformance fixture, across five
-dimensions:
+Work merges into the **parent saga's `saga/*` branch**, so keep that branch current and know how it
+promotes to `main` (full model in `devops/branching-and-commits`):
 
-1. **Profile coverage** — every primitive / command / control-form / reporter in the milestone's
+- **After every merge into a `saga/*` branch, pull `main` back into it** (`git merge origin/main` on
+  the saga branch, or a PR) so the saga branch never drifts behind released work and conflicts surface
+  early, not at release.
+- **`saga/*` → `main` is a Release Candidate.** When the saga's Saga-completion audit is green, open
+  the promotion PR; **the maintainer decides whether to cut the release** and tag the tuple — the
+  orchestrator does not self-promote a saga to `main`.
+- The **Maintenance** saga has **no branch**: its work already merges straight to `main`, so there is
+  no pullback or RC step for it.
+
+## Saga-completion audit
+
+A saga (M0–M6) is a **profile-based synchronization point** (charter §12): it completes when its
+profile's conformance is green **across all domains**, not when one package finishes. `0 open` child
+issues is **necessary but not sufficient** — issues can close on thin or missing coverage, and every
+child **epic must already have passed its Epic Gate** (`shared/epic-gate`). Before the orchestrator
+closes a saga (and before a release tuple is tagged, from M2 onward), run a full **in-depth coverage
+audit** and attach it, written, to the saga-closeout issue: map every profile requirement to **both**
+its implementation **and** its conformance fixture, across five dimensions:
+
+1. **Profile coverage** — every primitive / command / control-form / reporter in the saga's
    profile(s) (`spec/commands.md` C3 matrix, `spec/conformance.md`) is implemented **and** has a
    conformance fixture.
 2. **Spec-area coverage** — every normative section for the profile (`spec/grammar.md` productions,
@@ -108,19 +129,20 @@ dimensions:
 4. **DoD across ALL domains** (not a single package) — build / typecheck / lint / test /
    coverage(100%) / conformance / examples green repo-wide; docs + spec cross-links synced; a11y /
    pedagogy checks where applicable.
-5. **Board / traceability** — every epic and story under the milestone is Done; feature-detection
-   metadata (`openlogo.version`, supported profiles, rendering targets) is correct.
+5. **Board / traceability** — every epic (Epic-Gate-passed) and story under the saga is Done;
+   feature-detection metadata (`openlogo.version`, supported profiles, rendering targets) is correct.
 
 The release tuple is tagged **only** when the audit is 100% green on all five dimensions — see
 `devops/security-and-release` for the tagging mechanics and `docs/delivery.md` for the release +
-milestone strategy this audit gates.
+saga strategy this audit gates.
 
 ## Checklist (per merged slice)
 
 - [ ] All non-author review-gate verdicts (≥2) recorded on the PR — logic/spec reviewer (`rubber-duck`, or a named fallback **+ reason**) + **every** domain QA expert, all ≠ author — each stamped with a SHA matching PR HEAD.
 - [ ] Merged only after PASS + green CI — delegated authority, never self-attested.
 - [ ] Merge verified via `gh pr view` + `git ls-remote`, not the `--delete-branch` exit code.
-- [ ] Board Status → Done + Agent set; milestone closed when `0 open`.
+- [ ] Board Status → Done + Agent set; epic closed only on Epic-Gate pass; saga closed when children Done + audit green.
 - [ ] Closed-PR orphan branches deleted; no live-session worktree branch touched.
 - [ ] `plan.md` + todos updated; any superseded PRs closed with credit.
-- [ ] **At milestone close:** in-depth coverage audit green across all 5 dimensions (profile / spec-area / conformance / all-domain DoD / board-traceability) before the milestone is closed or a release tuple tagged.
+- [ ] Saga branches kept current (main pulled back after each merge); `saga/*`→`main` promotion left to the maintainer.
+- [ ] **At saga close:** in-depth coverage audit green across all 5 dimensions (profile / spec-area / conformance / all-domain DoD / board-traceability) before the saga is closed or a release tuple tagged.
