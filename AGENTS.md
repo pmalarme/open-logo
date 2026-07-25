@@ -84,7 +84,8 @@ in [`.github/ISSUE_TEMPLATE/`](.github/ISSUE_TEMPLATE) (labels come from
 issue** hierarchy as a native sub-issue.
 
 Every issue must be on the Project #5 board — GitHub's built-in "Auto-add to project" workflow
-(filter `is:issue,pr`, no token needed) adds new issues/PRs; if that automation is ever off, use the
+(filter `(is:issue AND state:open) OR (is:pr AND (state:open OR state:draft))`, no token needed) adds
+new issues/PRs; if that automation is ever off, use the
 manual fallback in the
 [`product-owner/github-project`](.github/skills/product-owner/github-project/SKILL.md) skill.
 
