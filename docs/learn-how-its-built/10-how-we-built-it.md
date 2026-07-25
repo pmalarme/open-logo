@@ -4,16 +4,16 @@ The other pages in this series show you the *machines* inside OpenLogo — the l
 interpreter, the turtle. This page is about the *team* that built them, and the habits that keep
 everyone's work from breaking everyone else's.
 
-## Epics, slices, and milestones
+## Epics, slices, and sagas
 
 Think of it like building a treehouse with friends. An **epic** is the big goal — "build a
 treehouse" — too large to do in one afternoon. You break it into **slices**: one slice might be "put
 up the floor," another "build the ladder." Each slice is small enough to finish and test the same
-day. A **milestone** is when you step back and check that a *whole area* works together — the floor
+day. A **saga** is when you step back and check that a *whole area* works together — the floor
 holds weight, the ladder reaches it — not just that each board is nailed on.
 
 OpenLogo works the same way. An epic might be "add the Data profile" (dictionaries, records). A
-slice is one thin piece of that, like "parse a dictionary literal." A milestone is a roadmap
+slice is one thin piece of that, like "parse a dictionary literal." A saga is a roadmap
 checkpoint — like **M2**, "Turtle & Rendering" — where a whole group of features is proven to work
 together, not just built.
 
@@ -22,7 +22,7 @@ flowchart TD
   A["🎯 epic<br/>a big goal, e.g. 'add the Data profile'"] --> B1["🍰 slice<br/>parse a dictionary literal"]
   A --> B2["🍰 slice<br/>store a dictionary value"]
   A --> B3["🍰 slice<br/>look up a key"]
-  B1 --> M["🏁 milestone<br/>the whole profile works together"]
+  B1 --> M["🏁 saga<br/>the whole profile works together"]
   B2 --> M
   B3 --> M
 ```
@@ -80,13 +80,13 @@ forever, not just today.
 ## What's real today
 
 ✅ **The team and workflow are real and active** — the twelve agents, the vertical-slice habit, and
-epics/slices/milestones are exactly how every page in this series (including this one) got built.
+epics/slices/sagas are exactly how every page in this series (including this one) got built.
 
 ✅ **CI enforces the Definition of Done on every change** — building, type-checking, linting, tests,
 100% coverage, and conformance fixtures all have to pass before anything reaches `main`.
 
-ℹ️ **Milestones keep growing** — OpenLogo reached its first fully-working milestone (Core Language +
-Turtle & Rendering) already; later milestones add more profiles like Data, Geometry, and the AI
+ℹ️ **Sagas keep growing** — OpenLogo reached its first fully-working saga (Core Language +
+Turtle & Rendering) already; later sagas add more profiles like Data, Geometry, and the AI
 tutor, one vertical slice at a time.
 
 ## Try it yourself

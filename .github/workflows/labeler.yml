@@ -2,7 +2,7 @@ name: Labeler
 
 # Auto-applies path-based labels to PRs from .github/labeler.yml.
 # Labeler seeds agent:*/area:* from changed paths; @product-owner triage confirms the
-# final one-agent + one-type + milestone. See .github/skills/devops/labeler-and-labels.
+# final one-agent + one-type + saga (native sub-issue parent). See .github/skills/devops/labeler-and-labels.
 
 on:
   pull_request_target:

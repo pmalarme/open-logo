@@ -128,8 +128,9 @@ Run this check **every time you touch the board** — triage, dispatch, or merge
 sweep:
 
 ```bash
-# 1. Find every type:epic / type:saga issue and its children via native sub-issues.
+# 1. Find every type:epic AND type:saga issue and its children via native sub-issues.
 gh issue list --label "type:epic" --state all --json number,title
+gh issue list --label "type:saga" --state all --json number,title
 gh api graphql -f query='query($owner:String!,$repo:String!,$n:Int!){repository(owner:$owner,name:$repo){issue(number:$n){subIssues(first:100){nodes{number state}}}}}' \
   -f owner=pmalarme -f repo=open-logo -F n=<parent-number>
 

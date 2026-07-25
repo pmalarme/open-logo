@@ -31,7 +31,7 @@ PROFILES = {
     "core", "turtle-rendering", "data", "geometry", "heritage", "sprites",
     "interaction", "sound", "modules", "localization", "educational", "tutor-ai",
 }
-AREAS = {"grammar", "runtime", "rendering", "studio", "edu", "ci", "docs", "spec"}
+AREAS = {"grammar", "highlighter", "checker", "runtime", "rendering", "studio", "edu", "ci", "docs", "spec"}
 INFRA = {"deps", "release", "repo", "meta"}
 SCOPES = PROFILES | AREAS | INFRA
 
@@ -44,8 +44,10 @@ def check(kind: str, message: str) -> list[str]:
     subject = message.splitlines()[0].strip() if message else ""
     if not subject:
         return [f"{kind}: empty message"]
-    # Allow release/merge commits GitHub or maintainers create outside the convention.
-    if subject.startswith("Merge ") or subject.startswith("Revert "):
+    # Allow the generated merge/revert commit subjects git/GitHub create outside the
+    # convention — but ONLY for commit subjects, never for a PR title (a PR title is
+    # authored and must always be a well-formed Conventional Commit).
+    if kind == "commit subject" and (subject.startswith("Merge ") or subject.startswith("Revert ")):
         return []
     m = PATTERN.match(subject)
     if not m:

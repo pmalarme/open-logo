@@ -35,11 +35,16 @@ sagas; a standing **Maintenance** saga holds continuous, non-release work. Miles
 
 **2. Native GitHub sub-issues express hierarchy (saga → epic → issue).** Parentage is a real sub-issue
 link, never a body checklist: an epic is a sub-issue of its saga; a work issue (slice/bug/spec/task) is
-a sub-issue of its epic. This is the sole source of truth for structure and rollup.
+a sub-issue of its epic. This is the sole source of truth for structure and rollup. **Exception:** small
+foundation/chore work with no natural epic may hang **directly under a saga** (typically the Maintenance
+saga) — it still clears its own **Issue Gate** and is a native sub-issue of that saga, never an orphan.
 
 **3. A new `[spec]` type.** Design/architecture/language decisions and **any `spec/` change** are a
 first-class `type:spec` issue. `[spec]` and `[saga]` are **maintainer-owned and non-delegable**;
-`CODEOWNERS` pins `spec/**` and the saga/spec templates to the maintainer.
+`CODEOWNERS` pins `spec/**` and the saga/spec templates to the maintainer, and the branch rulesets on
+`main` and `saga/*` keep **"Require review from Code Owners"** on so those paths cannot merge without
+@pmalarme's approval. (CODEOWNERS names the required reviewer; the ruleset is what blocks the merge —
+they are only teeth together.)
 
 **4. Three-tier governance ladder.** Each tier = a DoD-style checklist + required specialist review +
 rubber-duck review, at widening scope:
@@ -67,7 +72,8 @@ subject`, scope drawn from the profile/area taxonomy. `.github/workflows/commitl
   no human-only milestone step in the loop.
 - Hierarchy has live progress bars and an API; body checklists are gone.
 - A capability is audited (Epic Gate) before it is called done, closing the missing middle tier.
-- `spec/` and release-planning changes are structurally maintainer-gated (CODEOWNERS + non-delegable).
+- `spec/` and release-planning changes are structurally maintainer-gated (CODEOWNERS **plus** the
+  branch ruleset's required code-owner review — non-delegable).
 - Branches and commit/PR titles are consistent and machine-checkable; releases are deliberate RC
   promotions rather than ad-hoc merges to `main`.
 - Migration: only the **open** milestones are re-created as sagas (titles preserved); closed milestones

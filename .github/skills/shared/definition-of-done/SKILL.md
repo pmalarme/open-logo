@@ -55,10 +55,11 @@ just applied at a wider scope:
 |---|---|---|---|
 | **Issue** | Issue Gate (this DoD + `review-gate`) | implementing agent → `@orchestrator`/human merges | one change is proven, documented, green |
 | **Epic** | **Epic Gate** ([`shared/epic-gate`](../epic-gate/SKILL.md)) | `@product-owner` + `@orchestrator` | a whole capability is conformant: all child issues closed, no blocker bugs, specs approved, docs complete, contracts stable |
-| **Saga** | Saga Gate (`orchestrator/integrate-and-merge` → **Saga-completion audit**) | `@orchestrator` | a profile set is conformant across **all** domains; release can ship |
+| **Saga** | Saga Gate (`orchestrator/integrate-and-merge` → **Saga-completion audit**) | `@orchestrator` runs/records + recommends; **maintainer** approves & closes | a profile set is conformant across **all** domains; release can ship |
 
-An epic closes only after its Epic Gate; a saga closes (and a release tuple is tagged) only after its
-Saga-completion audit is 100% green. Sagas replaced GitHub milestones, so these gates operate on
+An epic closes only after its Epic Gate; a saga's audit must be 100% green before the **maintainer**
+promotes the RC, tags any release tuple, and closes the saga (`[saga]` is non-delegable — CODEOWNERS).
+Sagas replaced GitHub milestones, so these gates operate on
 `type:saga` / `type:epic` issues and their **native sub-issue** children, not on milestone objects.
 
 ## PR expectations
@@ -76,7 +77,11 @@ Saga-completion audit is 100% green. Sagas replaced GitHub milestones, so these 
   maintainer may delegate merge execution to `@orchestrator`, only after a non-author review-gate PASS
   + green CI (the implementer is never the sole attester). **`[spec]` and `[saga]` changes are
   maintainer-only and NON-delegable** — they go through `@product-owner`/`@language-designer` to the
-  maintainer, who merges personally (enforced by `CODEOWNERS`).
+  maintainer, who merges personally. This is enforced by **`CODEOWNERS` + the branch ruleset**: any PR
+  touching `spec/**` or the saga/spec templates requires @pmalarme's code-owner approval before it can
+  merge (the ruleset on `main`/`saga/*` must keep "Require review from Code Owners" on — see
+  `devops/branching-and-commits`). CODEOWNERS assigns the required reviewer; the ruleset is what blocks
+  the merge.
 
 ## Suggested PR body
 

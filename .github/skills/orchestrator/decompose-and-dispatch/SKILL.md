@@ -58,7 +58,8 @@ contracts agreed first. You write no feature code — you decompose, dispatch, a
      instruction **and `mode: autopilot`** (the tool's `mode` is a separate parameter — "same
      autopilot prompt" alone does not set it); (2) since a re-kick may still not wake a cold session,
      cross-check ground truth as the **fallback proof** — `get_session` metadata is stale, so use
-     `git -C <session_path> rev-list --count origin/main..HEAD` and `git status --porcelain`, which reveal a
+     `git -C <session_path> rev-list --count <base>..HEAD` (where `<base>` is the branch's base —
+     the parent `saga/*`, or `origin/main` for Maintenance work) and `git status --porcelain`, which reveal a
      session that is in fact working before any push; (3) if it still hasn't started after a re-kick,
      **escalate to the human to activate it in the sidebar** rather than assuming work is underway.
      Never mark a slice "in flight" on the strength of a session id alone.
@@ -74,7 +75,7 @@ contracts agreed first. You write no feature code — you decompose, dispatch, a
   time** — the AST reserves every name in `OL_NODE_KINDS` but types each node shape only in the
   grammar slice that adds it, so a consumer slice (evaluate, highlight) is **hard-blocked** on the
   slice defining its nodes. _Agreed ≠ frozen_: parallelize only against a contract already merged to
-  `main`.
+  the target branch (the parent `saga/*`, or `main` for Maintenance work).
 - Every task names exactly one primary owner and a write-set; overlapping write-sets are serialized.
 - **`@openlogo/parser` is co-owned — split slices by pipeline stage.** The **lex → reader → parse →
   AST** construction, semantic analysis, and evaluation are **`@interpreter`** (e.g. #9 lex/parse→AST,

@@ -69,8 +69,8 @@ becomes the squash-merge subject.
   `chore`, `revert`. Append `!` for a breaking change (`feat(grammar)!: ...`).
 - **scope** — a **profile** (`core`, `turtle-rendering`, `data`, `geometry`, `heritage`, `sprites`,
   `interaction`, `sound`, `modules`, `localization`, `educational`, `tutor-ai`) or an **area**
-  (`grammar`, `runtime`, `rendering`, `studio`, `edu`, `ci`, `docs`, `spec`); infra scopes `deps`,
-  `release`, `repo`, `meta` are also allowed. Scope is **required**.
+  (`grammar`, `highlighter`, `checker`, `runtime`, `rendering`, `studio`, `edu`, `ci`, `docs`,
+  `spec`); infra scopes `deps`, `release`, `repo`, `meta` are also allowed. Scope is **required**.
 - **subject** — imperative, concise, no trailing period.
 
 Examples: `feat(data): add list reporters`, `fix(runtime): correct REPEAT nesting`,
@@ -82,9 +82,24 @@ Run it locally before pushing:
 python .github/scripts/validate-commits.py "feat(geometry): add star polygons"
 ```
 
+## Required branch protection
+
+CODEOWNERS only has teeth when the branch ruleset enforces it. The rulesets on **`main`** and
+**`saga/*`** must keep these on, or the "maintainer-only, non-delegable" rule is advisory only:
+
+- **Require a pull request before merging** + **Require review from Code Owners** — this is what makes
+  a `spec/**` / `saga.yml` / `spec.yml` PR un-mergeable without @pmalarme's approval. CODEOWNERS names
+  the reviewer; the ruleset blocks the merge.
+- **Require status checks to pass** — at least `Conventional Commits` and `Meta`, plus the build/test
+  suite — so a red PR cannot merge.
+- **Block force-pushes and deletions** on `main` and `saga/*`.
+
+CODEOWNERS by itself does **not** restrict who clicks "Merge"; the ruleset does. If merge-actor
+restriction is needed beyond code-owner review, use repo permissions/automation, not CODEOWNERS.
+
 ## Checklist
 - [ ] Branch type matches the work: `feature/*` (work incl. spec), `fix/*` (bug); no epic branch.
 - [ ] Cut from — and PR targets — the **parent saga branch** (or `main` for Maintenance work).
 - [ ] Saga branch pulled up to `main` after each merge; `saga/*→main` RC left to the maintainer.
-- [ ] `[spec]`/`[saga]` changes left for maintainer merge (CODEOWNERS).
+- [ ] `[spec]`/`[saga]` changes left for maintainer merge (CODEOWNERS + required code-owner review).
 - [ ] Every commit subject + the PR title are valid Conventional Commits (type(scope): subject).

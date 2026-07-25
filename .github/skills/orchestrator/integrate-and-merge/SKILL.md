@@ -19,6 +19,12 @@ plan — so the repo stays clean and `main` stays green.
 
 ## The per-PR run-loop
 
+> **Effective target branch.** Everything below — the review base, the "did HEAD advance"
+> post-merge check, and consolidation cherry-picks — is relative to the **PR's target branch**, not
+> always `main`. The target is the **parent saga's `saga/*` branch** for work under a release saga,
+> and **`main`** only for **Maintenance-saga** work (that saga has no branch). Read "the target" below
+> as that effective branch, and **land shared contracts on the target before fan-out**, not on `main`.
+
 When a dispatched owner reports a PR (they should, if you set `coordinate_with_creator: true`):
 
 ### 1. Verify the implementer's self-review — never skip, never self-review
@@ -29,9 +35,9 @@ fallback agent **with the reason it stood in**) **plus every** dispatched domain
 least two verdicts total). Your job is to **verify** them — all present, all from agents that are
 **not** the author (if a fallback replaced `rubber-duck`, its identity **and reason** are recorded),
 each **stamped with a head SHA that matches the current PR HEAD** (a commit after a `pass` voids it),
-and the reviewed base is the current `origin/main` tip (if `main` advanced under the branch, have the
-owner rebase and re-review) — plus green CI and a light diff sanity check against `origin/main` (not a
-stale local `main`). Do **not** re-run the whole gate round-by-round.
+and the reviewed base is the current **target**-branch tip (if the target advanced under the branch,
+have the owner rebase and re-review) — plus green CI and a light diff sanity check against the
+**target** (not a stale local branch). Do **not** re-run the whole gate round-by-round.
 
 When **you** authored the change (an _integration_ or governance PR), the same pre-open rule applies
 to you: you must **not** review it yourself, and you run `shared/review-gate` **before opening the
@@ -61,7 +67,8 @@ hand them to the maintainer (`CODEOWNERS` enforces this).
 checked out in the shared main worktree — the error is harmless. Confirm the _real_ outcome:
 
 - `gh pr view <n> --json state,mergedAt,mergeCommit` → `MERGED` with a merge commit.
-- `git ls-remote origin -h refs/heads/main` → HEAD advanced; the PR's head branch is gone.
+- `git ls-remote origin -h refs/heads/<target>` → the **target** branch HEAD advanced (that is the
+  parent `saga/*`, or `main` for Maintenance work); the PR's head branch is gone.
 
 ### 4. Reconcile every tracker
 
@@ -82,11 +89,12 @@ checked out in the shared main worktree — the error is harmless. Confirm the _
 ## Consolidating duplicate / superseded PRs
 
 Parallel or cloud agents sometimes ship two PRs for one slice, or stack one on an abandoned branch.
-Do **not** retarget a stacked PR onto `main` — a squash-merge rewrote its base as a new SHA, so
+Do **not** retarget a stacked PR onto the target — a squash-merge rewrote its base as a new SHA, so
 retargeting re-introduces the abandoned commits. Instead:
 
 1. Pick the better-aligned content and **cherry-pick only its clean feature commit onto a fresh
-   branch off `origin/main`** (`git cherry-pick --no-commit <sha>`).
+   branch off the target** (`origin/<saga-branch>`, or `origin/main` for Maintenance work;
+   `git cherry-pick --no-commit <sha>`).
 2. Resolve conflicts by hand — usually the package `index.ts` contract-marker exports: keep the real
    exports, drop throwaway placeholder markers.
 3. Re-run the clean-tree DoD **and the review gate** (all non-author verdicts on the committed HEAD —
@@ -113,10 +121,13 @@ promotes to `main` (full model in `devops/branching-and-commits`):
 A saga (M0–M6) is a **profile-based synchronization point** (charter §12): it completes when its
 profile's conformance is green **across all domains**, not when one package finishes. `0 open` child
 issues is **necessary but not sufficient** — issues can close on thin or missing coverage, and every
-child **epic must already have passed its Epic Gate** (`shared/epic-gate`). Before the orchestrator
-closes a saga (and before a release tuple is tagged, from M2 onward), run a full **in-depth coverage
-audit** and attach it, written, to the saga-closeout issue: map every profile requirement to **both**
-its implementation **and** its conformance fixture, across five dimensions:
+child **epic must already have passed its Epic Gate** (`shared/epic-gate`). The orchestrator **runs and
+records** this audit but **does not close the saga**: `[saga]` is maintainer-owned and non-delegable
+(`CODEOWNERS`), so the orchestrator attaches the written audit plus the required sign-offs and a
+**recommendation**, and the **maintainer approves the promotion, tags any release tuple, and closes the
+saga**. Run the full **in-depth coverage audit** and attach it, written, to the saga-closeout issue:
+map every profile requirement to **both** its implementation **and** its conformance fixture, across
+six dimensions:
 
 1. **Profile coverage** — every primitive / command / control-form / reporter in the saga's
    profile(s) (`spec/commands.md` C3 matrix, `spec/conformance.md`) is implemented **and** has a
@@ -131,8 +142,13 @@ its implementation **and** its conformance fixture, across five dimensions:
    pedagogy checks where applicable.
 5. **Board / traceability** — every epic (Epic-Gate-passed) and story under the saga is Done;
    feature-detection metadata (`openlogo.version`, supported profiles, rendering targets) is correct.
+6. **Sign-offs recorded** — the capability-level **specialist review(s)** for the saga's profile(s)
+   plus a **rubber-duck** (or a named, reason-recorded fallback) reviewed the saga as a whole and
+   returned `pass`, and `@product-owner` co-signed the scope/docs judgement; verdicts linked on the
+   saga-closeout issue. The orchestrator then hands the audit + recommendation to the maintainer.
 
-The release tuple is tagged **only** when the audit is 100% green on all five dimensions — see
+The maintainer approves the promotion and **the release tuple is tagged only** when the audit is 100%
+green on all six dimensions — see
 `devops/security-and-release` for the tagging mechanics and `docs/delivery.md` for the release +
 saga strategy this audit gates.
 

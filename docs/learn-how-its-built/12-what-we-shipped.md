@@ -4,9 +4,9 @@ Every other page in this series shows you one *machine* — the lexer, the tree,
 checker. This page zooms out: forget how it works — **what does OpenLogo have, right now, that you
 could run?** Think school report card: not "how did you study," but "what you learned."
 
-## Milestones so far
+## Sagas so far
 
-OpenLogo's roadmap is cut into **milestones** — checkpoints where a whole group of features is
+OpenLogo's roadmap is cut into **sagas** — checkpoints where a whole group of features is
 proven to work *together*. Here's where we stand:
 
 ```mermaid
@@ -49,7 +49,7 @@ Before building a language, you need a workshop. M0 built one:
 ## M1 · Core Language — the language wakes up
 
 M1 turned the empty workshop into a language you can run — text in, real behavior out, before a
-single turtle command existed (turtle graphics are their own milestone, M2 — more below). It was
+single turtle command existed (turtle graphics are their own saga, M2 — more below). It was
 built as a **walking skeleton**: the smallest version of every layer, wired end to end, before any
 layer got fancy — like sketching a stick figure before adding muscle and skin.
 
@@ -74,8 +74,8 @@ layer got fancy — like sketching a stick figure before adding muscle and skin.
 
 Every piece is backed by real conformance fixtures under `tests/conformance/core-language/` —
 folders for `procedures/`, `control/`, `comprehensions/`, `lists/`, `variables/`, `diagnostics/`, and
-more. This Core-only checkpoint had its own pre-release name, **`0.1.0-core`** — a milestone marker,
-not the release you'd install. The actual tagged release came one milestone later, once the turtle
+more. This Core-only checkpoint had its own pre-release name, **`0.1.0-core`** — a saga marker,
+not the release you'd install. The actual tagged release came one saga later, once the turtle
 could draw too (see below).
 
 ## What's real today
@@ -89,7 +89,7 @@ they shipped in the same release as Core — the turtle draws today.
 
 ✅ **0.1.0 is tagged** — Core Language and Turtle & Rendering shipped **together** as
 [the tagged release `v0.1.0`](https://github.com/pmalarme/open-logo/releases/tag/v0.1.0),
-OpenLogo's first conformant milestone. `package.json` says `"version": "0.1.0"` for a reason: this
+OpenLogo's first conformant saga. `package.json` says `"version": "0.1.0"` for a reason: this
 is real, released software, not a work-in-progress checkpoint — and it supersedes the earlier
 `0.1.0-core` pre-release name above.
 

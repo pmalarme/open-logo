@@ -62,7 +62,9 @@ issue whose child epics and work issues are linked as native sub-issues.
 - **Entry criteria:** all dependency profiles (per the DAG) are already conformant.
 - **Exit criteria (Saga Gate):** the saga's profile conformance suite is green on the minimal path and
   the saga's profiles; examples run; docs + highlighting updated; a11y/pedagogy checks pass; and for
-  M2+ a release tuple is tagged. Below the Saga Gate sit the **Epic Gate** (capability audit) and the
+  M2+ the saga is **ready to tag a release tuple** (all sign-offs recorded). The tuple itself is tagged
+  **after** the maintainer promotes the `saga/*` RC to `main` — passing the gate authorizes the tag, it
+  does not presuppose it. Below the Saga Gate sit the **Epic Gate** (capability audit) and the
   per-issue **Issue Gate** (Definition of Done) — see `shared/definition-of-done` and `shared/epic-gate`.
 - **Sagas are `type:saga` issues; epics and work issues attach as native sub-issues**, labeled by
   owning agent + profile so parallel tracks pull independently.

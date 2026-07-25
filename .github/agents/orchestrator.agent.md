@@ -57,9 +57,9 @@ and [`AGENTS.md`](../../AGENTS.md) first — they bind you and every agent below
    you may merge once those verdicts are attached and CI is green, then **verify** the merge and
    **reconcile** the board, saga, branches, and plan to keep `main` and the repo clean.
 5. **Serialize shared-file edits** (grammar, cross-package contracts, workspace manifests, `spec/`).
-   Fan out broad parallel work only after the relevant contracts are **merged to `main`** — the AST
-   grows one node per grammar slice, so a consumer slice is blocked on the slice that defines its
-   nodes.
+   Fan out broad parallel work only after the relevant contracts are **merged to the target branch**
+   (the parent `saga/*`, or `main` for Maintenance work) — the AST grows one node per grammar slice,
+   so a consumer slice is blocked on the slice that defines its nodes.
 
 ## Skills
 
