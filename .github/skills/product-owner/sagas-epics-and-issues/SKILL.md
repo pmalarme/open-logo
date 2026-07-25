@@ -26,7 +26,8 @@ issue; parents show a live sub-issue progress bar.
 - **Epic** — a large capability, usually **one spec profile or a major feature** (e.g. "Core Language",
   "Turtle & Rendering", "Educational baseline"). An epic is a **sub-issue of a saga** and has **no
   branch** of its own; it spans multiple work issues and agents. Label `type:epic`.
-- **Work issues** — **sub-issues of an epic**, each an atomic unit an agent pulls:
+- **Work issues** — **sub-issues of an epic** (or, for small foundation/chore work with no natural
+  epic, directly under a saga), each an atomic unit an agent pulls:
   - **User story / feature slice** — one observable behavior delivered **end to end** (semantics →
     runtime/events → render/UI → tests → teaching → docs), with Given/When/Then ACs. Label `type:slice`.
   - **Bug** — a defect with a reproduction; gains a regression fixture. Label `type:bug`.
@@ -85,7 +86,8 @@ The **8 learner levels** (`spec/educational-model.md`) drive curriculum epics/st
 
 1. Turn a spec area into an **epic**; confirm its profile + DAG position, and its **parent saga**.
 2. Break the epic into **work issues** (slices with Given/When/Then ACs; `product-owner/write-a-user-story`).
-3. Link hierarchy with **native sub-issues** (epic → its saga; each work issue → its epic) — no body
+3. Link hierarchy with **native sub-issues** (epic → its saga; each work issue → its epic, or → a saga
+   for epic-less foundation/chore work) — no body
    checklists. `github-project` performs the linking.
 4. Open the saga **contract-first** (AST/events/diagnostics/token-classes) before work fans out.
 5. Hand the structure to `github-project` to create it and **`triage-and-label`** to apply the full

@@ -34,7 +34,8 @@ gh issue create --template saga.yml --title "[saga]: M2 Turtle & Rendering"
 ## Native sub-issues
 
 Hierarchy is expressed with **native GitHub sub-issues** (an epic is a sub-issue of its saga; a work
-issue is a sub-issue of its epic). This is the sole source of truth for parentage — **no body
+issue is a sub-issue of its epic — or, for small foundation/chore work with no natural epic, directly
+under a saga). This is the sole source of truth for parentage — **no body
 checklists, no milestone field**. Cloud agents can create these links.
 
 ```bash
@@ -95,7 +96,7 @@ forms apply their **default labels**; then link its **sub-issue parent** + add t
 ```bash
 gh issue edit <n> --add-label "agent:interpreter"
 gh issue edit <n> --add-project "OpenLogo"
-# then link <n> under its epic via addSubIssue (see "Native sub-issues" above)
+# then link <n> under its epic (or its saga for epic-less foundation/chore work) via addSubIssue (see "Native sub-issues" above)
 ```
 
 ## Lazy saga branch creation

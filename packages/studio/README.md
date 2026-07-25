@@ -207,7 +207,7 @@ Presentation only, over the unchanged `run-controller.ts` — no new run-lifecyc
   toggle — `aria-pressed`, even set to `"false"`, still tells assistive technology this is a toggle
   button with a resumable state, which #410 explicitly disavows).
   There is still no `step()`/"Next step" control in the 0.1.0 UI, and no genuine resumable pause
-  (deferred to Studio Stepper Wave 1 / #302 / saga #12, per `a11y.ts`'s doc comment) — this
+  (deferred to the Studio Stepper epic #302, per `a11y.ts`'s doc comment) — this
   slice does not cross that boundary.
 - Accessibility: the icon (`.control-icon`, a CSS `::before`-rendered Unicode glyph keyed off the
   button's `data-icon` attribute) is `aria-hidden="true"` and never the only accessible signal —
@@ -403,7 +403,7 @@ The package is now genuinely servable, not just headless-testable:
 
 ## Side-by-side code/run layout (#313)
 
-Presentation-only slice (epic #290, Studio UX polish milestone): from a 48rem (~768px) viewport up,
+Presentation-only slice (epic #290, Studio UX polish track): from a 48rem (~768px) viewport up,
 the editor and the turtle Canvas render **side by side** — the editor and run controls stack in a
 left column, the Canvas fills a right column beside them, and output/diagnostics stay full-width
 below — so a learner sees code and the drawing it produces at the same time. Narrower (mobile)
@@ -476,7 +476,7 @@ content never pushes the editor/canvas down.
 
 ## Run log pane (#314)
 
-Epic #290, Studio UX polish milestone: before this slice, the `#output` pane held only the LATEST
+Epic #290, Studio UX polish track: before this slice, the `#output` pane held only the LATEST
 run's printed output — a second `run()` silently overwrote whatever the first one printed, so a
 learner who ran two programs in a row lost the first one's output the moment the second finished.
 This slice adds an additive, append-only **run log** — a scrollable history/timeline of every run

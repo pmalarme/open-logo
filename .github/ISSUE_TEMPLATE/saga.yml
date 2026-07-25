@@ -40,7 +40,7 @@ body:
     attributes:
       label: Saga Gate — exit criteria
       value: |
-        - [ ] All child epics closed (each passed its Epic Gate)
+        - [ ] All child epics closed (each passed its Epic Gate); any direct child work issues Done (Issue Gate passed)
         - [ ] All release-blocking bugs resolved
         - [ ] Cross-profile integration succeeds; full conformance suite green across all domains
         - [ ] Runnable examples execute; docs + spec cross-links synced

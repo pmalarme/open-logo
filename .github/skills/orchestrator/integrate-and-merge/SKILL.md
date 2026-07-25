@@ -48,7 +48,8 @@ re-run **all** reviewers so the attached verdicts match the final HEAD.
 
 ### 2. Merge only on a recorded PASS + green CI
 
-Default governance (team instructions §5): humans gate `main`. When the maintainer has **delegated
+Default governance (team instructions §5): humans gate the target branch (`main` or the parent
+`saga/*`). When the maintainer has **delegated
 merge authority** to the orchestrator, you may execute the merge — but **only** after an independent,
 non-author review-gate **PASS** is recorded on the PR and required CI is green. You never merge your
 own work on your own say-so; the review gate is the safeguard that keeps the "implementer is never
@@ -126,7 +127,8 @@ profile's conformance is green **across all domains**, not when one package fini
 issues is **necessary but not sufficient** — issues can close on thin or missing coverage, and every
 child **epic must already have passed its Epic Gate** (`shared/epic-gate`). The orchestrator **runs and
 records** this audit but **does not close the saga**: `[saga]` is maintainer-owned and non-delegable
-(`CODEOWNERS`), so the orchestrator attaches the written audit plus the required sign-offs and a
+(closing the saga issue is **maintainer policy** — CODEOWNERS + the branch ruleset gate the *PR*, not
+issue closure), so the orchestrator attaches the written audit plus the required sign-offs and a
 **recommendation**, and the **maintainer approves the promotion, tags any release tuple, and closes the
 saga**. Run the full **in-depth coverage audit** and attach it, written, to the saga-closeout issue:
 map every profile requirement to **both** its implementation **and** its conformance fixture, across

@@ -33,8 +33,9 @@ tracks can pull their own work.
 - **Hierarchy ≠ label:** an issue's place in the DAG is its **native sub-issue parent** (epic → saga,
   work issue → epic), **not** a `profile:*` label (the label says which profile the work touches; the
   sub-issue link says where it lands). GitHub milestones are **no longer used** — sagas replace them.
-- `type:saga` and `type:spec` are **maintainer-owned, non-delegable**; agents may draft/propose but
-  only the maintainer creates/closes them.
+- `type:saga` and `type:spec` are **non-delegable for approval, merge, and closure**; the
+  product-owner **may create/propose** them, but only the **maintainer approves and closes** them
+  (their `spec/**`/template PRs are maintainer-merged via CODEOWNERS + the branch ruleset).
 - Issue **forms apply only their static `labels:` defaults** (`type:*`, sometimes `area:*`).
   **Dropdown/checkbox answers inside a form do _not_ become labels** — e.g. a "Profile" dropdown
   selection never creates `profile:*`. Triage reads those answers and adds `agent:*` + `profile:*`
@@ -145,7 +146,7 @@ touch the board. Full mechanics (finding children via sub-issues, board field ID
 ## Checklist
 - [ ] `.github/labels.yml` is the single source; labels synced from it.
 - [ ] Every issue has exactly one `agent:*` + one `type:*`; extras added as applicable.
-- [ ] Hierarchy set via a **native sub-issue** link (epic→saga, work→epic), not a milestone/profile label.
+- [ ] Hierarchy set via a **native sub-issue** link (epic→saga, work→epic, or work→saga for epic-less foundation/chore work), not a milestone/profile label.
 - [ ] Issue added to the Project board with Status (default `Todo`) and Agent fields set.
 - [ ] Title prefix `[<type>]:` matches the `type:*` label (applied automatically by templates;
       manual for non-template creation).
