@@ -246,6 +246,59 @@ test("detectUsedProfiles does NOT flag geometry when an example defines its own 
   );
 });
 
+test("detectUsedProfiles does NOT flag geometry/sound/tutor-ai when a struct's own constructor name collides with a profile callee (round-12 rubber-duck: struct is a callable-registering declaration too, not just define)", () => {
+  // A `struct` declaration registers a same-named constructor reporter (ast.ts's StructDefNode
+  // doc comment), so `struct area [ value ]` then `print area 5` is ordinary, valid Data-only
+  // code. Before the round-12 fix, the definedProcedureNames shadow-guard only precollected
+  // `ProcedureDef` names, so this call reached the geometry/sound/tutor-ai bare-name branches
+  // unguarded and detectUsedProfiles wrongly returned ["data","geometry"] for a Data-only example.
+  assert.deepEqual(
+    detectUsedProfiles("struct area [ value ]\nprint area 5\n"),
+    ["data"],
+  );
+  assert.deepEqual(
+    detectUsedProfiles("struct polygon [ sides ]\nprint polygon 4\n"),
+    ["data"],
+  );
+  assert.deepEqual(
+    detectUsedProfiles("struct note [ pitch ]\nprint note 60\n"),
+    ["data"],
+  );
+  assert.deepEqual(
+    detectUsedProfiles("struct challenge [ n ]\nprint challenge 1\n"),
+    ["data"],
+  );
+});
+
+test("runExamplesGate does NOT spuriously fail a Data-only example whose struct constructor shares a name with a Geometry callee (round-12 false-positive regression)", () => {
+  writeExample(
+    "struct-name-collision.logo",
+    "struct area [ value ]\nprint area 5\n",
+  );
+  const result = runExamplesGate({
+    dir: TEMP_DIR,
+    manifest: {
+      "struct-name-collision.logo": ["core-language", "data"],
+    },
+    implementedProfiles: [
+      "core-language",
+      "turtle-rendering",
+      "data",
+      "geometry",
+    ],
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.failed, 0);
+  assert.ok(
+    result.lines.some((line) => line === "PASS struct-name-collision.logo"),
+  );
+  assert.ok(
+    !result.lines.some((line) => line.includes("under-declared")),
+    "must not report an under-declared-profile failure for a correctly-declared Data example",
+  );
+});
+
 test("detectUsedProfiles finds educational for the explain/why/hint/debug meta-commands", () => {
   assert.deepEqual(detectUsedProfiles("explain\n"), ["educational"]);
   assert.deepEqual(detectUsedProfiles("why\n"), ["educational"]);

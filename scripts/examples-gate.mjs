@@ -316,6 +316,17 @@ const RESERVED_WORD_PROFILES = new Map([
  * profile-primitive usage — a structural guard, not a one-off exclusion, so it covers every
  * bare-name hand-list (including `TUTOR_AI_CALLEE_NAMES`) uniformly.
  *
+ * **The shadow-guard also precollects `struct` names, not just `define`d ones** (round-12
+ * rubber-duck review — the opposite-direction bug from masking: a spurious FAIL on a *correct*
+ * example): a `struct` declaration registers a same-named **constructor reporter**
+ * (`packages/parser/src/ast.ts`'s `StructDefNode` doc comment), so `struct area [ value ]` then
+ * `print area 5` is ordinary, valid Data-profile code whose `area` call resolves to the user's own
+ * constructor — exactly like a colliding `define`. Enumerating every `"...Def"`-kind node in
+ * `ast.ts`'s `OL_NODE_KINDS` shows exactly two register a same-named callable, `ProcedureDef` and
+ * `StructDef` (no other declaration node introduces one), so precollecting both kinds makes this
+ * guard provably exhaustive — there is no third declaration-with-callable-name construct left to
+ * find.
+ *
  * **The Data shadow-guard exception depends on AST *position*, not just the name** (round-6 and
  * round-7 rubber-duck reviews — two runtime dispatch paths, two opposite bugs):
  * - Round 6: `@openlogo/runtime`'s **expression** evaluator (`evaluate.ts`) resolves the 8 Data
@@ -378,9 +389,21 @@ export function detectUsedProfiles(source) {
     }
   }
 
+  // A `struct` declaration registers a same-named CONSTRUCTOR REPORTER, not just a type
+  // (`packages/parser/src/ast.ts`'s `StructDefNode` doc comment: "declares a record type ... and
+  // a same-named constructor reporter"; `spec/data-structures.md`) — so `struct area [ value ]`
+  // makes a bare call to `area` resolve to the user's own constructor, exactly as
+  // `define area ... end` would. Enumerating every `"...Def"`/`"...Declaration"` kind in
+  // `ast.ts`'s `OL_NODE_KINDS`, exactly two register a same-named callable: `ProcedureDef` and
+  // `StructDef` (no other declaration node — `DictLit`, `Add`/`Remove`/etc. — introduces a name).
+  // Collecting only `ProcedureDef` here left that second one unguarded (round-12 rubber-duck
+  // review): a *correct* Data-only example naming its own struct `area`/`polygon`/`note`/
+  // `challenge` was spuriously flagged as needing Geometry/Sound/Tutor-AI, the false-positive
+  // mirror image of the masking bug this whole detector exists to close. Collecting both kinds
+  // makes the shadow-guard provably exhaustive.
   const definedProcedureNames = new Set();
   walk(ast, (node) => {
-    if (node.kind === "ProcedureDef") {
+    if (node.kind === "ProcedureDef" || node.kind === "StructDef") {
       definedProcedureNames.add(node.name.name.toLowerCase());
     }
   });
