@@ -1,5 +1,5 @@
 {
-  "_comment": "Owned by @testing (issue #283), NOT spec/ (spec/ is maintainer-owned per AGENTS.md). Maps each spec/examples/*.logo filename to the minimal set of spec/conformance.md profile ids it requires, using the same ids as scripts/harness/index.mjs's PROFILE_DEPS. scripts/examples-gate.mjs skips (with a visible notice) any example that needs a profile not yet in IMPLEMENTED_PROFILES, rather than counting it as passed. Every spec/examples/*.logo file MUST have an entry here, or the gate fails loudly instead of silently ignoring it.",
+  "_comment": "Owned by @testing (issue #283), NOT spec/ (spec/ is maintainer-owned per AGENTS.md). Maps each spec/examples/*.logo filename to the minimal set of spec/conformance.md profile ids it requires, using the same ids as scripts/harness/index.mjs's PROFILE_DEPS. scripts/examples-gate.mjs skips (with a visible notice) any example that needs a profile not yet in IMPLEMENTED_PROFILES, rather than counting it as passed. Every spec/examples/*.logo file MUST have an entry here, or the gate fails loudly instead of silently ignoring it. The gate also statically detects each example's actually-used profiles (issue #519) and FAILS LOUDLY if an entry here under-declares one — this check runs before the skip decision, so it can never be masked by an unrelated not-yet-implemented profile's skip.",
   "01-movement.logo": ["core-language", "turtle-rendering"],
   "02-repetition.logo": ["core-language", "turtle-rendering"],
   "03-variables.logo": ["core-language", "turtle-rendering"],
@@ -10,7 +10,7 @@
   "08-algorithms.logo": ["core-language", "turtle-rendering"],
   "09-sprites.logo": ["core-language", "turtle-rendering", "sprites"],
   "10-game.logo": ["core-language", "turtle-rendering", "interaction-events"],
-  "11-music.logo": ["core-language", "turtle-rendering", "sound"],
+  "11-music.logo": ["core-language", "turtle-rendering", "sound", "data"],
   "12-fractal.logo": ["core-language", "turtle-rendering"],
   "13-geometry-stdlib.logo": ["core-language", "turtle-rendering", "data"]
 }
