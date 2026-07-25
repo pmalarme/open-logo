@@ -207,7 +207,7 @@ Presentation only, over the unchanged `run-controller.ts` — no new run-lifecyc
   toggle — `aria-pressed`, even set to `"false"`, still tells assistive technology this is a toggle
   button with a resumable state, which #410 explicitly disavows).
   There is still no `step()`/"Next step" control in the 0.1.0 UI, and no genuine resumable pause
-  (deferred to Studio Stepper Wave 1 / #302 / milestone #12, per `a11y.ts`'s doc comment) — this
+  (deferred to Studio Stepper Wave 1 / #302 / saga #12, per `a11y.ts`'s doc comment) — this
   slice does not cross that boundary.
 - Accessibility: the icon (`.control-icon`, a CSS `::before`-rendered Unicode glyph keyed off the
   button's `data-icon` attribute) is `aria-hidden="true"` and never the only accessible signal —

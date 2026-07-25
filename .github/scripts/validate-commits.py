@@ -26,13 +26,19 @@ TYPES = {
     "perf", "test", "build", "ci", "chore", "revert",
 }
 
-# Scopes = OpenLogo profiles + cross-cutting areas + a few infra scopes.
+# Scopes = OpenLogo profiles + cross-cutting areas + governance/infra scopes.
+# Keep in sync with .github/skills/devops/branching-and-commits/SKILL.md (source of truth)
+# and .github/labels.yml. PROFILES mirror `profile:*`; AREAS mirror the `area:*` labels
+# EXCEPT `core` (already a profile scope, so not duplicated here). GOVERN/INFRA scopes have
+# no `area:*` label: `spec` is the maintainer-owned spec/ surface (tracked by `type:spec`).
 PROFILES = {
     "core", "turtle-rendering", "data", "geometry", "heritage", "sprites",
     "interaction", "sound", "modules", "localization", "educational", "tutor-ai",
 }
-AREAS = {"grammar", "highlighter", "checker", "runtime", "rendering", "studio", "edu", "ci", "docs", "spec"}
-INFRA = {"deps", "release", "repo", "meta"}
+# AREAS mirror `area:*` labels (minus `core`, which is a profile scope above).
+AREAS = {"grammar", "highlighter", "checker", "runtime", "rendering", "studio", "edu", "ci", "docs"}
+# Governance + infra scopes (no `area:*` label).
+INFRA = {"spec", "deps", "release", "repo", "meta"}
 SCOPES = PROFILES | AREAS | INFRA
 
 # type(scope)!: subject   — scope + `!` optional; subject non-empty.

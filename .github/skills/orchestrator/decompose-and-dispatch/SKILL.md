@@ -66,8 +66,9 @@ contracts agreed first. You write no feature code — you decompose, dispatch, a
 6. **Integrate per story** with `integrate-and-merge`: **verify** the owner's attached non-author
    verdicts (≥2 — logic/spec reviewer + every QA expert; don't re-run the whole gate round-by-round), merge under delegated authority once CI is
    green, then reconcile the board/saga/branches/plan. Hold the **Definition of Done** gate
-   (`shared/definition-of-done`); an integration issue closes each saga once conformance is
-   green across all domains.
+   (`shared/definition-of-done`); a per-saga integration issue tracks conformance across all domains and,
+   when green, the orchestrator **recommends closeout — the maintainer closes the saga** (`[saga]` is
+   non-delegable).
 
 ## Critical rules
 

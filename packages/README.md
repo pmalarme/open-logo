@@ -4,10 +4,10 @@ This is where OpenLogo's implementation source lives: a TypeScript 7 monorepo of
 `@openlogo/*` packages. Each package's **source root is `packages/<name>/src/`**, with
 `src/index.ts` as its **only public entry point**. See
 [`docs/architecture.md`](../docs/architecture.md) for the full monorepo definition and the
-cross-cutting contracts, and [`docs/delivery.md`](../docs/delivery.md) for the release/milestone plan.
+cross-cutting contracts, and [`docs/delivery.md`](../docs/delivery.md) for the release/saga plan.
 
 > The build tooling (package manager, test runner, bundler) is scaffolded by
-> [`@interpreter`](../.github/agents/interpreter.agent.md) in **milestone M0** and recorded in
+> [`@interpreter`](../.github/agents/interpreter.agent.md) in the **M0 saga** and recorded in
 > [ADR-0001](../docs/adr/0001-tech-stack.md); this tree defines the layout and ownership up front.
 
 ## Packages (build order follows the spec profile DAG)

@@ -54,7 +54,7 @@
  * action above composes those two existing methods, unchanged, in sequence — it adds no new
  * control-flow to `run-controller.ts` itself), and does not touch the event stream or conformance.
  * There is still no `step()`/"Next step" UI here, and no genuine resumable pause — both are
- * deliberately deferred to the Studio stepper Wave 1 milestone (#12/#302), not poached by this
+ * deliberately deferred to the Studio stepper Wave 1 saga (#12/#302), not poached by this
  * bug-fix slice (per `a11y.ts`'s doc comment).
  */
 

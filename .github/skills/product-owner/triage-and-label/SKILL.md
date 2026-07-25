@@ -80,8 +80,9 @@ gh issue edit <n> --add-label "agent:interpreter,profile:core,area:runtime"
 
 Attach the issue to its **parent in the hierarchy** as a **native GitHub sub-issue** — this is what
 places the work on the profile DAG (milestones are retired). An **epic** becomes a sub-issue of its
-**saga**; a **work issue** (slice/bug/spec/task) becomes a sub-issue of its **epic** (or, when no epic
-fits, directly under a saga). See [`github-project`](../github-project/SKILL.md#native-sub-issues) for
+**saga**; a **work issue** (slice/bug/spec/task) becomes a sub-issue of its **epic** (or, only when it
+is small foundation/chore work with no natural epic, directly under a saga — it still clears its own
+Issue Gate). See [`github-project`](../github-project/SKILL.md#native-sub-issues) for
 the `addSubIssue` GraphQL mechanics:
 
 ```bash

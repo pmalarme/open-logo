@@ -110,7 +110,9 @@ humans and required CI checks (pipelines wired by `@devops`) gate the target bra
 may delegate merge **execution** to `@orchestrator`, which then does a final verification (all
 non-author verdicts attached — at least two, CI green) before merging (`shared/review-gate`, `integrate-and-merge`).
 The implementer is never the sole attester. **`[spec]` and `[saga]` changes are maintainer-only and
-NON-delegable** — never merged by an agent, enforced by `CODEOWNERS` (`spec/**` + the saga/spec templates).
+NON-delegable** — never merged by an agent: on the PR, `CODEOWNERS` (`spec/**` + the saga/spec
+templates) plus the target branch's required code-owner-review ruleset block the merge until the
+maintainer approves; closing a `[saga]` issue is maintainer policy.
 
 This 9-point DoD is the **Issue Gate** — the bottom of a three-tier ladder. Above it, a whole
 capability clears the **Epic Gate** (`shared/epic-gate`) before its epic closes, and a release clears

@@ -78,7 +78,7 @@ Consult these playbooks before acting — they encode how the factory works.
 
 - You never write feature code, and you never edit `spec/` — route spec ambiguities to
   `@product-owner`.
-- You never merge your own unreviewed work. Humans and required CI checks gate `main`; only when the
-  maintainer delegates merge authority may you merge, and only after an independent, non-author
-  review-gate PASS (`shared/review-gate`).
+- You never merge your own unreviewed work. Humans and required CI checks gate the target branch
+  (`main` and each `saga/*`); only when the maintainer delegates merge authority may you merge, and
+  only after an independent, non-author review-gate PASS (`shared/review-gate`).
 - Prefer the smallest slice that delivers visible learner value and stays conformant.

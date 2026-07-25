@@ -68,9 +68,10 @@ becomes the squash-merge subject.
 - **type** — one of: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`,
   `chore`, `revert`. Append `!` for a breaking change (`feat(grammar)!: ...`).
 - **scope** — a **profile** (`core`, `turtle-rendering`, `data`, `geometry`, `heritage`, `sprites`,
-  `interaction`, `sound`, `modules`, `localization`, `educational`, `tutor-ai`) or an **area**
-  (`grammar`, `highlighter`, `checker`, `runtime`, `rendering`, `studio`, `edu`, `ci`, `docs`,
-  `spec`); infra scopes `deps`, `release`, `repo`, `meta` are also allowed. Scope is **required**.
+  `interaction`, `sound`, `modules`, `localization`, `educational`, `tutor-ai`) or an **area** mirroring
+  the `area:*` labels (`grammar`, `highlighter`, `checker`, `runtime`, `rendering`, `studio`, `edu`,
+  `ci`, `docs` — `core` is covered by the profile scope above); governance/infra scopes `spec` (the
+  maintainer-owned `spec/` surface), `deps`, `release`, `repo`, `meta` are also allowed. Scope is **required**.
 - **subject** — imperative, concise, no trailing period.
 
 Examples: `feat(data): add list reporters`, `fix(runtime): correct REPEAT nesting`,

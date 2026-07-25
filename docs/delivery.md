@@ -96,8 +96,8 @@ M3's learner-facing documentation lives at [`educational-commands.md`](education
 Within a saga, these run at the same time once the contracts are fixed: language/grammar,
 engine/runtime, highlighter/tooling, rendering, studio/UI, education, tests, docs. The **walking
 skeleton** (`forward 100` end to end) is the M1→M2 integration spike that proves all seams before the
-tracks broaden. An **integration issue** per saga (owned by `@orchestrator`) closes it once the
-conformance suite is green.
+tracks broaden. An **integration issue** per saga (owned by `@orchestrator`) tracks it; when the
+conformance suite is green the orchestrator recommends closeout and **the maintainer closes the saga**.
 
 ## 4. Continuous (the Maintenance saga, post-M0)
 

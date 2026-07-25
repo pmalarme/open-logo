@@ -59,12 +59,14 @@ time. Merge with `gh pr merge <n> --squash --delete-branch`.
 work issues integrate into their saga branch, which is later promoted to `main` as a Release
 Candidate. **Maintenance-saga work merges straight to `main`** (that saga has no branch). `[spec]` and
 `[saga]` PRs are **maintainer-only, non-delegable** — never merge them, even under delegated authority;
-hand them to the maintainer (`CODEOWNERS` enforces this).
+hand them to the maintainer (`CODEOWNERS` + the target branch's required code-owner-review ruleset block
+the merge until they approve).
 
 ### 3. Verify the merge — trust state, not the exit code
 
-`gh pr merge --delete-branch` **always errors on the local git cleanup here**, because `main` is
-checked out in the shared main worktree — the error is harmless. Confirm the _real_ outcome:
+`gh pr merge --delete-branch` **often errors on the local git cleanup here**, because the target branch
+(usually `main`, or the `saga/*` branch) is checked out in a shared worktree — the error is harmless.
+Confirm the _real_ outcome:
 
 - `gh pr view <n> --json state,mergedAt,mergeCommit` → `MERGED` with a merge commit.
 - `git ls-remote origin -h refs/heads/<target>` → the **target** branch HEAD advanced (that is the
@@ -74,8 +76,9 @@ checked out in the shared main worktree — the error is harmless. Confirm the _
 
 - **Board (Projects v2):** set the issue's **Status** + **Agent** at dispatch (`In Progress` + owning
   agent) and **Done** at merge; `0 open` on the saga's children is necessary but **not sufficient** to
-  close it — close a **saga** only once every child epic passed its **Epic Gate** and the
-  Saga-completion audit below is green, and close an **epic** only once its **Epic Gate**
+  close it — a **saga** is closed **by the maintainer** only once every child epic passed its **Epic
+  Gate** and the Saga-completion audit below is green (the orchestrator records + recommends; `[saga]`
+  closure is maintainer policy, non-delegable), and close an **epic** only once its **Epic Gate**
   (`shared/epic-gate`) passes. Field/option IDs and the `gh project item-edit` recipe live in
   `product-owner/github-project`. Watch for **drift** — an issue closed on GitHub can still read
   "In Progress" on the board.
@@ -157,8 +160,8 @@ saga strategy this audit gates.
 - [ ] All non-author review-gate verdicts (≥2) recorded on the PR — logic/spec reviewer (`rubber-duck`, or a named fallback **+ reason**) + **every** domain QA expert, all ≠ author — each stamped with a SHA matching PR HEAD.
 - [ ] Merged only after PASS + green CI — delegated authority, never self-attested.
 - [ ] Merge verified via `gh pr view` + `git ls-remote`, not the `--delete-branch` exit code.
-- [ ] Board Status → Done + Agent set; epic closed only on Epic-Gate pass; saga closed when children Done + audit green.
+- [ ] Board Status → Done + Agent set; epic closed only on Epic-Gate pass; **saga closed by the maintainer** once children Done + audit green (orchestrator records + recommends, does not close).
 - [ ] Closed-PR orphan branches deleted; no live-session worktree branch touched.
 - [ ] `plan.md` + todos updated; any superseded PRs closed with credit.
 - [ ] Saga branches kept current (main pulled back after each merge); `saga/*`→`main` promotion left to the maintainer.
-- [ ] **At saga close:** in-depth coverage audit green across all 5 dimensions (profile / spec-area / conformance / all-domain DoD / board-traceability) before the saga is closed or a release tuple tagged.
+- [ ] **At saga close:** in-depth coverage audit green across all 6 dimensions (profile / spec-area / conformance / all-domain DoD / board-traceability / sign-offs recorded), attached + recommended by the orchestrator, before the **maintainer** closes the saga or tags a release tuple.

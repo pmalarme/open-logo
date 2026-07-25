@@ -58,7 +58,8 @@ just applied at a wider scope:
 | **Saga** | Saga Gate (`orchestrator/integrate-and-merge` → **Saga-completion audit**) | `@orchestrator` runs/records + recommends; **maintainer** approves & closes | a profile set is conformant across **all** domains; release can ship |
 
 An epic closes only after its Epic Gate; a saga's audit must be 100% green before the **maintainer**
-promotes the RC, tags any release tuple, and closes the saga (`[saga]` is non-delegable — CODEOWNERS).
+promotes the RC, tags any release tuple, and closes the saga (`[saga]` is non-delegable; `spec/**` +
+saga/spec-template **PRs** are gated by CODEOWNERS + the required code-owner-review ruleset).
 Sagas replaced GitHub milestones, so these gates operate on
 `type:saga` / `type:epic` issues and their **native sub-issue** children, not on milestone objects.
 

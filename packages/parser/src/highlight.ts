@@ -4,7 +4,7 @@
  * grammar (grammatical position decides the class), not from ad-hoc regular expressions.
  * Owned by `@language-designer`; consumed by the studio editor, docs, and external editors.
  * The class set tracks the grammar version — a grammar change ships its highlighting update
- * in the same milestone.
+ * in the same saga.
  *
  * {@link highlight} is the grammar-derived LEXICAL first pass (issue #119) plus the SEMANTIC
  * disambiguation pass (issue #120): it reuses {@link tokenize} and {@link parse} (never

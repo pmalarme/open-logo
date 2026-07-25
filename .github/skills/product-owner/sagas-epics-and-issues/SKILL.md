@@ -93,7 +93,7 @@ The **8 learner levels** (`spec/educational-model.md`) drive curriculum epics/st
 
 ## Checklist
 - [ ] Epics map to profiles/major features; work issues are one atomic unit.
-- [ ] Every epic is a sub-issue of a saga; every work issue is a sub-issue of an epic.
+- [ ] Every epic is a sub-issue of a saga; every work issue is a sub-issue of an epic (small foundation/chore work with no natural epic may attach directly to a saga).
 - [ ] Each item's saga matches its profile on the DAG (or the Maintenance saga).
 - [ ] Levels used for curriculum, kept separate from profiles.
 - [ ] Dependencies noted; contracts fixed before parallel work.
