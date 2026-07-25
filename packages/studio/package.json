@@ -1,6 +1,6 @@
 {
   "name": "@openlogo/studio",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "OpenLogo studio: the browser learner IDE — editor/REPL, Canvas turtle view, run/stop/step, diagnostics, tooling, and lessons.",
   "license": "MIT",
   "type": "module",
@@ -31,11 +31,11 @@
     "@codemirror/language": "6.12.4",
     "@codemirror/state": "6.7.1",
     "@codemirror/view": "6.43.6",
-    "@openlogo/core": "0.1.0",
-    "@openlogo/edu": "0.1.0",
-    "@openlogo/parser": "0.1.0",
-    "@openlogo/runtime": "0.1.0",
-    "@openlogo/turtle": "0.1.0"
+    "@openlogo/core": "0.2.0",
+    "@openlogo/edu": "0.2.0",
+    "@openlogo/parser": "0.2.0",
+    "@openlogo/runtime": "0.2.0",
+    "@openlogo/turtle": "0.2.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",

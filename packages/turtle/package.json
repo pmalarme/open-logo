@@ -1,6 +1,6 @@
 {
   "name": "@openlogo/turtle",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "OpenLogo turtle: turtle/sprite state, pen/heading/shape, rendering (Canvas/SVG/PNG), animation, export, and accessibility.",
   "license": "MIT",
   "type": "module",
@@ -21,6 +21,6 @@
     "clean": "tsc -b --clean"
   },
   "dependencies": {
-    "@openlogo/core": "0.1.0"
+    "@openlogo/core": "0.2.0"
   }
 }

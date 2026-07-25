@@ -1,6 +1,6 @@
 {
   "name": "@openlogo/core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "OpenLogo core: value/type model, ol-* diagnostics, trace/event registry, and feature-detection metadata.",
   "license": "MIT",
   "type": "module",
