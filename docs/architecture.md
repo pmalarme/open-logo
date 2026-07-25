@@ -20,7 +20,7 @@ openlogo/
 ├─ docs/
 │  ├─ adr/                   Architecture Decision Records
 │  ├─ architecture.md        This document
-│  └─ delivery.md            Release + milestone strategy
+│  └─ delivery.md            Release + saga strategy
 ├─ packages/
 │  ├─ core/                  @openlogo/core   — values, diagnostics, events, profile metadata
 │  ├─ parser/               @openlogo/parser — lexer, reader, grammar, AST, highlighting, lints
@@ -120,7 +120,7 @@ box depends on — fix them first and the rest proceed independently.
 ## 6. Parallelization map
 
 Because the seams above are explicit, these **domain tracks run concurrently**; they synchronize only
-at the shared contracts and at milestone integration (see [`delivery.md`](delivery.md)).
+at the shared contracts and at saga integration (see [`delivery.md`](delivery.md)).
 
 | Track | Agent | Package(s) | Builds independently once contracts are set | Sync points |
 |---|---|---|---|---|
@@ -134,7 +134,7 @@ at the shared contracts and at milestone integration (see [`delivery.md`](delive
 | Platform / DevSecOps | devops | `.github/workflows/`, labeler, scripts | CI gates, security scanning, labeler + label sync, releases | Definition of Done (all contracts) |
 | Docs | documentation | docs/ | reference, tutorials, examples | grammar + commands |
 
-**Contract-first rule:** before a milestone's parallel work fans out, the affected contracts (AST
+**Contract-first rule:** before a saga's parallel work fans out, the affected contracts (AST
 nodes, event types, `ol-*` codes, token classes) are added/agreed in one serialized PR. Then each
 track builds against them without blocking the others.
 

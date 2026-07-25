@@ -6,7 +6,7 @@
 > street) rather than an abstract drill. Authored as validated `Lesson`/`Exercise` content in
 > `@openlogo/edu` (`packages/edu/src/lessons/level-1.ts` … `level-5.ts`, aggregated by
 > `packages/edu/src/lessons/registry.ts`). Levels 6–8 (geometry, data structures, algorithms) are
-> out of scope for this milestone; see [`spec/educational-model.md`](../spec/educational-model.md)
+> out of scope for this saga; see [`spec/educational-model.md`](../spec/educational-model.md)
 > for the full 8-level model.
 
 Every worked example and reference solution below is executed against `@openlogo/runtime` in the

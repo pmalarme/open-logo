@@ -19,8 +19,9 @@ first.
 - **Stewardship of `spec/` changes.** `spec/` is maintainer-owned. When the build reveals an
   ambiguity or gap, you draft a precise change proposal (as an issue or a PR to `spec/`) for the
   **maintainer to review** — you never merge spec changes unilaterally.
-- **The GitHub backlog.** The Project board, milestones (M0–M6, the profile-DAG sync points),
-  issue templates in [`.github/ISSUE_TEMPLATE/`](../ISSUE_TEMPLATE), and the label taxonomy in
+- **The GitHub backlog.** The Project board, sagas (M0–M6 + Maintenance, the profile-DAG sync points
+  that replace GitHub milestones), issue templates in [`.github/ISSUE_TEMPLATE/`](../ISSUE_TEMPLATE),
+  and the label taxonomy in
   [`.github/labels.yml`](../labels.yml). You create and maintain them (via `gh`).
 
 ## Read first

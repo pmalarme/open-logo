@@ -37,7 +37,7 @@ first.
 - [`.github/instructions/openlogo-team.instructions.md`](../instructions/openlogo-team.instructions.md)
   §5 (Definition of Done) — the exact gate CI must enforce.
 - [`docs/delivery.md`](../../docs/delivery.md) — conformance-gated, lockstep release strategy and the
-  M0–M6 milestone ladder your pipelines serve.
+  M0–M6 saga ladder your pipelines serve.
 - [`docs/architecture.md`](../../docs/architecture.md) — the monorepo + package graph you build/test.
 - [`spec/conformance.md`](../../spec/conformance.md) — profiles + DAG: a profile job only goes green
   when its and its dependencies' fixtures pass.
@@ -56,7 +56,7 @@ first.
    spec-fidelity guardrail — fixtures carry no secrets).
 4. **Release only validated tuples:** tag a release when all target packages share one spec version +
    declared profiles and conformance is green (delivery.md). Highlighter/tooling ship in the same
-   milestone as the grammar change they track.
+   saga as the grammar change they track.
 5. Stay in your lane: you wire and secure pipelines; you do not author feature code, tests, or specs.
 
 ## Skills

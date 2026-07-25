@@ -24,7 +24,7 @@ tooling updates.
 3. **Update the EBNF + reserved-word registry** together; a new keyword is reserved (case-insensitive)
    and flows from the single C19 list shared with the highlighter and linter.
 4. **Coordinate the AST** with `@interpreter` (`interpreter/ast-design`): one production ↔ one node.
-5. **Update the highlighter in the same PR/milestone** (`language-designer/syntax-highlighting`) — token
+5. **Update the highlighter in the same PR/saga** (`language-designer/syntax-highlighting`) — token
    classes derive from the grammar; the interlock rule forbids letting them drift.
 6. **Preserve backward compatibility:** additive by default; any breaking change needs a deprecation
    note + ADR and PO sign-off.

@@ -1,10 +1,15 @@
-# OpenLogo delivery — release & milestone strategy
+# OpenLogo delivery — release & saga strategy
 
 > How OpenLogo (OL) ships. Defines versioning, per-domain release trains (language, highlighter,
-> runtime, rendering, studio, edu) and how they stay coherent, plus the milestone strategy that turns
+> runtime, rendering, studio, edu) and how they stay coherent, plus the **saga** strategy that turns
 > parallel domain work into proven, releasable conformance. Formalized in
-> [`adr/0003-versioning-and-release.md`](adr/0003-versioning-and-release.md). See
+> [`adr/0003-versioning-and-release.md`](adr/0003-versioning-and-release.md) and
+> [`adr/0015-sagas-branching-governance.md`](adr/0015-sagas-branching-governance.md). See
 > [`architecture.md`](architecture.md) for the packages and contracts referenced here.
+>
+> **Sagas** are the top of the planning hierarchy (**saga → epic → issue**) and **replace GitHub
+> milestones**: each saga is a `type:saga` issue, and its epics/work issues attach as **native GitHub
+> sub-issues**. The M0–M6 names below are saga names.
 
 ## 1. Versioning model
 
@@ -36,33 +41,38 @@ profile passes conformance. The trains and their coupling:
 
 **The interlock rule:** the **highlighter and tooling track the grammar version**. Because token
 classes are normative (`spec/tooling.md`) and derived from the grammar, any grammar/reserved-word
-change carries a matching highlighter + LSP update in the same milestone — a grammar PR is not "done"
+change carries a matching highlighter + LSP update in the same saga — a grammar PR is not "done"
 until highlighting/tooling fixtures are updated. This is the concrete answer to "how do the language
 and the highlighter work together."
 
-## 3. Milestone strategy
+## 3. Saga strategy
 
-**Milestones are profile-based synchronization points on the spec DAG**, cutting across the parallel
-domain tracks. Domains build continuously; a milestone is where they converge, conformance goes
-green, and (from M2 on) we tag a release.
+**Sagas are profile-based synchronization points on the spec DAG**, cutting across the parallel
+domain tracks. Domains build continuously; a saga is where they converge, conformance goes
+green, and (from M2 on) we tag a release. Sagas replace GitHub milestones — each is a `type:saga`
+issue whose child epics and work issues are linked as native sub-issues.
 
 ### Principles
 
-- **One milestone = one profile set reaching conformance across every domain** (engine + highlighter
+- **One saga = one profile set reaching conformance across every domain** (engine + highlighter
   + rendering + studio + edu + tests + docs), not one package finishing.
-- **Contract-first:** each milestone opens by agreeing the affected cross-cutting contracts (AST
+- **Contract-first:** each saga opens by agreeing the affected cross-cutting contracts (AST
   nodes, event types, `ol-*` codes, token classes) in a serialized PR; then the tracks fan out in
   parallel (see the parallelization map in `architecture.md`).
 - **Entry criteria:** all dependency profiles (per the DAG) are already conformant.
-- **Exit criteria:** the milestone's profile conformance suite is green on the minimal path and the
-  milestone's profiles; examples run; docs + highlighting updated; a11y/pedagogy checks pass; and for
-  M2+ a release tuple is tagged.
-- **Milestones map to GitHub milestones; issues are one vertical slice each**, labeled by owning
-  agent + profile so parallel tracks pull independently.
+- **Exit criteria (Saga Gate):** the saga's profile conformance suite is green on the minimal path and
+  the saga's profiles; examples run; docs + highlighting updated; a11y/pedagogy checks pass; and for
+  M2+ a release tuple is tagged. Below the Saga Gate sit the **Epic Gate** (capability audit) and the
+  per-issue **Issue Gate** (Definition of Done) — see `shared/definition-of-done` and `shared/epic-gate`.
+- **Sagas are `type:saga` issues; epics and work issues attach as native sub-issues**, labeled by
+  owning agent + profile so parallel tracks pull independently.
+- **Branching:** each active release saga has a `saga/*` branch; work merges into it and the saga
+  branch is promoted to `main` as a Release Candidate the maintainer signs off
+  (`devops/branching-and-commits`).
 
-### The milestone ladder
+### The saga ladder
 
-| Milestone | Profiles reached | Ships (all domains) | Release |
+| Saga | Profiles reached | Ships (all domains) | Release |
 |---|---|---|---|
 | **M0 Foundation** | — | Monorepo, TS7 toolchain, CI (Definition of Done), conformance harness, cross-cutting contract stubs (AST/events/diagnostics/token-class enums) | internal |
 | **M1 Core Language** | Core Language | Engine parses + evaluates Core; highlighter classifies Core tokens; studio REPL runs non-graphical Core; `conformance(core)` green | `0.1.0-core` (pre-release) |
@@ -81,14 +91,16 @@ M3's learner-facing documentation lives at [`educational-commands.md`](education
 
 ### Working in parallel across domains
 
-Within a milestone, these run at the same time once the contracts are fixed: language/grammar,
+Within a saga, these run at the same time once the contracts are fixed: language/grammar,
 engine/runtime, highlighter/tooling, rendering, studio/UI, education, tests, docs. The **walking
 skeleton** (`forward 100` end to end) is the M1→M2 integration spike that proves all seams before the
-tracks broaden. An **integration issue** per milestone (owned by `@orchestrator`) closes it once the
+tracks broaden. An **integration issue** per saga (owned by `@orchestrator`) closes it once the
 conformance suite is green.
 
-## 4. Continuous (post-M0)
+## 4. Continuous (the Maintenance saga, post-M0)
 
-Optional maintenance workflows (`.github/workflows/`, scheduled): nightly conformance + stability →
-auto-file issues on regressions; weekly docs/highlighter-vs-grammar drift check; new-issue triage
-into milestone tracks. These are additive and not on the critical path.
+The standing **Maintenance saga** holds continuous / cross-cutting work that isn't tied to a release
+saga; it has **no branch** and its work merges straight to `main`. Optional maintenance workflows
+(`.github/workflows/`, scheduled): nightly conformance + stability → auto-file issues on regressions;
+weekly docs/highlighter-vs-grammar drift check; new-issue triage into saga tracks. These are additive
+and not on the critical path.

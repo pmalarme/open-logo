@@ -45,7 +45,7 @@ sync with that manifest and (b) auto-applies path-derived labels to PRs.
   | `docs/**` | `agent:documentation`, `area:docs` |
 
 - Labeler is a **hint**, not the final word: it seeds `agent:*`/`area:*` from paths; `@product-owner`
-  triage still confirms exactly one `agent:*` + one `type:*` and sets the milestone.
+  triage still confirms exactly one `agent:*` + one `type:*` and links the native sub-issue parent.
 
 ## Rules
 

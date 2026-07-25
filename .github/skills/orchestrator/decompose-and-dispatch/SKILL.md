@@ -1,8 +1,8 @@
 ---
 name: decompose-and-dispatch
 description: >-
-  How @orchestrator turns a spec area or milestone into vertical-slice task packets, assigns a primary
-  owner, declares write-sets, and dispatches to the right agent. Use when planning a milestone, filing
+  How @orchestrator turns a spec area or saga into vertical-slice task packets, assigns a primary
+  owner, declares write-sets, and dispatches to the right agent. Use when planning a saga, filing
   issues, or coordinating parallel domain work. Owns integration + the Definition of Done gate.
 created: 2026-07-17T00:00
 updated: 2026-07-23T00:00
@@ -15,7 +15,7 @@ contracts agreed first. You write no feature code — you decompose, dispatch, a
 
 ## Procedure
 
-1. **Pick the milestone's profile set** from the spec DAG (`spec/conformance.md`) and confirm its
+1. **Pick the saga's profile set** from the spec DAG (`spec/conformance.md`) and confirm its
    dependency profiles are already conformant (entry criteria in `docs/delivery.md`).
 2. **Fix the shared contracts first.** If the slice needs new AST nodes, event types, `ol-*` codes, or
    token classes, open one serialized contract PR (owner-reviewed) before fanning out.
@@ -64,8 +64,8 @@ contracts agreed first. You write no feature code — you decompose, dispatch, a
      Never mark a slice "in flight" on the strength of a session id alone.
 6. **Integrate per story** with `integrate-and-merge`: **verify** the owner's attached non-author
    verdicts (≥2 — logic/spec reviewer + every QA expert; don't re-run the whole gate round-by-round), merge under delegated authority once CI is
-   green, then reconcile the board/milestone/branches/plan. Hold the **Definition of Done** gate
-   (`shared/definition-of-done`); an integration issue closes each milestone once conformance is
+   green, then reconcile the board/saga/branches/plan. Hold the **Definition of Done** gate
+   (`shared/definition-of-done`); an integration issue closes each saga once conformance is
    green across all domains.
 
 ## Critical rules
@@ -95,4 +95,4 @@ contracts agreed first. You write no feature code — you decompose, dispatch, a
 - [ ] Labels: `agent:*` + `profile:*` + `type:*`; dependencies noted.
 - [ ] Dispatched via one `kickoff` call with `mode: autopilot` **and** a prompt (never idle-then-message); ACK requested in the prompt.
 - [ ] Dispatched session verified **started** — ACK received (or, after re-kick, confirmed via `git rev-list`/`git status`; escalated to a human and left **blocked** if neither), not just created — before moving on.
-- [ ] Integration owner assigned; milestone exit = conformance green everywhere.
+- [ ] Integration owner assigned; saga exit = conformance green everywhere.

@@ -3,15 +3,17 @@
 - Status: Accepted
 - Date: 2026-07-17
 - Deciders: OpenLogo maintainer (@pmalarme)
-- Related: [ADR-0001](0001-tech-stack.md); details in [`../delivery.md`](../delivery.md) and
-  [`../architecture.md`](../architecture.md)
+- Related: [ADR-0001](0001-tech-stack.md); refined by
+  [ADR-0015](0015-sagas-branching-governance.md) (sagas, branching, governance gates); details in
+  [`../delivery.md`](../delivery.md) and [`../architecture.md`](../architecture.md)
 
 ## Context
 
 OpenLogo has several domains that evolve at different speeds — the language contract, the parser and
 **syntax highlighter**, the runtime, the turtle/rendering engine, the studio UI, and the education
 layer — but they must stay mutually coherent and provably conformant. We need a versioning, release,
-and milestone strategy that lets these domains be built **in parallel** without drifting apart.
+and **saga** (release-container) strategy that lets these domains be built **in parallel** without
+drifting apart.
 
 ## Decision
 
@@ -27,16 +29,19 @@ profile only when the conformance fixtures for that profile and its DAG dependen
 **release is gated by conformance.**
 
 **Domain interlock.** The **highlighter and tooling are pinned to the grammar/spec version**: any
-grammar or reserved-word change ships its matching highlighter + LSP update in the same milestone.
+grammar or reserved-word change ships its matching highlighter + LSP update in the same saga.
 The four shared contracts (AST, trace/events, `ol-*` diagnostics, token classes) are agreed
-**contract-first** each milestone, then domains build against them in parallel.
+**contract-first** each saga, then domains build against them in parallel.
 
-**Milestones** are **profile-based synchronization points** on the spec DAG (M0 Foundation → M1 Core
+**Sagas** are **profile-based synchronization points** on the spec DAG (M0 Foundation → M1 Core
 → **M2 Turtle & Rendering = minimal conformance / first release** → M3 Educational → M4 Data &
-Geometry → M5 Heritage·Sprites·Interaction & Events·Sound → M6 Modules·Localization·Tutor (AI)). A milestone
-completes when its profile conformance is green across **all** domains, not when one package finishes.
-Each milestone maps to a GitHub milestone; issues are one vertical slice each, labeled by owning agent
-and profile so parallel tracks pull independently.
+Geometry → M5 Heritage·Sprites·Interaction & Events·Sound → M6 Modules·Localization·Tutor (AI)), plus a
+standing **Maintenance** saga for continuous work. A saga completes when its profile conformance is
+green across **all** domains, not when one package finishes. **Sagas replace GitHub milestones**: each
+is a `type:saga` issue whose child epics and work issues attach as **native GitHub sub-issues**,
+labeled by owning agent and profile so parallel tracks pull independently. See
+[ADR-0015](0015-sagas-branching-governance.md) for the saga/branching/governance-gate model that
+refines this decision.
 
 ## Consequences
 
