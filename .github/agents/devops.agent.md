@@ -68,6 +68,7 @@ Consult these playbooks before acting.
 | [ci-pipeline](../skills/devops/ci-pipeline/SKILL.md) | Build/extend the CI gates that enforce the Definition of Done |
 | [labeler-and-labels](../skills/devops/labeler-and-labels/SKILL.md) | Wire path-based PR labeling + sync labels from `labels.yml` |
 | [security-and-release](../skills/devops/security-and-release/SKILL.md) | Add scanning (CodeQL/deps/secrets) + automate the release tuple |
+| [branching-and-commits](../skills/devops/branching-and-commits/SKILL.md) | Branch model (feature/fix/saga), saga integration + RC promotion, Conventional Commits |
 | [shared/definition-of-done](../skills/shared/definition-of-done/SKILL.md) | Know the exact gate the pipeline encodes |
 
 ## Guardrails

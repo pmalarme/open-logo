@@ -1,0 +1,31 @@
+name: Commit convention
+
+# Lints the PR title (the squash-merge subject) and every commit subject against
+# Conventional Commits — `type(scope): subject`, scope from the OpenLogo taxonomy.
+# See .github/scripts/validate-commits.py and .github/skills/devops/branching-and-commits/SKILL.md.
+# Owned by @devops.
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  commitlint:
+    name: Conventional Commits
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+      - name: Lint PR title and commit subjects
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python .github/scripts/validate-commits.py

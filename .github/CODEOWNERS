@@ -1,0 +1,14 @@
+# OpenLogo code ownership — GitHub requires listed owners to approve before merge.
+# This is the teeth behind the "maintainer-only, non-delegable" rule for spec/ and the
+# saga/spec governance surfaces. See .github/skills/shared/definition-of-done.md (merge
+# authority) and .github/skills/devops/branching-and-commits/SKILL.md.
+
+# Everything in the spec is maintainer-owned language/architecture governance ([spec]).
+/spec/                                  @pmalarme
+
+# The saga and spec issue templates define the maintainer-only governance surfaces.
+/.github/ISSUE_TEMPLATE/saga.yml        @pmalarme
+/.github/ISSUE_TEMPLATE/spec.yml        @pmalarme
+
+# Governance config itself (ownership + merge convention) stays maintainer-owned.
+/.github/CODEOWNERS                     @pmalarme
