@@ -57,8 +57,8 @@ Consult these playbooks before acting.
 | Skill | Use it to |
 |---|---|
 | [write-a-user-story](../skills/product-owner/write-a-user-story/SKILL.md) | Turn a spec area into epic → stories → Given/When/Then ACs |
-| [epics-and-milestones](../skills/product-owner/epics-and-milestones/SKILL.md) | Structure epics/stories/tasks and map them to profiles + milestones |
-| [github-project](../skills/product-owner/github-project/SKILL.md) | Create/manipulate the Project, milestones, and issues via `gh` |
+| [sagas-epics-and-issues](../skills/product-owner/sagas-epics-and-issues/SKILL.md) | Structure sagas → epics → issues (native sub-issues) and map them to profiles |
+| [github-project](../skills/product-owner/github-project/SKILL.md) | Create/manipulate the Project, sagas, and issues via `gh` |
 | [triage-and-label](../skills/product-owner/triage-and-label/SKILL.md) | Apply + maintain the label taxonomy (the labeler) |
 | [shared/spec-fidelity](../skills/shared/spec-fidelity/SKILL.md) | Use exact OpenLogo vocabulary + profile placement |
 | [shared/definition-of-done](../skills/shared/definition-of-done/SKILL.md) | Know when a story is truly complete |
