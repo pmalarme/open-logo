@@ -139,6 +139,44 @@ still fails after every retry, so a real regression is never masked); only test 
 unreadable report, or an anomalous fully-100 exit fail fast. See
 [`docs/adr/0014-deterministic-coverage-gate.md`](docs/adr/0014-deterministic-coverage-gate.md).
 
+## gh-aw bootstrap
+
+The repository uses [GitHub Agentic Workflows (`gh-aw`)](https://github.com/github/gh-aw). The
+pinned version is in **[`.github/aw/version`](.github/aw/version)** — the single authoritative
+source. To upgrade, edit that file (one line) and recompile all lock files with `gh-aw compile`.
+
+### Installing gh-aw in a restricted-network sandbox
+
+`gh extension install` and `go install` are both blocked in agent sandboxes
+(e.g. the GitHub Copilot coding-agent environment). The only path that works is a direct download
+of the prebuilt release binary:
+
+```bash
+GH_AW_VERSION="$(cat .github/aw/version)"
+curl -fsSL \
+  "https://github.com/github/gh-aw/releases/download/${GH_AW_VERSION}/linux-amd64" \
+  -o /usr/local/bin/gh-aw
+chmod +x /usr/local/bin/gh-aw
+gh-aw --version   # should print: gh aw version <version>
+```
+
+`release-assets.githubusercontent.com` (the CDN behind the GitHub releases redirect) is
+accessible in the sandbox; `sum.golang.org` and `api.github.com` are not required.
+
+The `copilot-setup-steps.yml` workflow uses this same curl pattern so CI and manual bootstrap
+steps stay consistent.
+
+### Compiling agentic workflows
+
+Agentic-workflow markdown files (`*.md` in `.github/workflows/`) must be compiled to lock files
+before running:
+
+```bash
+gh-aw compile   # or: /path/to/gh-aw compile
+```
+
+No network access is required for compilation.
+
 ## The agent team
 
 The specialized agents in [`.github/agents/`](.github/agents/) map to the packages above. In
