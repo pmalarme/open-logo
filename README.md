@@ -51,3 +51,22 @@ square draws on the Canvas. See [`packages/studio`](packages/studio) for details
 
 **Repo map:** see [`packages/README.md`](packages/README.md) for the package layout and
 [`docs/`](docs/) for architecture, ADRs, and delivery docs.
+
+## Agentic Workflows (gh-aw)
+
+The repository uses [GitHub Agentic Workflows (`gh-aw`)](https://github.com/github/gh-aw).
+The pinned version is in [`.github/aw/version`](.github/aw/version).
+
+**Bootstrap in a restricted-network sandbox** (agent sandboxes block `gh extension install` and
+`go install`; use the prebuilt binary instead):
+
+```bash
+GH_AW_VERSION="$(cat .github/aw/version)"
+curl -fsSL \
+  "https://github.com/github/gh-aw/releases/download/${GH_AW_VERSION}/linux-amd64" \
+  -o /usr/local/bin/gh-aw
+chmod +x /usr/local/bin/gh-aw
+gh-aw --version
+```
+
+See `AGENTS.md §gh-aw bootstrap` for details and the compile step.
