@@ -63,7 +63,10 @@ Both corrections must survive a future `gh aw init` re-run.
 byte-identical to the `gh aw init` output, keeping a future re-run diff-free, with the naming
 deviation and the `gh aw …` → `gh-aw …` substitution documented in `AGENTS.md` instead. The one
 exception is `.vscode/settings.json`, which is inside Prettier's scope and so is reformatted to keep
-`format:check` green.
+`format:check` green. A consequence of the non-`*.agent.md` name: `.github/scripts/validate-meta.py`
+globs `.github/agents/*.agent.md`, so this file's frontmatter is intentionally not covered by CI's
+agent frontmatter check (unlike the paired `SKILL.md`, which the `.github/skills/**/SKILL.md` glob
+does cover) — the naming deviation is deliberate, so the validator glob is not widened for it.
 
 ## Consequences
 

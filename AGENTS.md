@@ -220,7 +220,11 @@ deviate from the house conventions (`*.agent.md`, `skills/<owner>/<name>/`) — 
 byte-identical to the upstream output means a future `gh aw init` re-run produces no spurious
 diff. Do not hand-rename them, and read the agent file's command lines with one substitution: where
 it says `gh aw …`, run `gh-aw …` here, because the installer above deliberately does **not**
-register a `gh` extension (the skill file contains no such command lines).
+register a `gh` extension (the skill file contains no such command lines). One consequence of the
+`agentic-workflows.md` name: `.github/scripts/validate-meta.py` globs `.github/agents/*.agent.md`,
+so this file's frontmatter is intentionally not checked by CI's agent metadata validation (the
+paired `SKILL.md` is still covered, via `.github/skills/**/SKILL.md`) — see
+[ADR-0017](docs/adr/0017-gh-aw-toolchain-bootstrap.md) decision 4.
 
 `.github/mcp.json` is **not** committed as generated: besides launching `gh-aw mcp-server` rather
 than the `gh aw` extension, it declares the tool as `mcp-inspect`, whereas `gh aw init` emits
