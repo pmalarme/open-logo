@@ -58,8 +58,6 @@ from __future__ import annotations
 import os
 import sys
 
-import yaml
-
 MD_SUFFIX = ".md"
 LOCK_SUFFIX = ".lock.yml"
 
@@ -75,6 +73,61 @@ TRIGGER_KEY = "on"
 # README with frontmatter and an `on:` key is therefore never compiled, so demanding a lock file
 # for it would be an impossible-to-satisfy CI failure.
 EXCLUDED_MD_BASENAME = "readme.md"
+
+
+def read_lines(path: str) -> list[str] | None:
+    """Return `path`'s lines the way Go reads them, or None if it cannot be read.
+
+    Split on `\n` only — deliberately **not** `str.splitlines()`, which also splits on U+0085,
+    U+2028 and friends that Go's line scanning does not treat as line breaks. Mirroring Go here is
+    what lets one shared implementation classify a source identically to gh-aw. Read as plain
+    `utf-8`, never `utf-8-sig`: gh-aw does not strip a UTF-8 BOM (its delimiter test trims Unicode
+    whitespace, and U+FEFF is not whitespace), so a BOM-prefixed `---` is a file it silently
+    ignores; stripping the BOM here would demand a lock file no `gh-aw compile` can ever produce.
+    """
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            return handle.read().split("\n")
+    except OSError:
+        return None
+
+
+def is_delimiter(line: str | None) -> bool:
+    """Return True if `line` is a frontmatter delimiter — `---` with surrounding whitespace.
+
+    Mirrors gh-aw v0.83.1 exactly: `strings.TrimSpace(firstLine) == "---"` in pkg/cli/workflows.go
+    and `isFrontmatterDelimiterLine` in pkg/parser/frontmatter_content.go. So a padded ` ---` (or a
+    CRLF `---\r`, or one padded with U+00A0/U+0085) IS an opener and the source IS compiled;
+    treating it as a plain doc would fail *open*. Python's `str.strip()` covers the same characters
+    as Go's `unicode.IsSpace`, U+FEFF excluded from both.
+    """
+    return line is not None and line.strip() == "---"
+
+
+def has_compilable_source(directory: str) -> bool:
+    """Return True if the directory holds at least one `.md` gh-aw would try to compile.
+
+    This is the *opener-only* question the `workflows-compile` job asks before invoking
+    `gh-aw compile`, which exits 1 with "no workflow markdown files found" when a directory holds
+    `.md` files but none with a frontmatter opener. Answering it here rather than re-deriving it in
+    shell keeps one implementation of gh-aw's rules: a divergence between the two probes could let
+    a stale or hand-edited `.lock.yml` skip drift detection while the pairing check passed. It
+    needs no YAML parse — and therefore no PyPI download — so the compile job keeps its promise of
+    no network beyond the pinned gh-aw release asset.
+    """
+    if not os.path.isdir(directory):
+        return False
+
+    for name in sorted(os.listdir(directory)):
+        path = os.path.join(directory, name)
+        if not os.path.isfile(path) or not name.endswith(MD_SUFFIX):
+            continue
+        if name.lower() == EXCLUDED_MD_BASENAME:
+            continue
+        lines = read_lines(path)
+        if lines and is_delimiter(lines[0]):
+            return True
+    return False
 
 
 def requires_lock(path: str) -> bool:
@@ -99,42 +152,23 @@ def requires_lock(path: str) -> bool:
     and fixable; a silent skip of a file gh-aw actually compiles and runs is not. Empty
     frontmatter parses to `None`, which is unambiguously "no trigger", so it needs no lock.
 
-    Two known, harmless divergences from gh-aw, both requiring an invisible control character as
-    the first character of the opener line and neither able to smuggle an unreviewed lock file
-    through: a U+00A0 opener (` ---` padded with a non-breaking space) is compilable for gh-aw and
-    for this guard — which fails **closed**, going red in `meta` — but the `workflows-compile`
-    shell probe's `[[:space:]]` does not cover U+00A0 in the C locale, so the drift backstop skips
-    it; a U+0085 opener is skipped by both probes though gh-aw compiles it, so such a workflow
-    would simply never compile (and any lock file committed for it is still caught by the lock-side
-    orphan check). Tracked in issue #649 rather than fixed by re-implementing YAML in `sh`.
-
-    Read as plain `utf-8`, **not** `utf-8-sig`: gh-aw does not strip a UTF-8 BOM either (its
-    delimiter test trims Unicode whitespace, and U+FEFF is not whitespace), so a BOM-prefixed
-    `---` is a file gh-aw silently ignores. Stripping the BOM here would demand a lock file no
-    `gh-aw compile` can ever produce.
+    Delimiters and file reading follow `is_delimiter()` / `read_lines()`, which mirror gh-aw's Go
+    rules exactly, so the compile job's `--has-sources` probe and this pairing check can never
+    disagree about whether a source is compilable.
     """
     if os.path.basename(path).lower() == EXCLUDED_MD_BASENAME:
         return False
 
-    try:
-        with open(path, "r", encoding="utf-8") as handle:
-            lines = handle.read().splitlines()
-    except OSError:
+    lines = read_lines(path)
+    if lines is None:
         return False
 
-    # A delimiter is `---` with optional surrounding whitespace, matching gh-aw exactly: its file
-    # discovery tests `strings.TrimSpace(firstLine) == "---"` (pkg/cli/workflows.go) and its
-    # extractor's `isFrontmatterDelimiterLine` trims the same way (pkg/parser/
-    # frontmatter_content.go, v0.83.1). So a whitespace-padded ` ---` IS a frontmatter opener for
-    # gh-aw; treating it as a plain doc here would fail *open* — gh-aw would compile a source this
-    # guard never demanded a lock for. `str.strip()` mirrors Go's `strings.TrimSpace` for the ASCII
-    # whitespace at issue, and leaves a U+FEFF BOM in place exactly as Go does (see the docstring).
-    if not lines or lines[0].strip() != "---":
+    if not is_delimiter(lines[0] if lines else None):
         return False
 
     closing_index = None
     for index in range(1, len(lines)):
-        if lines[index].strip() == "---":
+        if is_delimiter(lines[index]):
             closing_index = index
             break
 
@@ -147,6 +181,11 @@ def requires_lock(path: str) -> bool:
     # (pkg/parser/frontmatter_content.go `parseFrontmatterYAML`); mirror it so a source it parses
     # is not misread as unparsable here.
     block = "\n".join(frontmatter_lines).replace("\u00a0", " ")
+
+    # Imported here, not at module scope, so `--has-sources` (the compile job's opener-only probe)
+    # runs on a bare `python3` with no PyPI download; only the pairing check needs pyyaml, and it
+    # runs in the `meta` job, which installs it.
+    import yaml
 
     try:
         frontmatter = yaml.load(block, Loader=yaml.BaseLoader)
@@ -225,7 +264,22 @@ def find_problems(directory: str) -> list[str]:
 
 
 def main(argv: list[str]) -> int:
-    directory = argv[1] if len(argv) > 1 else os.path.join(".github", "workflows")
+    args = argv[1:]
+    # `--has-sources` answers only "would gh-aw find anything to compile here?", printing `true` or
+    # `false` and exiting 0 either way — the `workflows-compile` job's early-exit probe. Sharing
+    # this module's rules is the point: a second, hand-rolled shell implementation of the same
+    # question could disagree, and a source the pairing check demands a lock for but the probe
+    # skips would let a stale or hand-edited `.lock.yml` slip past the recompile-and-diff backstop.
+    has_sources_mode = "--has-sources" in args
+    if has_sources_mode:
+        args = [arg for arg in args if arg != "--has-sources"]
+
+    directory = args[0] if args else os.path.join(".github", "workflows")
+
+    if has_sources_mode:
+        print("true" if has_compilable_source(directory) else "false")
+        return 0
+
     if not os.path.isdir(directory):
         print(f"{directory} not found — nothing to check.")
         return 0

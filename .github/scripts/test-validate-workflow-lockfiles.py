@@ -130,8 +130,9 @@ with tempfile.TemporaryDirectory() as directory:
         )
 
     # CRLF line endings must not change any verdict: `.gitattributes` pins these sources to LF,
-    # but a Windows client with core.autocrlf=true can still produce them locally, and the ci.yml
-    # probe strips a trailing `\r` for the same reason. `str.splitlines()` handles it here.
+    # but a Windows client with core.autocrlf=true can still produce them locally. `read_lines()`
+    # splits on "\n" only, so the trailing `\r` is removed by the delimiter `strip()` — the same
+    # trim Go's `strings.TrimSpace` applies.
     crlf_compilable = write(directory, "crlf-compilable.md", "---\r\non: push\r\n---\r\n\r\nBody.\r\n")
     if not guard.requires_lock(crlf_compilable):
         failures.append("requires_lock: a CRLF-encoded compilable source must still be True")
@@ -234,6 +235,59 @@ with tempfile.TemporaryDirectory() as directory:
         failures.append(
             "requires_lock: a non-breaking space in the frontmatter must be normalized like "
             "gh-aw does — expected True"
+        )
+
+    # Go's `strings.TrimSpace` uses `unicode.IsSpace`, which covers U+00A0 (non-breaking space)
+    # and U+0085 (next line) — so gh-aw treats an opener padded with either as a real delimiter
+    # and compiles the file. Python's `str.strip()` covers exactly the same characters, and
+    # `read_lines()` splits on "\n" only (never `str.splitlines()`, which would additionally break
+    # the line at U+0085 and hide the opener). Both must therefore be True, and the compile job's
+    # `--has-sources` probe — the same code — agrees, so no exotic opener can pair cleanly in the
+    # guard while silently skipping the recompile-and-diff drift check.
+    nbsp_opener = write(
+        directory, "nbsp-opener.md", "\u00a0---\non: push\n---\n\nBody.\n"
+    )
+    if not guard.requires_lock(nbsp_opener):
+        failures.append(
+            "requires_lock: a U+00A0-padded opener is trimmed to `---` by Go's TrimSpace, so "
+            "gh-aw compiles the file — expected True"
+        )
+
+    nel_opener = write(directory, "nel-opener.md", "\u0085---\non: push\n---\n\nBody.\n")
+    if not guard.requires_lock(nel_opener):
+        failures.append(
+            "requires_lock: a U+0085-padded opener is trimmed to `---` by Go's TrimSpace, and "
+            "Go does not split lines there — expected True"
+        )
+
+    # --- The compile job's opener-only probe: same rules, no YAML ------------------------------
+    #
+    # `has_compilable_source()` answers "would gh-aw find anything to compile here?" without
+    # parsing YAML (so the `workflows-compile` job needs no pyyaml, hence no network). It must
+    # agree with `requires_lock()`'s opener rules: README excluded, opener trimmed like Go.
+    probe_dir = os.path.join(directory, "probe-empty")
+    os.makedirs(probe_dir, exist_ok=True)
+    write(probe_dir, "README.md", "---\non: push\n---\n\nDocs.\n")
+    write(probe_dir, "notes.md", "Just prose, no frontmatter.\n")
+    if guard.has_compilable_source(probe_dir):
+        failures.append(
+            "has_compilable_source: a README with frontmatter plus a plain doc is what gh-aw "
+            "calls an empty directory — expected False"
+        )
+
+    probe_dir_with_source = os.path.join(directory, "probe-source")
+    os.makedirs(probe_dir_with_source, exist_ok=True)
+    write(probe_dir_with_source, "README.md", "---\non: push\n---\n\nDocs.\n")
+    write(probe_dir_with_source, "flow.md", " ---\n{tools: {}}\n ---\n\nBody.\n")
+    if not guard.has_compilable_source(probe_dir_with_source):
+        failures.append(
+            "has_compilable_source: a padded-opener source (even a trigger-less fragment, which "
+            "gh-aw still discovers) means gh-aw has something to compile — expected True"
+        )
+
+    if guard.has_compilable_source(os.path.join(directory, "does-not-exist")):
+        failures.append(
+            "has_compilable_source: a missing directory has nothing to compile — expected False"
         )
 
     # --- Exact agreement with gh-aw on YAML-1.1 boolean-ish keys -------------------------------

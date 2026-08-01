@@ -104,12 +104,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      # Deliberately no Python here: the source/lock-file pairing guard (which needs pyyaml, and
-      # therefore a PyPI download) runs once, in the `meta` job this job already `needs`, so an
-      # orphan in either direction is caught before this job starts — and this job keeps its
-      # promise of no network beyond the pinned gh-aw release asset. Pairing catches what
-      # `gh-aw compile` cannot see (it never deletes a lock whose source is gone, and has nothing
-      # to compile for a source that was never compiled); this job catches content drift.
+      # No pyyaml here: the full source/lock-file pairing guard (which needs it, and therefore a
+      # PyPI download) runs once, in the `meta` job this job already `needs`, so an orphan in
+      # either direction is caught before this job starts. Pairing catches what `gh-aw compile`
+      # cannot see (it never deletes a lock whose source is gone, and has nothing to compile for a
+      # source that was never compiled); this job catches content drift. The `--has-sources` probe
+      # below is the same module in its opener-only mode, which parses no YAML and so runs on the
+      # runner's preinstalled `python3` — keeping this job's promise of no network beyond the
+      # pinned gh-aw release asset.
       - name: Install gh-aw (pinned, checksum-verified — see .github/aw/install.sh)
         env:
           GH_AW_INSTALL_DIR: ${{ runner.temp }}/gh-aw-bin
@@ -122,35 +124,18 @@ jobs:
         # required to also catch a .md source whose .lock.yml was never committed at all: an
         # untracked new file is invisible to a plain `git diff`, but a real gap in what CI runs.
         #
-        # The early-exit guard below mirrors gh-aw's own definition of "nothing to compile",
-        # verified empirically against gh-aw v0.83.1: it exits 1 with "no workflow markdown
-        # files found ... (workflow files must start with a frontmatter opener on the first
-        # line)" whenever .github/workflows/ contains *some* .md file(s) but none with a
-        # frontmatter opener as the first line (e.g. only a README.md). A bare
-        # `ls .github/workflows/*.md` check would miss that case and let `gh-aw compile` run
-        # into that exit-1 spuriously, so this checks for a frontmatter opener specifically, not
-        # merely "some .md file exists". `tr -d '\r'` strips a trailing CR so a CRLF-encoded .md
-        # (which gh-aw compiles just fine, and which validate-workflow-lockfiles.py's
-        # requires_lock() already handles correctly via splitlines()) is not missed here just
-        # because `head -n 1` alone would otherwise compare `---\r` against `---` and never match.
+        # The early-exit probe below asks `validate-workflow-lockfiles.py --has-sources` rather
+        # than re-deriving gh-aw's rules in shell. gh-aw v0.83.1 exits 1 with "no workflow
+        # markdown files found ... (workflow files must start with a frontmatter opener on the
+        # first line)" whenever .github/workflows/ holds *some* .md file(s) but none gh-aw would
+        # compile (e.g. only a README.md), so a bare `ls .github/workflows/*.md` check would run
+        # into that exit-1 spuriously. Sharing one implementation with the pairing guard is what
+        # makes the two agree by construction: a hand-rolled probe that classified even one exotic
+        # opener differently would skip this drift check for a source the pairing guard is happy
+        # with, letting a stale or hand-edited .lock.yml through.
         run: |
-          has_frontmatter=false
-          for f in .github/workflows/*.md; do
-            [ -e "${f}" ] || continue
-            # gh-aw excludes README.md by name, case-insensitively, before frontmatter detection
-            # (pkg/cli/workflows.go, v0.83.1) — so must this probe, or a README with frontmatter
-            # would make it call `gh-aw compile` on a directory gh-aw considers empty.
-            case "$(basename "${f}" | tr '[:upper:]' '[:lower:]')" in
-              readme.md) continue ;;
-            esac
-            first_line="$(head -n 1 "${f}" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
-            if [ "${first_line}" = "---" ]; then
-              has_frontmatter=true
-              break
-            fi
-          done
-          if [ "${has_frontmatter}" = false ]; then
-            echo "No agentic-workflow sources with a frontmatter opener (.github/workflows/*.md starting with '---') — nothing to compile."
+          if [ "$(python3 .github/scripts/validate-workflow-lockfiles.py --has-sources)" != "true" ]; then
+            echo "No agentic-workflow sources gh-aw would compile (.github/workflows/*.md with a frontmatter opener) — nothing to compile."
             exit 0
           fi
           gh-aw compile

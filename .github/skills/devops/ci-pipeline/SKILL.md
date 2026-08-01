@@ -48,11 +48,14 @@ a hand-edited or stale lock file.
   `validate-workflow-lockfiles.py`, which parses the frontmatter as YAML — with `yaml.BaseLoader`,
   so key spellings are compared exactly as gh-aw's Go YAML parser sees them — and so classifies
   block-style and flow-style frontmatter through the same code path; anything it cannot classify
-  fails **closed**, i.e. demands a lock). The `---` delimiter match **mirrors gh-aw** on both
-  sides — the guard and the compile job's shell probe both trim surrounding whitespace (so a
-  padded ` ---`, or a CRLF line ending, is still an opener, exactly as
-  `strings.TrimSpace(firstLine) == "---"` in gh-aw v0.83.1) and both leave a UTF-8 BOM in place
-  (Go does not treat U+FEFF as whitespace, so gh-aw skips a BOM-prefixed source and so must we).
+  fails **closed**, i.e. demands a lock). The `---` delimiter match **mirrors gh-aw**: the line is
+  compared with surrounding whitespace trimmed (so a padded ` ---`, a CRLF line ending, or one
+  padded with U+00A0/U+0085 is still an opener, exactly as `strings.TrimSpace(firstLine) == "---"`
+  in gh-aw v0.83.1), while a UTF-8 BOM is left in place (Go does not treat U+FEFF as whitespace,
+  so gh-aw skips a BOM-prefixed source and so must we). The compile job's early-exit probe is the
+  **same module** (`--has-sources`, opener-only, no YAML and therefore no PyPI download) rather
+  than a second implementation in shell — so the two can never disagree, and no exotic opener can
+  pair cleanly in the guard while silently skipping the recompile-and-diff drift check.
   Mirroring the compiler is the point: a stricter rule fails *open* (gh-aw compiles a source the
   guard never demanded a lock for) and a looser one demands a lock no compile can produce.
   `gh-aw compile` never deletes an orphaned lock file and has
@@ -62,9 +65,11 @@ a hand-edited or stale lock file.
   `dorny/paths-filter` needs to read a PR's changed-file list; without it the filter step 403s and
   every job gated on its outputs (`workflows-compile`, `studio-visual`) never runs. Scoped to the
   one job that needs it, so the rest of the pipeline keeps the least-privilege default.
-- The `workflows-compile` job deliberately does **not** re-run the pairing guard: it `needs: meta`,
-  which already ran it, and skipping it keeps the job's "no network beyond the pinned release
-  asset" promise (the guard needs `pyyaml`, i.e. a PyPI download).
+- The `workflows-compile` job deliberately does **not** re-run the full pairing guard: it
+  `needs: meta`, which already ran it, and skipping it keeps the job's "no network beyond the
+  pinned release asset" promise (the pairing check needs `pyyaml`, i.e. a PyPI download). It does
+  call the same script's `--has-sources` mode, which parses no YAML and runs on the runner's
+  preinstalled `python3`.
 - The path-scoped `workflows-compile` job installs the **pinned** `gh-aw` via
   `.github/aw/install.sh` (checksum-verified release download — no `gh extension install`, no
   network beyond the release CDN, no secret), reruns `gh-aw compile`, then stages everything under
