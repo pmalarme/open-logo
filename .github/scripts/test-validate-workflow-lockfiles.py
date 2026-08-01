@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """Self-test for the workflow lock-file pairing guard in validate-workflow-lockfiles.py.
 
-Runs in the CI `workflows-compile` job alongside the guard itself. Stdlib only; never touches
-the network. Exits non-zero on any unexpected result.
+Runs in CI in **both** the always-on `meta` job and the path-scoped `workflows-compile` job,
+alongside the guard itself. Stdlib only; never touches the network. Exits non-zero on any
+unexpected result.
 
 Locks the edge cases the guard exists for: a compilable `.md` source with no compiled lock, a
-`.lock.yml` with no source (orphaned), an empty directory (today's actual repo state — must pass
-cleanly, not silently skip forever), a directory that does not exist at all, and — per the
-gh-aw v0.83.1 compile semantics `requires_lock()` approximates (see that function's docstring) —
+`.lock.yml` with no source (orphaned), a `.lock.yml` whose source still exists but is no longer
+compilable (stale — nothing will recompile it), an empty directory (today's actual repo state —
+must pass cleanly, not silently skip forever), a directory that does not exist at all, and — per
+the gh-aw v0.83.1 compile semantics `requires_lock()` approximates (see that function's
+docstring) —
 every shape of `.md` that must NOT be treated as needing a lock file: no frontmatter opener at
 all, frontmatter with no top-level `on:` trigger, a subdirectory fragment, `on:` appearing only in
 the markdown body (after the closing `---`), and `on:` appearing only indented/nested under
@@ -97,6 +100,28 @@ with tempfile.TemporaryDirectory() as directory:
             "requires_lock: an unterminated frontmatter block should still be scanned "
             "best-effort and find the top-level `on:` it contains"
         )
+
+    # --- R2 follow-up: the frontmatter opener is matched EXACTLY, like gh-aw and like the
+    # `workflows-compile` job's shell probe in ci.yml. A whitespace-padded ` ---` is a file gh-aw
+    # silently ignores; accepting it here would make the two probes disagree, which is the real
+    # hazard (the guard could demand a lock for a file the compile job then never recompiles).
+    padded_opener = write(directory, "padded-opener.md", " ---\non: push\n---\n\nBody.\n")
+    if guard.requires_lock(padded_opener):
+        failures.append(
+            "requires_lock: a whitespace-padded ` ---` opener is not a frontmatter opener for "
+            "gh-aw (nor for the ci.yml shell probe) — expected False"
+        )
+
+    # CRLF line endings must not change any verdict: `.gitattributes` pins these sources to LF,
+    # but a Windows client with core.autocrlf=true can still produce them locally, and the ci.yml
+    # probe strips a trailing `\r` for the same reason. `str.splitlines()` handles it here.
+    crlf_compilable = write(directory, "crlf-compilable.md", "---\r\non: push\r\n---\r\n\r\nBody.\r\n")
+    if not guard.requires_lock(crlf_compilable):
+        failures.append("requires_lock: a CRLF-encoded compilable source must still be True")
+
+    crlf_fragment = write(directory, "crlf-fragment.md", "---\r\ntools:\r\n  bash: true\r\n---\r\n")
+    if guard.requires_lock(crlf_fragment):
+        failures.append("requires_lock: a CRLF-encoded `on:`-less fragment must still be False")
 
     # --- R1 follow-up: additional top-level `on:` shapes verified against gh-aw v0.83.1 --------
 
@@ -220,6 +245,32 @@ with tempfile.TemporaryDirectory() as directory:
     if guard.main(["validate-workflow-lockfiles.py", directory]) != 1:
         failures.append("main: an orphaned .lock.yml should exit 1")
     os.remove(os.path.join(directory, "ghost.lock.yml"))
+
+    # --- R2 follow-up: a lock whose source still EXISTS but is no longer compilable is just as
+    # stale as one whose source was deleted. `gh-aw compile` skips the demoted source and never
+    # deletes the lock, so the executable YAML keeps running with nothing recompiling it — a
+    # pairing check that accepted any .md of the same basename would fail open here.
+    write(directory, "demoted.md", "---\nname: demoted to a fragment\n---\n\nBody.\n")
+    write(directory, "demoted.lock.yml")
+    problems = guard.find_problems(directory)
+    if not any(
+        "demoted.lock.yml exists but demoted.md is not a workflow gh-aw compiles" in problem
+        for problem in problems
+    ):
+        failures.append(f"stale lock (source demoted): expected a problem, got {problems!r}")
+    if guard.main(["validate-workflow-lockfiles.py", directory]) != 1:
+        failures.append("main: a lock whose source is no longer compilable should exit 1")
+    os.remove(os.path.join(directory, "demoted.md"))
+    os.remove(os.path.join(directory, "demoted.lock.yml"))
+
+    # A CRLF-encoded pair still pairs cleanly end to end (guard-level regression lock for the
+    # `.gitattributes` LF pin and the ci.yml `tr -d '\r'` probe).
+    write(directory, "crlf.md", "---\r\non: push\r\n---\r\n\r\nBody.\r\n")
+    write(directory, "crlf.lock.yml")
+    if guard.find_problems(directory) != []:
+        failures.append("CRLF pair: expected no problems")
+    os.remove(os.path.join(directory, "crlf.md"))
+    os.remove(os.path.join(directory, "crlf.lock.yml"))
 
     # Non-workflow files (e.g. hand-written *.yml) must never be mistaken for a lock file: only
     # the exact ".lock.yml" suffix counts, not any file ending in ".yml".

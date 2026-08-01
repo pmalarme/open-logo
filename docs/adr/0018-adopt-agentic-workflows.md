@@ -88,17 +88,21 @@ real file backs it.
   notes, the branch ruleset's "Require review from Code Owners" setting is a GitHub setting, not
   something visible or verifiable from the repository content itself — CODEOWNERS "only has teeth"
   while that setting stays on; if it were ever turned off, this rule would silently become advisory.
-- **Enforced — third-party actions inside generated lock files are SHA-pinned.** Verified
-  empirically against the pinned gh-aw v0.83.1: `gh-aw compile`'s output SHA-pins third-party
-  actions by default (e.g. `actions/checkout@9c091bb2…` with the version as a trailing comment),
-  so this guardrail is a property of the toolchain itself, not something this repository has to
-  configure — and its continued truth is what the `workflows-compile` compile-drift gate (issue
-  #597, landed) enforces artifact-by-artifact on every PR. The one exception is gh-aw's own setup
-  action, `github/gh-aw-actions/setup`, which the compiler pins by version tag (`@v0.83.1`,
-  tracking `.github/aw/version` — ADR-0017) rather than by SHA; hand-written workflows elsewhere in
-  this repository (`ci.yml`, `codeql.yml`, etc.) also still pin by major version tag (`@v7`), not
-  SHA — see [`workflows.instructions.md`](../../.github/instructions/workflows.instructions.md).
-  (Previously listed here as aspirational under **issue #604**; corrected once actually verified.)
+- **Enforced today, by the pinned toolchain — third-party actions inside generated lock files are
+  SHA-pinned.** Verified empirically against the pinned gh-aw v0.83.1: `gh-aw compile`'s output
+  SHA-pins third-party actions by default (e.g. `actions/checkout@9c091bb2…` with the version as a
+  trailing comment), so this is a property of the compiler at the version we pin, not something
+  this repository configures. Note precisely what the `workflows-compile` gate (issue #597, landed)
+  does and does not add here: it proves each committed `.lock.yml` is exactly what the pinned
+  compiler produces, so a *hand-edited* lock that swapped a SHA for a tag goes red — but it cannot
+  prove a *future* gh-aw version keeps SHA-pinning, since output that stopped pinning would still
+  match its own compiler. Re-verify this property when bumping `.github/aw/version`; validating
+  action pins in the lock files independently of the compiler is tracked in **issue #604**. The one
+  known exception is gh-aw's own setup action, `github/gh-aw-actions/setup`, which the compiler
+  pins by version tag (`@v0.83.1`, tracking `.github/aw/version` — ADR-0017) rather than by SHA;
+  hand-written workflows elsewhere in this repository (`ci.yml`, `codeql.yml`, etc.) also still pin
+  by major version tag (`@v7`), not SHA — see
+  [`workflows.instructions.md`](../../.github/instructions/workflows.instructions.md).
 - **Aspirational — read-only by default, writes only through sanitized `safe-outputs`.** `gh-aw`
   ships a `safe-outputs` mechanism (structured, sanitized proposals — e.g. "open this issue," "post
   this comment" — turned into real GitHub API calls by a trusted post-processing step, rather than
@@ -144,8 +148,11 @@ in this repository, with no special exception:
   and an agentic workflow is not a loophole around it.
 
 In short: whatever an agentic workflow produces — an issue, a PR, a comment, a report — is a
-*proposal*. A human (or the review-gate-verified agent process the maintainer already trusts for
-that surface) decides whether it lands.
+*proposal*. **A human decides whether it lands.** Team instructions §5 lets the maintainer delegate
+merge *execution* to `@orchestrator` once an independent, non-author review gate has passed and
+required CI is green — that is delegated execution of a merge the humans' own rules already
+authorize, never delegated *disposition*; and `[spec]`/`[saga]` stay maintainer-only and
+non-delegable regardless.
 
 ## Kill-switch
 

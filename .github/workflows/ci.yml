@@ -16,6 +16,14 @@ jobs:
   meta:
     name: Meta (labels, issue forms, workflows)
     runs-on: ubuntu-latest
+    # dorny/paths-filter (the `filter` step below) reads the changed-file list from the pull
+    # request via the REST API, which needs `pull-requests: read` on top of the workflow-wide
+    # `contents: read`; without it the step 403s on PRs and this job — and everything gated on
+    # its outputs — fails before running. Scoped to this job rather than raised workflow-wide so
+    # every other job keeps the least-privilege default.
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       has_toolchain: ${{ steps.detect.outputs.has_toolchain }}
       studio_changed: ${{ steps.filter.outputs.studio }}
@@ -87,9 +95,10 @@ jobs:
     name: Agentic workflow compile is clean (gh-aw)
     # Issue #597: what runs in Actions must be exactly what `gh-aw compile` produces from the
     # reviewed .md source, never a hand-edited or stale .lock.yml. Path-scoped (via `meta`'s
-    # `filter` step) so this only runs on PRs that actually touch workflow sources/locks, the
-    # gh-aw pin, or its installer — it is cheap, but the pinned-binary download still needs
-    # network access to the release CDN, so it does not run on every unrelated PR.
+    # `filter` step) so this only runs on the PRs — and pushes to `main` — that actually touch
+    # workflow sources/locks, the gh-aw pin, its installer, or the pairing-guard scripts; it is
+    # cheap, but the pinned-binary download still needs network access to the release CDN, so it
+    # does not run on every unrelated change.
     needs: meta
     if: ${{ needs.meta.outputs.workflows_changed == 'true' }}
     runs-on: ubuntu-latest

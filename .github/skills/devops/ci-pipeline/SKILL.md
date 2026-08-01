@@ -18,7 +18,7 @@ Every merge to `main` must pass the same gates. This skill is how you wire and e
 | Gate | Runs | When |
 |---|---|---|
 | meta | markdown links, YAML lint (issue forms, labels, workflows), spec-example presence, gh-aw `.md`/`.lock.yml` pairing (orphan guard, scoped to compilable sources) | always |
-| **workflows-compile** | pinned `gh-aw compile` on every agentic-workflow source, fails if `git status` reports any drift (issue #597) | PRs touching `.github/workflows/**` or `.github/aw/**` |
+| **workflows-compile** | pinned `gh-aw compile` on every agentic-workflow source, fails if `git status` reports any drift (issue #597) | PRs (and pushes to `main`) touching `.github/workflows/**`, `.github/aw/**`, or the pairing-guard scripts |
 | build + type-check | `tsc -b` across project references (TS7, strict) | when `package.json` exists |
 | lint + format | Biome (lint) + Prettier (format) + OpenLogo style-lint | when `package.json` exists |
 | unit | package unit tests | when `package.json` exists |
@@ -33,16 +33,26 @@ a hand-edited or stale lock file.
 
 - The always-on `meta` job runs `.github/scripts/validate-workflow-lockfiles.py` (self-tested by
   its `test-validate-workflow-lockfiles.py` pair, the same convention as
-  `validate-lockfile-registry.py`) to catch **orphans**: a `.lock.yml` with no matching `.md`, or a
-  `.md` gh-aw would actually compile with no `.lock.yml` yet. Only a `.md` whose first line is a
-  frontmatter opener (`---`) *and* whose frontmatter declares a top-level `on:` trigger is treated
+  `validate-lockfile-registry.py`) to catch **orphans**: a `.lock.yml` with no matching `.md`, a
+  `.lock.yml` whose `.md` still exists but is no longer a workflow gh-aw compiles (its top-level
+  `on:` trigger was removed, so nothing will ever recompile the lock — just as stale as a deleted
+  source, and reported with its own message), or a
+  `.md` gh-aw would actually compile with no `.lock.yml` yet. Only a `.md` whose first line is
+  exactly a frontmatter opener (`---`) *and* whose frontmatter declares a top-level `on:` trigger
+  is treated
   as requiring a lock file — verified empirically against gh-aw v0.83.1: a plain doc (e.g. a
   `README.md` dropped into `.github/workflows/`), a frontmatter-only import fragment with no
   `on:`, and anything under a subdirectory (e.g. `shared/`) are all files gh-aw itself never
   compiles, so the guard must not demand a lock file for them either (see `requires_lock()` in
-  `validate-workflow-lockfiles.py`). `gh-aw compile` never deletes an orphaned lock file and has
+  `validate-workflow-lockfiles.py`). The opener match is **exact** on both sides — the guard and
+  the compile job's shell probe — so a whitespace-padded ` ---` cannot make the two disagree.
+  `gh-aw compile` never deletes an orphaned lock file and has
   nothing to compile for an uncompiled source, so this check runs *before* compiling, on the
   committed tree.
+- `meta` declares job-level `permissions: contents: read` **plus `pull-requests: read`**, which
+  `dorny/paths-filter` needs to read a PR's changed-file list; without it the filter step 403s and
+  every job gated on its outputs (`workflows-compile`, `studio-visual`) never runs. Scoped to the
+  one job that needs it, so the rest of the pipeline keeps the least-privilege default.
 - The path-scoped `workflows-compile` job installs the **pinned** `gh-aw` via
   `.github/aw/install.sh` (checksum-verified release download — no `gh extension install`, no
   network beyond the release CDN, no secret), reruns `gh-aw compile`, then stages everything under

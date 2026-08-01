@@ -42,9 +42,10 @@ added without ever being compiled. Both are silent otherwise: an orphaned `*.loc
 matching `*.md` still runs in Actions even though nobody can review the source that produced it,
 and a compilable `*.md` with no `*.lock.yml` never ran at all. This script closes that gap by
 checking the two file sets pair up 1:1 — for the subset of `.md` files gh-aw would actually
-compile — before `gh-aw compile` ever runs. The orphan direction (`*.lock.yml` with no matching
-`*.md`) is unconditional: any `.md` with that basename counts as its source, compilable or not,
-since a lock file cannot exist without something having once compiled it.
+compile — before `gh-aw compile` ever runs. A `*.lock.yml` is reported whenever its `*.md` is
+missing **or** is no longer a file gh-aw compiles (its top-level `on:` trigger was removed,
+demoting it to an importable fragment): both leave executable YAML that nothing recompiles, so
+drift in it would never surface.
 
 Stdlib only; never touches the network — deliberately does not import `pyyaml` (the `meta` job
 happens to install it for other checks, but a minimal frontmatter scan is simpler and enough here;
@@ -111,12 +112,17 @@ def requires_lock(path: str) -> bool:
     except OSError:
         return False
 
-    if not lines or lines[0].strip() != "---":
+    # Exact `---`, not a stripped/whitespace-padded match: gh-aw's own frontmatter-opener test is
+    # exact, so ` ---` is a file it silently ignores. Accepting it here would exempt nothing (the
+    # file needs no lock either way) but *disagreeing* with the ci.yml shell probe — which is also
+    # exact — is the real hazard, so both sides use the same rule. `str.splitlines()` already
+    # normalizes a CRLF line ending, so no trailing `\r` survives to compare against.
+    if not lines or lines[0] != "---":
         return False
 
     closing_index = None
     for index in range(1, len(lines)):
-        if lines[index].strip() == "---":
+        if lines[index] == "---":
             closing_index = index
             break
 
@@ -162,8 +168,12 @@ def find_problems(directory: str) -> list[str]:
     """Return a list of actionable error messages for unpaired `.md`/`.lock.yml` files.
 
     Empty means every `.md` source gh-aw would actually compile has exactly one compiled
-    `.lock.yml`, and every `.lock.yml` has exactly one `.md` file of the same basename (compilable
-    or not — see the module docstring for why the orphan direction stays unconditional).
+    `.lock.yml`, and every `.lock.yml` is backed by a `.md` that gh-aw would actually *recompile*.
+    A lock whose source exists but is no longer compilable (its top-level `on:` trigger was
+    removed, turning it into an importable fragment) is just as stale as one whose source was
+    deleted outright: `gh-aw compile` skips the source and never deletes the lock, so the
+    orphaned YAML keeps running with nothing recompiling or reviewing it. Both cases are reported,
+    with a message naming the actual cause.
     """
     all_md_ids = workflow_ids(directory, MD_SUFFIX)
     compilable_md_ids = workflow_ids(directory, MD_SUFFIX, predicate=requires_lock)
@@ -178,12 +188,21 @@ def find_problems(directory: str) -> list[str]:
             f"git add .github/workflows/{workflow_id}.lock.yml"
         )
 
-    for workflow_id in sorted(lock_ids - all_md_ids):
-        problems.append(
-            f"{workflow_id}.lock.yml has no source {workflow_id}.md (orphaned compiled "
-            f"workflow). Fix: restore .github/workflows/{workflow_id}.md, or delete the "
-            f"orphaned lock file: git rm .github/workflows/{workflow_id}.lock.yml"
-        )
+    for workflow_id in sorted(lock_ids - compilable_md_ids):
+        if workflow_id in all_md_ids:
+            problems.append(
+                f"{workflow_id}.lock.yml exists but {workflow_id}.md is not a workflow gh-aw "
+                f"compiles (no frontmatter opener on line 1, or no top-level `on:` trigger), so "
+                f"the lock file is stale and nothing will recompile it. Fix: restore the trigger "
+                f"in .github/workflows/{workflow_id}.md and recompile, or delete the stale lock "
+                f"file: git rm .github/workflows/{workflow_id}.lock.yml"
+            )
+        else:
+            problems.append(
+                f"{workflow_id}.lock.yml has no source {workflow_id}.md (orphaned compiled "
+                f"workflow). Fix: restore .github/workflows/{workflow_id}.md, or delete the "
+                f"orphaned lock file: git rm .github/workflows/{workflow_id}.lock.yml"
+            )
 
     return problems
 
