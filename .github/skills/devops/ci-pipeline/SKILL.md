@@ -69,7 +69,10 @@ a hand-edited or stale lock file.
   `needs: meta`, which already ran it, and skipping it keeps the job's "no network beyond the
   pinned release asset" promise (the pairing check needs `pyyaml`, i.e. a PyPI download). It does
   call the same script's `--has-sources` mode, which parses no YAML and runs on the runner's
-  preinstalled `python3`.
+  preinstalled `python3`. Capture that probe's answer in a **variable assignment** (`x="$(…)" ||
+  exit 1`), never inline in an `if [ "$(…)" != … ]` test: a command substitution inside a test
+  discards the exit status, so a probe that failed with empty stdout would read as "nothing to
+  compile" and silently skip the drift check.
 - The path-scoped `workflows-compile` job installs the **pinned** `gh-aw` via
   `.github/aw/install.sh` (checksum-verified release download — no `gh extension install`, no
   network beyond the release CDN, no secret), reruns `gh-aw compile`, then stages everything under

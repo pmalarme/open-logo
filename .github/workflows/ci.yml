@@ -133,8 +133,18 @@ jobs:
         # makes the two agree by construction: a hand-rolled probe that classified even one exotic
         # opener differently would skip this drift check for a source the pairing guard is happy
         # with, letting a stale or hand-edited .lock.yml through.
+        #
+        # The probe's result is captured in an assignment, not inline in the `if` test: a command
+        # substitution inside `[ "$(...)" != true ]` discards the exit status, so a probe that
+        # failed with empty stdout (e.g. a `.md` that is not valid UTF-8, which raises rather than
+        # guessing) would read as "nothing to compile" and silently skip the drift check. An
+        # assignment does trip `errexit`, and the explicit `|| exit 1` says so out loud.
         run: |
-          if [ "$(python3 .github/scripts/validate-workflow-lockfiles.py --has-sources)" != "true" ]; then
+          has_sources="$(python3 .github/scripts/validate-workflow-lockfiles.py --has-sources)" || {
+            echo "::error::Could not determine whether .github/workflows/ holds compilable agentic-workflow sources."
+            exit 1
+          }
+          if [ "${has_sources}" != "true" ]; then
             echo "No agentic-workflow sources gh-aw would compile (.github/workflows/*.md with a frontmatter opener) — nothing to compile."
             exit 0
           fi

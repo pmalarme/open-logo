@@ -76,7 +76,13 @@ EXCLUDED_MD_BASENAME = "readme.md"
 
 
 def read_lines(path: str) -> list[str] | None:
-    """Return `path`'s lines the way Go reads them, or None if it cannot be read.
+    """Return `path`'s lines the way Go reads them, or None if it cannot be opened.
+
+    Only `OSError` yields None (a file that vanished between listing and reading is simply not a
+    source). A file that opens but is not valid UTF-8 raises `UnicodeDecodeError` and propagates
+    deliberately: gh-aw could not read it either, and a loud red `meta` job is the right answer to
+    a workflow source nobody can decode — quietly classifying it as "needs no lock" would be a
+    silent skip of a file that may well be compiled and run.
 
     Split on `\n` only — deliberately **not** `str.splitlines()`, which also splits on U+0085,
     U+2028 and friends that Go's line scanning does not treat as line breaks. Mirroring Go here is

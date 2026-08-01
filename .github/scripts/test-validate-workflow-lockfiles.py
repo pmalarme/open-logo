@@ -391,7 +391,7 @@ with tempfile.TemporaryDirectory() as directory:
     os.remove(os.path.join(directory, "demoted.lock.yml"))
 
     # A CRLF-encoded pair still pairs cleanly end to end (guard-level regression lock for the
-    # `.gitattributes` LF pin and the ci.yml `tr -d '\r'` probe).
+    # `.gitattributes` LF pin; the trailing `\r` is removed by the delimiter `strip()`).
     write(directory, "crlf.md", "---\r\non: push\r\n---\r\n\r\nBody.\r\n")
     write(directory, "crlf.lock.yml")
     if guard.find_problems(directory) != []:
