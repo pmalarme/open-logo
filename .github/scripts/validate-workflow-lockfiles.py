@@ -99,6 +99,15 @@ def requires_lock(path: str) -> bool:
     and fixable; a silent skip of a file gh-aw actually compiles and runs is not. Empty
     frontmatter parses to `None`, which is unambiguously "no trigger", so it needs no lock.
 
+    Two known, harmless divergences from gh-aw, both requiring an invisible control character as
+    the first character of the opener line and neither able to smuggle an unreviewed lock file
+    through: a U+00A0 opener (` ---` padded with a non-breaking space) is compilable for gh-aw and
+    for this guard — which fails **closed**, going red in `meta` — but the `workflows-compile`
+    shell probe's `[[:space:]]` does not cover U+00A0 in the C locale, so the drift backstop skips
+    it; a U+0085 opener is skipped by both probes though gh-aw compiles it, so such a workflow
+    would simply never compile (and any lock file committed for it is still caught by the lock-side
+    orphan check). Tracked in issue #649 rather than fixed by re-implementing YAML in `sh`.
+
     Read as plain `utf-8`, **not** `utf-8-sig`: gh-aw does not strip a UTF-8 BOM either (its
     delimiter test trims Unicode whitespace, and U+FEFF is not whitespace), so a BOM-prefixed
     `---` is a file gh-aw silently ignores. Stripping the BOM here would demand a lock file no

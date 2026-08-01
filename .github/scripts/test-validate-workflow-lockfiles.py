@@ -236,11 +236,11 @@ with tempfile.TemporaryDirectory() as directory:
             "gh-aw does — expected True"
         )
 
-    # --- R1 follow-up: documented, deliberately-tested known limitations -----------------------
+    # --- Exact agreement with gh-aw on YAML-1.1 boolean-ish keys -------------------------------
     #
-    # These are NOT bugs: `requires_lock()`'s docstring documents both as consciously out of
-    # scope for a stdlib-only, non-YAML-parsing scan. They are asserted here so the *documented*
-    # behaviour cannot silently regress (e.g. someone "fixing" one without updating the other).
+    # These are NOT limitations: they are asserted so the agreement cannot silently regress (e.g.
+    # someone swapping `yaml.BaseLoader` for `yaml.safe_load`, which would collapse `True:`/`yes:`
+    # onto YAML 1.1's boolean and diverge from gh-aw's Go YAML 1.2 parser).
 
     # YAML-1.1 boolean-ish bare keys (`True:`, `yes:`) are not `on:` aliases — verified
     # empirically that gh-aw itself does not honour them (it errors "Unknown property: true/yes"
