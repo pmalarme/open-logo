@@ -39,7 +39,12 @@ jobs:
         run: python .github/scripts/test-validate-lockfile-registry.py
       - name: Guard gh-aw workflow source/lock-file pairing
         # Issue #597: an orphaned .lock.yml with no .md source (or vice versa) is caught here,
-        # before gh-aw compile ever runs — see the workflows-compile job for content drift.
+        # before gh-aw compile ever runs — see the workflows-compile job for content drift. Only
+        # a .md gh-aw actually compiles (first line is a frontmatter opener AND the frontmatter
+        # declares a top-level `on:` trigger — verified empirically against gh-aw v0.83.1) is
+        # required to have a paired lock file; a plain doc (e.g. README.md), a frontmatter-only
+        # import fragment, or anything under a subdirectory is legitimately lock-free. See
+        # validate-workflow-lockfiles.py's module docstring and requires_lock().
         # Runs from day one: passes cleanly while zero agentic workflows exist (today's state).
         run: python .github/scripts/validate-workflow-lockfiles.py
       - name: Self-test the workflow lock-file pairing guard
@@ -95,8 +100,8 @@ jobs:
           python-version: "3.x"
       # Pairing check first, on the committed tree, before gh-aw compile runs: gh-aw compile
       # never deletes a .lock.yml whose .md source is gone, and has nothing to compile for a
-      # .md that was never compiled, so an orphan in either direction would otherwise go
-      # undetected. Content drift between a paired source and lock file is caught below.
+      # compilable .md that was never compiled, so an orphan in either direction would otherwise
+      # go undetected. Content drift between a paired source and lock file is caught below.
       - name: Guard workflow source/lock-file pairing
         run: python .github/scripts/validate-workflow-lockfiles.py
       - name: Self-test the pairing guard
@@ -112,9 +117,26 @@ jobs:
         # YAML, it never runs a workflow. `git add -A` (not `git diff --exit-code` alone) is
         # required to also catch a .md source whose .lock.yml was never committed at all: an
         # untracked new file is invisible to a plain `git diff`, but a real gap in what CI runs.
+        #
+        # The early-exit guard below mirrors gh-aw's own definition of "nothing to compile",
+        # verified empirically against gh-aw v0.83.1: it exits 1 with "no workflow markdown
+        # files found ... (workflow files must start with a frontmatter opener on the first
+        # line)" whenever .github/workflows/ contains *some* .md file(s) but none with a
+        # frontmatter opener as the first line (e.g. only a README.md). A bare
+        # `ls .github/workflows/*.md` check would miss that case and let `gh-aw compile` run
+        # into that exit-1 spuriously, so this checks for a frontmatter opener specifically, not
+        # merely "some .md file exists".
         run: |
-          if ! ls .github/workflows/*.md >/dev/null 2>&1; then
-            echo "No agentic-workflow sources (.github/workflows/*.md) — nothing to compile."
+          has_frontmatter=false
+          for f in .github/workflows/*.md; do
+            [ -e "${f}" ] || continue
+            if [ "$(head -n 1 "${f}")" = "---" ]; then
+              has_frontmatter=true
+              break
+            fi
+          done
+          if [ "${has_frontmatter}" = false ]; then
+            echo "No agentic-workflow sources with a frontmatter opener (.github/workflows/*.md starting with '---') — nothing to compile."
             exit 0
           fi
           gh-aw compile

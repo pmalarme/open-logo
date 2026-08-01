@@ -82,7 +82,22 @@ real file backs it.
   most.** `CODEOWNERS` requires `@pmalarme`'s review on `/spec/`, the saga/spec issue templates, and
   `CODEOWNERS` itself; combined with required code-owner review on the target branch's ruleset, no
   workflow — agentic or otherwise — can merge a `[spec]`/`[saga]` change or edit its own governance
-  file without maintainer approval (existing mechanism, not new for this ADR).
+  file without maintainer approval (existing mechanism, not new for this ADR). As
+  [`branching-and-commits`](../../.github/skills/devops/branching-and-commits/SKILL.md) already
+  notes, the branch ruleset's "Require review from Code Owners" setting is a GitHub setting, not
+  something visible or verifiable from the repository content itself — CODEOWNERS "only has teeth"
+  while that setting stays on; if it were ever turned off, this rule would silently become advisory.
+- **Enforced — third-party actions inside generated lock files are SHA-pinned.** Verified
+  empirically against the pinned gh-aw v0.83.1: `gh-aw compile`'s output SHA-pins third-party
+  actions by default (e.g. `actions/checkout@9c091bb2…` with the version as a trailing comment),
+  so this guardrail is a property of the toolchain itself, not something this repository has to
+  configure — and its continued truth is what the `workflows-compile` compile-drift gate (issue
+  #597, landed) enforces artifact-by-artifact on every PR. The one exception is gh-aw's own setup
+  action, `github/gh-aw-actions/setup`, which the compiler pins by version tag (`@v0.83.1`,
+  tracking `.github/aw/version` — ADR-0017) rather than by SHA; hand-written workflows elsewhere in
+  this repository (`ci.yml`, `codeql.yml`, etc.) also still pin by major version tag (`@v7`), not
+  SHA — see [`workflows.instructions.md`](../../.github/instructions/workflows.instructions.md).
+  (Previously listed here as aspirational under **issue #604**; corrected once actually verified.)
 - **Aspirational — read-only by default, writes only through sanitized `safe-outputs`.** `gh-aw`
   ships a `safe-outputs` mechanism (structured, sanitized proposals — e.g. "open this issue," "post
   this comment" — turned into real GitHub API calls by a trusted post-processing step, rather than
@@ -95,10 +110,6 @@ real file backs it.
   [`workflows.instructions.md`](../../.github/instructions/workflows.instructions.md) already states
   for hand-written workflows), reviewed at authoring time. No agentic workflow exists yet to audit.
   Tracked in **issue #604**.
-- **Aspirational — SHA-pinned actions inside generated lock files.** Hand-written workflows in this
-  repo pin actions by version tag (`@v7`), not by SHA; whether generated `.lock.yml` files need the
-  stricter SHA pin (since they run with agent-driven, less human-reviewed inputs) is a decision for
-  the workflow-authoring issues, not this ADR. Tracked in **issue #604**.
 - **Aspirational — cost and rate-limit ceilings.** Nothing in the repository today caps token spend
   or run frequency for agentic workflows; the guardrails-and-reviewer-checklist work in **issue
   #600** is where a concrete ceiling (and what happens when a workflow hits it) gets defined,
