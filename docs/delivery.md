@@ -79,10 +79,15 @@ issue whose child epics and work issues are linked as native sub-issues.
 | **M0 Foundation** | — | Monorepo, TS7 toolchain, CI (Definition of Done), conformance harness, cross-cutting contract stubs (AST/events/diagnostics/token-class enums) | internal |
 | **M1 Core Language** | Core Language | Engine parses + evaluates Core; highlighter classifies Core tokens; studio REPL runs non-graphical Core; `conformance(core)` green | `0.1.0-core` (pre-release) |
 | **M2 Turtle & Rendering** | + Turtle & Rendering = **minimal conformance** | Turtle state + events, Canvas render + SVG/PNG export, studio Run/Stop/Reset + turtle view + a11y | **`0.1.0` — first conformant release** |
-| **M3 Educational baseline** | + Educational | `explain`/`why`/`hint`/`debug` deterministic; curriculum L1–L5; studio lesson pane | `0.2.0` |
-| **M4 Data & Geometry** | + Data, + Geometry | dicts/records/mutation; geometry stdlib (`.logo`) + geometry-teacher reasoning; highlighter dict/struct/field classes | `0.3.0` |
-| **M5 Heritage · Sprites · Interaction & Events · Sound** | + those four (independent) | alternate spellings; multiple turtles; input/events/timers; sound — parallelizable | `0.4.0` |
-| **M6 Modules · Localization · Tutor (AI)** | + Modules → Localization, + Tutor (AI) | `import`/`export`; localized keyword packs; AI tutor (Socratic, offline-degrading) behind the provider-neutral adapter | `0.5.0` |
+| **M3 Educational baseline** | + Educational | `explain`/`why`/`hint`/`debug` deterministic; curriculum L1–L5; studio lesson pane | **`0.2.0`** (with M4) |
+| **M4 Data & Geometry** | + Data, + Geometry | dicts/records/mutation + the math reporters; geometry stdlib (`.logo`) + geometry-teacher reasoning; highlighter dict/struct/field classes | **`0.2.0`** (with M3) |
+| **M5 Heritage · Sprites · Interaction & Events · Sound** | + those four (independent) | alternate spellings; multiple turtles; input/events/timers; sound — parallelizable | next tuple (maintainer-assigned) |
+| **M6 Modules · Localization · Tutor (AI)** | + Modules → Localization, + Tutor (AI) | `import`/`export`; localized keyword packs; AI tutor (Socratic, offline-degrading) behind the provider-neutral adapter | next tuple (maintainer-assigned) |
+
+**A release tuple can span several sagas.** The maintainer decides which completed sagas a version
+number covers and tags it — `0.2.0` shipped **M3 + M4 together** (Educational baseline *and* the Data
+profile, the math reporters, and the Geometry stdlib). Passing a Saga Gate authorizes a tag; it does
+not by itself create one, so an agent closes the saga and never invents a version number.
 
 M2 is the flagship: the smallest thing that is a real, conformant OpenLogo. Everything after M2 is
 additive optional profiles, each releasable on its own once its conformance is green.

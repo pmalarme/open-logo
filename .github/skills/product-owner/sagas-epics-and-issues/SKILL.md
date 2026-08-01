@@ -73,10 +73,10 @@ reaches conformance across all domains** (see [`docs/delivery.md`](../../../../d
 | M0 Foundation | — (toolchain, CI, conformance harness, contracts) | internal |
 | M1 Core Language | Core Language | `0.1.0-core` |
 | M2 Turtle & Rendering | + Turtle & Rendering = **minimal conformance** | **`0.1.0`** |
-| M3 Educational | + Educational | `0.2.0` |
-| M4 Data & Geometry | + Data, + Geometry | `0.3.0` |
-| M5 Heritage · Sprites · Interaction & Events · Sound | those four | `0.4.0` |
-| M6 Modules · Localization · Tutor (AI) | those | `0.5.0` |
+| M3 Educational | + Educational | `0.2.0` (with M4) |
+| M4 Data & Geometry | + Data, + Geometry | `0.2.0` (with M3) |
+| M5 Heritage · Sprites · Interaction & Events · Sound | those four | next tuple (maintainer-assigned) |
+| M6 Modules · Localization · Tutor (AI) | those | next tuple (maintainer-assigned) |
 | **Maintenance** | — (continuous: infra, docs, refactors, non-release bugs) | none (→ main) |
 
 The **8 learner levels** (`spec/educational-model.md`) drive curriculum epics/stories; tag with
