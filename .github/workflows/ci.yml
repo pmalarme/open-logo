@@ -29,6 +29,20 @@ jobs:
         run: python .github/scripts/validate-meta.py
       - name: Self-test the frontmatter check
         run: python .github/scripts/test-validate-meta.py
+      - name: Guard package-lock.json against non-public registries
+        # Regression guard for the internal-mirror lockfile incident (fix/package-lock-public-registry):
+        # every "resolved" URL must point at the public npm registry, never a private/internal
+        # mirror (e.g. an Azure DevOps feed) that outside contributors and CI cannot reach.
+        # Runs from day one — no toolchain needed to grep the committed lockfile.
+        run: |
+          if [ -f package-lock.json ]; then
+            bad=$(grep -oP '"resolved":\s*"\K(?!https://registry\.npmjs\.org/)[a-zA-Z][a-zA-Z0-9+.-]*://[^"]*' package-lock.json || true)
+            if [ -n "$bad" ]; then
+              echo "package-lock.json has \"resolved\" URLs outside the public npm registry:" >&2
+              echo "$bad" >&2
+              exit 1
+            fi
+          fi
       - id: detect
         name: Detect toolchain
         # hashFiles() is unreliable in a job-level `if` (it runs before checkout), so we
