@@ -3,9 +3,13 @@
 - Status: Accepted
 - Date: 2026-08-01
 - Deciders: OpenLogo maintainer (@pmalarme)
-- Related: builds on [ADR-0017](0017-gh-aw-toolchain-bootstrap.md) (how `gh-aw` the CLI is pinned,
-  installed, and verified — this ADR is about *why* we run its output in Actions and under what
-  constraints); mechanics in
+- Related: builds on [ADR-0017 (gh-aw toolchain bootstrap)](0017-gh-aw-toolchain-bootstrap.md)
+  (how `gh-aw` the CLI is pinned, installed, and verified — this ADR is about *why* we run its
+  output in Actions and under what constraints). **Numbering note:** `docs/adr/` already contains
+  two Accepted records numbered 0017 — `0017-gh-aw-toolchain-bootstrap.md` and
+  `0017-packages-are-private-not-published.md`. That collision predates this ADR and Accepted ADRs
+  are immutable, so every "ADR-0017" reference below means the **gh-aw toolchain bootstrap** one,
+  linked by filename. Mechanics in
   [`../../.github/instructions/workflows.instructions.md`](../../.github/instructions/workflows.instructions.md)
   and [`../../AGENTS.md`](../../AGENTS.md) §"gh-aw bootstrap".
 
@@ -71,11 +75,12 @@ real file backs it.
   landed).
 - **Enforced — orphaned source/lock pairs are caught in CI.** `.github/scripts/validate-workflow-lockfiles.py`
   (self-tested by `test-validate-workflow-lockfiles.py`) checks every `.md` gh-aw would actually
-  compile (a frontmatter opener plus a top-level `on:` trigger) has exactly one `.lock.yml`, and
-  every `.lock.yml` has exactly one `.md` of the same basename (compilable or not), in the
-  always-on `meta` job. Neither half-deletion can slip through: a lock file left behind after its
-  source was deleted would otherwise keep running with nothing to review it against, and a source
-  that was never compiled would silently never run (issue #597, landed).
+  compile (a frontmatter opener plus a top-level `on:` trigger, parsed as YAML) has exactly one
+  `.lock.yml`, and every `.lock.yml` is backed by a `.md` gh-aw would actually *recompile* — a lock
+  whose source still exists but was demoted to a trigger-less fragment is reported as stale too, in
+  the always-on `meta` job. Neither half-deletion can slip through: a lock file left behind after
+  its source was deleted (or demoted) would otherwise keep running with nothing to review it
+  against, and a source that was never compiled would silently never run (issue #597, landed).
 - **Enforced — the pinned toolchain is verified before it runs.** `.github/aw/version` is the single
   version pin; `.github/aw/install.sh` downloads the matching release asset and checksum-verifies it
   before making it executable, fail-closed (ADR-0017, landed).

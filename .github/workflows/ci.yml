@@ -48,10 +48,10 @@ jobs:
       - name: Guard gh-aw workflow source/lock-file pairing
         # Issue #597: an orphaned .lock.yml with no .md source (or vice versa) is caught here,
         # before gh-aw compile ever runs — see the workflows-compile job for content drift. Only
-        # a .md gh-aw actually compiles (first line is a frontmatter opener AND the frontmatter
-        # declares a top-level `on:` trigger — verified empirically against gh-aw v0.83.1) is
-        # required to have a paired lock file; a plain doc (e.g. README.md), a frontmatter-only
-        # import fragment, or anything under a subdirectory is legitimately lock-free. See
+        # a .md gh-aw actually compiles (first line is a frontmatter opener AND the frontmatter,
+        # parsed as YAML, declares a top-level `on:` trigger — verified empirically against gh-aw
+        # v0.83.1) is required to have a paired lock file; a plain doc (e.g. README.md), a
+        # trigger-less import fragment, or anything under a subdirectory is lock-free. See
         # validate-workflow-lockfiles.py's module docstring and requires_lock().
         # Runs from day one: passes cleanly while zero agentic workflows exist (today's state).
         run: python .github/scripts/validate-workflow-lockfiles.py
@@ -107,6 +107,9 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.x"
+      # The pairing guard parses workflow frontmatter as YAML (see its requires_lock()), the same
+      # single dependency validate-meta.py already needs in the `meta` job.
+      - run: pip install pyyaml
       # Pairing check first, on the committed tree, before gh-aw compile runs: gh-aw compile
       # never deletes a .lock.yml whose .md source is gone, and has nothing to compile for a
       # compilable .md that was never compiled, so an orphan in either direction would otherwise
@@ -142,7 +145,7 @@ jobs:
           has_frontmatter=false
           for f in .github/workflows/*.md; do
             [ -e "${f}" ] || continue
-            first_line="$(head -n 1 "${f}" | tr -d '\r')"
+            first_line="$(head -n 1 "${f}" | sed '1s/^\xef\xbb\xbf//' | tr -d '\r')"
             if [ "${first_line}" = "---" ]; then
               has_frontmatter=true
               break

@@ -13,27 +13,19 @@ trigger. Anything else is legitimately lock-free, not an error:
   - Anything under a subdirectory (e.g. `.github/workflows/shared/*.md`) — gh-aw only compiles
     files directly in `.github/workflows/`, never recurses.
 
-`requires_lock()` below does **not** reimplement gh-aw's full YAML+frontmatter grammar — that
-would need a real YAML parser, which this deliberately stdlib-only script does not take a
-dependency on (see below). It only recognizes the one shape that matters for KISS: a top-level
-`on:` key on a block-style frontmatter line (unquoted, single-, or double-quoted, any whitespace
-before the colon). Flow-mapping frontmatter (frontmatter that is itself a single `{...}`, e.g.
-`{on: push, name: x}`) is not parsed at all — it is treated as **requiring** a lock unconditionally,
-whether or not it actually has an `on:` key. This is deliberately blunt rather than a hand-rolled
-flow-YAML tokenizer: verified empirically against gh-aw v0.83.1 that a flow mapping with `on:`
-nested only under another key (e.g. `{tools: {on: push}, name: x}`) does not quietly get skipped
-either — `gh-aw compile` itself fails outright on it ("field 'name' cannot be used in shared
-workflows (only allowed in main workflows with 'on' trigger)" / "compilation failed", exit 1). So
-for the one case a smarter parser would exist to distinguish, CI already goes red one way or the
-other — via the `workflows-compile` job's failing compile, or via this guard's pairing error — and
-a tokenizer to tell the two flow shapes apart buys no additional signal, just bespoke code to rot
-on the next gh-aw upgrade. Any frontmatter shape this scan cannot confidently classify is treated
-as **requiring** a lock: failing closed (over-eager, possibly-spurious pairing errors that a
-maintainer notices and can fix) is deliberately preferred over failing open (silent skip of a file
-gh-aw actually compiles and runs). The `workflows-compile` job's `gh-aw compile` recompile-and-diff
-step is the ground-truth backstop either way: it does not depend on this guard having classified
-anything correctly, only on this guard having demanded a `.lock.yml` exists so `gh-aw compile` gets
-a chance to check it for drift.
+`requires_lock()` below classifies a source by **parsing its frontmatter as YAML** (PyYAML's
+`BaseLoader`, so every scalar stays a raw string — `on:` resolves to the key `"on"`, exactly as
+gh-aw's Go YAML 1.2 parser sees it, rather than to YAML 1.1's boolean `True`) and asking whether it
+declares a top-level `on` key. Block style and flow style (`{on: push, name: x}`) are therefore
+handled by the same code path, so a flow-style importable fragment with no trigger is correctly
+lock-free instead of being spuriously flagged. Frontmatter this scan cannot confidently classify —
+YAML that does not parse, or that parses to something other than a mapping — is treated as
+**requiring** a lock: failing closed (an over-eager, maintainer-visible pairing error) is
+deliberately preferred over failing open (a silent skip of a file gh-aw actually compiles and
+runs). The `workflows-compile` job's `gh-aw compile` recompile-and-diff step is the ground-truth
+backstop either way: it does not depend on this guard having classified anything correctly, only on
+this guard having demanded a `.lock.yml` exists so `gh-aw compile` gets a chance to check it for
+drift.
 
 Content drift between a paired source and its lock file is caught separately, by recompiling and
 diffing (see the `workflows-compile` job in .github/workflows/ci.yml) — but `gh-aw compile` never
@@ -47,9 +39,8 @@ missing **or** is no longer a file gh-aw compiles (its top-level `on:` trigger w
 demoting it to an importable fragment): both leave executable YAML that nothing recompiles, so
 drift in it would never surface.
 
-Stdlib only; never touches the network — deliberately does not import `pyyaml` (the `meta` job
-happens to install it for other checks, but a minimal frontmatter scan is simpler and enough here;
-see `requires_lock()` for exactly what it does and does not parse). Self-tested by
+Never touches the network. Depends only on `pyyaml`, the same single dependency
+`validate-meta.py` already relies on and every CI job running this guard installs. Self-tested by
 test-validate-workflow-lockfiles.py, which runs in the same CI job.
 
 Usage (CI): `python .github/scripts/validate-workflow-lockfiles.py [path-to-workflows-dir]`.
@@ -59,19 +50,19 @@ A missing workflows directory is not an error — the repository may not have on
 from __future__ import annotations
 
 import os
-import re
 import sys
+
+import yaml
 
 MD_SUFFIX = ".md"
 LOCK_SUFFIX = ".lock.yml"
 
-# Matches a top-level `on:` key on a block-style frontmatter line — not indented (which would
-# mean it is nested under some other key, e.g. `permissions:\n  on: ...`, not a gh-aw trigger),
-# not merely a prefix of a longer key (e.g. `onward:`), and allowing an unquoted, single-, or
-# double-quoted key spelling and optional whitespace before the colon (all three compile
-# identically under gh-aw v0.83.1 — verified empirically: `on: push`, `"on": push`, `'on': push`,
-# and `on : push` all produce a `.lock.yml`).
-_TOP_LEVEL_ON_KEY = re.compile(r"""^(?:"on"|'on'|on)\s*:(\s|$)""")
+# The frontmatter key gh-aw reads as a workflow trigger. Parsed with PyYAML's `BaseLoader`, every
+# scalar stays a raw string, so this matches `on:`, `"on":`, `'on':`, and `on :` — and, correctly,
+# does *not* match YAML-1.1 boolean-ish spellings such as `True:` or `yes:` (gh-aw's Go YAML 1.2
+# parser does not honour those as trigger aliases either; verified empirically against v0.83.1,
+# where gh-aw errors with "Unknown property: true/yes" rather than compiling).
+TRIGGER_KEY = "on"
 
 
 def requires_lock(path: str) -> bool:
@@ -83,31 +74,24 @@ def requires_lock(path: str) -> bool:
     trigger. Everything else — no frontmatter opener, or frontmatter with no top-level `on:` — is
     a file gh-aw does not compile, so it is not a source that needs a paired lock file.
 
-    Two shapes are recognized:
-      - Block-style: any frontmatter line matching `_TOP_LEVEL_ON_KEY` (unquoted/quoted key,
-        optional space before the colon). This is the path that matters and is fully parsed.
-      - Flow-style: the *entire* frontmatter, once joined and stripped, looks like a single flow
-        mapping (starts with `{`). This is **not parsed at all** — it is treated as requiring a
-        lock unconditionally, on the fail-closed policy below. A frontmatter that
-        mixes block lines with an embedded flow value (e.g. `on: {branches: [main]}`) is still a
-        block-style top-level `on:` and is caught by the first case; this second case only
-        applies when the flow mapping *is* the frontmatter.
+    The frontmatter is parsed as YAML with `yaml.BaseLoader` (all scalars kept as raw strings, so
+    key spellings are compared exactly as gh-aw's Go YAML 1.2 parser sees them). Block style and
+    flow style (`{on: push, name: x}`) therefore go through the same code path: a flow-style
+    importable fragment with no trigger is correctly lock-free, and an `on:` nested under another
+    key is correctly not a top-level trigger, in either style.
 
-    Deliberately does not fully parse YAML — no `pyyaml` dependency (see module docstring), and
-    deliberately no hand-rolled flow-mapping tokenizer either, since it would buy no real signal
-    (see module docstring for why, verified against gh-aw v0.83.1). Two YAML corners are
-    consciously out of scope and documented as known limitations rather than silently mishandled:
-      - A block-style frontmatter is only found up to a `---` treated as the closing delimiter;
-        a `---` inside e.g. a multi-line quoted scalar would be misread as the close. gh-aw
-        workflow frontmatter is simple key/value config in practice, so this has not been
-        observed, but if it happens, the scan still fails closed on whatever it finds truncated
-        into `frontmatter_lines` rather than silently exempting the file.
-      - `True:`/`yes:` and similar YAML-1.1 boolean-ish bare keys are not treated as spellings of
-        `on:` — verified empirically that gh-aw itself does not honour them as trigger aliases
-        (it errors with "Unknown property: true/yes"), so no special-casing is needed here.
+    Fails **closed** — returns True — whenever the frontmatter cannot be confidently classified:
+    YAML that does not parse (e.g. an unterminated frontmatter block, which gh-aw would reject
+    too), or that parses to anything other than a mapping. An over-eager pairing error is visible
+    and fixable; a silent skip of a file gh-aw actually compiles and runs is not. Empty
+    frontmatter parses to `None`, which is unambiguously "no trigger", so it needs no lock.
+
+    Read as `utf-8-sig` so a UTF-8 BOM before the opener does not hide a real workflow; the
+    `workflows-compile` job's shell probe in ci.yml strips the same BOM, keeping both probes in
+    agreement.
     """
     try:
-        with open(path, "r", encoding="utf-8") as handle:
+        with open(path, "r", encoding="utf-8-sig") as handle:
             lines = handle.read().splitlines()
     except OSError:
         return False
@@ -131,17 +115,17 @@ def requires_lock(path: str) -> bool:
     # it long before this guard's opinion on "does it need a lock file" matters.
     frontmatter_lines = lines[1:closing_index] if closing_index is not None else lines[1:]
 
-    if any(_TOP_LEVEL_ON_KEY.match(line) for line in frontmatter_lines):
+    try:
+        frontmatter = yaml.load("\n".join(frontmatter_lines), Loader=yaml.BaseLoader)
+    except yaml.YAMLError:
         return True
 
-    # Flow-mapping frontmatter is not parsed at all: fail closed unconditionally (see module
-    # docstring for why this is safe — gh-aw compile itself fails on the one shape a smarter
-    # parser would exist to distinguish, so CI goes red either way).
-    joined = "\n".join(frontmatter_lines).strip()
-    if joined.startswith("{"):
+    if frontmatter is None:
+        return False
+    if not isinstance(frontmatter, dict):
         return True
 
-    return False
+    return TRIGGER_KEY in frontmatter
 
 
 def workflow_ids(directory: str, suffix: str, predicate=None) -> set[str]:

@@ -18,7 +18,7 @@ Every merge to `main` must pass the same gates. This skill is how you wire and e
 | Gate | Runs | When |
 |---|---|---|
 | meta | markdown links, YAML lint (issue forms, labels, workflows), spec-example presence, gh-aw `.md`/`.lock.yml` pairing (orphan guard, scoped to compilable sources) | always |
-| **workflows-compile** | pinned `gh-aw compile` on every agentic-workflow source, fails if `git status` reports any drift (issue #597) | PRs (and pushes to `main`) touching `.github/workflows/**`, `.github/aw/**`, or the pairing-guard scripts |
+| **workflows-compile** | pinned `gh-aw compile` on every agentic-workflow source, fails if recompiling changes any committed (or adds any uncommitted) `.lock.yml` (issue #597) | PRs (and pushes to `main`) touching `.github/workflows/**`, `.github/aw/**`, or the pairing-guard scripts |
 | build + type-check | `tsc -b` across project references (TS7, strict) | when `package.json` exists |
 | lint + format | Biome (lint) + Prettier (format) + OpenLogo style-lint | when `package.json` exists |
 | unit | package unit tests | when `package.json` exists |
@@ -44,8 +44,12 @@ a hand-edited or stale lock file.
   `README.md` dropped into `.github/workflows/`), a frontmatter-only import fragment with no
   `on:`, and anything under a subdirectory (e.g. `shared/`) are all files gh-aw itself never
   compiles, so the guard must not demand a lock file for them either (see `requires_lock()` in
-  `validate-workflow-lockfiles.py`). The opener match is **exact** on both sides — the guard and
-  the compile job's shell probe — so a whitespace-padded ` ---` cannot make the two disagree.
+  `validate-workflow-lockfiles.py`, which parses the frontmatter as YAML — with `yaml.BaseLoader`,
+  so key spellings are compared exactly as gh-aw's Go YAML parser sees them — and so classifies
+  block-style and flow-style frontmatter through the same code path; anything it cannot classify
+  fails **closed**, i.e. demands a lock). The opener match is **exact** on both sides — the guard
+  and the compile job's shell probe (which strip the same CR and UTF-8 BOM) — so a
+  whitespace-padded ` ---` cannot make the two disagree.
   `gh-aw compile` never deletes an orphaned lock file and has
   nothing to compile for an uncompiled source, so this check runs *before* compiling, on the
   committed tree.
@@ -62,7 +66,11 @@ a hand-edited or stale lock file.
   .github/workflows/*.lock.yml && git commit`).
 - Both jobs pass cleanly in **today's actual state** — zero `*.md` sources, zero `*.lock.yml`
   files — rather than silently skipping forever; the pairing check reports "0 pairs" and the
-  compile job exits early with an explicit "nothing to compile" message the moment a source lands.
+  compile job exits early with an explicit "nothing to compile" message until the first source
+  lands.
+- **On a `gh-aw` version bump:** the drift diff stages `.github/workflows/` only. If a future
+  `gh-aw` emits generated artifacts elsewhere, widen the `git add -A` scope in the same PR as the
+  pin bump, or the new artifact drifts unnoticed.
 - **Required-check status:** agents cannot edit branch-protection rulesets. This gate should be
   added to the target branch's required status checks by a maintainer once it has run green at
   least once; until then it still fails the PR (red X), it just is not yet a hard block.

@@ -2,8 +2,8 @@
 """Self-test for the workflow lock-file pairing guard in validate-workflow-lockfiles.py.
 
 Runs in CI in **both** the always-on `meta` job and the path-scoped `workflows-compile` job,
-alongside the guard itself. Stdlib only; never touches the network. Exits non-zero on any
-unexpected result.
+alongside the guard itself. Never touches the network; depends only on `pyyaml`, like the guard.
+Exits non-zero on any unexpected result.
 
 Locks the edge cases the guard exists for: a compilable `.md` source with no compiled lock, a
 `.lock.yml` with no source (orphaned), a `.lock.yml` whose source still exists but is no longer
@@ -18,13 +18,12 @@ another frontmatter key (block-style).
 
 Also locks every additional top-level-`on:` shape empirically confirmed against gh-aw v0.83.1 in
 throwaway repos during the R1 follow-up (see the PR discussion): a single- or double-quoted `on:`
-key in block style, and `on :` with a space before the colon. Flow-mapping frontmatter is
-deliberately NOT parsed at all (a hand-rolled flow-YAML tokenizer was tried and removed as
-unjustified complexity — see `requires_lock()`'s docstring): both `{on: push, name: x}` and
-`{tools: {on: push}, name: x}` require a lock, fail-closed, even though the second has no
-top-level `on:` key. It also locks the two shapes deliberately left as documented, tested known
-limitations rather than silently mishandled — see `requires_lock()`'s docstring for why each is
-safe to leave as-is.
+key in block style, and `on :` with a space before the colon. Flow-mapping frontmatter goes through
+the same YAML parse as block style (R3 follow-up), so `{on: push, name: x}` requires a lock while a
+flow-style importable fragment such as `{tools: {}}` — or one whose only `on:` is nested under
+another key — correctly does not. Finally it locks the fail-closed fallbacks (frontmatter that does
+not parse, or parses to a non-mapping) and the YAML-1.1 boolean-ish bare keys (`True:`, `yes:`)
+that are deliberately NOT treated as `on:` aliases, because gh-aw does not honour them either.
 """
 
 import importlib.util
@@ -137,14 +136,12 @@ with tempfile.TemporaryDirectory() as directory:
     if not guard.requires_lock(space_before_colon):
         failures.append("requires_lock: `on :` (space before the colon) must be True")
 
-    # --- R1 follow-up: flow-mapping frontmatter is not parsed, fails closed unconditionally ----
+    # --- R3 follow-up: flow-mapping frontmatter is classified by the same YAML parse -----------
     #
-    # No hand-rolled flow-YAML tokenizer: both a real top-level `on:` and an `on:` nested only
-    # under another key require a lock. Verified against gh-aw v0.83.1 that the nested-only case
-    # is not silently exempt either — gh-aw compile itself fails on it ("field 'name' cannot be
-    # used in shared workflows (only allowed in main workflows with 'on' trigger)"), so CI goes
-    # red either via that compile failure or via this guard's pairing error. This is deliberate,
-    # documented behaviour, not an oversight — see `requires_lock()`'s docstring.
+    # A flow mapping is YAML like any other, so it is parsed rather than guessed at: a real
+    # top-level `on:` requires a lock, and a flow-style importable fragment (gh-aw's own shared /
+    # include shape, which it skips compiling) does not. The earlier heuristic failed this last
+    # case closed, spuriously demanding a lock file no `gh-aw compile` would ever produce.
 
     flow_style = write(
         directory, "flow-style.md", "---\n{on: push, name: flow}\n---\n\nBody.\n"
@@ -152,16 +149,63 @@ with tempfile.TemporaryDirectory() as directory:
     if not guard.requires_lock(flow_style):
         failures.append("requires_lock: a flow-mapping frontmatter with `on:` must be True")
 
+    flow_style_fragment = write(
+        directory,
+        "flow-style-fragment.md",
+        "---\n{tools: {}}\n---\n\nBody.\n",
+    )
+    if guard.requires_lock(flow_style_fragment):
+        failures.append(
+            "requires_lock: a flow-mapping importable fragment with no top-level `on:` is "
+            "lock-free for gh-aw and must be False — flagging it would fail a legitimate "
+            "shared workflow that no `gh-aw compile` can ever produce a lock file for"
+        )
+
     flow_style_nested_no_on = write(
         directory,
         "flow-style-nested-no-on.md",
         "---\n{tools: {on: push}, name: nested-no-on}\n---\n\nBody.\n",
     )
-    if not guard.requires_lock(flow_style_nested_no_on):
+    if guard.requires_lock(flow_style_nested_no_on):
         failures.append(
-            "requires_lock: flow-mapping frontmatter is not parsed and must fail closed (True) "
-            "even when its only `on:` is nested under another key — gh-aw compile itself fails "
-            "on this shape, so exempting it here would be fail-open, not a real distinction"
+            "requires_lock: an `on:` nested under another key is not a top-level trigger in flow "
+            "style either, so it must be False — gh-aw compile itself fails on this shape "
+            "(\"field 'name' cannot be used in shared workflows\"), so CI still goes red there"
+        )
+
+    # --- R3 follow-up: fail-closed fallbacks for frontmatter that cannot be classified ---------
+
+    unparsable = write(
+        directory, "unparsable.md", "---\nname: x\n  bad: : indentation\n---\n\nBody.\n"
+    )
+    if not guard.requires_lock(unparsable):
+        failures.append(
+            "requires_lock: frontmatter that is not valid YAML must fail closed (True) rather "
+            "than silently exempt a file gh-aw might compile"
+        )
+
+    non_mapping = write(directory, "non-mapping.md", "---\n- just\n- a list\n---\n\nBody.\n")
+    if not guard.requires_lock(non_mapping):
+        failures.append(
+            "requires_lock: frontmatter that parses to something other than a mapping must fail "
+            "closed (True)"
+        )
+
+    empty_frontmatter = write(directory, "empty-frontmatter.md", "---\n---\n\nBody.\n")
+    if guard.requires_lock(empty_frontmatter):
+        failures.append(
+            "requires_lock: empty frontmatter is unambiguously trigger-less and must be False"
+        )
+
+    # A UTF-8 BOM before the opener must not hide a real workflow: the guard reads as utf-8-sig
+    # and the ci.yml shell probe strips the same BOM, so both agree the file is compilable.
+    bom_compilable = write(
+        directory, "bom-compilable.md", "\ufeff---\non: push\n---\n\nBody.\n"
+    )
+    if not guard.requires_lock(bom_compilable):
+        failures.append(
+            "requires_lock: a UTF-8 BOM before the frontmatter opener must not make a compilable "
+            "source look lock-free"
         )
 
     # --- R1 follow-up: documented, deliberately-tested known limitations -----------------------
@@ -172,8 +216,9 @@ with tempfile.TemporaryDirectory() as directory:
 
     # YAML-1.1 boolean-ish bare keys (`True:`, `yes:`) are not `on:` aliases — verified
     # empirically that gh-aw itself does not honour them (it errors "Unknown property: true/yes"
-    # rather than compiling), so `requires_lock` correctly does not treat them as needing a lock,
-    # even though this also means it does not flag them as a workflow gh-aw actually rejects.
+    # rather than compiling). Parsing with `yaml.BaseLoader` keeps them as the raw strings
+    # `"True"`/`"yes"` instead of collapsing them onto YAML 1.1's boolean, so `requires_lock`
+    # agrees with gh-aw here rather than merely happening to.
     true_key = write(directory, "true-key.md", "---\nTrue: push\n---\n\nBody.\n")
     if guard.requires_lock(true_key):
         failures.append(
