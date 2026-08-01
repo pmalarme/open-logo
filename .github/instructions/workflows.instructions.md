@@ -23,8 +23,8 @@ suites these workflows run; you wire and secure them.
 - `ci.yml` — DoD gates: an always-on **meta** job (labels/issue-forms/workflows validation via
   `.github/scripts/validate-meta.py`, a `.github/scripts/validate-workflow-lockfiles.py` guard
   against orphaned `.md`/`.lock.yml` pairs — scoped to only the `.md` files gh-aw actually
-  compiles (frontmatter opener + top-level `on:` trigger), never a plain doc, import fragment, or
-  subdirectory file — plus a `detect` step exposing `has_toolchain`), a path-scoped
+  compiles (frontmatter opener + top-level `on:` trigger, matched exactly the way gh-aw matches
+  them), never a `README.md`, plain doc, import fragment, or subdirectory file — plus a `detect` step exposing `has_toolchain`), a path-scoped
   **`workflows-compile`** job that recompiles every `gh-aw` agentic-workflow source
   with the pinned `gh-aw compile` and fails on any diff (issue #597 — see
   [ci-pipeline](../skills/devops/ci-pipeline/SKILL.md); rationale for adopting `gh-aw` itself,

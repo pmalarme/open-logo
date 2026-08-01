@@ -75,7 +75,8 @@ real file backs it.
   landed).
 - **Enforced — orphaned source/lock pairs are caught in CI.** `.github/scripts/validate-workflow-lockfiles.py`
   (self-tested by `test-validate-workflow-lockfiles.py`) checks every `.md` gh-aw would actually
-  compile (a frontmatter opener plus a top-level `on:` trigger, parsed as YAML) has exactly one
+  compile (not a `README.md`, a frontmatter opener plus a top-level `on:` trigger, parsed as YAML
+  — each rule mirrored from gh-aw v0.83.1's own source) has exactly one
   `.lock.yml`, and every `.lock.yml` is backed by a `.md` gh-aw would actually *recompile* — a lock
   whose source still exists but was demoted to a trigger-less fragment is reported as stale too, in
   the always-on `meta` job. Neither half-deletion can slip through: a lock file left behind after

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Self-test for the workflow lock-file pairing guard in validate-workflow-lockfiles.py.
 
-Runs in CI in **both** the always-on `meta` job and the path-scoped `workflows-compile` job,
-alongside the guard itself. Never touches the network; depends only on `pyyaml`, like the guard.
+Runs in CI in the always-on `meta` job, alongside the guard itself (the path-scoped
+`workflows-compile` job deliberately runs neither, so it needs no PyPI download — it `needs: meta`,
+so the pairing check has already passed before it starts). Never touches the network; depends only on `pyyaml`, like the guard.
 Exits non-zero on any unexpected result.
 
 Locks the edge cases the guard exists for: a compilable `.md` source with no compiled lock, a
@@ -11,8 +12,9 @@ compilable (stale — nothing will recompile it), an empty directory (today's ac
 must pass cleanly, not silently skip forever), a directory that does not exist at all, and — per
 the gh-aw v0.83.1 compile semantics `requires_lock()` approximates (see that function's
 docstring) —
-every shape of `.md` that must NOT be treated as needing a lock file: no frontmatter opener at
-all, a BOM-prefixed opener (which gh-aw does not recognize either), frontmatter with no top-level `on:` trigger, a subdirectory fragment, `on:` appearing only in
+every shape of `.md` that must NOT be treated as needing a lock file: a `README.md` in any casing
+(excluded by gh-aw before frontmatter detection, even when it declares a trigger), no frontmatter
+opener at all, a BOM-prefixed opener (which gh-aw does not recognize either), frontmatter with no top-level `on:` trigger, a subdirectory fragment, `on:` appearing only in
 the markdown body (after the closing `---`), and `on:` appearing only indented/nested under
 another frontmatter key (block-style).
 
@@ -59,7 +61,21 @@ with tempfile.TemporaryDirectory() as directory:
     if not guard.requires_lock(compilable):
         failures.append("requires_lock: a frontmatter .md with top-level `on:` must be True")
 
-    no_frontmatter = write(directory, "no-frontmatter.md", "# Just a README\n\nNo frontmatter.\n")
+    # gh-aw excludes README.md by name (case-insensitively) before it looks at frontmatter, so
+    # even a README that *does* declare a top-level `on:` trigger is never compiled — demanding a
+    # lock file for it would be an impossible-to-satisfy CI failure.
+    readme_with_frontmatter = write(directory, "README.md", COMPILABLE_MD)
+    if guard.requires_lock(readme_with_frontmatter):
+        failures.append(
+            "requires_lock: README.md is excluded by gh-aw before frontmatter detection, even "
+            "with a top-level `on:` trigger — expected False"
+        )
+
+    readme_lowercase = write(directory, "readme.md", COMPILABLE_MD)
+    if guard.requires_lock(readme_lowercase):
+        failures.append("requires_lock: the README exclusion must be case-insensitive")
+
+    no_frontmatter = write(directory, "no-frontmatter.md", "# Just a doc\n\nNo frontmatter.\n")
     if guard.requires_lock(no_frontmatter):
         failures.append("requires_lock: a .md with no frontmatter opener must be False")
 

@@ -104,20 +104,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.x"
-      # The pairing guard parses workflow frontmatter as YAML (see its requires_lock()), the same
-      # single dependency validate-meta.py already needs in the `meta` job.
-      - run: pip install pyyaml
-      # Pairing check first, on the committed tree, before gh-aw compile runs: gh-aw compile
-      # never deletes a .lock.yml whose .md source is gone, and has nothing to compile for a
-      # compilable .md that was never compiled, so an orphan in either direction would otherwise
-      # go undetected. Content drift between a paired source and lock file is caught below.
-      - name: Guard workflow source/lock-file pairing
-        run: python .github/scripts/validate-workflow-lockfiles.py
-      - name: Self-test the pairing guard
-        run: python .github/scripts/test-validate-workflow-lockfiles.py
+      # Deliberately no Python here: the source/lock-file pairing guard (which needs pyyaml, and
+      # therefore a PyPI download) runs once, in the `meta` job this job already `needs`, so an
+      # orphan in either direction is caught before this job starts — and this job keeps its
+      # promise of no network beyond the pinned gh-aw release asset. Pairing catches what
+      # `gh-aw compile` cannot see (it never deletes a lock whose source is gone, and has nothing
+      # to compile for a source that was never compiled); this job catches content drift.
       - name: Install gh-aw (pinned, checksum-verified — see .github/aw/install.sh)
         env:
           GH_AW_INSTALL_DIR: ${{ runner.temp }}/gh-aw-bin
@@ -145,6 +137,12 @@ jobs:
           has_frontmatter=false
           for f in .github/workflows/*.md; do
             [ -e "${f}" ] || continue
+            # gh-aw excludes README.md by name, case-insensitively, before frontmatter detection
+            # (pkg/cli/workflows.go, v0.83.1) — so must this probe, or a README with frontmatter
+            # would make it call `gh-aw compile` on a directory gh-aw considers empty.
+            case "$(basename "${f}" | tr '[:upper:]' '[:lower:]')" in
+              readme.md) continue ;;
+            esac
             first_line="$(head -n 1 "${f}" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
             if [ "${first_line}" = "---" ]; then
               has_frontmatter=true

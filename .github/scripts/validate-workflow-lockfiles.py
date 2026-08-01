@@ -7,7 +7,9 @@ committed `*.lock.yml` — but only for a source gh-aw actually treats as a comp
 Verified empirically against the pinned gh-aw v0.83.1: a `.md` gh-aw will compile must have its
 *first line* be a frontmatter opener (`---`) AND its frontmatter must declare a top-level `on:`
 trigger. Anything else is legitimately lock-free, not an error:
-  - No frontmatter opener at all (e.g. a plain `README.md`) — gh-aw silently ignores the file.
+  - Any `README.md` (case-insensitive) — gh-aw excludes it by name as documentation, before it
+    ever looks for frontmatter (`strings.EqualFold(filepath.Base(f), "readme.md")`, v0.83.1).
+  - No frontmatter opener at all — gh-aw silently ignores the file.
   - Frontmatter present but no `on:` trigger — gh-aw treats it as an importable fragment/include
     ("Skipping compilation.") even though it still counts toward "Compiled N workflow(s)".
   - Anything under a subdirectory (e.g. `.github/workflows/shared/*.md`) — gh-aw only compiles
@@ -68,12 +70,19 @@ LOCK_SUFFIX = ".lock.yml"
 # where gh-aw errors with "Unknown property: true/yes" rather than compiling).
 TRIGGER_KEY = "on"
 
+# gh-aw excludes README.md from workflow discovery by name, case-insensitively, as documentation
+# rather than a workflow — before any frontmatter is parsed (pkg/cli/workflows.go, v0.83.1). A
+# README with frontmatter and an `on:` key is therefore never compiled, so demanding a lock file
+# for it would be an impossible-to-satisfy CI failure.
+EXCLUDED_MD_BASENAME = "readme.md"
+
 
 def requires_lock(path: str) -> bool:
     """Return True if gh-aw would actually compile `path` into a `.lock.yml`.
 
     Empirically verified against the pinned gh-aw v0.83.1 in throwaway repos, not assumed: the
-    file's first line must be a frontmatter opener (`---`), and the frontmatter block (the lines
+    the file must not be a `README.md` (gh-aw excludes that basename case-insensitively, as
+    documentation), its first line must be a frontmatter opener (`---`), and the frontmatter block (the lines
     between that opener and the next line that is exactly `---`) must declare a top-level `on:`
     trigger. Everything else — no frontmatter opener, or frontmatter with no top-level `on:` — is
     a file gh-aw does not compile, so it is not a source that needs a paired lock file.
@@ -95,6 +104,9 @@ def requires_lock(path: str) -> bool:
     `---` is a file gh-aw silently ignores. Stripping the BOM here would demand a lock file no
     `gh-aw compile` can ever produce.
     """
+    if os.path.basename(path).lower() == EXCLUDED_MD_BASENAME:
+        return False
+
     try:
         with open(path, "r", encoding="utf-8") as handle:
             lines = handle.read().splitlines()

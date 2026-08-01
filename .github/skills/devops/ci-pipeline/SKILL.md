@@ -41,7 +41,8 @@ a hand-edited or stale lock file.
   a frontmatter opener (`---`, surrounding whitespace trimmed) *and* whose frontmatter declares a top-level `on:` trigger
   is treated
   as requiring a lock file — verified empirically against gh-aw v0.83.1: a plain doc (e.g. a
-  `README.md` dropped into `.github/workflows/`), a frontmatter-only import fragment with no
+  `README.md` dropped into `.github/workflows/` — gh-aw excludes that basename case-insensitively
+  before it even looks for frontmatter, so both probes skip it too), a trigger-less import fragment with no
   `on:`, and anything under a subdirectory (e.g. `shared/`) are all files gh-aw itself never
   compiles, so the guard must not demand a lock file for them either (see `requires_lock()` in
   `validate-workflow-lockfiles.py`, which parses the frontmatter as YAML — with `yaml.BaseLoader`,
@@ -61,6 +62,9 @@ a hand-edited or stale lock file.
   `dorny/paths-filter` needs to read a PR's changed-file list; without it the filter step 403s and
   every job gated on its outputs (`workflows-compile`, `studio-visual`) never runs. Scoped to the
   one job that needs it, so the rest of the pipeline keeps the least-privilege default.
+- The `workflows-compile` job deliberately does **not** re-run the pairing guard: it `needs: meta`,
+  which already ran it, and skipping it keeps the job's "no network beyond the pinned release
+  asset" promise (the guard needs `pyyaml`, i.e. a PyPI download).
 - The path-scoped `workflows-compile` job installs the **pinned** `gh-aw` via
   `.github/aw/install.sh` (checksum-verified release download — no `gh extension install`, no
   network beyond the release CDN, no secret), reruns `gh-aw compile`, then stages everything under
