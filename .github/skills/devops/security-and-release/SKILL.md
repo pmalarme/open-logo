@@ -43,19 +43,25 @@ A release is a **validated tuple**, not one package version:
    (feature-detection metadata is the compat contract, not npm semver).
 2. **Conformance is green** for every claimed profile **and its DAG dependencies**.
 3. The **highlighter/tooling** shipped in the same saga as any grammar change it tracks.
-4. Then tag once (all packages lockstep) and publish; the first release is **M2** (Turtle &
-   Rendering = minimal conformance), `0.1.0`.
+4. Then tag once (all packages lockstep); the first release is **M2** (Turtle & Rendering =
+   minimal conformance), `0.1.0`.
+
+**Never publish to npmjs.** Every `@openlogo/*` package is `"private": true` and stays off the
+public registry — a release is a git tag plus GitHub release artifacts (see
+[ADR-0003](../../../../docs/adr/0003-versioning-and-release.md)). Release automation must never run
+`npm publish`.
 
 ## Rules
 
 - **Do not release** if any target package is on a different spec version or a claimed profile's
   conformance is red. KISS: one version line for all packages until there's a real reason to split.
-- Release runs off a tag; the release workflow re-runs conformance as a gate — never publish on red.
+- Release runs off a tag; the release workflow re-runs conformance as a gate — never tag on red.
 - **Never auto-assign issues to a cloud coding agent** as part of automation without explicit
   maintainer approval.
 
 ## Checklist
 - [ ] CodeQL + dependency review + Dependabot + secret scanning active; least-privilege tokens; actions pinned.
 - [ ] Release tags a single lockstep tuple; all packages share one spec version + profiles.
+- [ ] No `npm publish` anywhere; every `@openlogo/*` manifest keeps `"private": true`.
 - [ ] Conformance (profile + DAG deps) green before tag **and** re-checked in the release job.
 - [ ] Highlighter/tooling shipped with the grammar change it tracks.
