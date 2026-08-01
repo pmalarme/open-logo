@@ -29,6 +29,8 @@ CASES = [
     ("file reference", "file:../local-dep", True),
     ("git+https source", "git+https://github.com/owner/repo.git#abc123", True),
     ("git+ssh source", "git+ssh://git@github.com/owner/repo.git#abc123", True),
+    ("git+http source", "git+http://git.example.com/owner/repo.git#abc123", True),
+    ("git source", "git://github.com/owner/repo.git#abc123", True),
     ("azure artifacts mirror", "https://ms-feed-x.pkgs.visualstudio.com/_packaging/f/npm/registry/biome/-/biome-2.0.0.tgz", False),
     ("host suffix spoof", "https://registry.npmjs.org.evil.com/biome/-/biome-2.0.0.tgz", False),
     ("http public registry", "http://registry.npmjs.org/biome/-/biome-2.0.0.tgz", False),
@@ -60,6 +62,26 @@ document = {
 violations = guard.find_violations(document)
 if violations != ["https://mirror.internal/bad/-/bad-1.0.0.tgz"]:
     failures.append(f"find_violations: unexpected result {violations!r}")
+
+# Older lockfileVersion 1/2 trees nest under "dependencies" — the walk is key-agnostic.
+legacy_document = {
+    "lockfileVersion": 2,
+    "dependencies": {
+        "good": {
+            "resolved": "https://registry.npmjs.org/good/-/good-1.0.0.tgz",
+            "dependencies": {
+                "nested-bad": {"resolved": "https://feed.internal/nested/-/nested-1.0.0.tgz"},
+            },
+        },
+    },
+}
+legacy_violations = guard.find_violations(legacy_document)
+if legacy_violations != ["https://feed.internal/nested/-/nested-1.0.0.tgz"]:
+    failures.append(f"find_violations (legacy tree): unexpected result {legacy_violations!r}")
+
+# A lockfile with no "resolved" keys at all must not trip the guard.
+if guard.find_violations({"lockfileVersion": 3, "packages": {"": {"name": "openlogo"}}}) != []:
+    failures.append("find_violations: a lockfile without resolved keys should be clean")
 
 # A missing lockfile is not an error — the guard runs before the toolchain lands.
 with tempfile.TemporaryDirectory() as directory:

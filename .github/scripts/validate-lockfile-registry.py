@@ -11,8 +11,8 @@ Rules for every `"resolved"` value in the lockfile:
   * an `https://registry.npmjs.org/...` URL is allowed (the public registry);
   * a workspace-relative path (`packages/core`) or a `file:` reference is allowed — it never
     reaches a registry;
-  * a `git+https:`/`git+ssh:`/`git:` source is allowed: it is a direct VCS dependency, not a
-    private registry mirror (npm has to fetch it from the host it names);
+  * a `git+https:`/`git+ssh:`/`git+http:`/`git:` source is allowed: it is a direct VCS dependency,
+    not a private registry mirror (npm has to fetch it from the host it names);
   * anything else with a URI scheme is rejected as a non-public registry.
 
 Stdlib only; parses the JSON rather than grepping, so a missing/mistyped pattern cannot silently
