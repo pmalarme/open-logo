@@ -182,9 +182,9 @@ gh-aw --version                 # should print: gh aw version <version>
 ```
 
 Override the destination with `GH_AW_INSTALL_DIR=/some/writable/dir`. The script picks the
-release asset for your platform (`linux`/`darwin`/`freebsd`/`windows` × `amd64`/`arm64`/`386`/
-`arm`), **verifies it against the published `checksums.txt`** before making it executable, and
-fails with a clear message on an unsupported platform or a checksum mismatch.
+release asset for your platform, **verifies it against the published `checksums.txt`** before
+making it executable, and — because not every OS/architecture combination is released — fails
+with the real asset list when the pinned version publishes nothing for your platform.
 
 It downloads the prebuilt release binary rather than using `gh extension install` or
 `go install`, because both of those are blocked in agent sandboxes (e.g. the GitHub Copilot

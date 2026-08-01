@@ -56,16 +56,23 @@ work_dir="$(mktemp -d)"
 # shellcheck disable=SC2064 # expand work_dir now, while it is still set.
 trap "rm -rf '${work_dir}'" EXIT
 
-echo "gh-aw: downloading ${version} asset '${asset}'..."
-curl -fsSL "${base_url}/${asset}" -o "${work_dir}/${asset}"
+# Resolve the checksum manifest first: it is the authoritative list of published assets, so a
+# platform the release does not build for fails here with an explanatory message (and the real
+# asset list) instead of an opaque 404 from the asset download. `uname -s` and `uname -m` are
+# mapped independently above, so they can name a combination that was never released.
 curl -fsSL "${base_url}/checksums.txt" -o "${work_dir}/checksums.txt"
-
-# Verify the download against the published checksum before it becomes executable.
 expected="$(awk -v asset="${asset}" '$2 == asset { print $1 }' "${work_dir}/checksums.txt")"
 if [ -z "${expected}" ]; then
-  echo "gh-aw: no checksum published for asset '${asset}' in ${version}." >&2
+  echo "gh-aw: ${version} publishes no asset '${asset}' for $(uname -s)/$(uname -m)." >&2
+  echo "gh-aw: available assets:" >&2
+  awk '{ print "  " $2 }' "${work_dir}/checksums.txt" >&2
   exit 1
 fi
+
+echo "gh-aw: downloading ${version} asset '${asset}'..."
+curl -fsSL "${base_url}/${asset}" -o "${work_dir}/${asset}"
+
+# Verify the download against the published checksum before it becomes executable.
 actual="$(
   if command -v sha256sum >/dev/null 2>&1; then
     sha256sum "${work_dir}/${asset}"
