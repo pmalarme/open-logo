@@ -1,6 +1,7 @@
 {
   "name": "@openlogo/turtle",
   "version": "0.2.0",
+  "private": true,
   "description": "OpenLogo turtle: turtle/sprite state, pen/heading/shape, rendering (Canvas/SVG/PNG), animation, export, and accessibility.",
   "license": "MIT",
   "type": "module",

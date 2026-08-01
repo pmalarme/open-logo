@@ -29,6 +29,13 @@ jobs:
         run: python .github/scripts/validate-meta.py
       - name: Self-test the frontmatter check
         run: python .github/scripts/test-validate-meta.py
+      - name: Guard package-lock.json against non-public registries
+        # Regression guard for issue #642 / ADR-0017: every "resolved" entry must come from the
+        # public npm registry, never a private/internal mirror (e.g. an Azure DevOps feed) that
+        # outside contributors and CI cannot reach. Runs from day one — no toolchain needed.
+        run: python .github/scripts/validate-lockfile-registry.py
+      - name: Self-test the lockfile registry guard
+        run: python .github/scripts/test-validate-lockfile-registry.py
       - id: detect
         name: Detect toolchain
         # hashFiles() is unreliable in a job-level `if` (it runs before checkout), so we

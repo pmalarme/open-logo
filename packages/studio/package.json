@@ -1,6 +1,7 @@
 {
   "name": "@openlogo/studio",
   "version": "0.2.0",
+  "private": true,
   "description": "OpenLogo studio: the browser learner IDE — editor/REPL, Canvas turtle view, run/stop/step, diagnostics, tooling, and lessons.",
   "license": "MIT",
   "type": "module",

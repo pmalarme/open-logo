@@ -51,3 +51,19 @@ square draws on the Canvas. See [`packages/studio`](packages/studio) for details
 
 **Repo map:** see [`packages/README.md`](packages/README.md) for the package layout and
 [`docs/`](docs/) for architecture, ADRs, and delivery docs.
+
+## Agentic Workflows (gh-aw)
+
+The repository uses [GitHub Agentic Workflows (`gh-aw`)](https://github.com/github/gh-aw).
+The pinned version is in [`.github/aw/version`](.github/aw/version).
+
+**Bootstrap** — one POSIX-shell command on every platform (on Windows, run it from Git Bash or
+another POSIX environment). Agent sandboxes block `gh extension install` and `go install`, so this
+downloads the pinned prebuilt binary and verifies its checksum:
+
+```bash
+sh .github/aw/install.sh        # installs to $HOME/.local/bin; override with GH_AW_INSTALL_DIR
+gh-aw --version                 # add the install dir to your PATH first
+```
+
+See [`AGENTS.md` §gh-aw bootstrap](AGENTS.md#gh-aw-bootstrap) for details and the compile step.
