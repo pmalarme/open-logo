@@ -11,7 +11,7 @@
 
 The repository adopts [GitHub Agentic Workflows (`gh-aw`)](https://github.com/github/gh-aw): a CLI
 that compiles agentic-workflow markdown into lock files, and that also serves an MCP server the
-Copilot agents consume. Three decisions had to be made before it could be used consistently by
+Copilot agents consume. Three problems had to be solved before it could be used consistently by
 contributors, cloud agents, and CI.
 
 - **The documented install methods do not work where we need them most.** `gh aw` is normally
@@ -52,8 +52,11 @@ Windows it needs Git Bash or another POSIX environment.
 Because the installer places a binary on `PATH` rather than registering a `gh` extension (`gh`
 resolves extensions from its own directory, not from `PATH`), every invocation is `gh-aw …`.
 [`.github/mcp.json`](../../.github/mcp.json) therefore launches `gh-aw mcp-server`. This is a real
-trap: the binary's own `--version` prints `gh aw version …`, and the generated agent and skill files
-are full of `gh aw …` command lines.
+trap: the binary's own `--version` prints `gh aw version …`, and the generated agent file is full of
+`gh aw …` command lines. `.github/mcp.json` carries a second correction — it declares the tool as
+`mcp-inspect`, where `gh aw init` emits `inspect`, a name the v0.83.1 server advertises for no tool
+(verified by an MCP `tools/list` handshake), so as generated the capability is silently unavailable.
+Both corrections must survive a future `gh aw init` re-run.
 
 **4. Generated files are committed as generated.**
 `.github/agents/agentic-workflows.md` and `.github/skills/agentic-workflows/SKILL.md` are committed
@@ -65,9 +68,11 @@ exception is `.vscode/settings.json`, which is inside Prettier's scope and so is
 ## Consequences
 
 - **Positive.** One bootstrap command works identically for humans, cloud agents, and CI. The
-  version is bumped in exactly one line. A tampered or truncated download can never be executed. An
-  unsupported platform gets an actionable error. A future `gh aw init` re-run produces no spurious
-  diff in the generated markdown.
+  version is bumped in exactly one line. A download that differs from the published checksum can
+  never be executed — note that the manifest and the asset share one release trust boundary, so
+  this detects corruption and tampering in transit, not a compromised release. An unsupported
+  platform gets an actionable error. A future `gh aw init` re-run produces no spurious diff in the
+  generated markdown.
 - **Negative.** We own an installer rather than using the upstream one, so a change to the release
   asset naming or to `checksums.txt` is ours to follow. The `gh-aw` versus `gh aw` distinction is a
   standing papercut that documentation, not tooling, has to keep resolving.

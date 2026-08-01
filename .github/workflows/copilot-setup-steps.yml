@@ -17,9 +17,9 @@ name: "Copilot Setup Steps"
 #   2. `actions/checkout` is @v7 rather than the generated @v6, matching every other workflow in
 #      this repository (see the "Conventions" section of
 #      .github/instructions/workflows.instructions.md, which pins actions by major tag).
-#   3. A `push` trigger filtered to this file and `.github/aw/**` is added, so a bad version bump
-#      or installer edit is caught on the feature branch rather than after merge. It is
-#      deliberately not filtered by branch, and has no `pull_request` trigger — so this workflow
+#   3. `.github/aw/**` is added to the generated `push` path filter, so a bad version bump or
+#      installer edit is caught on the feature branch rather than after merge. As generated, the
+#      trigger stays unfiltered by branch and has no `pull_request` trigger — so this workflow
 #      neither is nor needs to be a required status check.
 #   4. A top-level `permissions: contents: read` block is added alongside the generated job-level
 #      one, so the default token scope is least-privilege even for any step added later.

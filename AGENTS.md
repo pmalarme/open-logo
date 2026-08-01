@@ -218,9 +218,14 @@ No network access is required to compile the workflows in this repository.
 `.github/skills/agentic-workflows/SKILL.md`. Both are committed **as generated**, so their names
 deviate from the house conventions (`*.agent.md`, `skills/<owner>/<name>/`) — keeping them
 byte-identical to the upstream output means a future `gh aw init` re-run produces no spurious
-diff. Do not hand-rename them, and read their command lines with one substitution: where they say
-`gh aw …`, run `gh-aw …` here, because the installer above deliberately does **not** register a
-`gh` extension.
+diff. Do not hand-rename them, and read the agent file's command lines with one substitution: where
+it says `gh aw …`, run `gh-aw …` here, because the installer above deliberately does **not**
+register a `gh` extension (the skill file contains no such command lines).
+
+`.github/mcp.json` is **not** committed as generated: besides launching `gh-aw mcp-server` rather
+than the `gh aw` extension, it declares the tool as `mcp-inspect`, whereas `gh aw init` emits
+`inspect` — a name the v0.83.1 server advertises for no tool, so the capability would be silently
+unavailable. Do not "restore" it from a future `gh aw init` re-run.
 
 `.vscode/settings.json` comes from the same `gh aw init` run: it enables Copilot for markdown so
 agentic-workflow `*.md` files get completions. It is the one file here that is **not** kept
