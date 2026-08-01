@@ -34,14 +34,16 @@ docs/adr/        Architecture Decision Records (why we built it this way)
 docs/design-notes/     Language Design Records (why the language is shaped this way)
 docs/architecture.md   Monorepo definition + cross-cutting contracts (AST, highlighting, events, UI)
 docs/delivery.md       Release + saga strategy
+.github/agent-policy.md  One-page briefing every Copilot cloud agent reads before its first commit
 .github/agents/  The OpenLogo agent team (*.agent.md)
 .github/skills/  Agent skill playbooks (shared + per-agent)
 .github/instructions/  Team working agreement (always on) + per-package rules (applyTo packages/<name>/**)
 .github/ISSUE_TEMPLATE/  Issue forms — feature-request, epic, feature-slice (user story), conformance-task, foundation, bug, docs
 .github/labels.yml     Label taxonomy manifest (agent:*/type:*/profile:*/area:*/level:*)
 .github/labeler.yml    Path→label rules for PR auto-labeling
-.github/scripts/        Metadata validation + label sync (run by CI)
-.github/workflows/     CI (Definition of Done), labeler, label sync — owned by @devops
+.github/scripts/        Metadata + commit-convention validation, label sync (run by CI)
+.github/workflows/     CI (Definition of Done), commit convention, labeler, label sync — owned by @devops
+.githooks/       Local commit-msg check (wired by the root `prepare` script) — guidance, not a gate
 packages/        @openlogo/* packages — src/ skeleton in place; see packages/README.md for the map
 tests/conformance/     Stack-neutral source→events/diagnostics fixtures (grow with the build)
 ```
@@ -89,6 +91,31 @@ to project" workflow (filter `is:issue,pr is:open`, no token needed) it adds new
 automatically; until then (and any time it is off), use the
 manual fallback in the
 [`product-owner/github-project`](.github/skills/product-owner/github-project/SKILL.md) skill.
+
+## How the rules reach an agent
+
+Five layers carry OpenLogo's rules, and **only the last one can say no**:
+
+```text
+agent policy  →  instructions  →  skills  →  git hooks  →  CI + branch rulesets
+(org/enterprise   AGENTS.md,       .github/   .githooks/     .github/workflows/,
+ capabilities +   copilot-         skills/    commit-msg     CODEOWNERS,
+ .github/         instructions,                              required checks
+ agent-policy.md) instructions/,
+                  agents/
+   guidance ─────────────────────────────────────────────►   THE GATE
+```
+
+**Policies, instructions, and hooks are guidance; CI is the gate.** Never add a hook or a policy to
+the required-checks list, and never assume a rule is enforced just because it is written down — if it
+blocks, there is a CI check for it. Precedence, the recorded org/enterprise settings, and how to add
+a new rule: [`.github/skills/devops/agent-policy/SKILL.md`](.github/skills/devops/agent-policy/SKILL.md)
+and [ADR-0016](docs/adr/0016-commit-convention-and-agent-policy.md).
+
+**Commits:** `type(scope): subject` with **scope optional** (up to three, comma-separated). The **PR
+title is the blocking check** — it becomes the squash-merge subject; individual commit subjects are
+advisory. Details in
+[`devops/branching-and-commits`](.github/skills/devops/branching-and-commits/SKILL.md).
 
 ## Spec fidelity cheatsheet (canonical OpenLogo, not classic Logo)
 

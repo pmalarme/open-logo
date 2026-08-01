@@ -13,3 +13,6 @@ spec/
 docs/
 .github/
 *.md
+
+# Shell hooks — not Prettier's business.
+.githooks/

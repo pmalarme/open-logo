@@ -10,7 +10,9 @@ Scoped rules for GitHub Actions under `.github/workflows/`. Read the always-on
 **Owner:** [`@devops`](../agents/devops.agent.md) ·
 **Skills:** [ci-pipeline](../skills/devops/ci-pipeline/SKILL.md),
 [labeler-and-labels](../skills/devops/labeler-and-labels/SKILL.md),
-[security-and-release](../skills/devops/security-and-release/SKILL.md)
+[security-and-release](../skills/devops/security-and-release/SKILL.md),
+[branching-and-commits](../skills/devops/branching-and-commits/SKILL.md),
+[agent-policy](../skills/devops/agent-policy/SKILL.md)
 
 ## Responsibility
 The pipelines that turn the [Definition of Done](openlogo-team.instructions.md) into enforced gates,
@@ -30,6 +32,20 @@ suites these workflows run; you wire and secure them.
 - `labeler.yml` — path→label PR labeling from [`.github/labeler.yml`](../labeler.yml).
 - `label-sync.yml` — reconciles repo labels from [`.github/labels.yml`](../labels.yml) via
   `.github/scripts/sync-labels.py` when the manifest changes.
+- `commitlint.yml` — Conventional Commits via `.github/scripts/validate-commits.py` (self-tested by
+  `test-validate-commits.py`). The **PR title is blocking** (it is the squash-merge subject); commit
+  subjects are **advisory** warning annotations, because a cloud agent cannot rewrite the bootstrap
+  commit the platform creates before its first turn. See
+  [branching-and-commits](../skills/devops/branching-and-commits/SKILL.md) and
+  [ADR-0016](../../docs/adr/0016-commit-convention-and-agent-policy.md).
+
+## Also owned by @devops (outside this folder)
+- [`.github/agent-policy.md`](../agent-policy.md) — the one-page briefing every Copilot cloud agent
+  session reads before its first commit; it links out to the owning SKILLs rather than restating
+  rules. Governance model in [agent-policy](../skills/devops/agent-policy/SKILL.md), including where
+  admin-applied org/enterprise Copilot agent policies are recorded.
+- [`.githooks/`](../../.githooks) — local `commit-msg` check, wired by the root `prepare` npm script.
+  **Guidance, not a gate**: bypassable with `--no-verify` and never a required check.
 
 ## Conventions
 - **Least privilege:** set explicit `permissions:` per workflow; default to `contents: read` and add
@@ -37,6 +53,8 @@ suites these workflows run; you wire and secure them.
 - **Pin actions by version** (`@v5`, `@v4`); prefer first-party/official actions.
 - **Deterministic + fast:** cache deps, no wall-clock/frame dependence; conformance runs by profile
   along the DAG (a profile job needs its dependencies green).
+- **Guidance vs. gate:** policies, instructions, and hooks are guidance; **CI is the only gate**.
+  Never add a hook or an agent policy to the required-status-check list.
 - **Never bypass review:** CI gates merges; no auto-merge, no self-approval. Never commit secrets;
   never auto-assign a cloud agent without maintainer approval.
 - Keep the labeler map + labels manifest in step with package renames — update them in the same PR.
