@@ -42,7 +42,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
       - name: Install gh-aw (pinned, checksum-verified, restricted-network-safe)
-        # Upgrade: edit .github/aw/version (one line) and recompile lock files.
+        # Upgrade: edit .github/aw/version (one line), re-install, and recompile lock files.
         env:
           GH_AW_INSTALL_DIR: ${{ runner.temp }}/gh-aw-bin
         run: |

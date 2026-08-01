@@ -35,7 +35,7 @@ docs/design-notes/     Language Design Records (why the language is shaped this 
 docs/architecture.md   Monorepo definition + cross-cutting contracts (AST, highlighting, events, UI)
 docs/delivery.md       Release + saga strategy
 .github/agent-policy.md  One-page briefing every Copilot cloud agent reads before its first commit
-.github/agents/  The OpenLogo agent team (*.agent.md)
+.github/agents/  The OpenLogo agent team (*.agent.md) + agentic-workflows.md, committed as generated
 .github/skills/  Agent skill playbooks (shared + per-agent)
 .github/instructions/  Team working agreement (always on) + per-package rules (applyTo packages/<name>/**)
 .github/ISSUE_TEMPLATE/  Issue forms — feature-request, epic, feature-slice (user story), conformance-task, foundation, bug, docs
@@ -43,6 +43,8 @@ docs/delivery.md       Release + saga strategy
 .github/labeler.yml    Path→label rules for PR auto-labeling
 .github/scripts/        Metadata + commit-convention validation, label sync (run by CI)
 .github/workflows/     CI (Definition of Done), commit convention, labeler, label sync — owned by @devops
+.github/aw/            gh-aw version pin + shared installer (see "gh-aw bootstrap" below)
+.github/mcp.json       MCP server registration for the agentic-workflows tooling
 .githooks/       Local commit-msg check (wired by the root `prepare` script) — guidance, not a gate
 packages/        @openlogo/* packages — src/ skeleton in place; see packages/README.md for the map
 tests/conformance/     Stack-neutral source→events/diagnostics fixtures (grow with the build)
@@ -170,7 +172,9 @@ unreadable report, or an anomalous fully-100 exit fail fast. See
 
 The repository uses [GitHub Agentic Workflows (`gh-aw`)](https://github.com/github/gh-aw). The
 pinned version is in **[`.github/aw/version`](.github/aw/version)** — the single authoritative
-source. To upgrade, edit that file (one line) and recompile all lock files with `gh-aw compile`.
+source. To upgrade: edit that file (one line), **re-run the installer** so your local binary matches
+the new pin, then recompile all lock files with `gh-aw compile`. Editing the pin alone leaves you
+compiling with the old binary.
 
 ### Installing gh-aw
 
@@ -205,13 +209,24 @@ before running:
 gh-aw compile   # or: /path/to/gh-aw compile
 ```
 
-No network access is required for compilation.
+No network access is required to compile the workflows in this repository.
+
+### Generated files (committed as generated)
 
 `gh aw init` also generated `.github/agents/agentic-workflows.md` and
 `.github/skills/agentic-workflows/SKILL.md`. Both are committed **as generated**, so their names
 deviate from the house conventions (`*.agent.md`, `skills/<owner>/<name>/`) — keeping them
 byte-identical to the upstream output means a future `gh aw init` re-run produces no spurious
-diff. Do not hand-rename them.
+diff. Do not hand-rename them, and read their command lines with one substitution: where they say
+`gh aw …`, run `gh-aw …` here, because the installer above deliberately does **not** register a
+`gh` extension.
+
+`.vscode/settings.json` comes from the same `gh aw init` run: it enables Copilot for markdown so
+agentic-workflow `*.md` files get completions.
+
+`.github/aw/` is also gh-aw's own prompt-overlay directory (the generated skill probes for files
+such as `.github/aw/instructions.md`). Nothing conflicts today; `version` and `install.sh` are
+ours.
 
 ## The agent team
 

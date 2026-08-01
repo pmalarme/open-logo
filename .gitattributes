@@ -4,5 +4,7 @@
 # including Windows clients with core.autocrlf=true.
 .githooks/* text eol=lf
 
-# The shared gh-aw installer is POSIX shell — LF endings on every platform.
+# The shared gh-aw installer is POSIX shell — LF endings on every platform. The version pin is
+# read into a URL, so a stray CR would corrupt it.
 .github/aw/install.sh text eol=lf
+.github/aw/version text eol=lf

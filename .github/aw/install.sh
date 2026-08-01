@@ -13,11 +13,14 @@
 #   sh .github/aw/install.sh            # installs to $HOME/.local/bin
 #   GH_AW_INSTALL_DIR=/usr/local/bin sh .github/aw/install.sh
 #
-# Upgrade: edit .github/aw/version (one line), then recompile lock files with `gh-aw compile`.
+# Upgrade: edit .github/aw/version (one line), re-run this script, then recompile lock files
+# with `gh-aw compile`.
 set -eu
 
 script_dir="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
-version="$(cat "${script_dir}/version")"
+# `tr -d` strips a trailing CR: a Windows checkout with core.autocrlf=true can store the pin
+# with CRLF endings, and the carriage return would silently corrupt every URL built from it.
+version="$(tr -d '\r\n' < "${script_dir}/version")"
 install_dir="${GH_AW_INSTALL_DIR:-${HOME}/.local/bin}"
 
 case "$(uname -s)" in
@@ -72,14 +75,19 @@ fi
 echo "gh-aw: downloading ${version} asset '${asset}'..."
 curl -fsSL "${base_url}/${asset}" -o "${work_dir}/${asset}"
 
-# Verify the download against the published checksum before it becomes executable.
-actual="$(
-  if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum "${work_dir}/${asset}"
-  else
-    shasum -a 256 "${work_dir}/${asset}"
-  fi | awk '{ print $1 }'
-)"
+# Verify the download against the published checksum before it becomes executable. FreeBSD ships
+# neither sha256sum nor shasum in its base system, so `sha256 -q` is the third supported utility.
+if command -v sha256sum >/dev/null 2>&1; then
+  actual="$(sha256sum "${work_dir}/${asset}" | awk '{ print $1 }')"
+elif command -v shasum >/dev/null 2>&1; then
+  actual="$(shasum -a 256 "${work_dir}/${asset}" | awk '{ print $1 }')"
+elif command -v sha256 >/dev/null 2>&1; then
+  actual="$(sha256 -q "${work_dir}/${asset}")"
+else
+  echo "gh-aw: no SHA-256 utility found (need sha256sum, shasum, or sha256)." >&2
+  echo "gh-aw: refusing to install an unverified binary." >&2
+  exit 1
+fi
 if [ "${expected}" != "${actual}" ]; then
   echo "gh-aw: checksum mismatch for '${asset}' (expected ${expected}, got ${actual})." >&2
   exit 1
@@ -90,6 +98,9 @@ chmod +x "${work_dir}/${asset}"
 mv "${work_dir}/${asset}" "${install_dir}/${binary_name}"
 
 echo "gh-aw: installed ${version} to ${install_dir}/${binary_name}"
-if ! command -v gh-aw >/dev/null 2>&1; then
-  echo "gh-aw: add ${install_dir} to your PATH, e.g. export PATH=\"${install_dir}:\$PATH\"" >&2
+# Compare the resolved `gh-aw` with the one just installed: an older binary earlier in PATH would
+# otherwise shadow it silently.
+resolved="$(command -v gh-aw 2>/dev/null || true)"
+if [ "${resolved}" != "${install_dir}/${binary_name}" ]; then
+  echo "gh-aw: put ${install_dir} first on your PATH, e.g. export PATH=\"${install_dir}:\$PATH\"" >&2
 fi
