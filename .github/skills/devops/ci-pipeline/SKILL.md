@@ -17,12 +17,39 @@ Every merge to `main` must pass the same gates. This skill is how you wire and e
 
 | Gate | Runs | When |
 |---|---|---|
-| meta | markdown links, YAML lint (issue forms, labels, workflows), spec-example presence | always |
+| meta | markdown links, YAML lint (issue forms, labels, workflows), spec-example presence, gh-aw `.md`/`.lock.yml` pairing (orphan guard) | always |
+| **workflows-compile** | pinned `gh-aw compile` on every agentic-workflow source, fails if `git status` reports any drift (issue #597) | PRs touching `.github/workflows/**` or `.github/aw/**` |
 | build + type-check | `tsc -b` across project references (TS7, strict) | when `package.json` exists |
 | lint + format | Biome (lint) + Prettier (format) + OpenLogo style-lint | when `package.json` exists |
 | unit | package unit tests | when `package.json` exists |
 | **conformance** | stack-neutral `tests/conformance/` fixtures, **by profile along the DAG** | when fixtures exist |
 | integration + examples | vertical-slice integration + every `spec/examples/*.logo` still runs | when `package.json` exists |
+
+### gh-aw compile-drift gate (issue #597)
+
+`gh-aw compile` (see AGENTS.md §"gh-aw bootstrap", ADR-0017) turns each `.github/workflows/*.md`
+source into a committed `*.lock.yml`; what Actions runs must be exactly that compiled output, never
+a hand-edited or stale lock file.
+
+- The always-on `meta` job runs `.github/scripts/validate-workflow-lockfiles.py` (self-tested by
+  its `test-validate-workflow-lockfiles.py` pair, the same convention as
+  `validate-lockfile-registry.py`) to catch **orphans**: a `.lock.yml` with no matching `.md`, or a
+  `.md` with no `.lock.yml` yet. `gh-aw compile` never deletes an orphaned lock file and has
+  nothing to compile for an uncompiled source, so this check runs *before* compiling, on the
+  committed tree.
+- The path-scoped `workflows-compile` job installs the **pinned** `gh-aw` via
+  `.github/aw/install.sh` (checksum-verified release download — no `gh extension install`, no
+  network beyond the release CDN, no secret), reruns `gh-aw compile`, then stages everything under
+  `.github/workflows/` (`git add -A`, not a bare `git diff --exit-code`, so a `.lock.yml` that was
+  never committed at all — an untracked file — is also caught) and fails if anything changed,
+  naming the drifted file(s) and the fix command (`gh-aw compile && git add
+  .github/workflows/*.lock.yml && git commit`).
+- Both jobs pass cleanly in **today's actual state** — zero `*.md` sources, zero `*.lock.yml`
+  files — rather than silently skipping forever; the pairing check reports "0 pairs" and the
+  compile job exits early with an explicit "nothing to compile" message the moment a source lands.
+- **Required-check status:** agents cannot edit branch-protection rulesets. This gate should be
+  added to the target branch's required status checks by a maintainer once it has run green at
+  least once; until then it still fails the PR (red X), it just is not yet a hard block.
 
 ## Rules
 
@@ -74,3 +101,5 @@ Every merge to `main` must pass the same gates. This skill is how you wire and e
 - [ ] No `--if-present` — every DoD script is called plainly so a missing gate fails.
 - [ ] Conformance runs by profile along the DAG.
 - [ ] Actions pinned; permissions least-privilege; no bypass of review.
+- [ ] `gh-aw` `.md`/`.lock.yml` pairing + compile-drift gates pass green with **zero** agentic
+      workflows present, and go red on both an orphaned lock and an uncompiled/edited source.

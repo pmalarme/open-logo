@@ -19,6 +19,7 @@ jobs:
     outputs:
       has_toolchain: ${{ steps.detect.outputs.has_toolchain }}
       studio_changed: ${{ steps.filter.outputs.studio }}
+      workflows_changed: ${{ steps.filter.outputs.workflows }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
@@ -36,6 +37,13 @@ jobs:
         run: python .github/scripts/validate-lockfile-registry.py
       - name: Self-test the lockfile registry guard
         run: python .github/scripts/test-validate-lockfile-registry.py
+      - name: Guard gh-aw workflow source/lock-file pairing
+        # Issue #597: an orphaned .lock.yml with no .md source (or vice versa) is caught here,
+        # before gh-aw compile ever runs — see the workflows-compile job for content drift.
+        # Runs from day one: passes cleanly while zero agentic workflows exist (today's state).
+        run: python .github/scripts/validate-workflow-lockfiles.py
+      - name: Self-test the workflow lock-file pairing guard
+        run: python .github/scripts/test-validate-workflow-lockfiles.py
       - id: detect
         name: Detect toolchain
         # hashFiles() is unreliable in a job-level `if` (it runs before checkout), so we
@@ -47,9 +55,11 @@ jobs:
             echo "has_toolchain=false" >> "$GITHUB_OUTPUT"
           fi
       - id: filter
-        name: Detect studio-affecting changes
+        name: Detect studio-affecting and workflows-affecting changes
         # Path-scopes the (heavy, browser-based) studio visual-regression job so it only runs when
         # the studio or a package it composes actually changes. Output consumed by `studio-visual`.
+        # Also scopes the gh-aw compile-drift job (needs network access to fetch the pinned
+        # release asset) to PRs that actually touch workflow sources/locks or the pin/installer.
         uses: dorny/paths-filter@v3
         with:
           filters: |
@@ -62,6 +72,61 @@ jobs:
               - 'packages/edu/**'
               - 'package-lock.json'
               - '.github/workflows/ci.yml'
+            workflows:
+              - '.github/workflows/**'
+              - '.github/aw/**'
+              - '.github/scripts/validate-workflow-lockfiles.py'
+              - '.github/scripts/test-validate-workflow-lockfiles.py'
+
+  workflows-compile:
+    name: Agentic workflow compile is clean (gh-aw)
+    # Issue #597: what runs in Actions must be exactly what `gh-aw compile` produces from the
+    # reviewed .md source, never a hand-edited or stale .lock.yml. Path-scoped (via `meta`'s
+    # `filter` step) so this only runs on PRs that actually touch workflow sources/locks, the
+    # gh-aw pin, or its installer — it is cheap, but the pinned-binary download still needs
+    # network access to the release CDN, so it does not run on every unrelated PR.
+    needs: meta
+    if: ${{ needs.meta.outputs.workflows_changed == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+      # Pairing check first, on the committed tree, before gh-aw compile runs: gh-aw compile
+      # never deletes a .lock.yml whose .md source is gone, and has nothing to compile for a
+      # .md that was never compiled, so an orphan in either direction would otherwise go
+      # undetected. Content drift between a paired source and lock file is caught below.
+      - name: Guard workflow source/lock-file pairing
+        run: python .github/scripts/validate-workflow-lockfiles.py
+      - name: Self-test the pairing guard
+        run: python .github/scripts/test-validate-workflow-lockfiles.py
+      - name: Install gh-aw (pinned, checksum-verified — see .github/aw/install.sh)
+        env:
+          GH_AW_INSTALL_DIR: ${{ runner.temp }}/gh-aw-bin
+        run: |
+          sh .github/aw/install.sh
+          echo "$GH_AW_INSTALL_DIR" >> "$GITHUB_PATH"
+      - name: Compile and fail on drift from the committed .lock.yml files
+        # No secret and no agentic execution here: `gh-aw compile` only turns markdown into
+        # YAML, it never runs a workflow. `git add -A` (not `git diff --exit-code` alone) is
+        # required to also catch a .md source whose .lock.yml was never committed at all: an
+        # untracked new file is invisible to a plain `git diff`, but a real gap in what CI runs.
+        run: |
+          if ! ls .github/workflows/*.md >/dev/null 2>&1; then
+            echo "No agentic-workflow sources (.github/workflows/*.md) — nothing to compile."
+            exit 0
+          fi
+          gh-aw compile
+          git add -A -- .github/workflows/
+          drifted="$(git diff --cached --name-only -- .github/workflows/)"
+          if [ -n "${drifted}" ]; then
+            echo "::error::gh-aw compile changed the following committed file(s) — the .lock.yml is out of sync with its .md source:"
+            echo "${drifted}" | sed 's/^/::error::  - /'
+            echo "::error::Fix: sh .github/aw/install.sh && gh-aw compile && git add .github/workflows/*.lock.yml && git commit"
+            exit 1
+          fi
+          echo "gh-aw compile: every .lock.yml matches its .md source."
 
   build:
     name: Build & type-check
