@@ -1,0 +1,88 @@
+#!/usr/bin/env sh
+# Install the pinned gh-aw binary for the current platform.
+#
+# Single source of truth for the bootstrap: CI (.github/workflows/copilot-setup-steps.yml),
+# AGENTS.md, and README.md all call this script, so the procedure exists in exactly one place.
+#
+# Why a direct release download instead of `gh extension install` / `go install`:
+# both are blocked in restricted-network agent sandboxes, while the release CDN
+# (release-assets.githubusercontent.com) is reachable. The binary is standalone — it is
+# invoked as `gh-aw`, not as the `gh aw` extension (see .github/mcp.json).
+#
+# Usage:
+#   sh .github/aw/install.sh            # installs to $HOME/.local/bin
+#   GH_AW_INSTALL_DIR=/usr/local/bin sh .github/aw/install.sh
+#
+# Upgrade: edit .github/aw/version (one line), then recompile lock files with `gh-aw compile`.
+set -eu
+
+script_dir="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
+version="$(cat "${script_dir}/version")"
+install_dir="${GH_AW_INSTALL_DIR:-${HOME}/.local/bin}"
+
+case "$(uname -s)" in
+  Linux) os=linux ;;
+  Darwin) os=darwin ;;
+  FreeBSD) os=freebsd ;;
+  MINGW* | MSYS* | CYGWIN* | Windows_NT) os=windows ;;
+  *)
+    echo "gh-aw: unsupported operating system '$(uname -s)'." >&2
+    echo "See https://github.com/github/gh-aw/releases/tag/${version} for available assets." >&2
+    exit 1
+    ;;
+esac
+
+case "$(uname -m)" in
+  x86_64 | amd64) arch=amd64 ;;
+  arm64 | aarch64) arch=arm64 ;;
+  i386 | i686) arch=386 ;;
+  armv6l | armv7l) arch=arm ;;
+  *)
+    echo "gh-aw: unsupported architecture '$(uname -m)'." >&2
+    echo "See https://github.com/github/gh-aw/releases/tag/${version} for available assets." >&2
+    exit 1
+    ;;
+esac
+
+asset="${os}-${arch}"
+binary_name="gh-aw"
+if [ "${os}" = "windows" ]; then
+  asset="${asset}.exe"
+  binary_name="gh-aw.exe"
+fi
+
+base_url="https://github.com/github/gh-aw/releases/download/${version}"
+work_dir="$(mktemp -d)"
+# shellcheck disable=SC2064 # expand work_dir now, while it is still set.
+trap "rm -rf '${work_dir}'" EXIT
+
+echo "gh-aw: downloading ${version} asset '${asset}'..."
+curl -fsSL "${base_url}/${asset}" -o "${work_dir}/${asset}"
+curl -fsSL "${base_url}/checksums.txt" -o "${work_dir}/checksums.txt"
+
+# Verify the download against the published checksum before it becomes executable.
+expected="$(awk -v asset="${asset}" '$2 == asset { print $1 }' "${work_dir}/checksums.txt")"
+if [ -z "${expected}" ]; then
+  echo "gh-aw: no checksum published for asset '${asset}' in ${version}." >&2
+  exit 1
+fi
+actual="$(
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "${work_dir}/${asset}"
+  else
+    shasum -a 256 "${work_dir}/${asset}"
+  fi | awk '{ print $1 }'
+)"
+if [ "${expected}" != "${actual}" ]; then
+  echo "gh-aw: checksum mismatch for '${asset}' (expected ${expected}, got ${actual})." >&2
+  exit 1
+fi
+
+mkdir -p "${install_dir}"
+chmod +x "${work_dir}/${asset}"
+mv "${work_dir}/${asset}" "${install_dir}/${binary_name}"
+
+echo "gh-aw: installed ${version} to ${install_dir}/${binary_name}"
+if ! command -v gh-aw >/dev/null 2>&1; then
+  echo "gh-aw: add ${install_dir} to your PATH, e.g. export PATH=\"${install_dir}:\$PATH\"" >&2
+fi

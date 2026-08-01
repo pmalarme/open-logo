@@ -172,26 +172,29 @@ The repository uses [GitHub Agentic Workflows (`gh-aw`)](https://github.com/gith
 pinned version is in **[`.github/aw/version`](.github/aw/version)** — the single authoritative
 source. To upgrade, edit that file (one line) and recompile all lock files with `gh-aw compile`.
 
-### Installing gh-aw in a restricted-network sandbox
+### Installing gh-aw
 
-`gh extension install` and `go install` are both blocked in agent sandboxes
-(e.g. the GitHub Copilot coding-agent environment). The only path that works is a direct download
-of the prebuilt release binary:
+One command, everywhere — contributors, agents, and CI all run the same script:
 
 ```bash
-GH_AW_VERSION="$(cat .github/aw/version)"
-curl -fsSL \
-  "https://github.com/github/gh-aw/releases/download/${GH_AW_VERSION}/linux-amd64" \
-  -o /usr/local/bin/gh-aw
-chmod +x /usr/local/bin/gh-aw
-gh-aw --version   # should print: gh aw version <version>
+sh .github/aw/install.sh        # installs to $HOME/.local/bin (add it to your PATH)
+gh-aw --version                 # should print: gh aw version <version>
 ```
 
-`release-assets.githubusercontent.com` (the CDN behind the GitHub releases redirect) is
-accessible in the sandbox; `sum.golang.org` and `api.github.com` are not required.
+Override the destination with `GH_AW_INSTALL_DIR=/some/writable/dir`. The script picks the
+release asset for your platform (`linux`/`darwin`/`freebsd`/`windows` × `amd64`/`arm64`/`386`/
+`arm`), **verifies it against the published `checksums.txt`** before making it executable, and
+fails with a clear message on an unsupported platform or a checksum mismatch.
 
-The `copilot-setup-steps.yml` workflow uses this same curl pattern so CI and manual bootstrap
-steps stay consistent.
+It downloads the prebuilt release binary rather than using `gh extension install` or
+`go install`, because both of those are blocked in agent sandboxes (e.g. the GitHub Copilot
+coding-agent environment) while `release-assets.githubusercontent.com` — the CDN behind the
+GitHub releases redirect — is reachable. `sum.golang.org` and `api.github.com` are not required.
+
+The binary is **standalone**: invoke it as `gh-aw …`, not `gh aw …` (`gh` resolves extensions
+from its own extensions directory, not from `PATH`). `.github/mcp.json` therefore launches
+`gh-aw mcp-server`, and `copilot-setup-steps.yml` runs this same script, so CI and manual
+bootstrap stay consistent.
 
 ### Compiling agentic workflows
 
@@ -203,6 +206,12 @@ gh-aw compile   # or: /path/to/gh-aw compile
 ```
 
 No network access is required for compilation.
+
+`gh aw init` also generated `.github/agents/agentic-workflows.md` and
+`.github/skills/agentic-workflows/SKILL.md`. Both are committed **as generated**, so their names
+deviate from the house conventions (`*.agent.md`, `skills/<owner>/<name>/`) — keeping them
+byte-identical to the upstream output means a future `gh aw init` re-run produces no spurious
+diff. Do not hand-rename them.
 
 ## The agent team
 

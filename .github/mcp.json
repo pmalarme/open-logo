@@ -2,9 +2,8 @@
   "mcpServers": {
     "github-agentic-workflows": {
       "type": "local",
-      "command": "gh",
+      "command": "gh-aw",
       "args": [
-        "aw",
         "mcp-server"
       ],
       "tools": [

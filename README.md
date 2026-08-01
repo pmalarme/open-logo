@@ -57,15 +57,11 @@ square draws on the Canvas. See [`packages/studio`](packages/studio) for details
 The repository uses [GitHub Agentic Workflows (`gh-aw`)](https://github.com/github/gh-aw).
 The pinned version is in [`.github/aw/version`](.github/aw/version).
 
-**Bootstrap in a restricted-network sandbox** (agent sandboxes block `gh extension install` and
-`go install`; use the prebuilt binary instead):
+**Bootstrap** — one command on every platform (agent sandboxes block `gh extension install` and
+`go install`, so this downloads the pinned prebuilt binary and verifies its checksum):
 
 ```bash
-GH_AW_VERSION="$(cat .github/aw/version)"
-curl -fsSL \
-  "https://github.com/github/gh-aw/releases/download/${GH_AW_VERSION}/linux-amd64" \
-  -o /usr/local/bin/gh-aw
-chmod +x /usr/local/bin/gh-aw
+sh .github/aw/install.sh        # installs to $HOME/.local/bin; override with GH_AW_INSTALL_DIR
 gh-aw --version
 ```
 
