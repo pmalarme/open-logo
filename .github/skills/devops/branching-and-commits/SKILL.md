@@ -3,9 +3,10 @@ name: branching-and-commits
 description: >-
   The OpenLogo branching model and commit convention — branch types (feature/*, fix/*, saga/*, no epic
   branch), how work integrates into saga branches and promotes to main as a Release Candidate, and the
-  Conventional Commits rule CI enforces. Use when naming a branch, targeting a PR, or writing a commit.
+  Conventional Commits rule CI enforces (scope optional, multi-scope allowed; PR title blocking,
+  commit subjects advisory). Use when naming a branch, targeting a PR, or writing a commit.
 created: 2026-07-22T00:00
-updated: 2026-07-22T00:00
+updated: 2026-08-01T00:00
 ---
 
 ## Purpose
@@ -58,26 +59,63 @@ main ──┬──────────────────────
        fix/145 ──────────┘
 ```
 
-## Conventional Commits (CI-enforced)
+## Conventional Commits
 
-**Every commit subject AND the PR title** follow `type(scope): subject`. CI lints both via
-[`.github/workflows/commitlint.yml`](../../../workflows/commitlint.yml) →
-[`validate-commits.py`](../../../scripts/validate-commits.py); the PR title matters most because it
-becomes the squash-merge subject.
+`type(scope): subject` — **`type` and `subject` required, `scope` optional.** Two surfaces, two
+severities, because they have different fates:
+
+| Surface | Severity | Why |
+|---|---|---|
+| **PR title** | **blocking** | It becomes the **squash-merge subject** — the line that actually lands on `main`/`saga/*`. |
+| **commit subject** | **advisory** (warning annotation) | Squash-merge discards individual subjects, and a cloud coding agent **cannot rewrite** the bootstrap commits the platform creates before its first turn. |
+
+CI lints both via [`commitlint.yml`](../../../workflows/commitlint.yml) →
+[`validate-commits.py`](../../../scripts/validate-commits.py). **CI is the gate**; the local hook
+and the Copilot agent policy are guidance (see `devops/agent-policy`).
 
 - **type** — one of: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`,
   `chore`, `revert`. Append `!` for a breaking change (`feat(grammar)!: ...`).
-- **scope** — a **profile** (`core`, `turtle-rendering`, `data`, `geometry`, `heritage`, `sprites`,
-  `interaction`, `sound`, `modules`, `localization`, `educational`, `tutor-ai`) or an **area** mirroring
-  the `area:*` labels (`grammar`, `highlighter`, `checker`, `runtime`, `rendering`, `studio`, `edu`,
-  `ci`, `docs` — `core` is covered by the profile scope above); governance/infra scopes `spec` (the
-  maintainer-owned `spec/` surface), `deps`, `release`, `repo`, `meta` are also allowed. Scope is **required**.
+- **scope** — **optional**. Conventional Commits v1.0.0 makes it optional and so do we: `feat: ...`
+  is valid (CI emits a "consider adding a scope" notice, never a failure). When present, every scope
+  must come from the allowlist: a **profile** (`core`, `turtle-rendering`, `data`, `geometry`,
+  `heritage`, `sprites`, `interaction`, `sound`, `modules`, `localization`, `educational`,
+  `tutor-ai`) or an **area** mirroring the `area:*` labels (`grammar`, `highlighter`, `checker`,
+  `runtime`, `rendering`, `studio`, `edu`, `ci`, `docs` — `core` is covered by the profile scope
+  above); governance/infra scopes `spec` (the maintainer-owned `spec/` surface), `deps`, `release`,
+  `repo`, `meta` are also allowed.
 - **subject** — imperative, concise, no trailing period.
 
 Examples: `feat(data): add list reporters`, `fix(runtime): correct REPEAT nesting`,
-`docs(spec): clarify error-model ol-2xx codes`, `ci(repo): pin actions to SHA`.
+`docs(spec): clarify error-model ol-2xx codes`, `ci(repo): pin actions to SHA`, `chore: bump lockfile`.
 
-Run it locally before pushing:
+### Choosing a scope when a change spans packages
+
+A vertical slice touches several packages by design (grammar → AST → runtime + trace → renderer/UI
+→ tests → docs), so "one scope" is often a lie. In order of preference:
+
+1. **Name the primary domain** — the package that *owns the behavior change*. Docs and tests that
+   ride along do not count. `feat(grammar): add for-in loop` is right even when the PR also changes
+   `@openlogo/runtime` and `docs/`.
+2. **Use multiple scopes** when two or three domains are genuinely co-equal — comma-separated, no
+   spaces, each from the allowlist: `feat(grammar,runtime): add for-in loop`.
+   **At most three.** A fourth scope is CI-blocking and is a signal to split the PR.
+3. **Use an umbrella scope** — `repo` or `meta` for cross-cutting infra/governance changes that
+   belong to no single domain.
+4. **Omit the scope** rather than inventing or arbitrarily picking one.
+
+### Local check (optional, bypassable)
+
+[`.githooks/commit-msg`](../../../../.githooks/commit-msg) runs the same checker on every local
+`git commit`. It is wired by the root `prepare` npm script, so `npm ci` / `npm install` activates it:
+
+```bash
+npm ci                    # sets core.hooksPath=.githooks
+git config core.hooksPath # -> .githooks
+```
+
+It is **guidance, never a gate** — bypass it deliberately with `git commit --no-verify`, and note it
+cannot cover commits created through the GitHub API (which is how a cloud agent pushes). Lint a
+subject by hand any time:
 
 ```bash
 python .github/scripts/validate-commits.py "feat(geometry): add star polygons"
@@ -95,6 +133,11 @@ CODEOWNERS only has teeth when the branch ruleset enforces it. The rulesets on *
   suite — so a red PR cannot merge.
 - **Block force-pushes and deletions** on `main` and `saga/*`.
 
+The **squash-merge repo settings** are what make the PR title authoritative — keep them as:
+**allow squash merging only**, with the default squash commit message set to
+**"Pull request title and description."** That guarantees the linted title is the subject that
+lands in history, which is why commit subjects can safely be advisory.
+
 CODEOWNERS by itself does **not** restrict who clicks "Merge"; the ruleset does. If merge-actor
 restriction is needed beyond code-owner review, use repo permissions/automation, not CODEOWNERS.
 
@@ -103,4 +146,6 @@ restriction is needed beyond code-owner review, use repo permissions/automation,
 - [ ] Cut from — and PR targets — the **parent saga branch** (or `main` for Maintenance work).
 - [ ] Saga branch pulled up to `main` after each merge; `saga/*→main` RC left to the maintainer.
 - [ ] `[spec]`/`[saga]` changes left for maintainer merge (CODEOWNERS + required code-owner review).
-- [ ] Every commit subject + the PR title are valid Conventional Commits (type(scope): subject).
+- [ ] **PR title** is a valid Conventional Commit (`type(scope): subject`; scope optional, ≤3 scopes) — this is the blocking check.
+- [ ] Scope names the **primary domain**, or is omitted / multi-scope / umbrella rather than arbitrary.
+- [ ] Commit subjects follow the convention where the author controls them (advisory, not a gate).

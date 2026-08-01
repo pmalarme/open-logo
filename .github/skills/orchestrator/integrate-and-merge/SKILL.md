@@ -7,7 +7,7 @@ description: >-
   Use when a dispatched slice opens a PR, when consolidating duplicate/superseded PRs, or when closing
   out a saga.
 created: 2026-07-17T00:00
-updated: 2026-07-18T00:00
+updated: 2026-08-01T00:00
 ---
 
 ## Purpose
@@ -63,7 +63,32 @@ Candidate. **Maintenance-saga work merges straight to `main`** (that saga has no
 hand them to the maintainer (`CODEOWNERS` + the target branch's required code-owner-review ruleset block
 the merge until they approve).
 
-### 3. Verify the merge — trust state, not the exit code
+### 3. Keep it moving — substantive red vs. cosmetic red
+
+A PR must never sit open for weeks over a check its author physically cannot fix. Classify the red
+before you wait on it:
+
+- **Substantive** — build, typecheck, lint, `format:check`, coverage (100%), unit / conformance /
+  examples, CodeQL, dependency review, Meta. **Never waivable.** Red here means the work is not done.
+- **Cosmetic / governance** — the advisory commit-subject convention, the labeler, formatting of
+  tool-generated artifacts. Fix them when the author can; they do not justify an open-ended stall.
+
+**The 72-hour rule.** If a PR is green on every substantive check and the only remaining red is
+cosmetic **and unfixable by its author** (the classic case: the Copilot platform's bootstrap commit
+subject, which the agent cannot rewrite — see
+[ADR-0016](../../../../docs/adr/0016-commit-convention-and-agent-policy.md)), the integration owner
+posts a **waiver comment** naming (a) the check, (b) why it is unfixable by this author, (c) the
+compensating control (for example: squash-merge lands the linted PR title, so history stays clean),
+and then proceeds under delegated merge authority.
+
+**Never waivable, under any deadline:** a red substantive check, the two non-author review-gate
+verdicts, `spec/**` or `saga.yml`/`spec.yml` changes, or anything CODEOWNERS-gated. The waiver buys
+speed on cosmetics only — it never buys a shortcut through review.
+
+**Weekly age sweep.** Any PR older than 7 days gets a decision, not a nudge: merge it, split it, or
+close it with a written reason.
+
+### 4. Verify the merge — trust state, not the exit code
 
 `gh pr merge --delete-branch` **often errors on the local git cleanup here**, because the target branch
 (usually `main`, or the `saga/*` branch) is checked out in a shared worktree — the error is harmless.
@@ -73,7 +98,7 @@ Confirm the _real_ outcome:
 - `git ls-remote origin -h refs/heads/<target>` → the **target** branch HEAD advanced (that is the
   parent `saga/*`, or `main` for Maintenance work); the PR's head branch is gone.
 
-### 4. Reconcile every tracker
+### 5. Reconcile every tracker
 
 - **Board (Projects v2):** set the issue's **Status** + **Agent** at dispatch (`In Progress` + owning
   agent) and **Done** at merge; `0 open` on the saga's children is necessary but **not sufficient** to
@@ -165,5 +190,6 @@ saga strategy this audit gates.
 - [ ] Board Status → Done + Agent set; epic closed only on Epic-Gate pass; **saga closed by the maintainer** once children Done + audit green (orchestrator records + recommends, does not close).
 - [ ] Closed-PR orphan branches deleted; no live-session worktree branch touched.
 - [ ] `plan.md` + todos updated; any superseded PRs closed with credit.
+- [ ] No PR stalled on cosmetic red: substantive checks green + author-unfixable cosmetic red → waiver comment recorded, then merge (never waive a substantive check or a review verdict).
 - [ ] Saga branches kept current (main pulled back after each merge); `saga/*`→`main` promotion left to the maintainer.
 - [ ] **At saga close:** in-depth coverage audit green across all 6 dimensions (profile / spec-area / conformance / all-domain DoD / board-traceability / sign-offs recorded), attached + recommended by the orchestrator, before the **maintainer** closes the saga or tags a release tuple.
