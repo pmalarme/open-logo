@@ -8,3 +8,9 @@
 # read into a URL, so a stray CR would corrupt it.
 .github/aw/install.sh text eol=lf
 .github/aw/version text eol=lf
+
+# gh-aw workflow sources: the workflows-compile job's shell frontmatter-opener check and
+# validate-workflow-lockfiles.py's requires_lock() both key off exact line content — LF on every
+# platform, including Windows clients with core.autocrlf=true, keeps that check from depending on
+# each contributor's line-ending settings (belt-and-braces; both checks also tolerate CRLF).
+.github/workflows/*.md text eol=lf

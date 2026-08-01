@@ -7,11 +7,21 @@ the network. Exits non-zero on any unexpected result.
 Locks the edge cases the guard exists for: a compilable `.md` source with no compiled lock, a
 `.lock.yml` with no source (orphaned), an empty directory (today's actual repo state — must pass
 cleanly, not silently skip forever), a directory that does not exist at all, and — per the
-gh-aw v0.83.1 compile semantics `requires_lock()` reimplements (see that function's docstring) —
+gh-aw v0.83.1 compile semantics `requires_lock()` approximates (see that function's docstring) —
 every shape of `.md` that must NOT be treated as needing a lock file: no frontmatter opener at
 all, frontmatter with no top-level `on:` trigger, a subdirectory fragment, `on:` appearing only in
 the markdown body (after the closing `---`), and `on:` appearing only indented/nested under
-another frontmatter key.
+another frontmatter key (block-style).
+
+Also locks every additional top-level-`on:` shape empirically confirmed against gh-aw v0.83.1 in
+throwaway repos during the R1 follow-up (see the PR discussion): a single- or double-quoted `on:`
+key in block style, and `on :` with a space before the colon. Flow-mapping frontmatter is
+deliberately NOT parsed at all (a hand-rolled flow-YAML tokenizer was tried and removed as
+unjustified complexity — see `requires_lock()`'s docstring): both `{on: push, name: x}` and
+`{tools: {on: push}, name: x}` require a lock, fail-closed, even though the second has no
+top-level `on:` key. It also locks the two shapes deliberately left as documented, tested known
+limitations rather than silently mishandled — see `requires_lock()`'s docstring for why each is
+safe to leave as-is.
 """
 
 import importlib.util
@@ -86,6 +96,71 @@ with tempfile.TemporaryDirectory() as directory:
         failures.append(
             "requires_lock: an unterminated frontmatter block should still be scanned "
             "best-effort and find the top-level `on:` it contains"
+        )
+
+    # --- R1 follow-up: additional top-level `on:` shapes verified against gh-aw v0.83.1 --------
+
+    double_quoted_key = write(directory, "double-quoted-key.md", '---\n"on": push\n---\n\nBody.\n')
+    if not guard.requires_lock(double_quoted_key):
+        failures.append('requires_lock: a double-quoted `"on":` block-style key must be True')
+
+    single_quoted_key = write(directory, "single-quoted-key.md", "---\n'on': push\n---\n\nBody.\n")
+    if not guard.requires_lock(single_quoted_key):
+        failures.append("requires_lock: a single-quoted `'on':` block-style key must be True")
+
+    space_before_colon = write(directory, "space-before-colon.md", "---\non : push\n---\n\nBody.\n")
+    if not guard.requires_lock(space_before_colon):
+        failures.append("requires_lock: `on :` (space before the colon) must be True")
+
+    # --- R1 follow-up: flow-mapping frontmatter is not parsed, fails closed unconditionally ----
+    #
+    # No hand-rolled flow-YAML tokenizer: both a real top-level `on:` and an `on:` nested only
+    # under another key require a lock. Verified against gh-aw v0.83.1 that the nested-only case
+    # is not silently exempt either — gh-aw compile itself fails on it ("field 'name' cannot be
+    # used in shared workflows (only allowed in main workflows with 'on' trigger)"), so CI goes
+    # red either via that compile failure or via this guard's pairing error. This is deliberate,
+    # documented behaviour, not an oversight — see `requires_lock()`'s docstring.
+
+    flow_style = write(
+        directory, "flow-style.md", "---\n{on: push, name: flow}\n---\n\nBody.\n"
+    )
+    if not guard.requires_lock(flow_style):
+        failures.append("requires_lock: a flow-mapping frontmatter with `on:` must be True")
+
+    flow_style_nested_no_on = write(
+        directory,
+        "flow-style-nested-no-on.md",
+        "---\n{tools: {on: push}, name: nested-no-on}\n---\n\nBody.\n",
+    )
+    if not guard.requires_lock(flow_style_nested_no_on):
+        failures.append(
+            "requires_lock: flow-mapping frontmatter is not parsed and must fail closed (True) "
+            "even when its only `on:` is nested under another key — gh-aw compile itself fails "
+            "on this shape, so exempting it here would be fail-open, not a real distinction"
+        )
+
+    # --- R1 follow-up: documented, deliberately-tested known limitations -----------------------
+    #
+    # These are NOT bugs: `requires_lock()`'s docstring documents both as consciously out of
+    # scope for a stdlib-only, non-YAML-parsing scan. They are asserted here so the *documented*
+    # behaviour cannot silently regress (e.g. someone "fixing" one without updating the other).
+
+    # YAML-1.1 boolean-ish bare keys (`True:`, `yes:`) are not `on:` aliases — verified
+    # empirically that gh-aw itself does not honour them (it errors "Unknown property: true/yes"
+    # rather than compiling), so `requires_lock` correctly does not treat them as needing a lock,
+    # even though this also means it does not flag them as a workflow gh-aw actually rejects.
+    true_key = write(directory, "true-key.md", "---\nTrue: push\n---\n\nBody.\n")
+    if guard.requires_lock(true_key):
+        failures.append(
+            "requires_lock: a literal `True:` key is not an `on:` alias (known limitation; "
+            "gh-aw itself rejects it as an unknown property) — expected False"
+        )
+
+    yes_key = write(directory, "yes-key.md", "---\nyes: push\n---\n\nBody.\n")
+    if guard.requires_lock(yes_key):
+        failures.append(
+            "requires_lock: a literal `yes:` key is not an `on:` alias (known limitation; "
+            "gh-aw itself rejects it as an unknown property) — expected False"
         )
 
 # --- find_problems()/main() integration checks -------------------------------------------------

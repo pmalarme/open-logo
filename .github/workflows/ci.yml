@@ -125,12 +125,16 @@ jobs:
         # frontmatter opener as the first line (e.g. only a README.md). A bare
         # `ls .github/workflows/*.md` check would miss that case and let `gh-aw compile` run
         # into that exit-1 spuriously, so this checks for a frontmatter opener specifically, not
-        # merely "some .md file exists".
+        # merely "some .md file exists". `tr -d '\r'` strips a trailing CR so a CRLF-encoded .md
+        # (which gh-aw compiles just fine, and which validate-workflow-lockfiles.py's
+        # requires_lock() already handles correctly via splitlines()) is not missed here just
+        # because `head -n 1` alone would otherwise compare `---\r` against `---` and never match.
         run: |
           has_frontmatter=false
           for f in .github/workflows/*.md; do
             [ -e "${f}" ] || continue
-            if [ "$(head -n 1 "${f}")" = "---" ]; then
+            first_line="$(head -n 1 "${f}" | tr -d '\r')"
+            if [ "${first_line}" = "---" ]; then
               has_frontmatter=true
               break
             fi

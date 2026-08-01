@@ -70,11 +70,12 @@ real file backs it.
   what runs in Actions can never silently diverge from the reviewed markdown source (issue #597,
   landed).
 - **Enforced — orphaned source/lock pairs are caught in CI.** `.github/scripts/validate-workflow-lockfiles.py`
-  (self-tested by `test-validate-workflow-lockfiles.py`) checks every `.md` has exactly one
-  `.lock.yml` and vice versa, in the always-on `meta` job. Neither half-deletion can slip through: a
-  lock file left behind after its source was deleted would otherwise keep running with nothing to
-  review it against, and a source that was never compiled would silently never run (issue #597,
-  landed).
+  (self-tested by `test-validate-workflow-lockfiles.py`) checks every `.md` gh-aw would actually
+  compile (a frontmatter opener plus a top-level `on:` trigger) has exactly one `.lock.yml`, and
+  every `.lock.yml` has exactly one `.md` of the same basename (compilable or not), in the
+  always-on `meta` job. Neither half-deletion can slip through: a lock file left behind after its
+  source was deleted would otherwise keep running with nothing to review it against, and a source
+  that was never compiled would silently never run (issue #597, landed).
 - **Enforced — the pinned toolchain is verified before it runs.** `.github/aw/version` is the single
   version pin; `.github/aw/install.sh` downloads the matching release asset and checksum-verifies it
   before making it executable, fail-closed (ADR-0017, landed).

@@ -12,8 +12,28 @@ trigger. Anything else is legitimately lock-free, not an error:
     ("Skipping compilation.") even though it still counts toward "Compiled N workflow(s)".
   - Anything under a subdirectory (e.g. `.github/workflows/shared/*.md`) — gh-aw only compiles
     files directly in `.github/workflows/`, never recurses.
-`requires_lock()` below reimplements exactly that first-line + top-level-`on:` test so this guard
-never demands a `.lock.yml` gh-aw would never produce.
+
+`requires_lock()` below does **not** reimplement gh-aw's full YAML+frontmatter grammar — that
+would need a real YAML parser, which this deliberately stdlib-only script does not take a
+dependency on (see below). It only recognizes the one shape that matters for KISS: a top-level
+`on:` key on a block-style frontmatter line (unquoted, single-, or double-quoted, any whitespace
+before the colon). Flow-mapping frontmatter (frontmatter that is itself a single `{...}`, e.g.
+`{on: push, name: x}`) is not parsed at all — it is treated as **requiring** a lock unconditionally,
+whether or not it actually has an `on:` key. This is deliberately blunt rather than a hand-rolled
+flow-YAML tokenizer: verified empirically against gh-aw v0.83.1 that a flow mapping with `on:`
+nested only under another key (e.g. `{tools: {on: push}, name: x}`) does not quietly get skipped
+either — `gh-aw compile` itself fails outright on it ("field 'name' cannot be used in shared
+workflows (only allowed in main workflows with 'on' trigger)" / "compilation failed", exit 1). So
+for the one case a smarter parser would exist to distinguish, CI already goes red one way or the
+other — via the `workflows-compile` job's failing compile, or via this guard's pairing error — and
+a tokenizer to tell the two flow shapes apart buys no additional signal, just bespoke code to rot
+on the next gh-aw upgrade. Any frontmatter shape this scan cannot confidently classify is treated
+as **requiring** a lock: failing closed (over-eager, possibly-spurious pairing errors that a
+maintainer notices and can fix) is deliberately preferred over failing open (silent skip of a file
+gh-aw actually compiles and runs). The `workflows-compile` job's `gh-aw compile` recompile-and-diff
+step is the ground-truth backstop either way: it does not depend on this guard having classified
+anything correctly, only on this guard having demanded a `.lock.yml` exists so `gh-aw compile` gets
+a chance to check it for drift.
 
 Content drift between a paired source and its lock file is caught separately, by recompiling and
 diffing (see the `workflows-compile` job in .github/workflows/ci.yml) — but `gh-aw compile` never
@@ -44,29 +64,46 @@ import sys
 MD_SUFFIX = ".md"
 LOCK_SUFFIX = ".lock.yml"
 
-# Matches a top-level `on:` key, i.e. at the very start of a frontmatter line — not indented
-# (which would mean it is nested under some other key, e.g. `permissions:\n  on: ...`, not a
-# gh-aw trigger) and not merely a prefix of a longer key (e.g. `onward:`), thanks to the `:`
-# right after `on` and requiring whitespace-or-end-of-line after it.
-_TOP_LEVEL_ON_KEY = re.compile(r"^on:(\s|$)")
+# Matches a top-level `on:` key on a block-style frontmatter line — not indented (which would
+# mean it is nested under some other key, e.g. `permissions:\n  on: ...`, not a gh-aw trigger),
+# not merely a prefix of a longer key (e.g. `onward:`), and allowing an unquoted, single-, or
+# double-quoted key spelling and optional whitespace before the colon (all three compile
+# identically under gh-aw v0.83.1 — verified empirically: `on: push`, `"on": push`, `'on': push`,
+# and `on : push` all produce a `.lock.yml`).
+_TOP_LEVEL_ON_KEY = re.compile(r"""^(?:"on"|'on'|on)\s*:(\s|$)""")
 
 
 def requires_lock(path: str) -> bool:
     """Return True if gh-aw would actually compile `path` into a `.lock.yml`.
 
-    Reimplements gh-aw's real compile semantics (empirically verified against the pinned gh-aw
-    v0.83.1 in a throwaway repo, not assumed): the file's first line must be a frontmatter opener
-    (`---`), and the frontmatter block (the lines between that opener and the next line that is
-    exactly `---`) must contain a top-level `on:` key. Everything else — no frontmatter opener, or
-    frontmatter with no top-level `on:` — is a file gh-aw does not compile, so it is not a source
-    that needs a paired lock file.
+    Empirically verified against the pinned gh-aw v0.83.1 in throwaway repos, not assumed: the
+    file's first line must be a frontmatter opener (`---`), and the frontmatter block (the lines
+    between that opener and the next line that is exactly `---`) must declare a top-level `on:`
+    trigger. Everything else — no frontmatter opener, or frontmatter with no top-level `on:` — is
+    a file gh-aw does not compile, so it is not a source that needs a paired lock file.
 
-    Deliberately does not fully parse YAML: it only needs to answer "is there a top-level `on:`
-    key in the frontmatter," and a line-oriented scan bounded by the frontmatter delimiters is
-    both correct for that question and avoids taking a `pyyaml` dependency in a stdlib-only,
-    network-free script. `on:` text in the markdown body (after the closing `---`) or indented
-    under another key must not count, and does not — see `_TOP_LEVEL_ON_KEY` and the bound to
-    `frontmatter_lines`.
+    Two shapes are recognized:
+      - Block-style: any frontmatter line matching `_TOP_LEVEL_ON_KEY` (unquoted/quoted key,
+        optional space before the colon). This is the path that matters and is fully parsed.
+      - Flow-style: the *entire* frontmatter, once joined and stripped, looks like a single flow
+        mapping (starts with `{`). This is **not parsed at all** — it is treated as requiring a
+        lock unconditionally, on the fail-closed policy below. A frontmatter that
+        mixes block lines with an embedded flow value (e.g. `on: {branches: [main]}`) is still a
+        block-style top-level `on:` and is caught by the first case; this second case only
+        applies when the flow mapping *is* the frontmatter.
+
+    Deliberately does not fully parse YAML — no `pyyaml` dependency (see module docstring), and
+    deliberately no hand-rolled flow-mapping tokenizer either, since it would buy no real signal
+    (see module docstring for why, verified against gh-aw v0.83.1). Two YAML corners are
+    consciously out of scope and documented as known limitations rather than silently mishandled:
+      - A block-style frontmatter is only found up to a `---` treated as the closing delimiter;
+        a `---` inside e.g. a multi-line quoted scalar would be misread as the close. gh-aw
+        workflow frontmatter is simple key/value config in practice, so this has not been
+        observed, but if it happens, the scan still fails closed on whatever it finds truncated
+        into `frontmatter_lines` rather than silently exempting the file.
+      - `True:`/`yes:` and similar YAML-1.1 boolean-ish bare keys are not treated as spellings of
+        `on:` — verified empirically that gh-aw itself does not honour them as trigger aliases
+        (it errors with "Unknown property: true/yes"), so no special-casing is needed here.
     """
     try:
         with open(path, "r", encoding="utf-8") as handle:
@@ -88,7 +125,17 @@ def requires_lock(path: str) -> bool:
     # it long before this guard's opinion on "does it need a lock file" matters.
     frontmatter_lines = lines[1:closing_index] if closing_index is not None else lines[1:]
 
-    return any(_TOP_LEVEL_ON_KEY.match(line) for line in frontmatter_lines)
+    if any(_TOP_LEVEL_ON_KEY.match(line) for line in frontmatter_lines):
+        return True
+
+    # Flow-mapping frontmatter is not parsed at all: fail closed unconditionally (see module
+    # docstring for why this is safe — gh-aw compile itself fails on the one shape a smarter
+    # parser would exist to distinguish, so CI goes red either way).
+    joined = "\n".join(frontmatter_lines).strip()
+    if joined.startswith("{"):
+        return True
+
+    return False
 
 
 def workflow_ids(directory: str, suffix: str, predicate=None) -> set[str]:
