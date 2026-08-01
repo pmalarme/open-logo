@@ -58,4 +58,5 @@ together with a decision on scope ownership, provenance, and support expectation
 - The `@openlogo/*` names remain unclaimed on npmjs. If the project later goes public, name
   squatting is a risk the superseding ADR must address.
 - Docs that described publishing (`devops/security-and-release`, `.github/agents/devops.agent.md`)
-  are updated to point here; ADR-0003 stays untouched, as immutability requires.
+  are updated to point here; ADR-0003's decision text stays untouched, as immutability requires —
+  it receives only the `refined by ADR-0017` cross-link on its `Related:` line.

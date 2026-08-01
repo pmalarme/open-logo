@@ -73,11 +73,13 @@ parallelization map, and [`docs/delivery.md`](docs/delivery.md) for the release 
    refactors. (Full rules in the team working agreement.)
 7. **Never edit an Accepted ADR.** `docs/adr/*.md` are **immutable once Accepted**
    ([ADR-0000](docs/adr/0000-record-architecture-decisions.md)) — they are the decision *history*,
-   not living documentation. To change or extend a decision, **add a new ADR** that refines or
-   supersedes it (`Status: Accepted`, a `Related:` line pointing at the earlier ADR) and set the old
-   one's status to `Superseded by ADR-XXXX` — that status line is the *only* edit an Accepted ADR
-   ever receives. Typo/link fixes are the sole exception; anything that changes meaning is a new
-   ADR. Same reflex as `spec/`: correct forward, never rewrite.
+   not living documentation. To change or extend a decision, **add a new ADR** (`Status: Accepted`,
+   with a `Related:` line pointing at the earlier one) and touch the old ADR only to record the
+   relationship: a **refinement** leaves it `Accepted` and appends `refined by ADR-XXXX` to its
+   `Related:` line; a **replacement** additionally sets its status to `Superseded by ADR-XXXX`.
+   Those cross-link/status lines are the *only* edits an Accepted ADR ever receives — anything that
+   changes its meaning is a new ADR (typo/link fixes excepted). Same reflex as `spec/`: correct
+   forward, never rewrite.
 
 **Docs have four surfaces**, each answering a different question: `spec/` (what is normatively
 true), `docs/adr/` (why we chose this toolchain/engineering approach),
