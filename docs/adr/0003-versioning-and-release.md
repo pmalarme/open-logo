@@ -23,11 +23,6 @@ package advertises feature-detection metadata (`openlogo.version` + supported **
 packages release **in lockstep** on one monorepo version initially (KISS); a package moves to its own
 version line only when justified, via a follow-up ADR.
 
-**No npm publication.** The `@openlogo/*` packages are **private** (`"private": true` in every
-`packages/*/package.json`) and are never published to npmjs. They are consumed inside this monorepo
-via npm workspaces; a "release" is a git **tag** plus the GitHub release artifacts, not a registry
-upload. If public distribution is ever wanted, that is a follow-up ADR.
-
 **Release = a conformant tuple.** An OpenLogo release is a set of package versions that all target
 one spec version and a declared profile set, with the conformance suite green. A package MAY claim a
 profile only when the conformance fixtures for that profile and its DAG dependencies pass in CI —
