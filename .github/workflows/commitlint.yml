@@ -1,9 +1,11 @@
 name: Commit convention
 
-# Lints the PR title (the squash-merge subject) and every commit subject against
-# Conventional Commits — `type(scope): subject`, scope from the OpenLogo taxonomy.
-# See .github/scripts/validate-commits.py and .github/skills/devops/branching-and-commits/SKILL.md.
-# Owned by @devops.
+# Lints the PR title against Conventional Commits — `type(scope): subject`, with an optional
+# scope (up to three) from the OpenLogo taxonomy. The PR title is BLOCKING because it becomes the
+# squash-merge subject; individual commit subjects are ADVISORY (squash discards them, and a cloud
+# agent cannot rewrite the bootstrap commits created before its first turn) and surface as warning
+# annotations. See .github/scripts/validate-commits.py and
+# .github/skills/devops/branching-and-commits/SKILL.md. Owned by @devops.
 
 on:
   pull_request:
@@ -23,7 +25,9 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.x"
-      - name: Lint PR title and commit subjects
+      - name: Self-test the commit checker
+        run: python .github/scripts/test-validate-commits.py
+      - name: Lint PR title (blocking) and commit subjects (advisory)
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}

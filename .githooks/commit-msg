@@ -1,0 +1,44 @@
+#!/bin/sh
+# OpenLogo commit-msg hook — local, convenience-only Conventional Commit check.
+#
+# Guidance, not a gate: `git commit --no-verify` bypasses it, and CI is the real check
+# (.github/workflows/commitlint.yml lints the PR title, which is what squash-merge lands).
+# Activated by the root `prepare` npm script, which sets `core.hooksPath` to this directory.
+# See .github/skills/devops/branching-and-commits/SKILL.md.
+
+set -e
+
+message_file="$1"
+[ -f "$message_file" ] || exit 0
+
+subject="$(sed -n '1p' "$message_file")"
+
+# Skip empty messages and comment-only aborts — git handles those itself.
+case "$subject" in
+  '' | '#'*) exit 0 ;;
+esac
+
+# Skip the messages git generates for merges, reverts, fixups, and squashes.
+case "$subject" in
+  'Merge '* | 'Revert '* | 'fixup! '* | 'squash! '* | 'amend! '*) exit 0 ;;
+esac
+
+if command -v python3 >/dev/null 2>&1; then
+  python_bin=python3
+elif command -v python >/dev/null 2>&1; then
+  python_bin=python
+else
+  # No Python available — stay out of the way rather than blocking the commit.
+  exit 0
+fi
+
+repo_root="$(git rev-parse --show-toplevel)"
+checker="$repo_root/.github/scripts/validate-commits.py"
+[ -f "$checker" ] || exit 0
+
+if ! "$python_bin" "$checker" "$subject"; then
+  echo
+  echo "Commit aborted by .githooks/commit-msg."
+  echo "Reword the subject, or bypass this local check with: git commit --no-verify"
+  exit 1
+fi
