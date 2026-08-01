@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "github-agentic-workflows": {
+      "type": "local",
+      "command": "gh-aw",
+      "args": [
+        "mcp-server"
+      ],
+      "tools": [
+        "compile",
+        "audit",
+        "logs",
+        "mcp-inspect",
+        "status",
+        "audit-diff"
+      ]
+    }
+  }
+}

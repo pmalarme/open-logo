@@ -35,7 +35,7 @@ docs/design-notes/     Language Design Records (why the language is shaped this 
 docs/architecture.md   Monorepo definition + cross-cutting contracts (AST, highlighting, events, UI)
 docs/delivery.md       Release + saga strategy
 .github/agent-policy.md  One-page briefing every Copilot cloud agent reads before its first commit
-.github/agents/  The OpenLogo agent team (*.agent.md)
+.github/agents/  The OpenLogo agent team (*.agent.md) + agentic-workflows.md, committed as generated
 .github/skills/  Agent skill playbooks (shared + per-agent)
 .github/instructions/  Team working agreement (always on) + per-package rules (applyTo packages/<name>/**)
 .github/ISSUE_TEMPLATE/  Issue forms — feature-request, epic, feature-slice (user story), conformance-task, foundation, bug, docs
@@ -43,6 +43,8 @@ docs/delivery.md       Release + saga strategy
 .github/labeler.yml    Path→label rules for PR auto-labeling
 .github/scripts/        Metadata + commit-convention validation, label sync (run by CI)
 .github/workflows/     CI (Definition of Done), commit convention, labeler, label sync — owned by @devops
+.github/aw/            gh-aw version pin + shared installer (see "gh-aw bootstrap" below)
+.github/mcp.json       MCP server registration for the agentic-workflows tooling
 .githooks/       Local commit-msg check (wired by the root `prepare` script) — guidance, not a gate
 packages/        @openlogo/* packages — src/ skeleton in place; see packages/README.md for the map
 tests/conformance/     Stack-neutral source→events/diagnostics fixtures (grow with the build)
@@ -165,6 +167,75 @@ shortfall that has no failing test a bounded number of times (a genuine gap is d
 still fails after every retry, so a real regression is never masked); only test failures, an
 unreadable report, or an anomalous fully-100 exit fail fast. See
 [`docs/adr/0014-deterministic-coverage-gate.md`](docs/adr/0014-deterministic-coverage-gate.md).
+
+## gh-aw bootstrap
+
+The repository uses [GitHub Agentic Workflows (`gh-aw`)](https://github.com/github/gh-aw). The
+pinned version is in **[`.github/aw/version`](.github/aw/version)** — the single authoritative
+source. To upgrade: edit that file (one line), **re-run the installer** so your local binary matches
+the new pin, then recompile all lock files with `gh-aw compile`. Editing the pin alone leaves you
+compiling with the old binary. The rationale for all of this is
+[ADR-0017](docs/adr/0017-gh-aw-toolchain-bootstrap.md).
+
+### Installing gh-aw
+
+One command, everywhere — contributors, agents, and CI all run the same script:
+
+```bash
+sh .github/aw/install.sh        # installs to $HOME/.local/bin (add it to your PATH)
+gh-aw --version                 # should print: gh aw version <version>
+```
+
+Override the destination with `GH_AW_INSTALL_DIR=/some/writable/dir`. The script picks the
+release asset for your platform, **verifies it against the published `checksums.txt`** before
+making it executable, and — because not every OS/architecture combination is released — fails
+with the real asset list when the pinned version publishes nothing for your platform.
+
+It downloads the prebuilt release binary rather than using `gh extension install` or
+`go install`, because both of those are blocked in agent sandboxes (e.g. the GitHub Copilot
+coding-agent environment) while `release-assets.githubusercontent.com` — the CDN behind the
+GitHub releases redirect — is reachable. `sum.golang.org` and `api.github.com` are not required.
+
+The binary is **standalone**: invoke it as `gh-aw …`, not `gh aw …` (`gh` resolves extensions
+from its own extensions directory, not from `PATH`). `.github/mcp.json` therefore launches
+`gh-aw mcp-server`, and `copilot-setup-steps.yml` runs this same script, so CI and manual
+bootstrap stay consistent.
+
+### Compiling agentic workflows
+
+Agentic-workflow markdown files (`*.md` in `.github/workflows/`) must be compiled to lock files
+before running:
+
+```bash
+gh-aw compile   # or: /path/to/gh-aw compile
+```
+
+No network access is required to compile the workflows in this repository.
+
+### Generated files (committed as generated)
+
+`gh aw init` also generated `.github/agents/agentic-workflows.md` and
+`.github/skills/agentic-workflows/SKILL.md`. Both are committed **as generated**, so their names
+deviate from the house conventions (`*.agent.md`, `skills/<owner>/<name>/`) — keeping them
+byte-identical to the upstream output means a future `gh aw init` re-run produces no spurious
+diff. Do not hand-rename them, and read the agent file's command lines with one substitution: where
+it says `gh aw …`, run `gh-aw …` here, because the installer above deliberately does **not**
+register a `gh` extension (the skill file contains no such command lines).
+
+`.github/mcp.json` is **not** committed as generated: besides launching `gh-aw mcp-server` rather
+than the `gh aw` extension, it declares the tool as `mcp-inspect`, whereas `gh aw init` emits
+`inspect` — a name the v0.83.1 server advertises for no tool, so the capability would be silently
+unavailable. Do not "restore" it from a future `gh aw init` re-run.
+
+`.vscode/settings.json` comes from the same `gh aw init` run: it enables Copilot for markdown so
+agentic-workflow `*.md` files get completions. It is the one file here that is **not** kept
+byte-identical — unlike the markdown it is inside Prettier's scope, so it was reformatted to keep
+`format:check` green (as `.github/agent-policy.md` requires). Expect a small diff there on a future
+`gh aw init` re-run; re-apply the formatting rather than reverting it.
+
+`.github/aw/` is also gh-aw's own prompt-overlay directory (the generated skill probes for files
+such as `.github/aw/instructions.md`). Nothing conflicts today; `version` and `install.sh` are
+ours.
 
 ## The agent team
 
