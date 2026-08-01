@@ -46,7 +46,8 @@ suites these workflows run; you wire and secure them.
 ## Also owned by @devops (outside this folder)
 - [`.github/aw/`](../aw) — `version` is the single authoritative `gh-aw` version pin (upgrade =
   edit this one line, re-run the installer, then recompile lock files); `install.sh` is the shared
-  platform-aware, checksum-verified installer used by CI, contributors, and agents alike.
+  platform-aware, checksum-verified installer used by CI, contributors, and agents alike. Rationale
+  in [ADR-0017](../../docs/adr/0017-gh-aw-toolchain-bootstrap.md).
 - [`.github/mcp.json`](../mcp.json) — MCP server registration for the agentic-workflows tooling.
   It launches the **standalone** `gh-aw mcp-server` binary, not the `gh aw` extension (`gh` does
   not resolve extensions from `PATH`).

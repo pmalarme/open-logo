@@ -174,7 +174,8 @@ The repository uses [GitHub Agentic Workflows (`gh-aw`)](https://github.com/gith
 pinned version is in **[`.github/aw/version`](.github/aw/version)** — the single authoritative
 source. To upgrade: edit that file (one line), **re-run the installer** so your local binary matches
 the new pin, then recompile all lock files with `gh-aw compile`. Editing the pin alone leaves you
-compiling with the old binary.
+compiling with the old binary. The rationale for all of this is
+[ADR-0017](docs/adr/0017-gh-aw-toolchain-bootstrap.md).
 
 ### Installing gh-aw
 
@@ -222,7 +223,10 @@ diff. Do not hand-rename them, and read their command lines with one substitutio
 `gh` extension.
 
 `.vscode/settings.json` comes from the same `gh aw init` run: it enables Copilot for markdown so
-agentic-workflow `*.md` files get completions.
+agentic-workflow `*.md` files get completions. It is the one file here that is **not** kept
+byte-identical — unlike the markdown it is inside Prettier's scope, so it was reformatted to keep
+`format:check` green (as `.github/agent-policy.md` requires). Expect a small diff there on a future
+`gh aw init` re-run; re-apply the formatting rather than reverting it.
 
 `.github/aw/` is also gh-aw's own prompt-overlay directory (the generated skill probes for files
 such as `.github/aw/instructions.md`). Nothing conflicts today; `version` and `install.sh` are
