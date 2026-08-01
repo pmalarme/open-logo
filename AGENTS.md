@@ -30,7 +30,7 @@ Modules→Localization, Educational→Tutor (AI)). See [`spec/conformance.md`](s
 
 ```text
 spec/            Normative language specification (maintainer-owned) — the contract
-docs/adr/        Architecture Decision Records (why we built it this way)
+docs/adr/        Architecture Decision Records (why we built it this way) — immutable once Accepted
 docs/design-notes/     Language Design Records (why the language is shaped this way)
 docs/architecture.md   Monorepo definition + cross-cutting contracts (AST, highlighting, events, UI)
 docs/delivery.md       Release + saga strategy
@@ -71,6 +71,13 @@ parallelization map, and [`docs/delivery.md`](docs/delivery.md) for the release 
 6. **KISS + Boy Scout**: keep the design as simple as the spec allows, and leave each file a little
    better than you found it — but only within your task's declared write-set, never unrelated
    refactors. (Full rules in the team working agreement.)
+7. **Never edit an Accepted ADR.** `docs/adr/*.md` are **immutable once Accepted**
+   ([ADR-0000](docs/adr/0000-record-architecture-decisions.md)) — they are the decision *history*,
+   not living documentation. To change or extend a decision, **add a new ADR** that refines or
+   supersedes it (`Status: Accepted`, a `Related:` line pointing at the earlier ADR) and set the old
+   one's status to `Superseded by ADR-XXXX` — that status line is the *only* edit an Accepted ADR
+   ever receives. Typo/link fixes are the sole exception; anything that changes meaning is a new
+   ADR. Same reflex as `spec/`: correct forward, never rewrite.
 
 **Docs have four surfaces**, each answering a different question: `spec/` (what is normatively
 true), `docs/adr/` (why we chose this toolchain/engineering approach),
