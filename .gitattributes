@@ -1,1 +1,5 @@
 .github/workflows/*.lock.yml linguist-generated=true merge=ours
+
+# Git hooks are POSIX shell — they must keep LF endings on every platform,
+# including Windows clients with core.autocrlf=true.
+.githooks/* text eol=lf
