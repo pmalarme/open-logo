@@ -1,6 +1,7 @@
 {
   "name": "@openlogo/parser",
   "version": "0.2.0",
+  "private": true,
   "description": "OpenLogo parser: lexer, reader, grammar, AST, reserved words, syntax highlighting, and the syntax/semantic checker.",
   "license": "MIT",
   "type": "module",
