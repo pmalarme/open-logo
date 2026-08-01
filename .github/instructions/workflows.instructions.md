@@ -25,7 +25,9 @@ suites these workflows run; you wire and secure them.
   against orphaned `.md`/`.lock.yml` pairs, plus a `detect` step exposing `has_toolchain`), a
   path-scoped **`workflows-compile`** job that recompiles every `gh-aw` agentic-workflow source
   with the pinned `gh-aw compile` and fails on any diff (issue #597 — see
-  [ci-pipeline](../skills/devops/ci-pipeline/SKILL.md)), and **build/lint/test** jobs gated on
+  [ci-pipeline](../skills/devops/ci-pipeline/SKILL.md); rationale for adopting `gh-aw` itself,
+  its guardrails, governance boundary, and kill-switch:
+  [ADR-0018](../../docs/adr/0018-adopt-agentic-workflows.md)), and **build/lint/test** jobs gated on
   `if: ${{ needs.meta.outputs.has_toolchain == 'true' }}` until the toolchain lands. Do **not** use
   `hashFiles()` in a job-level `if` — it evaluates before checkout.
 - `codeql.yml` — CodeQL JS/TS scan (PRs, `main`, weekly); guarded by its own `detect` job so it

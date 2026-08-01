@@ -183,8 +183,10 @@ The repository uses [GitHub Agentic Workflows (`gh-aw`)](https://github.com/gith
 pinned version is in **[`.github/aw/version`](.github/aw/version)** — the single authoritative
 source. To upgrade: edit that file (one line), **re-run the installer** so your local binary matches
 the new pin, then recompile all lock files with `gh-aw compile`. Editing the pin alone leaves you
-compiling with the old binary. The rationale for all of this is
-[ADR-0017](docs/adr/0017-gh-aw-toolchain-bootstrap.md).
+compiling with the old binary. The rationale for the toolchain pin/install/generated-files mechanics
+is [ADR-0017](docs/adr/0017-gh-aw-toolchain-bootstrap.md); *why we run agentic workflows in Actions
+at all*, the guardrails, the governance boundary, and the kill-switch are
+[ADR-0018](docs/adr/0018-adopt-agentic-workflows.md).
 
 ### Installing gh-aw
 
