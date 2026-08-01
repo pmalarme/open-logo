@@ -16,8 +16,12 @@ trigger. Anything else is legitimately lock-free, not an error:
 `requires_lock()` below classifies a source by **parsing its frontmatter as YAML** (PyYAML's
 `BaseLoader`, so every scalar stays a raw string — `on:` resolves to the key `"on"`, exactly as
 gh-aw's Go YAML 1.2 parser sees it, rather than to YAML 1.1's boolean `True`) and asking whether it
-declares a top-level `on` key. Block style and flow style (`{on: push, name: x}`) are therefore
-handled by the same code path, so a flow-style importable fragment with no trigger is correctly
+declares a top-level `on` key. The `---` delimiters are matched the way gh-aw matches them — the
+line with surrounding whitespace trimmed, BOM **not** stripped (`strings.TrimSpace(firstLine) ==
+"---"` in pkg/cli/workflows.go and `isFrontmatterDelimiterLine` in pkg/parser/
+frontmatter_content.go, v0.83.1) — so neither a padded ` ---` opener (which gh-aw *does* compile)
+nor a BOM-prefixed one (which it does *not*) can make the guard disagree with the compiler. Block
+style and flow style (`{on: push, name: x}`) are handled by the same code path, so a flow-style importable fragment with no trigger is correctly
 lock-free instead of being spuriously flagged. Frontmatter this scan cannot confidently classify —
 YAML that does not parse, or that parses to something other than a mapping — is treated as
 **requiring** a lock: failing closed (an over-eager, maintainer-visible pairing error) is
@@ -86,27 +90,30 @@ def requires_lock(path: str) -> bool:
     and fixable; a silent skip of a file gh-aw actually compiles and runs is not. Empty
     frontmatter parses to `None`, which is unambiguously "no trigger", so it needs no lock.
 
-    Read as `utf-8-sig` so a UTF-8 BOM before the opener does not hide a real workflow; the
-    `workflows-compile` job's shell probe in ci.yml strips the same BOM, keeping both probes in
-    agreement.
+    Read as plain `utf-8`, **not** `utf-8-sig`: gh-aw does not strip a UTF-8 BOM either (its
+    delimiter test trims Unicode whitespace, and U+FEFF is not whitespace), so a BOM-prefixed
+    `---` is a file gh-aw silently ignores. Stripping the BOM here would demand a lock file no
+    `gh-aw compile` can ever produce.
     """
     try:
-        with open(path, "r", encoding="utf-8-sig") as handle:
+        with open(path, "r", encoding="utf-8") as handle:
             lines = handle.read().splitlines()
     except OSError:
         return False
 
-    # Exact `---`, not a stripped/whitespace-padded match: gh-aw's own frontmatter-opener test is
-    # exact, so ` ---` is a file it silently ignores. Accepting it here would exempt nothing (the
-    # file needs no lock either way) but *disagreeing* with the ci.yml shell probe — which is also
-    # exact — is the real hazard, so both sides use the same rule. `str.splitlines()` already
-    # normalizes a CRLF line ending, so no trailing `\r` survives to compare against.
-    if not lines or lines[0] != "---":
+    # A delimiter is `---` with optional surrounding whitespace, matching gh-aw exactly: its file
+    # discovery tests `strings.TrimSpace(firstLine) == "---"` (pkg/cli/workflows.go) and its
+    # extractor's `isFrontmatterDelimiterLine` trims the same way (pkg/parser/
+    # frontmatter_content.go, v0.83.1). So a whitespace-padded ` ---` IS a frontmatter opener for
+    # gh-aw; treating it as a plain doc here would fail *open* — gh-aw would compile a source this
+    # guard never demanded a lock for. `str.strip()` mirrors Go's `strings.TrimSpace` for the ASCII
+    # whitespace at issue, and leaves a U+FEFF BOM in place exactly as Go does (see the docstring).
+    if not lines or lines[0].strip() != "---":
         return False
 
     closing_index = None
     for index in range(1, len(lines)):
-        if lines[index] == "---":
+        if lines[index].strip() == "---":
             closing_index = index
             break
 
@@ -115,8 +122,13 @@ def requires_lock(path: str) -> bool:
     # it long before this guard's opinion on "does it need a lock file" matters.
     frontmatter_lines = lines[1:closing_index] if closing_index is not None else lines[1:]
 
+    # gh-aw normalizes a non-breaking space to a plain space before unmarshalling
+    # (pkg/parser/frontmatter_content.go `parseFrontmatterYAML`); mirror it so a source it parses
+    # is not misread as unparsable here.
+    block = "\n".join(frontmatter_lines).replace("\u00a0", " ")
+
     try:
-        frontmatter = yaml.load("\n".join(frontmatter_lines), Loader=yaml.BaseLoader)
+        frontmatter = yaml.load(block, Loader=yaml.BaseLoader)
     except yaml.YAMLError:
         return True
 

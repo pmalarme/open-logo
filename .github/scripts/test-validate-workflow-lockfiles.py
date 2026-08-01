@@ -12,7 +12,7 @@ must pass cleanly, not silently skip forever), a directory that does not exist a
 the gh-aw v0.83.1 compile semantics `requires_lock()` approximates (see that function's
 docstring) —
 every shape of `.md` that must NOT be treated as needing a lock file: no frontmatter opener at
-all, frontmatter with no top-level `on:` trigger, a subdirectory fragment, `on:` appearing only in
+all, a BOM-prefixed opener (which gh-aw does not recognize either), frontmatter with no top-level `on:` trigger, a subdirectory fragment, `on:` appearing only in
 the markdown body (after the closing `---`), and `on:` appearing only indented/nested under
 another frontmatter key (block-style).
 
@@ -100,15 +100,17 @@ with tempfile.TemporaryDirectory() as directory:
             "best-effort and find the top-level `on:` it contains"
         )
 
-    # --- R2 follow-up: the frontmatter opener is matched EXACTLY, like gh-aw and like the
-    # `workflows-compile` job's shell probe in ci.yml. A whitespace-padded ` ---` is a file gh-aw
-    # silently ignores; accepting it here would make the two probes disagree, which is the real
-    # hazard (the guard could demand a lock for a file the compile job then never recompiles).
-    padded_opener = write(directory, "padded-opener.md", " ---\non: push\n---\n\nBody.\n")
-    if guard.requires_lock(padded_opener):
+    # --- R3 follow-up: the delimiter match mirrors gh-aw, which TRIMS the line -----------------
+    #
+    # gh-aw v0.83.1 tests `strings.TrimSpace(firstLine) == "---"` (pkg/cli/workflows.go) and trims
+    # the same way in `isFrontmatterDelimiterLine` (pkg/parser/frontmatter_content.go), so a
+    # padded ` ---` IS a frontmatter opener and the source IS compiled. Treating it as a plain doc
+    # here would fail *open*: gh-aw would compile a workflow this guard never demanded a lock for.
+    padded_opener = write(directory, "padded-opener.md", " ---\non: push\n ---\n\nBody.\n")
+    if not guard.requires_lock(padded_opener):
         failures.append(
-            "requires_lock: a whitespace-padded ` ---` opener is not a frontmatter opener for "
-            "gh-aw (nor for the ci.yml shell probe) — expected False"
+            "requires_lock: a whitespace-padded ` ---` opener/closer is a frontmatter delimiter "
+            "for gh-aw (strings.TrimSpace), so the source is compilable — expected True"
         )
 
     # CRLF line endings must not change any verdict: `.gitattributes` pins these sources to LF,
@@ -197,15 +199,25 @@ with tempfile.TemporaryDirectory() as directory:
             "requires_lock: empty frontmatter is unambiguously trigger-less and must be False"
         )
 
-    # A UTF-8 BOM before the opener must not hide a real workflow: the guard reads as utf-8-sig
-    # and the ci.yml shell probe strips the same BOM, so both agree the file is compilable.
-    bom_compilable = write(
-        directory, "bom-compilable.md", "\ufeff---\non: push\n---\n\nBody.\n"
-    )
-    if not guard.requires_lock(bom_compilable):
+    # A UTF-8 BOM is NOT stripped, because gh-aw does not strip one either: Go's TrimSpace does
+    # not treat U+FEFF as whitespace, so `\ufeff---` is not a delimiter and gh-aw skips the file.
+    # Demanding a lock for it would be an impossible-to-satisfy false block.
+    bom_opener = write(directory, "bom-opener.md", "\ufeff---\non: push\n---\n\nBody.\n")
+    if guard.requires_lock(bom_opener):
         failures.append(
-            "requires_lock: a UTF-8 BOM before the frontmatter opener must not make a compilable "
-            "source look lock-free"
+            "requires_lock: a UTF-8 BOM before the opener means gh-aw does not see frontmatter "
+            "and never compiles the file — expected False"
+        )
+
+    # A non-breaking space inside the frontmatter is normalized to a plain space before parsing,
+    # exactly as gh-aw's parseFrontmatterYAML does, so a source it parses is not misread here.
+    nbsp_frontmatter = write(
+        directory, "nbsp-frontmatter.md", "---\non:\u00a0push\n---\n\nBody.\n"
+    )
+    if not guard.requires_lock(nbsp_frontmatter):
+        failures.append(
+            "requires_lock: a non-breaking space in the frontmatter must be normalized like "
+            "gh-aw does — expected True"
         )
 
     # --- R1 follow-up: documented, deliberately-tested known limitations -----------------------

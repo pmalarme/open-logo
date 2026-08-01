@@ -145,7 +145,7 @@ jobs:
           has_frontmatter=false
           for f in .github/workflows/*.md; do
             [ -e "${f}" ] || continue
-            first_line="$(head -n 1 "${f}" | sed '1s/^\xef\xbb\xbf//' | tr -d '\r')"
+            first_line="$(head -n 1 "${f}" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
             if [ "${first_line}" = "---" ]; then
               has_frontmatter=true
               break

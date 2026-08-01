@@ -38,7 +38,7 @@ a hand-edited or stale lock file.
   `on:` trigger was removed, so nothing will ever recompile the lock — just as stale as a deleted
   source, and reported with its own message), or a
   `.md` gh-aw would actually compile with no `.lock.yml` yet. Only a `.md` whose first line is
-  exactly a frontmatter opener (`---`) *and* whose frontmatter declares a top-level `on:` trigger
+  a frontmatter opener (`---`, surrounding whitespace trimmed) *and* whose frontmatter declares a top-level `on:` trigger
   is treated
   as requiring a lock file — verified empirically against gh-aw v0.83.1: a plain doc (e.g. a
   `README.md` dropped into `.github/workflows/`), a frontmatter-only import fragment with no
@@ -47,9 +47,13 @@ a hand-edited or stale lock file.
   `validate-workflow-lockfiles.py`, which parses the frontmatter as YAML — with `yaml.BaseLoader`,
   so key spellings are compared exactly as gh-aw's Go YAML parser sees them — and so classifies
   block-style and flow-style frontmatter through the same code path; anything it cannot classify
-  fails **closed**, i.e. demands a lock). The opener match is **exact** on both sides — the guard
-  and the compile job's shell probe (which strip the same CR and UTF-8 BOM) — so a
-  whitespace-padded ` ---` cannot make the two disagree.
+  fails **closed**, i.e. demands a lock). The `---` delimiter match **mirrors gh-aw** on both
+  sides — the guard and the compile job's shell probe both trim surrounding whitespace (so a
+  padded ` ---`, or a CRLF line ending, is still an opener, exactly as
+  `strings.TrimSpace(firstLine) == "---"` in gh-aw v0.83.1) and both leave a UTF-8 BOM in place
+  (Go does not treat U+FEFF as whitespace, so gh-aw skips a BOM-prefixed source and so must we).
+  Mirroring the compiler is the point: a stricter rule fails *open* (gh-aw compiles a source the
+  guard never demanded a lock for) and a looser one demands a lock no compile can produce.
   `gh-aw compile` never deletes an orphaned lock file and has
   nothing to compile for an uncompiled source, so this check runs *before* compiling, on the
   committed tree.
