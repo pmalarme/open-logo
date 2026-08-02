@@ -4,7 +4,7 @@ description: >-
   The OpenLogo Definition of Done — the CI-enforced checklist and PR expectations every change must
   meet before it can merge. Use to self-verify before opening or updating a pull request.
 created: 2025-06-01T00:00
-updated: 2026-07-18T00:00
+updated: 2026-08-02T00:00
 ---
 
 ## Purpose
@@ -33,6 +33,13 @@ A change is "done" only when it is proven, documented, and green. This skill is 
    [`shared/review-gate`](../review-gate/SKILL.md) in-session: at least two non-author sub-agents —
    the logic/spec reviewer (`rubber-duck`, or a named fallback) plus **every** domain-adaptive QA
    expert — each returned `pass`, and their verdicts are attached to the PR (reviewer ≠ author).
+10. **Every review finding is resolved — blocking *and* non-blocking.** Nits, suggestions, and
+    "consider…" comments are **fixed** (that is the Boy Scout rule, team instructions §11), or
+    **declined with a one-line rationale** plus a follow-up issue when they are real work outside the
+    declared write-set. A finding that is silently dropped leaves the change **not done**. The
+    fix → commit → re-review loop runs until everything passes, **capped at 10 rounds**; if anything
+    is still open after round 10, the PR is **not** opened — escalate to `@orchestrator`/the
+    maintainer with the open findings and the per-round SHAs (the slice probably needs re-cutting).
 
 ## Review gate — run it before you open the PR
 
@@ -42,12 +49,17 @@ non-author sub-agents — the logic/spec reviewer (`rubber-duck`, or a named fal
 domain-adaptive **QA** expert — that between them re-run
 the clean-tree DoD (verifying the build actually **emits** artifacts, not just a `0` exit),
 spec-fidelity, conformance fixtures, runnable examples, a11y/pedagogy, and instructions/skills/docs/
-spec drift. The author iterates until all return `pass`, attaches the verdicts, and opens the PR;
-`@orchestrator` (or a human) does the final verification and merge.
+spec drift. The author **resolves every finding — blocking and non-blocking alike** (fix it, or
+decline it with a one-line rationale plus a follow-up issue when it is real work outside the declared
+write-set), iterates until all reviewers return `pass` on one final SHA with nothing left open —
+**within a hard cap of 10 rounds** — attaches the verdicts, and opens the PR;
+`@orchestrator` (or a human) does the final verification and merge. Still open after round 10? Do not
+open the PR: escalate to `@orchestrator`/the maintainer with the outstanding findings and per-round
+SHAs.
 
 ## Three-tier governance ladder (Issue → Epic → Saga)
 
-The 9-point DoD above is the **Issue Gate** — the per-PR gate every work issue clears. Above it sit
+The 10-point DoD above is the **Issue Gate** — the per-PR gate every work issue clears. Above it sit
 two more gates; **each tier = DoD-style checklist + required specialist review + rubber-duck review**,
 just applied at a wider scope:
 
@@ -99,6 +111,7 @@ Sagas replaced GitHub milestones, so these gates operate on
 - [ ] examples run   - [ ] a11y/pedagogy (if applicable)
 - [ ] docs + spec cross-links updated
 - [ ] self-review passed before PR (logic/spec reviewer + every domain QA, all ≠ author)
+- [ ] every finding resolved — blocking **and** non-blocking (fixed, or declined with rationale + follow-up issue); converged within 10 review rounds
 - [ ] one PR, write-set declared, shared files serialized
 ```
 

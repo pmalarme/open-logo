@@ -4,7 +4,7 @@
 Regression guard for issue #642: the committed lockfile resolved its dependencies against a
 private Azure Artifacts mirror, so `npm ci` failed for every outside contributor and in every
 agent sandbox. Third-party dependencies must always install from the **public** npm registry
-(see docs/adr/0017-packages-are-private-not-published.md — packages flow *in* from npmjs and are
+(see docs/adr/0018-packages-are-private-not-published.md — packages flow *in* from npmjs and are
 never published *out*).
 
 Rules for every `"resolved"` value in the lockfile:

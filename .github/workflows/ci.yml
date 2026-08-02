@@ -16,9 +16,18 @@ jobs:
   meta:
     name: Meta (labels, issue forms, workflows)
     runs-on: ubuntu-latest
+    # dorny/paths-filter (the `filter` step below) reads the changed-file list from the pull
+    # request via the REST API, which needs `pull-requests: read` on top of the workflow-wide
+    # `contents: read`; without it the step 403s on PRs and this job — and everything gated on
+    # its outputs — fails before running. Scoped to this job rather than raised workflow-wide so
+    # every other job keeps the least-privilege default.
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       has_toolchain: ${{ steps.detect.outputs.has_toolchain }}
       studio_changed: ${{ steps.filter.outputs.studio }}
+      workflows_changed: ${{ steps.filter.outputs.workflows }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
@@ -30,12 +39,24 @@ jobs:
       - name: Self-test the frontmatter check
         run: python .github/scripts/test-validate-meta.py
       - name: Guard package-lock.json against non-public registries
-        # Regression guard for issue #642 / ADR-0017: every "resolved" entry must come from the
+        # Regression guard for issue #642 / ADR-0018: every "resolved" entry must come from the
         # public npm registry, never a private/internal mirror (e.g. an Azure DevOps feed) that
         # outside contributors and CI cannot reach. Runs from day one — no toolchain needed.
         run: python .github/scripts/validate-lockfile-registry.py
       - name: Self-test the lockfile registry guard
         run: python .github/scripts/test-validate-lockfile-registry.py
+      - name: Guard gh-aw workflow source/lock-file pairing
+        # Issue #597: an orphaned .lock.yml with no .md source (or vice versa) is caught here,
+        # before gh-aw compile ever runs — see the workflows-compile job for content drift. Only
+        # a .md gh-aw actually compiles (first line is a frontmatter opener AND the frontmatter,
+        # parsed as YAML, declares a top-level `on:` trigger — verified empirically against gh-aw
+        # v0.83.1) is required to have a paired lock file; a plain doc (e.g. README.md), a
+        # trigger-less import fragment, or anything under a subdirectory is lock-free. See
+        # validate-workflow-lockfiles.py's module docstring and requires_lock().
+        # Runs from day one: passes cleanly while zero agentic workflows exist (today's state).
+        run: python .github/scripts/validate-workflow-lockfiles.py
+      - name: Self-test the workflow lock-file pairing guard
+        run: python .github/scripts/test-validate-workflow-lockfiles.py
       - id: detect
         name: Detect toolchain
         # hashFiles() is unreliable in a job-level `if` (it runs before checkout), so we
@@ -47,9 +68,11 @@ jobs:
             echo "has_toolchain=false" >> "$GITHUB_OUTPUT"
           fi
       - id: filter
-        name: Detect studio-affecting changes
+        name: Detect studio-affecting and workflows-affecting changes
         # Path-scopes the (heavy, browser-based) studio visual-regression job so it only runs when
         # the studio or a package it composes actually changes. Output consumed by `studio-visual`.
+        # Also scopes the gh-aw compile-drift job (needs network access to fetch the pinned
+        # release asset) to PRs that actually touch workflow sources/locks or the pin/installer.
         uses: dorny/paths-filter@v3
         with:
           filters: |
@@ -62,6 +85,79 @@ jobs:
               - 'packages/edu/**'
               - 'package-lock.json'
               - '.github/workflows/ci.yml'
+            workflows:
+              - '.github/workflows/**'
+              - '.github/aw/**'
+              - '.github/scripts/validate-workflow-lockfiles.py'
+              - '.github/scripts/test-validate-workflow-lockfiles.py'
+
+  workflows-compile:
+    name: Agentic workflow compile is clean (gh-aw)
+    # Issue #597: what runs in Actions must be exactly what `gh-aw compile` produces from the
+    # reviewed .md source, never a hand-edited or stale .lock.yml. Path-scoped (via `meta`'s
+    # `filter` step) so this only runs on the PRs — and pushes to `main` — that actually touch
+    # workflow sources/locks, the gh-aw pin, its installer, or the pairing-guard scripts; it is
+    # cheap, but the pinned-binary download still needs network access to the release CDN, so it
+    # does not run on every unrelated change.
+    needs: meta
+    if: ${{ needs.meta.outputs.workflows_changed == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # No pyyaml here: the full source/lock-file pairing guard (which needs it, and therefore a
+      # PyPI download) runs once, in the `meta` job this job already `needs`, so an orphan in
+      # either direction is caught before this job starts. Pairing catches what `gh-aw compile`
+      # cannot see (it never deletes a lock whose source is gone, and has nothing to compile for a
+      # source that was never compiled); this job catches content drift. The `--has-sources` probe
+      # below is the same module in its opener-only mode, which parses no YAML and so runs on the
+      # runner's preinstalled `python3` — keeping this job's promise of no network beyond the
+      # pinned gh-aw release asset.
+      - name: Install gh-aw (pinned, checksum-verified — see .github/aw/install.sh)
+        env:
+          GH_AW_INSTALL_DIR: ${{ runner.temp }}/gh-aw-bin
+        run: |
+          sh .github/aw/install.sh
+          echo "$GH_AW_INSTALL_DIR" >> "$GITHUB_PATH"
+      - name: Compile and fail on drift from the committed .lock.yml files
+        # No secret and no agentic execution here: `gh-aw compile` only turns markdown into
+        # YAML, it never runs a workflow. `git add -A` (not `git diff --exit-code` alone) is
+        # required to also catch a .md source whose .lock.yml was never committed at all: an
+        # untracked new file is invisible to a plain `git diff`, but a real gap in what CI runs.
+        #
+        # The early-exit probe below asks `validate-workflow-lockfiles.py --has-sources` rather
+        # than re-deriving gh-aw's rules in shell. gh-aw v0.83.1 exits 1 with "no workflow
+        # markdown files found ... (workflow files must start with a frontmatter opener on the
+        # first line)" whenever .github/workflows/ holds *some* .md file(s) but none gh-aw would
+        # compile (e.g. only a README.md), so a bare `ls .github/workflows/*.md` check would run
+        # into that exit-1 spuriously. Sharing one implementation with the pairing guard is what
+        # makes the two agree by construction: a hand-rolled probe that classified even one exotic
+        # opener differently would skip this drift check for a source the pairing guard is happy
+        # with, letting a stale or hand-edited .lock.yml through.
+        #
+        # The probe's result is captured in an assignment, not inline in the `if` test: a command
+        # substitution inside `[ "$(...)" != true ]` discards the exit status, so a probe that
+        # failed with empty stdout (e.g. a `.md` that is not valid UTF-8, which raises rather than
+        # guessing) would read as "nothing to compile" and silently skip the drift check. An
+        # assignment does trip `errexit`, and the explicit `|| exit 1` says so out loud.
+        run: |
+          has_sources="$(python3 .github/scripts/validate-workflow-lockfiles.py --has-sources)" || {
+            echo "::error::Could not determine whether .github/workflows/ holds compilable agentic-workflow sources."
+            exit 1
+          }
+          if [ "${has_sources}" != "true" ]; then
+            echo "No agentic-workflow sources gh-aw would compile (.github/workflows/*.md with a frontmatter opener) — nothing to compile."
+            exit 0
+          fi
+          gh-aw compile
+          git add -A -- .github/workflows/
+          drifted="$(git diff --cached --name-only -- .github/workflows/)"
+          if [ -n "${drifted}" ]; then
+            echo "::error::gh-aw compile changed the following committed file(s) — the .lock.yml is out of sync with its .md source:"
+            echo "${drifted}" | sed 's/^/::error::  - /'
+            echo "::error::Fix: sh .github/aw/install.sh && gh-aw compile && git add .github/workflows/*.lock.yml && git commit"
+            exit 1
+          fi
+          echo "gh-aw compile: every .lock.yml matches its .md source."
 
   build:
     name: Build & type-check

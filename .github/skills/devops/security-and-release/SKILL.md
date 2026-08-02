@@ -48,7 +48,7 @@ A release is a **validated tuple**, not one package version:
 
 **Never publish to npmjs.** Every `@openlogo/*` package is `"private": true` and stays off the
 public registry — a release is a git tag plus GitHub release artifacts (see
-[ADR-0017](../../../../docs/adr/0017-packages-are-private-not-published.md)). Release automation must never run
+[ADR-0018](../../../../docs/adr/0018-packages-are-private-not-published.md)). Release automation must never run
 `npm publish`.
 
 ## Rules

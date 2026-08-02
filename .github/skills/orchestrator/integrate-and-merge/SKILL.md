@@ -37,13 +37,19 @@ least two verdicts total). Your job is to **verify** them — all present, all f
 each **stamped with a head SHA that matches the current PR HEAD** (a commit after a `pass` voids it),
 and the reviewed base is the current **target**-branch tip (if the target advanced under the branch,
 have the owner rebase and re-review) — plus green CI and a light diff sanity check against the
-**target** (not a stale local branch). Do **not** re-run the whole gate round-by-round.
+**target** (not a stale local branch). Also check the **findings ledger**: every finding the
+reviewers raised — **non-blocking nits included** — is either fixed in the diff or **declined with a
+one-line rationale** (plus a follow-up issue number when it is real work outside the write-set), and
+the loop converged **within the 10-round cap**. A verdict of `pass` that still carries an
+undispositioned suggestion is **not** a pass; send it back. Do **not** re-run the whole gate
+round-by-round.
 
 When **you** authored the change (an _integration_ or governance PR), the same pre-open rule applies
 to you: you must **not** review it yourself, and you run `shared/review-gate` **before opening the
 PR** — spawn the non-author sub-agents (the **logic/spec reviewer** — `rubber-duck` or a named
-fallback — **plus every** domain QA expert the change needs), iterate to green on a committed HEAD,
-and open the PR with **all** SHA-stamped verdicts in its body. If a finding forces a new commit,
+fallback — **plus every** domain QA expert the change needs), iterate to green on a committed HEAD
+— **resolving every finding, blocking and non-blocking, within 10 rounds** — and open the PR with
+**all** SHA-stamped verdicts in its body. If a finding forces a new commit,
 re-run **all** reviewers so the attached verdicts match the final HEAD.
 
 ### 2. Merge only on a recorded PASS + green CI

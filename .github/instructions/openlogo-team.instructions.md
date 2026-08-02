@@ -104,6 +104,13 @@ A change is done only when, for the artifacts it touches:
    area's owner) that re-runs the clean-tree DoD (verifying the build actually _emits_ artifacts),
    conformance, examples, and instructions/skills/docs/spec drift. Each returned `pass` and their
    verdicts are attached to the PR. Reviewer ≠ author.
+10. **Every review finding is resolved — blocking *and* non-blocking.** Nits, suggestions, and
+   "consider…" comments are **fixed** (Boy Scout rule, §11) or **declined with a one-line rationale**
+   plus a follow-up issue when they are real work outside the declared write-set; silently dropping a
+   finding leaves the change **not done**. The fix → commit → re-review loop iterates until
+   everything passes, **capped at 10 rounds**: if anything is still open after round 10, the PR is
+   **not** opened — escalate to `@orchestrator`/the maintainer with the open findings and per-round
+   SHAs, because a slice that will not converge normally needs re-cutting, not more rounds.
 
 Agents do not self-merge; the implementer's non-author reviewers (at least two) record the pass verdicts, then
 humans and required CI checks (pipelines wired by `@devops`) gate the target branch by default. The maintainer
@@ -114,7 +121,7 @@ NON-delegable** — never merged by an agent: on the PR, `CODEOWNERS` (`spec/**`
 templates) plus the target branch's required code-owner-review ruleset block the merge until the
 maintainer approves; closing a `[saga]` issue is maintainer policy.
 
-This 9-point DoD is the **Issue Gate** — the bottom of a three-tier ladder. Above it, a whole
+This 10-point DoD is the **Issue Gate** — the bottom of a three-tier ladder. Above it, a whole
 capability clears the **Epic Gate** (`shared/epic-gate`) before its epic closes, and a release clears
 the **Saga Gate** (the Saga-completion audit in `orchestrator/integrate-and-merge`) before its saga
 closes and a tuple is tagged. Each tier = DoD-style checklist + specialist review + rubber-duck review.

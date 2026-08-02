@@ -43,14 +43,16 @@ are serialized one PR at a time.
 Before opening this PR the author ran shared/review-gate in-session: at least two non-author
 sub-agents — the logic/spec reviewer (rubber-duck, or a named fallback agent when rubber-duck's
 model precondition isn't met) plus every dispatched domain-adaptive QA expert — reviewed the change
-and all returned pass on this PR's head SHA. Attach their verdicts below. Reviewer ≠ author.
-See .github/skills/shared/review-gate/SKILL.md.
+and all returned pass on this PR's head SHA, with every finding — blocking and non-blocking —
+fixed or declined with a rationale, within the 10-round cap. Attach their verdicts below.
+Reviewer ≠ author. See .github/skills/shared/review-gate/SKILL.md.
 -->
 
 - [ ] Clean-tree DoD re-run — build **emits** verified (real `dist/*.js` + `*.d.ts`, not just exit 0; **N/A for docs-only**)
 - [ ] Spec-fidelity re-checked (canonical vocabulary, `ol-*` codes with spans, profile boundaries)
 - [ ] Conformance fixtures present & green
 - [ ] Instructions / skills / docs / spec drift checked (in this PR if needed)
+- [ ] Every finding resolved — blocking **and** non-blocking (fixed, or declined with a one-line rationale + follow-up issue when it is real work outside the write-set); converged within the **10-round cap**
 - [ ] Reviews were run on this PR's head commit (SHA `________`); any later push re-runs **all** reviewers
 - [ ] Logic/spec reviewer verdict = pass (≠ author) — `rubber-duck`, or named fallback + why:
 - [ ] Every QA expert verdict = pass (≠ author); expert(s):

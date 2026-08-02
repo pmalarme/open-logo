@@ -65,7 +65,9 @@ parallelization map, and [`docs/delivery.md`](docs/delivery.md) for the release 
    docs/spec cross-links updated, and **in-session self-review** has passed — before opening the PR
    the implementing agent ran [`shared/review-gate`](.github/skills/shared/review-gate/SKILL.md),
    dispatching at least two non-author sub-agents (the logic/spec reviewer — `rubber-duck` or a named
-   fallback — plus every domain QA expert) and iterating until all `pass`. Do not self-merge — humans +
+   fallback — plus every domain QA expert) and iterating until all `pass` **with every finding —
+   blocking and non-blocking — fixed or declined with a rationale**, in at most **10 rounds**
+   (still open after 10: escalate instead of opening the PR). Do not self-merge — humans +
    required CI checks gate the target branch (`main` or the parent `saga/*`) by default; the maintainer
    may delegate merge execution to
    `@orchestrator`, which does the final verification of those non-author verdicts + green CI (the
@@ -183,8 +185,10 @@ The repository uses [GitHub Agentic Workflows (`gh-aw`)](https://github.com/gith
 pinned version is in **[`.github/aw/version`](.github/aw/version)** — the single authoritative
 source. To upgrade: edit that file (one line), **re-run the installer** so your local binary matches
 the new pin, then recompile all lock files with `gh-aw compile`. Editing the pin alone leaves you
-compiling with the old binary. The rationale for all of this is
-[ADR-0017](docs/adr/0017-gh-aw-toolchain-bootstrap.md).
+compiling with the old binary. The rationale for the toolchain pin/install/generated-files mechanics
+is [ADR-0017](docs/adr/0017-gh-aw-toolchain-bootstrap.md); *why we run agentic workflows in Actions
+at all*, the guardrails, the governance boundary, and the kill-switch are
+[ADR-0019](docs/adr/0019-adopt-agentic-workflows.md).
 
 ### Installing gh-aw
 

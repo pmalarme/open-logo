@@ -4,6 +4,8 @@
 - Date: 2026-07-18
 - Deciders: OpenLogo maintainer (@pmalarme) + team
 - Amends: [ADR-0004](0004-independent-review-gate.md)
+- Related: refined by [ADR-0020](0020-resolve-all-review-findings.md) (resolve every finding;
+  10-round cap)
 
 ## Context
 
