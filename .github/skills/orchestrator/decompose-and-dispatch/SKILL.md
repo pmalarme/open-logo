@@ -39,8 +39,11 @@ contracts agreed first. You write no feature code — you decompose, dispatch, a
    **The kickoff must require in-session self-review** (`shared/review-gate`): before opening the PR
    the owner dispatches at least two non-author sub-agents — the **logic/spec reviewer** (`rubber-duck`, or a named fallback)
    + **every** domain-adaptive **QA** expert (`@testing` and/or the changed area's owner) — and iterates
-   on a committed HEAD until **each** returns `pass` on that SHA, then opens an already-green PR with all
-   SHA-stamped verdicts attached. **Run the
+   on a committed HEAD until **each** returns `pass` on that SHA **with every finding resolved**
+   (non-blocking ones fixed, or declined with a rationale + follow-up issue), in at most **10 rounds** —
+   then opens an already-green PR with all
+   SHA-stamped verdicts attached. Anything still open after round 10 comes back to you instead of
+   becoming a PR: re-cut the slice rather than grinding more rounds. **Run the
    session on a Claude or GPT large model** so `rubber-duck` is available; if it is not, the owner
    substitutes a named second non-author domain agent for that review and records which agent stood in and why. **Avoid firing uncontrolled cloud agents at parallel
    slices:** they are not messageable and branch off each other, which in M0 stacked duplicate PRs

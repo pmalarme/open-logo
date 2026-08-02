@@ -65,7 +65,9 @@ parallelization map, and [`docs/delivery.md`](docs/delivery.md) for the release 
    docs/spec cross-links updated, and **in-session self-review** has passed — before opening the PR
    the implementing agent ran [`shared/review-gate`](.github/skills/shared/review-gate/SKILL.md),
    dispatching at least two non-author sub-agents (the logic/spec reviewer — `rubber-duck` or a named
-   fallback — plus every domain QA expert) and iterating until all `pass`. Do not self-merge — humans +
+   fallback — plus every domain QA expert) and iterating until all `pass` **with every finding —
+   blocking and non-blocking — fixed or declined with a rationale**, in at most **10 rounds**
+   (still open after 10: escalate instead of opening the PR). Do not self-merge — humans +
    required CI checks gate the target branch (`main` or the parent `saga/*`) by default; the maintainer
    may delegate merge execution to
    `@orchestrator`, which does the final verification of those non-author verdicts + green CI (the

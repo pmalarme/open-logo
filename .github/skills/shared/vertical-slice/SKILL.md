@@ -54,7 +54,9 @@ Update the reference/tutorial and runnable examples in the **same PR** (`@docume
 Run `shared/definition-of-done`, then run `shared/review-gate` **without leaving the session**:
 dispatch at least two non-author review sub-agents — the logic/spec reviewer (`rubber-duck`, or a
 named fallback) and **every** domain-adaptive **QA** expert (`@testing` by default, plus the owner of
-the changed area) — and **iterate until each returns `pass`**. Only then open one PR with the declared write-set and all
+the changed area) — and **iterate until each returns `pass`** with **every finding resolved** —
+non-blocking nits included (fixed, or declined with a rationale + follow-up issue) — in at most **10
+rounds**. Only then open one PR with the declared write-set and all
 verdicts attached. Do not self-merge — `@orchestrator` does the final verification and merges (or a
 human does), never the author alone.
 
