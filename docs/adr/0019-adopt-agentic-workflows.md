@@ -1,15 +1,11 @@
-# 18. Adopt GitHub Agentic Workflows (gh-aw): rationale, guardrails, kill-switch
+# 19. Adopt GitHub Agentic Workflows (gh-aw): rationale, guardrails, kill-switch
 
 - Status: Accepted
 - Date: 2026-08-01
 - Deciders: OpenLogo maintainer (@pmalarme)
 - Related: builds on [ADR-0017 (gh-aw toolchain bootstrap)](0017-gh-aw-toolchain-bootstrap.md)
   (how `gh-aw` the CLI is pinned, installed, and verified — this ADR is about *why* we run its
-  output in Actions and under what constraints). **Numbering note:** `docs/adr/` already contains
-  two Accepted records numbered 0017 — `0017-gh-aw-toolchain-bootstrap.md` and
-  `0017-packages-are-private-not-published.md`. That collision predates this ADR and Accepted ADRs
-  are immutable, so every "ADR-0017" reference below means the **gh-aw toolchain bootstrap** one,
-  linked by filename. Mechanics in
+  output in Actions and under what constraints). Mechanics in
   [`../../.github/instructions/workflows.instructions.md`](../../.github/instructions/workflows.instructions.md)
   and [`../../AGENTS.md`](../../AGENTS.md) §"gh-aw bootstrap".
 

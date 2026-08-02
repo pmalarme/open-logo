@@ -188,7 +188,7 @@ the new pin, then recompile all lock files with `gh-aw compile`. Editing the pin
 compiling with the old binary. The rationale for the toolchain pin/install/generated-files mechanics
 is [ADR-0017](docs/adr/0017-gh-aw-toolchain-bootstrap.md); *why we run agentic workflows in Actions
 at all*, the guardrails, the governance boundary, and the kill-switch are
-[ADR-0018](docs/adr/0018-adopt-agentic-workflows.md).
+[ADR-0019](docs/adr/0019-adopt-agentic-workflows.md).
 
 ### Installing gh-aw
 

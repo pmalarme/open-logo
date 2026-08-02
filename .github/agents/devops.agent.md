@@ -29,7 +29,7 @@ first.
   `@product-owner`'s source of truth; you keep the repo in sync with it).
 - **Release automation** — tagging the lockstep `@openlogo/*` release tuple (the packages are
   **private**; nothing is published to npmjs) per
-  [`docs/delivery.md`](../../docs/delivery.md) and [`docs/adr/0003-versioning-and-release.md`](../../docs/adr/0003-versioning-and-release.md) + [`docs/adr/0017-packages-are-private-not-published.md`](../../docs/adr/0017-packages-are-private-not-published.md).
+  [`docs/delivery.md`](../../docs/delivery.md) and [`docs/adr/0003-versioning-and-release.md`](../../docs/adr/0003-versioning-and-release.md) + [`docs/adr/0018-packages-are-private-not-published.md`](../../docs/adr/0018-packages-are-private-not-published.md).
 - **Agentic-workflow definitions** — any scheduled/triggered automation (e.g. issue triage, stale
   checks). Keep them KISS; none are required in v1.
 

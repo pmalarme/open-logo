@@ -1,4 +1,4 @@
-# 17. The `@openlogo/*` packages are private and never published to npmjs
+# 18. The `@openlogo/*` packages are private and never published to npmjs
 
 - Status: Accepted
 - Date: 2026-08-01
@@ -59,4 +59,4 @@ together with a decision on scope ownership, provenance, and support expectation
   squatting is a risk the superseding ADR must address.
 - Docs that described publishing (`devops/security-and-release`, `.github/agents/devops.agent.md`)
   are updated to point here; ADR-0003's decision text stays untouched, as immutability requires —
-  it receives only the `refined by ADR-0017` cross-link on its `Related:` line.
+  it receives only the `refined by ADR-0018` cross-link on its `Related:` line.

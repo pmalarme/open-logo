@@ -1,4 +1,4 @@
-# 19. Resolve every review finding, bounded to 10 review rounds
+# 20. Resolve every review finding, bounded to 10 review rounds
 
 - Status: Accepted
 - Date: 2026-08-02
