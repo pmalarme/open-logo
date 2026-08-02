@@ -59,4 +59,5 @@ and the SHA-binding of verdicts are unchanged; only the exit condition of the lo
   made.
 - Guidance updated in the same change: team instructions §5 (now a **10-point** DoD),
   `shared/definition-of-done`, `shared/review-gate`, `shared/vertical-slice`,
-  `orchestrator/decompose-and-dispatch`, `orchestrator/integrate-and-merge`, and `AGENTS.md`.
+  `orchestrator/decompose-and-dispatch`, `orchestrator/integrate-and-merge`, `AGENTS.md`, and the
+  pull-request template's self-review checklist.
