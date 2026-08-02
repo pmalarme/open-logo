@@ -184,7 +184,7 @@ place their operating rules are recorded; cite it rather than restating it elsew
 - **Source → compiled model.** The markdown file (frontmatter for triggers/permissions/tools, prose
   for the agent's instructions) is the reviewable **source**; `gh-aw compile` (the pinned binary,
   [ADR-0017](../../docs/adr/0017-gh-aw-toolchain-bootstrap.md)) turns it into a committed
-  `*.lock.yml` — an ordinary Actions workflow Actions runs exactly as written, with no runtime
+  `*.lock.yml` — an ordinary GitHub Actions workflow that Actions runs exactly as written, with no runtime
   interpretation step ([ADR-0019 §Decision](../../docs/adr/0019-adopt-agentic-workflows.md#decision)).
   **The `.lock.yml` is generated, never hand-edited.** Any change to the `.md`
   must be recompiled with `gh-aw compile` and the resulting `.lock.yml` diff committed in the

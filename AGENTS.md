@@ -43,7 +43,7 @@ docs/delivery.md       Release + saga strategy
 .github/labels-retired.yml  Namespaced labels kept on the repo but never applied again (reasoned)
 .github/labeler.yml    Path→label rules for PR auto-labeling
 .github/scripts/        Metadata + commit-convention + label-taxonomy validation, label sync (run by CI)
-.github/workflows/     CI (Definition of Done), commit convention, labeler, label sync, label drift, and agentic-workflow *.md sources (compiled to committed *.lock.yml) — owned by @devops
+.github/workflows/     CI (Definition of Done), commit convention, labeler, label sync, label drift, agentic-workflow *.md + generated *.lock.yml — @devops
 .github/aw/            gh-aw version pin + shared installer (see "gh-aw bootstrap" below)
 .github/mcp.json       MCP server registration for the agentic-workflows tooling
 .githooks/       Local commit-msg check (wired by the root `prepare` script) — guidance, not a gate
