@@ -24,6 +24,11 @@ programming + turtle graphics + geometry + AI coaching + discovery learning.
   and geometry as discoverable OpenLogo source rather than primitives.
 - Educational commands `explain`/`why`/`hint`/`debug` are deterministic; `hint` is progressive; the
   AI tutor is Socratic and degrades offline to the deterministic baseline.
+- `.github/workflows/` also hosts GitHub Agentic Workflows (`gh-aw`) sources: a `.md` per workflow,
+  compiled to a generated `.lock.yml` you must never hand-edit. Rules for changing one — who may
+  author them, least privilege, and what they may never do (merge, touch `spec/`, bypass the
+  Definition of Done) — are in
+  [`workflows.instructions.md`](instructions/workflows.instructions.md).
 
 Do not self-merge; humans and required CI checks gate the target branch (`main` or the parent
 `saga/*`) by default — the maintainer may delegate

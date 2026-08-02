@@ -55,7 +55,10 @@ square draws on the Canvas. See [`packages/studio`](packages/studio) for details
 ## Agentic Workflows (gh-aw)
 
 The repository uses [GitHub Agentic Workflows (`gh-aw`)](https://github.com/github/gh-aw).
-The pinned version is in [`.github/aw/version`](.github/aw/version).
+The pinned version is in [`.github/aw/version`](.github/aw/version). Workflow sources live in
+[`.github/workflows/*.md`](.github/workflows) and compile to a generated, never hand-edited
+`*.lock.yml`; who may change them and the operating rules they must follow are in
+[`workflows.instructions.md`](.github/instructions/workflows.instructions.md).
 
 **Bootstrap** — one POSIX-shell command on every platform (on Windows, run it from Git Bash or
 another POSIX environment). Agent sandboxes block `gh extension install` and `go install`, so this

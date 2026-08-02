@@ -42,7 +42,7 @@ docs/delivery.md       Release + saga strategy
 .github/labels.yml     Label taxonomy manifest (agent:*/type:*/profile:*/area:*/level:*)
 .github/labeler.yml    Path→label rules for PR auto-labeling
 .github/scripts/        Metadata + commit-convention validation, label sync (run by CI)
-.github/workflows/     CI (Definition of Done), commit convention, labeler, label sync — owned by @devops
+.github/workflows/     CI (Definition of Done), commit convention, labeler, label sync, and any agentic-workflow *.md source + generated *.lock.yml — owned by @devops
 .github/aw/            gh-aw version pin + shared installer (see "gh-aw bootstrap" below)
 .github/mcp.json       MCP server registration for the agentic-workflows tooling
 .githooks/       Local commit-msg check (wired by the root `prepare` script) — guidance, not a gate
@@ -188,7 +188,11 @@ the new pin, then recompile all lock files with `gh-aw compile`. Editing the pin
 compiling with the old binary. The rationale for the toolchain pin/install/generated-files mechanics
 is [ADR-0017](docs/adr/0017-gh-aw-toolchain-bootstrap.md); *why we run agentic workflows in Actions
 at all*, the guardrails, the governance boundary, and the kill-switch are
-[ADR-0019](docs/adr/0019-adopt-agentic-workflows.md).
+[ADR-0019](docs/adr/0019-adopt-agentic-workflows.md). Day-to-day rules for authoring, compiling, and
+reviewing one — the `.md` source vs. the generated `.lock.yml`, least-privilege + `safe-outputs`,
+and the operating rules every agentic workflow must follow (no merge, no `spec/`, no bypassing the
+Definition of Done) — are in
+[`.github/instructions/workflows.instructions.md`](.github/instructions/workflows.instructions.md).
 
 ### Installing gh-aw
 

@@ -66,6 +66,63 @@ suites these workflows run; you wire and secure them.
 - [`.githooks/`](../../.githooks) — local `commit-msg` check, wired by the root `prepare` npm script.
   **Guidance, not a gate**: bypassable with `--no-verify` and never a required check.
 
+## Agentic workflows: source → compiled model
+Agentic workflows (`gh-aw`) live in two places. Their reviewable **source** is a markdown file
+directly under `.github/workflows/*.md` (frontmatter for triggers/permissions/tools + prose for the
+agent's instructions); their executable artifact is the committed **`.lock.yml`** next to it — an
+ordinary Actions workflow, produced only by the pinned `gh-aw compile`
+([`.github/aw/version`](../aw/version) is the pin, [`.github/aw/install.sh`](../aw/install.sh) the
+installer — [ADR-0017](../../docs/adr/0017-gh-aw-toolchain-bootstrap.md); see also `AGENTS.md`
+§"gh-aw bootstrap"). The toolchain landed before any workflow did
+([ADR-0019](../../docs/adr/0019-adopt-agentic-workflows.md)); the rules below govern every agentic
+workflow from the first one onward.
+
+- **The `.lock.yml` is GENERATED — never hand-edit it.** Every change starts in the `.md` source;
+  regenerate with `gh-aw compile` and commit both files together. The `workflows-compile` job in
+  `ci.yml` (above) recompiles every source with the pinned compiler and fails the PR on any diff, so
+  a hand-edited lock file can never merge unnoticed, and
+  `.github/scripts/validate-workflow-lockfiles.py` fails the PR if a source and its lock file are
+  not both present (issue #597).
+- **Least privilege, `safe-outputs` only.** An agentic workflow's `permissions:` block must be
+  scoped to exactly what the job needs — the same convention as the hand-written workflows below —
+  and must **never** carry a direct write token (`contents: write`, `pull-requests: write`,
+  `issues: write`, …) for its own use. It proposes changes through gh-aw's `safe-outputs` mechanism
+  (a structured, sanitized "open this issue/PR" or "post this comment" proposal, turned into the
+  real GitHub API call by a trusted post-processing step) instead, so its blast radius is a
+  reviewable proposal, never a direct write
+  ([ADR-0019 Guardrails](../../docs/adr/0019-adopt-agentic-workflows.md#guardrails); no workflow
+  configures this yet — the first one to do so is tracked in issue #604).
+- **Who may change them:** `@devops` authors and edits agentic-workflow sources, same ownership as
+  every other file in this folder; the maintainer approves before merge — no self-merge, same as
+  every other change here (team agreement [§5](openlogo-team.instructions.md)).
+
+## Operating rules for every agentic workflow
+Recorded once here so other docs — e.g. the
+[`agentic-workflows`](../skills/agentic-workflows/SKILL.md) skill — cite this section instead of
+restating it. An agentic workflow, whatever it proposes, is bound by exactly the rules every other
+contributor, human or agent, already follows (they mirror
+[ADR-0019 Governance boundary](../../docs/adr/0019-adopt-agentic-workflows.md#governance-boundary--workflows-propose-humans-dispose)):
+
+- **Never merges to `main` or a `saga/*` branch.** The
+  [Definition of Done](openlogo-team.instructions.md) requires at least two non-author review
+  verdicts and green required CI before anything merges; running unattended in Actions grants no
+  exception.
+- **Never touches `spec/`.** `CODEOWNERS` names `/spec/` maintainer-owned; a spec change a workflow
+  proposes still needs the maintainer's code-owner review and, by team convention, should not even
+  be attempted — spec changes go through `@product-owner`.
+- **Never bypasses the Definition of Done.** A PR a workflow opens is a PR like any other: the same
+  required `ci.yml`, `codeql.yml`, and `dependency-review.yml` checks run, and the same non-author
+  review gate applies before it can merge.
+- **No secrets in prompts.** Workflow frontmatter/prose must never embed credentials, tokens, or
+  other secrets — secrets live in repository/environment secrets, never in a `.md` source an LLM
+  reads as its instructions.
+- **Kill-switch.** Stop one workflow in under a minute with `gh workflow disable <file>` (cancel a
+  running job with `gh run cancel <run-id>`); stop everything at once via repository
+  **Settings → Actions → General → "Disable actions"**; stop it permanently by deleting the `.md`
+  and its `.lock.yml` together in a normal PR (the pairing guard above refuses a PR that removes
+  only one half). Full detail:
+  [ADR-0019 Kill-switch](../../docs/adr/0019-adopt-agentic-workflows.md#kill-switch).
+
 ## Conventions
 - **Least privilege:** set explicit `permissions:` per workflow; default to `contents: read` and add
   only what a job needs (`pull-requests: write` for labeler, `issues: write` for label sync).
