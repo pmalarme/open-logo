@@ -30,7 +30,7 @@ jobs:
       workflows_changed: ${{ steps.filter.outputs.workflows }}
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.x"
       - run: pip install pyyaml
@@ -250,7 +250,7 @@ jobs:
         run: npm run -s test:visual --workspace @openlogo/studio
       - name: Upload Playwright report on failure
         if: ${{ failure() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: studio-visual-playwright-report
           path: packages/studio/playwright-report/
