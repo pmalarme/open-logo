@@ -166,3 +166,123 @@ test("stamp payload carries position, heading, shape, and color stamped", () => 
   assert.equal(event.payload.shape, "triangle");
   assert.equal(event.payload.color, "red");
 });
+
+test("primitive payload carries the canonical primitive name (wait)", () => {
+  const event = {
+    seq: 12,
+    kind: "primitive",
+    source_span: makeSpan(),
+    payload: { name: "wait" },
+  };
+  assert.ok(OL.isEventKind(event.kind));
+  assert.equal(event.payload.name, "wait");
+});
+
+test("primitive payload names each event-registration form", () => {
+  for (const name of ["when", "every", "on_key", "on_click"]) {
+    const event = {
+      seq: 13,
+      kind: "primitive",
+      source_span: makeSpan(),
+      payload: { name },
+    };
+    assert.ok(OL.isEventKind(event.kind));
+    assert.equal(event.payload.name, name);
+  }
+});
+
+test("sound payload (set_tempo) carries beats per minute", () => {
+  const event = {
+    seq: 14,
+    kind: "sound",
+    source_span: makeSpan(),
+    payload: { command: "set_tempo", beats_per_minute: 90 },
+  };
+  assert.ok(OL.isEventKind(event.kind));
+  assert.equal(event.payload.command, "set_tempo");
+  assert.equal(event.payload.beats_per_minute, 90);
+});
+
+test("sound payload (note) carries pitch and duration in beats", () => {
+  const event = {
+    seq: 15,
+    kind: "sound",
+    source_span: makeSpan(),
+    payload: { command: "note", pitch: "c4", duration: 1 },
+  };
+  assert.ok(OL.isEventKind(event.kind));
+  assert.equal(event.payload.command, "note");
+  assert.equal(event.payload.pitch, "c4");
+  assert.equal(event.payload.duration, 1);
+});
+
+test("sound payload (play) carries the resolved melody as pitch/duration steps", () => {
+  const event = {
+    seq: 16,
+    kind: "sound",
+    source_span: makeSpan(),
+    payload: {
+      command: "play",
+      melody: [
+        { pitch: "c4", duration: 1 },
+        { pitch: "rest", duration: 1 },
+        { pitch: "g4", duration: 2 },
+      ],
+    },
+  };
+  assert.ok(OL.isEventKind(event.kind));
+  assert.equal(event.payload.command, "play");
+  assert.equal(event.payload.melody.length, 3);
+  assert.deepEqual(event.payload.melody[1], { pitch: "rest", duration: 1 });
+});
+
+test("sound payload (beep) is fully described by its command discriminant", () => {
+  const event = {
+    seq: 17,
+    kind: "sound",
+    source_span: makeSpan(),
+    payload: { command: "beep" },
+  };
+  assert.ok(OL.isEventKind(event.kind));
+  assert.equal(event.payload.command, "beep");
+});
+
+test("sound payload (rest) carries the silent duration in beats", () => {
+  const event = {
+    seq: 18,
+    kind: "sound",
+    source_span: makeSpan(),
+    payload: { command: "rest", duration: 1 },
+  };
+  assert.ok(OL.isEventKind(event.kind));
+  assert.equal(event.payload.command, "rest");
+  assert.equal(event.payload.duration, 1);
+});
+
+test("spawn-turtle payload identifies the new turtle and its initial visible state", () => {
+  const event = {
+    seq: 19,
+    kind: "spawn-turtle",
+    source_span: makeSpan(),
+    turtle_id: 1,
+    payload: {
+      turtle_id: 1,
+      position: [0, 0],
+      heading: 0,
+      pen: "down",
+      color: "black",
+      width: 1,
+      visible: true,
+      shape: "turtle",
+    },
+  };
+  assert.ok(OL.isEventKind(event.kind));
+  assert.equal(event.payload.turtle_id, 1);
+  assert.deepEqual(event.payload.position, [0, 0]);
+  assert.equal(event.payload.heading, 0);
+  assert.equal(event.payload.pen, "down");
+  assert.equal(event.payload.color, "black");
+  assert.equal(event.payload.width, 1);
+  assert.equal(event.payload.visible, true);
+  assert.equal(event.payload.shape, "turtle");
+});

@@ -82,6 +82,16 @@ export type {
   WhyProgramTutorOutputPayload,
   DebugDiagnosticTutorOutputPayload,
   DebugProgramTutorOutputPayload,
+  PrimitiveName,
+  PrimitivePayload,
+  SetTempoSoundPayload,
+  NoteSoundPayload,
+  MelodyStep,
+  PlaySoundPayload,
+  BeepSoundPayload,
+  RestSoundPayload,
+  SoundPayload,
+  SpawnTurtlePayload,
 } from "./events.js";
 
 export { OLDict, OLRecord, typeNameOf } from "./values.js";

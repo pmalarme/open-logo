@@ -371,13 +371,140 @@ export type TutorOutputPayload =
   | DebugTutorOutputPayload;
 
 /**
+ * The interaction primitives that emit a `primitive` event (Interaction & Events profile,
+ * `spec/interaction-events.md#trace-stream-integration`): `wait` emits one after the pause
+ * completes, and each event-registration form (`when`/`every`/`on_key`/`on_click`) emits one
+ * after its handler is registered ("Event registration forms emit `primitive` events after the
+ * handler is registered", `spec/interaction-events.md:120-122`). These are the primitives that,
+ * per that section, have no more specific effect kind.
+ */
+export type PrimitiveName = "wait" | "when" | "every" | "on_key" | "on_click";
+
+/**
+ * Payload for a `primitive` event: the canonical name of the primitive whose effect the event
+ * records (Interaction & Events profile, `spec/interaction-events.md#trace-stream-integration`).
+ * `primitive` is the fallback effect kind for primitives that have no more specific kind
+ * ("primitives without a more specific kind emit `primitive`", `spec/interaction-events.md:105-106`);
+ * `name` is what lets replay/debug tools tell those primitives apart. The event is emitted after
+ * the effect it describes (after a `wait` pause completes, or after a handler is registered), so no
+ * timing or tick data lives in the payload — the stream carries no timing or frames.
+ */
+export interface PrimitivePayload {
+  readonly name: PrimitiveName;
+}
+
+/**
+ * Payload for a `sound` event emitted by `set_tempo` (Sound profile,
+ * `spec/interaction-events.md:259-272`): the tempo, in beats per minute, now shared by `note`,
+ * `play`, and `rest`. A positive number (`ol-range` otherwise); the default before any `set_tempo`
+ * is `120`.
+ */
+export interface SetTempoSoundPayload {
+  readonly command: "set_tempo";
+  readonly beats_per_minute: number;
+}
+
+/**
+ * Payload for a `sound` event emitted by `note` (Sound profile,
+ * `spec/interaction-events.md:274-291`): one pitched sound scheduled at the current tempo. `pitch`
+ * is a scientific-pitch-notation word with lowercase canonical spelling (e.g. `"c4"`, `"fs4"`,
+ * `"bb3"`); `duration` is a positive number of beats.
+ */
+export interface NoteSoundPayload {
+  readonly command: "note";
+  readonly pitch: string;
+  readonly duration: number;
+}
+
+/**
+ * One scheduled step of a `play` melody: a pitch word accepted by `note` or the word `"rest"`, and
+ * its positive beat `duration` (`spec/interaction-events.md:293-307` — the melody list is
+ * pitch/duration pairs in sequence). The runtime resolves the flat, even-length melody list into
+ * these ordered pairs before emitting the event.
+ */
+export interface MelodyStep {
+  readonly pitch: string;
+  readonly duration: number;
+}
+
+/**
+ * Payload for a `sound` event emitted by `play` (Sound profile,
+ * `spec/interaction-events.md:293-307`): the resolved melody, as an ordered list of pitch/duration
+ * {@link MelodyStep}s, scheduled in sequence at the current tempo.
+ */
+export interface PlaySoundPayload {
+  readonly command: "play";
+  readonly melody: readonly MelodyStep[];
+}
+
+/**
+ * Payload for a `sound` event emitted by `beep` (Sound profile,
+ * `spec/interaction-events.md:309-324`): one short, implementation-defined alert sound. It carries
+ * no parameters — the spec pins none — so the discriminant `command` is the whole payload.
+ */
+export interface BeepSoundPayload {
+  readonly command: "beep";
+}
+
+/**
+ * Payload for a `sound` event emitted by `rest` (Sound profile,
+ * `spec/interaction-events.md:326-341`): scheduled silence of `duration` beats at the current
+ * tempo. `rest` emits a `sound` event "so replay tools can show the silent interval"
+ * (`spec/interaction-events.md:335`). `duration` is a positive number.
+ */
+export interface RestSoundPayload {
+  readonly command: "rest";
+  readonly duration: number;
+}
+
+/**
+ * The `sound` event's payload — a discriminated union on `command`, one arm per Sound-profile
+ * primitive ({@link SetTempoSoundPayload}, {@link NoteSoundPayload}, {@link PlaySoundPayload},
+ * {@link BeepSoundPayload}, {@link RestSoundPayload}). Sound commands emit a `sound` event after
+ * the sound state has been scheduled (`spec/interaction-events.md:120-121`); the payload carries
+ * only what each command deterministically schedules (pitch, duration in beats, tempo), never
+ * wall-clock timing or audio frames — those are a rendering concern, not part of the deterministic,
+ * headless stream.
+ */
+export type SoundPayload =
+  | SetTempoSoundPayload
+  | NoteSoundPayload
+  | PlaySoundPayload
+  | BeepSoundPayload
+  | RestSoundPayload;
+
+/**
+ * Payload for a `spawn-turtle` event (Sprites profile,
+ * `spec/turtles-and-sprites.md:32-34`): emitted immediately after `new_turtle` creates a fresh
+ * turtle. The payload MUST identify the new turtle and SHOULD include its initial visible state for
+ * renderers and debuggers, so it carries the {@link TurtleId} plus the full default turtle state a
+ * new turtle starts with (`spec/turtles-and-sprites.md:32`): origin at the canvas center (`[0, 0]`),
+ * heading `0` degrees (up), pen down, color `"black"`, width `1`, visible, and the implementation's
+ * default turtle `shape`. The envelope's optional `turtle-id` addresses which turtle an event
+ * concerns; this payload's `turtle_id` is the identity of the turtle being reported, so it is
+ * present unconditionally.
+ */
+export interface SpawnTurtlePayload {
+  readonly turtle_id: TurtleId;
+  readonly position: Point;
+  readonly heading: number;
+  readonly pen: PenState;
+  readonly color: string;
+  readonly width: number;
+  readonly visible: boolean;
+  readonly shape: string;
+}
+
+/**
  * The trace-event envelope. `payload` is kind-specific typed data — the payload interfaces
  * above cover every Turtle & Rendering kind (`move`, `turn`, `pen-change`, `width-change`,
  * `color-change`, `background-change`, `draw-segment`, `fill`, `stamp`, `shape-change`,
  * `visibility-change`, `clear`), `print`/`procedure-enter`/`procedure-exit`/`return`,
  * `tutor-output` (Educational profile, via {@link TutorOutputPayload}), and `overlay` (Geometry
- * profile, via {@link OverlayPayload}); other kinds (e.g. `sound`, `spawn-turtle`, `primitive`,
- * `error`) refine their payload with their feature slice.
+ * profile, via {@link OverlayPayload}); `sound` (Sound profile, via {@link SoundPayload}),
+ * `spawn-turtle` (Sprites profile, via {@link SpawnTurtlePayload}), and `primitive` (Interaction &
+ * Events profile, via {@link PrimitivePayload}); other kinds (e.g. `error`) refine their payload
+ * with their feature slice.
  */
 export interface TraceEvent<P = unknown> {
   /** Monotonic sequence number, ordering the stream. */
