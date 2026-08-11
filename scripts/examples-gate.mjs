@@ -31,9 +31,10 @@
  * `educationalPrimitiveArity()` for Educational; `note`/`beep`/`play`/`rest`/`set_tempo` for
  * Sound; `input`/`when`/`every`/`on_key`/`on_click`/`wait` for Interaction & Events;
  * `new_turtle`/`tell`/`ask`/`each`/`turtles`/`who` for Sprites; the closed Heritage short-alias
- * list plus `make` plus `value of … for key` (which also needs Data) for Heritage; `challenge` for
- * Tutor (AI); and the reserved words `to`/`output`/`op` (Heritage), `import`/`export` (Modules),
- * and `alias` (Localization) via the parser's own `ol-bad-token` diagnostics, since those six have
+ * list plus `make`/`to`/`output`/`op` (detected from their `Assign`/`ProcedureDef`/`Return` AST
+ * nodes) plus `value of … for key` (which also needs Data) for Heritage; `challenge` for
+ * Tutor (AI); and the reserved words `import`/`export` (Modules) and `alias` (Localization) via the
+ * parser's own `ol-bad-token` diagnostics, since those three have
  * no `Call`/`ParenCall` production at all — see {@link detectUsedProfiles}'s own doc comment for
  * the full per-profile audit and the one remaining, genuinely-undetectable case (locale-pack
  * syntax beyond `alias` itself, none of which exists in the grammar today), and
@@ -164,10 +165,9 @@ const TUTOR_AI_CALLEE_NAMES = new Set(["challenge"]);
  * The Heritage assignment spelling `make "name" value` is NOT in this set: since issue #151 it
  * parses as an `Assign` node (`form: "make"`), not a `Call`, so it is detected from that node
  * form directly in {@link detectUsedProfiles}'s walk. `to`/`output`/`op` are also Heritage
- * spellings but are reserved words with no `Call`/`ParenCall` production at all today, so a
- * bare-name check like this one can never see them — they are detected separately, via
- * {@link RESERVED_WORD_PROFILES}, from the parser's own parse-time diagnostics rather than from
- * the AST.
+ * spellings not in this set: as of issue #667 they parse into `ProcedureDef`/`Return` nodes
+ * (discriminated by `keyword`), so they too are detected from their AST nodes in that walk, not by
+ * a bare callee-name check here.
  */
 const HERITAGE_CALLEE_NAMES = new Set([
   "fd",
@@ -217,33 +217,25 @@ const GEOMETRY_STDLIB_CALLEE_NAMES = new Set([
 const GEOMETRY_STDLIB_ALSO_DATA_NAMES = new Set(["area", "perimeter"]);
 
 /**
- * Reserved words (`packages/parser/src/parser.ts`'s `NON_PRIMARY_NAMES`) that have no
- * `Call`/`ParenCall` — or any other — AST production at all today, so no AST walk can ever see
- * them: the Heritage `to`/`output`/`op` procedure-definition/return spellings
- * (`spec/conformance.md:257`,`:270`), and the Modules/Localization `import`/`export`/`alias`
+ * Reserved words that have no `Call`/`ParenCall` — or any other — AST production at all today, so no
+ * AST walk can ever see them: the Modules/Localization `import`/`export`/`alias`
  * module-and-keyword-pack-aliasing forms (`spec/conformance.md:177-186`,`:277-278`;
- * `spec/localization.md:18-21`'s `alias new_name existing_name`). `struct` is deliberately
- * excluded from this map: unlike the six words above, it DOES have a dedicated production
- * (`parser.ts`'s `parseStructDef`, reached via its own statement-level dispatch), so it already
- * surfaces as a `StructDef` node in {@link DATA_NODE_KINDS} and needs no diagnostic-based
- * fallback.
+ * `spec/localization.md:18-21`'s `alias new_name existing_name`). `struct` is deliberately excluded
+ * from this map: unlike these three, it DOES have a dedicated production (`parser.ts`'s
+ * `parseStructDef`, reached via its own statement-level dispatch), so it already surfaces as a
+ * `StructDef` node in {@link DATA_NODE_KINDS} and needs no diagnostic-based fallback.
+ *
+ * The Heritage `to`/`output`/`op` procedure/return spellings USED to live here too — detected from
+ * their `ol-bad-token` diagnostics because they had no production — but as of issue #667 (slice H2)
+ * they parse into real `ProcedureDef`/`Return` nodes (discriminated by `keyword`) and no longer
+ * produce that diagnostic, so their detection moved to the AST walk below (see #701: this detector
+ * keys on AST shape, so a form gaining a production must move off its vanished diagnostic). Only the
+ * three genuinely production-less module/localization words remain diagnostic-detected.
  *
  * Every occurrence of `import`/`export`/`alias` produces a parser diagnostic today (none of the
- * three has any legitimate grammar role, so there is no "clean" use to miss). `to` is the one
- * exception, with THREE legitimate roles that all consume it with **zero** diagnostics when used
- * correctly — the `for … from … to` range bound, the `set … to` assignment preposition, and the
- * Data profile's `add … to …` list-mutation preposition (`spec/grammar.md:104`,`:113`,`:128`;
- * confirmed directly: `parse("for i from 1 to 5 [ ]")`, `parse("set x to 5")`, and
- * `parse("add 3 to colors")` all return `diagnostics: []`) — so a diagnostic naming `to` only ever
- * fires when it appears outside those three roles, i.e. genuinely as the Heritage procedure-opener
- * (or beside an already-unrelated parse error, which is not a live masking risk: such a source
- * would already fail `classifyExample`'s diagnostics check whenever it is actually run, and
- * over-attributing `heritage` to an already-broken file is the opposite of under-declaration).
+ * three has any legitimate grammar role, so there is no "clean" use to miss).
  */
 const RESERVED_WORD_PROFILES = new Map([
-  ["to", "heritage"],
-  ["output", "heritage"],
-  ["op", "heritage"],
   ["import", "modules"],
   ["export", "modules"],
   ["alias", "localization"],
@@ -268,8 +260,8 @@ const RESERVED_WORD_PROFILES = new Map([
  * | Geometry | `geometryPrimitiveArity()` (`grid`/`axes`/`measure`) plus `GEOMETRY_STDLIB_CALLEE_NAMES`
  *   (`polygon`/`star`/`circle`/`arc`/`area`/`perimeter`, the latter two also adding `data` per
  *   `spec/conformance.md:261`) | implemented profile — a live masking case |
- * | Heritage | `HERITAGE_CALLEE_NAMES`, `ValueOfKey` (adds `data` too), `RESERVED_WORD_PROFILES`
- *   (`to`/`output`/`op`, via diagnostics) | |
+ * | Heritage | `HERITAGE_CALLEE_NAMES`, `ValueOfKey` (adds `data` too), `Assign form:"make"`,
+ *   `ProcedureDef keyword:"to"`, and `Return keyword:"output"/"op"` (all via the AST walk) | |
  * | Sprites | `SPRITES_CALLEE_NAMES` | |
  * | Interaction & Events | `INTERACTION_EVENTS_CALLEE_NAMES` | |
  * | Sound | `SOUND_CALLEE_NAMES` | |
@@ -279,19 +271,19 @@ const RESERVED_WORD_PROFILES = new Map([
  *   expanded by `closureOf` on the declared side |
  * | Tutor (AI) | `TUTOR_AI_CALLEE_NAMES` (`challenge`, `spec/conformance.md:279-280`) | |
  *
- * `to`/`output`/`op` (Heritage) and `import`/`export`/`alias` (Modules/Localization) have no
- * `Call`/`ParenCall` — or any other — AST production at all today (`packages/parser/src/parser.ts`'s
- * `NON_PRIMARY_NAMES`), so the AST walk below can never see them directly; {@link
- * RESERVED_WORD_PROFILES} detects them instead from the parser's own `ol-bad-token` diagnostics,
- * which always carry the offending token text even though no AST node results — see that map's own
- * doc comment for why this is safe (in particular, why `to`'s three legitimate non-Heritage roles
- * never produce a false positive).
+ * `import`/`export`/`alias` (Modules/Localization) have no `Call`/`ParenCall` — or any other — AST
+ * production at all today (`packages/parser/src/parser.ts`'s `NON_PRIMARY_NAMES`), so the AST walk
+ * below can never see them directly; {@link RESERVED_WORD_PROFILES} detects them instead from the
+ * parser's own `ol-bad-token` diagnostics, which always carry the offending token text even though
+ * no AST node results. The Heritage `make`/`to`/`output`/`op` heads all have real productions now
+ * (issues #151, #667), so they are detected from their AST nodes in the walk below, not from
+ * diagnostics.
  *
- * **After this round, every optional profile in the DAG is detected by at least one signal** —
- * either an AST construct/callee name, or (for the six reserved words with no production at all) a
- * parser diagnostic. There is no remaining profile-classified construct this function cannot see;
- * the only thing it deliberately does NOT attempt is record-binder destructuring (see below), which
- * is a Data-vs-Core split decided by a *runtime* value, not a static one.
+ * **Every optional profile in the DAG is detected by at least one signal** — either an AST
+ * construct/callee name, or (for the three module/localization reserved words with no production at
+ * all) a parser diagnostic. There is no remaining profile-classified construct this function cannot
+ * see; the only thing it deliberately does NOT attempt is record-binder destructuring (see below),
+ * which is a Data-vs-Core split decided by a *runtime* value, not a static one.
  *
  * Deliberately conservative otherwise: it flags only constructs the spec ties to one profile in
  * *every* context (list-index/field-selector reads, dict/struct/mutation-form syntax, and each
@@ -367,13 +359,15 @@ export function detectUsedProfiles(source) {
   const { ast, diagnostics } = parse(source);
   const used = new Set();
 
-  // Reserved words with no AST production at all (`to`/`output`/`op`/`import`/`export`/`alias`,
-  // see {@link RESERVED_WORD_PROFILES}) can never be found by the AST walk below, so they are
+  // Reserved words with no AST production at all (`import`/`export`/`alias`, see
+  // {@link RESERVED_WORD_PROFILES}) can never be found by the AST walk below, so they are
   // detected from the parser's own diagnostics instead: `packages/parser/src/errors.ts`'s
   // `badToken` (and its `missingTerminator` cascade sibling, both `ol-bad-token`) always carries
   // the exact offending token text in `params.text`. Matched on the diagnostic `code` plus an
   // exact, case-insensitive `params.text` value — never on `message` prose, which is not part of
-  // a diagnostic's stable identity (`spec/localization.md:221`).
+  // a diagnostic's stable identity (`spec/localization.md:221`). The Heritage `to`/`output`/`op`
+  // words are NOT here anymore: since issue #667 they parse into real AST nodes and are detected in
+  // the walk below (see `RESERVED_WORD_PROFILES`'s doc comment and #701).
   for (const diagnostic of diagnostics) {
     if (diagnostic.code !== "ol-bad-token") {
       continue;
@@ -469,6 +463,28 @@ export function detectUsedProfiles(source) {
       // `form` records the surface spelling — NOT a `Call` — so it is detected here by that form,
       // not by a callee name in `HERITAGE_CALLEE_NAMES`. It is an alternate spelling with no new
       // semantics, so no other profile is implied.
+      used.add("heritage");
+      return;
+    }
+    if (node.kind === "ProcedureDef" && node.keyword === "to") {
+      // The Heritage procedure-definition spelling `to name … end` (`spec/grammar.md:146`,
+      // `spec/conformance.md#heritage`). As of issue #667 (slice H2) it parses into the SAME
+      // `ProcedureDef` node as Core `define`, discriminated by `keyword` — NOT the parse-time
+      // `ol-bad-token` it produced before, so it is detected here by that `keyword` (see #701:
+      // `detectUsedProfiles` keys on AST shape, and a form gaining a real production must move its
+      // detection from the vanished diagnostic to the node). Alternate spelling, no new semantics.
+      used.add("heritage");
+      return;
+    }
+    if (
+      node.kind === "Return" &&
+      (node.keyword === "output" || node.keyword === "op")
+    ) {
+      // The Heritage return spellings `output value` / `op value` (`spec/grammar.md:150`,
+      // `spec/conformance.md#heritage`). As of issue #667 (slice H2) they parse into the SAME
+      // `Return` node as Core `return`, discriminated by `keyword` — NOT the parse-time
+      // `ol-bad-token` they produced before — so they are detected here by that `keyword` (see
+      // #701, as for `to` above). Alternate spelling, no new semantics.
       used.add("heritage");
       return;
     }

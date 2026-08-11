@@ -416,15 +416,28 @@ export interface ProcedureParam {
   readonly defaultValue?: ExpressionNode;
 }
 
-/** `define name :params… <body> end`. */
+/**
+ * `define name :params… <body> end`. `keyword` records the surface procedure-definition spelling:
+ * `"define"` (Core) or `"to"` (the Heritage alternate spelling, `spec/conformance.md#heritage`).
+ * Both build the *identical* node otherwise — Heritage adds no new semantics, so the runtime is
+ * spelling-blind and only the Layer-2 checker's Heritage form-head gate (`checker-heritage-form.ts`,
+ * issue #667) consults `keyword` to reject `to` when the Heritage profile is inactive.
+ */
 export interface ProcedureDefNode extends NodeBase {
   readonly kind: "ProcedureDef";
+  readonly keyword: "define" | "to";
   readonly name: SpannedName;
   readonly params: readonly ProcedureParam[];
   readonly body: BlockNode;
 }
 
-/** `return value` (Core). `output`/`op` are Heritage spellings handled by that profile. */
+/**
+ * `return value` (Core), or the Heritage alternate spellings `output value` / `op value`
+ * (`spec/conformance.md#heritage`). All three build the identical node — Heritage adds no new
+ * semantics — so the runtime is spelling-blind; `keyword` records the surface word only so the
+ * Layer-2 checker's Heritage form-head gate (issue #667) can reject `output`/`op` when the
+ * Heritage profile is inactive.
+ */
 export interface ReturnNode extends NodeBase {
   readonly kind: "Return";
   readonly keyword: "return" | "output" | "op";
@@ -773,12 +786,20 @@ export const ast = {
     };
   },
   procedureDef(
+    keyword: ProcedureDefNode["keyword"],
     name: SpannedName,
     params: readonly ProcedureParam[],
     body: BlockNode,
     span: SourceSpan,
   ): ProcedureDefNode {
-    return { kind: "ProcedureDef", source_span: span, name, params, body };
+    return {
+      kind: "ProcedureDef",
+      source_span: span,
+      keyword,
+      name,
+      params,
+      body,
+    };
   },
   returnStmt(
     keyword: ReturnNode["keyword"],

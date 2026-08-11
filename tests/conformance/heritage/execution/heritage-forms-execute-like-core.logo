@@ -1,0 +1,5 @@
+to double :n
+  op :n * 2
+end
+make "size" 10
+print double :size
