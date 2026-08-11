@@ -67,7 +67,7 @@ test("every profile arity table in the reader's registry stays reachable (guards
   assert.equal(OL.spritesPrimitiveArity("new_turtle"), 0);
 });
 
-test("every profile's arity flows through the reader's array-driven lookup (guards a dropped PROFILE_PRIMITIVE_ARITY_TABLES entry)", () => {
+test("every arity-bearing profile's arity flows through the reader's array-driven lookup (guards a dropped PROFILE_PRIMITIVE_ARITY_TABLES entry)", () => {
   // The per-profile functions above are each backed by their own map directly, so they would
   // still pass if a table were dropped from the PROFILE_PRIMITIVE_ARITY_TABLES *array* the reader
   // actually iterates (`primitiveArity`, not re-exported). This end-to-end check parses a bare
@@ -75,6 +75,14 @@ test("every profile's arity flows through the reader's array-driven lookup (guar
   // array. A representative arity-1 primitive with one argument groups as `args: 1`; were its
   // table dropped, the name would become unknown, default to arity 0, and leave the argument as a
   // stray following statement (`args: 0`) instead — so this discriminates a dropped array entry.
+  //
+  // Coverage note: this discriminates a drop only for tables that own an arity>=1 primitive —
+  // core, turtle, data, interaction-events, and sound. Both tables the M5 rebases actually add
+  // (interaction, sound) are covered here. The educational/geometry/sprites tables are entirely
+  // arity-0, so through the public parse path a dropped entry is indistinguishable from an unknown
+  // name (both default to arity 0); fully guarding those three would require testing the internal
+  // `primitiveArity` directly, which is not re-exported (single internal consumer in parser.ts;
+  // the codebase avoids test-only exports). Tracked as a follow-up (#708).
   const arityOne = [
     "print 1", // core
     "forward 10", // turtle
@@ -95,8 +103,9 @@ test("every profile's arity flows through the reader's array-driven lookup (guar
       `${JSON.stringify(source)} must group its single argument via the array-driven reader lookup`,
     );
   }
-  // educational/geometry representative primitives are arity 0, and the sprites reporters are too;
-  // a bare call with no argument groups as `args: 0` through the same array path.
+  // The arity-0 tables (educational/geometry/sprites) are asserted for positive zero-arity grouping
+  // through the same array path. This is NOT a drop-guard for those tables (see the coverage note):
+  // an unknown name groups identically. The reachability test above covers their presence directly.
   for (const source of ["explain", "grid", "new_turtle", "who", "turtles"]) {
     const [call] = parseClean(source).body;
     assert.equal(
