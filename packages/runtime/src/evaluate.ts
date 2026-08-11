@@ -87,6 +87,8 @@ import {
   nextRandomInt,
 } from "./random-number-generator.js";
 import type { RandomNumberGeneratorState } from "./random-number-generator.js";
+import { createTickClock } from "./interaction.js";
+import type { TickClock } from "./interaction.js";
 import { defaultTutorTemplate } from "./tutor-templates.js";
 import type { TutorTemplateFn } from "./tutor-templates.js";
 import type { TutorLearnerLevel } from "./tutor-context.js";
@@ -262,6 +264,15 @@ export interface Environment {
    * observed by every later draw in the same run.
    */
   readonly randomNumberGenerator: RandomNumberGeneratorState;
+  /**
+   * The Interaction & Events tick clock (issue #680, `spec/interaction-events.md`, §Time, ticks,
+   * and handlers) — a mutable box (like {@link Environment.instructionCount}/`turtle`) holding the
+   * current logical tick, shared by every recursive `executeStatements`/`evaluate` call against
+   * this same environment so a `wait`'s tick advance is observed program-wide. Headless execution
+   * state: it MUST NOT appear in any event payload (`interaction.ts`'s header). Future timed
+   * handlers (`every <n>`, #683) read it; #682–#686 deliver due handlers as it advances.
+   */
+  readonly tickClock: TickClock;
 }
 
 /**
@@ -344,6 +355,7 @@ export function createEnvironment(): Environment {
     instructionCount: { count: 0 },
     turtle: createDefaultTurtleState(),
     randomNumberGenerator: createRandomNumberGeneratorState(),
+    tickClock: createTickClock(),
     // No real parsed program backs this bare environment, so `program` is a placeholder empty
     // `Program` node — safe because none of this package's own expression-only unit tests
     // exercise the Educational meta-commands (`execute-internal.ts`'s

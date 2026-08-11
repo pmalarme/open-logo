@@ -61,6 +61,7 @@ import {
   dataPrimitiveArity,
   educationalPrimitiveArity,
   geometryPrimitiveArity,
+  interactionPrimitiveArity,
   isReservedWord,
   parse,
   turtlePrimitiveArity,
@@ -94,6 +95,12 @@ import {
   type StructRegistry,
 } from "./evaluate.js";
 import { runtimeDiag } from "./errors.js";
+import {
+  createTickClock,
+  isWaitCall,
+  runWait,
+  validateTickCount,
+} from "./interaction.js";
 import type {
   ExecuteOptions,
   ExecuteResult,
@@ -1528,6 +1535,67 @@ function executeTurtleHeadingCall(
 const NOT_A_TURTLE_COMMAND = Symbol("not-a-turtle-command");
 
 /**
+ * Validate and run a `wait <n>` statement matched by {@link isWaitCall} (issue #680,
+ * `spec/interaction-events.md`, `wait <n>`): exactly one numeric argument
+ * (`ol-not-enough-inputs`/`ol-too-many-inputs` on the wrong arity, `ol-type` on a non-number via
+ * {@link requireNumber}), which MUST be a non-negative whole number
+ * (`ol-type`/`ol-range` otherwise, via {@link validateTickCount}) — then the pause + trailing
+ * `primitive` event are produced by {@link runWait}. Returns an {@link ExecSignal} to halt on, or
+ * `undefined` for {@link executeStatements} to `continue` on success (including the "left
+ * un-evaluated" case for an unsupported argument expression, mirroring the turtle commands).
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link dispatchTurtleCommand}: `executeStatements` recurses once per procedure call, so this
+ * argument-gating logic stays out of its body.
+ */
+function executeWaitCall(
+  waitCall: CallNode | ParenCallNode,
+  environment: Environment,
+): ExecSignal | undefined {
+  const callableName = waitCall.callee.name;
+  if (waitCall.args.length !== 1) {
+    return halt(
+      waitCall.args.length < 1
+        ? runtimeDiag.notEnoughInputs(
+            waitCall.callee.source_span,
+            callableName,
+            1,
+            waitCall.args.length,
+          )
+        : runtimeDiag.tooManyInputs(
+            waitCall.callee.source_span,
+            callableName,
+            1,
+            waitCall.args.length,
+          ),
+    );
+  }
+  const [arg] = waitCall.args as [ExpressionNode];
+  if (!isSupportedArgument(arg, environment)) {
+    return undefined;
+  }
+  const argResult = evaluate(arg, environment);
+  if (!argResult.ok) {
+    return halt(argResult.diagnostic);
+  }
+  const ticks = requireNumber(argResult.value, arg.source_span, "wait");
+  if (!ticks.ok) {
+    return halt(ticks.diagnostic);
+  }
+  const count = validateTickCount(ticks.value, arg.source_span);
+  if (!count.ok) {
+    return halt(count.diagnostic);
+  }
+  runWait(
+    environment.tickClock,
+    environment.events,
+    count.value,
+    waitCall.source_span,
+  );
+  return undefined;
+}
+
+/**
  * Single entry point {@link executeStatements} calls to try every turtle command in one step.
  * Each new turtle command (`#202`/`#204`/`#207`/`#210`, …) should add its `isTurtleXCall`/
  * `executeTurtleXCall` pair and one more branch **here**, not in `executeStatements` itself
@@ -2188,10 +2256,10 @@ type StructCollection =
 /**
  * Is `name` already a primitive in ANY profile's callable table? `struct` registers a constructor
  * in the callable namespace, so a struct type name that shadows any built-in command/reporter —
- * Core, Turtle, Data, Educational, or the Geometry overlay (`grid`/`axes`/`measure`) — is a
- * collision regardless of which profiles a given program happens to touch, mirroring how
- * {@link runProgram} runs every profile's primitives unconditionally (`execute()` does not gate by
- * profile).
+ * Core, Turtle, Data, Educational, the Geometry overlay (`grid`/`axes`/`measure`), or the
+ * Interaction & Events `wait` — is a collision regardless of which profiles a given program happens
+ * to touch, mirroring how {@link runProgram} runs every profile's primitives unconditionally
+ * (`execute()` does not gate by profile).
  */
 function isPrimitiveName(name: string): boolean {
   return (
@@ -2199,7 +2267,8 @@ function isPrimitiveName(name: string): boolean {
     turtlePrimitiveArity(name) !== undefined ||
     dataPrimitiveArity(name) !== undefined ||
     educationalPrimitiveArity(name) !== undefined ||
-    geometryPrimitiveArity(name) !== undefined
+    geometryPrimitiveArity(name) !== undefined ||
+    interactionPrimitiveArity(name) !== undefined
   );
 }
 
@@ -2742,6 +2811,17 @@ function executeStatements(
       continue;
     }
 
+    if (isWaitCall(statement)) {
+      const waitOutcome = executeWaitCall(
+        statement as unknown as CallNode | ParenCallNode,
+        environment,
+      );
+      if (waitOutcome) {
+        return waitOutcome;
+      }
+      continue;
+    }
+
     if (statement.kind === "Return") {
       if (!isSupportedArgument(statement.value, environment)) {
         continue;
@@ -3145,6 +3225,7 @@ function createExecutionEnvironment(
     signal: options?.signal,
     turtle: createDefaultTurtleState(),
     randomNumberGenerator: createRandomNumberGeneratorState(),
+    tickClock: createTickClock(),
     source,
     program,
     hintProgress: new Map(),

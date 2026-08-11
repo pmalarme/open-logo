@@ -361,11 +361,43 @@ export function geometryPrimitiveNames(): readonly string[] {
 }
 
 /**
+ * Default arities for the **Interaction & Events** profile's Core-spelled primitives that the
+ * reader must group arguments for (issue #680, slice I1). Currently only `wait <n>` — a Kind-C
+ * Command taking one input, derived from
+ * [`spec/interaction-events.md`](../../../spec/interaction-events.md)'s `### wait <n>` section.
+ * `when`/`every`/`on_key`/`on_click` are profile block-heads (reserved words with their own block
+ * grammar, not ordinary calls) and `input` is a reporter — those slices (#682–#685) register their
+ * own reader support; only the ordinary `wait` call needs an arity entry here so the reader groups
+ * its single argument. Kept as its own table for the same reason
+ * {@link TURTLE_PRIMITIVE_ARITY}/{@link GEOMETRY_PRIMITIVE_ARITY} are separate: Interaction &
+ * Events has its own independent profile visibility (the Layer-2 checker gates it on its own active
+ * profile, `spec/tooling.md:175-176`, in the tooling slice #687), while the reader groups a bare
+ * call's arguments for *any* recognized primitive regardless of profile.
+ */
+const INTERACTION_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
+  ["wait", 1],
+]);
+
+/**
+ * The default arity of an Interaction & Events-profile primitive, or `undefined` when `name` is
+ * not one of them (currently only `wait`). Matching is case-insensitive.
+ *
+ * `INTERACTION_PRIMITIVE_ARITY` is this profile's single source-of-truth table — mirroring
+ * {@link geometryPrimitiveArity}/{@link educationalPrimitiveArity}. The enumerable
+ * `interactionPrimitiveNames()` counterpart the other profiles expose for the checker's
+ * visible-name model is deliberately deferred to the tooling/legality slice (#687) that first
+ * consumes it — this slice only needs the reader to group `wait`'s argument.
+ */
+export function interactionPrimitiveArity(name: string): number | undefined {
+  return INTERACTION_PRIMITIVE_ARITY.get(name.toLowerCase());
+}
+
+/**
  * Every profile's primitive-arity table the reader consults, in lookup order. Core Language is
  * checked first (today's only always-visible table), then each optional profile's Core-spelled
- * primitives as they are registered — currently Turtle & Rendering, Data, Educational, and
- * Geometry. A later profile slice adds its table here rather than editing {@link primitiveArity}'s
- * body.
+ * primitives as they are registered — currently Turtle & Rendering, Data, Educational, Geometry,
+ * and Interaction & Events. A later profile slice adds its table here rather than editing
+ * {@link primitiveArity}'s body.
  */
 const PROFILE_PRIMITIVE_ARITY_TABLES: readonly ReadonlyMap<string, number>[] = [
   CORE_PRIMITIVE_ARITY,
@@ -373,6 +405,7 @@ const PROFILE_PRIMITIVE_ARITY_TABLES: readonly ReadonlyMap<string, number>[] = [
   DATA_PRIMITIVE_ARITY,
   EDUCATIONAL_PRIMITIVE_ARITY,
   GEOMETRY_PRIMITIVE_ARITY,
+  INTERACTION_PRIMITIVE_ARITY,
 ];
 
 /**

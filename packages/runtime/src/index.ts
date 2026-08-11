@@ -79,6 +79,14 @@ export {
 } from "./execute-internal.js";
 export { defaultTutorTemplate, nextHintStage } from "./tutor-templates.js";
 export type { TutorTemplateFn } from "./tutor-templates.js";
+export {
+  advanceTickClock,
+  createTickClock,
+  isWaitCall,
+  validateTickCount,
+  yieldToEventLoop,
+} from "./interaction.js";
+export type { TickClock } from "./interaction.js";
 export type {
   TutorCommandMetadata,
   TutorContext,
