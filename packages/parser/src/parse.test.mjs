@@ -121,6 +121,19 @@ test("reports ol-bad-token for a bare make with no target", () => {
   assert.equal(ast.body.length, 0);
 });
 
+test("suppresses the redundant ol-bad-token for a multiline unclosed make target", () => {
+  // A triple-quoted string runs to end of input across lines, so the `eof`/`newline` slot token
+  // that `make` sees can land on a *later, shorter* line than where the string opened. The
+  // suppression window is compared lexicographically (line then column), so `make """size` + a
+  // short next line still yields ONLY `ol-unclosed-string` — never a redundant cascade
+  // (`spec/error-model.md:109`).
+  const { diagnostics } = OL.parse('make """size\nx', doc);
+
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].code, "ol-unclosed-string");
+  assert.equal(diagnostics[0].stage, "parse");
+});
+
 test('parses the heritage make "name" value assignment like set … to', () => {
   const { ast, diagnostics } = OL.parse('make "size" 120', doc);
 

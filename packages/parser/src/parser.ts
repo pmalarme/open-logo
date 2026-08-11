@@ -254,31 +254,29 @@ export function parse(source: string, document = "<input>"): ParseResult {
   }
 
   /**
-   * True when a diagnostic already covers the source between `afterToken` and `beforeToken` on the
-   * same line — i.e. the lexer reported a fault (an unclosed string such as `make "size`) that
-   * consumed the very text a grammar slot expected. A caller uses this to avoid stacking a
-   * redundant `ol-bad-token` on top of that more-specific diagnostic (`spec/error-model.md:109`).
+   * True when a diagnostic already covers the source between `afterToken` and `beforeToken` — i.e.
+   * the lexer reported a fault (an unclosed string such as `make "size`, or a multiline triple
+   * quoted `make """size`) that consumed the very text a grammar slot expected. A caller uses this
+   * to avoid stacking a redundant `ol-bad-token` on top of that more-specific diagnostic
+   * (`spec/error-model.md:109`).
    *
    * The window is bounded on *both* sides so an unrelated diagnostic *later* on the line cannot
    * trigger suppression: `make 5 "oops` must still report the invalid `5` target even though an
-   * `ol-unclosed-string` appears further along. Only a diagnostic starting at or after
-   * `afterToken`'s end and at or before `beforeToken`'s start counts as "ate the slot". Both
-   * bounding tokens are always on one line here — an unclosed string ends the line, leaving the
-   * following slot token (`newline` or `eof`) at that same line's end column.
+   * `ol-unclosed-string` appears further along. Positions are compared lexicographically (line then
+   * column) so a multiline unclosed string — whose consuming `eof`/`newline` slot token lands on a
+   * *later* line — is still recognised as having eaten the slot.
    */
   function lexDiagnosticInGap(
     afterToken: LexToken,
     beforeToken: LexToken,
   ): boolean {
-    const [afterLine, afterColumn] = afterToken.source_span.end;
-    const [, beforeColumn] = beforeToken.source_span.start;
+    const gapStart = afterToken.source_span.end;
+    const gapEnd = beforeToken.source_span.start;
+    const atOrAfter = (a: Position, b: Position): boolean =>
+      a[0] > b[0] || (a[0] === b[0] && a[1] >= b[1]);
     return diagnostics.some((diagnostic) => {
-      const [startLine, startColumn] = diagnostic.source_span.start;
-      return (
-        startLine === afterLine &&
-        startColumn >= afterColumn &&
-        startColumn <= beforeColumn
-      );
+      const start = diagnostic.source_span.start;
+      return atOrAfter(start, gapStart) && atOrAfter(gapEnd, start);
     });
   }
 
