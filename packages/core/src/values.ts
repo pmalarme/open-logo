@@ -205,13 +205,19 @@ export class OLRecord {
  * `spec/execution-model.md:25`): a mutable turtle identity with its own drawing state. Turtle
  * values **compare by identity, not by position or shape** (`spec/execution-model.md:540` — the
  * turtle row of the `==` matrix is "Same turtle identity"), so two turtles created by `new_turtle`
- * are never `==` even when their state is identical, and a turtle equals only itself. That identity
- * is reference identity: each `new_turtle` mints a distinct {@link OLTurtle} instance, so `==`
- * reduces to `a === b`, exactly as `spec/execution-model.md`'s equality machinery already compares
- * every other reference kind. The read-only {@link id} is a stable, per-world serial number used
- * for the deterministic printed form and for the `turtle-id` field of turtle-specific trace events
- * — it is display/telemetry metadata, never the basis of equality (two turtles are distinct because
- * they are distinct instances, not because their ids differ).
+ * are never `==` even when their state is identical, and a turtle equals only the same turtle.
+ *
+ * That identity is the stable {@link id}, **not** the JS instance. Every distinct turtle has a
+ * distinct id and each turtle keeps its id for its whole life, so id-equality gives exactly
+ * "same turtle" — while being immune to the natural trap that reference identity would create: a
+ * turtle value flows to the program through several routes (`new_turtle`, `who`, `turtles`,
+ * `ask`/`each` binding, an effect-event payload, a snapshot round-trip), and a downstream slice
+ * that builds a fresh `OLTurtle` wrapper for one of those routes (e.g. `turtles` materializing its
+ * list) must not thereby make `who == :friend` report `false`. Comparing by id makes that interning
+ * invariant hold **by construction**, so no slice has to know how instances are allocated to get
+ * equality right. Implementations SHOULD still intern one instance per live turtle where practical,
+ * but correctness of `==` does not depend on it. The id is also the `turtle-id` of turtle-specific
+ * trace events, so a value and its events correlate on the same key.
  *
  * This slice models only the value's *identity* and its display; the per-turtle drawing state
  * (position, heading, pen, color, width, visibility, shape) lives in `@openlogo/turtle`/
@@ -220,11 +226,12 @@ export class OLRecord {
  */
 export class OLTurtle {
   /**
-   * The turtle's stable, per-world serial number: assigned once at creation, never reassigned, and
-   * used only for the deterministic printed form ({@link printedForm} renders `turtle #<id>`) and
-   * the `turtle-id` field of turtle-specific trace events. It is metadata, not identity — equality
-   * is by instance reference (`spec/execution-model.md:540`), so a program cannot make two distinct
-   * turtles compare equal by any means.
+   * The turtle's stable, per-world serial number: assigned once at creation, never reassigned,
+   * unique across the world's turtles. It **is** the turtle's identity for `==`
+   * (`spec/execution-model.md:540`) — two turtle values are the same turtle exactly when their ids
+   * are equal — and doubles as the `turtle-id` of turtle-specific trace events and the token in the
+   * deterministic printed form ({@link printedForm} renders `turtle #<id>`). Allocating ids so they
+   * stay unique and stable per turtle is the `new_turtle`/world slice's responsibility (#673).
    */
   readonly id: number;
 

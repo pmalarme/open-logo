@@ -2608,10 +2608,14 @@ function equalRec(a: OLValue, b: OLValue, inProgress: EqualityMemo): boolean {
   }
   if (a instanceof OLTurtle) {
     // Turtles compare by identity, never by state (`spec/execution-model.md:540`): a turtle equals
-    // only the very same instance, so this is reference identity — two turtles from `new_turtle`
-    // are distinct even with identical position/heading/shape, and a turtle never equals a list,
-    // dict, record, or any primitive.
-    return a === b;
+    // only the same turtle. Identity is the turtle's stable `id`, not the JS instance — so the
+    // guarantee holds even if a turtle value reaches this comparison through two different routes
+    // (`who`, `turtles`, `ask`/`each` binding, a snapshot round-trip) that hand back separate
+    // wrappers for the one live turtle. Comparing `id` makes that interning invariant unbreakable
+    // by construction: SP1+ cannot regress `who == :friend` by building a fresh wrapper, because
+    // two wrappers of one turtle share its id and every distinct turtle has a distinct id. A turtle
+    // never equals a list, dict, record, or any primitive (`b` is only a turtle here).
+    return b instanceof OLTurtle && a.id === b.id;
   }
   if (!Array.isArray(b)) {
     return false;

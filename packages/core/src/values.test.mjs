@@ -27,15 +27,17 @@ test("OLTurtle exposes its stable id and is a plain identity value", () => {
   assert.deepEqual(Object.keys(turtle), ["id"]);
 });
 
-test("OLTurtle identity: each instance is distinct, equal only to itself", () => {
+test("OLTurtle identity: distinct turtles have distinct ids; a turtle is the same turtle iff same id", () => {
   const a = new OL.OLTurtle(0);
   const b = new OL.OLTurtle(1);
-  // Two turtles are distinct even when created — identity, not id-value, is what distinguishes them.
+  // Distinct turtles are distinct JS instances with distinct ids.
   assert.notEqual(a, b);
-  assert.equal(a, a);
-  // Same id but a different instance is still a different turtle (identity, not by value).
-  const c = new OL.OLTurtle(0);
-  assert.notEqual(a, c);
+  assert.notEqual(a.id, b.id);
+  // A turtle's identity is its id, not the JS instance: two wrappers of the same turtle (same id,
+  // e.g. one freshly built by a later `turtles`/`who` route) denote the SAME turtle. `==` semantics
+  // (which key on id) live in the runtime; see `packages/runtime/src/turtle-value.test.mjs`.
+  const sameTurtle = new OL.OLTurtle(0);
+  assert.equal(sameTurtle.id, a.id);
 });
 
 test("OLRecord binds its declared fields in order and exposes them via has/get/fields", () => {

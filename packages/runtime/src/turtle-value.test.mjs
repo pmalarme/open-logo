@@ -20,13 +20,27 @@ test("a turtle equals itself under `==`", () => {
   assert.equal(valuesEqual(a, a), true);
 });
 
-test("two distinct turtles are never `==`, even with identical ids (identity, not by value)", () => {
+test("two turtle values denote the same turtle iff they share an id (identity is the id, not the instance)", () => {
   const a = new OLTurtle(0);
   const b = new OLTurtle(1);
+  // Distinct turtles (distinct ids) are never ==.
   assert.equal(valuesEqual(a, b), false);
-  // Same id, different instance: still a different turtle — id is display metadata, not identity.
-  const sameId = new OLTurtle(0);
-  assert.equal(valuesEqual(a, sameId), false);
+  // Two DIFFERENT instances with the SAME id are the same turtle — this is the interning-invariant
+  // guarantee (issue #665): a later slice's `who`/`turtles`/`ask` route may hand back a freshly
+  // built wrapper for a live turtle, and `who == :friend` must still be true. Keying `==` on the id
+  // makes that hold by construction, so SP1+ cannot regress it by re-wrapping.
+  const sameTurtle = new OLTurtle(0);
+  assert.equal(valuesEqual(a, sameTurtle), true);
+});
+
+test("turtle identity survives a snapshot round-trip: a snapshotted turtle is == the original", () => {
+  // `snapshotValue` is the one route available today (pre-`new_turtle`) that can produce a second
+  // handle to a turtle; the snapshot must still compare equal to the original turtle.
+  const turtle = new OLTurtle(5);
+  assert.equal(valuesEqual(snapshotValue(turtle), turtle), true);
+  const list = [turtle];
+  const snapshot = snapshotValue(list);
+  assert.equal(valuesEqual(snapshot[0], turtle), true);
 });
 
 test("a turtle never equals a non-turtle value of any type", () => {
@@ -38,7 +52,9 @@ test("a turtle never equals a non-turtle value of any type", () => {
   assert.equal(valuesEqual(turtle, new OLDict()), false);
   // ...and from the other side, a non-turtle never equals a turtle.
   assert.equal(valuesEqual(0, turtle), false);
-  assert.equal(valuesEqual([turtle], [new OLTurtle(0)]), false);
+  // A turtle also never equals a record/word/number even when nested, but two turtles of the same
+  // id inside lists DO match (covered below) — so here compare against a genuinely different type.
+  assert.equal(valuesEqual([turtle], ["turtle #0"]), false);
 });
 
 test("two lists of turtles compare structurally by turtle identity", () => {
@@ -46,7 +62,11 @@ test("two lists of turtles compare structurally by turtle identity", () => {
   const b = new OLTurtle(1);
   assert.equal(valuesEqual([a, b], [a, b]), true);
   assert.equal(valuesEqual([a, b], [b, a]), false);
-  assert.equal(valuesEqual([a], [new OLTurtle(0)]), false);
+  // Same-id turtles are the same turtle, so lists holding same-id turtles are structurally equal
+  // even though the instances differ — the interning invariant flowing through list equality.
+  assert.equal(valuesEqual([a], [new OLTurtle(0)]), true);
+  // Distinct ids → distinct turtles → unequal lists.
+  assert.equal(valuesEqual([a], [b]), false);
 });
 
 // --- printed form (stable & deterministic, spec/turtles-and-sprites.md:13) ---------------------
