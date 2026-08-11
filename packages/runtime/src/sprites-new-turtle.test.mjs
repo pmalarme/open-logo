@@ -66,17 +66,15 @@ test("a bare new_turtle statement spawns nothing — only using its value has th
 });
 
 test("who reports the main turtle and equals itself across repeated calls, before any new_turtle", () => {
-  const result = execute(":here = who\nprint (:here == who)", "main.logo");
+  // Written directly: a zero-arg reporter is a valid left operand of `==`.
+  const result = execute("print who == who", "main.logo");
   assert.deepEqual(result.diagnostics, []);
   const printEvent = result.events.find((event) => event.kind === "print");
   assert.deepEqual(printEvent.payload, { values: [true] });
 });
 
 test("who equals the first element of turtles (both are the main turtle)", () => {
-  const result = execute(
-    ":here = who\nprint (:here == first turtles)",
-    "main.logo",
-  );
+  const result = execute("print who == first turtles", "main.logo");
   assert.deepEqual(result.diagnostics, []);
   const printEvent = result.events.find((event) => event.kind === "print");
   assert.deepEqual(printEvent.payload, { values: [true] });
