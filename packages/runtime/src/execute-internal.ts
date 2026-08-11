@@ -117,6 +117,7 @@ import type { TutorCommandMetadata, TutorContext } from "./tutor-context.js";
 import { defaultTutorTemplate } from "./tutor-templates.js";
 import type { TutorLearnerLevel } from "./tutor-context.js";
 import { normalizeHeading } from "./turtle-math.js";
+import { TurtleWorld } from "./turtle-world.js";
 
 /**
  * Is `statement` a call to `print` — the single-value `print value` form or the parenthesized
@@ -3403,6 +3404,7 @@ function createExecutionEnvironment(
     instructionCount: { count: 0 },
     signal: options?.signal,
     turtle: createDefaultTurtleState(),
+    turtleWorld: new TurtleWorld(),
     randomNumberGenerator: createRandomNumberGeneratorState(),
     tickClock: createTickClock(),
     sound: createSoundState(),

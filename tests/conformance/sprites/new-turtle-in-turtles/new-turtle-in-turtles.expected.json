@@ -1,0 +1,64 @@
+{
+  "description": "issue #673: a turtle obtained from `new_turtle` is the same turtle (id-based `==`, C3) as the last element of `turtles`, proving `turtles` reports the already-existing turtles (main first, then each `new_turtle` in creation order) rather than fresh unrelated ones. SP2's `tell :friend` / `who == :friend` form is deferred to SP2 (no `tell` yet); this is the SP1-reachable equivalent of that identity assertion.",
+  "profiles": ["sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/new-turtle-in-turtles/new-turtle-in-turtles",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/new-turtle-in-turtles/new-turtle-in-turtles",
+        "start": [1, 11],
+        "end": [1, 21]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/new-turtle-in-turtles/new-turtle-in-turtles",
+        "start": [2, 1],
+        "end": [2, 31]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "sprites/new-turtle-in-turtles/new-turtle-in-turtles",
+        "start": [2, 1],
+        "end": [2, 31]
+      },
+      "payload": {
+        "values": [true]
+      }
+    }
+  ],
+  "diagnostics": []
+}

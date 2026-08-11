@@ -42,6 +42,7 @@ import type {
   Diagnostic,
   OLValue,
   SourceSpan,
+  SpawnTurtlePayload,
   TraceEvent,
   TutorHintStage,
 } from "@openlogo/core";
@@ -95,6 +96,7 @@ import { defaultTutorTemplate } from "./tutor-templates.js";
 import type { TutorTemplateFn } from "./tutor-templates.js";
 import type { TutorLearnerLevel } from "./tutor-context.js";
 import { normalizeHeading } from "./turtle-math.js";
+import { MAIN_TURTLE_ID, TurtleWorld } from "./turtle-world.js";
 
 /** The outcome of evaluating one expression: a value, or the diagnostic that stopped it. */
 export type EvalResult =
@@ -238,6 +240,16 @@ export interface Environment {
   readonly instructionCount: { count: number };
   readonly signal?: CancellationSignal;
   readonly turtle: TurtleState;
+  /**
+   * The per-run turtle-identity allocator and live-turtle registry ({@link TurtleWorld}). Like
+   * {@link turtle}/{@link randomNumberGenerator}, a single shared mutable object rather than a
+   * reassigned field, so a `new_turtle` allocation made anywhere in the program (inside a
+   * procedure, loop, or comprehension sharing this same `Environment`) is observed by every later
+   * `new_turtle`/`turtles`/`who` in the run. The Sprites `new_turtle`/`turtles`/`who` reporters
+   * (issue #673) are its only clients; the addressed-set model (`tell`/`ask`/`each`) layers on it
+   * in later slices.
+   */
+  readonly turtleWorld: TurtleWorld;
   readonly source?: string;
   readonly hintProgress: Map<string, TutorHintStage>;
   /**
@@ -364,6 +376,7 @@ export function createEnvironment(): Environment {
     instructionBudget: Number.POSITIVE_INFINITY,
     instructionCount: { count: 0 },
     turtle: createDefaultTurtleState(),
+    turtleWorld: new TurtleWorld(),
     randomNumberGenerator: createRandomNumberGeneratorState(),
     tickClock: createTickClock(),
     sound: createSoundState(),
@@ -825,6 +838,9 @@ export function isSupportedExpression(
         name === "distance" ||
         name === "random" ||
         name === "pi" ||
+        name === "new_turtle" ||
+        name === "who" ||
+        name === "turtles" ||
         procedures.has(name) ||
         structs.has(name);
       return (
@@ -1916,6 +1932,15 @@ function evaluateCall(
   }
   if (name === "type_of") {
     return evaluateTypeOf(node, environment);
+  }
+  if (name === "new_turtle") {
+    return evaluateNewTurtle(node, environment);
+  }
+  if (name === "who") {
+    return evaluateWho(node);
+  }
+  if (name === "turtles") {
+    return evaluateTurtles(node, environment);
   }
   if (environment.procedures.has(name)) {
     return environment.callProcedure(node, environment);
@@ -4169,6 +4194,91 @@ function evaluateDistance(
   const dx = x.value - environment.turtle.x;
   const dy = y.value - environment.turtle.y;
   return ok(Math.hypot(dx, dy));
+}
+
+/**
+ * `new_turtle` (Sprites profile, `spec/turtles-and-sprites.md`'s "Turtle creation" section): a
+ * Kind-R reporter taking no inputs that creates a fresh turtle and reports it. It is the one turtle
+ * reporter with an effect: it allocates the new turtle's stable identity from the per-run
+ * {@link Environment.turtleWorld} — deterministic, unique, and stable, which the id-keyed turtle
+ * `==` depends on ({@link OLTurtle}'s doc comment) — and, "immediately after the new turtle exists"
+ * (`spec/turtles-and-sprites.md:34`), emits one `spawn-turtle` trace event. That event carries the
+ * authoritative {@link SpawnTurtlePayload}: the new turtle's `turtle_id` plus the full default
+ * turtle state a turtle starts with (`spec/turtles-and-sprites.md:32`) — origin at the canvas
+ * center `[0, 0]`, heading `0`, pen down, color `"black"`, width `1`, visible, and the default
+ * `"turtle"` shape (the same defaults {@link createDefaultTurtleState} gives the main turtle). The
+ * envelope's optional `turtle_id` also carries that id so the event addresses the turtle it
+ * concerns. Reports the turtle value ({@link OLTurtle}); a downstream `==` sees it equal to the
+ * same turtle reached through `who`/`turtles` because they share this id.
+ */
+function evaluateNewTurtle(
+  node: ArithmeticCallNode,
+  environment: Environment,
+): EvalResult {
+  const arityDiagnostic = requireExactArgs(node, "new_turtle", 0);
+  if (arityDiagnostic) {
+    return fail(arityDiagnostic);
+  }
+  const id = environment.turtleWorld.spawn();
+  environment.events.push({
+    seq: environment.events.length,
+    kind: "spawn-turtle",
+    source_span: node.source_span,
+    turtle_id: id,
+    payload: {
+      turtle_id: id,
+      position: [0, 0],
+      heading: 0,
+      pen: "down",
+      color: "black",
+      width: 1,
+      visible: true,
+      shape: "turtle",
+    } satisfies SpawnTurtlePayload,
+  });
+  return ok(new OLTurtle(id));
+}
+
+/**
+ * `who` (Sprites profile, `spec/turtles-and-sprites.md`'s "Addressing model" section): a Kind-R
+ * reporter taking no inputs that reports "the turtle currently running turtle commands". Without an
+ * active `tell`/`ask`/`each` set — the only constructs that change the addressed set, and each a
+ * later slice — the current turtle at top level is always the single default turtle
+ * (`spec/turtles-and-sprites.md:44`: "In a program without the Sprites profile, the addressed set
+ * contains the single default turtle"), so `who` reports the main turtle, whose reserved identity
+ * is {@link MAIN_TURTLE_ID}. Reporting a fresh {@link OLTurtle} wrapper for that id is safe because
+ * turtle `==` compares ids, not JS instances, so `who == who` and `who == first turtles` are `true`
+ * even across separate wrappers of the one main turtle. Emits no trace event — reading the current
+ * turtle is not an effect.
+ */
+function evaluateWho(node: ArithmeticCallNode): EvalResult {
+  const arityDiagnostic = requireExactArgs(node, "who", 0);
+  if (arityDiagnostic) {
+    return fail(arityDiagnostic);
+  }
+  return ok(new OLTurtle(MAIN_TURTLE_ID));
+}
+
+/**
+ * `turtles` (Sprites profile, `spec/turtles-and-sprites.md`'s "Addressing model" section): a
+ * Kind-R reporter taking no inputs that reports "the current list of turtles known to the world"
+ * — the main turtle followed by every turtle created with `new_turtle`, in creation order
+ * (`spec/turtles-and-sprites.md:91`). Materializes the world's live ids
+ * ({@link Environment.turtleWorld}) into a fresh `list` of {@link OLTurtle} values. Building fresh
+ * wrappers each call does not break identity: turtle `==` compares ids, so `first turtles == first
+ * turtles` and `new_turtle == last turtles` hold across separate wrappers of the same turtle —
+ * exactly the interning invariant id-based equality guarantees by construction ({@link OLTurtle}'s
+ * doc comment). Emits no trace event — enumerating turtles is not an effect.
+ */
+function evaluateTurtles(
+  node: ArithmeticCallNode,
+  environment: Environment,
+): EvalResult {
+  const arityDiagnostic = requireExactArgs(node, "turtles", 0);
+  if (arityDiagnostic) {
+    return fail(arityDiagnostic);
+  }
+  return ok(environment.turtleWorld.ids().map((id) => new OLTurtle(id)));
 }
 
 /**
