@@ -254,6 +254,20 @@ export function parse(source: string, document = "<input>"): ParseResult {
   }
 
   /**
+   * True when a diagnostic already covers the source immediately after `token` on the same line —
+   * i.e. the lexer reported a fault (an unclosed string such as `make "size`) that consumed the
+   * text a following grammar slot expected. A caller uses this to avoid stacking a redundant
+   * `ol-bad-token` on top of that more-specific diagnostic (`spec/error-model.md:109`).
+   */
+  function lexDiagnosticFollows(token: LexToken): boolean {
+    const [line, column] = token.source_span.end;
+    return diagnostics.some((diagnostic) => {
+      const [startLine, startColumn] = diagnostic.source_span.start;
+      return startLine === line && startColumn >= column;
+    });
+  }
+
+  /**
    * After a top-level or `end`-terminated statement, a new statement on the *same* line is a
    * run-on: `print 1 print 2` must be flagged, not silently split. We fire only when the next
    * token could actually begin a statement (a name, `:variable`, literal, `(` or `[`); block
@@ -1658,7 +1672,15 @@ export function parse(source: string, document = "<input>"): ParseResult {
     advance();
     const nameTok = current();
     if (nameTok.kind !== "word") {
-      diagnostics.push(unexpected(nameTok));
+      // The word-literal target is missing. If the lexer already reported an unclosed string
+      // starting after `make` (e.g. `make "size`), that diagnostic *is* the missing target and
+      // consumed the rest of the line, so an extra `ol-bad-token` would be a redundant cascade —
+      // `spec/error-model.md:109` reserves `ol-bad-token` for when no more-specific diagnostic
+      // applies. Suppress it there; a genuinely wrong token (`make 5`) or a bare `make` still
+      // reports normally.
+      if (!lexDiagnosticFollows(makeTok)) {
+        diagnostics.push(unexpected(nameTok));
+      }
       return undefined;
     }
     advance();
