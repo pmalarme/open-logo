@@ -26,6 +26,14 @@
  * `axes`, and `measure` (`signatures.ts`'s `geometryPrimitiveArity`) collide the same way a Core
  * or Data primitive does when `"geometry"` is active, mirroring the Data branch #405 added — gated
  * the same way, so a Core-only program is free to `define grid`.
+ *
+ * Issue #663 (C1, M5) extends the *reserved-word* branch the same profile-conditional way: the
+ * Sprites block-heads `ask`/`each`/`tell` and the Interaction & Events block-heads
+ * `when`/`every`/`on_key`/`on_click` are reserved only when their profile is active
+ * (`OL_PROFILE_RESERVED_WORDS` in `reserved.ts`; `spec/turtles-and-sprites.md`,
+ * `spec/interaction-events.md`). Threading the active `profiles` into `isReservedWord` here — the
+ * profile-blind default kept every Core-only program's `ask`/`when` an ordinary name — is the whole
+ * wiring; the registry and its non-regression guarantee live in `reserved.ts`.
  */
 
 import type { Diagnostic } from "@openlogo/core";
@@ -59,7 +67,7 @@ function collidingNamespace(
   declaredProcedures: ReadonlySet<string>,
   declaredStructs: ReadonlySet<string> = NO_STRUCTS,
 ): Namespace | undefined {
-  if (isReservedWord(name)) {
+  if (isReservedWord(name, profiles)) {
     return "reserved";
   }
   if (
