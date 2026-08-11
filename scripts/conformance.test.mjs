@@ -11,6 +11,7 @@ import { once } from "node:events";
 import { text } from "node:stream/consumers";
 import { OLDict, OLRecord } from "@openlogo/core";
 import {
+  PROFILE_DEPS,
   closureOf,
   deepEqual,
   produce,
@@ -2193,6 +2194,99 @@ test("runHarness handles self-test that wrongly matches", () => {
 
   const exitCode = runHarness({ root: TEMP_ROOT });
   assert.equal(exitCode, 1); // Should fail because self-test matched
+});
+
+// --- M5 profile-DAG registration (issue #666) ---------------------------------------------
+// This slice (C4 of epic #658, saga #572) wires the four M5 profiles into the conformance
+// harness's PROFILE_DEPS so per-profile fixtures and spec/examples run along the DAG as each
+// terminal epic lands. These tests lock the registration to the NORMATIVE dependency edges in
+// spec/conformance.md's profile DAG (the spec, not the issue summary, is authoritative), and
+// prove that an empty M5 fixture set keeps the suite green.
+
+test("PROFILE_DEPS registers heritage with core-language + data (spec DAG)", () => {
+  // spec/conformance.md#heritage + the DAG: Heritage is alternate spellings only and depends on
+  // Core Language AND Data (its `value of … for key` reader operates on dicts). It does NOT depend
+  // on Turtle & Rendering — the short aliases fd/bk/lt/rt/pu/pd/st/ht/cs/pr are spellings of
+  // Core-declared behavior and add no profile edge.
+  assert.deepEqual(PROFILE_DEPS.heritage, ["core-language", "data"]);
+  const closure = closureOf("heritage");
+  assert.ok(closure.has("heritage"));
+  assert.ok(closure.has("core-language"));
+  assert.ok(closure.has("data"));
+  assert.ok(!closure.has("turtle-rendering"));
+  assert.equal(closure.size, 3);
+});
+
+test("PROFILE_DEPS registers sprites with turtle-rendering (spec DAG)", () => {
+  // spec/conformance.md#sprites: Sprites depends on Turtle & Rendering (which depends on Core).
+  assert.deepEqual(PROFILE_DEPS.sprites, ["turtle-rendering"]);
+  const closure = closureOf("sprites");
+  assert.ok(closure.has("sprites"));
+  assert.ok(closure.has("turtle-rendering"));
+  assert.ok(closure.has("core-language"));
+  assert.equal(closure.size, 3);
+});
+
+test("PROFILE_DEPS registers interaction-events as a Core-only optional profile (spec DAG)", () => {
+  // spec/conformance.md#interaction--events: a separate optional profile depending only on Core.
+  assert.deepEqual(PROFILE_DEPS["interaction-events"], ["core-language"]);
+  const closure = closureOf("interaction-events");
+  assert.ok(closure.has("interaction-events"));
+  assert.ok(closure.has("core-language"));
+  assert.equal(closure.size, 2);
+});
+
+test("PROFILE_DEPS registers sound as a separate Core-only optional profile (spec DAG)", () => {
+  // spec/conformance.md#sound: a separate optional profile depending only on Core. It may SHARE
+  // the event stream with Interaction & Events but carries no dependency edge to it.
+  assert.deepEqual(PROFILE_DEPS.sound, ["core-language"]);
+  const closure = closureOf("sound");
+  assert.ok(closure.has("sound"));
+  assert.ok(closure.has("core-language"));
+  assert.ok(!closure.has("interaction-events"));
+  assert.equal(closure.size, 2);
+});
+
+test("closureOf accepts every M5 profile (they are enumerable along the DAG)", () => {
+  // Guards against a future edit dropping one from PROFILE_DEPS: closureOf throws on any profile
+  // not in the DAG, so this is a live registration assertion, not a tautology.
+  for (const profile of [
+    "heritage",
+    "sprites",
+    "interaction-events",
+    "sound",
+  ]) {
+    assert.doesNotThrow(() => closureOf(profile));
+  }
+});
+
+test("an empty M5 profile fixture set keeps the harness green", () => {
+  // Acceptance criterion: with no M5 fixtures present, the suite stays green. Scaffold the four M5
+  // profile directories with only their README (as this slice ships), no .logo/.expected.json
+  // pair, and confirm the harness reports success (exit 0) rather than failing on an empty set.
+  for (const profile of [
+    "heritage",
+    "sprites",
+    "interaction-events",
+    "sound",
+  ]) {
+    mkdirSync(join(TEMP_ROOT, profile), { recursive: true });
+    writeFileSync(
+      join(TEMP_ROOT, profile, "README.md"),
+      `# ${profile} fixtures (scaffolding, no fixtures yet)\n`,
+    );
+  }
+  assert.equal(runHarness({ root: TEMP_ROOT }), 0);
+});
+
+test("a profile-filtered M5 run with no fixtures is green (exit 0)", () => {
+  // The examples/fixtures run along the DAG per profile as each epic lands. Selecting an M5 profile
+  // before any of its fixtures exist must not fail: discoverFixtures finds nothing, so runHarness
+  // returns 0. (A README in the profile dir is ignored by discovery — only .logo/.expected.json
+  // pairs are fixtures.)
+  mkdirSync(join(TEMP_ROOT, "heritage"), { recursive: true });
+  writeFileSync(join(TEMP_ROOT, "heritage", "README.md"), "# heritage\n");
+  assert.equal(runHarness({ root: TEMP_ROOT, profile: "heritage" }), 0);
 });
 
 test("runHarness handles normal fixture failure", () => {
