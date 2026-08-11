@@ -66,3 +66,48 @@ test("every profile arity table in the reader's registry stays reachable (guards
   assert.equal(OL.soundPrimitiveArity("set_tempo"), 1);
   assert.equal(OL.spritesPrimitiveArity("new_turtle"), 0);
 });
+
+test("every profile's arity flows through the reader's array-driven lookup (guards a dropped PROFILE_PRIMITIVE_ARITY_TABLES entry)", () => {
+  // The per-profile functions above are each backed by their own map directly, so they would
+  // still pass if a table were dropped from the PROFILE_PRIMITIVE_ARITY_TABLES *array* the reader
+  // actually iterates (`primitiveArity`, not re-exported). This end-to-end check parses a bare
+  // call per profile so grouping goes through parser.ts -> arityOf -> primitiveArity -> that
+  // array. A representative arity-1 primitive with one argument groups as `args: 1`; were its
+  // table dropped, the name would become unknown, default to arity 0, and leave the argument as a
+  // stray following statement (`args: 0`) instead — so this discriminates a dropped array entry.
+  const arityOne = [
+    "print 1", // core
+    "forward 10", // turtle
+    "reverse [1 2]", // data
+    "wait 1", // interaction-events
+    "set_tempo 120", // sound
+  ];
+  for (const source of arityOne) {
+    const [call] = parseClean(source).body;
+    assert.equal(
+      call.kind,
+      "Call",
+      `expected a grouped Call for ${JSON.stringify(source)}`,
+    );
+    assert.equal(
+      call.args.length,
+      1,
+      `${JSON.stringify(source)} must group its single argument via the array-driven reader lookup`,
+    );
+  }
+  // educational/geometry representative primitives are arity 0, and the sprites reporters are too;
+  // a bare call with no argument groups as `args: 0` through the same array path.
+  for (const source of ["explain", "grid", "new_turtle", "who", "turtles"]) {
+    const [call] = parseClean(source).body;
+    assert.equal(
+      call.kind,
+      "Call",
+      `expected a Call for ${JSON.stringify(source)}`,
+    );
+    assert.equal(
+      call.args.length,
+      0,
+      `${JSON.stringify(source)} must group as zero-arity`,
+    );
+  }
+});
