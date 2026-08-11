@@ -50,16 +50,108 @@ test('reports ol-unclosed-string for make "size without throwing', () => {
     result = OL.parse('make "size', doc);
   });
 
+  // The lexer reports the unterminated string, which consumed the rest of the line where the
+  // `make` special form expected its `word-literal` target. That single diagnostic already
+  // explains the fault, so `make` must NOT stack a redundant `ol-bad-token` on top of it —
+  // `spec/error-model.md:109` reserves `ol-bad-token` for when no more-specific diagnostic
+  // applies (cf. `print "abc`, which likewise yields only `ol-unclosed-string`).
   assert.equal(result.diagnostics.length, 1);
-  const diag = result.diagnostics[0];
-  assert.equal(diag.code, "ol-unclosed-string");
-  assert.equal(diag.stage, "parse");
-  assert.equal(diag.severity, "error");
-  assert.deepEqual(diag.source_span, span([1, 6], [1, 7]));
+  const [unclosed] = result.diagnostics;
+  assert.equal(unclosed.code, "ol-unclosed-string");
+  assert.equal(unclosed.stage, "parse");
+  assert.equal(unclosed.severity, "error");
+  assert.deepEqual(unclosed.source_span, span([1, 6], [1, 7]));
 
-  // A best-effort tree is still returned alongside the diagnostic.
+  // A best-effort tree is still returned alongside the diagnostic; the malformed `make`
+  // yields no statement node (recovery consumed the line), so the program body is empty.
   assert.equal(result.ast.kind, "Program");
-  assert.equal(result.ast.body[0].callee.name, "make");
+  assert.equal(result.ast.body.length, 0);
+});
+
+test('reports a parse error for make "name" with no value expression', () => {
+  // `make-assignment ::= "make" word-literal expression` (spec/grammar.md:105) requires a value
+  // after the name; its absence is `ol-bad-token`, and the malformed statement yields no node.
+  const { ast, diagnostics } = OL.parse('make "x"', doc);
+
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].code, "ol-bad-token");
+  assert.equal(diagnostics[0].stage, "parse");
+  assert.equal(ast.body.length, 0);
+});
+
+test("reports ol-bad-token for a make target that is not a word literal", () => {
+  // `make 5` supplies a real (non-word) token where the `word-literal` target is required. Unlike
+  // the unclosed-string case, no earlier diagnostic covers that slot, so `make` DOES report the
+  // wrong token (`spec/error-model.md:109`) — the `lexDiagnosticInGap` suppression must not
+  // swallow a genuine wrong-token target.
+  const { diagnostics } = OL.parse("make 5", doc);
+
+  const makeDiag = diagnostics.find((d) => d.code === "ol-bad-token");
+  assert.ok(makeDiag, "expected an ol-bad-token for the non-word make target");
+  assert.equal(makeDiag.stage, "parse");
+});
+
+test("still reports a bad make target when a later lexer error follows on the line", () => {
+  // The suppression window is bounded on *both* sides: an unclosed string that appears *after* the
+  // target slot (`make 5 "oops`) must not hide the invalid `5` target. Both diagnostics are
+  // expected — the later `ol-unclosed-string` AND the target's `ol-bad-token` — because the
+  // unclosed string does not sit in the gap between `make` and its (present but wrong) target.
+  const { diagnostics } = OL.parse('make 5 "oops', doc);
+
+  const codes = diagnostics.map((d) => d.code);
+  assert.ok(
+    codes.includes("ol-unclosed-string"),
+    "expected the later unclosed string to still be reported",
+  );
+  assert.ok(
+    codes.includes("ol-bad-token"),
+    "expected the invalid non-word target to still be reported",
+  );
+});
+
+test("reports ol-bad-token for a bare make with no target", () => {
+  // A lone `make` at end of input has no target and no preceding lexer diagnostic, so the missing
+  // word-literal is reported directly — the suppression only applies when the lexer already
+  // consumed the target slot (e.g. an unclosed string).
+  const { ast, diagnostics } = OL.parse("make", doc);
+
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].code, "ol-bad-token");
+  assert.equal(diagnostics[0].stage, "parse");
+  assert.equal(ast.body.length, 0);
+});
+
+test("suppresses the redundant ol-bad-token for a multiline unclosed make target", () => {
+  // A triple-quoted string runs to end of input across lines, so the `eof`/`newline` slot token
+  // that `make` sees can land on a *later, shorter* line than where the string opened. The
+  // suppression window is compared lexicographically (line then column), so `make """size` + a
+  // short next line still yields ONLY `ol-unclosed-string` — never a redundant cascade
+  // (`spec/error-model.md:109`).
+  const { diagnostics } = OL.parse('make """size\nx', doc);
+
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].code, "ol-unclosed-string");
+  assert.equal(diagnostics[0].stage, "parse");
+});
+
+test('parses the heritage make "name" value assignment like set … to', () => {
+  const { ast, diagnostics } = OL.parse('make "size" 120', doc);
+
+  assert.deepEqual(diagnostics, []);
+  const assign = ast.body[0];
+  assert.equal(assign.kind, "Assign");
+  assert.equal(assign.form, "make");
+  // The word literal's value becomes the base name of a zero-segment place — the exact same
+  // shape `set size to 120` builds — so the runtime's shared executeAssign binds it identically.
+  assert.equal(assign.place.kind, "Place");
+  assert.equal(assign.place.base.name, "size");
+  assert.deepEqual(assign.place.segments, []);
+  assert.equal(assign.value.kind, "NumberLit");
+  assert.equal(assign.value.value, 120);
+  // The statement span runs from `make` through the value expression.
+  assert.deepEqual(assign.source_span, span([1, 1], [1, 16]));
+  // The place span is the word literal's span (`"size"`).
+  assert.deepEqual(assign.place.source_span, span([1, 6], [1, 12]));
 });
 
 test("assigns with the set ... to form", () => {

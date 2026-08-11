@@ -253,8 +253,13 @@ export interface PostfixExpressionNode extends NodeBase {
 }
 
 /**
- * An assignment: `:place = value` (`form: "equals"`) or `set place to value`
- * (`form: "set"`). Both bind the same place; `form` preserves the surface spelling.
+ * An assignment: `:place = value` (`form: "equals"`), `set place to value` (`form: "set"`), or the
+ * Heritage spelling `make "name" value` (`form: "make"`). All three bind the same place; `form`
+ * preserves the surface spelling. `make` is a Heritage-profile *alternate spelling only* with no
+ * new semantics (`spec/conformance.md:270`, `spec/execution-model.md:318`), so it lowers to the
+ * exact same {@link AssignNode} shape as `set … to` — its target is the bare name carried by the
+ * word literal (`spec/grammar.md:105`, `make-assignment ::= "make" word-literal expression`),
+ * grown into a zero-segment {@link PlaceNode} just like `set name to …`.
  *
  * A well-formed target is always a {@link PlaceNode} (even a bare `:x` grows into a zero-segment
  * place). The parser also accepts a non-place expression here — a reporter/command call such as
@@ -267,7 +272,7 @@ export interface AssignNode extends NodeBase {
   readonly kind: "Assign";
   readonly place: ExpressionNode;
   readonly value: ExpressionNode;
-  readonly form: "equals" | "set";
+  readonly form: "equals" | "set" | "make";
 }
 
 /**

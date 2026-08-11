@@ -160,14 +160,14 @@ const TUTOR_AI_CALLEE_NAMES = new Set(["challenge"]);
 /**
  * The **Heritage** profile's closed short-alias list (`spec/conformance.md:105-117`,`:271-272`):
  * `fd`/`bk`/`lt`/`rt`/`pu`/`pd`/`st`/`ht`/`cs`/`pr` plus the list-reporter alias spellings
- * `bf`/`bl`/`se`, plus `make` (the Heritage assignment spelling, `spec/conformance.md:107`) — it
- * has no dedicated AST node, but it still parses as an ordinary zero-arity `Call` (the parser has
- * no arity entry for it, so the reader that provides its `"x" 1` operands is left for the next
- * statement, producing `ol-bad-token` diagnostics), so its *callee name* is still detectable here.
- * `to`/`output`/`op` are also Heritage spellings but are reserved words with no `Call`/`ParenCall`
- * production at all today, so a bare-name check like this one can never see them — they are
- * detected separately, via {@link RESERVED_WORD_PROFILES}, from the parser's own parse-time
- * diagnostics rather than from the AST.
+ * `bf`/`bl`/`se` — each an ordinary zero-arity `Call` whose *callee name* is detectable here.
+ * The Heritage assignment spelling `make "name" value` is NOT in this set: since issue #151 it
+ * parses as an `Assign` node (`form: "make"`), not a `Call`, so it is detected from that node
+ * form directly in {@link detectUsedProfiles}'s walk. `to`/`output`/`op` are also Heritage
+ * spellings but are reserved words with no `Call`/`ParenCall` production at all today, so a
+ * bare-name check like this one can never see them — they are detected separately, via
+ * {@link RESERVED_WORD_PROFILES}, from the parser's own parse-time diagnostics rather than from
+ * the AST.
  */
 const HERITAGE_CALLEE_NAMES = new Set([
   "fd",
@@ -183,7 +183,6 @@ const HERITAGE_CALLEE_NAMES = new Set([
   "bf",
   "bl",
   "se",
-  "make",
 ]);
 
 /**
@@ -447,6 +446,15 @@ export function detectUsedProfiles(source) {
   });
 
   walk(ast, (node) => {
+    if (node.kind === "Assign" && node.form === "make") {
+      // The Heritage assignment spelling `make "name" value` (`spec/grammar.md:105`,
+      // `spec/conformance.md:107`,`:270`). Since issue #151 it parses as an `Assign` node whose
+      // `form` records the surface spelling — NOT a `Call` — so it is detected here by that form,
+      // not by a callee name in `HERITAGE_CALLEE_NAMES`. It is an alternate spelling with no new
+      // semantics, so no other profile is implied.
+      used.add("heritage");
+      return;
+    }
     if (node.kind === "ValueOfKey") {
       // The Heritage `value of ... for key` dictionary reader (`spec/conformance.md:273`,`:301`):
       // classified as Heritage, but it "also needs Data" because it operates on dicts — an

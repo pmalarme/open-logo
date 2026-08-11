@@ -57,6 +57,7 @@ export interface ParseResult {
  */
 const NON_PRIMARY_NAMES = new Set<string>([
   "set",
+  "make",
   "if",
   "else",
   "while",
@@ -250,6 +251,33 @@ export function parse(source: string, document = "<input>"): ParseResult {
   /** Build a spanned name from the surface spelling `name` and a source token's span. */
   function sname(name: string, token: LexToken): SpannedName {
     return { name, source_span: token.source_span };
+  }
+
+  /**
+   * True when a diagnostic already covers the source between `afterToken` and `beforeToken` — i.e.
+   * the lexer reported a fault (an unclosed string such as `make "size`, or a multiline triple
+   * quoted `make """size`) that consumed the very text a grammar slot expected. A caller uses this
+   * to avoid stacking a redundant `ol-bad-token` on top of that more-specific diagnostic
+   * (`spec/error-model.md:109`).
+   *
+   * The window is bounded on *both* sides so an unrelated diagnostic *later* on the line cannot
+   * trigger suppression: `make 5 "oops` must still report the invalid `5` target even though an
+   * `ol-unclosed-string` appears further along. Positions are compared lexicographically (line then
+   * column) so a multiline unclosed string — whose consuming `eof`/`newline` slot token lands on a
+   * *later* line — is still recognised as having eaten the slot.
+   */
+  function lexDiagnosticInGap(
+    afterToken: LexToken,
+    beforeToken: LexToken,
+  ): boolean {
+    const gapStart = afterToken.source_span.end;
+    const gapEnd = beforeToken.source_span.start;
+    const atOrAfter = (a: Position, b: Position): boolean =>
+      a[0] > b[0] || (a[0] === b[0] && a[1] >= b[1]);
+    return diagnostics.some((diagnostic) => {
+      const start = diagnostic.source_span.start;
+      return atOrAfter(start, gapStart) && atOrAfter(gapEnd, start);
+    });
   }
 
   /**
@@ -1466,6 +1494,8 @@ export function parse(source: string, document = "<input>"): ParseResult {
       switch (token.text.toLowerCase()) {
         case "set":
           return parseSetAssignment();
+        case "make":
+          return parseMakeAssignment();
         case "local":
           return parseLocal();
         case "if":
@@ -1631,6 +1661,57 @@ export function parse(source: string, document = "<input>"): ParseResult {
       value,
       "set",
       spanFrom(setTok.source_span.start, value),
+    );
+  }
+
+  /**
+   * Parses the Heritage assignment spelling `make "name" value`
+   * (`make-assignment ::= "make" word-literal expression`, `spec/grammar.md:105`). `make` is a
+   * Heritage-profile *alternate spelling only* with no new semantics
+   * (`spec/conformance.md:270`), so it lowers to the exact same {@link AssignNode} shape as
+   * `set … to`: the word literal's value becomes the base name of a zero-segment {@link PlaceNode}
+   * — identical to how `set name to …` builds its bare place — and the runtime's shared
+   * `executeAssign` binds it (mutate nearest binding, else create global,
+   * `spec/execution-model.md:318`) with no dependence on the surface `form`.
+   *
+   * The target must be a `word-literal` (`"name"`, lexed as a `word` token); any other token there
+   * is a parse error via {@link unexpected}, with the offending token left unconsumed so statement
+   * recovery re-parses it. Profile-legality (`make` requires the Heritage profile) is deliberately
+   * *not* decided here — the reader has no notion of an active profile (that is the Layer-2
+   * checker's job, `spec/tooling.md:175-176`); the Heritage form-head gate is owned by issue #667.
+   */
+  function parseMakeAssignment(): StatementNode | undefined {
+    const makeTok = current();
+    advance();
+    const nameTok = current();
+    if (nameTok.kind !== "word") {
+      // The word-literal target is missing. If the lexer already reported an unclosed string
+      // starting after `make` (e.g. `make "size`), that diagnostic *is* the missing target and
+      // consumed the rest of the line, so an extra `ol-bad-token` would be a redundant cascade —
+      // `spec/error-model.md:109` reserves `ol-bad-token` for when no more-specific diagnostic
+      // applies. Suppress it there; a genuinely wrong token (`make 5`) or a bare `make` still
+      // reports normally.
+      if (!lexDiagnosticInGap(makeTok, nameTok)) {
+        diagnostics.push(unexpected(nameTok));
+      }
+      return undefined;
+    }
+    advance();
+    const place = ast.place(
+      sname(nameTok.value, nameTok),
+      [],
+      nameTok.source_span,
+    );
+    const value = parseExpression();
+    if (value === undefined) {
+      diagnostics.push(unexpected(current()));
+      return undefined;
+    }
+    return ast.assign(
+      place,
+      value,
+      "make",
+      spanFrom(makeTok.source_span.start, value),
     );
   }
 
