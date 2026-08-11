@@ -446,6 +446,23 @@ export function detectUsedProfiles(source) {
   });
 
   walk(ast, (node) => {
+    if (node.kind === "ProfileStatement") {
+      // Profile block-head / mode-switch statements (`tell`/`ask`/`each`, `when`/`every`/`on_key`/
+      // `on_click`) parse into a `ProfileStatement` node since issue #664 (slice C2) — NOT a `Call`
+      // — so they are detected here by their head keyword, not by a callee name in the
+      // `SPRITES_CALLEE_NAMES`/`INTERACTION_EVENTS_CALLEE_NAMES` sets. The reader only ever builds
+      // this node when the head is NOT a user-declared callable (`parser.ts`'s `parseStatement`
+      // guard: a `define ask … end` shadow parses as an ordinary Core call), so the
+      // `definedProcedureNames` shadow-guard the callee-name branches use is unnecessary here — a
+      // `ProfileStatement` head is by construction a genuine profile use.
+      const keyword = node.keyword.name.toLowerCase();
+      if (SPRITES_CALLEE_NAMES.has(keyword)) {
+        used.add("sprites");
+      } else if (INTERACTION_EVENTS_CALLEE_NAMES.has(keyword)) {
+        used.add("interaction-events");
+      }
+      return;
+    }
     if (node.kind === "Assign" && node.form === "make") {
       // The Heritage assignment spelling `make "name" value` (`spec/grammar.md:105`,
       // `spec/conformance.md:107`,`:270`). Since issue #151 it parses as an `Assign` node whose

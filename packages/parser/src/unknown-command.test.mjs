@@ -184,6 +184,64 @@ test("profile gating: user-declared procedures are visible regardless of active 
   );
 });
 
+// --- profile block-heads are gated exactly like any other call-site name (issue #664) ---
+// The reader is profile-blind, so it always lowers a registered profile head (`ask`/`each`/`tell`
+// and the four event heads) into a `ProfileStatement`. In a Core-only program none of those words
+// is made visible by any active profile, so `ol-unknown-command` MUST flag them — otherwise a
+// Core-only program would silently accept e.g. `tell 5` (a false-accept), violating the
+// Core-neutrality guarantee of `spec/interaction-events.md` §Profiles and reservation. Once a
+// profile is active, its per-profile checker slice (#678 Sprites, #687 Interaction) registers the
+// head name in `collectVisibleNames` and the diagnostic disappears — this slice adds no per-profile
+// name table, only the shared-node walk.
+
+test("a bodyless profile head (`tell 5`) is flagged ol-unknown-command in a Core-only program", () => {
+  // `tell 5` parses cleanly (bodyless mode-switch shape), so without the ProfileStatement gate it
+  // would be silently accepted — the exact false-accept this test locks out.
+  const diagnostics = checkSource("tell 5", ["core-language"]);
+  assert.equal(diagnostics.length, 1);
+  const [finding] = diagnostics;
+  assert.equal(finding.code, "ol-unknown-command");
+  assert.equal(finding.params.name, "tell");
+  assert.equal(finding.stage, "semantic");
+  assert.equal(finding.severity, "error");
+});
+
+test("every registered profile head is flagged ol-unknown-command when its profile is inactive", () => {
+  // `tell` is bodyless; the block heads need a block to parse cleanly for this checker-only assertion.
+  const cases = [
+    "tell 5",
+    "ask :fish [ hint ]",
+    "each [ hint ]",
+    "when :e [ hint ]",
+    "every :e [ hint ]",
+    "on_key :k [ hint ]",
+    "on_click [ hint ]",
+  ];
+  for (const source of cases) {
+    const { ast } = OL.parse(source, "unit.logo");
+    const diagnostics = OL.check(ast, {
+      profiles: ["core-language"],
+    }).diagnostics;
+    const head = source.split(/[\s:[]/, 1)[0];
+    assert.ok(
+      diagnostics.some(
+        (d) => d.code === "ol-unknown-command" && d.params.name === head,
+      ),
+      `expected ol-unknown-command for the inactive profile head ${JSON.stringify(head)}`,
+    );
+  }
+});
+
+test("the profile-head diagnostic points at the head keyword's own span", () => {
+  const { ast } = OL.parse("tell 5", "unit.logo");
+  const [finding] = OL.check(ast, {
+    profiles: ["core-language"],
+  }).diagnostics;
+  // `tell` occupies columns 1-4 on line 1.
+  assert.deepEqual(finding.source_span.start, [1, 1]);
+  assert.deepEqual(finding.source_span.end, [1, 5]);
+});
+
 test("tie-break is deterministic: equal-distance candidates resolve lexicographically", () => {
   // `xat` is distance 1 from both `hat` and `bat`; `hat` is declared (and so inserted into the
   // candidate set) first, so this also exercises the branch where a later, lexicographically

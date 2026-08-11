@@ -57,6 +57,7 @@ export const OL_NODE_KINDS = [
   "Insert",
   "Clear",
   "StructDef",
+  "ProfileStatement",
 ] as const;
 
 /** One Core AST node kind. */
@@ -515,6 +516,36 @@ export interface StructDefNode extends NodeBase {
   readonly fields: readonly SpannedName[];
 }
 
+/**
+ * A profile-gated statement form: a head keyword, its argument expressions, and an optional
+ * delimited block body (`spec/grammar.md#profile-grammar-extensions`). This is the single shared
+ * shape for every profile's block-head and mode-switch statement, so a profile epic registers a
+ * new form in the reader (`parser.ts`'s `PROFILE_STATEMENT_FORMS`) without adding a per-keyword AST
+ * node kind — see [turtles-and-sprites.md](../../../spec/turtles-and-sprites.md) §Profile grammar
+ * (`tell`/`ask`/`each`) and [interaction-events.md](../../../spec/interaction-events.md) §Profile
+ * grammar (`when`/`every`/`on_key`/`on_click`).
+ *
+ * The reader is profile-blind: it parses any registered head keyword into this node regardless of
+ * the active profile set, reusing the Core `expression` and block productions exactly as the spec
+ * requires ("They reuse the Core `expression`, `bracket-block`, `statement`, and `terminator`
+ * productions."). Whether the form is *legal* under the program's active profiles — and any
+ * per-keyword type/semantic checking — is the Layer-2 checker's job (`spec/tooling.md:175-176`),
+ * mirroring how {@link primitiveArity} groups a bare profile primitive's arguments for the reader
+ * while `check()` gates its legality.
+ *
+ * `keyword` is the head word ({@link SpannedName}); `args` are the head's argument expressions
+ * (one for `tell`/`ask`/`when`/`every`/`on_key`, none for `each`/`on_click`); `body` is the
+ * block for a block-head form and is absent for a bodyless command (`tell`). A labeled `end` MUST
+ * match its opener — `end ask` closes `ask`, `end when` closes `when` — with a mismatched label
+ * raising `ol-mismatched-end`.
+ */
+export interface ProfileStatementNode extends NodeBase {
+  readonly kind: "ProfileStatement";
+  readonly keyword: SpannedName;
+  readonly args: readonly ExpressionNode[];
+  readonly body?: BlockNode;
+}
+
 /** Nodes usable in value position. */
 export type ExpressionNode =
   | NumberLitNode
@@ -556,7 +587,8 @@ export type StatementNode =
   | RemoveKeyNode
   | InsertNode
   | ClearNode
-  | StructDefNode;
+  | StructDefNode
+  | ProfileStatementNode;
 
 /** Any concrete AST node. */
 export type AnyNode = ProgramNode | StatementNode | DestructuringBinderNode;
@@ -800,6 +832,16 @@ export const ast = {
   ): StructDefNode {
     return { kind: "StructDef", source_span: span, name, fields };
   },
+  profileStatement(
+    keyword: SpannedName,
+    args: readonly ExpressionNode[],
+    body: BlockNode | undefined,
+    span: SourceSpan,
+  ): ProfileStatementNode {
+    return body === undefined
+      ? { kind: "ProfileStatement", source_span: span, keyword, args }
+      : { kind: "ProfileStatement", source_span: span, keyword, args, body };
+  },
 } as const;
 
 /** A visitor invoked once per node during {@link walk}. */
@@ -904,6 +946,10 @@ export function childrenOf(node: AnyNode): readonly AnyNode[] {
       return [node.value, node.target, node.index];
     case "Clear":
       return [node.target];
+    case "ProfileStatement":
+      // The head keyword is a metadata SpannedName (no `kind`), like `Place`'s field segments;
+      // only the argument expressions and the optional block body are walkable children.
+      return node.body === undefined ? node.args : [...node.args, node.body];
     default:
       return [];
   }

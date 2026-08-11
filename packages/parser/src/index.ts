@@ -50,6 +50,7 @@ export type {
   PostfixExpressionNode,
   ProcedureDefNode,
   ProcedureParam,
+  ProfileStatementNode,
   ProgramNode,
   ReduceComprehensionNode,
   RemoveKeyNode,
