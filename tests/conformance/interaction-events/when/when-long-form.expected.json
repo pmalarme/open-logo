@@ -1,0 +1,68 @@
+{
+  "description": "issue #682 (slice I3): the multiline `when <event-word> ... end when` block form behaves identically to the inline `[ ... ]` form (spec/interaction-events.md's `### when <event-word> <block>`; a control body is `[ ... ]` inline or `... end` multiline). The registration+`primitive` pair spans the whole statement (seq 0-1), the `\"start\"` handler fires immediately (block-start `instruction` carrying the `when` keyword span, seq 2), and the body's `print \"ready\"` runs (seq 3-4). The `end when` label matches the `when` block-head, so no `ol-mismatched-end` is raised.",
+  "profiles": ["interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/when/when-long-form",
+        "start": [1, 1],
+        "end": [3, 9]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/when/when-long-form",
+        "start": [1, 1],
+        "end": [3, 9]
+      },
+      "payload": {
+        "name": "when"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/when/when-long-form",
+        "start": [1, 1],
+        "end": [1, 5]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/when/when-long-form",
+        "start": [2, 3],
+        "end": [2, 16]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/when/when-long-form",
+        "start": [2, 3],
+        "end": [2, 16]
+      },
+      "payload": {
+        "values": ["ready"]
+      }
+    }
+  ],
+  "diagnostics": []
+}

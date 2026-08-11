@@ -90,6 +90,8 @@ import {
 import type { RandomNumberGeneratorState } from "./random-number-generator.js";
 import { createTickClock } from "./interaction.js";
 import type { TickClock } from "./interaction.js";
+import { createEventHandlerRegistry } from "./interaction.js";
+import type { EventHandlerRegistry } from "./interaction.js";
 import { createSoundState } from "./sound-state.js";
 import type { SoundState } from "./sound-state.js";
 import { defaultTutorTemplate } from "./tutor-templates.js";
@@ -295,6 +297,16 @@ export interface Environment {
    * this same `Environment` — is observed by every later sound command in the same run.
    */
   readonly sound: SoundState;
+  /**
+   * The Interaction & Events event-handler registry (issue #682, `interaction.ts`) — every `when`
+   * handler registered so far, in registration order. Like {@link Environment.tickClock}/`sound`, a
+   * shared mutable box so a `when` registered from anywhere in the program (including inside a
+   * procedure or loop body sharing this same `Environment`) is observed by the `"start"`/`"stop"`
+   * dispatch. Headless execution state: it never appears in an event payload — the handler blocks it
+   * holds emit the ordinary `instruction`/effect events when they run, nothing more. `every`/
+   * `on_key`/`on_click` (#683–#685) extend it; same-tick dispatch order + cancellation is #686/I7.
+   */
+  readonly eventHandlers: EventHandlerRegistry;
 }
 
 /**
@@ -380,6 +392,7 @@ export function createEnvironment(): Environment {
     randomNumberGenerator: createRandomNumberGeneratorState(),
     tickClock: createTickClock(),
     sound: createSoundState(),
+    eventHandlers: createEventHandlerRegistry(),
     // No real parsed program backs this bare environment, so `program` is a placeholder empty
     // `Program` node — safe because none of this package's own expression-only unit tests
     // exercise the Educational meta-commands (`execute-internal.ts`'s

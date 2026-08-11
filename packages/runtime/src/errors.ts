@@ -70,7 +70,12 @@
  * lowercase learner prose derived from them — prose is presentation only.
  */
 
-import type { Diagnostic, OLValue, SourceSpan } from "@openlogo/core";
+import type {
+  Diagnostic,
+  OLTypeName,
+  OLValue,
+  SourceSpan,
+} from "@openlogo/core";
 
 function runtimeError(
   code: Diagnostic["code"],
@@ -467,6 +472,18 @@ export interface RandomRangeReversedParams {
  */
 export interface TanUndefinedParams {
   readonly value: number;
+}
+
+/**
+ * Params for the `ol-type` raised by `when` when its event argument is not a word
+ * (`spec/interaction-events.md`'s `### when <event-word> <block>`: "Errors: `ol-type` if the event
+ * is not a word", issue #682). `actual` is the argument's runtime type name
+ * (`@openlogo/core`'s `typeNameOf`) so the diagnostic identity records what was supplied; `expected`
+ * is fixed at `"word"`. Mirrors the `{ operation, expected, actual }` shape of the other Core/Data
+ * `ol-type` param builders so every stage agrees on identity.
+ */
+export interface WhenEventNotWordParams {
+  readonly actual: OLTypeName;
 }
 
 /** Runtime-stage diagnostics, one builder per `ol-*` code the evaluator can raise. */
@@ -1305,6 +1322,26 @@ export const runtimeDiag = {
       source_span,
       { operation: "random", ...params },
       `random needs its first number to be no greater than its second, but got random ${params.low} ${params.high}.`,
+    );
+  },
+
+  /**
+   * `ol-type` (issue #682) — `when`'s event argument is not a word
+   * (`spec/interaction-events.md`'s `### when <event-word> <block>`: "Errors: `ol-type` if the
+   * event is not a word", and the profile's error table). `when` registers a block for a *named*
+   * event, so the name must be a word; a number, list, or boolean cannot name an event. Carries the
+   * `{ operation: "when", expected: "word", actual }` identity shape shared by the other `ol-type`
+   * builders. See {@link WhenEventNotWordParams}.
+   */
+  whenEventNotWord(
+    source_span: SourceSpan,
+    params: WhenEventNotWordParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-type",
+      source_span,
+      { operation: "when", expected: "word", actual: params.actual },
+      `when needs an event word, but got a ${params.actual}.`,
     );
   },
 } as const;

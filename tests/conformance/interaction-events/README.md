@@ -11,7 +11,13 @@ optional profile depending only on **Core Language**. This matches
 
 Until #688 claims `interaction-events` in `packages/core/src/host-metadata.ts`'s
 `SUPPORTED_PROFILES`, the examples gate SKIPs (with a visible notice) any `spec/examples/*.logo`
-that requires it — see `scripts/examples-gate.mjs`. This directory is registration scaffolding
-(issue #666); it carries no fixtures yet, and an empty profile fixture set keeps the suite green.
+that requires it — see `scripts/examples-gate.mjs`.
+
+- **`wait/`** — the `wait <n>` tick-clock primitive (issue #680, slice I1).
+- **`when/`** — the `when <event-word> <block>` named event handler (issue #682, slice I3):
+  registration emits `primitive` after the handler is registered, a `"start"` handler fires
+  immediately (the run has started), a `"stop"` handler fires once before termination, a non-word
+  event is `ol-type`, a mismatched `end` label is `ol-mismatched-end`, and `check`-mode fixtures
+  prove `when` is visible only under the `interaction-events` profile and rejected Core-only.
 
 Fixture shape and conventions: see [`../README.md`](../README.md).
