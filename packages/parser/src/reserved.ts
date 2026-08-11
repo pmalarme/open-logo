@@ -119,11 +119,16 @@ const PROFILE_RESERVED: ReadonlyMap<string, ReadonlySet<string>> = new Map(
  * A word counts only when at least one profile that reserves it is active — a Core-only caller
  * (empty or Core-only `activeProfiles`) never gets a match here, so those words stay ordinary
  * names. Matching is case-insensitive, like {@link isReservedWord}.
+ *
+ * Returns a plain `boolean` (not a type predicate): because matching is case-insensitive, a
+ * mixed-case `name` like `"ASK"` is reserved yet is not literally a lowercase-canonical
+ * {@link ProfileReservedWord}, so narrowing to that union would be unsound (it could make an
+ * exhaustive `switch` branch look unreachable). Every consumer treats the result opaquely.
  */
 export function isProfileReservedWord(
   name: string,
   activeProfiles: readonly string[],
-): name is ProfileReservedWord {
+): boolean {
   const lower = name.toLowerCase();
   for (const profile of activeProfiles) {
     if (PROFILE_RESERVED.get(profile)?.has(lower)) {
@@ -143,11 +148,16 @@ export function isProfileReservedWord(
  * word ({@link OL_PROFILE_RESERVED_WORDS}) reserved by an active profile also counts, so a
  * consumer that already threads the active profile set (the checker, the highlighter) gets
  * profile-aware reservation from this one registry without forking it.
+ *
+ * Returns a plain `boolean` rather than a type predicate: matching is case-insensitive, so a
+ * mixed-case reserved `name` is not literally a lowercase-canonical `ReservedWord`/
+ * `ProfileReservedWord`, and narrowing to that union would be unsound. Consumers use the result
+ * as a yes/no test, never for type narrowing.
  */
 export function isReservedWord(
   name: string,
   activeProfiles: readonly string[] = [],
-): name is ReservedWord | ProfileReservedWord {
+): boolean {
   return (
     RESERVED.has(name.toLowerCase()) ||
     isProfileReservedWord(name, activeProfiles)
