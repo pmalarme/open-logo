@@ -84,6 +84,7 @@ export {
   createTickClock,
   isWaitCall,
   validateTickCount,
+  yieldToEventLoop,
 } from "./interaction.js";
 export type { TickClock } from "./interaction.js";
 export type {

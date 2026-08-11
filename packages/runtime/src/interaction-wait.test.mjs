@@ -18,6 +18,7 @@ import {
   execute,
   isWaitCall,
   validateTickCount,
+  yieldToEventLoop,
 } from "@openlogo/runtime";
 import { parse } from "@openlogo/parser";
 
@@ -190,6 +191,16 @@ test("createTickClock starts at tick 0 and advanceTickClock advances exactly one
   advanceTickClock(clock);
   advanceTickClock(clock);
   assert.equal(clock.tick, 3);
+});
+
+test("yieldToEventLoop is the deterministic dispatch seam: a headless no-op that does not advance the clock", () => {
+  // The seam #682-#686 hang handler dispatch off. In this baseline it dispatches nothing and must
+  // NOT advance the tick (the advance is advanceTickClock's job) — wait yields once per tick AND
+  // once for wait 0, so this staying a no-op is what keeps the stream deterministic today.
+  const clock = createTickClock();
+  advanceTickClock(clock);
+  assert.equal(yieldToEventLoop(clock), undefined);
+  assert.equal(clock.tick, 1);
 });
 
 // --- validateTickCount unit coverage (TYPE then RANGE, and the 0/positive happy paths) --------

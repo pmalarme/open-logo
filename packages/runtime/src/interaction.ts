@@ -65,16 +65,34 @@ export function createTickClock(): TickClock {
 }
 
 /**
- * Advance `clock` by exactly one tick. This is the single seam the rest of the Interaction &
- * Events track (issues #682–#686) hangs handler dispatch off: today it only increments the logical
- * tick, but a later slice makes it (or a dispatch pass called from it) deliver any `every`/
- * `on_key`/`on_click` handlers that came due on the tick just advanced to, in the registration
- * order `spec/interaction-events.md` fixes — at which point every existing `wait` already advances
- * the clock one tick at a time and so gains the "handlers keep firing during a pause" behavior for
- * free. Keep the advance one tick at a time (never `tick += n`) so that seam stays per-tick.
+ * Advance `clock` by exactly one tick. Pair this with {@link yieldToEventLoop}: `wait` advances the
+ * clock one tick at a time and yields to the event loop after each advance, so the two together are
+ * the seam the rest of the Interaction & Events track (issues #682–#686) hangs handler dispatch
+ * off. Keep the advance one tick at a time (never `tick += n`) so that per-tick seam stays intact.
  */
 export function advanceTickClock(clock: TickClock): void {
   clock.tick += 1;
+}
+
+/**
+ * Yield to the renderer and event loop at a single logical checkpoint. This is the dispatch seam
+ * the rest of the Interaction & Events track (issues #682–#686) hangs handler delivery off: today
+ * it is a deterministic no-op, but a later slice makes it deliver any `every`/`on_key`/`on_click`
+ * handlers that came due at `clock`'s current tick, in the registration order
+ * `spec/interaction-events.md` fixes.
+ *
+ * `wait` calls it **once per elapsed tick** (after each {@link advanceTickClock}) **and once for a
+ * zero-tick pause** — so that `wait 0` still reaches this checkpoint. That matters because
+ * `spec/interaction-events.md` (`wait <n>`) requires "`wait 0` yields to the renderer and event
+ * loop without adding a visible delay": a zero-count pause is not a plain no-op, it is a yield with
+ * no tick advance. Routing every `wait` — including `wait 0` — through this one function is what
+ * lets #682–#686 make `wait 0` dispatch pending handlers without touching this slice's control
+ * flow. It takes the clock (not just a callback) so that later dispatch has the tick it is
+ * delivering handlers for; the parameter is deliberately unused in this baseline.
+ */
+export function yieldToEventLoop(_clock: TickClock): void {
+  // Intentionally empty: the deterministic, headless baseline has no handlers to dispatch yet
+  // (they arrive with #682–#686). Its call sites in runWait are the seam; see the file header.
 }
 
 /**
@@ -154,13 +172,16 @@ export function emitWaitPrimitive(
 
 /**
  * Run a validated `wait <n>` pause (`spec/interaction-events.md`, `wait <n>`): pause the current
- * top-level instruction stream for `count` ticks by advancing `tickClock` one tick at a time (each
- * advance is the seam #682–#686 deliver due handlers from — see the file header), then emit the
- * `primitive` event AFTER the pause completes onto `events`. `count` MUST already be a validated
- * non-negative whole number (via {@link validateTickCount}); `wait 0` advances the clock zero
- * times and emits the event immediately, "yield[ing] to the renderer and event loop without adding
- * a visible delay". The primitive event is emitted exactly once, after the loop, regardless of
- * `count`.
+ * top-level instruction stream for `count` ticks by advancing `tickClock` one tick at a time and
+ * yielding to the event loop after each tick ({@link advanceTickClock} + {@link yieldToEventLoop} —
+ * the seam #682–#686 deliver due handlers from, see the file header), then emit the `primitive`
+ * event AFTER the pause completes onto `events`. `count` MUST already be a validated non-negative
+ * whole number (via {@link validateTickCount}).
+ *
+ * `wait 0` advances the clock zero times but still {@link yieldToEventLoop}s exactly once — it
+ * "yield[s] to the renderer and event loop without adding a visible delay" (a spec-mandated yield,
+ * not a plain no-op), so a later slice can dispatch pending handlers on a `wait 0` too. The
+ * primitive event is emitted exactly once, after the loop, regardless of `count`.
  */
 export function runWait(
   tickClock: TickClock,
@@ -168,8 +189,12 @@ export function runWait(
   count: number,
   source_span: SourceSpan,
 ): void {
+  if (count === 0) {
+    yieldToEventLoop(tickClock);
+  }
   for (let elapsed = 0; elapsed < count; elapsed += 1) {
     advanceTickClock(tickClock);
+    yieldToEventLoop(tickClock);
   }
   emitWaitPrimitive(events, source_span);
 }
