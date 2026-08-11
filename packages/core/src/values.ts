@@ -231,7 +231,10 @@ export class OLTurtle {
    * (`spec/execution-model.md:540`) — two turtle values are the same turtle exactly when their ids
    * are equal — and doubles as the `turtle-id` of turtle-specific trace events and the token in the
    * deterministic printed form ({@link printedForm} renders `turtle #<id>`). Allocating ids so they
-   * stay unique and stable per turtle is the `new_turtle`/world slice's responsibility (#673).
+   * stay unique and stable per turtle is the `new_turtle`/world slice's responsibility (#673):
+   * because the id now **is** identity, a duplicate id silently merges two turtles into one and an
+   * unstable id silently splits one turtle into two, so #673 must guarantee ids are unique, stable
+   * for a turtle's whole life, and deterministic (including a reserved id for the main turtle).
    */
   readonly id: number;
 
