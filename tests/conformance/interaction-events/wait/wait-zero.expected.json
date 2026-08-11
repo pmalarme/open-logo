@@ -1,0 +1,32 @@
+{
+  "description": "issue #680: `wait 0` is a legal no-op pause (0 is a whole number >= 0). It advances the tick clock zero times, so it yields with no visible delay, yet still emits the `primitive` event after the (empty) pause — proving the emit is unconditional on the tick count, not gated on a positive delay.",
+  "profiles": ["interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/wait/wait-zero",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/wait/wait-zero",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    }
+  ],
+  "diagnostics": []
+}
