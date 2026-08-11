@@ -82,13 +82,31 @@ test('reports a parse error for make "name" with no value expression', () => {
 test("reports ol-bad-token for a make target that is not a word literal", () => {
   // `make 5` supplies a real (non-word) token where the `word-literal` target is required. Unlike
   // the unclosed-string case, no earlier diagnostic covers that slot, so `make` DOES report the
-  // wrong token (`spec/error-model.md:109`) — the `lexDiagnosticFollows` suppression must not
+  // wrong token (`spec/error-model.md:109`) — the `lexDiagnosticInGap` suppression must not
   // swallow a genuine wrong-token target.
   const { diagnostics } = OL.parse("make 5", doc);
 
   const makeDiag = diagnostics.find((d) => d.code === "ol-bad-token");
   assert.ok(makeDiag, "expected an ol-bad-token for the non-word make target");
   assert.equal(makeDiag.stage, "parse");
+});
+
+test("still reports a bad make target when a later lexer error follows on the line", () => {
+  // The suppression window is bounded on *both* sides: an unclosed string that appears *after* the
+  // target slot (`make 5 "oops`) must not hide the invalid `5` target. Both diagnostics are
+  // expected — the later `ol-unclosed-string` AND the target's `ol-bad-token` — because the
+  // unclosed string does not sit in the gap between `make` and its (present but wrong) target.
+  const { diagnostics } = OL.parse('make 5 "oops', doc);
+
+  const codes = diagnostics.map((d) => d.code);
+  assert.ok(
+    codes.includes("ol-unclosed-string"),
+    "expected the later unclosed string to still be reported",
+  );
+  assert.ok(
+    codes.includes("ol-bad-token"),
+    "expected the invalid non-word target to still be reported",
+  );
 });
 
 test("reports ol-bad-token for a bare make with no target", () => {

@@ -254,16 +254,31 @@ export function parse(source: string, document = "<input>"): ParseResult {
   }
 
   /**
-   * True when a diagnostic already covers the source immediately after `token` on the same line —
-   * i.e. the lexer reported a fault (an unclosed string such as `make "size`) that consumed the
-   * text a following grammar slot expected. A caller uses this to avoid stacking a redundant
-   * `ol-bad-token` on top of that more-specific diagnostic (`spec/error-model.md:109`).
+   * True when a diagnostic already covers the source between `afterToken` and `beforeToken` on the
+   * same line — i.e. the lexer reported a fault (an unclosed string such as `make "size`) that
+   * consumed the very text a grammar slot expected. A caller uses this to avoid stacking a
+   * redundant `ol-bad-token` on top of that more-specific diagnostic (`spec/error-model.md:109`).
+   *
+   * The window is bounded on *both* sides so an unrelated diagnostic *later* on the line cannot
+   * trigger suppression: `make 5 "oops` must still report the invalid `5` target even though an
+   * `ol-unclosed-string` appears further along. Only a diagnostic starting at or after
+   * `afterToken`'s end and at or before `beforeToken`'s start counts as "ate the slot". Both
+   * bounding tokens are always on one line here — an unclosed string ends the line, leaving the
+   * following slot token (`newline` or `eof`) at that same line's end column.
    */
-  function lexDiagnosticFollows(token: LexToken): boolean {
-    const [line, column] = token.source_span.end;
+  function lexDiagnosticInGap(
+    afterToken: LexToken,
+    beforeToken: LexToken,
+  ): boolean {
+    const [afterLine, afterColumn] = afterToken.source_span.end;
+    const [, beforeColumn] = beforeToken.source_span.start;
     return diagnostics.some((diagnostic) => {
       const [startLine, startColumn] = diagnostic.source_span.start;
-      return startLine === line && startColumn >= column;
+      return (
+        startLine === afterLine &&
+        startColumn >= afterColumn &&
+        startColumn <= beforeColumn
+      );
     });
   }
 
@@ -1678,7 +1693,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
       // `spec/error-model.md:109` reserves `ol-bad-token` for when no more-specific diagnostic
       // applies. Suppress it there; a genuinely wrong token (`make 5`) or a bare `make` still
       // reports normally.
-      if (!lexDiagnosticFollows(makeTok)) {
+      if (!lexDiagnosticInGap(makeTok, nameTok)) {
         diagnostics.push(unexpected(nameTok));
       }
       return undefined;
