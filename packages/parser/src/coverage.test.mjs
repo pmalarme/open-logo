@@ -795,6 +795,7 @@ const MEGA = [
   "insert 3 in :x at 0",
   "clear :x",
   "struct point [ p q ]",
+  "ask :x [ print 1 ]",
 ].join("\n");
 
 test("walk visits every core node kind, pre-order", () => {

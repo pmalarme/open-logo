@@ -8,7 +8,13 @@
  */
 
 import type { Diagnostic } from "@openlogo/core";
-import type { AnyNode, CallNode, ParenCallNode, ProgramNode } from "./ast.js";
+import type {
+  AnyNode,
+  CallNode,
+  ParenCallNode,
+  ProfileStatementNode,
+  ProgramNode,
+} from "./ast.js";
 import { walk } from "./ast.js";
 import type { CheckProfile } from "./check.js";
 import { collectVisibleNames, isOptionalProfileName } from "./checker-names.js";
@@ -43,6 +49,21 @@ const MAX_SUGGESTION_DISTANCE = 2;
 
 function isCallSite(node: AnyNode): node is CallNode | ParenCallNode {
   return node.kind === "Call" || node.kind === "ParenCall";
+}
+
+/**
+ * A profile block-head / mode-switch command (`ask`/`each`/`tell`, the four event heads) the reader
+ * lowered to a {@link ProfileStatementNode} (issue #664's shared seam). Its `keyword` sits in
+ * command position exactly like a {@link CallNode}'s callee, so `ol-unknown-command` gates it the
+ * same way: the reader is profile-blind and always shapes these words into a `ProfileStatement`, so a
+ * Core-only program (where no profile makes them visible) must see the identical
+ * "i don't know how to …" diagnostic it saw before this seam existed — Core-neutrality
+ * (`spec/interaction-events.md` §Profiles and reservation). Once a profile is active, its per-profile
+ * checker slice registers the block-head name in {@link collectVisibleNames} and the word becomes
+ * visible, so no diagnostic fires (`spec/tooling.md:175-176`).
+ */
+function isProfileStatement(node: AnyNode): node is ProfileStatementNode {
+  return node.kind === "ProfileStatement";
 }
 
 /**
@@ -112,10 +133,17 @@ export function unknownCommandRule(
   const diagnostics: Diagnostic[] = [];
 
   walk(program, (node) => {
-    if (!isCallSite(node)) {
+    let raw: string;
+    let span: CallNode["callee"]["source_span"];
+    if (isCallSite(node)) {
+      raw = node.callee.name;
+      span = node.callee.source_span;
+    } else if (isProfileStatement(node)) {
+      raw = node.keyword.name;
+      span = node.keyword.source_span;
+    } else {
       return;
     }
-    const raw = node.callee.name;
     const lower = raw.toLowerCase();
     if (OPERATOR_CALLEES.has(lower) || visible.has(lower)) {
       return;
@@ -127,7 +155,7 @@ export function unknownCommandRule(
 
     diagnostics.push({
       code: "ol-unknown-command",
-      source_span: node.callee.source_span,
+      source_span: span,
       params,
       message: messageFor(raw, suggestion),
       stage: "semantic",

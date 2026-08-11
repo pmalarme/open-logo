@@ -97,7 +97,64 @@ const END_LABELS = new Set<string>([
   "for",
   "forever",
   "define",
+  // Profile block-head labels: a labeled `end` after a profile block (`end ask`, `end each`,
+  // `end when`, `end every`, `end on_key`, `end on_click`) must be recognized as a closer so the
+  // block-tail machinery can match it against its opener and raise `ol-mismatched-end` on a wrong
+  // label (`spec/turtles-and-sprites.md:167,170`, `spec/interaction-events.md:62,65`). `tell` is
+  // absent: it is a bodyless mode-switch command with no block and therefore no `end`.
+  "ask",
+  "each",
+  "when",
+  "every",
+  "on_key",
+  "on_click",
 ]);
+
+/**
+ * A profile-gated statement form the reader recognizes structurally — the extension point for
+ * every profile's block-head and mode-switch statement (`spec/grammar.md#profile-grammar-extensions`).
+ *
+ * - `argCount` — how many Core `expression` arguments the head takes before its block (one for
+ *   `tell`/`ask`/`when`/`every`/`on_key`, none for `each`/`on_click`).
+ * - `hasBlock` — whether the form takes a block body: a block-head (`ask`, `each`, and all four
+ *   event heads) does; the bodyless `tell` mode-switch command does not.
+ */
+interface ProfileStatementForm {
+  readonly argCount: number;
+  readonly hasBlock: boolean;
+}
+
+/**
+ * The profile statement-form registry: the single seam through which every M5 profile statement
+ * form hangs off the Core `statement` production, so a profile epic (Sprites SP2/SP3/SP4,
+ * Interaction & Events I3–I6) needs no further edit to the reader's statement dispatch. Consulted
+ * only in {@link parseStatement}'s name-`switch` default, it keeps that `switch` — the shared code
+ * `#151`'s `make` special form also restructured — closed to new profile keywords.
+ *
+ * The reader is deliberately profile-blind: it parses any registered keyword into a
+ * {@link ast.profileStatement} node regardless of the active profile set, reusing the Core
+ * `expression` and block productions the spec mandates ("They reuse the Core `expression`,
+ * `bracket-block`, `statement`, and `terminator` productions."). Whether a form is *legal* under
+ * the program's active profiles is left to the Layer-2 checker (`spec/tooling.md:175-176`),
+ * mirroring how {@link primitiveArity} groups a profile primitive's arguments for the reader while
+ * `check()` gates legality. The reserved-word registry (`OL_PROFILE_RESERVED_WORDS`, C1 #663) is
+ * the checker's contract, not the reader's — this table is intentionally separate.
+ *
+ * Sources: `spec/turtles-and-sprites.md:161-167` (`tell`/`ask`/`each`),
+ * `spec/interaction-events.md:54-62` (`when`/`every`/`on_key`/`on_click`).
+ */
+const PROFILE_STATEMENT_FORMS: ReadonlyMap<string, ProfileStatementForm> =
+  new Map([
+    // Sprites profile.
+    ["tell", { argCount: 1, hasBlock: false }],
+    ["ask", { argCount: 1, hasBlock: true }],
+    ["each", { argCount: 0, hasBlock: true }],
+    // Interaction & Events profile.
+    ["when", { argCount: 1, hasBlock: true }],
+    ["every", { argCount: 1, hasBlock: true }],
+    ["on_key", { argCount: 1, hasBlock: true }],
+    ["on_click", { argCount: 0, hasBlock: true }],
+  ]);
 
 /**
  * Pre-scan the token stream for the two user-declared forms that register a callable name, so a
@@ -1529,6 +1586,20 @@ export function parse(source: string, document = "<input>"): ParseResult {
         default:
           break;
       }
+      // A registered profile head becomes a profile statement (`ask`/`each`/`tell`, the four event
+      // heads) — the seam every M5 profile grammar slice hangs off. But these words are reserved
+      // only when their profile is active (C1 #663): a Core-only program may legally declare a
+      // procedure named `ask` (`define ask … end`) and call it, so a *user-declared* callable of the
+      // same spelling wins here and parses as an ordinary Core call. The reader stays profile-blind —
+      // it never inspects the active profile set — and the checker (which does thread active
+      // profiles) is what raises `ol-reserved-word` for a profile-active redefinition. Without this
+      // guard the reader would mis-shape legitimate Core code (`define ask` / `ask`,
+      // `tests/conformance/educational/meta-commands/hint-in-procedure-falls-back-to-program`).
+      const lowerHead = token.text.toLowerCase();
+      const profileForm = PROFILE_STATEMENT_FORMS.get(lowerHead);
+      if (profileForm !== undefined && !userArities.has(lowerHead)) {
+        return parseProfileStatement(profileForm);
+      }
     }
     const targetStartIndex = pos;
     const targetStartToken = current();
@@ -1575,6 +1646,57 @@ export function parse(source: string, document = "<input>"): ParseResult {
       );
     }
     return target;
+  }
+
+  /**
+   * Parse a registered profile statement form — the shared machinery every profile block-head
+   * (`ask`/`each`, `when`/`every`/`on_key`/`on_click`) and bodyless mode-switch command (`tell`)
+   * flows through (`spec/grammar.md#profile-grammar-extensions`). The head keyword has already been
+   * matched in {@link parseStatement}; `form` is its {@link PROFILE_STATEMENT_FORMS} descriptor.
+   *
+   * Each `argCount` argument is a Core `expression`; the block-tail (`hasBlock`) is the Core
+   * bracket-or-`… end` block reused via {@link parseControlBody}, so `end` and a matching
+   * `end <keyword>` both close it and a mismatched label (`ask` closed by `end each`) raises
+   * `ol-mismatched-end` — see {@link consumeEndLabel} and the profile labels added to
+   * {@link END_LABELS}. The head word is recorded as the node's {@link SpannedName} keyword so the
+   * checker can gate the form on the active profile set and point diagnostics at it.
+   */
+  function parseProfileStatement(
+    form: ProfileStatementForm,
+  ): StatementNode | undefined {
+    const headTok = current();
+    const keyword: SpannedName = {
+      name: headTok.text.toLowerCase(),
+      source_span: headTok.source_span,
+    };
+    advance();
+    const args: ExpressionNode[] = [];
+    for (let i = 0; i < form.argCount; i += 1) {
+      const arg = parseExpression();
+      if (arg === undefined) {
+        diagnostics.push(unexpected(current()));
+        return undefined;
+      }
+      args.push(arg);
+    }
+    if (!form.hasBlock) {
+      return ast.profileStatement(
+        keyword,
+        args,
+        undefined,
+        spanToHere(headTok.source_span.start),
+      );
+    }
+    const body = parseControlBody(keyword.name, headTok.source_span);
+    if (body === undefined) {
+      return undefined;
+    }
+    return ast.profileStatement(
+      keyword,
+      args,
+      body,
+      spanToHere(headTok.source_span.start),
+    );
   }
 
   function parseLocal(): StatementNode | undefined {
