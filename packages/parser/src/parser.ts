@@ -57,6 +57,7 @@ export interface ParseResult {
  */
 const NON_PRIMARY_NAMES = new Set<string>([
   "set",
+  "make",
   "if",
   "else",
   "while",
@@ -1466,6 +1467,8 @@ export function parse(source: string, document = "<input>"): ParseResult {
       switch (token.text.toLowerCase()) {
         case "set":
           return parseSetAssignment();
+        case "make":
+          return parseMakeAssignment();
         case "local":
           return parseLocal();
         case "if":
@@ -1631,6 +1634,49 @@ export function parse(source: string, document = "<input>"): ParseResult {
       value,
       "set",
       spanFrom(setTok.source_span.start, value),
+    );
+  }
+
+  /**
+   * Parses the Heritage assignment spelling `make "name" value`
+   * (`make-assignment ::= "make" word-literal expression`, `spec/grammar.md:105`). `make` is a
+   * Heritage-profile *alternate spelling only* with no new semantics
+   * (`spec/conformance.md:270`), so it lowers to the exact same {@link AssignNode} shape as
+   * `set … to`: the word literal's value becomes the base name of a zero-segment {@link PlaceNode}
+   * — identical to how `set name to …` builds its bare place — and the runtime's shared
+   * `executeAssign` binds it (mutate nearest binding, else create global,
+   * `spec/execution-model.md:318`) with no dependence on the surface `form`.
+   *
+   * The target must be a `word-literal` (`"name"`, lexed as a `word` token); any other token there
+   * is a parse error via {@link unexpected}, with the offending token left unconsumed so statement
+   * recovery re-parses it. Profile-legality (`make` requires the Heritage profile) is deliberately
+   * *not* decided here — the reader has no notion of an active profile (that is the Layer-2
+   * checker's job, `spec/tooling.md:175-176`); the Heritage form-head gate is owned by issue #667.
+   */
+  function parseMakeAssignment(): StatementNode | undefined {
+    const makeTok = current();
+    advance();
+    const nameTok = current();
+    if (nameTok.kind !== "word") {
+      diagnostics.push(unexpected(nameTok));
+      return undefined;
+    }
+    advance();
+    const place = ast.place(
+      sname(nameTok.value, nameTok),
+      [],
+      nameTok.source_span,
+    );
+    const value = parseExpression();
+    if (value === undefined) {
+      diagnostics.push(unexpected(current()));
+      return undefined;
+    }
+    return ast.assign(
+      place,
+      value,
+      "make",
+      spanFrom(makeTok.source_span.start, value),
     );
   }
 

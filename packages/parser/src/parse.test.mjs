@@ -50,16 +50,53 @@ test('reports ol-unclosed-string for make "size without throwing', () => {
     result = OL.parse('make "size', doc);
   });
 
-  assert.equal(result.diagnostics.length, 1);
-  const diag = result.diagnostics[0];
-  assert.equal(diag.code, "ol-unclosed-string");
-  assert.equal(diag.stage, "parse");
-  assert.equal(diag.severity, "error");
-  assert.deepEqual(diag.source_span, span([1, 6], [1, 7]));
+  // The lexer reports the unterminated string; the `make` special form then finds no
+  // well-formed `word-literal` target (the unclosed string produced no `word` token), so it
+  // adds an `ol-bad-token` for the missing name. Both are legitimate best-effort findings.
+  assert.equal(result.diagnostics.length, 2);
+  const [unclosed, badToken] = result.diagnostics;
+  assert.equal(unclosed.code, "ol-unclosed-string");
+  assert.equal(unclosed.stage, "parse");
+  assert.equal(unclosed.severity, "error");
+  assert.deepEqual(unclosed.source_span, span([1, 6], [1, 7]));
+  assert.equal(badToken.code, "ol-bad-token");
+  assert.equal(badToken.stage, "parse");
 
-  // A best-effort tree is still returned alongside the diagnostic.
+  // A best-effort tree is still returned alongside the diagnostics; the malformed `make`
+  // yields no statement node (recovery consumed the line), so the program body is empty.
   assert.equal(result.ast.kind, "Program");
-  assert.equal(result.ast.body[0].callee.name, "make");
+  assert.equal(result.ast.body.length, 0);
+});
+
+test('reports a parse error for make "name" with no value expression', () => {
+  // `make-assignment ::= "make" word-literal expression` (spec/grammar.md:105) requires a value
+  // after the name; its absence is `ol-bad-token`, and the malformed statement yields no node.
+  const { ast, diagnostics } = OL.parse('make "x"', doc);
+
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].code, "ol-bad-token");
+  assert.equal(diagnostics[0].stage, "parse");
+  assert.equal(ast.body.length, 0);
+});
+
+test('parses the heritage make "name" value assignment like set … to', () => {
+  const { ast, diagnostics } = OL.parse('make "size" 120', doc);
+
+  assert.deepEqual(diagnostics, []);
+  const assign = ast.body[0];
+  assert.equal(assign.kind, "Assign");
+  assert.equal(assign.form, "make");
+  // The word literal's value becomes the base name of a zero-segment place — the exact same
+  // shape `set size to 120` builds — so the runtime's shared executeAssign binds it identically.
+  assert.equal(assign.place.kind, "Place");
+  assert.equal(assign.place.base.name, "size");
+  assert.deepEqual(assign.place.segments, []);
+  assert.equal(assign.value.kind, "NumberLit");
+  assert.equal(assign.value.value, 120);
+  // The statement span runs from `make` through the value expression.
+  assert.deepEqual(assign.source_span, span([1, 1], [1, 16]));
+  // The place span is the word literal's span (`"size"`).
+  assert.deepEqual(assign.place.source_span, span([1, 6], [1, 12]));
 });
 
 test("assigns with the set ... to form", () => {

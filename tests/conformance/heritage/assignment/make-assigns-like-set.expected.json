@@ -1,0 +1,44 @@
+{
+  "description": "The Heritage `make \"name\" value` spelling (spec/grammar.md:105, spec/conformance.md:270 — alternate spelling, no new semantics) lowers to the same Assign shape as `set … to`, so `make \"count\" 7` binds `count` and the later `print :count` prints 7. Tagged profile:heritage; the source uses no Core-forbidden construct, so it also parses/executes on the saga branch before the Heritage form-head profile gate (issue #667) lands.",
+  "profiles": ["heritage"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/assignment/make-assigns-like-set",
+        "start": [5, 1],
+        "end": [5, 15]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/assignment/make-assigns-like-set",
+        "start": [6, 1],
+        "end": [6, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/assignment/make-assigns-like-set",
+        "start": [6, 1],
+        "end": [6, 13]
+      },
+      "payload": {
+        "values": [7]
+      }
+    }
+  ],
+  "diagnostics": []
+}

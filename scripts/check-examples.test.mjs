@@ -336,8 +336,9 @@ test("detectUsedProfiles finds heritage for a short-alias call", () => {
 });
 
 test("detectUsedProfiles finds heritage for the 'make' assignment spelling", () => {
-  // `make` has no dedicated AST node (it's not a registered-arity primitive), but it still
-  // parses as an ordinary zero-arity Call, so its callee name alone is enough to detect it.
+  // Since issue #151 `make "name" value` parses as an `Assign` node whose `form` is `"make"`
+  // (spec/grammar.md:105 make-assignment ::= "make" word-literal expression), NOT a zero-arity
+  // Call — so the detector recognizes it by that node form, not by a callee name.
   assert.deepEqual(detectUsedProfiles('make "x" 1\n'), ["heritage"]);
 });
 
