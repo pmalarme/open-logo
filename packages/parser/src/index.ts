@@ -78,8 +78,17 @@ export type { CheckOptions, CheckProfile, CheckResult } from "./check.js";
 export { resolveRecordField } from "./checker-type-field.js";
 export type { RecordFieldAccess } from "./checker-type-field.js";
 
-export { isReservedWord, OL_RESERVED_WORDS } from "./reserved.js";
-export type { ReservedWord } from "./reserved.js";
+export {
+  isProfileReservedWord,
+  isReservedWord,
+  OL_PROFILE_RESERVED_WORDS,
+  OL_RESERVED_WORDS,
+} from "./reserved.js";
+export type {
+  ProfileReservedWord,
+  ReservedWord,
+  ReservingProfile,
+} from "./reserved.js";
 
 export {
   corePrimitiveArity,
