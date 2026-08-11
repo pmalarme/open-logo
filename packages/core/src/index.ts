@@ -84,5 +84,5 @@ export type {
   DebugProgramTutorOutputPayload,
 } from "./events.js";
 
-export { OLDict, OLRecord, typeNameOf } from "./values.js";
+export { OLDict, OLRecord, OLTurtle, typeNameOf } from "./values.js";
 export type { OLDictKey, OLTypeName, OLValue } from "./values.js";

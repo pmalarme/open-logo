@@ -3,7 +3,10 @@
  * (`number`, `word`, `list`, `boolean`) plus the Data-profile `dict` and `record` types, per
  * [`spec/execution-model.md`](../../../spec/execution-model.md)'s "Value and type model"
  * section and [`spec/data-structures.md`](../../../spec/data-structures.md)'s dictionaries and
- * records/structs sections. `turtle` is a later profile and is not modeled here yet. Kept in
+ * records/structs sections. The Sprites-profile `turtle` value type ({@link OLTurtle}) is also
+ * modeled here — it is a registered value kind like any other, so every package that evaluates or
+ * displays a value shares one representation, but adding the type does NOT make the Sprites profile
+ * claimable (`SUPPORTED_PROFILES` is unchanged; see `packages/core/src/host-metadata.ts`). Kept in
  * `@openlogo/core` since every package that evaluates or displays a value (runtime, turtle,
  * studio, edu) needs the same representation and the same `ol-*` `expected`/`actual` type
  * names for diagnostics.
@@ -197,13 +200,46 @@ export class OLRecord {
   }
 }
 
-/** A runtime value for a Core v0.1 type or the Data-profile `dict`/`record` types. */
+/**
+ * The Sprites-profile `turtle` value type (`spec/turtles-and-sprites.md:13`,
+ * `spec/execution-model.md:25`): a mutable turtle identity with its own drawing state. Turtle
+ * values **compare by identity, not by position or shape** (`spec/execution-model.md:540` — the
+ * turtle row of the `==` matrix is "Same turtle identity"), so two turtles created by `new_turtle`
+ * are never `==` even when their state is identical, and a turtle equals only itself. That identity
+ * is reference identity: each `new_turtle` mints a distinct {@link OLTurtle} instance, so `==`
+ * reduces to `a === b`, exactly as `spec/execution-model.md`'s equality machinery already compares
+ * every other reference kind. The read-only {@link id} is a stable, per-world serial number used
+ * for the deterministic printed form and for the `turtle-id` field of turtle-specific trace events
+ * — it is display/telemetry metadata, never the basis of equality (two turtles are distinct because
+ * they are distinct instances, not because their ids differ).
+ *
+ * This slice models only the value's *identity* and its display; the per-turtle drawing state
+ * (position, heading, pen, color, width, visibility, shape) lives in `@openlogo/turtle`/
+ * `@openlogo/runtime` and is filled in by the Sprites command slices (#673 onward). Adding the type
+ * here does not add any sprite command and does not make the Sprites profile claimable.
+ */
+export class OLTurtle {
+  /**
+   * The turtle's stable, per-world serial number: assigned once at creation, never reassigned, and
+   * used only for the deterministic printed form ({@link printedForm} renders `turtle #<id>`) and
+   * the `turtle-id` field of turtle-specific trace events. It is metadata, not identity — equality
+   * is by instance reference (`spec/execution-model.md:540`), so a program cannot make two distinct
+   * turtles compare equal by any means.
+   */
+  readonly id: number;
+
+  constructor(id: number) {
+    this.id = id;
+  }
+}
+
+/** A runtime value for a Core v0.1 type, the Data-profile `dict`/`record`, or a Sprites `turtle`. */
 export type OLValue =
-  number | string | boolean | readonly OLValue[] | OLDict | OLRecord;
+  number | string | boolean | readonly OLValue[] | OLDict | OLRecord | OLTurtle;
 
 /** The learner-facing concept name for a type, as `ol-type`'s `expected`/`actual` params use. */
 export type OLTypeName =
-  "number" | "word" | "list" | "boolean" | "dict" | "record";
+  "number" | "word" | "list" | "boolean" | "dict" | "record" | "turtle";
 
 /** The {@link OLTypeName} of a runtime value, for `ol-type` diagnostic params. */
 export function typeNameOf(value: OLValue): OLTypeName {
@@ -221,6 +257,9 @@ export function typeNameOf(value: OLValue): OLTypeName {
   }
   if (value instanceof OLRecord) {
     return "record";
+  }
+  if (value instanceof OLTurtle) {
+    return "turtle";
   }
   return "list";
 }

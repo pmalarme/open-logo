@@ -228,6 +228,12 @@ test("`is_a?` prefix form raises ol-type when the type argument is not a word", 
   });
 });
 
+test("`is_a?` prefix form recognizes the Sprites `turtle` type word: a non-turtle is a clean false, not ol-unknown-type (issue #665)", () => {
+  const result = execute('print is_a? 5 "turtle"', doc);
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(printedValues(result), [false]);
+});
+
 test("`is_a?` prefix form raises ol-unknown-type when the type argument is an unrecognized word", () => {
   const result = execute('print is_a? 5 "banana"', doc);
   assert.equal(result.diagnostics.length, 1);
