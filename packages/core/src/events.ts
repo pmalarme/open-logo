@@ -371,23 +371,28 @@ export type TutorOutputPayload =
   | DebugTutorOutputPayload;
 
 /**
- * The interaction primitives that emit a `primitive` event (Interaction & Events profile,
- * `spec/interaction-events.md#trace-stream-integration`): `wait` emits one after the pause
- * completes, and each event-registration form (`when`/`every`/`on_key`/`on_click`) emits one
- * after its handler is registered ("Event registration forms emit `primitive` events after the
- * handler is registered", `spec/interaction-events.md:120-122`). These are the primitives that,
- * per that section, have no more specific effect kind.
+ * The name of a primitive that emits a `primitive` event. `primitive` is the **generic catch-all**
+ * effect kind — "the generic catch-all for a primitive without a more specific event"
+ * (`spec/execution-model.md:703`) — so it is profile-neutral and the set of emitters is
+ * **open-ended**: any current or future primitive that lacks a more specific event kind emits one.
+ * This alias is therefore an open `string`, not a closed union, so a new emitter never requires
+ * re-opening this contract. The current M5 emitters are the Interaction & Events forms
+ * `wait`/`when`/`every`/`on_key`/`on_click` ("primitives without a more specific kind emit
+ * `primitive`", `spec/interaction-events.md:105-106`; "wait emits a `primitive` event after the
+ * pause completes … event registration forms emit `primitive` events after the handler is
+ * registered", `spec/interaction-events.md:120-122`), but the type deliberately does not close over
+ * them.
  */
-export type PrimitiveName = "wait" | "when" | "every" | "on_key" | "on_click";
+export type PrimitiveName = string;
 
 /**
- * Payload for a `primitive` event: the canonical name of the primitive whose effect the event
- * records (Interaction & Events profile, `spec/interaction-events.md#trace-stream-integration`).
- * `primitive` is the fallback effect kind for primitives that have no more specific kind
- * ("primitives without a more specific kind emit `primitive`", `spec/interaction-events.md:105-106`);
- * `name` is what lets replay/debug tools tell those primitives apart. The event is emitted after
- * the effect it describes (after a `wait` pause completes, or after a handler is registered), so no
- * timing or tick data lives in the payload — the stream carries no timing or frames.
+ * Payload for a `primitive` event: the canonical {@link PrimitiveName} of the primitive whose
+ * effect the event records. `primitive` is the generic catch-all effect kind for a primitive
+ * without a more specific event (`spec/execution-model.md:703`) — profile-neutral, not scoped to
+ * any one profile — and `name` is what lets replay/debug tools tell those primitives apart. The
+ * event is emitted after the effect it describes (after a `wait` pause completes, or after a handler
+ * is registered), so no timing or tick data lives in the payload — the stream carries no timing or
+ * frames.
  */
 export interface PrimitivePayload {
   readonly name: PrimitiveName;
@@ -501,10 +506,10 @@ export interface SpawnTurtlePayload {
  * `color-change`, `background-change`, `draw-segment`, `fill`, `stamp`, `shape-change`,
  * `visibility-change`, `clear`), `print`/`procedure-enter`/`procedure-exit`/`return`,
  * `tutor-output` (Educational profile, via {@link TutorOutputPayload}), and `overlay` (Geometry
- * profile, via {@link OverlayPayload}); `sound` (Sound profile, via {@link SoundPayload}),
- * `spawn-turtle` (Sprites profile, via {@link SpawnTurtlePayload}), and `primitive` (Interaction &
- * Events profile, via {@link PrimitivePayload}); other kinds (e.g. `error`) refine their payload
- * with their feature slice.
+ * profile, via {@link OverlayPayload}); `sound` (Sound profile, via {@link SoundPayload}) and
+ * `spawn-turtle` (Sprites profile, via {@link SpawnTurtlePayload}); and `primitive`, the
+ * profile-neutral generic catch-all (`spec/execution-model.md:703`, via {@link PrimitivePayload});
+ * other kinds (e.g. `error`) refine their payload with their feature slice.
  */
 export interface TraceEvent<P = unknown> {
   /** Monotonic sequence number, ordering the stream. */

@@ -191,6 +191,20 @@ test("primitive payload names each event-registration form", () => {
   }
 });
 
+test("primitive payload accepts a non-interaction primitive name (generic catch-all)", () => {
+  // `primitive` is the profile-neutral generic catch-all (spec/execution-model.md:703), so its
+  // `name` is open-ended: a future primitive from any profile must be representable without
+  // re-opening the contract. This guards against the type silently narrowing back to a closed set.
+  const event = {
+    seq: 20,
+    kind: "primitive",
+    source_span: makeSpan(),
+    payload: { name: "some_future_primitive" },
+  };
+  assert.ok(OL.isEventKind(event.kind));
+  assert.equal(event.payload.name, "some_future_primitive");
+});
+
 test("sound payload (set_tempo) carries beats per minute", () => {
   const event = {
     seq: 14,
