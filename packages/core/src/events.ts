@@ -399,6 +399,22 @@ export interface PrimitivePayload {
 }
 
 /**
+ * Compile-time regression guard for the finding that `primitive` is the profile-neutral generic
+ * catch-all (`spec/execution-model.md:703`): its `name` must stay an OPEN type so a future primitive
+ * from any profile is representable without re-opening this contract. `AssertAssignable<T, V>`
+ * requires `V extends T`, so this alias only compiles while the non-interaction literal
+ * `"some_future_primitive"` is assignable to `PrimitiveName`; if `PrimitiveName` is ever narrowed
+ * back to a closed union of interaction names, `tsc -b` fails here — a regression the name-only
+ * runtime `.mjs` test cannot catch. Purely type-level: fully erased at emit, so it adds no runtime
+ * code to cover.
+ */
+type AssertAssignable<T, V extends T> = V;
+type _PrimitiveNameStaysOpen = AssertAssignable<
+  PrimitiveName,
+  "some_future_primitive"
+>;
+
+/**
  * Payload for a `sound` event emitted by `set_tempo` (Sound profile,
  * `spec/interaction-events.md:259-272`): the tempo, in beats per minute, now shared by `note`,
  * `play`, and `rest`. A positive number (`ol-range` otherwise); the default before any `set_tempo`
