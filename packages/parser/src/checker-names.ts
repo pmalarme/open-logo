@@ -41,21 +41,23 @@ import {
   dataPrimitiveNames,
   educationalPrimitiveNames,
   geometryPrimitiveNames,
+  soundPrimitiveNames,
   turtlePrimitiveNames,
 } from "./signatures.js";
 
 /**
  * Every canonical lowercase name contributed by an optional (non-Core) conformance profile's
- * primitive table — currently Turtle & Rendering's, Educational's, Geometry's, and Data's. Computed
- * once as a frozen union so {@link isOptionalProfileName} stays a pure, allocation-free lookup; a
- * future optional-profile table adds its `...someProfileNames()` spread here alongside these,
- * exactly mirroring how {@link collectVisibleNames} itself is extended one profile at a time.
+ * primitive table — currently Turtle & Rendering's, Educational's, Geometry's, Data's, and Sound's.
+ * Computed once as a frozen union so {@link isOptionalProfileName} stays a pure, allocation-free
+ * lookup; a future optional-profile table adds its `...someProfileNames()` spread here alongside
+ * these, exactly mirroring how {@link collectVisibleNames} itself is extended one profile at a time.
  */
 const OPTIONAL_PROFILE_NAMES: ReadonlySet<string> = new Set([
   ...turtlePrimitiveNames(),
   ...educationalPrimitiveNames(),
   ...geometryPrimitiveNames(),
   ...dataPrimitiveNames(),
+  ...soundPrimitiveNames(),
 ]);
 
 /**
@@ -125,6 +127,12 @@ export function collectVisibleNames(
         names.add(node.name.name.toLowerCase());
       }
     });
+  }
+
+  if (active.has("sound")) {
+    for (const name of soundPrimitiveNames()) {
+      names.add(name);
+    }
   }
 
   // Future optional-profile primitive/block-head tables register here, gated the same way, once

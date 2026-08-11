@@ -89,6 +89,8 @@ import {
 import type { RandomNumberGeneratorState } from "./random-number-generator.js";
 import { createTickClock } from "./interaction.js";
 import type { TickClock } from "./interaction.js";
+import { createSoundState } from "./sound-state.js";
+import type { SoundState } from "./sound-state.js";
 import { defaultTutorTemplate } from "./tutor-templates.js";
 import type { TutorTemplateFn } from "./tutor-templates.js";
 import type { TutorLearnerLevel } from "./tutor-context.js";
@@ -273,6 +275,14 @@ export interface Environment {
    * handlers (`every <n>`, #683) read it; #682–#686 deliver due handlers as it advances.
    */
   readonly tickClock: TickClock;
+  /**
+   * The shared, mutable Sound-profile scheduling state (issue #689, `sound-state.ts`) — currently
+   * the tempo `set_tempo` sets and `note`/`play`/`rest` will read. A box like
+   * `instructionCount`/`turtle`/`randomNumberGenerator` rather than a plain value, so a `set_tempo`
+   * made from anywhere in the program — including deep inside a procedure call or loop body sharing
+   * this same `Environment` — is observed by every later sound command in the same run.
+   */
+  readonly sound: SoundState;
 }
 
 /**
@@ -356,6 +366,7 @@ export function createEnvironment(): Environment {
     turtle: createDefaultTurtleState(),
     randomNumberGenerator: createRandomNumberGeneratorState(),
     tickClock: createTickClock(),
+    sound: createSoundState(),
     // No real parsed program backs this bare environment, so `program` is a placeholder empty
     // `Program` node — safe because none of this package's own expression-only unit tests
     // exercise the Educational meta-commands (`execute-internal.ts`'s
