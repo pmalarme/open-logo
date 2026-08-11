@@ -1,0 +1,2 @@
+:here = who
+print (:here == first turtles)

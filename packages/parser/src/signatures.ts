@@ -460,10 +460,45 @@ export function soundPrimitiveNames(): readonly string[] {
 }
 
 /**
+ * Default arities for the **Sprites** profile's turtle-identity reporters (issue #673),
+ * derived from [`spec/turtles-and-sprites.md`](../../../spec/turtles-and-sprites.md)'s "Canonical
+ * forms" table (the authoritative C3 rows): `new_turtle` (R, 0 → turtle), `who` (R, 0 → turtle),
+ * and `turtles` (R, 0 → list) are each a Kind-R reporter taking no inputs, invoked as a bare word
+ * exactly like `pos`/`heading` or the Geometry overlay primitives. The Sprites block-heads
+ * `tell`/`ask`/`each` are NOT here: they are statement forms/reserved words handled by the grammar
+ * and checker, not bare-call primitives whose arguments the reader groups. Kept as its own table
+ * for the same reason {@link TURTLE_PRIMITIVE_ARITY}/{@link GEOMETRY_PRIMITIVE_ARITY} are separate:
+ * Sprites has its own independent profile visibility (the Layer-2 checker gates it on its own
+ * active profile, `spec/tooling.md:175-176`), while the reader groups a bare call's arguments for
+ * *any* recognized primitive regardless of profile. Registering these arities therefore does NOT
+ * make the Sprites profile callable under Core or claimable — that gating is the checker's and the
+ * profile-claim slice's concern.
+ */
+const SPRITES_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
+  ["new_turtle", 0],
+  ["who", 0],
+  ["turtles", 0],
+]);
+
+/**
+ * The default arity of a Sprites-profile reporter, or `undefined` when `name` is not one of
+ * `new_turtle`/`who`/`turtles`. Matching is case-insensitive.
+ *
+ * `SPRITES_PRIMITIVE_ARITY` is this profile's single source-of-truth table — mirroring
+ * {@link turtlePrimitiveArity}/{@link geometryPrimitiveArity}. Its enumerable name-list counterpart
+ * (`spritesPrimitiveNames`, mirroring {@link geometryPrimitiveNames}) is deliberately deferred to
+ * the Sprites semantic-checker slice (#678) that first needs it — this reporter slice only registers
+ * the arities the reader consults, and an exported name-list with no consumer yet would be dead code.
+ */
+export function spritesPrimitiveArity(name: string): number | undefined {
+  return SPRITES_PRIMITIVE_ARITY.get(name.toLowerCase());
+}
+
+/**
  * Every profile's primitive-arity table the reader consults, in lookup order. Core Language is
  * checked first (today's only always-visible table), then each optional profile's Core-spelled
  * primitives as they are registered — currently Turtle & Rendering, Data, Educational, Geometry,
- * Interaction & Events, and Sound. A later profile slice adds its table here rather than editing
+ * Interaction & Events, Sound, and Sprites. A later profile slice adds its table here rather than editing
  * {@link primitiveArity}'s body.
  */
 const PROFILE_PRIMITIVE_ARITY_TABLES: readonly ReadonlyMap<string, number>[] = [
@@ -474,6 +509,7 @@ const PROFILE_PRIMITIVE_ARITY_TABLES: readonly ReadonlyMap<string, number>[] = [
   GEOMETRY_PRIMITIVE_ARITY,
   INTERACTION_PRIMITIVE_ARITY,
   SOUND_PRIMITIVE_ARITY,
+  SPRITES_PRIMITIVE_ARITY,
 ];
 
 /**

@@ -1,0 +1,2 @@
+:friend = new_turtle
+print (:friend == last turtles)

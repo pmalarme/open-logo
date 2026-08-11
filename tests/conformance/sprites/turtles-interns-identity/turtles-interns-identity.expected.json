@@ -1,0 +1,56 @@
+{
+  "description": "issue #673: turtle identity is interned by stable id (C3): reading `first turtles` twice yields two fresh `OLTurtle` wrappers that are nonetheless `==` because they share the main turtle's id. This is exactly the invariant the orchestrator's `item 1 turtles == item 1 turtles` requirement locks; `item` does not exist in v0.1, so `first turtles` is the SP1-reachable equivalent.",
+  "profiles": ["sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/turtles-interns-identity/turtles-interns-identity",
+        "start": [1, 1],
+        "end": [1, 19]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/turtles-interns-identity/turtles-interns-identity",
+        "start": [2, 1],
+        "end": [2, 19]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/turtles-interns-identity/turtles-interns-identity",
+        "start": [3, 1],
+        "end": [3, 16]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "sprites/turtles-interns-identity/turtles-interns-identity",
+        "start": [3, 1],
+        "end": [3, 16]
+      },
+      "payload": {
+        "values": [true]
+      }
+    }
+  ],
+  "diagnostics": []
+}

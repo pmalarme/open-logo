@@ -1,0 +1,44 @@
+{
+  "description": "issue #673: `who` (Sprites, R/0->turtle) reports the current turtle, which at top level (no `tell`/`ask`/`each`, all SP2+) is the single default main turtle. `who` equals `first turtles` because both denote the main turtle and turtle `==` compares the stable id (C3), not the JS wrapper instance. Binding `who` to `:here` first works around a pre-existing parser precedence limitation where a zero-arg reporter cannot be the immediate left operand of `==` (parser.ts, issue #151).",
+  "profiles": ["sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/who-is-main-turtle/who-is-main-turtle",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/who-is-main-turtle/who-is-main-turtle",
+        "start": [2, 1],
+        "end": [2, 30]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "sprites/who-is-main-turtle/who-is-main-turtle",
+        "start": [2, 1],
+        "end": [2, 30]
+      },
+      "payload": {
+        "values": [true]
+      }
+    }
+  ],
+  "diagnostics": []
+}

@@ -1,0 +1,40 @@
+{
+  "description": "issue #673: `new_turtle` (Sprites, R/0->turtle) allocates the first spawned turtle (id 1, one past the reserved main turtle id 0) and emits exactly one `spawn-turtle` trace event immediately after the turtle exists, carrying its id in both the envelope `turtle_id` and the payload plus the full initial visible state from spec/turtles-and-sprites.md's Turtle creation section (origin at canvas center [0,0], heading 0 up, pen down, color black, width 1, visible, default `turtle` shape).",
+  "profiles": ["sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/new-turtle-spawn-event/new-turtle-spawn-event",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/new-turtle-spawn-event/new-turtle-spawn-event",
+        "start": [1, 11],
+        "end": [1, 21]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    }
+  ],
+  "diagnostics": []
+}

@@ -1,0 +1,64 @@
+{
+  "description": "issue #673 (C3 deferral 1): a positive end-to-end `is_a? :t \"turtle\"` -> true on a turtle obtained from `new_turtle` — C3 could only test the predicate directly because no turtle was reachable from .logo source until this slice added `new_turtle`.",
+  "profiles": ["sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/turtle-is-a-turtle/turtle-is-a-turtle",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/turtle-is-a-turtle/turtle-is-a-turtle",
+        "start": [1, 11],
+        "end": [1, 21]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/turtle-is-a-turtle/turtle-is-a-turtle",
+        "start": [2, 1],
+        "end": [2, 31]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "sprites/turtle-is-a-turtle/turtle-is-a-turtle",
+        "start": [2, 1],
+        "end": [2, 31]
+      },
+      "payload": {
+        "values": [true]
+      }
+    }
+  ],
+  "diagnostics": []
+}
