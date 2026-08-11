@@ -52,11 +52,12 @@ test("a parenthesized sprites call with arguments still parses cleanly at Layer 
   }
 });
 
-test("every profile arity table in the reader's registry stays reachable (guards against a rebase dropping a table)", () => {
-  // The reader consults PROFILE_PRIMITIVE_ARITY_TABLES in order; a resolution that silently
-  // dropped or reordered a table would make that profile's primitives stop grouping their
-  // arguments with no failure in the owning slice. Assert one representative lookup per profile
-  // resolves through the public per-profile functions (each backed by a table in that array).
+test("every per-profile arity accessor remains available and returns the expected arity", () => {
+  // Asserts one representative lookup per profile through the public per-profile functions. Each
+  // function reads its own source-of-truth map directly, so this proves the accessor and its map
+  // exist and answer correctly — NOT that the map remains registered in the
+  // PROFILE_PRIMITIVE_ARITY_TABLES array the reader iterates (that array-drop guard is the separate
+  // "array-driven lookup" test below, which exercises `primitiveArity` end-to-end).
   assert.equal(OL.corePrimitiveArity("print"), 1);
   assert.equal(OL.turtlePrimitiveArity("forward"), 1);
   assert.equal(OL.dataPrimitiveArity("reverse"), 1);
@@ -105,7 +106,7 @@ test("every arity-bearing profile's arity flows through the reader's array-drive
   }
   // The arity-0 tables (educational/geometry/sprites) are asserted for positive zero-arity grouping
   // through the same array path. This is NOT a drop-guard for those tables (see the coverage note):
-  // an unknown name groups identically. The reachability test above covers their presence directly.
+  // an unknown name groups identically. The per-profile accessor test above covers their presence.
   for (const source of ["explain", "grid", "new_turtle", "who", "turtles"]) {
     const [call] = parseClean(source).body;
     assert.equal(
