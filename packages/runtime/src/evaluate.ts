@@ -45,7 +45,13 @@ import type {
   TraceEvent,
   TutorHintStage,
 } from "@openlogo/core";
-import { makeSpan, OLDict, OLRecord, typeNameOf } from "@openlogo/core";
+import {
+  makeSpan,
+  OLDict,
+  OLRecord,
+  OLTurtle,
+  typeNameOf,
+} from "@openlogo/core";
 import type { OLDictKey } from "@openlogo/core";
 import type {
   AddNode,
@@ -2258,6 +2264,13 @@ function primitivePrintedForm(value: OLValue): string | undefined {
   if (typeof value === "boolean") {
     return value ? "true" : "false";
   }
+  if (value instanceof OLTurtle) {
+    // A turtle's printed form is its stable, deterministic identity tag `turtle #<id>`
+    // (`spec/turtles-and-sprites.md:13`, `spec/execution-model.md:540`): a turtle is an opaque
+    // identity, not a container, so it renders as a single leaf token — never its (mutable) drawing
+    // state, which would make `print :t` non-deterministic across movement/pen changes.
+    return `turtle #${formatNumber(value.id)}`;
+  }
   return undefined;
 }
 
@@ -2464,6 +2477,23 @@ function storeSnapshotChild(frame: SnapshotFrame, childClone: OLValue): void {
 }
 
 /**
+ * Whether `value` is a snapshot leaf — a value {@link snapshotValue} returns as-is rather than
+ * deep-copying: any primitive (`number`/`word`/`boolean`), and a `turtle`. A turtle is an object,
+ * but it is an opaque *identity* value, not an aliasable container: its own per-turtle drawing state
+ * is captured into trace events at the moment each effect is emitted, never through this
+ * value-graph copy, and its identity must be preserved so a snapshotted turtle still `==` the
+ * original (`spec/execution-model.md:540`). So a turtle is copied by keeping the same reference,
+ * exactly like a primitive — only lists/dicts/records are structurally cloned below.
+ */
+function isSnapshotLeaf(
+  value: OLValue,
+): value is number | string | boolean | OLTurtle {
+  return (
+    typeof value !== "object" || value === null || value instanceof OLTurtle
+  );
+}
+
+/**
  * Effect-event payload snapshot capture (`spec/execution-model.md`'s point-in-time-snapshot
  * rule, added alongside issue #495): produces a transitive, immutable copy of `value`'s
  * reachable value graph, as of this instant, so a later mutation through the original live
@@ -2486,7 +2516,7 @@ export function snapshotValue(
   value: OLValue,
   memo: Map<object, OLValue> = new Map(),
 ): OLValue {
-  if (typeof value !== "object" || value === null) {
+  if (isSnapshotLeaf(value)) {
     return value;
   }
   const existing = memo.get(value);
@@ -2514,7 +2544,7 @@ export function snapshotValue(
     }
     frame.index += 1;
 
-    if (typeof child !== "object" || child === null) {
+    if (isSnapshotLeaf(child)) {
       storeSnapshotChild(frame, child);
       continue;
     }
@@ -2575,6 +2605,17 @@ function equalRec(a: OLValue, b: OLValue, inProgress: EqualityMemo): boolean {
   }
   if (a instanceof OLRecord) {
     return b instanceof OLRecord ? recordEqual(a, b, inProgress) : false;
+  }
+  if (a instanceof OLTurtle) {
+    // Turtles compare by identity, never by state (`spec/execution-model.md:540`): a turtle equals
+    // only the same turtle. Identity is the turtle's stable `id`, not the JS instance — so the
+    // guarantee holds even if a turtle value reaches this comparison through two different routes
+    // (`who`, `turtles`, `ask`/`each` binding, a snapshot round-trip) that hand back separate
+    // wrappers for the one live turtle. Comparing `id` makes that interning invariant unbreakable
+    // by construction: SP1+ cannot regress `who == :friend` by building a fresh wrapper, because
+    // two wrappers of one turtle share its id and every distinct turtle has a distinct id. A turtle
+    // never equals a list, dict, record, or any primitive (`b` is only a turtle here).
+    return b instanceof OLTurtle && a.id === b.id;
   }
   if (!Array.isArray(b)) {
     return false;
@@ -2907,8 +2948,15 @@ function evaluateComparisonChain(
  * joins as of issue #329 (the `record` value now exists — {@link OLRecord}). A record value is
  * still never *of* the generic `record` type under `is_a?` — it matches only its own struct type
  * name (`spec/data-structures.md:287`, see {@link valueMatchesIsAWord}) — but `record` is a known
- * type *word*, so `is_a? :p "record"` is a well-formed `false`, not `ol-unknown-type`. Declared
- * struct type names extend this set per program (see {@link isKnownIsAWord}).
+ * type *word*, so `is_a? :p "record"` is a well-formed `false`, not `ol-unknown-type`. `turtle`
+ * joins as of issue #665 (the `turtle` value now exists — {@link OLTurtle}): it is a Sprites-profile
+ * type word, so `is_a? :t "turtle"` is a well-formed boolean (`true` for a turtle, `false` for any
+ * other value) rather than `ol-unknown-type`, matching this prefix form's runtime-evaluated
+ * type-word contract (`spec/turtles-and-sprites.md:13`). The prefix `is_a?` form recognizes the word
+ * regardless of profile because it evaluates its type argument dynamically; the *worded* `is a
+ * "turtle"` literal form's static profile gating is the semantic checker's concern, added by the
+ * Sprites parser slice. Declared struct type names extend this set per program (see
+ * {@link isKnownIsAWord}).
  */
 const CORE_IS_A_TYPE_WORDS: ReadonlySet<string> = new Set([
   "number",
@@ -2917,6 +2965,7 @@ const CORE_IS_A_TYPE_WORDS: ReadonlySet<string> = new Set([
   "boolean",
   "dict",
   "record",
+  "turtle",
 ]);
 
 /**
