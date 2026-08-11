@@ -1,0 +1,28 @@
+{
+  "description": "issue #689: bare `beep` (Sound profile, arity 0) schedules one short implementation-defined alert sound and emits exactly one `sound` event with payload {command:\"beep\"} - no arguments, no sound-state change, no errors. The runtime models sound as scheduling + event emission, never a real audio device, so this event is emitted unconditionally even in a muted environment (spec/interaction-events.md's `beep` section), keeping deterministic replay independent of audio availability.",
+  "profiles": ["sound"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sound/beep-basic",
+        "start": [1, 1],
+        "end": [1, 5]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "sound",
+      "source_span": {
+        "document": "sound/beep-basic",
+        "start": [1, 1],
+        "end": [1, 5]
+      },
+      "payload": { "command": "beep" }
+    }
+  ],
+  "diagnostics": []
+}

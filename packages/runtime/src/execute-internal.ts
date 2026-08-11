@@ -39,6 +39,7 @@ import type {
   ProcedureExitPayload,
   ReturnPayload,
   ShapeChangePayload,
+  SoundPayload,
   SourceSpan,
   StampPayload,
   TurnPayload,
@@ -64,6 +65,7 @@ import {
   interactionPrimitiveArity,
   isReservedWord,
   parse,
+  soundPrimitiveArity,
   turtlePrimitiveArity,
   walk,
 } from "@openlogo/parser";
@@ -110,6 +112,7 @@ import {
   createRandomNumberGeneratorState,
   seedFromText,
 } from "./random-number-generator.js";
+import { createSoundState } from "./sound-state.js";
 import type { TutorCommandMetadata, TutorContext } from "./tutor-context.js";
 import { defaultTutorTemplate } from "./tutor-templates.js";
 import type { TutorLearnerLevel } from "./tutor-context.js";
@@ -1527,6 +1530,173 @@ function executeTurtleHeadingCall(
 }
 
 /**
+ * Is `statement` a call to `set_tempo` (issue #689; `spec/interaction-events.md:259-272`). Same
+ * shape/convention as {@link isTurtleWidthCall} — a Sound-profile primitive with a single numeric
+ * argument. Sound command names are ordinary primitive names (not reserved block-heads) when the
+ * profile is present, so this is a plain `Call`/`ParenCall` callee-name match.
+ */
+function isSoundSetTempoCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  return statement.callee.name.toLowerCase() === "set_tempo";
+}
+
+/**
+ * Validate and run a `set_tempo` statement matched by {@link isSoundSetTempoCall}: exactly one
+ * numeric argument (`ol-not-enough-inputs`/`ol-too-many-inputs`/`ol-type` otherwise, via
+ * {@link requireNumber}), which must additionally be positive and finite
+ * (`spec/interaction-events.md:262` — "one positive number") or `runtimeDiag.nonPositiveTempo`
+ * raises `ol-range` — folding `Infinity` into the same guard as `0`/negative, exactly as
+ * {@link executeTurtleWidthCall} does for a width. On success, sets `environment.sound.tempo` (the
+ * shared tempo `note`/`play`/`rest` will read once #690/#691 land) and emits one `sound` event
+ * carrying a {@link SetTempoSoundPayload}, AFTER the tempo state has been updated
+ * (`spec/interaction-events.md`'s trace-stream rule: "Sound commands emit `sound` events after
+ * sound state has been scheduled"). Returns an {@link ExecSignal} to halt on, or `undefined` for
+ * {@link executeStatements} to `continue` on success (including the "left un-evaluated" case for an
+ * unsupported argument expression, mirroring {@link executeTurtleWidthCall}).
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeSoundSetTempoCall(
+  tempoCall: CallNode | ParenCallNode,
+  environment: Environment,
+): ExecSignal | undefined {
+  const callableName = tempoCall.callee.name;
+  if (tempoCall.args.length !== 1) {
+    return halt(
+      tempoCall.args.length < 1
+        ? runtimeDiag.notEnoughInputs(
+            tempoCall.callee.source_span,
+            callableName,
+            1,
+            tempoCall.args.length,
+          )
+        : runtimeDiag.tooManyInputs(
+            tempoCall.callee.source_span,
+            callableName,
+            1,
+            tempoCall.args.length,
+          ),
+    );
+  }
+  const [arg] = tempoCall.args as [ExpressionNode];
+  if (!isSupportedArgument(arg, environment)) {
+    return undefined;
+  }
+  const argResult = evaluate(arg, environment);
+  if (!argResult.ok) {
+    return halt(argResult.diagnostic);
+  }
+  const tempo = requireNumber(argResult.value, arg.source_span, "set_tempo");
+  if (!tempo.ok) {
+    return halt(tempo.diagnostic);
+  }
+  if (!Number.isFinite(tempo.value) || tempo.value <= 0) {
+    return halt(
+      runtimeDiag.nonPositiveTempo(arg.source_span, {
+        value: String(tempo.value),
+      }),
+    );
+  }
+  environment.sound.tempo = tempo.value;
+  environment.events.push({
+    seq: environment.events.length,
+    kind: "sound",
+    source_span: tempoCall.source_span,
+    payload: {
+      command: "set_tempo",
+      beats_per_minute: tempo.value,
+    } satisfies SoundPayload,
+  });
+  return undefined;
+}
+
+/**
+ * Is `statement` a call to `beep` (issue #689; `spec/interaction-events.md:309-324`). Same
+ * shape/convention as {@link isTurtleGridCall} — a bare 0-arity Sound-profile primitive.
+ */
+function isSoundBeepCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  return statement.callee.name.toLowerCase() === "beep";
+}
+
+/**
+ * Validate and run a `beep` statement matched by {@link isSoundBeepCall}: exactly zero arguments
+ * (`ol-too-many-inputs` otherwise), then emit one `sound` event carrying a {@link BeepSoundPayload}.
+ * `beep` schedules "one short implementation-defined alert sound" (`spec/interaction-events.md:317`)
+ * — the runtime models that scheduling purely as the event emission, never as a real audio device,
+ * so the event is emitted unconditionally even in a muted environment ("Implementations that cannot
+ * play audio, or that run in a muted classroom environment, MUST still emit `sound` events"),
+ * keeping replay deterministic. No sound-state change: `beep` carries no parameters. Returns an
+ * {@link ExecSignal} to halt on, or `undefined` for {@link executeStatements} to `continue` on
+ * success.
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeSoundBeepCall(
+  beepCall: CallNode | ParenCallNode,
+  environment: Environment,
+): ExecSignal | undefined {
+  const callableName = beepCall.callee.name;
+  if (beepCall.args.length !== 0) {
+    return halt(
+      runtimeDiag.tooManyInputs(
+        beepCall.callee.source_span,
+        callableName,
+        0,
+        beepCall.args.length,
+      ),
+    );
+  }
+  environment.events.push({
+    seq: environment.events.length,
+    kind: "sound",
+    source_span: beepCall.source_span,
+    payload: { command: "beep" } satisfies SoundPayload,
+  });
+  return undefined;
+}
+
+/**
+ * Sentinel {@link dispatchSoundCommand} returns when `statement` isn't any recognized Sound-profile
+ * command, so {@link executeStatements} can fall through to its other statement-kind checks.
+ * Distinct from `undefined`, which means a sound command ran successfully (the same "handled,
+ * continue" meaning {@link NOT_A_TURTLE_COMMAND} carries for turtle commands).
+ */
+const NOT_A_SOUND_COMMAND = Symbol("not-a-sound-command");
+
+/**
+ * Single entry point {@link executeStatements} calls to try every Sound-profile command in one
+ * step (issue #689 registers `set_tempo`/`beep`; #690/#691 add `note`/`play`/`rest` here). Kept as
+ * its own dispatcher — like {@link dispatchTurtleCommand} — so `executeStatements`'s own stack frame
+ * stays fixed regardless of how many sound commands exist (the recursion-depth rationale that
+ * dispatcher's doc comment records).
+ */
+function dispatchSoundCommand(
+  statement: StatementNode,
+  environment: Environment,
+): ExecSignal | undefined | typeof NOT_A_SOUND_COMMAND {
+  if (isSoundSetTempoCall(statement)) {
+    return executeSoundSetTempoCall(
+      statement as unknown as CallNode | ParenCallNode,
+      environment,
+    );
+  }
+  if (isSoundBeepCall(statement)) {
+    return executeSoundBeepCall(
+      statement as unknown as CallNode | ParenCallNode,
+      environment,
+    );
+  }
+  return NOT_A_SOUND_COMMAND;
+}
+
+/**
  * Sentinel `dispatchTurtleCommand` returns when `statement` isn't any recognized turtle command,
  * so {@link executeStatements} can fall through to its other statement-kind checks. Distinct from
  * `undefined`, which `dispatchTurtleCommand` returns when a turtle command ran successfully (the
@@ -2256,10 +2426,10 @@ type StructCollection =
 /**
  * Is `name` already a primitive in ANY profile's callable table? `struct` registers a constructor
  * in the callable namespace, so a struct type name that shadows any built-in command/reporter —
- * Core, Turtle, Data, Educational, the Geometry overlay (`grid`/`axes`/`measure`), or the
- * Interaction & Events `wait` — is a collision regardless of which profiles a given program happens
- * to touch, mirroring how {@link runProgram} runs every profile's primitives unconditionally
- * (`execute()` does not gate by profile).
+ * Core, Turtle, Data, Educational, the Geometry overlay (`grid`/`axes`/`measure`), the
+ * Interaction & Events `wait`, or Sound (`set_tempo`/`beep`) — is a collision regardless of which
+ * profiles a given program happens to touch, mirroring how {@link runProgram} runs every profile's
+ * primitives unconditionally (`execute()` does not gate by profile).
  */
 function isPrimitiveName(name: string): boolean {
   return (
@@ -2268,7 +2438,8 @@ function isPrimitiveName(name: string): boolean {
     dataPrimitiveArity(name) !== undefined ||
     educationalPrimitiveArity(name) !== undefined ||
     geometryPrimitiveArity(name) !== undefined ||
-    interactionPrimitiveArity(name) !== undefined
+    interactionPrimitiveArity(name) !== undefined ||
+    soundPrimitiveArity(name) !== undefined
   );
 }
 
@@ -2822,6 +2993,14 @@ function executeStatements(
       continue;
     }
 
+    const soundOutcome = dispatchSoundCommand(statement, environment);
+    if (soundOutcome !== NOT_A_SOUND_COMMAND) {
+      if (soundOutcome) {
+        return soundOutcome;
+      }
+      continue;
+    }
+
     if (statement.kind === "Return") {
       if (!isSupportedArgument(statement.value, environment)) {
         continue;
@@ -3226,6 +3405,7 @@ function createExecutionEnvironment(
     turtle: createDefaultTurtleState(),
     randomNumberGenerator: createRandomNumberGeneratorState(),
     tickClock: createTickClock(),
+    sound: createSoundState(),
     source,
     program,
     hintProgress: new Map(),

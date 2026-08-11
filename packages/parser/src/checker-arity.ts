@@ -46,6 +46,7 @@ import type { CheckProfile } from "./check.js";
 import {
   corePrimitiveArityRange,
   dataPrimitiveArityRange,
+  soundPrimitiveArityRange,
 } from "./signatures.js";
 
 /** The statically-known arity of a callee: a required floor and a total ceiling. */
@@ -245,6 +246,10 @@ export function arityRule(
   const structs = dataActive
     ? collectStructConstructorArities(program)
     : undefined;
+  // Sound-profile primitives (`set_tempo`/`beep`) are likewise only visible — and so only
+  // arity-checkable — when the `sound` profile is active (issue #689), mirroring
+  // `collectVisibleNames`'s own `sound` gate.
+  const soundActive = profiles.includes("sound");
   const diagnostics: Diagnostic[] = [];
 
   walk(program, (node) => {
@@ -277,6 +282,21 @@ export function arityRule(
           node,
           raw,
           dataRange,
+          actual,
+          span,
+          diagnostics,
+        );
+        return;
+      }
+    }
+
+    if (soundActive) {
+      const soundRange = soundPrimitiveArityRange(lower);
+      if (soundRange !== undefined) {
+        checkPrimitiveRangeArity(
+          node,
+          raw,
+          soundRange,
           actual,
           span,
           diagnostics,

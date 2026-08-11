@@ -425,6 +425,19 @@ export interface NonPositiveWidthParams {
 }
 
 /**
+ * Params for an `ol-range` raised by `set_tempo` (issue #689) when its argument is a number but not
+ * positive and finite (`spec/interaction-events.md:262` — "one positive number"; the default tempo
+ * is `120`). Only reached once {@link requireNumber} has already confirmed the argument is a number
+ * at all (a non-number raises `ol-type` first, mirroring {@link NonPositiveWidthParams}'s
+ * `set_width` order). `value` is rendered as `String(value)` for the same JSON-safety reason as
+ * {@link NonFiniteDistanceParams} — folding `Infinity` into the same guard as `0`/negative so a
+ * learner never sees an infinite tempo.
+ */
+export interface NonPositiveTempoParams {
+  readonly value: string;
+}
+
+/**
  * Params for an `ol-range` raised by `random n` (issue #287) when `n` is a whole number below the
  * minimum of `1` (`spec/commands.md`'s `random` entry: "`n` MUST be a whole number of at least
  * `1`"). Only reached once {@link requireWholeNumber} has already confirmed `n` is a whole number
@@ -1212,6 +1225,24 @@ export const runtimeDiag = {
       source_span,
       { ...params },
       `${params.operation} needs a positive width, but got ${params.value}.`,
+    );
+  },
+
+  /**
+   * `ol-range` (issue #689) — `set_tempo`'s argument is a number but not positive and finite
+   * (`spec/interaction-events.md:262`: "one positive number"). Only reached once
+   * {@link requireNumber} has already confirmed the value is a number. See
+   * {@link NonPositiveTempoParams}.
+   */
+  nonPositiveTempo(
+    source_span: SourceSpan,
+    params: NonPositiveTempoParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-range",
+      source_span,
+      { operation: "set_tempo", ...params },
+      `set_tempo needs a positive tempo, but got ${params.value}.`,
     );
   },
 

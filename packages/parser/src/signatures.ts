@@ -393,10 +393,77 @@ export function interactionPrimitiveArity(name: string): number | undefined {
 }
 
 /**
+ * Default arities for the **Sound** profile's primitives (issue #689,
+ * [`spec/interaction-events.md`](../../../spec/interaction-events.md)'s "Sound primitives"
+ * section). `set_tempo` takes one number (the beats-per-minute, `spec/interaction-events.md:259-272`)
+ * and `beep` takes none (`spec/interaction-events.md:309-324`) — the two primitives slice S1 (#689)
+ * delivers; the remaining Sound names (`note`/`play`/`rest`) join this table in their own slices
+ * (#690/#691), each a bare `Call` grouped by this arity exactly as `set_width`/`grid` are. Kept as
+ * its own table for the same reason {@link TURTLE_PRIMITIVE_ARITY}/{@link GEOMETRY_PRIMITIVE_ARITY}
+ * are separate: Sound has its own independent profile visibility (the Layer-2 checker gates it on
+ * its own active `sound` profile, `spec/tooling.md:175-176`), while the reader groups a bare call's
+ * arguments for *any* recognized primitive regardless of profile — the profile-legality decision
+ * belongs to the checker, not the reader. Sound command names are ordinary primitive names (not
+ * reserved block-heads) when the profile is present (`spec/interaction-events.md`).
+ */
+const SOUND_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
+  ["set_tempo", 1],
+  ["beep", 0],
+]);
+
+/**
+ * The default arity of a Sound-profile primitive, or `undefined` when `name` is not one of the
+ * primitives registered in {@link SOUND_PRIMITIVE_ARITY}. Matching is case-insensitive.
+ *
+ * `SOUND_PRIMITIVE_ARITY` is this profile's single source-of-truth table — mirroring
+ * {@link geometryPrimitiveArity}/{@link educationalPrimitiveArity}.
+ */
+export function soundPrimitiveArity(name: string): number | undefined {
+  return SOUND_PRIMITIVE_ARITY.get(name.toLowerCase());
+}
+
+/**
+ * The inclusive input-count range a Sound-profile primitive accepts, or `undefined` when `name` is
+ * not a known Sound primitive. Both Sound primitives (`set_tempo`, `beep`) are strictly
+ * fixed-arity — neither has a variadic parenthesized alternate — so `max` always equals `min`
+ * ({@link soundPrimitiveArity}). Mirrors {@link dataPrimitiveArityRange} exactly; the static arity
+ * checker (`checker-arity.ts`) consults this to flag a known Sound command given the wrong number
+ * of inputs (e.g. `(set_tempo 1 2)` or `(beep 1)`) under the active `sound` profile. Matching is
+ * case-insensitive.
+ */
+export function soundPrimitiveArityRange(
+  name: string,
+): { readonly min: number; readonly max: number } | undefined {
+  const min = soundPrimitiveArity(name);
+  if (min === undefined) {
+    return undefined;
+  }
+  return { min, max: min };
+}
+
+/**
+ * Every Sound-profile primitive's canonical lowercase name, sorted for deterministic iteration.
+ * This is the enumerable counterpart to {@link soundPrimitiveArity} — the checker's visible-name
+ * model (`checker-names.ts`) needs the full name *list*, gated on the `sound` profile, to make
+ * these primitives both callable without `ol-unknown-command` and candidates for its did-you-mean
+ * suggestions — mirroring {@link geometryPrimitiveNames}'s role for its table.
+ */
+const SOUND_PRIMITIVE_NAMES: readonly string[] = Object.freeze(
+  [...SOUND_PRIMITIVE_ARITY.keys()].sort(),
+);
+
+/**
+ * The full list of Sound-profile primitive names, in sorted order. See
+ * {@link SOUND_PRIMITIVE_NAMES}. */
+export function soundPrimitiveNames(): readonly string[] {
+  return SOUND_PRIMITIVE_NAMES;
+}
+
+/**
  * Every profile's primitive-arity table the reader consults, in lookup order. Core Language is
  * checked first (today's only always-visible table), then each optional profile's Core-spelled
  * primitives as they are registered — currently Turtle & Rendering, Data, Educational, Geometry,
- * and Interaction & Events. A later profile slice adds its table here rather than editing
+ * Interaction & Events, and Sound. A later profile slice adds its table here rather than editing
  * {@link primitiveArity}'s body.
  */
 const PROFILE_PRIMITIVE_ARITY_TABLES: readonly ReadonlyMap<string, number>[] = [
@@ -406,6 +473,7 @@ const PROFILE_PRIMITIVE_ARITY_TABLES: readonly ReadonlyMap<string, number>[] = [
   EDUCATIONAL_PRIMITIVE_ARITY,
   GEOMETRY_PRIMITIVE_ARITY,
   INTERACTION_PRIMITIVE_ARITY,
+  SOUND_PRIMITIVE_ARITY,
 ];
 
 /**

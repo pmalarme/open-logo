@@ -1,0 +1,19 @@
+{
+  "description": "issue #689 (profile-blind reader, spec/tooling.md:175-176): `set_tempo 90` parses cleanly at Layer 1 - the reader groups its argument by registered arity regardless of active profile - but without the `sound` profile the Layer-2 checker does not know `set_tempo` as a callee and flags `ol-unknown-command`. Legality gating is the checker's job, not the reader's.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "sound/check/set-tempo-without-sound-profile",
+        "start": [1, 1],
+        "end": [1, 10]
+      },
+      "params": { "name": "set_tempo" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

@@ -51,6 +51,7 @@ import {
   corePrimitiveArity,
   dataPrimitiveArity,
   geometryPrimitiveArity,
+  soundPrimitiveArity,
 } from "./signatures.js";
 import type { CheckProfile } from "./check.js";
 
@@ -83,6 +84,9 @@ function collidingNamespace(
     profiles.includes("geometry") &&
     geometryPrimitiveArity(name) !== undefined
   ) {
+    return "primitive";
+  }
+  if (profiles.includes("sound") && soundPrimitiveArity(name) !== undefined) {
     return "primitive";
   }
   if (declaredProcedures.has(name)) {
@@ -127,7 +131,8 @@ function isStructDef(node: AnyNode): node is StructDefNode {
 
 /**
  * The `ol-reserved-word` rule: every `define`/`local`/`struct` registration whose name collides
- * with a reserved word, a Core, Data, or Geometry primitive, or an existing procedure/struct raises
+ * with a reserved word, a Core, Data, Geometry, or Sound primitive, or an existing procedure/struct
+ * raises
  * one diagnostic at that name's own span. A `local` is checked against every procedure name in the
  * program, since procedures are visible program-wide regardless of declaration order
  * (`checker-names.ts`, `@openlogo/runtime`'s phase-1 registration). A `define`/`struct`, though, is

@@ -1,0 +1,19 @@
+{
+  "description": "issue #689: the parenthesized form `(beep 1)` supplies one input to the arity-0 Sound primitive `beep`. With the `sound` profile active the Layer-2 checker (checker-arity.ts) flags `ol-too-many-inputs` at the callee span, mirroring how the runtime rejects the same call.",
+  "profiles": ["core-language", "sound"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-too-many-inputs",
+      "source_span": {
+        "document": "sound/check/beep-too-many-inputs",
+        "start": [1, 2],
+        "end": [1, 6]
+      },
+      "params": { "callable": "beep", "expected": 0, "actual": 1 },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}
