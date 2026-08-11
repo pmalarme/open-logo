@@ -36,6 +36,89 @@ test("soundPrimitiveArity reports 1 for set_tempo and 0 for beep, case-insensiti
   assert.equal(OL.soundPrimitiveArity("note"), undefined);
 });
 
+test("with the sound profile active, check() flags a known Sound command given the wrong number of inputs", () => {
+  // The parenthesized form is the escape hatch the reader lets through, so arity for it is a
+  // Layer-2 (checker) concern; both Sound primitives are strictly fixed-arity (max === min).
+  const tooMany = (source) => {
+    const { ast, diagnostics: parseDiagnostics } = OL.parse(
+      source,
+      "sound-arity.logo",
+    );
+    assert.deepEqual(parseDiagnostics, []);
+    return OL.check(ast, { profiles: ["core-language", "sound"] }).diagnostics;
+  };
+
+  const overTempo = tooMany("(set_tempo 1 2)");
+  assert.equal(overTempo.length, 1);
+  assert.equal(overTempo[0].code, "ol-too-many-inputs");
+  assert.deepEqual(overTempo[0].params, {
+    callable: "set_tempo",
+    expected: 1,
+    actual: 2,
+  });
+
+  const overBeep = tooMany("(beep 1)");
+  assert.equal(overBeep.length, 1);
+  assert.equal(overBeep[0].code, "ol-too-many-inputs");
+  assert.deepEqual(overBeep[0].params, {
+    callable: "beep",
+    expected: 0,
+    actual: 1,
+  });
+
+  const underTempo = tooMany("(set_tempo)");
+  assert.equal(underTempo.length, 1);
+  assert.equal(underTempo[0].code, "ol-not-enough-inputs");
+  assert.deepEqual(underTempo[0].params, {
+    callable: "set_tempo",
+    expected: 1,
+    actual: 0,
+  });
+});
+
+test("with the sound profile active, check() accepts a correctly-supplied Sound command", () => {
+  for (const source of ["set_tempo 90", "beep"]) {
+    const { ast, diagnostics: parseDiagnostics } = OL.parse(
+      source,
+      "sound-arity.logo",
+    );
+    assert.deepEqual(parseDiagnostics, []);
+    assert.deepEqual(
+      OL.check(ast, { profiles: ["core-language", "sound"] }).diagnostics,
+      [],
+    );
+  }
+});
+
+test("with the sound profile active, a non-Sound callee falls through to the Core arity check", () => {
+  // Exercises soundPrimitiveArityRange's undefined branch: a Core primitive is unknown to the Sound
+  // table, so the arity rule falls through to Core handling and still flags its wrong arity.
+  const { ast, diagnostics: parseDiagnostics } = OL.parse(
+    "(first)",
+    "sound-arity.logo",
+  );
+  assert.deepEqual(parseDiagnostics, []);
+  const { diagnostics } = OL.check(ast, {
+    profiles: ["core-language", "sound"],
+  });
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].code, "ol-not-enough-inputs");
+  assert.equal(diagnostics[0].params.callable, "first");
+});
+
+test("without the sound profile active, a wrong-arity Sound call is ol-unknown-command, not an arity error", () => {
+  // Legality gating stays the checker's job (spec/tooling.md:175-176): with no `sound` profile the
+  // callee is simply unknown, so the arity rule leaves it to `ol-unknown-command`.
+  const { ast, diagnostics: parseDiagnostics } = OL.parse(
+    "(set_tempo 1 2)",
+    "sound-arity.logo",
+  );
+  assert.deepEqual(parseDiagnostics, []);
+  const { diagnostics } = OL.check(ast, { profiles: ["core-language"] });
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].code, "ol-unknown-command");
+});
+
 test("the reader groups set_tempo's single argument and beep's zero arguments", () => {
   const [tempo] = parseClean("set_tempo 90").body;
   assert.equal(tempo.kind, "Call");

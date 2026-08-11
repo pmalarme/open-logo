@@ -423,6 +423,25 @@ export function soundPrimitiveArity(name: string): number | undefined {
 }
 
 /**
+ * The inclusive input-count range a Sound-profile primitive accepts, or `undefined` when `name` is
+ * not a known Sound primitive. Both Sound primitives (`set_tempo`, `beep`) are strictly
+ * fixed-arity — neither has a variadic parenthesized alternate — so `max` always equals `min`
+ * ({@link soundPrimitiveArity}). Mirrors {@link dataPrimitiveArityRange} exactly; the static arity
+ * checker (`checker-arity.ts`) consults this to flag a known Sound command given the wrong number
+ * of inputs (e.g. `(set_tempo 1 2)` or `(beep 1)`) under the active `sound` profile. Matching is
+ * case-insensitive.
+ */
+export function soundPrimitiveArityRange(
+  name: string,
+): { readonly min: number; readonly max: number } | undefined {
+  const min = soundPrimitiveArity(name);
+  if (min === undefined) {
+    return undefined;
+  }
+  return { min, max: min };
+}
+
+/**
  * Every Sound-profile primitive's canonical lowercase name, sorted for deterministic iteration.
  * This is the enumerable counterpart to {@link soundPrimitiveArity} — the checker's visible-name
  * model (`checker-names.ts`) needs the full name *list*, gated on the `sound` profile, to make
