@@ -528,6 +528,7 @@ export function spritesPrimitiveArity(name: string): number | undefined {
 }
 
 /**
+/**
  * The Sprites-profile **statement forms** whose head keyword the checker must recognize as a
  * visible command name (issue #674), so a `ProfileStatement` such as `tell :friend` is not reported
  * `ol-unknown-command` under an active `sprites` profile (`unknownCommandRule` walks the head
@@ -551,11 +552,96 @@ export function spritesStatementFormNames(): readonly string[] {
 }
 
 /**
+ * The **Heritage** profile's short command aliases (issue #668, slice H3), each mapping onto the
+ * Core-spelled command it is an alternate spelling of. The list and its one-to-one canonical
+ * mapping are authoritative in `spec/conformance.md:151` and `spec/commands.md`'s per-command
+ * **Aliases** rows (`fd`→`forward`:1195, `bk`→`back`:1212, `lt`→`left`:1229, `rt`→`right`:1246,
+ * `st`→`show_turtle`:1418, `ht`→`hide_turtle`:1435, `pu`→`pen_up`:1452, `pd`→`pen_down`:1470,
+ * `cs`→`clear_screen`:1488, `pr`→`print`:146). Heritage is "alternate spellings only — no new
+ * semantics" (`spec/conformance.md:146`): the reader records `canonical` on the alias's
+ * {@link import("./ast.js").CallNode} so the runtime dispatches through the exact same code path as
+ * the Core spelling, and this module never keeps a second copy of each canonical's arity — that
+ * stays each owning profile's single source-of-truth table (see {@link heritageAliasArity} and
+ * {@link heritageAliasArityRange}, which resolve the alias then read the canonical's own arity).
+ */
+const HERITAGE_ALIAS_CANONICAL: ReadonlyMap<string, string> = new Map([
+  ["fd", "forward"],
+  ["bk", "back"],
+  ["lt", "left"],
+  ["rt", "right"],
+  ["st", "show_turtle"],
+  ["ht", "hide_turtle"],
+  ["pu", "pen_up"],
+  ["pd", "pen_down"],
+  ["cs", "clear_screen"],
+  ["pr", "print"],
+]);
+
+/**
+ * The Core-spelled command a Heritage short alias is an alternate spelling of, or `undefined` when
+ * `name` is not a Heritage short alias. Matching is case-insensitive. This is the one-to-one
+ * mapping the reader records as {@link import("./ast.js").CallNode.canonical} and every consumer
+ * (runtime dispatch, the checker's arity/did-you-mean logic, tutor `explain`/`why`) resolves an
+ * alias through — so Heritage stays "alternate spellings only" with no duplicated semantics.
+ */
+export function canonicalOfHeritageAlias(name: string): string | undefined {
+  return HERITAGE_ALIAS_CANONICAL.get(name.toLowerCase());
+}
+
+/**
+ * Every Heritage short command alias's lowercase spelling, sorted for deterministic iteration.
+ * The enumerable counterpart to {@link canonicalOfHeritageAlias} — the checker's visible-name model
+ * (`checker-names.ts`) needs the full list, gated on the `heritage` profile, to make these aliases
+ * both callable without `ol-unknown-command` and did-you-mean candidates, mirroring
+ * {@link turtlePrimitiveNames}'s role for its table.
+ */
+const HERITAGE_ALIAS_NAMES: readonly string[] = Object.freeze(
+  [...HERITAGE_ALIAS_CANONICAL.keys()].sort(),
+);
+
+/** The full list of Heritage short alias names, in sorted order. See {@link HERITAGE_ALIAS_NAMES}. */
+export function heritageAliasNames(): readonly string[] {
+  return HERITAGE_ALIAS_NAMES;
+}
+
+/**
+ * The default (bare-call) arity a Heritage short alias groups its arguments by, or `undefined` when
+ * `name` is not a Heritage short alias. Because Heritage adds no semantics, this is exactly the
+ * canonical command's own default arity ({@link primitiveArity} of the resolved Core name) — the
+ * alias never carries a second arity number of its own. The reader consults it (via
+ * {@link primitiveArity}) so `fd 100` groups one argument exactly as `forward 100` does and `pr :x`
+ * groups one exactly as `print :x` does.
+ */
+export function heritageAliasArity(name: string): number | undefined {
+  const canonical = canonicalOfHeritageAlias(name);
+  return canonical === undefined ? undefined : primitiveArity(canonical);
+}
+
+/**
+ * The inclusive input-count range a Heritage short alias accepts, or `undefined` when `name` is not
+ * a Heritage short alias — exactly the resolved canonical command's own range, so the static arity
+ * checker treats `pr` like `print` (its `(pr …)` form is an open variadic) and `fd` like `forward`
+ * (a turtle primitive with no static range, left to the runtime arity check). Only `print` among
+ * the ten canonicals has a Core static range; the turtle canonicals return `undefined` here just as
+ * they do through {@link corePrimitiveArityRange}, so the checker leaves their arity to the runtime.
+ */
+export function heritageAliasArityRange(
+  name: string,
+): { readonly min: number; readonly max: number } | undefined {
+  const canonical = canonicalOfHeritageAlias(name);
+  return canonical === undefined
+    ? undefined
+    : corePrimitiveArityRange(canonical);
+}
+
+/**
  * Every profile's primitive-arity table the reader consults, in lookup order. Core Language is
  * checked first (today's only always-visible table), then each optional profile's Core-spelled
  * primitives as they are registered — currently Turtle & Rendering, Data, Educational, Geometry,
  * Interaction & Events, Sound, and Sprites. A later profile slice adds its table here rather than editing
- * {@link primitiveArity}'s body.
+ * {@link primitiveArity}'s body. Heritage short aliases are deliberately NOT a table here: they
+ * carry no arity of their own — {@link heritageAliasArity} resolves the alias to its canonical and
+ * reads that canonical's arity from these very tables, so there is never a duplicate arity number.
  */
 const PROFILE_PRIMITIVE_ARITY_TABLES: readonly ReadonlyMap<string, number>[] = [
   CORE_PRIMITIVE_ARITY,

@@ -71,8 +71,8 @@ function isProfileStatement(node: AnyNode): node is ProfileStatementNode {
  * within {@link MAX_SUGGESTION_DISTANCE}. Deterministic tie-break per `spec/error-model.md:145-146`:
  * lowest Levenshtein distance first; on a distance tie, a Core Language candidate outranks an
  * optional-profile one ({@link isOptionalProfileName}); ties within the same tier fall back to
- * lexicographic order. (The spec's further "full canonical names over short aliases" tie-break
- * step does not yet apply — no alias candidates exist in the visible-name set today.)
+ * lexicographic order. (The spec's further "full canonical names over short aliases" tie-break step
+ * is a structural no-op even with the Heritage aliases now visible — see {@link isBetterTie}.)
  */
 function bestSuggestion(
   name: string,
@@ -103,6 +103,17 @@ function bestSuggestion(
  * Whether `candidate` should replace `current` as the did-you-mean pick when both are tied at the
  * same Levenshtein distance: a Core Language word beats an optional-profile word regardless of
  * spelling, and within the same tier the lexicographically earlier name wins.
+ *
+ * The spec's further "full canonical names over short aliases" tie-break step
+ * (`spec/error-model.md:145-146`) is a no-op in practice even now that the Heritage profile (issue
+ * #668) adds the two-letter aliases `fd`/`bk`/…/`pr` to the visible-name set: a suggestion candidate
+ * must be within {@link MAX_SUGGESTION_DISTANCE} (2) of the unknown word, and a two-letter alias and
+ * a ≥4-letter full canonical name can never both be within distance 2 of the *same* word (the word
+ * would have to be simultaneously ≤4 and ≥ length−2 characters, and no alias sorts before its own
+ * far-longer canonical besides). So a full-name-vs-alias distance tie is structurally unreachable,
+ * and adding an explicit alias branch here would be untestable dead code — the existing
+ * Core-beats-optional and lexicographic rules already produce the spec's ordering for every case
+ * that can actually occur.
  */
 function isBetterTie(candidate: string, current: string): boolean {
   const candidateIsOptionalProfile = isOptionalProfileName(candidate);

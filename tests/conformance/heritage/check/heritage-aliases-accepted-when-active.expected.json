@@ -1,0 +1,7 @@
+{
+  "description": "Heritage short command aliases profile gate (issue #668, slice H3): with the Heritage profile ACTIVE, the same ten command aliases `fd`/`bk`/`lt`/`rt`/`pu`/`pd`/`st`/`ht`/`cs`/`pr` that Core rejects are all accepted silently (no diagnostics). Heritage is 'alternate spellings only' (spec/conformance.md#heritage) and depends only on Data (`PROFILE_DEPS.heritage = [\"core-language\", \"data\"]`), NOT on Turtle & Rendering — the aliases are made visible by the `heritage` profile alone, never by the turtle profile, because the checker gates the alias SPELLINGS (not their Core turtle targets) on `heritage`. So only `core-language`, `data`, and `heritage` are active here; the zero-diagnostic result proves the aliases add no turtle-profile edge.",
+  "profiles": ["core-language", "data", "heritage"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

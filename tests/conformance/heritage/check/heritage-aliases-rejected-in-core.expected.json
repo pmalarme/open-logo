@@ -1,0 +1,158 @@
+{
+  "description": "Heritage short command aliases profile gate (issue #668, slice H3): with the Heritage profile INACTIVE (Core only), each of the ten command aliases `fd`/`bk`/`lt`/`rt`/`pu`/`pd`/`st`/`ht`/`cs`/`pr` is an unknown callee and is rejected with `ol-unknown-command`. Its did-you-mean points at the nearest VISIBLE Core word (never the alias itself or its full Core spelling, which are not in scope without the profile) — exactly the behavior any un-imported name gets. Activating the profile (see the sibling `heritage-aliases-accepted-when-active`) makes every one of them resolve silently.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "heritage/check/heritage-aliases-rejected-in-core",
+        "start": [1, 1],
+        "end": [1, 3]
+      },
+      "params": {
+        "name": "fd",
+        "suggestion": "add"
+      },
+      "message": "i don't know how to fd. did you mean add?",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "heritage/check/heritage-aliases-rejected-in-core",
+        "start": [2, 1],
+        "end": [2, 3]
+      },
+      "params": {
+        "name": "bk",
+        "suggestion": "by"
+      },
+      "message": "i don't know how to bk. did you mean by?",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "heritage/check/heritage-aliases-rejected-in-core",
+        "start": [3, 1],
+        "end": [3, 3]
+      },
+      "params": {
+        "name": "lt",
+        "suggestion": "at"
+      },
+      "message": "i don't know how to lt. did you mean at?",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "heritage/check/heritage-aliases-rejected-in-core",
+        "start": [4, 1],
+        "end": [4, 3]
+      },
+      "params": {
+        "name": "rt",
+        "suggestion": "at"
+      },
+      "message": "i don't know how to rt. did you mean at?",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "heritage/check/heritage-aliases-rejected-in-core",
+        "start": [5, 1],
+        "end": [5, 3]
+      },
+      "params": {
+        "name": "pu",
+        "suggestion": "pi"
+      },
+      "message": "i don't know how to pu. did you mean pi?",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "heritage/check/heritage-aliases-rejected-in-core",
+        "start": [6, 1],
+        "end": [6, 3]
+      },
+      "params": {
+        "name": "pd",
+        "suggestion": "pi"
+      },
+      "message": "i don't know how to pd. did you mean pi?",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "heritage/check/heritage-aliases-rejected-in-core",
+        "start": [7, 1],
+        "end": [7, 3]
+      },
+      "params": {
+        "name": "st",
+        "suggestion": "at"
+      },
+      "message": "i don't know how to st. did you mean at?",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "heritage/check/heritage-aliases-rejected-in-core",
+        "start": [8, 1],
+        "end": [8, 3]
+      },
+      "params": {
+        "name": "ht",
+        "suggestion": "at"
+      },
+      "message": "i don't know how to ht. did you mean at?",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "heritage/check/heritage-aliases-rejected-in-core",
+        "start": [9, 1],
+        "end": [9, 3]
+      },
+      "params": {
+        "name": "cs",
+        "suggestion": "cos"
+      },
+      "message": "i don't know how to cs. did you mean cos?",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "heritage/check/heritage-aliases-rejected-in-core",
+        "start": [10, 1],
+        "end": [10, 3]
+      },
+      "params": {
+        "name": "pr",
+        "suggestion": "or"
+      },
+      "message": "i don't know how to pr. did you mean or?",
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

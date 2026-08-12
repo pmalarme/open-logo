@@ -643,15 +643,21 @@ export const ast = {
     callee: SpannedName,
     args: readonly ExpressionNode[],
     span: SourceSpan,
+    canonical?: string,
   ): CallNode {
-    return { kind: "Call", source_span: span, callee, args };
+    return canonical === undefined
+      ? { kind: "Call", source_span: span, callee, args }
+      : { kind: "Call", source_span: span, callee, args, canonical };
   },
   parenCall(
     callee: SpannedName,
     args: readonly ExpressionNode[],
     span: SourceSpan,
+    canonical?: string,
   ): ParenCallNode {
-    return { kind: "ParenCall", source_span: span, callee, args };
+    return canonical === undefined
+      ? { kind: "ParenCall", source_span: span, callee, args }
+      : { kind: "ParenCall", source_span: span, callee, args, canonical };
   },
   place(
     base: SpannedName,

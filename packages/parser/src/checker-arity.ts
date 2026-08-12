@@ -309,7 +309,18 @@ export function arityRule(
       // Core primitives are not visible: an unknown callee for `ol-unknown-command`, not arity.
       return;
     }
-    const range = corePrimitiveArityRange(lower);
+    // A Heritage short alias (`pr`/`fd`/…) is arity-checked exactly like the Core command it spells
+    // — Heritage adds no semantics (`spec/conformance.md:146`). The reader already recorded that
+    // canonical on the node (`canonical`), so resolve through it, but only when the Heritage profile
+    // is active: with it inactive the alias is an unknown callee owned by `ol-unknown-command`
+    // (issue #117), never double-reported here — mirroring `collectVisibleNames`'s own heritage gate.
+    // `pr` resolves to `print` (a Core range, so `(pr …)` is checked as an open variadic and a
+    // too-many `(pr)` is caught); the turtle canonicals (`forward`/…) have no Core static range, so
+    // they fall through to the runtime arity check exactly as their Core spelling does.
+    const heritageActive = profiles.includes("heritage");
+    const effective =
+      heritageActive && node.canonical !== undefined ? node.canonical : lower;
+    const range = corePrimitiveArityRange(effective);
     if (range === undefined) {
       // Unknown callee (or grammar operator): not this rule's concern.
       return;

@@ -41,6 +41,7 @@ import {
   dataPrimitiveNames,
   educationalPrimitiveNames,
   geometryPrimitiveNames,
+  heritageAliasNames,
   interactionEventsBlockHeadNames,
   soundPrimitiveNames,
   spritesStatementFormNames,
@@ -50,8 +51,9 @@ import {
 /**
  * Every canonical lowercase name contributed by an optional (non-Core) conformance profile's
  * primitive table — currently Turtle & Rendering's, Educational's, Geometry's, Data's, Sound's, and
- * the Interaction & Events block-heads (`when`, issue #682), and the Sprites addressing head
- * (`tell`, issue #674). Computed once as a frozen union so
+ * the Interaction & Events block-heads (`when`, issue #682), the Sprites addressing head
+ * (`tell`, issue #674), and the Heritage short command aliases (`fd`/`bk`/…, issue #668).
+ * Computed once as a frozen union so
  * {@link isOptionalProfileName} stays a pure, allocation-free lookup; a future optional-profile
  * table adds its `...someProfileNames()` spread here alongside these, exactly mirroring how
  * {@link collectVisibleNames} itself is extended one profile at a time.
@@ -62,6 +64,7 @@ const OPTIONAL_PROFILE_NAMES: ReadonlySet<string> = new Set([
   ...geometryPrimitiveNames(),
   ...dataPrimitiveNames(),
   ...soundPrimitiveNames(),
+  ...heritageAliasNames(),
   ...interactionEventsBlockHeadNames(),
   ...spritesStatementFormNames(),
 ]);
@@ -85,7 +88,8 @@ export function isOptionalProfileName(name: string): boolean {
  * when `"educational"` is active, the `grid`/`axes`/`measure` overlay primitives only when
  * `"geometry"` is active, the `list`/`dict`/`reverse`/`pick`/`sort`/`keys`/`values`/`type_of`
  * primitives (plus every `struct` type's constructor name declared anywhere in `program`) only
- * when `"data"` is active, plus every procedure declared anywhere in `program` (declaration order
+ * when `"data"` is active, the Heritage short command aliases (`fd`/`bk`/…/`pr`) only when
+ * `"heritage"` is active, plus every procedure declared anywhere in `program` (declaration order
  * and position do not matter — OpenLogo procedures are available program-wide, not just after
  * their `define`, and the same is true of struct constructors, which register at phase-1 exactly
  * like procedures do — `@openlogo/runtime`'s `collectStructs`). The `tell` addressing head is
@@ -150,6 +154,12 @@ export function collectVisibleNames(
 
   if (active.has("sprites")) {
     for (const name of spritesStatementFormNames()) {
+      names.add(name);
+    }
+  }
+
+  if (active.has("heritage")) {
+    for (const name of heritageAliasNames()) {
       names.add(name);
     }
   }
