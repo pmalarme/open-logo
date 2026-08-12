@@ -1,0 +1,83 @@
+{
+  "description": "Heritage list-reporter alias profile gate (issue #669, slice H4): with the Heritage profile INACTIVE (Core + Data only), each list-reporter alias `bf`/`bl`/`se` is an unknown callee and is rejected with `ol-unknown-command` — including both `bf` and `bl` on the composed `bf bl [ … ]` line (line 4), proving the gate reaches aliases nested as arguments too, not just leading ones. Its did-you-mean points at the nearest VISIBLE Core word (never the alias itself or its full Core spelling, which are not in scope without the profile) — exactly the behavior any un-imported name gets. Activating the profile (see the sibling `heritage-list-reporter-aliases-accepted-when-active`) makes every one of them resolve silently. Spans point at the alias the learner wrote, in argument position (`print` occupies columns 1–6, so the alias starts at column 7).",
+  "profiles": ["core-language", "data"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "heritage/check/heritage-list-reporter-aliases-rejected-in-core",
+        "start": [1, 7],
+        "end": [1, 9]
+      },
+      "params": {
+        "name": "bf",
+        "suggestion": "by"
+      },
+      "message": "i don't know how to bf. did you mean by?",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "heritage/check/heritage-list-reporter-aliases-rejected-in-core",
+        "start": [2, 7],
+        "end": [2, 9]
+      },
+      "params": {
+        "name": "bl",
+        "suggestion": "by"
+      },
+      "message": "i don't know how to bl. did you mean by?",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "heritage/check/heritage-list-reporter-aliases-rejected-in-core",
+        "start": [3, 7],
+        "end": [3, 9]
+      },
+      "params": {
+        "name": "se",
+        "suggestion": "set"
+      },
+      "message": "i don't know how to se. did you mean set?",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "heritage/check/heritage-list-reporter-aliases-rejected-in-core",
+        "start": [4, 7],
+        "end": [4, 9]
+      },
+      "params": {
+        "name": "bf",
+        "suggestion": "by"
+      },
+      "message": "i don't know how to bf. did you mean by?",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "heritage/check/heritage-list-reporter-aliases-rejected-in-core",
+        "start": [4, 10],
+        "end": [4, 12]
+      },
+      "params": {
+        "name": "bl",
+        "suggestion": "by"
+      },
+      "message": "i don't know how to bl. did you mean by?",
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

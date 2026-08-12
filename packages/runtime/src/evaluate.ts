@@ -906,7 +906,7 @@ export function isSupportedExpression(
       return isSupportedIsPredicate(node, procedures, structs);
     case "Call":
     case "ParenCall": {
-      const name = node.callee.name.toLowerCase();
+      const name = resolveHeritageAliasName(node, procedures);
       const isKnownCallee =
         isBinaryArithmeticOperator(name) ||
         isUnaryMathBuiltin(name) ||
@@ -1926,11 +1926,40 @@ export function executeRemoveKey(
   return { ok: true };
 }
 
+/**
+ * Resolve a reporter/command call's dispatch name at the single expression-position chokepoint,
+ * applying the Heritage short-alias normalization for reporters exactly as
+ * `canonicalizeHeritageAliasCall` (in `execute-internal.ts`) does for statements. The reader records
+ * the Core name a Heritage alias spells on the node's `canonical` field (`fd`→`forward` for
+ * commands, `bf`→`butfirst` / `bl`→`butlast` / `se`→`sentence` for the list reporters, issue #669);
+ * every Core spelling carries no `canonical`, so this is a strict no-op for the whole existing
+ * suite and Core behaviour is bit-for-bit unchanged.
+ *
+ * Because the resolved name is what every downstream `name === …` predicate sees — both
+ * {@link evaluateCall}'s dispatch and {@link isSupportedExpression}'s known-callee guard — `bf
+ * [1 2 3]` dispatches through the exact same `evaluateButfirst` path as `butfirst [1 2 3]` and is
+ * recognised as a supported argument, so no alias spelling can ever reach a diagnostic or an event
+ * payload. A user procedure whose name is the alias's surface spelling shadows the alias (`define bf
+ * … end` makes `bf` the user's procedure), mirroring the statement chokepoint's guard: when the
+ * surface name is a registered procedure we keep it so the call dispatches to that procedure.
+ */
+function resolveHeritageAliasName(
+  node: ArithmeticCallNode,
+  procedures: ProcedureRegistry,
+): string {
+  const surface = node.callee.name.toLowerCase();
+  const canonical = node.canonical;
+  if (canonical === undefined || procedures.has(surface)) {
+    return surface;
+  }
+  return canonical.toLowerCase();
+}
+
 function evaluateCall(
   node: ArithmeticCallNode,
   environment: Environment,
 ): EvalResult {
-  const name = node.callee.name.toLowerCase();
+  const name = resolveHeritageAliasName(node, environment.procedures);
   if (isBinaryArithmeticOperator(name)) {
     return evaluateBinaryArithmetic(node, name, environment);
   }

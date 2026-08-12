@@ -1,0 +1,286 @@
+{
+  "description": "Heritage list-reporter aliases execute through the identical Core code path (issue #669, slice H4): the three reporter aliases `bf`/`bl`/`se` are 'alternate spellings only — no new semantics' (spec/conformance.md#heritage), so this program's full event stream is byte-identical (payloads included) to the same program written with the Core reporter names `butfirst`/`butlast`/`sentence` — the command-alias proof `heritage-aliases-execute-like-core` extended to REPORTERS, which appear in expression position (as arguments to `print`, composed as `bf bl :l`, and as an assignment RHS `make \"s\" se …`) rather than as leading statements. Unlike the command aliases (normalized at the statement dispatch chokepoint), a reporter alias is normalized to its `canonical` at the single EXPRESSION chokepoint (`resolveHeritageAliasName`, shared by `evaluateCall` and `isSupportedExpression`) before any evaluator predicate runs, so every `print` payload carries the reporter's reported value and the `procedure-enter`/`procedure-exit` names carry the canonical Core name — no alias spelling reaches any payload. The aliases are exercised in awkward positions the reader must still canonicalize: composed with one another (line 4), inside a `repeat [ … ]` body (line 6), inside a procedure body (`rest`), and as an assignment RHS (line 11). The runtime is profile-blind (the reader records `canonical` unconditionally), so `data`/`heritage` need not be listed for execution — but they are, to document that these spellings are the Heritage profile's and that `se`→`sentence` needs Data.",
+  "profiles": ["core-language", "data", "heritage"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-list-reporter-aliases-execute-like-core",
+        "start": [1, 1],
+        "end": [1, 23]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-list-reporter-aliases-execute-like-core",
+        "start": [2, 1],
+        "end": [2, 12]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/heritage-list-reporter-aliases-execute-like-core",
+        "start": [2, 1],
+        "end": [2, 12]
+      },
+      "payload": {
+        "values": [[20, 30, 40]]
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-list-reporter-aliases-execute-like-core",
+        "start": [3, 1],
+        "end": [3, 12]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/heritage-list-reporter-aliases-execute-like-core",
+        "start": [3, 1],
+        "end": [3, 12]
+      },
+      "payload": {
+        "values": [[10, 20, 30]]
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-list-reporter-aliases-execute-like-core",
+        "start": [4, 1],
+        "end": [4, 15]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/heritage-list-reporter-aliases-execute-like-core",
+        "start": [4, 1],
+        "end": [4, 15]
+      },
+      "payload": {
+        "values": [[20, 30]]
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-list-reporter-aliases-execute-like-core",
+        "start": [5, 1],
+        "end": [5, 17]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/heritage-list-reporter-aliases-execute-like-core",
+        "start": [5, 1],
+        "end": [5, 17]
+      },
+      "payload": {
+        "values": [["a", "b"]]
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-list-reporter-aliases-execute-like-core",
+        "start": [6, 1],
+        "end": [6, 28]
+      },
+      "payload": {
+        "statement_kind": "Repeat"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-list-reporter-aliases-execute-like-core",
+        "start": [6, 11],
+        "end": [6, 27]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/heritage-list-reporter-aliases-execute-like-core",
+        "start": [6, 11],
+        "end": [6, 27]
+      },
+      "payload": {
+        "values": [["x", "y"]]
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-list-reporter-aliases-execute-like-core",
+        "start": [6, 11],
+        "end": [6, 27]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/heritage-list-reporter-aliases-execute-like-core",
+        "start": [6, 11],
+        "end": [6, 27]
+      },
+      "payload": {
+        "values": [["x", "y"]]
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-list-reporter-aliases-execute-like-core",
+        "start": [7, 1],
+        "end": [9, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-list-reporter-aliases-execute-like-core",
+        "start": [10, 1],
+        "end": [10, 8]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "heritage/execution/heritage-list-reporter-aliases-execute-like-core",
+        "start": [10, 1],
+        "end": [10, 8]
+      },
+      "payload": {
+        "name": "rest",
+        "args": [[10, 20, 30, 40]]
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-list-reporter-aliases-execute-like-core",
+        "start": [8, 3],
+        "end": [8, 15]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/heritage-list-reporter-aliases-execute-like-core",
+        "start": [8, 3],
+        "end": [8, 15]
+      },
+      "payload": {
+        "values": [[20, 30, 40]]
+      }
+    },
+    {
+      "seq": 19,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "heritage/execution/heritage-list-reporter-aliases-execute-like-core",
+        "start": [10, 1],
+        "end": [10, 8]
+      },
+      "payload": {
+        "name": "rest",
+        "result": null
+      }
+    },
+    {
+      "seq": 20,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-list-reporter-aliases-execute-like-core",
+        "start": [11, 1],
+        "end": [11, 20]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 21,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-list-reporter-aliases-execute-like-core",
+        "start": [12, 1],
+        "end": [12, 9]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 22,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/heritage-list-reporter-aliases-execute-like-core",
+        "start": [12, 1],
+        "end": [12, 9]
+      },
+      "payload": {
+        "values": [["p", "q"]]
+      }
+    }
+  ],
+  "diagnostics": []
+}

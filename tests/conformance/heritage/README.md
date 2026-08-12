@@ -32,3 +32,10 @@ here fixture-by-fixture as each Heritage slice lands:
 - `execution/heritage-aliases-execute-like-core` — the ten command aliases produce a full event
   stream byte-identical (payloads included) to their Core spellings, the strongest proof of "no new
   semantics" (slice H3, #668).
+- `check/heritage-list-reporter-aliases-{accepted-when-active,rejected-in-core}` — the three
+  list-reporter aliases `bf`/`bl`/`se` (spellings of `butfirst`/`butlast`/`sentence`) are gated on
+  the `heritage` profile, visible only when it is active (with its Data dependency) and otherwise
+  `ol-unknown-command`, including composed as `bf bl [ … ]` (slice H4, #669).
+- `execution/heritage-list-reporter-aliases-execute-like-core` — the three reporter aliases, in
+  expression position (arguments, composed `bf bl :l`, assignment RHS), produce a full event stream
+  byte-identical (payloads included) to their Core reporter spellings (slice H4, #669).
