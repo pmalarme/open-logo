@@ -309,6 +309,134 @@ test("cancellation observed via the instruction budget stops further handler del
   // `print 2`, so exactly `[[1]]` is printed — proof that delivery stops mid-tick and that
   // already-emitted events remain available (returned unchanged).
   assert.deepEqual(printedValues(result), [[1]]);
+  // And the cancelled second handler leaves NO orphan block-head in the trace: cancellation stops
+  // future handler DELIVERY, so the halted handler is not started at all — the stream must not end
+  // with a bare handler-start `instruction` that produced no effect. The final event is the first
+  // handler's own `print`, not a second block-head.
+  const last = result.events[result.events.length - 1];
+  assert.equal(last.kind, "print");
+  assert.deepEqual(last.payload.values, [1]);
+});
+
+test("a budget that halts exactly at a handler boundary starts no orphan handler", () => {
+  // Two handlers become due in one tick; the budget is set so the FIRST handler's body exactly
+  // exhausts it. The dispatch boundary check must then stop BEFORE the second handler emits its
+  // block-head `instruction` event — otherwise the trace would show a handler that "started" yet ran
+  // nothing (the partial-delivery trace incoherence). We assert the exact event tail: it ends with
+  // the first handler's `print`, and there is no trailing handler-start instruction.
+  const source = ['when "start" [ print 1 ]', 'when "start" [ print 2 ]'].join(
+    "\n",
+  );
+  // `when "start"` handlers fire immediately at registration during a batch run; budget 8 lets the
+  // first fire and halts before the second's block-head.
+  let budget = 1;
+  let halted = null;
+  // Find the smallest budget at which exactly the first handler completed (`[[1]]`) with an
+  // ol-limit — the exact-boundary case — so the assertion is robust to unrelated instruction-count
+  // shifts.
+  for (budget = 1; budget <= 20; budget++) {
+    const probe = execute(source, doc, { instructionBudget: budget });
+    if (
+      probe.diagnostics.length === 1 &&
+      probe.diagnostics[0].params.limit === "instruction-budget" &&
+      printedValues(probe).length === 1 &&
+      printedValues(probe)[0][0] === 1
+    ) {
+      halted = probe;
+      break;
+    }
+  }
+  assert.ok(
+    halted,
+    "expected a budget where exactly the first handler completes then halts",
+  );
+  assert.deepEqual(printedValues(halted), [[1]]);
+  // No orphan: the trace never ends on a handler-start `instruction{ProfileStatement}` with no body
+  // effect following it — the last event is the first handler's own `print`.
+  const last = halted.events[halted.events.length - 1];
+  assert.equal(last.kind, "print");
+  assert.deepEqual(last.payload.values, [1]);
+});
+
+test("the dispatch-boundary budget guard covers every handler kind (on_click and every included)", () => {
+  // The block-head guard lives at the entry every handler kind shares, so an exhausted budget stops
+  // an `on_click` OR an `every` handler before its block-head just as it does a `when`/`on_key` one.
+  // A single tick makes all four kinds due; a budget swept to the point where the FIRST-dispatched
+  // `on_key` handler's body exactly exhausts it proves the later `on_click` and `every` handlers are
+  // guarded (no orphan block-head, and their `print`s never appear).
+  const source = [
+    'on_key "x" [ print 1 ]',
+    "on_click [ print 2 ]",
+    "every 1 [ print 3 ]",
+    "wait 1",
+  ].join("\n");
+  const hostInput = [
+    { tick: 1, kind: "key", key: "x" },
+    { tick: 1, kind: "click" },
+  ];
+  // Find the smallest budget where exactly the on_key handler completed (`[[1]]`) then halted — the
+  // boundary that exercises the on_click AND every guard-halt branches on the same run.
+  let halted = null;
+  for (let budget = 1; budget <= 30; budget++) {
+    const probe = execute(source, doc, {
+      instructionBudget: budget,
+      hostInput,
+    });
+    if (
+      probe.diagnostics.length === 1 &&
+      probe.diagnostics[0].params.limit === "instruction-budget" &&
+      printedValues(probe).length === 1 &&
+      printedValues(probe)[0][0] === 1
+    ) {
+      halted = probe;
+      break;
+    }
+  }
+  assert.ok(
+    halted,
+    "expected a budget where exactly the on_key handler completes then halts",
+  );
+  // Only handler 1 fired; on_click (2) and every (3) were guarded before their block-heads.
+  assert.deepEqual(printedValues(halted), [[1]]);
+  const last = halted.events[halted.events.length - 1];
+  assert.equal(last.kind, "print");
+  assert.deepEqual(last.payload.values, [1]);
+});
+
+test("the dispatch-boundary budget guard stops a due every handler with no orphan", () => {
+  // As above but with NO on_click between the on_key and the every handler, so the every handler is
+  // the first one reached after the budget is exhausted — exercising the `every` kind's own guard
+  // branch. The on_key body exactly exhausts the budget; the every handler never emits a block-head.
+  const source = [
+    'on_key "x" [ print 1 ]',
+    "every 1 [ print 3 ]",
+    "wait 1",
+  ].join("\n");
+  const hostInput = [{ tick: 1, kind: "key", key: "x" }];
+  let halted = null;
+  for (let budget = 1; budget <= 30; budget++) {
+    const probe = execute(source, doc, {
+      instructionBudget: budget,
+      hostInput,
+    });
+    if (
+      probe.diagnostics.length === 1 &&
+      probe.diagnostics[0].params.limit === "instruction-budget" &&
+      printedValues(probe).length === 1 &&
+      printedValues(probe)[0][0] === 1
+    ) {
+      halted = probe;
+      break;
+    }
+  }
+  assert.ok(
+    halted,
+    "expected a budget where exactly the on_key handler completes then halts",
+  );
+  assert.deepEqual(printedValues(halted), [[1]]);
+  const last = halted.events[halted.events.length - 1];
+  assert.equal(last.kind, "print");
+  assert.deepEqual(last.payload.values, [1]);
 });
 
 test("a runaway handler body halts with ol-limit(instruction-budget), not an infinite loop", () => {

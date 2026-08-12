@@ -91,6 +91,7 @@ import {
   executeRemoveKey,
   findDuplicateBinderName,
   isSupportedArgument,
+  pendingExecutionHalt,
   printedForm,
   pushLoopFrame,
   snapshotValue,
@@ -2222,6 +2223,34 @@ function isWhenStatement(statement: StatementNode): boolean {
 }
 
 /**
+ * The non-consuming budget gate every handler invocation passes BEFORE emitting its block-head
+ * `instruction` event (issue #686, slice I7). Returns the `ol-limit` {@link ExecSignal} to halt with
+ * when the instruction budget is already too near exhaustion for the handler's body to run even one
+ * statement — otherwise `undefined` to proceed.
+ *
+ * Placing it here, at the single entry every `invoke*Handler` shares, guards BOTH handler-delivery
+ * paths uniformly: the immediate `when "start"` fire during registration ({@link fireEvent}) and the
+ * tick-driven same-tick dispatch ({@link dispatchDueHandlers}). An exhausted budget must "stop future
+ * handler delivery" (`spec/interaction-events.md`'s "Errors and cancellation") on every path — so a
+ * handler that would begin only to have its body immediately halted is not started at all, and the
+ * trace never shows a handler that emitted its block-head yet produced no effect (an incoherent
+ * partial delivery). {@link pendingExecutionHalt} is non-consuming, so a handler that DOES run still
+ * costs only its body's instructions — handler dispatch itself was never one of the per-statement
+ * budgeted instructions. External signal cancellation is already caught upstream at every statement's
+ * {@link checkExecutionLimits}, so it can never reach a handler dispatch with the run still live.
+ */
+function guardHandlerDispatch(
+  keyword: { source_span: SourceSpan },
+  environment: Environment,
+): ExecSignal | undefined {
+  const limitDiagnostic = pendingExecutionHalt(
+    environment,
+    keyword.source_span,
+  );
+  return limitDiagnostic ? halt(limitDiagnostic) : undefined;
+}
+
+/**
  * Run one `when` handler's block for a fired event (`spec/interaction-events.md`'s "Trace stream
  * integration"): first emit the `instruction` event for the block-head that caused the handler to
  * run — carrying the `when` keyword's own span, so replay attributes the run to the registration
@@ -2241,6 +2270,10 @@ function invokeWhenHandler(
   handler: WhenHandler,
   environment: Environment,
 ): ExecSignal {
+  const guard = guardHandlerDispatch(handler.keyword, environment);
+  if (guard) {
+    return guard;
+  }
   handler.fired = true;
   environment.events.push({
     seq: environment.events.length,
@@ -2564,6 +2597,10 @@ function invokeEveryHandler(
   handler: EveryHandler,
   environment: Environment,
 ): ExecSignal {
+  const guard = guardHandlerDispatch(handler.keyword, environment);
+  if (guard) {
+    return guard;
+  }
   handler.pending = false;
   handler.running = true;
   environment.events.push({
@@ -2604,6 +2641,10 @@ function invokeOnKeyHandler(
   handler: OnKeyHandler,
   environment: Environment,
 ): ExecSignal {
+  const guard = guardHandlerDispatch(handler.keyword, environment);
+  if (guard) {
+    return guard;
+  }
   environment.events.push({
     seq: environment.events.length,
     kind: "instruction",
@@ -2637,6 +2678,10 @@ function invokeOnClickHandler(
   handler: OnClickHandler,
   environment: Environment,
 ): ExecSignal {
+  const guard = guardHandlerDispatch(handler.keyword, environment);
+  if (guard) {
+    return guard;
+  }
   environment.events.push({
     seq: environment.events.length,
     kind: "instruction",
@@ -2726,6 +2771,11 @@ function dispatchDueHandlers(
   for (const handler of claimDueEveryHandlers(registry, tick)) {
     invocations.push(() => invokeEveryHandler(handler, environment));
   }
+  // Each invocation's own `guardHandlerDispatch` (in `invoke*Handler`) checks cancellation/budget
+  // BEFORE emitting its block-head event, so once the run has halted no further handler is delivered
+  // and none leaves an orphan handler-start in the trace — cancellation "stops future handler
+  // delivery" (`spec/interaction-events.md`'s "Errors and cancellation"). The dispatcher just stops
+  // at the first non-normal signal.
   for (const invoke of invocations) {
     const signal = invoke();
     if (signal.kind !== "normal") {

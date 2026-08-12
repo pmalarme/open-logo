@@ -580,6 +580,44 @@ export function checkExecutionLimits(
   return undefined;
 }
 
+/**
+ * A **non-incrementing** instruction-budget boundary probe for {@link dispatchDueHandlers}'s handler
+ * invocations (issue #686, slice I7): returns the `ol-limit(instruction-budget)` diagnostic to stop
+ * on when the budget is already so close to exhausted that the handler about to be dispatched could
+ * not execute even its first body statement — otherwise `undefined`.
+ *
+ * Handler dispatch is deliberately *not* one of the per-statement budgeted instructions (a handler's
+ * block-head `instruction` event is not counted), so this probe must NOT consume an instruction the
+ * way {@link checkExecutionLimits} does — a handler that *does* run still costs only its body's
+ * statements, exactly as before this guard existed. It only inspects the accumulated count.
+ *
+ * The predicate is `count >= budget`, not `count > budget`, because it must predict what the body's
+ * *own* first per-statement gate will do: {@link executeStatements} runs its first statement only
+ * after `count++ ; count > budget` passes, i.e. only while `count < budget` on entry. So a handler
+ * entered at `count >= budget` would emit its block-head `instruction` event and then halt before
+ * running a single statement — an orphan "handler started but produced nothing" trace. Halting here,
+ * before the block-head is emitted, is what makes an exhausted budget "stop future handler delivery"
+ * (`spec/interaction-events.md`'s "Errors and cancellation") leave a coherent trace: a handler is
+ * either delivered in full or not started at all, never traced as started-yet-empty.
+ *
+ * External *signal* cancellation needs no check here: every statement — including the top-level ones
+ * between ticks and a handler body's own statements — already passes {@link checkExecutionLimits},
+ * which halts on an aborted signal, so an abort is always caught at the next statement boundary and
+ * can never reach a handler dispatch with the run still live.
+ */
+export function pendingExecutionHalt(
+  environment: Environment,
+  source_span: SourceSpan,
+): Diagnostic | undefined {
+  if (environment.instructionCount.count >= environment.instructionBudget) {
+    return runtimeDiag.instructionLimit(
+      source_span,
+      environment.instructionBudget,
+    );
+  }
+  return undefined;
+}
+
 /** Look up `name` nearest frame to root; `undefined` when no frame binds it. */
 function lookupVar(
   environment: Environment,
