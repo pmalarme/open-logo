@@ -364,15 +364,17 @@ test("`value of <dict> for key <key>` propagates a failing dictionary expression
   assert.equal(result.diagnostic.code, "ol-div-zero");
 });
 
-test("`value of <dict> for key <key>` raises ol-type when the dictionary is not a dict", () => {
+test("`value of <dict> for key <key>` raises the Core dict-read `ol-type` when the dictionary is not a dict", () => {
+  // Byte-identical to the Core `:d[k]` selector on a non-dict (issue #670): `operation: "index"`,
+  // `expected: "list or dict"` — no Heritage spelling in the machine-readable params.
   const result = evalExpr('value of 5 for key "a"');
   assert.equal(result.ok, false);
   assert.equal(result.diagnostic.code, "ol-type");
   assert.deepEqual(result.diagnostic.params, {
-    expected: "dict",
+    expected: "list or dict",
     actual: "number",
     value: 5,
-    operation: "value of",
+    operation: "index",
   });
 });
 
@@ -382,7 +384,9 @@ test("`value of <dict> for key <key>` propagates a failing key expression's diag
   assert.equal(result.diagnostic.code, "ol-div-zero");
 });
 
-test("`value of <dict> for key <key>` raises ol-type when the key is neither word nor number", () => {
+test("`value of <dict> for key <key>` raises the Core dict-read `ol-type` when the key is neither word nor number", () => {
+  // Byte-identical to the Core `:d[k]` selector's dict bad-key branch (issue #670):
+  // `operation: "index"`, `expected: "word or number"`.
   const result = evalExpr("value of { a: 1 } for key true");
   assert.equal(result.ok, false);
   assert.equal(result.diagnostic.code, "ol-type");
@@ -390,7 +394,7 @@ test("`value of <dict> for key <key>` raises ol-type when the key is neither wor
     expected: "word or number",
     actual: "boolean",
     value: true,
-    operation: "value of",
+    operation: "index",
   });
 });
 

@@ -1,0 +1,46 @@
+{
+  "description": "Heritage `value of … for key` on a NON-DICT container raises the byte-identical Core `ol-type` (issue #670, slice H5): the same `code`, `params` (`operation: \"index\"`, `expected: \"list or dict\"` — the Core selector's spelling, NOT a Heritage `\"value of\"`), `message`, `stage`, and `severity` a Core `:n[\"tom\"]` selector raises when `:n` is a number (`spec/data-structures.md:183-195`). Proves the reader shares the Core dict-read's type check rather than inventing its own (`spec/conformance.md:146`: alternate spellings only, no new semantics), with NO Heritage spelling in any payload. The span points at the reader's `:n` operand sub-expression, the analog of the selector's `:n[\"tom\"]` span (localization-only difference — `spec/localization.md`). Heritage depends on Data (`spec/conformance.md:301`), so both `data` and `heritage` are active.",
+  "profiles": ["core-language", "data", "heritage"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-non-dict-like-core",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "payload": { "statement_kind": "Assign" }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-non-dict-like-core",
+        "start": [2, 1],
+        "end": [2, 32]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-non-dict-like-core",
+        "start": [2, 16],
+        "end": [2, 18]
+      },
+      "params": {
+        "expected": "list or dict",
+        "actual": "number",
+        "value": 5,
+        "operation": "index"
+      },
+      "message": "index needs a list or dict, but got a number.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}
