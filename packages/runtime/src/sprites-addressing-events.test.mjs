@@ -142,6 +142,12 @@ test("each narrows to one turtle per iteration and restores the set it iterated"
     ["each", [2], 2],
     ["each", [1, 2], 1],
   ]);
+  // Each iteration's own effect belongs to the turtle its narrowing event named, in the same
+  // order — the pairing that lets a consumer attribute effects to the narrowed set.
+  assert.deepEqual(moves(result.events), [
+    [1, [0, 10]],
+    [2, [0, 10]],
+  ]);
 });
 
 test("each over an empty addressed set narrows zero times but still publishes the restore", () => {
