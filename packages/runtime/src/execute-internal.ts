@@ -1731,10 +1731,11 @@ function executeSoundNoteCall(
     ExpressionNode,
     ExpressionNode,
   ];
-  if (
-    !isSupportedArgument(pitchArg, environment) ||
-    !isSupportedArgument(durationArg, environment)
-  ) {
+  // Validate the pitch fully before looking at the duration argument at all: the pitch is the
+  // first operand, so its diagnostic must win over anything about the duration. Preflighting both
+  // args together would let an unsupported *duration* expression (e.g. `note "bad" forward`)
+  // short-circuit to `undefined` and silently swallow the pitch's `ol-type` (rubber-duck, #690).
+  if (!isSupportedArgument(pitchArg, environment)) {
     return undefined;
   }
   const pitchResult = evaluate(pitchArg, environment);
@@ -1758,6 +1759,9 @@ function executeSoundNoteCall(
         operation: "note",
       }),
     );
+  }
+  if (!isSupportedArgument(durationArg, environment)) {
+    return undefined;
   }
   const durationResult = evaluate(durationArg, environment);
   if (!durationResult.ok) {

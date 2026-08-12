@@ -154,6 +154,25 @@ test("note leaves an unsupported argument expression un-evaluated (no event, no 
   assert.ok(!result.events.some((event) => event.kind === "sound"));
 });
 
+test("note leaves an unsupported pitch expression un-evaluated (no event, no error)", () => {
+  // The pitch operand is gated first (issue #690 review): an unsupported *pitch* expression
+  // (a parenthesized command, not a reporter) returns before the duration is ever inspected —
+  // no event, no diagnostic.
+  const result = execute("note (forward) 1", "main.logo");
+  assert.deepEqual(result.diagnostics, []);
+  assert.ok(!result.events.some((event) => event.kind === "sound"));
+});
+
+test("note reports the invalid-pitch error before inspecting the duration argument", () => {
+  // Pitch is validated fully before the duration is preflighted, so a bad pitch wins even when
+  // the duration expression is itself unsupported (`forward`) — otherwise the pitch error would
+  // be silently swallowed (rubber-duck finding, issue #690).
+  const result = execute('note "bad" forward', "main.logo");
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-type");
+  assert.ok(!result.events.some((event) => event.kind === "sound"));
+});
+
 test("note raises ol-not-enough-inputs when given one argument", () => {
   const result = execute('note "c4"', "main.logo");
   assert.equal(result.diagnostics.length, 1);
