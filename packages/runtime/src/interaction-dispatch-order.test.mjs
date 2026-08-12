@@ -472,6 +472,118 @@ test("an empty-bodied handler is still delivered at an exhausted budget (no stat
   assert.equal(atBudget3.events.filter(isProfileStart).length, 2);
 });
 
+// --- Cross-thread cancellation (the Web-Worker `Atomics`-backed signal) ---------------------------
+// `CancellationSignal` (evaluate.ts:151-174) documents the realistic deployment: `execute()` runs in
+// a Web Worker whose `aborted` getter reads a `SharedArrayBuffer` the main thread's Stop button
+// writes with `Atomics.store`. Such a getter is FAITHFUL yet can return `false` at a handler's
+// dispatch guard and `true` a moment later at the body's first-statement gate (the OS suspended the
+// worker in between and the main thread aborted). These tests model that with a getter that flips
+// after a set number of reads — the shape a real Atomics buffer produces — and prove the dispatch
+// guard stops delivery cleanly with no orphan handler-start. (A JSON conformance fixture cannot
+// express a signal that flips mid-run — the same limitation the harness notes for `executeOptions.signal`
+// — so this cross-thread case is proven here, through the public `execute()`, not by a fixture.)
+
+/**
+ * A faithful stand-in for the documented `Atomics`-backed worker signal: `aborted` reads `false`
+ * for the first `flipAfter` reads, then `true` for every read after — exactly what a
+ * `SharedArrayBuffer` flipped by the main thread mid-run looks like to the worker's getter.
+ */
+function signalAbortingAfter(flipAfter) {
+  let reads = 0;
+  return {
+    get aborted() {
+      reads += 1;
+      return reads > flipAfter;
+    },
+  };
+}
+
+test("a cross-thread abort at a handler dispatch boundary starts no orphan handler", () => {
+  // Two on_key handlers become due in one tick. A signal that flips to aborted just as dispatch
+  // reaches the SECOND handler must stop it BEFORE its block-head — no orphan handler-start, and its
+  // `print 2` never runs. We sweep the flip point to find the boundary that lands between the two
+  // handlers, robust to the exact number of `aborted` reads the run makes.
+  const source = [
+    'on_key "x" [ print 1 ]',
+    'on_key "x" [ print 2 ]',
+    "wait 1",
+  ].join("\n");
+  const hostInput = [{ tick: 1, kind: "key", key: "x" }];
+  let halted = null;
+  for (let flipAfter = 1; flipAfter <= 60; flipAfter++) {
+    const probe = execute(source, doc, {
+      signal: signalAbortingAfter(flipAfter),
+      hostInput,
+    });
+    if (
+      probe.diagnostics.length === 1 &&
+      probe.diagnostics[0].params.limit === "cancelled" &&
+      printedValues(probe).length === 1 &&
+      printedValues(probe)[0][0] === 1
+    ) {
+      halted = probe;
+      break;
+    }
+  }
+  assert.ok(
+    halted,
+    "expected a flip point where exactly the first handler completes then the run is cancelled",
+  );
+  // Only handler 1 fired; handler 2 was guarded before its block-head by the abort check.
+  assert.deepEqual(printedValues(halted), [[1]]);
+  assert.equal(halted.diagnostics[0].code, "ol-limit");
+  assert.equal(halted.diagnostics[0].params.limit, "cancelled");
+  // No orphan: the trace ends on the first handler's `print`, not a bare second handler-start.
+  const last = halted.events[halted.events.length - 1];
+  assert.equal(last.kind, "print");
+  assert.deepEqual(last.payload.values, [1]);
+});
+
+test("a cross-thread abort suppresses even an empty handler's delivery (abort is ungated by body)", () => {
+  // The empty-body exemption is for the BUDGET branch only — a cancelled run must stop delivery of
+  // every kind, including a zero-cost empty handler. A `when "start" [ ]` fires immediately at
+  // registration; a signal already aborted before that dispatch must suppress its block-head. This
+  // proves the abort branch is NOT gated on `bodyHasStatements` (an empty handler at an exhausted
+  // budget IS delivered, but an empty handler under cancellation is NOT).
+  const source = 'when "start" [ ]';
+  const result = execute(source, doc, { signal: { aborted: true } });
+  // Pre-aborted at the first statement: the run halts before the `when` registration statement even
+  // runs, so no ProfileStatement instruction and no events at all — cancellation stops delivery.
+  assert.deepEqual(result.events, []);
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].params.limit, "cancelled");
+});
+
+test("a cross-thread abort during a long wait with no due handler is observed that tick", () => {
+  // A long `wait` with nothing pending still polls cancellation once per tick, so a mid-wait abort
+  // aborts the remaining ticks immediately rather than running them all out. A signal that flips
+  // partway through the pause must halt the run with ol-limit(cancelled). Sweeping the flip point
+  // proves the per-tick poll (not just the trailing statement's gate) observes it.
+  const source = ["wait 5", "print 9"].join("\n");
+  let halted = null;
+  for (let flipAfter = 1; flipAfter <= 40; flipAfter++) {
+    const probe = execute(source, doc, {
+      signal: signalAbortingAfter(flipAfter),
+    });
+    if (
+      probe.diagnostics.length === 1 &&
+      probe.diagnostics[0].params.limit === "cancelled" &&
+      printedValues(probe).length === 0
+    ) {
+      halted = probe;
+      break;
+    }
+  }
+  assert.ok(
+    halted,
+    "expected a flip point where the wait is cancelled mid-pause before print 9",
+  );
+  // `print 9` (the top-level instruction after the wait) never runs — the wait aborted cleanly.
+  assert.deepEqual(printedValues(halted), []);
+  assert.equal(halted.diagnostics[0].code, "ol-limit");
+  assert.equal(halted.diagnostics[0].params.limit, "cancelled");
+});
+
 test("a runaway handler body halts with ol-limit(instruction-budget), not an infinite loop", () => {
   // An `on_key` body with an unbounded `forever` is bounded by the instruction budget — the handler
   // cannot hang the run. Proves the safety budget reaches inside handler bodies.

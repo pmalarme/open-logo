@@ -2192,7 +2192,11 @@ function executeWaitCall(
     count.value,
     waitCall.source_span,
     (tick) => {
-      const signal = dispatchDueHandlers(tick, environment);
+      const signal = dispatchDueHandlers(
+        tick,
+        environment,
+        waitCall.source_span,
+      );
       if (signal.kind !== "normal") {
         dispatchSignal = signal;
         return true;
@@ -2223,24 +2227,26 @@ function isWhenStatement(statement: StatementNode): boolean {
 }
 
 /**
- * The non-consuming budget gate every handler invocation passes BEFORE emitting its block-head
- * `instruction` event (issue #686, slice I7). Returns the `ol-limit` {@link ExecSignal} to halt with
- * when a non-empty handler body's instruction budget is already too near exhaustion to run even one
- * statement — otherwise `undefined` to proceed.
+ * The non-consuming halt gate every handler invocation passes BEFORE emitting its block-head
+ * `instruction` event (issue #686, slice I7). Returns an `ol-limit` {@link ExecSignal} to halt with
+ * when the run has been cancelled, or when a non-empty handler body's instruction budget is already
+ * too near exhaustion to run even one statement — otherwise `undefined` to proceed.
  *
  * Placing it here, at the single entry every `invoke*Handler` shares, guards BOTH handler-delivery
  * paths uniformly: the immediate `when "start"` fire during registration ({@link fireEvent}) and the
- * tick-driven same-tick dispatch ({@link dispatchDueHandlers}). An exhausted budget must "stop future
- * handler delivery" (`spec/interaction-events.md`'s "Errors and cancellation") on every path — so a
- * handler that would begin only to be immediately halted is not started at all, and the trace never
- * shows a handler that emitted its block-head yet produced no effect (an incoherent partial
- * delivery). {@link pendingExecutionHalt} is non-consuming, so a handler that DOES run still costs
- * only its body's instructions; an **empty**-bodied handler is always delivered (its block-head
- * emitted) because it has no statement gate and costs nothing — `bodyHasStatements` gates the budget
- * branch accordingly. Signal cancellation needs no re-check here: `execute()` is synchronous, so a
- * real `AbortSignal` is stable across the run and a pre-aborted run halts at the first statement
- * (before any tick) via {@link checkExecutionLimits}, never reaching a handler dispatch with the run
- * still live.
+ * tick-driven same-tick dispatch ({@link dispatchDueHandlers}). An exhausted budget or a cancelled
+ * run must "stop future handler delivery" (`spec/interaction-events.md`'s "Errors and cancellation")
+ * on every path — so a handler that would begin only to be immediately halted is not started at all,
+ * and the trace never shows a handler that emitted its block-head yet produced no effect (an
+ * incoherent partial delivery). {@link pendingExecutionHalt} is non-consuming, so a handler that DOES
+ * run still costs only its body's instructions; an **empty**-bodied handler is always delivered (its
+ * block-head emitted) at an exhausted budget because it has no statement gate and costs nothing —
+ * `bodyHasStatements` gates the budget branch accordingly. Cancellation, by contrast, is re-checked
+ * here ungated by `bodyHasStatements`: the Web-Worker `Atomics` deployment ({@link CancellationSignal})
+ * can flip `aborted` between this guard and the body's first-statement gate, so without an abort check
+ * a handler cancelled at its dispatch boundary — or any empty handler, which never reaches a body
+ * gate — would emit an orphan block-head after cancellation (the review-gate finding that reversed an
+ * earlier decline).
  */
 function guardHandlerDispatch(
   handler: { keyword: { source_span: SourceSpan }; block: BlockNode },
@@ -2747,7 +2753,21 @@ function invokeOnClickHandler(
 function dispatchDueHandlers(
   tick: number,
   environment: Environment,
+  source_span: SourceSpan,
 ): ExecSignal {
+  // Poll cancellation once per tick BEFORE enqueuing host input or claiming any bucket, so a
+  // cross-thread abort (the Web-Worker `Atomics` deployment in `CancellationSignal`) is observed
+  // even on a tick with no due handler — otherwise a long `wait` with nothing pending would keep
+  // advancing its remaining ticks after cancellation, unresponsive until it finishes and the next
+  // top-level statement's `checkExecutionLimits` finally sees the abort. Returning a halt here makes
+  // `runWait` abort its remaining ticks immediately (`spec/interaction-events.md`'s
+  // "Errors and cancellation": a cancelled run stops cleanly, with no further delivery). The
+  // per-handler `guardHandlerDispatch` still covers the abort-between-guard-and-body-gate orphan on
+  // ticks that DO have handlers; this covers the tick that has none. The `wait` call's own span is
+  // threaded in so the diagnostic points at the paused instruction.
+  if (environment.signal?.aborted) {
+    return halt(runtimeDiag.cancelled(source_span));
+  }
   environment.hostInputConsumed.count = enqueueHostInput(
     environment.eventHandlers,
     environment.hostInput,
