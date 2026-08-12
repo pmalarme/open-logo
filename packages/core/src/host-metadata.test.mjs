@@ -19,16 +19,33 @@ test("getHostMetadata reports the full M3+M4+M5-delivered profile set", () => {
     "sound",
     "sprites",
     "heritage",
+    "interaction-events",
   ]);
   assert.ok(metadata.supportedProfiles.includes("data"));
   assert.ok(metadata.supportedProfiles.includes("geometry"));
   assert.ok(metadata.supportedProfiles.includes("educational"));
-  assert.ok(metadata.supportedProfiles.includes("sound"));
-  assert.ok(metadata.supportedProfiles.includes("sprites"));
-  assert.ok(metadata.supportedProfiles.includes("heritage"));
-  // The M5 profiles whose terminal slices have not claimed them yet must stay unclaimed:
-  // over-claiming here is the M4 finding-F9 failure mode this deepEqual exists to block.
-  assert.ok(!metadata.supportedProfiles.includes("interaction-events"));
+  // All four M5 profiles are claimed as of saga #572: sound (#693), sprites (#679),
+  // heritage (#672), and interaction-events (#688, the saga's terminal profile claim).
+  for (const profile of [
+    "sound",
+    "sprites",
+    "heritage",
+    "interaction-events",
+  ]) {
+    assert.ok(
+      metadata.supportedProfiles.includes(profile),
+      `${profile} is claimed by its M5 terminal slice`,
+    );
+  }
+  // The F9 guard does NOT retire now that M5 is complete — it moves to the profiles whose
+  // terminal slices have not landed. Over-claiming here is the M4 finding-F9 failure mode, and
+  // an empty guard is how the NEXT premature claim would slip through unnoticed.
+  for (const profile of ["modules", "localization", "tutor-ai"]) {
+    assert.ok(
+      !metadata.supportedProfiles.includes(profile),
+      `${profile} must NOT be claimed until its own conformance fixtures are green`,
+    );
+  }
 });
 
 test("getHostMetadata exposes rendering targets because turtle-rendering is claimed", () => {

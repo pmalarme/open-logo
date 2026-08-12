@@ -3,16 +3,17 @@
 Fixtures for the **Interaction & Events** profile — blocking `input`, waits, event handlers,
 keyboard and pointer events, and timer-style behavior (`spec/conformance.md#interaction--events`,
 `spec/interaction-events.md`). Core remains non-interactive: `input` is in this profile, not Core.
-Fixtures land here as epic **#658**'s Interaction slices implement the profile; the terminal slice
-(**#688**) claims it.
+Fixtures landed here as epic **#658**'s Interaction slices implemented the profile; the terminal
+slice (**#688**) audited the corpus and claimed it.
 
 **Normative dependencies** (`spec/conformance.md` profile DAG): Interaction & Events is a separate
 optional profile depending only on **Core Language**. This matches
 `PROFILE_DEPS["interaction-events"] = ["core-language"]` in `scripts/harness/index.mjs`.
 
-Until #688 claims `interaction-events` in `packages/core/src/host-metadata.ts`'s
-`SUPPORTED_PROFILES`, the examples gate SKIPs (with a visible notice) any `spec/examples/*.logo`
-that requires it — see `scripts/examples-gate.mjs`.
+`interaction-events` **is claimed** in `packages/core/src/host-metadata.ts`'s `SUPPORTED_PROFILES`
+and in `scripts/examples-gate.mjs`'s `IMPLEMENTED_PROFILES` (#688), so `spec/examples/10-game.logo`
+RUNS and PASSES in the examples gate rather than being SKIPped — the observable proof of the claim.
+With it, saga #572's four M5 profiles are all claimed and no example in the corpus is skipped.
 
 - **`wait/`** — the `wait <n>` tick-clock primitive (issue #680, slice I1).
 - **`input/`** — the blocking `input <prompt>` reporter (issue #681, slice I2), the profile's other
@@ -129,3 +130,84 @@ that requires it — see `scripts/examples-gate.mjs`.
   rule rather than the reserved-word branch (`wait` is not one of the four reserved block-heads).
 
 Fixture shape and conventions: see [`../README.md`](../README.md).
+
+## What the terminal slice (#688) added
+
+The claim slice audited the corpus against `spec/interaction-events.md` before claiming, and closed
+the gaps it found rather than rubber-stamping them:
+
+- **Intra-kind same-tick delivery order.** `spec/interaction-events.md:84-89` is a four-item MUST —
+  pending `when`, then `on_key`, then `on_click`, then due `every`, **each in registration order**.
+  The corpus proved the *cross-kind* order (`dispatch/cross-kind-order-during-wait`, one handler per
+  kind) and item 4's intra-kind order (`dispatch/every-multi-same-tick-deterministic`), but items
+  1-3 had no shared drain point at all: `on-key-registered-twice`/`on-click-registered-twice` prove
+  registration only and record that neither handler fires, and `when-registration-order` covers only
+  `"start"`, which a batch run is already delivering, so its two handlers each fire at their own
+  registration and are never pending together. Three fixtures now deliver ONE key / ONE click / ONE
+  named event to TWO handlers apiece — `on_key/on-key-handlers-fire-in-registration-order`,
+  `on_click/on-click-handlers-fire-in-registration-order`,
+  `when/when-host-event-handlers-fire-in-registration-order` — each pinning the order twice over,
+  by the printed values and by the handler-start `instruction` spans. Verified genuine by mutation:
+  reversing each drain in `packages/runtime/src/interaction.ts` fails exactly these three fixtures
+  and **no other fixture in the corpus**.
+- **The non-number `ol-type` branch** for the two numeric-argument forms, together with its positive
+  complement. The existing negatives cover a value that is a number but not whole (`2.5`, `1.5`);
+  `every/every-non-number-type-error` and `wait/wait-non-number-type-error` cover a value that is not
+  a number at all. Crucially they are paired with `every/every-numeric-word-accepted` and
+  `wait/wait-numeric-word-accepted`, because `spec/execution-model.md:33-34` makes "words that parse
+  as numbers are accepted where a number is expected" a normative **Core** rule: `wait "2"` is legal
+  and must pause for 2 ticks. Without the positive half, an implementation that rejected *every*
+  word — violating that Core rule — would pass the whole corpus while the negatives looked like
+  proof that words are simply illegal here. The negatives also record an observable wording
+  asymmetry: `every` reports `params.expected: "whole number"` where `wait` reports `"number"` for
+  the identical case. `spec/interaction-events.md` fixes only the `ol-type` **code** for both, so
+  both are recorded as emitted rather than normalized. **Note this is now normatively binding**: the
+  harness compares `params` exactly, so aligning the two later is a conformance-breaking change to
+  both fixtures, not a free refactor. The root cause is runtime-side (`executeEveryStatement` calls
+  `requireWholeNumber` directly, `executeWaitCall` calls `requireNumber` then `validateTickCount`),
+  outside this slice's write-set — **filed as a follow-up** for `@interpreter`.
+- **Profile-scoped reservation of the four block-heads.** `spec/interaction-events.md:43-46` reserves
+  `when`/`every`/`on_key`/`on_click` **only within** the profile — a bidirectional MUST that had no
+  fixture at all: `redefine-wait-reserved` covers only `wait`, which is a *primitive* name
+  (`namespace: "primitive"`), not a reserved block-head. The new pair
+  `block-heads-reserved-under-profile` / `block-heads-free-core-only` runs the **byte-identical**
+  source both ways — four `define`s raising `ol-reserved-word` with `namespace: "reserved"` under the
+  active profile, and checking clean under Core Language alone. Either fixture alone is satisfied by
+  an implementation that reserves the words unconditionally or by one that never reserves them; only
+  the pair pins the scope. This is the same gap class the Sprites terminal slice #679 found for its
+  own `ol-reserved-word` rule. (The recorded `message` reads "when is already a reserved, so it
+  can't be redefined here." — an ungrammatical pre-existing template in
+  `packages/parser/src/checker-reserved-word.ts`, already recorded by three Sprites fixtures.
+  `message` is excluded from harness comparison, so it binds nothing and fixing it needs no fixture
+  change; **filed as a follow-up** for `@language-designer`.)
+- **Description corrections.** Three fixtures still deferred handler delivery to "a later
+  interactive host slice" that #686 had already landed (`on-key-registered-not-delivered`,
+  `on-click-registered-not-delivered`, `when-stop-registered-not-delivered` — and `"stop"` is in
+  fact host-deliverable via `hostInput`), and three asserted `interaction-events` was *not* in
+  `SUPPORTED_PROFILES`, which this slice's own claim falsifies. All six now state what their fixture
+  actually pins.
+
+**Deliberately NOT added: `input-prompt-not-text`.** #681 shipped 751 fixtures rather than 752 by
+withdrawing it, because **#768** records both readings of "the prompt cannot be displayed as learner
+text" (`spec/interaction-events.md:131`) as defensible. A fixture is normative for every
+implementation, so shipping one would settle a contested clause by fixture instead of by ruling. It
+lands when #768 rules — argue it there, not here. The behavior remains covered by
+`packages/runtime/src/interaction-input.test.mjs`.
+
+**Deliberately NOT added: a repeated-delivery fixture for `when`.** The #688 review found, and the
+author confirmed by direct execution, that a `when` handler fires **at most once per run**: with the
+same named event delivered at tick 1 and tick 2, the body runs once, whereas an `on_key` handler
+given the same key at both ticks runs twice. This is deliberate implemented behavior (`WhenHandler.fired`
+in `packages/runtime/src/interaction.ts`, locked by the #686 unit test "a one-shot `when` handler
+fires at most once even if its event is pending twice"), and no fixture in this corpus delivers a
+named event twice, so the corpus neither pins nor contradicts it.
+
+It is left unfixtured on purpose, for the same reason as `input-prompt-not-text`: **the spec does
+not settle it.** `spec/interaction-events.md` says a handler invocation is enqueued "when an event
+fires" but never states whether a `when` registration is one-shot or persistent, and both standard
+v0.1 event words are inherently once-per-run — `"start"` is "the start of the interactive run" and
+`"stop"` is "a requested stop notification before termination" (`:154-157`). A fixture asserting
+either reading would bind every implementation to a clause the spec has not written, and the
+alternative reading matters mainly for the vendor-prefixed events the spec permits but does not
+define. This also sits in `packages/runtime/`, outside this slice's write-set. **Filed for a
+maintainer ruling; a fixture lands once that ruling exists.**

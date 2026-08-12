@@ -1,0 +1,3 @@
+on_click [ print 1 ]
+on_click [ print 2 ]
+wait 1

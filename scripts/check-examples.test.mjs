@@ -980,21 +980,48 @@ test("runExamplesGate defaults exercise the real spec/examples/ corpus and manif
   assert.equal(result.ran + result.skipped, 13);
 });
 
-test("runExamplesGate skips every example that needs a not-yet-implemented profile in the real corpus", () => {
+test("runExamplesGate leaves NO example skipped in the real corpus now that all four M5 profiles are claimed", () => {
   const result = runExamplesGate();
-  // Each remaining unclaimed M5 profile has a real example that must SKIP visibly until its
-  // terminal slice claims it. `09-sprites.logo` (sprites, #679) and `05-procedures.logo`
-  // (heritage, #672) have BOTH left this list — their profiles are now claimed, so they RUN and
-  // PASS (each asserted by its own dedicated test below). Only `interaction-events` stays
-  // unclaimed.
-  for (const [file, profile] of [["10-game.logo", "interaction-events"]]) {
-    assert.ok(
-      result.lines.some(
-        (line) => line.startsWith(`SKIP ${file}`) && line.includes(profile),
-      ),
-      `${file} must SKIP with a visible notice naming ${profile}`,
-    );
-  }
+  // Every example that used to SKIP has left the list one terminal slice at a time:
+  // `11-music.logo` (sound, #693), `09-sprites.logo` (sprites, #679), `05-procedures.logo`
+  // (heritage, #672) and finally `10-game.logo` (interaction-events, #688) — so the real corpus
+  // now has zero skips. This is the STRONGER form of the old per-profile SKIP assertion, not a
+  // weaker one: it fails if any claimed profile is ever un-claimed (its example would SKIP again)
+  // and equally if a future example is added that needs a profile not yet in IMPLEMENTED_PROFILES.
+  // The SKIP mechanism itself stays covered by the synthetic `implementedProfiles`-override tests
+  // above, which can still exercise it without depending on an unclaimed real profile.
+  assert.equal(
+    result.skipped,
+    0,
+    "no real example may SKIP once every profile its manifest declares is implemented",
+  );
+  assert.ok(
+    !result.lines.some((line) => line.startsWith("SKIP ")),
+    "no SKIP notice may remain in the real corpus report",
+  );
+  assert.equal(result.ran, 13);
+  assert.equal(result.failed, 0);
+  assert.equal(result.ok, true);
+});
+
+test("runExamplesGate: 10-game.logo RUNS and PASSES now that #688 claims interaction-events (the observable proof of the claim)", () => {
+  // This is the whole point of the Interaction & Events terminal slice — and of saga #572's last
+  // profile claim: claiming `interaction-events` in IMPLEMENTED_PROFILES must flip 10-game.logo
+  // from SKIP to a real PASS. The example registers three `on_key` handlers, an `on_click` handler
+  // that mutates `:score`, and an `every 30` timer body that repositions and stamps, then holds the
+  // program open with `wait 300` — so a green PASS proves the whole registration + tick-clock
+  // surface executes end to end with zero error-severity diagnostics, not merely that the names
+  // parse. If this ever regressed to SKIP, the claim would be premature (a false conformance claim,
+  // M4 finding F9); if it FAILed, Interaction & Events would not be conformant.
+  const result = runExamplesGate();
+  assert.ok(
+    result.lines.some((line) => line === "PASS 10-game.logo"),
+    "10-game.logo must RUN and PASS (not SKIP) once interaction-events is claimed",
+  );
+  assert.ok(
+    !result.lines.some((line) => line.startsWith("SKIP 10-game.logo")),
+    "10-game.logo must no longer be skipped",
+  );
 });
 
 test("runExamplesGate: 05-procedures.logo RUNS and PASSES now that #672 claims heritage (the observable proof of the claim)", () => {
@@ -1096,30 +1123,41 @@ test("the check-examples.mjs CLI exits 0 when every example passes or is skipped
 
 // --- M5 profile skip / no-masking (issue #666) --------------------------------------------
 // This slice's examples-gate scaffolding must SKIP (with a visible notice) any example that needs
-// an M5 profile not yet claimed in IMPLEMENTED_PROFILES. As of #693 `sound` IS claimed (so
-// 11-music.logo runs), as of #679 `sprites` IS claimed (so 09-sprites.logo runs), and as of #672
-// `heritage` IS claimed (so 05-procedures.logo runs); the one remaining M5 profile stays excluded
-// until its own terminal slice claims it: interaction-events #688.
-// The visible-SKIP behavior against the real gate is asserted by the "skips every example that
-// needs a not-yet-implemented profile in the real corpus" test above (10), and the
-// no-masking guard (a genuinely failing example still fails loudly) is covered by the existing
-// "catches masking of the Heritage 'to … end' reserved word" / "masked-alias" tests. We therefore
-// keep this slice's addition to a single load-light invariant to avoid re-rolling the known
-// cross-process coverage-merge artifact (issue #417) on examples-gate.mjs's hot classifyExample
-// path — see the PR body's coverage note.
+// a profile not yet claimed in IMPLEMENTED_PROFILES. All four M5 profiles are now claimed by their
+// terminal slices — `sound` #693 (so 11-music.logo runs), `sprites` #679 (09-sprites.logo),
+// `heritage` #672 (05-procedures.logo), and `interaction-events` #688 (10-game.logo) — which
+// completes M5 and empties the M5 excluded set.
+// The visible-SKIP behavior is exercised by the synthetic `implementedProfiles`-override tests
+// above (which no longer depend on a real unclaimed profile), the "leaves NO example skipped in the
+// real corpus" test asserts the real-gate consequence, and the no-masking guard (a genuinely
+// failing example still fails loudly) is covered by the existing "catches masking of the Heritage
+// 'to … end' reserved word" / "masked-alias" tests. We therefore keep this slice's addition to a
+// single load-light invariant to avoid re-rolling the known cross-process coverage-merge artifact
+// (issue #417) on examples-gate.mjs's hot classifyExample path — see the PR body's coverage note.
 
-test("IMPLEMENTED_PROFILES claims sound (#693), sprites (#679), and heritage (#672) and still excludes the remaining M5 profile", () => {
+test("IMPLEMENTED_PROFILES claims all four M5 profiles and still excludes every profile whose terminal slice has not landed", () => {
   for (const [profile, slice] of [
     ["sound", "#693"],
     ["sprites", "#679"],
     ["heritage", "#672"],
+    ["interaction-events", "#688"],
   ]) {
     assert.ok(
       IMPLEMENTED_PROFILES.includes(profile),
       `${profile} is claimed by its terminal slice ${slice}, so its example runs rather than SKIPs`,
     );
   }
-  for (const profile of ["interaction-events"]) {
+  // #688 empties the M5 excluded set, but this guard does NOT retire — an assertion that guards
+  // nothing is how the next premature claim slips through. It moves to the profiles whose terminal
+  // slices have not landed, so the tripwire keeps naming a real, currently-false claim. These are
+  // the same three the sibling F9 guard in packages/core/src/host-metadata.test.mjs holds back;
+  // both must move together, and `IMPLEMENTED_PROFILES` must never run ahead of SUPPORTED_PROFILES.
+  const unclaimedProfiles = ["modules", "localization", "tutor-ai"];
+  assert.ok(
+    unclaimedProfiles.length > 0,
+    "the F9 tripwire must always guard at least one unclaimed profile; if the DAG is ever fully claimed, replace this with an exact-set assertion rather than deleting it",
+  );
+  for (const profile of unclaimedProfiles) {
     assert.ok(
       !IMPLEMENTED_PROFILES.includes(profile),
       `${profile} must NOT be in IMPLEMENTED_PROFILES until its terminal slice claims it`,
