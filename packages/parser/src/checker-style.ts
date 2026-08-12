@@ -354,11 +354,14 @@ function checkNameCase(name: SpannedName, diagnostics: Diagnostic[]): void {
  * `ForRange` share the same `"for"` keyword, since the grammar branches on what follows `for`,
  * not on a different opening word (`spec/grammar.md`'s `for-in`/`for-range` productions).
  *
- * `Comprehension` is not a static entry here: `map`/`filter`/`reduce` share one node kind, and its
- * keyword is picked at lookup time from the node's own `form` field instead (see
- * {@link structuralKeywordFor}) — `form` is itself always the lowercased spelling (`parser.ts`'s
- * `parseComprehension(token, lower)` passes the already-`toLowerCase()`d text as `form`), so it is
- * exactly the canonical spelling to compare `source` against, never a stand-in for the literal one.
+ * `Comprehension`, `ProcedureDef`, and `Return` are not static entries here — each records the
+ * spelling it was actually written with, and {@link structuralKeywordFor} reads it from the node
+ * instead. `Comprehension` because `map`/`filter`/`reduce` share one node kind (`form` is the
+ * already-lowercased spelling `parser.ts`'s `parseComprehension(token, lower)` passes in);
+ * `ProcedureDef` and `Return` because the Heritage profile (issue #667) gave them a SECOND
+ * legitimate lowercase spelling each — `to` beside `define`, and `output`/`op` beside `return` —
+ * so a hardcoded canonical would compare `to f` against `"define"` and flag a correctly-written
+ * lowercase Heritage keyword (issue #737).
  *
  * `Local` is deliberately excluded: its node span starts at the `local` keyword token for the bare
  * `local name` form (`parseLocal`), but at the *opening paren* for `(local name …)`
@@ -374,21 +377,29 @@ const STRUCTURAL_KEYWORD: Readonly<Record<string, string>> = {
   Forever: "forever",
   ForIn: "for",
   ForRange: "for",
-  ProcedureDef: "define",
-  Return: "return",
   Stop: "stop",
   Throw: "throw",
 };
 
 /**
- * Look up the canonical keyword casing `ol-style-name-case` should check `node`'s own span
- * against, if any. Every kind in {@link STRUCTURAL_KEYWORD} is a direct lookup; `Comprehension` is
- * the one dynamic case, keyed off its own `form` (`map`/`filter`/`reduce`) since all three share
- * one node kind and each carries its own keyword's length.
+ * Look up the keyword casing `ol-style-name-case` should check `node`'s own span against, if any.
+ * Every kind in {@link STRUCTURAL_KEYWORD} has exactly one spelling and is a direct lookup; the
+ * three dynamic cases read the spelling off the node, because more than one lowercase spelling is
+ * correct for them: `Comprehension` (`form` — `map`/`filter`/`reduce`) and, since Heritage
+ * (issue #667), `ProcedureDef` (`define`/`to`) and `Return` (`return`/`output`/`op`).
+ *
+ * This lint judges **casing only** (`spec/style-guide.md` "Keywords are lowercase"). Choosing a
+ * Heritage spelling over its Core twin is a profile choice, not a style violation, and no
+ * `ol-style-*` code in the registry expresses that opinion — so `to`/`output`/`op` written
+ * lowercase are clean here, exactly as `define`/`return` are, while `TO`/`OUTPUT`/`OP` are flagged
+ * exactly as `DEFINE`/`RETURN` are.
  */
 function structuralKeywordFor(node: AnyNode): string | undefined {
   if (node.kind === "Comprehension") {
     return node.form;
+  }
+  if (node.kind === "ProcedureDef" || node.kind === "Return") {
+    return node.keyword;
   }
   return STRUCTURAL_KEYWORD[node.kind];
 }
@@ -415,10 +426,11 @@ function sliceKeyword(source: string, start: Position, length: number): string {
  * casing (e.g. `REPEAT 4 [ ... ]`, `RETURN :x`, `MAP :n in :xs [ :n * 2 ]`). Unlike a primitive
  * `Call` callee — whose `SpannedName` is a plain AST field — no `ast.ts` control-flow/statement
  * node kind (`RepeatNode`, `IfNode`, `ReturnNode`, …) records its own keyword's literal source
- * spelling (`ReturnNode.keyword` and `ComprehensionNode.form` both store only the *canonical*
- * lowercase spelling the parser normalizes to — the same normalization `CORE_CALLEE_NAMES`'s doc
- * comment describes for word operators — never the literal source casing), so this check can only
- * run by slicing the original `source` text at the node's own span start. When no `source` is
+ * *casing*: the fields that do exist (`ReturnNode.keyword`, `ProcedureDefNode.keyword`,
+ * `ComprehensionNode.form`) store the already-lowercased spelling the parser normalizes to — which
+ * spelling was written, but never how it was cased. So this check can only run by slicing the
+ * original `source` text at the node's own span start, comparing it against
+ * {@link structuralKeywordFor}'s expected lowercase spelling *for that node*. When no `source` is
  * supplied (a caller that only has a `ProgramNode`, with no source text at hand), this check is
  * silently skipped — there is no AST-only fallback for a keyword's literal spelling, unlike
  * `checker-not-a-place.ts`'s `renderNode` fallback for reconstructible expression text.

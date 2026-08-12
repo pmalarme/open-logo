@@ -43,6 +43,15 @@ here fixture-by-fixture as each Heritage slice lands:
   diagnostic carries the **canonical** `params.callable` (`butfirst`), byte-identical to its Core
   twin's, never the surface spelling `bf`: structured diagnostic identity is canonical even when the
   spelling is an alias (`spec/error-model.md:235-238`), asserting the field directly (#733).
+- `check/heritage-return-alias-canonical-keyword-{outside-proc,in-comprehension}` — the escape
+  spellings `output`/`op` carry the **canonical** `params.keyword` (`return`) at BOTH
+  `keyword`-carrying control-flow sites, byte-identical to their Core twin's, while the prose
+  message still names the learner's own word and the span still covers exactly the surface control
+  word. Fixtured per site on purpose: the defect was present at both, and covering one would have
+  left the other unprotected (#737).
+- `check/heritage-form-head-keyword-casing-clean` — a lowercase Heritage form head (`to`, `output`)
+  raises no `ol-style-name-case`. That lint judges casing only, so a hardcoded per-kind canonical
+  keyword made it slice past a shorter Heritage spelling and warn about correct code (#737).
 - `check/heritage-value-of-key-{accepted-when-active,rejected-in-core}` — the worded dictionary
   reader `value of … for key` is gated on the `heritage` profile (with its Data dependency), visible
   only when active and otherwise `ol-unknown-command` (slice H5, #670).

@@ -1,0 +1,32 @@
+{
+  "description": "The SECOND `keyword`-carrying control-flow site keeps the canonical identity too (issue #737). A `map` body is a value context, so an escape inside it raises `ol-return-in-comprehension` (`spec/execution-model.md:406-407`, `spec/error-model.md:116`) — and the Heritage spellings `output`/`op` report `params.keyword` `\"return\"` with `form` `\"map\"`, byte-identical to the diagnostic the Core spelling raises (`tests/conformance/core-language/check/return-in-comprehension` is the Core twin). This site is fixtured separately from the outside-proc one on purpose: the defect this closes was present at BOTH sites, and a fixture for only one of them would have left the other unprotected — which is exactly how the class survived two previous fixes. `params` is canonical; the `message` still names what the learner typed.",
+  "profiles": ["core-language", "data", "heritage"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-return-in-comprehension",
+      "source_span": {
+        "document": "heritage/check/heritage-return-alias-canonical-keyword-in-comprehension",
+        "start": [2, 24],
+        "end": [2, 30]
+      },
+      "params": { "keyword": "return", "form": "map" },
+      "message": "output doesn't belong in a map — a map reports its last expression instead.",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-return-in-comprehension",
+      "source_span": {
+        "document": "heritage/check/heritage-return-alias-canonical-keyword-in-comprehension",
+        "start": [3, 24],
+        "end": [3, 26]
+      },
+      "params": { "keyword": "return", "form": "map" },
+      "message": "op doesn't belong in a map — a map reports its last expression instead.",
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}
