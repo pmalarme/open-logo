@@ -19,9 +19,8 @@
  * *primary* way to create a variable in OpenLogo and `local` is optional (`:brandnew = 1` then
  * `print :brandnew` checks clean with no declaration anywhere), so a rule enforced only at `local`
  * is bypassable by omitting an optional keyword — which would make `spec/grammar.md:367`'s "may not
- * be redefined **as variables**" close to meaningless in a learner-facing language. `alias` is
- * still absent only because it has no AST node yet (Modules is a later profile — `ast.ts` has no
- * `AliasDefNode`); every other name-introducing form the AST can represent is checked:
+ * be redefined **as variables**" close to meaningless in a learner-facing language. Every form that
+ * introduces a **variable, procedure, or struct type constructor** name is therefore checked:
  *
  * | Form | Node | Category checked |
  * |---|---|---|
@@ -32,7 +31,15 @@
  * | `for name in …` / `for name from … to …` | {@link ForInNode}/{@link ForRangeNode} | binding — reserved only |
  * | `map`/`filter`/`reduce` binder + `reduce` accumulator | {@link ComprehensionNode} | binding — reserved only |
  * | `for [ :a :b ] in …` destructuring names | {@link DestructuringBinderNode} | binding — reserved only |
- * | `define f :param` | {@link ProcedureDefNode}'s `params` | binding — reserved only |
+ * | `define f :param` / `define f ( :param default )` | {@link ProcedureDefNode}'s `params` | binding — reserved only |
+ *
+ * Two name-introducing forms are deliberately **absent** from that table, and neither is an
+ * oversight. `alias` targets have no AST node yet (Modules is a later profile — `ast.ts` has no
+ * `AliasDefNode`), so the rule cannot reach them. **`struct` field names** ({@link StructDefNode}'s
+ * `fields`) introduce names but are *legal* even when reserved, because they are not in the
+ * variable or callable namespace at all: `spec/grammar.md:369` — "Record field names live in a
+ * per-type namespace reached only by `.field`, so they do not collide with globals or structural
+ * words." So `struct point [ repeat y ]` checks clean, by design.
  *
  * **Why binding forms check the reserved-word category only** (see {@link bindingCollision}): the
  * sentence the ruling enforces, `spec/grammar.md:367`, has *reserved words* as its subject — "They
@@ -43,17 +50,25 @@
  * Reserved words are not namespaced at all; they are structural tokens the reader recognizes
  * (`:367`), which is exactly why they alone collide from a binding position. This is also the
  * blast radius the ruling predicted (`:repeat = 1`, `:if = 1`, `:while = 1` — all reserved words,
- * no primitives). The three registration forms keep their full four-category check unchanged.
+ * no primitives). The three registration forms keep their full four-category check unchanged,
+ * because a `define`/`struct`/`local` name *does* enter that shared callable namespace.
+ *
+ * **This narrowing is deliberate — do not "fix" it into a bug.** Widening
+ * {@link bindingCollision} to {@link collidingNamespace}'s four categories looks like a tidy
+ * unification and would immediately reject `:count = 1`, `:first = 1`, `:last = 1`, and
+ * `:word = 1` — `count`/`first`/`last`/`word` are all Core primitives, and `:count = 1` is the
+ * archetypal learner counter. Rejecting it in a language written for beginners is a severe false
+ * positive that the #739 ruling never sanctioned.
  *
  * **Why a nested place is not a binding site:** only a *bare* place head introduces a name, so
  * `AssignNode` is checked only when its {@link PlaceNode} target has no postfix segments.
  * `:people.tom.age = 30` and `:nums[1] = 5` write *into* an existing structure — their base is
  * read, not introduced, so a reserved base can only be there if some earlier bare binding put it
  * there, and that binding is itself flagged (an unbound one raises `ol-undefined-var` instead).
- * The segments themselves are never names: `spec/grammar.md:369` — "Record field names live in a
- * per-type namespace reached only by `.field`, so they do not collide with globals or structural
- * words. Dictionary keys and selector bare keys are data, not declarations, so reserved words are
- * legal keys."
+ * The segments themselves introduce no *variable* binding: `spec/grammar.md:369` — "Record field
+ * names live in a per-type namespace reached only by `.field`, so they do not collide with globals
+ * or structural words. Dictionary keys and selector bare keys are data, not declarations, so
+ * reserved words are legal keys."
  *
  * `namespace` priority when a name collides with more than one category (only reachable today via
  * `thing`, which is both a reserved word and a Core primitive): reserved word, then primitive,
@@ -198,6 +213,16 @@ function reservedWordDiagnostic(
   };
 }
 
+/**
+ * Order two diagnostics by where their span starts — line first, then column. Used to return this
+ * rule's findings in source order (see {@link reservedWordRule}).
+ */
+function compareBySpanStart(left: Diagnostic, right: Diagnostic): number {
+  const [leftLine, leftColumn] = left.source_span.start;
+  const [rightLine, rightColumn] = right.source_span.start;
+  return leftLine - rightLine || leftColumn - rightColumn;
+}
+
 function isProcedureDef(node: AnyNode): node is ProcedureDefNode {
   return node.kind === "ProcedureDef";
 }
@@ -276,8 +301,14 @@ function assignedBareName(node: AssignNode): SpannedName | undefined {
  * or `for … from … to` binder, a `map`/`filter`/`reduce` binder and a `reduce` accumulator, each
  * name of a destructuring pattern, and each procedure parameter raise one diagnostic at that name's
  * own span when the name is reserved ({@link bindingCollision} — reserved words only, and
- * profile-conditional ones only while their profile is active). Findings come out in the walk's
- * pre-order, so they stay in source order alongside the registration findings above.
+ * profile-conditional ones only while their profile is active).
+ *
+ * Findings are returned in **source order**. The walk's pre-order already gives that for every form
+ * but one: a procedure's parameters are checked when its {@link ProcedureDefNode} is visited, while
+ * a reserved name inside an *earlier* parameter's default expression — `define f ( :a map repeat in
+ * [1 2] [ 1 ] ) ( :while 2 )` — is only reached later, as a walked child. Sorting by span start
+ * ({@link compareBySpanStart}) fixes that case and is a no-op for every other, so a consumer
+ * (conformance fixture, editor, LSP) can rely on the order unconditionally.
  *
  * Struct participation — both `StructDef`'s own collision check and a `struct` colliding with a
  * `local`/`define` — is gated on `"data"` being active (issue #405), mirroring
@@ -393,5 +424,5 @@ export function reservedWordRule(
     }
   });
 
-  return diagnostics;
+  return diagnostics.sort(compareBySpanStart);
 }

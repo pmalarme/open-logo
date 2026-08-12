@@ -11,7 +11,9 @@
 // Newly covered here (all previously clean): assignment in all three surface spellings
 // (`:name = v` colon-place, `set name to v` bare-place, Heritage `make "name" v`), `for … in` and
 // `for … from … to` binders, `map`/`filter`/`reduce` binders and the `reduce` accumulator,
-// destructuring-pattern names, and procedure parameters. spec/grammar.md:103-108,127,131-136,153.
+// destructuring-pattern names, and procedure parameters in both the required and optional spellings.
+// spec/grammar.md:103-108,127,128,131-137,148-149. (`local`, spec/grammar.md:153, already raised it
+// before this change and is re-pinned below as a non-regression, not as newly covered.)
 //
 // Two boundaries are asserted as hard negatives, not left implicit:
 //   - Only a BARE place head introduces a name. `:d.tell = 5` and `:xs[1] = 5` write into an
@@ -129,31 +131,47 @@ const BINDING_FORMS = [
     column: 10,
     width: (name) => name.length + 1,
   },
+  {
+    label: "optional procedure parameter",
+    source: (name) => `define f ( :${name} 5 )\n  print 1\nend\n`,
+    column: 12,
+    width: (name) => name.length + 1,
+  },
 ];
+
+/**
+ * Assert that `form` bound to `word` under `profiles` raises exactly one `ol-reserved-word`, with
+ * the exact params, stage, severity, and span of the bound name — the same strength for a
+ * profile-conditional word as for a Core one, so a duplicate or mis-spanned finding cannot slip
+ * through on the profile path.
+ */
+function assertSingleReservedFinding(form, word, profiles) {
+  const source = form.source(word);
+  const findings = reservedFindings(source, profiles);
+  assert.equal(
+    findings.length,
+    1,
+    `${form.label} with \`${word}\` should raise exactly one ol-reserved-word, got ${JSON.stringify(findings)}`,
+  );
+  const [finding] = findings;
+  assert.deepEqual(finding.params, { name: word, namespace: "reserved" });
+  assert.equal(finding.stage, "semantic");
+  assert.equal(finding.severity, "error");
+  assert.deepEqual(
+    finding.source_span,
+    {
+      document: doc,
+      start: [1, form.column],
+      end: [1, form.column + form.width(word)],
+    },
+    `${form.label} should point at the bound name in ${JSON.stringify(source)}`,
+  );
+}
 
 test("every binding form raises ol-reserved-word for a Core reserved word, at that name's own span", () => {
   for (const form of BINDING_FORMS) {
     for (const word of ["repeat", "if", "while"]) {
-      const source = form.source(word);
-      const findings = reservedFindings(source);
-      assert.equal(
-        findings.length,
-        1,
-        `${form.label} with \`${word}\` should raise exactly one ol-reserved-word, got ${JSON.stringify(findings)}`,
-      );
-      const [finding] = findings;
-      assert.deepEqual(finding.params, { name: word, namespace: "reserved" });
-      assert.equal(finding.stage, "semantic");
-      assert.equal(finding.severity, "error");
-      assert.deepEqual(
-        finding.source_span,
-        {
-          document: doc,
-          start: [1, form.column],
-          end: [1, form.column + form.width(word)],
-        },
-        `${form.label} should point at the bound name in ${JSON.stringify(source)}`,
-      );
+      assertSingleReservedFinding(form, word, CORE);
     }
   }
 });
@@ -161,12 +179,7 @@ test("every binding form raises ol-reserved-word for a Core reserved word, at th
 test("every binding form raises ol-reserved-word for a Sprites word while `sprites` is active", () => {
   for (const form of BINDING_FORMS) {
     for (const word of SPRITES_WORDS) {
-      const [finding] = reservedFindings(form.source(word), CORE_AND_SPRITES);
-      assert.ok(
-        finding,
-        `${form.label} with \`${word}\` should be flagged when sprites is active`,
-      );
-      assert.deepEqual(finding.params, { name: word, namespace: "reserved" });
+      assertSingleReservedFinding(form, word, CORE_AND_SPRITES);
     }
   }
 });
@@ -186,15 +199,7 @@ test("every binding form leaves a Sprites word alone in a Core-only program", ()
 test("every binding form raises ol-reserved-word for an Interaction word while `interaction-events` is active", () => {
   for (const form of BINDING_FORMS) {
     for (const word of INTERACTION_WORDS) {
-      const [finding] = reservedFindings(
-        form.source(word),
-        CORE_AND_INTERACTION,
-      );
-      assert.ok(
-        finding,
-        `${form.label} with \`${word}\` should be flagged when interaction-events is active`,
-      );
-      assert.deepEqual(finding.params, { name: word, namespace: "reserved" });
+      assertSingleReservedFinding(form, word, CORE_AND_INTERACTION);
     }
   }
 });
@@ -246,6 +251,44 @@ test('the Heritage `make "name" value` spelling binds the same place, so it is c
     [],
     "an ordinary `make` target stays clean",
   );
+});
+
+test("`make` respects the profile gate in the OFF direction, like every other binding form", () => {
+  // The ON direction is covered above; this is the other half the file-level claim of "both
+  // directions on every new form" requires for `make` as much as for the rest. `make` is not in
+  // BINDING_FORMS because it is the one form whose target is a word literal rather than a name
+  // token, so its spans do not follow that table's column/width shape.
+  for (const word of [...SPRITES_WORDS, ...INTERACTION_WORDS]) {
+    assert.deepEqual(
+      reservedFindings(`make ${QUOTE}${word}${QUOTE} 1\n`, [
+        ...CORE,
+        "heritage",
+      ]),
+      [],
+      `\`make "${word}"\` must stay legal while its profile is inactive`,
+    );
+  }
+  for (const word of INTERACTION_WORDS) {
+    const [finding] = reservedFindings(`make ${QUOTE}${word}${QUOTE} 1\n`, [
+      ...CORE,
+      "heritage",
+      "interaction-events",
+    ]);
+    assert.ok(
+      finding,
+      `\`make "${word}"\` must be flagged while interaction-events is active`,
+    );
+    assert.deepEqual(finding.params, { name: word, namespace: "reserved" });
+  }
+  // A Core reserved word needs no profile at all.
+  const [coreFinding] = reservedFindings(`make ${QUOTE}repeat${QUOTE} 1\n`, [
+    ...CORE,
+    "heritage",
+  ]);
+  assert.deepEqual(coreFinding.params, {
+    name: "repeat",
+    namespace: "reserved",
+  });
 });
 
 test("a nested place is a write into an existing structure, not a new name, so it is not flagged", () => {
@@ -371,6 +414,22 @@ test("findings from mixed registration and binding forms come out in source orde
       ["tell", 1],
       ["ask", 2],
       ["each", 3],
+    ],
+  );
+});
+
+test("a parameter default expression's binder is ordered before a later parameter", () => {
+  // The walk visits a ProcedureDef's parameters when it reaches the node, but only reaches a
+  // reserved name inside an EARLIER parameter's default expression later, as a walked child. Source
+  // order must still win: `repeat` (column 19, inside `:a`'s default) precedes `while` (column 45).
+  const findings = reservedFindings(
+    "define f ( :a map repeat in [1 2] [ 1 ] ) ( :while 2 )\n  print 1\nend\n",
+  );
+  assert.deepEqual(
+    findings.map((finding) => [finding.params.name, finding.source_span.start]),
+    [
+      ["repeat", [1, 19]],
+      ["while", [1, 45]],
     ],
   );
 });
