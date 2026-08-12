@@ -548,6 +548,19 @@ export interface WhenEventNotWordParams {
   readonly actual: OLTypeName;
 }
 
+/**
+ * Params for the `ol-type` raised by `on_key` when its key argument is not a word
+ * (`spec/interaction-events.md`'s `### on_key <key-word> <block>`: "Errors: `ol-type`", issue #684).
+ * `on_key` registers a block for a *named* key, so the name must be a word; a number, list, or
+ * boolean cannot name a key. `actual` is the argument's runtime type name (`@openlogo/core`'s
+ * `typeNameOf`) so the diagnostic identity records what was supplied; `expected` is the fixed
+ * `"word"`. Mirrors {@link WhenEventNotWordParams} — the two event-registration heads validate their
+ * word argument identically.
+ */
+export interface OnKeyKeyNotWordParams {
+  readonly actual: OLTypeName;
+}
+
 /** Runtime-stage diagnostics, one builder per `ol-*` code the evaluator can raise. */
 export const runtimeDiag = {
   /**
@@ -1491,6 +1504,26 @@ export const runtimeDiag = {
       source_span,
       { operation: "when", expected: "word", actual: params.actual },
       `when needs an event word, but got a ${params.actual}.`,
+    );
+  },
+
+  /**
+   * `ol-type` (issue #684, slice I5) — `on_key`'s key argument is not a word
+   * (`spec/interaction-events.md`'s `### on_key <key-word> <block>`: "Errors: `ol-type`", and the
+   * profile's error table). `on_key` registers a block for a *named* key (`"space"`, `"enter"`,
+   * `"a"`, …), so the name must be a word; a number, list, or boolean cannot name a key. Carries the
+   * `{ operation: "on_key", expected: "word", actual }` identity shape shared by the other `ol-type`
+   * builders (identical in shape to {@link whenEventNotWord}). See {@link OnKeyKeyNotWordParams}.
+   */
+  onKeyKeyNotWord(
+    source_span: SourceSpan,
+    params: OnKeyKeyNotWordParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-type",
+      source_span,
+      { operation: "on_key", expected: "word", actual: params.actual },
+      `on_key needs a key word, but got a ${params.actual}.`,
     );
   },
 

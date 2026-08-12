@@ -111,10 +111,12 @@ import {
   createEventHandlerRegistry,
   createTickClock,
   emitEveryPrimitive,
+  emitOnKeyPrimitive,
   emitWhenPrimitive,
   isWaitCall,
   pendingHandlersFor,
   registerEveryHandler,
+  registerOnKeyHandler,
   registerWhenHandler,
   runWait,
   STANDARD_EVENT_WORDS,
@@ -2740,6 +2742,81 @@ function executeEach(
 }
 
 /**
+ * Is `statement` an `on_key <key-word> <block>` handler registration (issue #684, slice I5,
+ * `spec/interaction-events.md`'s `### on_key <key-word> <block>`)? `on_key` is a profile block-head
+ * the reader lowers to a {@link ProfileStatementNode} (C2 #664's `PROFILE_STATEMENT_FORMS`), NOT an
+ * ordinary `Call`, so it is matched here by node kind + head keyword rather than by callee name. A
+ * plain `boolean` (not a type predicate) to match the surrounding turtle/wait/`when`/`every`
+ * dispatch convention; the caller narrows via a cast at the single call site, exactly as
+ * {@link isWhenStatement} does.
+ */
+function isOnKeyStatement(statement: StatementNode): boolean {
+  return (
+    statement.kind === "ProfileStatement" &&
+    statement.keyword.name.toLowerCase() === "on_key"
+  );
+}
+
+/**
+ * Register an `on_key <key-word> <block>` handler (issue #684, slice I5,
+ * `spec/interaction-events.md`'s `### on_key <key-word> <block>`): evaluate the single key argument,
+ * require it to be a word (`ol-type` via {@link runtimeDiag.onKeyKeyNotWord} otherwise, exactly as
+ * `when` validates its event word), record the handler on the environment's registry in registration
+ * order, then emit the `primitive` event **after** the handler is registered (spec: "Event
+ * registration forms emit `primitive` events after the handler is registered").
+ *
+ * Registration never fires the block: a key press is host input, and in a headless batch `execute()`
+ * run there is no keyboard, so an `on_key` handler is registered but never delivered — exactly like a
+ * `when "stop"` handler in a headless run. Synthesizing a key press is a host concern outside this
+ * slice; the `on-key-registered-not-delivered` fixture locks that narrowing so it is falsifiable
+ * rather than silently omitted.
+ *
+ * `block` is the handler body the reader always attaches to an `on_key` block-head (`hasBlock: true`,
+ * `parser.ts`'s `PROFILE_STATEMENT_FORMS`), recovered here by a cast since an `on_key` node reaching
+ * the runtime always has one (see the inline note, mirroring {@link executeWhenStatement}).
+ *
+ * Returns an {@link ExecSignal} to halt on (a non-word key), or `undefined` for
+ * {@link executeStatements} to `continue` on — including the "argument left un-evaluated" case,
+ * mirroring {@link executeWhenStatement}/{@link executeEveryStatement} and the turtle commands.
+ */
+function executeOnKeyStatement(
+  statement: ProfileStatementNode,
+  environment: Environment,
+): ExecSignal | undefined {
+  const [keyArg] = statement.args as [ExpressionNode];
+  if (!isSupportedArgument(keyArg, environment)) {
+    return undefined;
+  }
+  const keyResult = evaluate(keyArg, environment);
+  if (!keyResult.ok) {
+    return halt(keyResult.diagnostic);
+  }
+  if (typeof keyResult.value !== "string") {
+    return halt(
+      runtimeDiag.onKeyKeyNotWord(keyArg.source_span, {
+        actual: typeNameOf(keyResult.value),
+      }),
+    );
+  }
+  const key = keyResult.value;
+  // The reader always attaches a block to an `on_key` block-head (`hasBlock: true`, and
+  // `parseProfileStatement` fails the whole parse — which `runProgram` bails on before `execute()`
+  // runs — if the body is missing), so `body` is guaranteed present for any `on_key` node reaching
+  // the runtime. The optional `body` on `ProfileStatementNode` exists only because the bodyless
+  // `tell` mode-switch shares that node kind; a cast (not a runtime guard) records that invariant.
+  const block = statement.body as BlockNode;
+  registerOnKeyHandler(
+    environment.eventHandlers,
+    key,
+    block,
+    statement.keyword,
+    environment,
+  );
+  emitOnKeyPrimitive(environment.events, statement.source_span);
+  return undefined;
+}
+
+/**
  * Try to run `statement` as a Sprites addressing statement — `tell` (SP2, issue #674) sets the
  * addressed set persistently, `ask` (SP3, issue #675) runs its block for a scoped set and then
  * restores the previous one, and `each` (SP4, issue #676) runs its block once per turtle in the
@@ -4189,6 +4266,17 @@ function executeStatements(
       );
       if (everyOutcome) {
         return everyOutcome;
+      }
+      continue;
+    }
+
+    if (isOnKeyStatement(statement)) {
+      const onKeyOutcome = executeOnKeyStatement(
+        statement as ProfileStatementNode,
+        environment,
+      );
+      if (onKeyOutcome) {
+        return onKeyOutcome;
       }
       continue;
     }
