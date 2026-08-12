@@ -92,7 +92,8 @@ export function snapshotAddressing(
  * The envelope carries **no** `turtle_id`: it is "present only when the event is turtle-specific"
  * (`spec/execution-model.md:638`), and an addressing event describes a *set*, not one turtle — the
  * current turtle travels in the payload instead. `execute-internal.ts`'s per-turtle stamper keeps it
- * that way by stamping only genuinely turtle-specific kinds (`TURTLE_SPECIFIC_EVENT_KINDS`).
+ * that way: it synthesizes the acting turtle's id only for the kinds that are safe to attribute that
+ * way (`ACTING_TURTLE_STAMPABLE_KINDS`), which `primitive` is not.
  */
 export function emitAddressingPrimitive(
   events: TraceEvent[],
