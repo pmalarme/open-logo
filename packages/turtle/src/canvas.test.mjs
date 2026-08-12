@@ -71,6 +71,24 @@ function makeRecordingTarget() {
 
 const VIEWPORT = { width: 400, height: 300 };
 
+/** A `TurtleWorldState` holding just the main turtle at `state`, active — what every
+ * single-turtle (Turtle & Rendering) program folds to. */
+function singleTurtleWorld(state) {
+  return {
+    turtles: new Map([[OL.MAIN_TURTLE_ID, state]]),
+    activeTurtleId: OL.MAIN_TURTLE_ID,
+  };
+}
+
+/** A `TurtleWorldState` over `states` (an array of `[id, state]` pairs, in creation order), with
+ * `activeTurtleId` naming the last one — the shape a Sprites program folds to. */
+function turtleWorld(states) {
+  return {
+    turtles: new Map(states),
+    activeTurtleId: states[states.length - 1][0],
+  };
+}
+
 test("worldToTarget maps origin to viewport center", () => {
   assert.deepEqual(OL.worldToTarget([0, 0], VIEWPORT), [200, 150]);
 });
@@ -454,6 +472,139 @@ test("arrow shape draws its four-point outline", () => {
   assert.ok(calls.some((call) => call[0] === "closePath"));
 });
 
+// --- per-turtle avatars (#749) ----------------------------------------------------------------
+
+test("paintTurtle given a world holding only the main turtle issues the same draw calls as the bare state", () => {
+  // The compatibility property #749 is built around: threading a world through the renderer must
+  // not perturb a single-turtle (Turtle & Rendering) repaint by so much as one call.
+  const scene = {
+    background: "white",
+    items: [
+      {
+        kind: "segment",
+        segment: { from: [0, 0], to: [0, 100], color: "black", width: 1 },
+      },
+    ],
+  };
+  const state = {
+    position: [0, 100],
+    heading: 90,
+    penDown: true,
+    color: "red",
+    width: 3,
+    shape: "arrow",
+    visible: true,
+  };
+  const bare = makeRecordingTarget();
+  const world = makeRecordingTarget();
+  OL.paintTurtle(bare.target, scene, state, VIEWPORT);
+  OL.paintTurtle(world.target, scene, singleTurtleWorld(state), VIEWPORT);
+  assert.deepEqual(world.calls, bare.calls);
+});
+
+test("paintTurtle paints every visible turtle's avatar with its own color, shape, and heading", () => {
+  // The #749 reproduction: `tell [ :a :b ]` / `forward 10` / `ask :b [ hide_turtle set_color
+  // "blue" ]`. :a is black, visible, at (0,10); :b is blue and hidden. Folding both into one state
+  // painted a single blue, hidden — i.e. absent — avatar. Per turtle, :a's black avatar is painted
+  // and :b's is omitted (`spec/rendering.md:117`: hiding omits only that turtle's avatar).
+  const scene = { background: "white", items: [] };
+  const base = { penDown: true, width: 1, shape: "turtle" };
+  const world = turtleWorld([
+    [
+      1,
+      { ...base, position: [0, 10], heading: 0, color: "black", visible: true },
+    ],
+    [
+      2,
+      { ...base, position: [0, 10], heading: 0, color: "blue", visible: false },
+    ],
+  ]);
+  const { target, calls } = makeRecordingTarget();
+  OL.paintTurtle(target, scene, world, VIEWPORT);
+
+  const avatarColors = calls
+    .filter((call) => call[0] === "set fillStyle")
+    .map((call) => call[1]);
+  // The background fill, then exactly one avatar — the visible turtle's, in black.
+  assert.deepEqual(avatarColors, ["white", "black"]);
+  assert.equal(calls.filter((call) => call[0] === "save").length, 1);
+});
+
+test("paintTurtle paints two visible turtles as two distinct avatars, in creation order", () => {
+  const scene = { background: "white", items: [] };
+  const base = { penDown: true, width: 1, visible: true };
+  const world = turtleWorld([
+    [
+      1,
+      {
+        ...base,
+        position: [-20, 0],
+        heading: 0,
+        color: "green",
+        shape: "triangle",
+      },
+    ],
+    [
+      2,
+      {
+        ...base,
+        position: [30, 0],
+        heading: 90,
+        color: "purple",
+        shape: "arrow",
+      },
+    ],
+  ]);
+  const { target, calls } = makeRecordingTarget();
+  OL.paintTurtle(target, scene, world, VIEWPORT);
+
+  assert.deepEqual(
+    calls.filter((call) => call[0] === "translate"),
+    [
+      ["translate", 180, 150],
+      ["translate", 230, 150],
+    ],
+    "each avatar is placed at its own turtle's position, in creation order",
+  );
+  assert.deepEqual(
+    calls.filter((call) => call[0] === "set fillStyle").map((call) => call[1]),
+    ["white", "green", "purple"],
+    "each avatar is filled with its own turtle's pen color",
+  );
+  const rotations = calls
+    .filter((call) => call[0] === "rotate")
+    .map((call) => call[1]);
+  assert.equal(rotations.length, 2);
+  assert.notEqual(rotations[0], rotations[1]);
+});
+
+test("paintTurtle paints no avatar at all when every turtle in the world is hidden", () => {
+  const scene = { background: "white", items: [] };
+  const hidden = {
+    position: [0, 0],
+    heading: 0,
+    penDown: true,
+    color: "black",
+    width: 1,
+    shape: "turtle",
+    visible: false,
+  };
+  const { target, calls } = makeRecordingTarget();
+  OL.paintTurtle(
+    target,
+    scene,
+    turtleWorld([
+      [1, hidden],
+      [2, hidden],
+    ]),
+    VIEWPORT,
+  );
+  assert.deepEqual(calls, [
+    ["set fillStyle", "white"],
+    ["fillRect", 0, 0, 400, 300],
+  ]);
+});
+
 test("reduced-to-scene and repaint is deterministic across repeated calls", () => {
   const scene = {
     background: "blue",
@@ -505,13 +656,16 @@ test("renderFrame paints exactly the source's current snapshot, never advancing 
   const initial = {
     cursor: 0,
     status: "paused",
-    state: { ...OL.INITIAL_TURTLE_STATE, position: [10, 0] },
+    world: singleTurtleWorld({ ...OL.INITIAL_TURTLE_STATE, position: [10, 0] }),
     scene: { background: "white", items: [] },
   };
   const final = {
     cursor: 4,
     status: "done",
-    state: { ...OL.INITIAL_TURTLE_STATE, position: [100, 0] },
+    world: singleTurtleWorld({
+      ...OL.INITIAL_TURTLE_STATE,
+      position: [100, 0],
+    }),
     scene: { background: "white", items: [] },
   };
   const source = makeFakeAnimationSource(initial, final);
@@ -815,11 +969,41 @@ test("paintTurtle paints overlays before the avatar, and threads overlay through
   assert.ok(avatarRestoreIndex > overlaySaveIndex);
 });
 
+test("renderFrame paints every visible turtle in the snapshot's world, not just the active one (#749)", () => {
+  // Without this, a paused/stepped Sprites frame would show one avatar while the export of the
+  // same moment showed several — renderFrame must thread the whole world through paintTurtle.
+  const base = {
+    penDown: true,
+    width: 1,
+    heading: 0,
+    shape: "triangle",
+    visible: true,
+  };
+  const snapshot = {
+    cursor: 3,
+    status: "paused",
+    world: turtleWorld([
+      [1, { ...base, position: [-20, 0], color: "green" }],
+      [2, { ...base, position: [30, 0], color: "purple" }],
+    ]),
+    scene: { background: "white", items: [] },
+  };
+  const { target, calls } = makeRecordingTarget();
+  OL.renderFrame(target, { getSnapshot: () => snapshot }, VIEWPORT);
+  assert.deepEqual(
+    calls.filter((call) => call[0] === "translate"),
+    [
+      ["translate", 180, 150],
+      ["translate", 230, 150],
+    ],
+  );
+});
+
 test("renderFrame threads the source's overlay snapshot through to paintTurtle", () => {
   const snapshot = {
     cursor: 0,
     status: "done",
-    state: { ...OL.INITIAL_TURTLE_STATE, visible: false },
+    world: singleTurtleWorld({ ...OL.INITIAL_TURTLE_STATE, visible: false }),
     scene: { background: "white", items: [] },
     overlay: { axes: true },
   };

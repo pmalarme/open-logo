@@ -590,3 +590,89 @@ test("IMMEDIATE_SCHEDULER invokes its callback synchronously and returns a calla
   assert.equal(called, true);
   assert.doesNotThrow(() => cancel());
 });
+
+// --- per-turtle world folding (#749) ----------------------------------------------------------
+
+test("the controller folds a per-turtle world, so each sprite keeps its own state and the active turtle is tracked", () => {
+  // The #749 reproduction as a trace stream: two sprites move under `tell [ :a :b ]`, then `:b`
+  // alone is hidden and turned blue. The merged single-turtle fold reported ":b's" blue+hidden on
+  // whatever turtle the avatar was drawing; the world keeps them apart.
+  const spawn = (id) =>
+    event(
+      "spawn-turtle",
+      {
+        turtle_id: id,
+        position: [0, 0],
+        heading: 0,
+        pen: "down",
+        color: "black",
+        width: 1,
+        visible: true,
+        shape: "turtle",
+      },
+      id,
+    );
+  const events = [
+    spawn(1),
+    spawn(2),
+    event("instruction", { text: "forward 10" }, undefined),
+    event("move", { from: [0, 0], to: [0, 10], heading: 0 }, 1),
+    event("move", { from: [0, 0], to: [0, 10], heading: 0 }, 2),
+    event(
+      "instruction",
+      { text: 'ask :b [ hide_turtle set_color "blue" ]' },
+      undefined,
+    ),
+    event("visibility-change", { from: true, to: false }, 2),
+    event("color-change", { from: "black", to: "blue" }, 2),
+  ];
+  const controller = new OL.TurtleAnimationController(events);
+  controller.seekToEnd();
+  const { world, state } = controller.getSnapshot();
+
+  assert.deepEqual([...world.turtles.keys()], [0, 1, 2]);
+  assert.equal(world.turtles.get(1).visible, true);
+  assert.equal(world.turtles.get(1).color, "black");
+  assert.equal(world.turtles.get(2).visible, false);
+  assert.equal(world.turtles.get(2).color, "blue");
+  // The main turtle never acted, so it is untouched.
+  assert.deepEqual(world.turtles.get(0), OL.INITIAL_TURTLE_STATE);
+  // `state` is the ACTIVE turtle's own state, not every turtle merged into one.
+  assert.equal(world.activeTurtleId, 2);
+  assert.equal(state, world.turtles.get(2));
+});
+
+test("the controller's snapshot state matches a direct single-turtle fold for a single-turtle stream", () => {
+  // The compatibility property: with no sprites, `getSnapshot().state` is exactly what
+  // `reduceTurtleEvents` produces, so nothing about single-turtle playback changed.
+  const events = repeat4ForwardRightEvents();
+  const controller = new OL.TurtleAnimationController(events);
+  controller.seekToEnd();
+  assert.deepEqual(
+    controller.getSnapshot().state,
+    OL.reduceTurtleEvents(events),
+  );
+});
+
+test("initialState seeds the main turtle of the controller's world", () => {
+  const initialState = { ...OL.INITIAL_TURTLE_STATE, color: "purple" };
+  const controller = new OL.TurtleAnimationController([], { initialState });
+  const { world, state } = controller.getSnapshot();
+  assert.equal(state, initialState);
+  assert.equal(world.turtles.get(OL.MAIN_TURTLE_ID), initialState);
+  assert.equal(world.activeTurtleId, OL.MAIN_TURTLE_ID);
+});
+
+test("reset() restores the controller's world to its seed", () => {
+  const initialState = { ...OL.INITIAL_TURTLE_STATE, color: "purple" };
+  const controller = new OL.TurtleAnimationController(
+    repeat4ForwardRightEvents(),
+    { initialState },
+  );
+  controller.seekToEnd();
+  assert.notDeepEqual(controller.getSnapshot().state, initialState);
+  controller.reset();
+  const { world, state } = controller.getSnapshot();
+  assert.equal(state, initialState);
+  assert.deepEqual([...world.turtles.keys()], [OL.MAIN_TURTLE_ID]);
+});

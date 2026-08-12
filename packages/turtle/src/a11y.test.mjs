@@ -125,3 +125,94 @@ test("every color-independent cue kind is distinct", () => {
   ]);
   assert.equal(kinds.size, 4);
 });
+
+// --- describeTurtleWorldState (#749, spec/rendering.md:191) ------------------------------------
+
+/** A `TurtleWorldState` over `states` (`[id, state]` pairs in creation order) with `activeId`
+ * active. */
+function turtleWorld(states, activeId) {
+  return { turtles: new Map(states), activeTurtleId: activeId };
+}
+
+test("describeTurtleWorldState of a single-turtle world is byte-identical to describeTurtleState", () => {
+  // The compatibility property #749 protects: every Turtle & Rendering program keeps the spec's
+  // own worked-example wording, with no turtle identity bolted on.
+  const state = { ...OL.INITIAL_TURTLE_STATE, position: [100, 0], heading: 90 };
+  const world = turtleWorld([[OL.MAIN_TURTLE_ID, state]], OL.MAIN_TURTLE_ID);
+  assert.equal(
+    OL.describeTurtleWorldState(world),
+    "turtle at x 100 y 0 heading 90 degrees pen down color black width 1",
+  );
+  assert.equal(
+    OL.describeTurtleWorldState(world),
+    OL.describeTurtleState(state),
+  );
+  assert.equal(
+    OL.describeTurtleWorldState(OL.INITIAL_TURTLE_WORLD_STATE),
+    OL.describeTurtleState(OL.INITIAL_TURTLE_STATE),
+  );
+});
+
+test("describeTurtleWorldState identifies the active turtle once there is more than one", () => {
+  // spec/rendering.md:191 — "Implementations with multiple turtles MUST identify the active turtle
+  // or addressed turtle set." The #749 defect was that this text named no turtle at all while
+  // reporting one particular turtle's attributes.
+  const world = turtleWorld(
+    [
+      [0, OL.INITIAL_TURTLE_STATE],
+      [1, { ...OL.INITIAL_TURTLE_STATE, color: "green" }],
+      [
+        2,
+        {
+          ...OL.INITIAL_TURTLE_STATE,
+          position: [0, 10],
+          color: "blue",
+          visible: false,
+        },
+      ],
+    ],
+    2,
+  );
+  assert.equal(
+    OL.describeTurtleWorldState(world),
+    "active turtle 3 of 3 at x 0 y 10 heading 0 degrees pen down color blue width 1 hidden",
+  );
+});
+
+test("describeTurtleWorldState numbers the active turtle by creation order, not by turtle id", () => {
+  // Ids are an allocator detail no OpenLogo program can print; the ordinal is what a learner can
+  // match against the turtles on screen.
+  const world = turtleWorld(
+    [
+      [0, OL.INITIAL_TURTLE_STATE],
+      [7, { ...OL.INITIAL_TURTLE_STATE, color: "green" }],
+    ],
+    7,
+  );
+  assert.equal(
+    OL.describeTurtleWorldState(world),
+    "active turtle 2 of 2 at x 0 y 0 heading 0 degrees pen down color green width 1",
+  );
+});
+
+test("describeTurtleWorldState still appends the current instruction for a multi-turtle world", () => {
+  const world = turtleWorld(
+    [
+      [0, OL.INITIAL_TURTLE_STATE],
+      [1, { ...OL.INITIAL_TURTLE_STATE, color: "green" }],
+    ],
+    1,
+  );
+  assert.equal(
+    OL.describeTurtleWorldState(world, { currentInstruction: "forward 10" }),
+    'active turtle 2 of 2 at x 0 y 0 heading 0 degrees pen down color green width 1 instruction "forward 10"',
+  );
+});
+
+test("describeTurtleWorldState of an empty world falls back to the program-start defaults", () => {
+  // A hand-built world naming no live turtle must still announce something rather than throw.
+  assert.equal(
+    OL.describeTurtleWorldState({ turtles: new Map(), activeTurtleId: 0 }),
+    OL.describeTurtleState(OL.INITIAL_TURTLE_STATE),
+  );
+});

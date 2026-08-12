@@ -1,7 +1,7 @@
 /**
  * The turtle Canvas view (#218) — composes `@openlogo/turtle`'s DOM-free renderer into the app
  * shell's `turtle` region. This slice is **static composition only**: it paints whatever
- * `turtleState`/`turtleScene` currently sit in the shared #123 state model (the program-start
+ * `turtleWorld`/`turtleScene` currently sit in the shared #123 state model (the program-start
  * defaults, until #228 wires the run loop to keep them live after each run) — it never re-runs a
  * program, folds trace events, or duplicates `@openlogo/turtle`'s reducers/coordinate math
  * itself.
@@ -28,7 +28,7 @@
 import type {
   RenderTarget,
   TurtleScene,
-  TurtleState,
+  TurtleWorldState,
   Viewport,
 } from "@openlogo/turtle";
 import { paintTurtle } from "@openlogo/turtle";
@@ -126,7 +126,7 @@ export interface CanvasViewOptions {
 export interface CanvasViewController {
   /** The viewport this controller currently paints at (updated by {@link setViewport}). */
   readonly viewport: Viewport;
-  /** Repaint the target from the state model's current `turtleState`/`turtleScene`. */
+  /** Repaint the target from the state model's current `turtleWorld`/`turtleScene`. */
   repaint(): void;
   /**
    * Adopt a new {@link Viewport} — the DPR-aware backing size + scale studio recomputes when the
@@ -140,9 +140,11 @@ export interface CanvasViewController {
 
 /**
  * Construct the Canvas view controller bound to the shared studio state model. `repaint()` reads
- * `state.getState().turtleState`/`.turtleScene` — the same `@openlogo/turtle` types the state
+ * `state.getState().turtleWorld`/`.turtleScene` — the same `@openlogo/turtle` types the state
  * model stores verbatim — and paints them through `@openlogo/turtle`'s `paintTurtle`, never
- * re-deriving turtle coordinates, colors, or scene items itself.
+ * re-deriving turtle coordinates, colors, or scene items itself. Painting the whole world (rather
+ * than one merged turtle state) is what makes a Sprites drawing show every live turtle's avatar
+ * with its own shape, color, and visibility.
  */
 export function createCanvasViewController(
   state: StudioStateStore,
@@ -151,8 +153,11 @@ export function createCanvasViewController(
   const renderTarget = createCanvasRenderTarget(options.target);
   let viewport = options.viewport;
 
-  function paint(turtleState: TurtleState, turtleScene: TurtleScene): void {
-    paintTurtle(renderTarget, turtleScene, turtleState, viewport);
+  function paint(
+    turtleWorld: TurtleWorldState,
+    turtleScene: TurtleScene,
+  ): void {
+    paintTurtle(renderTarget, turtleScene, turtleWorld, viewport);
   }
 
   return {
@@ -163,8 +168,8 @@ export function createCanvasViewController(
       viewport = next;
     },
     repaint() {
-      const { turtleState, turtleScene } = state.getState();
-      paint(turtleState, turtleScene);
+      const { turtleWorld, turtleScene } = state.getState();
+      paint(turtleWorld, turtleScene);
     },
   };
 }

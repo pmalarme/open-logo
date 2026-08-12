@@ -19,9 +19,11 @@
  * carries the turtle's full initial state; the **main turtle** — the single default turtle every
  * program starts with, whose Turtle & Rendering events carry *no* `turtle_id` before any `tell`
  * (`spec/turtles-and-sprites.md`'s "Addressing model") — is present from the start under
- * {@link MAIN_TURTLE_ID}.
+ * {@link MAIN_TURTLE_ID}. Alongside the per-turtle states it tracks the **active** turtle, the
+ * identity `spec/rendering.md:115`/`:191` require the avatar and the non-visual state description
+ * to name once a program drives more than one turtle.
  *
- * Deterministic in, deterministic out: identical event input always folds to an identical map,
+ * Deterministic in, deterministic out: identical event input always folds to an identical world,
  * with no timing, randomness, or rendering concerns here.
  */
 
@@ -45,20 +47,44 @@ import {
 export const MAIN_TURTLE_ID: TurtleId = 0;
 
 /**
- * Per-turtle state keyed by turtle identity: every live turtle's own {@link TurtleState}. The main
- * turtle ({@link MAIN_TURTLE_ID}) is always present; each `new_turtle` adds one entry when its
- * `spawn-turtle` event is folded. Insertion order is creation order (the main turtle first, then
- * each spawn), matching the `turtles` reporter's order so a renderer can iterate sprites
- * deterministically.
+ * The whole turtle world a renderer paints and describes: every live turtle's own
+ * {@link TurtleState}, plus which of them is **active**.
+ *
+ * - {@link TurtleWorldState.turtles} is keyed by turtle identity. The main turtle
+ *   ({@link MAIN_TURTLE_ID}) is always present; each `new_turtle` adds one entry when its
+ *   `spawn-turtle` event is folded. Insertion order is creation order (the main turtle first, then
+ *   each spawn), matching the `turtles` reporter's order so a renderer can iterate sprites
+ *   deterministically.
+ * - {@link TurtleWorldState.activeTurtleId} is the turtle that most recently moved or changed —
+ *   the identity `spec/rendering.md:115` ("The turtle avatar … indicates the **active turtle's**
+ *   position, heading, visibility, and shape") and `spec/rendering.md:191` ("Implementations with
+ *   multiple turtles MUST identify the active turtle or addressed turtle set") require a renderer
+ *   and its non-visual state text to name.
+ *
+ * The active turtle is derived from the trace stream alone, because that is all this package
+ * consumes: `spec/execution-model.md`'s registry has no addressing event, so `tell`/`ask`/`each`
+ * are invisible here — what *is* visible is each effect event's `turtle_id`
+ * (`spec/turtles-and-sprites.md:113`: "Implementations MUST produce trace events with the
+ * appropriate turtle identity so animation, stepping, `why`, and `debug` can explain **which
+ * turtle moved or changed**"). So "active" here means exactly that: the turtle whose own state the
+ * most recently folded event changed. During stepping and animation — the cases the avatar and the
+ * live a11y region exist for — that is the turtle a learner just watched act. It is deliberately
+ * *not* a claim about the runtime's addressed set after an `ask` block restores it, which no
+ * consumer of the event stream can observe.
  */
-export type TurtleWorldState = ReadonlyMap<TurtleId, TurtleState>;
+export interface TurtleWorldState {
+  /** Every live turtle's own state, keyed by identity, in creation order. */
+  readonly turtles: ReadonlyMap<TurtleId, TurtleState>;
+  /** The turtle whose state the most recently folded event changed. */
+  readonly activeTurtleId: TurtleId;
+}
 
 /**
  * Return `map` made genuinely immutable at runtime: its mutators (`set`/`delete`/`clear`) are
  * replaced with ones that throw, then the object is frozen. Used only for the shared
- * {@link INITIAL_TURTLE_WORLD_STATE} seed so a JavaScript caller cannot corrupt it — a plain
- * `Object.freeze` does not suffice, because a frozen `Map` still honors `.set`. Reads (`get`/`has`/
- * iteration/`size`) are untouched.
+ * {@link INITIAL_TURTLE_WORLD_STATE} seed's turtle map so a JavaScript caller cannot corrupt it —
+ * a plain `Object.freeze` does not suffice, because a frozen `Map` still honors `.set`. Reads
+ * (`get`/`has`/iteration/`size`) are untouched.
  */
 function freezeMap<K, V>(map: Map<K, V>): ReadonlyMap<K, V> {
   const frozen = map as Map<K, V> & {
@@ -76,30 +102,56 @@ function freezeMap<K, V>(map: Map<K, V>): ReadonlyMap<K, V> {
 }
 
 /**
- * The program-start world: just the main turtle at its {@link INITIAL_TURTLE_STATE}. Shared as the
- * default fold seed; every {@link reduceTurtleWorldState} call copies the world before mutating
- * (`new Map(world)`), so this instance is never written through internally. It is both typed
- * {@link TurtleWorldState} (a `ReadonlyMap`, so the compiler rejects `.set`/`.delete`/`.clear`) and
+ * The program-start world: just the main turtle at its {@link INITIAL_TURTLE_STATE}, active.
+ * Shared as the default fold seed; every {@link reduceTurtleWorldState} call copies the turtle map
+ * before mutating (`new Map(world.turtles)`), so this instance is never written through internally.
+ * Its map is both typed `ReadonlyMap` (so the compiler rejects `.set`/`.delete`/`.clear`) and
  * genuinely frozen at runtime by {@link freezeMap}, so a JavaScript caller cannot mutate the shared
  * singleton and corrupt a later default fold either — `Object.freeze` alone would not do this,
- * because a frozen `Map` still honors `.set`.
+ * because a frozen `Map` still honors `.set`. The wrapper object is `Object.freeze`d too, which
+ * *is* sufficient for its two plain properties.
  */
-export const INITIAL_TURTLE_WORLD_STATE: TurtleWorldState = freezeMap(
-  new Map<TurtleId, TurtleState>([[MAIN_TURTLE_ID, INITIAL_TURTLE_STATE]]),
-);
+export const INITIAL_TURTLE_WORLD_STATE: TurtleWorldState = Object.freeze({
+  turtles: freezeMap(
+    new Map<TurtleId, TurtleState>([[MAIN_TURTLE_ID, INITIAL_TURTLE_STATE]]),
+  ),
+  activeTurtleId: MAIN_TURTLE_ID,
+});
+
+/**
+ * The {@link TurtleWorldState.activeTurtleId} turtle's own state — what the avatar and the
+ * non-visual state description describe (`spec/rendering.md:115`). Every world this module folds
+ * keeps `activeTurtleId` pointing at a turtle that is present in `turtles`, but the type does not
+ * enforce that, so a hand-constructed world naming an absent turtle falls back to the program-start
+ * {@link INITIAL_TURTLE_STATE} rather than throwing at paint or announce time.
+ */
+export function activeTurtleState(world: TurtleWorldState): TurtleState {
+  return world.turtles.get(world.activeTurtleId) ?? INITIAL_TURTLE_STATE;
+}
 
 /**
  * Reduces one trace event into the next per-turtle world state. A `spawn-turtle` event registers
  * the newly created turtle at the full initial state its payload carries
  * (`spec/turtles-and-sprites.md`'s "Turtle creation" section — a new turtle starts at the same
  * defaults as the main turtle but is nonetheless recorded from its own payload so a renderer never
- * has to assume them). Every other event is delegated to the single-turtle
- * {@link reduceTurtleState} against the state of the turtle its `turtle_id` names, defaulting to
- * {@link MAIN_TURTLE_ID} when the envelope carries none — the implicit main turtle before any
- * `tell`, and every Core/Turtle & Rendering event, which never carry a `turtle_id`. An event whose
- * `turtle_id` names a turtle not yet present (which cannot happen for a well-formed stream, since a
- * turtle's `spawn-turtle` always precedes its commands) is ignored rather than inventing a turtle,
- * keeping the reducer total without fabricating identities.
+ * has to assume them). Creating a turtle does **not** make it active: `:friend = new_turtle` leaves
+ * the addressed set alone (`spec/turtles-and-sprites.md:42`'s "Addressing model" — only
+ * `tell`/`ask`/`each` change who acts), so the newly spawned turtle only becomes active once it
+ * actually moves or changes.
+ *
+ * Every other event is delegated to the single-turtle {@link reduceTurtleState} against the state
+ * of the turtle its `turtle_id` names, defaulting to {@link MAIN_TURTLE_ID} when the envelope
+ * carries none — the implicit main turtle before any `tell`, and every Core/Turtle & Rendering
+ * event, which never carry a `turtle_id`. An event whose `turtle_id` names a turtle not yet present
+ * (which cannot happen for a well-formed stream, since a turtle's `spawn-turtle` always precedes
+ * its commands) is ignored rather than inventing a turtle, keeping the reducer total without
+ * fabricating identities.
+ *
+ * The turtle becomes {@link TurtleWorldState.activeTurtleId} exactly when the event genuinely
+ * changed its state — the same condition that produces a new world. That is why non-state events
+ * (`instruction`, `print`, `procedure-enter`, a `clean` clear, …) never re-point the active turtle:
+ * they carry no `turtle_id` and would otherwise silently snap "active" back to the main turtle in
+ * the middle of a sprite's block.
  */
 export function reduceTurtleWorldState(
   world: TurtleWorldState,
@@ -107,8 +159,8 @@ export function reduceTurtleWorldState(
 ): TurtleWorldState {
   if (event.kind === "spawn-turtle") {
     const payload = event.payload as SpawnTurtlePayload;
-    const next = new Map(world);
-    next.set(payload.turtle_id, {
+    const turtles = new Map(world.turtles);
+    turtles.set(payload.turtle_id, {
       position: payload.position,
       heading: payload.heading,
       penDown: payload.pen === "down",
@@ -117,10 +169,10 @@ export function reduceTurtleWorldState(
       shape: payload.shape,
       visible: payload.visible,
     });
-    return next;
+    return { turtles, activeTurtleId: world.activeTurtleId };
   }
   const id = event.turtle_id ?? MAIN_TURTLE_ID;
-  const current = world.get(id);
+  const current = world.turtles.get(id);
   if (current === undefined) {
     return world;
   }
@@ -128,9 +180,9 @@ export function reduceTurtleWorldState(
   if (reduced === current) {
     return world;
   }
-  const next = new Map(world);
-  next.set(id, reduced);
-  return next;
+  const turtles = new Map(world.turtles);
+  turtles.set(id, reduced);
+  return { turtles, activeTurtleId: id };
 }
 
 /**

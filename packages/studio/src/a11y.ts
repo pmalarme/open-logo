@@ -68,19 +68,26 @@
  *
  * ## Non-visual turtle state — {@link createTurtleStateRegion}
  * As of #229: a headless `status`/`aria-live="polite"` text region, fed from the shared store's
- * `turtleState` (the same slot #218 paints from and #228 pushes into on every run tick/step/
- * reset), rendered via `@openlogo/turtle`'s published {@link describeTurtleState} — this module
- * never writes its own position/heading description logic. Unlike {@link createA11yAnnouncer}'s
+ * `turtleWorld` (the same slot #218 paints from and #228 pushes into on every run tick/step/
+ * reset), rendered via `@openlogo/turtle`'s published {@link describeTurtleWorldState} — this
+ * module never writes its own position/heading description logic. Unlike
+ * {@link createA11yAnnouncer}'s
  * discrete announcement log (deliberately sparse, so screen readers aren't spammed on every
  * keystroke), this is a single, continuously-current piece of text a screen reader can read at
  * any time and that updates in lockstep with the Canvas view as a program runs.
  *
+ * #749 made that region read the per-turtle `turtleWorld` rather than a single merged turtle
+ * state: with several turtles the text now names **which** turtle it is describing (the active
+ * one, in creation order), satisfying `spec/rendering.md:191`'s "Implementations with multiple
+ * turtles MUST identify the active turtle or addressed turtle set". A single-turtle program's
+ * text is unchanged, byte for byte.
+ *
  * #410 additionally appends the current source instruction, when one is available
  * (`spec/rendering.md`'s Non-visual state descriptions minimum: pen color/width, turtle
  * visibility, AND "current source instruction when available from `source-span`" — the first two
- * were already covered by `describeTurtleState`, the third was missing). `run-controller.ts`
+ * were already covered by the turtle-state description, the third was missing). `run-controller.ts`
  * derives `state.currentInstructionSourceSpan` from the run's own already-complete event stream
- * (never a second execution) and updates it in lockstep with `turtleState`/`turtleScene`; this
+ * (never a second execution) and updates it in lockstep with `turtleWorld`/`turtleScene`; this
  * module slices that span's exact source text out of `state.source` (mirroring
  * `@openlogo/parser`'s internal, unexported `sliceSourceSpan` helper, reimplemented locally since
  * studio cannot import parser internals) and appends it as a trailing clause — omitted entirely,
@@ -89,8 +96,8 @@
  */
 
 import type { SourceSpan } from "@openlogo/core";
-import type { TurtleState } from "@openlogo/turtle";
-import { describeTurtleState } from "@openlogo/turtle";
+import type { TurtleWorldState } from "@openlogo/turtle";
+import { describeTurtleWorldState } from "@openlogo/turtle";
 import type {
   StudioState,
   StudioStateStore,
@@ -417,11 +424,13 @@ function describeCurrentInstruction(
   return ` current instruction ${extractSourceSpanText(source, span)}`;
 }
 
-/** The full non-visual turtle-state text: `describeTurtleState`'s wording plus, when available,
- * the current source instruction (#410). */
+/** The full non-visual turtle-state text: `describeTurtleWorldState`'s wording — which identifies
+ * the active turtle once the program drives more than one (`spec/rendering.md:191`), and is
+ * byte-identical to the single-turtle `describeTurtleState` wording otherwise — plus, when
+ * available, the current source instruction (#410). */
 function describeFullTurtleState(state: StudioState): string {
   return (
-    describeTurtleState(state.turtleState) +
+    describeTurtleWorldState(state.turtleWorld) +
     describeCurrentInstruction(state.source, state.currentInstructionSourceSpan)
   );
 }
@@ -432,15 +441,16 @@ export type TurtleStateTextListener = (text: string) => void;
 /**
  * The headless, always-current non-visual turtle-state text region over the shared state model.
  * Unlike {@link A11yAnnouncer}, this holds exactly one piece of text — the description of the
- * *current* {@link TurtleState}, plus (#410) the current source instruction when available — that
- * a renderer keeps mapped onto a single `status`/`aria-live="polite"` region, rather than a
- * growing announcement log.
+ * *current* {@link TurtleWorldState}'s active turtle, plus (#410) the current source instruction
+ * when available — that a renderer keeps mapped onto a single `status`/`aria-live="polite"`
+ * region, rather than a growing announcement log.
  */
 export interface TurtleStateRegion {
   /** The single studio state model instance this region reads through. */
   readonly state: StudioStateStore;
-  /** The current non-visual turtle-state description, per `@openlogo/turtle`'s `describeTurtleState`
-   * plus (#410) the current source instruction when available from `source_span`. */
+  /** The current non-visual turtle-state description, per `@openlogo/turtle`'s
+   * `describeTurtleWorldState` plus (#410) the current source instruction when available from
+   * `source_span`. */
   getText(): string;
   /** Register a listener notified with the new text whenever the turtle state changes. */
   subscribeText(listener: TurtleStateTextListener): Unsubscribe;
@@ -448,13 +458,15 @@ export interface TurtleStateRegion {
 
 /**
  * Construct the turtle-state text region bound to the shared studio state model (never a copy).
- * The turtle-position/heading/pen wording is computed via `@openlogo/turtle`'s published
- * {@link describeTurtleState} — this module never re-derives it — and (#410) the current source
- * instruction, when `state.currentInstructionSourceSpan` is available, is appended by slicing
- * `state.source` (see {@link extractSourceSpanText}). Recomputed on every store update, but
+ * The turtle-position/heading/pen wording — and, for a multi-turtle program, the active turtle's
+ * identity — is computed via `@openlogo/turtle`'s published {@link describeTurtleWorldState}; this
+ * module never re-derives it. (#410) The current source instruction, when
+ * `state.currentInstructionSourceSpan` is available, is appended by slicing `state.source` (see
+ * {@link extractSourceSpanText}). Recomputed on every store update, but
  * listeners are notified only when the **text itself** actually changes (not merely on a new
- * `turtleState`/`currentInstructionSourceSpan` object reference): `@openlogo/turtle`'s reducers
- * (`reduceTurtleState`) always return a fresh object on any state-bearing trace event, even a
+ * `turtleWorld`/`currentInstructionSourceSpan` object reference): `@openlogo/turtle`'s reducers
+ * (`reduceTurtleState`, and `reduceTurtleWorldState` around it) always return a fresh object on any
+ * state-bearing trace event, even a
  * genuine no-op like a repeated `pen_down` while the pen is already down, or `set_color "black"`
  * when the color is already `"black"` — a reference check alone would re-notify identical text on
  * every such no-op tick during a long animation. Comparing the rendered text (like

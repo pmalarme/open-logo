@@ -61,8 +61,8 @@
  * that already drives `output`/`diagnostics` also drives the Canvas pane, in lockstep:
  * - `run()` builds a `TurtleAnimationController` over the run's `result.events` and starts it via
  *   `@openlogo/turtle`'s `playWithMotionPreference` (honoring {@link RunControllerOptions.reducedMotion}).
- *   Every consumed tick pushes the controller's folded `state`/`scene` into the shared state model
- *   via `setTurtleState`/`setTurtleScene` (#218) and, if a {@link RunControllerOptions.canvasView}
+ *   Every consumed tick pushes the controller's folded `world`/`scene` into the shared state model
+ *   via `setTurtleWorld`/`setTurtleScene` (#218) and, if a {@link RunControllerOptions.canvasView}
  *   was supplied, calls its `repaint()` immediately — the same composition seam #218 published,
  *   invoked directly rather than duplicated.
  * - `step()` is no longer a no-op: it now realizes what its old doc comment deferred, by advancing
@@ -72,7 +72,7 @@
  *   still-advancing Canvas view halts at exactly the same point the cancellation signal takes
  *   over the underlying `execute()` call — see `TurtleAnimationController`'s own doc comment for
  *   why a stale scheduled tick can never fire after `pause()` and double-advance the picture.
- * - `reset()` additionally resets the animation and restores `turtleState`/`turtleScene` to
+ * - `reset()` additionally resets the animation and restores `turtleWorld`/`turtleScene` to
  *   `@openlogo/turtle`'s program-start defaults, repainting a blank Canvas alongside the rest of
  *   the studio state clearing.
  * - The default {@link RunControllerOptions.scheduler} is `@openlogo/turtle`'s
@@ -150,7 +150,7 @@ import type {
 import {
   IMMEDIATE_SCHEDULER,
   INITIAL_TURTLE_SCENE,
-  INITIAL_TURTLE_STATE,
+  INITIAL_TURTLE_WORLD_STATE,
   playWithMotionPreference,
   TurtleAnimationController,
 } from "@openlogo/turtle";
@@ -196,7 +196,7 @@ export interface RunControllerOptions {
   /**
    * The Canvas view controller (#218) to keep in lockstep with the run. When supplied,
    * `run()`/`step()`/`reset()` call `canvasView.repaint()` immediately after updating the shared
-   * state model's `turtleState`/`turtleScene`, so the pane never shows a stale frame. Optional —
+   * state model's `turtleWorld`/`turtleScene`, so the pane never shows a stale frame. Optional —
    * omit in tests that only assert the state model's turtle fields directly.
    */
   readonly canvasView?: CanvasViewController;
@@ -227,7 +227,7 @@ export interface RunController {
   stop(): void;
   /**
    * Clear output/diagnostics, re-arm cancellation, reset the turtle animation and restore
-   * `turtleState`/`turtleScene` to `@openlogo/turtle`'s program-start defaults (repainting the
+   * `turtleWorld`/`turtleScene` to `@openlogo/turtle`'s program-start defaults (repainting the
    * Canvas view if one was supplied), and return `runStatus` to `"idle"`.
    */
   reset(): void;
@@ -361,11 +361,12 @@ export function createRunController(
   // on screen. Cleared back to "" by reset(), exactly like `currentEvents` itself.
   let preparedSource = "";
 
-  /** Push `current`'s folded state/scene into the shared store and repaint (never called with a
-   * null animation — callers only invoke this once `animation` has been assigned). */
+  /** Push `current`'s folded per-turtle world/scene into the shared store and repaint (never
+   * called with a null animation — callers only invoke this once `animation` has been
+   * assigned). */
   function pushTurtleSnapshot(current: TurtleAnimationController): void {
     const snapshot = current.getSnapshot();
-    state.setTurtleState(snapshot.state);
+    state.setTurtleWorld(snapshot.world);
     state.setTurtleScene(snapshot.scene);
     // #410 — only trust `currentEvents`' spans while the editor still holds the exact source they
     // were derived from; a mid-run edit means the store's own currentInstructionSourceSpan was
@@ -492,7 +493,7 @@ export function createRunController(
     currentEvents = [];
     preparedSource = "";
     state.setCurrentInstructionSourceSpan(null);
-    state.setTurtleState(INITIAL_TURTLE_STATE);
+    state.setTurtleWorld(INITIAL_TURTLE_WORLD_STATE);
     state.setTurtleScene(INITIAL_TURTLE_SCENE);
     options?.canvasView?.repaint();
     state.setRunStatus("idle");

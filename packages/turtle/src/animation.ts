@@ -6,7 +6,7 @@
  * or reshapes events; it only decides *how much* of the already-produced stream has been
  * consumed and *how fast* to consume more of it. Running a deterministic program instantly,
  * slowly, or step-by-step MUST fold to the identical final retained scene — that invariant is
- * why this layer reuses {@link reduceTurtleState}/{@link reduceTurtleScene} incrementally
+ * why this layer reuses {@link reduceTurtleWorldState}/{@link reduceTurtleScene} incrementally
  * (folding only the newly consumed events each step) rather than re-reducing any prefix, and why
  * it never skips, coalesces, or reorders events regardless of speed.
  *
@@ -26,11 +26,13 @@ import {
   reduceTurtleScene,
   type TurtleScene,
 } from "./scene.js";
+import { INITIAL_TURTLE_STATE, type TurtleState } from "./state.js";
 import {
-  INITIAL_TURTLE_STATE,
-  reduceTurtleState,
-  type TurtleState,
-} from "./state.js";
+  MAIN_TURTLE_ID,
+  type TurtleWorldState,
+  activeTurtleState,
+  reduceTurtleWorldState,
+} from "./world-state.js";
 
 import type { TraceEvent } from "@openlogo/core";
 
@@ -79,7 +81,12 @@ function clampSpeed(stepsPerSecond: number): number {
 
 /** Options for constructing a {@link TurtleAnimationController}. */
 export interface TurtleAnimationOptions {
-  /** Turtle state to start from; defaults to {@link INITIAL_TURTLE_STATE}. */
+  /**
+   * Turtle state to start the **main turtle** from; defaults to {@link INITIAL_TURTLE_STATE}. It
+   * seeds the world's {@link MAIN_TURTLE_ID} entry, which is also the initially active turtle, so
+   * a single-turtle caller's `initialState` still is exactly what `getSnapshot().state` reports
+   * before any event is consumed.
+   */
   readonly initialState?: TurtleState;
   /** Retained scene to start from; defaults to {@link INITIAL_TURTLE_SCENE}. */
   readonly initialScene?: TurtleScene;
@@ -97,8 +104,17 @@ export interface AnimationSnapshot {
   readonly cursor: number;
   /** Current playback status. */
   readonly status: PlaybackStatus;
-  /** Turtle state folded from every event consumed so far. */
+  /**
+   * The **active** turtle's state as of every event consumed so far — the turtle the avatar and
+   * the non-visual state description are about (`spec/rendering.md:115`). With a single turtle
+   * that is simply the main turtle's folded state, unchanged from before per-turtle folding
+   * existed; under Sprites it is the turtle that most recently moved or changed, rather than every
+   * turtle's attributes merged into one record.
+   */
   readonly state: TurtleState;
+  /** Every live turtle's own state plus the active turtle, folded from every event consumed so
+   * far. This is what a renderer paints avatars from. */
+  readonly world: TurtleWorldState;
   /** Retained scene folded from every event consumed so far. */
   readonly scene: TurtleScene;
   /** Overlay state folded from every event consumed so far. */
@@ -108,12 +124,14 @@ export interface AnimationSnapshot {
 /**
  * A deterministic pacing/cursor player over a fixed, already-produced `TraceEvent` array.
  *
- * This is **not** a second reduction: {@link TurtleState} and {@link TurtleScene} are always
- * derived by folding the same `reduceTurtleState`/`reduceTurtleScene` functions the sibling
+ * This is **not** a second reduction: {@link TurtleWorldState} and {@link TurtleScene} are always
+ * derived by folding the same `reduceTurtleWorldState`/`reduceTurtleScene` functions the sibling
  * reducers export, incrementally over just the newly consumed events on each step — so the
  * controller stays O(n) total across a full run (never re-reducing an already-folded prefix)
- * and can never diverge from what a direct `reduceTurtleEvents`/`reduceSceneEvents` call over
- * the same events would produce.
+ * and can never diverge from what a direct `reduceTurtleWorldEvents`/`reduceSceneEvents` call over
+ * the same events would produce. {@link AnimationSnapshot.state} is read out of that same world
+ * ({@link activeTurtleState}) rather than folded a second time, so the avatar, the state text, and
+ * the per-turtle world can never disagree.
  *
  * Step boundaries follow `spec/rendering.md`/`spec/execution-model.md` exactly: one step is an
  * `instruction` event plus every effect event up to (but not including) the next `instruction`
@@ -122,13 +140,13 @@ export interface AnimationSnapshot {
  */
 export class TurtleAnimationController {
   private readonly events: readonly TraceEvent[];
-  private readonly initialState: TurtleState;
+  private readonly initialWorld: TurtleWorldState;
   private readonly initialScene: TurtleScene;
   private readonly initialOverlay: OverlayState;
   private readonly scheduler: Scheduler;
   private speed: number;
   private cursor = 0;
-  private state: TurtleState;
+  private world: TurtleWorldState;
   private scene: TurtleScene;
   private overlay: OverlayState;
   private status: PlaybackStatus = "idle";
@@ -139,23 +157,29 @@ export class TurtleAnimationController {
     options: TurtleAnimationOptions = {},
   ) {
     this.events = events;
-    this.initialState = options.initialState ?? INITIAL_TURTLE_STATE;
+    this.initialWorld = {
+      turtles: new Map([
+        [MAIN_TURTLE_ID, options.initialState ?? INITIAL_TURTLE_STATE],
+      ]),
+      activeTurtleId: MAIN_TURTLE_ID,
+    };
     this.initialScene = options.initialScene ?? INITIAL_TURTLE_SCENE;
     this.initialOverlay = options.initialOverlay ?? INITIAL_OVERLAY_STATE;
     this.scheduler = options.scheduler ?? IMMEDIATE_SCHEDULER;
     this.speed = clampSpeed(options.stepsPerSecond ?? DEFAULT_STEPS_PER_SECOND);
-    this.state = this.initialState;
+    this.world = this.initialWorld;
     this.scene = this.initialScene;
     this.overlay = this.initialOverlay;
   }
 
-  /** Reads the current cursor, status, and folded state/scene/overlay without changing
+  /** Reads the current cursor, status, and folded world/state/scene/overlay without changing
    * anything. */
   getSnapshot(): AnimationSnapshot {
     return {
       cursor: this.cursor,
       status: this.status,
-      state: this.state,
+      state: activeTurtleState(this.world),
+      world: this.world,
       scene: this.scene,
       overlay: this.overlay,
     };
@@ -256,7 +280,7 @@ export class TurtleAnimationController {
   reset(): void {
     this.cancelScheduledStep();
     this.cursor = 0;
-    this.state = this.initialState;
+    this.world = this.initialWorld;
     this.scene = this.initialScene;
     this.overlay = this.initialOverlay;
     this.status = "idle";
@@ -293,11 +317,11 @@ export class TurtleAnimationController {
     }
   }
 
-  /** Folds `events[start..end)` into the running state/scene/overlay, in order, one event at a
+  /** Folds `events[start..end)` into the running world/scene/overlay, in order, one event at a
    * time. */
   private applyRange(start: number, end: number): void {
     for (const event of this.events.slice(start, end)) {
-      this.state = reduceTurtleState(this.state, event);
+      this.world = reduceTurtleWorldState(this.world, event);
       this.scene = reduceTurtleScene(this.scene, event);
       this.overlay = reduceOverlayState(this.overlay, event);
     }

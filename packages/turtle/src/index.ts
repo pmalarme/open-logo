@@ -13,17 +13,21 @@
  * ```
  *
  * This slice publishes the deterministic turtle-**state** reducer (position, heading, pen,
- * color, width, shape, visibility), the deterministic retained-**scene** reducer (background,
- * segments, fills, stamps), the **Canvas live renderer**, deterministic **SVG** and **PNG**
- * export — all three renderers paint the same retained data through the same
- * dependency-injected `RenderTarget` abstraction and coordinate mapping — the
+ * color, width, shape, visibility), the per-turtle **world** reducer (every live turtle's own
+ * state plus the active turtle, routed by the event stream's `turtle_id` — what a Sprites
+ * drawing is painted and described from), the deterministic retained-**scene** reducer
+ * (background, segments, fills, stamps), the **Canvas live renderer**, deterministic **SVG** and
+ * **PNG** export — all three renderers paint the same retained data through the same
+ * dependency-injected `RenderTarget` abstraction and coordinate mapping, and all three accept
+ * either a single turtle's state or a whole world — the
  * **animation/execution-control** cursor (`run`/`pause`/`step`/`speed`/`reset`+`replay`) that
  * paces consumption of that same event stream without ever re-deriving it, and **rendering
  * accessibility** primitives: a non-visual textual state description
- * (`describeTurtleState`), color-independent feedback descriptors for otherwise color-only
- * rendering state, and a `renderFrame` reduced-motion paint mode that instantly drains and
- * paints the retained scene without ever changing the event stream, final scene, turtle state,
- * or export output.
+ * (`describeTurtleState`, and `describeTurtleWorldState` which additionally identifies the
+ * active turtle once a program drives more than one), color-independent feedback descriptors for
+ * otherwise color-only rendering state, and a `renderFrame` reduced-motion paint mode that
+ * instantly drains and paints the retained scene without ever changing the event stream, final
+ * scene, turtle state, or export output.
  */
 
 export {
@@ -36,6 +40,7 @@ export type { TurtleState } from "./state.js";
 export {
   INITIAL_TURTLE_WORLD_STATE,
   MAIN_TURTLE_ID,
+  activeTurtleState,
   reduceTurtleWorldEvents,
   reduceTurtleWorldState,
 } from "./world-state.js";
@@ -67,6 +72,7 @@ export type {
   BackingResolution,
   MotionPreference,
   MotionPreferencePlayer,
+  PaintableTurtles,
   ReducedMotionSource,
   RenderTarget,
   Viewport,
@@ -99,6 +105,7 @@ export {
   describePenUpPreviewCue,
   describeTurtleFocusCue,
   describeTurtleState,
+  describeTurtleWorldState,
 } from "./a11y.js";
 export type {
   ColorIndependentCue,

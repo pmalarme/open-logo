@@ -1,6 +1,16 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as OL from "@openlogo/studio";
+import { MAIN_TURTLE_ID } from "@openlogo/turtle";
+
+/** A `TurtleWorldState` holding just the main turtle at `state`, active — what a single-turtle
+ * (Turtle & Rendering) program's event stream folds to. */
+function singleTurtleWorld(state) {
+  return {
+    turtles: new Map([[MAIN_TURTLE_ID, state]]),
+    activeTurtleId: MAIN_TURTLE_ID,
+  };
+}
 
 test("REPL_FOCUS_ORDER covers every studio region with unique, stable ids", () => {
   const order = OL.REPL_FOCUS_ORDER;
@@ -434,19 +444,21 @@ test("createTurtleStateRegion.state is the exact same store instance passed in, 
   assert.equal(region.state, state);
 });
 
-test("createTurtleStateRegion.getText updates when turtleState changes", () => {
+test("createTurtleStateRegion.getText updates when the turtle world changes", () => {
   const state = OL.createStudioState();
   const region = OL.createTurtleStateRegion(state);
 
-  state.setTurtleState({
-    position: [100, 0],
-    heading: 90,
-    penDown: true,
-    color: "black",
-    width: 1,
-    shape: "turtle",
-    visible: true,
-  });
+  state.setTurtleWorld(
+    singleTurtleWorld({
+      position: [100, 0],
+      heading: 90,
+      penDown: true,
+      color: "black",
+      width: 1,
+      shape: "turtle",
+      visible: true,
+    }),
+  );
 
   assert.equal(
     region.getText(),
@@ -460,21 +472,22 @@ test("createTurtleStateRegion does not notify for a same-reference re-set (no-op
   const texts = [];
   region.subscribeText((text) => texts.push(text));
 
-  const { turtleState } = state.getState();
-  state.setTurtleState(turtleState);
+  const { turtleWorld, turtleState } = state.getState();
+  state.setTurtleWorld(turtleWorld);
   assert.deepEqual(texts, []);
 
   // A genuine change is still delivered to the same listener.
-  state.setTurtleState({ ...turtleState, heading: 90 });
+  state.setTurtleWorld(singleTurtleWorld({ ...turtleState, heading: 90 }));
   assert.deepEqual(texts, [region.getText()]);
 });
 
-test("createTurtleStateRegion does not notify for a genuine no-op turtle event that still produces a fresh (but text-identical) turtleState object", () => {
+test("createTurtleStateRegion does not notify for a genuine no-op turtle event that still produces a fresh (but text-identical) turtle world", () => {
   // @openlogo/turtle's reduceTurtleState always spreads a new object for any state-bearing trace
   // event, even a no-op like a repeated pen_down while the pen is already down (the runtime emits
-  // these; see execute-internal.ts's pen-change events). A reference-equality check alone would
-  // wrongly re-notify identical text on every such tick during a long animation — this proves the
-  // region instead compares the rendered text, matching diagnosticsKey's precedent above.
+  // these; see execute-internal.ts's pen-change events), and reduceTurtleWorldState then hands
+  // back a fresh world around it. A reference-equality check alone would wrongly re-notify
+  // identical text on every such tick during a long animation — this proves the region instead
+  // compares the rendered text, matching diagnosticsKey's precedent above.
   const state = OL.createStudioState();
   const region = OL.createTurtleStateRegion(state);
   const texts = [];
@@ -484,11 +497,11 @@ test("createTurtleStateRegion does not notify for a genuine no-op turtle event t
   assert.equal(turtleState.penDown, true, "the default turtle starts pen down");
   // A fresh object with the exact same field values as the current state — as a no-op pen_down/
   // set_color/etc. trace event's reducer output would be — must not be treated as a "change".
-  state.setTurtleState({ ...turtleState });
+  state.setTurtleWorld(singleTurtleWorld({ ...turtleState }));
   assert.deepEqual(texts, []);
 
   // A genuine change afterward is still delivered.
-  state.setTurtleState({ ...turtleState, penDown: false });
+  state.setTurtleWorld(singleTurtleWorld({ ...turtleState, penDown: false }));
   assert.deepEqual(texts, [region.getText()]);
 });
 
@@ -498,19 +511,23 @@ test("createTurtleStateRegion.subscribeText only notifies listeners of changes a
   const texts = [];
   const unsubscribe = region.subscribeText((text) => texts.push(text));
 
-  state.setTurtleState({
-    ...state.getState().turtleState,
-    position: [10, 0],
-  });
+  state.setTurtleWorld(
+    singleTurtleWorld({
+      ...state.getState().turtleState,
+      position: [10, 0],
+    }),
+  );
   assert.deepEqual(texts, [
     "turtle at x 10 y 0 heading 0 degrees pen down color black width 1",
   ]);
 
   unsubscribe();
-  state.setTurtleState({
-    ...state.getState().turtleState,
-    position: [20, 0],
-  });
+  state.setTurtleWorld(
+    singleTurtleWorld({
+      ...state.getState().turtleState,
+      position: [20, 0],
+    }),
+  );
   // Unsubscribed, so no further notifications, even though getText() keeps tracking the change.
   assert.deepEqual(texts, [
     "turtle at x 10 y 0 heading 0 degrees pen down color black width 1",
@@ -530,13 +547,66 @@ test("two independent consumers of the same turtle-state region observe identica
   region.subscribeText((text) => consumerA.push(text));
   region.subscribeText((text) => consumerB.push(text));
 
-  state.setTurtleState({
-    ...state.getState().turtleState,
-    heading: 45,
-  });
+  state.setTurtleWorld(
+    singleTurtleWorld({
+      ...state.getState().turtleState,
+      heading: 45,
+    }),
+  );
 
   assert.deepEqual(consumerA, consumerB);
   assert.deepEqual(consumerA, [region.getText()]);
+});
+
+test("the state text identifies the active turtle once a program drives more than one (#749, spec/rendering.md:191)", () => {
+  // The #749 reproduction, as a screen reader hears it: `tell [ :a :b ]` / `forward 10` /
+  // `ask :b [ hide_turtle set_color "blue" ]`. Before the fix the region announced ":b's" blue,
+  // hidden attributes with no identity at all — indistinguishable from the one turtle a
+  // single-turtle program has. Now the text names which turtle it is describing.
+  const state = OL.createStudioState();
+  const region = OL.createTurtleStateRegion(state);
+  const base = {
+    position: [0, 10],
+    heading: 0,
+    penDown: true,
+    width: 1,
+    shape: "turtle",
+  };
+  state.setTurtleWorld({
+    turtles: new Map([
+      [0, { ...base, position: [0, 0], color: "black", visible: true }],
+      [1, { ...base, color: "black", visible: true }],
+      [2, { ...base, color: "blue", visible: false }],
+    ]),
+    activeTurtleId: 2,
+  });
+
+  assert.equal(
+    region.getText(),
+    "active turtle 3 of 3 at x 0 y 10 heading 0 degrees pen down color blue width 1 hidden",
+  );
+});
+
+test("the state text of a single-turtle program never names a turtle (byte-identical to spec/rendering.md's example)", () => {
+  // The compatibility half of #749: identifying the active turtle must not leak into the
+  // single-turtle wording `spec/rendering.md:191` gives verbatim.
+  const state = OL.createStudioState();
+  const region = OL.createTurtleStateRegion(state);
+  state.setTurtleWorld(
+    singleTurtleWorld({
+      position: [100, 0],
+      heading: 90,
+      penDown: true,
+      color: "black",
+      width: 1,
+      shape: "turtle",
+      visible: true,
+    }),
+  );
+  assert.equal(
+    region.getText(),
+    "turtle at x 100 y 0 heading 90 degrees pen down color black width 1",
+  );
 });
 
 test("createTurtleStateRegion composes with the real run controller end to end, in lockstep with the canvas turtle state, and includes the current source instruction (#410)", () => {

@@ -4,7 +4,9 @@
 // collapsed state `reduceTurtleEvents` folds. These exercise the routing: `spawn-turtle`
 // registration, per-turtle attribution keyed on `turtle_id`, the implicit main turtle (no
 // `turtle_id`) folding into id 0, isolation between turtles, and the render-following obligation
-// from `spec/turtles-and-sprites.md`'s "Per-turtle state and Turtle commands" section.
+// from `spec/turtles-and-sprites.md`'s "Per-turtle state and Turtle commands" section — plus
+// (issue #749) the **active** turtle the avatar and the non-visual state description must name
+// (`spec/rendering.md:115`/`:191`).
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as Core from "@openlogo/core";
@@ -43,13 +45,18 @@ function spawn(turtleId, overrides = {}) {
   );
 }
 
-test("initial world holds just the main turtle at the program-start defaults", () => {
+test("initial world holds just the main turtle at the program-start defaults, active", () => {
   assert.deepEqual(
-    [...OL.INITIAL_TURTLE_WORLD_STATE.keys()],
+    [...OL.INITIAL_TURTLE_WORLD_STATE.turtles.keys()],
     [OL.MAIN_TURTLE_ID],
   );
   assert.deepEqual(
-    OL.INITIAL_TURTLE_WORLD_STATE.get(OL.MAIN_TURTLE_ID),
+    OL.INITIAL_TURTLE_WORLD_STATE.turtles.get(OL.MAIN_TURTLE_ID),
+    OL.INITIAL_TURTLE_STATE,
+  );
+  assert.equal(OL.INITIAL_TURTLE_WORLD_STATE.activeTurtleId, OL.MAIN_TURTLE_ID);
+  assert.equal(
+    OL.activeTurtleState(OL.INITIAL_TURTLE_WORLD_STATE),
     OL.INITIAL_TURTLE_STATE,
   );
 });
@@ -60,23 +67,31 @@ test("MAIN_TURTLE_ID is 0, matching the runtime allocator's reserved main-turtle
 
 test("the shared initial world is genuinely immutable at runtime", () => {
   // Not merely a ReadonlyMap type: a JavaScript caller must not be able to corrupt the shared seed
-  // and taint a later default fold, so its mutators throw.
-  assert.throws(() => OL.INITIAL_TURTLE_WORLD_STATE.set(9, {}), TypeError);
-  assert.throws(() => OL.INITIAL_TURTLE_WORLD_STATE.delete(0), TypeError);
-  assert.throws(() => OL.INITIAL_TURTLE_WORLD_STATE.clear(), TypeError);
+  // and taint a later default fold, so its map's mutators throw and the wrapper itself is frozen.
+  assert.throws(
+    () => OL.INITIAL_TURTLE_WORLD_STATE.turtles.set(9, {}),
+    TypeError,
+  );
+  assert.throws(
+    () => OL.INITIAL_TURTLE_WORLD_STATE.turtles.delete(0),
+    TypeError,
+  );
+  assert.throws(() => OL.INITIAL_TURTLE_WORLD_STATE.turtles.clear(), TypeError);
+  assert.equal(Object.isFrozen(OL.INITIAL_TURTLE_WORLD_STATE), true);
   // The seed is unchanged and still folds correctly afterward.
   assert.deepEqual(
-    [...OL.INITIAL_TURTLE_WORLD_STATE.keys()],
+    [...OL.INITIAL_TURTLE_WORLD_STATE.turtles.keys()],
     [OL.MAIN_TURTLE_ID],
   );
+  assert.equal(OL.INITIAL_TURTLE_WORLD_STATE.activeTurtleId, OL.MAIN_TURTLE_ID);
 });
 
 test("spawn-turtle registers a new turtle from its payload's initial state", () => {
   const world = OL.reduceTurtleWorldEvents([
     spawn(1, { shape: "bee", visible: false, color: "yellow", width: 3 }),
   ]);
-  assert.deepEqual([...world.keys()], [0, 1]);
-  assert.deepEqual(world.get(1), {
+  assert.deepEqual([...world.turtles.keys()], [0, 1]);
+  assert.deepEqual(world.turtles.get(1), {
     position: [0, 0],
     heading: 0,
     penDown: true,
@@ -92,8 +107,8 @@ test("shape-change routes to the addressed turtle, leaving the main turtle uncha
     spawn(1),
     event("shape-change", { from: "turtle", to: "triangle" }, 1),
   ]);
-  assert.equal(world.get(1).shape, "triangle");
-  assert.equal(world.get(0).shape, "turtle");
+  assert.equal(world.turtles.get(1).shape, "triangle");
+  assert.equal(world.turtles.get(0).shape, "turtle");
 });
 
 test("visibility-change routes to the addressed turtle only", () => {
@@ -102,9 +117,9 @@ test("visibility-change routes to the addressed turtle only", () => {
     spawn(2),
     event("visibility-change", { from: true, to: false }, 1),
   ]);
-  assert.equal(world.get(1).visible, false);
-  assert.equal(world.get(2).visible, true);
-  assert.equal(world.get(0).visible, true);
+  assert.equal(world.turtles.get(1).visible, false);
+  assert.equal(world.turtles.get(2).visible, true);
+  assert.equal(world.turtles.get(0).visible, true);
 });
 
 test("two turtles keep independent shape and visibility", () => {
@@ -115,10 +130,10 @@ test("two turtles keep independent shape and visibility", () => {
     event("shape-change", { from: "turtle", to: "circle" }, 2),
     event("visibility-change", { from: true, to: false }, 2),
   ]);
-  assert.equal(world.get(1).shape, "arrow");
-  assert.equal(world.get(1).visible, true);
-  assert.equal(world.get(2).shape, "circle");
-  assert.equal(world.get(2).visible, false);
+  assert.equal(world.turtles.get(1).shape, "arrow");
+  assert.equal(world.turtles.get(1).visible, true);
+  assert.equal(world.turtles.get(2).shape, "circle");
+  assert.equal(world.turtles.get(2).visible, false);
 });
 
 test("un-stamped events (no turtle_id) fold into the main turtle", () => {
@@ -126,9 +141,9 @@ test("un-stamped events (no turtle_id) fold into the main turtle", () => {
     event("shape-change", { from: "turtle", to: "triangle" }, undefined),
     event("visibility-change", { from: true, to: false }, undefined),
   ]);
-  assert.equal(world.get(0).shape, "triangle");
-  assert.equal(world.get(0).visible, false);
-  assert.deepEqual([...world.keys()], [0]);
+  assert.equal(world.turtles.get(0).shape, "triangle");
+  assert.equal(world.turtles.get(0).visible, false);
+  assert.deepEqual([...world.turtles.keys()], [0]);
 });
 
 test("a turtle_id: 0 stamped event and an un-stamped event fold into the same main turtle", () => {
@@ -136,8 +151,8 @@ test("a turtle_id: 0 stamped event and an un-stamped event fold into the same ma
     event("shape-change", { from: "turtle", to: "triangle" }, 0),
     event("visibility-change", { from: true, to: false }, undefined),
   ]);
-  assert.equal(world.get(0).shape, "triangle");
-  assert.equal(world.get(0).visible, false);
+  assert.equal(world.turtles.get(0).shape, "triangle");
+  assert.equal(world.turtles.get(0).visible, false);
 });
 
 test("move routes per turtle so each sprite tracks its own position and heading", () => {
@@ -147,18 +162,18 @@ test("move routes per turtle so each sprite tracks its own position and heading"
     event("move", { from: [0, 0], to: [0, 50], heading: 0 }, 1),
     event("move", { from: [0, 0], to: [30, 0], heading: 90 }, 2),
   ]);
-  assert.deepEqual(world.get(1).position, [0, 50]);
-  assert.equal(world.get(1).heading, 0);
-  assert.deepEqual(world.get(2).position, [30, 0]);
-  assert.equal(world.get(2).heading, 90);
+  assert.deepEqual(world.turtles.get(1).position, [0, 50]);
+  assert.equal(world.turtles.get(1).heading, 0);
+  assert.deepEqual(world.turtles.get(2).position, [30, 0]);
+  assert.equal(world.turtles.get(2).heading, 90);
 });
 
 test("an event naming an unspawned turtle is ignored rather than inventing a turtle", () => {
   const world = OL.reduceTurtleWorldEvents([
     event("shape-change", { from: "turtle", to: "triangle" }, 7),
   ]);
-  assert.deepEqual([...world.keys()], [0]);
-  assert.equal(world.get(0).shape, "turtle");
+  assert.deepEqual([...world.turtles.keys()], [0]);
+  assert.equal(world.turtles.get(0).shape, "turtle");
 });
 
 test("a non-state event (print) leaves the world referentially unchanged", () => {
@@ -176,7 +191,7 @@ test("a clean clear leaves per-turtle state untouched", () => {
     event("move", { from: [0, 0], to: [0, 50], heading: 0 }, 1),
     event("clear", { mode: "clean" }, 1),
   ]);
-  assert.deepEqual(world.get(1).position, [0, 50]);
+  assert.deepEqual(world.turtles.get(1).position, [0, 50]);
 });
 
 test("a stamped clear_screen clear homes only the turtle it names", () => {
@@ -189,10 +204,10 @@ test("a stamped clear_screen clear homes only the turtle it names", () => {
     event("move", { from: [0, 0], to: [10, 0], heading: 45 }, 0),
     event("clear", { mode: "clear_screen" }, 1),
   ]);
-  assert.deepEqual(world.get(1).position, [0, 0]);
-  assert.equal(world.get(1).heading, 0);
-  assert.deepEqual(world.get(0).position, [10, 0]);
-  assert.equal(world.get(0).heading, 45);
+  assert.deepEqual(world.turtles.get(1).position, [0, 0]);
+  assert.equal(world.turtles.get(1).heading, 0);
+  assert.deepEqual(world.turtles.get(0).position, [10, 0]);
+  assert.equal(world.turtles.get(0).heading, 45);
 });
 
 test("an un-stamped clear_screen clear homes the main turtle", () => {
@@ -202,16 +217,81 @@ test("an un-stamped clear_screen clear homes the main turtle", () => {
     event("move", { from: [0, 0], to: [7, 0], heading: 90 }, undefined),
     event("clear", { mode: "clear_screen" }, undefined),
   ]);
-  assert.deepEqual(world.get(0).position, [0, 0]);
-  assert.equal(world.get(0).heading, 0);
+  assert.deepEqual(world.turtles.get(0).position, [0, 0]);
+  assert.equal(world.turtles.get(0).heading, 0);
 });
 
 test("reduceTurtleWorldEvents defaults its seed to the initial world", () => {
   const world = OL.reduceTurtleWorldEvents([spawn(1)]);
-  assert.deepEqual([...world.keys()], [0, 1]);
+  assert.deepEqual([...world.turtles.keys()], [0, 1]);
 });
 
 test("reducing no events returns the seed unchanged", () => {
   const world = OL.reduceTurtleWorldEvents([]);
   assert.equal(world, OL.INITIAL_TURTLE_WORLD_STATE);
+});
+
+// --- the active turtle (`spec/rendering.md:115`/`:191`) ---
+
+test("the turtle whose state an event changed becomes the active turtle", () => {
+  const world = OL.reduceTurtleWorldEvents([
+    spawn(1),
+    spawn(2),
+    event("move", { from: [0, 0], to: [0, 50], heading: 0 }, 1),
+    event("color-change", { from: "black", to: "blue" }, 2),
+  ]);
+  assert.equal(world.activeTurtleId, 2);
+  assert.equal(OL.activeTurtleState(world).color, "blue");
+});
+
+test("creating a turtle does not make it active — only acting does", () => {
+  // `:friend = new_turtle` leaves the addressed set alone (spec/turtles-and-sprites.md:42), so the
+  // main turtle is still the one a learner is driving until something addresses the new turtle.
+  const afterSpawn = OL.reduceTurtleWorldEvents([spawn(1)]);
+  assert.equal(afterSpawn.activeTurtleId, OL.MAIN_TURTLE_ID);
+  const afterItActs = OL.reduceTurtleWorldState(
+    afterSpawn,
+    event("move", { from: [0, 0], to: [0, 5], heading: 0 }, 1),
+  );
+  assert.equal(afterItActs.activeTurtleId, 1);
+});
+
+test("a non-state event does not re-point the active turtle back at the main turtle", () => {
+  // `instruction`/`print`/`procedure-enter` carry no turtle_id. Treating "no turtle_id" as "the
+  // main turtle acted" would snap `active` back to 0 in the middle of a sprite's block.
+  const world = OL.reduceTurtleWorldEvents([
+    spawn(1),
+    event("shape-change", { from: "turtle", to: "bee" }, 1),
+    event("instruction", { text: "print 1" }, undefined),
+    event("print", { values: [] }, undefined),
+    event("clear", { mode: "clean" }, undefined),
+  ]);
+  assert.equal(world.activeTurtleId, 1);
+});
+
+test("an event naming an unspawned turtle leaves the active turtle alone", () => {
+  const world = OL.reduceTurtleWorldEvents([
+    spawn(1),
+    event("move", { from: [0, 0], to: [0, 5], heading: 0 }, 1),
+    event("shape-change", { from: "turtle", to: "triangle" }, 7),
+  ]);
+  assert.equal(world.activeTurtleId, 1);
+});
+
+test("an un-stamped event makes the main turtle active again", () => {
+  // A single-turtle program's events never carry a turtle_id, so the main turtle is the active
+  // turtle throughout — the property that keeps single-turtle output unchanged.
+  const world = OL.reduceTurtleWorldEvents([
+    spawn(1),
+    event("move", { from: [0, 0], to: [0, 5], heading: 0 }, 1),
+    event("move", { from: [0, 0], to: [9, 0], heading: 90 }, undefined),
+  ]);
+  assert.equal(world.activeTurtleId, OL.MAIN_TURTLE_ID);
+});
+
+test("activeTurtleState falls back to the program-start defaults for a hand-built world naming an absent turtle", () => {
+  // The type cannot enforce that `activeTurtleId` is a live key, so the accessor stays total
+  // instead of throwing at paint/announce time.
+  const world = { turtles: new Map(), activeTurtleId: 4 };
+  assert.deepEqual(OL.activeTurtleState(world), OL.INITIAL_TURTLE_STATE);
 });

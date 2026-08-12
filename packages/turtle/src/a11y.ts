@@ -10,6 +10,7 @@
 
 import type { Point } from "@openlogo/core";
 import type { TurtleState } from "./state.js";
+import { type TurtleWorldState, activeTurtleState } from "./world-state.js";
 
 /**
  * Optional context for {@link describeTurtleState} beyond the turtle state itself.
@@ -26,25 +27,19 @@ export interface TurtleStateDescriptionOptions {
 }
 
 /**
- * Builds the textual, non-visual turtle-state description required by
- * `spec/rendering.md#non-visual-state-descriptions`: position, heading, pen up/down, pen color
- * and width, always; visibility and the current source instruction are appended only when they
- * add information (hidden, or an instruction is available) — this keeps the common case
- * byte-identical to the spec's own worked example. For a visible turtle at world `(100, 0)`,
- * heading `90`, pen down, color `"black"`, width `1`, and no known current instruction, this
- * produces exactly `"turtle at x 100 y 0 heading 90 degrees pen down color black width 1"`,
- * matching `spec/rendering.md`'s example text verbatim.
- *
- * Deterministic: the same state (and options) always produce the same string, with no locale,
- * timing, or rendering dependency.
+ * The shared body of the non-visual state description: `subject` (what the sentence is about)
+ * followed by position, heading, pen up/down, pen color and width, always; visibility and the
+ * current source instruction are appended only when they add information (hidden, or an
+ * instruction is available).
  */
-export function describeTurtleState(
+function describeState(
+  subject: string,
   state: TurtleState,
-  options: TurtleStateDescriptionOptions = {},
+  options: TurtleStateDescriptionOptions,
 ): string {
   const [x, y] = state.position;
   const parts = [
-    `turtle at x ${x} y ${y} heading ${state.heading} degrees`,
+    `${subject} at x ${x} y ${y} heading ${state.heading} degrees`,
     `pen ${state.penDown ? "down" : "up"}`,
     `color ${state.color} width ${state.width}`,
   ];
@@ -55,6 +50,67 @@ export function describeTurtleState(
     parts.push(`instruction "${options.currentInstruction}"`);
   }
   return parts.join(" ");
+}
+
+/**
+ * Builds the textual, non-visual turtle-state description required by
+ * `spec/rendering.md#non-visual-state-descriptions`: position, heading, pen up/down, pen color
+ * and width, always; visibility and the current source instruction are appended only when they
+ * add information (hidden, or an instruction is available) — this keeps the common case
+ * byte-identical to the spec's own worked example. For a visible turtle at world `(100, 0)`,
+ * heading `90`, pen down, color `"black"`, width `1`, and no known current instruction, this
+ * produces exactly `"turtle at x 100 y 0 heading 90 degrees pen down color black width 1"`,
+ * matching `spec/rendering.md`'s example text verbatim.
+ *
+ * This describes **one** turtle, so it never names an identity: with a single turtle there is
+ * nothing to disambiguate. A host driving several turtles calls
+ * {@link describeTurtleWorldState} instead, which satisfies `spec/rendering.md:191`'s
+ * "Implementations with multiple turtles MUST identify the active turtle or addressed turtle set".
+ *
+ * Deterministic: the same state (and options) always produce the same string, with no locale,
+ * timing, or rendering dependency.
+ */
+export function describeTurtleState(
+  state: TurtleState,
+  options: TurtleStateDescriptionOptions = {},
+): string {
+  return describeState("turtle", state, options);
+}
+
+/**
+ * Builds the non-visual state description for a whole {@link TurtleWorldState}: the **active**
+ * turtle's state (`spec/rendering.md:115` — the avatar "indicates the active turtle's position,
+ * heading, visibility, and shape"), identified by which turtle it is whenever the program drives
+ * more than one.
+ *
+ * `spec/rendering.md:191` makes that identification a MUST: "Implementations with multiple turtles
+ * MUST identify the active turtle or addressed turtle set." So a world holding several turtles is
+ * described as `active turtle <n> of <total> at x … y … heading … degrees pen … color … width …`,
+ * where `<n>` is the active turtle's 1-based position in creation order — a stable, learner-facing
+ * ordinal rather than the internal `turtle_id`, which is an allocator detail no OpenLogo program
+ * can print.
+ *
+ * A world holding just the main turtle — every Turtle & Rendering program, and every Sprites
+ * program before its first `new_turtle` — has nothing to disambiguate, so it produces exactly
+ * {@link describeTurtleState}'s wording, byte for byte, including the spec's own worked example
+ * text. That is the compatibility property this function is built around: adding multi-turtle
+ * identification must not perturb single-turtle announcements.
+ */
+export function describeTurtleWorldState(
+  world: TurtleWorldState,
+  options: TurtleStateDescriptionOptions = {},
+): string {
+  const state = activeTurtleState(world);
+  const ids = [...world.turtles.keys()];
+  if (ids.length < 2) {
+    return describeState("turtle", state, options);
+  }
+  const ordinal = ids.indexOf(world.activeTurtleId) + 1;
+  return describeState(
+    `active turtle ${ordinal} of ${ids.length}`,
+    state,
+    options,
+  );
 }
 
 /**

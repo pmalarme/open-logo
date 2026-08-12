@@ -1,6 +1,16 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as OL from "@openlogo/studio";
+import { MAIN_TURTLE_ID } from "@openlogo/turtle";
+
+/** A `TurtleWorldState` holding just the main turtle at `state`, active — what a single-turtle
+ * (Turtle & Rendering) program's event stream folds to. */
+function singleTurtleWorld(state) {
+  return {
+    turtles: new Map([[MAIN_TURTLE_ID, state]]),
+    activeTurtleId: MAIN_TURTLE_ID,
+  };
+}
 
 /** A minimal recording fake satisfying {@link OL.Canvas2DContext}, with no DOM at all. */
 function createRecordingContext() {
@@ -179,7 +189,7 @@ test("createCanvasViewController.repaint() reflects the state model's current tu
   );
 });
 
-test("createCanvasViewController.repaint() reflects the state model's current turtleState, not a snapshot taken at construction", () => {
+test("createCanvasViewController.repaint() reflects the state model's current turtle world, not a snapshot taken at construction", () => {
   const state = OL.createStudioState();
   const context = createRecordingContext();
   const controller = OL.createCanvasViewController(state, {
@@ -188,7 +198,9 @@ test("createCanvasViewController.repaint() reflects the state model's current tu
   });
 
   const { turtleState } = state.getState();
-  state.setTurtleState({ ...turtleState, position: [50, 0], heading: 90 });
+  state.setTurtleWorld(
+    singleTurtleWorld({ ...turtleState, position: [50, 0], heading: 90 }),
+  );
   controller.repaint();
 
   const saveIndex = context.calls.findIndex((call) => call[0] === "save");
@@ -214,13 +226,44 @@ test("createCanvasViewController.repaint() omits the avatar when the turtle is h
   });
 
   const { turtleState } = state.getState();
-  state.setTurtleState({ ...turtleState, visible: false });
+  state.setTurtleWorld(singleTurtleWorld({ ...turtleState, visible: false }));
   controller.repaint();
 
   assert.equal(
     context.calls.some((call) => call[0] === "save"),
     false,
     "a hidden turtle must not paint an avatar",
+  );
+});
+
+test("createCanvasViewController.repaint() paints one avatar per visible turtle in the world (#749)", () => {
+  // The studio-side half of #749: a Sprites program's Canvas pane must show every live turtle,
+  // each with its own visibility — not one avatar wearing the last event's attributes.
+  const state = OL.createStudioState();
+  const context = createRecordingContext();
+  const controller = OL.createCanvasViewController(state, {
+    target: context,
+    viewport: VIEWPORT,
+  });
+
+  const { turtleState } = state.getState();
+  state.setTurtleWorld({
+    turtles: new Map([
+      [0, { ...turtleState, position: [0, 0] }],
+      [1, { ...turtleState, position: [50, 0] }],
+      [2, { ...turtleState, position: [-50, 0], visible: false }],
+    ]),
+    activeTurtleId: 1,
+  });
+  controller.repaint();
+
+  assert.deepEqual(
+    context.calls.filter((call) => call[0] === "translate"),
+    [
+      ["translate", 200, 200],
+      ["translate", 250, 200],
+    ],
+    "the two visible turtles each get their own avatar; the hidden one gets none",
   );
 });
 
@@ -244,9 +287,9 @@ test("mountCanvasView composes the controller into the shell's turtle region and
   );
 });
 
-test("the state model defaults turtleState/turtleScene to @openlogo/turtle's program-start defaults", () => {
+test("the state model defaults turtleWorld/turtleState/turtleScene to @openlogo/turtle's program-start defaults", () => {
   const state = OL.createStudioState();
-  const { turtleState, turtleScene } = state.getState();
+  const { turtleWorld, turtleState, turtleScene } = state.getState();
 
   assert.deepEqual(turtleState, {
     position: [0, 0],
@@ -257,16 +300,24 @@ test("the state model defaults turtleState/turtleScene to @openlogo/turtle's pro
     shape: "turtle",
     visible: true,
   });
+  assert.deepEqual([...turtleWorld.turtles.keys()], [MAIN_TURTLE_ID]);
+  assert.equal(turtleWorld.activeTurtleId, MAIN_TURTLE_ID);
   assert.deepEqual(turtleScene, { background: "white", items: [] });
 });
 
-test("setTurtleState/setTurtleScene replace the shared snapshot, observed by every consumer", () => {
+test("setTurtleWorld/setTurtleScene replace the shared snapshot, observed by every consumer", () => {
   const state = OL.createStudioState();
   const before = state.getState();
 
   const nextTurtleState = { ...before.turtleState, heading: 90 };
-  state.setTurtleState(nextTurtleState);
-  assert.equal(state.getState().turtleState, nextTurtleState);
+  const nextTurtleWorld = singleTurtleWorld(nextTurtleState);
+  state.setTurtleWorld(nextTurtleWorld);
+  assert.equal(state.getState().turtleWorld, nextTurtleWorld);
+  assert.equal(
+    state.getState().turtleState,
+    nextTurtleState,
+    "turtleState is derived from the world's active turtle in the same commit",
+  );
   assert.notEqual(
     state.getState(),
     before,
@@ -276,6 +327,22 @@ test("setTurtleState/setTurtleScene replace the shared snapshot, observed by eve
   const nextTurtleScene = { background: "blue", items: [] };
   state.setTurtleScene(nextTurtleScene);
   assert.equal(state.getState().turtleScene, nextTurtleScene);
+});
+
+test("setTurtleWorld derives turtleState from the ACTIVE turtle, not the first or last one (#749)", () => {
+  const state = OL.createStudioState();
+  const base = state.getState().turtleState;
+  const activeState = { ...base, color: "blue", visible: false };
+  state.setTurtleWorld({
+    turtles: new Map([
+      [0, base],
+      [1, { ...base, color: "green" }],
+      [2, activeState],
+      [3, { ...base, color: "orange" }],
+    ]),
+    activeTurtleId: 2,
+  });
+  assert.equal(state.getState().turtleState, activeState);
 });
 
 test("setViewport adopts a new viewport that the next repaint() paints through (#474 DPR resize)", () => {
