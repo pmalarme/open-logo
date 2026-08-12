@@ -106,15 +106,19 @@ import {
 } from "./evaluate.js";
 import { runtimeDiag } from "./errors.js";
 import {
+  claimDueEveryHandlers,
   createEventHandlerRegistry,
   createTickClock,
+  emitEveryPrimitive,
   emitWhenPrimitive,
   isWaitCall,
   pendingHandlersFor,
+  registerEveryHandler,
   registerWhenHandler,
   runWait,
   STANDARD_EVENT_WORDS,
   validateTickCount,
+  type EveryHandler,
   type WhenHandler,
 } from "./interaction.js";
 import type {
@@ -2139,12 +2143,30 @@ function executeWaitCall(
   if (!count.ok) {
     return halt(count.diagnostic);
   }
-  runWait(
+  // Dispatch due `every` handlers on each tick the pause advances through. The callback stashes any
+  // halting `ExecSignal` a handler produces (`interaction.ts`'s dispatch is a plain boolean to stay
+  // free of the evaluator's control-flow types), returning `true` to abort the remaining ticks; we
+  // read the stashed signal back after `runWait` returns and propagate it. This is what makes
+  // registered `every` handlers "still fire" while a `wait` pause elapses
+  // (`spec/interaction-events.md`'s "Trace stream integration").
+  let dispatchSignal: ExecSignal | undefined;
+  const interrupted = runWait(
     environment.tickClock,
     environment.events,
     count.value,
     waitCall.source_span,
+    (tick) => {
+      const signal = dispatchEveryHandlers(tick, environment);
+      if (signal.kind !== "normal") {
+        dispatchSignal = signal;
+        return true;
+      }
+      return false;
+    },
   );
+  if (interrupted && dispatchSignal) {
+    return dispatchSignal;
+  }
   return undefined;
 }
 
@@ -2469,6 +2491,160 @@ function executeAsk(
     addressing.currentId = savedCurrentId;
     environment.turtle = turtleStateFor(addressing, savedCurrentId);
   }
+}
+
+/**
+ * Is `statement` an `every <n> <block>` handler registration (issue #683, slice I4,
+ * `spec/interaction-events.md`'s `### every <n> <block>`)? Like `when`, `every` is a profile
+ * block-head the reader lowers to a {@link ProfileStatementNode} (C2 #664's
+ * `PROFILE_STATEMENT_FORMS`), NOT an ordinary `Call`, so it is matched here by node kind + head
+ * keyword rather than by callee name. A plain `boolean` (not a type predicate) to match the
+ * surrounding turtle/wait/`when` dispatch convention; the caller narrows via a cast at the single
+ * call site, exactly as {@link isWhenStatement} does.
+ */
+function isEveryStatement(statement: StatementNode): boolean {
+  return (
+    statement.kind === "ProfileStatement" &&
+    statement.keyword.name.toLowerCase() === "every"
+  );
+}
+
+/**
+ * Run one `every` handler's block for a due tick (`spec/interaction-events.md`'s "Trace stream
+ * integration"): emit the `instruction` event for the block-head that caused the handler to run —
+ * carrying the `every` keyword's own span, so replay attributes each repeated run to the
+ * registration site — then execute the handler body, whose own effects emit the ordinary
+ * after-effect events. Unlike {@link invokeWhenHandler}'s one-shot `fired`, an `every` handler is
+ * marked `running` for the duration of its body and cleared afterwards, so a re-entrant `wait`
+ * inside the body cannot deliver a second overlapping invocation of the same handler
+ * ({@link claimDueEveryHandlers} consumes but does not re-enter a `running` handler) — the spec's "at most
+ * one pending invocation" guarantee, here read conservatively as zero overlap so a body whose own
+ * `wait` re-arms the interval can never drive a non-terminating drain. Returns the body's
+ * {@link ExecSignal} so a `halt` propagates and stops the whole run ("Errors and cancellation"); a
+ * `return`/`stop` that escapes the body is converted HERE into its
+ * `ol-return-outside-proc`/`ol-stop-outside-proc` diagnostic (a handler block is not a procedure
+ * body, exactly like the top level and {@link invokeWhenHandler}).
+ */
+function invokeEveryHandler(
+  handler: EveryHandler,
+  environment: Environment,
+): ExecSignal {
+  handler.pending = false;
+  handler.running = true;
+  environment.events.push({
+    seq: environment.events.length,
+    kind: "instruction",
+    source_span: handler.keyword.source_span,
+    payload: {
+      statement_kind: "ProfileStatement",
+    } satisfies InstructionPayload,
+  });
+  const signal = executeStatements(handler.block.body, handler.environment);
+  handler.running = false;
+  if (signal.kind === "return") {
+    return halt(
+      runtimeDiag.returnOutsideProc(signal.source_span, signal.keyword),
+    );
+  }
+  if (signal.kind === "stop") {
+    return halt(runtimeDiag.stopOutsideProc(signal.source_span));
+  }
+  return signal;
+}
+
+/**
+ * Deliver every `every` handler due on `tick` (`spec/interaction-events.md`'s "Time, ticks, and
+ * handlers": "due `every` events in registration order"), invoked while a `wait` pause advances the
+ * clock through that tick. Claims the whole due batch up front ({@link claimDueEveryHandlers} marks
+ * each due handler `pending` and advances its `nextDueTick` atomically, before any body runs), then
+ * invokes the batch in registration order. Claiming up front is what keeps delivery deterministic
+ * across re-entrancy: when one handler's body runs a nested `wait` that advances the clock through a
+ * sibling's next interval, that inner pause sees the sibling still `pending` (already claimed for
+ * this batch) and skips it rather than firing it a second time out of chronological order. Stops at
+ * the first handler that halts, returning its {@link ExecSignal}; returns {@link NORMAL_SIGNAL} when
+ * every claimed handler completed normally. A tick with no due handler is a well-defined no-op. This
+ * is the callback {@link executeWaitCall} hands to {@link runWait} — the single point the tick
+ * clock's per-tick seam delivers timed handlers from.
+ */
+function dispatchEveryHandlers(
+  tick: number,
+  environment: Environment,
+): ExecSignal {
+  for (const handler of claimDueEveryHandlers(
+    environment.eventHandlers,
+    tick,
+  )) {
+    const signal = invokeEveryHandler(handler, environment);
+    if (signal.kind !== "normal") {
+      return signal;
+    }
+  }
+  return NORMAL_SIGNAL;
+}
+
+/**
+ * Register an `every <n> <block>` handler (issue #683, slice I4, `spec/interaction-events.md`'s
+ * `### every <n> <block>`): evaluate the single tick-count argument, require it to be a positive
+ * whole number (`ol-type` via {@link requireWholeNumber} for a non-whole/non-number count, then
+ * `ol-range` via {@link runtimeDiag.everyNonPositive} for zero or negative), record the handler on
+ * the environment's registry in registration order, then emit the `primitive` event **after** the
+ * handler is registered ("Event registration forms emit `primitive` events after the handler is
+ * registered"). Registration never fires the block: unlike `when "start"`, no `every` interval has
+ * elapsed at registration time, so an `every` handler first runs only after `n` ticks pass — which
+ * in a headless batch run happens only while a `wait` pause advances the clock
+ * ({@link dispatchEveryHandlers}).
+ *
+ * `block` is the handler body the reader always attaches to an `every` block-head (`hasBlock: true`,
+ * `parser.ts`'s `PROFILE_STATEMENT_FORMS`), recovered here by a cast since an `every` node reaching
+ * the runtime always has one (see the inline note, mirroring {@link executeWhenStatement}).
+ *
+ * Returns an {@link ExecSignal} to halt on (a non-whole or non-positive count), or `undefined` for
+ * {@link executeStatements} to `continue` on — including the "argument left un-evaluated" case,
+ * mirroring {@link executeWhenStatement}/{@link executeWaitCall} and the turtle commands.
+ */
+function executeEveryStatement(
+  statement: ProfileStatementNode,
+  environment: Environment,
+): ExecSignal | undefined {
+  const [countArg] = statement.args as [ExpressionNode];
+  if (!isSupportedArgument(countArg, environment)) {
+    return undefined;
+  }
+  const countResult = evaluate(countArg, environment);
+  if (!countResult.ok) {
+    return halt(countResult.diagnostic);
+  }
+  const whole = requireWholeNumber(
+    countResult.value,
+    countArg.source_span,
+    "every",
+  );
+  if (!whole.ok) {
+    return halt(whole.diagnostic);
+  }
+  if (whole.value <= 0) {
+    return halt(
+      runtimeDiag.everyNonPositive(countArg.source_span, {
+        value: whole.value,
+      }),
+    );
+  }
+  // The reader always attaches a block to an `every` block-head (`hasBlock: true`, and
+  // `parseProfileStatement` fails the whole parse — which `runProgram` bails on before `execute()`
+  // runs — if the body is missing), so `body` is guaranteed present for any `every` node reaching
+  // the runtime. The optional `body` on `ProfileStatementNode` exists only because the bodyless
+  // `tell` mode-switch shares that node kind; a cast (not a runtime guard) records that invariant.
+  const block = statement.body as BlockNode;
+  registerEveryHandler(
+    environment.eventHandlers,
+    whole.value,
+    block,
+    statement.keyword,
+    environment,
+    environment.tickClock.tick,
+  );
+  emitEveryPrimitive(environment.events, statement.source_span);
+  return undefined;
 }
 
 /**
@@ -3905,6 +4081,17 @@ function executeStatements(
       );
       if (whenOutcome) {
         return whenOutcome;
+      }
+      continue;
+    }
+
+    if (isEveryStatement(statement)) {
+      const everyOutcome = executeEveryStatement(
+        statement as ProfileStatementNode,
+        environment,
+      );
+      if (everyOutcome) {
+        return everyOutcome;
       }
       continue;
     }

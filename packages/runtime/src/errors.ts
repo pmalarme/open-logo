@@ -525,6 +525,18 @@ export interface TanUndefinedParams {
 }
 
 /**
+ * Params for an `ol-range` raised by `every`'s tick count (issue #683, slice I4) when it is a whole
+ * number but not positive — zero or negative (`spec/interaction-events.md`'s `### every <n> <block>`:
+ * "`n` MUST be a positive whole number: … a zero or negative count raises `ol-range`"). Only reached
+ * once {@link requireWholeNumber} has already confirmed the value is a whole number — type is checked
+ * before range, mirroring `random`/`repeat`. Carries the offending whole-number `value` for the
+ * message, like {@link RandomBelowMinimumParams}.
+ */
+export interface EveryNonPositiveParams {
+  readonly value: number;
+}
+
+/**
  * Params for the `ol-type` raised by `when` when its event argument is not a word
  * (`spec/interaction-events.md`'s `### when <event-word> <block>`: "Errors: `ol-type` if the event
  * is not a word", issue #682). `actual` is the argument's runtime type name
@@ -1475,6 +1487,26 @@ export const runtimeDiag = {
       source_span,
       { operation: "when", expected: "word", actual: params.actual },
       `when needs an event word, but got a ${params.actual}.`,
+    );
+  },
+
+  /**
+   * `ol-range` (issue #683, slice I4) — `every`'s tick count is a whole number but not positive
+   * (`spec/interaction-events.md`'s `### every <n> <block>`: "`n` MUST be a positive whole number: …
+   * a zero or negative count raises `ol-range`", and the profile's error table). Only reached once
+   * {@link requireWholeNumber} has already confirmed the value is a whole number — TYPE is checked
+   * before RANGE, mirroring `random`/`repeat`. Carries the `{ operation: "every", value }` identity
+   * shape shared by the other `ol-range` count builders. See {@link EveryNonPositiveParams}.
+   */
+  everyNonPositive(
+    source_span: SourceSpan,
+    params: EveryNonPositiveParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-range",
+      source_span,
+      { operation: "every", ...params },
+      `every needs a positive whole number of ticks, but got ${params.value}.`,
     );
   },
 } as const;

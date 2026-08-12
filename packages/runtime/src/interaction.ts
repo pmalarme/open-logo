@@ -76,24 +76,36 @@ export function advanceTickClock(clock: TickClock): void {
 }
 
 /**
- * Yield to the renderer and event loop at a single logical checkpoint. This is the dispatch seam
- * the rest of the Interaction & Events track (issues #682–#686) hangs handler delivery off: today
- * it is a deterministic no-op, but a later slice makes it deliver any `every`/`on_key`/`on_click`
- * handlers that came due at `clock`'s current tick, in the registration order
- * `spec/interaction-events.md` fixes.
+ * The per-tick dispatch callback {@link runWait} invokes at each event-loop checkpoint. Given the
+ * tick the clock has just advanced to (or `0` for a `wait 0` yield), it delivers any handlers due on
+ * that tick and returns `true` if delivery was interrupted — a handler halted, returned, stopped, or
+ * the execution budget was cancelled — so the `wait` MUST abort its remaining ticks and let that
+ * outcome propagate. `false` means "keep pausing". Modelled as a plain `boolean` (not the runtime's
+ * `ExecSignal`) so `interaction.ts` stays free of the evaluator's control-flow types; the caller in
+ * `execute-internal.ts` stashes the real signal and reads it back after {@link runWait} returns.
+ */
+export type TickDispatch = (tick: number) => boolean;
+
+/**
+ * Yield to the renderer and event loop at a single logical checkpoint, delivering any handlers due
+ * on `clock`'s current tick through `dispatch` (issues #682–#686). This is the dispatch seam the
+ * Interaction & Events track hangs handler delivery off: I1 (#680) left it a no-op; I4 (#683) makes
+ * it deliver due `every` handlers via `dispatch`, and #684/#685 add `on_key`/`on_click` the same
+ * way, all in the registration order `spec/interaction-events.md` fixes.
  *
  * `wait` calls it **once per elapsed tick** (after each {@link advanceTickClock}) **and once for a
  * zero-tick pause** — so that `wait 0` still reaches this checkpoint. That matters because
  * `spec/interaction-events.md` (`wait <n>`) requires "`wait 0` yields to the renderer and event
  * loop without adding a visible delay": a zero-count pause is not a plain no-op, it is a yield with
- * no tick advance. Routing every `wait` — including `wait 0` — through this one function is what
- * lets #682–#686 make `wait 0` dispatch pending handlers without touching this slice's control
- * flow. It takes the clock (not just a callback) so that later dispatch has the tick it is
- * delivering handlers for; the parameter is deliberately unused in this baseline.
+ * no tick advance. `dispatch` is handed the clock's current tick so it delivers handlers for exactly
+ * the tick just reached; it returns `true` when delivery was interrupted, which this function
+ * forwards so the pause can abort.
  */
-export function yieldToEventLoop(_clock: TickClock): void {
-  // Intentionally empty: the deterministic, headless baseline has no handlers to dispatch yet
-  // (they arrive with #682–#686). Its call sites in runWait are the seam; see the file header.
+export function yieldToEventLoop(
+  clock: TickClock,
+  dispatch: TickDispatch,
+): boolean {
+  return dispatch(clock.tick);
 }
 
 /**
@@ -175,29 +187,45 @@ export function emitWaitPrimitive(
  * Run a validated `wait <n>` pause (`spec/interaction-events.md`, `wait <n>`): pause the current
  * top-level instruction stream for `count` ticks by advancing `tickClock` one tick at a time and
  * yielding to the event loop after each tick ({@link advanceTickClock} + {@link yieldToEventLoop} —
- * the seam #682–#686 deliver due handlers from, see the file header), then emit the `primitive`
- * event AFTER the pause completes onto `events`. `count` MUST already be a validated non-negative
- * whole number (via {@link validateTickCount}).
+ * the seam #682–#686 deliver due handlers from, see the file header), delivering any due handlers
+ * through `dispatch` on each tick. If `dispatch` reports an interruption (a handler halted/returned/
+ * stopped, or the budget was cancelled) the pause aborts immediately: {@link runWait} returns `true`
+ * and does **not** emit the trailing `primitive` event, because the pause did not complete. On a
+ * clean pause it emits the `primitive` event AFTER the pause completes onto `events` and returns
+ * `false`. `count` MUST already be a validated non-negative whole number (via
+ * {@link validateTickCount}).
  *
  * `wait 0` advances the clock zero times but still {@link yieldToEventLoop}s exactly once — it
  * "yield[s] to the renderer and event loop without adding a visible delay" (a spec-mandated yield,
- * not a plain no-op), so a later slice can dispatch pending handlers on a `wait 0` too. The
- * primitive event is emitted exactly once, after the loop, regardless of `count`.
+ * not a plain no-op), so a `wait 0` can dispatch pending handlers too (and, if one of them halts,
+ * abort before the primitive). The primitive event is emitted exactly once, after the loop, on any
+ * clean pause regardless of `count`.
  */
 export function runWait(
   tickClock: TickClock,
   events: TraceEvent[],
   count: number,
   source_span: SourceSpan,
-): void {
+  dispatch: TickDispatch,
+): boolean {
   if (count === 0) {
-    yieldToEventLoop(tickClock);
+    // `wait 0` yields to the event loop at the current tick without advancing it (a spec-mandated
+    // yield, not a no-op — `spec/interaction-events.md`, `wait <n>`). No `every` handler can be due
+    // here: a handler's next-due tick is always at least its interval (>= 1) past its registration
+    // tick, so it is never due at a tick the clock has NOT just advanced to. The dispatch therefore
+    // cannot report an interruption on a `wait 0`, so its verdict is intentionally not checked; the
+    // interruptible path is the per-tick advance below. (A later slice's current-tick events —
+    // `on_key`/`on_click`, #684/#685 — will revisit whether a `wait 0` needs to abort here.)
+    yieldToEventLoop(tickClock, dispatch);
   }
   for (let elapsed = 0; elapsed < count; elapsed += 1) {
     advanceTickClock(tickClock);
-    yieldToEventLoop(tickClock);
+    if (yieldToEventLoop(tickClock, dispatch)) {
+      return true;
+    }
   }
   emitWaitPrimitive(events, source_span);
+  return false;
 }
 
 /**
@@ -244,6 +272,45 @@ export interface WhenHandler {
 }
 
 /**
+ * One registered `every <n> <block>` handler (issue #683, slice I4 —
+ * `spec/interaction-events.md`'s `### every <n> <block>`): a **repeated** timed action that runs its
+ * `block` every `interval` ticks. Like {@link WhenHandler} it captures the {@link Environment} at
+ * registration time so the body runs in its **registration-time lexical scope** ("A handler block is
+ * a normal OpenLogo block"), and the head-keyword {@link SpannedName} whose span the handler-block's
+ * opening `instruction` event carries ("The start of a handler block emits an `instruction` event
+ * for the block-head that caused the handler to run").
+ *
+ * `interval` is the validated positive whole tick count. `nextDueTick` is the next tick at which
+ * the handler should fire, anchored to **registration time**: it starts at `registrationTick +
+ * interval` ("The first run occurs after `n` ticks have elapsed" — `n` ticks after the handler was
+ * registered, NOT `n` ticks after global tick 0) and advances by `interval` each time the handler is
+ * delivered ({@link claimDueEveryHandlers}), so a handler registered mid-run and a `wait 0` that revisits
+ * an already-delivered tick both behave correctly. Unlike `when`'s one-shot `fired`, an `every`
+ * handler has no terminal fired flag: it recurs for the whole run.
+ *
+ * `running` guards the spec's queueing rule — "If a prior invocation is still running when the next
+ * interval arrives, the implementation queues at most one pending invocation for that `every`
+ * handler to prevent unbounded buildup." Handler invocations "run on the same OpenLogo execution
+ * thread as ordinary instructions", so a handler only overlaps itself when a re-entrant `wait` inside
+ * its body advances the clock past its own next interval. `running` marks the body as on the stack;
+ * {@link claimDueEveryHandlers} still advances the `nextDueTick` of a `running` handler (so the interval
+ * is consumed, not re-detected) but does NOT re-enter it — delivering **zero** overlapping
+ * invocations, which satisfies the spec's "at most one pending invocation" upper bound while making
+ * the unbounded buildup it forbids structurally impossible. (Delivering the coalesced one is a valid
+ * alternative reading, but re-running a body whose own `wait` re-arms the interval risks a
+ * non-terminating drain; the conservative zero-overlap reading is deterministic and safe.)
+ */
+export interface EveryHandler {
+  readonly interval: number;
+  readonly block: BlockNode;
+  readonly keyword: SpannedName;
+  readonly environment: Environment;
+  nextDueTick: number;
+  running: boolean;
+  pending: boolean;
+}
+
+/**
  * The Interaction & Events **event-handler registry** (issue #682, slice I3): every `when` handler
  * registered so far, in registration order. A single append-only list (rather than a map keyed by
  * event word) is deliberate — it preserves one total registration order across all events, which is
@@ -259,11 +326,12 @@ export interface WhenHandler {
  */
 export interface EventHandlerRegistry {
   readonly handlers: WhenHandler[];
+  readonly everyHandlers: EveryHandler[];
 }
 
 /** A fresh, empty event-handler registry — the state at program start (no handlers registered). */
 export function createEventHandlerRegistry(): EventHandlerRegistry {
-  return { handlers: [] };
+  return { handlers: [], everyHandlers: [] };
 }
 
 /**
@@ -312,6 +380,84 @@ export function pendingHandlersFor(
 }
 
 /**
+ * Register an `every <n> <block>` handler (issue #683, slice I4), appending it to `registry` in
+ * registration order and returning the created {@link EveryHandler}. `interval` MUST already be a
+ * validated positive whole tick count; `registrationTick` is the tick clock's current value at
+ * registration, so the handler's first firing is anchored `interval` ticks AFTER registration
+ * (`nextDueTick = registrationTick + interval`) — "The first run occurs after `n` ticks have
+ * elapsed" — rather than to global tick 0. `environment` is captured so the handler body later runs
+ * in its registration-time lexical scope. A fresh handler is neither `running` nor `pending`.
+ * Registration is side-effect-only on the registry; the caller emits the `primitive` event
+ * `spec/interaction-events.md` requires "after the handler is registered". `every` handlers live in
+ * their own list (never bucketed with `when`'s one-shot handlers) so the spec's same-tick delivery
+ * order — `when`/`on_key`/`on_click` first, then "due `every` events in registration order" (#686/I7)
+ * — can filter each kind independently while each kind preserves its own registration order.
+ */
+export function registerEveryHandler(
+  registry: EventHandlerRegistry,
+  interval: number,
+  block: BlockNode,
+  keyword: SpannedName,
+  environment: Environment,
+  registrationTick: number,
+): EveryHandler {
+  const handler: EveryHandler = {
+    interval,
+    block,
+    keyword,
+    environment,
+    nextDueTick: registrationTick + interval,
+    running: false,
+    pending: false,
+  };
+  registry.everyHandlers.push(handler);
+  return handler;
+}
+
+/**
+ * The batch of `every` handlers to invoke on `tick` — the tick the clock has just advanced to — in
+ * registration order, claimed atomically **before any handler body runs**. A handler is due when
+ * `tick >= handler.nextDueTick`; because `runWait` calls the dispatch once per tick (monotonically,
+ * never skipping a tick), the boundary is reached at exactly `nextDueTick`. Each claimed handler has
+ * its `nextDueTick` advanced by `interval` (so it fires exactly once per interval boundary — a later
+ * `wait 0` revisiting the same tick does NOT redeliver it, and a handler registered mid-run first
+ * fires `interval` ticks after registration rather than snapping to a global multiple) and is marked
+ * `pending`. Tick `0` is never due — a fresh handler's `nextDueTick` is always `>= interval > 0`.
+ *
+ * A handler that is already `running` (a re-entrant `wait` inside its own body advanced the clock
+ * past its next interval) or already `pending` (claimed by an outer batch not yet fully delivered,
+ * because a sibling handler's re-entrant `wait` is delivering intervening ticks) has its interval
+ * consumed — its `nextDueTick` still advances so the boundary is not re-detected — but is NOT added
+ * to a second, overlapping batch. `running` prevents a handler re-entering itself; `pending`
+ * prevents a sibling's nested `wait` from re-claiming a handler an outer batch already owns for this
+ * boundary (which would otherwise fire it twice, out of chronological order). Together they deliver
+ * **zero** overlapping invocations, satisfying the spec's "at most one pending invocation" upper
+ * bound while making the unbounded buildup it forbids structurally impossible. The caller
+ * ({@link dispatchEveryHandlers}) invokes each returned handler via {@link invokeEveryHandler},
+ * which clears `pending` and sets `running`. Returns a fresh array so a handler body that registers
+ * a further `every` mid-dispatch does not extend the batch being delivered on this tick; a tick with
+ * no due handler yields an empty array — a well-defined no-op, never an error.
+ */
+export function claimDueEveryHandlers(
+  registry: EventHandlerRegistry,
+  tick: number,
+): readonly EveryHandler[] {
+  const due: EveryHandler[] = [];
+  for (const handler of registry.everyHandlers) {
+    if (tick < handler.nextDueTick) {
+      continue;
+    }
+    handler.nextDueTick += handler.interval;
+    if (handler.running || handler.pending) {
+      continue;
+    }
+    handler.pending = true;
+    due.push(handler);
+  }
+  return due;
+}
+
+/**
  * Emit the `primitive` event `spec/interaction-events.md` requires a `when` registration to emit
  * **after** the handler is registered ("Event registration forms emit `primitive` events after the
  * handler is registered"). Like {@link emitWaitPrimitive}, the {@link PrimitivePayload} carries only
@@ -327,5 +473,25 @@ export function emitWhenPrimitive(
     kind: "primitive",
     source_span,
     payload: { name: "when" } satisfies PrimitivePayload,
+  });
+}
+
+/**
+ * Emit the `primitive` event `spec/interaction-events.md` requires an `every` registration to emit
+ * **after** the handler is registered ("Event registration forms emit `primitive` events after the
+ * handler is registered"). Like {@link emitWhenPrimitive}, the {@link PrimitivePayload} carries only
+ * the primitive `name` — never the tick count, interval, or any timing — keeping the stream headless
+ * (`spec/execution-model.md`'s trace-and-event registry). Pushed onto the shared event sink with the
+ * next monotonic `seq`.
+ */
+export function emitEveryPrimitive(
+  events: TraceEvent[],
+  source_span: SourceSpan,
+): void {
+  events.push({
+    seq: events.length,
+    kind: "primitive",
+    source_span,
+    payload: { name: "every" } satisfies PrimitivePayload,
   });
 }
