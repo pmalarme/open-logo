@@ -180,9 +180,10 @@ function describeAddressedTurtles(
 }
 
 /**
- * Builds the non-visual state description for a whole {@link TurtleWorldState}: which turtles are
- * addressed, and the state of the turtle that most recently acted — each identified by name
- * whenever the program drives more than one turtle.
+ * Builds the non-visual state description for a whole {@link TurtleWorldState}: the state of the
+ * turtle that most recently acted, named once the program drives more than one turtle (#749), and
+ * preceded by the addressed turtle set whenever that set is not simply that same turtle (#770) —
+ * two independent triggers, either of which can fire without the other.
  *
  * `spec/rendering.md:191` makes that identification a MUST: "Implementations with multiple turtles
  * MUST identify the active turtle or addressed turtle set." A world holding several turtles is

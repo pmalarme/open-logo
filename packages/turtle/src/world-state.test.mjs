@@ -593,6 +593,31 @@ test("a widening tell is folded, not swallowed as an unchanged set", () => {
   );
 });
 
+test("a reordered addressed set is folded, even when its first member is unchanged", () => {
+  // `tell [ :a :b :c ]` / `tell [ :a :c :b ]` addresses the same turtles in a different order. The
+  // order is the one `each` iterates, and the description speaks it aloud, so a stale order is
+  // learner-visible — yet `current_turtle_id` does not move (it is the set's first member, still
+  // `:a`), so a comparison that only asked "same members?" would report no change and leave the
+  // text announcing the old order.
+  const before = OL.reduceTurtleWorldEvents([
+    spawn(1),
+    spawn(2),
+    spawn(3),
+    addressing("tell", [1, 2, 3], 1),
+  ]);
+  const reordered = OL.reduceTurtleWorldState(
+    before,
+    addressing("tell", [1, 3, 2], 1),
+  );
+  assert.notEqual(reordered, before);
+  assert.deepEqual(reordered.addressedTurtleIds, [1, 3, 2]);
+  assert.equal(reordered.currentTurtleId, 1);
+  assert.equal(
+    OL.describeTurtleWorldState(reordered),
+    "addressed turtles #1 #3 #2. turtle #0 at x 0 y 0 heading 0 degrees pen down color black width 1",
+  );
+});
+
 test("the folded addressed set is a copy, so mutating the event's payload cannot reach world state", () => {
   const ids = [1, 2];
   const world = OL.reduceTurtleWorldEvents([

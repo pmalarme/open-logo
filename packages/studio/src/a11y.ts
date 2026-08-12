@@ -437,9 +437,10 @@ function describeCurrentInstruction(
   return ` current instruction ${extractSourceSpanText(source, span)}`;
 }
 
-/** The full non-visual turtle-state text: `describeTurtleWorldState`'s wording — which identifies
- * the addressed turtle set, or the single turtle it describes, once the program drives more than
- * one (`spec/rendering.md:191`), and is byte-identical to `describeTurtleState`'s wording while one
+/** The full non-visual turtle-state text: `describeTurtleWorldState`'s wording — which names the
+ * turtle it describes once the program drives more than one (`spec/rendering.md:191`, #749) and
+ * identifies the addressed turtle set whenever that set is not simply the turtle that just acted
+ * (#770), and is byte-identical to `describeTurtleState`'s wording while one
  * live turtle is addressing itself — plus, when available, the current source instruction (#410). */
 function describeFullTurtleState(state: StudioState): string {
   return (
