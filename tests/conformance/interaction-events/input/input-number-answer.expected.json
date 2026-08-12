@@ -1,5 +1,5 @@
 {
-  "description": "issue #681 (slice I2), the NUMBER half of the number-vs-word rule: `spec/interaction-events.md:136-137` — \"If the submitted text parses as an OpenLogo number literal, the reporter returns a number.\" The scripted answer is the TEXT \"42\" (the raw characters a learner would type), and the read reports the NUMBER 42, proven by arithmetic rather than by printed text: `:answer + 1` prints 43, which only a number can do — the word \"42\" would raise `ol-type` instead. Pair with `input-word-answer`, which scripts a non-numeral through the identical program shape. Per the maintainer's #657 ruling `input` is tested by MOCKING the answer through `executeOptions.hostInput.responses` (a FIFO consumed in order by each `input` call), and the read introduces NO new event kind: it emits the ordinary catch-all `primitive` event named `input` (`spec/interaction-events.md:105-106`) AFTER the read finishes, so `spec/execution-model.md`'s trace/event registry is unchanged. The payload carries only `name` — never the prompt or the submitted text — and no `turtle-id`, because a read concerns no turtle.",
+  "description": "issue #681 (slice I2), the NUMBER half of the number-vs-word rule: `spec/interaction-events.md:136-137` — \"If the submitted text parses as an OpenLogo number literal, the reporter returns a number.\" The scripted answer is the TEXT \"42\" (the raw characters a learner would type) and the read reports the NUMBER 42. Both recorded assertions DISCRIMINATE number from word: the `print` payload records the JSON number `42`, not the string `\"42\"`, and `:answer is a \"number\"` reports `true`, which the word \"42\" would not (`spec/grammar.md:230`: `is a` accepts any value). Note that arithmetic would NOT discriminate here — OpenLogo`s `+` coerces a numeric word, so `:answer + 1` reports 43 whether the read returned the number 42 or the word \"42\"; a fixture built on it would look like proof of this branch while being inert against an implementation that never reports numbers at all. Pair with `input-word-answer`, which scripts a non-numeral through the same shape and records `false` for the identical `is a \"number\"` question. Per the maintainer`s #657 ruling `input` is tested by MOCKING the answer through `executeOptions.hostInput.responses` (a FIFO consumed in order by each `input` call), and the read introduces NO new event kind: it emits the ordinary catch-all `primitive` event named `input` (`spec/interaction-events.md:105-106`) AFTER the read finishes, so `spec/execution-model.md`s trace/event registry is unchanged. The payload carries only `name` — never the prompt or the submitted text — and no `turtle-id`, because a read concerns no turtle.",
   "profiles": ["core-language", "turtle-rendering", "interaction-events"],
   "execute": true,
   "executeOptions": {
@@ -38,7 +38,7 @@
       "source_span": {
         "document": "interaction-events/input/input-number-answer",
         "start": [2, 1],
-        "end": [2, 18]
+        "end": [2, 14]
       },
       "payload": {
         "statement_kind": "Call"
@@ -50,10 +50,34 @@
       "source_span": {
         "document": "interaction-events/input/input-number-answer",
         "start": [2, 1],
-        "end": [2, 18]
+        "end": [2, 14]
       },
       "payload": {
-        "values": [43]
+        "values": [42]
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/input/input-number-answer",
+        "start": [3, 1],
+        "end": [3, 28]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/input/input-number-answer",
+        "start": [3, 1],
+        "end": [3, 28]
+      },
+      "payload": {
+        "values": [true]
       }
     }
   ],

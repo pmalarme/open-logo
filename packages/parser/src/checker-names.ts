@@ -123,7 +123,7 @@ export function collectDeclaredNames(
  * their `define`, and the same is true of struct constructors, which register at phase-1 exactly
  * like procedures do — `@openlogo/runtime`'s `collectStructs`). The `tell`/`ask`/`each` addressing
  * heads and the `new_turtle`/`who`/`turtles` reporters are visible only when `"sprites"` is active
- * (issues #674 and #678). The `when`/`every`/`on_key`/`on_click` block-heads (issues #682–#685) and
+ * (issues #674 and #678). The `when`/`every`/`on_key`/`on_click` block-heads (issues #682–#685)
  * and the `wait` primitive (issue #687) are visible only when `"interaction-events"` is active,
  * joined by the profile's `input` reporter once slice #681 shipped its evaluator — both halves of
  * a name's registration (checker visibility and a runtime that can run it) land in the same slice,

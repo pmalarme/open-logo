@@ -187,6 +187,31 @@ test("a run made entirely of reads reaches no checkpoint at all — nothing pend
   assert.deepEqual(printedWords(result), []);
 });
 
+test("reads leave outstanding input OUTSTANDING — a later wait still delivers what they declined to", () => {
+  // The sharper form of the previous test, and the one that separates "the read did not deliver the
+  // key" from "the read quietly consumed and discarded it". `spec/interaction-events.md:91-93`
+  // requires an implementation to "preserve the most recent key and click state needed to deliver
+  // the next handler consistently", so a read must leave the pending queue exactly as it found it:
+  // two reads pass over a key pending from tick 0, and the `wait 0` after them still delivers it.
+  //
+  // This is what a read "not running handler blocks" has to mean in a program that eventually does
+  // reach a checkpoint — the work is deferred, not dropped.
+  const result = execute(
+    [
+      'on_key "a" [ print "key-ran" ]',
+      ':a = input "q"',
+      ':b = input "q"',
+      'print "reads-done"',
+      "wait 0",
+      'print "after"',
+    ].join("\n"),
+    doc,
+    { hostInput: { events: KEY_AT_TICK_ZERO, responses: ["one", "two"] } },
+  );
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(printedWords(result), ["reads-done", "key-ran", "after"]);
+});
+
 // --- The instruction half: the next instruction cannot start before the read finishes -----------
 
 test("the next instruction's events all follow the read's primitive event", () => {

@@ -377,7 +377,7 @@ export interface Environment {
    * `input` call takes entry 0, the second entry 1, and so on ({@link takeInputResponse}). Empty
    * (frozen `[]`) for every ordinary headless run, in which case the first `input` has no answer to
    * take and the read ends the only other way `spec/interaction-events.md:110-111` allows — as a
-   * cancelled program ({@link runtimeDiag.inputNotAnswered}). Headless execution *input*, never
+   * cancelled program ({@link runtimeDiag.cancelled}). Headless execution *input*, never
    * observable in any event payload: the `primitive` event a read emits carries only the name
    * `input`, never the prompt or the submitted text.
    */
@@ -4595,7 +4595,7 @@ function evaluateTurtles(
  *   3. **The read** — take the next scripted answer ({@link takeInputResponse}) from the run's FIFO
  *      queue (`ExecuteOptions.hostInput.responses`, the #657 ruling). With no answer left the read
  *      can never finish, so it takes the only other ending `:110-111` allows and the program is
- *      cancelled ({@link runtimeDiag.inputNotAnswered}).
+ *      cancelled ({@link runtimeDiag.cancelled}).
  *   4. **The after-effect event** — one `primitive` event naming `input`, emitted *after* the answer
  *      is in hand ({@link emitInputPrimitive}), then the value is reported per `:136-137`
  *      ({@link interpretSubmittedText}).
@@ -4632,7 +4632,14 @@ function evaluateInput(
     environment.hostResponsesConsumed,
   );
   if (answer === undefined) {
-    return fail(runtimeDiag.inputNotAnswered(node.source_span));
+    // The read can never finish, so it takes the only other ending `spec/interaction-events.md:
+    // 110-111` allows — "until the read finishes or the program is cancelled" — through the SHARED
+    // cancellation diagnostic, not a lookalike of its own. Diagnostic identity is code + params and
+    // prose is presentation (`spec/error-model.md:235-238`), so a second builder emitting
+    // `ol-limit`/`{ limit: "cancelled" }` with different wording would make the message stop being a
+    // function of the identity and be unreachable in any localized build. The span still points at
+    // the waiting `input`, which is what tells a learner *where* the run stopped.
+    return fail(runtimeDiag.cancelled(node.source_span));
   }
   emitInputPrimitive(environment.events, node.source_span);
   return ok(interpretSubmittedText(answer));

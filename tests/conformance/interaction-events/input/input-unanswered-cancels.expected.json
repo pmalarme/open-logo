@@ -1,5 +1,5 @@
 {
-  "description": "issue #681 (slice I2): a read no host can answer. `spec/interaction-events.md:110-111` gives a blocking read exactly two endings — it runs \"until the read finishes or the program is cancelled\" — so a headless run with no scripted answer (`executeOptions.hostInput.responses` omitted) takes the second: `ol-limit` with `limit: \"cancelled\"`, the same identity an externally cancelled run raises, pointed at the waiting `input` call. The program stops there, so the following `print` never runs and no `primitive` event is emitted. Reporting an invented answer (an empty word, say) instead would let the program run on as though the learner had answered — a silent wrong result, which is exactly what a diagnostic exists to prevent.",
+  "description": "issue #681 (slice I2): a read no host can answer. `spec/interaction-events.md:110-111` gives a blocking read exactly two endings — it runs \"until the read finishes or the program is cancelled\" — so a headless run with no scripted answer (`executeOptions.hostInput.responses` omitted) takes the second. It reaches that ending through the profile`s ordinary cancellation diagnostic, identical in code, params AND message to an externally cancelled run: diagnostic identity is `code` plus `params` and prose is presentation (`spec/error-model.md:235-238`), so a lookalike diagnostic with its own wording would make the message stop being a function of the identity and be unreachable in a localized build. What localizes it to this instruction is the SPAN, which covers the waiting `input` call rather than the whole statement. `spec/interaction-events.md:352` sanctions `ol-limit` here (\"an instruction budget or cancellation limit was reached\"). The program stops at the read, so the following `print` never runs and no `primitive` event is emitted — reporting an invented answer (an empty word, say) instead would let the program run on as though the learner had answered, a silent wrong result, which is exactly what a diagnostic exists to prevent.",
   "profiles": ["core-language", "turtle-rendering", "interaction-events"],
   "execute": true,
   "events": [
@@ -27,7 +27,7 @@
       "params": {
         "limit": "cancelled"
       },
-      "message": "input is waiting for an answer, but this run has no way to supply one, so the program was cancelled before it finished.",
+      "message": "execution was cancelled before the program finished.",
       "stage": "runtime",
       "severity": "error"
     }

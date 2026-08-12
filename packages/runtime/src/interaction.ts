@@ -358,7 +358,7 @@ export function interpretSubmittedText(text: string): number | string {
  * no answer is ever handed out twice.
  *
  * `undefined` means the host has no answer to give; the caller turns that into the read's other
- * spec-sanctioned ending, cancellation ({@link runtimeDiag.inputNotAnswered}).
+ * spec-sanctioned ending, cancellation ({@link runtimeDiag.cancelled}).
  */
 export function takeInputResponse(
   responses: readonly string[],

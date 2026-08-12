@@ -23,12 +23,17 @@ that requires it — see `scripts/examples-gate.mjs`.
   kind**: it emits the ordinary catch-all `primitive` named `input` after the read finishes, so
   `spec/execution-model.md`'s trace/event registry is unchanged. `input-number-answer` and
   `input-word-answer` pin the two branches of the number-vs-word rule (`:136-137`) against one
-  another, the number branch proven by arithmetic rather than printed text;
+  another by asking the same `is a "number"` question and recording opposite answers, and by
+  recording the raw printed value (the JSON number `42` versus a string). Note that **arithmetic
+  would not discriminate them** — OpenLogo's `+` coerces a numeric word, so `:answer + 1` reports
+  43 whether the read returned the number `42` or the word `"42"`; a proof built on it would look
+  convincing while being inert against an implementation that never reports numbers at all.
   `input-responses-consumed-in-order` proves the queue is consumed in order with each answer
   classified independently; `input-prompt-not-text` is the `ol-type` a prompt that "cannot be
   displayed as learner text" raises (`:131`), pointed at the prompt argument and consuming no
   answer; `input-unanswered-cancels` takes the read's *other* spec-sanctioned ending (`:110-111` —
-  "until the read finishes or the program is cancelled") rather than inventing an answer; and the
+  "until the read finishes or the program is cancelled") through the profile's ordinary
+  cancellation diagnostic rather than inventing an answer or a lookalike code; and the
   `check`-mode pair `input-visible-under-profile`/`input-rejected-core-only` proves the name is
   gated on the profile, as `spec/conformance.md:167-169` and `spec/interaction-events.md:11`
   require. The **blocking** property (`:108-111`) is observable here only as the *pair*

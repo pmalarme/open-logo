@@ -655,16 +655,30 @@ export interface OnKeyKeyNotWordParams {
 /**
  * Params for the `ol-type` raised by `input` when its prompt cannot be displayed as learner text
  * (`spec/interaction-events.md:131`, issue #681). `input` "displays the prompt and waits for the
- * learner to enter one value" (`:134`), so the prompt has to *be* text a person can read: the
- * scalars `word`, `number`, and `boolean` render as exactly the characters shown. A `list`, `dict`,
- * or `record` renders as a bracketed container view and a `turtle` as the opaque identity tag
- * `turtle #<id>` (`spec/turtles-and-sprites.md:13`) — debugging renderings of a structure, not a
- * question authored for a learner — so those raise this diagnostic. This narrower-than-`print` rule
- * is the spec's own asymmetry: `print` (`spec/commands.md`) has no error clause at all and accepts
- * every value, while `input` is given one specifically for its prompt, which would be dead text if
- * every value qualified. `actual` is the argument's runtime type name (`@openlogo/core`'s
- * `typeNameOf`) so the diagnostic identity records what was supplied; `expected` is the fixed
- * `"text"`, naming the spec's own phrase. Mirrors the `{ operation, expected, actual }` shape of
+ * learner to enter one value" (`:134`), and the profile's own error table classes this as "an
+ * argument has the wrong type" (`:350`), so the prompt is type-constrained: it must be a value whose
+ * printed form IS the text shown — the scalars `word`, `number`, and `boolean`.
+ *
+ * The boundary has to fall somewhere narrower than `print`. `printedForm` is total over the v0.1
+ * value set, so a rule that accepted every printable value would leave this normative `ol-type`
+ * clause unreachable — an unimplementable normative error is exactly the kind of untested claim
+ * issue #679's audit exists to stop. `print` (`spec/commands.md`) is given no error clause at all
+ * and accepts everything; `input` is given one specifically for its prompt, and that asymmetry is
+ * the spec's own signal that the prompt is constrained where `print`'s operand is not. A `list`,
+ * `dict`, or `record` renders as a bracketed container view and a `turtle` as the opaque identity
+ * tag `turtle #<id>` (`spec/turtles-and-sprites.md:13`) — a rendering *of a structure*, not a
+ * question authored for a person to read and answer.
+ *
+ * Exactly where the line falls between "a value that has a printed form"
+ * (`spec/execution-model.md:552-574` gives every value one) and "learner text" is not spelled out in
+ * `spec/`, so this is an implementation-defined reading of a normative clause rather than a
+ * transcription of one. It is recorded here, in the `input-prompt-not-text` fixture's description,
+ * and in a follow-up issue for maintainer confirmation, so the boundary is visible rather than
+ * buried.
+ *
+ * `actual` is the argument's runtime type name (`@openlogo/core`'s `typeNameOf`) so the diagnostic
+ * identity records what was supplied; `expected` is the fixed `"text"`, naming the spec's own
+ * phrase. Mirrors the `{ operation, expected, actual }` shape of
  * {@link WhenEventNotWordParams}/{@link OnKeyKeyNotWordParams}.
  */
 export interface InputPromptNotTextParams {
@@ -1691,28 +1705,6 @@ export const runtimeDiag = {
       source_span,
       { operation: "input", expected: "text", actual: params.actual },
       `input needs a prompt it can show as text, but got a ${params.actual}.`,
-    );
-  },
-
-  /**
-   * `ol-limit` (issue #681, slice I2) — an `input` read that no host can answer.
-   * `spec/interaction-events.md:108-111` gives a blocking read exactly two endings: it "finishes or
-   * the program is cancelled". A headless `execute()` with no scripted answer left
-   * (`ExecuteOptions.hostInput.responses` absent or already drained) can never reach the first, so
-   * the read takes the second and the run stops here. Deliberately shares
-   * {@link runtimeDiag.cancelled}'s `ol-limit`/`{ limit: "cancelled" }` **identity** — the spec's own
-   * word for this ending, and diagnostic identity is code + params, not prose
-   * (`spec/error-model.md:193-194`) — while its message names `input`, so a learner is told which
-   * instruction is waiting rather than just that "something" was cancelled. Returning a made-up
-   * answer (an empty word, say) instead would let the program run on as if the learner had answered:
-   * a silent wrong result, the failure mode a diagnostic exists to prevent.
-   */
-  inputNotAnswered(source_span: SourceSpan): Diagnostic {
-    return runtimeError(
-      "ol-limit",
-      source_span,
-      { limit: "cancelled" },
-      "input is waiting for an answer, but this run has no way to supply one, so the program was cancelled before it finished.",
     );
   },
 } as const;

@@ -21,6 +21,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { check, parse } from "@openlogo/parser";
 import {
   execute,
   interpretSubmittedText,
@@ -51,22 +52,45 @@ function printedValues(result) {
 
 test("a submitted answer that parses as a number literal reports a NUMBER", () => {
   // `spec/interaction-events.md:136-137`: "If the submitted text parses as an OpenLogo number
-  // literal, the reporter returns a number." Proven by arithmetic rather than by print text: `41`
-  // would print as `41` whether it were the number 41 or the word "41", but only the number can be
-  // added to. A regression that always reported a word raises `ol-type` here instead.
-  const result = runWithAnswers(':n = input "how old?"\nprint :n + 1', ["41"]);
+  // literal, the reporter returns a number."
+  //
+  // Discriminated by TYPE, not by arithmetic. `:answer + 1` would prove nothing here: OpenLogo's `+`
+  // coerces a numeric word (`"42" + 1` reports 43 with no diagnostic — only a non-numeric word like
+  // `"tom"` raises `ol-type`), so an implementation that never reported a number at all would still
+  // print 43 and pass. `assert.deepEqual` over the printed payload distinguishes the number `42`
+  // from the word `"42"`, and `is a "number"` (`spec/grammar.md:230` — `is a` accepts any value)
+  // states the same thing in the language itself.
+  const result = runWithAnswers(
+    ':answer = input "how old?"\nprint :answer\nprint :answer is a "number"',
+    ["42"],
+  );
   assert.deepEqual(result.diagnostics, []);
-  assert.deepEqual(printedValues(result), [42]);
+  assert.deepEqual(printedValues(result), [42, true]);
+});
+
+test("arithmetic would NOT discriminate the two branches — the regression guard for this file's own proof", () => {
+  // Locks the coercion fact the test above depends on, so a future edit cannot quietly "simplify"
+  // the number test back to `print :answer + 1` and reintroduce a false-green proof: with the WORD
+  // "42" reported, arithmetic still succeeds and still prints 43. Only the type question separates
+  // them.
+  const asWord = runWithAnswers(
+    ':answer = "42"\nprint :answer + 1\nprint :answer is a "number"',
+    [],
+  );
+  assert.deepEqual(asWord.diagnostics, []);
+  assert.deepEqual(printedValues(asWord), [43, false]);
 });
 
 test("a submitted answer that is not a number literal reports a WORD preserving the entered text", () => {
-  // The other half of `:136-137`: "Otherwise it returns a word preserving the entered text."
+  // The other half of `:136-137`: "Otherwise it returns a word preserving the entered text." Asks
+  // the SAME type question as the number test above, and gets the opposite answer — which is what
+  // makes the two a discriminating pair rather than two runs of one assertion.
   const result = runWithAnswers(
-    ':name = input "what is your name?"\nprint word "hello " :name',
+    ':name = input "what is your name?"\nprint word "hello " :name\nprint :name is a "number"',
     ["tom"],
   );
   assert.deepEqual(result.diagnostics, []);
-  assert.deepEqual(printedValues(result), ["hello tom"]);
+  assert.deepEqual(printedValues(result), ["hello tom", false]);
 });
 
 test("the word branch preserves the entered text EXACTLY — no trimming, casing, or escaping", () => {
@@ -240,16 +264,22 @@ test("a read with no scripted answer cancels the run (ol-limit) rather than inve
   // the program is cancelled". A headless run with no answer cannot reach the first, so it takes the
   // second — deliberately, because reporting a made-up empty word would let the program run on as
   // if the learner had answered.
+  //
+  // It reaches that ending through the SHARED cancellation diagnostic, identical in code, params
+  // AND prose to an externally cancelled run: diagnostic identity is code + params and prose is
+  // presentation (`spec/error-model.md:235-238`), so a lookalike builder with its own wording would
+  // make the message stop being a function of the identity. The span is what localises it to the
+  // waiting read.
   const result = execute('print input "q"', doc);
+  const cancelled = execute("forward 1", doc, { signal: { aborted: true } });
   assert.equal(result.diagnostics.length, 1);
   const [finding] = result.diagnostics;
   assert.equal(finding.code, "ol-limit");
   assert.equal(finding.stage, "runtime");
   assert.deepEqual(finding.params, { limit: "cancelled" });
-  assert.ok(
-    finding.message.includes("input"),
-    "the message names the instruction that is waiting",
-  );
+  assert.equal(finding.message, cancelled.diagnostics[0].message);
+  // The span covers the `input` call itself, so the learner is pointed at the waiting instruction.
+  assert.deepEqual(finding.source_span.start, [1, 7]);
 });
 
 test("an unanswered read emits no primitive event and stops the program there", () => {
@@ -357,17 +387,32 @@ test("a failing prompt expression propagates its own diagnostic, not input's", (
 
 // --- A user procedure does NOT shadow the primitive, exactly as for every other primitive --------
 
-test("the primitive wins over a same-named user procedure, as it does for every other primitive", () => {
-  // `evaluateCall` resolves primitives before `environment.procedures`, so `define input` does not
-  // take over the name at runtime — identical to `define random`/`define who`, and deliberately so:
-  // a learner is told about the collision by the checker's `ol-reserved-word`
-  // (`spec/tooling.md:184`, locked in `packages/parser/src/interaction-tooling.test.mjs`), not by a
-  // program that silently changes meaning. Locking it here keeps `input` from drifting into a
-  // one-off precedence rule of its own.
-  const result = runWithAnswers(
-    ["define input :prompt", "  return 7", "end", 'print input "q"'].join("\n"),
-    ["tom"],
+test("the primitive wins over a same-named user procedure, in a program the checker already rejects", () => {
+  // `define input` is ILLEGAL under an active `interaction-events` profile: redefining a primitive
+  // raises `ol-reserved-word` (`spec/tooling.md:184`), asserted below so this test cannot be read as
+  // endorsing the program. What it locks is the runtime's dispatch order for a program that reached
+  // `execute()` anyway — `execute()` runs `parse()` only, never `check()` — and that order is the
+  // same for `input` as for every other primitive (`define random`/`define who` behave identically):
+  // primitives resolve before `environment.procedures`. Locking it keeps `input` from drifting into
+  // a one-off precedence rule of its own.
+  const source = [
+    "define input :prompt",
+    "  return 7",
+    "end",
+    'print input "q"',
+  ].join("\n");
+
+  const { ast } = parse(source, doc);
+  const checked = check(ast, {
+    profiles: ["core-language", "turtle-rendering", "interaction-events"],
+  });
+  assert.deepEqual(
+    checked.diagnostics.map((finding) => [finding.code, finding.params]),
+    [["ol-reserved-word", { name: "input", namespace: "primitive" }]],
+    "the checker is what tells a learner about the collision",
   );
+
+  const result = runWithAnswers(source, ["tom"]);
   assert.deepEqual(result.diagnostics, []);
   assert.deepEqual(printedValues(result), ["tom"]);
   // It really was the primitive: the read happened, so it emitted its `primitive` event and took
