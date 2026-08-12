@@ -8,7 +8,7 @@ test("getHostMetadata exposes the exact spec version", () => {
   assert.equal(metadata.openlogo.version, OL.OPENLOGO_VERSION);
 });
 
-test("getHostMetadata reports the full M3+M4-delivered profile set", () => {
+test("getHostMetadata reports the full M3+M4+M5-delivered profile set", () => {
   const metadata = OL.getHostMetadata();
   assert.deepEqual(metadata.supportedProfiles, [
     "core-language",
@@ -16,10 +16,12 @@ test("getHostMetadata reports the full M3+M4-delivered profile set", () => {
     "data",
     "geometry",
     "educational",
+    "sound",
   ]);
   assert.ok(metadata.supportedProfiles.includes("data"));
   assert.ok(metadata.supportedProfiles.includes("geometry"));
   assert.ok(metadata.supportedProfiles.includes("educational"));
+  assert.ok(metadata.supportedProfiles.includes("sound"));
 });
 
 test("getHostMetadata exposes rendering targets because turtle-rendering is claimed", () => {
