@@ -78,6 +78,7 @@ export const IMPLEMENTED_PROFILES = [
   "geometry",
   "sound",
   "sprites",
+  "heritage",
 ];
 
 /**
