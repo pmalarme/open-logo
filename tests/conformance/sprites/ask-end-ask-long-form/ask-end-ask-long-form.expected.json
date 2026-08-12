@@ -1,0 +1,136 @@
+{
+  "description": "issue #675 (SP3): the long form `ask :t` … `end ask` behaves identically to the bracket form. `:t` (id 1) moves inside the block; the trailing `forward 20` runs for the restored default main turtle (unstamped).",
+  "profiles": ["sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/ask-end-ask-long-form/ask-end-ask-long-form",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/ask-end-ask-long-form/ask-end-ask-long-form",
+        "start": [1, 6],
+        "end": [1, 16]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/ask-end-ask-long-form/ask-end-ask-long-form",
+        "start": [2, 1],
+        "end": [4, 8]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/ask-end-ask-long-form/ask-end-ask-long-form",
+        "start": [3, 3],
+        "end": [3, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/ask-end-ask-long-form/ask-end-ask-long-form",
+        "start": [3, 3],
+        "end": [3, 13]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 80],
+        "heading": 0
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 5,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/ask-end-ask-long-form/ask-end-ask-long-form",
+        "start": [3, 3],
+        "end": [3, 13]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 80],
+        "color": "black",
+        "width": 1
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/ask-end-ask-long-form/ask-end-ask-long-form",
+        "start": [5, 1],
+        "end": [5, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/ask-end-ask-long-form/ask-end-ask-long-form",
+        "start": [5, 1],
+        "end": [5, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 20],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/ask-end-ask-long-form/ask-end-ask-long-form",
+        "start": [5, 1],
+        "end": [5, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 20],
+        "color": "black",
+        "width": 1
+      }
+    }
+  ],
+  "diagnostics": []
+}

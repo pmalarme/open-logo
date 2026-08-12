@@ -102,6 +102,7 @@ import {
   type Frame,
   type ProcedureRegistry,
   type StructRegistry,
+  type TurtleAddressing,
 } from "./evaluate.js";
 import { runtimeDiag } from "./errors.js";
 import {
@@ -2291,24 +2292,26 @@ function executeWhenStatement(
 
 /**
  * Sentinel `dispatchProfileStatement` returns when a {@link ProfileStatementNode} is not a Sprites
- * addressing form this slice runs (`ask`/`each` land in #675/#676; the Interaction event heads are
- * their own profile), so {@link executeStatements} can fall through. Distinct from `undefined`
+ * addressing form this slice runs (`tell`/`ask`; `each` lands in #676; the Interaction event heads
+ * are their own profile), so {@link executeStatements} can fall through. Distinct from `undefined`
  * ("handled, continue") and an {@link ExecSignal} ("handled, halt"), mirroring
  * {@link NOT_A_TURTLE_COMMAND}.
  */
 const NOT_A_PROFILE_STATEMENT = Symbol("not-a-profile-statement");
 
 /**
- * Coerce one turtle value or a list of turtle values into the ids `tell` should address
+ * Coerce one turtle value or a list of turtle values into the ids an addressing form should address
  * (`spec/turtles-and-sprites.md:46` "Its input is either one turtle value or a list whose items are
- * turtle values"). Returns the ids on success, or the `ol-type` diagnostic to halt on when the
- * input is a non-turtle, or a list containing a non-turtle value (`spec/turtles-and-sprites.md:
- * 176-177`). The whole `tell` fails on the first non-turtle item — the addressed set is left
- * unchanged — so a partially-valid list never half-addresses.
+ * turtle values"). `operation` is the head keyword (`"tell"` or `"ask"`) the `ol-type` diagnostic
+ * names. Returns the ids on success, or the `ol-type` diagnostic to halt on when the input is a
+ * non-turtle, or a list containing a non-turtle value (`spec/turtles-and-sprites.md:176-177`). The
+ * whole form fails on the first non-turtle item — the addressed set is left unchanged — so a
+ * partially-valid list never half-addresses.
  */
 function turtleIdsFor(
   value: OLValue,
   source_span: SourceSpan,
+  operation: "tell" | "ask",
 ): { ok: true; ids: TurtleId[] } | { ok: false; diagnostic: Diagnostic } {
   if (value instanceof OLTurtle) {
     return { ok: true, ids: [value.id] };
@@ -2323,7 +2326,7 @@ function turtleIdsFor(
             expected: "turtle",
             actual: typeNameOf(item),
             value: item,
-            operation: "tell",
+            operation,
           }),
         };
       }
@@ -2337,7 +2340,7 @@ function turtleIdsFor(
       expected: "turtle",
       actual: typeNameOf(value),
       value,
-      operation: "tell",
+      operation,
     }),
   };
 }
@@ -2369,29 +2372,111 @@ function executeTell(
   if (!argResult.ok) {
     return halt(argResult.diagnostic);
   }
-  const ids = turtleIdsFor(argResult.value, arg.source_span);
+  const ids = turtleIdsFor(argResult.value, arg.source_span, "tell");
   if (!ids.ok) {
     return halt(ids.diagnostic);
   }
-  const { addressing } = environment;
-  addressing.ids = ids.ids;
-  addressing.explicit = true;
-  // Re-point the current turtle at the first addressed turtle so the movement reporters
-  // (`xcor`/`ycor`/`heading`/`pos`) and `who` all report it. When the addressed set is empty
-  // (`tell [ ]`) there is no acting turtle, so it falls back to the main turtle — matching `who`'s
-  // own empty-set fallback so the two never diverge. `currentId` is the single source of truth;
-  // `environment.turtle` is its derived state cache, so both are written together here.
-  const [firstId = MAIN_TURTLE_ID] = ids.ids;
-  addressing.currentId = firstId;
-  environment.turtle = turtleStateFor(addressing, firstId);
+  // `tell` persistently points the addressed set at `ids` — the same pointing rule `ask` applies for
+  // the duration of its block ({@link pointAddressedSet}), so `who` and the state reporters never
+  // diverge between the two forms. When the addressed set is empty (`tell [ ]`) the current turtle
+  // falls back to the main turtle, matching `who`'s own empty-set fallback.
+  pointAddressedSet(environment.addressing, ids.ids, environment);
   return undefined;
 }
 
 /**
- * Try to run `statement` as a Sprites addressing statement. Today that is only `tell` (SP2, issue
- * #674); `ask`/`each` (SP3/SP4) and the Interaction & Events heads register their own handling.
- * Returns {@link NOT_A_PROFILE_STATEMENT} when `statement` is not a `tell` this slice runs, so
- * {@link executeStatements} falls through to its remaining checks.
+ * Point the addressed set at `ids` and re-derive the current turtle from its first member (the main
+ * turtle when the set is empty), the one rule `tell`/`ask` share so `who` and the state reporters
+ * (`xcor`/`ycor`/`heading`/`pos`) never diverge (`spec/turtles-and-sprites.md:44,113`). Marks
+ * addressing explicit so per-turtle events now carry a `turtle-id`. `currentId` is the single source
+ * of truth; {@link Environment.turtle} is its derived cache, written together here.
+ */
+function pointAddressedSet(
+  addressing: TurtleAddressing,
+  ids: TurtleId[],
+  environment: Environment,
+): void {
+  addressing.ids = ids;
+  addressing.explicit = true;
+  const [firstId = MAIN_TURTLE_ID] = ids;
+  addressing.currentId = firstId;
+  environment.turtle = turtleStateFor(addressing, firstId);
+}
+
+/**
+ * Run an `ask <turtle|turtle-list> <block>` statement (Sprites profile,
+ * `spec/turtles-and-sprites.md:58`): `ask` is a special form that **temporarily** runs its block for
+ * the given turtle(s), then **restores the previous addressed set** after the block finishes — "The
+ * previous addressed set is restored after the block finishes." Unlike the persistent `tell`, the
+ * scope lasts exactly the block's duration.
+ *
+ * The save/restore covers every exit path — normal completion **and** an abnormal one (a runtime
+ * `halt`, a `stop`, a `return`/`output`/`op` propagating out of the block, or a `throw` surfaced as a
+ * `halt`): the block runs inside a `try` whose `finally` restores the snapshot, so a block that
+ * errors mid-way never leaks its addressed set to the code that follows (the classic scope leak).
+ * Restoration is exactly one level deep, so nested `ask` (and `ask` inside a `tell` scope) each
+ * unwind their own level (`spec/turtles-and-sprites.md` "Addressing model").
+ *
+ * Evaluates its single argument, coerces it to turtle ids ({@link turtleIdsFor} — `ol-type` on a
+ * non-turtle, leaving the addressed set unchanged), points the addressed set at them
+ * ({@link pointAddressedSet}), runs the block, and restores. Returns the block's {@link ExecSignal}
+ * (so a `stop`/`return`/`halt` still propagates to the caller after restoration), or `undefined` to
+ * continue, including the "argument not yet evaluable" deferral every other command uses.
+ */
+function executeAsk(
+  statement: ProfileStatementNode,
+  environment: Environment,
+): ExecSignal | undefined {
+  // `ask`'s single-argument arity and mandatory block are enforced at parse/check time (its
+  // `PROFILE_STATEMENT_FORMS` entry is `argCount: 1, hasBlock: true`), so exactly one argument and a
+  // block always reach here.
+  const [arg] = statement.args as [ExpressionNode];
+  if (!isSupportedArgument(arg, environment)) {
+    return undefined;
+  }
+  const argResult = evaluate(arg, environment);
+  if (!argResult.ok) {
+    return halt(argResult.diagnostic);
+  }
+  const ids = turtleIdsFor(argResult.value, arg.source_span, "ask");
+  if (!ids.ok) {
+    return halt(ids.diagnostic);
+  }
+  const { addressing } = environment;
+  // Snapshot the addressed set (ids, current turtle, explicit flag) so the block runs scoped and the
+  // previous set is restored afterward, on every exit path (`spec/turtles-and-sprites.md:58,69`).
+  const savedIds = addressing.ids;
+  const savedCurrentId = addressing.currentId;
+  const savedExplicit = addressing.explicit;
+  // `hasBlock: true` guarantees the reader attached a block; the cast records that invariant the same
+  // way `executeWhenStatement` does.
+  const block = statement.body as BlockNode;
+  try {
+    pointAddressedSet(addressing, ids.ids, environment);
+    const signal = executeStatements(block.body, environment);
+    // A block that runs to completion returns the `normal` signal; `ask` is a statement, not a
+    // reporter, so it must fall through to the next statement — return `undefined` ("handled,
+    // continue"). A non-normal signal (`stop`/`return`/`output`/`op`/`halt`) still propagates out so
+    // it unwinds the enclosing procedure or program, exactly as it would without the `ask`.
+    return signal.kind === "normal" ? undefined : signal;
+  } finally {
+    // Restore exactly one level: the saved ids, explicit flag, and current turtle (with its derived
+    // state cache), so an `ask` at top level before any `tell` leaves addressing implicit again and
+    // its events carry no `turtle-id`, and a nested `ask`/`tell` scope unwinds to precisely the set
+    // that was active before this `ask`.
+    addressing.ids = savedIds;
+    addressing.explicit = savedExplicit;
+    addressing.currentId = savedCurrentId;
+    environment.turtle = turtleStateFor(addressing, savedCurrentId);
+  }
+}
+
+/**
+ * Try to run `statement` as a Sprites addressing statement — `tell` (SP2, issue #674) sets the
+ * addressed set persistently, and `ask` (SP3, issue #675) runs its block for a scoped set and then
+ * restores the previous one; `each` (SP4) and the Interaction & Events heads register their own
+ * handling. Returns {@link NOT_A_PROFILE_STATEMENT} when `statement` is not an addressing statement
+ * this slice runs, so {@link executeStatements} falls through to its remaining checks.
  */
 function dispatchProfileStatement(
   statement: StatementNode,
@@ -2400,8 +2485,12 @@ function dispatchProfileStatement(
   if (statement.kind !== "ProfileStatement") {
     return NOT_A_PROFILE_STATEMENT;
   }
-  if (statement.keyword.name.toLowerCase() === "tell") {
+  const keyword = statement.keyword.name.toLowerCase();
+  if (keyword === "tell") {
     return executeTell(statement, environment);
+  }
+  if (keyword === "ask") {
+    return executeAsk(statement, environment);
   }
   return NOT_A_PROFILE_STATEMENT;
 }

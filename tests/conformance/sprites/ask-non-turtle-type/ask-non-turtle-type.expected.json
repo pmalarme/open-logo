@@ -1,0 +1,37 @@
+{
+  "description": "issue #675 (SP3): a non-turtle input to `ask` raises `ol-type` (spec/turtles-and-sprites.md:176) and the block never runs, so no `move` is emitted.",
+  "profiles": ["sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/ask-non-turtle-type/ask-non-turtle-type",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "sprites/ask-non-turtle-type/ask-non-turtle-type",
+        "start": [1, 5],
+        "end": [1, 6]
+      },
+      "params": {
+        "expected": "turtle",
+        "actual": "number",
+        "value": 5,
+        "operation": "ask"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

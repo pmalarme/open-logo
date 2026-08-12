@@ -533,19 +533,19 @@ export function spritesPrimitiveArity(name: string): number | undefined {
  * The Sprites-profile **statement forms** whose head keyword the checker must recognize as a
  * visible command name (issue #674), so a `ProfileStatement` such as `tell :friend` is not reported
  * `ol-unknown-command` under an active `sprites` profile (`unknownCommandRule` walks the head
- * keyword against {@link collectVisibleNames}). Only `tell` is registered here for SP2 — the
- * addressing mode-switch this slice runs; the `ask`/`each` block-heads land with their executing
- * slices (#675/#676), and the `new_turtle`/`who`/`turtles` reporters have their own name-list
- * (#678), so registering them here would let a program "check clean" against a form nothing runs.
- * Sourced from a dedicated table rather than {@link SPRITES_PRIMITIVE_ARITY} because these are
- * statement forms (grouped by the grammar's profile-statement rule), not bare-call reporters whose
- * arguments the reader groups.
+ * keyword against {@link collectVisibleNames}). `tell` was registered for SP2 (the addressing
+ * mode-switch) and `ask` for SP3 (#675, the scoped block-head this slice runs); the `each`
+ * block-head lands with its executing slice (#676), and the `new_turtle`/`who`/`turtles` reporters
+ * have their own name-list (#678), so registering them here would let a program "check clean"
+ * against a form nothing runs. Sourced from a dedicated table rather than
+ * {@link SPRITES_PRIMITIVE_ARITY} because these are statement forms (grouped by the grammar's
+ * profile-statement rule), not bare-call reporters whose arguments the reader groups.
  */
-const SPRITES_STATEMENT_FORM_NAMES: readonly string[] = ["tell"];
+const SPRITES_STATEMENT_FORM_NAMES: readonly string[] = ["tell", "ask"];
 
 /**
  * Every Sprites-profile statement-form head keyword the checker treats as a visible command name
- * (currently just `tell`, issue #674). The enumerable counterpart the checker's unknown-command
+ * (`tell` from #674 and `ask` from #675). The enumerable counterpart the checker's unknown-command
  * rule consults, mirroring {@link soundPrimitiveNames}.
  */
 export function spritesStatementFormNames(): readonly string[] {
