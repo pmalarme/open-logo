@@ -84,7 +84,8 @@
  * - {@link createTurtleStateRegion} (#229) is the non-visual turtle-state text region: a single,
  *   always-current `status`/`aria-live="polite"` string over the shared `turtleWorld` slot,
  *   rendered via `@openlogo/turtle`'s published `describeTurtleWorldState` — which names the
- *   turtle it describes once a program drives more than one (#749), and additionally identifies
+ *   turtle it describes once the world holds more than one live turtle (#749), and additionally
+ *   identifies
  *   the **addressed turtle set** whenever that set is not simply the turtle that just acted
  *   (#770, e.g. `addressed turtles #1 #2. turtle #2 at x …`) — never re-derived here —
  *   updating in lockstep with the Canvas view on every run tick, `step()`, and `reset()`.

@@ -25,7 +25,8 @@
  * paces consumption of that same event stream without ever re-deriving it, and **rendering
  * accessibility** primitives: a non-visual textual state description
  * (`describeTurtleState`, and `describeTurtleWorldState` which additionally names the turtle it
- * describes once a program drives more than one, and identifies the **addressed turtle set**
+ * describes once the world holds more than one live turtle, and identifies the **addressed turtle
+ * set**
  * whenever that set is not simply the turtle that just acted),
  * color-independent feedback descriptors for
  * otherwise color-only rendering state, and a `renderFrame` reduced-motion paint mode that

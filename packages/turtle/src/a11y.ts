@@ -181,7 +181,7 @@ function describeAddressedTurtles(
 
 /**
  * Builds the non-visual state description for a whole {@link TurtleWorldState}: the state of the
- * turtle that most recently acted, named once the program drives more than one turtle (#749), and
+ * turtle that most recently acted, named once the world holds more than one live turtle (#749), and
  * preceded by the addressed turtle set whenever that set is not simply that same turtle (#770) —
  * two independent triggers, either of which can fire without the other.
  *

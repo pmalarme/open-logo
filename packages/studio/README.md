@@ -335,8 +335,8 @@ no DOM here to regress.
   `createTurtleStateRegion(state)` is a single, always-current `status`/`aria-live="polite"` text
   region over the shared store's `turtleWorld` slot (the same one #218 paints from and #228 pushes
   into on every run tick/`step()`/`reset()`), built from `@openlogo/turtle`'s published
-  `describeTurtleWorldState` (position/heading/pen wording, never re-derived here — plus, once a
-  program drives more than one turtle, the `turtle #<id>` name of the turtle being described, #749,
+  `describeTurtleWorldState` (position/heading/pen wording, never re-derived here — plus, once the
+  world holds more than one live turtle, the `turtle #<id>` name of the turtle being described, #749,
   and — whenever the addressed set is not simply that turtle — the set itself, as
   `addressed turtles #1 #2. turtle #2 at x …`, #770: the consumer half of the addressing
   snapshots #766 publishes in the trace stream, which is what lets an `ask`/`each` block's restore
