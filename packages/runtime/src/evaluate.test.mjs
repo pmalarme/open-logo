@@ -412,3 +412,37 @@ test("`value of <dict> for key <key>` reports a numeric key bare (unquoted) in t
   assert.deepEqual(result.diagnostic.params, { key: 5 });
   assert.equal(result.diagnostic.message, "this dict has no key 5.");
 });
+
+// The Heritage-contract twin test (issue #670, `spec/conformance.md:146` — alternate spellings,
+// no new semantics): the reader `value of D for key K` must produce a result byte-identical to the
+// Core `D[K]` selector on the same operands — the same value on success, and on failure the same
+// diagnostic `code`, `params`, `message`, `stage`, and `severity`. Only the `source_span` may
+// differ (it points at where the learner wrote the fault — a localization concern, not part of the
+// machine-readable contract, `spec/localization.md`), so it is excluded from the comparison.
+test("`value of <dict> for key <key>` is byte-identical to the Core `:d[key]` selector twin", () => {
+  const twins = [
+    // [Heritage reader, Core selector, human label]
+    ['value of { tom: 8 } for key "tom"', '{ tom: 8 }["tom"]', "happy path"],
+    ['value of { tom: 8 } for key "zed"', '{ tom: 8 }["zed"]', "missing key"],
+    ['value of 5 for key "tom"', '5["tom"]', "non-dict container"],
+  ];
+  for (const [reader, selector, label] of twins) {
+    const readerResult = evalExpr(reader);
+    const selectorResult = evalExpr(selector);
+    assert.equal(readerResult.ok, selectorResult.ok, `${label}: ok mismatch`);
+    if (readerResult.ok) {
+      assert.deepEqual(
+        readerResult.value,
+        selectorResult.value,
+        `${label}: value mismatch`,
+      );
+    } else {
+      const strip = ({ source_span: _ignored, ...rest }) => rest;
+      assert.deepEqual(
+        strip(readerResult.diagnostic),
+        strip(selectorResult.diagnostic),
+        `${label}: diagnostic mismatch (excluding span)`,
+      );
+    }
+  }
+});
