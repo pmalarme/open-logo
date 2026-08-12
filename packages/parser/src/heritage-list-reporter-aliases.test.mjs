@@ -228,3 +228,19 @@ test("the full-name Core reporters remain callable without Heritage (Core, not g
     'print butfirst [1 2 3]\nprint butlast [1 2 3]\nprint sentence "a" "b"\n';
   assert.deepEqual(checkSource(source, CORE_ONLY), []);
 });
+
+test("under active Heritage an alias program checks identically to its Core twin (diagnostic equivalence)", () => {
+  // Beyond the accepted/rejected gate above: with Heritage active, an alias program and its Core
+  // twin yield the SAME checker diagnostics (spans aside), so the alias never invents — nor
+  // suppresses — a semantic finding relative to the Core reporter it spells.
+  const strip = (source) =>
+    checkSource(source, HERITAGE_ACTIVE).map(
+      ({ source_span, ...rest }) => rest,
+    );
+  assert.deepEqual(
+    strip('print bf [1 2 3]\nprint bl [1 2 3]\nprint se "a" "b"\n'),
+    strip(
+      'print butfirst [1 2 3]\nprint butlast [1 2 3]\nprint sentence "a" "b"\n',
+    ),
+  );
+});

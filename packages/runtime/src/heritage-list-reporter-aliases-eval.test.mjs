@@ -163,3 +163,35 @@ test("a user procedure named `bf` shadows the alias — the surface name is not 
   assert.equal(enters[0].payload.name, "bf");
   assert.deepEqual(printedValues(events), [[7]]);
 });
+
+// ---------------------------------------------------------------------------
+// Diagnostic equivalence — an alias that ERRORS must fail identically to its
+// Core twin, and the diagnostic must carry the Core name, not the alias
+// spelling (else Heritage would be observably different through diagnostics).
+// ---------------------------------------------------------------------------
+
+/** The diagnostics of `source` with every `source_span` stripped — spans differ between a short
+ *  alias and its longer Core spelling, but the code, params, severity and stage must not. */
+function diagnosticsWithoutSpans(source) {
+  return execute(source, doc).diagnostics.map(
+    ({ source_span, ...rest }) => rest,
+  );
+}
+
+test("`bf`/`bl` on an empty list report the SAME runtime diagnostic as `butfirst`/`butlast`", () => {
+  // A range error names the Core operation in its params. If the alias spelling leaked into the
+  // diagnostic, Heritage would be observably different from Core through the error stream — the very
+  // thing spec/conformance.md#heritage forbids. The `operation` param must read "butfirst"/"butlast".
+  assert.deepEqual(
+    diagnosticsWithoutSpans("print bf []\n"),
+    diagnosticsWithoutSpans("print butfirst []\n"),
+  );
+  assert.deepEqual(
+    diagnosticsWithoutSpans("print bl []\n"),
+    diagnosticsWithoutSpans("print butlast []\n"),
+  );
+  // Pin that the Core name — not "bf"/"bl" — is what the diagnostic params surface.
+  const [range] = diagnosticsWithoutSpans("print bf []\n");
+  assert.equal(range.code, "ol-range");
+  assert.equal(range.params.operation, "butfirst");
+});
