@@ -35,9 +35,9 @@
  *   itself. `run-controller.ts` (#228) keeps them live by pushing each `TurtleAnimationController`
  *   snapshot.
  * - `turtleState` — a **derived** read of `turtleWorld`: the *last-acted* turtle's own state
- *   (`@openlogo/turtle`'s `lastActedTurtleState`), i.e. the turtle that most recently moved or
- *   changed. It is never set on its own — {@link StudioStateStore.setTurtleWorld} always commits
- *   the pair — so a pane reading `turtleState` and a pane painting `turtleWorld` can never
+ *   (`@openlogo/turtle`'s `lastActedTurtleState`), i.e. the turtle the most recent per-turtle
+ *   command drove. It is never set on its own — {@link StudioStateStore.setTurtleWorld} always
+ *   commits the pair — so a pane reading `turtleState` and a pane painting `turtleWorld` can never
  *   disagree about which turtle they are showing (issue #749: they used to, because every turtle's
  *   attributes were folded into one record).
  * - `speedSliderValue` (#310) — the learner-facing turtle-speed slider position, a plain number
