@@ -119,7 +119,7 @@ A **sprite** is a visible turtle with a shape. `set_shape` is owned by the Turtl
 ```logo
 :bee = new_turtle
 ask :bee [
-  set_shape "bee"
+  set_shape "arrow"
   set_color "yellow"
   forward 60
 ]
