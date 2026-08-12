@@ -3671,11 +3671,66 @@ function executeProcedureCallStatement(
   return NORMAL_SIGNAL;
 }
 
+/**
+ * Normalize a Heritage short command alias to its Core spelling for execution (issue #668). When
+ * `statement` is a `Call`/`ParenCall` carrying a `canonical` name (the reader sets it only for the
+ * ten Heritage aliases `fd`/`bk`/`lt`/`rt`/`pu`/`pd`/`st`/`ht`/`cs`/`pr`), this returns a shallow
+ * copy whose `callee.name` is that Core name, preserving the original `callee.source_span` (so
+ * diagnostics still point at the alias the learner wrote) and `args`. Every other statement — and
+ * every Core-spelled call, which has no `canonical` — is returned unchanged, so this is a strict
+ * no-op outside Heritage and the existing execution behavior is bit-for-bit identical.
+ *
+ * A user procedure whose name is the alias's surface spelling shadows the alias: `define fd :x … end`
+ * makes `fd` the user's procedure, exactly as `define forward :x … end` shadows the Core `forward`.
+ * The reader sets `canonical` profile-blind (it cannot see the program's procedures), so the guard
+ * lives here — when the surface name is a registered procedure we leave the callee untouched so it
+ * dispatches to the user procedure, never silently rewriting `fd` to `forward`. (Canonicalizing to a
+ * name that *is* a user procedure — `fd` when the program defines `forward` — is intended and stays:
+ * the alias dispatches to whatever `forward` means.)
+ *
+ * This is the single dispatch chokepoint: because the callee name is normalized here, before any
+ * `is*Call` predicate or executor runs, `fd 10` executes through the exact same path as
+ * `forward 10` and emits an identical event stream — including the `primitive`/`procedure-enter`/
+ * `procedure-exit` payload names, which therefore carry the canonical Core name, never the surface
+ * alias (`spec/conformance.md#heritage` — "alternate spellings only, no new semantics").
+ */
+function canonicalizeHeritageAliasCall(
+  statement: StatementNode,
+  procedures: ProcedureRegistry,
+): StatementNode {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return statement;
+  }
+  const canonical = statement.canonical;
+  if (canonical === undefined) {
+    return statement;
+  }
+  if (procedures.has(statement.callee.name.toLowerCase())) {
+    return statement;
+  }
+  return {
+    ...statement,
+    callee: { ...statement.callee, name: canonical },
+  };
+}
+
 function executeStatements(
   statements: readonly StatementNode[],
   environment: Environment,
 ): ExecSignal {
-  for (const statement of statements) {
+  for (const rawStatement of statements) {
+    // Heritage short command aliases (`fd`/`bk`/…/`pr`, issue #668) are "alternate spellings only —
+    // no new semantics" (`spec/conformance.md:146`): the reader recorded the Core name the alias
+    // spells on the node's `canonical` field. Normalizing the callee to that Core name ONCE here —
+    // the single dispatch chokepoint — makes every downstream `is*Call` predicate and executor,
+    // plus every emitted event payload (`instruction`, `primitive`, `procedure-enter/exit`), fire
+    // exactly as they do for the Core spelling, with no per-command alias handling and no divergent
+    // code path. A Core-spelled statement carries no `canonical`, so this is a no-op for it and the
+    // entire existing behavior is bit-for-bit unchanged.
+    const statement = canonicalizeHeritageAliasCall(
+      rawStatement,
+      environment.procedures,
+    );
     const limitDiagnostic = checkExecutionLimits(
       environment,
       statement.source_span,

@@ -100,6 +100,10 @@ export {
   interactionPrimitiveArity,
   soundPrimitiveArity,
   spritesPrimitiveArity,
+  canonicalOfHeritageAlias,
+  heritageAliasNames,
+  heritageAliasArity,
+  heritageAliasArityRange,
 } from "./signatures.js";
 
 export { highlight, OL_BRACKET_ROLES, OL_TOKEN_CLASSES } from "./highlight.js";

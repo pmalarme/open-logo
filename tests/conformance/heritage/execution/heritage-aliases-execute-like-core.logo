@@ -1,0 +1,10 @@
+to spin :n
+  rt 90
+  fd :n
+end
+repeat 2 [ pu fd 10 pd bk 10 ]
+st
+ht
+cs
+spin 40
+pr 7

@@ -19,9 +19,12 @@
  * `make`/`to`/`output`/`op` also parse structurally — into the same `Assign`/`ProcedureDef`/
  * `Return` nodes as their Core equivalents, discriminated by `form`/`keyword` (issues #151, #667) —
  * with their profile-legality (Heritage active?) left to the Layer-2 checker's form-head gate.
- * Index/key selectors (`:a[i]`), struct and the other Data forms, and the remaining Heritage
- * short-command aliases are handled by their own later slices; until then those spellings degrade
- * to ordinary calls or a collected diagnostic rather than a crash.
+ * Index/key selectors (`:a[i]`) and struct and the other Data forms are handled by their own later
+ * slices; until then those spellings degrade to ordinary calls or a collected diagnostic rather
+ * than a crash. The Heritage short command aliases (`fd`/`bk`/`lt`/`rt`/`pu`/`pd`/`st`/`ht`/`cs`/
+ * `pr`, issue #668) parse into an ordinary `Call`/`ParenCall` grouped by the canonical command's
+ * arity, with `canonical` recording the Core spelling so the runtime dispatches identically — their
+ * Heritage-active gating is again the checker's concern.
  */
 
 import { makeSpan } from "@openlogo/core";
@@ -44,7 +47,11 @@ import type {
   WordLitNode,
 } from "./ast.js";
 import { parseDiag } from "./errors.js";
-import { primitiveArity } from "./signatures.js";
+import {
+  canonicalOfHeritageAlias,
+  heritageAliasArity,
+  primitiveArity,
+} from "./signatures.js";
 import { tokenize } from "./tokens.js";
 import type { LexToken, LexTokenKind } from "./tokens.js";
 
@@ -497,7 +504,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     if (user !== undefined) {
       return user;
     }
-    return primitiveArity(name) ?? 0;
+    return primitiveArity(name) ?? heritageAliasArity(name) ?? 0;
   }
 
   function isCalleeName(text: string): boolean {
@@ -1099,6 +1106,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
       sname(token.text, token),
       args,
       spanBetween(token, endNode),
+      canonicalOfHeritageAlias(token.text),
     );
   }
 
@@ -1349,17 +1357,31 @@ export function parse(source: string, document = "<input>"): ParseResult {
         lower === "and" || lower === "or"
           ? sname(lower, head)
           : sname(head.text, head);
+      const canonical =
+        lower === "and" || lower === "or"
+          ? undefined
+          : canonicalOfHeritageAlias(head.text);
       const args: ExpressionNode[] = [];
       for (;;) {
         skipNewlines();
         const token = current();
         if (token.kind === "rparen") {
           advance();
-          return ast.parenCall(callee, args, spanBetween(open, token));
+          return ast.parenCall(
+            callee,
+            args,
+            spanBetween(open, token),
+            canonical,
+          );
         }
         if (token.kind === "eof") {
           diagnostics.push(parseDiag.unmatchedParen(open.source_span, "("));
-          return ast.parenCall(callee, args, spanBetween(open, token));
+          return ast.parenCall(
+            callee,
+            args,
+            spanBetween(open, token),
+            canonical,
+          );
         }
         const before = pos;
         const arg = parseExpression();
