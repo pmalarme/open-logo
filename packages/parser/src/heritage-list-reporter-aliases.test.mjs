@@ -229,12 +229,37 @@ test("the full-name Core reporters remain callable without Heritage (Core, not g
   assert.deepEqual(checkSource(source, CORE_ONLY), []);
 });
 
-// Diagnostic-equivalence note (rubber-duck review, #669): the checker raises NO arity/type
-// diagnostic for these reporters in ANY position — for the alias OR its Core spelling — because
-// reporter arity/range is enforced at RUNTIME (see the `ol-range` empty-input parity test in
-// packages/runtime/src/heritage-list-reporter-aliases-eval.test.mjs), not in the semantic checker.
-// The only checker diagnostic these aliases can produce is the profile gate's `ol-unknown-command`
-// (proven above). A checker-level "alias errors identically to Core" test would therefore be
-// vacuous (empty == empty), so the meaningful diagnostic-equivalence proof lives in the runtime
-// suite; this decision is falsifiable — if the checker ever gains a reporter-arity rule, the
-// runtime ol-range parity assertion still pins alias == Core.
+// Diagnostic-equivalence at the CHECKER layer (rubber-duck review, #669). A parenthesized
+// fixed-arity reporter IS arity-checked by the semantic checker (checker-arity.ts:320-328 resolves
+// the alias through its `canonical`): `(bf)` under-applies butfirst and `(bl 1 2)` over-applies
+// butlast. The alias and its Core twin must raise the SAME arity diagnostic — same code, expected,
+// actual, stage, severity — proving the alias neither invents nor suppresses a semantic finding.
+// The `callable`/`message` fields intentionally ECHO THE LEARNER'S SPELLING (`bf`, not `butfirst`):
+// a diagnostic points at the source the learner wrote, which is a source-fidelity concern, NOT the
+// no-new-semantics contract. That contract governs the EVENT STREAM (proven byte-identical in the
+// runtime suite); a diagnostic naming the surface spelling is correct and expected.
+test("a parenthesized reporter alias raises the SAME arity diagnostic as its Core twin, echoing the learner's spelling", () => {
+  const strip = (source) =>
+    checkSource(source, HERITAGE_ACTIVE).map(
+      ({ source_span, ...rest }) => rest,
+    );
+  const cases = [
+    // [alias source, core source, surface spelling the diagnostic must echo, canonical]
+    ["print (bf)\n", "print (butfirst)\n", "bf", "butfirst"],
+    ["print (bl 1 2)\n", "print (butlast 1 2)\n", "bl", "butlast"],
+  ];
+  for (const [aliasSource, coreSource, surface, canonical] of cases) {
+    const [aliasDiag] = strip(aliasSource);
+    const [coreDiag] = strip(coreSource);
+    // Same finding, aside from the learner-facing name: code/expected/actual/stage/severity match.
+    assert.equal(aliasDiag.code, coreDiag.code);
+    assert.equal(aliasDiag.params.expected, coreDiag.params.expected);
+    assert.equal(aliasDiag.params.actual, coreDiag.params.actual);
+    assert.equal(aliasDiag.stage, coreDiag.stage);
+    assert.equal(aliasDiag.severity, coreDiag.severity);
+    // The diagnostic echoes the SURFACE spelling the learner wrote, not the canonical name.
+    assert.equal(aliasDiag.params.callable, surface);
+    assert.equal(coreDiag.params.callable, canonical);
+    assert.ok(aliasDiag.message.startsWith(surface));
+  }
+});
