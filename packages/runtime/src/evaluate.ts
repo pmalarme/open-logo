@@ -94,6 +94,13 @@ import type { TickClock } from "./interaction.js";
 import { createEventHandlerRegistry } from "./interaction.js";
 import type { EventHandlerRegistry } from "./interaction.js";
 import type { HostInputEvent } from "./interaction.js";
+import type { HostInputReader } from "./index.js";
+import {
+  emitInputPrimitive,
+  interpretSubmittedText,
+  isLearnerText,
+  takeInputResponse,
+} from "./interaction.js";
 import { createSoundState } from "./sound-state.js";
 import type { SoundState } from "./sound-state.js";
 import { defaultTutorTemplate } from "./tutor-templates.js";
@@ -364,6 +371,38 @@ export interface Environment {
    * the checkpoint is revisited every tick.
    */
   readonly hostInputConsumed: { count: number };
+  /**
+   * The scripted answers this run's `input` reads consume, in order (issue #681, slice I2 —
+   * `ExecuteOptions.hostInput.responses`, see `index.ts`, per the maintainer's #657 ruling that
+   * `input` is tested by mocking the answer with no new event kind). A **FIFO queue**: the first
+   * `input` call takes entry 0, the second entry 1, and so on ({@link takeInputResponse}). Empty
+   * (frozen `[]`) for every ordinary headless run, in which case the first `input` has no answer to
+   * take and the read ends the only other way `spec/interaction-events.md:110-111` allows — as a
+   * cancelled program ({@link runtimeDiag.cancelled}). Headless execution *input*, never
+   * observable in any event payload: the `primitive` event a read emits carries only the name
+   * `input`, never the prompt or the submitted text.
+   */
+  readonly hostResponses: readonly string[];
+  /**
+   * How many entries of {@link Environment.hostResponses} earlier `input` reads have already taken
+   * (issue #681). A mutable box (like `hostInputConsumed`) so the forward cursor is shared across
+   * every recursive `executeStatements`/`evaluate` call against this environment — a read inside a
+   * procedure, a loop body, or an event handler block draws from the same queue as a top-level one,
+   * and no answer is ever handed out twice.
+   */
+  readonly hostResponsesConsumed: { count: number };
+  /**
+   * The host's live `input` reader, when the caller supplied one (issue #681 —
+   * `ExecuteOptions.hostInput.read`, see `index.ts`). Authoritative over
+   * {@link Environment.hostResponses}: a run with a real host does not consult the scripted queue at
+   * all. `undefined` for every fixture and every ordinary headless run, which is what makes
+   * `responses` the single JSON-expressible convention the #657 ruling asked for.
+   *
+   * The read is outstanding for exactly the duration of this call, and the call is synchronous, so
+   * `spec/interaction-events.md:108-111`'s "MUST NOT run new OpenLogo instructions or event handler
+   * blocks" holds by construction: there is no suspension point at which anything else could run.
+   */
+  readonly hostReader?: HostInputReader;
 }
 
 /**
@@ -526,6 +565,8 @@ export function createEnvironment(): Environment {
     eventHandlers: createEventHandlerRegistry(),
     hostInput: [],
     hostInputConsumed: { count: 0 },
+    hostResponses: [],
+    hostResponsesConsumed: { count: 0 },
     // No real parsed program backs this bare environment, so `program` is a placeholder empty
     // `Program` node — safe because none of this package's own expression-only unit tests
     // exercise the Educational meta-commands (`execute-internal.ts`'s
@@ -1039,6 +1080,7 @@ export function isSupportedExpression(
         name === "new_turtle" ||
         name === "who" ||
         name === "turtles" ||
+        name === "input" ||
         procedures.has(name) ||
         structs.has(name);
       return (
@@ -2199,6 +2241,9 @@ function evaluateCall(
   }
   if (name === "turtles") {
     return evaluateTurtles(node, environment);
+  }
+  if (name === "input") {
+    return evaluateInput(node, environment);
   }
   if (environment.procedures.has(name)) {
     return environment.callProcedure(node, environment);
@@ -4544,6 +4589,102 @@ function evaluateTurtles(
     return fail(arityDiagnostic);
   }
   return ok(environment.turtleWorld.ids().map((id) => new OLTurtle(id)));
+}
+
+/**
+ * `input <prompt>` (Interaction & Events profile, issue #681, slice I2 —
+ * `spec/interaction-events.md:126-137`): a Kind-R reporter taking one prompt that displays the
+ * prompt, waits for the learner to enter one value, and reports it as a word or a number. It is
+ * "the only blocking read in OpenLogo v0.1 and belongs to this profile, not Core" (`:134-135`,
+ * `spec/conformance.md:167-169`).
+ *
+ * Four steps, in this order:
+ *
+ *   1. **Arity** — exactly one input, guarded here because `execute()` runs `parse()` without the
+ *      static checker, exactly like every other reporter.
+ *   2. **Prompt type** — a prompt that "cannot be displayed as learner text" raises `ol-type`
+ *      (`:131`); see {@link isLearnerText} for what qualifies and why the rule is narrower than
+ *      `print`'s.
+ *   3. **The read** — take the next scripted answer ({@link takeInputResponse}) from the run's FIFO
+ *      queue (`ExecuteOptions.hostInput.responses`, the #657 ruling). With no answer left the read
+ *      can never finish, so it takes the only other ending `:110-111` allows and the program is
+ *      cancelled ({@link runtimeDiag.cancelled}).
+ *   4. **The after-effect event** — one `primitive` event naming `input`, emitted *after* the answer
+ *      is in hand ({@link emitInputPrimitive}), then the value is reported per `:136-137`
+ *      ({@link interpretSubmittedText}).
+ *
+ * The **blocking** property (`:108-111` — while the read waits, no new OpenLogo instruction and no
+ * event handler block may run) is upheld by what this function does *not* do: it reaches no
+ * {@link yieldToEventLoop} checkpoint and never advances the tick clock, so no `when`/`on_key`/
+ * `on_click`/`every` handler can be delivered across a read, and the next instruction cannot start
+ * because evaluation has not returned. See `interaction.ts`'s header and
+ * `interaction-input-blocking.test.mjs`, which proves it differentially against `wait`.
+ */
+function evaluateInput(
+  node: ArithmeticCallNode,
+  environment: Environment,
+): EvalResult {
+  const arityDiagnostic = requireExactArgs(node, "input", 1);
+  if (arityDiagnostic !== undefined) {
+    return fail(arityDiagnostic);
+  }
+  const promptNode = arg(node, 0);
+  const promptResult = evaluate(promptNode, environment);
+  if (!promptResult.ok) {
+    return promptResult;
+  }
+  if (!isLearnerText(promptResult.value)) {
+    return fail(
+      runtimeDiag.inputPromptNotText(promptNode.source_span, {
+        actual: typeNameOf(promptResult.value),
+      }),
+    );
+  }
+  const promptText = printedForm(promptResult.value);
+  const answer = readInputAnswer(promptText, environment);
+  if (answer === undefined) {
+    // The read can never finish, so it takes the only other ending `spec/interaction-events.md:
+    // 110-111` allows — "until the read finishes or the program is cancelled" — through the SHARED
+    // cancellation diagnostic, not a lookalike of its own. Diagnostic identity is code + params and
+    // prose is presentation (`spec/error-model.md:235-238`), so a second builder emitting
+    // `ol-limit`/`{ limit: "cancelled" }` with different wording would make the message stop being a
+    // function of the identity and be unreachable in any localized build. The span still points at
+    // the waiting `input`, which is what tells a learner *where* the run stopped.
+    return fail(runtimeDiag.cancelled(node.source_span));
+  }
+  emitInputPrimitive(environment.events, node.source_span);
+  return ok(interpretSubmittedText(answer));
+}
+
+/**
+ * Perform the read itself: display `promptText` to the host and wait for the one value the learner
+ * enters (`spec/interaction-events.md:134`). Reports the submitted text, or `undefined` when the
+ * read cannot be answered at all.
+ *
+ * Two hosts, one meaning. A caller that supplied a live reader
+ * ({@link ExecuteOptions.hostInput.read}) gets it called with the prompt — that call IS the
+ * outstanding read, and it is where a real host shows the prompt and collects the answer. A caller
+ * that supplied only the scripted FIFO ({@link ExecuteOptions.hostInput.responses}, the one
+ * JSON-expressible convention the #657 ruling fixed for fixtures) gets the next queued answer. The
+ * reader wins when both are present: a run with a real host must never quietly prefer a stale
+ * script.
+ *
+ * Either way the read is **synchronous**, which is how `spec/interaction-events.md:108-111`'s "MUST
+ * NOT run new OpenLogo instructions or event handler blocks until the read finishes" is upheld —
+ * not by a check, but by there being no suspension point at which anything else could be scheduled.
+ * `interaction-input-blocking.test.mjs` probes that window from inside the reader.
+ */
+function readInputAnswer(
+  promptText: string,
+  environment: Environment,
+): string | undefined {
+  if (environment.hostReader !== undefined) {
+    return environment.hostReader(promptText);
+  }
+  return takeInputResponse(
+    environment.hostResponses,
+    environment.hostResponsesConsumed,
+  );
 }
 
 /**

@@ -1,0 +1,3 @@
+:answer = input "how old are you?"
+print :answer
+print :answer is a "number"

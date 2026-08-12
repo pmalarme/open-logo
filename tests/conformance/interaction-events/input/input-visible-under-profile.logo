@@ -1,0 +1,5 @@
+define ask_name
+  :answer = input "what is your name?"
+  return :answer
+end
+print ask_name

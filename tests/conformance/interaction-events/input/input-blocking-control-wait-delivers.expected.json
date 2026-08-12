@@ -1,0 +1,127 @@
+{
+  "description": "issue #681 (slice I2), the CONTROL for `input-does-not-deliver-handlers`: the identical program with `wait 0` where the read was, and the same key `a` pending from tick 0. `wait` \"does not block the event system\" (`spec/interaction-events.md:113-118`) and `wait 0` \"yields to the renderer and event loop without adding a visible delay\", so the handler DOES fire here — `handler ran` prints before the `wait` primitive, then `done`. Recording that as its own normative fixture is what turns its twin's silence into evidence: the key was genuinely pending and deliverable, and only the blocking read declined to deliver it.",
+  "profiles": ["core-language", "turtle-rendering", "interaction-events"],
+  "execute": true,
+  "executeOptions": {
+    "hostInput": {
+      "events": [
+        {
+          "tick": 0,
+          "kind": "key",
+          "key": "a"
+        }
+      ]
+    }
+  },
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/input/input-blocking-control-wait-delivers",
+        "start": [1, 1],
+        "end": [1, 35]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/input/input-blocking-control-wait-delivers",
+        "start": [1, 1],
+        "end": [1, 35]
+      },
+      "payload": {
+        "name": "on_key"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/input/input-blocking-control-wait-delivers",
+        "start": [2, 1],
+        "end": [2, 7]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/input/input-blocking-control-wait-delivers",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/input/input-blocking-control-wait-delivers",
+        "start": [1, 14],
+        "end": [1, 33]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/input/input-blocking-control-wait-delivers",
+        "start": [1, 14],
+        "end": [1, 33]
+      },
+      "payload": {
+        "values": ["handler ran"]
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/input/input-blocking-control-wait-delivers",
+        "start": [2, 1],
+        "end": [2, 7]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/input/input-blocking-control-wait-delivers",
+        "start": [3, 1],
+        "end": [3, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/input/input-blocking-control-wait-delivers",
+        "start": [3, 1],
+        "end": [3, 13]
+      },
+      "payload": {
+        "values": ["done"]
+      }
+    }
+  ],
+  "diagnostics": []
+}

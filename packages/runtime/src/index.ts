@@ -86,7 +86,10 @@ export type { TutorTemplateFn } from "./tutor-templates.js";
 export {
   advanceTickClock,
   createTickClock,
+  interpretSubmittedText,
+  isLearnerText,
   isWaitCall,
+  takeInputResponse,
   validateTickCount,
   yieldToEventLoop,
 } from "./interaction.js";
@@ -177,8 +180,9 @@ export interface ExecuteResult {
  *   is host-supplied execution *context*, exactly like `signal`: it is never observable in any
  *   trace-event payload (the event stream stays headless — no tick, coordinate, or key smuggled in).
  *   It deliberately does **NOT** model a TTY or pointer device, does **NOT** define any
- *   input-coalescing policy, and is **NOT** the blocking `input` reporter (that is issue #681, whose
- *   scripted answers land in {@link HostInput.responses} per the #657 ruling — see there). Like
+ *   input-coalescing policy, and is **NOT** the blocking `input` reporter: that reporter's scripted
+ *   answers are the sibling {@link HostInput.responses} field (issue #681, per the #657 ruling —
+ *   see there). Like
  *   `signal`, it can only express a *static* schedule fixed before the run starts, not input that
  *   depends on what the program has done so far. Defaults to an empty schedule, so an ordinary
  *   headless run delivers no key/click/named event at all and the I5/I6 never-fires behavior holds
@@ -207,13 +211,60 @@ export interface HostInput {
    */
   readonly events?: readonly HostInputEvent[];
   /**
-   * Reserved — NOT implemented by this slice. Issue #681's scripted `input` answers (a FIFO list
-   * consumed in order by each `input` call) will land here per the maintainer's #657 ruling, so ONE
-   * `executeOptions.hostInput` convention covers both tick-scheduled `events` and blocking `input`
-   * responses. Slice I7 has no `input` reader to feed and deliberately leaves this door open only.
+   * The scripted answers this run's `input` reads consume, in order (issue #681, slice I2 — the
+   * maintainer's #657 ruling: `input` is tested by **mocking the answer** through this same
+   * `hostInput` seam, with **no new event kind**, so the trace/event registry in
+   * `spec/execution-model.md` is unchanged).
+   *
+   * A **FIFO queue consumed in order by each `input` call**: the first `input` the run evaluates
+   * takes entry 0, the second entry 1, and so on, wherever those reads occur — top level, a
+   * procedure body, a loop, or an event handler block all draw from this one queue. Each entry is
+   * the raw text a learner would have typed; `input` then reports it per
+   * `spec/interaction-events.md:136-137` (text that parses as an OpenLogo number literal reports a
+   * **number**, anything else reports a **word** preserving the entered text), so `["42", "tom"]`
+   * scripts one numeric answer followed by one word answer.
+   *
+   * Like `events`, this is host-supplied execution *context*: it is never observable in any trace
+   * event payload — a read emits only the ordinary catch-all `primitive` event naming `input`, never
+   * the prompt or the submitted text. And like `events`, it can only express a *static* script fixed
+   * before the run starts, not an answer that depends on what the program has done so far.
+   *
+   * Defaults to an empty queue. A read with no answer left can never finish, so it takes the only
+   * other ending `spec/interaction-events.md:110-111` allows and the program is cancelled with
+   * `ol-limit` — deliberately, rather than inventing an answer the learner never gave.
    */
   readonly responses?: readonly string[];
+  /**
+   * The host's live reader for `input` (issue #681, slice I2) — the *interactive* half of the seam
+   * `responses` mocks. When supplied it is authoritative: each `input` read calls it with the
+   * prompt, already rendered to the text a learner would see, and the read stays outstanding for
+   * exactly the duration of that call. Returning a string finishes the read with that submitted
+   * text (classified by `spec/interaction-events.md:136-137` exactly as a scripted answer is);
+   * returning `undefined` means the host cannot or will not answer, which ends the read the only
+   * other way `:110-111` allows — the program is cancelled.
+   *
+   * This is how a real host both **displays the prompt** (`:134`) and holds the read open: the
+   * reader IS the outstanding read, so a caller can observe, from inside it, that no further
+   * OpenLogo instruction and no event handler block has run — the normative MUST at `:108-111`,
+   * which is why `interaction-input-blocking.test.mjs` probes the window through this seam. Wiring
+   * it to a browser prompt in `@openlogo/studio` is issue **#769**.
+   *
+   * It is a **function**, so — like {@link ExecuteOptions.tutorTemplates} — no JSON fixture can
+   * supply it, and the conformance harness rejects it by name. That is deliberate: it keeps ONE
+   * fixture convention (`responses`) per the #657 ruling while giving hosts and unit tests the
+   * reactive seam a static list cannot express. Omit it and reads fall back to `responses`.
+   */
+  readonly read?: HostInputReader;
 }
+
+/**
+ * A host's live `input` reader (issue #681). Called with the prompt as displayable text; reports
+ * the text the learner submitted, or `undefined` to leave the read unanswered and cancel the run.
+ * Synchronous by design: `spec/interaction-events.md:108-111` requires that no OpenLogo instruction
+ * and no handler block run until the read finishes, and a synchronous call is that guarantee by
+ * construction — there is no suspension point at which anything else could be scheduled.
+ */
+export type HostInputReader = (prompt: string) => string | undefined;
 
 /**
  * Parse `source` and execute its top-level statements, emitting one `instruction` event per

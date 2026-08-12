@@ -1,0 +1,23 @@
+{
+  "description": "issue #681 (slice I2), the negative twin of `input-visible-under-profile`: the reader is profile-blind, so `input \"...\"` PARSES without `interaction-events` (its arity entry is registered unconditionally, like every other profile's), and the checker then rejects it with `ol-unknown-command` because the name is not visible when the profile is inactive. This is the gate `spec/conformance.md:167-169` and `spec/interaction-events.md:11` require: \"OpenLogo **Core** remains non-interactive: `input` is defined here, not in Core.\" The span covers just the callee word, and the Core did-you-mean neighbour is `fput` (Levenshtein 2).",
+  "profiles": ["core-language", "turtle-rendering"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "interaction-events/input/input-rejected-core-only",
+        "start": [1, 11],
+        "end": [1, 16]
+      },
+      "params": {
+        "name": "input",
+        "suggestion": "fput"
+      },
+      "message": "i don't know how to input. did you mean fput?",
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

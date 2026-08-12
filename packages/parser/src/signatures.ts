@@ -362,32 +362,33 @@ export function geometryPrimitiveNames(): readonly string[] {
 
 /**
  * Default arities for the **Interaction & Events** profile's Core-spelled primitives that the
- * reader must group arguments for (issue #680, slice I1). Currently only `wait <n>` — a Kind-C
- * Command taking one input, derived from
- * [`spec/interaction-events.md`](../../../spec/interaction-events.md)'s `### wait <n>` section.
+ * reader must group arguments for — `wait <n>` (issue #680, slice I1) and `input <prompt>` (issue
+ * #681, slice I2), the profile's only two ordinary calls (`spec/interaction-events.md:65`: "`input`
+ * and `wait` are ordinary calls and take no block"). `wait` is a Kind-C Command taking one input and
+ * `input` a Kind-R Reporter taking one prompt, both derived from
+ * [`spec/interaction-events.md`](../../../spec/interaction-events.md)'s "Profiles and reservation"
+ * table and their `### wait <n>` / `### input <prompt>` sections.
  * `when`/`every`/`on_key`/`on_click` are profile block-heads (reserved words with their own block
- * grammar, not ordinary calls) and `input` is a reporter — those slices (#682–#685) register their
- * own reader support; only the ordinary `wait` call needs an arity entry here so the reader groups
- * its single argument. `input` joins this table in its own slice (#681, I2), which is not yet
- * implemented — see {@link INTERACTION_PRIMITIVE_NAMES} for why the tooling slice (#687)
- * deliberately did not register it ahead of its evaluator. Kept as its own table for the same reason
- * {@link TURTLE_PRIMITIVE_ARITY}/{@link GEOMETRY_PRIMITIVE_ARITY} are separate: Interaction &
- * Events has its own independent profile visibility (the Layer-2 checker gates it on its own active
- * profile, `spec/tooling.md:175-176`, in the tooling slice #687), while the reader groups a bare
- * call's arguments for *any* recognized primitive regardless of profile.
+ * grammar, not ordinary calls) and register their reader support elsewhere — see
+ * {@link INTERACTION_EVENTS_BLOCK_HEAD_NAMES}; only the ordinary calls need an arity entry here so
+ * the reader groups their single argument. Kept as its own table for the same reason
+ * {@link TURTLE_PRIMITIVE_ARITY}/{@link GEOMETRY_PRIMITIVE_ARITY} are separate:
+ * Interaction & Events has its own independent profile visibility (the Layer-2 checker gates it on
+ * its own active profile, `spec/tooling.md:175-176`), while the reader groups a bare call's
+ * arguments for *any* recognized primitive regardless of profile.
  */
 const INTERACTION_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
   ["wait", 1],
+  ["input", 1],
 ]);
 
 /**
  * The default arity of an Interaction & Events-profile primitive, or `undefined` when `name` is
- * not one of them (currently only `wait`). Matching is case-insensitive.
+ * not one of them (`wait` and `input`). Matching is case-insensitive.
  *
  * `INTERACTION_PRIMITIVE_ARITY` is this profile's single source-of-truth table — mirroring
  * {@link geometryPrimitiveArity}/{@link educationalPrimitiveArity}. Its enumerable counterpart is
- * {@link interactionPrimitiveNames}, added by the tooling/legality slice (#687) that first consumes
- * it — slice I1 only needed the reader to group `wait`'s argument.
+ * {@link interactionPrimitiveNames}.
  */
 export function interactionPrimitiveArity(name: string): number | undefined {
   return INTERACTION_PRIMITIVE_ARITY.get(name.toLowerCase());
@@ -395,12 +396,13 @@ export function interactionPrimitiveArity(name: string): number | undefined {
 
 /**
  * The inclusive input-count range an Interaction & Events-profile primitive accepts, or `undefined`
- * when `name` is not one. `wait <n>` is strictly fixed-arity — a Kind-C command taking exactly one
- * number, with no variadic parenthesized alternate (`spec/interaction-events.md`'s "Profiles and
- * reservation" table) — so `max` always equals `min` ({@link interactionPrimitiveArity}). Mirrors
+ * when `name` is not one. Both `wait <n>` and `input <prompt>` are strictly fixed-arity — each takes
+ * exactly one input, with no variadic parenthesized alternate (`spec/interaction-events.md`'s
+ * "Profiles and reservation" table) — so `max` always equals `min`
+ * ({@link interactionPrimitiveArity}). Mirrors
  * {@link soundPrimitiveArityRange} exactly; the static arity checker (`checker-arity.ts`) consults
- * this to flag a known Interaction command given the wrong number of inputs (e.g. `(wait)` or
- * `(wait 1 2)`) under the active `interaction-events` profile. Matching is case-insensitive.
+ * this to flag a known Interaction primitive given the wrong number of inputs (e.g. `(wait)` or
+ * `(input "a" "b")`) under the active `interaction-events` profile. Matching is case-insensitive.
  */
 export function interactionPrimitiveArityRange(
   name: string,
@@ -422,11 +424,13 @@ export function interactionPrimitiveArityRange(
  *
  * Derived from {@link INTERACTION_PRIMITIVE_ARITY} rather than hand-listed, so this profile keeps a
  * single source of truth: a name becomes visible to the checker exactly when its arity is
- * registered, and the two can never drift apart. Today that is `wait` alone. The profile's other
- * reporter, `input`, is deliberately absent: it has no arity entry because its slice (#681, I2) is
- * not implemented, and registering it as a known callee here would let a program using `input` check
- * clean and then fail at runtime — a false tooling claim worse for a learner than the honest
- * `ol-unknown-command`. `input`'s tooling ships in the same slice as its evaluator.
+ * registered, and the two can never drift apart. Today that is `input` and `wait` — the profile's
+ * two ordinary calls, and the whole table. The tooling slice (#687) deliberately registered `wait`
+ * alone and left `input` out, because a checker name with no runtime evaluator behind it lets a
+ * program check clean and then fail at runtime — a false tooling claim worse for a learner than an
+ * honest `ol-unknown-command`. Slice I2 (#681) ships `input`'s evaluator, so both halves of its
+ * registration — this table for the reader/checker, and `@openlogo/runtime`'s `evaluateInput` —
+ * land together, exactly as that boundary required.
  */
 const INTERACTION_PRIMITIVE_NAMES: readonly string[] = Object.freeze(
   [...INTERACTION_PRIMITIVE_ARITY.keys()].sort(),
@@ -454,7 +458,8 @@ export function interactionPrimitiveNames(): readonly string[] {
  * Events block-heads are usable — following the same one-form-at-a-time growth as every other
  * profile's visible-name table; registering a head here before its slice can execute it would let a
  * program check clean and then silently no-op at runtime. `input` (a reporter) and `wait` (an
- * ordinary call) are visible through their own name paths, not this block-head table. Entries stay in
+ * ordinary call) are visible through their own name path — {@link INTERACTION_PRIMITIVE_NAMES} —
+ * not this block-head table. Entries stay in
  * registration order so the checker's candidate set (`checker-names.ts`) exposes a stable
  * did-you-mean ordering.
  */

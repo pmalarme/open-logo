@@ -1,0 +1,2 @@
+print input "who is there?"
+print "never reached"

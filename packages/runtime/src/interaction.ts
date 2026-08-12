@@ -36,15 +36,38 @@
  * "handlers keep firing while I pause" behavior with no change to this file's control flow. A
  * `wait` written as a blocking sleep would satisfy this slice's own tests and then have to be
  * thrown away.
+ *
+ * ## Why `input` has no event-loop checkpoint at all
+ *
+ * `input` (issue #681) is the exact mirror image. `spec/interaction-events.md:108-111`: "`input` is
+ * the only blocking read in OpenLogo v0.1. While `input` is waiting, the implementation MAY continue
+ * rendering already-emitted trace events, but it MUST NOT run new OpenLogo instructions or event
+ * handler blocks until the read finishes or the program is cancelled."
+ *
+ * That MUST NOT is implemented here as an **absence**: the read ({@link takeInputResponse} →
+ * {@link interpretSubmittedText} → {@link emitInputPrimitive}) never calls
+ * {@link yieldToEventLoop}, never calls {@link advanceTickClock}, and never reaches
+ * `dispatchDueHandlers`. Handler delivery in this runtime happens *only* at a `wait`'s per-tick
+ * checkpoint, so a read that reaches no checkpoint runs no handler block, and a clock that does not
+ * advance can bring no `every` handler due. Rendering is unaffected — already-emitted events are
+ * still in `environment.events`, which is what the spec permits a host to keep rendering.
+ *
+ * The tempting wrong implementation is to "let the host answer" by pumping the event loop during the
+ * read (a `runWait`-style loop until an answer arrives). That is precisely what `:110-111` forbids,
+ * and it is what `interaction-input-blocking.test.mjs` exists to catch: it schedules host input that
+ * a `wait` in the same position provably *does* deliver and asserts an `input` in that position
+ * delivers nothing.
  */
 
 import type {
   Diagnostic,
+  OLValue,
   PrimitivePayload,
   SourceSpan,
   TraceEvent,
 } from "@openlogo/core";
 import type { BlockNode, SpannedName, StatementNode } from "@openlogo/parser";
+import { parse } from "@openlogo/parser";
 import { runtimeDiag } from "./errors.js";
 import type { Environment } from "./evaluate.js";
 
@@ -175,11 +198,40 @@ export function emitWaitPrimitive(
   events: TraceEvent[],
   source_span: SourceSpan,
 ): void {
+  emitInteractionPrimitive(events, source_span, "wait");
+}
+
+/**
+ * Emit the `primitive` event `input` produces once its read has finished
+ * (`spec/interaction-events.md:105-106`: "primitives without a more specific kind emit
+ * `primitive`"). Emitted **after** the answer is in hand, matching the after-effect discipline the
+ * whole stream follows (`:103-106`) and `wait`'s own "after the pause completes" rule. Like
+ * {@link emitWaitPrimitive} the payload carries only the primitive `name` — never the prompt, the
+ * submitted text, or anything else the learner typed, so the stream stays headless and a replayed
+ * trace leaks nothing. No new event kind: #657's maintainer ruling keeps the trace/event registry in
+ * `spec/execution-model.md` unchanged, so `input` is observable exactly as any other primitive is.
+ */
+export function emitInputPrimitive(
+  events: TraceEvent[],
+  source_span: SourceSpan,
+): void {
+  emitInteractionPrimitive(events, source_span, "input");
+}
+
+/** Push one catch-all `primitive` event naming `name` onto `events` with the next monotonic `seq`.
+ * Shared by {@link emitWaitPrimitive} and {@link emitInputPrimitive} so the envelope both profile
+ * primitives emit — no `turtle_id` (neither concerns a turtle), payload of exactly `{ name }` — is
+ * written once. */
+function emitInteractionPrimitive(
+  events: TraceEvent[],
+  source_span: SourceSpan,
+  name: string,
+): void {
   events.push({
     seq: events.length,
     kind: "primitive",
     source_span,
-    payload: { name: "wait" } satisfies PrimitivePayload,
+    payload: { name } satisfies PrimitivePayload,
   });
 }
 
@@ -230,6 +282,94 @@ export function runWait(
   }
   emitWaitPrimitive(events, source_span);
   return false;
+}
+
+/**
+ * Is `value` displayable as learner text — the constraint `spec/interaction-events.md:131` puts on
+ * `input`'s prompt ("`ol-type` if the prompt cannot be displayed as learner text")?
+ *
+ * The prompt is the question a person reads before answering (`:134`, "`input` displays the prompt
+ * and waits for the learner to enter one value"), so it must be text: the scalars `word`, `number`,
+ * and `boolean` render as exactly the characters displayed. Every other OpenLogo value is a
+ * structure or an identity — a `list`/`dict`/`record` renders as a bracketed container view, a
+ * `turtle` as the opaque tag `turtle #<id>` (`spec/turtles-and-sprites.md:13`) — which is a
+ * debugging rendering, not a question authored for a learner, so it is not learner text.
+ *
+ * The rule has to be narrower than `print`, whose `printedForm` renders *every* value: `input` is
+ * the only primitive the spec gives a prompt error clause at all (`print` has none), and a rule that
+ * accepted everything would make that normative clause unreachable.
+ */
+export function isLearnerText(value: OLValue): boolean {
+  return (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  );
+}
+
+/**
+ * The document name the submitted answer is parsed under by {@link interpretSubmittedText}. Never
+ * learner-visible: the parse is a classification, and any diagnostic it produces is discarded rather
+ * than reported (a submission that does not parse is simply not a number literal — it is a word).
+ */
+const SUBMITTED_ANSWER_DOCUMENT = "<input>";
+
+/**
+ * Turn the text a learner submitted into the value `input` reports
+ * (`spec/interaction-events.md:136-137`): "If the submitted text parses as an OpenLogo number
+ * literal, the reporter returns a number. Otherwise it returns a word preserving the entered text."
+ *
+ * "Parses as an OpenLogo number literal" is decided by **the grammar itself** — `parse()` — rather
+ * than a hand-written numeric pattern, so the two can never drift: `42`, `3.5`, `1e3`, and the
+ * negative literal `-5` (`spec/grammar.md:17`: "A leading `-` directly before a numeral, when there
+ * is no left operand, is part of a negative numeric literal") are numbers because the reader says
+ * they are, and they stay numbers if the numeral grammar ever grows. A submission qualifies only
+ * when it parses **cleanly** (no diagnostic) to **exactly one** statement that is a number literal,
+ * so `.5` (which parses to `5` *plus* an `ol-bad-token`), `1 + 1` (an arithmetic call, not a
+ * literal), `true` (a boolean literal), and `42 tom` all fall through to the word branch.
+ *
+ * Everything else reports "a word preserving the entered text" — returned verbatim, with no
+ * trimming, case-folding, or escape processing, so `"  tom  "` reports those exact characters.
+ */
+export function interpretSubmittedText(text: string): number | string {
+  const { ast, diagnostics } = parse(text, SUBMITTED_ANSWER_DOCUMENT);
+  const [only, ...rest] = ast.body;
+  if (
+    diagnostics.length === 0 &&
+    rest.length === 0 &&
+    only !== undefined &&
+    only.kind === "NumberLit"
+  ) {
+    return only.value;
+  }
+  return text;
+}
+
+/**
+ * Take the next scripted answer for an `input` read, or `undefined` when none is left
+ * (issue #681, the #657 ruling: `input` is tested by **mocking the answer** through
+ * `ExecuteOptions.hostInput.responses`, with no new event kind).
+ *
+ * `responses` is a **FIFO queue consumed in order by each `input` call** — the first `input` takes
+ * `responses[0]`, the second `responses[1]`, and so on — so a program with several reads is scripted
+ * by listing its answers in program order. `consumed` is a mutable forward cursor shared through the
+ * {@link Environment} (exactly like `hostInputConsumed`), so reads made anywhere in the run —
+ * including inside a procedure, a loop body, or an event handler block — draw from the one queue and
+ * no answer is ever handed out twice.
+ *
+ * `undefined` means the host has no answer to give; the caller turns that into the read's other
+ * spec-sanctioned ending, cancellation ({@link runtimeDiag.cancelled}).
+ */
+export function takeInputResponse(
+  responses: readonly string[],
+  consumed: { count: number },
+): string | undefined {
+  if (consumed.count >= responses.length) {
+    return undefined;
+  }
+  const answer = responses[consumed.count] as string;
+  consumed.count += 1;
+  return answer;
 }
 
 /**

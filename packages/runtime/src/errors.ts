@@ -652,6 +652,41 @@ export interface OnKeyKeyNotWordParams {
   readonly actual: OLTypeName;
 }
 
+/**
+ * Params for the `ol-type` raised by `input` when its prompt cannot be displayed as learner text
+ * (`spec/interaction-events.md:131`, issue #681). `input` "displays the prompt and waits for the
+ * learner to enter one value" (`:134`), and the profile's own error table classes this as "an
+ * argument has the wrong type" (`:350`), so the prompt is type-constrained: it must be a value whose
+ * printed form IS the text shown — the scalars `word`, `number`, and `boolean`.
+ *
+ * The boundary has to fall somewhere narrower than `print`. `printedForm` is total over the v0.1
+ * value set, so a rule that accepted every printable value would leave this normative `ol-type`
+ * clause unreachable — an unimplementable normative error is exactly the kind of untested claim
+ * issue #679's audit exists to stop. `print` (`spec/commands.md`) is given no error clause at all
+ * and accepts everything; `input` is given one specifically for its prompt, and that asymmetry is
+ * the spec's own signal that the prompt is constrained where `print`'s operand is not. A `list`,
+ * `dict`, or `record` renders as a bracketed container view and a `turtle` as the opaque identity
+ * tag `turtle #<id>` (`spec/turtles-and-sprites.md:13`) — a rendering *of a structure*, not a
+ * question authored for a person to read and answer.
+ *
+ * Exactly where the line falls between "a value that has a printed form"
+ * (`spec/execution-model.md:552-574` gives every value one) and "learner text" is not spelled out in
+ * `spec/`, so this is an implementation-defined reading of a normative clause rather than a
+ * transcription of one, and the question is open as **issue #768**. It is deliberately NOT bound by
+ * a conformance fixture while that is unresolved: a fixture is normative for every implementation,
+ * so one would make this reading binding ecosystem-wide. The behavior is covered by
+ * `packages/runtime/src/interaction-input.test.mjs` instead, which scopes it to this runtime, and
+ * `tests/conformance/interaction-events/README.md` records the deliberate gap.
+ *
+ * `actual` is the argument's runtime type name (`@openlogo/core`'s `typeNameOf`) so the diagnostic
+ * identity records what was supplied; `expected` is the fixed `"text"`, naming the spec's own
+ * phrase. Mirrors the `{ operation, expected, actual }` shape of
+ * {@link WhenEventNotWordParams}/{@link OnKeyKeyNotWordParams}.
+ */
+export interface InputPromptNotTextParams {
+  readonly actual: OLTypeName;
+}
+
 /** Runtime-stage diagnostics, one builder per `ol-*` code the evaluator can raise. */
 export const runtimeDiag = {
   /**
@@ -1653,6 +1688,25 @@ export const runtimeDiag = {
       source_span,
       { operation: "every", ...params },
       `every needs a positive whole number of ticks, but got ${params.value}.`,
+    );
+  },
+
+  /**
+   * `ol-type` (issue #681, slice I2) — `input`'s prompt cannot be displayed as learner text
+   * (`spec/interaction-events.md:131`, and the profile's error table). Carries the
+   * `{ operation: "input", expected: "text", actual }` identity shape shared by the other
+   * Interaction `ol-type` builders. See {@link InputPromptNotTextParams} for why the accepted set is
+   * the scalars (`word`/`number`/`boolean`) rather than everything `print` can render.
+   */
+  inputPromptNotText(
+    source_span: SourceSpan,
+    params: InputPromptNotTextParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-type",
+      source_span,
+      { operation: "input", expected: "text", actual: params.actual },
+      `input needs a prompt it can show as text, but got a ${params.actual}.`,
     );
   },
 } as const;

@@ -1,5 +1,5 @@
 {
-  "description": "issue #687 (slice I8), the negative half of the forms-check-clean pair: the reader is profile-blind, so `wait` and the four block-heads all PARSE without `interaction-events`; the checker then rejects each with `ol-unknown-command` because none of their names is visible when the profile is inactive — proving all five forms are gated on the profile, not merely parsed. Spans cover just the head word of each form. `wait` carries the Core did-you-mean `at` (Levenshtein 2); the four block-heads have no close Core neighbour, so they get the generic message.",
+  "description": "issue #687 (slice I8), extended by #681 (slice I2) — the negative half of the forms-check-clean pair: the reader is profile-blind, so `wait`, `input`, and the four block-heads all PARSE without `interaction-events`; the checker then rejects each with `ol-unknown-command` because none of their names is visible when the profile is inactive — proving all six forms are gated on the profile, not merely parsed. Spans cover just the head word of each form (for `input`, the callee word inside the assignment). `wait` carries the Core did-you-mean `at` (Levenshtein 2) and `input` carries `fput` (also 2); the four block-heads have no close Core neighbour, so they get the generic message.",
   "profiles": ["core-language", "turtle-rendering"],
   "check": true,
   "events": [],
@@ -23,8 +23,23 @@
       "code": "ol-unknown-command",
       "source_span": {
         "document": "interaction-events/forms-unknown-without-interaction/forms-unknown-without-interaction",
-        "start": [2, 1],
-        "end": [2, 5]
+        "start": [2, 11],
+        "end": [2, 16]
+      },
+      "params": {
+        "name": "input",
+        "suggestion": "fput"
+      },
+      "message": "i don't know how to input. did you mean fput?",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "interaction-events/forms-unknown-without-interaction/forms-unknown-without-interaction",
+        "start": [3, 1],
+        "end": [3, 5]
       },
       "params": {
         "name": "when"
@@ -36,8 +51,8 @@
       "code": "ol-unknown-command",
       "source_span": {
         "document": "interaction-events/forms-unknown-without-interaction/forms-unknown-without-interaction",
-        "start": [3, 1],
-        "end": [3, 6]
+        "start": [4, 1],
+        "end": [4, 6]
       },
       "params": {
         "name": "every"
@@ -49,8 +64,8 @@
       "code": "ol-unknown-command",
       "source_span": {
         "document": "interaction-events/forms-unknown-without-interaction/forms-unknown-without-interaction",
-        "start": [4, 1],
-        "end": [4, 7]
+        "start": [5, 1],
+        "end": [5, 7]
       },
       "params": {
         "name": "on_key"
@@ -62,8 +77,8 @@
       "code": "ol-unknown-command",
       "source_span": {
         "document": "interaction-events/forms-unknown-without-interaction/forms-unknown-without-interaction",
-        "start": [5, 1],
-        "end": [5, 9]
+        "start": [6, 1],
+        "end": [6, 9]
       },
       "params": {
         "name": "on_click"
