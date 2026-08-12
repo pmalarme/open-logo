@@ -73,41 +73,49 @@ const INTERACTION_NAMES = Object.freeze([
 /**
  * A whole Interaction program placing every one of the five names in an awkward position — a
  * procedure body, inside `repeat`, and inside a `[ … ]` block — so a regression that only handled a
- * top-level occurrence of one name cannot pass. Each of the five spellings occurs exactly once,
- * letting the highlighting/semantic-token assertions count `=== 1` per name.
+ * top-level occurrence of one name cannot pass. Not one of the five sits at top level. Each of the
+ * five spellings occurs exactly once, letting the highlighting/semantic-token assertions count
+ * `=== 1` per name.
  *
- *   - `wait 1`      — nested two deep: inside a `[ … ]` block inside `repeat`, inside `tick`'s body.
- *   - `when`/`every`/`on_key` — top-level block-heads whose blocks call the procedure.
- *   - `on_click`    — the only block-head taking no argument, nested inside `repeat`.
+ *   - `wait 1`   — inside a `[ … ]` block inside `repeat`, inside `tick`'s procedure body.
+ *   - `when`     — inside `arm`'s procedure body.
+ *   - `every`    — inside a `[ … ]` block inside `repeat`, inside `arm`'s body.
+ *   - `on_key`   — inside an `if` block inside `arm`'s body.
+ *   - `on_click` — inside a `[ … ]` block inside `repeat`, at top level.
  */
 const NESTED_INTERACTION_PROGRAM = [
   "define tick",
   "  repeat 2 [ wait 1 ]",
   "end",
-  'when "start" [ tick ]',
-  "every 2 [ tick ]",
-  'on_key "a" [ tick ]',
+  "define arm",
+  '  when "start" [ tick ]',
+  "  repeat 2 [ every 2 [ tick ] ]",
+  '  if true [ on_key "a" [ tick ] ]',
+  "end",
   "repeat 2 [ on_click [ tick ] ]",
-  "tick",
+  "arm",
 ].join("\n");
 
 // --- Highlighting: every Interaction name classifies as primitive (profile-blind) --------------
 
 test("highlight: each Interaction block-head and primitive classifies as primitive (profile-blind)", () => {
-  for (const source of [
-    ...Object.values(INTERACTION_BLOCK_HEADS),
-    ...Object.values(INTERACTION_PRIMITIVES),
+  for (const [name, source] of [
+    ...Object.entries(INTERACTION_BLOCK_HEADS),
+    ...Object.entries(INTERACTION_PRIMITIVES),
   ]) {
-    for (const name of INTERACTION_NAMES) {
-      const tokens = OL.highlight(source, doc).filter((t) => t.text === name);
-      for (const token of tokens) {
-        assert.equal(
-          token.class,
-          "primitive",
-          `${name} should highlight as primitive in ${JSON.stringify(source)}`,
-        );
-      }
-    }
+    const tokens = OL.highlight(source, doc).filter((t) => t.text === name);
+    // Assert the token EXISTS before asserting its class: a `filter(...).every(...)` over an empty
+    // list passes vacuously, which would hide the very regression this test guards against.
+    assert.equal(
+      tokens.length,
+      1,
+      `expected exactly one ${name} token in ${JSON.stringify(source)}`,
+    );
+    assert.equal(
+      tokens[0].class,
+      "primitive",
+      `${name} should highlight as primitive in ${JSON.stringify(source)}`,
+    );
   }
 });
 
@@ -141,11 +149,14 @@ test("highlight: keywords are case-insensitive — an upper-case Interaction nam
   }
 });
 
-test("highlight: `wait` is never a keyword — it can be redefined as a procedure name", () => {
+test("highlight: `wait` is never a keyword — a same-named procedure highlights as procedure-name", () => {
   // `wait` is an ordinary primitive, not a reserved word in any profile
-  // (`spec/interaction-events.md` reserves only the four block-heads), so a user procedure
-  // literally named `wait` resolves to `procedure-name` at its call site, proving the name is not
-  // locked to `primitive`/`keyword` the way a Core reserved word is.
+  // (`spec/interaction-events.md` reserves only the four block-heads), so it never reaches the
+  // `keyword` class: the profile-blind highlighter resolves a user `define wait` to
+  // `procedure-name` at its call site, unlike a Core reserved word which stays `keyword` no matter
+  // what. This is purely a *token-class* statement — the checker separately reports that
+  // redefinition as `ol-reserved-word` (`namespace: "primitive"`, asserted below), which is a
+  // legality question the highlighter deliberately does not answer.
   const source = "define wait\nend\nwait";
   const tokens = OL.highlight(source, doc).filter((t) => t.text === "wait");
   assert.equal(tokens.length, 2);
@@ -323,17 +334,36 @@ test("check: redefining an Interaction block-head is allowed under Core-only (no
   }
 });
 
-test("check: `wait` is never reserved — it may be redefined even under an active profile", () => {
-  // `wait` is an ordinary primitive, not a reserved word: a user `define wait … end` shadows the
-  // built-in without `ol-reserved-word` (contrast the block-heads above). The zero-parameter
-  // redefinition also makes the call `wait` arity-correct, so the program checks fully clean.
+test("check: `wait` is a primitive, so redefining it under an active profile raises ol-reserved-word", () => {
+  // `wait` is NOT a reserved block-head (contrast the four heads above — it never appears in
+  // `OL_PROFILE_RESERVED_WORDS`), but `spec/tooling.md:184` makes redefining a *primitive*
+  // `ol-reserved-word` all the same, with `namespace: "primitive"` rather than `"reserved"`.
+  // Sound's identically-shaped `set_tempo`, Geometry's `grid`, and Data's `list` already behaved
+  // this way; before I8 `wait` was the one profile primitive a program could silently shadow.
+  for (const primitive of Object.keys(INTERACTION_PRIMITIVES)) {
+    const [finding, ...rest] = checkDiagnostics(
+      `define ${primitive}\nend`,
+      INTERACTION_PROFILES,
+    );
+    assert.deepEqual(rest, []);
+    assert.equal(finding.code, "ol-reserved-word");
+    assert.equal(finding.stage, "semantic");
+    assert.deepEqual(finding.params, {
+      name: primitive,
+      namespace: "primitive",
+    });
+  }
+});
+
+test("check: `wait` may be redefined under Core-only — it is not visible, so it collides with nothing", () => {
+  // The profile gate cuts both ways: with `interaction-events` inactive `wait` registers no
+  // primitive at all (`collectVisibleNames`), so a Core-only program is free to `define wait`,
+  // exactly as it is free to `define grid` without Geometry.
   for (const primitive of Object.keys(INTERACTION_PRIMITIVES)) {
     assert.deepEqual(
-      checkDiagnostics(`define ${primitive}\nend\n${primitive}`, [
-        ...INTERACTION_PROFILES,
-      ]),
+      checkDiagnostics(`define ${primitive}\nend`, CORE_PROFILES),
       [],
-      `${primitive} is a primitive, not a reserved word — redefining it must check clean`,
+      `${primitive} is an ordinary name under Core-only and may be redefined`,
     );
   }
 });
@@ -345,6 +375,21 @@ test("check: a `wait` call short of its one input raises ol-not-enough-inputs at
   // statically short (`spec/tooling.md:181`). Before I8 this checked clean, because `wait` had no
   // static arity range — the same shape Sound's `set_tempo` already had via #689.
   const [finding, ...rest] = checkDiagnostics("wait", INTERACTION_PROFILES);
+  assert.deepEqual(rest, []);
+  assert.equal(finding.code, "ol-not-enough-inputs");
+  assert.equal(finding.stage, "semantic");
+  assert.deepEqual(finding.params, {
+    callable: "wait",
+    expected: 1,
+    actual: 0,
+  });
+});
+
+test("check: a parenthesized (wait) with no input also raises ol-not-enough-inputs", () => {
+  // The explicit regression the arity range closes in the parenthesized form: `(wait)` supplies
+  // zero inputs where exactly one is required. Bare `wait` (above) and `(wait)` reach the check by
+  // different call-node kinds (`Call` vs `ParenCall`), so both are locked.
+  const [finding, ...rest] = checkDiagnostics("(wait)", INTERACTION_PROFILES);
   assert.deepEqual(rest, []);
   assert.equal(finding.code, "ol-not-enough-inputs");
   assert.equal(finding.stage, "semantic");
