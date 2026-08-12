@@ -11,7 +11,6 @@ addressing, and per-turtle execution (`spec/conformance.md#sprites`,
 
 Until #679 claims `sprites` in `packages/core/src/host-metadata.ts`'s `SUPPORTED_PROFILES`, the
 examples gate SKIPs (with a visible notice) any `spec/examples/*.logo` that requires it — see
-`scripts/examples-gate.mjs`. This directory is registration scaffolding (issue #666); it carries no
-fixtures yet, and an empty profile fixture set keeps the suite green.
+`scripts/examples-gate.mjs`.
 
 Fixture shape and conventions: see [`../README.md`](../README.md).

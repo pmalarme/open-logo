@@ -525,15 +525,32 @@ const SPRITES_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
  *
  * `SPRITES_PRIMITIVE_ARITY` is this profile's single source-of-truth table — mirroring
  * {@link turtlePrimitiveArity}/{@link geometryPrimitiveArity}. Its enumerable name-list counterpart
- * (`spritesPrimitiveNames`, mirroring {@link geometryPrimitiveNames}) is deliberately deferred to
- * the Sprites semantic-checker slice (#678) that first needs it — this reporter slice only registers
- * the arities the reader consults, and an exported name-list with no consumer yet would be dead code.
+ * ({@link spritesPrimitiveNames}, mirroring {@link geometryPrimitiveNames}) is added by the Sprites
+ * semantic-checker slice (#678) that first needs it, so `new_turtle`/`who`/`turtles` become known
+ * callees under an active `sprites` profile rather than raising `ol-unknown-command`.
  */
 export function spritesPrimitiveArity(name: string): number | undefined {
   return SPRITES_PRIMITIVE_ARITY.get(name.toLowerCase());
 }
 
 /**
+ * Every Sprites-profile reporter's canonical lowercase name, sorted for deterministic iteration.
+ * This is the enumerable counterpart to {@link spritesPrimitiveArity} — the checker's visible-name
+ * model (`checker-names.ts`) needs the full name *list*, gated on the `sprites` profile, to make
+ * `new_turtle`/`who`/`turtles` both callable without `ol-unknown-command` and candidates for its
+ * did-you-mean suggestions — mirroring {@link geometryPrimitiveNames}'s role for its table.
+ */
+const SPRITES_PRIMITIVE_NAMES: readonly string[] = Object.freeze(
+  [...SPRITES_PRIMITIVE_ARITY.keys()].sort(),
+);
+
+/**
+ * The full list of Sprites-profile reporter names, in sorted order. See
+ * {@link SPRITES_PRIMITIVE_NAMES}. */
+export function spritesPrimitiveNames(): readonly string[] {
+  return SPRITES_PRIMITIVE_NAMES;
+}
+
 /**
  * The Sprites-profile **statement forms** whose head keyword the checker must recognize as a
  * visible command name (issue #674), so a `ProfileStatement` such as `tell :friend` is not reported
