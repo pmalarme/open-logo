@@ -1,0 +1,180 @@
+{
+  "description": "issue #679 (SP7): spec/turtles-and-sprites.md:109 — pen state is per-turtle. `ask :a [ pen_up ]` lifts only :a's pen, so the later single `forward 10` under `tell [ :a :b ]` emits `move` for BOTH turtles but `draw-segment` for :b ONLY. That asymmetric stream (move#1, move#2, draw-segment#2 — no draw-segment#1) is the proof the pen flag is stored per turtle rather than shared.",
+  "profiles": ["sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/pen-state-per-turtle/pen-state-per-turtle",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/pen-state-per-turtle/pen-state-per-turtle",
+        "start": [1, 6],
+        "end": [1, 16]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/pen-state-per-turtle/pen-state-per-turtle",
+        "start": [2, 1],
+        "end": [2, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/pen-state-per-turtle/pen-state-per-turtle",
+        "start": [2, 6],
+        "end": [2, 16]
+      },
+      "turtle_id": 2,
+      "payload": {
+        "turtle_id": 2,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/pen-state-per-turtle/pen-state-per-turtle",
+        "start": [3, 1],
+        "end": [3, 18]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/pen-state-per-turtle/pen-state-per-turtle",
+        "start": [3, 10],
+        "end": [3, 16]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "pen-change",
+      "source_span": {
+        "document": "sprites/pen-state-per-turtle/pen-state-per-turtle",
+        "start": [3, 10],
+        "end": [3, 16]
+      },
+      "payload": {
+        "from": "down",
+        "to": "up"
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/pen-state-per-turtle/pen-state-per-turtle",
+        "start": [4, 1],
+        "end": [4, 15]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/pen-state-per-turtle/pen-state-per-turtle",
+        "start": [5, 1],
+        "end": [5, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/pen-state-per-turtle/pen-state-per-turtle",
+        "start": [5, 1],
+        "end": [5, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "heading": 0
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 10,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/pen-state-per-turtle/pen-state-per-turtle",
+        "start": [5, 1],
+        "end": [5, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "heading": 0
+      },
+      "turtle_id": 2
+    },
+    {
+      "seq": 11,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/pen-state-per-turtle/pen-state-per-turtle",
+        "start": [5, 1],
+        "end": [5, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "color": "black",
+        "width": 1
+      },
+      "turtle_id": 2
+    }
+  ],
+  "diagnostics": []
+}

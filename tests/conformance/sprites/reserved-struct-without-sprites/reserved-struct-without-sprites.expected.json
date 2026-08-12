@@ -1,0 +1,7 @@
+{
+  "description": "issue #679 (SP7): the OFF half of the struct-constructor reserved-word gate — the same three `struct` definitions check clean under `core-language` + `data` alone, because `tell`/`ask`/`each` become reserved only once `sprites` is active.",
+  "profiles": ["core-language", "data"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

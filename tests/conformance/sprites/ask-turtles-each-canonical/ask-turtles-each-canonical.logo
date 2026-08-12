@@ -1,0 +1,10 @@
+:friend = new_turtle
+tell :friend
+forward 30
+ask turtles [
+  each [
+    pen_up
+    home
+    pen_down
+  ]
+]

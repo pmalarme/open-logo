@@ -1,0 +1,53 @@
+{
+  "description": "issue #679 (SP7): the reserved-word rule covers struct CONSTRUCTORS as well as procedures (spec/turtles-and-sprites.md:154 — \"as variables, procedures, or struct constructors\"), so with `sprites` active `struct tell`/`struct ask`/`struct each` each raise `ol-reserved-word` at the struct-name token. Scope note, verified not assumed: the `variables` third of that sentence is NOT diagnosed (`:tell = 1` checks clean) — but neither is `:repeat = 1` or `:if = 1` for Core reserved words, so that is uniform pre-existing behaviour of the `:name` namespace, not a Sprites-specific gap; it is reported to @orchestrator rather than fixed here, since parser source is outside this slice's write-set.",
+  "profiles": ["core-language", "sprites", "data"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "sprites/reserved-struct-with-sprites/reserved-struct-with-sprites",
+        "start": [1, 8],
+        "end": [1, 12]
+      },
+      "params": {
+        "name": "tell",
+        "namespace": "reserved"
+      },
+      "message": "tell is already a reserved, so it can't be redefined here.",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "sprites/reserved-struct-with-sprites/reserved-struct-with-sprites",
+        "start": [2, 8],
+        "end": [2, 11]
+      },
+      "params": {
+        "name": "ask",
+        "namespace": "reserved"
+      },
+      "message": "ask is already a reserved, so it can't be redefined here.",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "sprites/reserved-struct-with-sprites/reserved-struct-with-sprites",
+        "start": [3, 8],
+        "end": [3, 12]
+      },
+      "params": {
+        "name": "each",
+        "namespace": "reserved"
+      },
+      "message": "each is already a reserved, so it can't be redefined here.",
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

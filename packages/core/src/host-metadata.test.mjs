@@ -17,11 +17,17 @@ test("getHostMetadata reports the full M3+M4+M5-delivered profile set", () => {
     "geometry",
     "educational",
     "sound",
+    "sprites",
   ]);
   assert.ok(metadata.supportedProfiles.includes("data"));
   assert.ok(metadata.supportedProfiles.includes("geometry"));
   assert.ok(metadata.supportedProfiles.includes("educational"));
   assert.ok(metadata.supportedProfiles.includes("sound"));
+  assert.ok(metadata.supportedProfiles.includes("sprites"));
+  // The M5 profiles whose terminal slices have not claimed them yet must stay unclaimed:
+  // over-claiming here is the M4 finding-F9 failure mode this deepEqual exists to block.
+  assert.ok(!metadata.supportedProfiles.includes("heritage"));
+  assert.ok(!metadata.supportedProfiles.includes("interaction-events"));
 });
 
 test("getHostMetadata exposes rendering targets because turtle-rendering is claimed", () => {

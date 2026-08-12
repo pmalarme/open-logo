@@ -1,5 +1,5 @@
 {
-  "description": "issue #677 (SP5): with the addressed set empty (`tell [ ]`), the per-turtle commands `set_shape`/`hide_turtle`/`stamp` apply zero times and emit no `shape-change`/`visibility-change`/`stamp` events at all — only the assignment, spawn, and `tell` instructions appear. An empty addressed set is a valid no-op.",
+  "description": "issue #677 (SP5): with the addressed set empty (`tell [ ]`), the per-turtle commands `set_shape`/`hide_turtle`/`stamp` apply zero times and emit no `shape-change`/`visibility-change`/`stamp` events at all. Each still contributes its own `instruction` event — the statement ran, it just addressed no turtle — so the stream is exactly the six `instruction`/`spawn-turtle` envelope events with no per-turtle effect event among them. An empty addressed set is a valid no-op.",
   "profiles": ["sprites"],
   "execute": true,
   "events": [

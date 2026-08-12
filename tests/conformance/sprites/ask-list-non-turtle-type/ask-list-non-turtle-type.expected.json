@@ -1,0 +1,70 @@
+{
+  "description": "issue #679 (SP7): spec/turtles-and-sprites.md:177 requires `ol-type` for a list passed to `tell` OR `ask` that contains a non-turtle value. The `tell` half was already proven by tell-list-non-turtle-type; this is the missing `ask` half. `ask [ :a 5 ] [ … ]` fails on the non-turtle item `5`, so the block never runs and no `move` is emitted; the diagnostic points at the list-argument span, and `operation` is `ask` — the only param that differs from its `tell` twin.",
+  "profiles": ["sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/ask-list-non-turtle-type/ask-list-non-turtle-type",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/ask-list-non-turtle-type/ask-list-non-turtle-type",
+        "start": [1, 6],
+        "end": [1, 16]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/ask-list-non-turtle-type/ask-list-non-turtle-type",
+        "start": [2, 1],
+        "end": [2, 28]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "sprites/ask-list-non-turtle-type/ask-list-non-turtle-type",
+        "start": [2, 5],
+        "end": [2, 13]
+      },
+      "params": {
+        "expected": "turtle",
+        "actual": "number",
+        "value": 5,
+        "operation": "ask"
+      },
+      "message": "ask needs a turtle, but got a number.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

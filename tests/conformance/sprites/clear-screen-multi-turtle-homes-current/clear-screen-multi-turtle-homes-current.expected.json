@@ -1,0 +1,331 @@
+{
+  "description": "issue #679 (SP7): pins `clear_screen` when MORE THAN ONE turtle is addressed — the case SP5's single-turtle clear-screen-homes-addressed-turtle left open. `clear_screen` is deliberately NOT a per-turtle command (multiplying it would emit N `clear` events for one canvas clear), so under `tell [ :a :b ]` it emits exactly ONE `clear`, stamped with the homed turtle's `turtle_id` (1), and homes ONLY that current turtle: the trailing `each` shows :a back at [0 0] heading 0 while :b is still at [0 10] heading 45. This is a defensible reading of an ambiguous spec — :111 lists `clear_screen`/`clean` as affecting \"the shared drawing surface\" separately from the per-turtle bullets at :107-110, while :113 says a turtle command applies once per addressed turtle — and it keeps single-turtle Turtle & Rendering behaviour byte-identical. The fixture locks the decision so it stays conscious; a spec clarification is escalated to the maintainer rather than resolved here.",
+  "profiles": ["sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/clear-screen-multi-turtle-homes-current/clear-screen-multi-turtle-homes-current",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/clear-screen-multi-turtle-homes-current/clear-screen-multi-turtle-homes-current",
+        "start": [1, 6],
+        "end": [1, 16]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/clear-screen-multi-turtle-homes-current/clear-screen-multi-turtle-homes-current",
+        "start": [2, 1],
+        "end": [2, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/clear-screen-multi-turtle-homes-current/clear-screen-multi-turtle-homes-current",
+        "start": [2, 6],
+        "end": [2, 16]
+      },
+      "turtle_id": 2,
+      "payload": {
+        "turtle_id": 2,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/clear-screen-multi-turtle-homes-current/clear-screen-multi-turtle-homes-current",
+        "start": [3, 1],
+        "end": [3, 15]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/clear-screen-multi-turtle-homes-current/clear-screen-multi-turtle-homes-current",
+        "start": [4, 1],
+        "end": [4, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/clear-screen-multi-turtle-homes-current/clear-screen-multi-turtle-homes-current",
+        "start": [4, 1],
+        "end": [4, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "heading": 0
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 7,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/clear-screen-multi-turtle-homes-current/clear-screen-multi-turtle-homes-current",
+        "start": [4, 1],
+        "end": [4, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "color": "black",
+        "width": 1
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 8,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/clear-screen-multi-turtle-homes-current/clear-screen-multi-turtle-homes-current",
+        "start": [4, 1],
+        "end": [4, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "heading": 0
+      },
+      "turtle_id": 2
+    },
+    {
+      "seq": 9,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/clear-screen-multi-turtle-homes-current/clear-screen-multi-turtle-homes-current",
+        "start": [4, 1],
+        "end": [4, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "color": "black",
+        "width": 1
+      },
+      "turtle_id": 2
+    },
+    {
+      "seq": 10,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/clear-screen-multi-turtle-homes-current/clear-screen-multi-turtle-homes-current",
+        "start": [5, 1],
+        "end": [5, 9]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "turn",
+      "source_span": {
+        "document": "sprites/clear-screen-multi-turtle-homes-current/clear-screen-multi-turtle-homes-current",
+        "start": [5, 1],
+        "end": [5, 9]
+      },
+      "payload": {
+        "from": 0,
+        "to": 45
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 12,
+      "kind": "turn",
+      "source_span": {
+        "document": "sprites/clear-screen-multi-turtle-homes-current/clear-screen-multi-turtle-homes-current",
+        "start": [5, 1],
+        "end": [5, 9]
+      },
+      "payload": {
+        "from": 0,
+        "to": 45
+      },
+      "turtle_id": 2
+    },
+    {
+      "seq": 13,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/clear-screen-multi-turtle-homes-current/clear-screen-multi-turtle-homes-current",
+        "start": [6, 1],
+        "end": [6, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "clear",
+      "source_span": {
+        "document": "sprites/clear-screen-multi-turtle-homes-current/clear-screen-multi-turtle-homes-current",
+        "start": [6, 1],
+        "end": [6, 13]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "mode": "clear_screen"
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/clear-screen-multi-turtle-homes-current/clear-screen-multi-turtle-homes-current",
+        "start": [7, 1],
+        "end": [10, 2]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/clear-screen-multi-turtle-homes-current/clear-screen-multi-turtle-homes-current",
+        "start": [8, 3],
+        "end": [8, 12]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "print",
+      "source_span": {
+        "document": "sprites/clear-screen-multi-turtle-homes-current/clear-screen-multi-turtle-homes-current",
+        "start": [8, 3],
+        "end": [8, 12]
+      },
+      "payload": {
+        "values": [[0, 0]]
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/clear-screen-multi-turtle-homes-current/clear-screen-multi-turtle-homes-current",
+        "start": [9, 3],
+        "end": [9, 16]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 19,
+      "kind": "print",
+      "source_span": {
+        "document": "sprites/clear-screen-multi-turtle-homes-current/clear-screen-multi-turtle-homes-current",
+        "start": [9, 3],
+        "end": [9, 16]
+      },
+      "payload": {
+        "values": [0]
+      }
+    },
+    {
+      "seq": 20,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/clear-screen-multi-turtle-homes-current/clear-screen-multi-turtle-homes-current",
+        "start": [8, 3],
+        "end": [8, 12]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 21,
+      "kind": "print",
+      "source_span": {
+        "document": "sprites/clear-screen-multi-turtle-homes-current/clear-screen-multi-turtle-homes-current",
+        "start": [8, 3],
+        "end": [8, 12]
+      },
+      "payload": {
+        "values": [[0, 10]]
+      }
+    },
+    {
+      "seq": 22,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/clear-screen-multi-turtle-homes-current/clear-screen-multi-turtle-homes-current",
+        "start": [9, 3],
+        "end": [9, 16]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 23,
+      "kind": "print",
+      "source_span": {
+        "document": "sprites/clear-screen-multi-turtle-homes-current/clear-screen-multi-turtle-homes-current",
+        "start": [9, 3],
+        "end": [9, 16]
+      },
+      "payload": {
+        "values": [45]
+      }
+    }
+  ],
+  "diagnostics": []
+}

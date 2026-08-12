@@ -77,6 +77,7 @@ export const IMPLEMENTED_PROFILES = [
   "data",
   "geometry",
   "sound",
+  "sprites",
 ];
 
 /**

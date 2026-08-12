@@ -1,0 +1,182 @@
+{
+  "description": "issue #679 (SP7): the positive labelled long form for `each`. each-mismatched-end proved that `each` … `end ask` is REJECTED, but nothing proved the matching `end each` is ACCEPTED. Under `tell [ :a :b ]`, `each` … `end each` runs its body once per addressed turtle, each `move`/`draw-segment` pair stamped with that turtle's own `turtle_id` (1 then 2).",
+  "profiles": ["sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-end-each-long-form/each-end-each-long-form",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/each-end-each-long-form/each-end-each-long-form",
+        "start": [1, 6],
+        "end": [1, 16]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-end-each-long-form/each-end-each-long-form",
+        "start": [2, 1],
+        "end": [2, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/each-end-each-long-form/each-end-each-long-form",
+        "start": [2, 6],
+        "end": [2, 16]
+      },
+      "turtle_id": 2,
+      "payload": {
+        "turtle_id": 2,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-end-each-long-form/each-end-each-long-form",
+        "start": [3, 1],
+        "end": [3, 15]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-end-each-long-form/each-end-each-long-form",
+        "start": [4, 1],
+        "end": [6, 9]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-end-each-long-form/each-end-each-long-form",
+        "start": [5, 3],
+        "end": [5, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/each-end-each-long-form/each-end-each-long-form",
+        "start": [5, 3],
+        "end": [5, 13]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 40],
+        "heading": 0
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 8,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/each-end-each-long-form/each-end-each-long-form",
+        "start": [5, 3],
+        "end": [5, 13]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 40],
+        "color": "black",
+        "width": 1
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-end-each-long-form/each-end-each-long-form",
+        "start": [5, 3],
+        "end": [5, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/each-end-each-long-form/each-end-each-long-form",
+        "start": [5, 3],
+        "end": [5, 13]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 40],
+        "heading": 0
+      },
+      "turtle_id": 2
+    },
+    {
+      "seq": 11,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/each-end-each-long-form/each-end-each-long-form",
+        "start": [5, 3],
+        "end": [5, 13]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 40],
+        "color": "black",
+        "width": 1
+      },
+      "turtle_id": 2
+    }
+  ],
+  "diagnostics": []
+}
