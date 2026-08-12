@@ -1,0 +1,54 @@
+{
+  "description": "issue #691 (headless-stream self-sufficiency, extending #690's `note-tempo-change-sequence`): `set_tempo 60` then `play [\"c4\" 1 \"e4\" 2]`. `play` emits the melody's beat durations verbatim; the tempo lives in the earlier `set_tempo` event. A downstream replay tool therefore has COMPLETE information (tempo from the `set_tempo` event x beat durations from the melody) to render wall-clock timing, so no runtime beat cursor is needed - durations are 'interpreted in beats at the current tempo' by replay tools (spec/interaction-events.md:284-285), not converted at emit. Each sound event follows its instruction event.",
+  "profiles": ["sound"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sound/play-tempo-sequence",
+        "start": [1, 1],
+        "end": [1, 13]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "sound",
+      "source_span": {
+        "document": "sound/play-tempo-sequence",
+        "start": [1, 1],
+        "end": [1, 13]
+      },
+      "payload": { "command": "set_tempo", "beats_per_minute": 60 }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sound/play-tempo-sequence",
+        "start": [2, 1],
+        "end": [2, 21]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 3,
+      "kind": "sound",
+      "source_span": {
+        "document": "sound/play-tempo-sequence",
+        "start": [2, 1],
+        "end": [2, 21]
+      },
+      "payload": {
+        "command": "play",
+        "melody": [
+          { "pitch": "c4", "duration": 1 },
+          { "pitch": "e4", "duration": 2 }
+        ]
+      }
+    }
+  ],
+  "diagnostics": []
+}

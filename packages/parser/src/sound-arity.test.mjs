@@ -36,8 +36,9 @@ test("soundPrimitiveArity reports the fixed arity of each Sound primitive, case-
   assert.equal(OL.soundPrimitiveArity("NOTE"), 2);
   assert.equal(OL.soundPrimitiveArity("rest"), 1);
   assert.equal(OL.soundPrimitiveArity("REST"), 1);
+  assert.equal(OL.soundPrimitiveArity("play"), 1);
+  assert.equal(OL.soundPrimitiveArity("PLAY"), 1);
   assert.equal(OL.soundPrimitiveArity("forward"), undefined);
-  assert.equal(OL.soundPrimitiveArity("play"), undefined);
 });
 
 test("with the sound profile active, check() flags a known Sound command given the wrong number of inputs", () => {
@@ -105,10 +106,34 @@ test("with the sound profile active, check() flags a known Sound command given t
     expected: 1,
     actual: 2,
   });
+
+  const overPlay = tooMany('(play ["c4" 1] ["e4" 1])');
+  assert.equal(overPlay.length, 1);
+  assert.equal(overPlay[0].code, "ol-too-many-inputs");
+  assert.deepEqual(overPlay[0].params, {
+    callable: "play",
+    expected: 1,
+    actual: 2,
+  });
+
+  const underPlay = tooMany("(play)");
+  assert.equal(underPlay.length, 1);
+  assert.equal(underPlay[0].code, "ol-not-enough-inputs");
+  assert.deepEqual(underPlay[0].params, {
+    callable: "play",
+    expected: 1,
+    actual: 0,
+  });
 });
 
 test("with the sound profile active, check() accepts a correctly-supplied Sound command", () => {
-  for (const source of ["set_tempo 90", "beep", 'note "c4" 1', "rest 1"]) {
+  for (const source of [
+    "set_tempo 90",
+    "beep",
+    'note "c4" 1',
+    "rest 1",
+    'play ["c4" 1]',
+  ]) {
     const { ast, diagnostics: parseDiagnostics } = OL.parse(
       source,
       "sound-arity.logo",
@@ -170,6 +195,11 @@ test("the reader groups set_tempo's single argument and beep's zero arguments", 
   assert.equal(rest.kind, "Call");
   assert.equal(rest.callee.name, "rest");
   assert.equal(rest.args.length, 1);
+
+  const [play] = parseClean('play ["c4" 1]').body;
+  assert.equal(play.kind, "Call");
+  assert.equal(play.callee.name, "play");
+  assert.equal(play.args.length, 1);
 });
 
 test("a parenthesized call with extra arguments still parses cleanly at Layer 1 (arity is a Layer 2 concern)", () => {
@@ -215,7 +245,7 @@ test("without the sound profile active, set_tempo/beep parse cleanly but are fla
 // --- reserved-word collisions --------------------------------------------------
 
 test("a struct type name colliding with a Sound primitive raises ol-reserved-word (primitive wins)", () => {
-  for (const name of ["set_tempo", "beep", "note", "rest"]) {
+  for (const name of ["set_tempo", "beep", "note", "rest", "play"]) {
     const ast = parseClean(`struct ${name} [ x ]`);
     const { diagnostics } = OL.check(ast, {
       profiles: ["core-language", "data", "sound"],
@@ -228,7 +258,7 @@ test("a struct type name colliding with a Sound primitive raises ol-reserved-wor
 });
 
 test("a define colliding with a Sound primitive raises ol-reserved-word", () => {
-  for (const name of ["set_tempo", "beep", "note", "rest"]) {
+  for (const name of ["set_tempo", "beep", "note", "rest", "play"]) {
     const ast = parseClean(`define ${name}\nend`);
     const { diagnostics } = OL.check(ast, {
       profiles: ["core-language", "sound"],
@@ -240,7 +270,7 @@ test("a define colliding with a Sound primitive raises ol-reserved-word", () => 
 });
 
 test("a local colliding with a Sound primitive raises ol-reserved-word", () => {
-  for (const name of ["set_tempo", "beep", "note", "rest"]) {
+  for (const name of ["set_tempo", "beep", "note", "rest", "play"]) {
     const ast = parseClean(`define greet\n  local ${name}\nend`);
     const { diagnostics } = OL.check(ast, {
       profiles: ["core-language", "sound"],
@@ -252,7 +282,7 @@ test("a local colliding with a Sound primitive raises ol-reserved-word", () => {
 });
 
 test("without the sound profile active, define/local/struct set_tempo/beep raise no reserved-word collision", () => {
-  for (const name of ["set_tempo", "beep", "note", "rest"]) {
+  for (const name of ["set_tempo", "beep", "note", "rest", "play"]) {
     const defineOnly = parseClean(`define ${name}\nend`);
     assert.deepEqual(
       OL.check(defineOnly, { profiles: ["core-language"] }).diagnostics,

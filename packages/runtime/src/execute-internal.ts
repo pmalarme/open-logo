@@ -30,6 +30,7 @@ import type {
   FillPayload,
   GridOverlayPayload,
   MeasureOverlayPayload,
+  MelodyStep,
   MovePayload,
   OLValue,
   PenChangePayload,
@@ -1881,6 +1882,151 @@ function executeSoundRestCall(
 }
 
 /**
+ * Is `statement` a call to `play` (issue #691; `spec/interaction-events.md:293-307`). Same
+ * shape/convention as {@link isSoundSetTempoCall} — an ordinary Sound-profile primitive-name match
+ * (`play` takes one melody list).
+ */
+function isSoundPlayCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  return statement.callee.name.toLowerCase() === "play";
+}
+
+/**
+ * Validate and run a `play <melody-list>` statement matched by {@link isSoundPlayCall}: exactly one
+ * argument (`ol-not-enough-inputs`/`ol-too-many-inputs` otherwise) that MUST be a list (`ol-type`,
+ * `expected: "list"`). The melody list is pitch/duration pairs in sequence, so "The list length
+ * MUST be even" (`spec/interaction-events.md:301-303`) — an odd length raises `ol-range`
+ * ({@link runtimeDiag.oddMelodyLength}). Each pair is then resolved in order: the pitch MUST be a
+ * word that is either the literal `"rest"` or a well-formed scientific-pitch-notation pitch accepted
+ * by `note` (`ol-type`, reusing `note`'s two-stage `expected: "word"`/`expected: "pitch"` checks),
+ * and the duration MUST be a positive finite number (`ol-type` via {@link requireNumber}, then
+ * `ol-range` via {@link runtimeDiag.nonPositiveDuration}, folding `Infinity` in exactly like `note`).
+ * Validation is left-to-right and halts on the first offending element, so the earliest error wins.
+ *
+ * On success `play` genuinely *sequences* the melody — every step is resolved to a `{ pitch,
+ * duration }` {@link MelodyStep} (durations in beats, interpreted at the current tempo by replay
+ * tools, never converted here — `spec/interaction-events.md:284-285`) — and emits exactly one
+ * `sound` event carrying the whole ordered melody ({@link PlaySoundPayload}), AFTER the melody has
+ * been scheduled (`spec/interaction-events.md`'s trace-stream rule: "Sound commands emit `sound`
+ * events after sound state has been scheduled"). The event is emitted unconditionally even in a
+ * muted environment. `play` changes no sound state — the beat-resolved melody lives entirely in the
+ * event, so the headless stream ({@link import("./sound-state.js").SoundState} holds only tempo)
+ * stays self-sufficient. Returns an {@link ExecSignal} to halt on, or `undefined` for
+ * {@link executeStatements} to `continue` on success (including the "left un-evaluated" case).
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeSoundPlayCall(
+  playCall: CallNode | ParenCallNode,
+  environment: Environment,
+): ExecSignal | undefined {
+  const callableName = playCall.callee.name;
+  if (playCall.args.length !== 1) {
+    return halt(
+      playCall.args.length < 1
+        ? runtimeDiag.notEnoughInputs(
+            playCall.callee.source_span,
+            callableName,
+            1,
+            playCall.args.length,
+          )
+        : runtimeDiag.tooManyInputs(
+            playCall.callee.source_span,
+            callableName,
+            1,
+            playCall.args.length,
+          ),
+    );
+  }
+  const [melodyArg] = playCall.args as [ExpressionNode];
+  if (!isSupportedArgument(melodyArg, environment)) {
+    return undefined;
+  }
+  const melodyResult = evaluate(melodyArg, environment);
+  if (!melodyResult.ok) {
+    return halt(melodyResult.diagnostic);
+  }
+  if (!Array.isArray(melodyResult.value)) {
+    return halt(
+      runtimeDiag.placeType(melodyArg.source_span, {
+        expected: "list",
+        actual: typeNameOf(melodyResult.value),
+        value: melodyResult.value,
+        operation: "play",
+      }),
+    );
+  }
+  const elements = melodyResult.value;
+  const melody: MelodyStep[] = [];
+  // Validate elements strictly left-to-right so the EARLIEST offending element wins, exactly like
+  // `note` validates its pitch before its duration (rubber-duck, #691): an up-front parity check
+  // would let an odd-length list mask an earlier bad pitch/duration (e.g. `play ["c4" 0 "e4"]` must
+  // report the `0` duration, not the odd length). The odd-length `ol-range` is therefore raised only
+  // when the loop reaches a final pitch with no duration partner, after every earlier pair passed.
+  for (let index = 0; index < elements.length; index += 2) {
+    const pitchValue = elements[index];
+    if (typeof pitchValue !== "string") {
+      return halt(
+        runtimeDiag.placeType(melodyArg.source_span, {
+          expected: "word",
+          actual: typeNameOf(pitchValue),
+          value: pitchValue,
+          operation: "play",
+        }),
+      );
+    }
+    if (pitchValue !== "rest" && !isValidPitch(pitchValue)) {
+      return halt(
+        runtimeDiag.invalidPitch(melodyArg.source_span, {
+          value: pitchValue,
+          operation: "play",
+        }),
+      );
+    }
+    if (index + 1 >= elements.length) {
+      // A well-formed pitch with no duration partner: the list is odd-length. `spec/
+      // interaction-events.md`'s `play` entry: "The list length MUST be even" -> `ol-range`.
+      return halt(
+        runtimeDiag.oddMelodyLength(melodyArg.source_span, {
+          length: elements.length,
+        }),
+      );
+    }
+    const durationValue = elements[index + 1];
+    const duration = requireNumber(
+      durationValue,
+      melodyArg.source_span,
+      "play",
+    );
+    if (!duration.ok) {
+      return halt(duration.diagnostic);
+    }
+    if (!Number.isFinite(duration.value) || duration.value <= 0) {
+      return halt(
+        runtimeDiag.nonPositiveDuration(melodyArg.source_span, {
+          operation: "play",
+          value: String(duration.value),
+        }),
+      );
+    }
+    melody.push({ pitch: pitchValue, duration: duration.value });
+  }
+  environment.events.push({
+    seq: environment.events.length,
+    kind: "sound",
+    source_span: playCall.source_span,
+    payload: {
+      command: "play",
+      melody,
+    } satisfies SoundPayload,
+  });
+  return undefined;
+}
+
+/**
  * Sentinel {@link dispatchSoundCommand} returns when `statement` isn't any recognized Sound-profile
  * command, so {@link executeStatements} can fall through to its other statement-kind checks.
  * Distinct from `undefined`, which means a sound command ran successfully (the same "handled,
@@ -1919,6 +2065,12 @@ function dispatchSoundCommand(
   }
   if (isSoundRestCall(statement)) {
     return executeSoundRestCall(
+      statement as unknown as CallNode | ParenCallNode,
+      environment,
+    );
+  }
+  if (isSoundPlayCall(statement)) {
+    return executeSoundPlayCall(
       statement as unknown as CallNode | ParenCallNode,
       environment,
     );
