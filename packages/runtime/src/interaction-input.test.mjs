@@ -314,8 +314,15 @@ test("an empty scripted answer is a real answer — the empty word — not an ex
 
 test("a prompt that cannot be displayed as learner text raises ol-type", () => {
   // `spec/interaction-events.md:131`: "Errors: `ol-type` if the prompt cannot be displayed as
-  // learner text". A list/dict/record renders as a container view and a turtle as the opaque tag
-  // `turtle #<id>` — debugging renderings of a structure, not a question authored for a learner.
+  // learner text", which the profile's error table (`:350`) classes as "an argument has the wrong
+  // type". A list/dict/record renders as a container view and a turtle as the opaque tag
+  // `turtle #<id>` — a rendering of a structure, not a question authored for a person to answer.
+  //
+  // SCOPE: this is an implementation-defined reading of a genuinely ambiguous clause (see
+  // `InputPromptNotTextParams` in `errors.ts`), open as issue #768, so it is asserted HERE — where
+  // it binds only this runtime — and deliberately not in a conformance fixture, which would make
+  // one reading normative for every implementation. When #768 rules, this test either gains a
+  // fixture or is relaxed.
   for (const [source, actual] of [
     ["print input [1 2]", "list"],
     ["print input {a: 1}", "dict"],

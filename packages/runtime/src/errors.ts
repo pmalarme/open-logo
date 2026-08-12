@@ -672,9 +672,11 @@ export interface OnKeyKeyNotWordParams {
  * Exactly where the line falls between "a value that has a printed form"
  * (`spec/execution-model.md:552-574` gives every value one) and "learner text" is not spelled out in
  * `spec/`, so this is an implementation-defined reading of a normative clause rather than a
- * transcription of one. It is recorded here, in the `input-prompt-not-text` fixture's description,
- * and in a follow-up issue for maintainer confirmation, so the boundary is visible rather than
- * buried.
+ * transcription of one, and the question is open as **issue #768**. It is deliberately NOT bound by
+ * a conformance fixture while that is unresolved: a fixture is normative for every implementation,
+ * so one would make this reading binding ecosystem-wide. The behavior is covered by
+ * `packages/runtime/src/interaction-input.test.mjs` instead, which scopes it to this runtime, and
+ * `tests/conformance/interaction-events/README.md` records the deliberate gap.
  *
  * `actual` is the argument's runtime type name (`@openlogo/core`'s `typeNameOf`) so the diagnostic
  * identity records what was supplied; `expected` is the fixed `"text"`, naming the spec's own

@@ -29,14 +29,23 @@ that requires it — see `scripts/examples-gate.mjs`.
   43 whether the read returned the number `42` or the word `"42"`; a proof built on it would look
   convincing while being inert against an implementation that never reports numbers at all.
   `input-responses-consumed-in-order` proves the queue is consumed in order with each answer
-  classified independently; `input-prompt-not-text` is the `ol-type` a prompt that "cannot be
-  displayed as learner text" raises (`:131`), pointed at the prompt argument and consuming no
-  answer; `input-unanswered-cancels` takes the read's *other* spec-sanctioned ending (`:110-111` —
-  "until the read finishes or the program is cancelled") through the profile's ordinary
-  cancellation diagnostic rather than inventing an answer or a lookalike code; and the
+  classified independently; `input-unanswered-cancels` takes the read's *other* spec-sanctioned
+  ending (`:110-111` — "until the read finishes or the program is cancelled") through the profile's
+  ordinary cancellation diagnostic rather than inventing an answer or a lookalike code; and the
   `check`-mode pair `input-visible-under-profile`/`input-rejected-core-only` proves the name is
   gated on the profile, as `spec/conformance.md:167-169` and `spec/interaction-events.md:11`
-  require. The **blocking** property (`:108-111`) is observable here only as the *pair*
+  require.
+
+  **Deliberately NOT fixtured: the `ol-type` a prompt "that cannot be displayed as learner text"
+  raises (`:131`).** The behavior is implemented and covered by
+  `packages/runtime/src/interaction-input.test.mjs`, but *which* values qualify is genuinely
+  ambiguous in the spec — `printedForm` gives every v0.1 value a printed form
+  (`spec/execution-model.md:552-574`), while the clause and the profile's error table (`:350`) imply
+  some types must be wrong — and the question is open as **#768**. A fixture here is normative for
+  every implementation ("Any conforming implementation should pass them",
+  `.github/skills/shared/conformance-fixture/SKILL.md:13-15`), so shipping one would make one
+  reading of a contested clause binding ecosystem-wide on the strength of a hedge in its
+  description. It lands once #768 rules. The **blocking** property (`:108-111`) is observable here only as the *pair*
   `input-does-not-deliver-handlers` + `input-blocking-control-wait-delivers`: the same program and
   the same tick-0 pending key, with a read in one and `wait 0` in the other, so the control proves
   the key was genuinely deliverable and only the read declined to deliver it. A fixture cannot

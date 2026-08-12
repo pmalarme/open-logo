@@ -246,7 +246,8 @@ export interface HostInput {
    * This is how a real host both **displays the prompt** (`:134`) and holds the read open: the
    * reader IS the outstanding read, so a caller can observe, from inside it, that no further
    * OpenLogo instruction and no event handler block has run — the normative MUST at `:108-111`,
-   * which is why `interaction-input-blocking.test.mjs` probes the window through this seam.
+   * which is why `interaction-input-blocking.test.mjs` probes the window through this seam. Wiring
+   * it to a browser prompt in `@openlogo/studio` is issue **#769**.
    *
    * It is a **function**, so — like {@link ExecuteOptions.tutorTemplates} — no JSON fixture can
    * supply it, and the conformance harness rejects it by name. That is deliberate: it keeps ONE
