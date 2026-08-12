@@ -76,6 +76,8 @@ import type {
   OLValue,
   SourceSpan,
 } from "@openlogo/core";
+import type { ComprehensionNode, ReturnNode } from "@openlogo/parser";
+import { canonicalOfHeritageFormHead } from "@openlogo/parser";
 
 function runtimeError(
   code: Diagnostic["code"],
@@ -337,25 +339,114 @@ export interface ComprehensionNotListParams {
 }
 
 /**
+ * The three comprehension forms — the `form` param value the comprehension-scoped codes carry.
+ * Read off {@link ComprehensionNode} rather than restated as a literal union, so the runtime's
+ * `form` param cannot drift from the AST the parser hands it (the parser's own
+ * `checker-control-flow.ts` derives its `ComprehensionForm` the same way).
+ */
+type ComprehensionForm = ComprehensionNode["form"];
+
+/**
+ * Every surface spelling a `return` can be written with — Core `return` plus the **Heritage**
+ * spellings `output`/`op`, which the reader lowers onto the same {@link ReturnNode}. Read off the
+ * AST node so it cannot drift from the grammar. Prose only: see {@link CanonicalEscapeKeyword}.
+ */
+type SurfaceReturnKeyword = ReturnNode["keyword"];
+
+/**
+ * Every surface spelling an escape can be written with — {@link SurfaceReturnKeyword} plus `stop`,
+ * which has no Heritage spelling. Prose only: see {@link CanonicalEscapeKeyword}.
+ */
+type SurfaceEscapeKeyword = SurfaceReturnKeyword | "stop";
+
+/**
+ * The **canonical Core** control word an escape's `params.keyword` is reported under. Deliberately
+ * narrower than {@link SurfaceEscapeKeyword}: the Heritage spellings are excluded *by type*, so a
+ * params object that declares this type cannot be handed a surface spelling — reintroducing
+ * `{ keyword: <the learner's word> }` stops compiling. That is the structural guard for these two
+ * rules (issue #741), and it deliberately mirrors the parser's `checker-control-flow.ts` type of
+ * the same name (issue #737), because the runtime keeps its own copies of both diagnostics.
+ *
+ * Its reach is exactly the params interfaces below, because `Diagnostic.params` is
+ * `Readonly<Record<string, unknown>>` and cannot be typed per code: a NEW diagnostic site that
+ * built its params inline would still compile. The complete guard for the class is therefore the
+ * registry-driven `heritage-canonical-diagnostic-params.test.mjs` in this package, which executes
+ * every Heritage spelling the parser knows and compares the emitted params against its Core twin's;
+ * this type is what stops the two known sites from silently regressing.
+ */
+type CanonicalEscapeKeyword = "return" | "stop";
+
+/**
+ * The canonical Core control word for a `return` escape, resolved through the parser's Heritage
+ * registry ({@link canonicalOfHeritageFormHead}) rather than a local literal: `output`/`op` resolve
+ * to `return`, and `return` is already canonical. Reported as the literal `"return"` — the only
+ * value this site can ever carry — so a params object that declares it cannot be handed anything
+ * else.
+ *
+ * Diagnostic identity is `code` plus structured `params`, and the same condition MUST keep the same
+ * params (`spec/error-model.md:235-238`). Heritage is "alternate spellings only, no new semantics"
+ * (`spec/conformance.md#heritage`), so an executed `output 5` and an executed `return 5` at top
+ * level are ONE condition and must carry one machine-readable identity — the surface spelling
+ * belongs in the prose, never in the params. Shares the parser's registry precisely so the two
+ * stages cannot answer "what Core spelling is this an alternate of" differently.
+ */
+function canonicalReturnKeyword(surface: SurfaceReturnKeyword): "return" {
+  return surface === "return" ? "return" : canonicalOfHeritageFormHead(surface);
+}
+
+/**
+ * The canonical Core control word for any escape — {@link canonicalReturnKeyword} widened to admit
+ * `stop`, which is already canonical and has no Heritage spelling. Only the comprehension-scoped
+ * code needs this: `stop` at the top level is the separate `ol-stop-outside-proc`
+ * (`spec/error-model.md:118`), which carries no `keyword` at all.
+ */
+function canonicalEscapeKeyword(
+  surface: SurfaceEscapeKeyword,
+): CanonicalEscapeKeyword {
+  return surface === "stop" ? "stop" : canonicalReturnKeyword(surface);
+}
+
+/**
  * Params for `ol-no-value`: a comprehension body's last statement does not produce a value
  * (`spec/execution-model.md:225` — the block-result rule). Same `{form}` shape as the parser's
  * `checker-control-flow.ts` semantic rule (issue #114) so both stages agree on identity.
  */
 export interface NoValueParams {
-  readonly form: "map" | "filter" | "reduce";
+  readonly form: ComprehensionForm;
+}
+
+/**
+ * Params for `ol-return-outside-proc`: a `return`/`output`/`op` reached the top level with no
+ * enclosing procedure to return from. Same `{keyword}` shape as the parser's
+ * `checker-control-flow.ts` semantic rule (issue #114) so both stages agree on identity — and, since
+ * issue #741, the same canonical *value* too: the surface spelling the learner wrote cannot reach
+ * `params`.
+ *
+ * `keyword` is typed as the literal `"return"` rather than {@link CanonicalEscapeKeyword}, because
+ * that is the only word this code can ever carry: a `stop` outside a procedure is the separate
+ * `ol-stop-outside-proc` (`spec/error-model.md:118`). The parser's counterpart states the same
+ * constraint in prose (`checker-control-flow.ts`: "here always `return`"); stating it in the type
+ * leaves the guard no slack.
+ */
+export interface ReturnOutsideProcParams {
+  readonly keyword: "return";
 }
 
 /**
  * Params for `ol-return-in-comprehension`: a `return`/`output`/`op`/`stop` reached inside a
  * comprehension body (`spec/execution-model.md:226-227`) — a comprehension reports its last
  * expression, never an explicit `return`/`stop`. Same `{keyword, form}` shape as the parser's
- * `checker-control-flow.ts` semantic rule (issue #114) so both stages agree on identity; `keyword`
- * is the literal string `"stop"` for a `Stop` node (which has no `keyword` field of its own),
- * matching the checker's own synthesis.
+ * `checker-control-flow.ts` semantic rule (issue #114) so both stages agree on identity, with the
+ * same canonical `keyword` rule as {@link ReturnOutsideProcParams} — widened to
+ * {@link CanonicalEscapeKeyword} because this is the one `keyword`-carrying code a `stop` can also
+ * raise. Declared independently rather than extending its sibling: the two are different codes that
+ * happen to share a field, not a specialization, so neither should silently inherit the other's
+ * future params. A `Stop` node has no `keyword` field of its own and reports the canonical
+ * `"stop"`, matching the checker's own synthesis.
  */
 export interface ReturnInComprehensionParams {
-  readonly keyword: "return" | "output" | "op" | "stop";
-  readonly form: "map" | "filter" | "reduce";
+  readonly keyword: CanonicalEscapeKeyword;
+  readonly form: ComprehensionForm;
 }
 
 /**
@@ -1106,15 +1197,27 @@ export const runtimeDiag = {
    * procedure to return from. Same `{keyword}` params shape as the parser's
    * `checker-control-flow.ts` semantic rule (issue #114) so both stages agree on identity — this
    * copy exists because `execute()` runs `parse()` only, not `check()`.
+   *
+   * `keyword` is the spelling the learner wrote; `params.keyword` is the **canonical** Core word it
+   * is an alternate spelling of, resolved by {@link canonicalReturnKeyword} through the parser's own
+   * Heritage registry. That is what keeps "both stages agree on identity" true: the parser
+   * canonicalized this param in issue #737, so until issue #741 canonicalized this copy too the
+   * same `output 5` carried `keyword: "return"` when checked and `keyword: "output"` when executed —
+   * one condition with two machine-readable identities, which `spec/error-model.md:235-238`
+   * forbids. The prose message still echoes the learner's own word; that is the localization
+   * boundary and is permitted.
    */
   returnOutsideProc(
     source_span: SourceSpan,
-    keyword: "return" | "output" | "op",
+    keyword: SurfaceReturnKeyword,
   ): Diagnostic {
+    const params: ReturnOutsideProcParams = {
+      keyword: canonicalReturnKeyword(keyword),
+    };
     return runtimeError(
       "ol-return-outside-proc",
       source_span,
-      { keyword },
+      { ...params },
       `${keyword} only reports a value from inside a procedure. put it between 'define' and 'end'.`,
     );
   },
@@ -1195,14 +1298,12 @@ export const runtimeDiag = {
    * both stages agree on identity — this copy exists because `execute()` runs `parse()` only, not
    * `check()`.
    */
-  noValue(
-    source_span: SourceSpan,
-    form: "map" | "filter" | "reduce",
-  ): Diagnostic {
+  noValue(source_span: SourceSpan, form: ComprehensionForm): Diagnostic {
+    const params: NoValueParams = { form };
     return runtimeError(
       "ol-no-value",
       source_span,
-      { form },
+      { ...params },
       `${form} needs the last instruction in its block to make a value.`,
     );
   },
@@ -1215,16 +1316,24 @@ export const runtimeDiag = {
    * copy exists because `execute()` runs `parse()` only, not `check()`. Takes priority over
    * `ol-return-outside-proc`/`ol-stop-outside-proc` whenever the escape is lexically inside a
    * comprehension body, even when that comprehension is itself inside a procedure.
+   *
+   * `keyword` is the learner's own spelling and `params.keyword` its canonical Core word, on
+   * exactly the terms {@link runtimeDiag.returnOutsideProc} documents above (issue #741). A `stop`
+   * is already canonical and has no Heritage spelling, so it reports `"stop"`.
    */
   returnInComprehension(
     source_span: SourceSpan,
-    keyword: "return" | "output" | "op" | "stop",
-    form: "map" | "filter" | "reduce",
+    keyword: SurfaceEscapeKeyword,
+    form: ComprehensionForm,
   ): Diagnostic {
+    const params: ReturnInComprehensionParams = {
+      keyword: canonicalEscapeKeyword(keyword),
+      form,
+    };
     return runtimeError(
       "ol-return-in-comprehension",
       source_span,
-      { keyword, form },
+      { ...params },
       `${keyword} doesn't belong in a ${form} — a ${form} reports its last expression instead.`,
     );
   },

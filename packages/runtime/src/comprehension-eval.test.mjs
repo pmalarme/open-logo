@@ -220,6 +220,27 @@ test("a `return` as a comprehension body's final statement raises ol-return-in-c
   });
 });
 
+test("the Heritage spellings `output`/`op` in a comprehension body report the CANONICAL keyword, with the learner's own word in the prose", () => {
+  // `output`/`op` are Heritage alternate spellings of `return` (`spec/conformance.md#heritage` —
+  // "alternate spellings only, no new semantics"), lowered onto the same `Return` node, so all
+  // three are ONE condition and must carry ONE machine-readable identity: `params` is byte-identical
+  // to the `return` case above (issue #741). The prose is the localization boundary and still names
+  // what the learner typed.
+  for (const spelling of ["output", "op"]) {
+    const result = execute(
+      `:out = map n in [1] [ ${spelling} :n ]\nprint :out`,
+      doc,
+    );
+    assert.equal(result.diagnostics.length, 1);
+    assert.equal(result.diagnostics[0].code, "ol-return-in-comprehension");
+    assert.deepEqual(result.diagnostics[0].params, {
+      keyword: "return",
+      form: "map",
+    });
+    assert.match(result.diagnostics[0].message, new RegExp(`^${spelling} `));
+  }
+});
+
 test("a `return` as a LEADING (non-final) comprehension body statement still raises ol-return-in-comprehension immediately", () => {
   const result = execute(
     ":out = map n in [1] [\n  return :n\n  :n\n]\nprint :out",

@@ -1,0 +1,41 @@
+{
+  "description": "The short Heritage escape spelling `op` inside an EXECUTED `map` body reports the same canonical `params` `{ keyword: \"return\", form: \"map\" }` as `output` and as Core `return` (issue #741) — byte-identical to the Core twin `tests/conformance/core-language/comprehensions/comprehension-return-in-comprehension` (`:out = map n in [1] [ return :n ]`) in `code`, `params`, `stage` and `severity`. Together with its `output` sibling this pins every Heritage spelling of the second runtime `keyword` site: the defective param varied WITH the spelling, so each spelling needs its own assertion. `source_span` covers the `op :n` escape statement (5 columns against the 9 of `output :n`), so the span still follows the surface spelling while the param does not.",
+  "profiles": ["core-language", "data", "heritage"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-op-canonical-keyword-executed-in-comprehension",
+        "start": [4, 1],
+        "end": [4, 18]
+      },
+      "payload": { "statement_kind": "Assign" }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-op-canonical-keyword-executed-in-comprehension",
+        "start": [5, 1],
+        "end": [5, 31]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-return-in-comprehension",
+      "source_span": {
+        "document": "heritage/execution/heritage-op-canonical-keyword-executed-in-comprehension",
+        "start": [5, 24],
+        "end": [5, 29]
+      },
+      "params": { "keyword": "return", "form": "map" },
+      "message": "op doesn't belong in a map — a map reports its last expression instead.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

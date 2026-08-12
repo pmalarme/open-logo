@@ -27,6 +27,17 @@
 //   2. NO SURFACE SPELLING IN PARAMS — no param value of any diagnostic in the corpus contains a
 //      Heritage-only spelling as a whole word.
 //
+// "Both stages" here means both stages THIS package can reach: parse and semantic. Diagnostics have
+// a third stage, `runtime`, and `@openlogo/runtime` keeps its own copies of the checker's
+// control-flow rules because `execute()` runs `parse()` only, never `check()` — copies that still
+// emitted the surface spelling after this file landed (issue #741), so the same `output 5` reported
+// one identity when checked and another when executed. That stage is guarded by the counterpart
+// file `packages/runtime/src/heritage-canonical-diagnostic-params.test.mjs`, which drives the same
+// registries through `execute()`. It lives there rather than here because `@openlogo/runtime`
+// depends on `@openlogo/parser` and not the reverse, so importing the runtime into a parser test
+// would invert the package dependency direction. Between the two files, all three stages a
+// diagnostic can be raised at are covered.
+//
 // Both exempt only the explicitly audited param FIELDS whose subject IS the learner's own text
 // (documented one by one, with spec citations, in SURFACE_SUBJECT_PARAMS). Exemption is per FIELD,
 // never per code: skipping a whole diagnostic would also skip its other params, so a
