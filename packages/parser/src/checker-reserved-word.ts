@@ -34,6 +34,17 @@
  * `spec/interaction-events.md`). Threading the active `profiles` into `isReservedWord` here — the
  * profile-blind default kept every Core-only program's `ask`/`when` an ordinary name — is the whole
  * wiring; the registry and its non-regression guarantee live in `reserved.ts`.
+ *
+ * Issue #687 (I8, M5) extends the *primitive* branch to the Interaction & Events profile's `wait`
+ * (`signatures.ts`'s `interactionPrimitiveArity`), gated on `"interaction-events"` exactly like the
+ * Data/Geometry/Sound branches above. `wait` is an ordinary primitive rather than a reserved
+ * block-head, but `spec/tooling.md:184` makes redefining a *primitive* `ol-reserved-word` just the
+ * same — the block-head/primitive distinction decides which branch reports it and under which
+ * profile, not whether it is reportable at all. Without this, `wait` was the Interaction profile's
+ * one primitive and yet the only one of the Data/Geometry/Sound/Interaction primitives a program
+ * could silently shadow. (The Turtle & Rendering and Sprites primitive tables are still not
+ * consulted here, so `define forward`/`define who` remain accepted — a separate pre-existing gap,
+ * not this profile's to close.)
  */
 
 import type { Diagnostic } from "@openlogo/core";
@@ -51,6 +62,7 @@ import {
   corePrimitiveArity,
   dataPrimitiveArity,
   geometryPrimitiveArity,
+  interactionPrimitiveArity,
   soundPrimitiveArity,
 } from "./signatures.js";
 import type { CheckProfile } from "./check.js";
@@ -87,6 +99,12 @@ function collidingNamespace(
     return "primitive";
   }
   if (profiles.includes("sound") && soundPrimitiveArity(name) !== undefined) {
+    return "primitive";
+  }
+  if (
+    profiles.includes("interaction-events") &&
+    interactionPrimitiveArity(name) !== undefined
+  ) {
     return "primitive";
   }
   if (declaredProcedures.has(name)) {
@@ -131,8 +149,8 @@ function isStructDef(node: AnyNode): node is StructDefNode {
 
 /**
  * The `ol-reserved-word` rule: every `define`/`local`/`struct` registration whose name collides
- * with a reserved word, a Core, Data, Geometry, or Sound primitive, or an existing procedure/struct
- * raises
+ * with a reserved word, a Core, Data, Geometry, Sound, or Interaction & Events primitive, or an
+ * existing procedure/struct raises
  * one diagnostic at that name's own span. A `local` is checked against every procedure name in the
  * program, since procedures are visible program-wide regardless of declaration order
  * (`checker-names.ts`, `@openlogo/runtime`'s phase-1 registration). A `define`/`struct`, though, is

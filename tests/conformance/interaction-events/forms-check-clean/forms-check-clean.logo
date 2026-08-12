@@ -1,0 +1,7 @@
+define tick
+  repeat 2 [ wait 1 ]
+end
+when "start" [ tick ]
+every 2 [ tick ]
+on_key "a" [ tick ]
+on_click [ tick ]

@@ -6,9 +6,11 @@
  * `callable`/`expected`/`actual` param shape, differing only in `stage` (`semantic` here).
  *
  * ## What "statically known" means here
- * - **Core and Data-profile primitives** — a default (bare-call) arity and a variadic ceiling
- *   from {@link corePrimitiveArityRange} / {@link dataPrimitiveArityRange} (issue #405 wires the
- *   latter in, mirroring the former exactly). OpenLogo's reader gathers *exactly* the default
+ * - **Core, Data-, Sound-, and Interaction & Events-profile primitives** — a default (bare-call)
+ *   arity and a variadic ceiling from {@link corePrimitiveArityRange} /
+ *   {@link dataPrimitiveArityRange} (issue #405 wires the latter in, mirroring the former exactly;
+ *   issue #689 adds Sound's and issue #687 Interaction & Events' `wait`, each gated on its own
+ *   active profile). OpenLogo's reader gathers *exactly* the default
  *   number of arguments for a bare (non-parenthesized) call, so a bare primitive call can only
  *   ever be short of arguments (the line or block ended first, e.g. `print first`), never over —
  *   extra tokens become stray statements the parser reports as `ol-bad-token`, not a too-many
@@ -46,6 +48,7 @@ import type { CheckProfile } from "./check.js";
 import {
   corePrimitiveArityRange,
   dataPrimitiveArityRange,
+  interactionPrimitiveArityRange,
   soundPrimitiveArityRange,
 } from "./signatures.js";
 
@@ -250,6 +253,12 @@ export function arityRule(
   // arity-checkable — when the `sound` profile is active (issue #689), mirroring
   // `collectVisibleNames`'s own `sound` gate.
   const soundActive = profiles.includes("sound");
+  // The Interaction & Events primitive `wait` is likewise only visible — and so only
+  // arity-checkable — when the `interaction-events` profile is active (issue #687), mirroring
+  // `collectVisibleNames`'s own `interaction-events` gate. The profile's four block-heads
+  // (`when`/`every`/`on_key`/`on_click`) are not call sites at all — the reader lowers them to a
+  // `ProfileStatement`, so `isCallSite` never sees them and this rule cannot mis-fire on one.
+  const interactionActive = profiles.includes("interaction-events");
   const diagnostics: Diagnostic[] = [];
 
   walk(program, (node) => {
@@ -297,6 +306,21 @@ export function arityRule(
           node,
           raw,
           soundRange,
+          actual,
+          span,
+          diagnostics,
+        );
+        return;
+      }
+    }
+
+    if (interactionActive) {
+      const interactionRange = interactionPrimitiveArityRange(lower);
+      if (interactionRange !== undefined) {
+        checkPrimitiveRangeArity(
+          node,
+          raw,
+          interactionRange,
           actual,
           span,
           diagnostics,

@@ -43,6 +43,7 @@ import {
   geometryPrimitiveNames,
   heritageAliasNames,
   interactionEventsBlockHeadNames,
+  interactionPrimitiveNames,
   soundPrimitiveNames,
   spritesPrimitiveNames,
   spritesStatementFormNames,
@@ -51,8 +52,9 @@ import {
 
 /**
  * Every canonical lowercase name contributed by an optional (non-Core) conformance profile's
- * primitive table — currently Turtle & Rendering's, Educational's, Geometry's, Data's, Sound's, and
- * the Interaction & Events block-heads (`when`/`every`, issues #682/#683), the Sprites addressing
+ * primitive table — currently Turtle & Rendering's, Educational's, Geometry's, Data's, Sound's, the
+ * Interaction & Events block-heads (`when`/`every`/`on_key`/`on_click`, issues #682–#685) and its
+ * `wait` primitive (issue #687), the Sprites addressing
  * head (`tell`, issue #674) and reporters (`new_turtle`/`who`/`turtles`, issue #678), and the
  * Heritage short command aliases (`fd`/`bk`/…, issue #668).
  * Computed once as a frozen union so
@@ -68,6 +70,7 @@ const OPTIONAL_PROFILE_NAMES: ReadonlySet<string> = new Set([
   ...soundPrimitiveNames(),
   ...heritageAliasNames(),
   ...interactionEventsBlockHeadNames(),
+  ...interactionPrimitiveNames(),
   ...spritesStatementFormNames(),
   ...spritesPrimitiveNames(),
 ]);
@@ -120,7 +123,11 @@ export function collectDeclaredNames(
  * their `define`, and the same is true of struct constructors, which register at phase-1 exactly
  * like procedures do — `@openlogo/runtime`'s `collectStructs`). The `tell`/`ask`/`each` addressing
  * heads and the `new_turtle`/`who`/`turtles` reporters are visible only when `"sprites"` is active
- * (issues #674 and #678).
+ * (issues #674 and #678). The `when`/`every`/`on_key`/`on_click` block-heads (issues #682–#685) and
+ * the `wait` primitive (issue #687) are visible only when `"interaction-events"` is active; the
+ * profile's `input` reporter is deliberately NOT registered until its own slice (#681) implements
+ * it, so a program using it stays honestly `ol-unknown-command` instead of checking clean and then
+ * failing at runtime.
  */
 export function collectVisibleNames(
   program: ProgramNode,
@@ -175,6 +182,9 @@ export function collectVisibleNames(
 
   if (active.has("interaction-events")) {
     for (const name of interactionEventsBlockHeadNames()) {
+      names.add(name);
+    }
+    for (const name of interactionPrimitiveNames()) {
       names.add(name);
     }
   }
