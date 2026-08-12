@@ -1,0 +1,35 @@
+{
+  "description": "issue #691: each melody pitch MUST be a `note`-accepted scientific-pitch-notation word or the literal \"rest\"; a malformed pitch (here \"h9\" - `h` is not a note letter a-g) raises `ol-type` at runtime with expected:\"pitch\", reusing `note`'s validator and diagnostic identity (spec/interaction-events.md:301-303). No `sound` event is emitted. The instruction event is still emitted before the diagnostic halts the statement.",
+  "profiles": ["sound"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sound/play-pitch-type-error",
+        "start": [1, 1],
+        "end": [1, 14]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "sound/play-pitch-type-error",
+        "start": [1, 6],
+        "end": [1, 14]
+      },
+      "params": {
+        "expected": "pitch",
+        "actual": "word",
+        "value": "h9",
+        "operation": "play"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

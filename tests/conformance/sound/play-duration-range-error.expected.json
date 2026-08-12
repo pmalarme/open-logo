@@ -1,0 +1,33 @@
+{
+  "description": "issue #691: each melody duration MUST be positive (spec/interaction-events.md:301-303: \"Each duration is a positive number\"); a non-positive duration (here 0) raises `ol-range` with params {operation:\"play\", value}, folding non-finite in exactly like `note`/`rest`. No `sound` event is emitted. The instruction event is still emitted before the diagnostic halts the statement.",
+  "profiles": ["sound"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sound/play-duration-range-error",
+        "start": [1, 1],
+        "end": [1, 14]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-range",
+      "source_span": {
+        "document": "sound/play-duration-range-error",
+        "start": [1, 6],
+        "end": [1, 14]
+      },
+      "params": {
+        "operation": "play",
+        "value": "0"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

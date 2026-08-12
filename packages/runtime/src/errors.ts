@@ -465,7 +465,7 @@ export interface NonPositiveTempoParams {
  * diagnostic identities (`error-model.md` treats `params` as part of a diagnostic's identity).
  */
 export interface NonPositiveDurationParams {
-  readonly operation: "note" | "rest";
+  readonly operation: "note" | "rest" | "play";
   readonly value: string;
 }
 
@@ -479,6 +479,15 @@ export interface NonPositiveDurationParams {
 export interface PitchTypeErrorParams {
   readonly value: string;
   readonly operation: string;
+}
+
+/**
+ * Params for an `ol-range` raised by `play` (issue #691) when the melody list has an odd number of
+ * elements. `play`'s list is pitch/duration pairs, so "The list length MUST be even"
+ * (`spec/interaction-events.md`'s `play` entry). `length` is the offending element count.
+ */
+export interface OddMelodyLengthParams {
+  readonly length: number;
 }
 
 /**
@@ -1361,6 +1370,25 @@ export const runtimeDiag = {
         operation: params.operation,
       },
       `i don't understand the pitch "${params.value}". try scientific pitch notation like "c4", "fs4" (f sharp), or "bb3" (b flat).`,
+    );
+  },
+
+  /**
+   * `ol-range` (issue #691) — `play`'s melody list has an odd number of elements. The list is
+   * pitch/duration pairs, so "The list length MUST be even" (`spec/interaction-events.md`'s `play`
+   * entry lists `ol-range`). Kept distinct from a non-list argument's `ol-type` (`expected: "list"`)
+   * and from a step's non-positive `duration` ({@link nonPositiveDuration}). See
+   * {@link OddMelodyLengthParams}.
+   */
+  oddMelodyLength(
+    source_span: SourceSpan,
+    params: OddMelodyLengthParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-range",
+      source_span,
+      { operation: "play", length: params.length },
+      `play needs a melody of pitch/duration pairs, so the list length must be even, but got ${String(params.length)}.`,
     );
   },
 

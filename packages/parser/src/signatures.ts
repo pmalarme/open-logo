@@ -442,6 +442,7 @@ const SOUND_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
   ["beep", 0],
   ["note", 2],
   ["rest", 1],
+  ["play", 1],
 ]);
 
 /**
