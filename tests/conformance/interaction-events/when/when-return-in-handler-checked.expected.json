@@ -1,0 +1,22 @@
+{
+  "description": "issue #682 (slice I3): the STATIC checker agrees with the runtime that a `when` handler body is a fresh control-flow boundary, not a procedure body. Even though this `when` is written inside `define setup`, the handler block is not part of `setup`'s procedure body, so `return` inside it is `return` outside any procedure — the semantic control-flow rule (issue #114, spec/error-model.md `ol-return-outside-proc`) reports it pointing at the `return` control word. This is the check-side companion to the runtime fixture `when-return-in-handler-inside-proc`: without it, static tooling would accept code the runtime rejects. `interaction-events` is not in `SUPPORTED_PROFILES` (terminal slice #688 claims it), but a fixture may request it for `check()`.",
+  "profiles": ["core-language", "interaction-events"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-return-outside-proc",
+      "source_span": {
+        "document": "interaction-events/when/when-return-in-handler-checked",
+        "start": [2, 18],
+        "end": [2, 24]
+      },
+      "params": {
+        "keyword": "return"
+      },
+      "message": "return only reports a value from inside a procedure. put it between 'define' and 'end'.",
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}
