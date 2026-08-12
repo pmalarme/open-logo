@@ -1,0 +1,6 @@
+:t = new_turtle
+ask :t [
+  set_color "red"
+  forward 80
+]
+forward 20

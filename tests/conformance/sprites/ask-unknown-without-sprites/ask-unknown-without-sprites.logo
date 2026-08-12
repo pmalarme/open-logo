@@ -1,0 +1,2 @@
+:x = 1
+ask :x [ forward 10 ]

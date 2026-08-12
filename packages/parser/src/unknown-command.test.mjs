@@ -245,8 +245,8 @@ test("the profile-head diagnostic points at the head keyword's own span", () => 
 // --- Sprites registers `tell` as a visible command name (issue #674, SP2) ---
 // The other half of the slice: registering the runtime semantics is not enough — with `sprites`
 // active the checker must ALSO recognize `tell` as a visible head, or `unknownCommandRule` would
-// still reject it `ol-unknown-command` (the C2 gate is live). Only `tell` is registered for SP2;
-// `ask`/`each` land with their executing slices (#675/#676).
+// still reject it `ol-unknown-command` (the C2 gate is live). `ask` is registered by SP3 (#675);
+// `each` lands with its executing slice (#676).
 
 test("`tell` checks clean under an active sprites profile (its head name is visible)", () => {
   const diagnostics = checkSource(":x = 1\ntell :x", ["sprites"]);
@@ -272,6 +272,43 @@ test("`tell` stays unknown when sprites is inactive even though other profiles a
   const finding = diagnostics.find((d) => d.code === "ol-unknown-command");
   assert.ok(finding, "expected tell to be unknown without sprites");
   assert.equal(finding.params.name, "tell");
+});
+
+// --- Sprites registers `ask` as a visible command name (issue #675, SP3) ---
+// `ask` is the scoped block-head this slice runs. Like `tell`, registering the runtime semantics is
+// not enough: with `sprites` active the checker must ALSO recognize `ask` as a visible head, or
+// `unknownCommandRule` would reject the parsed `ProfileStatement` `ol-unknown-command` (the C2 gate
+// is live). These lock BOTH halves of the slice — parses AND checks clean under sprites, still
+// rejected Core-only.
+
+test("`ask` checks clean under an active sprites profile (its head name is visible)", () => {
+  const diagnostics = checkSource(":x = 1\nask :x [ forward 10 ]", [
+    "sprites",
+    "turtle-rendering",
+  ]);
+  assert.deepEqual(diagnostics, []);
+});
+
+test("a typo of `ask` suggests it under sprites (ask is in the did-you-mean candidate set)", () => {
+  // `sk` is distance 1 from `ask`; with sprites active `ask` is a visible candidate. Written as a
+  // bodyless head so the program parses cleanly for this checker-only assertion.
+  const { ast } = OL.parse(":x = 1\nsk :x", "unit.logo");
+  const diagnostics = OL.check(ast, { profiles: ["sprites"] }).diagnostics;
+  const finding = diagnostics.find(
+    (d) => d.code === "ol-unknown-command" && d.params.name === "sk",
+  );
+  assert.ok(finding, "expected an ol-unknown-command for the typo `sk`");
+  assert.equal(finding.params.suggestion, "ask");
+});
+
+test("`ask` stays unknown when sprites is inactive even though other profiles are active", () => {
+  const diagnostics = checkSource("ask :x [ hint ]", [
+    "core-language",
+    "turtle-rendering",
+  ]);
+  const finding = diagnostics.find((d) => d.code === "ol-unknown-command");
+  assert.ok(finding, "expected ask to be unknown without sprites");
+  assert.equal(finding.params.name, "ask");
 });
 
 test("tie-break is deterministic: equal-distance candidates resolve lexicographically", () => {

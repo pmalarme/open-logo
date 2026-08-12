@@ -1,0 +1,5 @@
+:a = new_turtle
+:b = new_turtle
+tell :a
+ask :b [ forward 10 ]
+forward 30

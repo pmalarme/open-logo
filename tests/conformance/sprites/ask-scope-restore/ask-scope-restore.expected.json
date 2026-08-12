@@ -1,0 +1,162 @@
+{
+  "description": "issue #675 (SP3): `ask <turtle> <block>` runs the block for that turtle then RESTORES the previous addressed set. `:t` (id 1) turns red and moves inside the block; the trailing `forward 20` runs for the set active before `ask` — the default main turtle, whose `move`/`draw-segment` carry no `turtle_id`.",
+  "profiles": ["sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/ask-scope-restore/ask-scope-restore",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/ask-scope-restore/ask-scope-restore",
+        "start": [1, 6],
+        "end": [1, 16]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/ask-scope-restore/ask-scope-restore",
+        "start": [2, 1],
+        "end": [5, 2]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/ask-scope-restore/ask-scope-restore",
+        "start": [3, 3],
+        "end": [3, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "color-change",
+      "source_span": {
+        "document": "sprites/ask-scope-restore/ask-scope-restore",
+        "start": [3, 3],
+        "end": [3, 18]
+      },
+      "payload": {
+        "from": "black",
+        "to": "red"
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/ask-scope-restore/ask-scope-restore",
+        "start": [4, 3],
+        "end": [4, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/ask-scope-restore/ask-scope-restore",
+        "start": [4, 3],
+        "end": [4, 13]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 80],
+        "heading": 0
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 7,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/ask-scope-restore/ask-scope-restore",
+        "start": [4, 3],
+        "end": [4, 13]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 80],
+        "color": "red",
+        "width": 1
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/ask-scope-restore/ask-scope-restore",
+        "start": [6, 1],
+        "end": [6, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/ask-scope-restore/ask-scope-restore",
+        "start": [6, 1],
+        "end": [6, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 20],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/ask-scope-restore/ask-scope-restore",
+        "start": [6, 1],
+        "end": [6, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 20],
+        "color": "black",
+        "width": 1
+      }
+    }
+  ],
+  "diagnostics": []
+}

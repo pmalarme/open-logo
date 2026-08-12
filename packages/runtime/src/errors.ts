@@ -148,17 +148,19 @@ export interface ShapeTypeErrorParams {
 }
 
 /**
- * Params for an `ol-type` raised by `tell` (Sprites profile, `spec/turtles-and-sprites.md:176-177`)
- * when its input is not a turtle, or is a list containing a non-turtle value. `expected` is fixed
- * to `"turtle"` (the concept `tell` addresses), `actual` names the offending value's type
- * ({@link typeNameOf}), `value` snapshots it for the diagnostic, and `operation` is `"tell"`. Same
- * `{expected, actual, value, operation}` shape every other `ol-type` builder uses.
+ * Params for an `ol-type` raised by `tell` or `ask` (Sprites profile,
+ * `spec/turtles-and-sprites.md:176-177`) when its input is not a turtle, or is a list containing a
+ * non-turtle value. `expected` is fixed to `"turtle"` (the concept both forms address), `actual`
+ * names the offending value's type ({@link typeNameOf}), `value` snapshots it for the diagnostic,
+ * and `operation` is the head keyword (`"tell"` or `"ask"`) so the message names the form the
+ * learner wrote. Same `{expected, actual, value, operation}` shape every other `ol-type` builder
+ * uses.
  */
 export interface TellNotATurtleParams {
   readonly expected: "turtle";
   readonly actual: string;
   readonly value: OLValue;
-  readonly operation: "tell";
+  readonly operation: "tell" | "ask";
 }
 
 /** Params for an `ol-range` raised by an out-of-bounds 1-based list index. */

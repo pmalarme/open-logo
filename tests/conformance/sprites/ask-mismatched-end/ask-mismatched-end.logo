@@ -1,0 +1,4 @@
+:t = new_turtle
+ask :t
+  forward 80
+end each
