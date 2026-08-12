@@ -1,0 +1,5 @@
+# The SECOND `keyword`-carrying runtime site with the short Heritage spelling `op`, EXECUTED.
+# Fixtured separately from `output` for the same reason the outside-proc pair is: the defective
+# param varied WITH the spelling, so each spelling's value needs its own assertion (#741).
+:nums = [ 1 2 3 ]
+print map n in :nums [ op :n ]

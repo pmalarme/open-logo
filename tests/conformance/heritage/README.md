@@ -49,6 +49,14 @@ here fixture-by-fixture as each Heritage slice lands:
   message still names the learner's own word and the span still covers exactly the surface control
   word. Fixtured per site on purpose: the defect was present at both, and covering one would have
   left the other unprotected (#737).
+- `execution/heritage-{output,op}-canonical-keyword-executed-{outside-proc,in-comprehension}` — the
+  same property at the **runtime** stage, which is a separate code path: `execute()` runs `parse()`
+  only and never `check()`, so `@openlogo/runtime` keeps its own copies of those two rules — copies
+  that still emitted the surface spelling after #737 canonicalized the checker, so one program
+  reported two identities depending on the entry point. Four fixtures, one per spelling per site,
+  each byte-identical in `code`/`params`/`stage`/`severity` to its Core twin under
+  `core-language/execution/procedure-return-outside-proc` and
+  `core-language/comprehensions/comprehension-return-in-comprehension` (#741).
 - `check/heritage-form-head-keyword-casing-clean` — a lowercase Heritage form head (`to`, `output`)
   raises no `ol-style-name-case`. That lint judges casing only, so a hardcoded per-kind canonical
   keyword made it slice past a shorter Heritage spelling and warn about correct code (#737).

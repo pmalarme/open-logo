@@ -1,0 +1,41 @@
+{
+  "description": "An EXECUTED Heritage `output` escaping at the top level carries the CANONICAL `params.keyword` `\"return\"` (issue #741). `output` is a Heritage alternate spelling of Core `return` (`spec/conformance.md#heritage` — \"alternate spellings only, no new semantics\"), lowered onto the same `Return` node, so the two are ONE condition and must carry ONE machine-readable identity: `code`, `params`, `stage` and `severity` here are byte-identical to the Core twin `tests/conformance/core-language/execution/procedure-return-outside-proc` (`return 1` at top level), which reports the same `params` `{ keyword: \"return\" }` at `stage: \"runtime\"`. Diagnostic identity is `code` plus structured `params` and the same condition MUST keep the same params (`spec/error-model.md:235-238`). This is the RUNTIME stage specifically: `execute()` runs `parse()` only and never `check()`, so `@openlogo/runtime` keeps its own copy of the checker's control-flow rule — and that copy still emitted the surface spelling after the checker was canonicalized in #737, so the same program reported `keyword: \"output\"` when executed and `keyword: \"return\"` when checked. The semantic-stage twin `heritage/check/heritage-return-alias-canonical-keyword-outside-proc` now agrees on identity — same `code`, same `params` — while `stage` and the span still differ by design (`semantic` vs `runtime`; the checker spans the control word, the runtime the whole statement, as it does for Core `return` too). The prose `message` still names the learner's own word (`output …`) — that is the localization boundary and is permitted. The event stream is unaffected: the escape still emits its `instruction` and `return` events before the diagnostic, exactly as the Core spelling does.",
+  "profiles": ["core-language", "data", "heritage"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-output-canonical-keyword-executed-outside-proc",
+        "start": [4, 1],
+        "end": [4, 9]
+      },
+      "payload": { "statement_kind": "Return" }
+    },
+    {
+      "seq": 1,
+      "kind": "return",
+      "source_span": {
+        "document": "heritage/execution/heritage-output-canonical-keyword-executed-outside-proc",
+        "start": [4, 1],
+        "end": [4, 9]
+      },
+      "payload": { "value": 5 }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-return-outside-proc",
+      "source_span": {
+        "document": "heritage/execution/heritage-output-canonical-keyword-executed-outside-proc",
+        "start": [4, 1],
+        "end": [4, 9]
+      },
+      "params": { "keyword": "return" },
+      "message": "output only reports a value from inside a procedure. put it between 'define' and 'end'.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

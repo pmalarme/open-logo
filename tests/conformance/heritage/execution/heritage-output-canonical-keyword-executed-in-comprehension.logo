@@ -1,0 +1,5 @@
+# The SECOND `keyword`-carrying runtime site: a Heritage `output` inside a comprehension body,
+# EXECUTED. A `map` reports its last expression, so an explicit escape inside it is
+# `ol-return-in-comprehension` — which wins over `ol-return-outside-proc` even here at the top level.
+:nums = [ 1 2 3 ]
+print map n in :nums [ output :n ]

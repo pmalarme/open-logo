@@ -1,0 +1,4 @@
+# The short Heritage spelling `op` (an alternate spelling of Core `return`) escaping at the top
+# level, EXECUTED. Fixtured separately from `output` because the defective param varied WITH the
+# spelling, so pinning one spelling's value leaves the other's unpinned (#741).
+op 5

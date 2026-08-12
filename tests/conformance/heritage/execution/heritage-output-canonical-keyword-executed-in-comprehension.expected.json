@@ -1,0 +1,41 @@
+{
+  "description": "The SECOND `keyword`-carrying runtime site keeps the canonical identity too (issue #741). A `map` body is a value context, so an escape inside it raises `ol-return-in-comprehension` (`spec/execution-model.md:226-227`, `spec/error-model.md:116`) rather than `ol-return-outside-proc`, even at the top level — and the EXECUTED Heritage spelling `output` reports `params` `{ keyword: \"return\", form: \"map\" }`, byte-identical to the Core twin `tests/conformance/core-language/comprehensions/comprehension-return-in-comprehension` (`:out = map n in [1] [ return :n ]`, same `params`, same `stage: \"runtime\"`). This site is fixtured separately from the outside-proc one because the runtime carries a SEPARATE copy of the rule for it — the defect was present at both copies, and a fixture for only one would leave the other unpinned. `params` is canonical; the `message` still names what the learner typed. The `source_span` is the whole `output :n` escape statement — the runtime's own span for this rule, which is why identity is asserted on `code` + `params` and not on the span (`spec/error-model.md:235-238`).",
+  "profiles": ["core-language", "data", "heritage"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-output-canonical-keyword-executed-in-comprehension",
+        "start": [4, 1],
+        "end": [4, 18]
+      },
+      "payload": { "statement_kind": "Assign" }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-output-canonical-keyword-executed-in-comprehension",
+        "start": [5, 1],
+        "end": [5, 35]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-return-in-comprehension",
+      "source_span": {
+        "document": "heritage/execution/heritage-output-canonical-keyword-executed-in-comprehension",
+        "start": [5, 24],
+        "end": [5, 33]
+      },
+      "params": { "keyword": "return", "form": "map" },
+      "message": "output doesn't belong in a map — a map reports its last expression instead.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}
