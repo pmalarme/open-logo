@@ -2648,11 +2648,103 @@ function executeEveryStatement(
 }
 
 /**
+ * The distinct turtle ids of `ids`, in first-occurrence order — the addressed set read as a genuine
+ * **set** (`spec/turtles-and-sprites.md:44` "the addressed **set**"; turtle `==` is keyed on the
+ * stable `id`, `spec/execution-model.md:540`). `each` runs its block "once per turtle in the current
+ * `tell` or `ask` set" (`spec/turtles-and-sprites.md:71`), so a set that reached `each` with a turtle
+ * listed twice (`tell (list :a :a)`, or a list literal built with a repeat) must still run the block
+ * **once** for that turtle. Deduplicating here — at the point per-turtle iteration is observable
+ * (issue #713) — keeps the decision local to the slice that makes it visible: `tell`/`ask` retain
+ * their stored `ids` unchanged, and only `each`'s iteration is set-shaped. First-occurrence order
+ * keeps iteration deterministic (the addressed set is insertion-ordered from `tell`/`ask`).
+ */
+function distinctTurtleIds(ids: readonly TurtleId[]): TurtleId[] {
+  const seen = new Set<TurtleId>();
+  const result: TurtleId[] = [];
+  for (const id of ids) {
+    if (!seen.has(id)) {
+      seen.add(id);
+      result.push(id);
+    }
+  }
+  return result;
+}
+
+/**
+ * Run an `each <block>` statement (Sprites profile, `spec/turtles-and-sprites.md:71`): `each` runs
+ * its block **once per turtle in the current `tell` or `ask` set** — "During each run, `who` reports
+ * the turtle for that iteration, and Turtle commands affect only that turtle unless the program
+ * changes the addressed set again."
+ *
+ * Each iteration narrows the addressed set to the single turtle whose turn it is
+ * ({@link pointAddressedSet} with `[id]`), so inside the block `who` reports that turtle
+ * ({@link TurtleAddressing.currentId}) and a per-turtle command runs once for — and stamps its events
+ * with — that turtle only. Iteration order is the addressed set's insertion order, deduplicated by
+ * stable id ({@link distinctTurtleIds}), so the same program always produces the same event sequence
+ * and a turtle listed twice still runs the block once (issue #713).
+ *
+ * Like `ask`, the previous addressed set is snapshotted and restored on **every** exit path — normal
+ * completion and an abnormal one (a runtime `halt`, a `stop`, a `return`/`output`/`op`, or a `throw`
+ * surfaced as a `halt`) — via a `try`/`finally`, so a block that unwinds mid-iteration never leaks an
+ * addressed set or a current-turtle pointer to the code that follows. A non-normal signal from any
+ * iteration stops the loop immediately and propagates out (so a `stop`/`return` inside `each` unwinds
+ * the enclosing procedure, exactly as it would without the `each`). An empty addressed set runs the
+ * block zero times. `each` composes with `ask`/`tell`: it iterates whatever set is current when it
+ * runs (the `ask` scope inside an `ask`, the `tell` set otherwise), and the enclosing addressing is
+ * restored after it, unchanged.
+ */
+function executeEach(
+  statement: ProfileStatementNode,
+  environment: Environment,
+): ExecSignal | undefined {
+  // `each`'s zero-argument arity and mandatory block are enforced at parse/check time (its
+  // `PROFILE_STATEMENT_FORMS` entry is `argCount: 0, hasBlock: true`), so a block always reaches here
+  // with no arguments to evaluate.
+  const { addressing } = environment;
+  // Snapshot the addressed set so it is restored after the loop on every exit path (mirroring `ask`).
+  const savedIds = addressing.ids;
+  const savedCurrentId = addressing.currentId;
+  const savedExplicit = addressing.explicit;
+  // Snapshot the ids to iterate before the loop begins, so a block that changes the world mid-loop
+  // (e.g. a nested `tell` in an early iteration) cannot change which turtles `each` visits.
+  const iterationIds = distinctTurtleIds(addressing.ids);
+  // `hasBlock: true` guarantees the reader attached a block; the cast records that invariant the same
+  // way `executeAsk`/`executeWhenStatement` do.
+  const block = statement.body as BlockNode;
+  try {
+    for (const id of iterationIds) {
+      // Narrow the addressed set to this one turtle so the block runs scoped to it: `who` reports it
+      // and its per-turtle commands run once, stamped with its id. `explicit` is forced true so the
+      // events carry a `turtle_id` even when `each` runs at top level with only the implicit default
+      // turtle addressed (a single-turtle `each` still attributes its events).
+      pointAddressedSet(addressing, [id], environment);
+      const signal = executeStatements(block.body, environment);
+      // A non-normal signal (`stop`/`return`/`output`/`op`/`halt`) stops the loop and propagates out,
+      // so a diagnostic or early exit in one iteration is never masked by a later one.
+      if (signal.kind !== "normal") {
+        return signal;
+      }
+    }
+    // Every iteration completed normally: `each` is a statement, so fall through to the next one.
+    return undefined;
+  } finally {
+    // Restore exactly one level: the addressed set active before `each`, its explicit flag, and the
+    // current turtle (with its derived state cache), so `each` composes with the enclosing `tell`/
+    // `ask` scope and leaves it exactly as it found it.
+    addressing.ids = savedIds;
+    addressing.explicit = savedExplicit;
+    addressing.currentId = savedCurrentId;
+    environment.turtle = turtleStateFor(addressing, savedCurrentId);
+  }
+}
+
+/**
  * Try to run `statement` as a Sprites addressing statement — `tell` (SP2, issue #674) sets the
- * addressed set persistently, and `ask` (SP3, issue #675) runs its block for a scoped set and then
- * restores the previous one; `each` (SP4) and the Interaction & Events heads register their own
- * handling. Returns {@link NOT_A_PROFILE_STATEMENT} when `statement` is not an addressing statement
- * this slice runs, so {@link executeStatements} falls through to its remaining checks.
+ * addressed set persistently, `ask` (SP3, issue #675) runs its block for a scoped set and then
+ * restores the previous one, and `each` (SP4, issue #676) runs its block once per turtle in the
+ * current set; the Interaction & Events heads register their own handling. Returns
+ * {@link NOT_A_PROFILE_STATEMENT} when `statement` is not an addressing statement this slice runs, so
+ * {@link executeStatements} falls through to its remaining checks.
  */
 function dispatchProfileStatement(
   statement: StatementNode,
@@ -2667,6 +2759,9 @@ function dispatchProfileStatement(
   }
   if (keyword === "ask") {
     return executeAsk(statement, environment);
+  }
+  if (keyword === "each") {
+    return executeEach(statement, environment);
   }
   return NOT_A_PROFILE_STATEMENT;
 }

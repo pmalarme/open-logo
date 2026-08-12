@@ -1,0 +1,256 @@
+{
+  "description": "issue #676 (SP4): `each` restores the addressed set active before it. `tell [ :a :b ]`; `each [ forward 10 ]` iterates :a then :b; the trailing `forward 30` runs for the restored set — still `[ :a :b ]` — so it applies to both, each move stamped with its `turtle_id`.",
+  "profiles": ["sprites", "turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-restores-set/each-restores-set",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/each-restores-set/each-restores-set",
+        "start": [1, 6],
+        "end": [1, 16]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-restores-set/each-restores-set",
+        "start": [2, 1],
+        "end": [2, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/each-restores-set/each-restores-set",
+        "start": [2, 6],
+        "end": [2, 16]
+      },
+      "turtle_id": 2,
+      "payload": {
+        "turtle_id": 2,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-restores-set/each-restores-set",
+        "start": [3, 1],
+        "end": [3, 15]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-restores-set/each-restores-set",
+        "start": [4, 1],
+        "end": [4, 20]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-restores-set/each-restores-set",
+        "start": [4, 8],
+        "end": [4, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/each-restores-set/each-restores-set",
+        "start": [4, 8],
+        "end": [4, 18]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "heading": 0
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 8,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/each-restores-set/each-restores-set",
+        "start": [4, 8],
+        "end": [4, 18]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "color": "black",
+        "width": 1
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-restores-set/each-restores-set",
+        "start": [4, 8],
+        "end": [4, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/each-restores-set/each-restores-set",
+        "start": [4, 8],
+        "end": [4, 18]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "heading": 0
+      },
+      "turtle_id": 2
+    },
+    {
+      "seq": 11,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/each-restores-set/each-restores-set",
+        "start": [4, 8],
+        "end": [4, 18]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "color": "black",
+        "width": 1
+      },
+      "turtle_id": 2
+    },
+    {
+      "seq": 12,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-restores-set/each-restores-set",
+        "start": [5, 1],
+        "end": [5, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/each-restores-set/each-restores-set",
+        "start": [5, 1],
+        "end": [5, 11]
+      },
+      "payload": {
+        "from": [0, 10],
+        "to": [0, 40],
+        "heading": 0
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 14,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/each-restores-set/each-restores-set",
+        "start": [5, 1],
+        "end": [5, 11]
+      },
+      "payload": {
+        "from": [0, 10],
+        "to": [0, 40],
+        "color": "black",
+        "width": 1
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 15,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/each-restores-set/each-restores-set",
+        "start": [5, 1],
+        "end": [5, 11]
+      },
+      "payload": {
+        "from": [0, 10],
+        "to": [0, 40],
+        "heading": 0
+      },
+      "turtle_id": 2
+    },
+    {
+      "seq": 16,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/each-restores-set/each-restores-set",
+        "start": [5, 1],
+        "end": [5, 11]
+      },
+      "payload": {
+        "from": [0, 10],
+        "to": [0, 40],
+        "color": "black",
+        "width": 1
+      },
+      "turtle_id": 2
+    }
+  ],
+  "diagnostics": []
+}

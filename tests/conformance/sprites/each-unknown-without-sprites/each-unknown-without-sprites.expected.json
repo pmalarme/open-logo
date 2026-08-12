@@ -1,0 +1,23 @@
+{
+  "description": "issue #676 (SP4): the reader is profile-blind, so `each` parses into a ProfileStatement even without `sprites`; the checker then rejects it `ol-unknown-command` because its head name is not visible when `sprites` is inactive — proving the form is gated on the profile, not merely parsed.",
+  "profiles": ["core-language", "turtle-rendering"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "sprites/each-unknown-without-sprites/each-unknown-without-sprites",
+        "start": [1, 1],
+        "end": [1, 5]
+      },
+      "params": {
+        "name": "each",
+        "suggestion": "back"
+      },
+      "message": "i don't know how to each. did you mean back?",
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}
