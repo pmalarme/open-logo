@@ -1,0 +1,4 @@
+define setup
+  when "start" [ return 5 ]
+end
+setup

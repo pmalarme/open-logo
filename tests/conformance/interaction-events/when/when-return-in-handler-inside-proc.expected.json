@@ -1,0 +1,120 @@
+{
+  "description": "issue #682 (slice I3): a handler block is NOT a procedure body, so `return`/`stop` inside it are `return`/`stop` OUTSIDE a procedure — even when the `when` was registered inside one. Here `when \"start\"` is registered inside `define setup`; the `\"start\"` handler fires immediately (the run has started) and hits `return 5`. Without a boundary conversion the `return` signal would escape into `setup`'s call frame and be silently consumed as `setup`'s own return; instead the handler boundary converts it to `ol-return-outside-proc` (spec/error-model.md), pointing at the `return` keyword. The `return` trace event (seq 7) is still emitted by the statement before the boundary reclassifies the escaping signal.",
+  "profiles": ["interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/when/when-return-in-handler-inside-proc",
+        "start": [1, 1],
+        "end": [3, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/when/when-return-in-handler-inside-proc",
+        "start": [4, 1],
+        "end": [4, 6]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "interaction-events/when/when-return-in-handler-inside-proc",
+        "start": [4, 1],
+        "end": [4, 6]
+      },
+      "payload": {
+        "name": "setup",
+        "args": []
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/when/when-return-in-handler-inside-proc",
+        "start": [2, 3],
+        "end": [2, 28]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/when/when-return-in-handler-inside-proc",
+        "start": [2, 3],
+        "end": [2, 28]
+      },
+      "payload": {
+        "name": "when"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/when/when-return-in-handler-inside-proc",
+        "start": [2, 3],
+        "end": [2, 7]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/when/when-return-in-handler-inside-proc",
+        "start": [2, 18],
+        "end": [2, 26]
+      },
+      "payload": {
+        "statement_kind": "Return"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "return",
+      "source_span": {
+        "document": "interaction-events/when/when-return-in-handler-inside-proc",
+        "start": [2, 18],
+        "end": [2, 26]
+      },
+      "payload": {
+        "value": 5
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-return-outside-proc",
+      "source_span": {
+        "document": "interaction-events/when/when-return-in-handler-inside-proc",
+        "start": [2, 18],
+        "end": [2, 26]
+      },
+      "params": {
+        "keyword": "return"
+      },
+      "message": "return only reports a value from inside a procedure. put it between 'define' and 'end'.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

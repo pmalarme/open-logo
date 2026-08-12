@@ -1798,9 +1798,13 @@ function isWhenStatement(statement: StatementNode): boolean {
  * Marks the handler `fired` so a one-shot event (`"start"`/`"stop"`) never delivers it twice.
  * Returns the body's {@link ExecSignal} so a `halt` (a runtime error or a cancelled budget inside
  * the handler) propagates and stops the whole run, per `spec/interaction-events.md`'s
- * "Errors and cancellation"; a `return`/`stop` that escapes the handler body is surfaced to the
- * caller unchanged (it is the runtime's `ol-return-outside-proc`/`ol-stop-outside-proc`, since a
- * handler block is not a procedure body).
+ * "Errors and cancellation". A `return`/`stop` that escapes the handler body is converted HERE into
+ * its `ol-return-outside-proc`/`ol-stop-outside-proc` diagnostic (a handler block is not a procedure
+ * body, exactly like the top level), rather than being returned raw: a `when "start"` handler fires
+ * synchronously during registration, so a raw `return`/`stop` signal would otherwise be caught by an
+ * enclosing procedure call and silently consumed as that procedure's own `return`/`stop`. Converting
+ * at the boundary makes the diagnostic independent of whether the `when` was registered inside a
+ * procedure.
  */
 function invokeWhenHandler(
   handler: WhenHandler,
@@ -1815,7 +1819,16 @@ function invokeWhenHandler(
       statement_kind: "ProfileStatement",
     } satisfies InstructionPayload,
   });
-  return executeStatements(handler.block.body, environment);
+  const signal = executeStatements(handler.block.body, handler.environment);
+  if (signal.kind === "return") {
+    return halt(
+      runtimeDiag.returnOutsideProc(signal.source_span, signal.keyword),
+    );
+  }
+  if (signal.kind === "stop") {
+    return halt(runtimeDiag.stopOutsideProc(signal.source_span));
+  }
+  return signal;
 }
 
 /**
@@ -1847,8 +1860,8 @@ function fireEvent(event: string, environment: Environment): ExecSignal {
  * is registered"). Finally, because a batch `execute()` run has already started, a `"start"` handler
  * is already being delivered, so it fires immediately after registration (spec: registering "does
  * not run its block immediately unless the triggering event is already being delivered"); every
- * other event — including `"stop"` — is deferred (`"stop"` fires once before termination in
- * {@link runProgram}).
+ * other event — including `"stop"` — is registered but not delivered in a headless batch run (see
+ * {@link STANDARD_EVENT_WORDS}), so its handler does not fire here.
  *
  * `block` is the handler body the reader always attaches to a `when` block-head (`hasBlock: true`,
  * `parser.ts`'s `parseProfileStatement`), recovered here by a cast since a `when` node reaching the
@@ -1891,6 +1904,7 @@ function executeWhenStatement(
     event,
     block,
     statement.keyword,
+    environment,
   );
   emitWhenPrimitive(environment.events, statement.source_span);
   if (event === STANDARD_EVENT_WORDS.start) {
@@ -3606,22 +3620,13 @@ export function runProgram(
     source,
   );
   const signal = executeStatements(program.body, environment);
-  // A batch run reaching its end normally is the "stop" moment: deliver the standard `"stop"` event
-  // to any handler registered for it, before the run terminates (spec §Time, ticks, and handlers).
-  // An abnormal top-level signal (halt/return/stop-outside-proc) already ended the run, so no
-  // further handlers fire. A halt raised *by* a stop handler becomes the run's diagnostic.
-  const stopSignal =
-    signal.kind === "normal" ? fireEvent("stop", environment) : signal;
   const diagnostic =
-    stopSignal.kind === "halt"
-      ? stopSignal.diagnostic
-      : stopSignal.kind === "return"
-        ? runtimeDiag.returnOutsideProc(
-            stopSignal.source_span,
-            stopSignal.keyword,
-          )
-        : stopSignal.kind === "stop"
-          ? runtimeDiag.stopOutsideProc(stopSignal.source_span)
+    signal.kind === "halt"
+      ? signal.diagnostic
+      : signal.kind === "return"
+        ? runtimeDiag.returnOutsideProc(signal.source_span, signal.keyword)
+        : signal.kind === "stop"
+          ? runtimeDiag.stopOutsideProc(signal.source_span)
           : undefined;
   return {
     events: environment.events,

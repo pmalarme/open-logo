@@ -3,14 +3,15 @@
 // ticks, and handlers", "Trace stream integration", and "Errors and cancellation"). `when`
 // registers a named handler and emits a `primitive` event AFTER registration; the standard `"start"`
 // event is already being delivered in a batch run so its handler fires immediately, while `"stop"`
-// fires once before termination. The event argument must be a word (`ol-type` otherwise). The
-// stream stays deterministic and headless.
+// is "a requested stop notification" that a headless batch run never receives, so a `when "stop"`
+// handler is registered but does not fire here (delivery belongs to a later interactive host). The
+// event argument must be a word (`ol-type` otherwise). The stream stays deterministic and headless.
 //
 // Node-version trap (see the PR body): on Node 24+ `--experimental-test-coverage` silently excludes
 // `*.test.mjs`, so a local coverage green can be a false positive CI (Node 22) then fails. These
 // tests deliberately exercise every branch of the `when` registry (`interaction.ts`) and dispatch
-// (`isWhenStatement`/`executeWhenStatement`/`invokeWhenHandler`/`fireEvent`, and the `"stop"` firing
-// in `runProgram`) so the Node-22 CI gate sees full coverage.
+// (`isWhenStatement`/`executeWhenStatement`/`invokeWhenHandler`/`fireEvent`) so the Node-22 CI gate
+// sees full coverage.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -82,26 +83,34 @@ test('two when "start" handlers fire in registration order', () => {
   assert.deepEqual(printed, ["a", "b"]);
 });
 
-// --- `"stop"` fires once, at program end, before termination ----------------------------------
+// --- `"stop"` is a requested notification: registered but not delivered in a headless batch -----
 
-test('a when "stop" handler is deferred and fires once at program end', () => {
+test('a when "stop" handler is registered but does NOT fire in a batch run', () => {
   const result = execute('when "stop" [ print "bye" ]\nprint "mid"', doc);
   assert.deepEqual(result.diagnostics, []);
   const printed = effectEvents(result)
     .filter((event) => event.kind === "print")
     .map((event) => event.payload.values[0]);
-  // `mid` prints during the run; `bye` prints last, when `"stop"` is delivered before termination.
-  assert.deepEqual(printed, ["mid", "bye"]);
+  // `"stop"` is "a requested stop notification before termination"; a headless batch `execute()`
+  // receives no such request, so only `mid` prints — `bye` never runs. Delivering `"stop"` belongs
+  // to a later interactive/cancellation host slice, not to this one.
+  assert.deepEqual(printed, ["mid"]);
 });
 
-test('the same "stop" handler is not delivered twice', () => {
-  // Only one `"stop"` delivery happens (at program end); the `fired` flag guarantees a one-shot
-  // event never re-runs a handler even though the handler list is scanned once more.
-  const result = execute('when "stop" [ print "once" ]', doc);
-  const printed = effectEvents(result).filter(
-    (event) => event.kind === "print",
+test('a when "stop" registration still emits its primitive(when) event', () => {
+  // Registration is not invocation: even though the `"stop"` block never runs in batch mode, the
+  // `when` statement itself is executed, so the instruction+primitive pair is emitted.
+  const result = execute('when "stop" [ print "never" ]', doc);
+  const primitives = effectEvents(result).filter(
+    (event) => event.kind === "primitive",
   );
-  assert.equal(printed.length, 1);
+  assert.equal(primitives.length, 1);
+  assert.equal(primitives[0].payload.name, "when");
+  // The block did not run, so no print event was produced.
+  assert.equal(
+    effectEvents(result).filter((event) => event.kind === "print").length,
+    0,
+  );
 });
 
 // --- The event argument must be a word: `ol-type`, never an ad-hoc string ----------------------
@@ -178,10 +187,40 @@ test('a runtime error inside a "start" handler body halts the whole run', () => 
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
 });
 
-test('a runtime error inside a "stop" handler body becomes the run diagnostic', () => {
-  const result = execute('when "stop" [ forward :missing ]\nprint "m"', doc);
+test('a runtime error inside a "start" handler registered in a procedure halts the run', () => {
+  // The `"start"` handler fires immediately inside the procedure frame; a runtime error in its body
+  // surfaces as the run diagnostic (it does not get swallowed by the enclosing procedure call).
+  const result = execute(
+    'define setup\n  when "start" [ forward :missing ]\nend\nsetup',
+    doc,
+  );
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
+});
+
+test('a "start" handler runs in its registration-time scope (sees a procedure parameter)', () => {
+  // Finding: a handler block is a normal block, so it resolves variables against the environment it
+  // was registered in. Registered inside `setup :x` and fired immediately, it must see `:x` = 7.
+  const result = execute(
+    'define setup :x\n  when "start" [ print :x ]\nend\nsetup 7',
+    doc,
+  );
+  assert.deepEqual(result.diagnostics, []);
+  const printed = effectEvents(result)
+    .filter((event) => event.kind === "print")
+    .map((event) => event.payload.values[0]);
+  assert.deepEqual(printed, [7]);
+});
+
+test("a `return` escaping a handler registered inside a procedure is still ol-return-outside-proc", () => {
+  // The handler boundary reclassifies an escaping `return` even when a procedure frame is on the
+  // stack, so it cannot be silently consumed as the enclosing procedure's own return.
+  const result = execute(
+    'define setup\n  when "start" [ return 5 ]\nend\nsetup',
+    doc,
+  );
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-return-outside-proc");
 });
 
 test("a `return` escaping a handler body is ol-return-outside-proc (a handler block is not a procedure)", () => {
