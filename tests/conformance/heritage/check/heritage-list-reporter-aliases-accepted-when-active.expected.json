@@ -1,0 +1,7 @@
+{
+  "description": "Heritage list-reporter alias profile gate (issue #669, slice H4): with the Heritage profile ACTIVE, the three list-reporter aliases `bf`/`bl`/`se` (spellings of the Core reporters `butfirst`/`butlast`/`sentence`, spec/commands.md's per-command Aliases rows) are all accepted silently (no diagnostics), including composed with one another (`bf bl :l`). Heritage is 'alternate spellings only' (spec/conformance.md#heritage) and depends only on Data (`PROFILE_DEPS.heritage = [\"core-language\", \"data\"]`); `se`→`sentence` builds a list, so Data is the correct dependency. Only `core-language`, `data`, and `heritage` are active here — the zero-diagnostic result proves these reporter spellings are made visible by the `heritage` profile alone. The sibling `heritage-list-reporter-aliases-rejected-in-core` shows the same program rejected without the profile.",
+  "profiles": ["core-language", "data", "heritage"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

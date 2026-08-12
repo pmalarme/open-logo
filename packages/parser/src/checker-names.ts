@@ -110,7 +110,8 @@ export function collectDeclaredNames(
  * when `"educational"` is active, the `grid`/`axes`/`measure` overlay primitives only when
  * `"geometry"` is active, the `list`/`dict`/`reverse`/`pick`/`sort`/`keys`/`values`/`type_of`
  * primitives (plus every `struct` type's constructor name declared anywhere in `program`) only
- * when `"data"` is active, the Heritage short command aliases (`fd`/`bk`/…/`pr`) only when
+ * when `"data"` is active, the Heritage short command and reporter aliases (`fd`/`bk`/…/`pr`,
+ * `bf`/`bl`/`se`) only when
  * `"heritage"` is active, plus every procedure declared anywhere in `program` (declaration order
  * and position do not matter — OpenLogo procedures are available program-wide, not just after
  * their `define`, and the same is true of struct constructors, which register at phase-1 exactly

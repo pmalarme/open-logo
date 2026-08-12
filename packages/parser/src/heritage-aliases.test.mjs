@@ -79,10 +79,13 @@ test("canonicalOfHeritageAlias returns undefined for a non-alias name", () => {
   assert.equal(canonicalOfHeritageAlias("nope"), undefined);
 });
 
-test("heritageAliasNames lists exactly the ten aliases, sorted", () => {
+test("heritageAliasNames lists every alias, sorted (the ten H3 commands plus the H4 reporters)", () => {
+  // H4 (#669) added the list-reporter aliases `bf`/`bl`/`se`; the full visible-name set is the ten
+  // H3 command aliases here plus those three, always returned sorted. This file owns the H3 subset
+  // (see `ALIAS_TO_CANONICAL`); `heritage-list-reporter-aliases.test.mjs` owns the reporter subset.
   assert.deepEqual(
     [...heritageAliasNames()],
-    Object.keys(ALIAS_TO_CANONICAL).sort(),
+    [...Object.keys(ALIAS_TO_CANONICAL), "bf", "bl", "se"].sort(),
   );
 });
 

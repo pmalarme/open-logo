@@ -555,17 +555,19 @@ export function spritesStatementFormNames(): readonly string[] {
 }
 
 /**
- * The **Heritage** profile's short command aliases (issue #668, slice H3), each mapping onto the
- * Core-spelled command it is an alternate spelling of. The list and its one-to-one canonical
- * mapping are authoritative in `spec/conformance.md:151` and `spec/commands.md`'s per-command
- * **Aliases** rows (`fd`→`forward`:1195, `bk`→`back`:1212, `lt`→`left`:1229, `rt`→`right`:1246,
- * `st`→`show_turtle`:1418, `ht`→`hide_turtle`:1435, `pu`→`pen_up`:1452, `pd`→`pen_down`:1470,
- * `cs`→`clear_screen`:1488, `pr`→`print`:146). Heritage is "alternate spellings only — no new
- * semantics" (`spec/conformance.md:146`): the reader records `canonical` on the alias's
- * {@link import("./ast.js").CallNode} so the runtime dispatches through the exact same code path as
- * the Core spelling, and this module never keeps a second copy of each canonical's arity — that
- * stays each owning profile's single source-of-truth table (see {@link heritageAliasArity} and
- * {@link heritageAliasArityRange}, which resolve the alias then read the canonical's own arity).
+ * The **Heritage** profile's short command and reporter aliases (issues #668 slice H3 + #669 slice
+ * H4), each mapping onto the Core-spelled command or reporter it is an alternate spelling of. The
+ * list and its one-to-one canonical mapping are authoritative in `spec/conformance.md:151` and
+ * `spec/commands.md`'s per-command **Aliases** rows (`fd`→`forward`:1195, `bk`→`back`:1212,
+ * `lt`→`left`:1229, `rt`→`right`:1246, `st`→`show_turtle`:1418, `ht`→`hide_turtle`:1435,
+ * `pu`→`pen_up`:1452, `pd`→`pen_down`:1470, `cs`→`clear_screen`:1488, `pr`→`print`:146, plus the
+ * list reporters `bf`→`butfirst`:1070, `bl`→`butlast`:1087, `se`→`sentence`:1019). Heritage is
+ * "alternate spellings only — no new semantics" (`spec/conformance.md:146`): the reader records
+ * `canonical` on the alias's {@link import("./ast.js").CallNode} so the runtime dispatches through
+ * the exact same code path as the Core spelling, and this module never keeps a second copy of each
+ * canonical's arity — that stays each owning profile's single source-of-truth table (see
+ * {@link heritageAliasArity} and {@link heritageAliasArityRange}, which resolve the alias then read
+ * the canonical's own arity).
  */
 const HERITAGE_ALIAS_CANONICAL: ReadonlyMap<string, string> = new Map([
   ["fd", "forward"],
@@ -578,6 +580,9 @@ const HERITAGE_ALIAS_CANONICAL: ReadonlyMap<string, string> = new Map([
   ["pd", "pen_down"],
   ["cs", "clear_screen"],
   ["pr", "print"],
+  ["bf", "butfirst"],
+  ["bl", "butlast"],
+  ["se", "sentence"],
 ]);
 
 /**
