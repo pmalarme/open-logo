@@ -319,10 +319,12 @@ export interface EveryHandler {
  * whose span the handler-block's opening `instruction` event carries ("The start of a handler block
  * emits an `instruction` event for the block-head that caused the handler to run").
  *
- * `key` is the validated lowercase key word (`"space"`, `"enter"`, `"a"`, …). The runtime never
- * validates it against a closed set — `spec/interaction-events.md` only says implementations SHOULD
- * document their supported key words, so any word is accepted and a handler for a key this host
- * never delivers simply never runs.
+ * `key` is the validated key word (`"space"`, `"enter"`, `"a"`, …), stored verbatim: word values are
+ * case-significant in OpenLogo (unlike case-insensitive identifiers), and the spec mandates no
+ * folding, so the exact spelling the learner wrote is preserved. The runtime never validates it
+ * against a closed set — `spec/interaction-events.md` only says implementations SHOULD document their
+ * supported key words, so any word is accepted and a handler for a key this host never delivers
+ * simply never runs.
  *
  * A key press is **host input**: in a headless batch `execute()` run there is no keyboard, so an
  * `on_key` handler registers but is never delivered — exactly like a `when "stop"` handler in a
@@ -448,7 +450,7 @@ export function registerEveryHandler(
  * Register an `on_key <key-word> <block>` handler (issue #684, slice I5,
  * `spec/interaction-events.md`'s `### on_key <key-word> <block>`), appending it to `registry` in
  * registration order and returning the created {@link OnKeyHandler}. `key` MUST already be the
- * validated lowercase key word; `environment` is captured so the handler body later runs in its
+ * validated key word (a `word` value, stored verbatim — case-significant, never folded); `environment` is captured so the handler body later runs in its
  * registration-time lexical scope. Registration is side-effect-only on the registry; the caller
  * emits the `primitive` event `spec/interaction-events.md` requires "after the handler is
  * registered". `on_key` handlers live in their own list (never bucketed with `when`'s one-shot
