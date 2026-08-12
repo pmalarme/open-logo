@@ -583,34 +583,26 @@ test("a cross-thread abort suppresses even an empty handler's delivery (abort is
   assert.equal(halted.events.filter(isProfileStart).length, 1);
 });
 
-test("a cross-thread abort during a long wait with no due handler is observed that tick", () => {
-  // A long `wait` with nothing pending still polls cancellation once per tick, so a mid-wait abort
-  // aborts the remaining ticks immediately rather than running them all out. A signal that flips
-  // partway through the pause must halt the run with ol-limit(cancelled). Sweeping the flip point
-  // proves the per-tick poll (not just the trailing statement's gate) observes it.
-  const source = ["wait 5", "print 9"].join("\n");
-  let halted = null;
-  for (let flipAfter = 1; flipAfter <= 40; flipAfter++) {
-    const probe = execute(source, doc, {
-      signal: signalAbortingAfter(flipAfter),
-    });
-    if (
-      probe.diagnostics.length === 1 &&
-      probe.diagnostics[0].params.limit === "cancelled" &&
-      printedValues(probe).length === 0
-    ) {
-      halted = probe;
-      break;
-    }
-  }
-  assert.ok(
-    halted,
-    "expected a flip point where the wait is cancelled mid-pause before print 9",
-  );
-  // `print 9` (the top-level instruction after the wait) never runs — the wait aborted cleanly.
-  assert.deepEqual(printedValues(halted), []);
-  assert.equal(halted.diagnostics[0].code, "ol-limit");
-  assert.equal(halted.diagnostics[0].params.limit, "cancelled");
+test("a cross-thread abort during a long wait with no due handler is observed by the per-tick poll", () => {
+  // A long `wait` whose ticks contain NO due handler and which has NO trailing top-level statement
+  // isolates the per-tick cancellation poll as the *only* observer of a mid-wait abort: `every 10`
+  // is never due within `wait 5`, and nothing follows the wait. So neither a handler's dispatch
+  // guard nor a later statement's `checkExecutionLimits` can see the abort — only
+  // `dispatchDueHandlers`' own per-tick poll can. A signal that flips mid-pause (flipAfter=4 lands
+  // inside the wait loop, past the top-level `wait` statement's own gate) must therefore halt the
+  // run with ol-limit(cancelled). If the per-tick poll were removed, the wait would run all five
+  // ticks to completion and the run would end cleanly with NO diagnostic — so this assertion fails
+  // iff the branch is absent, pinning it against silent removal (the F3/inert-test failure mode).
+  const source = ["every 10 [ print 1 ]", "wait 5"].join("\n");
+  const result = execute(source, doc, {
+    signal: signalAbortingAfter(4),
+  });
+  // The `every 10` handler is never due within five ticks, so it never fires regardless.
+  assert.deepEqual(printedValues(result), []);
+  // Only the per-tick poll can observe the mid-wait abort here: it must halt with ol-limit(cancelled).
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-limit");
+  assert.equal(result.diagnostics[0].params.limit, "cancelled");
 });
 
 test("a runaway handler body halts with ol-limit(instruction-budget), not an infinite loop", () => {
