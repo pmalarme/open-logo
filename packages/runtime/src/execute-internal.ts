@@ -91,6 +91,7 @@ import {
   executeRemoveKey,
   findDuplicateBinderName,
   isSupportedArgument,
+  pendingExecutionHalt,
   printedForm,
   pushLoopFrame,
   snapshotValue,
@@ -108,12 +109,16 @@ import {
 import { runtimeDiag } from "./errors.js";
 import {
   claimDueEveryHandlers,
+  claimPendingClickHandlers,
+  claimPendingEventHandlers,
+  claimPendingKeyHandlers,
   createEventHandlerRegistry,
   createTickClock,
   emitEveryPrimitive,
   emitOnClickPrimitive,
   emitOnKeyPrimitive,
   emitWhenPrimitive,
+  enqueueHostInput,
   isWaitCall,
   pendingHandlersFor,
   registerEveryHandler,
@@ -124,6 +129,9 @@ import {
   STANDARD_EVENT_WORDS,
   validateTickCount,
   type EveryHandler,
+  type HostInputEvent,
+  type OnClickHandler,
+  type OnKeyHandler,
   type WhenHandler,
 } from "./interaction.js";
 import type {
@@ -2168,12 +2176,15 @@ function executeWaitCall(
   if (!count.ok) {
     return halt(count.diagnostic);
   }
-  // Dispatch due `every` handlers on each tick the pause advances through. The callback stashes any
-  // halting `ExecSignal` a handler produces (`interaction.ts`'s dispatch is a plain boolean to stay
-  // free of the evaluator's control-flow types), returning `true` to abort the remaining ticks; we
-  // read the stashed signal back after `runWait` returns and propagate it. This is what makes
-  // registered `every` handlers "still fire" while a `wait` pause elapses
-  // (`spec/interaction-events.md`'s "Trace stream integration").
+  // Dispatch every due handler on each tick the pause advances through, in the normative same-tick
+  // order (`when` → `on_key` → `on_click` → due `every`, `spec/interaction-events.md:84-89`) —
+  // `dispatchDueHandlers` composes the four buckets and first moves any host-scheduled key/click/
+  // named events due at this tick into the pending queues. The callback stashes any halting
+  // `ExecSignal` a handler produces (`interaction.ts`'s dispatch is a plain boolean to stay free of
+  // the evaluator's control-flow types), returning `true` to abort the remaining ticks; we read the
+  // stashed signal back after `runWait` returns and propagate it. This is what makes registered
+  // `every`/`on_key`/`on_click` handlers "still fire" while a `wait` pause elapses, only the
+  // top-level instructions after the `wait` being deferred (`spec/interaction-events.md:113-118`).
   let dispatchSignal: ExecSignal | undefined;
   const interrupted = runWait(
     environment.tickClock,
@@ -2181,7 +2192,11 @@ function executeWaitCall(
     count.value,
     waitCall.source_span,
     (tick) => {
-      const signal = dispatchEveryHandlers(tick, environment);
+      const signal = dispatchDueHandlers(
+        tick,
+        environment,
+        waitCall.source_span,
+      );
       if (signal.kind !== "normal") {
         dispatchSignal = signal;
         return true;
@@ -2212,6 +2227,40 @@ function isWhenStatement(statement: StatementNode): boolean {
 }
 
 /**
+ * The non-consuming halt gate every handler invocation passes BEFORE emitting its block-head
+ * `instruction` event (issue #686, slice I7). Returns an `ol-limit` {@link ExecSignal} to halt with
+ * when the run has been cancelled, or when a non-empty handler body's instruction budget is already
+ * too near exhaustion to run even one statement — otherwise `undefined` to proceed.
+ *
+ * Placing it here, at the single entry every `invoke*Handler` shares, guards BOTH handler-delivery
+ * paths uniformly: the immediate `when "start"` fire during registration ({@link fireEvent}) and the
+ * tick-driven same-tick dispatch ({@link dispatchDueHandlers}). An exhausted budget or a cancelled
+ * run must "stop future handler delivery" (`spec/interaction-events.md`'s "Errors and cancellation")
+ * on every path — so a handler that would begin only to be immediately halted is not started at all,
+ * and the trace never shows a handler that emitted its block-head yet produced no effect (an
+ * incoherent partial delivery). {@link pendingExecutionHalt} is non-consuming, so a handler that DOES
+ * run still costs only its body's instructions; an **empty**-bodied handler is always delivered (its
+ * block-head emitted) at an exhausted budget because it has no statement gate and costs nothing —
+ * `bodyHasStatements` gates the budget branch accordingly. Cancellation, by contrast, is re-checked
+ * here ungated by `bodyHasStatements`: the Web-Worker `Atomics` deployment ({@link CancellationSignal})
+ * can flip `aborted` between this guard and the body's first-statement gate, so without an abort check
+ * a handler cancelled at its dispatch boundary — or any empty handler, which never reaches a body
+ * gate — would emit an orphan block-head after cancellation (the review-gate finding that reversed an
+ * earlier decline).
+ */
+function guardHandlerDispatch(
+  handler: { keyword: { source_span: SourceSpan }; block: BlockNode },
+  environment: Environment,
+): ExecSignal | undefined {
+  const limitDiagnostic = pendingExecutionHalt(
+    environment,
+    handler.keyword.source_span,
+    handler.block.body.length > 0,
+  );
+  return limitDiagnostic ? halt(limitDiagnostic) : undefined;
+}
+
+/**
  * Run one `when` handler's block for a fired event (`spec/interaction-events.md`'s "Trace stream
  * integration"): first emit the `instruction` event for the block-head that caused the handler to
  * run — carrying the `when` keyword's own span, so replay attributes the run to the registration
@@ -2231,6 +2280,10 @@ function invokeWhenHandler(
   handler: WhenHandler,
   environment: Environment,
 ): ExecSignal {
+  const guard = guardHandlerDispatch(handler, environment);
+  if (guard) {
+    return guard;
+  }
   handler.fired = true;
   environment.events.push({
     seq: environment.events.length,
@@ -2554,6 +2607,10 @@ function invokeEveryHandler(
   handler: EveryHandler,
   environment: Environment,
 ): ExecSignal {
+  const guard = guardHandlerDispatch(handler, environment);
+  if (guard) {
+    return guard;
+  }
   handler.pending = false;
   handler.running = true;
   environment.events.push({
@@ -2578,28 +2635,173 @@ function invokeEveryHandler(
 }
 
 /**
- * Deliver every `every` handler due on `tick` (`spec/interaction-events.md`'s "Time, ticks, and
- * handlers": "due `every` events in registration order"), invoked while a `wait` pause advances the
- * clock through that tick. Claims the whole due batch up front ({@link claimDueEveryHandlers} marks
- * each due handler `pending` and advances its `nextDueTick` atomically, before any body runs), then
- * invokes the batch in registration order. Claiming up front is what keeps delivery deterministic
- * across re-entrancy: when one handler's body runs a nested `wait` that advances the clock through a
- * sibling's next interval, that inner pause sees the sibling still `pending` (already claimed for
- * this batch) and skips it rather than firing it a second time out of chronological order. Stops at
- * the first handler that halts, returning its {@link ExecSignal}; returns {@link NORMAL_SIGNAL} when
- * every claimed handler completed normally. A tick with no due handler is a well-defined no-op. This
- * is the callback {@link executeWaitCall} hands to {@link runWait} — the single point the tick
- * clock's per-tick seam delivers timed handlers from.
+ * Run one `on_key` handler's block for a delivered key press (issue #686, slice I7,
+ * `spec/interaction-events.md`'s "Trace stream integration"): emit the `instruction` event for the
+ * block-head that caused the handler to run — carrying the `on_key` keyword's own span, so replay
+ * attributes each run to the registration site — then execute the handler body, whose own effects
+ * emit the ordinary after-effect events. `on_key` has no delivery-state flag (a key can be pressed
+ * any number of times), so unlike {@link invokeWhenHandler}/{@link invokeEveryHandler} it neither
+ * sets nor clears one. Returns the body's {@link ExecSignal} so a `halt` (a runtime error or a
+ * cancelled budget inside the handler) propagates and stops the whole run ("Errors and
+ * cancellation"); a `return`/`stop` that escapes the body is converted HERE into its
+ * `ol-return-outside-proc`/`ol-stop-outside-proc` diagnostic (a handler block is not a procedure
+ * body, exactly like the top level and {@link invokeWhenHandler}).
  */
-function dispatchEveryHandlers(
-  tick: number,
+function invokeOnKeyHandler(
+  handler: OnKeyHandler,
   environment: Environment,
 ): ExecSignal {
-  for (const handler of claimDueEveryHandlers(
+  const guard = guardHandlerDispatch(handler, environment);
+  if (guard) {
+    return guard;
+  }
+  environment.events.push({
+    seq: environment.events.length,
+    kind: "instruction",
+    source_span: handler.keyword.source_span,
+    payload: {
+      statement_kind: "ProfileStatement",
+    } satisfies InstructionPayload,
+  });
+  const signal = executeStatements(handler.block.body, handler.environment);
+  if (signal.kind === "return") {
+    return halt(
+      runtimeDiag.returnOutsideProc(signal.source_span, signal.keyword),
+    );
+  }
+  if (signal.kind === "stop") {
+    return halt(runtimeDiag.stopOutsideProc(signal.source_span));
+  }
+  return signal;
+}
+
+/**
+ * Run one `on_click` handler's block for a delivered click (issue #686, slice I7,
+ * `spec/interaction-events.md`'s "Trace stream integration"): emit the `instruction` event for the
+ * block-head that caused the handler to run — carrying the `on_click` keyword's own span — then
+ * execute the handler body. Like {@link invokeOnKeyHandler} it carries no delivery-state flag (the
+ * surface can be clicked any number of times). Returns the body's {@link ExecSignal} so a `halt`
+ * propagates; a `return`/`stop` that escapes the body is converted HERE into its
+ * `ol-return-outside-proc`/`ol-stop-outside-proc` diagnostic, exactly like the other handler kinds.
+ */
+function invokeOnClickHandler(
+  handler: OnClickHandler,
+  environment: Environment,
+): ExecSignal {
+  const guard = guardHandlerDispatch(handler, environment);
+  if (guard) {
+    return guard;
+  }
+  environment.events.push({
+    seq: environment.events.length,
+    kind: "instruction",
+    source_span: handler.keyword.source_span,
+    payload: {
+      statement_kind: "ProfileStatement",
+    } satisfies InstructionPayload,
+  });
+  const signal = executeStatements(handler.block.body, handler.environment);
+  if (signal.kind === "return") {
+    return halt(
+      runtimeDiag.returnOutsideProc(signal.source_span, signal.keyword),
+    );
+  }
+  if (signal.kind === "stop") {
+    return halt(runtimeDiag.stopOutsideProc(signal.source_span));
+  }
+  return signal;
+}
+
+/**
+ * The unified same-tick handler dispatch (issue #686, slice I7) — the single callback
+ * {@link executeWaitCall} hands to {@link runWait}, invoked at every {@link yieldToEventLoop}
+ * checkpoint the tick clock reaches (once per elapsed tick, and once for a `wait 0` yield). It
+ * imposes the **normative same-tick delivery order** `spec/interaction-events.md` fixes in §Time,
+ * ticks, and handlers (l.84-89), delivering in exactly this sequence, each in registration order:
+ *
+ *   1. pending `when` events        ({@link claimPendingEventHandlers} → {@link invokeWhenHandler})
+ *   2. pending `on_key` events      ({@link claimPendingKeyHandlers}   → {@link invokeOnKeyHandler})
+ *   3. pending `on_click` events    ({@link claimPendingClickHandlers} → {@link invokeOnClickHandler})
+ *   4. due `every` events           ({@link claimDueEveryHandlers}     → {@link invokeEveryHandler})
+ *
+ * "Registration order" here means the order the **handlers** were registered, primary over the order
+ * the host happened to deliver input in: each `claim*` visits its registered handler list in order,
+ * so a run is deterministic in the program's own registration order (`spec/interaction-events.md`
+ * l.84-89 names no delivery-order concept). The whole tick's ordered invocation batch is built by
+ * claiming **all four buckets up front** — each `claim*` empties its pending queue (and
+ * `claimDueEveryHandlers` marks its handlers `pending`/advances `nextDueTick`) at claim time — and
+ * only then are the bodies run. That up-front claim is what makes a nested `wait` inside a handler
+ * body re-entrancy-safe: a same-tick re-entry finds every queue already drained, so it cannot steal
+ * a later-in-order invocation (e.g. a pending click) and run it before this tick's earlier handlers
+ * finish; newly scheduled input only becomes pending at a strictly later tick.
+ *
+ * The order is imposed **purely here, at the drain point** — the four registration lists (I3/I5/I6)
+ * and the pending host-input queues (this slice) are kept separate precisely so this composition is
+ * the only place ordering lives; no registration code participates. Before draining, host-supplied
+ * key/click/named events scheduled at or before `tick` are moved into the pending queues
+ * ({@link enqueueHostInput}, reading `environment.hostInput` and threading
+ * `environment.hostInputConsumed` forward). In a normal headless run `hostInput` is empty, so the
+ * pending queues stay empty and only step 4 (`every`, the sole tick-driven kind) can fire — exactly
+ * the I5/I6 "registered but not delivered" behavior, reached because nothing was pending.
+ *
+ * The run stops at the first handler that halts (a runtime error, a `return`/`stop` escaping a
+ * handler, or a cancelled/over-budget execution), returning that {@link ExecSignal} without running
+ * any later invocation — so once cancellation is observed no further handler of any kind fires,
+ * satisfying `spec/interaction-events.md`'s "Errors and cancellation". Returns {@link NORMAL_SIGNAL}
+ * when every delivered handler completed normally.
+ */
+function dispatchDueHandlers(
+  tick: number,
+  environment: Environment,
+  source_span: SourceSpan,
+): ExecSignal {
+  // Poll cancellation once per tick BEFORE enqueuing host input or claiming any bucket, so a
+  // cross-thread abort (the Web-Worker `Atomics` deployment in `CancellationSignal`) is observed
+  // even on a tick with no due handler — otherwise a long `wait` with nothing pending would keep
+  // advancing its remaining ticks after cancellation, unresponsive until it finishes and the next
+  // top-level statement's `checkExecutionLimits` finally sees the abort. Returning a halt here makes
+  // `runWait` abort its remaining ticks immediately (`spec/interaction-events.md`'s
+  // "Errors and cancellation": a cancelled run stops cleanly, with no further delivery). The
+  // per-handler `guardHandlerDispatch` still covers the abort-between-guard-and-body-gate orphan on
+  // ticks that DO have handlers; this covers the tick that has none. The `wait` call's own span is
+  // threaded in so the diagnostic points at the paused instruction.
+  if (environment.signal?.aborted) {
+    return halt(runtimeDiag.cancelled(source_span));
+  }
+  environment.hostInputConsumed.count = enqueueHostInput(
     environment.eventHandlers,
+    environment.hostInput,
     tick,
-  )) {
-    const signal = invokeEveryHandler(handler, environment);
+    environment.hostInputConsumed.count,
+  );
+  // Claim ALL four buckets into one ordered invocation list BEFORE running any body. Each `claim*`
+  // empties its pending queue (and `claimDueEveryHandlers` marks its handlers `pending`/advances
+  // `nextDueTick`) at claim time, so the whole tick's ordered batch is fixed up front. This is what
+  // makes a nested `wait` inside a handler body re-entrancy-safe: when that nested `wait` re-enters
+  // this dispatcher at the SAME tick, every queue for this tick is already drained, so it cannot
+  // steal a later-in-order invocation (e.g. a pending click) and run it before this tick's earlier
+  // handlers finish. Newly scheduled input only becomes pending at a strictly later tick.
+  const registry = environment.eventHandlers;
+  const invocations: Array<() => ExecSignal> = [];
+  for (const handler of claimPendingEventHandlers(registry)) {
+    invocations.push(() => invokeWhenHandler(handler, environment));
+  }
+  for (const handler of claimPendingKeyHandlers(registry)) {
+    invocations.push(() => invokeOnKeyHandler(handler, environment));
+  }
+  for (const handler of claimPendingClickHandlers(registry)) {
+    invocations.push(() => invokeOnClickHandler(handler, environment));
+  }
+  for (const handler of claimDueEveryHandlers(registry, tick)) {
+    invocations.push(() => invokeEveryHandler(handler, environment));
+  }
+  // Each invocation's own `guardHandlerDispatch` (in `invoke*Handler`) checks cancellation/budget
+  // BEFORE emitting its block-head event, so once the run has halted no further handler is delivered
+  // and none leaves an orphan handler-start in the trace — cancellation "stops future handler
+  // delivery" (`spec/interaction-events.md`'s "Errors and cancellation"). The dispatcher just stops
+  // at the first non-normal signal.
+  for (const invoke of invocations) {
+    const signal = invoke();
     if (signal.kind !== "normal") {
       return signal;
     }
@@ -2617,7 +2819,7 @@ function dispatchEveryHandlers(
  * registered"). Registration never fires the block: unlike `when "start"`, no `every` interval has
  * elapsed at registration time, so an `every` handler first runs only after `n` ticks pass — which
  * in a headless batch run happens only while a `wait` pause advances the clock
- * ({@link dispatchEveryHandlers}).
+ * ({@link dispatchDueHandlers}).
  *
  * `block` is the handler body the reader always attaches to an `every` block-head (`hasBlock: true`,
  * `parser.ts`'s `PROFILE_STATEMENT_FORMS`), recovered here by a cast since an `every` node reaching
@@ -4824,6 +5026,32 @@ export function resolveEffectiveRecursionDepthLimit(
  * resolves `options?.learnerLevel` to {@link DEFAULT_LEARNER_LEVEL} when omitted (the
  * M3-orchestrator's injectable-template ruling on issue #332).
  */
+/**
+ * Copy `hostInput` into a fresh array sorted by non-decreasing `tick`, returning a frozen empty
+ * array when a caller supplies none (issue #686, slice I7). {@link dispatchDueHandlers} advances a
+ * single forward cursor ({@link Environment.hostInputConsumed}) through this array at every
+ * {@link yieldToEventLoop} checkpoint, so it MUST be tick-ordered for that cursor to enqueue each
+ * entry exactly once; sorting here — once, at environment construction — lets a caller pass
+ * host-input in any order. The sort is *stable* (Array.prototype.sort is spec-guaranteed stable), so
+ * two entries scheduled at the same tick stay in caller-supplied order and therefore enqueue into
+ * their pending queue in that order — the deterministic tie-break the same-tick dispatch order
+ * relies on. A defensive copy so a caller's array is never mutated and the environment's view cannot
+ * change after construction.
+ */
+function sortHostInputByTick(
+  hostInput: readonly HostInputEvent[] | undefined,
+): readonly HostInputEvent[] {
+  if (hostInput === undefined || hostInput.length === 0) {
+    return EMPTY_HOST_INPUT;
+  }
+  return [...hostInput].sort((left, right) => left.tick - right.tick);
+}
+
+/** The shared frozen empty host-input array every normal headless run gets (issue #686): no key,
+ * click, or named event is ever pending, so the I5/I6 never-fires behavior holds because nothing was
+ * queued. Frozen so an accidental push can never leak input into an unrelated run. */
+const EMPTY_HOST_INPUT: readonly HostInputEvent[] = Object.freeze([]);
+
 function createExecutionEnvironment(
   program: ProgramNode,
   procedures: ProcedureRegistry,
@@ -4858,6 +5086,8 @@ function createExecutionEnvironment(
     tickClock: createTickClock(),
     sound: createSoundState(),
     eventHandlers: createEventHandlerRegistry(),
+    hostInput: sortHostInputByTick(options?.hostInput?.events),
+    hostInputConsumed: { count: 0 },
     source,
     program,
     hintProgress: new Map(),

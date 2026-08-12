@@ -1,0 +1,224 @@
+{
+  "description": "issue #686 (slice I7): two `every 1` handlers registered in order both come due on the same tick and fire in REGISTRATION order (print 1 before print 2), every tick the `wait 2` pause advances through - a deterministic, reproducible sequence proving same-tick dispatch orders multiple handlers of one kind by registration (spec/interaction-events.md:84-89, 'due `every` events in registration order'). Headless: no host input, so only the tick-driven `every` kind fires; the stream carries no tick or timing in any payload.",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/dispatch/every-multi-same-tick-deterministic",
+        "start": [1, 1],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/dispatch/every-multi-same-tick-deterministic",
+        "start": [1, 1],
+        "end": [1, 20]
+      },
+      "payload": {
+        "name": "every"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/dispatch/every-multi-same-tick-deterministic",
+        "start": [2, 1],
+        "end": [2, 20]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/dispatch/every-multi-same-tick-deterministic",
+        "start": [2, 1],
+        "end": [2, 20]
+      },
+      "payload": {
+        "name": "every"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/dispatch/every-multi-same-tick-deterministic",
+        "start": [3, 1],
+        "end": [3, 7]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/dispatch/every-multi-same-tick-deterministic",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/dispatch/every-multi-same-tick-deterministic",
+        "start": [1, 11],
+        "end": [1, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/dispatch/every-multi-same-tick-deterministic",
+        "start": [1, 11],
+        "end": [1, 18]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/dispatch/every-multi-same-tick-deterministic",
+        "start": [2, 1],
+        "end": [2, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/dispatch/every-multi-same-tick-deterministic",
+        "start": [2, 11],
+        "end": [2, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/dispatch/every-multi-same-tick-deterministic",
+        "start": [2, 11],
+        "end": [2, 18]
+      },
+      "payload": {
+        "values": [2]
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/dispatch/every-multi-same-tick-deterministic",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/dispatch/every-multi-same-tick-deterministic",
+        "start": [1, 11],
+        "end": [1, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/dispatch/every-multi-same-tick-deterministic",
+        "start": [1, 11],
+        "end": [1, 18]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/dispatch/every-multi-same-tick-deterministic",
+        "start": [2, 1],
+        "end": [2, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/dispatch/every-multi-same-tick-deterministic",
+        "start": [2, 11],
+        "end": [2, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/dispatch/every-multi-same-tick-deterministic",
+        "start": [2, 11],
+        "end": [2, 18]
+      },
+      "payload": {
+        "values": [2]
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/dispatch/every-multi-same-tick-deterministic",
+        "start": [3, 1],
+        "end": [3, 7]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    }
+  ],
+  "diagnostics": []
+}

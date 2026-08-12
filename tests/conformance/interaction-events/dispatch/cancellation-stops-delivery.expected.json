@@ -1,0 +1,36 @@
+{
+  "description": "issue #686 (slice I7), spec/interaction-events.md 'Errors and cancellation': a run cancelled before it starts (already-aborted signal) halts with ol-limit/cancelled and emits NO events, even though a key was scheduled for delivery (hostInput). No handler fires after cancellation; nothing is left partially delivered. A fixture cannot express a signal that flips mid-run (that needs a stateful getter, not JSON), so mid-tick cancellation stopping further delivery is proven by the unit test (packages/runtime/src/interaction-dispatch-order.test.mjs); this fixture locks the headless-expressible already-cancelled case.",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "executeOptions": {
+    "signal": {
+      "aborted": true
+    },
+    "hostInput": {
+      "events": [
+        {
+          "tick": 1,
+          "kind": "key",
+          "key": "x"
+        }
+      ]
+    }
+  },
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-limit",
+      "source_span": {
+        "document": "interaction-events/dispatch/cancellation-stops-delivery",
+        "start": [1, 1],
+        "end": [1, 23]
+      },
+      "params": {
+        "limit": "cancelled"
+      },
+      "message": "execution was cancelled before the program finished.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

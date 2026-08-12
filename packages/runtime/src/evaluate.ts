@@ -93,6 +93,7 @@ import { createTickClock } from "./interaction.js";
 import type { TickClock } from "./interaction.js";
 import { createEventHandlerRegistry } from "./interaction.js";
 import type { EventHandlerRegistry } from "./interaction.js";
+import type { HostInputEvent } from "./interaction.js";
 import { createSoundState } from "./sound-state.js";
 import type { SoundState } from "./sound-state.js";
 import { defaultTutorTemplate } from "./tutor-templates.js";
@@ -341,6 +342,28 @@ export interface Environment {
    * `on_key`/`on_click` (#683–#685) extend it; same-tick dispatch order + cancellation is #686/I7.
    */
   readonly eventHandlers: EventHandlerRegistry;
+  /**
+   * The tick-scheduled host input this run delivers (issue #686, slice I7 —
+   * `ExecuteOptions.hostInput`, see `index.ts`). Each {@link HostInputEvent} is a key press, click,
+   * or named event a host would have delivered at a given tick; `dispatchDueHandlers` moves the ones
+   * scheduled at or before the current tick into the registry's pending queues at each
+   * {@link yieldToEventLoop} checkpoint and drains them in the spec's same-tick order. Sorted by
+   * non-decreasing `tick` by `createExecutionEnvironment` so a single forward cursor
+   * ({@link Environment.hostInputConsumed}) suffices. Empty (frozen `[]`) for every normal headless
+   * run, so no key/click/named event ever fires unless a caller supplied one — the I5/I6 never-fires
+   * behavior, now reached because nothing was pending. Headless execution *input*, never observable
+   * in any event payload.
+   */
+  readonly hostInput: readonly HostInputEvent[];
+  /**
+   * How many entries of {@link Environment.hostInput} have already been moved into the pending queues
+   * by an earlier tick's checkpoint (issue #686, slice I7). A mutable box (like `instructionCount`)
+   * so the forward cursor `enqueueHostInput` advances is shared across every recursive
+   * `executeStatements`/`evaluate` call against this environment — including a re-entrant `wait`
+   * inside a handler body — and each host-input entry is therefore enqueued exactly once even though
+   * the checkpoint is revisited every tick.
+   */
+  readonly hostInputConsumed: { count: number };
 }
 
 /**
@@ -501,6 +524,8 @@ export function createEnvironment(): Environment {
     tickClock: createTickClock(),
     sound: createSoundState(),
     eventHandlers: createEventHandlerRegistry(),
+    hostInput: [],
+    hostInputConsumed: { count: 0 },
     // No real parsed program backs this bare environment, so `program` is a placeholder empty
     // `Program` node — safe because none of this package's own expression-only unit tests
     // exercise the Educational meta-commands (`execute-internal.ts`'s
@@ -547,6 +572,58 @@ export function checkExecutionLimits(
   }
   environment.instructionCount.count++;
   if (environment.instructionCount.count > environment.instructionBudget) {
+    return runtimeDiag.instructionLimit(
+      source_span,
+      environment.instructionBudget,
+    );
+  }
+  return undefined;
+}
+
+/**
+ * The **non-incrementing** boundary probe every handler invocation passes BEFORE emitting its
+ * block-head `instruction` event (issue #686, slice I7): returns a halting {@link Diagnostic} — a
+ * `cancelled` when the run has been aborted, otherwise an `ol-limit(instruction-budget)` when a
+ * **non-empty** handler body's budget is already so close to exhausted that it could not run even
+ * its first statement — or `undefined` to proceed.
+ *
+ * It must NOT consume an instruction the way {@link checkExecutionLimits} does: handler dispatch is
+ * deliberately *not* one of the per-statement budgeted instructions (a handler's block-head
+ * `instruction` event is not counted), so a handler that *does* run still costs only its body's
+ * statements, exactly as before this guard existed. It only inspects the accumulated count.
+ *
+ * Why the budget predicate is `count >= budget`, and only for a non-empty body
+ * (`bodyHasStatements`): it must predict what the body's *own* first per-statement gate will do.
+ * {@link executeStatements} runs its first statement only after `count++ ; count > budget` passes,
+ * i.e. only while `count < budget` on entry — so a non-empty handler entered at `count >= budget`
+ * would emit its block-head then halt before running a single statement (an orphan "started but
+ * produced nothing" trace). An **empty** handler body has no statement gate and costs zero
+ * instructions, so it must still be delivered (its block-head emitted) even at an exhausted budget;
+ * applying the budget pre-halt to it would wrongly reject a valid zero-cost handler and change budget
+ * accounting. So the budget branch is guarded by `bodyHasStatements`.
+ *
+ * The **abort check is NOT gated on `bodyHasStatements`** and is checked first: a cancelled run must
+ * stop future handler *delivery* of every kind, including a zero-cost empty handler, before its
+ * block-head is emitted. This matters because the realistic deployment (see {@link CancellationSignal})
+ * runs `execute()` in a Web Worker with an `Atomics`-backed `aborted` getter the main thread can flip
+ * *between* this probe and the body's first-statement gate — so unlike the budget boundary, an aborted
+ * signal observed here is not redundant with `checkExecutionLimits`: without this branch a handler
+ * cancelled at its dispatch boundary (or any empty handler, which never reaches a body gate) would
+ * emit an orphan block-head after cancellation. This is the review-gate finding that reversed an
+ * earlier "abort is unreachable here" decline.
+ */
+export function pendingExecutionHalt(
+  environment: Environment,
+  source_span: SourceSpan,
+  bodyHasStatements: boolean,
+): Diagnostic | undefined {
+  if (environment.signal?.aborted) {
+    return runtimeDiag.cancelled(source_span);
+  }
+  if (
+    bodyHasStatements &&
+    environment.instructionCount.count >= environment.instructionBudget
+  ) {
     return runtimeDiag.instructionLimit(
       source_span,
       environment.instructionBudget,
