@@ -377,6 +377,42 @@ test("describeTurtleWorldState says plainly when nothing is addressed (tell [ ])
   );
 });
 
+test("describeTurtleWorldState names the turtle again as soon as a second one exists, even with addressing unchanged", () => {
+  // `:friend = new_turtle` adds a live turtle without touching the addressed set, so the addressed
+  // set is still exactly the turtle that acted — no addressing clause — but #749's rule applies and
+  // the subject is named. This is the exact boundary of the byte-identical guarantee: one live
+  // turtle addressing itself, not "any Sprites program before it addresses something else".
+  const world = addressedWorld(
+    [
+      [OL.MAIN_TURTLE_ID, OL.INITIAL_TURTLE_STATE],
+      [1, GREEN],
+    ],
+    [OL.MAIN_TURTLE_ID],
+    OL.MAIN_TURTLE_ID,
+  );
+  assert.equal(
+    OL.describeTurtleWorldState(world),
+    "turtle #0 at x 0 y 0 heading 0 degrees pen down color black width 1",
+  );
+});
+
+test("describeTurtleWorldState drops unusable addressing to the turtle's real state, not to the program-start defaults", () => {
+  // An addressed set naming a turtle the world does not hold is dropped, and what is left is the
+  // last-acted turtle's ACTUAL state — unnamed while the world holds one turtle, named once it
+  // holds more. Only a `lastActedTurtleId` that names nothing live falls back to the defaults.
+  const oneTurtle = addressedWorld([[3, GREEN]], [9], 3);
+  assert.equal(
+    OL.describeTurtleWorldState(oneTurtle),
+    "turtle at x 0 y 0 heading 0 degrees pen down color green width 1",
+  );
+
+  const noSubject = addressedWorld([[3, GREEN]], [9], 4);
+  assert.equal(
+    OL.describeTurtleWorldState(noSubject),
+    OL.describeTurtleState(OL.INITIAL_TURTLE_STATE),
+  );
+});
+
 test("describeTurtleWorldState says nothing is addressed even in a single-turtle world", () => {
   // `tell [ ]` before any `new_turtle` empties the addressed set of a world holding only the main
   // turtle. The single-turtle wording is NOT restored there: after `tell [ ]` a turtle command

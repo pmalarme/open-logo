@@ -80,7 +80,7 @@
  * state: with several turtles the text now names **which** turtle it is describing, as
  * `turtle #<id>` — the same identity `print who` gives the learner — satisfying
  * `spec/rendering.md:191`'s "Implementations with multiple turtles MUST identify the active turtle
- * or addressed turtle set". A single-turtle program's text is unchanged, byte for byte.
+ * or addressed turtle set". A Turtle & Rendering program's text is unchanged, byte for byte.
  *
  * #770 closes the other half of that MUST — the **addressed turtle set**, which no single turtle
  * name can express. `@openlogo/turtle` now folds the addressing snapshots the trace stream carries
@@ -91,8 +91,9 @@
  * non-visual learner hears both what will be driven next and what just happened. The wording, and
  * why it names the set instead of enumerating every addressed turtle's attributes into this one
  * live region, lives with the text in `@openlogo/turtle`'s `describeTurtleWorldState` — this module
- * still writes no description logic of its own. A single-turtle program's text remains unchanged,
- * byte for byte.
+ * still writes no description logic of its own. A Turtle & Rendering program's text remains
+ * unchanged, byte for byte: `tell` is a Sprites primitive, so such a program can never leave the
+ * one-live-turtle-addressing-itself case that produces the spec's verbatim wording.
  *
  * #410 additionally appends the current source instruction, when one is available
  * (`spec/rendering.md`'s Non-visual state descriptions minimum: pen color/width, turtle
@@ -438,8 +439,8 @@ function describeCurrentInstruction(
 
 /** The full non-visual turtle-state text: `describeTurtleWorldState`'s wording — which identifies
  * the addressed turtle set, or the single turtle it describes, once the program drives more than
- * one (`spec/rendering.md:191`), and is byte-identical to the single-turtle `describeTurtleState`
- * wording otherwise — plus, when available, the current source instruction (#410). */
+ * one (`spec/rendering.md:191`), and is byte-identical to `describeTurtleState`'s wording while one
+ * live turtle is addressing itself — plus, when available, the current source instruction (#410). */
 function describeFullTurtleState(state: StudioState): string {
   return (
     describeTurtleWorldState(state.turtleWorld) +

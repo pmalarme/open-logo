@@ -705,9 +705,10 @@ test("the state text says plainly when a program addresses no turtle at all (#77
   );
 });
 
-test("the state text of a single-turtle program never names a turtle (byte-identical to spec/rendering.md's example)", () => {
+test("the state text of a Turtle & Rendering program never names a turtle (byte-identical to spec/rendering.md's example)", () => {
   // The compatibility half of #749: naming the described turtle must not leak into the
-  // single-turtle wording `spec/rendering.md:191` gives verbatim.
+  // wording `spec/rendering.md:191` gives verbatim. The condition is one live turtle addressing
+  // itself, which no Turtle & Rendering program can leave — `tell` is a Sprites primitive.
   const state = OL.createStudioState();
   const region = OL.createTurtleStateRegion(state);
   state.setTurtleWorld(
