@@ -1,6 +1,7 @@
 // Unit tests for the Sprites `tell` addressing command (issue #674, SP2), driven end to end through
 // `execute()`. `tell <turtle|turtle-list>` sets the addressed set; subsequent turtle commands apply
-// once per addressed turtle, each emitting events carrying that turtle's `turtle_id`. `tell` is a
+// once per addressed turtle, each emitting events carrying that turtle's `turtle_id`. A turtle
+// listed twice is one member of the set, so the command still applies once (issue #748). `tell` is a
 // command (no block) that stays in effect until the next `tell`. A non-turtle argument (or a list
 // containing one) raises `ol-type`. See spec/turtles-and-sprites.md's "Addressing model" and
 // "Per-turtle state" sections; the same behavior is locked from source by the conformance fixtures
@@ -322,6 +323,68 @@ test("a nested tell run in an early iteration of a multi-turtle command persists
     .map((event) => event.payload.values[0]);
   assert.equal(prints[0], true);
   assert.equal(prints[1], false);
+});
+
+test("#748: a turtle listed twice is ONE member of the addressed set — a direct turtle command applies once (dedup by id)", () => {
+  // The addressed set is a SET (spec/turtles-and-sprites.md:44) whose members compare by "Same
+  // turtle identity" (spec/execution-model.md:540), and a turtle command "applies once for each
+  // addressed turtle" (:113). `tell [ :a :a ]` therefore addresses :a ONCE: one move to [0, 10],
+  // ending there — not two moves ending at [0, 20], which is what the direct path did before #748
+  // while `each` (same epic) already ran once.
+  const result = execute(
+    ":a = new_turtle\ntell [ :a :a ]\nforward 10\nprint ycor",
+    "main.logo",
+  );
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(moves(result.events), [[1, [0, 10]]]);
+  const printEvent = result.events.find((event) => event.kind === "print");
+  assert.deepEqual(printEvent.payload, { values: [10] });
+});
+
+test("#748: dedup preserves first-occurrence order — tell [ :b :a :b ] keeps :b first, so who reports :b and it moves first", () => {
+  // Requirement #679: `tell [ :b :a ]` makes :b current. Dropping the repeat of :b must not promote
+  // :a to the front nor reorder the iteration: exactly two moves, :b (id 2) then :a (id 1).
+  const result = execute(
+    ":a = new_turtle\n:b = new_turtle\ntell [ :b :a :b ]\nprint who == :b\nforward 10",
+    "main.logo",
+  );
+  assert.deepEqual(result.diagnostics, []);
+  const printEvent = result.events.find((event) => event.kind === "print");
+  assert.deepEqual(printEvent.payload, { values: [true] });
+  assert.deepEqual(moves(result.events), [
+    [2, [0, 10]],
+    [1, [0, 10]],
+  ]);
+});
+
+test("#748: dedup is by turtle identity, not by list position — the same turtle reached through two variables is still one member", () => {
+  // `:copy = :a` binds the same turtle value; `tell [ :a :copy ]` addresses one turtle, proving the
+  // rule keys on the stable id rather than on the surface expressions in the list.
+  const result = execute(
+    ":a = new_turtle\n:copy = :a\ntell [ :a :copy ]\nforward 10",
+    "main.logo",
+  );
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(moves(result.events), [[1, [0, 10]]]);
+});
+
+test("#748: the de-duplicated set is what each iterates too — the direct and each paths agree turtle for turtle", () => {
+  // The contradiction #748 fixed was BETWEEN the two paths, so pin them against each other: after
+  // `tell [ :a :a ]`, `forward 10` and `each [ forward 10 ]` each emit exactly one move for :a, so
+  // :a ends at [0, 20] after both — never [0, 30].
+  const result = execute(
+    ":a = new_turtle\ntell [ :a :a ]\nforward 10\neach [ forward 10 ]\nprint ycor",
+    "main.logo",
+  );
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(moves(result.events), [
+    [1, [0, 10]],
+    [1, [0, 20]],
+  ]);
+  const prints = result.events
+    .filter((event) => event.kind === "print")
+    .map((event) => event.payload.values[0]);
+  assert.deepEqual(prints, [20]);
 });
 
 test("turtleStateFor returns the registered state for a known id and throws for an unregistered one (internal invariant)", () => {

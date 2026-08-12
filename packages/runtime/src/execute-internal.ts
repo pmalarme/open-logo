@@ -2407,6 +2407,18 @@ const NOT_A_PROFILE_STATEMENT = Symbol("not-a-profile-statement");
  * non-turtle, or a list containing a non-turtle value (`spec/turtles-and-sprites.md:176-177`). The
  * whole form fails on the first non-turtle item — the addressed set is left unchanged — so a
  * partially-valid list never half-addresses.
+ *
+ * The ids are **deduplicated by stable id, in first-occurrence order**: what `tell`/`ask` establish
+ * is an addressed **set** (`spec/turtles-and-sprites.md:44` "turtle commands run for an **addressed
+ * set**"), and turtle `==` is "Same turtle identity" (`spec/execution-model.md:540`), so a turtle
+ * listed twice is one member. A turtle command then "applies once for each addressed turtle"
+ * (`spec/turtles-and-sprites.md:113`) and `each` runs "once per turtle in the current `tell` or `ask`
+ * set" (`:78`) — one run per member, on **every** path (issue #748: deduplicating only inside `each`
+ * left the direct `tell`/`ask` path moving a repeated turtle twice, contradicting the same epic's
+ * `each`). Deduplicating here, where the set is built, makes every consumer — `each`'s iteration,
+ * {@link runPerTurtleCommand}'s per-turtle loop, and the restored set after `ask` — inherit the one
+ * rule instead of each re-deciding it. First-occurrence order is preserved so the set stays
+ * insertion-ordered and `who` keeps reporting its first member (`tell [ :b :a ]` ⇒ `:b`).
  */
 function turtleIdsFor(
   value: OLValue,
@@ -2418,6 +2430,7 @@ function turtleIdsFor(
   }
   if (Array.isArray(value)) {
     const ids: TurtleId[] = [];
+    const seen = new Set<TurtleId>();
     for (const item of value) {
       if (!(item instanceof OLTurtle)) {
         return {
@@ -2430,7 +2443,10 @@ function turtleIdsFor(
           }),
         };
       }
-      ids.push(item.id);
+      if (!seen.has(item.id)) {
+        seen.add(item.id);
+        ids.push(item.id);
+      }
     }
     return { ok: true, ids };
   }
@@ -2875,29 +2891,6 @@ function executeEveryStatement(
 }
 
 /**
- * The distinct turtle ids of `ids`, in first-occurrence order — the addressed set read as a genuine
- * **set** (`spec/turtles-and-sprites.md:44` "the addressed **set**"; turtle `==` is keyed on the
- * stable `id`, `spec/execution-model.md:540`). `each` runs its block "once per turtle in the current
- * `tell` or `ask` set" (`spec/turtles-and-sprites.md:71`), so a set that reached `each` with a turtle
- * listed twice (`tell (list :a :a)`, or a list literal built with a repeat) must still run the block
- * **once** for that turtle. Deduplicating here — at the point per-turtle iteration is observable
- * (issue #713) — keeps the decision local to the slice that makes it visible: `tell`/`ask` retain
- * their stored `ids` unchanged, and only `each`'s iteration is set-shaped. First-occurrence order
- * keeps iteration deterministic (the addressed set is insertion-ordered from `tell`/`ask`).
- */
-function distinctTurtleIds(ids: readonly TurtleId[]): TurtleId[] {
-  const seen = new Set<TurtleId>();
-  const result: TurtleId[] = [];
-  for (const id of ids) {
-    if (!seen.has(id)) {
-      seen.add(id);
-      result.push(id);
-    }
-  }
-  return result;
-}
-
-/**
  * Run an `each <block>` statement (Sprites profile, `spec/turtles-and-sprites.md:71`): `each` runs
  * its block **once per turtle in the current `tell` or `ask` set** — "During each run, `who` reports
  * the turtle for that iteration, and Turtle commands affect only that turtle unless the program
@@ -2906,9 +2899,10 @@ function distinctTurtleIds(ids: readonly TurtleId[]): TurtleId[] {
  * Each iteration narrows the addressed set to the single turtle whose turn it is
  * ({@link pointAddressedSet} with `[id]`), so inside the block `who` reports that turtle
  * ({@link TurtleAddressing.currentId}) and a per-turtle command runs once for — and stamps its events
- * with — that turtle only. Iteration order is the addressed set's insertion order, deduplicated by
- * stable id ({@link distinctTurtleIds}), so the same program always produces the same event sequence
- * and a turtle listed twice still runs the block once (issue #713).
+ * with — that turtle only. Iteration order is the addressed set's insertion order, which is already
+ * deduplicated by stable id where the set is built ({@link turtleIdsFor}), so the same program always
+ * produces the same event sequence and a turtle listed twice runs the block once (issues #713, #748)
+ * — the same one-run-per-member rule the direct `tell`/`ask` path obeys.
  *
  * Like `ask`, the previous addressed set is snapshotted and restored on **every** exit path — normal
  * completion and an abnormal one (a runtime `halt`, a `stop`, a `return`/`output`/`op`, or a `throw`
@@ -2934,7 +2928,7 @@ function executeEach(
   const savedExplicit = addressing.explicit;
   // Snapshot the ids to iterate before the loop begins, so a block that changes the world mid-loop
   // (e.g. a nested `tell` in an early iteration) cannot change which turtles `each` visits.
-  const iterationIds = distinctTurtleIds(addressing.ids);
+  const iterationIds = [...addressing.ids];
   // `hasBlock: true` guarantees the reader attached a block; the cast records that invariant the same
   // way `executeAsk`/`executeWhenStatement` do.
   const block = statement.body as BlockNode;

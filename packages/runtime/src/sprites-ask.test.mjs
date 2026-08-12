@@ -3,10 +3,11 @@
 // turtle(s), then RESTORES the addressed set that was active before it — including when the block
 // exits abnormally (an error, `stop`, `return`, or a `throw`). It accepts the bracket block form and
 // the long `… end` / `… end ask` forms; a mismatched labeled `end` raises `ol-mismatched-end`. A
-// non-turtle argument (or a list containing one) raises `ol-type`. Nesting restores exactly one
-// level, so `ask` inside `ask`, and `ask` inside a `tell` scope, each unwind their own level. See
-// spec/turtles-and-sprites.md's "Canonical forms" and "Addressing model"; the same behavior is
-// locked from source by the conformance fixtures under tests/conformance/sprites/ask-*.
+// non-turtle argument (or a list containing one) raises `ol-type`. A turtle listed twice is one
+// member of the scoped set, so the block's commands still apply once (issue #748). Nesting restores
+// exactly one level, so `ask` inside `ask`, and `ask` inside a `tell` scope, each unwind their own
+// level. See spec/turtles-and-sprites.md's "Canonical forms" and "Addressing model"; the same
+// behavior is locked from source by the conformance fixtures under tests/conformance/sprites/ask-*.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -148,6 +149,38 @@ test("ask restores its scope even when the block throws (the diagnostic still su
   );
   const finding = result.diagnostics.find((d) => d.code === "ol-user-error");
   assert.ok(finding, "expected the throw's ol-user-error to surface");
+});
+
+test("#748: ask with a turtle listed twice addresses it once — the block's command applies once, and the previous set is still restored", () => {
+  // `ask` builds its scoped set through the same `turtleIdsFor` as `tell`, so `ask [ :a :a ]`
+  // addresses :a ONCE (spec/turtles-and-sprites.md:44's "addressed set" + :113's "once for each
+  // addressed turtle"; turtle `==` is "Same turtle identity", spec/execution-model.md:540). One move
+  // for :a inside the block, then the trailing `forward 20` for the restored default main turtle.
+  const result = execute(
+    ":a = new_turtle\nask [ :a :a ] [ forward 10 ]\nforward 20",
+    "main.logo",
+  );
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(moves(result.events), [
+    [1, [0, 10]],
+    [null, [0, 20]],
+  ]);
+});
+
+test("#748: ask's dedup preserves first-occurrence order, so who inside the block reports the first-listed turtle", () => {
+  // `ask [ :b :a :b ]` drops the repeat of :b but keeps its first occurrence at position 0: `who`
+  // inside the block reports :b, and the block's command runs for :b then :a — two moves, not three.
+  const result = execute(
+    ":a = new_turtle\n:b = new_turtle\nask [ :b :a :b ] [ print who == :b forward 10 ]",
+    "main.logo",
+  );
+  assert.deepEqual(result.diagnostics, []);
+  const printEvent = result.events.find((event) => event.kind === "print");
+  assert.deepEqual(printEvent.payload.values, [true]);
+  assert.deepEqual(moves(result.events), [
+    [2, [0, 10]],
+    [1, [0, 10]],
+  ]);
 });
 
 test("a non-turtle argument to ask raises ol-type and leaves the addressed set unchanged", () => {

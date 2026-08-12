@@ -1,0 +1,182 @@
+{
+  "description": "issue #748: de-duplicating the addressed set MUST NOT perturb its insertion order or `who`. `tell [ :b :a :b ]` addresses :b (id 2) then :a (id 1); the repeat of :b is dropped as a duplicate but its FIRST occurrence keeps position 0, so `who` still reports :b (issue #679's rule that `tell [ :b :a ]` makes :b current) and the following `forward 40` applies to :b first, then :a — two moves, in that order, not three and not re-ordered.",
+  "profiles": ["sprites", "turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-dedup-preserves-first-occurrence-order/tell-dedup-preserves-first-occurrence-order",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/tell-dedup-preserves-first-occurrence-order/tell-dedup-preserves-first-occurrence-order",
+        "start": [1, 6],
+        "end": [1, 16]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-dedup-preserves-first-occurrence-order/tell-dedup-preserves-first-occurrence-order",
+        "start": [2, 1],
+        "end": [2, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/tell-dedup-preserves-first-occurrence-order/tell-dedup-preserves-first-occurrence-order",
+        "start": [2, 6],
+        "end": [2, 16]
+      },
+      "turtle_id": 2,
+      "payload": {
+        "turtle_id": 2,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-dedup-preserves-first-occurrence-order/tell-dedup-preserves-first-occurrence-order",
+        "start": [3, 1],
+        "end": [3, 18]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-dedup-preserves-first-occurrence-order/tell-dedup-preserves-first-occurrence-order",
+        "start": [4, 1],
+        "end": [4, 16]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "print",
+      "source_span": {
+        "document": "sprites/tell-dedup-preserves-first-occurrence-order/tell-dedup-preserves-first-occurrence-order",
+        "start": [4, 1],
+        "end": [4, 16]
+      },
+      "payload": {
+        "values": [true]
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-dedup-preserves-first-occurrence-order/tell-dedup-preserves-first-occurrence-order",
+        "start": [5, 1],
+        "end": [5, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/tell-dedup-preserves-first-occurrence-order/tell-dedup-preserves-first-occurrence-order",
+        "start": [5, 1],
+        "end": [5, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 40],
+        "heading": 0
+      },
+      "turtle_id": 2
+    },
+    {
+      "seq": 9,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/tell-dedup-preserves-first-occurrence-order/tell-dedup-preserves-first-occurrence-order",
+        "start": [5, 1],
+        "end": [5, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 40],
+        "color": "black",
+        "width": 1
+      },
+      "turtle_id": 2
+    },
+    {
+      "seq": 10,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/tell-dedup-preserves-first-occurrence-order/tell-dedup-preserves-first-occurrence-order",
+        "start": [5, 1],
+        "end": [5, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 40],
+        "heading": 0
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 11,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/tell-dedup-preserves-first-occurrence-order/tell-dedup-preserves-first-occurrence-order",
+        "start": [5, 1],
+        "end": [5, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 40],
+        "color": "black",
+        "width": 1
+      },
+      "turtle_id": 1
+    }
+  ],
+  "diagnostics": []
+}
