@@ -616,11 +616,18 @@ test("a cross-thread abort during a long wait with no due handler is observed by
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-limit");
   assert.equal(result.diagnostics[0].params.limit, "cancelled");
-  // Prove the abort was observed INSIDE the wait loop, not before it: the `every` registration
-  // primitive fired (so execution reached the wait), but the `wait` never emits its COMPLETION
-  // primitive — it was interrupted mid-pause. Were a hypothetical pre-wait poll to abort before the
-  // loop, this test would spuriously pass; asserting the wait was entered-but-not-completed rules
-  // that out and keeps the per-tick poll the thing under test.
+  // Prove the abort was observed INSIDE the wait loop, not before it. Two independent signals, both
+  // required: (1) the `wait` STATEMENT was reached and began — its `instruction` event (the sole
+  // top-level `Call` in this program) is present, so a hypothetical poll that aborted *before*
+  // entering the wait loop could not produce this stream; (2) the `wait` never emits its COMPLETION
+  // primitive, so it was interrupted mid-pause rather than running all five ticks out. Entered-but-
+  // not-completed is exactly the mid-wait-abort signature the per-tick poll is responsible for, which
+  // keeps the poll the thing under test.
+  const waitStatementEntered = result.events.some(
+    (event) =>
+      event.kind === "instruction" && event.payload.statement_kind === "Call",
+  );
+  assert.ok(waitStatementEntered);
   assert.ok(primitiveNames(result).includes("every"));
   assert.ok(!primitiveNames(result).includes("wait"));
 });
