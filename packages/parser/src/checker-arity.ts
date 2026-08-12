@@ -7,11 +7,10 @@
  *
  * ## What "statically known" means here
  * - **Core, Data-, Sound-, and Interaction & Events-profile primitives** — a default (bare-call)
- *   arity and a variadic ceiling
- *   from {@link corePrimitiveArityRange} / {@link dataPrimitiveArityRange} (issue #405 wires the
- *   latter in, mirroring the former exactly; issue #689 adds Sound's and issue #687 Interaction &
- *   Events' `wait`, each gated on its own active profile). OpenLogo's reader gathers *exactly* the
- *   default
+ *   arity and a variadic ceiling from {@link corePrimitiveArityRange} /
+ *   {@link dataPrimitiveArityRange} (issue #405 wires the latter in, mirroring the former exactly;
+ *   issue #689 adds Sound's and issue #687 Interaction & Events' `wait`, each gated on its own
+ *   active profile). OpenLogo's reader gathers *exactly* the default
  *   number of arguments for a bare (non-parenthesized) call, so a bare primitive call can only
  *   ever be short of arguments (the line or block ended first, e.g. `print first`), never over —
  *   extra tokens become stray statements the parser reports as `ol-bad-token`, not a too-many

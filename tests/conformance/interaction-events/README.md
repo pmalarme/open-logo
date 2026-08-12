@@ -60,5 +60,8 @@ that requires it — see `scripts/examples-gate.mjs`.
   job of the per-form directories above. The profile's `input` reporter is deliberately not covered:
   its slice (#681, I2) is unimplemented, so registering it with the checker would let a program
   check clean and then fail at runtime.
+- **`redefine-wait-reserved/`** — also issue #687: redefining the profile primitive `wait` raises
+  `ol-reserved-word` (`namespace: "primitive"`) under an active profile, the primitive branch of the
+  rule rather than the reserved-word branch (`wait` is not one of the four reserved block-heads).
 
 Fixture shape and conventions: see [`../README.md`](../README.md).

@@ -53,8 +53,8 @@ import {
 /**
  * Every canonical lowercase name contributed by an optional (non-Core) conformance profile's
  * primitive table — currently Turtle & Rendering's, Educational's, Geometry's, Data's, Sound's, the
- * Interaction & Events block-heads (`when`/`every`, issues #682/#683) and its `wait` primitive
- * (issue #687), the Sprites addressing
+ * Interaction & Events block-heads (`when`/`every`/`on_key`/`on_click`, issues #682–#685) and its
+ * `wait` primitive (issue #687), the Sprites addressing
  * head (`tell`, issue #674) and reporters (`new_turtle`/`who`/`turtles`, issue #678), and the
  * Heritage short command aliases (`fd`/`bk`/…, issue #668).
  * Computed once as a frozen union so
