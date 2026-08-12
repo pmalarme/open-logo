@@ -1,0 +1,5 @@
+:a = new_turtle
+tell [ ]
+set_shape "arrow"
+hide_turtle
+stamp

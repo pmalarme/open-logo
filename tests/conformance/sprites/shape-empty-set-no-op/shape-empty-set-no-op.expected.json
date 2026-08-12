@@ -1,0 +1,88 @@
+{
+  "description": "issue #677 (SP5): with the addressed set empty (`tell [ ]`), the per-turtle commands `set_shape`/`hide_turtle`/`stamp` apply zero times and emit no `shape-change`/`visibility-change`/`stamp` events at all — only the assignment, spawn, and `tell` instructions appear. An empty addressed set is a valid no-op.",
+  "profiles": ["sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/shape-empty-set-no-op/shape-empty-set-no-op",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/shape-empty-set-no-op/shape-empty-set-no-op",
+        "start": [1, 6],
+        "end": [1, 16]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/shape-empty-set-no-op/shape-empty-set-no-op",
+        "start": [2, 1],
+        "end": [2, 9]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/shape-empty-set-no-op/shape-empty-set-no-op",
+        "start": [3, 1],
+        "end": [3, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/shape-empty-set-no-op/shape-empty-set-no-op",
+        "start": [4, 1],
+        "end": [4, 12]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/shape-empty-set-no-op/shape-empty-set-no-op",
+        "start": [5, 1],
+        "end": [5, 6]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": []
+}

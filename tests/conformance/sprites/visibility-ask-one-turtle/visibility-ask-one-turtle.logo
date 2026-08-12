@@ -1,0 +1,3 @@
+:a = new_turtle
+:b = new_turtle
+ask :a [ hide_turtle ]

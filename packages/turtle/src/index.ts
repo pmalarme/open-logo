@@ -34,6 +34,14 @@ export {
 export type { TurtleState } from "./state.js";
 
 export {
+  INITIAL_TURTLE_WORLD_STATE,
+  MAIN_TURTLE_ID,
+  reduceTurtleWorldEvents,
+  reduceTurtleWorldState,
+} from "./world-state.js";
+export type { TurtleWorldState } from "./world-state.js";
+
+export {
   INITIAL_TURTLE_SCENE,
   reduceSceneEvents,
   reduceTurtleScene,

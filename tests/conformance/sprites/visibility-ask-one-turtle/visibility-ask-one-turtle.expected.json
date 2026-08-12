@@ -1,0 +1,110 @@
+{
+  "description": "issue #677 (SP5): `hide_turtle` is a per-turtle Turtle & Rendering command; under `ask :a [ hide_turtle ]` it emits a single `visibility-change` `{from:true,to:false}` carrying only :a's `turtle_id` (1), leaving :b untouched — visibility is per-turtle avatar state (spec/turtles-and-sprites.md's \"Per-turtle state and Turtle commands\").",
+  "profiles": ["sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/visibility-ask-one-turtle/visibility-ask-one-turtle",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/visibility-ask-one-turtle/visibility-ask-one-turtle",
+        "start": [1, 6],
+        "end": [1, 16]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/visibility-ask-one-turtle/visibility-ask-one-turtle",
+        "start": [2, 1],
+        "end": [2, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/visibility-ask-one-turtle/visibility-ask-one-turtle",
+        "start": [2, 6],
+        "end": [2, 16]
+      },
+      "turtle_id": 2,
+      "payload": {
+        "turtle_id": 2,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/visibility-ask-one-turtle/visibility-ask-one-turtle",
+        "start": [3, 1],
+        "end": [3, 23]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/visibility-ask-one-turtle/visibility-ask-one-turtle",
+        "start": [3, 10],
+        "end": [3, 21]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "visibility-change",
+      "source_span": {
+        "document": "sprites/visibility-ask-one-turtle/visibility-ask-one-turtle",
+        "start": [3, 10],
+        "end": [3, 21]
+      },
+      "payload": {
+        "from": true,
+        "to": false
+      },
+      "turtle_id": 1
+    }
+  ],
+  "diagnostics": []
+}
