@@ -1,5 +1,6 @@
 to spin :n
   rt 90
+  lt 30
   fd :n
 end
 repeat 2 [ pu fd 10 pd bk 10 ]
