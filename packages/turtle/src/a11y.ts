@@ -212,15 +212,16 @@ function describeAddressedTurtles(
  * then said out loud; no Turtle & Rendering program can reach it, since `tell` is a Sprites
  * primitive.
  *
- * The totality fallbacks below reach that same unnamed wording from two further states, which is
- * why the condition above is scoped to a folded world: neither is reachable by running a program.
- * They are ordered so the text never announces an identity nothing in the world
- * corresponds to. An addressed set naming a turtle the world does not hold is dropped in favor of
- * the plain last-acted wording — that turtle's **real** state, named `turtle #<id> at …` in a
- * multi-turtle world or unnamed in a one-turtle world; only when the `lastActedTurtleId` itself
- * names no live turtle — leaving no honest subject at all — does the description fall back to the
- * program-start defaults. Both are constructible only by hand, since every world this package
- * folds keeps them live.
+ * The totality fallbacks below reach that same unnamed wording from further states, which is
+ * why the condition above is scoped to a folded world: none of them is reachable by running a
+ * program. They are ordered so the text never announces an identity nothing in the world
+ * corresponds to. Addressing that is **missing** (a hand-built world predating the fields) or
+ * **unusable** (a set naming a turtle the world does not hold) is ignored in favor of the plain
+ * last-acted wording — that turtle's **real** state, named `turtle #<id> at …` in a multi-turtle
+ * world or unnamed in a one-turtle world. Only the third state, a `lastActedTurtleId` that itself
+ * names no live turtle — leaving no honest subject at all — falls back to the program-start
+ * defaults. All three are constructible only by hand, since every world this package folds carries
+ * addressing and keeps both identities live.
  */
 export function describeTurtleWorldState(
   world: TurtleWorldState,
