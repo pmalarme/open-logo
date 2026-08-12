@@ -44,6 +44,7 @@ import {
   heritageAliasNames,
   interactionEventsBlockHeadNames,
   soundPrimitiveNames,
+  spritesPrimitiveNames,
   spritesStatementFormNames,
   turtlePrimitiveNames,
 } from "./signatures.js";
@@ -52,7 +53,8 @@ import {
  * Every canonical lowercase name contributed by an optional (non-Core) conformance profile's
  * primitive table — currently Turtle & Rendering's, Educational's, Geometry's, Data's, Sound's, and
  * the Interaction & Events block-heads (`when`/`every`, issues #682/#683), the Sprites addressing
- * head (`tell`, issue #674), and the Heritage short command aliases (`fd`/`bk`/…, issue #668).
+ * head (`tell`, issue #674) and reporters (`new_turtle`/`who`/`turtles`, issue #678), and the
+ * Heritage short command aliases (`fd`/`bk`/…, issue #668).
  * Computed once as a frozen union so
  * {@link isOptionalProfileName} stays a pure, allocation-free lookup; a future optional-profile
  * table adds its `...someProfileNames()` spread here alongside these, exactly mirroring how
@@ -67,6 +69,7 @@ const OPTIONAL_PROFILE_NAMES: ReadonlySet<string> = new Set([
   ...heritageAliasNames(),
   ...interactionEventsBlockHeadNames(),
   ...spritesStatementFormNames(),
+  ...spritesPrimitiveNames(),
 ]);
 
 /**
@@ -115,8 +118,9 @@ export function collectDeclaredNames(
  * `"heritage"` is active, plus every procedure declared anywhere in `program` (declaration order
  * and position do not matter — OpenLogo procedures are available program-wide, not just after
  * their `define`, and the same is true of struct constructors, which register at phase-1 exactly
- * like procedures do — `@openlogo/runtime`'s `collectStructs`). The `tell` addressing head is
- * visible only when `"sprites"` is active (issue #674).
+ * like procedures do — `@openlogo/runtime`'s `collectStructs`). The `tell`/`ask`/`each` addressing
+ * heads and the `new_turtle`/`who`/`turtles` reporters are visible only when `"sprites"` is active
+ * (issues #674 and #678).
  */
 export function collectVisibleNames(
   program: ProgramNode,
@@ -177,6 +181,9 @@ export function collectVisibleNames(
 
   if (active.has("sprites")) {
     for (const name of spritesStatementFormNames()) {
+      names.add(name);
+    }
+    for (const name of spritesPrimitiveNames()) {
       names.add(name);
     }
   }

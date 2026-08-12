@@ -1,0 +1,48 @@
+{
+  "description": "issue #678 (SP6): the reader is profile-blind, so `new_turtle`/`who`/`turtles` parse as ordinary bare-call reporters even without `sprites`; the checker then rejects each `ol-unknown-command` because its name is not visible when `sprites` is inactive — proving the reporters are gated on the profile, not merely parsed (the negative half of the reporters-check-clean pair). `who` carries the Core did-you-mean `show`; `new_turtle`/`turtles` have no close Core neighbour.",
+  "profiles": ["core-language", "turtle-rendering"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "sprites/reporters-unknown-without-sprites/reporters-unknown-without-sprites",
+        "start": [1, 7],
+        "end": [1, 17]
+      },
+      "params": {
+        "name": "new_turtle"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "sprites/reporters-unknown-without-sprites/reporters-unknown-without-sprites",
+        "start": [2, 7],
+        "end": [2, 10]
+      },
+      "params": {
+        "name": "who",
+        "suggestion": "show"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "sprites/reporters-unknown-without-sprites/reporters-unknown-without-sprites",
+        "start": [3, 7],
+        "end": [3, 14]
+      },
+      "params": {
+        "name": "turtles"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

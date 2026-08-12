@@ -1,0 +1,7 @@
+{
+  "description": "issue #678 (SP6): with the `sprites` profile active, a program that actually USES the turtle-identity reporters `who`/`new_turtle`/`turtles` checks clean — the checker's unknown-command rule recognizes them as visible command names because `collectVisibleNames` now registers `spritesPrimitiveNames()` under an active `sprites` profile (the SP6 gap SP5 documented: its clean fixture deliberately avoided the reporters because they were still unregistered). This fixture is the proof the gap is closed. `:leader`/`:friend` are assigned so they are not `ol-undefined-var`.",
+  "profiles": ["core-language", "turtle-rendering", "sprites"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}
