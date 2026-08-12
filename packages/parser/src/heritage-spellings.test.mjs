@@ -74,6 +74,24 @@ test("`to name :param … end` registers a callable arity so a later bare call g
   assert.equal(call.args[0].value, 5);
 });
 
+test("a `to` opener that begins an inline block body registers arity, matching nested `define`", () => {
+  // Regression for the block-body statement start: a procedure opener directly after `[` (with no
+  // intervening newline) is still statement-leading, so `to` must register its arity there exactly
+  // as `define` does. Otherwise `dbl 5` inside the block would read `dbl` (0-arg) plus a stray `5`.
+  const toBody = parseClean("repeat 1 [to dbl :n\n  return :n\nend\ndbl 5]\n")
+    .body[0].body.body;
+  const defBody = parseClean(
+    "repeat 1 [define dbl :n\n  return :n\nend\ndbl 5]\n",
+  ).body[0].body.body;
+  for (const body of [toBody, defBody]) {
+    const call = body[1];
+    assert.equal(call.kind, "Call");
+    assert.equal(call.callee.name, "dbl");
+    assert.equal(call.args.length, 1);
+    assert.equal(call.args[0].value, 5);
+  }
+});
+
 test("a `to` procedure closes with `end` or `end define`, never `end to`", () => {
   // spec/grammar.md:145-147 — `define-end ::= "end" ["define"]` is shared by both spellings.
   parseClean("to greet\n  print 1\nend define\n");

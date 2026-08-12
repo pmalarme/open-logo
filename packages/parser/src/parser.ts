@@ -162,17 +162,22 @@ const PROFILE_STATEMENT_FORMS: ReadonlyMap<string, ProfileStatementForm> =
   ]);
 
 /**
- * Whether the token at index `k` begins a statement — i.e. it is the first token of the stream or
- * the previous token is a statement terminator (`newline`). Used by {@link collectUserArities} to
+ * Whether the token at index `k` begins a statement — i.e. it is the first token of the stream, the
+ * previous token is a statement terminator (`newline`), or the previous token opens a block (`[`), so
+ * the first statement inside an inline block body counts too. Used by {@link collectUserArities} to
  * distinguish the Heritage procedure *opener* `to` (statement-leading) from `to`'s mid-statement
  * reserved roles (`set … to`, `for … from … to`, and the Data `add … to <list>` preposition,
- * `spec/grammar.md:365`), so only the opener registers a callable arity.
+ * `spec/grammar.md:365`), so only the opener registers a callable arity. Including `[` keeps a
+ * nested `[to f :x … end …]` procedure registering its arity exactly as the equivalent nested
+ * `define` already does — the mid-statement `to` prepositions never sit directly after `[` (their
+ * operands always come between the block opener and the `to`), so widening the start set stays safe.
  */
 function atStatementStart(tokens: readonly LexToken[], k: number): boolean {
   if (k === 0) {
     return true;
   }
-  return (tokens[k - 1] as LexToken).kind === "newline";
+  const previous = (tokens[k - 1] as LexToken).kind;
+  return previous === "newline" || previous === "lbracket";
 }
 
 /**
