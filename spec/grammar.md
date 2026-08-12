@@ -364,7 +364,17 @@ struct alias import export
 
 `to` is one reserved word with multiple contextual roles: heritage procedure opener, the preposition in `set ... to`, and the bound in `for ... from ... to`. By contrast, `empty`, `member`, `of`, and `a` are **not** reserved: they act as keywords only inside an `is`-predicate (`:x is empty`, `2 is member of :nums`, `:p is a "point"`) and stay ordinary names everywhere else. (`of` is also the contextual preposition in the heritage `value of … for key` reader.)
 
-Reserved words are structural tokens recognized by the reader. They may not be redefined as variables, procedures, primitives, or struct type constructors; such collisions raise `ol-reserved-word`. Reserved words may be aliased by `alias` or localized keyword packs because aliasing adds reader-recognized spellings rather than redefining the underlying word.
+Reserved words are structural tokens recognized by the reader. They may not be redefined as variables, procedures, primitives, or struct type constructors; such collisions raise `ol-reserved-word`. The restriction applies to **every form that introduces a name**: `define`/`to` procedures, `struct` type constructors, `local` declarations, `alias` targets, procedure parameters, loop and comprehension binders, and assignment — the place head of `:name = ...` and `set name to ...`. It is not limited to the declaration forms, and the `:name` variable namespace is not an exception: assignment is the primary way to create a variable in OpenLogo and `local` is optional, so a restriction enforced only at `local` could be bypassed by omitting an optional keyword. Reserved words may be aliased by `alias` or localized keyword packs because aliasing adds reader-recognized spellings rather than redefining the underlying word.
+
+Each line below introduces the name `repeat`, so each one raises `ol-reserved-word` — the declaration form and the assignment forms alike:
+
+```logo
+local repeat                        # error: ol-reserved-word
+:repeat = 1                         # error: ol-reserved-word — assignment introduces a name too
+set repeat to 1                     # error: ol-reserved-word — same rule, worded spelling
+for repeat in [ 1 2 ] [ print 1 ]   # error: ol-reserved-word — loop binder
+:side = 1                           # fine: side is not a reserved word
+```
 
 Primitives, user procedures, and struct type constructors share one callable namespace. Record field names live in a per-type namespace reached only by `.field`, so they do not collide with globals or structural words. Dictionary keys and selector bare keys are data, not declarations, so reserved words are legal keys.
 

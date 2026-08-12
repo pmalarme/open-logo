@@ -106,7 +106,7 @@ alias definir define
 alias fin end
 ```
 
-Reserved words may not be redefined as procedures, variables, or type constructors, nor reused as a new alias spelling (`new_name`). Any attempt to introduce a `new_name` already occupied by a reserved word, primitive, procedure, type constructor, or alias raises `ol-reserved-word`. A reserved word may still serve as the `existing_name` an alias points to.
+Reserved words may not be redefined as procedures, variables, or type constructors — in any form that introduces a name, assignment and binders included, per [grammar](grammar.md#reserved-words-and-namespaces) — nor reused as a new alias spelling (`new_name`). Any attempt to introduce a `new_name` already occupied by a reserved word, primitive, procedure, type constructor, or alias raises `ol-reserved-word`. A reserved word may still serve as the `existing_name` an alias points to.
 
 ```logo
 alias repeat forward    # error: repeat already exists

@@ -100,7 +100,9 @@ highlighter marks them as `keyword` only inside an `is`-predicate and as ordinar
 reserved only when their profile is active: the `ask` and `each` block-heads and the `tell` command
 for Sprites; the `when`, `every`, `on_key`, and `on_click` block-heads for Interaction.
 Reserved words may be aliased by `alias`, but they MUST NOT be redefined as variables, procedures,
-or struct type names; such redefinitions produce `ol-reserved-word`.
+or struct type names; such redefinitions produce `ol-reserved-word`. That restriction applies to every
+form that introduces a name, assignment and binders included; see
+[grammar.md](grammar.md#reserved-words-and-namespaces) for the normative list of forms.
 
 ## Editor grammar guidance
 
@@ -181,7 +183,7 @@ profile block-heads are available.
 | Not enough inputs for a fixed-arity or selected call form | `ol-not-enough-inputs` | Include callable name, expected count, and actual count. |
 | Too many inputs outside parenthesized alternate/variadic forms | `ol-too-many-inputs` | Include callable name and explain when parentheses are required. |
 | Undefined variable read | `ol-undefined-var` | Point at the `:variable` token or place head that reads an unbound value. |
-| Redefining a reserved word, primitive, existing procedure, existing type constructor, or existing alias | `ol-reserved-word` | Apply to `define`, `to`, `struct`, `local`, and `alias` registrations as appropriate. |
+| Redefining a reserved word, primitive, existing procedure, existing type constructor, or existing alias | `ol-reserved-word` | Apply at every form that introduces a name — `define`, `to`, `struct`, `local`, and `alias`, plus procedure parameters, loop and comprehension binders, and assignment (`:name = ...`, `set name to ...`). See [grammar.md](grammar.md#reserved-words-and-namespaces). |
 | Unknown struct type in a type position | `ol-unknown-type` | Use only when a type position (the type word of `is a` / `is_a?`) names no registered type; an unknown callable or constructor name in call position is `ol-unknown-command`. |
 | Unknown record field | `ol-unknown-field` | Use for record field reads and writes; struct fields are fixed and never upsert. |
 | Assignment or `set` target is not an assignable place | `ol-not-a-place` | Reject reporter calls, literals, computed values, and parenthesized expressions as targets. |

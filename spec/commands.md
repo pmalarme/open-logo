@@ -79,7 +79,7 @@ OpenLogo has no `function` primitive, no `f(x,y)` call syntax, no lambda syntax,
 :nums[1] = 9
 ```
 
-- **Possible errors:** `ol-not-a-place`, `ol-unknown-field`, `ol-range`; reads of intermediate missing keys may raise `ol-unknown-key`.
+- **Possible errors:** `ol-not-a-place`, `ol-unknown-field`, `ol-range`; reads of intermediate missing keys may raise `ol-unknown-key`; `ol-reserved-word` when the place head is a reserved word, because assignment introduces a name (see [grammar.md](grammar.md#reserved-words-and-namespaces)).
 
 ### `set … to`
 
@@ -98,7 +98,7 @@ set nums[1] to 9
 make "size" 120
 ```
 
-- **Possible errors:** `ol-not-a-place`, `ol-unknown-field`, `ol-range`; reads of intermediate missing keys may raise `ol-unknown-key`.
+- **Possible errors:** `ol-not-a-place`, `ol-unknown-field`, `ol-range`; reads of intermediate missing keys may raise `ol-unknown-key`; `ol-reserved-word` when the place head is a reserved word, because assignment introduces a name (see [grammar.md](grammar.md#reserved-words-and-namespaces)).
 
 ### `local`
 

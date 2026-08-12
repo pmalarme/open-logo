@@ -151,7 +151,7 @@ Sprite `ask` addresses turtles. User input is the `input` reporter in the [Inter
 
 ## Reserved words in this profile
 
-`ask` and `each` are profile block-heads, and `tell` is a profile command that switches the addressed set without taking a block; all three are reserved only within the Sprites profile. They are not part of the Core reserved-word list in [grammar.md](grammar.md). When the Sprites profile is active, programs MUST NOT redefine them as variables, procedures, or struct constructors; doing so raises `ol-reserved-word`.
+`ask` and `each` are profile block-heads, and `tell` is a profile command that switches the addressed set without taking a block; all three are reserved only within the Sprites profile. They are not part of the Core reserved-word list in [grammar.md](grammar.md). When the Sprites profile is active, they follow the Core reserved-word rule in [grammar.md](grammar.md#reserved-words-and-namespaces): programs MUST NOT redefine them as variables, procedures, or struct constructors, and that restriction applies to every form that introduces a name — so `local tell`, `:tell = 1`, `set tell to 1`, and `for tell in ...` all raise `ol-reserved-word`.
 
 ## Profile grammar
 
