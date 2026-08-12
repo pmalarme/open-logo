@@ -211,7 +211,7 @@ test("the registry marks exactly the per-turtle effect kinds as turtle-specific 
   // consumer validate them from one list instead of each hard-coding its own. It answers "may this
   // kind carry an id at all", NOT "may a producer label it with whichever turtle is acting" — the
   // narrower producer policy lives in @openlogo/runtime and excludes `spawn-turtle` and `clear`.
-  for (const kind of [
+  const turtleSpecific = [
     "move",
     "turn",
     "pen-change",
@@ -226,13 +226,10 @@ test("the registry marks exactly the per-turtle effect kinds as turtle-specific 
     // `spawn-turtle`'s envelope names the turtle just created (spec/turtles-and-sprites.md:34), so
     // it is turtle-specific even though it carries that id authoritatively rather than by stamping.
     "spawn-turtle",
-  ]) {
-    assert.ok(OL.isTurtleSpecificEventKind(kind), `${kind} is turtle-specific`);
-    assert.ok(OL.OL_TURTLE_SPECIFIC_EVENT_KINDS.has(kind));
-  }
+  ];
   // Program/scene kinds are not turtle-specific — including `primitive`, whose addressing payload
   // describes a SET of turtles.
-  for (const kind of [
+  const notTurtleSpecific = [
     "instruction",
     "procedure-enter",
     "procedure-exit",
@@ -244,7 +241,12 @@ test("the registry marks exactly the per-turtle effect kinds as turtle-specific 
     "error",
     "tutor-output",
     "primitive",
-  ]) {
+  ];
+  for (const kind of turtleSpecific) {
+    assert.ok(OL.isTurtleSpecificEventKind(kind), `${kind} is turtle-specific`);
+    assert.ok(OL.OL_TURTLE_SPECIFIC_EVENT_KINDS.has(kind));
+  }
+  for (const kind of notTurtleSpecific) {
     assert.equal(
       OL.isTurtleSpecificEventKind(kind),
       false,
@@ -254,6 +256,16 @@ test("the registry marks exactly the per-turtle effect kinds as turtle-specific 
   // Every entry is itself a registered kind — the partition can never drift off the registry.
   for (const kind of OL.OL_TURTLE_SPECIFIC_EVENT_KINDS) {
     assert.ok(OL.isEventKind(kind));
+  }
+  // ...and the converse: every registered kind is classified by exactly one of the two lists above.
+  // Without this, a newly registered kind would be silently unclassified — defaulting to "not
+  // turtle-specific", so a genuine per-turtle effect would ship with no `turtle_id` and fold into the
+  // main turtle in a consumer's reducer, mis-attributed with no test failing anywhere.
+  for (const kind of OL.OL_EVENT_KINDS) {
+    assert.ok(
+      turtleSpecific.includes(kind) !== notTurtleSpecific.includes(kind),
+      `${kind} must be classified by exactly one of the two lists`,
+    );
   }
   assert.equal(OL.isTurtleSpecificEventKind("not-a-kind"), false);
 });
