@@ -1,0 +1,28 @@
+{
+  "description": "issue #690: `rest` (Sound profile, arity 1) schedules silence for its duration in beats at the current tempo and emits exactly one `sound` event with payload {command:\"rest\", duration} - \"so replay tools can show the silent interval\" (spec/interaction-events.md's `rest` section). Silence is modeled purely as the event (no sound-state change), emitted unconditionally even in a muted environment, keeping deterministic replay independent of audio availability. The `sound` event follows the instruction event.",
+  "profiles": ["sound"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sound/rest-basic",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "sound",
+      "source_span": {
+        "document": "sound/rest-basic",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "payload": { "command": "rest", "duration": 1 }
+    }
+  ],
+  "diagnostics": []
+}

@@ -73,6 +73,7 @@ import {
 } from "@openlogo/parser";
 import { normalizeColor } from "./color.js";
 import { isRecognizedShape, normalizeShape } from "./shape.js";
+import { isValidPitch } from "./pitch.js";
 import {
   bindElement,
   checkExecutionLimits,
@@ -1672,6 +1673,207 @@ function executeSoundBeepCall(
 }
 
 /**
+ * Is `statement` a call to `note` (issue #690; `spec/interaction-events.md:274-291`). Same
+ * shape/convention as {@link isSoundSetTempoCall} — an ordinary Sound-profile primitive-name match
+ * (`note` takes a pitch word and a duration number).
+ */
+function isSoundNoteCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  return statement.callee.name.toLowerCase() === "note";
+}
+
+/**
+ * Validate and run a `note <pitch-word> <duration>` statement matched by {@link isSoundNoteCall}:
+ * exactly two arguments (`ol-not-enough-inputs`/`ol-too-many-inputs` otherwise). The first MUST be a
+ * word (`ol-type`, `expected: "word"`) naming a well-formed scientific-pitch-notation pitch
+ * (`ol-type`, `expected: "pitch"`, via `runtimeDiag.invalidPitch` — mirroring `set_shape`'s
+ * word-then-recognized two-stage check); the second MUST be a positive finite number
+ * (`ol-type` via {@link requireNumber}, then `ol-range` via `runtimeDiag.nonPositiveDuration`).
+ *
+ * On success it schedules the pitched sound — headlessly, so scheduling *is* reading the current
+ * tempo from `environment.sound.tempo` (`set_tempo`'s state; the beat `duration` is interpreted at
+ * that tempo) and emitting one `sound` event carrying a {@link NoteSoundPayload}, AFTER the sound
+ * has been scheduled (`spec/interaction-events.md`'s trace-stream rule: "Sound commands emit
+ * `sound` events after sound state has been scheduled"). The event is emitted unconditionally even
+ * in a muted environment ("Implementations that cannot play audio … MUST still emit `sound`
+ * events"), so replay never depends on audio availability. Returns an {@link ExecSignal} to halt
+ * on, or `undefined` for {@link executeStatements} to `continue` on success (including the "left
+ * un-evaluated" case for an unsupported argument expression).
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeSoundNoteCall(
+  noteCall: CallNode | ParenCallNode,
+  environment: Environment,
+): ExecSignal | undefined {
+  const callableName = noteCall.callee.name;
+  if (noteCall.args.length !== 2) {
+    return halt(
+      noteCall.args.length < 2
+        ? runtimeDiag.notEnoughInputs(
+            noteCall.callee.source_span,
+            callableName,
+            2,
+            noteCall.args.length,
+          )
+        : runtimeDiag.tooManyInputs(
+            noteCall.callee.source_span,
+            callableName,
+            2,
+            noteCall.args.length,
+          ),
+    );
+  }
+  const [pitchArg, durationArg] = noteCall.args as [
+    ExpressionNode,
+    ExpressionNode,
+  ];
+  if (
+    !isSupportedArgument(pitchArg, environment) ||
+    !isSupportedArgument(durationArg, environment)
+  ) {
+    return undefined;
+  }
+  const pitchResult = evaluate(pitchArg, environment);
+  if (!pitchResult.ok) {
+    return halt(pitchResult.diagnostic);
+  }
+  if (typeof pitchResult.value !== "string") {
+    return halt(
+      runtimeDiag.placeType(pitchArg.source_span, {
+        expected: "word",
+        actual: typeNameOf(pitchResult.value),
+        value: pitchResult.value,
+        operation: "note",
+      }),
+    );
+  }
+  if (!isValidPitch(pitchResult.value)) {
+    return halt(
+      runtimeDiag.invalidPitch(pitchArg.source_span, {
+        value: pitchResult.value,
+        operation: "note",
+      }),
+    );
+  }
+  const durationResult = evaluate(durationArg, environment);
+  if (!durationResult.ok) {
+    return halt(durationResult.diagnostic);
+  }
+  const duration = requireNumber(
+    durationResult.value,
+    durationArg.source_span,
+    "note",
+  );
+  if (!duration.ok) {
+    return halt(duration.diagnostic);
+  }
+  if (!Number.isFinite(duration.value) || duration.value <= 0) {
+    return halt(
+      runtimeDiag.nonPositiveDuration(durationArg.source_span, {
+        operation: "note",
+        value: String(duration.value),
+      }),
+    );
+  }
+  environment.events.push({
+    seq: environment.events.length,
+    kind: "sound",
+    source_span: noteCall.source_span,
+    payload: {
+      command: "note",
+      pitch: pitchResult.value,
+      duration: duration.value,
+    } satisfies SoundPayload,
+  });
+  return undefined;
+}
+
+/**
+ * Is `statement` a call to `rest` (issue #690; `spec/interaction-events.md:326-341`). Same
+ * shape/convention as {@link isSoundSetTempoCall} — a single-numeric-argument Sound-profile
+ * primitive.
+ */
+function isSoundRestCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  return statement.callee.name.toLowerCase() === "rest";
+}
+
+/**
+ * Validate and run a `rest <duration>` statement matched by {@link isSoundRestCall}: exactly one
+ * numeric argument (`ol-not-enough-inputs`/`ol-too-many-inputs`/`ol-type` otherwise, via
+ * {@link requireNumber}), which MUST be a positive finite number (`ol-range` via
+ * `runtimeDiag.nonPositiveDuration` otherwise — folding `Infinity` in like `note`'s duration and
+ * `set_tempo`'s tempo). On success it schedules silence for `duration` beats at the current tempo
+ * and emits one `sound` event carrying a {@link RestSoundPayload}, "so replay tools can show the
+ * silent interval" (`spec/interaction-events.md`), AFTER the silence has been scheduled and
+ * unconditionally even in a muted environment. `rest` changes no sound state — silence is modeled
+ * purely as the event. Returns an {@link ExecSignal} to halt on, or `undefined` for
+ * {@link executeStatements} to `continue` on success (including the "left un-evaluated" case).
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeSoundRestCall(
+  restCall: CallNode | ParenCallNode,
+  environment: Environment,
+): ExecSignal | undefined {
+  const callableName = restCall.callee.name;
+  if (restCall.args.length !== 1) {
+    return halt(
+      restCall.args.length < 1
+        ? runtimeDiag.notEnoughInputs(
+            restCall.callee.source_span,
+            callableName,
+            1,
+            restCall.args.length,
+          )
+        : runtimeDiag.tooManyInputs(
+            restCall.callee.source_span,
+            callableName,
+            1,
+            restCall.args.length,
+          ),
+    );
+  }
+  const [arg] = restCall.args as [ExpressionNode];
+  if (!isSupportedArgument(arg, environment)) {
+    return undefined;
+  }
+  const argResult = evaluate(arg, environment);
+  if (!argResult.ok) {
+    return halt(argResult.diagnostic);
+  }
+  const duration = requireNumber(argResult.value, arg.source_span, "rest");
+  if (!duration.ok) {
+    return halt(duration.diagnostic);
+  }
+  if (!Number.isFinite(duration.value) || duration.value <= 0) {
+    return halt(
+      runtimeDiag.nonPositiveDuration(arg.source_span, {
+        operation: "rest",
+        value: String(duration.value),
+      }),
+    );
+  }
+  environment.events.push({
+    seq: environment.events.length,
+    kind: "sound",
+    source_span: restCall.source_span,
+    payload: {
+      command: "rest",
+      duration: duration.value,
+    } satisfies SoundPayload,
+  });
+  return undefined;
+}
+
+/**
  * Sentinel {@link dispatchSoundCommand} returns when `statement` isn't any recognized Sound-profile
  * command, so {@link executeStatements} can fall through to its other statement-kind checks.
  * Distinct from `undefined`, which means a sound command ran successfully (the same "handled,
@@ -1698,6 +1900,18 @@ function dispatchSoundCommand(
   }
   if (isSoundBeepCall(statement)) {
     return executeSoundBeepCall(
+      statement as unknown as CallNode | ParenCallNode,
+      environment,
+    );
+  }
+  if (isSoundNoteCall(statement)) {
+    return executeSoundNoteCall(
+      statement as unknown as CallNode | ParenCallNode,
+      environment,
+    );
+  }
+  if (isSoundRestCall(statement)) {
+    return executeSoundRestCall(
       statement as unknown as CallNode | ParenCallNode,
       environment,
     );

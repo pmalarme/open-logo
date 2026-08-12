@@ -1,0 +1,30 @@
+{
+  "description": "issue #690: `rest`'s duration MUST be positive; a non-positive value (here -1) raises `ol-range` at runtime (spec/error-model.md) and emits no `sound` event. A zero or non-finite value is folded into the same guard, shared with `note`'s duration check. The instruction event is still emitted for the statement before the diagnostic halts it.",
+  "profiles": ["sound"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sound/rest-range-error",
+        "start": [1, 1],
+        "end": [1, 8]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-range",
+      "source_span": {
+        "document": "sound/rest-range-error",
+        "start": [1, 6],
+        "end": [1, 8]
+      },
+      "params": { "operation": "rest", "value": "-1" },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}
