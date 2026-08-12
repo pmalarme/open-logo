@@ -338,7 +338,7 @@ no DOM here to regress.
   `describeTurtleWorldState` (position/heading/pen wording, never re-derived here — plus, once a
   program drives more than one turtle, the `turtle #<id>` name of the turtle being described, #749,
   and — whenever the addressed set is not simply that turtle — the set itself, as
-  `addressed turtles #1 #2. last acted turtle #2 at x …`, #770: the consumer half of the addressing
+  `addressed turtles #1 #2. turtle #2 at x …`, #770: the consumer half of the addressing
   snapshots #766 publishes in the trace stream, which is what lets an `ask`/`each` block's restore
   name the set that is addressed again while still reporting the change the block made)
   plus, when available,

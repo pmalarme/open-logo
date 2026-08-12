@@ -116,8 +116,8 @@ function addressingClause(ids: readonly TurtleId[]): string {
  * The wording decision, and why (`@turtle-engine` + `@learner-experience`, issue #770):
  * `describeState` describes **one** turtle's position/heading/pen/color/width, and a *set* has no
  * single position. The sentence therefore answers the two questions separately —
- * `addressed turtles #1 #2. last acted turtle #2 at x … y … heading … degrees pen … color … width …`
- * — naming the addressed set, then describing the turtle that most recently *changed*:
+ * `addressed turtles #1 #2. turtle #2 at x … y … heading … degrees pen … color … width …` — naming
+ * the addressed set, then describing the turtle that most recently *changed*:
  *
  * - **Identify the set, don't enumerate it.** Repeating every addressed turtle's full attributes was
  *   rejected: this is a single `aria-live="polite"` region a screen reader re-reads *in full* on
@@ -126,7 +126,7 @@ function addressingClause(ids: readonly TurtleId[]): string {
  *   `spec/rendering.md:191` asks only that the addressed set be *identified*. Every turtle's avatar
  *   stays on the canvas, and the per-turtle states stay published on
  *   {@link TurtleWorldState.turtles} for a future inspect-each-turtle affordance.
- * - **Keep describing the turtle that acted.** The numbers stay those of
+ * - **Describe the turtle that acted.** The numbers are those of
  *   {@link TurtleWorldState.lastActedTurtleId}, because this region is also how a non-visual user
  *   follows *progress* (`spec/rendering.md:193`: the drawing surface must not be the only way to
  *   understand program progress). Describing the restored/current turtle instead would silently drop
@@ -134,6 +134,15 @@ function addressingClause(ids: readonly TurtleId[]): string {
  *   black — never announcing that `:b` turned blue at all, since the block's restore lands in the
  *   same step as its last inner instruction (a step spans one `instruction` event to the next).
  *   Naming the set *and* describing the acting turtle reports both halves of that step honestly.
+ * - **Name that turtle, don't label it.** The state clause keeps the plain `turtle #<id> at …`
+ *   subject {@link describeTurtleState}/#749 already established, rather than a "last acted turtle
+ *   #<id>" label. A label would be an *assertion*, and it would sometimes be a false one: at program
+ *   start {@link TurtleWorldState.lastActedTurtleId} is seeded to the main turtle, which has not
+ *   acted at all, so `tell :friend` in a fresh program would claim the main turtle "last acted";
+ *   and after `tell [ :a :b ]` / `forward 10` **both** turtles moved, so singling one out as *the*
+ *   turtle that acted under-reports the broadcast. Naming asserts nothing beyond "this is the turtle
+ *   these numbers are about", which is exactly what is true — and it gives every announcement, with
+ *   or without an addressing clause, one identical state-sentence shape for a listener to learn.
  * - **Only when they differ.** When the addressed set is exactly the turtle that last acted — every
  *   single-turtle program, and the common `tell :b` / `forward 10` — there is nothing to
  *   disambiguate, so this returns `null` and the text stays the plain wording #749 baselined, byte
@@ -143,11 +152,11 @@ function addressingClause(ids: readonly TurtleId[]): string {
  * the stream reports, kept on the world for `why`/`debug` and any consumer that needs it, but the
  * subject of this sentence is what changed, and the set clause already covers what is addressed.
  *
- * Returns `null` — falling back to the last-acted wording — when the world carries no addressing at
- * all (only constructible by hand, since {@link TurtleWorldState} requires the fields), when the
- * last-acted turtle is not live (nothing honest to describe), or when the set names a turtle the
- * world does not hold, keeping the same "never announce an identity no live turtle has" promise
- * {@link describeTurtleWorldState} already made.
+ * Returns `null` — falling back to the plain last-acted wording — when the world carries no
+ * addressing at all (only constructible by hand, since {@link TurtleWorldState} requires the
+ * fields), when the last-acted turtle is not live (nothing honest to describe), or when the set
+ * names a turtle the world does not hold, keeping the same "never announce an identity no live
+ * turtle has" promise {@link describeTurtleWorldState} already made.
  */
 function describeAddressedTurtles(
   world: TurtleWorldState,
@@ -164,7 +173,7 @@ function describeAddressedTurtles(
     return null;
   }
   return {
-    subject: `${addressingClause(ids)}. last acted turtle #${world.lastActedTurtleId}`,
+    subject: `${addressingClause(ids)}. turtle #${world.lastActedTurtleId}`,
     state,
   };
 }
@@ -187,18 +196,25 @@ function describeAddressedTurtles(
  *
  * Once the addressed set is *not* simply the turtle that last acted — `tell [ :a :b ]`, an
  * `ask`/`each` block that has just restored, or `tell [ ]` — naming a single turtle cannot satisfy
- * that MUST, so the sentence leads with the set: `addressed turtles #1 #2. last acted turtle #2 at
- * x …`. {@link describeAddressedTurtles} carries that decision and the reasoning behind it,
- * including the empty-set (`tell [ ]`) wording.
+ * that MUST, so the sentence leads with the set: `addressed turtles #1 #2. turtle #2 at x …`.
+ * {@link describeAddressedTurtles} carries that decision and the reasoning behind it, including the
+ * empty-set (`tell [ ]`) wording.
  *
- * A world holding just the main turtle — every Turtle & Rendering program, and every Sprites
- * program before its first `new_turtle` — has nothing to disambiguate, so it produces exactly
- * {@link describeTurtleState}'s wording, byte for byte, including the spec's own worked example
- * text. That is the compatibility property this function is built around: adding multi-turtle
- * identification must not perturb single-turtle announcements. A world whose addressing (or, absent
- * that, whose `lastActedTurtleId`) names no live turtle — only constructible by hand — is described
- * at the program-start defaults *without* a name, rather than announcing an identity nothing in the
- * world corresponds to.
+ * A world holding just the main turtle whose addressed set is that same turtle — every Turtle &
+ * Rendering program, and every Sprites program until it first addresses something else — has
+ * nothing to disambiguate, so it produces exactly {@link describeTurtleState}'s wording, byte for
+ * byte, including the spec's own worked example text. That is the compatibility property this
+ * function is built around: adding multi-turtle identification must not perturb single-turtle
+ * announcements. (`tell [ ]` is the one way a single-turtle *Sprites* program leaves that case: it
+ * empties the addressed set, which is then said out loud. No Turtle & Rendering program can reach
+ * it, since `tell` is a Sprites primitive.)
+ *
+ * The fallbacks are ordered so the text never announces an identity nothing in the world
+ * corresponds to. An addressed set naming a turtle the world does not hold is dropped in favor of
+ * the plain last-acted wording (`turtle #<id> at …`, with that turtle's real state); only when the
+ * `lastActedTurtleId` itself names no live turtle — leaving no honest subject at all — does the
+ * description fall back to the program-start defaults *without* a name. Both cases are constructible
+ * only by hand, since every world this package folds keeps them live.
  */
 export function describeTurtleWorldState(
   world: TurtleWorldState,

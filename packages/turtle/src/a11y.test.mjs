@@ -275,7 +275,7 @@ test("describeTurtleWorldState identifies the whole addressed set once more than
   );
   assert.equal(
     OL.describeTurtleWorldState(world),
-    "addressed turtles #1 #2. last acted turtle #2 at x 0 y 10 heading 0 degrees pen down color blue width 1 hidden",
+    "addressed turtles #1 #2. turtle #2 at x 0 y 10 heading 0 degrees pen down color blue width 1 hidden",
   );
 });
 
@@ -292,7 +292,7 @@ test("describeTurtleWorldState names every addressed turtle, in the order each i
   );
   assert.equal(
     OL.describeTurtleWorldState(world),
-    "addressed turtles #7 #3 #5. last acted turtle #3 at x 0 y 0 heading 0 degrees pen down color green width 1",
+    "addressed turtles #7 #3 #5. turtle #3 at x 0 y 0 heading 0 degrees pen down color green width 1",
   );
 });
 
@@ -312,7 +312,7 @@ test("describeTurtleWorldState identifies the addressed turtle after an ask bloc
   );
   assert.equal(
     OL.describeTurtleWorldState(world),
-    "addressed turtle #1. last acted turtle #2 at x 0 y 10 heading 0 degrees pen down color blue width 1 hidden",
+    "addressed turtle #1. turtle #2 at x 0 y 10 heading 0 degrees pen down color blue width 1 hidden",
   );
 });
 
@@ -361,6 +361,8 @@ test("describeTurtleWorldState says plainly when nothing is addressed (tell [ ])
   // `current_turtle_id` is null exactly when the addressed set is empty, and the spec defines no
   // current turtle there — so this consumer picks its own fallback: say nothing is addressed, then
   // keep describing the turtle the learner last watched act, the only honest subject left.
+  // Dropping the state clause instead would breach `spec/rendering.md`'s non-visual *minimum*
+  // (position, heading, pen, color, width, visibility, current instruction).
   const world = addressedWorld(
     [
       [0, OL.INITIAL_TURTLE_STATE],
@@ -371,7 +373,25 @@ test("describeTurtleWorldState says plainly when nothing is addressed (tell [ ])
   );
   assert.equal(
     OL.describeTurtleWorldState(world),
-    "no addressed turtles. last acted turtle #1 at x 0 y 0 heading 0 degrees pen down color green width 1",
+    "no addressed turtles. turtle #1 at x 0 y 0 heading 0 degrees pen down color green width 1",
+  );
+});
+
+test("describeTurtleWorldState says nothing is addressed even in a single-turtle world", () => {
+  // `tell [ ]` before any `new_turtle` empties the addressed set of a world holding only the main
+  // turtle. The single-turtle wording is NOT restored there: after `tell [ ]` a turtle command
+  // drives nothing, and a region that kept reading like business as usual would hide that. Turtle
+  // & Rendering output is unaffected either way — `tell` is a Sprites primitive, so no
+  // Turtle & Rendering program can reach this state.
+  const world = addressedWorld(
+    [[OL.MAIN_TURTLE_ID, OL.INITIAL_TURTLE_STATE]],
+    [],
+    OL.MAIN_TURTLE_ID,
+  );
+  assert.equal(world.turtles.size, 1);
+  assert.equal(
+    OL.describeTurtleWorldState(world),
+    "no addressed turtles. turtle #0 at x 0 y 0 heading 0 degrees pen down color black width 1",
   );
 });
 
@@ -431,7 +451,7 @@ test("describeTurtleWorldState never leaks the current-turtle pointer into the t
   );
   assert.equal(
     OL.describeTurtleWorldState(nullPointer),
-    "addressed turtles #1 #2. last acted turtle #2 at x 0 y 10 heading 0 degrees pen down color blue width 1 hidden",
+    "addressed turtles #1 #2. turtle #2 at x 0 y 10 heading 0 degrees pen down color blue width 1 hidden",
   );
 
   const bogusPointer = addressedWorld(
@@ -461,7 +481,7 @@ test("describeTurtleWorldState still appends the current instruction for an addr
   );
   assert.equal(
     OL.describeTurtleWorldState(world, { currentInstruction: "forward 10" }),
-    'addressed turtles #1 #2. last acted turtle #2 at x 0 y 10 heading 0 degrees pen down color blue width 1 hidden instruction "forward 10"',
+    'addressed turtles #1 #2. turtle #2 at x 0 y 10 heading 0 degrees pen down color blue width 1 hidden instruction "forward 10"',
   );
 });
 

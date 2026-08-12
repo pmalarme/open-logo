@@ -565,6 +565,34 @@ test("re-addressing the identical set leaves the world referentially unchanged",
   assert.equal(recentred.currentTurtleId, 2);
 });
 
+test("a widening tell is folded, not swallowed as an unchanged set", () => {
+  // `tell :a` / `forward 10` / `tell [ :a :b ]`: the second set has the same first member and the
+  // same current turtle, so a member-by-member comparison that forgot to compare LENGTHS would
+  // treat [1] and [1, 2] as identical and silently drop the widening — leaving the text claiming
+  // one addressed turtle while the program drives two, the exact failure spec/rendering.md:191
+  // forbids. (The narrowing direction [1, 2] -> [1] cannot hide this way, so only widening needs
+  // the guard.)
+  const narrow = OL.reduceTurtleWorldEvents([
+    spawn(1),
+    spawn(2),
+    addressing("tell", [1], 1),
+    event("move", { from: [0, 0], to: [0, 10], heading: 0 }, 1),
+  ]);
+  assert.deepEqual(narrow.addressedTurtleIds, [1]);
+
+  const widened = OL.reduceTurtleWorldState(
+    narrow,
+    addressing("tell", [1, 2], 1),
+  );
+  assert.notEqual(widened, narrow);
+  assert.deepEqual(widened.addressedTurtleIds, [1, 2]);
+  assert.equal(widened.currentTurtleId, 1);
+  assert.equal(
+    OL.describeTurtleWorldState(widened),
+    "addressed turtles #1 #2. turtle #1 at x 0 y 10 heading 0 degrees pen down color black width 1",
+  );
+});
+
 test("the folded addressed set is a copy, so mutating the event's payload cannot reach world state", () => {
   const ids = [1, 2];
   const world = OL.reduceTurtleWorldEvents([

@@ -631,7 +631,7 @@ test("the state text identifies the whole addressed turtle set, end to end from 
 
   assert.equal(
     region.getText(),
-    "addressed turtles #1 #2. last acted turtle #2 at x 0 y 10 heading 0 degrees pen down color black width 1 current instruction forward 10",
+    "addressed turtles #1 #2. turtle #2 at x 0 y 10 heading 0 degrees pen down color black width 1 current instruction forward 10",
   );
   // Both addressed turtles really did move — the text names the set precisely because describing
   // one of them alone would be describing half the drawing.
@@ -667,10 +667,7 @@ test("the state text follows an ask block in and back out again, end to end (#77
   controller.step(); // :a = new_turtle
   controller.step(); // :b = new_turtle
   controller.step(); // tell [ :a :b ]
-  assert.match(
-    region.getText(),
-    /^addressed turtles #1 #2\. last acted turtle #/,
-  );
+  assert.match(region.getText(), /^addressed turtles #1 #2\. turtle #/);
 
   controller.step(); // forward 10
   controller.step(); // ask :b [ … ] — its entry narrows the addressed set to { :b }
@@ -682,7 +679,7 @@ test("the state text follows an ask block in and back out again, end to end (#77
   controller.step(); // the block's inner instruction — and, in the same step, the exit's restore
   assert.equal(
     region.getText(),
-    'addressed turtles #1 #2. last acted turtle #2 at x 0 y 10 heading 0 degrees pen down color blue width 1 current instruction set_color "blue"',
+    'addressed turtles #1 #2. turtle #2 at x 0 y 10 heading 0 degrees pen down color blue width 1 current instruction set_color "blue"',
   );
   // The restored set is named, and the turtle that actually turned blue is the one described.
   const { turtleWorld } = state.getState();
@@ -704,7 +701,7 @@ test("the state text says plainly when a program addresses no turtle at all (#77
 
   assert.equal(
     region.getText(),
-    "no addressed turtles. last acted turtle #1 at x 0 y 10 heading 0 degrees pen down color black width 1 current instruction tell [ ]",
+    "no addressed turtles. turtle #1 at x 0 y 10 heading 0 degrees pen down color black width 1 current instruction tell [ ]",
   );
 });
 

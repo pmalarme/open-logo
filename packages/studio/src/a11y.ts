@@ -86,7 +86,7 @@
  * name can express. `@openlogo/turtle` now folds the addressing snapshots the trace stream carries
  * (issue #766) into the world, so whenever the addressed set is not simply the turtle that just
  * acted the region leads with it: after `tell [ :a :b ]` it reads
- * `addressed turtles #1 #2. last acted turtle #2 at x … `, and after an `ask`/`each` block restores
+ * `addressed turtles #1 #2. turtle #2 at x … `, and after an `ask`/`each` block restores
  * it names the restored set while still describing the turtle whose state the block changed — so a
  * non-visual learner hears both what will be driven next and what just happened. The wording, and
  * why it names the set instead of enumerating every addressed turtle's attributes into this one
