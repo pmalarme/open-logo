@@ -147,6 +147,20 @@ export interface ShapeTypeErrorParams {
   readonly operation: string;
 }
 
+/**
+ * Params for an `ol-type` raised by `tell` (Sprites profile, `spec/turtles-and-sprites.md:176-177`)
+ * when its input is not a turtle, or is a list containing a non-turtle value. `expected` is fixed
+ * to `"turtle"` (the concept `tell` addresses), `actual` names the offending value's type
+ * ({@link typeNameOf}), `value` snapshots it for the diagnostic, and `operation` is `"tell"`. Same
+ * `{expected, actual, value, operation}` shape every other `ol-type` builder uses.
+ */
+export interface TellNotATurtleParams {
+  readonly expected: "turtle";
+  readonly actual: string;
+  readonly value: OLValue;
+  readonly operation: "tell";
+}
+
 /** Params for an `ol-range` raised by an out-of-bounds 1-based list index. */
 export interface IndexRangeParams {
   readonly index: OLValue;
@@ -572,6 +586,23 @@ export const runtimeDiag = {
   typeMismatch(
     source_span: SourceSpan,
     params: ArithmeticTypeErrorParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-type",
+      source_span,
+      { ...params },
+      `${params.operation} needs a ${params.expected}, but got a ${params.actual}.`,
+    );
+  },
+
+  /**
+   * `ol-type` for `tell` given a non-turtle input, or a list containing a non-turtle
+   * (`spec/turtles-and-sprites.md:176-177`). Same `{expected, actual, value, operation}` shape and
+   * message voice as {@link typeMismatch}, but its own builder so `expected` stays `"turtle"`.
+   */
+  tellNotATurtle(
+    source_span: SourceSpan,
+    params: TellNotATurtleParams,
   ): Diagnostic {
     return runtimeError(
       "ol-type",

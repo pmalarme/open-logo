@@ -44,6 +44,7 @@ import type {
   SourceSpan,
   SpawnTurtlePayload,
   TraceEvent,
+  TurtleId,
   TutorHintStage,
 } from "@openlogo/core";
 import {
@@ -241,7 +242,19 @@ export interface Environment {
   readonly instructionBudget: number;
   readonly instructionCount: { count: number };
   readonly signal?: CancellationSignal;
-  readonly turtle: TurtleState;
+  /**
+   * The **current turtle**'s mutable drawing state — the one a turtle command reads and writes, and
+   * the one the movement reporters (`xcor`/`ycor`/`heading`/`pos`) and `who` report
+   * (`spec/turtles-and-sprites.md:105` "The movement reporters and commands are evaluated for the
+   * current turtle"). At top level, before any `tell`, this is the single default main turtle
+   * ({@link MAIN_TURTLE_ID}); a `tell` re-points it at the first addressed turtle. It is NOT
+   * `readonly`, because the addressed-set command loop (`execute-internal.ts`'s
+   * `dispatchTurtleCommand`) re-points it at each addressed turtle in turn so the existing
+   * single-turtle command executors mutate the right per-turtle state without being rewritten
+   * (issue #674). It always aliases the {@link addressing} store's entry for the current turtle, so
+   * a write through `turtle` is a write to that turtle's stored state.
+   */
+  turtle: TurtleState;
   /**
    * The per-run turtle-identity allocator and live-turtle registry ({@link TurtleWorld}). Like
    * {@link turtle}/{@link randomNumberGenerator}, a single shared mutable object rather than a
@@ -252,6 +265,13 @@ export interface Environment {
    * in later slices.
    */
   readonly turtleWorld: TurtleWorld;
+  /**
+   * The Sprites addressing model (issue #674, `spec/turtles-and-sprites.md`'s "Addressing model"):
+   * the per-turtle drawing states plus the current **addressed set** that `tell` controls. A single
+   * shared mutable object, like {@link turtleWorld}, so a `tell` (or a `new_turtle` allocation)
+   * made anywhere in the program is observed program-wide. See {@link TurtleAddressing}.
+   */
+  readonly addressing: TurtleAddressing;
   readonly source?: string;
   readonly hintProgress: Map<string, TutorHintStage>;
   /**
@@ -357,6 +377,77 @@ export function createDefaultTurtleState(): TurtleState {
   };
 }
 
+/**
+ * The Sprites addressing model (issue #674, `spec/turtles-and-sprites.md`'s "Addressing model"):
+ * every live turtle's per-turtle drawing state plus the current **addressed set**. Held once per
+ * run on {@link Environment.addressing}.
+ *
+ * - {@link states} maps every live turtle id to its own {@link TurtleState}. It is seeded with just
+ *   the main turtle ({@link MAIN_TURTLE_ID}) — whose state object is the same one
+ *   {@link Environment.turtle} starts aliasing — and `new_turtle` adds one fresh default state per
+ *   spawn (`spec/turtles-and-sprites.md:32`). This is what makes turtle state *per turtle*: two
+ *   turtles no longer share one mutable object.
+ * - {@link ids} is the current addressed set: the turtles a subsequent turtle command applies to,
+ *   once for each (`spec/turtles-and-sprites.md:113`). It defaults to the single main turtle
+ *   (`spec/turtles-and-sprites.md:44` "In a program without the Sprites profile, the addressed set
+ *   contains the single default turtle") and `tell` replaces it.
+ * - {@link currentId} is the single "current turtle" — the one `who` reports and whose per-turtle
+ *   state the movement reporters (`xcor`/`ycor`/`heading`/`pos`) read. It is always the first
+ *   addressed turtle, or the main turtle when the addressed set is empty ({@link MAIN_TURTLE_ID}).
+ *   Keeping it as the one source of truth (rather than a second bare state pointer) is what stops
+ *   `who` and the state reporters from ever describing different turtles — including after a nested
+ *   `tell` runs during a command's argument evaluation. {@link Environment.turtle} is a derived
+ *   cache of `turtleStateFor(this, currentId)`, kept in lockstep by every writer of `currentId`.
+ * - {@link explicit} records whether `tell` has run yet. Before any `tell`, the addressed set is the
+ *   implicit default main turtle and per-turtle events carry NO `turtle-id` (preserving every
+ *   Core/Turtle & Rendering fixture, whose main-turtle `move`/`turn`/… events have no `turtle-id`);
+ *   once `tell` establishes an explicit addressed set, per-turtle events carry the acting turtle's
+ *   `turtle-id` so animation/stepping/`why`/`debug` can attribute them (`spec/turtles-and-sprites.md:113`).
+ */
+export interface TurtleAddressing {
+  readonly states: Map<TurtleId, TurtleState>;
+  ids: TurtleId[];
+  currentId: TurtleId;
+  explicit: boolean;
+}
+
+/**
+ * A fresh {@link TurtleAddressing} seeded with the single main turtle: its state is `mainState`
+ * (the same object {@link Environment.turtle} starts aliasing, so a write through either is seen by
+ * both), the addressed set is just the main turtle, the current turtle is the main turtle, and
+ * addressing is still implicit (no `tell` has run). Exported so both {@link createEnvironment} and
+ * `execute-internal.ts`'s `createExecutionEnvironment` build identical addressing state.
+ */
+export function createTurtleAddressing(
+  mainState: TurtleState,
+): TurtleAddressing {
+  return {
+    states: new Map<TurtleId, TurtleState>([[MAIN_TURTLE_ID, mainState]]),
+    ids: [MAIN_TURTLE_ID],
+    currentId: MAIN_TURTLE_ID,
+    explicit: false,
+  };
+}
+
+/**
+ * The per-turtle {@link TurtleState} for `id` in `addressing`. Every id that can reach this — the
+ * main turtle ({@link MAIN_TURTLE_ID}, seeded by {@link createTurtleAddressing}) and every turtle
+ * `new_turtle` spawns (which registers its state the same turn) — always has a registered state, so
+ * a miss is an internal invariant violation, not a user error: it throws rather than inventing a
+ * turtle. Centralizing the lookup keeps `tell`'s re-pointing and the per-turtle command loop free of
+ * a defensive `undefined` branch that real source can never take.
+ */
+export function turtleStateFor(
+  addressing: TurtleAddressing,
+  id: TurtleId,
+): TurtleState {
+  const state = addressing.states.get(id);
+  if (state === undefined) {
+    throw new Error(`turtleStateFor: no registered state for turtle id ${id}`);
+  }
+  return state;
+}
+
 /** The empty registry shared by every environment that has no user procedures to call. */
 const EMPTY_PROCEDURES: ProcedureRegistry = new Map();
 
@@ -377,6 +468,7 @@ const EMPTY_STRUCTS: StructRegistry = new Map();
  * is the only place real, finite production defaults are applied (issue #102).
  */
 export function createEnvironment(): Environment {
+  const turtle = createDefaultTurtleState();
   return {
     frames: [new Map()],
     repeatTurns: [],
@@ -387,8 +479,9 @@ export function createEnvironment(): Environment {
     recursionDepthLimit: Number.POSITIVE_INFINITY,
     instructionBudget: Number.POSITIVE_INFINITY,
     instructionCount: { count: 0 },
-    turtle: createDefaultTurtleState(),
+    turtle,
     turtleWorld: new TurtleWorld(),
+    addressing: createTurtleAddressing(turtle),
     randomNumberGenerator: createRandomNumberGeneratorState(),
     tickClock: createTickClock(),
     sound: createSoundState(),
@@ -1950,7 +2043,7 @@ function evaluateCall(
     return evaluateNewTurtle(node, environment);
   }
   if (name === "who") {
-    return evaluateWho(node);
+    return evaluateWho(node, environment);
   }
   if (name === "turtles") {
     return evaluateTurtles(node, environment);
@@ -4233,6 +4326,7 @@ function evaluateNewTurtle(
     return fail(arityDiagnostic);
   }
   const id = environment.turtleWorld.spawn();
+  environment.addressing.states.set(id, createDefaultTurtleState());
   environment.events.push({
     seq: environment.events.length,
     kind: "spawn-turtle",
@@ -4254,22 +4348,28 @@ function evaluateNewTurtle(
 
 /**
  * `who` (Sprites profile, `spec/turtles-and-sprites.md`'s "Addressing model" section): a Kind-R
- * reporter taking no inputs that reports "the turtle currently running turtle commands". Without an
- * active `tell`/`ask`/`each` set — the only constructs that change the addressed set, and each a
- * later slice — the current turtle at top level is always the single default turtle
- * (`spec/turtles-and-sprites.md:44`: "In a program without the Sprites profile, the addressed set
- * contains the single default turtle"), so `who` reports the main turtle, whose reserved identity
- * is {@link MAIN_TURTLE_ID}. Reporting a fresh {@link OLTurtle} wrapper for that id is safe because
- * turtle `==` compares ids, not JS instances, so `who == who` and `who == first turtles` are `true`
- * even across separate wrappers of the one main turtle. Emits no trace event — reading the current
- * turtle is not an effect.
+ * reporter taking no inputs that reports "the turtle currently running turtle commands"
+ * (`spec/turtles-and-sprites.md:26`) — the current turtle, which is the first turtle of the active
+ * addressed set ({@link Environment.addressing}). At top level, before any `tell`, that set is the
+ * single default main turtle (`spec/turtles-and-sprites.md:44`), so `who` reports the main turtle
+ * ({@link MAIN_TURTLE_ID}); after `tell :friend` it reports `:friend`, which is why
+ * `tell :friend` then `who == :friend` is `true`. It reads the addressing's single
+ * {@link TurtleAddressing.currentId} — the same source of truth the movement reporters read through
+ * {@link Environment.turtle} — so `who` and `xcor`/`ycor`/`heading`/`pos` can never describe
+ * different turtles. Reporting a fresh {@link OLTurtle} wrapper for
+ * that id is safe because turtle `==` compares ids, not JS instances, so `who == who` and
+ * `who == :friend` hold across separate wrappers of the same turtle (C3, issue #665). Emits no
+ * trace event — reading the current turtle is not an effect.
  */
-function evaluateWho(node: ArithmeticCallNode): EvalResult {
+function evaluateWho(
+  node: ArithmeticCallNode,
+  environment: Environment,
+): EvalResult {
   const arityDiagnostic = requireExactArgs(node, "who", 0);
   if (arityDiagnostic) {
     return fail(arityDiagnostic);
   }
-  return ok(new OLTurtle(MAIN_TURTLE_ID));
+  return ok(new OLTurtle(environment.addressing.currentId));
 }
 
 /**

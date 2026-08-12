@@ -62,6 +62,7 @@ export {
   isSupportedExpression,
   printedForm,
   snapshotValue,
+  turtleStateFor,
   valuesEqual,
 } from "./evaluate.js";
 export type {
