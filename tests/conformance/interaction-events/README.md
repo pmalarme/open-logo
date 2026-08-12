@@ -37,5 +37,19 @@ that requires it — see `scripts/examples-gate.mjs`.
   registered twice for the same key) with insertion-ordered handlers for #686/I7, and `check`-mode
   fixtures prove `on_key` is visible only under the `interaction-events` profile and rejected
   Core-only.
+- **`on_click/`** — the `on_click <block>` pointer handler (issue #685, slice I6): the last handler
+  form and the only one that takes **no argument** (`spec/interaction-events.md` §Profile grammar:
+  "`on_click` takes none"). Registration emits `primitive` after the handler is registered; a click is
+  host input, so in a headless batch run the handler is registered but never delivered (locked by
+  `on-click-registered-not-delivered`, mirroring I3's `when "stop"` and I5's `on_key`) — and, unlike
+  the tick-driven `every`, advancing the tick clock with `wait` still does not fire it
+  (`on-click-wait-does-not-fire`); the multiline
+  `... end on_click` form behaves identically to the bracket form, a mismatched `end` label is
+  `ol-mismatched-end`, a stray argument where the block belongs is a parse `ol-missing-end` pointed at
+  the `on_click` head (the spec lists its errors as none, so a bad argument is caught at parse time),
+  `on_click` registers correctly in awkward positions (nested in `repeat`, registered twice) with
+  insertion-ordered handlers kept in their own list for #686/I7's same-tick delivery order, and
+  `check`-mode fixtures prove `on_click` is visible only under the `interaction-events` profile and
+  rejected Core-only.
 
 Fixture shape and conventions: see [`../README.md`](../README.md).

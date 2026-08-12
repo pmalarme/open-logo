@@ -1,0 +1,80 @@
+{
+  "description": "issue #685 (slice I6): a click is host input, not a timed event — so advancing the tick clock with `wait` must NOT fire an on_click handler (unlike `every`, which is tick-driven). The registered handler body (`print \"moved\"`) never runs; only the registration primitive, the wait primitive, and the surrounding `print` appear. Locks the never-fires-on-tick narrowing structurally asserted by the runtime (onClickHandlers is never drained by runWait) so a future refactor wiring on_click into the tick path breaks a test (turtle-engine review, I6).",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_click/on-click-wait-does-not-fire",
+        "start": [1, 1],
+        "end": [1, 27]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/on_click/on-click-wait-does-not-fire",
+        "start": [1, 1],
+        "end": [1, 27]
+      },
+      "payload": {
+        "name": "on_click"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_click/on-click-wait-does-not-fire",
+        "start": [2, 1],
+        "end": [2, 8]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/on_click/on-click-wait-does-not-fire",
+        "start": [2, 1],
+        "end": [2, 8]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_click/on-click-wait-does-not-fire",
+        "start": [3, 1],
+        "end": [3, 14]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/on_click/on-click-wait-does-not-fire",
+        "start": [3, 1],
+        "end": [3, 14]
+      },
+      "payload": {
+        "values": ["after"]
+      }
+    }
+  ],
+  "diagnostics": []
+}

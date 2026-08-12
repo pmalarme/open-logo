@@ -342,6 +342,32 @@ export interface OnKeyHandler {
 }
 
 /**
+ * One registered `on_click <block>` handler (issue #685, slice I6 —
+ * `spec/interaction-events.md`'s `### on_click <block>`): a pointer handler that runs its `block`
+ * when the drawing surface is clicked or activated by an equivalent accessible action. Unlike
+ * {@link WhenHandler}/{@link OnKeyHandler}/{@link EveryHandler} it carries **no argument** — `on_click`
+ * is the only Interaction & Events block-head that takes just a block ("`on_click` takes none",
+ * §Profile grammar) — so there is no event word, key word, or interval to hold: only the captured
+ * `block`, the head-keyword {@link SpannedName} whose span the handler-block's opening `instruction`
+ * event carries, and the {@link Environment} captured at registration time so the body later runs in
+ * its **registration-time lexical scope** ("A handler block is a normal OpenLogo block").
+ *
+ * A click is **host input**: in a headless batch `execute()` run there is no pointer device, so an
+ * `on_click` handler registers but is never delivered — exactly like a `when "stop"` handler (I3) or
+ * an `on_key` handler (I5) in a headless run (locked by the `on-click-registered-not-delivered`
+ * fixture). Synthesizing a click is a host concern outside this slice, so this handler carries no
+ * delivery-state flag: it holds the captured block and scope, ready for an interactive host slice to
+ * deliver it. It lives in its own registration-ordered list so #686/I7 can impose the spec's
+ * same-tick delivery order (`when`, then `on_key`, then `on_click`, then due `every`) across handler
+ * kinds without reworking it.
+ */
+export interface OnClickHandler {
+  readonly block: BlockNode;
+  readonly keyword: SpannedName;
+  readonly environment: Environment;
+}
+
+/**
  * The Interaction & Events **event-handler registry** (issue #682, slice I3): every `when` handler
  * registered so far, in registration order. A single append-only list (rather than a map keyed by
  * event word) is deliberate — it preserves one total registration order across all events, which is
@@ -359,11 +385,17 @@ export interface EventHandlerRegistry {
   readonly handlers: WhenHandler[];
   readonly everyHandlers: EveryHandler[];
   readonly onKeyHandlers: OnKeyHandler[];
+  readonly onClickHandlers: OnClickHandler[];
 }
 
 /** A fresh, empty event-handler registry — the state at program start (no handlers registered). */
 export function createEventHandlerRegistry(): EventHandlerRegistry {
-  return { handlers: [], everyHandlers: [], onKeyHandlers: [] };
+  return {
+    handlers: [],
+    everyHandlers: [],
+    onKeyHandlers: [],
+    onClickHandlers: [],
+  };
 }
 
 /**
@@ -477,6 +509,35 @@ export function registerOnKeyHandler(
 }
 
 /**
+ * Register an `on_click <block>` handler (issue #685, slice I6,
+ * `spec/interaction-events.md`'s `### on_click <block>`), appending it to `registry` in registration
+ * order and returning the created {@link OnClickHandler}. `on_click` takes no argument — only the
+ * `block`, the head {@link SpannedName} `keyword`, and the `environment` captured so the handler body
+ * later runs in its registration-time lexical scope. Registration is side-effect-only on the
+ * registry; the caller emits the `primitive` event `spec/interaction-events.md` requires "after the
+ * handler is registered". `on_click` handlers live in their own list (never bucketed with `when`'s
+ * one-shot handlers, `every`'s timed handlers, or `on_key`'s keyboard handlers) so the spec's
+ * same-tick delivery order — pending `when`, then pending `on_key`, then pending `on_click`, then due
+ * `every` (#686/I7) — can filter each kind independently while each kind preserves its own
+ * registration order. In a headless batch run no click is ever delivered, so this list is populated
+ * but never drained here.
+ */
+export function registerOnClickHandler(
+  registry: EventHandlerRegistry,
+  block: BlockNode,
+  keyword: SpannedName,
+  environment: Environment,
+): OnClickHandler {
+  const handler: OnClickHandler = {
+    block,
+    keyword,
+    environment,
+  };
+  registry.onClickHandlers.push(handler);
+  return handler;
+}
+
+/**
  * The batch of `every` handlers to invoke on `tick` — the tick the clock has just advanced to — in
  * registration order, claimed atomically **before any handler body runs**. A handler is due when
  * `tick >= handler.nextDueTick`; because `runWait` calls the dispatch once per tick (monotonically,
@@ -575,5 +636,25 @@ export function emitOnKeyPrimitive(
     kind: "primitive",
     source_span,
     payload: { name: "on_key" } satisfies PrimitivePayload,
+  });
+}
+
+/**
+ * Emit the `primitive` event `spec/interaction-events.md` requires an `on_click` registration to emit
+ * **after** the handler is registered ("Event registration forms emit `primitive` events after the
+ * handler is registered", issue #685). Like {@link emitWhenPrimitive}, the {@link PrimitivePayload}
+ * carries only the primitive `name` — never a tick or any timing — keeping the stream headless
+ * (`spec/execution-model.md`'s trace-and-event registry). Pushed onto the shared event sink with the
+ * next monotonic `seq`.
+ */
+export function emitOnClickPrimitive(
+  events: TraceEvent[],
+  source_span: SourceSpan,
+): void {
+  events.push({
+    seq: events.length,
+    kind: "primitive",
+    source_span,
+    payload: { name: "on_click" } satisfies PrimitivePayload,
   });
 }

@@ -1,0 +1,23 @@
+{
+  "description": "issue #685 (slice I6): the multiline `on_click ... end on_click` form requires its closing label to match the block-head; closing an `on_click` block with `end when` is rejected at PARSE stage with `ol-mismatched-end` (spec/interaction-events.md's event-end grammar; spec/error-model.md's `ol-mismatched-end`; the `END_LABELS` registration C2 (#664) added for `on_click`). Because the parse fails, `execute()` bails before running anything, so no events are emitted.",
+  "profiles": ["interaction-events"],
+  "execute": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-mismatched-end",
+      "source_span": {
+        "document": "interaction-events/on_click/on-click-mismatched-end",
+        "start": [3, 5],
+        "end": [3, 9]
+      },
+      "params": {
+        "expected": "on_click",
+        "actual": "when"
+      },
+      "message": "this when doesn't close the block that is open. did you mean on_click?",
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

@@ -1,0 +1,92 @@
+{
+  "description": "issue #685 (slice I6): an `on_click` registration nested inside a `repeat` body registers one handler per iteration — three `instruction`+`primitive` pairs — proving registration works in an awkward position without firing any handler in a headless run.",
+  "profiles": ["interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_click/on-click-registered-in-repeat",
+        "start": [1, 1],
+        "end": [1, 36]
+      },
+      "payload": {
+        "statement_kind": "Repeat"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_click/on-click-registered-in-repeat",
+        "start": [1, 12],
+        "end": [1, 34]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/on_click/on-click-registered-in-repeat",
+        "start": [1, 12],
+        "end": [1, 34]
+      },
+      "payload": {
+        "name": "on_click"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_click/on-click-registered-in-repeat",
+        "start": [1, 12],
+        "end": [1, 34]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/on_click/on-click-registered-in-repeat",
+        "start": [1, 12],
+        "end": [1, 34]
+      },
+      "payload": {
+        "name": "on_click"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_click/on-click-registered-in-repeat",
+        "start": [1, 12],
+        "end": [1, 34]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/on_click/on-click-registered-in-repeat",
+        "start": [1, 12],
+        "end": [1, 34]
+      },
+      "payload": {
+        "name": "on_click"
+      }
+    }
+  ],
+  "diagnostics": []
+}

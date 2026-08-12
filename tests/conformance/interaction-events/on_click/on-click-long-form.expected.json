@@ -1,0 +1,56 @@
+{
+  "description": "issue #685 (slice I6): the multiline `on_click ... end on_click` form behaves identically to the bracket form (spec/interaction-events.md's event-block-tail grammar) — it registers a handler (seq 0-1) that, being host input in a headless run, never fires, so only the trailing `print \"mid\"` runs. A bare `end` also closes it; a mismatched label is covered by on-click-mismatched-end.",
+  "profiles": ["interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_click/on-click-long-form",
+        "start": [1, 1],
+        "end": [3, 13]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/on_click/on-click-long-form",
+        "start": [1, 1],
+        "end": [3, 13]
+      },
+      "payload": {
+        "name": "on_click"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_click/on-click-long-form",
+        "start": [4, 1],
+        "end": [4, 12]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/on_click/on-click-long-form",
+        "start": [4, 1],
+        "end": [4, 12]
+      },
+      "payload": {
+        "values": ["mid"]
+      }
+    }
+  ],
+  "diagnostics": []
+}
