@@ -558,11 +558,11 @@ test("two independent consumers of the same turtle-state region observe identica
   assert.deepEqual(consumerA, [region.getText()]);
 });
 
-test("the state text names the described turtle once a program drives more than one (#749, spec/rendering.md:191)", () => {
+test("the state text names the described turtle once the world holds more than one live turtle (#749, spec/rendering.md:191)", () => {
   // The #749 reproduction, as a screen reader hears it: `tell [ :a :b ]` / `forward 10` /
   // `ask :b [ hide_turtle set_color "blue" ]`. Before the fix the region announced ":b's" blue,
   // hidden attributes with no identity at all — indistinguishable from the one turtle a
-  // single-turtle program has. Now the text names which turtle it is describing.
+  // Turtle & Rendering program has. Now the text names which turtle it is describing.
   const state = OL.createStudioState();
   const region = OL.createTurtleStateRegion(state);
   const base = {
