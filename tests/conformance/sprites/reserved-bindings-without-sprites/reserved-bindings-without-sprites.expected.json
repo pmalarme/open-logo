@@ -1,0 +1,7 @@
+{
+  "description": "issue #739: the OFF half of the reserved-word binding gate. The same three variable bindings CHECK CLEAN under `core-language` alone, because `tell`/`ask`/`each` are reserved only within the Sprites profile and are deliberately not in the Core reserved-word list (spec/grammar.md:371, spec/turtles-and-sprites.md:154). So a Core program that assigns to `:tell` or loops with an `each` binder still checks clean until it opts into Sprites — extending the rule to assignment and binder positions must not make those names reserved everywhere. This is a `\"check\": true` fixture: it asserts the absence of the checker diagnostic, not execution — nothing is drawn and no events are produced.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

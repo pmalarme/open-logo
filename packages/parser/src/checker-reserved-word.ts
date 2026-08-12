@@ -1,6 +1,7 @@
 /**
- * The `ol-reserved-word` semantic rule (issue #113): a `define`/`local` registration whose name
- * collides with a reserved structural word, a Core primitive, or an existing procedure raises
+ * The `ol-reserved-word` semantic rule. **As first delivered (issue #113)** it covered a
+ * `define`/`local` registration whose name
+ * collides with a reserved structural word, a Core primitive, or an existing procedure, raising
  * `ol-reserved-word` with `params: { name, namespace }` (`spec/error-model.md:123`). Issue #405
  * extends this to the Data profile: a Data primitive (`dict`, `keys`, …) collides the same way a
  * Core primitive does when `"data"` is active, and `struct` type-name registrations — which
@@ -9,13 +10,73 @@
  * (mirroring `@openlogo/runtime`'s own phase-1 registration guard, `execute-internal.ts`'s
  * `collectStructs`).
  *
- * Scope boundary: the spec's row also lists `to` (Heritage's `define` spelling) and `alias`
- * registrations, but neither has an AST node yet (Heritage/Modules are later profiles —
- * `ast.ts` has no `AliasDefNode`), so only the three registration forms the AST can represent —
- * {@link ProcedureDefNode} (`define`), {@link LocalNode} (`local`), and {@link StructDefNode}
- * (`struct`) — are checked here. A parameter name collision is not checked either: the spec row
- * scopes this rule to *registrations* (`define`/`to`/`struct`/`local`/`alias`), and a parameter is
- * a binding site, not one of those five forms.
+ * Scope boundary (issue #739 — **maintainer ruling, "reserved word is reserved word"**): this rule
+ * applies to **every form that introduces a name**, not only to registration sites. An earlier
+ * revision of this comment scoped it to *registrations* (`define`/`to`/`struct`/`local`/`alias`)
+ * and cited `spec/error-model.md:124`'s "where freshness is required" to justify leaving
+ * assignment, loop/comprehension binders, and parameters unchecked. **That reading was overruled
+ * on #739 and no longer describes this file.** The rationale on the record: assignment is the
+ * *primary* way to create a variable in OpenLogo and `local` is optional (`:brandnew = 1` then
+ * `print :brandnew` checks clean with no declaration anywhere), so a rule enforced only at `local`
+ * is bypassable by omitting an optional keyword — which would make `spec/grammar.md:367`'s "may not
+ * be redefined **as variables**" close to meaningless in a learner-facing language. Every form that
+ * introduces a **variable, procedure, or struct type constructor** name is therefore checked:
+ *
+ * | Form | Node | Category checked |
+ * |---|---|---|
+ * | `define name` / `to name` | {@link ProcedureDefNode} | registration — all four |
+ * | `struct name` | {@link StructDefNode} | registration — all four |
+ * | `local name` | {@link LocalNode} | registration — all four |
+ * | `:name = v` / `set name to v` / `make "name" v` | {@link AssignNode} | binding — reserved only |
+ * | `for name in …` / `for name from … to …` | {@link ForInNode}/{@link ForRangeNode} | binding — reserved only |
+ * | `map`/`filter`/`reduce` binder + `reduce` accumulator | {@link ComprehensionNode} | binding — reserved only |
+ * | `for [ :a :b ] in …` destructuring names | {@link DestructuringBinderNode} | binding — reserved only |
+ * | `define f :param` / `define f ( :param default )` | {@link ProcedureDefNode}'s `params` | binding — reserved only |
+ *
+ * Two name-introducing forms are deliberately **absent** from that table, and neither is an
+ * oversight. `alias` targets have no AST node yet (Modules is a later profile — `ast.ts` has no
+ * `AliasDefNode`), so the rule cannot reach them. **`struct` field names** ({@link StructDefNode}'s
+ * `fields`) introduce names but are *legal* even when reserved, because they are not in the
+ * variable or callable namespace at all: `spec/grammar.md:369` — "Record field names live in a
+ * per-type namespace reached only by `.field`, so they do not collide with globals or structural
+ * words." So `struct point [ repeat y ]` checks clean, by design.
+ *
+ * **Why binding forms check the reserved-word category only** (see {@link bindingCollision}): the
+ * sentence the ruling enforces, `spec/grammar.md:367`, has *reserved words* as its subject — "They
+ * may not be redefined as variables, procedures, primitives, or struct type constructors". A
+ * *primitive* being shadowed by a variable is a different claim, and `spec/grammar.md:369` denies
+ * it: "Primitives, user procedures, and struct type constructors share one callable namespace" —
+ * `:name` variables are not in that namespace, so `:count = 1` shadows nothing and stays clean.
+ * Reserved words are not namespaced at all; they are structural tokens the reader recognizes
+ * (`:367`), which is exactly why they alone collide from a binding position. This is also the
+ * blast radius the ruling predicted (`:repeat = 1`, `:if = 1`, `:while = 1` — all reserved words,
+ * no primitives). The three registration forms keep their full four-category check **unchanged**,
+ * but for two different reasons. For `define`/`struct` it is the same namespace rule read the other
+ * way: a procedure or struct-constructor name *does* enter the shared callable namespace, so
+ * colliding there with a primitive or an existing procedure is a genuine collision. `local` is the
+ * odd one out — it declares a *variable*, which is no more in that namespace than an assignment
+ * target is — so its primitive/procedure/struct branches are the original #113 *freshness*
+ * behavior, not a namespace collision. #739 ruled on which forms the rule reaches, not on that
+ * behavior, so it is preserved here rather than re-justified. The resulting asymmetry — `local
+ * count` raises `namespace: "primitive"` while `:count = 1` is clean — is recorded on #739 and
+ * tracked for the maintainer-owned spec text in #758.
+ *
+ * **This narrowing is deliberate — do not "fix" it into a bug.** Widening
+ * {@link bindingCollision} to {@link collidingNamespace}'s four categories looks like a tidy
+ * unification and would immediately reject `:count = 1`, `:first = 1`, `:last = 1`, and
+ * `:word = 1` — `count`/`first`/`last`/`word` are all Core primitives, and `:count = 1` is the
+ * archetypal learner counter. Rejecting it in a language written for beginners is a severe false
+ * positive that the #739 ruling never sanctioned.
+ *
+ * **Why a nested place is not a binding site:** only a *bare* place head introduces a name, so
+ * `AssignNode` is checked only when its {@link PlaceNode} target has no postfix segments.
+ * `:people.tom.age = 30` and `:nums[1] = 5` write *into* an existing structure — their base is
+ * read, not introduced, so a reserved base can only be there if some earlier bare binding put it
+ * there, and that binding is itself flagged (an unbound one raises `ol-undefined-var` instead).
+ * The segments themselves introduce no *variable* binding: `spec/grammar.md:369` — "Record field
+ * names live in a per-type namespace reached only by `.field`, so they do not collide with globals
+ * or structural words. Dictionary keys and selector bare keys are data, not declarations, so
+ * reserved words are legal keys."
  *
  * `namespace` priority when a name collides with more than one category (only reachable today via
  * `thing`, which is both a reserved word and a Core primitive): reserved word, then primitive,
@@ -50,7 +111,14 @@
 import type { Diagnostic } from "@openlogo/core";
 import type {
   AnyNode,
+  AssignNode,
+  Binder,
+  ComprehensionNode,
+  DestructuringBinderNode,
+  ForInNode,
+  ForRangeNode,
   LocalNode,
+  PlaceNode,
   ProcedureDefNode,
   ProgramNode,
   SpannedName,
@@ -116,6 +184,24 @@ function collidingNamespace(
   return undefined;
 }
 
+/**
+ * The collision category `name` falls into when it appears in a **binding** position — assignment,
+ * a loop/comprehension binder, or a procedure parameter (issue #739) — or `undefined` if it is free
+ * to bind. Only the reserved-word category applies here, unlike {@link collidingNamespace}'s full
+ * four-category check for the three *registration* forms: a binding introduces a `:name` variable,
+ * and `spec/grammar.md:369` keeps variables out of the one callable namespace primitives, user
+ * procedures, and struct constructors share — so `:count = 1` shadows nothing, while a reserved
+ * word is a structural token the reader recognizes (`spec/grammar.md:367`) and collides from any
+ * position. Profile-conditional reserved words (`tell`/`ask`/`each`, `when`/`every`/`on_key`/
+ * `on_click`) collide only while their profile is active, exactly as they do at a registration.
+ */
+function bindingCollision(
+  name: string,
+  profiles: readonly CheckProfile[],
+): Namespace | undefined {
+  return isReservedWord(name, profiles) ? "reserved" : undefined;
+}
+
 /** The learner-facing message template for a name that collides with an existing `namespace`. */
 function messageFor(name: string, namespace: Namespace): string {
   return `${name} is already a ${namespace}, so it can't be redefined here.`;
@@ -135,6 +221,16 @@ function reservedWordDiagnostic(
   };
 }
 
+/**
+ * Order two diagnostics by where their span starts — line first, then column. Used to return this
+ * rule's findings in source order (see {@link reservedWordRule}).
+ */
+function compareBySpanStart(left: Diagnostic, right: Diagnostic): number {
+  const [leftLine, leftColumn] = left.source_span.start;
+  const [rightLine, rightColumn] = right.source_span.start;
+  return leftLine - rightLine || leftColumn - rightColumn;
+}
+
 function isProcedureDef(node: AnyNode): node is ProcedureDefNode {
   return node.kind === "ProcedureDef";
 }
@@ -147,8 +243,56 @@ function isStructDef(node: AnyNode): node is StructDefNode {
   return node.kind === "StructDef";
 }
 
+function isAssign(node: AnyNode): node is AssignNode {
+  return node.kind === "Assign";
+}
+
+function isForIn(node: AnyNode): node is ForInNode {
+  return node.kind === "ForIn";
+}
+
+function isForRange(node: AnyNode): node is ForRangeNode {
+  return node.kind === "ForRange";
+}
+
+function isComprehension(node: AnyNode): node is ComprehensionNode {
+  return node.kind === "Comprehension";
+}
+
+function isDestructuringBinder(node: AnyNode): node is DestructuringBinderNode {
+  return node.kind === "DestructuringBinder";
+}
+
 /**
- * The `ol-reserved-word` rule: every `define`/`local`/`struct` registration whose name collides
+ * The name a {@link Binder} introduces directly, or `undefined` for a destructuring pattern — whose
+ * names are reached through its own {@link DestructuringBinderNode}, walked as a child of the
+ * `for … in`/comprehension that carries it (`ast.ts`'s `childrenOf`), so they are checked exactly
+ * once and never twice.
+ */
+function bareBinderName(binder: Binder): SpannedName | undefined {
+  return "kind" in binder ? undefined : binder;
+}
+
+/**
+ * The bare name an {@link AssignNode} introduces — the head of a zero-segment {@link PlaceNode},
+ * covering all three surface spellings (`:name = v`, `set name to v`, and Heritage `make "name" v`,
+ * which lowers to the identical node). `undefined` when the target has postfix segments (a write
+ * *into* an existing structure, which introduces no name) or is not a place at all (the parser
+ * keeps a malformed target so `ol-not-a-place` can report it) — see the module doc comment.
+ */
+function assignedBareName(node: AssignNode): SpannedName | undefined {
+  const place = node.place;
+  if (place.kind !== "Place" || place.segments.length > 0) {
+    return undefined;
+  }
+  return place.base;
+}
+
+/**
+ * The `ol-reserved-word` rule, over **every form that introduces a name** (issue #739's maintainer
+ * ruling — see the module doc comment's form table and the two boundary notes it states).
+ *
+ * *Registrations* — every `define`/`local`/`struct` whose name collides
  * with a reserved word, a Core, Data, Geometry, Sound, or Interaction & Events primitive, or an
  * existing procedure/struct raises
  * one diagnostic at that name's own span. A `local` is checked against every procedure name in the
@@ -160,6 +304,19 @@ function isStructDef(node: AnyNode): node is StructDefNode {
  * name are already handled: "already defined" needs a first occurrence to compare against, and
  * checking the full program symmetrically would flag both sides of a single collision instead of
  * just the later one.
+ *
+ * *Bindings* — an assignment target (`:name = v`, `set name to v`, `make "name" v`), a `for … in`
+ * or `for … from … to` binder, a `map`/`filter`/`reduce` binder and a `reduce` accumulator, each
+ * name of a destructuring pattern, and each procedure parameter raise one diagnostic at that name's
+ * own span when the name is reserved ({@link bindingCollision} — reserved words only, and
+ * profile-conditional ones only while their profile is active).
+ *
+ * Findings are returned in **source order**. The walk's pre-order already gives that for every form
+ * but one: a procedure's parameters are checked when its {@link ProcedureDefNode} is visited, while
+ * a reserved name inside an *earlier* parameter's default expression — `define f ( :a map repeat in
+ * [1 2] [ 1 ] ) ( :while 2 )` — is only reached later, as a walked child. Sorting by span start
+ * ({@link compareBySpanStart}) fixes that case and is a no-op for every other, so a consumer
+ * (conformance fixture, editor, LSP) can rely on the order unconditionally.
  *
  * Struct participation — both `StructDef`'s own collision check and a `struct` colliding with a
  * `local`/`define` — is gated on `"data"` being active (issue #405), mirroring
@@ -188,6 +345,20 @@ export function reservedWordRule(
   const seenProcedures = new Set<string>();
   const seenStructs = new Set<string>();
 
+  /** Report `spannedName` when binding it would collide with a reserved word. */
+  const checkBinding = (spannedName: SpannedName | undefined): void => {
+    if (spannedName === undefined) {
+      return;
+    }
+    const namespace = bindingCollision(
+      spannedName.name.toLowerCase(),
+      profiles,
+    );
+    if (namespace !== undefined) {
+      diagnostics.push(reservedWordDiagnostic(spannedName, namespace));
+    }
+  };
+
   walk(program, (node) => {
     if (isProcedureDef(node)) {
       const name = node.name.name.toLowerCase();
@@ -201,6 +372,9 @@ export function reservedWordRule(
         diagnostics.push(reservedWordDiagnostic(node.name, namespace));
       }
       seenProcedures.add(name);
+      for (const param of node.params) {
+        checkBinding(param.name);
+      }
       return;
     }
     if (dataActive && isStructDef(node)) {
@@ -230,8 +404,33 @@ export function reservedWordRule(
           diagnostics.push(reservedWordDiagnostic(spannedName, namespace));
         }
       }
+      return;
+    }
+    if (isAssign(node)) {
+      checkBinding(assignedBareName(node));
+      return;
+    }
+    if (isForIn(node)) {
+      checkBinding(bareBinderName(node.binder));
+      return;
+    }
+    if (isForRange(node)) {
+      checkBinding(node.variable);
+      return;
+    }
+    if (isComprehension(node)) {
+      if (node.form === "reduce") {
+        checkBinding(node.accumulator);
+      }
+      checkBinding(bareBinderName(node.binder));
+      return;
+    }
+    if (isDestructuringBinder(node)) {
+      for (const spannedName of node.names) {
+        checkBinding(spannedName);
+      }
     }
   });
 
-  return diagnostics;
+  return diagnostics.sort(compareBySpanStart);
 }
