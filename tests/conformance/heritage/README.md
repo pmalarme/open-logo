@@ -1,8 +1,8 @@
 # Heritage conformance fixtures
 
 Fixtures for the **Heritage** profile — alternate spellings only, no new semantics
-(`spec/conformance.md#heritage`). Fixtures land here as epic **#658**'s Heritage terminal
-slice (**#672**) implements the profile.
+(`spec/conformance.md#heritage`). These fixtures were landed by epic **#659**'s slices
+(**#667**–**#671**) and the profile is claimed by its terminal slice (**#672**).
 
 **Normative dependencies** (`spec/conformance.md` profile DAG): Heritage depends on
 **Core Language** and **Data** — the `value of … for key` reader operates on dicts, so it also
@@ -39,3 +39,20 @@ here fixture-by-fixture as each Heritage slice lands:
 - `execution/heritage-list-reporter-aliases-execute-like-core` — the three reporter aliases, in
   expression position (arguments, composed `bf bl :l`, assignment RHS), produce a full event stream
   byte-identical (payloads included) to their Core reporter spellings (slice H4, #669).
+- `check/heritage-reporter-alias-arity-canonical-callable` — a parenthesized reporter alias's arity
+  diagnostic carries the **canonical** `params.callable` (`butfirst`), byte-identical to its Core
+  twin's, never the surface spelling `bf`: structured diagnostic identity is canonical even when the
+  spelling is an alias (`spec/error-model.md:235-238`), asserting the field directly (#733).
+- `check/heritage-value-of-key-{accepted-when-active,rejected-in-core}` — the worded dictionary
+  reader `value of … for key` is gated on the `heritage` profile (with its Data dependency), visible
+  only when active and otherwise `ol-unknown-command` (slice H5, #670).
+- `execution/heritage-value-of-key-{reads,missing-key,non-dict}-like-core` — the reader lowers onto
+  the Core dict read, so it produces the same value and the same diagnostics (`ol-unknown-key`,
+  `ol-type` with `operation: "index"`) as `:dict["key"]` — diagnostics match by construction, not
+  just results (slice H5, #670).
+- `check/heritage-tooling-program-{checks-clean,without-heritage-profile}` — a whole program mixing
+  all four Heritage shapes checks clean under the profile and is rejected head-by-head
+  (`ol-unknown-command`) without it (slice H6, #671).
+- The `lt` (→ `left`) command alias's execution/event-stream equivalence was the one alias without a
+  positive runtime proof (only recognition); the #672 audit closed that gap by exercising `rt`/`lt`
+  back-to-back in `execution/heritage-aliases-execute-like-core`, before claiming the profile.

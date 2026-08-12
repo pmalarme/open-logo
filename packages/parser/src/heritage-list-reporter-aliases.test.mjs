@@ -229,37 +229,52 @@ test("the full-name Core reporters remain callable without Heritage (Core, not g
   assert.deepEqual(checkSource(source, CORE_ONLY), []);
 });
 
-// Diagnostic-equivalence at the CHECKER layer (rubber-duck review, #669). A parenthesized
-// fixed-arity reporter IS arity-checked by the semantic checker (checker-arity.ts:320-328 resolves
-// the alias through its `canonical`): `(bf)` under-applies butfirst and `(bl 1 2)` over-applies
-// butlast. The alias and its Core twin must raise the SAME arity diagnostic — same code, expected,
-// actual, stage, severity — proving the alias neither invents nor suppresses a semantic finding.
-// The `callable`/`message` fields intentionally ECHO THE LEARNER'S SPELLING (`bf`, not `butfirst`):
-// a diagnostic points at the source the learner wrote, which is a source-fidelity concern, NOT the
-// no-new-semantics contract. That contract governs the EVENT STREAM (proven byte-identical in the
-// runtime suite); a diagnostic naming the surface spelling is correct and expected.
-test("a parenthesized reporter alias raises the SAME arity diagnostic as its Core twin, echoing the learner's spelling", () => {
+// Diagnostic-equivalence at the CHECKER layer (rubber-duck review, #669; corrected by #733). A
+// parenthesized fixed-arity reporter IS arity-checked by the semantic checker (checker-arity.ts
+// resolves the alias through its `canonical`): `(bf)` under-applies butfirst and `(bl 1 2)`
+// over-applies butlast. The alias and its Core twin must raise the SAME arity diagnostic —
+// identical `code`, `params` (including `callable`), `stage`, and `severity` — proving the alias
+// neither invents nor suppresses a semantic finding. Diagnostic identity is `code` plus structured
+// `params`, and those params are CANONICAL, never the surface spelling (`spec/error-model.md:235-238`,
+// issue #733): wrong arity on `bf` and wrong arity on `butfirst` are the SAME condition, so
+// `params.callable` — a machine-readable identifier tools assert on — carries the canonical name
+// (`butfirst`), identical to the Core twin's. This mirrors H5 (#670), which canonicalizes its
+// `operation` param through a shared read helper; Heritage is "alternate spellings only, no new
+// semantics" (`spec/conformance.md#heritage`), so a diagnostic whose structured identity changed
+// with the spelling would be an observable semantic difference. Prose may display the learner's
+// spelling (`spec/localization.md`), but here the canonical name drives the message too — canonical
+// display is permitted, and it keeps the alias and Core diagnostics identical by construction.
+test("a parenthesized reporter alias raises the SAME arity diagnostic as its Core twin, with canonical structured params", () => {
   const strip = (source) =>
     checkSource(source, HERITAGE_ACTIVE).map(
       ({ source_span, ...rest }) => rest,
     );
   const cases = [
-    // [alias source, core source, surface spelling the diagnostic must echo, canonical]
-    ["print (bf)\n", "print (butfirst)\n", "bf", "butfirst"],
-    ["print (bl 1 2)\n", "print (butlast 1 2)\n", "bl", "butlast"],
+    // [alias source, core source, canonical name the diagnostic's params must carry]
+    ["print (bf)\n", "print (butfirst)\n", "butfirst"],
+    ["print (bl 1 2)\n", "print (butlast 1 2)\n", "butlast"],
   ];
-  for (const [aliasSource, coreSource, surface, canonical] of cases) {
-    const [aliasDiag] = strip(aliasSource);
-    const [coreDiag] = strip(coreSource);
-    // Same finding, aside from the learner-facing name: code/expected/actual/stage/severity match.
+  for (const [aliasSource, coreSource, canonical] of cases) {
+    const aliasFindings = strip(aliasSource);
+    const coreFindings = strip(coreSource);
+    // Exactly one arity finding on each side — the alias neither invents nor suppresses one.
+    assert.equal(aliasFindings.length, 1);
+    assert.equal(coreFindings.length, 1);
+    const [aliasDiag] = aliasFindings;
+    const [coreDiag] = coreFindings;
+    // The alias diagnostic is byte-identical to its Core twin: same code, params, stage, severity.
+    assert.deepEqual(aliasDiag, coreDiag);
+    // …and every field of that shared identity is the CANONICAL name/shape, never the surface
+    // spelling `bf`/`bl`: `code`, each structured `param` (the machine-readable identity tools
+    // assert on, per `spec/error-model.md:235-238`), `stage`, and `severity` all match, and the
+    // canonical name drives the prose too (canonical display is permitted).
     assert.equal(aliasDiag.code, coreDiag.code);
+    assert.equal(aliasDiag.params.callable, canonical);
+    assert.equal(coreDiag.params.callable, canonical);
     assert.equal(aliasDiag.params.expected, coreDiag.params.expected);
     assert.equal(aliasDiag.params.actual, coreDiag.params.actual);
     assert.equal(aliasDiag.stage, coreDiag.stage);
     assert.equal(aliasDiag.severity, coreDiag.severity);
-    // The diagnostic echoes the SURFACE spelling the learner wrote, not the canonical name.
-    assert.equal(aliasDiag.params.callable, surface);
-    assert.equal(coreDiag.params.callable, canonical);
-    assert.ok(aliasDiag.message.startsWith(surface));
+    assert.ok(aliasDiag.message.startsWith(canonical));
   }
 });

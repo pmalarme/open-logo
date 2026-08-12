@@ -325,7 +325,16 @@ export function arityRule(
       // Unknown callee (or grammar operator): not this rule's concern.
       return;
     }
-    checkPrimitiveRangeArity(node, raw, range, actual, span, diagnostics);
+    // Diagnostic identity is canonical, not the surface spelling (`spec/error-model.md:235-238`,
+    // issue #733): a Heritage alias (`bf`) and its Core twin (`butfirst`) name the SAME condition,
+    // so `params.callable` — a machine-readable identifier tools assert on — must be the canonical
+    // name, identical to the Core twin's, exactly as H5 (#670) canonicalizes `operation` through a
+    // shared read helper. `effective` is that canonical name (the reader's `canonical`, or `lower`
+    // when there is no alias), so it also drives the diagnostic's prose (canonical display is
+    // permitted; `spec/localization.md`). Heritage is "alternate spellings only, no new semantics"
+    // (`spec/conformance.md#heritage`) — a diagnostic whose structured identity changed with the
+    // spelling would be an observable semantic difference.
+    checkPrimitiveRangeArity(node, effective, range, actual, span, diagnostics);
   });
 
   return diagnostics;
