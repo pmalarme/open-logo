@@ -28,12 +28,14 @@
  * (events emitted even when audio is unavailable) and the profile-active/Core-only `"check": true`
  * pair — are green in the full DAG (issue #693, the Sound epic #662 terminal slice under saga #572).
  * `sprites` was added once M5 shipped it: the runtime implements the whole C3 Sprites surface
- * (`new_turtle`/`tell`/`ask`/`each`/`turtles`/`who`), every per-turtle effect event carries the
- * acting turtle's `turtle_id`, the forms and reporters are gated behind the `sprites` profile in
- * the checker both ways, and the Sprites conformance fixtures are green in the full DAG — including
- * the profile reserved-word rule, the `ol-type` negatives for `tell`/`ask`, per-turtle pen/color/
- * width/position state, and the spec's own `ask turtles [ each [ … ] ]` composition (issue #679,
- * the Sprites epic #660 terminal slice under saga #572).
+ * (`new_turtle`/`tell`/`ask`/`each`/`turtles`/`who`), every per-turtle effect event emitted under
+ * explicit addressing (`tell`/`ask`/`each`) carries the acting turtle's `turtle_id` — the implicit
+ * main turtle's effects stay un-stamped, exactly as the pre-Sprites Turtle & Rendering fixtures
+ * expect — the forms and reporters are gated behind the `sprites` profile in the checker both
+ * ways, and the Sprites conformance fixtures are green in the full DAG — including the profile
+ * reserved-word rule, the `ol-type` negatives for `tell`/`ask`, per-turtle pen/color/width/position
+ * state, and the spec's own `ask turtles [ each [ … ] ]` composition (issue #679, the Sprites epic
+ * #660 terminal slice under saga #572).
  * Claiming a profile before it is conformant would be a false conformance claim — exactly the
  * failure mode the M4 audit exists to catch — so any future profile addition here must follow
  * the same rule: land the profile's conformance fixes first, then claim it.

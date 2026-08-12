@@ -1,5 +1,5 @@
 {
-  "description": "issue #679 (SP7): the OFF half of the reserved-word profile gate. The same three `define`s are ACCEPTED under `core-language` alone, because `tell`/`ask`/`each` are reserved only within the Sprites profile and are deliberately not in the Core reserved-word list (spec/turtles-and-sprites.md:154). A Core program that already uses those names keeps working until it opts into Sprites.",
+  "description": "issue #679 (SP7): the OFF half of the reserved-word profile gate. The same three `define`s CHECK CLEAN under `core-language` alone, because `tell`/`ask`/`each` are reserved only within the Sprites profile and are deliberately not in the Core reserved-word list (spec/turtles-and-sprites.md:154). So a Core program that already defines procedures with those names still checks clean until it opts into Sprites. This is a `\"check\": true` fixture: it asserts the absence of the checker diagnostic, not execution — the procedures are never called and no events are produced.",
   "profiles": ["core-language"],
   "check": true,
   "events": [],

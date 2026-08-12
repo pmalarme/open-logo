@@ -10,3 +10,4 @@ tell first turtles
 print xcor
 print ycor
 print heading
+print pos

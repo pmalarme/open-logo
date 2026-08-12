@@ -1,5 +1,5 @@
 {
-  "description": "issue #679 (SP7): spec/turtles-and-sprites.md:108 — `xcor`, `ycor`, `heading`, and `pos` READ FROM THE CURRENT TURTLE, a whole spec bullet with no fixture before this slice. After `tell :a` plus `forward 30`/`right 90`, the four reporters see :a's own state (0, 30, 90, [0 30]); re-addressing the main turtle with `tell first turtles` makes the same four reporters report the untouched main turtle (0, 0, 0). Locks that the reporters follow the addressed set instead of reading one global turtle.",
+  "description": "issue #679 (SP7): spec/turtles-and-sprites.md:108 — `xcor`, `ycor`, `heading`, and `pos` READ FROM THE CURRENT TURTLE, a whole spec bullet with no fixture before this slice. After `tell :a` plus `forward 30`/`right 90`, the four reporters see :a's own state (0, 30, 90, [0 30]); re-addressing the main turtle with `tell first turtles` makes those same four reporters report the untouched main turtle (0, 0, 0, [0 0]). Locks that the reporters follow the addressed set instead of reading one global turtle.",
   "profiles": ["sprites"],
   "execute": true,
   "events": [
@@ -294,6 +294,30 @@
       },
       "payload": {
         "values": [0]
+      }
+    },
+    {
+      "seq": 23,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
+        "start": [13, 1],
+        "end": [13, 10]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 24,
+      "kind": "print",
+      "source_span": {
+        "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
+        "start": [13, 1],
+        "end": [13, 10]
+      },
+      "payload": {
+        "values": [[0, 0]]
       }
     }
   ],

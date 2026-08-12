@@ -1,5 +1,5 @@
 {
-  "description": "issue #679 (SP7): a bare unlabelled `end` also closes an `each` long form (spec/turtles-and-sprites.md:167 makes the label optional). Same program and same event stream as each-end-each-long-form with `end each` shortened to `end`, proving the label is optional rather than required.",
+  "description": "issue #679 (SP7): a bare unlabelled `end` also closes an `each` long form (spec/turtles-and-sprites.md:167 makes the label optional). Same program as each-end-each-long-form with `end each` shortened to `end`, and the event stream matches it kind for kind and payload for payload; only the fixture-specific `source_span` fields differ (the document name, and the `each` statement's own end column [6,4] here versus [6,9] with the label). Together they prove the label is optional, not required.",
   "profiles": ["sprites"],
   "execute": true,
   "events": [
