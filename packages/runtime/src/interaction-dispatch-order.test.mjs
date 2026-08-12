@@ -542,16 +542,45 @@ test("a cross-thread abort at a handler dispatch boundary starts no orphan handl
 test("a cross-thread abort suppresses even an empty handler's delivery (abort is ungated by body)", () => {
   // The empty-body exemption is for the BUDGET branch only — a cancelled run must stop delivery of
   // every kind, including a zero-cost empty handler. A `when "start" [ ]` fires immediately at
-  // registration; a signal already aborted before that dispatch must suppress its block-head. This
-  // proves the abort branch is NOT gated on `bodyHasStatements` (an empty handler at an exhausted
-  // budget IS delivered, but an empty handler under cancellation is NOT).
+  // registration; a cross-thread signal that flips to aborted AFTER registration but AT the empty
+  // handler's dispatch guard must suppress its fire block-head. This proves the abort branch is NOT
+  // gated on `bodyHasStatements` — were it gated, the empty handler would still be delivered here
+  // (the test would pass for the wrong reason). We use a faithful getter-flip signal and sweep the
+  // flip point to find the one that lands between the `when` registration statement and the empty
+  // handler's dispatch, robust to the exact number of `aborted` reads the run makes.
   const source = 'when "start" [ ]';
-  const result = execute(source, doc, { signal: { aborted: true } });
-  // Pre-aborted at the first statement: the run halts before the `when` registration statement even
-  // runs, so no ProfileStatement instruction and no events at all — cancellation stops delivery.
-  assert.deepEqual(result.events, []);
-  assert.equal(result.diagnostics.length, 1);
-  assert.equal(result.diagnostics[0].params.limit, "cancelled");
+  const isProfileStart = (event) =>
+    event.kind === "instruction" &&
+    event.payload.statement_kind === "ProfileStatement";
+  let halted = null;
+  for (let flipAfter = 1; flipAfter <= 20; flipAfter++) {
+    const probe = execute(source, doc, {
+      signal: signalAbortingAfter(flipAfter),
+    });
+    // The target case: the run got far enough to run the `when` registration statement (so its
+    // registration `instruction{ProfileStatement}` exists) but was cancelled at the empty handler's
+    // dispatch guard, so exactly ONE ProfileStatement (the registration) appears — not two — and the
+    // run halted with ol-limit(cancelled).
+    if (
+      probe.diagnostics.length === 1 &&
+      probe.diagnostics[0].params.limit === "cancelled" &&
+      probe.events.filter(isProfileStart).length === 1
+    ) {
+      halted = probe;
+      break;
+    }
+  }
+  assert.ok(
+    halted,
+    "expected a flip point where the when registration ran but the empty handler was cancelled at dispatch",
+  );
+  assert.equal(halted.diagnostics[0].code, "ol-limit");
+  assert.equal(halted.diagnostics[0].params.limit, "cancelled");
+  // Exactly one ProfileStatement instruction: the `when` registration statement. The empty handler's
+  // OWN fire block-head is absent — it was suppressed at the ungated abort guard, not delivered. Were
+  // the abort branch mistakenly gated on `bodyHasStatements`, a second ProfileStatement (the empty
+  // handler's fire block-head) would appear here.
+  assert.equal(halted.events.filter(isProfileStart).length, 1);
 });
 
 test("a cross-thread abort during a long wait with no due handler is observed that tick", () => {
