@@ -1993,8 +1993,50 @@ test("loadFixture rejects an unknown executeOptions key (closes the typo-masking
   assert.ok(loaded.error);
   assert.ok(
     loaded.error.includes(
-      '"executeOptions.hostInputs" is not a recognized ExecuteOptions key',
+      '"executeOptions.hostInputs" is not a JSON-expressible ExecuteOptions key',
     ),
+  );
+});
+
+test("loadFixture rejects the function-typed tutorTemplates key (no JSON fixture can supply it)", () => {
+  const loaded = loadHostInputFixture("tutor-templates-rejected", {
+    profiles: ["core-language"],
+    execute: true,
+    // `tutorTemplates` is a function on ExecuteOptions — deliberately not JSON-expressible, so a
+    // fixture naming it is a mistake and must be rejected, not silently forwarded as `undefined`.
+    executeOptions: { tutorTemplates: [] },
+    events: [],
+    diagnostics: [],
+  });
+  assert.ok(loaded.error);
+  assert.ok(
+    loaded.error.includes(
+      '"executeOptions.tutorTemplates" is not a JSON-expressible ExecuteOptions key',
+    ),
+  );
+});
+
+test("loadFixture accepts a string executeOptions.learnerLevel but rejects a non-string", () => {
+  const good = loadHostInputFixture("learner-level-good", {
+    profiles: ["core-language"],
+    execute: true,
+    executeOptions: { learnerLevel: "3" },
+    events: [],
+    diagnostics: [],
+  });
+  assert.equal(good.error, undefined);
+  assert.equal(good.expected.executeOptions.learnerLevel, "3");
+
+  const bad = loadHostInputFixture("learner-level-bad", {
+    profiles: ["core-language"],
+    execute: true,
+    executeOptions: { learnerLevel: 3 },
+    events: [],
+    diagnostics: [],
+  });
+  assert.ok(bad.error);
+  assert.ok(
+    bad.error.includes('"executeOptions.learnerLevel" must be a string'),
   );
 });
 

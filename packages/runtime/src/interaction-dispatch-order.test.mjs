@@ -299,16 +299,16 @@ test("cancellation observed via the instruction budget stops further handler del
     "wait 1",
   ].join("\n");
   const result = execute(source, doc, {
-    instructionBudget: 3,
+    instructionBudget: 4,
     hostInput: [{ tick: 1, kind: "key", key: "x" }],
   });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-limit");
   assert.equal(result.diagnostics[0].params.limit, "instruction-budget");
-  // The second handler's `print 2` must NOT appear after the budget was exhausted; some earlier
-  // events remain available.
-  const printed = printedValues(result);
-  assert.ok(!printed.some((values) => values[0] === 2));
+  // The first handler's `print 1` fired; the budget then halts BEFORE the second handler's
+  // `print 2`, so exactly `[[1]]` is printed — proof that delivery stops mid-tick and that
+  // already-emitted events remain available (returned unchanged).
+  assert.deepEqual(printedValues(result), [[1]]);
 });
 
 test("a runaway handler body halts with ol-limit(instruction-budget), not an infinite loop", () => {
@@ -408,4 +408,76 @@ test("`stop` escaping a delivered on_click body halts with ol-stop-outside-proc"
   });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-stop-outside-proc");
+});
+
+// --- Regression locks for the review-gate findings (rubber-duck, issue #686) --------------------
+
+test("same-kind order is the HANDLERS' registration order, not the host's delivery order", () => {
+  // Register on_key "a" then "b"; deliver them REVERSED (b before a) in the same tick. The spec
+  // (l.84-89) orders "pending on_key events in registration order" — the handlers' registration
+  // order, which host-input order must NOT override. So the output is 1 (handler a) then 2
+  // (handler b), never 2 then 1.
+  const source = [
+    'on_key "a" [ print 1 ]',
+    'on_key "b" [ print 2 ]',
+    "wait 1",
+  ].join("\n");
+  const result = execute(source, doc, {
+    hostInput: [
+      { tick: 1, kind: "key", key: "b" },
+      { tick: 1, kind: "key", key: "a" },
+    ],
+  });
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(printedValues(result), [[1], [2]]);
+});
+
+test("a `wait 0` honors a tick-0 handler's halt instead of swallowing it", () => {
+  // `wait 0` is a spec-mandated yield, not a no-op: a current-tick (tick 0) host key whose handler
+  // body escapes with `return` MUST surface ol-return-outside-proc and defer the following
+  // top-level `print 99`, exactly as an advanced-tick handler would. (Ignoring the wait-0 dispatch
+  // verdict swallowed this.)
+  const source = ['on_key "x" [ return 1 ]', "wait 0", "print 99"].join("\n");
+  const result = execute(source, doc, {
+    hostInput: [{ tick: 0, kind: "key", key: "x" }],
+  });
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-return-outside-proc");
+  assert.deepEqual(printedValues(result), []);
+});
+
+test("a nested `wait` inside a handler cannot overtake older same-tick invocations", () => {
+  // Two on_key "k" handlers and an on_click all become due at tick 1. The FIRST key handler runs a
+  // nested `wait 1` mid-body. That nested wait must NOT deliver the still-pending click before the
+  // rest of THIS tick's earlier-in-order key invocations finish — the whole tick's ordered batch is
+  // fixed up front. Expected: 1, then (after the nested wait) 11, then key handler 2, then click 3.
+  const source = [
+    'on_key "k" [ print 1 wait 1 print 11 ]',
+    'on_key "k" [ print 2 ]',
+    "on_click [ print 3 ]",
+    "wait 2",
+  ].join("\n");
+  const result = execute(source, doc, {
+    hostInput: [
+      { tick: 1, kind: "key", key: "k" },
+      { tick: 1, kind: "click" },
+    ],
+  });
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(printedValues(result), [[1], [11], [2], [3]]);
+});
+
+test("a one-shot `when` handler fires at most once even if its event is pending twice", () => {
+  // `when` is one-shot. If the same named event is delivered twice in one tick, the handler must
+  // still fire exactly once (collecting it per-occurrence would fire a one-shot handler twice, since
+  // its `fired` flag is only set at invocation).
+  const source = ['when "go" [ print 1 ]', "wait 1"].join("\n");
+  const result = execute(source, doc, {
+    hostInput: [
+      { tick: 1, kind: "event", event: "go" },
+      { tick: 1, kind: "event", event: "go" },
+    ],
+  });
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(printedValues(result), [[1]]);
 });

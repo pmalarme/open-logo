@@ -272,24 +272,32 @@ export function loadFixture(fixture) {
     // `budget`) would load clean, be silently ignored by execute(), and let a fixture that LOOKS
     // like proof — an ordering fixture that supplies host input, say — pass while proving nothing:
     // the exact durable-false-claim / typo-masking hole this harness already closes for
-    // execute/check. Allow-listing the known ExecuteOptions keys closes it for every future key at
-    // once, not just the ones enumerated below. (Audited: no existing fixture carries a stray key,
-    // so this is a safe tightening mid-saga rather than a breaking one.)
+    // execute/check. Allow-listing the JSON-expressible ExecuteOptions keys closes it for every
+    // future key at once, not just the ones enumerated below. `tutorTemplates` is deliberately NOT
+    // in the list: it is a function (issue #332), so no JSON fixture can supply it — a fixture
+    // naming it is a mistake and is correctly rejected here. (Audited: no existing fixture carries a
+    // stray key, so this is a safe tightening mid-saga rather than a breaking one.)
     const KNOWN_EXECUTE_OPTION_KEYS = new Set([
       "instructionBudget",
       "recursionDepthLimit",
       "signal",
+      "learnerLevel",
       "hostInput",
     ]);
     for (const key of Object.keys(spec.executeOptions)) {
       if (!KNOWN_EXECUTE_OPTION_KEYS.has(key)) {
         return {
-          error: `"executeOptions.${key}" is not a recognized ExecuteOptions key (known keys: ${[...KNOWN_EXECUTE_OPTION_KEYS].join(", ")})`,
+          error: `"executeOptions.${key}" is not a JSON-expressible ExecuteOptions key (known keys: ${[...KNOWN_EXECUTE_OPTION_KEYS].join(", ")})`,
         };
       }
     }
-    const { instructionBudget, recursionDepthLimit, signal, hostInput } =
-      spec.executeOptions;
+    const {
+      instructionBudget,
+      recursionDepthLimit,
+      signal,
+      learnerLevel,
+      hostInput,
+    } = spec.executeOptions;
     if (
       instructionBudget !== undefined &&
       typeof instructionBudget !== "number"
@@ -313,6 +321,13 @@ export function loadFixture(fixture) {
       return {
         error: `"executeOptions.signal" must be an object with a boolean "aborted"`,
       };
+    }
+    // "learnerLevel" (issue #332) — the learner's active curriculum level, a plain string
+    // (`spec/educational-model.md`'s level table). execute() maps an unknown value to its default,
+    // so only its type is checked here (a non-string is a fixture mistake, rejected rather than
+    // silently forwarded).
+    if (learnerLevel !== undefined && typeof learnerLevel !== "string") {
+      return { error: `"executeOptions.learnerLevel" must be a string` };
     }
     // "hostInput" (issue #686, slice I7 — ExecuteOptions.hostInput) is a tick-scheduled list of key
     // presses, clicks, and named events a host would have delivered, so on_key/on_click/when

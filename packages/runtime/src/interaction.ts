@@ -212,11 +212,15 @@ export function runWait(
     // `wait 0` yields to the event loop at the current tick without advancing it (a spec-mandated
     // yield, not a no-op — `spec/interaction-events.md`, `wait <n>`). No `every` handler can be due
     // here: a handler's next-due tick is always at least its interval (>= 1) past its registration
-    // tick, so it is never due at a tick the clock has NOT just advanced to. The dispatch therefore
-    // cannot report an interruption on a `wait 0`, so its verdict is intentionally not checked; the
-    // interruptible path is the per-tick advance below. (A later slice's current-tick events —
-    // `on_key`/`on_click`, #684/#685 — will revisit whether a `wait 0` needs to abort here.)
-    yieldToEventLoop(tickClock, dispatch);
+    // tick, so it is never due at a tick the clock has NOT just advanced to. But current-tick input
+    // — a `hostInput` key/click/named event scheduled at tick 0 (#684/#685/#686) — CAN be pending
+    // and its handler can halt (`return`/`stop`, a runtime error, or a cancelled/over-budget run),
+    // so the dispatch verdict MUST be honored exactly as it is on the per-tick advance below:
+    // abort before the primitive and report the interruption. (Ignoring it here swallowed a tick-0
+    // handler's halt — the "`wait 0` treated as a no-op" failure mode.)
+    if (yieldToEventLoop(tickClock, dispatch)) {
+      return true;
+    }
   }
   for (let elapsed = 0; elapsed < count; elapsed += 1) {
     advanceTickClock(tickClock);
@@ -739,15 +743,19 @@ export function enqueueHostInput(
 }
 
 /**
- * The not-yet-fired `when` handlers to invoke for every pending named event queued for this tick
- * (issue #686, slice I7), in the spec's same-tick order — the pending events are drained in the
- * order they were delivered, and within each event the matching handlers run in registration order
+ * The not-yet-fired `when` handlers to invoke for the named events queued for this tick (issue #686,
+ * slice I7), in the spec's same-tick order: **handler registration order is primary**
  * (`spec/interaction-events.md`, §Time, ticks, and handlers: "pending `when` events in registration
- * order"). Reuses {@link pendingHandlersFor} for the per-event registration-order filter, so a
- * one-shot event already delivered (`fired`) is skipped exactly as it is on the immediate
- * `"start"`/host path. Clears the `pendingEvents` queue (these occurrences are being delivered now),
- * returning the flattened handler batch for {@link dispatchDueHandlers} to invoke. An empty queue —
- * the normal headless case, no host input — yields an empty batch, a well-defined no-op.
+ * order") — the order the host happened to deliver events in MUST NOT reorder the handlers. Each
+ * registered `when` handler is visited once in registration order and included if it is not yet
+ * `fired` and its `event` is among the pending events. Because `when` is **one-shot** (its
+ * {@link WhenHandler.fired} flag is set when it actually runs), a handler is included **at most once
+ * per tick** even if its event is pending several times — collecting it more than once would make a
+ * one-shot handler fire twice (the `fired` flag is only set at invocation, after this whole batch is
+ * built, so it cannot self-dedupe here). Clears the `pendingEvents` queue (these occurrences are
+ * being delivered now), returning the handler batch for {@link dispatchDueHandlers} to invoke. An
+ * empty queue — the normal headless case, no host input — yields an empty batch, a well-defined
+ * no-op.
  */
 export function claimPendingEventHandlers(
   registry: EventHandlerRegistry,
@@ -756,9 +764,10 @@ export function claimPendingEventHandlers(
     0,
     registry.pendingEvents.length,
   );
+  const pending = new Set(events);
   const due: WhenHandler[] = [];
-  for (const event of events) {
-    for (const handler of pendingHandlersFor(registry, event)) {
+  for (const handler of registry.handlers) {
+    if (!handler.fired && pending.has(handler.event)) {
       due.push(handler);
     }
   }
@@ -767,23 +776,25 @@ export function claimPendingEventHandlers(
 
 /**
  * The `on_key` handlers to invoke for every pending key press queued for this tick (issue #686,
- * slice I7), in the spec's same-tick order: pending key presses are drained in the order delivered,
- * and within each key the matching handlers run in registration order (`spec/interaction-events.md`,
- * §Time, ticks, and handlers: "pending `on_key` events in registration order"). A key word is
- * matched verbatim against each handler's `key` (word values are case-significant, never folded).
- * Clears the `pendingKeys` queue (these presses are being delivered now), returning the flattened
- * handler batch for {@link dispatchDueHandlers} to invoke. Unlike `when`, `on_key` handlers have no
- * one-shot `fired` flag — a key can be pressed any number of times — so every matching handler is
- * returned each time its key is delivered. An empty queue — the normal headless case — yields an
- * empty batch.
+ * slice I7), in the spec's same-tick order: **handler registration order is primary**
+ * (`spec/interaction-events.md`, §Time, ticks, and handlers: "pending `on_key` events in
+ * registration order") — the delivery order the host happened to supply keys in MUST NOT reorder
+ * the handlers, so a run is deterministic in the program's own registration order rather than in
+ * host-input order. Each registered `on_key` handler is visited once in registration order; for
+ * each, it fires once per pending key that matches its `key` word (matched verbatim — word values
+ * are case-significant, never folded), preserving multiplicity (a key pressed twice fires its
+ * handler twice). Clears the `pendingKeys` queue (these presses are being delivered now), returning
+ * the flattened handler batch for {@link dispatchDueHandlers} to invoke. Unlike `when`, `on_key`
+ * handlers have no one-shot `fired` flag — a key can be pressed any number of times. An empty queue
+ * — the normal headless case — yields an empty batch.
  */
 export function claimPendingKeyHandlers(
   registry: EventHandlerRegistry,
 ): readonly OnKeyHandler[] {
   const keys = registry.pendingKeys.splice(0, registry.pendingKeys.length);
   const due: OnKeyHandler[] = [];
-  for (const key of keys) {
-    for (const handler of registry.onKeyHandlers) {
+  for (const handler of registry.onKeyHandlers) {
+    for (const key of keys) {
       if (handler.key === key) {
         due.push(handler);
       }

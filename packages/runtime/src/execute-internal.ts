@@ -2658,35 +2658,6 @@ function invokeOnClickHandler(
 }
 
 /**
- * Deliver every `every` handler due on `tick` (`spec/interaction-events.md`'s "Time, ticks, and
- * handlers": "due `every` events in registration order"), invoked while a `wait` pause advances the
- * clock through that tick. Claims the whole due batch up front ({@link claimDueEveryHandlers} marks
- * each due handler `pending` and advances its `nextDueTick` atomically, before any body runs), then
- * invokes the batch in registration order. Claiming up front is what keeps delivery deterministic
- * across re-entrancy: when one handler's body runs a nested `wait` that advances the clock through a
- * sibling's next interval, that inner pause sees the sibling still `pending` (already claimed for
- * this batch) and skips it rather than firing it a second time out of chronological order. Stops at
- * the first handler that halts, returning its {@link ExecSignal}; returns {@link NORMAL_SIGNAL} when
- * every claimed handler completed normally. A tick with no due handler is a well-defined no-op. The
- * final drain step of {@link dispatchDueHandlers}.
- */
-function dispatchEveryHandlers(
-  tick: number,
-  environment: Environment,
-): ExecSignal {
-  for (const handler of claimDueEveryHandlers(
-    environment.eventHandlers,
-    tick,
-  )) {
-    const signal = invokeEveryHandler(handler, environment);
-    if (signal.kind !== "normal") {
-      return signal;
-    }
-  }
-  return NORMAL_SIGNAL;
-}
-
-/**
  * The unified same-tick handler dispatch (issue #686, slice I7) — the single callback
  * {@link executeWaitCall} hands to {@link runWait}, invoked at every {@link yieldToEventLoop}
  * checkpoint the tick clock reaches (once per elapsed tick, and once for a `wait 0` yield). It
@@ -2696,7 +2667,18 @@ function dispatchEveryHandlers(
  *   1. pending `when` events        ({@link claimPendingEventHandlers} → {@link invokeWhenHandler})
  *   2. pending `on_key` events      ({@link claimPendingKeyHandlers}   → {@link invokeOnKeyHandler})
  *   3. pending `on_click` events    ({@link claimPendingClickHandlers} → {@link invokeOnClickHandler})
- *   4. due `every` events           ({@link dispatchEveryHandlers})
+ *   4. due `every` events           ({@link claimDueEveryHandlers}     → {@link invokeEveryHandler})
+ *
+ * "Registration order" here means the order the **handlers** were registered, primary over the order
+ * the host happened to deliver input in: each `claim*` visits its registered handler list in order,
+ * so a run is deterministic in the program's own registration order (`spec/interaction-events.md`
+ * l.84-89 names no delivery-order concept). The whole tick's ordered invocation batch is built by
+ * claiming **all four buckets up front** — each `claim*` empties its pending queue (and
+ * `claimDueEveryHandlers` marks its handlers `pending`/advances `nextDueTick`) at claim time — and
+ * only then are the bodies run. That up-front claim is what makes a nested `wait` inside a handler
+ * body re-entrancy-safe: a same-tick re-entry finds every queue already drained, so it cannot steal
+ * a later-in-order invocation (e.g. a pending click) and run it before this tick's earlier handlers
+ * finish; newly scheduled input only becomes pending at a strictly later tick.
  *
  * The order is imposed **purely here, at the drain point** — the four registration lists (I3/I5/I6)
  * and the pending host-input queues (this slice) are kept separate precisely so this composition is
@@ -2707,11 +2689,11 @@ function dispatchEveryHandlers(
  * pending queues stay empty and only step 4 (`every`, the sole tick-driven kind) can fire — exactly
  * the I5/I6 "registered but not delivered" behavior, reached because nothing was pending.
  *
- * Each step stops at the first handler that halts (a runtime error, a `return`/`stop` escaping a
+ * The run stops at the first handler that halts (a runtime error, a `return`/`stop` escaping a
  * handler, or a cancelled/over-budget execution), returning that {@link ExecSignal} without running
- * any later step — so once cancellation is observed no further handler of any kind fires, satisfying
- * `spec/interaction-events.md`'s "Errors and cancellation". Returns {@link NORMAL_SIGNAL} when every
- * delivered handler completed normally.
+ * any later invocation — so once cancellation is observed no further handler of any kind fires,
+ * satisfying `spec/interaction-events.md`'s "Errors and cancellation". Returns {@link NORMAL_SIGNAL}
+ * when every delivered handler completed normally.
  */
 function dispatchDueHandlers(
   tick: number,
@@ -2723,25 +2705,34 @@ function dispatchDueHandlers(
     tick,
     environment.hostInputConsumed.count,
   );
-  for (const handler of claimPendingEventHandlers(environment.eventHandlers)) {
-    const signal = invokeWhenHandler(handler, environment);
+  // Claim ALL four buckets into one ordered invocation list BEFORE running any body. Each `claim*`
+  // empties its pending queue (and `claimDueEveryHandlers` marks its handlers `pending`/advances
+  // `nextDueTick`) at claim time, so the whole tick's ordered batch is fixed up front. This is what
+  // makes a nested `wait` inside a handler body re-entrancy-safe: when that nested `wait` re-enters
+  // this dispatcher at the SAME tick, every queue for this tick is already drained, so it cannot
+  // steal a later-in-order invocation (e.g. a pending click) and run it before this tick's earlier
+  // handlers finish. Newly scheduled input only becomes pending at a strictly later tick.
+  const registry = environment.eventHandlers;
+  const invocations: Array<() => ExecSignal> = [];
+  for (const handler of claimPendingEventHandlers(registry)) {
+    invocations.push(() => invokeWhenHandler(handler, environment));
+  }
+  for (const handler of claimPendingKeyHandlers(registry)) {
+    invocations.push(() => invokeOnKeyHandler(handler, environment));
+  }
+  for (const handler of claimPendingClickHandlers(registry)) {
+    invocations.push(() => invokeOnClickHandler(handler, environment));
+  }
+  for (const handler of claimDueEveryHandlers(registry, tick)) {
+    invocations.push(() => invokeEveryHandler(handler, environment));
+  }
+  for (const invoke of invocations) {
+    const signal = invoke();
     if (signal.kind !== "normal") {
       return signal;
     }
   }
-  for (const handler of claimPendingKeyHandlers(environment.eventHandlers)) {
-    const signal = invokeOnKeyHandler(handler, environment);
-    if (signal.kind !== "normal") {
-      return signal;
-    }
-  }
-  for (const handler of claimPendingClickHandlers(environment.eventHandlers)) {
-    const signal = invokeOnClickHandler(handler, environment);
-    if (signal.kind !== "normal") {
-      return signal;
-    }
-  }
-  return dispatchEveryHandlers(tick, environment);
+  return NORMAL_SIGNAL;
 }
 
 /**
@@ -2754,7 +2745,7 @@ function dispatchDueHandlers(
  * registered"). Registration never fires the block: unlike `when "start"`, no `every` interval has
  * elapsed at registration time, so an `every` handler first runs only after `n` ticks pass — which
  * in a headless batch run happens only while a `wait` pause advances the clock
- * ({@link dispatchEveryHandlers}).
+ * ({@link dispatchDueHandlers}).
  *
  * `block` is the handler body the reader always attaches to an `every` block-head (`hasBlock: true`,
  * `parser.ts`'s `PROFILE_STATEMENT_FORMS`), recovered here by a cast since an `every` node reaching
