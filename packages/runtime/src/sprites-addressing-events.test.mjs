@@ -80,6 +80,80 @@ test("an addressing event is never stamped with an envelope turtle_id (it descri
   assert.deepEqual(stamped, []);
 });
 
+test("an addressing form reached from a per-turtle command's ARGUMENT is still never stamped", () => {
+  // Regression for the review-gate finding that `stampTurtleId` labelled every un-stamped event
+  // produced while one addressed turtle ran a per-turtle command — and argument evaluation happens
+  // inside that window. `forward nudge` evaluates `nudge` once per addressed turtle, and `nudge`
+  // addresses :a, so the `ask` entry/restore events are emitted mid-stamping-window. Under
+  // `tell [ :a :b ]` the stamp would have named turtle 2 on an event whose addressed set is [ 1 ].
+  const result = execute(
+    [
+      ":a = new_turtle",
+      ":b = new_turtle",
+      "define nudge",
+      "  ask :a [ right 1 ]",
+      "  return 3",
+      "end",
+      "tell [ :a :b ]",
+      "forward nudge",
+    ].join("\n"),
+    "main.logo",
+  );
+  assert.deepEqual(result.diagnostics, []);
+  const stamped = result.events.filter(
+    (event) =>
+      event.kind === "primitive" &&
+      event.payload.addressing !== undefined &&
+      event.turtle_id !== undefined,
+  );
+  assert.deepEqual(stamped, []);
+  // Both turtles ran the command, so `nudge` (and its `ask`) ran twice: four addressing events.
+  assert.deepEqual(addressingEvents(result.events), [
+    ["tell", [1, 2], 1],
+    ["ask", [1], 1],
+    ["ask", [1, 2], 1],
+    ["ask", [1], 1],
+    ["ask", [1, 2], 1],
+  ]);
+});
+
+test("current_turtle_id follows the addressed set, never the per-turtle loop's transient pointer", () => {
+  // Regression for the review-gate finding that `runPerTurtleCommand` re-aims `addressing.currentId`
+  // at each addressed turtle in turn (so a `who` inside an argument reports the turtle actually
+  // running the command) WITHOUT emitting. An `ask` reached from that argument snapshotted the
+  // transient pointer and republished it on restore, so the second iteration reported
+  // `current_turtle_id: 2` for the set [ 1, 2 ] — contradicting both `ids[0]` and the `who` reported
+  // by the very next statement. Deriving the payload's current turtle from the set fixes it by
+  // construction.
+  const result = execute(
+    [
+      ":a = new_turtle",
+      ":b = new_turtle",
+      "define nudge",
+      "  ask :a [ right 1 ]",
+      "  return 3",
+      "end",
+      "tell [ :a :b ]",
+      "forward nudge",
+      "print who",
+    ].join("\n"),
+    "main.logo",
+  );
+  assert.deepEqual(result.diagnostics, []);
+  // The last addressing snapshot and the `who` printed straight after it agree on turtle 1.
+  assert.deepEqual(foldAddressing(result.events), {
+    addressed_turtle_ids: [1, 2],
+    current_turtle_id: 1,
+  });
+  const printed = result.events.filter((event) => event.kind === "print");
+  assert.equal(printed.at(-1).payload.values[0].id, 1);
+  // Every snapshot in the stream is self-consistent: the current turtle is its set's first member.
+  for (const [, ids, current] of addressingEvents(result.events)) {
+    assert.ok(ids.length > 0);
+    assert.equal(current, ids[0]);
+  }
+});
+
 test("issue #766 acceptance: after an ask block, the fold reports the restored set and current turtle", () => {
   // The issue's first acceptance criterion, verbatim: `tell [ :a :b ]` / `forward 10` /
   // `ask :b [ hide_turtle ]`. When the stream is fully folded, the consumer reports the addressed
@@ -152,15 +226,17 @@ test("each narrows to one turtle per iteration and restores the set it iterated"
 
 test("each over an empty addressed set narrows zero times but still publishes the restore", () => {
   // Zero iterations means zero narrowings; the `finally` still runs, so the stream ends on the
-  // (unchanged) empty set rather than going silent about it.
+  // (unchanged) empty set rather than going silent about it. `current_turtle_id` is `null`, not this
+  // implementation's own `who` fallback: the spec defines no current turtle for an empty addressed
+  // set, so a portable fixture must not make one implementation's choice binding.
   const result = execute(
     ":a = new_turtle\ntell [ ]\neach [ forward 99 ]",
     "main.logo",
   );
   assert.deepEqual(result.diagnostics, []);
   assert.deepEqual(addressingEvents(result.events), [
-    ["tell", [], 0],
-    ["each", [], 0],
+    ["tell", [], null],
+    ["each", [], null],
   ]);
   assert.deepEqual(moves(result.events), []);
 });

@@ -59,7 +59,7 @@
         "name": "tell",
         "addressing": {
           "addressed_turtle_ids": [],
-          "current_turtle_id": 0
+          "current_turtle_id": null
         }
       }
     },

@@ -205,6 +205,56 @@ test("primitive payload accepts a non-interaction primitive name (generic catch-
   assert.equal(event.payload.name, "some_future_primitive");
 });
 
+test("the registry marks exactly the per-turtle effect kinds as turtle-specific (issue #764)", () => {
+  // spec/execution-model.md:638 — the envelope's `turtle-id` is "present only when the event is
+  // turtle-specific, otherwise absent". This partition is what lets a producer stamp envelopes and a
+  // consumer validate them from one list instead of each hard-coding its own.
+  for (const kind of [
+    "move",
+    "turn",
+    "pen-change",
+    "width-change",
+    "color-change",
+    "draw-segment",
+    "fill",
+    "stamp",
+    "shape-change",
+    "visibility-change",
+    "clear",
+  ]) {
+    assert.ok(OL.isTurtleSpecificEventKind(kind), `${kind} is turtle-specific`);
+    assert.ok(OL.OL_TURTLE_SPECIFIC_EVENT_KINDS.has(kind));
+  }
+  // Program/scene kinds are not turtle-specific — including `primitive`, whose addressing payload
+  // describes a SET of turtles, and `spawn-turtle`, which carries its identity in its own payload
+  // rather than being labelled after the fact.
+  for (const kind of [
+    "instruction",
+    "procedure-enter",
+    "procedure-exit",
+    "return",
+    "print",
+    "sound",
+    "overlay",
+    "background-change",
+    "error",
+    "tutor-output",
+    "primitive",
+    "spawn-turtle",
+  ]) {
+    assert.equal(
+      OL.isTurtleSpecificEventKind(kind),
+      false,
+      `${kind} is not turtle-specific`,
+    );
+  }
+  // Every entry is itself a registered kind — the partition can never drift off the registry.
+  for (const kind of OL.OL_TURTLE_SPECIFIC_EVENT_KINDS) {
+    assert.ok(OL.isEventKind(kind));
+  }
+  assert.equal(OL.isTurtleSpecificEventKind("not-a-kind"), false);
+});
+
 test("primitive payload carries the addressed turtle set for tell/ask/each (issue #766)", () => {
   // The Sprites addressing primitives are the only `primitive` emitters that carry an
   // `addressing` snapshot: the whole addressed set plus the current turtle, which is what makes
@@ -231,21 +281,22 @@ test("primitive payload carries the addressed turtle set for tell/ask/each (issu
   }
 });
 
-test("an addressed set may be empty, with the current turtle falling back to the main turtle", () => {
-  // `tell [ ]` addresses no turtle; `who` still answers with the main turtle (id 0), so the
-  // snapshot pairs an empty set with a defined current turtle rather than a null one.
+test("an addressed set may be empty, and then no current turtle is claimed", () => {
+  // `tell [ ]` addresses no turtle. The spec defines no current turtle for an empty addressed set
+  // (what `who` reports there is implementation-defined), so the snapshot reports `null` rather than
+  // making one implementation's fallback binding on every implementation through a fixture.
   const event = {
     seq: 22,
     kind: "primitive",
     source_span: makeSpan(),
     payload: {
       name: "tell",
-      addressing: { addressed_turtle_ids: [], current_turtle_id: 0 },
+      addressing: { addressed_turtle_ids: [], current_turtle_id: null },
     },
   };
   assert.ok(OL.isEventKind(event.kind));
   assert.deepEqual(event.payload.addressing.addressed_turtle_ids, []);
-  assert.equal(event.payload.addressing.current_turtle_id, 0);
+  assert.equal(event.payload.addressing.current_turtle_id, null);
 });
 
 test("sound payload (set_tempo) carries beats per minute", () => {

@@ -56,6 +56,46 @@ export const OL_EVENT_KINDS = [
 /** One registered trace-event kind. */
 export type EventKind = (typeof OL_EVENT_KINDS)[number];
 
+/**
+ * The registered kinds that are **turtle-specific** — the only kinds whose envelope may carry a
+ * `turtle_id`. `spec/execution-model.md:638` is explicit: "`turtle-id` | Turtle identity; present
+ * only when the event is turtle-specific, otherwise absent", and `spec/turtles-and-sprites.md:113`
+ * scopes the identity requirement to explaining "which turtle moved or changed".
+ *
+ * These are exactly the per-turtle effects: movement, turning, pen/width/color, the segment drawn,
+ * `fill`/`stamp` (which "use the current turtle's pen and shape state",
+ * `spec/turtles-and-sprites.md:109`), shape/visibility, and `clear` (one canvas clear, homing the
+ * current turtle). Every other kind describes the program or the scene rather than one turtle:
+ * `instruction`, `procedure-enter`/`procedure-exit`/`return`, `print`, `sound`, `overlay`,
+ * `background-change`, `error`, `tutor-output`, and `primitive` — including the addressing
+ * `primitive` events, whose {@link AddressingSnapshot} describes a *set* of turtles.
+ *
+ * `spawn-turtle` is deliberately absent: it is *about* a turtle, but it carries that identity
+ * authoritatively in its own {@link SpawnTurtlePayload.turtle_id} at emission, so it is never
+ * labelled after the fact by a producer stamping the acting turtle.
+ *
+ * Lives here, next to the registry it partitions, so a producer stamping envelopes and a consumer
+ * validating them share one list instead of each hard-coding its own (issue #764).
+ */
+export const OL_TURTLE_SPECIFIC_EVENT_KINDS: ReadonlySet<EventKind> = new Set([
+  "move",
+  "turn",
+  "pen-change",
+  "width-change",
+  "color-change",
+  "draw-segment",
+  "fill",
+  "stamp",
+  "shape-change",
+  "visibility-change",
+  "clear",
+]);
+
+/** Type guard: may an event of this `kind` carry a `turtle_id`? See {@link OL_TURTLE_SPECIFIC_EVENT_KINDS}. */
+export function isTurtleSpecificEventKind(kind: string): boolean {
+  return OL_TURTLE_SPECIFIC_EVENT_KINDS.has(kind as EventKind);
+}
+
 /** Payload for a `move` event. */
 export interface MovePayload {
   readonly from: Point;
@@ -397,8 +437,13 @@ export type PrimitiveName = string;
  *   each (`spec/turtles-and-sprites.md:113`), deduplicated and in first-occurrence order — the same
  *   order `each` iterates. It MAY be empty (`tell [ ]` addresses no turtle).
  * - {@link current_turtle_id} is the single turtle `who` reports and whose state the movement
- *   reporters read: the set's first member, or the main turtle when the set is empty
- *   (`spec/turtles-and-sprites.md:26`).
+ *   reporters read: **the set's first member** (`spec/turtles-and-sprites.md:26`), and `null` exactly
+ *   when the set is empty. It is derived from the set itself rather than from any separate pointer,
+ *   so the two halves of this payload can never contradict each other. `null` is deliberate: the spec
+ *   defines no current turtle for an empty addressed set, so an implementation's own fallback there
+ *   (this one keeps reporting the main turtle from `who`) MUST NOT become binding on every
+ *   implementation through a conformance fixture — the event claims nothing instead, and a consumer
+ *   picks its own display fallback.
  *
  * The snapshot is **absolute, not a delta**: a consumer folds it by assignment, never by inferring
  * which transition produced it, so entering an `ask` scope, narrowing per `each` iteration, and
@@ -411,7 +456,7 @@ export type PrimitiveName = string;
  */
 export interface AddressingSnapshot {
   readonly addressed_turtle_ids: readonly TurtleId[];
-  readonly current_turtle_id: TurtleId;
+  readonly current_turtle_id: TurtleId | null;
 }
 
 /**

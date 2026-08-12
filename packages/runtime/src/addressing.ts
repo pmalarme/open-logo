@@ -77,9 +77,20 @@ export function snapshotAddressing(
  * (`spec/execution-model.md:652-661`): a later change of the addressed set must not retroactively
  * rewrite an event already emitted.
  *
+ * `current_turtle_id` is derived from the **set itself** — its first member, or `null` when the set
+ * is empty — never from {@link TurtleAddressing.currentId}. That pointer is transiently re-aimed at
+ * each addressed turtle in turn while one per-turtle command runs (`execute-internal.ts`'s
+ * `runPerTurtleCommand`, so a `who` inside an argument reports the turtle actually running the
+ * command), and an addressing form reached from that argument would otherwise publish the transient
+ * pointer as if it were the addressed set's current turtle — a snapshot whose two halves contradict
+ * each other and whose `current_turtle_id` disagrees with `who` on the very next statement. Deriving
+ * from the set makes the payload self-consistent by construction. `null` for the empty set keeps this
+ * implementation's own `who` fallback out of the portable contract (see `AddressingSnapshot`).
+ *
  * The envelope carries **no** `turtle_id`: it is "present only when the event is turtle-specific"
  * (`spec/execution-model.md:638`), and an addressing event describes a *set*, not one turtle — the
- * current turtle travels in the payload instead.
+ * current turtle travels in the payload instead. `execute-internal.ts`'s per-turtle stamper keeps it
+ * that way by stamping only genuinely turtle-specific kinds (`TURTLE_SPECIFIC_EVENT_KINDS`).
  */
 export function emitAddressingPrimitive(
   events: TraceEvent[],
@@ -87,16 +98,15 @@ export function emitAddressingPrimitive(
   name: AddressingPrimitiveName,
   addressing: TurtleAddressing,
 ): void {
+  const addressed_turtle_ids = [...addressing.ids];
+  const [current_turtle_id = null] = addressed_turtle_ids;
   events.push({
     seq: events.length,
     kind: "primitive",
     source_span,
     payload: {
       name,
-      addressing: {
-        addressed_turtle_ids: [...addressing.ids],
-        current_turtle_id: addressing.currentId,
-      },
+      addressing: { addressed_turtle_ids, current_turtle_id },
     } satisfies PrimitivePayload,
   });
 }

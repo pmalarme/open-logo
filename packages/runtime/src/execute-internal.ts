@@ -51,6 +51,7 @@ import type {
   WidthChangePayload,
 } from "@openlogo/core";
 import { OLTurtle, makeSpan, typeNameOf } from "@openlogo/core";
+import { isTurtleSpecificEventKind } from "@openlogo/core";
 import type {
   BlockNode,
   CallNode,
@@ -3303,6 +3304,16 @@ function runPerTurtleCommand(
  * `spawn-turtle` emitted by a `new_turtle` evaluated in the command's argument position, or an event
  * a nested per-turtle command already stamped — keeps that id, so the acting turtle's id is never
  * written over another turtle's. The payload is untouched.
+ *
+ * Only kinds the registry marks turtle-specific are stamped
+ * ({@link OL_TURTLE_SPECIFIC_EVENT_KINDS}, `spec/execution-model.md:638`: `turtle-id` is "present
+ * only when the event is turtle-specific, otherwise absent"). This window is wider than it looks —
+ * **argument evaluation runs inside it** — so `forward some_reporter` also emits that reporter's
+ * `procedure-enter`/`instruction`/`return`/`procedure-exit` and any `print` here, and an addressing
+ * form in its body emits an addressing `primitive` here too. None of those is turtle-specific: before
+ * the filter they picked up a `turtle_id` that tracked *addressing context* rather than
+ * turtle-specificity (issue #764), and for an addressing event the stamp was actively misleading,
+ * naming a turtle the event's own addressed set need not even contain.
  */
 function stampTurtleId(
   environment: Environment,
@@ -3311,7 +3322,9 @@ function stampTurtleId(
 ): void {
   const produced = environment.events.slice(firstEventIndex);
   const stamped = produced.map((event) =>
-    event.turtle_id === undefined ? { ...event, turtle_id: id } : event,
+    event.turtle_id === undefined && isTurtleSpecificEventKind(event.kind)
+      ? { ...event, turtle_id: id }
+      : event,
   );
   environment.events.splice(firstEventIndex, produced.length, ...stamped);
 }
