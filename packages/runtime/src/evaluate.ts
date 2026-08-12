@@ -93,6 +93,7 @@ import { createTickClock } from "./interaction.js";
 import type { TickClock } from "./interaction.js";
 import { createEventHandlerRegistry } from "./interaction.js";
 import type { EventHandlerRegistry } from "./interaction.js";
+import type { HostInputEvent } from "./interaction.js";
 import { createSoundState } from "./sound-state.js";
 import type { SoundState } from "./sound-state.js";
 import { defaultTutorTemplate } from "./tutor-templates.js";
@@ -341,6 +342,28 @@ export interface Environment {
    * `on_key`/`on_click` (#683–#685) extend it; same-tick dispatch order + cancellation is #686/I7.
    */
   readonly eventHandlers: EventHandlerRegistry;
+  /**
+   * The tick-scheduled host input this run delivers (issue #686, slice I7 —
+   * `ExecuteOptions.hostInput`, see `index.ts`). Each {@link HostInputEvent} is a key press, click,
+   * or named event a host would have delivered at a given tick; `dispatchDueHandlers` moves the ones
+   * scheduled at or before the current tick into the registry's pending queues at each
+   * {@link yieldToEventLoop} checkpoint and drains them in the spec's same-tick order. Sorted by
+   * non-decreasing `tick` by `createExecutionEnvironment` so a single forward cursor
+   * ({@link Environment.hostInputConsumed}) suffices. Empty (frozen `[]`) for every normal headless
+   * run, so no key/click/named event ever fires unless a caller supplied one — the I5/I6 never-fires
+   * behavior, now reached because nothing was pending. Headless execution *input*, never observable
+   * in any event payload.
+   */
+  readonly hostInput: readonly HostInputEvent[];
+  /**
+   * How many entries of {@link Environment.hostInput} have already been moved into the pending queues
+   * by an earlier tick's checkpoint (issue #686, slice I7). A mutable box (like `instructionCount`)
+   * so the forward cursor `enqueueHostInput` advances is shared across every recursive
+   * `executeStatements`/`evaluate` call against this environment — including a re-entrant `wait`
+   * inside a handler body — and each host-input entry is therefore enqueued exactly once even though
+   * the checkpoint is revisited every tick.
+   */
+  readonly hostInputConsumed: { count: number };
 }
 
 /**
@@ -501,6 +524,8 @@ export function createEnvironment(): Environment {
     tickClock: createTickClock(),
     sound: createSoundState(),
     eventHandlers: createEventHandlerRegistry(),
+    hostInput: [],
+    hostInputConsumed: { count: 0 },
     // No real parsed program backs this bare environment, so `program` is a placeholder empty
     // `Program` node — safe because none of this package's own expression-only unit tests
     // exercise the Educational meta-commands (`execute-internal.ts`'s

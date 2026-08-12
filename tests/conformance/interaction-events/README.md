@@ -41,9 +41,10 @@ that requires it — see `scripts/examples-gate.mjs`.
   form and the only one that takes **no argument** (`spec/interaction-events.md` §Profile grammar:
   "`on_click` takes none"). Registration emits `primitive` after the handler is registered; a click is
   host input, so in a headless batch run the handler is registered but never delivered (locked by
-  `on-click-registered-not-delivered`, mirroring I3's `when "stop"` and I5's `on_key`) — and, unlike
-  the tick-driven `every`, advancing the tick clock with `wait` still does not fire it
-  (`on-click-wait-does-not-fire`); the multiline
+  `on-click-registered-not-delivered`, mirroring I3's `when "stop"` and I5's `on_key`) — and, with no
+  host input supplied, advancing the tick clock with `wait` still does not fire it because nothing was
+  pending (`on-click-wait-does-not-fire`; #686/I7 reconciled its wording — a click delivered via
+  `hostInput` DOES fire during a `wait`); the multiline
   `... end on_click` form behaves identically to the bracket form, a mismatched `end` label is
   `ol-mismatched-end`, a stray argument where the block belongs is a parse `ol-missing-end` pointed at
   the `on_click` head (the spec lists its errors as none, so a bad argument is caught at parse time),
@@ -51,6 +52,27 @@ that requires it — see `scripts/examples-gate.mjs`.
   insertion-ordered handlers kept in their own list for #686/I7's same-tick delivery order, and
   `check`-mode fixtures prove `on_click` is visible only under the `interaction-events` profile and
   rejected Core-only.
+- **`dispatch/`** — the deterministic same-tick dispatch order + cancellation (issue #686, slice I7):
+  the slice that proves the four handler forms COMPOSE. When several handlers of different kinds
+  become due on one tick they fire in the normative order `when` → `on_key` → `on_click` → due `every`,
+  each in registration order (`spec/interaction-events.md:84-89`) — `cross-kind-order-during-wait`
+  delivers a named event, a key, a click, and an `every` all at tick 1 via `executeOptions.hostInput`
+  (see below) and asserts they print 1, 2, 3, 4; `every-multi-same-tick-deterministic` proves multiple
+  handlers of one kind order by registration, reproducibly. Cancellation
+  (`cancellation-stops-delivery`) proves an already-cancelled run emits no events and delivers no
+  handler even with input scheduled (`spec/interaction-events.md` §Errors and cancellation). A
+  `check`-mode fixture (`return-in-on-key-handler-checked`) locks the checker's agreement with the
+  runtime that an `on_key` body is a control-flow boundary (`ol-return-outside-proc`). Cross-kind
+  ordering, cancellation stopping mid-tick delivery, and the "`wait` does not defer handler delivery"
+  criterion inherited from I1 are proven in full by `packages/runtime/src/interaction-dispatch-order.test.mjs`,
+  which reaches input through the public `execute()` (no test-only export). **`ExecuteOptions.hostInput`**
+  (`packages/runtime/src/index.ts`) is the tick-scheduled key/click/named-event input a host would
+  deliver, so a headless fixture can prove handlers fire and fire in order
+  (`spec/interaction-events.md:91-93` requires preserving pending key/click state). Like the harness's
+  `signal`, JSON can express only a STATIC tick→deliveries schedule fixed before the run; input that
+  reacts to program state stays a unit-test concern. It is host execution context, never observable in
+  any event payload; it is NOT a device/TTY, defines no coalescing policy, and is NOT the blocking
+  `input` reporter (that is #681/#657).
 - **`forms-check-clean/`** and **`forms-unknown-without-interaction/`** — the profile-wide tooling
   pair (issue #687, slice I8): one `check`-mode program that USES all five implemented forms
   together (`wait` plus the four block-heads, with `wait` nested inside a block inside `repeat`

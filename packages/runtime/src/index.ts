@@ -45,6 +45,7 @@
 import type { Diagnostic, TraceEvent } from "@openlogo/core";
 import { runProgram } from "./execute-internal.js";
 import type { CancellationSignal } from "./evaluate.js";
+import type { HostInputEvent } from "./interaction.js";
 import { defaultTutorTemplate } from "./tutor-templates.js";
 import type { TutorTemplateFn } from "./tutor-templates.js";
 import type { TutorLearnerLevel } from "./tutor-context.js";
@@ -90,6 +91,7 @@ export {
   yieldToEventLoop,
 } from "./interaction.js";
 export type { TickClock } from "./interaction.js";
+export type { HostInputEvent } from "./interaction.js";
 export type {
   TutorCommandMetadata,
   TutorContext,
@@ -159,6 +161,27 @@ export interface ExecuteResult {
  *   Defaults to {@link DEFAULT_LEARNER_LEVEL} (`"1"`, the first/movement level,
  *   `spec/educational-model.md`'s level table) — the least-prior-knowledge assumption when a
  *   caller does not track curriculum progression itself.
+ * - `hostInput` (issue #686, slice I7 — `spec/interaction-events.md:91-93`) — a tick-scheduled
+ *   list of key presses, clicks, and named events a *host* (a studio, a terminal claim, a test)
+ *   would have delivered to the running program, so `on_key`/`on_click`/`when` handlers can be
+ *   proven to fire — and to fire in the normative same-tick order (`when` → `on_key` → `on_click`
+ *   → due `every`, `spec/interaction-events.md:84-89`) — from a pure headless `execute()` call with
+ *   no real input device. The spec (`:91-93`) requires an implementation to "preserve the most
+ *   recent key and click state needed to deliver the next handler consistently"; this option is
+ *   that preserved pending state, supplied up front. Each {@link HostInputEvent} names the `tick`
+ *   at which it becomes pending; `dispatchDueHandlers` moves the ones scheduled at or before the
+ *   current tick into the handler registry's pending queues at each `wait`/tick checkpoint and
+ *   drains them in spec order. Entries may be supplied in any order — they are copied and sorted by
+ *   non-decreasing `tick` once per run; same-tick entries keep caller order (a stable sort), which
+ *   is the deterministic tie-break the same-tick order depends on. This is host-supplied execution
+ *   *context*, exactly like `signal`: it is never observable in any trace-event payload (the event
+ *   stream stays headless — no tick, coordinate, or key smuggled in). It deliberately does **NOT**
+ *   model a TTY or pointer device, does **NOT** define any input-coalescing policy, and is **NOT**
+ *   the blocking `input` reporter (that is issue #681/#657, maintainer-owned and unresolved). Like
+ *   `signal`, it can only express a *static* schedule fixed before the run starts, not input that
+ *   depends on what the program has done so far. Defaults to an empty list, so an ordinary headless
+ *   run delivers no key/click/named event at all and the I5/I6 never-fires behavior holds because
+ *   nothing was ever pending.
  */
 export interface ExecuteOptions {
   readonly instructionBudget?: number;
@@ -166,6 +189,7 @@ export interface ExecuteOptions {
   readonly signal?: CancellationSignal;
   readonly tutorTemplates?: TutorTemplateFn;
   readonly learnerLevel?: TutorLearnerLevel;
+  readonly hostInput?: readonly HostInputEvent[];
 }
 
 /**

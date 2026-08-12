@@ -114,6 +114,60 @@ export function discoverFixtures(root = ROOT) {
   return fixtures;
 }
 
+/**
+ * Validate `ExecuteOptions.hostInput` (issue #686, slice I7): a fixture-supplied, tick-scheduled
+ * list of the key presses, clicks, and named events a host would deliver, so a headless conformance
+ * fixture can prove handlers fire in the normative same-tick order. Returns `null` when valid, or an
+ * error string naming the first offending entry/field. Validated as strictly as `signal` so a
+ * malformed schedule is rejected here rather than silently ignored by `execute()` (the durable-false-
+ * claim hole the harness closes elsewhere). Each entry must be a plain object with a numeric `tick`
+ * and a discriminated `kind`:
+ *   - `{ tick, kind: "key",   key }`   — `key` a string (the pressed key word)
+ *   - `{ tick, kind: "click" }`        — no further field
+ *   - `{ tick, kind: "event", event }` — `event` a string (the delivered named event)
+ * No key beyond those is permitted on an entry, and unknown `kind`s are rejected, so a typo in a
+ * per-entry field cannot mask a delivery that never happens.
+ */
+function validateHostInput(hostInput) {
+  if (!Array.isArray(hostInput)) {
+    return `"executeOptions.hostInput" must be an array when present`;
+  }
+  const ALLOWED_KEYS = {
+    key: new Set(["tick", "kind", "key"]),
+    click: new Set(["tick", "kind"]),
+    event: new Set(["tick", "kind", "event"]),
+  };
+  for (let index = 0; index < hostInput.length; index += 1) {
+    const entry = hostInput[index];
+    const at = `"executeOptions.hostInput[${index}]"`;
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+      return `${at} must be an object`;
+    }
+    if (typeof entry.tick !== "number" || !Number.isFinite(entry.tick)) {
+      return `${at}.tick must be a finite number`;
+    }
+    if (
+      entry.kind !== "key" &&
+      entry.kind !== "click" &&
+      entry.kind !== "event"
+    ) {
+      return `${at}.kind must be "key", "click", or "event"`;
+    }
+    if (entry.kind === "key" && typeof entry.key !== "string") {
+      return `${at}.key must be a string when kind is "key"`;
+    }
+    if (entry.kind === "event" && typeof entry.event !== "string") {
+      return `${at}.event must be a string when kind is "event"`;
+    }
+    for (const key of Object.keys(entry)) {
+      if (!ALLOWED_KEYS[entry.kind].has(key)) {
+        return `${at} has an unexpected field "${key}" for kind "${entry.kind}"`;
+      }
+    }
+  }
+  return null;
+}
+
 /** Parse and normalise a fixture; returns `{ error }` on malformed JSON or missing source. */
 export function loadFixture(fixture) {
   // Validate that both .logo and .expected.json exist
@@ -213,7 +267,28 @@ export function loadFixture(fixture) {
     ) {
       return { error: `"executeOptions" must be an object when present` };
     }
-    const { instructionBudget, recursionDepthLimit, signal } =
+    // Reject any unknown key on executeOptions outright (issue #686, slice I7). The field is passed
+    // to execute() verbatim, so a typo'd or unrecognized key (`hostinput`, `hostInputs`, a stray
+    // `budget`) would load clean, be silently ignored by execute(), and let a fixture that LOOKS
+    // like proof — an ordering fixture that supplies host input, say — pass while proving nothing:
+    // the exact durable-false-claim / typo-masking hole this harness already closes for
+    // execute/check. Allow-listing the known ExecuteOptions keys closes it for every future key at
+    // once, not just the ones enumerated below. (Audited: no existing fixture carries a stray key,
+    // so this is a safe tightening mid-saga rather than a breaking one.)
+    const KNOWN_EXECUTE_OPTION_KEYS = new Set([
+      "instructionBudget",
+      "recursionDepthLimit",
+      "signal",
+      "hostInput",
+    ]);
+    for (const key of Object.keys(spec.executeOptions)) {
+      if (!KNOWN_EXECUTE_OPTION_KEYS.has(key)) {
+        return {
+          error: `"executeOptions.${key}" is not a recognized ExecuteOptions key (known keys: ${[...KNOWN_EXECUTE_OPTION_KEYS].join(", ")})`,
+        };
+      }
+    }
+    const { instructionBudget, recursionDepthLimit, signal, hostInput } =
       spec.executeOptions;
     if (
       instructionBudget !== undefined &&
@@ -238,6 +313,22 @@ export function loadFixture(fixture) {
       return {
         error: `"executeOptions.signal" must be an object with a boolean "aborted"`,
       };
+    }
+    // "hostInput" (issue #686, slice I7 — ExecuteOptions.hostInput) is a tick-scheduled list of key
+    // presses, clicks, and named events a host would have delivered, so on_key/on_click/when
+    // handlers can be proven to fire from a headless fixture. Each entry MUST be a plain object with
+    // a numeric `tick` and a discriminated `kind`: "key" (with a string `key`), "click", or "event"
+    // (with a string `event`). It is validated exactly as strictly as `signal` — a malformed entry
+    // is rejected here rather than silently ignored by execute(), so an ordering fixture cannot
+    // "pass" while delivering nothing. Like `signal`, JSON can only express a STATIC schedule fixed
+    // before the run (it cannot depend on what the program does), so a fixture proves ordering for a
+    // pre-planned tick→deliveries schedule; input that reacts to program state stays a unit-test
+    // concern.
+    if (hostInput !== undefined) {
+      const hostInputError = validateHostInput(hostInput);
+      if (hostInputError !== null) {
+        return { error: hostInputError };
+      }
     }
   }
 

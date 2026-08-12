@@ -1,0 +1,290 @@
+{
+  "description": "issue #686 (slice I7): the four handler forms COMPOSE. A named event `go`, a key `x`, a click, and an `every 1` all become due on the same tick (tick 1) during a `wait 1`; they fire in the normative same-tick order when -> on_key -> on_click -> due every (spec/interaction-events.md:84-89), so the bodies print 1, 2, 3, 4 in that exact order. The host input (executeOptions.hostInput) is supplied deliberately out of that order (event, key, click), proving the order is imposed at the drain point, not inherited from host-input order. hostInput is host execution context (like signal): no tick, key, or coordinate appears in any event payload. JSON can only express a STATIC tick->deliveries schedule (like the already-cancelled signal), so input that reacts to program state stays a unit-test concern (packages/runtime/src/interaction-dispatch-order.test.mjs).",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "executeOptions": {
+    "hostInput": [
+      {
+        "tick": 1,
+        "kind": "event",
+        "event": "go"
+      },
+      {
+        "tick": 1,
+        "kind": "key",
+        "key": "x"
+      },
+      {
+        "tick": 1,
+        "kind": "click"
+      }
+    ]
+  },
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/dispatch/cross-kind-order-during-wait",
+        "start": [1, 1],
+        "end": [1, 22]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/dispatch/cross-kind-order-during-wait",
+        "start": [1, 1],
+        "end": [1, 22]
+      },
+      "payload": {
+        "name": "when"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/dispatch/cross-kind-order-during-wait",
+        "start": [2, 1],
+        "end": [2, 23]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/dispatch/cross-kind-order-during-wait",
+        "start": [2, 1],
+        "end": [2, 23]
+      },
+      "payload": {
+        "name": "on_key"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/dispatch/cross-kind-order-during-wait",
+        "start": [3, 1],
+        "end": [3, 21]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/dispatch/cross-kind-order-during-wait",
+        "start": [3, 1],
+        "end": [3, 21]
+      },
+      "payload": {
+        "name": "on_click"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/dispatch/cross-kind-order-during-wait",
+        "start": [4, 1],
+        "end": [4, 20]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/dispatch/cross-kind-order-during-wait",
+        "start": [4, 1],
+        "end": [4, 20]
+      },
+      "payload": {
+        "name": "every"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/dispatch/cross-kind-order-during-wait",
+        "start": [5, 1],
+        "end": [5, 7]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/dispatch/cross-kind-order-during-wait",
+        "start": [1, 1],
+        "end": [1, 5]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/dispatch/cross-kind-order-during-wait",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/dispatch/cross-kind-order-during-wait",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/dispatch/cross-kind-order-during-wait",
+        "start": [2, 1],
+        "end": [2, 7]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/dispatch/cross-kind-order-during-wait",
+        "start": [2, 14],
+        "end": [2, 21]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/dispatch/cross-kind-order-during-wait",
+        "start": [2, 14],
+        "end": [2, 21]
+      },
+      "payload": {
+        "values": [2]
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/dispatch/cross-kind-order-during-wait",
+        "start": [3, 1],
+        "end": [3, 9]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/dispatch/cross-kind-order-during-wait",
+        "start": [3, 12],
+        "end": [3, 19]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/dispatch/cross-kind-order-during-wait",
+        "start": [3, 12],
+        "end": [3, 19]
+      },
+      "payload": {
+        "values": [3]
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/dispatch/cross-kind-order-during-wait",
+        "start": [4, 1],
+        "end": [4, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 19,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/dispatch/cross-kind-order-during-wait",
+        "start": [4, 11],
+        "end": [4, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 20,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/dispatch/cross-kind-order-during-wait",
+        "start": [4, 11],
+        "end": [4, 18]
+      },
+      "payload": {
+        "values": [4]
+      }
+    },
+    {
+      "seq": 21,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/dispatch/cross-kind-order-during-wait",
+        "start": [5, 1],
+        "end": [5, 7]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    }
+  ],
+  "diagnostics": []
+}
