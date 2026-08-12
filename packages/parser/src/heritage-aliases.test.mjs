@@ -277,6 +277,24 @@ test("an alias still wins when it is strictly the closest candidate", () => {
   );
 });
 
+test("a declared procedure spelled like an optional-profile word is not demoted beneath a Core word", () => {
+  // Rung 1 (Core beats optional-profile) must also be declaration-aware. `define fd … end` makes
+  // `fd` the learner's own procedure; the misspelling `f` is distance 1 from BOTH the declared `fd`
+  // and the Core control word `if`. If `fd` were still classified as an optional-profile word (its
+  // Heritage-alias spelling), rung 1 would wrongly demote it beneath Core `if`. Because a declared
+  // name is exempt from rung 1's optional-profile demotion, `fd` and `if` are the same tier and the
+  // lexicographically earlier `fd` wins — the learner's own definition is suggested, not `if`. Holds
+  // with and without Heritage, since a declared name is visible regardless of profile.
+  assert.equal(
+    suggestionFor("define fd\nend\nf\n", ["core-language", "data"]),
+    "fd",
+  );
+  assert.equal(
+    suggestionFor("define fd\nend\nf\n", ["core-language", "data", "heritage"]),
+    "fd",
+  );
+});
+
 test("a user procedure named like an alias is NOT demoted — it is the learner's own procedure", () => {
   // `define fd … end` makes `fd` the program's own procedure, which shares its spelling with the
   // Heritage alias `fd`. The alias-demotion rung must exempt it: for the misspelling `fdck` (distance

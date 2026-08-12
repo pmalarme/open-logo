@@ -131,7 +131,11 @@ function bestSuggestion(
  * Whether `candidate` should replace `current` as the did-you-mean pick when both are tied at the
  * same Levenshtein distance. Three ordered rungs, per `spec/error-model.md:145-146`:
  *
- * 1. A Core Language word beats an optional-profile word ({@link isOptionalProfileName}).
+ * 1. A Core Language word beats an optional-profile word ({@link isOptionalProfileName}). A name the
+ *    program itself declares (a user `define fd … end` or a struct constructor, tracked in
+ *    `declared`) is that user procedure, never the optional-profile primitive/alias it happens to
+ *    spell, so it is treated as Core-tier here — a learner's own `fd` is not demoted beneath a Core
+ *    word the way the Heritage alias `fd` would be.
  * 2. Within the same profile tier, a full canonical name beats a short Heritage alias
  *    ({@link isDemotableHeritageAlias}) — the spec's "full canonical names over short aliases" step.
  *    This rung IS reachable: with the Data and Heritage profiles both active, the unknown word `dca`
@@ -148,8 +152,14 @@ function isBetterTie(
   current: string,
   declared: ReadonlySet<string>,
 ): boolean {
-  const candidateIsOptionalProfile = isOptionalProfileName(candidate);
-  const currentIsOptionalProfile = isOptionalProfileName(current);
+  const candidateIsOptionalProfile = isDemotableOptionalProfileName(
+    candidate,
+    declared,
+  );
+  const currentIsOptionalProfile = isDemotableOptionalProfileName(
+    current,
+    declared,
+  );
   if (candidateIsOptionalProfile !== currentIsOptionalProfile) {
     return !candidateIsOptionalProfile;
   }
@@ -159,6 +169,21 @@ function isBetterTie(
     return !candidateIsAlias;
   }
   return candidate < current;
+}
+
+/**
+ * Whether `name` should be treated as an optional-profile word for the rung-1 tie-break — i.e. it is
+ * an optional-profile primitive/block-head/alias spelling AND the program does not itself declare a
+ * procedure or struct of that name. A declared name is the learner's own definition regardless of
+ * the active profiles, so it must not be demoted beneath a Core word the way a genuine
+ * optional-profile word is. Mirrors {@link isDemotableHeritageAlias}'s `declared` exemption for
+ * rung 2, keeping both rungs declaration-aware.
+ */
+function isDemotableOptionalProfileName(
+  name: string,
+  declared: ReadonlySet<string>,
+): boolean {
+  return isOptionalProfileName(name) && !declared.has(name.toLowerCase());
 }
 
 /** The learner-facing message template from `spec/error-model.md:96`. */
