@@ -6,13 +6,15 @@
     "signal": {
       "aborted": true
     },
-    "hostInput": [
-      {
-        "tick": 1,
-        "kind": "key",
-        "key": "x"
-      }
-    ]
+    "hostInput": {
+      "events": [
+        {
+          "tick": 1,
+          "kind": "key",
+          "key": "x"
+        }
+      ]
+    }
   },
   "events": [],
   "diagnostics": [

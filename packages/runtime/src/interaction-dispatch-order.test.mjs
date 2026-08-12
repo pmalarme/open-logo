@@ -58,11 +58,13 @@ test("when → on_key → on_click → every all fire in one tick, in spec order
   const result = execute(source, doc, {
     // Supplied deliberately OUT of dispatch order (click, then event, then key) to prove the order
     // is imposed at the drain point, not inherited from host-input order.
-    hostInput: [
-      { tick: 1, kind: "click" },
-      { tick: 1, kind: "event", event: "go" },
-      { tick: 1, kind: "key", key: "x" },
-    ],
+    hostInput: {
+      events: [
+        { tick: 1, kind: "click" },
+        { tick: 1, kind: "event", event: "go" },
+        { tick: 1, kind: "key", key: "x" },
+      ],
+    },
   });
   assert.deepEqual(result.diagnostics, []);
   assert.deepEqual(printedValues(result), [[1], [2], [3], [4]]);
@@ -84,11 +86,13 @@ test("several handlers of the SAME kind fire in registration order within their 
     "wait 1",
   ].join("\n");
   const result = execute(source, doc, {
-    hostInput: [
-      { tick: 1, kind: "event", event: "go" },
-      { tick: 1, kind: "key", key: "x" },
-      { tick: 1, kind: "click" },
-    ],
+    hostInput: {
+      events: [
+        { tick: 1, kind: "event", event: "go" },
+        { tick: 1, kind: "key", key: "x" },
+        { tick: 1, kind: "click" },
+      ],
+    },
   });
   assert.deepEqual(result.diagnostics, []);
   assert.deepEqual(printedValues(result), [
@@ -110,7 +114,7 @@ test("only the matching on_key handler fires; a non-matching key is a no-op", ()
     "wait 1",
   ].join("\n");
   const result = execute(source, doc, {
-    hostInput: [{ tick: 1, kind: "key", key: "b" }],
+    hostInput: { events: [{ tick: 1, kind: "key", key: "b" }] },
   });
   assert.deepEqual(result.diagnostics, []);
   assert.deepEqual(printedValues(result), [[2]]);
@@ -123,7 +127,7 @@ test("a click delivers to EVERY registered on_click handler, in registration ord
     "wait 1",
   ].join("\n");
   const result = execute(source, doc, {
-    hostInput: [{ tick: 1, kind: "click" }],
+    hostInput: { events: [{ tick: 1, kind: "click" }] },
   });
   assert.deepEqual(result.diagnostics, []);
   assert.deepEqual(printedValues(result), [[1], [2]]);
@@ -140,10 +144,12 @@ test("host input scheduled at different ticks fires as the wait advances through
     "wait 3",
   ].join("\n");
   const result = execute(source, doc, {
-    hostInput: [
-      { tick: 3, kind: "click" },
-      { tick: 1, kind: "key", key: "x" },
-    ],
+    hostInput: {
+      events: [
+        { tick: 3, kind: "click" },
+        { tick: 1, kind: "key", key: "x" },
+      ],
+    },
   });
   assert.deepEqual(result.diagnostics, []);
   assert.deepEqual(printedValues(result), [[1], [2]]);
@@ -153,7 +159,7 @@ test("a tick:0 entry fires at the wait 0 yield checkpoint", () => {
   // `wait 0` still yields once (I1's single checkpoint); a tick:0 host entry is due there.
   const source = ['on_key "x" [ print 1 ]', "wait 0"].join("\n");
   const result = execute(source, doc, {
-    hostInput: [{ tick: 0, kind: "key", key: "x" }],
+    hostInput: { events: [{ tick: 0, kind: "key", key: "x" }] },
   });
   assert.deepEqual(result.diagnostics, []);
   assert.deepEqual(printedValues(result), [[1]]);
@@ -165,7 +171,7 @@ test("handlers registered inside a repeat body still compose in spec order", () 
   // Registration order is the textual/execution order the registrations RUN in, even from a loop.
   const source = ['repeat 2 [ on_key "x" [ print 1 ] ]', "wait 1"].join("\n");
   const result = execute(source, doc, {
-    hostInput: [{ tick: 1, kind: "key", key: "x" }],
+    hostInput: { events: [{ tick: 1, kind: "key", key: "x" }] },
   });
   assert.deepEqual(result.diagnostics, []);
   // Two handlers registered (two repeat passes); one key press delivers to both, in registration
@@ -183,7 +189,7 @@ test("handlers registered inside a procedure body compose after the call registe
     "wait 1",
   ].join("\n");
   const result = execute(source, doc, {
-    hostInput: [{ tick: 1, kind: "key", key: "x" }],
+    hostInput: { events: [{ tick: 1, kind: "key", key: "x" }] },
   });
   assert.deepEqual(result.diagnostics, []);
   // on_key before every, both due at tick 1.
@@ -200,10 +206,12 @@ test("registration DURING a tick (inside an every body) does not fire in the sam
     "wait 2",
   ].join("\n");
   const result = execute(source, doc, {
-    hostInput: [
-      { tick: 1, kind: "key", key: "x" },
-      { tick: 2, kind: "key", key: "x" },
-    ],
+    hostInput: {
+      events: [
+        { tick: 1, kind: "key", key: "x" },
+        { tick: 2, kind: "key", key: "x" },
+      ],
+    },
   });
   assert.deepEqual(result.diagnostics, []);
   // Tick 1: on_key(1) fires, then every(2) fires and registers a second on_key. The tick-1 key is
@@ -226,7 +234,7 @@ test("wait does not defer handler delivery: on_key/on_click/every fire during th
     "print 99",
   ].join("\n");
   const result = execute(source, doc, {
-    hostInput: [{ tick: 1, kind: "key", key: "x" }],
+    hostInput: { events: [{ tick: 1, kind: "key", key: "x" }] },
   });
   assert.deepEqual(result.diagnostics, []);
   assert.deepEqual(printedValues(result), [[1], [2], [99]]);
@@ -242,11 +250,13 @@ test("the same program and host input produce an identical event sequence every 
     "every 1 [ print 4 ]",
     "wait 1",
   ].join("\n");
-  const hostInput = [
-    { tick: 1, kind: "event", event: "go" },
-    { tick: 1, kind: "key", key: "x" },
-    { tick: 1, kind: "click" },
-  ];
+  const hostInput = {
+    events: [
+      { tick: 1, kind: "event", event: "go" },
+      { tick: 1, kind: "key", key: "x" },
+      { tick: 1, kind: "click" },
+    ],
+  };
   const first = execute(source, doc, { hostInput });
   const second = execute(source, doc, { hostInput });
   assert.deepEqual(first.diagnostics, []);
@@ -281,7 +291,7 @@ test("a pre-cancelled run emits no events and halts with ol-limit(cancelled)", (
   const source = ['on_key "x" [ print 1 ]', "wait 1"].join("\n");
   const result = execute(source, doc, {
     signal: { aborted: true },
-    hostInput: [{ tick: 1, kind: "key", key: "x" }],
+    hostInput: { events: [{ tick: 1, kind: "key", key: "x" }] },
   });
   // Cancelled before the first statement: no events at all, and the cancellation diagnostic.
   assert.deepEqual(result.events, []);
@@ -300,7 +310,7 @@ test("cancellation observed via the instruction budget stops further handler del
   ].join("\n");
   const result = execute(source, doc, {
     instructionBudget: 4,
-    hostInput: [{ tick: 1, kind: "key", key: "x" }],
+    hostInput: { events: [{ tick: 1, kind: "key", key: "x" }] },
   });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-limit");
@@ -370,10 +380,12 @@ test("the dispatch-boundary budget guard covers every handler kind (on_click and
     "every 1 [ print 3 ]",
     "wait 1",
   ].join("\n");
-  const hostInput = [
-    { tick: 1, kind: "key", key: "x" },
-    { tick: 1, kind: "click" },
-  ];
+  const hostInput = {
+    events: [
+      { tick: 1, kind: "key", key: "x" },
+      { tick: 1, kind: "click" },
+    ],
+  };
   // Find the smallest budget where exactly the on_key handler completed (`[[1]]`) then halted — the
   // boundary that exercises the on_click AND every guard-halt branches on the same run.
   let halted = null;
@@ -412,7 +424,7 @@ test("the dispatch-boundary budget guard stops a due every handler with no orpha
     "every 1 [ print 3 ]",
     "wait 1",
   ].join("\n");
-  const hostInput = [{ tick: 1, kind: "key", key: "x" }];
+  const hostInput = { events: [{ tick: 1, kind: "key", key: "x" }] };
   let halted = null;
   for (let budget = 1; budget <= 30; budget++) {
     const probe = execute(source, doc, {
@@ -508,7 +520,7 @@ test("a cross-thread abort at a handler dispatch boundary starts no orphan handl
     'on_key "x" [ print 2 ]',
     "wait 1",
   ].join("\n");
-  const hostInput = [{ tick: 1, kind: "key", key: "x" }];
+  const hostInput = { events: [{ tick: 1, kind: "key", key: "x" }] };
   let halted = null;
   for (let flipAfter = 1; flipAfter <= 60; flipAfter++) {
     const probe = execute(source, doc, {
@@ -591,8 +603,9 @@ test("a cross-thread abort during a long wait with no due handler is observed by
   // `dispatchDueHandlers`' own per-tick poll can. A signal that flips mid-pause (flipAfter=4 lands
   // inside the wait loop, past the top-level `wait` statement's own gate) must therefore halt the
   // run with ol-limit(cancelled). If the per-tick poll were removed, the wait would run all five
-  // ticks to completion and the run would end cleanly with NO diagnostic — so this assertion fails
-  // iff the branch is absent, pinning it against silent removal (the F3/inert-test failure mode).
+  // ticks to completion and the run would end cleanly with NO diagnostic — so removing this poll
+  // makes the diagnostic assertion below fail, pinning it against silent removal (the F3/inert-test
+  // failure mode).
   const source = ["every 10 [ print 1 ]", "wait 5"].join("\n");
   const result = execute(source, doc, {
     signal: signalAbortingAfter(4),
@@ -603,6 +616,13 @@ test("a cross-thread abort during a long wait with no due handler is observed by
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-limit");
   assert.equal(result.diagnostics[0].params.limit, "cancelled");
+  // Prove the abort was observed INSIDE the wait loop, not before it: the `every` registration
+  // primitive fired (so execution reached the wait), but the `wait` never emits its COMPLETION
+  // primitive — it was interrupted mid-pause. Were a hypothetical pre-wait poll to abort before the
+  // loop, this test would spuriously pass; asserting the wait was entered-but-not-completed rules
+  // that out and keeps the per-tick poll the thing under test.
+  assert.ok(primitiveNames(result).includes("every"));
+  assert.ok(!primitiveNames(result).includes("wait"));
 });
 
 test("a runaway handler body halts with ol-limit(instruction-budget), not an infinite loop", () => {
@@ -611,7 +631,7 @@ test("a runaway handler body halts with ol-limit(instruction-budget), not an inf
   const source = ['on_key "x" [ forever [ print 1 ] ]', "wait 1"].join("\n");
   const result = execute(source, doc, {
     instructionBudget: 50,
-    hostInput: [{ tick: 1, kind: "key", key: "x" }],
+    hostInput: { events: [{ tick: 1, kind: "key", key: "x" }] },
   });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-limit");
@@ -623,7 +643,7 @@ test("a runaway handler body halts with ol-limit(instruction-budget), not an inf
 test("no injected tick/key/coordinate leaks into any event payload", () => {
   const source = ['on_key "x" [ print 1 ]', "wait 1"].join("\n");
   const result = execute(source, doc, {
-    hostInput: [{ tick: 1, kind: "key", key: "x" }],
+    hostInput: { events: [{ tick: 1, kind: "key", key: "x" }] },
   });
   assert.deepEqual(result.diagnostics, []);
   for (const event of result.events) {
@@ -645,10 +665,12 @@ test("hostInput may be supplied in any order; it is sorted by tick per run", () 
   ].join("\n");
   // click at tick 2 listed BEFORE key at tick 1 — must still fire key (tick 1) then click (tick 2).
   const result = execute(source, doc, {
-    hostInput: [
-      { tick: 2, kind: "click" },
-      { tick: 1, kind: "key", key: "x" },
-    ],
+    hostInput: {
+      events: [
+        { tick: 2, kind: "click" },
+        { tick: 1, kind: "key", key: "x" },
+      ],
+    },
   });
   assert.deepEqual(result.diagnostics, []);
   assert.deepEqual(printedValues(result), [[1], [2]]);
@@ -656,7 +678,7 @@ test("hostInput may be supplied in any order; it is sorted by tick per run", () 
 
 test("an empty hostInput array behaves exactly like omitting it", () => {
   const source = ['on_key "x" [ print 1 ]', "wait 1"].join("\n");
-  const withEmpty = execute(source, doc, { hostInput: [] });
+  const withEmpty = execute(source, doc, { hostInput: { events: [] } });
   const without = execute(source, doc);
   assert.deepEqual(withEmpty.events, without.events);
   assert.deepEqual(withEmpty.diagnostics, []);
@@ -671,7 +693,7 @@ test("an empty hostInput array behaves exactly like omitting it", () => {
 test("`return` escaping a delivered on_key body halts with ol-return-outside-proc", () => {
   const source = ['on_key "x" [ return 1 ]', "wait 1"].join("\n");
   const result = execute(source, doc, {
-    hostInput: [{ tick: 1, kind: "key", key: "x" }],
+    hostInput: { events: [{ tick: 1, kind: "key", key: "x" }] },
   });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-return-outside-proc");
@@ -680,7 +702,7 @@ test("`return` escaping a delivered on_key body halts with ol-return-outside-pro
 test("`stop` escaping a delivered on_key body halts with ol-stop-outside-proc", () => {
   const source = ['on_key "x" [ stop ]', "wait 1"].join("\n");
   const result = execute(source, doc, {
-    hostInput: [{ tick: 1, kind: "key", key: "x" }],
+    hostInput: { events: [{ tick: 1, kind: "key", key: "x" }] },
   });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-stop-outside-proc");
@@ -689,7 +711,7 @@ test("`stop` escaping a delivered on_key body halts with ol-stop-outside-proc", 
 test("`return` escaping a delivered on_click body halts with ol-return-outside-proc", () => {
   const source = ["on_click [ return 1 ]", "wait 1"].join("\n");
   const result = execute(source, doc, {
-    hostInput: [{ tick: 1, kind: "click" }],
+    hostInput: { events: [{ tick: 1, kind: "click" }] },
   });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-return-outside-proc");
@@ -698,7 +720,7 @@ test("`return` escaping a delivered on_click body halts with ol-return-outside-p
 test("`stop` escaping a delivered on_click body halts with ol-stop-outside-proc", () => {
   const source = ["on_click [ stop ]", "wait 1"].join("\n");
   const result = execute(source, doc, {
-    hostInput: [{ tick: 1, kind: "click" }],
+    hostInput: { events: [{ tick: 1, kind: "click" }] },
   });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-stop-outside-proc");
@@ -717,10 +739,12 @@ test("same-kind order is the HANDLERS' registration order, not the host's delive
     "wait 1",
   ].join("\n");
   const result = execute(source, doc, {
-    hostInput: [
-      { tick: 1, kind: "key", key: "b" },
-      { tick: 1, kind: "key", key: "a" },
-    ],
+    hostInput: {
+      events: [
+        { tick: 1, kind: "key", key: "b" },
+        { tick: 1, kind: "key", key: "a" },
+      ],
+    },
   });
   assert.deepEqual(result.diagnostics, []);
   assert.deepEqual(printedValues(result), [[1], [2]]);
@@ -733,7 +757,7 @@ test("a `wait 0` honors a tick-0 handler's halt instead of swallowing it", () =>
   // verdict swallowed this.)
   const source = ['on_key "x" [ return 1 ]', "wait 0", "print 99"].join("\n");
   const result = execute(source, doc, {
-    hostInput: [{ tick: 0, kind: "key", key: "x" }],
+    hostInput: { events: [{ tick: 0, kind: "key", key: "x" }] },
   });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-return-outside-proc");
@@ -752,10 +776,12 @@ test("a nested `wait` inside a handler cannot overtake older same-tick invocatio
     "wait 2",
   ].join("\n");
   const result = execute(source, doc, {
-    hostInput: [
-      { tick: 1, kind: "key", key: "k" },
-      { tick: 1, kind: "click" },
-    ],
+    hostInput: {
+      events: [
+        { tick: 1, kind: "key", key: "k" },
+        { tick: 1, kind: "click" },
+      ],
+    },
   });
   assert.deepEqual(result.diagnostics, []);
   assert.deepEqual(printedValues(result), [[1], [11], [2], [3]]);
@@ -767,10 +793,12 @@ test("a one-shot `when` handler fires at most once even if its event is pending 
   // its `fired` flag is only set at invocation).
   const source = ['when "go" [ print 1 ]', "wait 1"].join("\n");
   const result = execute(source, doc, {
-    hostInput: [
-      { tick: 1, kind: "event", event: "go" },
-      { tick: 1, kind: "event", event: "go" },
-    ],
+    hostInput: {
+      events: [
+        { tick: 1, kind: "event", event: "go" },
+        { tick: 1, kind: "event", event: "go" },
+      ],
+    },
   });
   assert.deepEqual(result.diagnostics, []);
   assert.deepEqual(printedValues(result), [[1]]);

@@ -1932,11 +1932,13 @@ test("loadFixture reads an executeOptions.hostInput schedule of keys, clicks, an
       profiles: ["core-language", "interaction-events"],
       execute: true,
       executeOptions: {
-        hostInput: [
-          { tick: 1, kind: "key", key: "x" },
-          { tick: 2, kind: "click" },
-          { tick: 3, kind: "event", event: "go" },
-        ],
+        hostInput: {
+          events: [
+            { tick: 1, kind: "key", key: "x" },
+            { tick: 2, kind: "click" },
+            { tick: 3, kind: "event", event: "go" },
+          ],
+        },
       },
       events: [],
       diagnostics: [],
@@ -1954,11 +1956,26 @@ test("loadFixture reads an executeOptions.hostInput schedule of keys, clicks, an
   });
 
   assert.equal(loaded.error, undefined);
-  assert.deepEqual(loaded.expected.executeOptions.hostInput, [
+  assert.deepEqual(loaded.expected.executeOptions.hostInput.events, [
     { tick: 1, kind: "key", key: "x" },
     { tick: 2, kind: "click" },
     { tick: 3, kind: "event", event: "go" },
   ]);
+});
+
+test("loadFixture accepts a hostInput object that omits events (nothing to deliver)", () => {
+  // A `hostInput` object with no `events` key is valid — it simply delivers nothing, the same as
+  // omitting `hostInput` entirely. This is the shape #681 will use when it supplies only scripted
+  // `input` `responses` (reserved, #657 ruling) and no tick-scheduled events.
+  const loaded = loadHostInputFixture("host-input-no-events", {
+    profiles: ["core-language"],
+    execute: true,
+    executeOptions: { hostInput: {} },
+    events: [],
+    diagnostics: [],
+  });
+  assert.equal(loaded.error, undefined);
+  assert.deepEqual(loaded.expected.executeOptions.hostInput, {});
 });
 
 /**
@@ -2040,8 +2057,8 @@ test("loadFixture accepts a string executeOptions.learnerLevel but rejects a non
   );
 });
 
-test("loadFixture rejects a non-array executeOptions.hostInput", () => {
-  const loaded = loadHostInputFixture("host-input-not-array", {
+test("loadFixture rejects a non-object executeOptions.hostInput", () => {
+  const loaded = loadHostInputFixture("host-input-not-object", {
     profiles: ["core-language"],
     execute: true,
     executeOptions: { hostInput: "nope" },
@@ -2050,7 +2067,55 @@ test("loadFixture rejects a non-array executeOptions.hostInput", () => {
   });
   assert.ok(loaded.error);
   assert.ok(
-    loaded.error.includes('"executeOptions.hostInput" must be an array'),
+    loaded.error.includes('"executeOptions.hostInput" must be an object'),
+  );
+});
+
+test("loadFixture rejects an array executeOptions.hostInput (the old bare-array shape)", () => {
+  // The pre-#657 shape was a bare array; after the reshape `hostInput` is an object, so an array
+  // must be rejected rather than silently loaded — a fixture written to the old shape fails loudly.
+  const loaded = loadHostInputFixture("host-input-bare-array", {
+    profiles: ["core-language"],
+    execute: true,
+    executeOptions: { hostInput: [{ tick: 1, kind: "click" }] },
+    events: [],
+    diagnostics: [],
+  });
+  assert.ok(loaded.error);
+  assert.ok(
+    loaded.error.includes('"executeOptions.hostInput" must be an object'),
+  );
+});
+
+test("loadFixture rejects an unknown key inside executeOptions.hostInput", () => {
+  // A typo of `events` (or issue #681's not-yet-wired `responses`) must be rejected, naming the
+  // allowed keys, so a sub-key typo cannot mask a delivery that never happens.
+  const loaded = loadHostInputFixture("host-input-unknown-key", {
+    profiles: ["core-language"],
+    execute: true,
+    executeOptions: { hostInput: { evetns: [] } },
+    events: [],
+    diagnostics: [],
+  });
+  assert.ok(loaded.error);
+  assert.ok(
+    loaded.error.includes(
+      '"executeOptions.hostInput.evetns" is not a known hostInput key (known keys: events)',
+    ),
+  );
+});
+
+test("loadFixture rejects a non-array executeOptions.hostInput.events", () => {
+  const loaded = loadHostInputFixture("host-input-events-not-array", {
+    profiles: ["core-language"],
+    execute: true,
+    executeOptions: { hostInput: { events: "nope" } },
+    events: [],
+    diagnostics: [],
+  });
+  assert.ok(loaded.error);
+  assert.ok(
+    loaded.error.includes('"executeOptions.hostInput.events" must be an array'),
   );
 });
 
@@ -2058,13 +2123,15 @@ test("loadFixture rejects a hostInput entry that is not an object", () => {
   const loaded = loadHostInputFixture("host-input-entry-not-object", {
     profiles: ["core-language"],
     execute: true,
-    executeOptions: { hostInput: [42] },
+    executeOptions: { hostInput: { events: [42] } },
     events: [],
     diagnostics: [],
   });
   assert.ok(loaded.error);
   assert.ok(
-    loaded.error.includes('"executeOptions.hostInput[0]" must be an object'),
+    loaded.error.includes(
+      '"executeOptions.hostInput.events[0]" must be an object',
+    ),
   );
 });
 
@@ -2072,14 +2139,14 @@ test("loadFixture rejects a hostInput entry with a non-numeric tick", () => {
   const loaded = loadHostInputFixture("host-input-bad-tick", {
     profiles: ["core-language"],
     execute: true,
-    executeOptions: { hostInput: [{ tick: "1", kind: "click" }] },
+    executeOptions: { hostInput: { events: [{ tick: "1", kind: "click" }] } },
     events: [],
     diagnostics: [],
   });
   assert.ok(loaded.error);
   assert.ok(
     loaded.error.includes(
-      '"executeOptions.hostInput[0]".tick must be a finite number',
+      '"executeOptions.hostInput.events[0]".tick must be a finite number',
     ),
   );
 });
@@ -2088,14 +2155,14 @@ test("loadFixture rejects a hostInput entry with an unrecognized kind", () => {
   const loaded = loadHostInputFixture("host-input-bad-kind", {
     profiles: ["core-language"],
     execute: true,
-    executeOptions: { hostInput: [{ tick: 1, kind: "scroll" }] },
+    executeOptions: { hostInput: { events: [{ tick: 1, kind: "scroll" }] } },
     events: [],
     diagnostics: [],
   });
   assert.ok(loaded.error);
   assert.ok(
     loaded.error.includes(
-      '"executeOptions.hostInput[0]".kind must be "key", "click", or "event"',
+      '"executeOptions.hostInput.events[0]".kind must be "key", "click", or "event"',
     ),
   );
 });
@@ -2104,14 +2171,14 @@ test("loadFixture rejects a key hostInput entry missing its string key", () => {
   const loaded = loadHostInputFixture("host-input-key-missing", {
     profiles: ["core-language"],
     execute: true,
-    executeOptions: { hostInput: [{ tick: 1, kind: "key" }] },
+    executeOptions: { hostInput: { events: [{ tick: 1, kind: "key" }] } },
     events: [],
     diagnostics: [],
   });
   assert.ok(loaded.error);
   assert.ok(
     loaded.error.includes(
-      '"executeOptions.hostInput[0]".key must be a string when kind is "key"',
+      '"executeOptions.hostInput.events[0]".key must be a string when kind is "key"',
     ),
   );
 });
@@ -2120,14 +2187,14 @@ test("loadFixture rejects an event hostInput entry missing its string event", ()
   const loaded = loadHostInputFixture("host-input-event-missing", {
     profiles: ["core-language"],
     execute: true,
-    executeOptions: { hostInput: [{ tick: 1, kind: "event" }] },
+    executeOptions: { hostInput: { events: [{ tick: 1, kind: "event" }] } },
     events: [],
     diagnostics: [],
   });
   assert.ok(loaded.error);
   assert.ok(
     loaded.error.includes(
-      '"executeOptions.hostInput[0]".event must be a string when kind is "event"',
+      '"executeOptions.hostInput.events[0]".event must be a string when kind is "event"',
     ),
   );
 });
@@ -2137,14 +2204,16 @@ test("loadFixture rejects a hostInput entry with an unexpected extra field for i
     profiles: ["core-language"],
     execute: true,
     // A `click` carrying a stray `key` — a typo that would otherwise mask an unintended delivery.
-    executeOptions: { hostInput: [{ tick: 1, kind: "click", key: "x" }] },
+    executeOptions: {
+      hostInput: { events: [{ tick: 1, kind: "click", key: "x" }] },
+    },
     events: [],
     diagnostics: [],
   });
   assert.ok(loaded.error);
   assert.ok(
     loaded.error.includes(
-      '"executeOptions.hostInput[0]" has an unexpected field "key" for kind "click"',
+      '"executeOptions.hostInput.events[0]" has an unexpected field "key" for kind "click"',
     ),
   );
 });
@@ -2175,7 +2244,7 @@ test("produce forwards executeOptions.hostInput to execute() so a headless fixtu
     false,
     ["core-language", "interaction-events"],
     false,
-    { hostInput: [{ tick: 1, kind: "key", key: "x" }] },
+    { hostInput: { events: [{ tick: 1, kind: "key", key: "x" }] } },
   );
   assert.deepEqual(result.diagnostics, []);
   const printed = result.events.filter((event) => event.kind === "print");

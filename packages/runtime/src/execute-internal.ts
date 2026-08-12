@@ -5086,7 +5086,7 @@ function createExecutionEnvironment(
     tickClock: createTickClock(),
     sound: createSoundState(),
     eventHandlers: createEventHandlerRegistry(),
-    hostInput: sortHostInputByTick(options?.hostInput),
+    hostInput: sortHostInputByTick(options?.hostInput?.events),
     hostInputConsumed: { count: 0 },
     source,
     program,

@@ -129,17 +129,43 @@ export function discoverFixtures(root = ROOT) {
  * per-entry field cannot mask a delivery that never happens.
  */
 function validateHostInput(hostInput) {
-  if (!Array.isArray(hostInput)) {
-    return `"executeOptions.hostInput" must be an array when present`;
+  // `hostInput` is an OBJECT (issue #686, slice I7 — mirrors `ExecuteOptions.hostInput`), not the
+  // bare `events` array, so issue #681 can add scripted `input` `responses` beside `events` without
+  // reshaping this seam or migrating any fixture, per the maintainer's #657 ruling. Reject unknown
+  // keys inside it — naming the allowed keys — so a typo'd sub-key (`event`, `evetns`) cannot mask a
+  // delivery that never happens, and so adding `responses` here later is a one-line extension.
+  if (
+    typeof hostInput !== "object" ||
+    hostInput === null ||
+    Array.isArray(hostInput)
+  ) {
+    return `"executeOptions.hostInput" must be an object when present`;
+  }
+  // `responses` (issue #681's scripted `input` answers, #657 ruling) is reserved but NOT accepted by
+  // this slice: I7 has no `input` reader, so a fixture supplying it would prove nothing. It is
+  // deliberately omitted from the allow-list below so it is rejected until #681 wires it up — the
+  // one-line extension is to add "responses" here and validate it then.
+  const ALLOWED_HOST_INPUT_KEYS = new Set(["events"]);
+  for (const key of Object.keys(hostInput)) {
+    if (!ALLOWED_HOST_INPUT_KEYS.has(key)) {
+      return `"executeOptions.hostInput.${key}" is not a known hostInput key (known keys: ${[...ALLOWED_HOST_INPUT_KEYS].join(", ")})`;
+    }
+  }
+  if (hostInput.events === undefined) {
+    return null;
+  }
+  const events = hostInput.events;
+  if (!Array.isArray(events)) {
+    return `"executeOptions.hostInput.events" must be an array when present`;
   }
   const ALLOWED_KEYS = {
     key: new Set(["tick", "kind", "key"]),
     click: new Set(["tick", "kind"]),
     event: new Set(["tick", "kind", "event"]),
   };
-  for (let index = 0; index < hostInput.length; index += 1) {
-    const entry = hostInput[index];
-    const at = `"executeOptions.hostInput[${index}]"`;
+  for (let index = 0; index < events.length; index += 1) {
+    const entry = events[index];
+    const at = `"executeOptions.hostInput.events[${index}]"`;
     if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
       return `${at} must be an object`;
     }

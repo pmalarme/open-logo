@@ -3,22 +3,24 @@
   "profiles": ["core-language", "interaction-events"],
   "execute": true,
   "executeOptions": {
-    "hostInput": [
-      {
-        "tick": 1,
-        "kind": "click"
-      },
-      {
-        "tick": 1,
-        "kind": "event",
-        "event": "go"
-      },
-      {
-        "tick": 1,
-        "kind": "key",
-        "key": "x"
-      }
-    ]
+    "hostInput": {
+      "events": [
+        {
+          "tick": 1,
+          "kind": "click"
+        },
+        {
+          "tick": 1,
+          "kind": "event",
+          "event": "go"
+        },
+        {
+          "tick": 1,
+          "kind": "key",
+          "key": "x"
+        }
+      ]
+    }
   },
   "events": [
     {
