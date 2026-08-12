@@ -364,3 +364,255 @@ test("lastActedTurtleState falls back to the program-start defaults for a hand-b
   const world = { turtles: new Map(), lastActedTurtleId: 4 };
   assert.deepEqual(OL.lastActedTurtleState(world), OL.INITIAL_TURTLE_STATE);
 });
+
+// --- the addressed turtle set (#770, consumer half of #766; spec/rendering.md:191) -------------
+
+/** An addressing `primitive` event, exactly as the runtime emits it (issue #766): the snapshot
+ * rides the existing `primitive` payload, and carries no envelope `turtle_id` because it describes
+ * a *set*, not one turtle. */
+function addressing(name, addressedTurtleIds, currentTurtleId) {
+  return event(
+    "primitive",
+    {
+      name,
+      addressing: {
+        addressed_turtle_ids: addressedTurtleIds,
+        current_turtle_id: currentTurtleId,
+      },
+    },
+    undefined,
+  );
+}
+
+test("the initial world addresses the single default turtle", () => {
+  // spec/turtles-and-sprites.md:44 — "In a program without the Sprites profile, the addressed set
+  // contains the single default turtle."
+  assert.deepEqual(OL.INITIAL_TURTLE_WORLD_STATE.addressedTurtleIds, [
+    OL.MAIN_TURTLE_ID,
+  ]);
+  assert.equal(
+    OL.INITIAL_TURTLE_WORLD_STATE.currentTurtleId,
+    OL.MAIN_TURTLE_ID,
+  );
+});
+
+test("the shared initial world's addressed set is genuinely immutable at runtime", () => {
+  // Same reasoning as the frozen turtle map: a JavaScript caller must not be able to corrupt the
+  // shared seed and taint a later default fold. Unlike a Map, an array's mutators do respect a
+  // freeze, so Object.freeze is sufficient here.
+  assert.equal(
+    Object.isFrozen(OL.INITIAL_TURTLE_WORLD_STATE.addressedTurtleIds),
+    true,
+  );
+  assert.throws(
+    () => OL.INITIAL_TURTLE_WORLD_STATE.addressedTurtleIds.push(9),
+    TypeError,
+  );
+  assert.deepEqual(OL.INITIAL_TURTLE_WORLD_STATE.addressedTurtleIds, [
+    OL.MAIN_TURTLE_ID,
+  ]);
+});
+
+test("tell folds the whole addressed set, which no single turtle_id could express", () => {
+  const world = OL.reduceTurtleWorldEvents([
+    spawn(1),
+    spawn(2),
+    addressing("tell", [1, 2], 1),
+  ]);
+  assert.deepEqual(world.addressedTurtleIds, [1, 2]);
+  assert.equal(world.currentTurtleId, 1);
+});
+
+test("tell [ :a :b ] / forward 10 / ask :b [ hide_turtle ] ends addressed { 1, 2 } with current turtle 1 (#770 acceptance criterion)", () => {
+  // The stream of tests/conformance/sprites/addressing-tell-ask-restore, folded. After `ask`
+  // restores (spec/turtles-and-sprites.md:58) the last turtle-stamped effect still belongs to
+  // turtle 2 — so `lastActedTurtleId` is 2 while the addressed set is back to { 1, 2 } and the
+  // current turtle is 1. That difference is the whole point of folding the snapshot.
+  const world = OL.reduceTurtleWorldEvents([
+    spawn(1),
+    spawn(2),
+    event("instruction", { statement_kind: "ProfileStatement" }, undefined),
+    addressing("tell", [1, 2], 1),
+    event("instruction", { statement_kind: "Call" }, undefined),
+    event("move", { from: [0, 0], to: [0, 10], heading: 0 }, 1),
+    event("move", { from: [0, 0], to: [0, 10], heading: 0 }, 2),
+    event("instruction", { statement_kind: "ProfileStatement" }, undefined),
+    addressing("ask", [2], 2),
+    event("visibility-change", { from: true, to: false }, 2),
+    addressing("ask", [1, 2], 1),
+  ]);
+  assert.deepEqual(world.addressedTurtleIds, [1, 2]);
+  assert.equal(world.currentTurtleId, 1);
+  assert.equal(world.lastActedTurtleId, 2);
+});
+
+test("ask entry narrows the addressed set, and the restore puts the previous set back", () => {
+  const entered = OL.reduceTurtleWorldEvents([
+    spawn(1),
+    spawn(2),
+    addressing("tell", [1, 2], 1),
+    addressing("ask", [2], 2),
+  ]);
+  assert.deepEqual(entered.addressedTurtleIds, [2]);
+  assert.equal(entered.currentTurtleId, 2);
+
+  const restored = OL.reduceTurtleWorldState(
+    entered,
+    addressing("ask", [1, 2], 1),
+  );
+  assert.deepEqual(restored.addressedTurtleIds, [1, 2]);
+  assert.equal(restored.currentTurtleId, 1);
+});
+
+test("each narrows to one turtle per iteration and restores the set afterwards", () => {
+  // spec/turtles-and-sprites.md:78 — `each` "runs its block once per turtle in the current tell or
+  // ask set", and `who` reports that iteration's turtle. Every narrowing is its own snapshot, so
+  // folding by assignment tracks each iteration exactly.
+  const events = [
+    spawn(1),
+    spawn(2),
+    addressing("tell", [1, 2], 1),
+    addressing("each", [1], 1),
+    addressing("each", [2], 2),
+    addressing("each", [1, 2], 1),
+  ];
+  const perIteration = events.map((_, index) =>
+    OL.reduceTurtleWorldEvents(events.slice(0, index + 1)),
+  );
+  assert.deepEqual(perIteration[3].addressedTurtleIds, [1]);
+  assert.equal(perIteration[3].currentTurtleId, 1);
+  assert.deepEqual(perIteration[4].addressedTurtleIds, [2]);
+  assert.equal(perIteration[4].currentTurtleId, 2);
+  assert.deepEqual(perIteration[5].addressedTurtleIds, [1, 2]);
+  assert.equal(perIteration[5].currentTurtleId, 1);
+});
+
+test("an abnormal exit's restoration snapshot folds through the same single rule", () => {
+  // The producer emits a restoration event on every exit path — `stop`, `return`, `throw`, and a
+  // runtime diagnostic — not just the normal one. The snapshot is absolute, so the consumer needs
+  // no branch per exit kind: it assigns, exactly as it does on entry.
+  const world = OL.reduceTurtleWorldEvents([
+    spawn(1),
+    spawn(2),
+    addressing("tell", [1], 1),
+    addressing("ask", [2], 2),
+    event("move", { from: [0, 0], to: [0, 3], heading: 0 }, 2),
+    event("error", { code: "ol-arity" }, undefined),
+    addressing("ask", [1], 1),
+  ]);
+  assert.deepEqual(world.addressedTurtleIds, [1]);
+  assert.equal(world.currentTurtleId, 1);
+});
+
+test("tell [ ] addresses nothing, and reports no current turtle", () => {
+  // `current_turtle_id` is null exactly when the addressed set is empty: the spec defines no
+  // current turtle there, so the stream claims nothing and the consumer picks its own display
+  // fallback (see a11y.ts).
+  const world = OL.reduceTurtleWorldEvents([
+    spawn(1),
+    addressing("tell", [], null),
+  ]);
+  assert.deepEqual(world.addressedTurtleIds, []);
+  assert.equal(world.currentTurtleId, null);
+});
+
+test("changing the addressed set is not a turtle acting", () => {
+  // `tell`/`ask`/`each` only choose who a *subsequent* command drives, so they must not re-point
+  // the last-acted turtle — and the addressing event carries no envelope turtle_id to do it with.
+  const world = OL.reduceTurtleWorldEvents([
+    spawn(1),
+    spawn(2),
+    event("move", { from: [0, 0], to: [0, 5], heading: 0 }, 1),
+    addressing("tell", [2], 2),
+  ]);
+  assert.equal(world.lastActedTurtleId, 1);
+});
+
+test("a primitive event without an addressing snapshot leaves the world referentially unchanged", () => {
+  // `wait` and the Interaction registration forms emit `primitive` with a name only. An
+  // addressing-unaware payload must stay as inert as it was before #766 published the snapshot.
+  const before = OL.reduceTurtleWorldEvents([spawn(1)]);
+  const after = OL.reduceTurtleWorldState(
+    before,
+    event("primitive", { name: "wait" }, undefined),
+  );
+  assert.equal(after, before);
+});
+
+test("re-addressing the identical set leaves the world referentially unchanged", () => {
+  const before = OL.reduceTurtleWorldEvents([
+    spawn(1),
+    spawn(2),
+    addressing("tell", [1, 2], 1),
+  ]);
+  assert.equal(
+    OL.reduceTurtleWorldState(before, addressing("tell", [1, 2], 1)),
+    before,
+  );
+  // A genuinely different set (same length, different members) is still folded.
+  const narrowed = OL.reduceTurtleWorldState(
+    before,
+    addressing("tell", [1, 0], 1),
+  );
+  assert.notEqual(narrowed, before);
+  assert.deepEqual(narrowed.addressedTurtleIds, [1, 0]);
+  // As is a same-set change of the current turtle alone.
+  const recentred = OL.reduceTurtleWorldState(
+    before,
+    addressing("each", [1, 2], 2),
+  );
+  assert.notEqual(recentred, before);
+  assert.equal(recentred.currentTurtleId, 2);
+});
+
+test("the folded addressed set is a copy, so mutating the event's payload cannot reach world state", () => {
+  const ids = [1, 2];
+  const world = OL.reduceTurtleWorldEvents([
+    spawn(1),
+    spawn(2),
+    addressing("tell", ids, 1),
+  ]);
+  ids.push(99);
+  assert.deepEqual(world.addressedTurtleIds, [1, 2]);
+});
+
+test("folding an addressing event over a world that predates the addressing fields gives it them", () => {
+  // The reducer stays total against a hand-built JavaScript world (only constructible that way,
+  // since TurtleWorldState requires the fields), rather than throwing on the absent previous set.
+  const legacy = {
+    turtles: new Map([[0, OL.INITIAL_TURTLE_STATE]]),
+    lastActedTurtleId: 0,
+  };
+  const world = OL.reduceTurtleWorldState(legacy, addressing("tell", [0], 0));
+  assert.deepEqual(world.addressedTurtleIds, [0]);
+  assert.equal(world.currentTurtleId, 0);
+});
+
+test("spawning a turtle and driving one both preserve the addressed set", () => {
+  const afterTell = OL.reduceTurtleWorldEvents([
+    spawn(1),
+    addressing("tell", [1], 1),
+  ]);
+  const afterSpawn = OL.reduceTurtleWorldState(afterTell, spawn(2));
+  assert.deepEqual(afterSpawn.addressedTurtleIds, [1]);
+  assert.equal(afterSpawn.currentTurtleId, 1);
+
+  const afterMove = OL.reduceTurtleWorldState(
+    afterSpawn,
+    event("move", { from: [0, 0], to: [0, 4], heading: 0 }, 1),
+  );
+  assert.deepEqual(afterMove.addressedTurtleIds, [1]);
+  assert.equal(afterMove.currentTurtleId, 1);
+
+  const afterStamp = OL.reduceTurtleWorldState(
+    afterMove,
+    event(
+      "stamp",
+      { position: [0, 0], heading: 0, shape: "turtle", color: "black" },
+      2,
+    ),
+  );
+  assert.deepEqual(afterStamp.addressedTurtleIds, [1]);
+  assert.equal(afterStamp.currentTurtleId, 1);
+  assert.equal(afterStamp.lastActedTurtleId, 2);
+});

@@ -19,15 +19,22 @@
  * carries the turtle's full initial state; the **main turtle** — the single default turtle every
  * program starts with, whose Turtle & Rendering events carry *no* `turtle_id` before any `tell`
  * (`spec/turtles-and-sprites.md`'s "Addressing model") — is present from the start under
- * {@link MAIN_TURTLE_ID}. Alongside the per-turtle states it tracks the **last-acted** turtle, the
- * identity the non-visual state description names so it is never ambiguous about which turtle it
- * is describing (`spec/rendering.md:191`).
+ * {@link MAIN_TURTLE_ID}. Alongside the per-turtle states it tracks the **addressed turtle set**
+ * and its current turtle — folded from the addressing snapshots the stream carries (issue #770) —
+ * plus the **last-acted** turtle, so the non-visual state description is never ambiguous about
+ * which turtle or turtles it is describing (`spec/rendering.md:191`).
  *
  * Deterministic in, deterministic out: identical event input always folds to an identical world,
  * with no timing, randomness, or rendering concerns here.
  */
 
-import type { SpawnTurtlePayload, TraceEvent, TurtleId } from "@openlogo/core";
+import type {
+  AddressingSnapshot,
+  PrimitivePayload,
+  SpawnTurtlePayload,
+  TraceEvent,
+  TurtleId,
+} from "@openlogo/core";
 
 import {
   INITIAL_TURTLE_STATE,
@@ -48,40 +55,48 @@ export const MAIN_TURTLE_ID: TurtleId = 0;
 
 /**
  * The whole turtle world a renderer paints and describes: every live turtle's own
- * {@link TurtleState}, plus which of them a per-turtle command most recently drove.
+ * {@link TurtleState}, which turtles a command is currently addressed to, and which of them a
+ * per-turtle command most recently drove.
  *
  * - {@link TurtleWorldState.turtles} is keyed by turtle identity. The main turtle
  *   ({@link MAIN_TURTLE_ID}) is always present; each `new_turtle` adds one entry when its
  *   `spawn-turtle` event is folded. Insertion order is creation order (the main turtle first, then
  *   each spawn), matching the `turtles` reporter's order so a renderer can iterate sprites
  *   deterministically.
+ * - {@link TurtleWorldState.addressedTurtleIds} is the set a subsequent turtle command applies to,
+ *   once for each (`spec/turtles-and-sprites.md`'s "Addressing model"), and
+ *   {@link TurtleWorldState.currentTurtleId} is the turtle `who` reports between commands. Together
+ *   they are what lets `describeTurtleWorldState` satisfy `spec/rendering.md:191` ("Implementations
+ *   with multiple turtles MUST identify the active turtle or addressed turtle set") — for a *set*,
+ *   which no single `turtle_id` can express.
  * - {@link TurtleWorldState.lastActedTurtleId} is the turtle the most recent per-turtle command
  *   drove — whether that command changed the turtle's own state (`forward`, `set_color`, …) or only
- *   the shared scene ({@link SCENE_ONLY_TURTLE_KINDS}: `fill`, `stamp`). It is the turtle whose
- *   state the non-visual description is about, so that description always names its own subject
- *   (`spec/rendering.md:191`: "Implementations with multiple turtles MUST identify the active
- *   turtle or addressed turtle set").
+ *   the shared scene ({@link SCENE_ONLY_TURTLE_KINDS}: `fill`, `stamp`).
  *
- * It is called *last-acted*, not *active*, on purpose. This package consumes the trace stream and
- * nothing else, and what every effect event carries is a `turtle_id`
- * (`spec/turtles-and-sprites.md:113`: "Implementations MUST produce trace events with the
- * appropriate turtle identity so animation, stepping, `why`, and `debug` can explain **which
- * turtle moved or changed**"), so the most this reducer derives *from effect events alone* is which
- * turtle an event last acted on. In particular, when an `ask :b [ … ]` block ends the runtime
- * restores the previously addressed set (`spec/turtles-and-sprites.md:58`), but the stream's last
- * per-turtle effect is still `:b`'s, so `:b` stays the last-acted turtle here.
+ * The last of those three is called *last-acted*, not *active*, on purpose, and it stays: what
+ * every effect event carries is a `turtle_id` (`spec/turtles-and-sprites.md:113`: "Implementations
+ * MUST produce trace events with the appropriate turtle identity so animation, stepping, `why`, and
+ * `debug` can explain **which turtle moved or changed**"), so what the reducer derives *from effect
+ * events alone* is which turtle an event last acted on — the turtle a learner just watched act,
+ * which is exactly the question a stepping/animation consumer asks. It is deliberately **not** the
+ * addressed set: when an `ask :b [ … ]` block ends the runtime restores the previously addressed
+ * set (`spec/turtles-and-sprites.md:58`), but the stream's last per-turtle effect is still `:b`'s,
+ * so `:b` stays the last-acted turtle here while the addressed set is back to whatever `tell` had
+ * chosen. The two fields answer two different questions and both are kept.
  *
- * Since issue #766 the stream *does* carry the addressed set: every `tell`, every `ask`/`each`
- * entry, and every restoration path emits a `primitive` event whose payload carries
+ * The addressing pair is folded from the `primitive` events issue #766 added: every `tell`, every
+ * `ask`/`each` entry and per-iteration narrowing, and every restoration path (including the
+ * abnormal exits `stop`/`return`/`throw`/runtime diagnostic) emits one carrying
  * `addressing: { addressed_turtle_ids, current_turtle_id }` (`@openlogo/core`'s
- * `AddressingSnapshot`). This reducer does not fold it yet — tracking a real addressed set here and
- * naming it in `describeTurtleWorldState` is the consumer follow-up **issue #770** — so
- * `lastActedTurtleId` remains exactly what its name says, and this package still must not reach into
+ * {@link AddressingSnapshot}). The snapshot is absolute, so it folds by assignment — one rule for
+ * entry, narrowing, and restore alike — and this package still never reaches into
  * `@openlogo/runtime` for addressing (the dependency runs turtle → core only).
  *
- * During stepping and animation — the cases the live avatar and the a11y region exist for — the
- * last-acted turtle *is* the turtle a learner just watched act, which is what makes it the right
- * subject for the description even so.
+ * Because a step spans one `instruction` event to the next, an `ask`/`each` block's **restore**
+ * lands in the same step as the block's last inner instruction: the addressed set flips back in the
+ * very frame that renders the block's last inner move. That is inherent to the trace model and is
+ * the intended behavior — each folded step reports one coherent snapshot, namely the addressing in
+ * effect *at the end* of that step, which is what the next command will drive.
  */
 export interface TurtleWorldState {
   /** Every live turtle's own state, keyed by identity, in creation order. */
@@ -89,6 +104,13 @@ export interface TurtleWorldState {
   /** The turtle the most recent per-turtle command drove — a state-bearing one, or a scene-only
    * `fill`/`stamp` ({@link SCENE_ONLY_TURTLE_KINDS}). */
   readonly lastActedTurtleId: TurtleId;
+  /** The turtles a subsequent turtle command applies to, deduplicated and in first-occurrence
+   * order (the order `each` iterates). Empty exactly when nothing is addressed (`tell [ ]`). */
+  readonly addressedTurtleIds: readonly TurtleId[];
+  /** The addressed set's first member — the turtle `who` reports between commands — and `null`
+   * exactly when {@link TurtleWorldState.addressedTurtleIds} is empty, since the spec defines no
+   * current turtle for an empty addressed set. */
+  readonly currentTurtleId: TurtleId | null;
 }
 
 /**
@@ -114,21 +136,25 @@ function freezeMap<K, V>(map: Map<K, V>): ReadonlyMap<K, V> {
 }
 
 /**
- * The program-start world: just the main turtle at its {@link INITIAL_TURTLE_STATE}, and it is the
- * last-acted turtle.
+ * The program-start world: just the main turtle at its {@link INITIAL_TURTLE_STATE}, addressed and
+ * current (`spec/turtles-and-sprites.md`'s "Addressing model": "In a program without the Sprites
+ * profile, the addressed set contains the single default turtle"), and the last-acted turtle.
  * Shared as the default fold seed; every {@link reduceTurtleWorldState} call copies the turtle map
  * before mutating (`new Map(world.turtles)`), so this instance is never written through internally.
  * Its map is both typed `ReadonlyMap` (so the compiler rejects `.set`/`.delete`/`.clear`) and
  * genuinely frozen at runtime by {@link freezeMap}, so a JavaScript caller cannot mutate the shared
  * singleton and corrupt a later default fold either — `Object.freeze` alone would not do this,
- * because a frozen `Map` still honors `.set`. The wrapper object is `Object.freeze`d too, which
- * *is* sufficient for its two plain properties.
+ * because a frozen `Map` still honors `.set`. Its addressed-set array is `Object.freeze`d for the
+ * same reason (an array's mutators *do* respect a freeze), and the wrapper object is frozen too,
+ * which *is* sufficient for its plain properties.
  */
 export const INITIAL_TURTLE_WORLD_STATE: TurtleWorldState = Object.freeze({
   turtles: freezeMap(
     new Map<TurtleId, TurtleState>([[MAIN_TURTLE_ID, INITIAL_TURTLE_STATE]]),
   ),
   lastActedTurtleId: MAIN_TURTLE_ID,
+  addressedTurtleIds: Object.freeze([MAIN_TURTLE_ID]) as readonly TurtleId[],
+  currentTurtleId: MAIN_TURTLE_ID,
 });
 
 /**
@@ -154,6 +180,57 @@ export function lastActedTurtleState(world: TurtleWorldState): TurtleState {
  * single-turtle program is unaffected.
  */
 const SCENE_ONLY_TURTLE_KINDS: ReadonlySet<string> = new Set(["fill", "stamp"]);
+
+/**
+ * Do two addressed sets hold the same turtles in the same order? `previous` is typed as possibly
+ * absent so the reducer stays total against a hand-built JavaScript world that predates the
+ * addressing fields (the same posture {@link lastActedTurtleState} takes toward a
+ * `lastActedTurtleId` naming no live turtle) — such a world simply counts as different, and folding
+ * an addressing event over it produces a world that has the fields.
+ */
+function sameAddressedTurtles(
+  previous: readonly TurtleId[] | undefined,
+  next: readonly TurtleId[],
+): boolean {
+  return (
+    previous !== undefined &&
+    previous.length === next.length &&
+    previous.every((id, index) => id === next[index])
+  );
+}
+
+/**
+ * Fold one {@link AddressingSnapshot} into the world by **assignment**: the snapshot is absolute,
+ * never a delta (`@openlogo/core`'s `AddressingSnapshot`), so entering an `ask` scope, narrowing per
+ * `each` iteration, and restoring the previous set on the way out all reduce through this one rule
+ * — including the abnormal exits (`stop`, `return`, `throw`, a runtime diagnostic) the producer
+ * already emits a restoration event for.
+ *
+ * The addressed set changing is **not** a turtle acting: `tell`/`ask`/`each` only choose who a
+ * *subsequent* command will drive, so {@link TurtleWorldState.lastActedTurtleId} is deliberately
+ * left alone here (and the addressing event carries no envelope `turtle_id` to re-point it with —
+ * it describes a set, not one turtle). A snapshot identical to the world's current addressing —
+ * a repeated `tell` of the same turtles, or an `ask` whose block restores what it entered with —
+ * returns the same world object, so a downstream reference check sees no change.
+ */
+function foldAddressing(
+  world: TurtleWorldState,
+  snapshot: AddressingSnapshot,
+): TurtleWorldState {
+  const addressedTurtleIds = snapshot.addressed_turtle_ids;
+  if (
+    world.currentTurtleId === snapshot.current_turtle_id &&
+    sameAddressedTurtles(world.addressedTurtleIds, addressedTurtleIds)
+  ) {
+    return world;
+  }
+  return {
+    ...world,
+    // Copied, so a later mutation of the event's own payload array cannot reach into world state.
+    addressedTurtleIds: [...addressedTurtleIds],
+    currentTurtleId: snapshot.current_turtle_id,
+  };
+}
 
 /**
  * Reduces one trace event into the next per-turtle world state. A `spawn-turtle` event registers
@@ -182,11 +259,20 @@ const SCENE_ONLY_TURTLE_KINDS: ReadonlySet<string> = new Set(["fill", "stamp"]);
  * `print`, `procedure-enter`, … — must *not* re-point the last-acted turtle: they carry no
  * `turtle_id` and would otherwise silently snap it back to the main turtle in the middle of a
  * sprite's block.
+ *
+ * A `primitive` event carrying an `addressing` snapshot updates
+ * {@link TurtleWorldState.addressedTurtleIds}/{@link TurtleWorldState.currentTurtleId} instead (see
+ * {@link foldAddressing}); every other `primitive` — `wait`, the event-registration forms — carries
+ * no addressing and leaves the world untouched, exactly as before issue #766 published the snapshot.
  */
 export function reduceTurtleWorldState(
   world: TurtleWorldState,
   event: TraceEvent,
 ): TurtleWorldState {
+  if (event.kind === "primitive") {
+    const { addressing } = event.payload as PrimitivePayload;
+    return addressing === undefined ? world : foldAddressing(world, addressing);
+  }
   if (event.kind === "spawn-turtle") {
     const payload = event.payload as SpawnTurtlePayload;
     const turtles = new Map(world.turtles);
@@ -199,7 +285,7 @@ export function reduceTurtleWorldState(
       shape: payload.shape,
       visible: payload.visible,
     });
-    return { turtles, lastActedTurtleId: world.lastActedTurtleId };
+    return { ...world, turtles };
   }
   const id = event.turtle_id ?? MAIN_TURTLE_ID;
   const current = world.turtles.get(id);
@@ -216,11 +302,11 @@ export function reduceTurtleWorldState(
     ) {
       return world;
     }
-    return { turtles: world.turtles, lastActedTurtleId: id };
+    return { ...world, lastActedTurtleId: id };
   }
   const turtles = new Map(world.turtles);
   turtles.set(id, reduced);
-  return { turtles, lastActedTurtleId: id };
+  return { ...world, turtles, lastActedTurtleId: id };
 }
 
 /**

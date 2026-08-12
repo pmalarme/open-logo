@@ -107,7 +107,8 @@
  * #218 adds the turtle Canvas view — static composition of `@openlogo/turtle`'s DOM-free renderer
  * into the app shell (the dynamic run-loop repaint is #228, above):
  * - `state-model.ts`'s {@link StudioState} gains `turtleWorld`/`turtleScene` slots (plus the
- *   `turtleState` projection of the world's last-acted turtle), reusing `@openlogo/turtle`'s own
+ *   `turtleState` projection of the world's last-acted turtle — the addressed turtle set #770 folds
+ *   into that same world is read straight off `turtleWorld`), reusing `@openlogo/turtle`'s own
  *   `TurtleWorldState`/`TurtleScene` types verbatim and defaulting to its
  *   `INITIAL_TURTLE_WORLD_STATE`/`INITIAL_TURTLE_SCENE` program-start defaults.
  * - {@link Canvas2DContext} names the real Canvas 2D context surface this package forwards (this

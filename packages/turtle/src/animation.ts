@@ -112,8 +112,8 @@ export interface AnimationSnapshot {
    * into one record.
    */
   readonly state: TurtleState;
-  /** Every live turtle's own state plus the last-acted turtle, folded from every event consumed so
-   * far. This is what a renderer paints avatars from. */
+  /** Every live turtle's own state, plus the addressed turtle set and the last-acted turtle, folded
+   * from every event consumed so far. This is what a renderer paints avatars from. */
   readonly world: TurtleWorldState;
   /** Retained scene folded from every event consumed so far. */
   readonly scene: TurtleScene;
@@ -162,6 +162,12 @@ export class TurtleAnimationController {
         [MAIN_TURTLE_ID, options.initialState ?? INITIAL_TURTLE_STATE],
       ]),
       lastActedTurtleId: MAIN_TURTLE_ID,
+      // Program-start addressing: the single default turtle is the addressed set
+      // (`spec/turtles-and-sprites.md`'s "Addressing model"), exactly as
+      // `INITIAL_TURTLE_WORLD_STATE` seeds it — the world differs only in the main turtle's own
+      // (optionally re-seeded) state.
+      addressedTurtleIds: [MAIN_TURTLE_ID],
+      currentTurtleId: MAIN_TURTLE_ID,
     };
     this.initialScene = options.initialScene ?? INITIAL_TURTLE_SCENE;
     this.initialOverlay = options.initialOverlay ?? INITIAL_OVERLAY_STATE;
