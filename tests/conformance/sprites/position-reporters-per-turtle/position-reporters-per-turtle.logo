@@ -1,0 +1,13 @@
+:a = new_turtle
+tell :a
+forward 30
+right 90
+print xcor
+print ycor
+print heading
+print pos
+tell first turtles
+print xcor
+print ycor
+print heading
+print pos
