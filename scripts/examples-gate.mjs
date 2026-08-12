@@ -79,6 +79,7 @@ export const IMPLEMENTED_PROFILES = [
   "sound",
   "sprites",
   "heritage",
+  "interaction-events",
 ];
 
 /**

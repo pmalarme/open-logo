@@ -47,6 +47,19 @@
  * key`, in both profile-active and Core-rejected shapes plus execution proofs — are green in the
  * full DAG (issue #672, the Heritage epic #659 terminal slice under saga #572). Heritage requires
  * Data, which is already claimed.
+ * `interaction-events` was added once M5 shipped it: the runtime implements the whole C3 Interaction
+ * surface (`input`/`wait`/`when`/`every`/`on_key`/`on_click`), each with execution-level conformance
+ * proof rather than name recognition alone; registration forms emit `primitive` events after the
+ * handler is registered, a delivered handler emits the block-head `instruction` event, and `wait`
+ * emits its `primitive` after the pause completes; the normative same-tick delivery order
+ * `when` -> `on_key` -> `on_click` -> due `every`, each in registration order
+ * (`spec/interaction-events.md:84-89`), is pinned both across kinds and — as of this slice — WITHIN
+ * each of the four kinds at a shared drain point; the six forms are gated behind the
+ * `interaction-events` profile in the checker both ways; and the Interaction conformance fixtures are
+ * green in the full DAG, including the `ol-type`/`ol-range` negatives for `every`/`wait`, the
+ * labelled-`end` and stray-argument parse errors, and the profile primitive reserved-word rule
+ * (issue #688, the Interaction & Events epic #661 terminal slice under saga #572 — the saga's last
+ * profile claim). Interaction & Events depends only on Core Language, which is already claimed.
  * Claiming a profile before it is conformant would be a false conformance claim — exactly the
  * failure mode the M4 audit exists to catch — so any future profile addition here must follow
  * the same rule: land the profile's conformance fixes first, then claim it.
@@ -73,6 +86,7 @@ export const SUPPORTED_PROFILES = [
   "sound",
   "sprites",
   "heritage",
+  "interaction-events",
 ] as const;
 
 /**

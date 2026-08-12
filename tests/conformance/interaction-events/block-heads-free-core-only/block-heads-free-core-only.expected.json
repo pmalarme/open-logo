@@ -1,0 +1,7 @@
+{
+  "description": "issue #688 (terminal slice, review round 1): the `ONLY within` half of `spec/interaction-events.md:43-46` -- `An implementation that does not declare this profile does not reserve those words except through a vendor extension or an imported alias.` This is the byte-identical source its twin `block-heads-reserved-under-profile` runs under an ACTIVE profile, checked here with Core Language alone: all four names are ordinary, definable procedure names and the program checks CLEAN, with zero diagnostics. The pair is what makes the reservation PROFILE-SCOPED rather than global -- either fixture alone is satisfied by an implementation that reserves the four words unconditionally (failing learners on a Core-only program that legitimately defines a procedure called `every`) or by one that never reserves them at all. Only the two together pin the scope the spec actually specifies. This is a check-mode fixture: it proves static legality only and does not execute.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

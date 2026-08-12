@@ -1,0 +1,128 @@
+{
+  "description": "issue #688 (terminal slice, review round 1): the `every` half of the Core numeric-word rule (`spec/execution-model.md:33-34`, `Words that parse as numbers are accepted where a number is expected`). `every \"2\"` registers a handler with a tick count of 2 and behaves identically to the bare `every 2`: the handler first runs 2 ticks after registration and repeats every 2 ticks while the `wait 4` pause advances the clock, firing twice. Both of `every`'s numeric checks are therefore proven to run on the COERCED value, not to reject the word before they are reached -- the wholeness and range checks still apply to it (`every \"2.5\"` would be `ol-type` and `every \"0\"` `ol-range`, by the same rule that makes this legal). This is the positive complement of `every-non-number-type-error`, without which an implementation rejecting every word would pass the corpus.",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-numeric-word-accepted",
+        "start": [1, 1],
+        "end": [1, 22]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-numeric-word-accepted",
+        "start": [1, 1],
+        "end": [1, 22]
+      },
+      "payload": {
+        "name": "every"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-numeric-word-accepted",
+        "start": [2, 1],
+        "end": [2, 7]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-numeric-word-accepted",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-numeric-word-accepted",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-numeric-word-accepted",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-numeric-word-accepted",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-numeric-word-accepted",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-numeric-word-accepted",
+        "start": [1, 13],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-numeric-word-accepted",
+        "start": [2, 1],
+        "end": [2, 7]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    }
+  ],
+  "diagnostics": []
+}

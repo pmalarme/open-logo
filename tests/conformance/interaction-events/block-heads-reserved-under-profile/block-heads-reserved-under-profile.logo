@@ -1,0 +1,12 @@
+define when
+  print 1
+end
+define every
+  print 2
+end
+define on_key
+  print 3
+end
+define on_click
+  print 4
+end
