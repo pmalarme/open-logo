@@ -68,7 +68,8 @@ export const MAIN_TURTLE_ID: TurtleId = 0;
  *   {@link TurtleWorldState.currentTurtleId} is the turtle `who` reports between commands. Together
  *   they are what lets `describeTurtleWorldState` satisfy `spec/rendering.md:191` ("Implementations
  *   with multiple turtles MUST identify the active turtle or addressed turtle set") — for a *set*,
- *   which no single `turtle_id` can express.
+ *   which no single `turtle_id` can express — and what `why`/`debug` need to explain which turtles a
+ *   command applied to.
  * - {@link TurtleWorldState.lastActedTurtleId} is the turtle the most recent per-turtle command
  *   drove — whether that command changed the turtle's own state (`forward`, `set_color`, …) or only
  *   the shared scene ({@link SCENE_ONLY_TURTLE_KINDS}: `fill`, `stamp`).
@@ -95,8 +96,9 @@ export const MAIN_TURTLE_ID: TurtleId = 0;
  * Because a step spans one `instruction` event to the next, an `ask`/`each` block's **restore**
  * lands in the same step as the block's last inner instruction: the addressed set flips back in the
  * very frame that renders the block's last inner move. That is inherent to the trace model and is
- * the intended behavior — each folded step reports one coherent snapshot, namely the addressing in
- * effect *at the end* of that step, which is what the next command will drive.
+ * why keeping both fields matters — that one step's world reports the set that is addressed again
+ * *and* the turtle the step actually changed, so a consumer can describe both rather than having to
+ * pick one and silently drop the other.
  */
 export interface TurtleWorldState {
   /** Every live turtle's own state, keyed by identity, in creation order. */
@@ -158,8 +160,10 @@ export const INITIAL_TURTLE_WORLD_STATE: TurtleWorldState = Object.freeze({
 });
 
 /**
- * The {@link TurtleWorldState.lastActedTurtleId} turtle's own state — the subject of the non-visual
- * state description. Every world this module folds keeps `lastActedTurtleId` pointing at a turtle
+ * The {@link TurtleWorldState.lastActedTurtleId} turtle's own state — the turtle whose
+ * position/heading/pen the non-visual state description reports (that description additionally
+ * names the addressed set whenever it is not simply this turtle; see `a11y.ts`). Every world this
+ * module folds keeps `lastActedTurtleId` pointing at a turtle
  * that is present in `turtles`, but the type does not enforce that, so a hand-constructed world
  * naming an absent turtle falls back to the program-start {@link INITIAL_TURTLE_STATE} rather than
  * throwing at paint or announce time.

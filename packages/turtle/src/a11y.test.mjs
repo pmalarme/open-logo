@@ -262,8 +262,8 @@ const BLUE_HIDDEN = {
 test("describeTurtleWorldState identifies the whole addressed set once more than one turtle is addressed", () => {
   // spec/rendering.md:191 — "Implementations with multiple turtles MUST identify the active turtle
   // OR ADDRESSED TURTLE SET." After `tell [ :a :b ]` no single turtle is the answer, so the text
-  // leads with the set and then describes the turtle `who` reports (the set's first member), whose
-  // position/heading/pen the numbers belong to.
+  // leads with the set — and still reports the position/heading/pen of the turtle that last acted,
+  // because this region is also how a non-visual learner follows what just changed.
   const world = addressedWorld(
     [
       [0, OL.INITIAL_TURTLE_STATE],
@@ -275,7 +275,7 @@ test("describeTurtleWorldState identifies the whole addressed set once more than
   );
   assert.equal(
     OL.describeTurtleWorldState(world),
-    "addressed turtles #1 #2, current turtle #1 at x 0 y 0 heading 0 degrees pen down color green width 1",
+    "addressed turtles #1 #2. last acted turtle #2 at x 0 y 10 heading 0 degrees pen down color blue width 1 hidden",
   );
 });
 
@@ -292,14 +292,15 @@ test("describeTurtleWorldState names every addressed turtle, in the order each i
   );
   assert.equal(
     OL.describeTurtleWorldState(world),
-    "addressed turtles #7 #3 #5, current turtle #7 at x 0 y 10 heading 0 degrees pen down color blue width 1 hidden",
+    "addressed turtles #7 #3 #5. last acted turtle #3 at x 0 y 0 heading 0 degrees pen down color green width 1",
   );
 });
 
-test("describeTurtleWorldState names the ADDRESSED turtle after an ask block restores, not the last one to act", () => {
-  // The #770 defect, in its smallest form: `tell :a` / `ask :b [ forward 10 ]`. `:b` is still the
-  // last turtle-stamped effect in the stream, but the addressed set is back to { :a } — so naming
-  // `:b` identifies neither "the active turtle" nor "the addressed turtle set".
+test("describeTurtleWorldState identifies the addressed turtle after an ask block restores, while still describing the turtle that acted", () => {
+  // The #770 defect, in its smallest form: `tell :a` / `ask :b [ forward 10 ]`. The addressed set
+  // is back to { :a }, so naming only `:b` would identify neither "the active turtle" nor "the
+  // addressed turtle set" — but `:b` is what just changed, and a non-visual learner must still hear
+  // that (spec/rendering.md:193), so the sentence carries both.
   const world = addressedWorld(
     [
       [0, OL.INITIAL_TURTLE_STATE],
@@ -311,13 +312,13 @@ test("describeTurtleWorldState names the ADDRESSED turtle after an ask block res
   );
   assert.equal(
     OL.describeTurtleWorldState(world),
-    "turtle #1 at x 0 y 0 heading 0 degrees pen down color green width 1",
+    "addressed turtle #1. last acted turtle #2 at x 0 y 10 heading 0 degrees pen down color blue width 1 hidden",
   );
 });
 
-test("describeTurtleWorldState keeps a single addressed turtle's wording exactly as #749 baselined it", () => {
-  // One addressed turtle in a multi-turtle world: nothing to distinguish set from current, so the
-  // text stays the plain `turtle #<id>` sentence, unchanged.
+test("describeTurtleWorldState keeps the wording exactly as #749 baselined it when the addressed turtle is the one that acted", () => {
+  // `tell :b` / `forward 10`: the addressed set is exactly the turtle that acted, so there is
+  // nothing to disambiguate and the text stays the plain `turtle #<id>` sentence, unchanged.
   const world = addressedWorld(
     [
       [0, OL.INITIAL_TURTLE_STATE],
@@ -370,7 +371,7 @@ test("describeTurtleWorldState says plainly when nothing is addressed (tell [ ])
   );
   assert.equal(
     OL.describeTurtleWorldState(world),
-    "no addressed turtles, last acted turtle #1 at x 0 y 0 heading 0 degrees pen down color green width 1",
+    "no addressed turtles. last acted turtle #1 at x 0 y 0 heading 0 degrees pen down color green width 1",
   );
 });
 
@@ -384,23 +385,22 @@ test("describeTurtleWorldState falls back to the defaults when nothing is addres
 
 test("describeTurtleWorldState never announces an addressed identity no live turtle has", () => {
   // Same promise as for the last-acted turtle: rather than naming a turtle the world does not
-  // hold, fall back to the last-acted wording. Only constructible by hand — the producer addresses
-  // live turtles only.
-  const missingCurrent = addressedWorld(
+  // hold, fall back to the plain last-acted wording. Only constructible by hand — the producer
+  // addresses live turtles only.
+  const missingFirstMember = addressedWorld(
     [
       [0, OL.INITIAL_TURTLE_STATE],
       [1, GREEN],
     ],
     [4, 1],
     1,
-    4,
   );
   assert.equal(
-    OL.describeTurtleWorldState(missingCurrent),
+    OL.describeTurtleWorldState(missingFirstMember),
     "turtle #1 at x 0 y 0 heading 0 degrees pen down color green width 1",
   );
 
-  const missingMember = addressedWorld(
+  const missingLastMember = addressedWorld(
     [
       [0, OL.INITIAL_TURTLE_STATE],
       [1, GREEN],
@@ -409,25 +409,42 @@ test("describeTurtleWorldState never announces an addressed identity no live tur
     1,
   );
   assert.equal(
-    OL.describeTurtleWorldState(missingMember),
+    OL.describeTurtleWorldState(missingLastMember),
     "turtle #1 at x 0 y 0 heading 0 degrees pen down color green width 1",
   );
 });
 
-test("describeTurtleWorldState falls back when a non-empty addressed set reports no current turtle", () => {
-  // The producer never emits this (null means empty), but the type permits it, so the description
-  // stays total instead of announcing `turtle #null`.
-  const world = addressedWorld(
+test("describeTurtleWorldState never leaks the current-turtle pointer into the text", () => {
+  // The description's subject is the turtle that acted and its set clause lists the addressed
+  // turtles, so `currentTurtleId` — the `who` pointer the stream reports, kept on the world for
+  // `why`/`debug` — is never read here. Even the values the producer can never emit (a null
+  // pointer for a non-empty set, or one naming no live turtle) cannot reach a learner's ears.
+  const nullPointer = addressedWorld(
+    [
+      [0, OL.INITIAL_TURTLE_STATE],
+      [1, GREEN],
+      [2, BLUE_HIDDEN],
+    ],
+    [1, 2],
+    2,
+    null,
+  );
+  assert.equal(
+    OL.describeTurtleWorldState(nullPointer),
+    "addressed turtles #1 #2. last acted turtle #2 at x 0 y 10 heading 0 degrees pen down color blue width 1 hidden",
+  );
+
+  const bogusPointer = addressedWorld(
     [
       [0, OL.INITIAL_TURTLE_STATE],
       [1, GREEN],
     ],
     [1],
     1,
-    null,
+    9,
   );
   assert.equal(
-    OL.describeTurtleWorldState(world),
+    OL.describeTurtleWorldState(bogusPointer),
     "turtle #1 at x 0 y 0 heading 0 degrees pen down color green width 1",
   );
 });
@@ -444,7 +461,7 @@ test("describeTurtleWorldState still appends the current instruction for an addr
   );
   assert.equal(
     OL.describeTurtleWorldState(world, { currentInstruction: "forward 10" }),
-    'addressed turtles #1 #2, current turtle #1 at x 0 y 0 heading 0 degrees pen down color green width 1 instruction "forward 10"',
+    'addressed turtles #1 #2. last acted turtle #2 at x 0 y 10 heading 0 degrees pen down color blue width 1 hidden instruction "forward 10"',
   );
 });
 

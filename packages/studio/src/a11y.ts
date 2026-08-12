@@ -84,12 +84,15 @@
  *
  * #770 closes the other half of that MUST — the **addressed turtle set**, which no single turtle
  * name can express. `@openlogo/turtle` now folds the addressing snapshots the trace stream carries
- * (issue #766) into the world, so after `tell [ :a :b ]` the region reads
- * `addressed turtles #1 #2, current turtle #1 at x … `, and after an `ask`/`each` block restores it
- * names the restored set rather than the last turtle to have acted. The wording, and why it names
- * the set instead of enumerating every addressed turtle's attributes into this one live region,
- * lives with the text in `@openlogo/turtle`'s `describeTurtleWorldState` — this module still writes
- * no description logic of its own. A single-turtle program's text remains unchanged, byte for byte.
+ * (issue #766) into the world, so whenever the addressed set is not simply the turtle that just
+ * acted the region leads with it: after `tell [ :a :b ]` it reads
+ * `addressed turtles #1 #2. last acted turtle #2 at x … `, and after an `ask`/`each` block restores
+ * it names the restored set while still describing the turtle whose state the block changed — so a
+ * non-visual learner hears both what will be driven next and what just happened. The wording, and
+ * why it names the set instead of enumerating every addressed turtle's attributes into this one
+ * live region, lives with the text in `@openlogo/turtle`'s `describeTurtleWorldState` — this module
+ * still writes no description logic of its own. A single-turtle program's text remains unchanged,
+ * byte for byte.
  *
  * #410 additionally appends the current source instruction, when one is available
  * (`spec/rendering.md`'s Non-visual state descriptions minimum: pen color/width, turtle

@@ -631,7 +631,7 @@ test("the state text identifies the whole addressed turtle set, end to end from 
 
   assert.equal(
     region.getText(),
-    "addressed turtles #1 #2, current turtle #1 at x 0 y 10 heading 0 degrees pen down color black width 1 current instruction forward 10",
+    "addressed turtles #1 #2. last acted turtle #2 at x 0 y 10 heading 0 degrees pen down color black width 1 current instruction forward 10",
   );
   // Both addressed turtles really did move — the text names the set precisely because describing
   // one of them alone would be describing half the drawing.
@@ -642,12 +642,15 @@ test("the state text identifies the whole addressed turtle set, end to end from 
 
 test("the state text follows an ask block in and back out again, end to end (#770)", () => {
   // #770's acceptance criterion as a learner hears it. Inside `ask :b [ … ]` only `:b` is
-  // addressed, so the text is about `:b`; when the block ends the runtime restores `{ :a, :b }`
-  // (spec/turtles-and-sprites.md:58) and the text goes back to naming the set — even though `:b`
-  // is still the last turtle to have acted. Note the restore lands in the SAME step as the
-  // block's last inner instruction (a step spans one `instruction` event to the next), so the
-  // final text pairs the restored set with that inner instruction: each step reports one coherent
-  // snapshot, the addressing in effect at its end, which is what the next command will drive.
+  // addressed, and `:b` is also what acts, so the text is the plain `turtle #2` sentence; when the
+  // block ends the runtime restores `{ :a, :b }` (spec/turtles-and-sprites.md:58) and the text
+  // names that set again — while still reporting `:b`'s state, because `:b` is what changed.
+  //
+  // The restore lands in the SAME step as the block's last inner instruction (a step spans one
+  // `instruction` event to the next), so that final sentence carries both halves of the step at
+  // once: the set that is addressed again, and the change the step actually made. Describing the
+  // restored turtle instead would announce `:a`, still black — and `:b` turning blue would never
+  // be announced at all (rubber-duck finding 1 on this slice).
   const state = OL.createStudioState();
   const region = OL.createTurtleStateRegion(state);
   const controller = OL.createRunController(state);
@@ -666,7 +669,7 @@ test("the state text follows an ask block in and back out again, end to end (#77
   controller.step(); // tell [ :a :b ]
   assert.match(
     region.getText(),
-    /^addressed turtles #1 #2, current turtle #1 /,
+    /^addressed turtles #1 #2\. last acted turtle #/,
   );
 
   controller.step(); // forward 10
@@ -679,10 +682,9 @@ test("the state text follows an ask block in and back out again, end to end (#77
   controller.step(); // the block's inner instruction — and, in the same step, the exit's restore
   assert.equal(
     region.getText(),
-    'addressed turtles #1 #2, current turtle #1 at x 0 y 10 heading 0 degrees pen down color black width 1 current instruction set_color "blue"',
+    'addressed turtles #1 #2. last acted turtle #2 at x 0 y 10 heading 0 degrees pen down color blue width 1 current instruction set_color "blue"',
   );
-  // The restored set is what the text names, though `:b` is still the turtle that last acted —
-  // and `:b`, not the named `:a`, is the turtle that actually turned blue.
+  // The restored set is named, and the turtle that actually turned blue is the one described.
   const { turtleWorld } = state.getState();
   assert.equal(turtleWorld.lastActedTurtleId, 2);
   assert.equal(turtleWorld.turtles.get(2).color, "blue");
@@ -702,7 +704,7 @@ test("the state text says plainly when a program addresses no turtle at all (#77
 
   assert.equal(
     region.getText(),
-    "no addressed turtles, last acted turtle #1 at x 0 y 10 heading 0 degrees pen down color black width 1 current instruction tell [ ]",
+    "no addressed turtles. last acted turtle #1 at x 0 y 10 heading 0 degrees pen down color black width 1 current instruction tell [ ]",
   );
 });
 

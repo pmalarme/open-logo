@@ -78,9 +78,9 @@ export function describeTurtleState(
 }
 
 /**
- * The subject phrase the addressed turtle set contributes, plus the turtle state that phrase
- * describes — or `null` when the world carries no addressing this function can honestly speak for,
- * in which case {@link describeTurtleWorldState} falls back to naming the last-acted turtle.
+ * The addressing clause plus the turtle state that follows it — or `null` when the world carries no
+ * addressing worth announcing (or none this function can honestly speak for), in which case
+ * {@link describeTurtleWorldState} falls back to the plain last-acted wording.
  */
 interface AddressedSubject {
   readonly subject: string;
@@ -93,96 +93,85 @@ function listTurtleIds(ids: readonly TurtleId[]): string {
 }
 
 /**
- * The empty addressed set (`tell [ ]`): nothing will run for the next turtle command, and
- * `spec/turtles-and-sprites.md` defines no current turtle there — the stream says so explicitly by
- * reporting `current_turtle_id: null`, deliberately leaving the display fallback to this consumer.
+ * The addressing clause: which turtles a subsequent turtle command will drive.
  *
- * The fallback chosen here: say plainly that nothing is addressed, then keep describing the
- * last-acted turtle — the only subject the world still has an honest name for, and the turtle whose
- * avatar the learner last saw move. Announcing nothing, or silently describing the main turtle as
- * though it were addressed, would both be worse: the region must always hold current text, and it
- * must never imply a turtle is about to be driven when none is.
+ * The empty set (`tell [ ]`) is called out in words rather than left silent. `spec/turtles-and-
+ * sprites.md` defines no current turtle there, and the stream says so explicitly by reporting
+ * `current_turtle_id: null` — deliberately leaving the display fallback to this consumer — so the
+ * text states plainly that nothing is addressed instead of implying some turtle is about to be
+ * driven.
  */
-function describeEmptyAddressedSet(
-  world: TurtleWorldState,
-): AddressedSubject | null {
-  const state = world.turtles.get(world.lastActedTurtleId);
-  if (state === undefined) {
-    return null;
+function addressingClause(ids: readonly TurtleId[]): string {
+  if (ids.length === 0) {
+    return "no addressed turtles";
   }
-  return {
-    subject: `no addressed turtles, last acted turtle #${world.lastActedTurtleId}`,
-    state,
-  };
+  const noun = ids.length === 1 ? "turtle" : "turtles";
+  return `addressed ${noun} ${listTurtleIds(ids)}`;
 }
 
 /**
- * Builds the addressing half of the description from {@link TurtleWorldState.addressedTurtleIds}/
- * {@link TurtleWorldState.currentTurtleId}, which `reduceTurtleWorldState` folds from the stream's
- * addressing snapshots (issue #770).
+ * Builds the addressing half of the description from {@link TurtleWorldState.addressedTurtleIds},
+ * which `reduceTurtleWorldState` folds from the stream's addressing snapshots (issue #770).
  *
  * The wording decision, and why (`@turtle-engine` + `@learner-experience`, issue #770):
  * `describeState` describes **one** turtle's position/heading/pen/color/width, and a *set* has no
- * single position — so a multi-turtle addressed set is announced by **naming the set and describing
- * its current turtle**: `addressed turtles #1 #2, current turtle #1 at x … y … heading … degrees
- * pen … color … width …`. Enumerating every addressed turtle's full attributes was rejected: this
- * text is a single `aria-live="polite"` region that a screen reader re-reads *in full* on every
- * change, so `tell [ :a :b :c :d ]` / `repeat 100 [ forward 1 ]` would replace one sentence per tick
- * with four — a wall of speech that buries the change a learner was listening for, while
- * `spec/rendering.md:191` asks only that the addressed set be *identified*. The set clause answers
- * "who is being driven"; the state clause keeps the one concrete position/heading a learner can
- * hold in their head, taken from the turtle `who` reports (the set's first member) so the whole
- * sentence is one coherent snapshot. Every turtle's own avatar remains on the canvas, and the
- * per-turtle states stay published on {@link TurtleWorldState.turtles} for a future
- * inspect-each-turtle affordance.
+ * single position. The sentence therefore answers the two questions separately —
+ * `addressed turtles #1 #2. last acted turtle #2 at x … y … heading … degrees pen … color … width …`
+ * — naming the addressed set, then describing the turtle that most recently *changed*:
  *
- * Which turtle the numbers belong to is the addressing pair's *current* turtle, not the last-acted
- * one, whenever addressing is known — including when exactly one turtle is addressed. After
- * `tell :a` / `ask :b [ forward 10 ]` the addressed set is back to `{ :a }` while `:b` is still the
- * last turtle to have acted; naming `:b` there would identify neither "the active turtle" nor "the
- * addressed turtle set", which is precisely the gap issue #770 closes. Because a step spans one
- * `instruction` event to the next, that restore lands in the same step as the block's last inner
- * instruction, so the description flips back to `:a` in the very frame that renders `:b`'s last
- * move: deliberate, and the honest reading of a step — it reports the addressing in effect at the
- * end of the step, i.e. what the next command will drive.
+ * - **Identify the set, don't enumerate it.** Repeating every addressed turtle's full attributes was
+ *   rejected: this is a single `aria-live="polite"` region a screen reader re-reads *in full* on
+ *   every change, so `tell [ :a :b :c :d ]` / `repeat 100 [ forward 1 ]` would replace one sentence
+ *   per tick with four — a wall of speech burying the change a learner was listening for — while
+ *   `spec/rendering.md:191` asks only that the addressed set be *identified*. Every turtle's avatar
+ *   stays on the canvas, and the per-turtle states stay published on
+ *   {@link TurtleWorldState.turtles} for a future inspect-each-turtle affordance.
+ * - **Keep describing the turtle that acted.** The numbers stay those of
+ *   {@link TurtleWorldState.lastActedTurtleId}, because this region is also how a non-visual user
+ *   follows *progress* (`spec/rendering.md:193`: the drawing surface must not be the only way to
+ *   understand program progress). Describing the restored/current turtle instead would silently drop
+ *   what just happened: after `ask :b [ set_color "blue" ]` the region would report `:a`, still
+ *   black — never announcing that `:b` turned blue at all, since the block's restore lands in the
+ *   same step as its last inner instruction (a step spans one `instruction` event to the next).
+ *   Naming the set *and* describing the acting turtle reports both halves of that step honestly.
+ * - **Only when they differ.** When the addressed set is exactly the turtle that last acted — every
+ *   single-turtle program, and the common `tell :b` / `forward 10` — there is nothing to
+ *   disambiguate, so this returns `null` and the text stays the plain wording #749 baselined, byte
+ *   for byte, including `spec/rendering.md`'s own worked example.
+ *
+ * {@link TurtleWorldState.currentTurtleId} is deliberately *not* read here: it is the `who` pointer
+ * the stream reports, kept on the world for `why`/`debug` and any consumer that needs it, but the
+ * subject of this sentence is what changed, and the set clause already covers what is addressed.
  *
  * Returns `null` — falling back to the last-acted wording — when the world carries no addressing at
- * all (only constructible by hand, since {@link TurtleWorldState} requires the fields) or when it
- * names a turtle the world does not hold, keeping the same "never announce an identity no live
- * turtle has" promise {@link describeTurtleWorldState} already made.
+ * all (only constructible by hand, since {@link TurtleWorldState} requires the fields), when the
+ * last-acted turtle is not live (nothing honest to describe), or when the set names a turtle the
+ * world does not hold, keeping the same "never announce an identity no live turtle has" promise
+ * {@link describeTurtleWorldState} already made.
  */
 function describeAddressedTurtles(
   world: TurtleWorldState,
 ): AddressedSubject | null {
   const ids = world.addressedTurtleIds;
-  if (ids === undefined) {
+  const state = world.turtles.get(world.lastActedTurtleId);
+  if (ids === undefined || state === undefined) {
     return null;
   }
-  if (ids.length === 0) {
-    return describeEmptyAddressedSet(world);
-  }
-  const currentId = world.currentTurtleId;
-  const state = currentId === null ? undefined : world.turtles.get(currentId);
-  if (state === undefined || !ids.every((id) => world.turtles.has(id))) {
+  if (ids.length === 1 && ids[0] === world.lastActedTurtleId) {
     return null;
   }
-  if (ids.length === 1) {
-    // One addressed turtle: nothing to disambiguate in a single-turtle world, so this is exactly
-    // `describeTurtleState`'s wording, byte for byte, including the spec's own worked example.
-    return {
-      subject: world.turtles.size < 2 ? "turtle" : `turtle #${currentId}`,
-      state,
-    };
+  if (!ids.every((id) => world.turtles.has(id))) {
+    return null;
   }
   return {
-    subject: `addressed turtles ${listTurtleIds(ids)}, current turtle #${currentId}`,
+    subject: `${addressingClause(ids)}. last acted turtle #${world.lastActedTurtleId}`,
     state,
   };
 }
 
 /**
  * Builds the non-visual state description for a whole {@link TurtleWorldState}: which turtles are
- * addressed, and the state of the one turtle the sentence's numbers are about — identified by name
+ * addressed, and the state of the turtle that most recently acted — each identified by name
  * whenever the program drives more than one turtle.
  *
  * `spec/rendering.md:191` makes that identification a MUST: "Implementations with multiple turtles
@@ -196,9 +185,10 @@ function describeAddressedTurtles(
  * seeing the drawing. Any second numbering — a creation-order ordinal, say — would be off by one
  * against `print who` for every turtle, which defeats the purpose of the MUST.
  *
- * When more than one turtle is addressed at once — `tell [ :a :b ]` — naming a single turtle cannot
- * satisfy that MUST, so the sentence leads with the set: `addressed turtles #1 #2, current turtle
- * #1 at x …`. {@link describeAddressedTurtles} carries that decision and the reasoning behind it,
+ * Once the addressed set is *not* simply the turtle that last acted — `tell [ :a :b ]`, an
+ * `ask`/`each` block that has just restored, or `tell [ ]` — naming a single turtle cannot satisfy
+ * that MUST, so the sentence leads with the set: `addressed turtles #1 #2. last acted turtle #2 at
+ * x …`. {@link describeAddressedTurtles} carries that decision and the reasoning behind it,
  * including the empty-set (`tell [ ]`) wording.
  *
  * A world holding just the main turtle — every Turtle & Rendering program, and every Sprites

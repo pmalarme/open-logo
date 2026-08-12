@@ -105,11 +105,14 @@ export interface AnimationSnapshot {
   /** Current playback status. */
   readonly status: PlaybackStatus;
   /**
-   * The **last-acted** turtle's state as of every event consumed so far — the turtle the
-   * non-visual state description is about. With a single turtle that is simply the main turtle's
+   * The **last-acted** turtle's state as of every event consumed so far — the turtle whose
+   * position/heading/pen the non-visual state description reports. With a single turtle that is
+   * simply the main turtle's
    * folded state, unchanged from before per-turtle folding existed; under Sprites it is the turtle
    * the most recent per-turtle command drove, rather than every turtle's attributes merged
-   * into one record.
+   * into one record. Which turtles are *addressed* is a separate question, answered by
+   * {@link AnimationSnapshot.world}'s `addressedTurtleIds` (which the state description also names
+   * whenever it is not simply this turtle).
    */
   readonly state: TurtleState;
   /** Every live turtle's own state, plus the addressed turtle set and the last-acted turtle, folded
@@ -131,7 +134,9 @@ export interface AnimationSnapshot {
  * and can never diverge from what a direct `reduceTurtleWorldEvents`/`reduceSceneEvents` call over
  * the same events would produce. {@link AnimationSnapshot.state} is read out of that same world
  * ({@link lastActedTurtleState}) rather than folded a second time, so the avatar, the state text, and
- * the per-turtle world can never disagree.
+ * the per-turtle world can never disagree about the turtle that just acted — and the addressed set
+ * the state text also names comes from that one world too, so it cannot drift from the avatars
+ * either.
  *
  * Step boundaries follow `spec/rendering.md`/`spec/execution-model.md` exactly: one step is an
  * `instruction` event plus every effect event up to (but not including) the next `instruction`

@@ -337,10 +337,10 @@ no DOM here to regress.
   into on every run tick/`step()`/`reset()`), built from `@openlogo/turtle`'s published
   `describeTurtleWorldState` (position/heading/pen wording, never re-derived here — plus, once a
   program drives more than one turtle, the `turtle #<id>` name of the turtle being described, #749,
-  and once more than one turtle is addressed at a time, the whole addressed set as
-  `addressed turtles #1 #2, current turtle #1 at x …`, #770 — the consumer half of the addressing
+  and — whenever the addressed set is not simply that turtle — the set itself, as
+  `addressed turtles #1 #2. last acted turtle #2 at x …`, #770: the consumer half of the addressing
   snapshots #766 publishes in the trace stream, which is what lets an `ask`/`each` block's restore
-  name the set that is addressed again rather than the last turtle to have acted)
+  name the set that is addressed again while still reporting the change the block made)
   plus, when available,
   a trailing "current instruction `<exact source text>`" clause — `spec/rendering.md`'s Non-visual
   state descriptions minimum requires surfacing the current instruction alongside pen/visibility
