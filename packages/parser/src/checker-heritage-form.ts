@@ -23,6 +23,17 @@
  * Heritage adds NO new semantics (`spec/conformance.md#heritage` — "alternate spellings only"), so
  * when Heritage IS active this rule is silent and the runtime evaluates each form through the exact
  * same code path as its Core equivalent — there is no divergent Heritage evaluation anywhere.
+ *
+ * Slice H5 (issue #670) adds the `value of <dict> for key <key>` reader
+ * (`spec/grammar.md:213`'s `value-of-reader`) to this same family. Unlike the four form *heads*, it
+ * is a four-keyword *reader* form, not an alias-able name — the reader lowers it to a
+ * {@link ValueOfKeyNode} whose evaluation is byte-identical to the Core dict read `:d[:k]`/`:d.key`
+ * (`spec/data-structures.md:183-195`). It has no single Core *word* equivalent (the Core spelling is
+ * the `[]`/`.` selector *syntax*, not a keyword), so — like `ol-unknown-command`'s no-candidate
+ * branch (`spec/error-model.md:96`) — its rejection carries no `suggestion`, only the "check the
+ * spelling, or define it with 'define'" message, at the `value` head word. Because it operates on a
+ * dict, Heritage depends on Data (`spec/conformance.md#heritage`), so an accepting fixture claims
+ * both `data` and `heritage`.
  */
 
 import { makeSpan } from "@openlogo/core";
@@ -87,16 +98,30 @@ function headSpan(nodeSpan: SourceSpan, head: string): SourceSpan {
   ]);
 }
 
-/** The learner-facing `ol-unknown-command` message template (`spec/error-model.md:96`). */
-function messageFor(head: string, suggestion: string): string {
-  return `i don't know how to ${head}. did you mean ${suggestion}?`;
+/**
+ * The learner-facing `ol-unknown-command` message template (`spec/error-model.md:96`). When a Core
+ * spelling to point at exists, the did-you-mean names it; the `value of … for key` reader has no
+ * single-word Core equivalent, so — like `ol-unknown-command`'s no-candidate branch — it falls back
+ * to the "check the spelling, or define it with 'define'" message.
+ */
+function messageFor(head: string, suggestion: string | undefined): string {
+  return suggestion === undefined
+    ? `i don't know how to ${head}. check the spelling, or define it with 'define'.`
+    : `i don't know how to ${head}. did you mean ${suggestion}?`;
 }
 
 /**
+ * The `value of … for key` reader head is the literal word `value` (5 chars), so its head span is
+ * the node start extended by that length — mirroring {@link headSpan} for the four form heads.
+ */
+const VALUE_OF_KEY_HEAD = "value";
+
+/**
  * The Heritage form-head rule: with the Heritage profile inactive, every `make`/`to`/`output`/`op`
- * head raises one `ol-unknown-command` at the head word, whose did-you-mean points at the Core
- * spelling the learner should use instead ({@link CORE_EQUIVALENT}). With Heritage active, it raises
- * nothing.
+ * head — and every `value of … for key` reader — raises one `ol-unknown-command` at the head word.
+ * For the four form heads the did-you-mean points at the Core spelling to use instead
+ * ({@link CORE_EQUIVALENT}); the reader carries no suggestion (its Core equivalent is the `[]`/`.`
+ * selector syntax, not a word). With Heritage active, it raises nothing.
  */
 export function heritageFormRule(
   program: ProgramNode,
@@ -109,6 +134,17 @@ export function heritageFormRule(
   const diagnostics: Diagnostic[] = [];
 
   walk(program, (node) => {
+    if (node.kind === "ValueOfKey") {
+      diagnostics.push({
+        code: "ol-unknown-command",
+        source_span: headSpan(node.source_span, VALUE_OF_KEY_HEAD),
+        params: { name: VALUE_OF_KEY_HEAD },
+        message: messageFor(VALUE_OF_KEY_HEAD, undefined),
+        stage: "semantic",
+        severity: "error",
+      });
+      return;
+    }
     const head = heritageHead(node);
     if (head === undefined) {
       return;

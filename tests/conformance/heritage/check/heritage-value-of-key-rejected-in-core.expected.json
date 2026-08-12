@@ -1,0 +1,20 @@
+{
+  "description": "Heritage form profile gate (issue #670, slice H5): with the Heritage profile INACTIVE the `value of … for key` dictionary reader (`spec/grammar.md:213`'s `value-of-reader`) is rejected with `ol-unknown-command` at the `value` head. Data is active here — the dict literal `{ tom: 8 }` parses cleanly — proving Data ALONE does not unlock the reader: `spec/conformance.md:273` classifies `value of … for key` as Heritage (which `spec/conformance.md:301` says also needs Data). The reader has no single-word Core equivalent (its Core spelling is the `:d[:k]`/`:d.key` selector syntax), so the diagnostic carries no did-you-mean, only the `ol-unknown-command` no-candidate message (`spec/error-model.md:96`).",
+  "profiles": ["core-language", "data"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "heritage/check/heritage-value-of-key-rejected-in-core",
+        "start": [2, 7],
+        "end": [2, 12]
+      },
+      "params": { "name": "value" },
+      "message": "i don't know how to value. check the spelling, or define it with 'define'.",
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

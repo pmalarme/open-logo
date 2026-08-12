@@ -1137,10 +1137,17 @@ function evaluateDictLit(
 
 /**
  * `value of <dictionary> for key <key>` (issue #322, `spec/grammar.md:213`) — the Heritage dict
- * reader, read-only and equivalent to `dictionary.key`/`dictionary[key]`
- * (`spec/data-structures.md:183-195`). `dictionary` must evaluate to a dict (`ol-type`
- * otherwise); `key` must evaluate to a word or number (`ol-type` otherwise); a missing key
- * raises `ol-unknown-key` (`spec/data-structures.md:191`).
+ * reader, read-only and **exactly** equivalent to the Core dict read `dictionary[key]`
+ * (`spec/data-structures.md:226-229,265-268`). Heritage is "alternate spellings only, no new
+ * semantics" (`spec/conformance.md:146`), so this maps onto the identical `[key]`-on-a-dict path
+ * {@link resolvePlaceSegment} takes for a Core selector: a non-dict operand raises `ol-type`
+ * `expected: "list or dict"`, a non-word/number key raises `ol-type` `expected: "word or number"`,
+ * and a missing key raises `ol-unknown-key` — every code, param (including the Core `operation:
+ * "index"`, never a Heritage spelling), and message byte-identical to `:d[:k]`. The diagnostic
+ * *span* points at the offending sub-expression (the operand for an operand-type error, the key for
+ * a key-type/missing-key error), which is the reader's analog of the `[ … ]` span the selector
+ * points at; a span reflecting where the learner wrote the fault is a localization concern
+ * (`spec/localization.md`), not part of the machine-readable contract.
  */
 function evaluateValueOfKey(
   node: ValueOfKeyNode,
@@ -1150,35 +1157,59 @@ function evaluateValueOfKey(
   if (!dictResult.ok) {
     return dictResult;
   }
-  if (!(dictResult.value instanceof OLDict)) {
-    return fail(
-      runtimeDiag.placeType(node.dictionary.source_span, {
-        expected: "dict",
-        actual: typeNameOf(dictResult.value),
-        value: dictResult.value,
-        operation: "value of",
-      }),
-    );
-  }
   const keyResult = evaluate(node.key, environment);
   if (!keyResult.ok) {
     return keyResult;
   }
-  const key = keyResult.value;
-  if (typeof key !== "string" && typeof key !== "number") {
+  return readDictByKey(
+    dictResult.value,
+    node.dictionary.source_span,
+    keyResult.value,
+    node.key.source_span,
+  );
+}
+
+/**
+ * The shared dict-read semantics behind both the Core `:d[key]` selector's dict branch
+ * ({@link resolvePlaceSegment}) and the Heritage `value of … for key` reader
+ * ({@link evaluateValueOfKey}) — one code path so the two spellings are provably equivalent
+ * (`spec/conformance.md#heritage`). `container` must be a dict (else `ol-type`
+ * `expected: "list or dict"`, matching the selector's non-list/dict message), `key` must be a word
+ * or number (else `ol-type` `expected: "word or number"`), and a missing key raises
+ * `ol-unknown-key` (`spec/data-structures.md:231,268`). The two spans let each caller point the
+ * container-type error and the key-type/missing-key error at the right piece of its own surface
+ * syntax.
+ */
+function readDictByKey(
+  container: OLValue,
+  containerSpan: SourceSpan,
+  key: OLValue,
+  keySpan: SourceSpan,
+): EvalResult {
+  if (!(container instanceof OLDict)) {
     return fail(
-      runtimeDiag.placeType(node.key.source_span, {
-        expected: "word or number",
-        actual: typeNameOf(key),
-        value: key,
-        operation: "value of",
+      runtimeDiag.placeType(containerSpan, {
+        expected: "list or dict",
+        actual: typeNameOf(container),
+        value: container,
+        operation: "index",
       }),
     );
   }
-  if (!dictResult.value.has(key)) {
-    return fail(runtimeDiag.unknownKey(node.key.source_span, { key }));
+  if (typeof key !== "string" && typeof key !== "number") {
+    return fail(
+      runtimeDiag.placeType(keySpan, {
+        expected: "word or number",
+        actual: typeNameOf(key),
+        value: key,
+        operation: "index",
+      }),
+    );
   }
-  return ok(dictResult.value.get(key) as OLValue);
+  if (!container.has(key)) {
+    return fail(runtimeDiag.unknownKey(keySpan, { key }));
+  }
+  return ok(container.get(key) as OLValue);
 }
 
 /**

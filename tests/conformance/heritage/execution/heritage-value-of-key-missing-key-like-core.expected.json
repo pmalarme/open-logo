@@ -1,0 +1,41 @@
+{
+  "description": "Heritage `value of … for key` on a MISSING dict key raises the byte-identical Core `ol-unknown-key` (issue #670, slice H5): same `code`, `params` (`{ key: \"zed\" }`), `message`, `stage: \"runtime\"`, and `severity` a Core `:ages[\"zed\"]` selector would raise (`spec/data-structures.md:231`), with NO Heritage spelling in any payload — proving the reader lowers onto the Core dict read, not a divergent path (`spec/conformance.md:146`: alternate spellings only, no new semantics). The diagnostic *span* points at the reader's `for key \"zed\"` sub-expression, the reader's analog of the `[\"zed\"]` span the selector points at (a where-the-learner-wrote-it, localization-only difference — `spec/localization.md`). Heritage depends on Data (`spec/conformance.md:301`), so both `data` and `heritage` are active.",
+  "profiles": ["core-language", "data", "heritage"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-missing-key-like-core",
+        "start": [1, 1],
+        "end": [1, 19]
+      },
+      "payload": { "statement_kind": "Assign" }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-missing-key-like-core",
+        "start": [2, 1],
+        "end": [2, 35]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-key",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-missing-key-like-core",
+        "start": [2, 30],
+        "end": [2, 35]
+      },
+      "params": { "key": "zed" },
+      "message": "this dict has no key \"zed\".",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}
