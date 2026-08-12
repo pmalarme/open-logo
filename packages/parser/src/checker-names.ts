@@ -43,13 +43,15 @@ import {
   geometryPrimitiveNames,
   interactionEventsBlockHeadNames,
   soundPrimitiveNames,
+  spritesStatementFormNames,
   turtlePrimitiveNames,
 } from "./signatures.js";
 
 /**
  * Every canonical lowercase name contributed by an optional (non-Core) conformance profile's
  * primitive table — currently Turtle & Rendering's, Educational's, Geometry's, Data's, Sound's, and
- * the Interaction & Events block-heads (`when`, issue #682). Computed once as a frozen union so
+ * the Interaction & Events block-heads (`when`, issue #682), and the Sprites addressing head
+ * (`tell`, issue #674). Computed once as a frozen union so
  * {@link isOptionalProfileName} stays a pure, allocation-free lookup; a future optional-profile
  * table adds its `...someProfileNames()` spread here alongside these, exactly mirroring how
  * {@link collectVisibleNames} itself is extended one profile at a time.
@@ -61,6 +63,7 @@ const OPTIONAL_PROFILE_NAMES: ReadonlySet<string> = new Set([
   ...dataPrimitiveNames(),
   ...soundPrimitiveNames(),
   ...interactionEventsBlockHeadNames(),
+  ...spritesStatementFormNames(),
 ]);
 
 /**
@@ -85,7 +88,8 @@ export function isOptionalProfileName(name: string): boolean {
  * when `"data"` is active, plus every procedure declared anywhere in `program` (declaration order
  * and position do not matter — OpenLogo procedures are available program-wide, not just after
  * their `define`, and the same is true of struct constructors, which register at phase-1 exactly
- * like procedures do — `@openlogo/runtime`'s `collectStructs`).
+ * like procedures do — `@openlogo/runtime`'s `collectStructs`). The `tell` addressing head is
+ * visible only when `"sprites"` is active (issue #674).
  */
 export function collectVisibleNames(
   program: ProgramNode,
@@ -140,6 +144,12 @@ export function collectVisibleNames(
 
   if (active.has("interaction-events")) {
     for (const name of interactionEventsBlockHeadNames()) {
+      names.add(name);
+    }
+  }
+
+  if (active.has("sprites")) {
+    for (const name of spritesStatementFormNames()) {
       names.add(name);
     }
   }

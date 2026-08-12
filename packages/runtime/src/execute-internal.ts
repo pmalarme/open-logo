@@ -43,11 +43,12 @@ import type {
   SourceSpan,
   StampPayload,
   TurnPayload,
+  TurtleId,
   TutorCommand,
   VisibilityChangePayload,
   WidthChangePayload,
 } from "@openlogo/core";
-import { typeNameOf } from "@openlogo/core";
+import { OLTurtle, typeNameOf } from "@openlogo/core";
 import type {
   BlockNode,
   CallNode,
@@ -78,6 +79,7 @@ import {
   bindElement,
   checkExecutionLimits,
   createDefaultTurtleState,
+  createTurtleAddressing,
   evaluate,
   executeAdd,
   executeAssign,
@@ -92,6 +94,7 @@ import {
   snapshotValue,
   requireNumber,
   requireWholeNumber,
+  turtleStateFor,
   type AssignResult,
   type Environment,
   type EvalResult,
@@ -126,7 +129,7 @@ import type { TutorCommandMetadata, TutorContext } from "./tutor-context.js";
 import { defaultTutorTemplate } from "./tutor-templates.js";
 import type { TutorLearnerLevel } from "./tutor-context.js";
 import { normalizeHeading } from "./turtle-math.js";
-import { TurtleWorld } from "./turtle-world.js";
+import { MAIN_TURTLE_ID, TurtleWorld } from "./turtle-world.js";
 
 /**
  * Is `statement` a call to `print` — the single-value `print value` form or the parenthesized
@@ -2135,21 +2138,258 @@ function executeWhenStatement(
 }
 
 /**
+ * Sentinel `dispatchProfileStatement` returns when a {@link ProfileStatementNode} is not a Sprites
+ * addressing form this slice runs (`ask`/`each` land in #675/#676; the Interaction event heads are
+ * their own profile), so {@link executeStatements} can fall through. Distinct from `undefined`
+ * ("handled, continue") and an {@link ExecSignal} ("handled, halt"), mirroring
+ * {@link NOT_A_TURTLE_COMMAND}.
+ */
+const NOT_A_PROFILE_STATEMENT = Symbol("not-a-profile-statement");
+
+/**
+ * Coerce one turtle value or a list of turtle values into the ids `tell` should address
+ * (`spec/turtles-and-sprites.md:46` "Its input is either one turtle value or a list whose items are
+ * turtle values"). Returns the ids on success, or the `ol-type` diagnostic to halt on when the
+ * input is a non-turtle, or a list containing a non-turtle value (`spec/turtles-and-sprites.md:
+ * 176-177`). The whole `tell` fails on the first non-turtle item — the addressed set is left
+ * unchanged — so a partially-valid list never half-addresses.
+ */
+function turtleIdsFor(
+  value: OLValue,
+  source_span: SourceSpan,
+): { ok: true; ids: TurtleId[] } | { ok: false; diagnostic: Diagnostic } {
+  if (value instanceof OLTurtle) {
+    return { ok: true, ids: [value.id] };
+  }
+  if (Array.isArray(value)) {
+    const ids: TurtleId[] = [];
+    for (const item of value) {
+      if (!(item instanceof OLTurtle)) {
+        return {
+          ok: false,
+          diagnostic: runtimeDiag.tellNotATurtle(source_span, {
+            expected: "turtle",
+            actual: typeNameOf(item),
+            value: item,
+            operation: "tell",
+          }),
+        };
+      }
+      ids.push(item.id);
+    }
+    return { ok: true, ids };
+  }
+  return {
+    ok: false,
+    diagnostic: runtimeDiag.tellNotATurtle(source_span, {
+      expected: "turtle",
+      actual: typeNameOf(value),
+      value,
+      operation: "tell",
+    }),
+  };
+}
+
+/**
+ * Run a `tell <turtle|turtle-list>` statement (Sprites profile,
+ * `spec/turtles-and-sprites.md`'s "Addressing model"): `tell` is a command (no block) that
+ * **sets the addressed set** for every subsequent turtle command until the next `tell`. Evaluates
+ * its single argument, coerces it to turtle ids ({@link turtleIdsFor} — `ol-type` on a non-turtle),
+ * replaces {@link TurtleAddressing.ids}, marks addressing explicit so per-turtle events now carry a
+ * `turtle-id`, and re-points {@link Environment.turtle} at the first addressed turtle so the
+ * movement reporters and `who` report it. An empty turtle list is a valid (if unusual) addressed
+ * set — subsequent commands then apply to no turtle — and the current-turtle pointer falls back to
+ * the main turtle so `who` and the movement reporters stay consistent.
+ * Returns an {@link ExecSignal} to halt on, or `undefined` to continue (including the "argument
+ * expression not yet evaluable" deferral every other command uses).
+ */
+function executeTell(
+  statement: ProfileStatementNode,
+  environment: Environment,
+): ExecSignal | undefined {
+  // `tell`'s single-argument arity is enforced at parse/check time (its `PROFILE_STATEMENT_FORMS`
+  // entry is `argCount: 1`), so exactly one argument always reaches here.
+  const [arg] = statement.args as [ExpressionNode];
+  if (!isSupportedArgument(arg, environment)) {
+    return undefined;
+  }
+  const argResult = evaluate(arg, environment);
+  if (!argResult.ok) {
+    return halt(argResult.diagnostic);
+  }
+  const ids = turtleIdsFor(argResult.value, arg.source_span);
+  if (!ids.ok) {
+    return halt(ids.diagnostic);
+  }
+  const { addressing } = environment;
+  addressing.ids = ids.ids;
+  addressing.explicit = true;
+  // Re-point the current turtle at the first addressed turtle so the movement reporters
+  // (`xcor`/`ycor`/`heading`/`pos`) and `who` all report it. When the addressed set is empty
+  // (`tell [ ]`) there is no acting turtle, so it falls back to the main turtle — matching `who`'s
+  // own empty-set fallback so the two never diverge. `currentId` is the single source of truth;
+  // `environment.turtle` is its derived state cache, so both are written together here.
+  const [firstId = MAIN_TURTLE_ID] = ids.ids;
+  addressing.currentId = firstId;
+  environment.turtle = turtleStateFor(addressing, firstId);
+  return undefined;
+}
+
+/**
+ * Try to run `statement` as a Sprites addressing statement. Today that is only `tell` (SP2, issue
+ * #674); `ask`/`each` (SP3/SP4) and the Interaction & Events heads register their own handling.
+ * Returns {@link NOT_A_PROFILE_STATEMENT} when `statement` is not a `tell` this slice runs, so
+ * {@link executeStatements} falls through to its remaining checks.
+ */
+function dispatchProfileStatement(
+  statement: StatementNode,
+  environment: Environment,
+): ExecSignal | undefined | typeof NOT_A_PROFILE_STATEMENT {
+  if (statement.kind !== "ProfileStatement") {
+    return NOT_A_PROFILE_STATEMENT;
+  }
+  if (statement.keyword.name.toLowerCase() === "tell") {
+    return executeTell(statement, environment);
+  }
+  return NOT_A_PROFILE_STATEMENT;
+}
+
+/**
+ * Whether `statement` is a **per-turtle** turtle command — one whose effect and events belong to a
+ * specific turtle, so under `tell` it runs once for each addressed turtle
+ * (`spec/turtles-and-sprites.md:113`): movement (`forward`/`back`), turning (`left`/`right`), pen
+ * (`pen_up`/`pen_down`), absolute position (`home`/`set_xy`), heading (`set_heading`), visibility
+ * (`show_turtle`/`hide_turtle`), color (`set_color`), width (`set_width`), `fill`, `stamp`, and
+ * `set_shape`.
+ *
+ * The canvas-global turtle commands are deliberately excluded: `set_background`, `grid`, `axes`, and
+ * `measure` describe the drawing surface, not one turtle's avatar, so they run once regardless of
+ * how many turtles are addressed. `clear_screen`/`clean` is also excluded — it clears the whole
+ * canvas (one `clear` event) and homes only the current turtle, exactly as before this slice; a
+ * per-turtle multiplication would emit N `clear` events for one canvas clear, which no renderer
+ * expects (`clearScreen`'s doc comment).
+ */
+function isPerTurtleCommand(statement: StatementNode): boolean {
+  return (
+    isTurtleMoveCall(statement) ||
+    isTurtleTurnCall(statement) ||
+    isTurtlePenCall(statement) ||
+    isTurtlePositionCall(statement) ||
+    isTurtleHeadingCall(statement) ||
+    isTurtleVisibilityCall(statement) ||
+    isTurtleColorCall(statement) ||
+    isTurtleWidthCall(statement) ||
+    isTurtleFillCall(statement) ||
+    isTurtleStampCall(statement) ||
+    isTurtleShapeCall(statement)
+  );
+}
+
+/**
+ * Run one per-turtle command once for **every** addressed turtle
+ * (`spec/turtles-and-sprites.md:113` "When multiple turtles are addressed by `tell`, a turtle
+ * command applies once for each addressed turtle"), pointing {@link Environment.turtle} at each
+ * addressed turtle's own stored state ({@link Environment.addressing}) in turn so the existing
+ * single-turtle executors ({@link dispatchTurtleCommandOnce}) mutate the right per-turtle state
+ * unchanged. After each turtle's run, the events that turtle produced are stamped with its
+ * `turtle-id` — but only once `tell` has made the addressed set explicit
+ * ({@link TurtleAddressing.explicit}); before any `tell` the implicit default main turtle's events
+ * carry no `turtle-id`, exactly as every Core/Turtle & Rendering fixture expects. A halting outcome
+ * from any addressed turtle stops the loop immediately, so a diagnostic on one turtle is not masked
+ * by a later turtle's success.
+ *
+ * Each iteration points the current turtle ({@link TurtleAddressing.currentId} and its derived
+ * {@link Environment.turtle} cache) at the turtle whose turn it is, so a `who` evaluated *inside* the
+ * command's argument (e.g. `forward some_proc` where `some_proc` reads `who`) reports the turtle
+ * actually running the command, not the first addressed one (`spec/turtles-and-sprites.md:26`).
+ *
+ * This per-iteration re-pointing is transient — it must not outlive the statement, because merely
+ * iterating the addressed set does not change it. After the loop the current turtle is re-derived
+ * from the addressed set's first turtle ({@link TurtleAddressing.ids}, the main turtle when it is
+ * empty). That one rule handles both cases correctly: with no nested `tell`, `ids` is still the
+ * original set, so the current turtle returns to its first member; a `tell` run inside the argument
+ * evaluation legitimately replaced `ids` with its own set, so re-deriving from `ids[0]` honors that
+ * nested `tell` — even when it ran in an early iteration and a later iteration re-pointed
+ * `currentId` transiently in between.
+ */
+function runPerTurtleCommand(
+  statement: StatementNode,
+  environment: Environment,
+): ExecSignal | undefined {
+  const { addressing } = environment;
+  // Snapshot the addressed ids so a command that mutates the world mid-loop (e.g. a nested `tell`
+  // during argument evaluation) cannot change which turtles this one statement applies to.
+  const addressedIds = [...addressing.ids];
+  let outcome: ExecSignal | undefined;
+  for (const id of addressedIds) {
+    addressing.currentId = id;
+    environment.turtle = turtleStateFor(addressing, id);
+    const firstEventIndex = environment.events.length;
+    outcome = dispatchTurtleCommandOnce(statement, environment) as
+      ExecSignal | undefined;
+    if (addressing.explicit) {
+      stampTurtleId(environment, firstEventIndex, id);
+    }
+    if (outcome) {
+      break;
+    }
+  }
+  // Re-derive the current turtle from the addressed set's first member: the per-iteration
+  // re-pointing above is transient, and `addressing.ids` now holds whatever set is in effect — the
+  // original one when no nested `tell` ran, or the nested `tell`'s set when one did. Either way its
+  // first turtle (the main turtle when empty) is the current turtle, keeping `who` and the state
+  // reporters in agreement.
+  const [firstId = MAIN_TURTLE_ID] = addressing.ids;
+  addressing.currentId = firstId;
+  environment.turtle = turtleStateFor(addressing, firstId);
+  return outcome;
+}
+
+/**
+ * Stamp `turtle_id` onto the turtle-specific events emitted at or after `firstEventIndex` — the
+ * events one addressed turtle's command run just produced (`spec/turtles-and-sprites.md:113`:
+ * turtle-specific events "MUST" carry the acting turtle's identity). Only events that do **not**
+ * already carry a `turtle_id` are stamped: an event that arrives with its own authoritative id — a
+ * `spawn-turtle` emitted by a `new_turtle` evaluated in the command's argument position, or an event
+ * a nested per-turtle command already stamped — keeps that id, so the acting turtle's id is never
+ * written over another turtle's. The payload is untouched.
+ */
+function stampTurtleId(
+  environment: Environment,
+  firstEventIndex: number,
+  id: TurtleId,
+): void {
+  const produced = environment.events.slice(firstEventIndex);
+  const stamped = produced.map((event) =>
+    event.turtle_id === undefined ? { ...event, turtle_id: id } : event,
+  );
+  environment.events.splice(firstEventIndex, produced.length, ...stamped);
+}
+
+/**
  * Single entry point {@link executeStatements} calls to try every turtle command in one step.
- * Each new turtle command (`#202`/`#204`/`#207`/`#210`, …) should add its `isTurtleXCall`/
- * `executeTurtleXCall` pair and one more branch **here**, not in `executeStatements` itself
- * (issue #209 added the `set_width` branch this way, following issue #208's `set_color`/
- * `set_background` branches):
- * `executeStatements` recurses once per procedure call (via `runProcedureBody`/`runProcedure`),
- * so every local variable/branch added directly to its body grows *every* stack frame in a deep
- * recursive program. Growing this dispatcher instead keeps `executeStatements`'s own frame size
- * fixed regardless of how many turtle commands exist — confirmed necessary when adding the
- * `pen_up`/`pen_down` branch here (issue #206) pushed a 600-deep `recursionDepthLimit: 1000`
- * regression test (`execution-budget.test.mjs`) over the native call-stack limit until the three
- * previously-inline branches (`forward`/`back`, `left`/`right`, `pen_up`/`pen_down`) were
- * consolidated into this single call.
+ * A per-turtle command ({@link isPerTurtleCommand}) runs once for each addressed turtle via
+ * {@link runPerTurtleCommand}; a canvas-global turtle command (`set_background`/`grid`/`axes`/
+ * `measure`/`clear_screen`) runs exactly once via {@link dispatchTurtleCommandOnce}. Returns the
+ * {@link NOT_A_TURTLE_COMMAND} sentinel when `statement` is neither.
  */
 function dispatchTurtleCommand(
+  statement: StatementNode,
+  environment: Environment,
+): ExecSignal | undefined | typeof NOT_A_TURTLE_COMMAND {
+  if (isPerTurtleCommand(statement)) {
+    return runPerTurtleCommand(statement, environment);
+  }
+  return dispatchTurtleCommandOnce(statement, environment);
+}
+
+/**
+ * Validate and run a single turtle command against {@link Environment.turtle} (the current turtle).
+ * This is the original per-command dispatch — every `isTurtleXCall`/`executeTurtleXCall` branch —
+ * now reached once per addressed turtle for a per-turtle command ({@link runPerTurtleCommand}) or
+ * once for a canvas-global one ({@link dispatchTurtleCommand}).
+ */
+function dispatchTurtleCommandOnce(
   statement: StatementNode,
   environment: Environment,
 ): ExecSignal | undefined | typeof NOT_A_TURTLE_COMMAND {
@@ -3381,6 +3621,14 @@ function executeStatements(
       continue;
     }
 
+    const profileOutcome = dispatchProfileStatement(statement, environment);
+    if (profileOutcome !== NOT_A_PROFILE_STATEMENT) {
+      if (profileOutcome) {
+        return profileOutcome;
+      }
+      continue;
+    }
+
     if (statement.kind === "Return") {
       if (!isSupportedArgument(statement.value, environment)) {
         continue;
@@ -3764,6 +4012,7 @@ function createExecutionEnvironment(
   options: ExecuteOptions | undefined,
   source: string,
 ): Environment {
+  const turtle = createDefaultTurtleState();
   return {
     frames: [new Map()],
     repeatTurns: [],
@@ -3782,8 +4031,9 @@ function createExecutionEnvironment(
     ),
     instructionCount: { count: 0 },
     signal: options?.signal,
-    turtle: createDefaultTurtleState(),
+    turtle,
     turtleWorld: new TurtleWorld(),
+    addressing: createTurtleAddressing(turtle),
     randomNumberGenerator: createRandomNumberGeneratorState(),
     tickClock: createTickClock(),
     sound: createSoundState(),

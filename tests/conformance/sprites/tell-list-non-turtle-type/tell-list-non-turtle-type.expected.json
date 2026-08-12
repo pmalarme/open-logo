@@ -1,0 +1,65 @@
+{
+  "description": "issue #674 (SP2): a list argument to `tell` that contains a non-turtle item raises `ol-type` (spec/turtles-and-sprites.md: the list's items must all be turtles). The whole `tell` fails on the first non-turtle item — the addressed set is left unchanged — so a partially-valid list never half-addresses. The diagnostic points at the argument (the list) span; `value` is the offending item (`5`), `actual` its type (`number`), `operation` `tell`.",
+  "profiles": ["sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-list-non-turtle-type/tell-list-non-turtle-type",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": { "statement_kind": "Assign" }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/tell-list-non-turtle-type/tell-list-non-turtle-type",
+        "start": [1, 6],
+        "end": [1, 16]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-list-non-turtle-type/tell-list-non-turtle-type",
+        "start": [2, 1],
+        "end": [2, 14]
+      },
+      "payload": { "statement_kind": "ProfileStatement" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "sprites/tell-list-non-turtle-type/tell-list-non-turtle-type",
+        "start": [2, 6],
+        "end": [2, 14]
+      },
+      "params": {
+        "expected": "turtle",
+        "actual": "number",
+        "value": 5,
+        "operation": "tell"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

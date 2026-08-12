@@ -1,0 +1,68 @@
+{
+  "description": "issue #674 (SP2): the required C3 identity fixture SP1 could not write. `tell :friend` sets the addressed set to the freshly-spawned turtle, so `who` (the current turtle) reports `:friend`. Written unparenthesised because `print (who == :friend)` currently fails to parse (bug #709 — the reader commits to `parenthesized-call` when a callable name heads the parentheses). `who == :friend` is `true` because turtle `==` compares the stable id (C3, #665), not the JS wrapper, so a re-wrapped turtle still compares equal.",
+  "profiles": ["sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-who-identity/tell-who-identity",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": { "statement_kind": "Assign" }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/tell-who-identity/tell-who-identity",
+        "start": [1, 11],
+        "end": [1, 21]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-who-identity/tell-who-identity",
+        "start": [2, 1],
+        "end": [2, 13]
+      },
+      "payload": { "statement_kind": "ProfileStatement" }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-who-identity/tell-who-identity",
+        "start": [3, 1],
+        "end": [3, 21]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 4,
+      "kind": "print",
+      "source_span": {
+        "document": "sprites/tell-who-identity/tell-who-identity",
+        "start": [3, 1],
+        "end": [3, 21]
+      },
+      "payload": { "values": [true] }
+    }
+  ],
+  "diagnostics": []
+}

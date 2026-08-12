@@ -1,0 +1,3 @@
+:friend = new_turtle
+tell :friend
+print who == who

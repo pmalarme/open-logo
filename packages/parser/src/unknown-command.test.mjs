@@ -190,9 +190,9 @@ test("profile gating: user-declared procedures are visible regardless of active 
 // is made visible by any active profile, so `ol-unknown-command` MUST flag them — otherwise a
 // Core-only program would silently accept e.g. `tell 5` (a false-accept), violating the
 // Core-neutrality guarantee of `spec/interaction-events.md` §Profiles and reservation. Once a
-// profile is active, its per-profile checker slice (#678 Sprites, #687 Interaction) registers the
-// head name in `collectVisibleNames` and the diagnostic disappears — this slice adds no per-profile
-// name table, only the shared-node walk.
+// profile is active, its per-profile checker slice (#674 registers Sprites' `tell`, #687
+// Interaction) registers the head name in `collectVisibleNames` and the diagnostic disappears —
+// the C2 slice (#664) itself adds no per-profile name table, only the shared-node walk.
 
 test("a bodyless profile head (`tell 5`) is flagged ol-unknown-command in a Core-only program", () => {
   // `tell 5` parses cleanly (bodyless mode-switch shape), so without the ProfileStatement gate it
@@ -240,6 +240,38 @@ test("the profile-head diagnostic points at the head keyword's own span", () => 
   // `tell` occupies columns 1-4 on line 1.
   assert.deepEqual(finding.source_span.start, [1, 1]);
   assert.deepEqual(finding.source_span.end, [1, 5]);
+});
+
+// --- Sprites registers `tell` as a visible command name (issue #674, SP2) ---
+// The other half of the slice: registering the runtime semantics is not enough — with `sprites`
+// active the checker must ALSO recognize `tell` as a visible head, or `unknownCommandRule` would
+// still reject it `ol-unknown-command` (the C2 gate is live). Only `tell` is registered for SP2;
+// `ask`/`each` land with their executing slices (#675/#676).
+
+test("`tell` checks clean under an active sprites profile (its head name is visible)", () => {
+  const diagnostics = checkSource(":x = 1\ntell :x", ["sprites"]);
+  assert.deepEqual(diagnostics, []);
+});
+
+test("a typo of `tell` suggests it under sprites (tell is in the did-you-mean candidate set)", () => {
+  // `tel` is distance 1 from `tell`; with sprites active `tell` is a visible candidate.
+  const { ast } = OL.parse(":x = 1\ntel :x", "unit.logo");
+  const diagnostics = OL.check(ast, { profiles: ["sprites"] }).diagnostics;
+  const finding = diagnostics.find(
+    (d) => d.code === "ol-unknown-command" && d.params.name === "tel",
+  );
+  assert.ok(finding, "expected an ol-unknown-command for the typo `tel`");
+  assert.equal(finding.params.suggestion, "tell");
+});
+
+test("`tell` stays unknown when sprites is inactive even though other profiles are active", () => {
+  const diagnostics = checkSource(":x = 1\ntell :x", [
+    "core-language",
+    "turtle-rendering",
+  ]);
+  const finding = diagnostics.find((d) => d.code === "ol-unknown-command");
+  assert.ok(finding, "expected tell to be unknown without sprites");
+  assert.equal(finding.params.name, "tell");
 });
 
 test("tie-break is deterministic: equal-distance candidates resolve lexicographically", () => {
