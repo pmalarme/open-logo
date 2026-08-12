@@ -219,10 +219,9 @@ test("clear_screen before any tell emits one un-stamped clear (main turtle)", ()
   assert.equal(clears[0].turtle_id, undefined);
 });
 
-test("clean under tell stamps its clear event but does not home the turtle", () => {
-  // `clean` clears only the drawing; it homes no turtle. Under explicit addressing the single clear
-  // event still carries the current turtle's id (harmless — a `clean` clear changes no per-turtle
-  // state), keeping attribution uniform with `clear_screen`.
+test("clean under tell emits one un-stamped clear (it homes no turtle)", () => {
+  // `clean` clears only the drawing; it homes no turtle, so its `clear` event carries no `turtle_id`
+  // even under explicit addressing — only `clear_screen`'s homing is turtle-specific.
   const result = execute(
     ":a = new_turtle\ntell [ :a ]\nforward 10\nclean",
     "main.logo",
@@ -230,6 +229,6 @@ test("clean under tell stamps its clear event but does not home the turtle", () 
   assert.deepEqual(result.diagnostics, []);
   const clears = of(result.events, "clear");
   assert.equal(clears.length, 1);
-  assert.equal(clears[0].turtle_id, 1);
+  assert.equal(clears[0].turtle_id, undefined);
   assert.deepEqual(clears[0].payload, { mode: "clean" });
 });

@@ -628,9 +628,10 @@ function isTurtleClearCall(statement: StatementNode): boolean {
  * emitting `move`/`turn` here as well would double-home the reducer's turtle state. This mirrors
  * how {@link setVisibility}/{@link setPen} emit only their own single event, not a compound one.
  *
- * Still exactly one `clear` event, but under explicit addressing (`tell`/`ask`/`each`) it carries
- * the homed turtle's `turtle_id` (`addressing.currentId`) so a per-turtle state reducer homes the
- * turtle the runtime actually homed rather than assuming the main turtle; before any `tell` it stays
+ * Still exactly one `clear` event, but a `clear_screen` under explicit addressing (`tell`/`ask`/
+ * `each`) carries the homed turtle's `turtle_id` (`addressing.currentId`) so a per-turtle state
+ * reducer homes the turtle the runtime actually homed rather than assuming the main turtle; `clean`
+ * (drawing-only, homes no turtle) never carries one, and before any `tell` even `clear_screen` stays
  * un-stamped, exactly as the pre-slice Turtle & Rendering `clear` fixtures expect.
  */
 function clearScreen(
@@ -644,14 +645,19 @@ function clearScreen(
     turtle.y = 0;
     turtle.heading = 0;
   }
-  // The canvas clear is emitted once (not per turtle — see {@link isPerTurtleCommand}), but
-  // `clear_screen`'s homing acts on the *current* turtle. Once `tell`/`ask`/`each` has made the
-  // addressed set explicit that current turtle need not be the main turtle, so the single `clear`
-  // event carries `addressing.currentId` — exactly the `turtle_id` {@link stampTurtleId} would put
-  // on a per-turtle event — so a per-turtle state reducer homes the turtle the runtime actually
-  // homed instead of guessing the main turtle. Before any `tell` (`explicit === false`) the event
-  // stays un-stamped, matching every Turtle & Rendering `clear` fixture emitted before this slice.
-  const turtle_id = addressing.explicit ? addressing.currentId : undefined;
+  // The canvas clear is emitted once (not per turtle — see {@link isPerTurtleCommand}). Only
+  // `clear_screen` homes a turtle, and it homes the *current* one; once `tell`/`ask`/`each` has made
+  // the addressed set explicit that current turtle need not be the main turtle, so its single `clear`
+  // event carries `addressing.currentId` — exactly the `turtle_id` {@link stampTurtleId} would put on
+  // a per-turtle event — letting a per-turtle state reducer home the turtle the runtime actually
+  // homed instead of guessing the main turtle. `clean` changes no turtle (it only clears the
+  // drawing), so it never carries a `turtle_id`; and before any `tell` (`explicit === false`) even a
+  // `clear_screen` stays un-stamped, matching every Turtle & Rendering `clear` fixture emitted before
+  // this slice.
+  const turtle_id =
+    mode === "clear_screen" && addressing.explicit
+      ? addressing.currentId
+      : undefined;
   environment.events.push({
     seq: environment.events.length,
     kind: "clear",

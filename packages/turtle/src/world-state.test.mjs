@@ -58,6 +58,19 @@ test("MAIN_TURTLE_ID is 0, matching the runtime allocator's reserved main-turtle
   assert.equal(OL.MAIN_TURTLE_ID, 0);
 });
 
+test("the shared initial world is genuinely immutable at runtime", () => {
+  // Not merely a ReadonlyMap type: a JavaScript caller must not be able to corrupt the shared seed
+  // and taint a later default fold, so its mutators throw.
+  assert.throws(() => OL.INITIAL_TURTLE_WORLD_STATE.set(9, {}), TypeError);
+  assert.throws(() => OL.INITIAL_TURTLE_WORLD_STATE.delete(0), TypeError);
+  assert.throws(() => OL.INITIAL_TURTLE_WORLD_STATE.clear(), TypeError);
+  // The seed is unchanged and still folds correctly afterward.
+  assert.deepEqual(
+    [...OL.INITIAL_TURTLE_WORLD_STATE.keys()],
+    [OL.MAIN_TURTLE_ID],
+  );
+});
+
 test("spawn-turtle registers a new turtle from its payload's initial state", () => {
   const world = OL.reduceTurtleWorldEvents([
     spawn(1, { shape: "bee", visible: false, color: "yellow", width: 3 }),

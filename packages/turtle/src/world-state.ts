@@ -54,18 +54,39 @@ export const MAIN_TURTLE_ID: TurtleId = 0;
 export type TurtleWorldState = ReadonlyMap<TurtleId, TurtleState>;
 
 /**
+ * Return `map` made genuinely immutable at runtime: its mutators (`set`/`delete`/`clear`) are
+ * replaced with ones that throw, then the object is frozen. Used only for the shared
+ * {@link INITIAL_TURTLE_WORLD_STATE} seed so a JavaScript caller cannot corrupt it — a plain
+ * `Object.freeze` does not suffice, because a frozen `Map` still honors `.set`. Reads (`get`/`has`/
+ * iteration/`size`) are untouched.
+ */
+function freezeMap<K, V>(map: Map<K, V>): ReadonlyMap<K, V> {
+  const frozen = map as Map<K, V> & {
+    set: never;
+    delete: never;
+    clear: never;
+  };
+  const reject = (): never => {
+    throw new TypeError("INITIAL_TURTLE_WORLD_STATE is immutable");
+  };
+  frozen.set = reject as never;
+  frozen.delete = reject as never;
+  frozen.clear = reject as never;
+  return Object.freeze(frozen);
+}
+
+/**
  * The program-start world: just the main turtle at its {@link INITIAL_TURTLE_STATE}. Shared as the
  * default fold seed; every {@link reduceTurtleWorldState} call copies the world before mutating
- * (`new Map(world)`), so this instance is never written through internally. It is typed
- * {@link TurtleWorldState} (a `ReadonlyMap`) so the compiler rejects `.set`/`.delete`/`.clear` on it
- * — `Object.freeze` is deliberately *not* used here because it does not make a `Map`'s entries
- * immutable (a frozen `Map` still honors `.set`), so it would give false assurance; the read-only
- * type plus the copy-on-write fold is the actual guarantee.
+ * (`new Map(world)`), so this instance is never written through internally. It is both typed
+ * {@link TurtleWorldState} (a `ReadonlyMap`, so the compiler rejects `.set`/`.delete`/`.clear`) and
+ * genuinely frozen at runtime by {@link freezeMap}, so a JavaScript caller cannot mutate the shared
+ * singleton and corrupt a later default fold either — `Object.freeze` alone would not do this,
+ * because a frozen `Map` still honors `.set`.
  */
-export const INITIAL_TURTLE_WORLD_STATE: TurtleWorldState = new Map<
-  TurtleId,
-  TurtleState
->([[MAIN_TURTLE_ID, INITIAL_TURTLE_STATE]]);
+export const INITIAL_TURTLE_WORLD_STATE: TurtleWorldState = freezeMap(
+  new Map<TurtleId, TurtleState>([[MAIN_TURTLE_ID, INITIAL_TURTLE_STATE]]),
+);
 
 /**
  * Reduces one trace event into the next per-turtle world state. A `spawn-turtle` event registers
