@@ -36,6 +36,17 @@
  * reserved-word rule, the `ol-type` negatives for `tell`/`ask`, per-turtle pen/color/width/position
  * state, and the spec's own `ask turtles [ each [ … ] ]` composition (issue #679, the Sprites epic
  * #660 terminal slice under saga #572).
+ * `heritage` was added once M5 shipped it: the Heritage spellings (`make`/`to`/`output`/`op`, the
+ * ten command aliases `fd`/`bk`/`lt`/`rt`/`pu`/`pd`/`st`/`ht`/`cs`/`pr`, the three reporter aliases
+ * `bf`/`bl`/`se`, and `value of … for key`) are gated behind the `heritage` profile in the checker,
+ * they lower to the identical Core semantics — byte-identical event streams and diagnostics whose
+ * `code` **and** structured params are canonical (never the surface spelling: the H4 arity
+ * `params.callable`, H5 `params.operation`, and the return-family `params.keyword` all canonicalize
+ * across parse, semantic, and runtime stages — issues #734/#670 and #737/#741), and the Heritage
+ * conformance fixtures — statement forms, command aliases, reporter aliases, and `value of … for
+ * key`, in both profile-active and Core-rejected shapes plus execution proofs — are green in the
+ * full DAG (issue #672, the Heritage epic #659 terminal slice under saga #572). Heritage requires
+ * Data, which is already claimed.
  * Claiming a profile before it is conformant would be a false conformance claim — exactly the
  * failure mode the M4 audit exists to catch — so any future profile addition here must follow
  * the same rule: land the profile's conformance fixes first, then claim it.
@@ -61,6 +72,7 @@ export const SUPPORTED_PROFILES = [
   "educational",
   "sound",
   "sprites",
+  "heritage",
 ] as const;
 
 /**

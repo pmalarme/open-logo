@@ -982,13 +982,12 @@ test("runExamplesGate defaults exercise the real spec/examples/ corpus and manif
 
 test("runExamplesGate skips every example that needs a not-yet-implemented profile in the real corpus", () => {
   const result = runExamplesGate();
-  // Each M5 profile has a real example that must SKIP visibly until its terminal slice claims it.
-  // `09-sprites.logo` has left this list: #679 claims `sprites`, so it now RUNS and PASSES (see
-  // the dedicated test below). `heritage` and `interaction-events` are still unclaimed.
-  for (const [file, profile] of [
-    ["05-procedures.logo", "heritage"],
-    ["10-game.logo", "interaction-events"],
-  ]) {
+  // Each remaining unclaimed M5 profile has a real example that must SKIP visibly until its
+  // terminal slice claims it. `09-sprites.logo` (sprites, #679) and `05-procedures.logo`
+  // (heritage, #672) have BOTH left this list — their profiles are now claimed, so they RUN and
+  // PASS (each asserted by its own dedicated test below). Only `interaction-events` stays
+  // unclaimed.
+  for (const [file, profile] of [["10-game.logo", "interaction-events"]]) {
     assert.ok(
       result.lines.some(
         (line) => line.startsWith(`SKIP ${file}`) && line.includes(profile),
@@ -996,6 +995,25 @@ test("runExamplesGate skips every example that needs a not-yet-implemented profi
       `${file} must SKIP with a visible notice naming ${profile}`,
     );
   }
+});
+
+test("runExamplesGate: 05-procedures.logo RUNS and PASSES now that #672 claims heritage (the observable proof of the claim)", () => {
+  // This is the whole point of the Heritage terminal slice: claiming `heritage` in
+  // IMPLEMENTED_PROFILES must flip 05-procedures.logo from SKIP to a real PASS. It uses the
+  // Heritage `to … end` procedure form (`draw_tick`) alongside Core `define`/`return`, and
+  // requires only `heritage` (not `data`) — now implemented — so the example executes with zero
+  // error-severity diagnostics. If this ever regressed to SKIP, the claim would be premature (a
+  // false conformance claim, M4 finding F9); if it FAILed, Heritage would not be conformant. A
+  // green PASS here is the earned proof.
+  const result = runExamplesGate();
+  assert.ok(
+    result.lines.some((line) => line === "PASS 05-procedures.logo"),
+    "05-procedures.logo must RUN and PASS (not SKIP) once heritage is claimed",
+  );
+  assert.ok(
+    !result.lines.some((line) => line.startsWith("SKIP 05-procedures.logo")),
+    "05-procedures.logo must no longer be skipped",
+  );
 });
 
 test("runExamplesGate: 11-music.logo RUNS and PASSES now that #693 claims sound (the observable proof of the claim)", () => {
@@ -1079,28 +1097,29 @@ test("the check-examples.mjs CLI exits 0 when every example passes or is skipped
 // --- M5 profile skip / no-masking (issue #666) --------------------------------------------
 // This slice's examples-gate scaffolding must SKIP (with a visible notice) any example that needs
 // an M5 profile not yet claimed in IMPLEMENTED_PROFILES. As of #693 `sound` IS claimed (so
-// 11-music.logo runs) and as of #679 `sprites` IS claimed (so 09-sprites.logo runs); the remaining
-// two M5 profiles stay excluded until their own terminal slices claim them: heritage #672,
-// interaction-events #688.
+// 11-music.logo runs), as of #679 `sprites` IS claimed (so 09-sprites.logo runs), and as of #672
+// `heritage` IS claimed (so 05-procedures.logo runs); the one remaining M5 profile stays excluded
+// until its own terminal slice claims it: interaction-events #688.
 // The visible-SKIP behavior against the real gate is asserted by the "skips every example that
-// needs a not-yet-implemented profile in the real corpus" test above (05/10), and the
+// needs a not-yet-implemented profile in the real corpus" test above (10), and the
 // no-masking guard (a genuinely failing example still fails loudly) is covered by the existing
 // "catches masking of the Heritage 'to … end' reserved word" / "masked-alias" tests. We therefore
 // keep this slice's addition to a single load-light invariant to avoid re-rolling the known
 // cross-process coverage-merge artifact (issue #417) on examples-gate.mjs's hot classifyExample
 // path — see the PR body's coverage note.
 
-test("IMPLEMENTED_PROFILES claims sound (#693) and sprites (#679) and still excludes the other M5 profiles", () => {
+test("IMPLEMENTED_PROFILES claims sound (#693), sprites (#679), and heritage (#672) and still excludes the remaining M5 profile", () => {
   for (const [profile, slice] of [
     ["sound", "#693"],
     ["sprites", "#679"],
+    ["heritage", "#672"],
   ]) {
     assert.ok(
       IMPLEMENTED_PROFILES.includes(profile),
       `${profile} is claimed by its terminal slice ${slice}, so its example runs rather than SKIPs`,
     );
   }
-  for (const profile of ["heritage", "interaction-events"]) {
+  for (const profile of ["interaction-events"]) {
     assert.ok(
       !IMPLEMENTED_PROFILES.includes(profile),
       `${profile} must NOT be in IMPLEMENTED_PROFILES until its terminal slice claims it`,
