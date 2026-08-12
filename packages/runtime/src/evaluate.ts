@@ -239,6 +239,20 @@ export interface Environment {
   readonly foreverIterationLimit?: number;
   readonly callDepth: number[];
   readonly recursionDepthLimit: number;
+  /**
+   * The source span of the most recently entered procedure call, recorded by {@link runProcedure}
+   * just before it recurses. This is a pre-allocated mutable holder (a single object reused for
+   * the whole run) rather than a growing stack, so updating it on the recursion-depth-checked call
+   * path costs no per-frame allocation — the same stack-frame-size discipline the surrounding
+   * doc comments describe. Its sole consumer is `runProgram`'s escaped-`RangeError` guard
+   * (issue #726): if the host's native call stack overflows *before* the interpreter's own
+   * {@link recursionDepthLimit} counter trips (possible on a host whose stack is smaller than the
+   * one the clamp ceiling assumes — a browser tab, a `--stack-size`-reduced Node), the raw
+   * `RangeError` is caught and converted into an `ol-limit`/`recursion-depth` diagnostic carrying
+   * this span, so a learner never sees a bare host stack trace. `null` until the first procedure
+   * call, in which case the guard falls back to the whole-program span.
+   */
+  readonly lastCallSpan: { span: SourceSpan | null };
   readonly instructionBudget: number;
   readonly instructionCount: { count: number };
   readonly signal?: CancellationSignal;
@@ -477,6 +491,7 @@ export function createEnvironment(): Environment {
     events: [],
     callDepth: [],
     recursionDepthLimit: Number.POSITIVE_INFINITY,
+    lastCallSpan: { span: null },
     instructionBudget: Number.POSITIVE_INFINITY,
     instructionCount: { count: 0 },
     turtle,

@@ -77,6 +77,8 @@ export {
   DEFAULT_INSTRUCTION_BUDGET,
   DEFAULT_LEARNER_LEVEL,
   DEFAULT_RECURSION_DEPTH_LIMIT,
+  HOST_SAFE_RECURSION_DEPTH,
+  resolveEffectiveRecursionDepthLimit,
 } from "./execute-internal.js";
 export { defaultTutorTemplate, nextHintStage } from "./tutor-templates.js";
 export type { TutorTemplateFn } from "./tutor-templates.js";
@@ -125,9 +127,16 @@ export interface ExecuteResult {
  *   to that default rather than disabling the gate (`execute-internal.ts`'s
  *   `resolvePositiveFiniteLimit`).
  * - `recursionDepthLimit` — the maximum procedure-call nesting depth before halting with
- *   `ol-limit` (`limit: "recursion-depth"`). Defaults to {@link DEFAULT_RECURSION_DEPTH_LIMIT} —
- *   the same value this package always enforced, now configurable rather than hardcoded, with the
- *   same non-finite/non-positive fallback as `instructionBudget`.
+ *   `ol-limit` (`limit: "recursion-depth"`). Defaults to {@link DEFAULT_RECURSION_DEPTH_LIMIT},
+ *   now configurable rather than hardcoded, with the same non-finite/non-positive fallback as
+ *   `instructionBudget`. Issue #726: whatever a caller configures is additionally **clamped** to
+ *   {@link HOST_SAFE_RECURSION_DEPTH} — the interpreter never promises a depth the host call stack
+ *   cannot survive, so a raised budget cannot push execution past the point where V8's native
+ *   stack overflows with a raw `RangeError`. The `ol-limit` diagnostic reports the depth actually
+ *   enforced (the clamped value). **This removes the ability to configure recursion deeper than
+ *   {@link HOST_SAFE_RECURSION_DEPTH}**: requesting `1000` yields an effective `500`. The clamp is
+ *   observable — call {@link resolveEffectiveRecursionDepthLimit} to read the ceiling a given
+ *   request resolves to before running.
  * - `signal` — a {@link CancellationSignal} a caller can flip to `aborted` to cancel a
  *   still-running program. Checked before every statement/loop pass; once aborted, no further
  *   trace events are emitted and execution halts with `ol-limit` (`limit: "cancelled"`) —
