@@ -79,8 +79,8 @@ export function describeTurtleState(
 
 /**
  * Builds the non-visual state description for a whole {@link TurtleWorldState}: the state of the
- * turtle a state-bearing event most recently targeted, identified by name whenever the program
- * drives more than one turtle.
+ * turtle the most recent per-turtle command drove (`TurtleWorldState.lastActedTurtleId`),
+ * identified by name whenever the program drives more than one turtle.
  *
  * `spec/rendering.md:191` makes that identification a MUST: "Implementations with multiple turtles
  * MUST identify the active turtle or addressed turtle set." A world holding several turtles is

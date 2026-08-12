@@ -48,17 +48,19 @@ export const MAIN_TURTLE_ID: TurtleId = 0;
 
 /**
  * The whole turtle world a renderer paints and describes: every live turtle's own
- * {@link TurtleState}, plus which of them a state-bearing event most recently targeted.
+ * {@link TurtleState}, plus which of them a per-turtle command most recently drove.
  *
  * - {@link TurtleWorldState.turtles} is keyed by turtle identity. The main turtle
  *   ({@link MAIN_TURTLE_ID}) is always present; each `new_turtle` adds one entry when its
  *   `spawn-turtle` event is folded. Insertion order is creation order (the main turtle first, then
  *   each spawn), matching the `turtles` reporter's order so a renderer can iterate sprites
  *   deterministically.
- * - {@link TurtleWorldState.lastActedTurtleId} is the turtle a state-bearing event most recently
- *   targeted — the one whose state the non-visual description is about, so that description always
- *   names its own subject (`spec/rendering.md:191`: "Implementations with multiple turtles MUST
- *   identify the active turtle or addressed turtle set").
+ * - {@link TurtleWorldState.lastActedTurtleId} is the turtle the most recent per-turtle command
+ *   drove — whether that command changed the turtle's own state (`forward`, `set_color`, …) or only
+ *   the shared scene ({@link SCENE_ONLY_TURTLE_KINDS}: `fill`, `stamp`). It is the turtle whose
+ *   state the non-visual description is about, so that description always names its own subject
+ *   (`spec/rendering.md:191`: "Implementations with multiple turtles MUST identify the active
+ *   turtle or addressed turtle set").
  *
  * It is called *last-acted*, not *active*, on purpose. This package consumes the trace stream and
  * nothing else, and `spec/execution-model.md`'s event registry has **no addressing event**:
@@ -80,7 +82,8 @@ export const MAIN_TURTLE_ID: TurtleId = 0;
 export interface TurtleWorldState {
   /** Every live turtle's own state, keyed by identity, in creation order. */
   readonly turtles: ReadonlyMap<TurtleId, TurtleState>;
-  /** The turtle a state-bearing event most recently targeted. */
+  /** The turtle the most recent per-turtle command drove — a state-bearing one, or a scene-only
+   * `fill`/`stamp` ({@link SCENE_ONLY_TURTLE_KINDS}). */
   readonly lastActedTurtleId: TurtleId;
 }
 
@@ -139,10 +142,12 @@ export function lastActedTurtleState(world: TurtleWorldState): TurtleState {
  * Per-turtle command kinds that act on a turtle without changing its own {@link TurtleState}:
  * `fill` and `stamp` both "use the current turtle's pen and shape state"
  * (`spec/turtles-and-sprites.md:109`) and write into the shared retained scene rather than into the
- * turtle. They carry the acting turtle's `turtle_id` like any other per-turtle effect, so they must
- * still mark that turtle as the one that acted — otherwise `tell :a` / `forward 10` /
- * `ask :b [ stamp ]` would leave `:a` reported as the last turtle to act even though `:b` is the
- * turtle that just did something.
+ * turtle. They carry the acting turtle's `turtle_id` once addressing is explicit, like any other
+ * per-turtle effect, so they must still mark that turtle as the one that acted — otherwise
+ * `tell :a` / `forward 10` / `ask :b [ stamp ]` would leave `:a` reported as the last turtle to act
+ * even though `:b` is the turtle that just did something. Before any `tell` they carry no
+ * `turtle_id` and resolve to {@link MAIN_TURTLE_ID}, which is already the last-acted turtle, so a
+ * single-turtle program is unaffected.
  */
 const SCENE_ONLY_TURTLE_KINDS: ReadonlySet<string> = new Set(["fill", "stamp"]);
 

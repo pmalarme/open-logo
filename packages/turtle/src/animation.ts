@@ -108,7 +108,7 @@ export interface AnimationSnapshot {
    * The **last-acted** turtle's state as of every event consumed so far — the turtle the
    * non-visual state description is about. With a single turtle that is simply the main turtle's
    * folded state, unchanged from before per-turtle folding existed; under Sprites it is the turtle
-   * a state-bearing event most recently targeted, rather than every turtle's attributes merged
+   * the most recent per-turtle command drove, rather than every turtle's attributes merged
    * into one record.
    */
   readonly state: TurtleState;
