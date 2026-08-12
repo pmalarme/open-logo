@@ -205,6 +205,49 @@ test("primitive payload accepts a non-interaction primitive name (generic catch-
   assert.equal(event.payload.name, "some_future_primitive");
 });
 
+test("primitive payload carries the addressed turtle set for tell/ask/each (issue #766)", () => {
+  // The Sprites addressing primitives are the only `primitive` emitters that carry an
+  // `addressing` snapshot: the whole addressed set plus the current turtle, which is what makes
+  // spec/rendering.md:191 ("MUST identify the active turtle or addressed turtle set") reachable
+  // from the stream. The snapshot is absolute, so a consumer folds it by assignment.
+  for (const name of ["tell", "ask", "each"]) {
+    const event = {
+      seq: 21,
+      kind: "primitive",
+      source_span: makeSpan(),
+      payload: {
+        name,
+        addressing: { addressed_turtle_ids: [1, 2], current_turtle_id: 1 },
+      },
+    };
+    assert.ok(OL.isEventKind(event.kind));
+    assert.equal(event.payload.name, name);
+    assert.deepEqual(event.payload.addressing.addressed_turtle_ids, [1, 2]);
+    assert.equal(event.payload.addressing.current_turtle_id, 1);
+    // An addressing event describes a SET, so it is never turtle-specific: the envelope's
+    // `turtle_id` is "present only when the event is turtle-specific"
+    // (spec/execution-model.md:638) and the current turtle travels in the payload instead.
+    assert.equal(event.turtle_id, undefined);
+  }
+});
+
+test("an addressed set may be empty, with the current turtle falling back to the main turtle", () => {
+  // `tell [ ]` addresses no turtle; `who` still answers with the main turtle (id 0), so the
+  // snapshot pairs an empty set with a defined current turtle rather than a null one.
+  const event = {
+    seq: 22,
+    kind: "primitive",
+    source_span: makeSpan(),
+    payload: {
+      name: "tell",
+      addressing: { addressed_turtle_ids: [], current_turtle_id: 0 },
+    },
+  };
+  assert.ok(OL.isEventKind(event.kind));
+  assert.deepEqual(event.payload.addressing.addressed_turtle_ids, []);
+  assert.equal(event.payload.addressing.current_turtle_id, 0);
+});
+
 test("sound payload (set_tempo) carries beats per minute", () => {
   const event = {
     seq: 14,

@@ -1,5 +1,5 @@
 {
-  "description": "issue #679 (SP7): the spec's own canonical composition (spec/turtles-and-sprites.md:93-101) — `ask turtles [ each [ pen_up home pen_down ] ]` — proving the `turtles` reporter's result feeds `ask` directly. `turtles` reports the main turtle FIRST then each `new_turtle` in creation order, so `each` iterates id 0 then id 1 and every `pen-change`/`move`/`turn` carries that turtle's own `turtle_id`. `:friend` was moved to [0,30] by the preceding `tell`, so its `home` is a real move back to the origin, while the main turtle's is a no-op `move` [0,0]->[0,0] (`home` emits its `move`+`turn` pair unconditionally). The main turtle's events ARE stamped `turtle_id` 0 here, because `ask` has made the addressed set explicit.",
+  "description": "issue #679 (SP7): the spec's own canonical composition (spec/turtles-and-sprites.md:93-101) — `ask turtles [ each [ pen_up home pen_down ] ]` — proving the `turtles` reporter's result feeds `ask` directly. `turtles` reports the main turtle FIRST then each `new_turtle` in creation order, so `each` iterates id 0 then id 1 and every `pen-change`/`move`/`turn` carries that turtle's own `turtle_id`. `:friend` was moved to [0,30] by the preceding `tell`, so its `home` is a real move back to the origin, while the main turtle's is a no-op `move` [0,0]->[0,0] (`home` emits its `move`+`turn` pair unconditionally). The main turtle's events ARE stamped `turtle_id` 0 here, because `ask` has made the addressed set explicit. Every change of the addressed set — here from `ask`/`each`/`tell` — also emits the addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }`, so a consumer can identify the addressed turtle set (issue #766, spec/rendering.md:191); `ask`/`each` emit one again when the previous set is restored, on every exit path.",
   "profiles": ["sprites"],
   "execute": true,
   "events": [
@@ -49,6 +49,22 @@
     },
     {
       "seq": 3,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/ask-turtles-each-canonical/ask-turtles-each-canonical",
+        "start": [2, 1],
+        "end": [2, 13]
+      },
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 4,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/ask-turtles-each-canonical/ask-turtles-each-canonical",
@@ -60,7 +76,7 @@
       }
     },
     {
-      "seq": 4,
+      "seq": 5,
       "kind": "move",
       "source_span": {
         "document": "sprites/ask-turtles-each-canonical/ask-turtles-each-canonical",
@@ -75,7 +91,7 @@
       "turtle_id": 1
     },
     {
-      "seq": 5,
+      "seq": 6,
       "kind": "draw-segment",
       "source_span": {
         "document": "sprites/ask-turtles-each-canonical/ask-turtles-each-canonical",
@@ -91,7 +107,7 @@
       "turtle_id": 1
     },
     {
-      "seq": 6,
+      "seq": 7,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/ask-turtles-each-canonical/ask-turtles-each-canonical",
@@ -103,7 +119,23 @@
       }
     },
     {
-      "seq": 7,
+      "seq": 8,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/ask-turtles-each-canonical/ask-turtles-each-canonical",
+        "start": [4, 1],
+        "end": [10, 2]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [0, 1],
+          "current_turtle_id": 0
+        }
+      }
+    },
+    {
+      "seq": 9,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/ask-turtles-each-canonical/ask-turtles-each-canonical",
@@ -115,7 +147,23 @@
       }
     },
     {
-      "seq": 8,
+      "seq": 10,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/ask-turtles-each-canonical/ask-turtles-each-canonical",
+        "start": [5, 3],
+        "end": [9, 4]
+      },
+      "payload": {
+        "name": "each",
+        "addressing": {
+          "addressed_turtle_ids": [0],
+          "current_turtle_id": 0
+        }
+      }
+    },
+    {
+      "seq": 11,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/ask-turtles-each-canonical/ask-turtles-each-canonical",
@@ -127,7 +175,7 @@
       }
     },
     {
-      "seq": 9,
+      "seq": 12,
       "kind": "pen-change",
       "source_span": {
         "document": "sprites/ask-turtles-each-canonical/ask-turtles-each-canonical",
@@ -141,7 +189,7 @@
       "turtle_id": 0
     },
     {
-      "seq": 10,
+      "seq": 13,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/ask-turtles-each-canonical/ask-turtles-each-canonical",
@@ -153,7 +201,7 @@
       }
     },
     {
-      "seq": 11,
+      "seq": 14,
       "kind": "move",
       "source_span": {
         "document": "sprites/ask-turtles-each-canonical/ask-turtles-each-canonical",
@@ -168,7 +216,7 @@
       "turtle_id": 0
     },
     {
-      "seq": 12,
+      "seq": 15,
       "kind": "turn",
       "source_span": {
         "document": "sprites/ask-turtles-each-canonical/ask-turtles-each-canonical",
@@ -182,7 +230,7 @@
       "turtle_id": 0
     },
     {
-      "seq": 13,
+      "seq": 16,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/ask-turtles-each-canonical/ask-turtles-each-canonical",
@@ -194,7 +242,7 @@
       }
     },
     {
-      "seq": 14,
+      "seq": 17,
       "kind": "pen-change",
       "source_span": {
         "document": "sprites/ask-turtles-each-canonical/ask-turtles-each-canonical",
@@ -208,7 +256,23 @@
       "turtle_id": 0
     },
     {
-      "seq": 15,
+      "seq": 18,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/ask-turtles-each-canonical/ask-turtles-each-canonical",
+        "start": [5, 3],
+        "end": [9, 4]
+      },
+      "payload": {
+        "name": "each",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 19,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/ask-turtles-each-canonical/ask-turtles-each-canonical",
@@ -220,7 +284,7 @@
       }
     },
     {
-      "seq": 16,
+      "seq": 20,
       "kind": "pen-change",
       "source_span": {
         "document": "sprites/ask-turtles-each-canonical/ask-turtles-each-canonical",
@@ -234,7 +298,7 @@
       "turtle_id": 1
     },
     {
-      "seq": 17,
+      "seq": 21,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/ask-turtles-each-canonical/ask-turtles-each-canonical",
@@ -246,7 +310,7 @@
       }
     },
     {
-      "seq": 18,
+      "seq": 22,
       "kind": "move",
       "source_span": {
         "document": "sprites/ask-turtles-each-canonical/ask-turtles-each-canonical",
@@ -261,7 +325,7 @@
       "turtle_id": 1
     },
     {
-      "seq": 19,
+      "seq": 23,
       "kind": "turn",
       "source_span": {
         "document": "sprites/ask-turtles-each-canonical/ask-turtles-each-canonical",
@@ -275,7 +339,7 @@
       "turtle_id": 1
     },
     {
-      "seq": 20,
+      "seq": 24,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/ask-turtles-each-canonical/ask-turtles-each-canonical",
@@ -287,7 +351,7 @@
       }
     },
     {
-      "seq": 21,
+      "seq": 25,
       "kind": "pen-change",
       "source_span": {
         "document": "sprites/ask-turtles-each-canonical/ask-turtles-each-canonical",
@@ -299,6 +363,38 @@
         "to": "down"
       },
       "turtle_id": 1
+    },
+    {
+      "seq": 26,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/ask-turtles-each-canonical/ask-turtles-each-canonical",
+        "start": [5, 3],
+        "end": [9, 4]
+      },
+      "payload": {
+        "name": "each",
+        "addressing": {
+          "addressed_turtle_ids": [0, 1],
+          "current_turtle_id": 0
+        }
+      }
+    },
+    {
+      "seq": 27,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/ask-turtles-each-canonical/ask-turtles-each-canonical",
+        "start": [4, 1],
+        "end": [10, 2]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
     }
   ],
   "diagnostics": []

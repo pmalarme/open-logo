@@ -1,0 +1,244 @@
+{
+  "description": "issue #766: the addressed turtle set is observable in the trace stream, so a consumer can satisfy spec/rendering.md:191 (\"Implementations with multiple turtles MUST identify the active turtle or addressed turtle set\"). This is that issue's first acceptance criterion verbatim: `tell [ :a :b ]` / `forward 10` / `ask :b [ hide_turtle ]`. Each change of the addressed set emits a `primitive` event — the registered generic catch-all for a primitive without a more specific kind (spec/execution-model.md:703), NOT a new event kind — carrying `addressing: { addressed_turtle_ids, current_turtle_id }`. The snapshot is absolute, so folding the stream by assignment yields the addressed set { 1, 2 } and current turtle 1 after `ask` restores (spec/turtles-and-sprites.md:58), even though the last turtle-stamped effect in the stream belongs to turtle 2. An addressing event describes a SET, so it carries no envelope `turtle_id` (spec/execution-model.md:638: present only when the event is turtle-specific).",
+  "profiles": ["sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/addressing-tell-ask-restore/addressing-tell-ask-restore",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/addressing-tell-ask-restore/addressing-tell-ask-restore",
+        "start": [1, 6],
+        "end": [1, 16]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/addressing-tell-ask-restore/addressing-tell-ask-restore",
+        "start": [2, 1],
+        "end": [2, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/addressing-tell-ask-restore/addressing-tell-ask-restore",
+        "start": [2, 6],
+        "end": [2, 16]
+      },
+      "turtle_id": 2,
+      "payload": {
+        "turtle_id": 2,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/addressing-tell-ask-restore/addressing-tell-ask-restore",
+        "start": [3, 1],
+        "end": [3, 15]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/addressing-tell-ask-restore/addressing-tell-ask-restore",
+        "start": [3, 1],
+        "end": [3, 15]
+      },
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [1, 2],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/addressing-tell-ask-restore/addressing-tell-ask-restore",
+        "start": [4, 1],
+        "end": [4, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/addressing-tell-ask-restore/addressing-tell-ask-restore",
+        "start": [4, 1],
+        "end": [4, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "heading": 0
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 8,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/addressing-tell-ask-restore/addressing-tell-ask-restore",
+        "start": [4, 1],
+        "end": [4, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "color": "black",
+        "width": 1
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 9,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/addressing-tell-ask-restore/addressing-tell-ask-restore",
+        "start": [4, 1],
+        "end": [4, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "heading": 0
+      },
+      "turtle_id": 2
+    },
+    {
+      "seq": 10,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/addressing-tell-ask-restore/addressing-tell-ask-restore",
+        "start": [4, 1],
+        "end": [4, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "color": "black",
+        "width": 1
+      },
+      "turtle_id": 2
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/addressing-tell-ask-restore/addressing-tell-ask-restore",
+        "start": [5, 1],
+        "end": [5, 23]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/addressing-tell-ask-restore/addressing-tell-ask-restore",
+        "start": [5, 1],
+        "end": [5, 23]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [2],
+          "current_turtle_id": 2
+        }
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/addressing-tell-ask-restore/addressing-tell-ask-restore",
+        "start": [5, 10],
+        "end": [5, 21]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "visibility-change",
+      "source_span": {
+        "document": "sprites/addressing-tell-ask-restore/addressing-tell-ask-restore",
+        "start": [5, 10],
+        "end": [5, 21]
+      },
+      "payload": {
+        "from": true,
+        "to": false
+      },
+      "turtle_id": 2
+    },
+    {
+      "seq": 15,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/addressing-tell-ask-restore/addressing-tell-ask-restore",
+        "start": [5, 1],
+        "end": [5, 23]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [1, 2],
+          "current_turtle_id": 1
+        }
+      }
+    }
+  ],
+  "diagnostics": []
+}

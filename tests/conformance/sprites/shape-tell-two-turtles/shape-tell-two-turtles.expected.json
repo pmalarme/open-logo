@@ -1,5 +1,5 @@
 {
-  "description": "issue #677 (SP5): `tell [ :a :b ]` then a single `set_shape \"arrow\"` applies once per addressed turtle, emitting one `shape-change` per turtle carrying its own `turtle_id` (1 then 2) — shape is per-turtle state, so each turtle records its own change.",
+  "description": "issue #677 (SP5): `tell [ :a :b ]` then a single `set_shape \"arrow\"` applies once per addressed turtle, emitting one `shape-change` per turtle carrying its own `turtle_id` (1 then 2) — shape is per-turtle state, so each turtle records its own change. Every change of the addressed set — here from `tell` — also emits the addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }`, so a consumer can identify the addressed turtle set (issue #766, spec/rendering.md:191); `ask`/`each` emit one again when the previous set is restored, on every exit path.",
   "profiles": ["sprites"],
   "execute": true,
   "events": [
@@ -81,6 +81,22 @@
     },
     {
       "seq": 5,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/shape-tell-two-turtles/shape-tell-two-turtles",
+        "start": [3, 1],
+        "end": [3, 15]
+      },
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [1, 2],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 6,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/shape-tell-two-turtles/shape-tell-two-turtles",
@@ -92,7 +108,7 @@
       }
     },
     {
-      "seq": 6,
+      "seq": 7,
       "kind": "shape-change",
       "source_span": {
         "document": "sprites/shape-tell-two-turtles/shape-tell-two-turtles",
@@ -106,7 +122,7 @@
       "turtle_id": 1
     },
     {
-      "seq": 7,
+      "seq": 8,
       "kind": "shape-change",
       "source_span": {
         "document": "sprites/shape-tell-two-turtles/shape-tell-two-turtles",

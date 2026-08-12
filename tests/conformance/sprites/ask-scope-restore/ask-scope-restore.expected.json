@@ -1,5 +1,5 @@
 {
-  "description": "issue #675 (SP3): `ask <turtle> <block>` runs the block for that turtle then RESTORES the previous addressed set. `:t` (id 1) turns red and moves inside the block; the trailing `forward 20` runs for the set active before `ask` — the default main turtle, whose `move`/`draw-segment` carry no `turtle_id`.",
+  "description": "issue #675 (SP3): `ask <turtle> <block>` runs the block for that turtle then RESTORES the previous addressed set. `:t` (id 1) turns red and moves inside the block; the trailing `forward 20` runs for the set active before `ask` — the default main turtle, whose `move`/`draw-segment` carry no `turtle_id`. Every change of the addressed set — here from `ask` — also emits the addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }`, so a consumer can identify the addressed turtle set (issue #766, spec/rendering.md:191); `ask`/`each` emit one again when the previous set is restored, on every exit path.",
   "profiles": ["sprites"],
   "execute": true,
   "events": [
@@ -49,6 +49,22 @@
     },
     {
       "seq": 3,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/ask-scope-restore/ask-scope-restore",
+        "start": [2, 1],
+        "end": [5, 2]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 4,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/ask-scope-restore/ask-scope-restore",
@@ -60,7 +76,7 @@
       }
     },
     {
-      "seq": 4,
+      "seq": 5,
       "kind": "color-change",
       "source_span": {
         "document": "sprites/ask-scope-restore/ask-scope-restore",
@@ -74,7 +90,7 @@
       "turtle_id": 1
     },
     {
-      "seq": 5,
+      "seq": 6,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/ask-scope-restore/ask-scope-restore",
@@ -86,7 +102,7 @@
       }
     },
     {
-      "seq": 6,
+      "seq": 7,
       "kind": "move",
       "source_span": {
         "document": "sprites/ask-scope-restore/ask-scope-restore",
@@ -101,7 +117,7 @@
       "turtle_id": 1
     },
     {
-      "seq": 7,
+      "seq": 8,
       "kind": "draw-segment",
       "source_span": {
         "document": "sprites/ask-scope-restore/ask-scope-restore",
@@ -117,7 +133,23 @@
       "turtle_id": 1
     },
     {
-      "seq": 8,
+      "seq": 9,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/ask-scope-restore/ask-scope-restore",
+        "start": [2, 1],
+        "end": [5, 2]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [0],
+          "current_turtle_id": 0
+        }
+      }
+    },
+    {
+      "seq": 10,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/ask-scope-restore/ask-scope-restore",
@@ -129,7 +161,7 @@
       }
     },
     {
-      "seq": 9,
+      "seq": 11,
       "kind": "move",
       "source_span": {
         "document": "sprites/ask-scope-restore/ask-scope-restore",
@@ -143,7 +175,7 @@
       }
     },
     {
-      "seq": 10,
+      "seq": 12,
       "kind": "draw-segment",
       "source_span": {
         "document": "sprites/ask-scope-restore/ask-scope-restore",

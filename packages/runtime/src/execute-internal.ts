@@ -149,6 +149,11 @@ import { defaultTutorTemplate } from "./tutor-templates.js";
 import type { TutorLearnerLevel } from "./tutor-context.js";
 import { normalizeHeading } from "./turtle-math.js";
 import { MAIN_TURTLE_ID, TurtleWorld } from "./turtle-world.js";
+import type {
+  AddressingPrimitiveName,
+  AddressingScopeSnapshot,
+} from "./addressing.js";
+import { emitAddressingPrimitive, snapshotAddressing } from "./addressing.js";
 
 /**
  * Is `statement` a call to `print` — the single-value `print value` form or the parenthesized
@@ -2495,28 +2500,82 @@ function executeTell(
   // `tell` persistently points the addressed set at `ids` — the same pointing rule `ask` applies for
   // the duration of its block ({@link pointAddressedSet}), so `who` and the state reporters never
   // diverge between the two forms. When the addressed set is empty (`tell [ ]`) the current turtle
-  // falls back to the main turtle, matching `who`'s own empty-set fallback.
-  pointAddressedSet(environment.addressing, ids.ids, environment);
+  // falls back to the main turtle, matching `who`'s own empty-set fallback. Pointing also emits the
+  // addressing `primitive` event that makes the new set observable (issue #766); its `source_span` is
+  // the whole `tell` statement, the same span its `instruction` event carries.
+  pointAddressedSet(
+    environment.addressing,
+    ids.ids,
+    environment,
+    "tell",
+    statement.source_span,
+  );
   return undefined;
 }
 
 /**
  * Point the addressed set at `ids` and re-derive the current turtle from its first member (the main
- * turtle when the set is empty), the one rule `tell`/`ask` share so `who` and the state reporters
- * (`xcor`/`ycor`/`heading`/`pos`) never diverge (`spec/turtles-and-sprites.md:44,113`). Marks
- * addressing explicit so per-turtle events now carry a `turtle-id`. `currentId` is the single source
- * of truth; {@link Environment.turtle} is its derived cache, written together here.
+ * turtle when the set is empty), the one rule `tell`/`ask`/`each` share so `who` and the state
+ * reporters (`xcor`/`ycor`/`heading`/`pos`) never diverge (`spec/turtles-and-sprites.md:44,113`).
+ * Marks addressing explicit so per-turtle events now carry a `turtle-id`. `currentId` is the single
+ * source of truth; {@link Environment.turtle} is its derived cache, written together here.
+ *
+ * Emits the addressing `primitive` event for `primitive`/`source_span` **after** the change, so the
+ * new addressed set is observable to a consumer (`spec/rendering.md:191`, issue #766). Emitting here
+ * — inside the one function that establishes an addressed set — is what makes that guarantee
+ * structural rather than a rule each caller must remember: `tell`, `ask`'s entry, and every `each`
+ * iteration all narrow through this function. Its counterpart {@link restoreAddressedSet} covers the
+ * only other way the set changes.
  */
 function pointAddressedSet(
   addressing: TurtleAddressing,
   ids: TurtleId[],
   environment: Environment,
+  primitive: AddressingPrimitiveName,
+  source_span: SourceSpan,
 ): void {
   addressing.ids = ids;
   addressing.explicit = true;
   const [firstId = MAIN_TURTLE_ID] = ids;
   addressing.currentId = firstId;
   environment.turtle = turtleStateFor(addressing, firstId);
+  emitAddressingPrimitive(
+    environment.events,
+    source_span,
+    primitive,
+    addressing,
+  );
+}
+
+/**
+ * Restore the addressing scope `snapshot` an `ask`/`each` saved on entry — the mirror of
+ * {@link pointAddressedSet} and the only other writer of the addressed set. Re-derives
+ * {@link Environment.turtle} from the restored current turtle, then emits the addressing `primitive`
+ * event so a consumer sees the restored set (`spec/turtles-and-sprites.md:58` "The previous addressed
+ * set is restored after the block finishes"; `spec/rendering.md:191`).
+ *
+ * Called from the `finally` of both forms, so it runs on **every** exit path — normal completion and
+ * every abnormal one (`stop`, `return`/`output`/`op`, `throw`, a runtime diagnostic). A restoration
+ * that changed the runtime's state without emitting would leave a consumer believing the block's
+ * narrowed set is still addressed — exactly the silent divergence issue #766 exists to close.
+ */
+function restoreAddressedSet(
+  addressing: TurtleAddressing,
+  snapshot: AddressingScopeSnapshot,
+  environment: Environment,
+  primitive: AddressingPrimitiveName,
+  source_span: SourceSpan,
+): void {
+  addressing.ids = snapshot.ids;
+  addressing.explicit = snapshot.explicit;
+  addressing.currentId = snapshot.currentId;
+  environment.turtle = turtleStateFor(addressing, snapshot.currentId);
+  emitAddressingPrimitive(
+    environment.events,
+    source_span,
+    primitive,
+    addressing,
+  );
 }
 
 /**
@@ -2561,14 +2620,18 @@ function executeAsk(
   const { addressing } = environment;
   // Snapshot the addressed set (ids, current turtle, explicit flag) so the block runs scoped and the
   // previous set is restored afterward, on every exit path (`spec/turtles-and-sprites.md:58,69`).
-  const savedIds = addressing.ids;
-  const savedCurrentId = addressing.currentId;
-  const savedExplicit = addressing.explicit;
+  const saved = snapshotAddressing(addressing);
   // `hasBlock: true` guarantees the reader attached a block; the cast records that invariant the same
   // way `executeWhenStatement` does.
   const block = statement.body as BlockNode;
   try {
-    pointAddressedSet(addressing, ids.ids, environment);
+    pointAddressedSet(
+      addressing,
+      ids.ids,
+      environment,
+      "ask",
+      statement.source_span,
+    );
     const signal = executeStatements(block.body, environment);
     // A block that runs to completion returns the `normal` signal; `ask` is a statement, not a
     // reporter, so it must fall through to the next statement — return `undefined` ("handled,
@@ -2579,11 +2642,16 @@ function executeAsk(
     // Restore exactly one level: the saved ids, explicit flag, and current turtle (with its derived
     // state cache), so an `ask` at top level before any `tell` leaves addressing implicit again and
     // its events carry no `turtle-id`, and a nested `ask`/`tell` scope unwinds to precisely the set
-    // that was active before this `ask`.
-    addressing.ids = savedIds;
-    addressing.explicit = savedExplicit;
-    addressing.currentId = savedCurrentId;
-    environment.turtle = turtleStateFor(addressing, savedCurrentId);
+    // that was active before this `ask`. The restore emits its own addressing `primitive` event, so
+    // the stream shows the previous set coming back on every exit path — including the abnormal ones
+    // that reach this `finally` (issue #766).
+    restoreAddressedSet(
+      addressing,
+      saved,
+      environment,
+      "ask",
+      statement.source_span,
+    );
   }
 }
 
@@ -2923,9 +2991,7 @@ function executeEach(
   // with no arguments to evaluate.
   const { addressing } = environment;
   // Snapshot the addressed set so it is restored after the loop on every exit path (mirroring `ask`).
-  const savedIds = addressing.ids;
-  const savedCurrentId = addressing.currentId;
-  const savedExplicit = addressing.explicit;
+  const saved = snapshotAddressing(addressing);
   // Snapshot the ids to iterate before the loop begins, so a block that changes the world mid-loop
   // (e.g. a nested `tell` in an early iteration) cannot change which turtles `each` visits.
   const iterationIds = [...addressing.ids];
@@ -2937,8 +3003,16 @@ function executeEach(
       // Narrow the addressed set to this one turtle so the block runs scoped to it: `who` reports it
       // and its per-turtle commands run once, stamped with its id. `explicit` is forced true so the
       // events carry a `turtle_id` even when `each` runs at top level with only the implicit default
-      // turtle addressed (a single-turtle `each` still attributes its events).
-      pointAddressedSet(addressing, [id], environment);
+      // turtle addressed (a single-turtle `each` still attributes its events). Each narrowing emits
+      // its own addressing `primitive` event, so a consumer sees which single turtle the iteration's
+      // events belong to (issue #766).
+      pointAddressedSet(
+        addressing,
+        [id],
+        environment,
+        "each",
+        statement.source_span,
+      );
       const signal = executeStatements(block.body, environment);
       // A non-normal signal (`stop`/`return`/`output`/`op`/`halt`) stops the loop and propagates out,
       // so a diagnostic or early exit in one iteration is never masked by a later one.
@@ -2951,11 +3025,15 @@ function executeEach(
   } finally {
     // Restore exactly one level: the addressed set active before `each`, its explicit flag, and the
     // current turtle (with its derived state cache), so `each` composes with the enclosing `tell`/
-    // `ask` scope and leaves it exactly as it found it.
-    addressing.ids = savedIds;
-    addressing.explicit = savedExplicit;
-    addressing.currentId = savedCurrentId;
-    environment.turtle = turtleStateFor(addressing, savedCurrentId);
+    // `ask` scope and leaves it exactly as it found it. The restore emits its own addressing
+    // `primitive` event on every exit path, normal or abnormal (issue #766).
+    restoreAddressedSet(
+      addressing,
+      saved,
+      environment,
+      "each",
+      statement.source_span,
+    );
   }
 }
 

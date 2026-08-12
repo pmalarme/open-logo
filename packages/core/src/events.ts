@@ -386,6 +386,35 @@ export type TutorOutputPayload =
 export type PrimitiveName = string;
 
 /**
+ * The **addressed turtle set** in effect at the instant an addressing `primitive` event is emitted
+ * (Sprites profile, `spec/turtles-and-sprites.md`'s "Addressing model"). This is what makes
+ * `spec/rendering.md:191` — "Implementations with multiple turtles MUST identify the active turtle
+ * or addressed turtle set" — reachable from the stream at all: every per-turtle effect event carries
+ * only the *acting* turtle's `turtle_id`, which after an `ask`/`each` block restores
+ * (`spec/turtles-and-sprites.md:58`) is neither the active turtle nor the addressed set (issue #766).
+ *
+ * - {@link addressed_turtle_ids} is the whole set a subsequent turtle command applies to, once for
+ *   each (`spec/turtles-and-sprites.md:113`), deduplicated and in first-occurrence order — the same
+ *   order `each` iterates. It MAY be empty (`tell [ ]` addresses no turtle).
+ * - {@link current_turtle_id} is the single turtle `who` reports and whose state the movement
+ *   reporters read: the set's first member, or the main turtle when the set is empty
+ *   (`spec/turtles-and-sprites.md:26`).
+ *
+ * The snapshot is **absolute, not a delta**: a consumer folds it by assignment, never by inferring
+ * which transition produced it, so entering an `ask` scope, narrowing per `each` iteration, and
+ * restoring the previous set on the way out all reduce through one rule.
+ *
+ * The set lives in the payload rather than the envelope's `turtle_id`, which is normatively
+ * "present only when the event is turtle-specific" (`spec/execution-model.md:638`): addressing
+ * concerns a *set* of turtles, so an addressing event is never turtle-specific and MUST NOT be
+ * stamped with one turtle's id.
+ */
+export interface AddressingSnapshot {
+  readonly addressed_turtle_ids: readonly TurtleId[];
+  readonly current_turtle_id: TurtleId;
+}
+
+/**
  * Payload for a `primitive` event: the canonical {@link PrimitiveName} of the primitive whose
  * effect the event records. `primitive` is the generic catch-all effect kind for a primitive
  * without a more specific event (`spec/execution-model.md:703`) — profile-neutral, not scoped to
@@ -393,9 +422,24 @@ export type PrimitiveName = string;
  * event is emitted after the effect it describes (after a `wait` pause completes, or after a handler
  * is registered), so no timing or tick data lives in the payload — the stream carries no timing or
  * frames.
+ *
+ * `addressing` is present only on the Sprites addressing primitives `tell`, `ask`, and `each`
+ * (`spec/turtles-and-sprites.md:17`'s C3 rows), which change the addressed turtle set and have no
+ * more specific event kind — exactly the case `primitive` exists for, and the same reading under
+ * which the Interaction registration *forms* `when`/`every`/`on_key`/`on_click` emit `primitive`
+ * ("primitives without a more specific kind emit `primitive`", `spec/interaction-events.md:105-106`).
+ * It is deliberately NOT a new registered `kind`: the registry's `kind` values are normative and
+ * closed (`spec/execution-model.md:689-694`, "One registered event kind"), the only sanctioned
+ * un-registered kinds are vendor-namespaced extensions (`vendor_name.event_name`) which by
+ * definition may not be recorded as portable conformance behavior, and reusing the catch-all keeps
+ * every existing consumer correct with no change — an addressing-unaware renderer simply sees one
+ * more inert `primitive` event. A non-addressing primitive carries `{ name }` alone, so no existing
+ * emitter, fixture, or consumer of `primitive` changes, and a Core/Turtle & Rendering program — which
+ * cannot run `tell`/`ask`/`each` at all — emits no addressing event and stays byte-identical.
  */
 export interface PrimitivePayload {
   readonly name: PrimitiveName;
+  readonly addressing?: AddressingSnapshot;
 }
 
 /**
@@ -412,6 +456,18 @@ type AssertAssignable<T, V extends T> = V;
 type _PrimitiveNameStaysOpen = AssertAssignable<
   PrimitiveName,
   "some_future_primitive"
+>;
+
+/**
+ * Compile-time regression guard that {@link PrimitivePayload.addressing} stays OPTIONAL: the
+ * addressing snapshot belongs to the three Sprites addressing primitives only, so a name-only
+ * payload — what `wait` and every event-registration form emit — must remain assignable. If
+ * `addressing` is ever made required, `tsc -b` fails here rather than silently forcing an
+ * addressing-free primitive to invent an addressed set. Purely type-level: fully erased at emit.
+ */
+type _PrimitivePayloadAddressingStaysOptional = AssertAssignable<
+  PrimitivePayload,
+  { readonly name: "wait" }
 >;
 
 /**
@@ -524,7 +580,8 @@ export interface SpawnTurtlePayload {
  * `tutor-output` (Educational profile, via {@link TutorOutputPayload}), and `overlay` (Geometry
  * profile, via {@link OverlayPayload}); `sound` (Sound profile, via {@link SoundPayload}) and
  * `spawn-turtle` (Sprites profile, via {@link SpawnTurtlePayload}); and `primitive`, the
- * profile-neutral generic catch-all (`spec/execution-model.md:703`, via {@link PrimitivePayload});
+ * profile-neutral generic catch-all (`spec/execution-model.md:703`, via {@link PrimitivePayload} —
+ * which also carries the Sprites {@link AddressingSnapshot} for `tell`/`ask`/`each`);
  * other kinds (e.g. `error`) refine their payload with their feature slice.
  */
 export interface TraceEvent<P = unknown> {

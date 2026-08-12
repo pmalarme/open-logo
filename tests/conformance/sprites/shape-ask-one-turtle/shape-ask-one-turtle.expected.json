@@ -1,5 +1,5 @@
 {
-  "description": "issue #677 (SP5): the acceptance-criteria program. `:bee = new_turtle` then `ask :bee [ set_shape \"triangle\" set_color \"yellow\" forward 60 ]` changes :bee's shape (emitting `shape-change` `{from,to}` with :bee's `turtle_id` 1 because the addressed set is explicit under `ask`), colors and moves only :bee, and never touches the main turtle. `set_shape`/`set_color`/`forward` are per-turtle Turtle & Rendering commands applied to every addressed turtle (spec/turtles-and-sprites.md's \"Per-turtle state and Turtle commands\" + \"Shapes and sprites\").",
+  "description": "issue #677 (SP5): the acceptance-criteria program. `:bee = new_turtle` then `ask :bee [ set_shape \"triangle\" set_color \"yellow\" forward 60 ]` changes :bee's shape (emitting `shape-change` `{from,to}` with :bee's `turtle_id` 1 because the addressed set is explicit under `ask`), colors and moves only :bee, and never touches the main turtle. `set_shape`/`set_color`/`forward` are per-turtle Turtle & Rendering commands applied to every addressed turtle (spec/turtles-and-sprites.md's \"Per-turtle state and Turtle commands\" + \"Shapes and sprites\"). Every change of the addressed set — here from `ask` — also emits the addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }`, so a consumer can identify the addressed turtle set (issue #766, spec/rendering.md:191); `ask`/`each` emit one again when the previous set is restored, on every exit path.",
   "profiles": ["sprites"],
   "execute": true,
   "events": [
@@ -49,6 +49,22 @@
     },
     {
       "seq": 3,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/shape-ask-one-turtle/shape-ask-one-turtle",
+        "start": [2, 1],
+        "end": [2, 64]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 4,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/shape-ask-one-turtle/shape-ask-one-turtle",
@@ -60,7 +76,7 @@
       }
     },
     {
-      "seq": 4,
+      "seq": 5,
       "kind": "shape-change",
       "source_span": {
         "document": "sprites/shape-ask-one-turtle/shape-ask-one-turtle",
@@ -74,7 +90,7 @@
       "turtle_id": 1
     },
     {
-      "seq": 5,
+      "seq": 6,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/shape-ask-one-turtle/shape-ask-one-turtle",
@@ -86,7 +102,7 @@
       }
     },
     {
-      "seq": 6,
+      "seq": 7,
       "kind": "color-change",
       "source_span": {
         "document": "sprites/shape-ask-one-turtle/shape-ask-one-turtle",
@@ -100,7 +116,7 @@
       "turtle_id": 1
     },
     {
-      "seq": 7,
+      "seq": 8,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/shape-ask-one-turtle/shape-ask-one-turtle",
@@ -112,7 +128,7 @@
       }
     },
     {
-      "seq": 8,
+      "seq": 9,
       "kind": "move",
       "source_span": {
         "document": "sprites/shape-ask-one-turtle/shape-ask-one-turtle",
@@ -127,7 +143,7 @@
       "turtle_id": 1
     },
     {
-      "seq": 9,
+      "seq": 10,
       "kind": "draw-segment",
       "source_span": {
         "document": "sprites/shape-ask-one-turtle/shape-ask-one-turtle",
@@ -141,6 +157,22 @@
         "width": 1
       },
       "turtle_id": 1
+    },
+    {
+      "seq": 11,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/shape-ask-one-turtle/shape-ask-one-turtle",
+        "start": [2, 1],
+        "end": [2, 64]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [0],
+          "current_turtle_id": 0
+        }
+      }
     }
   ],
   "diagnostics": []

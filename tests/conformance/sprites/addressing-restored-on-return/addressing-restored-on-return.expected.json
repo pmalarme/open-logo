@@ -1,0 +1,273 @@
+{
+  "description": "issue #766, abnormal exit 2 of 4 — `return`. A `return` propagating out of an `ask` block unwinds to the caller with a reported value; the `ask` scope's restoration still runs and still publishes the previous `tell :a` set, so the stream and the runtime agree on what is addressed once the reporter's value is printed.",
+  "profiles": ["sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-return/addressing-restored-on-return",
+        "start": [1, 1],
+        "end": [3, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-return/addressing-restored-on-return",
+        "start": [4, 1],
+        "end": [4, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-return/addressing-restored-on-return",
+        "start": [4, 6],
+        "end": [4, 16]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-return/addressing-restored-on-return",
+        "start": [5, 1],
+        "end": [5, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-return/addressing-restored-on-return",
+        "start": [5, 6],
+        "end": [5, 16]
+      },
+      "turtle_id": 2,
+      "payload": {
+        "turtle_id": 2,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-return/addressing-restored-on-return",
+        "start": [6, 1],
+        "end": [6, 8]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-return/addressing-restored-on-return",
+        "start": [6, 1],
+        "end": [6, 8]
+      },
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-return/addressing-restored-on-return",
+        "start": [7, 1],
+        "end": [7, 14]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-return/addressing-restored-on-return",
+        "start": [7, 7],
+        "end": [7, 14]
+      },
+      "payload": {
+        "name": "first_x",
+        "args": []
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-return/addressing-restored-on-return",
+        "start": [2, 3],
+        "end": [2, 36]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-return/addressing-restored-on-return",
+        "start": [2, 3],
+        "end": [2, 36]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [2],
+          "current_turtle_id": 2
+        }
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-return/addressing-restored-on-return",
+        "start": [2, 12],
+        "end": [2, 22]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-return/addressing-restored-on-return",
+        "start": [2, 12],
+        "end": [2, 22]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "heading": 0
+      },
+      "turtle_id": 2
+    },
+    {
+      "seq": 13,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-return/addressing-restored-on-return",
+        "start": [2, 12],
+        "end": [2, 22]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "color": "black",
+        "width": 1
+      },
+      "turtle_id": 2
+    },
+    {
+      "seq": 14,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-return/addressing-restored-on-return",
+        "start": [2, 23],
+        "end": [2, 34]
+      },
+      "payload": {
+        "statement_kind": "Return"
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "return",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-return/addressing-restored-on-return",
+        "start": [2, 23],
+        "end": [2, 34]
+      },
+      "payload": {
+        "value": 0
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-return/addressing-restored-on-return",
+        "start": [2, 3],
+        "end": [2, 36]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-return/addressing-restored-on-return",
+        "start": [7, 7],
+        "end": [7, 14]
+      },
+      "payload": {
+        "name": "first_x",
+        "result": 0
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "print",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-return/addressing-restored-on-return",
+        "start": [7, 1],
+        "end": [7, 14]
+      },
+      "payload": {
+        "values": [0]
+      }
+    }
+  ],
+  "diagnostics": []
+}

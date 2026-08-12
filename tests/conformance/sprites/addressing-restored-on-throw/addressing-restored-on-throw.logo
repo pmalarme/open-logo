@@ -1,0 +1,5 @@
+:a = new_turtle
+:b = new_turtle
+tell [ :a :b ]
+each [ forward 10 throw "stop now" ]
+forward 30

@@ -1,5 +1,5 @@
 {
-  "description": "issue #675 (SP3): nested `ask` restores exactly one level. The inner `ask :b` addresses turtle 2 for its block, then the outer `ask :a` set is restored so the outer `forward 5` moves turtle 1, not turtle 2.",
+  "description": "issue #675 (SP3): nested `ask` restores exactly one level. The inner `ask :b` addresses turtle 2 for its block, then the outer `ask :a` set is restored so the outer `forward 5` moves turtle 1, not turtle 2. Every change of the addressed set — here from `ask` — also emits the addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }`, so a consumer can identify the addressed turtle set (issue #766, spec/rendering.md:191); `ask`/`each` emit one again when the previous set is restored, on every exit path.",
   "profiles": ["sprites"],
   "execute": true,
   "events": [
@@ -81,6 +81,22 @@
     },
     {
       "seq": 5,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/ask-nested-one-level/ask-nested-one-level",
+        "start": [3, 1],
+        "end": [3, 43]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 6,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/ask-nested-one-level/ask-nested-one-level",
@@ -92,34 +108,50 @@
       }
     },
     {
-      "seq": 6,
-      "kind": "instruction",
-      "source_span": {
-        "document": "sprites/ask-nested-one-level/ask-nested-one-level",
-        "start": [3, 19],
-        "end": [3, 29]
-      },
-      "payload": {
-        "statement_kind": "Call"
-      }
-    },
-    {
       "seq": 7,
-      "kind": "move",
+      "kind": "primitive",
       "source_span": {
         "document": "sprites/ask-nested-one-level/ask-nested-one-level",
-        "start": [3, 19],
-        "end": [3, 29]
+        "start": [3, 10],
+        "end": [3, 31]
       },
       "payload": {
-        "from": [0, 0],
-        "to": [0, 10],
-        "heading": 0
-      },
-      "turtle_id": 2
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [2],
+          "current_turtle_id": 2
+        }
+      }
     },
     {
       "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/ask-nested-one-level/ask-nested-one-level",
+        "start": [3, 19],
+        "end": [3, 29]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/ask-nested-one-level/ask-nested-one-level",
+        "start": [3, 19],
+        "end": [3, 29]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "heading": 0
+      },
+      "turtle_id": 2
+    },
+    {
+      "seq": 10,
       "kind": "draw-segment",
       "source_span": {
         "document": "sprites/ask-nested-one-level/ask-nested-one-level",
@@ -135,7 +167,23 @@
       "turtle_id": 2
     },
     {
-      "seq": 9,
+      "seq": 11,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/ask-nested-one-level/ask-nested-one-level",
+        "start": [3, 10],
+        "end": [3, 31]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 12,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/ask-nested-one-level/ask-nested-one-level",
@@ -147,7 +195,7 @@
       }
     },
     {
-      "seq": 10,
+      "seq": 13,
       "kind": "move",
       "source_span": {
         "document": "sprites/ask-nested-one-level/ask-nested-one-level",
@@ -162,7 +210,7 @@
       "turtle_id": 1
     },
     {
-      "seq": 11,
+      "seq": 14,
       "kind": "draw-segment",
       "source_span": {
         "document": "sprites/ask-nested-one-level/ask-nested-one-level",
@@ -176,6 +224,22 @@
         "width": 1
       },
       "turtle_id": 1
+    },
+    {
+      "seq": 15,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/ask-nested-one-level/ask-nested-one-level",
+        "start": [3, 1],
+        "end": [3, 43]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [0],
+          "current_turtle_id": 0
+        }
+      }
     }
   ],
   "diagnostics": []

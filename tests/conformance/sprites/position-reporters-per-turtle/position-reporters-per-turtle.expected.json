@@ -1,5 +1,5 @@
 {
-  "description": "issue #679 (SP7): spec/turtles-and-sprites.md:108 — `xcor`, `ycor`, `heading`, and `pos` READ FROM THE CURRENT TURTLE, a whole spec bullet with no fixture before this slice. After `tell :a` plus `forward 30`/`right 90`, the four reporters see :a's own state (0, 30, 90, [0 30]); re-addressing the main turtle with `tell first turtles` makes those same four reporters report the untouched main turtle (0, 0, 0, [0 0]). Locks that the reporters follow the addressed set instead of reading one global turtle.",
+  "description": "issue #679 (SP7): spec/turtles-and-sprites.md:108 — `xcor`, `ycor`, `heading`, and `pos` READ FROM THE CURRENT TURTLE, a whole spec bullet with no fixture before this slice. After `tell :a` plus `forward 30`/`right 90`, the four reporters see :a's own state (0, 30, 90, [0 30]); re-addressing the main turtle with `tell first turtles` makes those same four reporters report the untouched main turtle (0, 0, 0, [0 0]). Locks that the reporters follow the addressed set instead of reading one global turtle. Every change of the addressed set — here from `tell` — also emits the addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }`, so a consumer can identify the addressed turtle set (issue #766, spec/rendering.md:191); `ask`/`each` emit one again when the previous set is restored, on every exit path.",
   "profiles": ["sprites"],
   "execute": true,
   "events": [
@@ -49,6 +49,22 @@
     },
     {
       "seq": 3,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
+        "start": [2, 1],
+        "end": [2, 8]
+      },
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 4,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
@@ -60,7 +76,7 @@
       }
     },
     {
-      "seq": 4,
+      "seq": 5,
       "kind": "move",
       "source_span": {
         "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
@@ -75,7 +91,7 @@
       "turtle_id": 1
     },
     {
-      "seq": 5,
+      "seq": 6,
       "kind": "draw-segment",
       "source_span": {
         "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
@@ -91,7 +107,7 @@
       "turtle_id": 1
     },
     {
-      "seq": 6,
+      "seq": 7,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
@@ -103,7 +119,7 @@
       }
     },
     {
-      "seq": 7,
+      "seq": 8,
       "kind": "turn",
       "source_span": {
         "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
@@ -117,7 +133,7 @@
       "turtle_id": 1
     },
     {
-      "seq": 8,
+      "seq": 9,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
@@ -129,7 +145,7 @@
       }
     },
     {
-      "seq": 9,
+      "seq": 10,
       "kind": "print",
       "source_span": {
         "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
@@ -141,7 +157,7 @@
       }
     },
     {
-      "seq": 10,
+      "seq": 11,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
@@ -153,7 +169,7 @@
       }
     },
     {
-      "seq": 11,
+      "seq": 12,
       "kind": "print",
       "source_span": {
         "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
@@ -165,7 +181,7 @@
       }
     },
     {
-      "seq": 12,
+      "seq": 13,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
@@ -177,7 +193,7 @@
       }
     },
     {
-      "seq": 13,
+      "seq": 14,
       "kind": "print",
       "source_span": {
         "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
@@ -189,7 +205,7 @@
       }
     },
     {
-      "seq": 14,
+      "seq": 15,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
@@ -201,7 +217,7 @@
       }
     },
     {
-      "seq": 15,
+      "seq": 16,
       "kind": "print",
       "source_span": {
         "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
@@ -213,7 +229,7 @@
       }
     },
     {
-      "seq": 16,
+      "seq": 17,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
@@ -225,27 +241,19 @@
       }
     },
     {
-      "seq": 17,
-      "kind": "instruction",
-      "source_span": {
-        "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
-        "start": [10, 1],
-        "end": [10, 11]
-      },
-      "payload": {
-        "statement_kind": "Call"
-      }
-    },
-    {
       "seq": 18,
-      "kind": "print",
+      "kind": "primitive",
       "source_span": {
         "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
-        "start": [10, 1],
-        "end": [10, 11]
+        "start": [9, 1],
+        "end": [9, 19]
       },
       "payload": {
-        "values": [0]
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [0],
+          "current_turtle_id": 0
+        }
       }
     },
     {
@@ -253,8 +261,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
-        "start": [11, 1],
-        "end": [11, 11]
+        "start": [10, 1],
+        "end": [10, 11]
       },
       "payload": {
         "statement_kind": "Call"
@@ -265,6 +273,30 @@
       "kind": "print",
       "source_span": {
         "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
+        "start": [10, 1],
+        "end": [10, 11]
+      },
+      "payload": {
+        "values": [0]
+      }
+    },
+    {
+      "seq": 21,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
+        "start": [11, 1],
+        "end": [11, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 22,
+      "kind": "print",
+      "source_span": {
+        "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
         "start": [11, 1],
         "end": [11, 11]
       },
@@ -273,7 +305,7 @@
       }
     },
     {
-      "seq": 21,
+      "seq": 23,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
@@ -285,7 +317,7 @@
       }
     },
     {
-      "seq": 22,
+      "seq": 24,
       "kind": "print",
       "source_span": {
         "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
@@ -297,7 +329,7 @@
       }
     },
     {
-      "seq": 23,
+      "seq": 25,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
@@ -309,7 +341,7 @@
       }
     },
     {
-      "seq": 24,
+      "seq": 26,
       "kind": "print",
       "source_span": {
         "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",

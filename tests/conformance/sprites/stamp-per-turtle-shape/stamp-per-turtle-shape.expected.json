@@ -1,5 +1,5 @@
 {
-  "description": "issue #677 (SP5): per-turtle shape state is isolated. :a becomes an `arrow` and :b a `circle` via scoped `ask`; a single `stamp` under `tell [ :a :b ]` then emits one `stamp` per turtle capturing THAT turtle's own current shape (arrow for id 1, circle for id 2) — proving stamp reads per-turtle shape, not one shared value (spec/turtles-and-sprites.md's \"Shapes and sprites\": `stamp` draws the current shape onto the shared surface).",
+  "description": "issue #677 (SP5): per-turtle shape state is isolated. :a becomes an `arrow` and :b a `circle` via scoped `ask`; a single `stamp` under `tell [ :a :b ]` then emits one `stamp` per turtle capturing THAT turtle's own current shape (arrow for id 1, circle for id 2) — proving stamp reads per-turtle shape, not one shared value (spec/turtles-and-sprites.md's \"Shapes and sprites\": `stamp` draws the current shape onto the shared surface). Every change of the addressed set — here from `ask`/`tell` — also emits the addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }`, so a consumer can identify the addressed turtle set (issue #766, spec/rendering.md:191); `ask`/`each` emit one again when the previous set is restored, on every exit path.",
   "profiles": ["sprites"],
   "execute": true,
   "events": [
@@ -81,6 +81,22 @@
     },
     {
       "seq": 5,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/stamp-per-turtle-shape/stamp-per-turtle-shape",
+        "start": [3, 1],
+        "end": [3, 29]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 6,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/stamp-per-turtle-shape/stamp-per-turtle-shape",
@@ -92,7 +108,7 @@
       }
     },
     {
-      "seq": 6,
+      "seq": 7,
       "kind": "shape-change",
       "source_span": {
         "document": "sprites/stamp-per-turtle-shape/stamp-per-turtle-shape",
@@ -106,7 +122,23 @@
       "turtle_id": 1
     },
     {
-      "seq": 7,
+      "seq": 8,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/stamp-per-turtle-shape/stamp-per-turtle-shape",
+        "start": [3, 1],
+        "end": [3, 29]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [0],
+          "current_turtle_id": 0
+        }
+      }
+    },
+    {
+      "seq": 9,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/stamp-per-turtle-shape/stamp-per-turtle-shape",
@@ -118,7 +150,23 @@
       }
     },
     {
-      "seq": 8,
+      "seq": 10,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/stamp-per-turtle-shape/stamp-per-turtle-shape",
+        "start": [4, 1],
+        "end": [4, 30]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [2],
+          "current_turtle_id": 2
+        }
+      }
+    },
+    {
+      "seq": 11,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/stamp-per-turtle-shape/stamp-per-turtle-shape",
@@ -130,7 +178,7 @@
       }
     },
     {
-      "seq": 9,
+      "seq": 12,
       "kind": "shape-change",
       "source_span": {
         "document": "sprites/stamp-per-turtle-shape/stamp-per-turtle-shape",
@@ -144,7 +192,23 @@
       "turtle_id": 2
     },
     {
-      "seq": 10,
+      "seq": 13,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/stamp-per-turtle-shape/stamp-per-turtle-shape",
+        "start": [4, 1],
+        "end": [4, 30]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [0],
+          "current_turtle_id": 0
+        }
+      }
+    },
+    {
+      "seq": 14,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/stamp-per-turtle-shape/stamp-per-turtle-shape",
@@ -156,7 +220,23 @@
       }
     },
     {
-      "seq": 11,
+      "seq": 15,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/stamp-per-turtle-shape/stamp-per-turtle-shape",
+        "start": [5, 1],
+        "end": [5, 15]
+      },
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [1, 2],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 16,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/stamp-per-turtle-shape/stamp-per-turtle-shape",
@@ -168,7 +248,7 @@
       }
     },
     {
-      "seq": 12,
+      "seq": 17,
       "kind": "stamp",
       "source_span": {
         "document": "sprites/stamp-per-turtle-shape/stamp-per-turtle-shape",
@@ -184,7 +264,7 @@
       "turtle_id": 1
     },
     {
-      "seq": 13,
+      "seq": 18,
       "kind": "stamp",
       "source_span": {
         "document": "sprites/stamp-per-turtle-shape/stamp-per-turtle-shape",

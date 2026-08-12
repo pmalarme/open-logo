@@ -1,5 +1,5 @@
 {
-  "description": "issue #675 (SP3): `ask` restores the previous `tell` set, not just the default. `tell :a` sets the persistent set to turtle 1; `ask :b [ … ]` addresses turtle 2 only for the block; the trailing `forward 30` returns to turtle 1 — the set restored after the scoped `ask`. Every change of the addressed set — here from `ask`/`tell` — also emits the addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }`, so a consumer can identify the addressed turtle set (issue #766, spec/rendering.md:191); `ask`/`each` emit one again when the previous set is restored, on every exit path.",
+  "description": "issue #766: `each` runs its block once per turtle in the current set (spec/turtles-and-sprites.md:78), narrowing the addressed set to that one turtle for the iteration — so it emits one addressing `primitive` event per iteration, in the set's insertion order, and one more when the set it iterated is restored. A consumer folding the stream therefore knows which single turtle each iteration's effects belong to, and that `tell [ :a :b ]`'s pair is addressed again afterwards.",
   "profiles": ["sprites"],
   "execute": true,
   "events": [
@@ -7,7 +7,7 @@
       "seq": 0,
       "kind": "instruction",
       "source_span": {
-        "document": "sprites/ask-restores-tell-set/ask-restores-tell-set",
+        "document": "sprites/addressing-each-narrows-and-restores/addressing-each-narrows-and-restores",
         "start": [1, 1],
         "end": [1, 16]
       },
@@ -19,7 +19,7 @@
       "seq": 1,
       "kind": "spawn-turtle",
       "source_span": {
-        "document": "sprites/ask-restores-tell-set/ask-restores-tell-set",
+        "document": "sprites/addressing-each-narrows-and-restores/addressing-each-narrows-and-restores",
         "start": [1, 6],
         "end": [1, 16]
       },
@@ -39,7 +39,7 @@
       "seq": 2,
       "kind": "instruction",
       "source_span": {
-        "document": "sprites/ask-restores-tell-set/ask-restores-tell-set",
+        "document": "sprites/addressing-each-narrows-and-restores/addressing-each-narrows-and-restores",
         "start": [2, 1],
         "end": [2, 16]
       },
@@ -51,7 +51,7 @@
       "seq": 3,
       "kind": "spawn-turtle",
       "source_span": {
-        "document": "sprites/ask-restores-tell-set/ask-restores-tell-set",
+        "document": "sprites/addressing-each-narrows-and-restores/addressing-each-narrows-and-restores",
         "start": [2, 6],
         "end": [2, 16]
       },
@@ -71,9 +71,9 @@
       "seq": 4,
       "kind": "instruction",
       "source_span": {
-        "document": "sprites/ask-restores-tell-set/ask-restores-tell-set",
+        "document": "sprites/addressing-each-narrows-and-restores/addressing-each-narrows-and-restores",
         "start": [3, 1],
-        "end": [3, 8]
+        "end": [3, 15]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -83,14 +83,14 @@
       "seq": 5,
       "kind": "primitive",
       "source_span": {
-        "document": "sprites/ask-restores-tell-set/ask-restores-tell-set",
+        "document": "sprites/addressing-each-narrows-and-restores/addressing-each-narrows-and-restores",
         "start": [3, 1],
-        "end": [3, 8]
+        "end": [3, 15]
       },
       "payload": {
         "name": "tell",
         "addressing": {
-          "addressed_turtle_ids": [1],
+          "addressed_turtle_ids": [1, 2],
           "current_turtle_id": 1
         }
       }
@@ -99,9 +99,9 @@
       "seq": 6,
       "kind": "instruction",
       "source_span": {
-        "document": "sprites/ask-restores-tell-set/ask-restores-tell-set",
+        "document": "sprites/addressing-each-narrows-and-restores/addressing-each-narrows-and-restores",
         "start": [4, 1],
-        "end": [4, 22]
+        "end": [4, 20]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -111,15 +111,15 @@
       "seq": 7,
       "kind": "primitive",
       "source_span": {
-        "document": "sprites/ask-restores-tell-set/ask-restores-tell-set",
+        "document": "sprites/addressing-each-narrows-and-restores/addressing-each-narrows-and-restores",
         "start": [4, 1],
-        "end": [4, 22]
+        "end": [4, 20]
       },
       "payload": {
-        "name": "ask",
+        "name": "each",
         "addressing": {
-          "addressed_turtle_ids": [2],
-          "current_turtle_id": 2
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
         }
       }
     },
@@ -127,9 +127,9 @@
       "seq": 8,
       "kind": "instruction",
       "source_span": {
-        "document": "sprites/ask-restores-tell-set/ask-restores-tell-set",
-        "start": [4, 10],
-        "end": [4, 20]
+        "document": "sprites/addressing-each-narrows-and-restores/addressing-each-narrows-and-restores",
+        "start": [4, 8],
+        "end": [4, 18]
       },
       "payload": {
         "statement_kind": "Call"
@@ -139,24 +139,24 @@
       "seq": 9,
       "kind": "move",
       "source_span": {
-        "document": "sprites/ask-restores-tell-set/ask-restores-tell-set",
-        "start": [4, 10],
-        "end": [4, 20]
+        "document": "sprites/addressing-each-narrows-and-restores/addressing-each-narrows-and-restores",
+        "start": [4, 8],
+        "end": [4, 18]
       },
       "payload": {
         "from": [0, 0],
         "to": [0, 10],
         "heading": 0
       },
-      "turtle_id": 2
+      "turtle_id": 1
     },
     {
       "seq": 10,
       "kind": "draw-segment",
       "source_span": {
-        "document": "sprites/ask-restores-tell-set/ask-restores-tell-set",
-        "start": [4, 10],
-        "end": [4, 20]
+        "document": "sprites/addressing-each-narrows-and-restores/addressing-each-narrows-and-restores",
+        "start": [4, 8],
+        "end": [4, 18]
       },
       "payload": {
         "from": [0, 0],
@@ -164,21 +164,21 @@
         "color": "black",
         "width": 1
       },
-      "turtle_id": 2
+      "turtle_id": 1
     },
     {
       "seq": 11,
       "kind": "primitive",
       "source_span": {
-        "document": "sprites/ask-restores-tell-set/ask-restores-tell-set",
+        "document": "sprites/addressing-each-narrows-and-restores/addressing-each-narrows-and-restores",
         "start": [4, 1],
-        "end": [4, 22]
+        "end": [4, 20]
       },
       "payload": {
-        "name": "ask",
+        "name": "each",
         "addressing": {
-          "addressed_turtle_ids": [1],
-          "current_turtle_id": 1
+          "addressed_turtle_ids": [2],
+          "current_turtle_id": 2
         }
       }
     },
@@ -186,9 +186,9 @@
       "seq": 12,
       "kind": "instruction",
       "source_span": {
-        "document": "sprites/ask-restores-tell-set/ask-restores-tell-set",
-        "start": [5, 1],
-        "end": [5, 11]
+        "document": "sprites/addressing-each-narrows-and-restores/addressing-each-narrows-and-restores",
+        "start": [4, 8],
+        "end": [4, 18]
       },
       "payload": {
         "statement_kind": "Call"
@@ -198,32 +198,48 @@
       "seq": 13,
       "kind": "move",
       "source_span": {
-        "document": "sprites/ask-restores-tell-set/ask-restores-tell-set",
-        "start": [5, 1],
-        "end": [5, 11]
+        "document": "sprites/addressing-each-narrows-and-restores/addressing-each-narrows-and-restores",
+        "start": [4, 8],
+        "end": [4, 18]
       },
       "payload": {
         "from": [0, 0],
-        "to": [0, 30],
+        "to": [0, 10],
         "heading": 0
       },
-      "turtle_id": 1
+      "turtle_id": 2
     },
     {
       "seq": 14,
       "kind": "draw-segment",
       "source_span": {
-        "document": "sprites/ask-restores-tell-set/ask-restores-tell-set",
-        "start": [5, 1],
-        "end": [5, 11]
+        "document": "sprites/addressing-each-narrows-and-restores/addressing-each-narrows-and-restores",
+        "start": [4, 8],
+        "end": [4, 18]
       },
       "payload": {
         "from": [0, 0],
-        "to": [0, 30],
+        "to": [0, 10],
         "color": "black",
         "width": 1
       },
-      "turtle_id": 1
+      "turtle_id": 2
+    },
+    {
+      "seq": 15,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/addressing-each-narrows-and-restores/addressing-each-narrows-and-restores",
+        "start": [4, 1],
+        "end": [4, 20]
+      },
+      "payload": {
+        "name": "each",
+        "addressing": {
+          "addressed_turtle_ids": [1, 2],
+          "current_turtle_id": 1
+        }
+      }
     }
   ],
   "diagnostics": []

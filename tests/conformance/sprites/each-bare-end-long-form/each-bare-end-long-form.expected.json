@@ -1,5 +1,5 @@
 {
-  "description": "issue #679 (SP7): a bare unlabelled `end` also closes an `each` long form (spec/turtles-and-sprites.md:167 makes the label optional). Same program as each-end-each-long-form with `end each` shortened to `end`, and the event stream matches it kind for kind and payload for payload; only the fixture-specific `source_span` fields differ (the document name, and the `each` statement's own end column [6,4] here versus [6,9] with the label). Together they prove the label is optional, not required.",
+  "description": "issue #679 (SP7): a bare unlabelled `end` also closes an `each` long form (spec/turtles-and-sprites.md:167 makes the label optional). Same program as each-end-each-long-form with `end each` shortened to `end`, and the event stream matches it kind for kind and payload for payload; only the fixture-specific `source_span` fields differ (the document name, and the `each` statement's own end column [6,4] here versus [6,9] with the label). Together they prove the label is optional, not required. Every change of the addressed set — here from `each`/`tell` — also emits the addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }`, so a consumer can identify the addressed turtle set (issue #766, spec/rendering.md:191); `ask`/`each` emit one again when the previous set is restored, on every exit path.",
   "profiles": ["sprites"],
   "execute": true,
   "events": [
@@ -81,6 +81,22 @@
     },
     {
       "seq": 5,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/each-bare-end-long-form/each-bare-end-long-form",
+        "start": [3, 1],
+        "end": [3, 15]
+      },
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [1, 2],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 6,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/each-bare-end-long-form/each-bare-end-long-form",
@@ -92,34 +108,50 @@
       }
     },
     {
-      "seq": 6,
-      "kind": "instruction",
-      "source_span": {
-        "document": "sprites/each-bare-end-long-form/each-bare-end-long-form",
-        "start": [5, 3],
-        "end": [5, 13]
-      },
-      "payload": {
-        "statement_kind": "Call"
-      }
-    },
-    {
       "seq": 7,
-      "kind": "move",
+      "kind": "primitive",
       "source_span": {
         "document": "sprites/each-bare-end-long-form/each-bare-end-long-form",
-        "start": [5, 3],
-        "end": [5, 13]
+        "start": [4, 1],
+        "end": [6, 4]
       },
       "payload": {
-        "from": [0, 0],
-        "to": [0, 40],
-        "heading": 0
-      },
-      "turtle_id": 1
+        "name": "each",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
     },
     {
       "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-bare-end-long-form/each-bare-end-long-form",
+        "start": [5, 3],
+        "end": [5, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/each-bare-end-long-form/each-bare-end-long-form",
+        "start": [5, 3],
+        "end": [5, 13]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 40],
+        "heading": 0
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 10,
       "kind": "draw-segment",
       "source_span": {
         "document": "sprites/each-bare-end-long-form/each-bare-end-long-form",
@@ -135,7 +167,23 @@
       "turtle_id": 1
     },
     {
-      "seq": 9,
+      "seq": 11,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/each-bare-end-long-form/each-bare-end-long-form",
+        "start": [4, 1],
+        "end": [6, 4]
+      },
+      "payload": {
+        "name": "each",
+        "addressing": {
+          "addressed_turtle_ids": [2],
+          "current_turtle_id": 2
+        }
+      }
+    },
+    {
+      "seq": 12,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/each-bare-end-long-form/each-bare-end-long-form",
@@ -147,7 +195,7 @@
       }
     },
     {
-      "seq": 10,
+      "seq": 13,
       "kind": "move",
       "source_span": {
         "document": "sprites/each-bare-end-long-form/each-bare-end-long-form",
@@ -162,7 +210,7 @@
       "turtle_id": 2
     },
     {
-      "seq": 11,
+      "seq": 14,
       "kind": "draw-segment",
       "source_span": {
         "document": "sprites/each-bare-end-long-form/each-bare-end-long-form",
@@ -176,6 +224,22 @@
         "width": 1
       },
       "turtle_id": 2
+    },
+    {
+      "seq": 15,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/each-bare-end-long-form/each-bare-end-long-form",
+        "start": [4, 1],
+        "end": [6, 4]
+      },
+      "payload": {
+        "name": "each",
+        "addressing": {
+          "addressed_turtle_ids": [1, 2],
+          "current_turtle_id": 1
+        }
+      }
     }
   ],
   "diagnostics": []
