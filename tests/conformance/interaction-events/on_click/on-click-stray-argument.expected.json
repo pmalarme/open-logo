@@ -1,0 +1,37 @@
+{
+  "description": "issue #685 (slice I6): `on_click` takes no argument (spec/interaction-events.md §Profile grammar: `on_click` takes none). A stray word where the block should be is not a block opener, so the reader reports a parse `ol-missing-end` pointed at the `on_click` head rather than silently accepting an argument. Because the parse fails, `execute()` bails before running anything, so no events are emitted and nothing is registered.",
+  "profiles": ["interaction-events"],
+  "execute": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-missing-end",
+      "source_span": {
+        "document": "interaction-events/on_click/on-click-stray-argument",
+        "start": [1, 1],
+        "end": [1, 9]
+      },
+      "params": {
+        "opener": "on_click",
+        "hint": "wrap the body in [ ] or close it with end."
+      },
+      "message": "on_click needs a body. wrap the body in [ ] or close it with end.",
+      "stage": "parse",
+      "severity": "error"
+    },
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "interaction-events/on_click/on-click-stray-argument",
+        "start": [1, 18],
+        "end": [1, 19]
+      },
+      "params": {
+        "text": "["
+      },
+      "message": "each instruction needs a new line of its own. i didn't expect [ to keep going on this line.",
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

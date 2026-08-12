@@ -1,0 +1,56 @@
+{
+  "description": "issue #685 (slice I6): registering `on_click` twice registers both handlers, in registration order, with no error — each emits its own `instruction`+`primitive` pair and neither fires in a headless run. `on_click` handlers are kept in their own registration-ordered list so #686/I7 can impose the spec's same-tick delivery order across handler kinds.",
+  "profiles": ["interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_click/on-click-registered-twice",
+        "start": [1, 1],
+        "end": [1, 23]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/on_click/on-click-registered-twice",
+        "start": [1, 1],
+        "end": [1, 23]
+      },
+      "payload": {
+        "name": "on_click"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_click/on-click-registered-twice",
+        "start": [2, 1],
+        "end": [2, 23]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/on_click/on-click-registered-twice",
+        "start": [2, 1],
+        "end": [2, 23]
+      },
+      "payload": {
+        "name": "on_click"
+      }
+    }
+  ],
+  "diagnostics": []
+}

@@ -302,13 +302,21 @@ test("nested each inside each iterates each turtle against every turtle of the i
   ]);
 });
 
-test("a not-yet-handled profile block-head still falls through dispatchProfileStatement (each is dispatched, on_click is not)", () => {
-  // `dispatchProfileStatement` handles exactly `tell`/`ask`/`each`; every other registered profile
-  // block-head (here `on_click`, whose runtime slice #685 is not yet built) falls through to
-  // `NOT_A_PROFILE_STATEMENT` so `executeStatements` continues past it. This pins that fall-through:
-  // adding the `each` branch above must not swallow an unrelated profile head. `on_click [ … ]` parses
-  // (it is in PROFILE_STATEMENT_FORMS) but has no runtime effect yet, so it runs clean with no move.
+const primitives = (events) =>
+  events
+    .filter((event) => event.kind === "primitive")
+    .map((event) => event.payload.name);
+
+test("on_click is now dispatched upstream and emits its primitive rather than falling through dispatchProfileStatement", () => {
+  // Regression retarget from SP4/#727: this test originally used `on_click` as an incidental stand-in
+  // for "a registered profile block-head that dispatchProfileStatement does not handle", covering that
+  // function's final `NOT_A_PROFILE_STATEMENT` fall-through. That coupled the assertion to on_click being
+  // unimplemented. Now that I6/#685 dispatches `on_click`, the honest assertion is the NEW truth: the
+  // head is intercepted upstream (before dispatchProfileStatement) and emits its registration `primitive`
+  // event with no move. The guard in dispatchProfileStatement is retained deliberately (it defends a
+  // future head registered in PROFILE_STATEMENT_FORMS without a handler); see the PR body and #685.
   const result = execute("on_click [ forward 1 ]", "main.logo");
   assert.deepEqual(result.diagnostics, []);
   assert.deepEqual(moves(result.events), []);
+  assert.deepEqual(primitives(result.events), ["on_click"]);
 });

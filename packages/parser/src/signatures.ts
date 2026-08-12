@@ -402,18 +402,20 @@ export function interactionPrimitiveArity(name: string): number | undefined {
  * separate from {@link INTERACTION_PRIMITIVE_ARITY}'s Core-spelled `wait`, exactly as the spec
  * distinguishes profile block-heads from ordinary calls.
  *
- * `when` (#682/I3), `every` (#683/I4), and `on_key` (#684/I5) are listed today: each is the head its
- * slice delivers end to end. `on_click` joins this table in its own slice (#685) as it becomes
- * usable, following the same one-form-at-a-time growth as every other profile's visible-name table —
- * registering a head here before its slice can execute it would let a program check clean and then
- * silently no-op at runtime. `input` (a reporter) and `wait` (an ordinary call) are visible through
- * their own name paths, not this block-head table. Entries stay in registration order so the
- * checker's candidate set (`checker-names.ts`) exposes a stable did-you-mean ordering.
+ * `when` (#682/I3), `every` (#683/I4), `on_key` (#684/I5), and `on_click` (#685/I6) are listed today:
+ * each is the head its slice delivers end to end. This table is now complete — all four Interaction &
+ * Events block-heads are usable — following the same one-form-at-a-time growth as every other
+ * profile's visible-name table; registering a head here before its slice can execute it would let a
+ * program check clean and then silently no-op at runtime. `input` (a reporter) and `wait` (an
+ * ordinary call) are visible through their own name paths, not this block-head table. Entries stay in
+ * registration order so the checker's candidate set (`checker-names.ts`) exposes a stable
+ * did-you-mean ordering.
  */
 const INTERACTION_EVENTS_BLOCK_HEAD_NAMES: readonly string[] = Object.freeze([
   "when",
   "every",
   "on_key",
+  "on_click",
 ]);
 
 /**

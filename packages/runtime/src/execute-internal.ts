@@ -111,11 +111,13 @@ import {
   createEventHandlerRegistry,
   createTickClock,
   emitEveryPrimitive,
+  emitOnClickPrimitive,
   emitOnKeyPrimitive,
   emitWhenPrimitive,
   isWaitCall,
   pendingHandlersFor,
   registerEveryHandler,
+  registerOnClickHandler,
   registerOnKeyHandler,
   registerWhenHandler,
   runWait,
@@ -2837,29 +2839,92 @@ function executeOnKeyStatement(
 }
 
 /**
+ * Is `statement` an `on_click <block>` handler registration (issue #685, slice I6,
+ * `spec/interaction-events.md`'s `### on_click <block>`)? `on_click` is a profile block-head the
+ * reader lowers to a {@link ProfileStatementNode} (C2 #664's `PROFILE_STATEMENT_FORMS`), NOT an
+ * ordinary `Call`, so it is matched here by node kind + head keyword rather than by callee name. A
+ * plain `boolean` (not a type predicate) to match the surrounding turtle/wait/`when`/`every`/`on_key`
+ * dispatch convention; the caller narrows via a cast at the single call site, exactly as
+ * {@link isOnKeyStatement} does.
+ */
+function isOnClickStatement(statement: StatementNode): boolean {
+  return (
+    statement.kind === "ProfileStatement" &&
+    statement.keyword.name.toLowerCase() === "on_click"
+  );
+}
+
+/**
+ * Register an `on_click <block>` handler (issue #685, slice I6,
+ * `spec/interaction-events.md`'s `### on_click <block>`): record the handler on the environment's
+ * registry in registration order, then emit the `primitive` event **after** the handler is registered
+ * (spec: "Event registration forms emit `primitive` events after the handler is registered").
+ *
+ * `on_click` takes **no argument** — it is the only Interaction & Events block-head that takes just a
+ * block (`spec/interaction-events.md` §Profile grammar: "`on_click` takes none") — so there is no
+ * argument to evaluate or type-check, and the spec lists its errors as **none**. Registration never
+ * fires the block: a click is host input, and in a headless batch `execute()` run there is no pointer
+ * device, so an `on_click` handler is registered but never delivered — exactly like a `when "stop"`
+ * (I3) or an `on_key` (I5) handler in a headless run. Synthesizing a click is a host concern outside
+ * this slice; the `on-click-registered-not-delivered` fixture locks that narrowing so it is
+ * falsifiable rather than silently omitted.
+ *
+ * `block` is the handler body the reader always attaches to an `on_click` block-head (`hasBlock: true`,
+ * `parser.ts`'s `PROFILE_STATEMENT_FORMS`), recovered here by a cast since an `on_click` node reaching
+ * the runtime always has one (see the inline note, mirroring {@link executeOnKeyStatement}).
+ *
+ * Returns `void`, not an {@link ExecSignal}: unlike its argument-taking siblings
+ * ({@link executeOnKeyStatement} can fail its word-type check), `on_click` takes no argument and the
+ * spec lists its errors as **none** — registration cannot fail — so there is never a signal to halt
+ * on and the caller simply `continue`s. A bad `on_click` (a stray argument) is caught earlier, at
+ * parse time, before `execute()` runs.
+ */
+function executeOnClickStatement(
+  statement: ProfileStatementNode,
+  environment: Environment,
+): void {
+  // The reader always attaches a block to an `on_click` block-head (`hasBlock: true`, and
+  // `parseProfileStatement` fails the whole parse — which `runProgram` bails on before `execute()`
+  // runs — if the body is missing), so `body` is guaranteed present for any `on_click` node reaching
+  // the runtime. The optional `body` on `ProfileStatementNode` exists only because the bodyless
+  // `tell` mode-switch shares that node kind; a cast (not a runtime guard) records that invariant.
+  const block = statement.body as BlockNode;
+  registerOnClickHandler(
+    environment.eventHandlers,
+    block,
+    statement.keyword,
+    environment,
+  );
+  emitOnClickPrimitive(environment.events, statement.source_span);
+}
+
+/**
  * Try to run `statement` as a Sprites addressing statement — `tell` (SP2, issue #674) sets the
  * addressed set persistently, `ask` (SP3, issue #675) runs its block for a scoped set and then
  * restores the previous one, and `each` (SP4, issue #676) runs its block once per turtle in the
- * current set; the Interaction & Events heads register their own handling. Returns
- * {@link NOT_A_PROFILE_STATEMENT} when `statement` is not an addressing statement this slice runs, so
- * {@link executeStatements} falls through to its remaining checks.
+ * current set; the Interaction & Events heads register their own handling upstream. Returns
+ * {@link NOT_A_PROFILE_STATEMENT} when `statement` is not an addressing statement this dispatcher
+ * runs — either because it is not a `ProfileStatement` at all, or because it is one whose keyword no
+ * addressing form matches (a defensive guard against a head being registered in the parser's
+ * `PROFILE_STATEMENT_FORMS` without a runtime handler) — so {@link executeStatements} falls through to
+ * its remaining checks. Both cases share the single final `return`, so the guard stays covered by the
+ * ordinary non-`ProfileStatement` path even once every registered head is handled elsewhere (#732).
  */
 function dispatchProfileStatement(
   statement: StatementNode,
   environment: Environment,
 ): ExecSignal | undefined | typeof NOT_A_PROFILE_STATEMENT {
-  if (statement.kind !== "ProfileStatement") {
-    return NOT_A_PROFILE_STATEMENT;
-  }
-  const keyword = statement.keyword.name.toLowerCase();
-  if (keyword === "tell") {
-    return executeTell(statement, environment);
-  }
-  if (keyword === "ask") {
-    return executeAsk(statement, environment);
-  }
-  if (keyword === "each") {
-    return executeEach(statement, environment);
+  if (statement.kind === "ProfileStatement") {
+    const keyword = statement.keyword.name.toLowerCase();
+    if (keyword === "tell") {
+      return executeTell(statement, environment);
+    }
+    if (keyword === "ask") {
+      return executeAsk(statement, environment);
+    }
+    if (keyword === "each") {
+      return executeEach(statement, environment);
+    }
   }
   return NOT_A_PROFILE_STATEMENT;
 }
@@ -4299,6 +4364,11 @@ function executeStatements(
       if (onKeyOutcome) {
         return onKeyOutcome;
       }
+      continue;
+    }
+
+    if (isOnClickStatement(statement)) {
+      executeOnClickStatement(statement as ProfileStatementNode, environment);
       continue;
     }
 

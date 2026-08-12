@@ -1,0 +1,1 @@
+repeat 3 [ on_click [ print "x" ] ]
