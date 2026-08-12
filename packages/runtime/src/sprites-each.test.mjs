@@ -4,12 +4,11 @@
 // that turtle. Iteration order is the addressed set's insertion order, which `tell`/`ask` already
 // de-duplicate by stable id where the set is built, so a turtle listed twice still runs the block
 // once (issues #713, #748) — the same rule the direct `tell`/`ask` path obeys. Like `ask`, `each`
-// restores the
-// addressed set active before it on every exit path — normal, `stop`, `return`, `throw`, or a runtime
-// error. It composes with `ask`/`tell`, and works at top level with a single addressed turtle and
-// with an empty addressed set (zero runs). See spec/turtles-and-sprites.md's "Canonical forms" and
-// "Addressing model"; the same behavior is locked from source by the conformance fixtures under
-// tests/conformance/sprites/each-*.
+// restores the addressed set active before it on every exit path — normal, `stop`, `return`,
+// `throw`, or a runtime error. It composes with `ask`/`tell`, and works at top level with a single
+// addressed turtle and with an empty addressed set (zero runs). See spec/turtles-and-sprites.md's
+// "Canonical forms" and "Addressing model"; the same behavior is locked from source by the
+// conformance fixtures under tests/conformance/sprites/each-*.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -115,9 +114,10 @@ test("`each` closed by `end ask` raises ol-mismatched-end", () => {
 });
 
 test("#713/#748: a turtle listed twice in the addressed set runs the each block once (dedup by id)", () => {
-  // `tell [ :a :a ]` addresses :a twice; the addressed set is a SET (turtle == is keyed on id), so
-  // `each` runs its block ONCE for :a. Exactly one move, not two. Since #748 the de-duplication
-  // happens where `tell`/`ask` build the set, so `each` inherits it instead of re-deciding it.
+  // `tell [ :a :a ]` LISTS :a twice but addresses it once; the addressed set is a SET (turtle == is
+  // keyed on id), so `each` runs its block ONCE for :a. Exactly one move, not two. Since #748 the
+  // de-duplication happens where `tell`/`ask` build the set, so `each` inherits it instead of
+  // re-deciding it.
   const result = execute(
     ":a = new_turtle\ntell [ :a :a ]\neach [ forward 40 ]",
     "main.logo",

@@ -387,6 +387,31 @@ test("#748: the de-duplicated set is what each iterates too — the direct and e
   assert.deepEqual(prints, [20]);
 });
 
+test("#748: a command's argument is evaluated once per MEMBER, not once per listed item (side effects dedup too)", () => {
+  // The per-turtle loop evaluates the command's argument once per addressed turtle, so dedup is
+  // observable in argument side effects as well as in move events: with `tell [ :a :a ]`, `step`
+  // (which prints) runs ONCE, not twice — a repeated turtle no longer doubles the work its command
+  // triggers. Pins the behavioral consequence @turtle-engine flagged reviewing #748.
+  const result = execute(
+    [
+      "define step",
+      "  print who",
+      "  return 10",
+      "end",
+      ":a = new_turtle",
+      "tell [ :a :a ]",
+      "forward step",
+    ].join("\n"),
+    "main.logo",
+  );
+  assert.deepEqual(result.diagnostics, []);
+  const printed = result.events
+    .filter((event) => event.kind === "print")
+    .map((event) => event.payload.values[0].id);
+  assert.deepEqual(printed, [1]);
+  assert.deepEqual(moves(result.events), [[1, [0, 10]]]);
+});
+
 test("turtleStateFor returns the registered state for a known id and throws for an unregistered one (internal invariant)", () => {
   const environment = createEnvironment();
   // The main turtle (id 0) is always registered and is the same object `environment.turtle` aliases.

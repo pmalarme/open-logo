@@ -1,0 +1,187 @@
+{
+  "description": "issue #748: de-duplicating the addressed set is observable in a command's ARGUMENT side effects, not only in its move events. The per-turtle loop evaluates the argument once per addressed turtle, so with `tell [ :a :a ]` — one member, because a turtle command \"applies once for each addressed turtle\" over an \"addressed set\" (spec/turtles-and-sprites.md:113, :44) — `step_size` is entered ONCE: a single procedure-enter/print/return/procedure-exit and a single move, where the pre-#748 direct path ran the whole argument twice.",
+  "profiles": ["sprites", "turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-dedup-argument-evaluated-once/tell-dedup-argument-evaluated-once",
+        "start": [1, 1],
+        "end": [4, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-dedup-argument-evaluated-once/tell-dedup-argument-evaluated-once",
+        "start": [5, 1],
+        "end": [5, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/tell-dedup-argument-evaluated-once/tell-dedup-argument-evaluated-once",
+        "start": [5, 6],
+        "end": [5, 16]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-dedup-argument-evaluated-once/tell-dedup-argument-evaluated-once",
+        "start": [6, 1],
+        "end": [6, 15]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-dedup-argument-evaluated-once/tell-dedup-argument-evaluated-once",
+        "start": [7, 1],
+        "end": [7, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "sprites/tell-dedup-argument-evaluated-once/tell-dedup-argument-evaluated-once",
+        "start": [7, 9],
+        "end": [7, 18]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "name": "step_size",
+        "args": []
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-dedup-argument-evaluated-once/tell-dedup-argument-evaluated-once",
+        "start": [2, 3],
+        "end": [2, 19]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "print",
+      "source_span": {
+        "document": "sprites/tell-dedup-argument-evaluated-once/tell-dedup-argument-evaluated-once",
+        "start": [2, 3],
+        "end": [2, 19]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "values": ["stepping"]
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-dedup-argument-evaluated-once/tell-dedup-argument-evaluated-once",
+        "start": [3, 3],
+        "end": [3, 12]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "statement_kind": "Return"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "return",
+      "source_span": {
+        "document": "sprites/tell-dedup-argument-evaluated-once/tell-dedup-argument-evaluated-once",
+        "start": [3, 3],
+        "end": [3, 12]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "value": 40
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "sprites/tell-dedup-argument-evaluated-once/tell-dedup-argument-evaluated-once",
+        "start": [7, 9],
+        "end": [7, 18]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "name": "step_size",
+        "result": 40
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/tell-dedup-argument-evaluated-once/tell-dedup-argument-evaluated-once",
+        "start": [7, 1],
+        "end": [7, 18]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 40],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/tell-dedup-argument-evaluated-once/tell-dedup-argument-evaluated-once",
+        "start": [7, 1],
+        "end": [7, 18]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 40],
+        "color": "black",
+        "width": 1
+      }
+    }
+  ],
+  "diagnostics": []
+}

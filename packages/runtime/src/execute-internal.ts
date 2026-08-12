@@ -2891,7 +2891,7 @@ function executeEveryStatement(
 }
 
 /**
- * Run an `each <block>` statement (Sprites profile, `spec/turtles-and-sprites.md:71`): `each` runs
+ * Run an `each <block>` statement (Sprites profile, `spec/turtles-and-sprites.md:78`): `each` runs
  * its block **once per turtle in the current `tell` or `ask` set** — "During each run, `who` reports
  * the turtle for that iteration, and Turtle commands affect only that turtle unless the program
  * changes the addressed set again."
