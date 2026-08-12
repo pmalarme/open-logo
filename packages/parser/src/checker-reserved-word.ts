@@ -50,8 +50,16 @@
  * Reserved words are not namespaced at all; they are structural tokens the reader recognizes
  * (`:367`), which is exactly why they alone collide from a binding position. This is also the
  * blast radius the ruling predicted (`:repeat = 1`, `:if = 1`, `:while = 1` — all reserved words,
- * no primitives). The three registration forms keep their full four-category check unchanged,
- * because a `define`/`struct`/`local` name *does* enter that shared callable namespace.
+ * no primitives). The three registration forms keep their full four-category check **unchanged**,
+ * but for two different reasons. For `define`/`struct` it is the same namespace rule read the other
+ * way: a procedure or struct-constructor name *does* enter the shared callable namespace, so
+ * colliding there with a primitive or an existing procedure is a genuine collision. `local` is the
+ * odd one out — it declares a *variable*, which is no more in that namespace than an assignment
+ * target is — so its primitive/procedure/struct branches are the original #113 *freshness*
+ * behavior, not a namespace collision. #739 ruled on which forms the rule reaches, not on that
+ * behavior, so it is preserved here rather than re-justified. The resulting asymmetry — `local
+ * count` raises `namespace: "primitive"` while `:count = 1` is clean — is recorded on #739 and
+ * tracked for the maintainer-owned spec text in #758.
  *
  * **This narrowing is deliberate — do not "fix" it into a bug.** Widening
  * {@link bindingCollision} to {@link collidingNamespace}'s four categories looks like a tidy
