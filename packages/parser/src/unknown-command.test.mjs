@@ -311,6 +311,43 @@ test("`ask` stays unknown when sprites is inactive even though other profiles ar
   assert.equal(finding.params.name, "ask");
 });
 
+// --- Sprites registers `each` as a visible command name (issue #676, SP4) ---
+// `each` is the once-per-turtle block-head this slice runs. Like `tell`/`ask`, registering the
+// runtime semantics is not enough: with `sprites` active the checker must ALSO recognize `each` as a
+// visible head, or `unknownCommandRule` would reject the parsed `ProfileStatement` `ol-unknown-command`
+// (the C2 gate is live). These lock BOTH halves — parses AND checks clean under sprites, still
+// rejected Core-only.
+
+test("`each` checks clean under an active sprites profile (its head name is visible)", () => {
+  const diagnostics = checkSource("each [ forward 10 ]", [
+    "sprites",
+    "turtle-rendering",
+  ]);
+  assert.deepEqual(diagnostics, []);
+});
+
+test("a typo of `each` suggests it under sprites (each is in the did-you-mean candidate set)", () => {
+  // `eah` is distance 1 from `each`; with sprites active `each` is a visible candidate. Written as a
+  // bodyless head so the program parses cleanly for this checker-only assertion.
+  const { ast } = OL.parse("eah", "unit.logo");
+  const diagnostics = OL.check(ast, { profiles: ["sprites"] }).diagnostics;
+  const finding = diagnostics.find(
+    (d) => d.code === "ol-unknown-command" && d.params.name === "eah",
+  );
+  assert.ok(finding, "expected an ol-unknown-command for the typo `eah`");
+  assert.equal(finding.params.suggestion, "each");
+});
+
+test("`each` stays unknown when sprites is inactive even though other profiles are active", () => {
+  const diagnostics = checkSource("each [ forward 10 ]", [
+    "core-language",
+    "turtle-rendering",
+  ]);
+  const finding = diagnostics.find((d) => d.code === "ol-unknown-command");
+  assert.ok(finding, "expected each to be unknown without sprites");
+  assert.equal(finding.params.name, "each");
+});
+
 test("tie-break is deterministic: equal-distance candidates resolve lexicographically", () => {
   // `xat` is distance 1 from both `hat` and `bat`; `hat` is declared (and so inserted into the
   // candidate set) first, so this also exercises the branch where a later, lexicographically

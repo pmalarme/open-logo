@@ -1,0 +1,107 @@
+{
+  "description": "issue #713 (decided by SP4 #676): the addressed set is a genuine SET (turtle `==` is keyed on the stable `id`, C3 #665). `tell [ :a :a ]` lists :a twice, but `each` runs its block ONCE for :a — a single `move`/`draw-segment`, not two. Locks the de-duplication decision from source.",
+  "profiles": ["sprites", "turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-dedup-repeated-turtle/each-dedup-repeated-turtle",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/each-dedup-repeated-turtle/each-dedup-repeated-turtle",
+        "start": [1, 6],
+        "end": [1, 16]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-dedup-repeated-turtle/each-dedup-repeated-turtle",
+        "start": [2, 1],
+        "end": [2, 15]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-dedup-repeated-turtle/each-dedup-repeated-turtle",
+        "start": [3, 1],
+        "end": [5, 2]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-dedup-repeated-turtle/each-dedup-repeated-turtle",
+        "start": [4, 3],
+        "end": [4, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/each-dedup-repeated-turtle/each-dedup-repeated-turtle",
+        "start": [4, 3],
+        "end": [4, 13]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 40],
+        "heading": 0
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 6,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/each-dedup-repeated-turtle/each-dedup-repeated-turtle",
+        "start": [4, 3],
+        "end": [4, 13]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 40],
+        "color": "black",
+        "width": 1
+      },
+      "turtle_id": 1
+    }
+  ],
+  "diagnostics": []
+}

@@ -182,15 +182,16 @@ test("a tell argument that is not yet evaluable (a call to an unregistered name)
   assert.equal(move.turtle_id, undefined);
 });
 
-test("a non-tell profile head (`each`) is not run by this slice: it falls through and emits no diagnostic", () => {
-  // `each [ … ]` lowers to a ProfileStatement whose head is not `tell`; SP2 dispatches only `tell`,
-  // so `dispatchProfileStatement` reports it not-a-profile-statement and execution falls through
-  // exactly as before this slice (SP4/#676 will run `each`). No diagnostic, no turtle effect.
+test("`each` is now run by SP4 (#676): at top level it runs its block once for the default turtle", () => {
+  // Updated for SP4 (#676): `each [ … ]` lowers to a ProfileStatement whose head is `each`, which
+  // `dispatchProfileStatement` now runs (it fell through as not-a-profile-statement under SP2). At top
+  // level with only the default turtle addressed it runs the block once, so `print 1` emits one print.
   const result = execute("each [ print 1 ]", "main.logo");
   assert.deepEqual(result.diagnostics, []);
-  assert.equal(
-    result.events.some((event) => event.kind === "print"),
-    false,
+  const prints = result.events.filter((event) => event.kind === "print");
+  assert.deepEqual(
+    prints.map((event) => event.payload.values),
+    [[1]],
   );
 });
 
