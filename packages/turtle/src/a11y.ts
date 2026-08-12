@@ -117,7 +117,8 @@ function addressingClause(ids: readonly TurtleId[]): string {
  * `describeState` describes **one** turtle's position/heading/pen/color/width, and a *set* has no
  * single position. The sentence therefore answers the two questions separately —
  * `addressed turtles #1 #2. turtle #2 at x … y … heading … degrees pen … color … width …` — naming
- * the addressed set, then describing the turtle that most recently *changed*:
+ * the addressed set, then describing the turtle {@link TurtleWorldState.lastActedTurtleId} names:
+ * the one the most recent per-turtle command drove, or the main turtle before any command has:
  *
  * - **Identify the set, don't enumerate it.** Repeating every addressed turtle's full attributes was
  *   rejected: this is a single `aria-live="polite"` region a screen reader re-reads *in full* on
@@ -151,7 +152,8 @@ function addressingClause(ids: readonly TurtleId[]): string {
  *
  * {@link TurtleWorldState.currentTurtleId} is deliberately *not* read here: it is the `who` pointer
  * the stream reports, kept on the world for `why`/`debug` and any consumer that needs it, but the
- * subject of this sentence is what changed, and the set clause already covers what is addressed.
+ * subject of this sentence is the turtle a command last drove, and the set clause already covers
+ * what is addressed.
  *
  * Returns `null` — falling back to that same plain wording — when the world carries no
  * addressing at all (only constructible by hand, since {@link TurtleWorldState} requires the
@@ -181,9 +183,10 @@ function describeAddressedTurtles(
 
 /**
  * Builds the non-visual state description for a whole {@link TurtleWorldState}: the state of the
- * turtle that most recently acted, named once the world holds more than one live turtle (#749), and
- * preceded by the addressed turtle set whenever that set is not simply that same turtle (#770) —
- * two independent triggers, either of which can fire without the other.
+ * turtle {@link TurtleWorldState.lastActedTurtleId} names, named once the world holds more than one
+ * live turtle (#749), and preceded by the addressed turtle set whenever that set is not exactly
+ * `[lastActedTurtleId]` (#770) — two independent triggers, either of which can fire without the
+ * other.
  *
  * `spec/rendering.md:191` makes that identification a MUST: "Implementations with multiple turtles
  * MUST identify the active turtle or addressed turtle set." A world holding several turtles is

@@ -285,7 +285,8 @@ test("an event naming an unspawned turtle leaves the last-acted turtle alone", (
 });
 
 test("an un-stamped event makes the main turtle the last-acted one again", () => {
-  // A single-turtle program's events never carry a turtle_id, so the main turtle is the last-acted
+  // A Turtle & Rendering program's events never carry a turtle_id, so the main turtle is the
+  // last-acted
   // turtle throughout — the property that keeps single-turtle output unchanged.
   const world = OL.reduceTurtleWorldEvents([
     spawn(1),
@@ -569,7 +570,8 @@ test("a widening tell is folded, not swallowed as an unchanged set", () => {
   // `tell :a` / `forward 10` / `tell [ :a :b ]`: the second set has the same first member and the
   // same current turtle, so a member-by-member comparison that forgot to compare LENGTHS would
   // treat [1] and [1, 2] as identical and silently drop the widening — leaving the text claiming
-  // one addressed turtle while the program drives two, the exact failure spec/rendering.md:191
+  // one addressed turtle when the next turtle command will drive two, the exact failure
+  // spec/rendering.md:191
   // forbids. (The narrowing direction [1, 2] -> [1] cannot hide this way, so only widening needs
   // the guard.)
   const narrow = OL.reduceTurtleWorldEvents([
