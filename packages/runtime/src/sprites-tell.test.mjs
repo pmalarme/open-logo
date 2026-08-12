@@ -288,11 +288,15 @@ test("who inside a per-turtle command's argument reports the turtle currently ru
   const printed = result.events
     .filter((event) => event.kind === "print")
     .map((event) => [event.payload.values[0].id, event.turtle_id]);
-  // The two in-argument `who` prints report the acting turtle (1 then 2), each event stamped to
-  // match; the final top-level `who` reports the first addressed turtle again (1, unstamped).
+  // The two in-argument `who` prints report the acting turtle (1 then 2); the final top-level `who`
+  // reports the first addressed turtle again (1). None of the three `print` events carries a
+  // `turtle_id`: `print` is not turtle-specific, so its envelope must not claim an identity
+  // (`spec/execution-model.md:638`, issue #764) — before that filter landed these events tracked
+  // *addressing context* rather than turtle-specificity, and the same program without the `tell`
+  // emitted them unstamped.
   assert.deepEqual(printed, [
-    [1, 1],
-    [2, 2],
+    [1, undefined],
+    [2, undefined],
     [1, undefined],
   ]);
 });

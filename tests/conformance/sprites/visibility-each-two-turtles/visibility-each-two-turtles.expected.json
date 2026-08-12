@@ -1,5 +1,5 @@
 {
-  "description": "issue #677 (SP5): `each` runs its block once per distinct addressed turtle; `set_shape \"circle\"` + `hide_turtle` inside it emit one `shape-change` and one `visibility-change` per turtle, each stamped with the iteration's `turtle_id` (1 then 2) — proving shape/visibility compose with `each`.",
+  "description": "issue #677 (SP5): `each` runs its block once per distinct addressed turtle; `set_shape \"circle\"` + `hide_turtle` inside it emit one `shape-change` and one `visibility-change` per turtle, each stamped with the iteration's `turtle_id` (1 then 2) — proving shape/visibility compose with `each`. Every change of the addressed set — here from `each`/`tell` — also emits the addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }`, so a consumer can identify the addressed turtle set (issue #766, spec/rendering.md:191); `ask`/`each` emit one again when the previous set is restored, on every exit path.",
   "profiles": ["sprites"],
   "execute": true,
   "events": [
@@ -81,6 +81,22 @@
     },
     {
       "seq": 5,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/visibility-each-two-turtles/visibility-each-two-turtles",
+        "start": [3, 1],
+        "end": [3, 15]
+      },
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [1, 2],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 6,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/visibility-each-two-turtles/visibility-each-two-turtles",
@@ -92,7 +108,23 @@
       }
     },
     {
-      "seq": 6,
+      "seq": 7,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/visibility-each-two-turtles/visibility-each-two-turtles",
+        "start": [4, 1],
+        "end": [7, 2]
+      },
+      "payload": {
+        "name": "each",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 8,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/visibility-each-two-turtles/visibility-each-two-turtles",
@@ -104,7 +136,7 @@
       }
     },
     {
-      "seq": 7,
+      "seq": 9,
       "kind": "shape-change",
       "source_span": {
         "document": "sprites/visibility-each-two-turtles/visibility-each-two-turtles",
@@ -114,32 +146,6 @@
       "payload": {
         "from": "turtle",
         "to": "circle"
-      },
-      "turtle_id": 1
-    },
-    {
-      "seq": 8,
-      "kind": "instruction",
-      "source_span": {
-        "document": "sprites/visibility-each-two-turtles/visibility-each-two-turtles",
-        "start": [6, 3],
-        "end": [6, 14]
-      },
-      "payload": {
-        "statement_kind": "Call"
-      }
-    },
-    {
-      "seq": 9,
-      "kind": "visibility-change",
-      "source_span": {
-        "document": "sprites/visibility-each-two-turtles/visibility-each-two-turtles",
-        "start": [6, 3],
-        "end": [6, 14]
-      },
-      "payload": {
-        "from": true,
-        "to": false
       },
       "turtle_id": 1
     },
@@ -148,6 +154,48 @@
       "kind": "instruction",
       "source_span": {
         "document": "sprites/visibility-each-two-turtles/visibility-each-two-turtles",
+        "start": [6, 3],
+        "end": [6, 14]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "visibility-change",
+      "source_span": {
+        "document": "sprites/visibility-each-two-turtles/visibility-each-two-turtles",
+        "start": [6, 3],
+        "end": [6, 14]
+      },
+      "payload": {
+        "from": true,
+        "to": false
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 12,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/visibility-each-two-turtles/visibility-each-two-turtles",
+        "start": [4, 1],
+        "end": [7, 2]
+      },
+      "payload": {
+        "name": "each",
+        "addressing": {
+          "addressed_turtle_ids": [2],
+          "current_turtle_id": 2
+        }
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/visibility-each-two-turtles/visibility-each-two-turtles",
         "start": [5, 3],
         "end": [5, 21]
       },
@@ -156,7 +204,7 @@
       }
     },
     {
-      "seq": 11,
+      "seq": 14,
       "kind": "shape-change",
       "source_span": {
         "document": "sprites/visibility-each-two-turtles/visibility-each-two-turtles",
@@ -170,7 +218,7 @@
       "turtle_id": 2
     },
     {
-      "seq": 12,
+      "seq": 15,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/visibility-each-two-turtles/visibility-each-two-turtles",
@@ -182,7 +230,7 @@
       }
     },
     {
-      "seq": 13,
+      "seq": 16,
       "kind": "visibility-change",
       "source_span": {
         "document": "sprites/visibility-each-two-turtles/visibility-each-two-turtles",
@@ -194,6 +242,22 @@
         "to": false
       },
       "turtle_id": 2
+    },
+    {
+      "seq": 17,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/visibility-each-two-turtles/visibility-each-two-turtles",
+        "start": [4, 1],
+        "end": [7, 2]
+      },
+      "payload": {
+        "name": "each",
+        "addressing": {
+          "addressed_turtle_ids": [1, 2],
+          "current_turtle_id": 1
+        }
+      }
     }
   ],
   "diagnostics": []

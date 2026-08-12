@@ -1,0 +1,8 @@
+define step_size
+  print "stepping"
+  return 40
+end
+:a = new_turtle
+:b = new_turtle
+tell [ :a :b ]
+forward step_size

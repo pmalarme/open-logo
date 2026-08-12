@@ -1,5 +1,5 @@
 {
-  "description": "issue #748: de-duplicating the addressed set MUST NOT perturb its insertion order or `who`. `tell [ :b :a :b ]` addresses :b (id 2) then :a (id 1); the repeat of :b is dropped as a duplicate but its FIRST occurrence keeps position 0, so `who` still reports :b (issue #679's rule that `tell [ :b :a ]` makes :b current) and the following `forward 40` applies to :b first, then :a — two moves, in that order, not three and not re-ordered.",
+  "description": "issue #748: de-duplicating the addressed set MUST NOT perturb its insertion order or `who`. `tell [ :b :a :b ]` addresses :b (id 2) then :a (id 1); the repeat of :b is dropped as a duplicate but its FIRST occurrence keeps position 0, so `who` still reports :b (issue #679's rule that `tell [ :b :a ]` makes :b current) and the following `forward 40` applies to :b first, then :a — two moves, in that order, not three and not re-ordered. Every change of the addressed set — here from `tell` — also emits the addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }`, so a consumer can identify the addressed turtle set (issue #766, spec/rendering.md:191); `ask`/`each` emit one again when the previous set is restored, on every exit path.",
   "profiles": ["sprites", "turtle-rendering"],
   "execute": true,
   "events": [
@@ -81,6 +81,22 @@
     },
     {
       "seq": 5,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/tell-dedup-preserves-first-occurrence-order/tell-dedup-preserves-first-occurrence-order",
+        "start": [3, 1],
+        "end": [3, 18]
+      },
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [2, 1],
+          "current_turtle_id": 2
+        }
+      }
+    },
+    {
+      "seq": 6,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/tell-dedup-preserves-first-occurrence-order/tell-dedup-preserves-first-occurrence-order",
@@ -92,7 +108,7 @@
       }
     },
     {
-      "seq": 6,
+      "seq": 7,
       "kind": "print",
       "source_span": {
         "document": "sprites/tell-dedup-preserves-first-occurrence-order/tell-dedup-preserves-first-occurrence-order",
@@ -104,7 +120,7 @@
       }
     },
     {
-      "seq": 7,
+      "seq": 8,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/tell-dedup-preserves-first-occurrence-order/tell-dedup-preserves-first-occurrence-order",
@@ -116,7 +132,7 @@
       }
     },
     {
-      "seq": 8,
+      "seq": 9,
       "kind": "move",
       "source_span": {
         "document": "sprites/tell-dedup-preserves-first-occurrence-order/tell-dedup-preserves-first-occurrence-order",
@@ -131,7 +147,7 @@
       "turtle_id": 2
     },
     {
-      "seq": 9,
+      "seq": 10,
       "kind": "draw-segment",
       "source_span": {
         "document": "sprites/tell-dedup-preserves-first-occurrence-order/tell-dedup-preserves-first-occurrence-order",
@@ -147,7 +163,7 @@
       "turtle_id": 2
     },
     {
-      "seq": 10,
+      "seq": 11,
       "kind": "move",
       "source_span": {
         "document": "sprites/tell-dedup-preserves-first-occurrence-order/tell-dedup-preserves-first-occurrence-order",
@@ -162,7 +178,7 @@
       "turtle_id": 1
     },
     {
-      "seq": 11,
+      "seq": 12,
       "kind": "draw-segment",
       "source_span": {
         "document": "sprites/tell-dedup-preserves-first-occurrence-order/tell-dedup-preserves-first-occurrence-order",

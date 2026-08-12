@@ -1,0 +1,8 @@
+:a = new_turtle
+:b = new_turtle
+define wipe
+  clean
+  return 5
+end
+tell [ :a :b ]
+forward wipe

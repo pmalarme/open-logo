@@ -1,5 +1,5 @@
 {
-  "description": "issue #748 (Sprites Epic Gate B1): `ask` builds the same de-duplicated addressed set as `tell`. `ask [ :a :a ] [ forward 40 ]` lists :a twice, but the block's turtle command runs ONCE for :a — a single move/draw-segment ending at [0, 40], not two ending at [0, 80] — because the addressed set is a SET (spec/turtles-and-sprites.md:44) whose members compare by \"Same turtle identity\" (spec/execution-model.md:540) and a turtle command \"applies once for each addressed turtle\" (`:113`). The scoped `ask` path is proven separately from `tell` so neither can regress alone.",
+  "description": "issue #748 (Sprites Epic Gate B1): `ask` builds the same de-duplicated addressed set as `tell`. `ask [ :a :a ] [ forward 40 ]` lists :a twice, but the block's turtle command runs ONCE for :a — a single move/draw-segment ending at [0, 40], not two ending at [0, 80] — because the addressed set is a SET (spec/turtles-and-sprites.md:44) whose members compare by \"Same turtle identity\" (spec/execution-model.md:540) and a turtle command \"applies once for each addressed turtle\" (`:113`). The scoped `ask` path is proven separately from `tell` so neither can regress alone. Every change of the addressed set — here from `ask` — also emits the addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }`, so a consumer can identify the addressed turtle set (issue #766, spec/rendering.md:191); `ask`/`each` emit one again when the previous set is restored, on every exit path.",
   "profiles": ["sprites", "turtle-rendering"],
   "execute": true,
   "events": [
@@ -49,6 +49,22 @@
     },
     {
       "seq": 3,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/ask-dedup-repeated-turtle/ask-dedup-repeated-turtle",
+        "start": [2, 1],
+        "end": [4, 2]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 4,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/ask-dedup-repeated-turtle/ask-dedup-repeated-turtle",
@@ -60,7 +76,7 @@
       }
     },
     {
-      "seq": 4,
+      "seq": 5,
       "kind": "move",
       "source_span": {
         "document": "sprites/ask-dedup-repeated-turtle/ask-dedup-repeated-turtle",
@@ -75,7 +91,7 @@
       "turtle_id": 1
     },
     {
-      "seq": 5,
+      "seq": 6,
       "kind": "draw-segment",
       "source_span": {
         "document": "sprites/ask-dedup-repeated-turtle/ask-dedup-repeated-turtle",
@@ -89,6 +105,22 @@
         "width": 1
       },
       "turtle_id": 1
+    },
+    {
+      "seq": 7,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/ask-dedup-repeated-turtle/ask-dedup-repeated-turtle",
+        "start": [2, 1],
+        "end": [4, 2]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [0],
+          "current_turtle_id": 0
+        }
+      }
     }
   ],
   "diagnostics": []

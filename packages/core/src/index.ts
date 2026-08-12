@@ -43,8 +43,14 @@ export type {
   StyleDiagnosticCode,
 } from "./diagnostics.js";
 
-export { isEventKind, OL_EVENT_KINDS } from "./events.js";
+export {
+  isEventKind,
+  isTurtleSpecificEventKind,
+  OL_EVENT_KINDS,
+  OL_TURTLE_SPECIFIC_EVENT_KINDS,
+} from "./events.js";
 export type {
+  AddressingSnapshot,
   AxesOverlayPayload,
   BackgroundChangePayload,
   ClearPayload,

@@ -1,0 +1,5 @@
+:a = new_turtle
+:b = new_turtle
+tell [ :a :b ]
+forward 10
+ask :b [ hide_turtle ]

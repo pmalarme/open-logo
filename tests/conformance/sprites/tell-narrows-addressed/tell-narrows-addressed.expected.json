@@ -1,5 +1,5 @@
 {
-  "description": "issue #674 (SP2): `tell` is a command that changes the addressed set until changed again. After `tell [ :a :b ]`, a second `tell :a` narrows the addressed set to just turtle 1, so the following `forward 50` emits exactly one `move`+`draw-segment` pair, stamped `turtle_id` 1 — turtle 2 does not move.",
+  "description": "issue #674 (SP2): `tell` is a command that changes the addressed set until changed again. After `tell [ :a :b ]`, a second `tell :a` narrows the addressed set to just turtle 1, so the following `forward 50` emits exactly one `move`+`draw-segment` pair, stamped `turtle_id` 1 — turtle 2 does not move. Every change of the addressed set — here from `tell` — also emits the addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }`, so a consumer can identify the addressed turtle set (issue #766, spec/rendering.md:191); `ask`/`each` emit one again when the previous set is restored, on every exit path.",
   "profiles": ["sprites"],
   "execute": true,
   "events": [
@@ -11,7 +11,9 @@
         "start": [1, 1],
         "end": [1, 16]
       },
-      "payload": { "statement_kind": "Assign" }
+      "payload": {
+        "statement_kind": "Assign"
+      }
     },
     {
       "seq": 1,
@@ -41,7 +43,9 @@
         "start": [2, 1],
         "end": [2, 16]
       },
-      "payload": { "statement_kind": "Assign" }
+      "payload": {
+        "statement_kind": "Assign"
+      }
     },
     {
       "seq": 3,
@@ -71,41 +75,83 @@
         "start": [3, 1],
         "end": [3, 15]
       },
-      "payload": { "statement_kind": "ProfileStatement" }
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
     },
     {
       "seq": 5,
-      "kind": "instruction",
+      "kind": "primitive",
       "source_span": {
         "document": "sprites/tell-narrows-addressed/tell-narrows-addressed",
-        "start": [4, 1],
-        "end": [4, 8]
+        "start": [3, 1],
+        "end": [3, 15]
       },
-      "payload": { "statement_kind": "ProfileStatement" }
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [1, 2],
+          "current_turtle_id": 1
+        }
+      }
     },
     {
       "seq": 6,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/tell-narrows-addressed/tell-narrows-addressed",
-        "start": [5, 1],
-        "end": [5, 11]
+        "start": [4, 1],
+        "end": [4, 8]
       },
-      "payload": { "statement_kind": "Call" }
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
     },
     {
       "seq": 7,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/tell-narrows-addressed/tell-narrows-addressed",
+        "start": [4, 1],
+        "end": [4, 8]
+      },
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-narrows-addressed/tell-narrows-addressed",
+        "start": [5, 1],
+        "end": [5, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 9,
       "kind": "move",
       "source_span": {
         "document": "sprites/tell-narrows-addressed/tell-narrows-addressed",
         "start": [5, 1],
         "end": [5, 11]
       },
-      "payload": { "from": [0, 0], "to": [0, 50], "heading": 0 },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 50],
+        "heading": 0
+      },
       "turtle_id": 1
     },
     {
-      "seq": 8,
+      "seq": 10,
       "kind": "draw-segment",
       "source_span": {
         "document": "sprites/tell-narrows-addressed/tell-narrows-addressed",

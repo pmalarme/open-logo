@@ -1,5 +1,5 @@
 {
-  "description": "issue #677 (SP5): with the addressed set empty (`tell [ ]`), the per-turtle commands `set_shape`/`hide_turtle`/`stamp` apply zero times and emit no `shape-change`/`visibility-change`/`stamp` events at all. Each still contributes its own `instruction` event — the statement ran, it just addressed no turtle — so the stream is exactly the six `instruction`/`spawn-turtle` envelope events with no per-turtle effect event among them. An empty addressed set is a valid no-op.",
+  "description": "issue #677 (SP5): with the addressed set empty (`tell [ ]`), the per-turtle commands `set_shape`/`hide_turtle`/`stamp` apply zero times and emit no `shape-change`/`visibility-change`/`stamp` events at all. Each still contributes its own `instruction` event — the statement ran, it just addressed no turtle — so the stream is exactly the six `instruction`/`spawn-turtle` envelope events with no per-turtle effect event among them. An empty addressed set is a valid no-op. Every change of the addressed set — here from `tell` — also emits the addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }`, so a consumer can identify the addressed turtle set (issue #766, spec/rendering.md:191); `ask`/`each` emit one again when the previous set is restored, on every exit path.",
   "profiles": ["sprites"],
   "execute": true,
   "events": [
@@ -49,6 +49,22 @@
     },
     {
       "seq": 3,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/shape-empty-set-no-op/shape-empty-set-no-op",
+        "start": [2, 1],
+        "end": [2, 9]
+      },
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [],
+          "current_turtle_id": null
+        }
+      }
+    },
+    {
+      "seq": 4,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/shape-empty-set-no-op/shape-empty-set-no-op",
@@ -60,7 +76,7 @@
       }
     },
     {
-      "seq": 4,
+      "seq": 5,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/shape-empty-set-no-op/shape-empty-set-no-op",
@@ -72,7 +88,7 @@
       }
     },
     {
-      "seq": 5,
+      "seq": 6,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/shape-empty-set-no-op/shape-empty-set-no-op",

@@ -1,5 +1,5 @@
 {
-  "description": "issue #748: de-duplicating the addressed set is observable in a command's ARGUMENT side effects, not only in its move events. The per-turtle loop evaluates the argument once per addressed turtle, so with `tell [ :a :a ]` — one member, because a turtle command \"applies once for each addressed turtle\" over an \"addressed set\" (spec/turtles-and-sprites.md:113, :44) — the `new_turtle` in argument position spawns exactly ONE turtle (id 2, its own authoritative `turtle_id`) and `:a` moves once, where the pre-#748 direct path evaluated the whole argument twice and spawned two.",
+  "description": "issue #748: de-duplicating the addressed set is observable in a command's ARGUMENT side effects, not only in its move events. The per-turtle loop evaluates the argument once per addressed turtle, so with `tell [ :a :a ]` — one member, because a turtle command \"applies once for each addressed turtle\" over an \"addressed set\" (spec/turtles-and-sprites.md:113, :44) — the `new_turtle` in argument position spawns exactly ONE turtle (id 2, its own authoritative `turtle_id`) and `:a` moves once, where the pre-#748 direct path evaluated the whole argument twice and spawned two. Every change of the addressed set — here from `tell` — also emits the addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }`, so a consumer can identify the addressed turtle set (issue #766, spec/rendering.md:191); `ask`/`each` emit one again when the previous set is restored, on every exit path.",
   "profiles": ["sprites", "turtle-rendering"],
   "execute": true,
   "events": [
@@ -49,6 +49,22 @@
     },
     {
       "seq": 3,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/tell-dedup-argument-evaluated-once/tell-dedup-argument-evaluated-once",
+        "start": [2, 1],
+        "end": [2, 15]
+      },
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 4,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/tell-dedup-argument-evaluated-once/tell-dedup-argument-evaluated-once",
@@ -60,7 +76,7 @@
       }
     },
     {
-      "seq": 4,
+      "seq": 5,
       "kind": "spawn-turtle",
       "source_span": {
         "document": "sprites/tell-dedup-argument-evaluated-once/tell-dedup-argument-evaluated-once",
@@ -80,7 +96,7 @@
       }
     },
     {
-      "seq": 5,
+      "seq": 6,
       "kind": "move",
       "source_span": {
         "document": "sprites/tell-dedup-argument-evaluated-once/tell-dedup-argument-evaluated-once",
@@ -95,7 +111,7 @@
       }
     },
     {
-      "seq": 6,
+      "seq": 7,
       "kind": "draw-segment",
       "source_span": {
         "document": "sprites/tell-dedup-argument-evaluated-once/tell-dedup-argument-evaluated-once",

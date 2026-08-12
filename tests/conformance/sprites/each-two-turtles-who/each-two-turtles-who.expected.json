@@ -1,5 +1,5 @@
 {
-  "description": "issue #676 (SP4): `each <block>` runs its block ONCE per turtle in the current `tell` set, in insertion order. With `tell [ :a :b ]` the block runs for :a (id 1) then :b (id 2); inside each run `who` reports that turtle (`who == :a` is `true` on :a's run, `false` on :b's) and its `forward`/`right` events carry that turtle's `turtle_id`.",
+  "description": "issue #676 (SP4): `each <block>` runs its block ONCE per turtle in the current `tell` set, in insertion order. With `tell [ :a :b ]` the block runs for :a (id 1) then :b (id 2); inside each run `who` reports that turtle (`who == :a` is `true` on :a's run, `false` on :b's) and its `forward`/`right` events carry that turtle's `turtle_id`. Every change of the addressed set — here from `each`/`tell` — also emits the addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }`, so a consumer can identify the addressed turtle set (issue #766, spec/rendering.md:191); `ask`/`each` emit one again when the previous set is restored, on every exit path.",
   "profiles": ["sprites", "turtle-rendering"],
   "execute": true,
   "events": [
@@ -81,6 +81,22 @@
     },
     {
       "seq": 5,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/each-two-turtles-who/each-two-turtles-who",
+        "start": [3, 1],
+        "end": [3, 15]
+      },
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [1, 2],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 6,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/each-two-turtles-who/each-two-turtles-who",
@@ -92,7 +108,23 @@
       }
     },
     {
-      "seq": 6,
+      "seq": 7,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/each-two-turtles-who/each-two-turtles-who",
+        "start": [4, 1],
+        "end": [8, 2]
+      },
+      "payload": {
+        "name": "each",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 8,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/each-two-turtles-who/each-two-turtles-who",
@@ -104,7 +136,7 @@
       }
     },
     {
-      "seq": 7,
+      "seq": 9,
       "kind": "print",
       "source_span": {
         "document": "sprites/each-two-turtles-who/each-two-turtles-who",
@@ -116,7 +148,7 @@
       }
     },
     {
-      "seq": 8,
+      "seq": 10,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/each-two-turtles-who/each-two-turtles-who",
@@ -128,7 +160,7 @@
       }
     },
     {
-      "seq": 9,
+      "seq": 11,
       "kind": "move",
       "source_span": {
         "document": "sprites/each-two-turtles-who/each-two-turtles-who",
@@ -143,7 +175,7 @@
       "turtle_id": 1
     },
     {
-      "seq": 10,
+      "seq": 12,
       "kind": "draw-segment",
       "source_span": {
         "document": "sprites/each-two-turtles-who/each-two-turtles-who",
@@ -159,7 +191,7 @@
       "turtle_id": 1
     },
     {
-      "seq": 11,
+      "seq": 13,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/each-two-turtles-who/each-two-turtles-who",
@@ -171,7 +203,7 @@
       }
     },
     {
-      "seq": 12,
+      "seq": 14,
       "kind": "turn",
       "source_span": {
         "document": "sprites/each-two-turtles-who/each-two-turtles-who",
@@ -185,7 +217,23 @@
       "turtle_id": 1
     },
     {
-      "seq": 13,
+      "seq": 15,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/each-two-turtles-who/each-two-turtles-who",
+        "start": [4, 1],
+        "end": [8, 2]
+      },
+      "payload": {
+        "name": "each",
+        "addressing": {
+          "addressed_turtle_ids": [2],
+          "current_turtle_id": 2
+        }
+      }
+    },
+    {
+      "seq": 16,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/each-two-turtles-who/each-two-turtles-who",
@@ -197,7 +245,7 @@
       }
     },
     {
-      "seq": 14,
+      "seq": 17,
       "kind": "print",
       "source_span": {
         "document": "sprites/each-two-turtles-who/each-two-turtles-who",
@@ -209,7 +257,7 @@
       }
     },
     {
-      "seq": 15,
+      "seq": 18,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/each-two-turtles-who/each-two-turtles-who",
@@ -221,7 +269,7 @@
       }
     },
     {
-      "seq": 16,
+      "seq": 19,
       "kind": "move",
       "source_span": {
         "document": "sprites/each-two-turtles-who/each-two-turtles-who",
@@ -236,7 +284,7 @@
       "turtle_id": 2
     },
     {
-      "seq": 17,
+      "seq": 20,
       "kind": "draw-segment",
       "source_span": {
         "document": "sprites/each-two-turtles-who/each-two-turtles-who",
@@ -252,7 +300,7 @@
       "turtle_id": 2
     },
     {
-      "seq": 18,
+      "seq": 21,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/each-two-turtles-who/each-two-turtles-who",
@@ -264,7 +312,7 @@
       }
     },
     {
-      "seq": 19,
+      "seq": 22,
       "kind": "turn",
       "source_span": {
         "document": "sprites/each-two-turtles-who/each-two-turtles-who",
@@ -276,6 +324,22 @@
         "to": 120
       },
       "turtle_id": 2
+    },
+    {
+      "seq": 23,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/each-two-turtles-who/each-two-turtles-who",
+        "start": [4, 1],
+        "end": [8, 2]
+      },
+      "payload": {
+        "name": "each",
+        "addressing": {
+          "addressed_turtle_ids": [1, 2],
+          "current_turtle_id": 1
+        }
+      }
     }
   ],
   "diagnostics": []

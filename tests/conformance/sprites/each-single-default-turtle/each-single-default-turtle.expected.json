@@ -1,5 +1,5 @@
 {
-  "description": "issue #676 (SP4): `each` at top level with only the implicit default turtle addressed runs its block ONCE for that turtle (id 0). `each` makes its per-iteration addressing explicit, so the single move carries `turtle_id` 0.",
+  "description": "issue #676 (SP4): `each` at top level with only the implicit default turtle addressed runs its block ONCE for that turtle (id 0). `each` makes its per-iteration addressing explicit, so the single move carries `turtle_id` 0. Every change of the addressed set — here from `each` — also emits the addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }`, so a consumer can identify the addressed turtle set (issue #766, spec/rendering.md:191); `ask`/`each` emit one again when the previous set is restored, on every exit path.",
   "profiles": ["sprites", "turtle-rendering"],
   "execute": true,
   "events": [
@@ -17,6 +17,22 @@
     },
     {
       "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/each-single-default-turtle/each-single-default-turtle",
+        "start": [1, 1],
+        "end": [3, 2]
+      },
+      "payload": {
+        "name": "each",
+        "addressing": {
+          "addressed_turtle_ids": [0],
+          "current_turtle_id": 0
+        }
+      }
+    },
+    {
+      "seq": 2,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/each-single-default-turtle/each-single-default-turtle",
@@ -28,7 +44,7 @@
       }
     },
     {
-      "seq": 2,
+      "seq": 3,
       "kind": "move",
       "source_span": {
         "document": "sprites/each-single-default-turtle/each-single-default-turtle",
@@ -43,7 +59,7 @@
       "turtle_id": 0
     },
     {
-      "seq": 3,
+      "seq": 4,
       "kind": "draw-segment",
       "source_span": {
         "document": "sprites/each-single-default-turtle/each-single-default-turtle",
@@ -57,6 +73,22 @@
         "width": 1
       },
       "turtle_id": 0
+    },
+    {
+      "seq": 5,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/each-single-default-turtle/each-single-default-turtle",
+        "start": [1, 1],
+        "end": [3, 2]
+      },
+      "payload": {
+        "name": "each",
+        "addressing": {
+          "addressed_turtle_ids": [0],
+          "current_turtle_id": 0
+        }
+      }
     }
   ],
   "diagnostics": []
