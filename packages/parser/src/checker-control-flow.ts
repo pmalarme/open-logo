@@ -46,9 +46,22 @@ import type {
 } from "./ast.js";
 import { childrenOf } from "./ast.js";
 import type { CheckProfile } from "./check.js";
+import { interactionEventsBlockHeadNames } from "./signatures.js";
 
 /** The three comprehension forms, the `form` param value for the comprehension-scoped codes. */
 type ComprehensionForm = ComprehensionNode["form"];
+
+/**
+ * The event-handler block-head keywords whose block body is a **fresh control-flow boundary** — a
+ * handler block is not a procedure body and not a comprehension body, so a `return`/`stop` inside it
+ * is outside any procedure (`ol-return-outside-proc`/`ol-stop-outside-proc`) exactly as the runtime
+ * reclassifies it at the handler boundary (issue #682, slice I3). Derived from the parser's single
+ * source of truth ({@link interactionEventsBlockHeadNames}) so it grows with `every`/`on_key`/
+ * `on_click` (#683–#685) without this rule hardcoding a second copy. Case-insensitive lookup.
+ */
+const HANDLER_BLOCK_HEADS: ReadonlySet<string> = new Set(
+  interactionEventsBlockHeadNames().map((name) => name.toLowerCase()),
+);
 
 /** The lexical context an escape/comprehension is judged in as the walk descends. */
 interface Context {
@@ -360,6 +373,31 @@ export function controlFlowRule(
         const diag = escapeDiagnostic(node, context);
         if (diag !== undefined) {
           diagnostics.push(diag);
+        }
+        return;
+      }
+      case "ProfileStatement": {
+        // An event-handler block (`when [ … ]`, later `every`/`on_key`/`on_click`) is a fresh
+        // control-flow boundary: its body is neither a procedure body nor a comprehension body, so a
+        // `return`/`stop` inside it is outside any procedure — matching the runtime, which
+        // reclassifies an escaping handler signal at the handler boundary (#682). The head arguments
+        // are still ordinary expressions in the enclosing context. A non-handler ProfileStatement (or
+        // one with no block) walks its children in the enclosing context unchanged.
+        if (
+          node.body !== undefined &&
+          HANDLER_BLOCK_HEADS.has(node.keyword.name.toLowerCase())
+        ) {
+          for (const arg of node.args) {
+            visit(arg, context);
+          }
+          visit(node.body, {
+            inProcedure: false,
+            comprehensionForm: undefined,
+          });
+          return;
+        }
+        for (const child of childrenOf(node)) {
+          visit(child, context);
         }
         return;
       }

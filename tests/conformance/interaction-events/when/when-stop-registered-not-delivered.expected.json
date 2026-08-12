@@ -1,0 +1,56 @@
+{
+  "description": "issue #682 (slice I3): registration is not invocation, and `\"stop\"` is a REQUESTED stop notification — a headless batch `execute()` run receives no such request, so a `when \"stop\" [ ... ]` handler is registered (emitting the `instruction`+`primitive` pair, seq 0-1) but never fires. Unlike `\"start\"` (already being delivered because the run has started), `\"stop\"` is not delivered here; the following `print \"mid\"` runs (seq 2-3) and that is the whole event stream — `\"bye\"` is never printed. This slice deliberately does NOT synthesize a `\"stop\"` event on natural completion, which spec/interaction-events.md (§`### when <event-word> <block>`, \"stop for a requested stop notification before termination\") does not define as a stop request; delivering `\"stop\"` belongs to a later interactive/cancellation host slice.",
+  "profiles": ["interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/when/when-stop-registered-not-delivered",
+        "start": [1, 1],
+        "end": [1, 28]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/when/when-stop-registered-not-delivered",
+        "start": [1, 1],
+        "end": [1, 28]
+      },
+      "payload": {
+        "name": "when"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/when/when-stop-registered-not-delivered",
+        "start": [2, 1],
+        "end": [2, 12]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/when/when-stop-registered-not-delivered",
+        "start": [2, 1],
+        "end": [2, 12]
+      },
+      "payload": {
+        "values": ["mid"]
+      }
+    }
+  ],
+  "diagnostics": []
+}

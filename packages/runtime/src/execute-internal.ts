@@ -49,10 +49,12 @@ import type {
 } from "@openlogo/core";
 import { typeNameOf } from "@openlogo/core";
 import type {
+  BlockNode,
   CallNode,
   ExpressionNode,
   ParenCallNode,
   ProcedureDefNode,
+  ProfileStatementNode,
   ProgramNode,
   StatementNode,
   StructDefNode,
@@ -98,10 +100,16 @@ import {
 } from "./evaluate.js";
 import { runtimeDiag } from "./errors.js";
 import {
+  createEventHandlerRegistry,
   createTickClock,
+  emitWhenPrimitive,
   isWaitCall,
+  pendingHandlersFor,
+  registerWhenHandler,
   runWait,
+  STANDARD_EVENT_WORDS,
   validateTickCount,
+  type WhenHandler,
 } from "./interaction.js";
 import type {
   ExecuteOptions,
@@ -1767,6 +1775,148 @@ function executeWaitCall(
 }
 
 /**
+ * Is `statement` a `when <event-word> <block>` handler registration (issue #682,
+ * `spec/interaction-events.md`'s `### when <event-word> <block>`)? `when` is a profile block-head
+ * the reader lowers to a {@link ProfileStatementNode} (C2 #664's `PROFILE_STATEMENT_FORMS`), NOT an
+ * ordinary `Call`, so it is matched here by node kind + head keyword rather than by callee name.
+ * A plain `boolean` (not a type predicate) to match the surrounding turtle/wait dispatch
+ * convention; the caller narrows via a cast at the single call site, exactly as `executeWaitCall`
+ * does.
+ */
+function isWhenStatement(statement: StatementNode): boolean {
+  return (
+    statement.kind === "ProfileStatement" &&
+    statement.keyword.name.toLowerCase() === "when"
+  );
+}
+
+/**
+ * Run one `when` handler's block for a fired event (`spec/interaction-events.md`'s "Trace stream
+ * integration"): first emit the `instruction` event for the block-head that caused the handler to
+ * run — carrying the `when` keyword's own span, so replay attributes the run to the registration
+ * site — then execute the handler body, whose own effects emit the ordinary after-effect events.
+ * Marks the handler `fired` so a one-shot event (`"start"`/`"stop"`) never delivers it twice.
+ * Returns the body's {@link ExecSignal} so a `halt` (a runtime error or a cancelled budget inside
+ * the handler) propagates and stops the whole run, per `spec/interaction-events.md`'s
+ * "Errors and cancellation". A `return`/`stop` that escapes the handler body is converted HERE into
+ * its `ol-return-outside-proc`/`ol-stop-outside-proc` diagnostic (a handler block is not a procedure
+ * body, exactly like the top level), rather than being returned raw: a `when "start"` handler fires
+ * synchronously during registration, so a raw `return`/`stop` signal would otherwise be caught by an
+ * enclosing procedure call and silently consumed as that procedure's own `return`/`stop`. Converting
+ * at the boundary makes the diagnostic independent of whether the `when` was registered inside a
+ * procedure.
+ */
+function invokeWhenHandler(
+  handler: WhenHandler,
+  environment: Environment,
+): ExecSignal {
+  handler.fired = true;
+  environment.events.push({
+    seq: environment.events.length,
+    kind: "instruction",
+    source_span: handler.keyword.source_span,
+    payload: {
+      statement_kind: "ProfileStatement",
+    } satisfies InstructionPayload,
+  });
+  const signal = executeStatements(handler.block.body, handler.environment);
+  if (signal.kind === "return") {
+    return halt(
+      runtimeDiag.returnOutsideProc(signal.source_span, signal.keyword),
+    );
+  }
+  if (signal.kind === "stop") {
+    return halt(runtimeDiag.stopOutsideProc(signal.source_span));
+  }
+  return signal;
+}
+
+/**
+ * Deliver `event` to every not-yet-fired `when` handler registered for it, in registration order
+ * (`spec/interaction-events.md`'s "Time, ticks, and handlers": pending `when` events fire in
+ * registration order). Snapshots the pending set first ({@link pendingHandlersFor} returns a fresh
+ * array) so a handler that registers another handler for the same event mid-dispatch does not
+ * extend the sequence being delivered now — that newly-registered handler follows its own
+ * registration path. Firing an event with no registered handler is a well-defined no-op. Stops at
+ * the first handler that halts, returning its {@link ExecSignal}; returns {@link NORMAL_SIGNAL} when
+ * every handler completed normally.
+ */
+function fireEvent(event: string, environment: Environment): ExecSignal {
+  for (const handler of pendingHandlersFor(environment.eventHandlers, event)) {
+    const signal = invokeWhenHandler(handler, environment);
+    if (signal.kind !== "normal") {
+      return signal;
+    }
+  }
+  return NORMAL_SIGNAL;
+}
+
+/**
+ * Register a `when <event-word> <block>` handler (issue #682, `spec/interaction-events.md`'s
+ * `### when <event-word> <block>`): evaluate the single event argument, require it to be a word
+ * (`ol-type` via {@link runtimeDiag.whenEventNotWord} otherwise), record the handler on the
+ * environment's registry in registration order, then emit the `primitive` event **after** the
+ * handler is registered (spec: "Event registration forms emit `primitive` events after the handler
+ * is registered"). Finally, because a batch `execute()` run has already started, a `"start"` handler
+ * is already being delivered, so it fires immediately after registration (spec: registering "does
+ * not run its block immediately unless the triggering event is already being delivered"); every
+ * other event — including `"stop"` — is registered but not delivered in a headless batch run (see
+ * {@link STANDARD_EVENT_WORDS}), so its handler does not fire here.
+ *
+ * `block` is the handler body the reader always attaches to a `when` block-head (`hasBlock: true`,
+ * `parser.ts`'s `parseProfileStatement`), recovered here by a cast since a `when` node reaching the
+ * runtime always has one (see the inline note on the cast).
+ *
+ * Returns an {@link ExecSignal} to halt/propagate on (a non-word event, or a signal that escaped an
+ * immediately-fired `"start"` handler), or `undefined` for {@link executeStatements} to `continue`
+ * on — including the "argument left un-evaluated" case, mirroring {@link executeWaitCall} and the
+ * turtle commands.
+ */
+function executeWhenStatement(
+  statement: ProfileStatementNode,
+  environment: Environment,
+): ExecSignal | undefined {
+  const [eventArg] = statement.args as [ExpressionNode];
+  if (!isSupportedArgument(eventArg, environment)) {
+    return undefined;
+  }
+  const eventResult = evaluate(eventArg, environment);
+  if (!eventResult.ok) {
+    return halt(eventResult.diagnostic);
+  }
+  if (typeof eventResult.value !== "string") {
+    return halt(
+      runtimeDiag.whenEventNotWord(eventArg.source_span, {
+        actual: typeNameOf(eventResult.value),
+      }),
+    );
+  }
+  const event = eventResult.value;
+  // The reader always attaches a block to a `when` block-head (`hasBlock: true`, and
+  // `parseProfileStatement` returns `undefined` — failing the whole parse, which `runProgram` bails
+  // on before `execute()` runs — if the body is missing), so `body` is guaranteed present for any
+  // `when` node reaching the runtime. The optional `body` on `ProfileStatementNode` exists only
+  // because the bodyless `tell` mode-switch shares that node kind; a cast (not a runtime guard)
+  // records that invariant without adding an unreachable branch.
+  const block = statement.body as BlockNode;
+  registerWhenHandler(
+    environment.eventHandlers,
+    event,
+    block,
+    statement.keyword,
+    environment,
+  );
+  emitWhenPrimitive(environment.events, statement.source_span);
+  if (event === STANDARD_EVENT_WORDS.start) {
+    const signal = fireEvent(event, environment);
+    if (signal.kind !== "normal") {
+      return signal;
+    }
+  }
+  return undefined;
+}
+
+/**
  * Single entry point {@link executeStatements} calls to try every turtle command in one step.
  * Each new turtle command (`#202`/`#204`/`#207`/`#210`, …) should add its `isTurtleXCall`/
  * `executeTurtleXCall` pair and one more branch **here**, not in `executeStatements` itself
@@ -2994,6 +3144,17 @@ function executeStatements(
       continue;
     }
 
+    if (isWhenStatement(statement)) {
+      const whenOutcome = executeWhenStatement(
+        statement as ProfileStatementNode,
+        environment,
+      );
+      if (whenOutcome) {
+        return whenOutcome;
+      }
+      continue;
+    }
+
     const soundOutcome = dispatchSoundCommand(statement, environment);
     if (soundOutcome !== NOT_A_SOUND_COMMAND) {
       if (soundOutcome) {
@@ -3408,6 +3569,7 @@ function createExecutionEnvironment(
     randomNumberGenerator: createRandomNumberGeneratorState(),
     tickClock: createTickClock(),
     sound: createSoundState(),
+    eventHandlers: createEventHandlerRegistry(),
     source,
     program,
     hintProgress: new Map(),

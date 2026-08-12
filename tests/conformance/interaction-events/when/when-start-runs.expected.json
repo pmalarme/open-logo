@@ -1,0 +1,68 @@
+{
+  "description": "issue #682 (Interaction & Events, slice I3): `when \"start\" [ ... ]` registers a named event handler and, because a batch run has already started, the standard `\"start\"` event is already being delivered, so the handler fires immediately after registration (spec/interaction-events.md's `### when <event-word> <block>`: registering \"does not run its block immediately unless the triggering event is already being delivered\"). The registration statement emits its own `instruction` event (seq 0), then the `primitive` event carrying only `name: \"when\"` is emitted AFTER the handler is registered (spec's \"Trace stream integration\": \"Event registration forms emit `primitive` events after the handler is registered\"), never the event word or any timing — the stream stays headless (spec/execution-model.md's trace-and-event registry). The handler block's start emits an `instruction` event for the block-head that caused it to run, carrying the `when` keyword's span (seq 2), then the body's `print` runs (seq 3-4). The `primitive` catch-all kind is registered by C5 (#694); M5 adds no new event kind.",
+  "profiles": ["interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/when/when-start-runs",
+        "start": [1, 1],
+        "end": [1, 31]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/when/when-start-runs",
+        "start": [1, 1],
+        "end": [1, 31]
+      },
+      "payload": {
+        "name": "when"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/when/when-start-runs",
+        "start": [1, 1],
+        "end": [1, 5]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/when/when-start-runs",
+        "start": [1, 16],
+        "end": [1, 29]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/when/when-start-runs",
+        "start": [1, 16],
+        "end": [1, 29]
+      },
+      "payload": {
+        "values": ["ready"]
+      }
+    }
+  ],
+  "diagnostics": []
+}

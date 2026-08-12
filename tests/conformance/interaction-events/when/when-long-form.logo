@@ -1,0 +1,3 @@
+when "start"
+  print "ready"
+end when

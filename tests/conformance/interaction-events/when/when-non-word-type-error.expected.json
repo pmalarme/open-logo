@@ -1,0 +1,37 @@
+{
+  "description": "issue #682 (slice I3): `when`'s event argument must be a word; a non-word (here the number `5`) is rejected with `ol-type` (spec/interaction-events.md's `### when <event-word> <block>`: \"errors with `ol-type` if the event is not a word\"; spec/error-model.md's `ol-type`). The registration `instruction` event is emitted first (seq 0), then the type check fails BEFORE the handler is registered — so the `primitive` event is NOT emitted and no handler runs. The diagnostic's span covers the offending event argument, and its params carry the `when` operation plus expected/actual type words.",
+  "profiles": ["interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/when/when-non-word-type-error",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "interaction-events/when/when-non-word-type-error",
+        "start": [1, 6],
+        "end": [1, 7]
+      },
+      "params": {
+        "operation": "when",
+        "expected": "word",
+        "actual": "number"
+      },
+      "message": "when needs an event word, but got a number.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

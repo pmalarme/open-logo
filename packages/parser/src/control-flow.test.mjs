@@ -390,3 +390,60 @@ test("judges an escape inside a `for … in` loop body by the surrounding contex
   );
   assert.deepEqual(inside, []);
 });
+
+// --- an event-handler block (`when [ … ]`) is a fresh control-flow boundary (issue #682) ----
+// A handler body is neither a procedure body nor a comprehension body, so the static checker must
+// judge a `return`/`stop` inside it as OUTSIDE any procedure — matching the runtime, which
+// reclassifies an escaping handler signal at the handler boundary. Without this the checker would
+// accept code the runtime rejects when the `when` is written inside a `define`.
+
+const withInteraction = ["core-language", "interaction-events"];
+
+test("flags `return` inside a `when` handler as outside a procedure (top level)", () => {
+  const diagnostics = controlFlowFindings(
+    'when "start" [ return 7 ]',
+    withInteraction,
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].code, "ol-return-outside-proc");
+});
+
+test("flags `return` inside a `when` handler even when the `when` is inside a procedure", () => {
+  // The enclosing `define` does NOT make the handler body procedure-local: the handler is a fresh
+  // boundary, so the runtime raises ol-return-outside-proc here and the checker must agree.
+  const diagnostics = controlFlowFindings(
+    'define setup\n  when "start" [ return 7 ]\nend',
+    withInteraction,
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].code, "ol-return-outside-proc");
+});
+
+test("flags `stop` inside a `when` handler nested in a procedure as outside a procedure", () => {
+  const diagnostics = controlFlowFindings(
+    'define setup\n  when "start" [ stop ]\nend',
+    withInteraction,
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].code, "ol-stop-outside-proc");
+});
+
+test("accepts an ordinary body inside a `when` handler (no escape)", () => {
+  const diagnostics = controlFlowFindings(
+    'when "start" [ print "hi" ]',
+    withInteraction,
+  );
+  assert.deepEqual(diagnostics, []);
+});
+
+test("a comprehension body inside a `when` handler is still a comprehension boundary", () => {
+  // The handler reset re-establishes a control boundary, but a `map` inside it re-enters a
+  // comprehension value-context, so a `return` there is ol-return-in-comprehension, not
+  // ol-return-outside-proc.
+  const diagnostics = controlFlowFindings(
+    'when "start" [ print map n in [1] [ return :n ] ]',
+    withInteraction,
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].code, "ol-return-in-comprehension");
+});

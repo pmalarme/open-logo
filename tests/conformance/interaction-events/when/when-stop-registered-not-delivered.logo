@@ -1,0 +1,2 @@
+when "stop" [ print "bye" ]
+print "mid"

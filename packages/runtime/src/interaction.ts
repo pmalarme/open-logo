@@ -44,8 +44,9 @@ import type {
   SourceSpan,
   TraceEvent,
 } from "@openlogo/core";
-import type { StatementNode } from "@openlogo/parser";
+import type { BlockNode, SpannedName, StatementNode } from "@openlogo/parser";
 import { runtimeDiag } from "./errors.js";
+import type { Environment } from "./evaluate.js";
 
 /**
  * The Interaction & Events tick clock: a single mutable box holding the current logical tick
@@ -197,4 +198,134 @@ export function runWait(
     yieldToEventLoop(tickClock);
   }
   emitWaitPrimitive(events, source_span);
+}
+
+/**
+ * The two standard named events `when` may register a handler for in OpenLogo v0.1
+ * (`spec/interaction-events.md`'s `### when <event-word> <block>`): `"start"` — the start of the
+ * interactive run — and `"stop"` — a requested stop notification before termination. An
+ * implementation MAY additionally accept vendor events with a dotted prefix (e.g. `"acme.shake"`),
+ * so this is a documentation aid, not a closed validation set: `when` accepts *any* word as an
+ * event name (the type check only rejects a non-word, `ol-type`), and a handler for a word this
+ * runtime never delivers simply never runs.
+ *
+ * In a headless batch `execute()` run only `"start"` is actually *delivered*: the run has already
+ * started, so a `when "start"` handler fires immediately on registration (spec: registering "does
+ * not run its block immediately unless the triggering event is already being delivered"). `"stop"`
+ * is "a requested stop notification" — a batch run receives no such request, so a `when "stop"`
+ * handler is accepted and registered but never fires here (exactly as a vendor event an
+ * implementation does not deliver would not). An interactive host (a later slice, once cancellation
+ * plumbing exists) delivers `"stop"` when a stop is actually requested; this slice does not
+ * synthesize one on natural completion, which the spec does not define as a stop request.
+ */
+export const STANDARD_EVENT_WORDS = Object.freeze({
+  start: "start",
+  stop: "stop",
+} as const);
+
+/**
+ * One registered `when` handler: the block to run when its event fires, the {@link Environment}
+ * captured at registration time so the body runs in its **registration-time lexical scope** (a
+ * handler registered inside `define setup :x` sees `:x` when it runs, matching "A handler block is a
+ * normal OpenLogo block"), plus the head-keyword {@link SpannedName} whose span the handler-block's
+ * opening `instruction` event carries (`spec/interaction-events.md`'s "Trace stream integration":
+ * "The start of a handler block emits an `instruction` event for the block-head that caused the
+ * handler to run"). `fired` records that a one-shot event (`"start"`) already delivered this handler,
+ * so it is skipped if that event is ever delivered again — the deterministic "a delivered handler
+ * must not fire again" guarantee — without disturbing the registration order same-tick delivery
+ * (#686/I7) relies on.
+ */
+export interface WhenHandler {
+  readonly event: string;
+  readonly block: BlockNode;
+  readonly keyword: SpannedName;
+  readonly environment: Environment;
+  fired: boolean;
+}
+
+/**
+ * The Interaction & Events **event-handler registry** (issue #682, slice I3): every `when` handler
+ * registered so far, in registration order. A single append-only list (rather than a map keyed by
+ * event word) is deliberate — it preserves one total registration order across all events, which is
+ * the stable order same-tick dispatch (#686/I7) needs and cannot reconstruct if handlers were
+ * bucketed per event with no cross-event ordering. Dispatch filters by event word and delivery
+ * state at delivery time ({@link pendingHandlersFor}).
+ *
+ * This is the structure the file header promised the rest of the track would hang off the tick
+ * clock's {@link yieldToEventLoop} seam: `when` populates it and `"start"` fires from it immediately
+ * on registration (the run has already started). `every`/`on_key`/`on_click` (#683–#685) add their
+ * own handler kinds alongside it, and an interactive host slice later delivers `"stop"` and the
+ * timed/input events from it.
+ */
+export interface EventHandlerRegistry {
+  readonly handlers: WhenHandler[];
+}
+
+/** A fresh, empty event-handler registry — the state at program start (no handlers registered). */
+export function createEventHandlerRegistry(): EventHandlerRegistry {
+  return { handlers: [] };
+}
+
+/**
+ * Register a `when` handler for `event`, appending it to `registry` in registration order and
+ * returning the created {@link WhenHandler}. `environment` is captured so the handler body later runs
+ * in its registration-time lexical scope. Registration itself is side-effect-only on the registry;
+ * the caller emits the `primitive` event `spec/interaction-events.md` requires "after the handler is
+ * registered" and then decides whether the event is already live (so the handler fires now) or
+ * deferred.
+ */
+export function registerWhenHandler(
+  registry: EventHandlerRegistry,
+  event: string,
+  block: BlockNode,
+  keyword: SpannedName,
+  environment: Environment,
+): WhenHandler {
+  const handler: WhenHandler = {
+    event,
+    block,
+    keyword,
+    environment,
+    fired: false,
+  };
+  registry.handlers.push(handler);
+  return handler;
+}
+
+/**
+ * Every not-yet-fired handler registered for `event`, in registration order — the handlers to
+ * invoke when `event` fires. Skips a handler already delivered for this one-shot event, so a
+ * `"start"` handler never fires twice. Returns a fresh snapshot array so a handler body that
+ * registers further handlers for the same event mid-dispatch cannot mutate the sequence being
+ * iterated (any such newly-registered `"start"` handler is instead delivered by its own registration
+ * path, since the run has already started). Firing an event with no registered handler yields an
+ * empty list — a well-defined no-op, never an error, matching `spec/interaction-events.md`, which
+ * defines no diagnostic for an event that has no handler.
+ */
+export function pendingHandlersFor(
+  registry: EventHandlerRegistry,
+  event: string,
+): readonly WhenHandler[] {
+  return registry.handlers.filter(
+    (handler) => !handler.fired && handler.event === event,
+  );
+}
+
+/**
+ * Emit the `primitive` event `spec/interaction-events.md` requires a `when` registration to emit
+ * **after** the handler is registered ("Event registration forms emit `primitive` events after the
+ * handler is registered"). Like {@link emitWaitPrimitive}, the {@link PrimitivePayload} carries only
+ * the primitive `name` — never the event word, tick, or any timing — keeping the stream headless.
+ * Pushed onto the shared event sink with the next monotonic `seq`.
+ */
+export function emitWhenPrimitive(
+  events: TraceEvent[],
+  source_span: SourceSpan,
+): void {
+  events.push({
+    seq: events.length,
+    kind: "primitive",
+    source_span,
+    payload: { name: "when" } satisfies PrimitivePayload,
+  });
 }

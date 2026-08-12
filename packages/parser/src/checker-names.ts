@@ -41,16 +41,18 @@ import {
   dataPrimitiveNames,
   educationalPrimitiveNames,
   geometryPrimitiveNames,
+  interactionEventsBlockHeadNames,
   soundPrimitiveNames,
   turtlePrimitiveNames,
 } from "./signatures.js";
 
 /**
  * Every canonical lowercase name contributed by an optional (non-Core) conformance profile's
- * primitive table — currently Turtle & Rendering's, Educational's, Geometry's, Data's, and Sound's.
- * Computed once as a frozen union so {@link isOptionalProfileName} stays a pure, allocation-free
- * lookup; a future optional-profile table adds its `...someProfileNames()` spread here alongside
- * these, exactly mirroring how {@link collectVisibleNames} itself is extended one profile at a time.
+ * primitive table — currently Turtle & Rendering's, Educational's, Geometry's, Data's, Sound's, and
+ * the Interaction & Events block-heads (`when`, issue #682). Computed once as a frozen union so
+ * {@link isOptionalProfileName} stays a pure, allocation-free lookup; a future optional-profile
+ * table adds its `...someProfileNames()` spread here alongside these, exactly mirroring how
+ * {@link collectVisibleNames} itself is extended one profile at a time.
  */
 const OPTIONAL_PROFILE_NAMES: ReadonlySet<string> = new Set([
   ...turtlePrimitiveNames(),
@@ -58,6 +60,7 @@ const OPTIONAL_PROFILE_NAMES: ReadonlySet<string> = new Set([
   ...geometryPrimitiveNames(),
   ...dataPrimitiveNames(),
   ...soundPrimitiveNames(),
+  ...interactionEventsBlockHeadNames(),
 ]);
 
 /**
@@ -131,6 +134,12 @@ export function collectVisibleNames(
 
   if (active.has("sound")) {
     for (const name of soundPrimitiveNames()) {
+      names.add(name);
+    }
+  }
+
+  if (active.has("interaction-events")) {
+    for (const name of interactionEventsBlockHeadNames()) {
       names.add(name);
     }
   }

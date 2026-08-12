@@ -393,6 +393,37 @@ export function interactionPrimitiveArity(name: string): number | undefined {
 }
 
 /**
+ * The **Interaction & Events** profile block-head names the Layer-2 checker must treat as visible
+ * so a call site whose head is one of them does not raise `ol-unknown-command` under an active
+ * `interaction-events` profile (issue #682, slice I3 — `spec/tooling.md:175-176`,
+ * `spec/interaction-events.md` §Profiles and reservation). These are the four reserved block-heads
+ * `when`/`every`/`on_key`/`on_click` the reader lowers to a `ProfileStatement` (C2 #664's
+ * `PROFILE_STATEMENT_FORMS`), NOT ordinary primitive calls — so they live in their own table,
+ * separate from {@link INTERACTION_PRIMITIVE_ARITY}'s Core-spelled `wait`, exactly as the spec
+ * distinguishes profile block-heads from ordinary calls.
+ *
+ * Only `when` is listed today: it is the head slice I3 (#682) delivers end to end. `every`/`on_key`/
+ * `on_click` join this table in their own slices (#683/#684/#685) as each becomes usable, following
+ * the same one-form-at-a-time growth as every other profile's visible-name table — registering a
+ * head here before its slice can execute it would let a program check clean and then silently no-op
+ * at runtime. `input` (a reporter) and `wait` (an ordinary call) are visible through their own name
+ * paths, not this block-head table.
+ */
+const INTERACTION_EVENTS_BLOCK_HEAD_NAMES: readonly string[] = Object.freeze([
+  "when",
+]);
+
+/**
+ * The Interaction & Events block-head names visible to the checker, in registration order. See
+ * {@link INTERACTION_EVENTS_BLOCK_HEAD_NAMES}. The checker's visible-name model
+ * (`checker-names.ts`) spreads these into its candidate set only when the `interaction-events`
+ * profile is active, mirroring how {@link soundPrimitiveNames} gates the Sound profile's names.
+ */
+export function interactionEventsBlockHeadNames(): readonly string[] {
+  return INTERACTION_EVENTS_BLOCK_HEAD_NAMES;
+}
+
+/**
  * Default arities for the **Sound** profile's primitives (issue #689,
  * [`spec/interaction-events.md`](../../../spec/interaction-events.md)'s "Sound primitives"
  * section). `set_tempo` takes one number (the beats-per-minute, `spec/interaction-events.md:259-272`)
