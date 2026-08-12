@@ -201,7 +201,8 @@ function describeAddressedTurtles(
  * {@link describeAddressedTurtles} carries that decision and the reasoning behind it, including the
  * empty-set (`tell [ ]`) wording.
  *
- * The unnamed, `spec/rendering.md`-verbatim wording is produced under one exact condition: the
+ * For a world folded from a well-formed program stream, the unnamed, `spec/rendering.md`-verbatim
+ * wording is produced under one exact condition: the
  * world holds **one** live turtle and its addressed set is that same turtle. That covers every
  * Turtle & Rendering program — which is the compatibility property this function is built around,
  * since adding multi-turtle identification must not perturb single-turtle announcements — and a
@@ -211,12 +212,14 @@ function describeAddressedTurtles(
  * then said out loud; no Turtle & Rendering program can reach it, since `tell` is a Sprites
  * primitive.
  *
- * The fallbacks are ordered so the text never announces an identity nothing in the world
+ * The totality fallbacks below reach that same unnamed wording from two further states, which is
+ * why the condition above is scoped to a folded world: neither is reachable by running a program.
+ * They are ordered so the text never announces an identity nothing in the world
  * corresponds to. An addressed set naming a turtle the world does not hold is dropped in favor of
  * the plain last-acted wording — that turtle's **real** state, named `turtle #<id> at …` in a
  * multi-turtle world or unnamed in a one-turtle world; only when the `lastActedTurtleId` itself
  * names no live turtle — leaving no honest subject at all — does the description fall back to the
- * program-start defaults. Both cases are constructible only by hand, since every world this package
+ * program-start defaults. Both are constructible only by hand, since every world this package
  * folds keeps them live.
  */
 export function describeTurtleWorldState(
