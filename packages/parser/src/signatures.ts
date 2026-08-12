@@ -368,7 +368,9 @@ export function geometryPrimitiveNames(): readonly string[] {
  * `when`/`every`/`on_key`/`on_click` are profile block-heads (reserved words with their own block
  * grammar, not ordinary calls) and `input` is a reporter — those slices (#682–#685) register their
  * own reader support; only the ordinary `wait` call needs an arity entry here so the reader groups
- * its single argument. Kept as its own table for the same reason
+ * its single argument. `input` joins this table in its own slice (#681, I2), which is not yet
+ * implemented — see {@link INTERACTION_PRIMITIVE_NAMES} for why the tooling slice (#687)
+ * deliberately did not register it ahead of its evaluator. Kept as its own table for the same reason
  * {@link TURTLE_PRIMITIVE_ARITY}/{@link GEOMETRY_PRIMITIVE_ARITY} are separate: Interaction &
  * Events has its own independent profile visibility (the Layer-2 checker gates it on its own active
  * profile, `spec/tooling.md:175-176`, in the tooling slice #687), while the reader groups a bare
@@ -383,13 +385,58 @@ const INTERACTION_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
  * not one of them (currently only `wait`). Matching is case-insensitive.
  *
  * `INTERACTION_PRIMITIVE_ARITY` is this profile's single source-of-truth table — mirroring
- * {@link geometryPrimitiveArity}/{@link educationalPrimitiveArity}. The enumerable
- * `interactionPrimitiveNames()` counterpart the other profiles expose for the checker's
- * visible-name model is deliberately deferred to the tooling/legality slice (#687) that first
- * consumes it — this slice only needs the reader to group `wait`'s argument.
+ * {@link geometryPrimitiveArity}/{@link educationalPrimitiveArity}. Its enumerable counterpart is
+ * {@link interactionPrimitiveNames}, added by the tooling/legality slice (#687) that first consumes
+ * it — slice I1 only needed the reader to group `wait`'s argument.
  */
 export function interactionPrimitiveArity(name: string): number | undefined {
   return INTERACTION_PRIMITIVE_ARITY.get(name.toLowerCase());
+}
+
+/**
+ * The inclusive input-count range an Interaction & Events-profile primitive accepts, or `undefined`
+ * when `name` is not one. `wait <n>` is strictly fixed-arity — a Kind-C command taking exactly one
+ * number, with no variadic parenthesized alternate (`spec/interaction-events.md`'s "Profiles and
+ * reservation" table) — so `max` always equals `min` ({@link interactionPrimitiveArity}). Mirrors
+ * {@link soundPrimitiveArityRange} exactly; the static arity checker (`checker-arity.ts`) consults
+ * this to flag a known Interaction command given the wrong number of inputs (e.g. `(wait)` or
+ * `(wait 1 2)`) under the active `interaction-events` profile. Matching is case-insensitive.
+ */
+export function interactionPrimitiveArityRange(
+  name: string,
+): { readonly min: number; readonly max: number } | undefined {
+  const min = interactionPrimitiveArity(name);
+  if (min === undefined) {
+    return undefined;
+  }
+  return { min, max: min };
+}
+
+/**
+ * Every Interaction & Events-profile primitive's canonical lowercase name, sorted for deterministic
+ * iteration. This is the enumerable counterpart to {@link interactionPrimitiveArity} — the checker's
+ * visible-name model (`checker-names.ts`) needs the full name *list*, gated on the
+ * `interaction-events` profile, to make these primitives both callable without `ol-unknown-command`
+ * and candidates for its did-you-mean suggestions — mirroring {@link geometryPrimitiveNames}'s and
+ * {@link soundPrimitiveNames}'s role for their tables.
+ *
+ * Derived from {@link INTERACTION_PRIMITIVE_ARITY} rather than hand-listed, so this profile keeps a
+ * single source of truth: a name becomes visible to the checker exactly when its arity is
+ * registered, and the two can never drift apart. Today that is `wait` alone. The profile's other
+ * reporter, `input`, is deliberately absent: it has no arity entry because its slice (#681, I2) is
+ * not implemented, and registering it as a known callee here would let a program using `input` check
+ * clean and then fail at runtime — a false tooling claim worse for a learner than the honest
+ * `ol-unknown-command`. `input`'s tooling ships in the same slice as its evaluator.
+ */
+const INTERACTION_PRIMITIVE_NAMES: readonly string[] = Object.freeze(
+  [...INTERACTION_PRIMITIVE_ARITY.keys()].sort(),
+);
+
+/**
+ * The full list of Interaction & Events-profile primitive names, in sorted order. See
+ * {@link INTERACTION_PRIMITIVE_NAMES}. */
+export function interactionPrimitiveNames(): readonly string[] {
+  return INTERACTION_PRIMITIVE_NAMES;
 }
 
 /**

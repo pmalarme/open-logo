@@ -51,5 +51,14 @@ that requires it — see `scripts/examples-gate.mjs`.
   insertion-ordered handlers kept in their own list for #686/I7's same-tick delivery order, and
   `check`-mode fixtures prove `on_click` is visible only under the `interaction-events` profile and
   rejected Core-only.
+- **`forms-check-clean/`** and **`forms-unknown-without-interaction/`** — the profile-wide tooling
+  pair (issue #687, slice I8): one `check`-mode program that USES all five implemented forms
+  together (`wait` plus the four block-heads, with `wait` nested inside a block inside `repeat`
+  inside a procedure) and checks clean under the profile, and its negative twin asserting
+  `ol-unknown-command` with exact head-word spans for each of the five when the profile is inactive.
+  These prove name visibility and arity only — they do not execute, so handler delivery stays the
+  job of the per-form directories above. The profile's `input` reporter is deliberately not covered:
+  its slice (#681, I2) is unimplemented, so registering it with the checker would let a program
+  check clean and then fail at runtime.
 
 Fixture shape and conventions: see [`../README.md`](../README.md).

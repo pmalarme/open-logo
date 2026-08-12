@@ -1,0 +1,5 @@
+wait 1
+when "start" [ forward 1 ]
+every 2 [ forward 1 ]
+on_key "a" [ forward 1 ]
+on_click [ forward 1 ]
