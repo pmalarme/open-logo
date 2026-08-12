@@ -1,7 +1,3 @@
-define step_size
-  print "stepping"
-  return 40
-end
 :a = new_turtle
 tell [ :a :a ]
-forward step_size
+forward count fput new_turtle [ ]
