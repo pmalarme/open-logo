@@ -987,7 +987,6 @@ test("runExamplesGate skips every example that needs a not-yet-implemented profi
     ["05-procedures.logo", "heritage"],
     ["09-sprites.logo", "sprites"],
     ["10-game.logo", "interaction-events"],
-    ["11-music.logo", "sound"],
   ]) {
     assert.ok(
       result.lines.some(
@@ -996,6 +995,24 @@ test("runExamplesGate skips every example that needs a not-yet-implemented profi
       `${file} must SKIP with a visible notice naming ${profile}`,
     );
   }
+});
+
+test("runExamplesGate: 11-music.logo RUNS and PASSES now that #693 claims sound (the observable proof of the claim)", () => {
+  // This is the whole point of the Sound terminal slice: claiming `sound` in IMPLEMENTED_PROFILES
+  // must flip 11-music.logo from SKIP to a real PASS. It requires both `sound` and `data`
+  // (the `:durations[:i]` list-index), and both are now implemented — so the example executes
+  // with zero error-severity diagnostics. If this ever regressed to SKIP, the claim would be
+  // premature (a false conformance claim, M4 finding F9); if it FAILed, Sound would not be
+  // conformant. A green PASS here is the earned proof.
+  const result = runExamplesGate();
+  assert.ok(
+    result.lines.some((line) => line === "PASS 11-music.logo"),
+    "11-music.logo must RUN and PASS (not SKIP) once sound is claimed",
+  );
+  assert.ok(
+    !result.lines.some((line) => line.startsWith("SKIP 11-music.logo")),
+    "11-music.logo must no longer be skipped",
+  );
 });
 
 // --- CLI subprocess test (out of the loaded-module coverage set, per ADR-0009) -------------
@@ -1042,23 +1059,23 @@ test("the check-examples.mjs CLI exits 0 when every example passes or is skipped
 
 // --- M5 profile skip / no-masking (issue #666) --------------------------------------------
 // This slice's examples-gate scaffolding must SKIP (with a visible notice) any example that needs
-// an M5 profile not yet claimed in IMPLEMENTED_PROFILES. IMPLEMENTED_PROFILES deliberately excludes
-// all four M5 profiles (they are claimed only in their own terminal slices: #672/#679/#688/#693).
+// an M5 profile not yet claimed in IMPLEMENTED_PROFILES. As of #693 `sound` IS claimed (so
+// 11-music.logo runs); the remaining three M5 profiles stay excluded until their own terminal
+// slices claim them: heritage #672, sprites #679, interaction-events #688.
 // The visible-SKIP behavior against the real gate is asserted by the "skips every example that
-// needs a not-yet-implemented profile in the real corpus" test above (05/09/10/11), and the
+// needs a not-yet-implemented profile in the real corpus" test above (05/09/10), and the
 // no-masking guard (a genuinely failing example still fails loudly) is covered by the existing
 // "catches masking of the Heritage 'to … end' reserved word" / "masked-alias" tests. We therefore
 // keep this slice's addition to a single load-light invariant to avoid re-rolling the known
 // cross-process coverage-merge artifact (issue #417) on examples-gate.mjs's hot classifyExample
 // path — see the PR body's coverage note.
 
-test("IMPLEMENTED_PROFILES excludes every M5 profile (not yet claimed)", () => {
-  for (const profile of [
-    "heritage",
-    "sprites",
-    "interaction-events",
-    "sound",
-  ]) {
+test("IMPLEMENTED_PROFILES claims sound (its terminal slice #693) and still excludes the other M5 profiles", () => {
+  assert.ok(
+    IMPLEMENTED_PROFILES.includes("sound"),
+    "sound is claimed by its terminal slice #693, so 11-music.logo runs rather than SKIPs",
+  );
+  for (const profile of ["heritage", "sprites", "interaction-events"]) {
     assert.ok(
       !IMPLEMENTED_PROFILES.includes(profile),
       `${profile} must NOT be in IMPLEMENTED_PROFILES until its terminal slice claims it`,

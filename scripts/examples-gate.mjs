@@ -76,6 +76,7 @@ export const IMPLEMENTED_PROFILES = [
   "turtle-rendering",
   "data",
   "geometry",
+  "sound",
 ];
 
 /**

@@ -22,6 +22,11 @@
  * `tutor-output` events, `explain`/`why`/`hint`/`debug` are gated behind the `educational`
  * profile in the checker, and the Educational conformance fixtures are green in the full DAG
  * (issue #425, found by the M3 milestone-completion re-gate audit #419).
+ * `sound` was added once M5 shipped it: the runtime implements and emits `sound` trace events for
+ * `set_tempo`/`note`/`play`/`beep`/`rest`, those commands are gated behind the `sound` profile in
+ * the checker, and the Sound conformance fixtures — including the muted-environment guarantee
+ * (events emitted even when audio is unavailable) and the profile-active/Core-only `"check": true`
+ * pair — are green in the full DAG (issue #693, the Sound epic #662 terminal slice under saga #572).
  * Claiming a profile before it is conformant would be a false conformance claim — exactly the
  * failure mode the M4 audit exists to catch — so any future profile addition here must follow
  * the same rule: land the profile's conformance fixes first, then claim it.
@@ -45,6 +50,7 @@ export const SUPPORTED_PROFILES = [
   "data",
   "geometry",
   "educational",
+  "sound",
 ] as const;
 
 /**
