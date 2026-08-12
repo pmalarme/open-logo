@@ -1,0 +1,4 @@
+set_tempo 120
+note "c4" 1
+rest 1
+note "c4" 1

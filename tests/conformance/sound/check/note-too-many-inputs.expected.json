@@ -1,0 +1,19 @@
+{
+  "description": "issue #690: the parenthesized form `(note \"c4\" 1 2)` supplies three inputs to the arity-2 Sound primitive `note`. With the `sound` profile active the Layer-2 checker (checker-arity.ts) flags `ol-too-many-inputs` at the callee span, mirroring how the runtime rejects the same call. The parenthesized form is the escape hatch the reader lets through, so arity for it is a Layer-2 concern (spec/tooling.md:175-176).",
+  "profiles": ["core-language", "sound"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-too-many-inputs",
+      "source_span": {
+        "document": "sound/check/note-too-many-inputs",
+        "start": [1, 2],
+        "end": [1, 6]
+      },
+      "params": { "callable": "note", "expected": 2, "actual": 3 },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

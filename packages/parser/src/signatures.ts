@@ -440,6 +440,8 @@ export function interactionEventsBlockHeadNames(): readonly string[] {
 const SOUND_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
   ["set_tempo", 1],
   ["beep", 0],
+  ["note", 2],
+  ["rest", 1],
 ]);
 
 /**
@@ -455,12 +457,12 @@ export function soundPrimitiveArity(name: string): number | undefined {
 
 /**
  * The inclusive input-count range a Sound-profile primitive accepts, or `undefined` when `name` is
- * not a known Sound primitive. Both Sound primitives (`set_tempo`, `beep`) are strictly
- * fixed-arity — neither has a variadic parenthesized alternate — so `max` always equals `min`
+ * not a known Sound primitive. Every Sound primitive (`set_tempo`, `beep`, `note`, `rest`) is
+ * strictly fixed-arity — none has a variadic parenthesized alternate — so `max` always equals `min`
  * ({@link soundPrimitiveArity}). Mirrors {@link dataPrimitiveArityRange} exactly; the static arity
  * checker (`checker-arity.ts`) consults this to flag a known Sound command given the wrong number
- * of inputs (e.g. `(set_tempo 1 2)` or `(beep 1)`) under the active `sound` profile. Matching is
- * case-insensitive.
+ * of inputs (e.g. `(set_tempo 1 2)`, `(beep 1)`, or `(note "c4")`) under the active `sound`
+ * profile. Matching is case-insensitive.
  */
 export function soundPrimitiveArityRange(
   name: string,

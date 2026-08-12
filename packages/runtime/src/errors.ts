@@ -443,6 +443,31 @@ export interface NonPositiveTempoParams {
 }
 
 /**
+ * Params for an `ol-range` raised by `note`/`rest` (issue #690) when the duration argument is a
+ * number but not positive and finite (`spec/interaction-events.md`'s `note`/`rest` entries:
+ * "Duration MUST be positive and is interpreted in beats"). Only reached once
+ * {@link requireNumber} has already confirmed the value is a number. `operation` is the command
+ * name (`"note"` or `"rest"`), so the two share one `ol-range` builder while keeping distinct
+ * diagnostic identities (`error-model.md` treats `params` as part of a diagnostic's identity).
+ */
+export interface NonPositiveDurationParams {
+  readonly operation: "note" | "rest";
+  readonly value: string;
+}
+
+/**
+ * Params for an `ol-type` raised by `note` (issue #690) when the pitch argument is a word but not a
+ * well-formed scientific-pitch-notation pitch (`packages/runtime/src/pitch.ts`'s
+ * {@link import("./pitch.js").isValidPitch}). Mirrors {@link ShapeTypeErrorParams}: an unrecognized
+ * pitch word is `ol-type` with `expected: "pitch"`, a diagnostic identity distinct from a non-word
+ * argument's `expected: "word"`.
+ */
+export interface PitchTypeErrorParams {
+  readonly value: string;
+  readonly operation: string;
+}
+
+/**
  * Params for an `ol-range` raised by `random n` (issue #287) when `n` is a whole number below the
  * minimum of `1` (`spec/commands.md`'s `random` entry: "`n` MUST be a whole number of at least
  * `1`"). Only reached once {@link requireWholeNumber} has already confirmed `n` is a whole number
@@ -1260,6 +1285,51 @@ export const runtimeDiag = {
       source_span,
       { operation: "set_tempo", ...params },
       `set_tempo needs a positive tempo, but got ${params.value}.`,
+    );
+  },
+
+  /**
+   * `ol-range` (issue #690) — `note`/`rest`'s duration argument is a number but not positive and
+   * finite (`spec/interaction-events.md`'s `note`/`rest` entries: "Duration MUST be positive and is
+   * interpreted in beats"). Folds `Infinity` into the same guard as `0`/negative, exactly as
+   * {@link nonPositiveTempo} and {@link nonPositiveWidth} do. Only reached once
+   * {@link requireNumber} has already confirmed the value is a number. See
+   * {@link NonPositiveDurationParams}.
+   */
+  nonPositiveDuration(
+    source_span: SourceSpan,
+    params: NonPositiveDurationParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-range",
+      source_span,
+      { ...params },
+      `${params.operation} needs a positive duration, but got ${params.value}.`,
+    );
+  },
+
+  /**
+   * `ol-type` (issue #690) — `note`'s pitch argument is a word, but not a well-formed
+   * scientific-pitch-notation pitch (`packages/runtime/src/pitch.ts`'s
+   * {@link import("./pitch.js").isValidPitch}). `spec/interaction-events.md`'s `note` entry lists
+   * `ol-type` for a bad pitch; like {@link unknownShape}, this stays `ol-type` with
+   * `expected: "pitch"`, a diagnostic identity distinct from a non-word argument's
+   * `expected: "word"`. See {@link PitchTypeErrorParams}.
+   */
+  invalidPitch(
+    source_span: SourceSpan,
+    params: PitchTypeErrorParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-type",
+      source_span,
+      {
+        expected: "pitch",
+        actual: "word",
+        value: params.value,
+        operation: params.operation,
+      },
+      `i don't understand the pitch "${params.value}". try scientific pitch notation like "c4", "fs4" (f sharp), or "bb3" (b flat).`,
     );
   },
 

@@ -1,0 +1,108 @@
+{
+  "description": "issue #690 (decline evidence for the rubber-duck tempo-scheduling finding): a tempo change mid-stream (`set_tempo 90` -> `note \"c4\" 2` -> `set_tempo 120` -> `note \"e4\" 1` -> `rest 1`) proves the trace stream is self-sufficient. Each `set_tempo` emits a `sound` event carrying `beats_per_minute`, and every `note`/`rest` emits its `duration` in beats. A downstream replay tool therefore has COMPLETE information (tempo from the `set_tempo` events x beat durations) to render wall-clock timing, so no runtime beat cursor is needed - durations are 'interpreted in beats at the current tempo' by replay tools (spec/interaction-events.md:284-285, 334-335), not converted or occupied at emit. Each sound event follows its instruction event.",
+  "profiles": ["sound"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sound/note-tempo-change-sequence",
+        "start": [1, 1],
+        "end": [1, 13]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "sound",
+      "source_span": {
+        "document": "sound/note-tempo-change-sequence",
+        "start": [1, 1],
+        "end": [1, 13]
+      },
+      "payload": { "command": "set_tempo", "beats_per_minute": 90 }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sound/note-tempo-change-sequence",
+        "start": [2, 1],
+        "end": [2, 12]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 3,
+      "kind": "sound",
+      "source_span": {
+        "document": "sound/note-tempo-change-sequence",
+        "start": [2, 1],
+        "end": [2, 12]
+      },
+      "payload": { "command": "note", "pitch": "c4", "duration": 2 }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sound/note-tempo-change-sequence",
+        "start": [3, 1],
+        "end": [3, 14]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 5,
+      "kind": "sound",
+      "source_span": {
+        "document": "sound/note-tempo-change-sequence",
+        "start": [3, 1],
+        "end": [3, 14]
+      },
+      "payload": { "command": "set_tempo", "beats_per_minute": 120 }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sound/note-tempo-change-sequence",
+        "start": [4, 1],
+        "end": [4, 12]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 7,
+      "kind": "sound",
+      "source_span": {
+        "document": "sound/note-tempo-change-sequence",
+        "start": [4, 1],
+        "end": [4, 12]
+      },
+      "payload": { "command": "note", "pitch": "e4", "duration": 1 }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sound/note-tempo-change-sequence",
+        "start": [5, 1],
+        "end": [5, 7]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 9,
+      "kind": "sound",
+      "source_span": {
+        "document": "sound/note-tempo-change-sequence",
+        "start": [5, 1],
+        "end": [5, 7]
+      },
+      "payload": { "command": "rest", "duration": 1 }
+    }
+  ],
+  "diagnostics": []
+}
