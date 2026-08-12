@@ -1,6 +1,6 @@
 /**
  * The Canvas live renderer: paints the retained {@link TurtleScene} (`scene.ts`) plus the
- * turtle avatar from {@link TurtleState} (`state.ts`) onto a 2-D drawing surface
+ * turtle avatars from {@link TurtleState}/{@link TurtleWorldState} (`state.ts`/`world-state.ts`) onto a 2-D drawing surface
  * (`spec/rendering.md`'s "Rendering targets", "Drawing model", "Coordinate mapping and
  * viewport", and "Turtle avatar and shapes" sections).
  *
@@ -23,6 +23,7 @@ import type { AnimationSnapshot } from "./animation.js";
 import type { GridOverlay, OverlayState } from "./overlay.js";
 import type { SceneItem, TurtleScene } from "./scene.js";
 import type { TurtleState } from "./state.js";
+import type { TurtleWorldState } from "./world-state.js";
 
 /**
  * The minimal structural subset of the Canvas 2D drawing API this renderer needs. This package
@@ -567,10 +568,38 @@ export function paintScene(
 }
 
 /**
+ * What the renderers can paint avatars from: either one turtle's {@link TurtleState} (the Turtle &
+ * Rendering single-turtle case) or a whole {@link TurtleWorldState} (the Sprites case, where every
+ * live turtle has its own shape, color, position, and visibility). Accepting both in one parameter
+ * is what lets a Sprites program render correctly through the *same* entry points — `paintTurtle`,
+ * `exportTurtleSvg`, `exportTurtlePng` — without the single-turtle call producing so much as a
+ * different draw call.
+ */
+export type PaintableTurtles = TurtleState | TurtleWorldState;
+
+/**
+ * The avatar states to consider painting, in the order they are painted: the one state itself for
+ * a single turtle, or every live turtle in creation order for a world. Visibility is *not* filtered
+ * here — {@link paintTurtle} applies `spec/rendering.md:117`'s "A hidden turtle still moves … only
+ * omits the avatar" rule per turtle.
+ */
+function avatarStates(turtles: PaintableTurtles): readonly TurtleState[] {
+  return "turtles" in turtles ? [...turtles.turtles.values()] : [turtles];
+}
+
+/**
  * Repaints the whole target: the retained scene (background + drawing items), then any enabled
- * overlays, then the live turtle avatar on top — but only when `state.visible`
+ * overlays, then the live turtle avatars on top — each one only when that turtle is visible
  * (`spec/rendering.md`: "A hidden turtle still moves, turns, draws when the pen is down, and
  * reports its state normally" — hiding it only omits the avatar, never the scene or overlays).
+ *
+ * `turtles` is either a single {@link TurtleState} or a whole {@link TurtleWorldState}. With a
+ * world, every live turtle's avatar is painted with **its own** shape, heading, color, and
+ * visibility, in creation order — the fix for a Sprites drawing being depicted as one turtle
+ * wearing whichever attributes the last event happened to set. A world holding just the main turtle
+ * issues exactly the same draw calls as passing that turtle's state directly, so single-turtle
+ * output is unchanged.
+ *
  * `overlay` defaults to omitted (no overlays painted) for callers that have not yet reduced
  * overlay state. This is the renderer's one public entry point for a full repaint; production
  * code calls it with a real Canvas 2D context, tests with a recording fake, both satisfying
@@ -579,20 +608,22 @@ export function paintScene(
 export function paintTurtle(
   target: RenderTarget,
   scene: TurtleScene,
-  state: TurtleState,
+  turtles: PaintableTurtles,
   viewport: Viewport,
   overlay?: OverlayState,
 ): void {
   paintScene(target, scene, viewport, overlay);
-  if (state.visible) {
-    paintAvatar(
-      target,
-      viewport,
-      state.position,
-      state.heading,
-      state.shape,
-      state.color,
-    );
+  for (const state of avatarStates(turtles)) {
+    if (state.visible) {
+      paintAvatar(
+        target,
+        viewport,
+        state.position,
+        state.heading,
+        state.shape,
+        state.color,
+      );
+    }
   }
 }
 
@@ -632,15 +663,16 @@ export interface MotionPreference {
  * Rendering never advances, drains, or otherwise mutates the source's cursor — it only reads
  * whatever has already been consumed — so painting a paused, idle, or mid-run frame can never
  * change playback status or skip ahead. Painting always goes through {@link paintTurtle} from
- * the retained scene alone (never re-running the program).
+ * the retained scene alone (never re-running the program), and from the snapshot's per-turtle
+ * `world`, so a paused Sprites frame shows every live sprite rather than one merged avatar.
  */
 export function renderFrame(
   target: RenderTarget,
   source: ReducedMotionSource,
   viewport: Viewport,
 ): void {
-  const { state, scene, overlay } = source.getSnapshot();
-  paintTurtle(target, scene, state, viewport, overlay);
+  const { world, scene, overlay } = source.getSnapshot();
+  paintTurtle(target, scene, world, viewport, overlay);
 }
 
 /**

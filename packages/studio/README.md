@@ -23,9 +23,10 @@ Every pane composes over **one** shared instance — never a per-pane copy:
   (`"idle" | "running" | "stopped"`), `diagnostics` (`@openlogo/core` `Diagnostic[]`), `output`
   (learner-visible printed lines from the most recent run, #126), `lesson` (lesson context for
   `@openlogo/edu` content), `notice` (a non-fatal, learner-visible status set by e.g. #128
-  persistence when it degrades gracefully), and `turtleState`/`turtleScene` (the Canvas view's
-  turtle avatar state + retained scene, #218 — `@openlogo/turtle`'s own types, defaulted to its
-  program-start `INITIAL_TURTLE_STATE`/`INITIAL_TURTLE_SCENE`). State changes only through its
+  persistence when it degrades gracefully), and `turtleWorld`/`turtleScene` (the Canvas view's
+  per-turtle avatar state + retained scene, #218 — `@openlogo/turtle`'s own types, defaulted to its
+  program-start `INITIAL_TURTLE_WORLD_STATE`/`INITIAL_TURTLE_SCENE`; `turtleState` is a derived
+  read of `turtleWorld`'s last-acted turtle, #749). State changes only through its
   `set*` methods; `getState()` is stable by reference between changes, and `subscribe` notifies
   listeners synchronously after every change — see the doc comment in `state-model.ts` for the full
   contract.
@@ -117,7 +118,7 @@ slice may swap in a real renderer without changing this contract.
     "never run" / just after `reset()`.
   - **Turtle Canvas lockstep (#228)** — `run()` then replays that same already-complete
     trace-event stream through `@openlogo/turtle`'s `TurtleAnimationController` (#216), pushing
-    each folded `{ state, scene }` snapshot into the shared `turtleState`/`turtleScene` fields (and
+    each folded `{ world, scene }` snapshot into the shared `turtleWorld`/`turtleScene` fields (and
     calling `options.canvasView.repaint()` immediately, if one was supplied) as playback advances.
     The runtime executes once, atomically; the animation controller replays that recording —
     `run-controller.ts` never re-implements movement math or drives the runtime step-by-step.
@@ -143,8 +144,8 @@ slice may swap in a real renderer without changing this contract.
     `status !== "running"` guard, so a stale async tick can never sneak in an extra frame.
   - **Reset** — `reset()` clears `output`/`diagnostics` back to empty, re-arms the cancellation
     signal, and sets `runStatus` to `"idle"` — deterministic, ready for the next `run()`. (#228)
-    `reset()` also resets the turtle animation and restores `turtleState`/`turtleScene` to
-    `@openlogo/turtle`'s program-start `INITIAL_TURTLE_STATE`/`INITIAL_TURTLE_SCENE`, repainting
+    `reset()` also resets the turtle animation and restores `turtleWorld`/`turtleScene` to
+    `@openlogo/turtle`'s program-start `INITIAL_TURTLE_WORLD_STATE`/`INITIAL_TURTLE_SCENE`, repainting
     the Canvas view (if supplied) back to a blank slate.
   - **Step** (headless only — not surfaced in the 0.1.0 UI, see #305; Wave 1/#302 rebuilds a UI on
     it) — no longer a no-op as of #228: `step()` advances the turtle animation by exactly one
@@ -331,9 +332,11 @@ no DOM here to regress.
   single-source-of-truth contract, once again).
 - **Non-visual turtle state (#229, extended in #410 to include the current source instruction)** —
   `createTurtleStateRegion(state)` is a single, always-current `status`/`aria-live="polite"` text
-  region over the shared store's `turtleState` slot (the same one #218 paints from and #228 pushes
+  region over the shared store's `turtleWorld` slot (the same one #218 paints from and #228 pushes
   into on every run tick/`step()`/`reset()`), built from `@openlogo/turtle`'s published
-  `describeTurtleState` (position/heading/pen wording, never re-derived here) plus, when available,
+  `describeTurtleWorldState` (position/heading/pen wording, never re-derived here — plus, once a
+  program drives more than one turtle, the `turtle #<id>` name of the turtle being described, #749)
+  plus, when available,
   a trailing "current instruction `<exact source text>`" clause — `spec/rendering.md`'s Non-visual
   state descriptions minimum requires surfacing the current instruction alongside pen/visibility
   state. `run-controller.ts` maps each pushed turtle snapshot to the `source_span` of the most
@@ -342,7 +345,7 @@ no DOM here to regress.
   reformatted. The clause is omitted entirely (not a placeholder) before any run/step has happened,
   or after `reset()`. Unlike the announcer's growing log, `getText()` always returns the *current*
   description (available immediately, even before any run), and `subscribeText(listener)` notifies
-  every listener with the new text whenever `turtleState`/`currentInstructionSourceSpan` changes —
+  every listener with the new text whenever `turtleWorld`/`currentInstructionSourceSpan` changes —
   so the region reads in lockstep with the Canvas view as a program runs, and multiple consumers
   never desync.
 - No shell region/mount function is added for the announcer or the turtle-state region — both are
@@ -351,12 +354,12 @@ no DOM here to regress.
 ## Turtle Canvas view (#218, driven live by Run/Stop/Reset in #228)
 
 **#218 delivered static composition** — the initial default turtle state/scene, painted once at
-mount. **#228 (above)** wires `run-controller.ts` to update `turtleState`/`turtleScene` after each
+mount. **#228 (above)** wires `run-controller.ts` to update `turtleWorld`/`turtleScene` after each
 run/step/reset and repaint the pane live, in lockstep with output/diagnostics.
 
-- `state-model.ts` gains `turtleState`/`turtleScene` on `StudioState`, reusing `@openlogo/turtle`'s
-  own `TurtleState`/`TurtleScene` types verbatim (never a studio-invented fork) and defaulting to
-  its program-start `INITIAL_TURTLE_STATE`/`INITIAL_TURTLE_SCENE` — origin, heading `0`, pen down,
+- `state-model.ts` gains `turtleWorld`/`turtleScene` on `StudioState`, reusing `@openlogo/turtle`'s
+  own `TurtleWorldState`/`TurtleScene` types verbatim (never a studio-invented fork) and defaulting to
+  its program-start `INITIAL_TURTLE_WORLD_STATE`/`INITIAL_TURTLE_SCENE` — origin, heading `0`, pen down,
   color `"black"`, width `1`, visible, background `"white"`, no drawing items.
 - **The DOM ownership boundary**: `@openlogo/turtle` is deliberately DOM-free — its `RenderTarget`
   is a hand-written minimal structural subset of the real Canvas 2D drawing API (this monorepo has
@@ -366,10 +369,10 @@ run/step/reset and repaint the pane live, in lockstep with output/diagnostics.
   forwarding adapter (not a pass-through, since a real `CanvasRenderingContext2D`'s
   `fillStyle`/`strokeStyle` accept `CanvasGradient`/`CanvasPattern` too, wider than `RenderTarget`
   declares) — the DOM canvas lives in studio, never in `@openlogo/turtle`.
-- `createCanvasViewController(state, { target, viewport })` reads `state.getState().turtleState`/
+- `createCanvasViewController(state, { target, viewport })` reads `state.getState().turtleWorld`/
   `.turtleScene` and paints them through `@openlogo/turtle`'s `paintTurtle` — never re-deriving
   turtle coordinates, colors, or scene items itself. `repaint()` always reads the *current* store
-  snapshot, so it never goes stale relative to whichever pane last wrote `turtleState`/
+  snapshot, so it never goes stale relative to whichever pane last wrote `turtleWorld`/
   `turtleScene`.
 - `mountCanvasView(shell, controller)` composes the controller into the app shell's existing
   `turtle` region (seeded by #123) and calls `repaint()` immediately, so the pane never shows a

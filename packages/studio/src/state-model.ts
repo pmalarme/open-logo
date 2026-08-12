@@ -26,13 +26,20 @@
  * - `notice` — a non-fatal, learner-visible status (e.g. "your work could not be saved"), set by
  *   #128 persistence when a storage operation degrades gracefully instead of crashing or silently
  *   losing data. `null` means there is nothing to show.
- * - `turtleState`/`turtleScene` — the turtle avatar state and retained drawing scene the Canvas
- *   view (#218) paints, reusing `@openlogo/turtle`'s own {@link TurtleState}/{@link TurtleScene}
- *   types verbatim (never a studio-invented fork). Both start at `@openlogo/turtle`'s program-start
- *   defaults (`INITIAL_TURTLE_STATE`/`INITIAL_TURTLE_SCENE`) and are replaced wholesale by
+ * - `turtleWorld`/`turtleScene` — the per-turtle world (every live turtle's own avatar state plus
+ *   which one last acted) and the retained drawing scene the Canvas view (#218) paints, reusing
+ *   `@openlogo/turtle`'s own {@link TurtleWorldState}/{@link TurtleScene} types verbatim (never a
+ *   studio-invented fork). Both start at `@openlogo/turtle`'s program-start defaults
+ *   (`INITIAL_TURTLE_WORLD_STATE`/`INITIAL_TURTLE_SCENE`) and are replaced wholesale by
  *   `@openlogo/turtle`'s own reducers — studio never re-derives turtle coordinates or scene items
- *   itself. This slice (#218) only composes the *initial* defaults; wiring a run's trace-event
- *   stream through `reduceTurtleState`/`reduceTurtleScene` to keep them live is #228.
+ *   itself. `run-controller.ts` (#228) keeps them live by pushing each `TurtleAnimationController`
+ *   snapshot.
+ * - `turtleState` — a **derived** read of `turtleWorld`: the *last-acted* turtle's own state
+ *   (`@openlogo/turtle`'s `lastActedTurtleState`), i.e. the turtle the most recent per-turtle
+ *   command drove. It is never set on its own — {@link StudioStateStore.setTurtleWorld} always
+ *   commits the pair — so a pane reading `turtleState` and a pane painting `turtleWorld` can never
+ *   disagree about which turtle they are showing (issue #749: they used to, because every turtle's
+ *   attributes were folded into one record).
  * - `speedSliderValue` (#310) — the learner-facing turtle-speed slider position, a plain number
  *   in `turtle-speed.ts`'s `[SPEED_SLIDER_MIN, SPEED_SLIDER_MAX]` range (the top value being the
  *   dedicated "instant / no animation" end). Defaults to `turtle-speed.ts`'s
@@ -87,8 +94,16 @@ import type {
   SourceSpan,
   TutorOutputPayload,
 } from "@openlogo/core";
-import type { TurtleScene, TurtleState } from "@openlogo/turtle";
-import { INITIAL_TURTLE_SCENE, INITIAL_TURTLE_STATE } from "@openlogo/turtle";
+import type {
+  TurtleScene,
+  TurtleState,
+  TurtleWorldState,
+} from "@openlogo/turtle";
+import {
+  INITIAL_TURTLE_SCENE,
+  INITIAL_TURTLE_WORLD_STATE,
+  lastActedTurtleState,
+} from "@openlogo/turtle";
 import { DEFAULT_SPEED_SLIDER_VALUE } from "./turtle-speed.js";
 
 /**
@@ -140,6 +155,7 @@ export interface StudioState {
   readonly output: readonly string[];
   readonly lesson: LessonContext;
   readonly notice: Notice | null;
+  readonly turtleWorld: TurtleWorldState;
   readonly turtleState: TurtleState;
   readonly turtleScene: TurtleScene;
   readonly speedSliderValue: number;
@@ -191,8 +207,12 @@ export interface StudioStateStore {
   setLesson(lesson: LessonContext): void;
   /** Replace the visible notice; pass `null` to clear it. */
   setNotice(notice: Notice | null): void;
-  /** Replace the turtle avatar state the Canvas view (#218) paints. */
-  setTurtleState(turtleState: TurtleState): void;
+  /**
+   * Replace the whole per-turtle world the Canvas view (#218) paints and the non-visual state
+   * region (#229) describes, deriving {@link StudioState.turtleState} from it in the same
+   * notification so the two can never disagree.
+   */
+  setTurtleWorld(turtleWorld: TurtleWorldState): void;
   /** Replace the retained turtle drawing scene the Canvas view (#218) paints. */
   setTurtleScene(turtleScene: TurtleScene): void;
   /**
@@ -213,7 +233,7 @@ export interface StudioStateStore {
   /**
    * Replace the current instruction's `source_span` (#410), or `null` when none is available
    * (program-start/`reset()`, or before the first `run()`/`step()`). `run-controller.ts` calls
-   * this in lockstep with `setTurtleState`/`setTurtleScene` on every pushed animation snapshot.
+   * this in lockstep with `setTurtleWorld`/`setTurtleScene` on every pushed animation snapshot.
    */
   setCurrentInstructionSourceSpan(
     currentInstructionSourceSpan: SourceSpan | null,
@@ -235,10 +255,15 @@ const INITIAL_SELECTION: Selection = {
 };
 const INITIAL_LESSON: LessonContext = { lessonId: null, title: null };
 
-/** Construct the single {@link StudioStateStore} for a studio session. */
+/**
+ * Construct the single {@link StudioStateStore} for a studio session. `turtleState` is *derived*
+ * from `turtleWorld` (see its doc comment), so it cannot be seeded independently — pass
+ * `turtleWorld` instead.
+ */
 export function createStudioState(
-  initial?: Partial<StudioState>,
+  initial?: Partial<Omit<StudioState, "turtleState">>,
 ): StudioStateStore {
+  const initialWorld = initial?.turtleWorld ?? INITIAL_TURTLE_WORLD_STATE;
   let state: StudioState = {
     source: initial?.source ?? "",
     selection: initial?.selection ?? INITIAL_SELECTION,
@@ -247,7 +272,8 @@ export function createStudioState(
     output: initial?.output ?? [],
     lesson: initial?.lesson ?? INITIAL_LESSON,
     notice: initial?.notice ?? null,
-    turtleState: initial?.turtleState ?? INITIAL_TURTLE_STATE,
+    turtleWorld: initialWorld,
+    turtleState: lastActedTurtleState(initialWorld),
     turtleScene: initial?.turtleScene ?? INITIAL_TURTLE_SCENE,
     speedSliderValue: initial?.speedSliderValue ?? DEFAULT_SPEED_SLIDER_VALUE,
     tutorOutput: initial?.tutorOutput ?? [],
@@ -296,8 +322,8 @@ export function createStudioState(
     setNotice(notice) {
       commit({ notice });
     },
-    setTurtleState(turtleState) {
-      commit({ turtleState });
+    setTurtleWorld(turtleWorld) {
+      commit({ turtleWorld, turtleState: lastActedTurtleState(turtleWorld) });
     },
     setTurtleScene(turtleScene) {
       commit({ turtleScene });
