@@ -229,18 +229,12 @@ test("the full-name Core reporters remain callable without Heritage (Core, not g
   assert.deepEqual(checkSource(source, CORE_ONLY), []);
 });
 
-test("under active Heritage an alias program checks identically to its Core twin (diagnostic equivalence)", () => {
-  // Beyond the accepted/rejected gate above: with Heritage active, an alias program and its Core
-  // twin yield the SAME checker diagnostics (spans aside), so the alias never invents — nor
-  // suppresses — a semantic finding relative to the Core reporter it spells.
-  const strip = (source) =>
-    checkSource(source, HERITAGE_ACTIVE).map(
-      ({ source_span, ...rest }) => rest,
-    );
-  assert.deepEqual(
-    strip('print bf [1 2 3]\nprint bl [1 2 3]\nprint se "a" "b"\n'),
-    strip(
-      'print butfirst [1 2 3]\nprint butlast [1 2 3]\nprint sentence "a" "b"\n',
-    ),
-  );
-});
+// Diagnostic-equivalence note (rubber-duck review, #669): the checker raises NO arity/type
+// diagnostic for these reporters in ANY position — for the alias OR its Core spelling — because
+// reporter arity/range is enforced at RUNTIME (see the `ol-range` empty-input parity test in
+// packages/runtime/src/heritage-list-reporter-aliases-eval.test.mjs), not in the semantic checker.
+// The only checker diagnostic these aliases can produce is the profile gate's `ol-unknown-command`
+// (proven above). A checker-level "alias errors identically to Core" test would therefore be
+// vacuous (empty == empty), so the meaningful diagnostic-equivalence proof lives in the runtime
+// suite; this decision is falsifiable — if the checker ever gains a reporter-arity rule, the
+// runtime ol-range parity assertion still pins alias == Core.
