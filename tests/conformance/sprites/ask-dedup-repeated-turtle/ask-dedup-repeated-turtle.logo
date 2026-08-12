@@ -1,0 +1,4 @@
+:a = new_turtle
+ask [ :a :a ] [
+  forward 40
+]

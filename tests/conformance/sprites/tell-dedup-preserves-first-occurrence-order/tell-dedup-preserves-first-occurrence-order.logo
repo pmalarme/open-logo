@@ -1,0 +1,5 @@
+:a = new_turtle
+:b = new_turtle
+tell [ :b :a :b ]
+print who == :b
+forward 40

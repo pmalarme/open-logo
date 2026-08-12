@@ -1,0 +1,115 @@
+{
+  "description": "issue #748: de-duplicating the addressed set is observable in a command's ARGUMENT side effects, not only in its move events. The per-turtle loop evaluates the argument once per addressed turtle, so with `tell [ :a :a ]` — one member, because a turtle command \"applies once for each addressed turtle\" over an \"addressed set\" (spec/turtles-and-sprites.md:113, :44) — the `new_turtle` in argument position spawns exactly ONE turtle (id 2, its own authoritative `turtle_id`) and `:a` moves once, where the pre-#748 direct path evaluated the whole argument twice and spawned two.",
+  "profiles": ["sprites", "turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-dedup-argument-evaluated-once/tell-dedup-argument-evaluated-once",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/tell-dedup-argument-evaluated-once/tell-dedup-argument-evaluated-once",
+        "start": [1, 6],
+        "end": [1, 16]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-dedup-argument-evaluated-once/tell-dedup-argument-evaluated-once",
+        "start": [2, 1],
+        "end": [2, 15]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-dedup-argument-evaluated-once/tell-dedup-argument-evaluated-once",
+        "start": [3, 1],
+        "end": [3, 34]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/tell-dedup-argument-evaluated-once/tell-dedup-argument-evaluated-once",
+        "start": [3, 20],
+        "end": [3, 30]
+      },
+      "turtle_id": 2,
+      "payload": {
+        "turtle_id": 2,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/tell-dedup-argument-evaluated-once/tell-dedup-argument-evaluated-once",
+        "start": [3, 1],
+        "end": [3, 34]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 1],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/tell-dedup-argument-evaluated-once/tell-dedup-argument-evaluated-once",
+        "start": [3, 1],
+        "end": [3, 34]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 1],
+        "color": "black",
+        "width": 1
+      }
+    }
+  ],
+  "diagnostics": []
+}
