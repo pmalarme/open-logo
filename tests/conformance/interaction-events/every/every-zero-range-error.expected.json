@@ -1,0 +1,36 @@
+{
+  "description": "a zero tick count is ol-range (every needs a positive number of ticks)",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-zero-range-error",
+        "start": [1, 1],
+        "end": [1, 22]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-range",
+      "source_span": {
+        "document": "interaction-events/every/every-zero-range-error",
+        "start": [1, 7],
+        "end": [1, 8]
+      },
+      "params": {
+        "operation": "every",
+        "value": 0
+      },
+      "message": "every needs a positive whole number of ticks, but got 0.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

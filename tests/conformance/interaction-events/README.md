@@ -19,5 +19,14 @@ that requires it — see `scripts/examples-gate.mjs`.
   immediately (the run has started), a `"stop"` handler fires once before termination, a non-word
   event is `ol-type`, a mismatched `end` label is `ol-mismatched-end`, and `check`-mode fixtures
   prove `when` is visible only under the `interaction-events` profile and rejected Core-only.
+- **`every/`** — the `every <n> <block>` repeated timed handler (issue #683, slice I4):
+  registration emits `primitive` after the handler is registered, the block first runs `n` ticks
+  **after registration** (not at a global multiple of `n`) and repeats every `n` ticks while a `wait`
+  pause advances the tick clock, a `wait 0` yields without redelivering a handler already fired on the
+  current tick, a handler whose body's nested `wait` advances the clock through a sibling's next
+  interval does not re-fire that sibling out of chronological order, a non-whole count is `ol-type`, a
+  zero or negative count is `ol-range`, the event
+  sequence is deterministic across runs, and `check`-mode fixtures prove `every` is visible only under
+  the `interaction-events` profile and rejected Core-only.
 
 Fixture shape and conventions: see [`../README.md`](../README.md).

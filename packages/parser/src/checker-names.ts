@@ -51,8 +51,8 @@ import {
 /**
  * Every canonical lowercase name contributed by an optional (non-Core) conformance profile's
  * primitive table — currently Turtle & Rendering's, Educational's, Geometry's, Data's, Sound's, and
- * the Interaction & Events block-heads (`when`, issue #682), the Sprites addressing head
- * (`tell`, issue #674), and the Heritage short command aliases (`fd`/`bk`/…, issue #668).
+ * the Interaction & Events block-heads (`when`/`every`, issues #682/#683), the Sprites addressing
+ * head (`tell`, issue #674), and the Heritage short command aliases (`fd`/`bk`/…, issue #668).
  * Computed once as a frozen union so
  * {@link isOptionalProfileName} stays a pure, allocation-free lookup; a future optional-profile
  * table adds its `...someProfileNames()` spread here alongside these, exactly mirroring how

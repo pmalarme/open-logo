@@ -1,0 +1,36 @@
+{
+  "description": "a negative tick count is ol-range (every needs a positive number of ticks)",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-negative-range-error",
+        "start": [1, 1],
+        "end": [1, 23]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-range",
+      "source_span": {
+        "document": "interaction-events/every/every-negative-range-error",
+        "start": [1, 7],
+        "end": [1, 9]
+      },
+      "params": {
+        "operation": "every",
+        "value": -3
+      },
+      "message": "every needs a positive whole number of ticks, but got -3.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

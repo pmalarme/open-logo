@@ -1,0 +1,116 @@
+{
+  "description": "the first run is anchored to registration time: `every 3` registered at tick 2 first fires at tick 5 (n ticks after registration), not at tick 3 (a global multiple of n); a wait 4 covering ticks 3-6 fires it exactly once",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-first-run-anchored-to-registration",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-first-run-anchored-to-registration",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-first-run-anchored-to-registration",
+        "start": [2, 1],
+        "end": [2, 22]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-first-run-anchored-to-registration",
+        "start": [2, 1],
+        "end": [2, 22]
+      },
+      "payload": {
+        "name": "every"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-first-run-anchored-to-registration",
+        "start": [3, 1],
+        "end": [3, 7]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-first-run-anchored-to-registration",
+        "start": [2, 1],
+        "end": [2, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-first-run-anchored-to-registration",
+        "start": [2, 11],
+        "end": [2, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-first-run-anchored-to-registration",
+        "start": [2, 11],
+        "end": [2, 20]
+      },
+      "payload": {
+        "values": ["x"]
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-first-run-anchored-to-registration",
+        "start": [3, 1],
+        "end": [3, 7]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    }
+  ],
+  "diagnostics": []
+}

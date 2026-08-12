@@ -1,0 +1,4 @@
+every 2
+  print "a"
+end every
+wait 2

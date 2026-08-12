@@ -193,13 +193,27 @@ test("createTickClock starts at tick 0 and advanceTickClock advances exactly one
   assert.equal(clock.tick, 3);
 });
 
-test("yieldToEventLoop is the deterministic dispatch seam: a headless no-op that does not advance the clock", () => {
-  // The seam #682-#686 hang handler dispatch off. In this baseline it dispatches nothing and must
-  // NOT advance the tick (the advance is advanceTickClock's job) — wait yields once per tick AND
-  // once for wait 0, so this staying a no-op is what keeps the stream deterministic today.
+test("yieldToEventLoop is the dispatch seam: it forwards the tick to its dispatch callback and does not advance the clock", () => {
+  // The seam #682-#686 hang handler dispatch off. It hands the current tick to `dispatch` and
+  // forwards its interruption verdict, but must NOT advance the tick (the advance is
+  // advanceTickClock's job) — wait yields once per tick AND once for wait 0.
   const clock = createTickClock();
   advanceTickClock(clock);
-  assert.equal(yieldToEventLoop(clock), undefined);
+  const seen = [];
+  assert.equal(
+    yieldToEventLoop(clock, (tick) => {
+      seen.push(tick);
+      return false;
+    }),
+    false,
+  );
+  assert.deepEqual(seen, [1]);
+  assert.equal(clock.tick, 1);
+  // An interrupting dispatch is forwarded as `true`.
+  assert.equal(
+    yieldToEventLoop(clock, () => true),
+    true,
+  );
   assert.equal(clock.tick, 1);
 });
 

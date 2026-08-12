@@ -239,11 +239,16 @@ test("a `stop` escaping a handler body is ol-stop-outside-proc", () => {
 
 test("a non-when profile statement (`every`) is not dispatched as a when handler", () => {
   // `isWhenStatement` must return false for a ProfileStatement whose head keyword is not `when`, so
-  // `every` falls through to the ordinary ProfileStatement no-op (only its instruction event), NOT
-  // to handler registration. #683 gives `every` its own runtime behavior.
+  // `every` is not registered as a `when` handler. Since #683 (slice I4) landed, `every` has its own
+  // runtime behavior — it registers a timed handler and emits a `primitive(every)` event on
+  // registration — so its only effect event here is that registration primitive (never a `when`
+  // primitive, and, with no `wait` to advance the clock, its body never runs).
   const result = execute('every 2 [ print "x" ]', doc);
   assert.deepEqual(result.diagnostics, []);
-  assert.deepEqual(effectEvents(result), []);
+  assert.deepEqual(
+    effectEvents(result).map((event) => event.payload),
+    [{ name: "every" }],
+  );
 });
 
 // --- Determinism: same program, same event sequence every run ---------------------------------

@@ -1,0 +1,290 @@
+{
+  "description": "every <n> <block> first runs after n ticks and repeats every n ticks while a wait pause advances the tick clock; registration emits primitive after the handler is registered",
+  "profiles": ["core-language", "turtle-rendering", "interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fires-during-wait",
+        "start": [1, 1],
+        "end": [1, 32]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-fires-during-wait",
+        "start": [1, 1],
+        "end": [1, 32]
+      },
+      "payload": {
+        "name": "every"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fires-during-wait",
+        "start": [2, 1],
+        "end": [2, 8]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fires-during-wait",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fires-during-wait",
+        "start": [1, 11],
+        "end": [1, 19]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "turn",
+      "source_span": {
+        "document": "interaction-events/every/every-fires-during-wait",
+        "start": [1, 11],
+        "end": [1, 19]
+      },
+      "payload": {
+        "from": 0,
+        "to": 15
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fires-during-wait",
+        "start": [1, 20],
+        "end": [1, 30]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "move",
+      "source_span": {
+        "document": "interaction-events/every/every-fires-during-wait",
+        "start": [1, 20],
+        "end": [1, 30]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [2.5881904510252074, 9.659258262890683],
+        "heading": 15
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "interaction-events/every/every-fires-during-wait",
+        "start": [1, 20],
+        "end": [1, 30]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [2.5881904510252074, 9.659258262890683],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fires-during-wait",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fires-during-wait",
+        "start": [1, 11],
+        "end": [1, 19]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "turn",
+      "source_span": {
+        "document": "interaction-events/every/every-fires-during-wait",
+        "start": [1, 11],
+        "end": [1, 19]
+      },
+      "payload": {
+        "from": 15,
+        "to": 30
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fires-during-wait",
+        "start": [1, 20],
+        "end": [1, 30]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "move",
+      "source_span": {
+        "document": "interaction-events/every/every-fires-during-wait",
+        "start": [1, 20],
+        "end": [1, 30]
+      },
+      "payload": {
+        "from": [2.5881904510252074, 9.659258262890683],
+        "to": [7.5881904510252065, 18.31951230073507],
+        "heading": 30
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "interaction-events/every/every-fires-during-wait",
+        "start": [1, 20],
+        "end": [1, 30]
+      },
+      "payload": {
+        "from": [2.5881904510252074, 9.659258262890683],
+        "to": [7.5881904510252065, 18.31951230073507],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fires-during-wait",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fires-during-wait",
+        "start": [1, 11],
+        "end": [1, 19]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "turn",
+      "source_span": {
+        "document": "interaction-events/every/every-fires-during-wait",
+        "start": [1, 11],
+        "end": [1, 19]
+      },
+      "payload": {
+        "from": 30,
+        "to": 45
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fires-during-wait",
+        "start": [1, 20],
+        "end": [1, 30]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 19,
+      "kind": "move",
+      "source_span": {
+        "document": "interaction-events/every/every-fires-during-wait",
+        "start": [1, 20],
+        "end": [1, 30]
+      },
+      "payload": {
+        "from": [7.5881904510252065, 18.31951230073507],
+        "to": [14.659258262890681, 25.390580112600546],
+        "heading": 45
+      }
+    },
+    {
+      "seq": 20,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "interaction-events/every/every-fires-during-wait",
+        "start": [1, 20],
+        "end": [1, 30]
+      },
+      "payload": {
+        "from": [7.5881904510252065, 18.31951230073507],
+        "to": [14.659258262890681, 25.390580112600546],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 21,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-fires-during-wait",
+        "start": [2, 1],
+        "end": [2, 8]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    }
+  ],
+  "diagnostics": []
+}
