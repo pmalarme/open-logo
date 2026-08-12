@@ -77,10 +77,10 @@
  * any time and that updates in lockstep with the Canvas view as a program runs.
  *
  * #749 made that region read the per-turtle `turtleWorld` rather than a single merged turtle
- * state: with several turtles the text now names **which** turtle it is describing (the active
- * one, in creation order), satisfying `spec/rendering.md:191`'s "Implementations with multiple
- * turtles MUST identify the active turtle or addressed turtle set". A single-turtle program's
- * text is unchanged, byte for byte.
+ * state: with several turtles the text now names **which** turtle it is describing, as
+ * `turtle #<id>` — the same identity `print who` gives the learner — satisfying
+ * `spec/rendering.md:191`'s "Implementations with multiple turtles MUST identify the active turtle
+ * or addressed turtle set". A single-turtle program's text is unchanged, byte for byte.
  *
  * #410 additionally appends the current source instruction, when one is available
  * (`spec/rendering.md`'s Non-visual state descriptions minimum: pen color/width, turtle
@@ -425,7 +425,7 @@ function describeCurrentInstruction(
 }
 
 /** The full non-visual turtle-state text: `describeTurtleWorldState`'s wording — which identifies
- * the active turtle once the program drives more than one (`spec/rendering.md:191`), and is
+ * which turtle it is describing once the program drives more than one (`spec/rendering.md:191`), and is
  * byte-identical to the single-turtle `describeTurtleState` wording otherwise — plus, when
  * available, the current source instruction (#410). */
 function describeFullTurtleState(state: StudioState): string {
@@ -441,7 +441,7 @@ export type TurtleStateTextListener = (text: string) => void;
 /**
  * The headless, always-current non-visual turtle-state text region over the shared state model.
  * Unlike {@link A11yAnnouncer}, this holds exactly one piece of text — the description of the
- * *current* {@link TurtleWorldState}'s active turtle, plus (#410) the current source instruction
+ * *current* {@link TurtleWorldState}'s last-acted turtle, plus (#410) the current source instruction
  * when available — that a renderer keeps mapped onto a single `status`/`aria-live="polite"`
  * region, rather than a growing announcement log.
  */
@@ -458,7 +458,7 @@ export interface TurtleStateRegion {
 
 /**
  * Construct the turtle-state text region bound to the shared studio state model (never a copy).
- * The turtle-position/heading/pen wording — and, for a multi-turtle program, the active turtle's
+ * The turtle-position/heading/pen wording — and, for a multi-turtle program, the described turtle's
  * identity — is computed via `@openlogo/turtle`'s published {@link describeTurtleWorldState}; this
  * module never re-derives it. (#410) The current source instruction, when
  * `state.currentInstructionSourceSpan` is available, is appended by slicing `state.source` (see

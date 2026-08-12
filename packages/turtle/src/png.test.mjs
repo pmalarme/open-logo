@@ -461,11 +461,11 @@ test("exportTurtlePng produces a valid zlib stream whose Adler-32 checksum match
 // --- per-turtle avatars in export (#749) ------------------------------------------------------
 
 /** A `TurtleWorldState` over `states` (`[id, state]` pairs in creation order), with the last one
- * active — the shape a Sprites program's event stream folds to. */
+ * last-acted — the shape a Sprites program's event stream folds to. */
 function turtleWorld(states) {
   return {
     turtles: new Map(states),
-    activeTurtleId: states[states.length - 1][0],
+    lastActedTurtleId: states[states.length - 1][0],
   };
 }
 

@@ -71,21 +71,21 @@ function makeRecordingTarget() {
 
 const VIEWPORT = { width: 400, height: 300 };
 
-/** A `TurtleWorldState` holding just the main turtle at `state`, active — what every
+/** A `TurtleWorldState` holding just the main turtle at `state`, last-acted — what every
  * single-turtle (Turtle & Rendering) program folds to. */
 function singleTurtleWorld(state) {
   return {
     turtles: new Map([[OL.MAIN_TURTLE_ID, state]]),
-    activeTurtleId: OL.MAIN_TURTLE_ID,
+    lastActedTurtleId: OL.MAIN_TURTLE_ID,
   };
 }
 
 /** A `TurtleWorldState` over `states` (an array of `[id, state]` pairs, in creation order), with
- * `activeTurtleId` naming the last one — the shape a Sprites program folds to. */
+ * `lastActedTurtleId` naming the last one — the shape a Sprites program folds to. */
 function turtleWorld(states) {
   return {
     turtles: new Map(states),
-    activeTurtleId: states[states.length - 1][0],
+    lastActedTurtleId: states[states.length - 1][0],
   };
 }
 
@@ -969,7 +969,7 @@ test("paintTurtle paints overlays before the avatar, and threads overlay through
   assert.ok(avatarRestoreIndex > overlaySaveIndex);
 });
 
-test("renderFrame paints every visible turtle in the snapshot's world, not just the active one (#749)", () => {
+test("renderFrame paints every visible turtle in the snapshot's world, not just the last-acted one (#749)", () => {
   // Without this, a paused/stepped Sprites frame would show one avatar while the export of the
   // same moment showed several — renderFrame must thread the whole world through paintTurtle.
   const base = {

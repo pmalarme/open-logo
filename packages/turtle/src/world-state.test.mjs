@@ -5,7 +5,7 @@
 // registration, per-turtle attribution keyed on `turtle_id`, the implicit main turtle (no
 // `turtle_id`) folding into id 0, isolation between turtles, and the render-following obligation
 // from `spec/turtles-and-sprites.md`'s "Per-turtle state and Turtle commands" section — plus
-// (issue #749) the **active** turtle the avatar and the non-visual state description must name
+// (issue #749) the **last-acted** turtle the non-visual state description names as its subject
 // (`spec/rendering.md:115`/`:191`).
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -45,7 +45,7 @@ function spawn(turtleId, overrides = {}) {
   );
 }
 
-test("initial world holds just the main turtle at the program-start defaults, active", () => {
+test("initial world holds just the main turtle at the program-start defaults, last-acted", () => {
   assert.deepEqual(
     [...OL.INITIAL_TURTLE_WORLD_STATE.turtles.keys()],
     [OL.MAIN_TURTLE_ID],
@@ -54,9 +54,12 @@ test("initial world holds just the main turtle at the program-start defaults, ac
     OL.INITIAL_TURTLE_WORLD_STATE.turtles.get(OL.MAIN_TURTLE_ID),
     OL.INITIAL_TURTLE_STATE,
   );
-  assert.equal(OL.INITIAL_TURTLE_WORLD_STATE.activeTurtleId, OL.MAIN_TURTLE_ID);
   assert.equal(
-    OL.activeTurtleState(OL.INITIAL_TURTLE_WORLD_STATE),
+    OL.INITIAL_TURTLE_WORLD_STATE.lastActedTurtleId,
+    OL.MAIN_TURTLE_ID,
+  );
+  assert.equal(
+    OL.lastActedTurtleState(OL.INITIAL_TURTLE_WORLD_STATE),
     OL.INITIAL_TURTLE_STATE,
   );
 });
@@ -83,7 +86,10 @@ test("the shared initial world is genuinely immutable at runtime", () => {
     [...OL.INITIAL_TURTLE_WORLD_STATE.turtles.keys()],
     [OL.MAIN_TURTLE_ID],
   );
-  assert.equal(OL.INITIAL_TURTLE_WORLD_STATE.activeTurtleId, OL.MAIN_TURTLE_ID);
+  assert.equal(
+    OL.INITIAL_TURTLE_WORLD_STATE.lastActedTurtleId,
+    OL.MAIN_TURTLE_ID,
+  );
 });
 
 test("spawn-turtle registers a new turtle from its payload's initial state", () => {
@@ -231,34 +237,34 @@ test("reducing no events returns the seed unchanged", () => {
   assert.equal(world, OL.INITIAL_TURTLE_WORLD_STATE);
 });
 
-// --- the active turtle (`spec/rendering.md:115`/`:191`) ---
+// --- the last-acted turtle (`spec/rendering.md:191`) ---
 
-test("the turtle whose state an event changed becomes the active turtle", () => {
+test("the turtle a state-bearing event targeted becomes the last-acted turtle", () => {
   const world = OL.reduceTurtleWorldEvents([
     spawn(1),
     spawn(2),
     event("move", { from: [0, 0], to: [0, 50], heading: 0 }, 1),
     event("color-change", { from: "black", to: "blue" }, 2),
   ]);
-  assert.equal(world.activeTurtleId, 2);
-  assert.equal(OL.activeTurtleState(world).color, "blue");
+  assert.equal(world.lastActedTurtleId, 2);
+  assert.equal(OL.lastActedTurtleState(world).color, "blue");
 });
 
-test("creating a turtle does not make it active — only acting does", () => {
+test("creating a turtle does not make it the last-acted one — only acting does", () => {
   // `:friend = new_turtle` leaves the addressed set alone (spec/turtles-and-sprites.md:42), so the
   // main turtle is still the one a learner is driving until something addresses the new turtle.
   const afterSpawn = OL.reduceTurtleWorldEvents([spawn(1)]);
-  assert.equal(afterSpawn.activeTurtleId, OL.MAIN_TURTLE_ID);
+  assert.equal(afterSpawn.lastActedTurtleId, OL.MAIN_TURTLE_ID);
   const afterItActs = OL.reduceTurtleWorldState(
     afterSpawn,
     event("move", { from: [0, 0], to: [0, 5], heading: 0 }, 1),
   );
-  assert.equal(afterItActs.activeTurtleId, 1);
+  assert.equal(afterItActs.lastActedTurtleId, 1);
 });
 
-test("a non-state event does not re-point the active turtle back at the main turtle", () => {
+test("a non-state event does not re-point the last-acted turtle back at the main turtle", () => {
   // `instruction`/`print`/`procedure-enter` carry no turtle_id. Treating "no turtle_id" as "the
-  // main turtle acted" would snap `active` back to 0 in the middle of a sprite's block.
+  // main turtle acted" would snap it back to 0 in the middle of a sprite's block.
   const world = OL.reduceTurtleWorldEvents([
     spawn(1),
     event("shape-change", { from: "turtle", to: "bee" }, 1),
@@ -266,32 +272,32 @@ test("a non-state event does not re-point the active turtle back at the main tur
     event("print", { values: [] }, undefined),
     event("clear", { mode: "clean" }, undefined),
   ]);
-  assert.equal(world.activeTurtleId, 1);
+  assert.equal(world.lastActedTurtleId, 1);
 });
 
-test("an event naming an unspawned turtle leaves the active turtle alone", () => {
+test("an event naming an unspawned turtle leaves the last-acted turtle alone", () => {
   const world = OL.reduceTurtleWorldEvents([
     spawn(1),
     event("move", { from: [0, 0], to: [0, 5], heading: 0 }, 1),
     event("shape-change", { from: "turtle", to: "triangle" }, 7),
   ]);
-  assert.equal(world.activeTurtleId, 1);
+  assert.equal(world.lastActedTurtleId, 1);
 });
 
-test("an un-stamped event makes the main turtle active again", () => {
-  // A single-turtle program's events never carry a turtle_id, so the main turtle is the active
+test("an un-stamped event makes the main turtle the last-acted one again", () => {
+  // A single-turtle program's events never carry a turtle_id, so the main turtle is the last-acted
   // turtle throughout — the property that keeps single-turtle output unchanged.
   const world = OL.reduceTurtleWorldEvents([
     spawn(1),
     event("move", { from: [0, 0], to: [0, 5], heading: 0 }, 1),
     event("move", { from: [0, 0], to: [9, 0], heading: 90 }, undefined),
   ]);
-  assert.equal(world.activeTurtleId, OL.MAIN_TURTLE_ID);
+  assert.equal(world.lastActedTurtleId, OL.MAIN_TURTLE_ID);
 });
 
-test("activeTurtleState falls back to the program-start defaults for a hand-built world naming an absent turtle", () => {
-  // The type cannot enforce that `activeTurtleId` is a live key, so the accessor stays total
+test("lastActedTurtleState falls back to the program-start defaults for a hand-built world naming an absent turtle", () => {
+  // The type cannot enforce that `lastActedTurtleId` is a live key, so the accessor stays total
   // instead of throwing at paint/announce time.
-  const world = { turtles: new Map(), activeTurtleId: 4 };
-  assert.deepEqual(OL.activeTurtleState(world), OL.INITIAL_TURTLE_STATE);
+  const world = { turtles: new Map(), lastActedTurtleId: 4 };
+  assert.deepEqual(OL.lastActedTurtleState(world), OL.INITIAL_TURTLE_STATE);
 });

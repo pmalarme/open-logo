@@ -3,12 +3,12 @@ import { test } from "node:test";
 import * as OL from "@openlogo/studio";
 import { MAIN_TURTLE_ID } from "@openlogo/turtle";
 
-/** A `TurtleWorldState` holding just the main turtle at `state`, active — what a single-turtle
+/** A `TurtleWorldState` holding just the main turtle at `state`, last-acted — what a single-turtle
  * (Turtle & Rendering) program's event stream folds to. */
 function singleTurtleWorld(state) {
   return {
     turtles: new Map([[MAIN_TURTLE_ID, state]]),
-    activeTurtleId: MAIN_TURTLE_ID,
+    lastActedTurtleId: MAIN_TURTLE_ID,
   };
 }
 
@@ -558,7 +558,7 @@ test("two independent consumers of the same turtle-state region observe identica
   assert.deepEqual(consumerA, [region.getText()]);
 });
 
-test("the state text identifies the active turtle once a program drives more than one (#749, spec/rendering.md:191)", () => {
+test("the state text names the described turtle once a program drives more than one (#749, spec/rendering.md:191)", () => {
   // The #749 reproduction, as a screen reader hears it: `tell [ :a :b ]` / `forward 10` /
   // `ask :b [ hide_turtle set_color "blue" ]`. Before the fix the region announced ":b's" blue,
   // hidden attributes with no identity at all — indistinguishable from the one turtle a
@@ -578,17 +578,44 @@ test("the state text identifies the active turtle once a program drives more tha
       [1, { ...base, color: "black", visible: true }],
       [2, { ...base, color: "blue", visible: false }],
     ]),
-    activeTurtleId: 2,
+    lastActedTurtleId: 2,
   });
 
   assert.equal(
     region.getText(),
-    "active turtle 3 of 3 at x 0 y 10 heading 0 degrees pen down color blue width 1 hidden",
+    "turtle #2 at x 0 y 10 heading 0 degrees pen down color blue width 1 hidden",
+  );
+});
+
+test("the state region names a turtle exactly as the output pane does, so the two text channels agree (#749)", () => {
+  // A screen-reader user has only text: the output pane (`print who` -> "turtle #2") and this
+  // region. If the region used a creation-order ordinal it would call that same turtle "turtle 3",
+  // contradicting the output pane by one for every turtle, forever. Driving a real program end to
+  // end proves the two channels agree on the name.
+  const state = OL.createStudioState();
+  const region = OL.createTurtleStateRegion(state);
+  const controller = OL.createRunController(state);
+  state.setSource(
+    [
+      ":a = new_turtle",
+      ":b = new_turtle",
+      "tell :b",
+      "forward 10",
+      "print who",
+    ].join("\n"),
+  );
+  controller.run();
+
+  const printedName = state.getState().output.at(-1);
+  assert.equal(printedName, "turtle #2");
+  assert.ok(
+    region.getText().startsWith(`${printedName} at x `),
+    `the state region must name the turtle "${printedName}", got: ${region.getText()}`,
   );
 });
 
 test("the state text of a single-turtle program never names a turtle (byte-identical to spec/rendering.md's example)", () => {
-  // The compatibility half of #749: identifying the active turtle must not leak into the
+  // The compatibility half of #749: naming the described turtle must not leak into the
   // single-turtle wording `spec/rendering.md:191` gives verbatim.
   const state = OL.createStudioState();
   const region = OL.createTurtleStateRegion(state);

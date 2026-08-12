@@ -593,7 +593,7 @@ test("IMMEDIATE_SCHEDULER invokes its callback synchronously and returns a calla
 
 // --- per-turtle world folding (#749) ----------------------------------------------------------
 
-test("the controller folds a per-turtle world, so each sprite keeps its own state and the active turtle is tracked", () => {
+test("the controller folds a per-turtle world, so each sprite keeps its own state and the last-acted turtle is tracked", () => {
   // The #749 reproduction as a trace stream: two sprites move under `tell [ :a :b ]`, then `:b`
   // alone is hidden and turned blue. The merged single-turtle fold reported ":b's" blue+hidden on
   // whatever turtle the avatar was drawing; the world keeps them apart.
@@ -637,8 +637,8 @@ test("the controller folds a per-turtle world, so each sprite keeps its own stat
   assert.equal(world.turtles.get(2).color, "blue");
   // The main turtle never acted, so it is untouched.
   assert.deepEqual(world.turtles.get(0), OL.INITIAL_TURTLE_STATE);
-  // `state` is the ACTIVE turtle's own state, not every turtle merged into one.
-  assert.equal(world.activeTurtleId, 2);
+  // `state` is the LAST-ACTED turtle's own state, not every turtle merged into one.
+  assert.equal(world.lastActedTurtleId, 2);
   assert.equal(state, world.turtles.get(2));
 });
 
@@ -660,7 +660,7 @@ test("initialState seeds the main turtle of the controller's world", () => {
   const { world, state } = controller.getSnapshot();
   assert.equal(state, initialState);
   assert.equal(world.turtles.get(OL.MAIN_TURTLE_ID), initialState);
-  assert.equal(world.activeTurtleId, OL.MAIN_TURTLE_ID);
+  assert.equal(world.lastActedTurtleId, OL.MAIN_TURTLE_ID);
 });
 
 test("reset() restores the controller's world to its seed", () => {

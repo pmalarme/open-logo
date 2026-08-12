@@ -19,9 +19,9 @@
  * carries the turtle's full initial state; the **main turtle** — the single default turtle every
  * program starts with, whose Turtle & Rendering events carry *no* `turtle_id` before any `tell`
  * (`spec/turtles-and-sprites.md`'s "Addressing model") — is present from the start under
- * {@link MAIN_TURTLE_ID}. Alongside the per-turtle states it tracks the **active** turtle, the
- * identity `spec/rendering.md:115`/`:191` require the avatar and the non-visual state description
- * to name once a program drives more than one turtle.
+ * {@link MAIN_TURTLE_ID}. Alongside the per-turtle states it tracks the **last-acted** turtle, the
+ * identity the non-visual state description names so it is never ambiguous about which turtle it
+ * is describing (`spec/rendering.md:191`).
  *
  * Deterministic in, deterministic out: identical event input always folds to an identical world,
  * with no timing, randomness, or rendering concerns here.
@@ -48,35 +48,40 @@ export const MAIN_TURTLE_ID: TurtleId = 0;
 
 /**
  * The whole turtle world a renderer paints and describes: every live turtle's own
- * {@link TurtleState}, plus which of them is **active**.
+ * {@link TurtleState}, plus which of them a state-bearing event most recently targeted.
  *
  * - {@link TurtleWorldState.turtles} is keyed by turtle identity. The main turtle
  *   ({@link MAIN_TURTLE_ID}) is always present; each `new_turtle` adds one entry when its
  *   `spawn-turtle` event is folded. Insertion order is creation order (the main turtle first, then
  *   each spawn), matching the `turtles` reporter's order so a renderer can iterate sprites
  *   deterministically.
- * - {@link TurtleWorldState.activeTurtleId} is the turtle that most recently moved or changed —
- *   the identity `spec/rendering.md:115` ("The turtle avatar … indicates the **active turtle's**
- *   position, heading, visibility, and shape") and `spec/rendering.md:191` ("Implementations with
- *   multiple turtles MUST identify the active turtle or addressed turtle set") require a renderer
- *   and its non-visual state text to name.
+ * - {@link TurtleWorldState.lastActedTurtleId} is the turtle a state-bearing event most recently
+ *   targeted — the one whose state the non-visual description is about, so that description always
+ *   names its own subject (`spec/rendering.md:191`: "Implementations with multiple turtles MUST
+ *   identify the active turtle or addressed turtle set").
  *
- * The active turtle is derived from the trace stream alone, because that is all this package
- * consumes: `spec/execution-model.md`'s registry has no addressing event, so `tell`/`ask`/`each`
- * are invisible here — what *is* visible is each effect event's `turtle_id`
- * (`spec/turtles-and-sprites.md:113`: "Implementations MUST produce trace events with the
- * appropriate turtle identity so animation, stepping, `why`, and `debug` can explain **which
- * turtle moved or changed**"). So "active" here means exactly that: the turtle whose own state the
- * most recently folded event changed. During stepping and animation — the cases the avatar and the
- * live a11y region exist for — that is the turtle a learner just watched act. It is deliberately
- * *not* a claim about the runtime's addressed set after an `ask` block restores it, which no
- * consumer of the event stream can observe.
+ * It is called *last-acted*, not *active*, on purpose. This package consumes the trace stream and
+ * nothing else, and `spec/execution-model.md`'s event registry has **no addressing event**:
+ * `tell`/`ask`/`each` emit nothing a consumer can see. What *is* visible is each effect event's
+ * `turtle_id` (`spec/turtles-and-sprites.md:113`: "Implementations MUST produce trace events with
+ * the appropriate turtle identity so animation, stepping, `why`, and `debug` can explain **which
+ * turtle moved or changed**"). So the most this reducer can honestly know is which turtle an event
+ * last acted on. In particular, when an `ask :b [ … ]` block ends the runtime restores the
+ * previously addressed set (`spec/turtles-and-sprites.md:58`), but the stream's last per-turtle
+ * event is still `:b`'s, so `:b` stays the last-acted turtle here. Reporting the runtime's restored
+ * addressed set would require an addressing event in the trace contract — a cross-package,
+ * owner-reviewed change to `@openlogo/core`, tracked separately; this package must not invent one
+ * or reach into `@openlogo/runtime` for it.
+ *
+ * During stepping and animation — the cases the live avatar and the a11y region exist for — the
+ * last-acted turtle *is* the turtle a learner just watched act, which is what makes it the right
+ * subject for the description even so.
  */
 export interface TurtleWorldState {
   /** Every live turtle's own state, keyed by identity, in creation order. */
   readonly turtles: ReadonlyMap<TurtleId, TurtleState>;
-  /** The turtle whose state the most recently folded event changed. */
-  readonly activeTurtleId: TurtleId;
+  /** The turtle a state-bearing event most recently targeted. */
+  readonly lastActedTurtleId: TurtleId;
 }
 
 /**
@@ -102,7 +107,8 @@ function freezeMap<K, V>(map: Map<K, V>): ReadonlyMap<K, V> {
 }
 
 /**
- * The program-start world: just the main turtle at its {@link INITIAL_TURTLE_STATE}, active.
+ * The program-start world: just the main turtle at its {@link INITIAL_TURTLE_STATE}, and it is the
+ * last-acted turtle.
  * Shared as the default fold seed; every {@link reduceTurtleWorldState} call copies the turtle map
  * before mutating (`new Map(world.turtles)`), so this instance is never written through internally.
  * Its map is both typed `ReadonlyMap` (so the compiler rejects `.set`/`.delete`/`.clear`) and
@@ -115,18 +121,18 @@ export const INITIAL_TURTLE_WORLD_STATE: TurtleWorldState = Object.freeze({
   turtles: freezeMap(
     new Map<TurtleId, TurtleState>([[MAIN_TURTLE_ID, INITIAL_TURTLE_STATE]]),
   ),
-  activeTurtleId: MAIN_TURTLE_ID,
+  lastActedTurtleId: MAIN_TURTLE_ID,
 });
 
 /**
- * The {@link TurtleWorldState.activeTurtleId} turtle's own state — what the avatar and the
- * non-visual state description describe (`spec/rendering.md:115`). Every world this module folds
- * keeps `activeTurtleId` pointing at a turtle that is present in `turtles`, but the type does not
- * enforce that, so a hand-constructed world naming an absent turtle falls back to the program-start
- * {@link INITIAL_TURTLE_STATE} rather than throwing at paint or announce time.
+ * The {@link TurtleWorldState.lastActedTurtleId} turtle's own state — the subject of the non-visual
+ * state description. Every world this module folds keeps `lastActedTurtleId` pointing at a turtle
+ * that is present in `turtles`, but the type does not enforce that, so a hand-constructed world
+ * naming an absent turtle falls back to the program-start {@link INITIAL_TURTLE_STATE} rather than
+ * throwing at paint or announce time.
  */
-export function activeTurtleState(world: TurtleWorldState): TurtleState {
-  return world.turtles.get(world.activeTurtleId) ?? INITIAL_TURTLE_STATE;
+export function lastActedTurtleState(world: TurtleWorldState): TurtleState {
+  return world.turtles.get(world.lastActedTurtleId) ?? INITIAL_TURTLE_STATE;
 }
 
 /**
@@ -134,10 +140,10 @@ export function activeTurtleState(world: TurtleWorldState): TurtleState {
  * the newly created turtle at the full initial state its payload carries
  * (`spec/turtles-and-sprites.md`'s "Turtle creation" section — a new turtle starts at the same
  * defaults as the main turtle but is nonetheless recorded from its own payload so a renderer never
- * has to assume them). Creating a turtle does **not** make it active: `:friend = new_turtle` leaves
- * the addressed set alone (`spec/turtles-and-sprites.md:42`'s "Addressing model" — only
- * `tell`/`ask`/`each` change who acts), so the newly spawned turtle only becomes active once it
- * actually moves or changes.
+ * has to assume them). Creating a turtle does **not** make it the last-acted one:
+ * `:friend = new_turtle` leaves the addressed set alone (`spec/turtles-and-sprites.md:42`'s
+ * "Addressing model" — only `tell`/`ask`/`each` change who acts), so a newly spawned turtle takes
+ * that role only once a command actually drives it.
  *
  * Every other event is delegated to the single-turtle {@link reduceTurtleState} against the state
  * of the turtle its `turtle_id` names, defaulting to {@link MAIN_TURTLE_ID} when the envelope
@@ -147,10 +153,14 @@ export function activeTurtleState(world: TurtleWorldState): TurtleState {
  * its commands) is ignored rather than inventing a turtle, keeping the reducer total without
  * fabricating identities.
  *
- * The turtle becomes {@link TurtleWorldState.activeTurtleId} exactly when the event genuinely
- * changed its state — the same condition that produces a new world. That is why non-state events
- * (`instruction`, `print`, `procedure-enter`, a `clean` clear, …) never re-point the active turtle:
- * they carry no `turtle_id` and would otherwise silently snap "active" back to the main turtle in
+ * A turtle becomes {@link TurtleWorldState.lastActedTurtleId} exactly when a **state-bearing** event
+ * targeted it — the same condition that produces a new world. Note this is "an event of a
+ * state-bearing kind arrived for that turtle", *not* "its fields actually differ": every
+ * state-bearing branch of {@link reduceTurtleState} spreads a fresh object, so a repeated `pen_down`
+ * while the pen is already down still counts as that turtle acting (which is right — the learner
+ * did drive it). Only a `clean` clear and the non-state kinds (`instruction`, `print`,
+ * `procedure-enter`, …) return the same reference, and those must not re-point the last-acted
+ * turtle: they carry no `turtle_id` and would otherwise silently snap it back to the main turtle in
  * the middle of a sprite's block.
  */
 export function reduceTurtleWorldState(
@@ -169,7 +179,7 @@ export function reduceTurtleWorldState(
       shape: payload.shape,
       visible: payload.visible,
     });
-    return { turtles, activeTurtleId: world.activeTurtleId };
+    return { turtles, lastActedTurtleId: world.lastActedTurtleId };
   }
   const id = event.turtle_id ?? MAIN_TURTLE_ID;
   const current = world.turtles.get(id);
@@ -182,7 +192,7 @@ export function reduceTurtleWorldState(
   }
   const turtles = new Map(world.turtles);
   turtles.set(id, reduced);
-  return { turtles, activeTurtleId: id };
+  return { turtles, lastActedTurtleId: id };
 }
 
 /**

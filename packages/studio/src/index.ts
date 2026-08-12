@@ -84,7 +84,7 @@
  * - {@link createTurtleStateRegion} (#229) is the non-visual turtle-state text region: a single,
  *   always-current `status`/`aria-live="polite"` string over the shared `turtleWorld` slot,
  *   rendered via `@openlogo/turtle`'s published `describeTurtleWorldState` — which names the
- *   active turtle once a program drives more than one (#749) — never re-derived here —
+ *   turtle it describes once a program drives more than one (#749) — never re-derived here —
  *   updating in lockstep with the Canvas view on every run tick, `step()`, and `reset()`.
  *
  * #127 adds the lesson pane, reading `@openlogo/edu`'s read-only `Lesson` contract (#189):
@@ -107,7 +107,7 @@
  * #218 adds the turtle Canvas view — static composition of `@openlogo/turtle`'s DOM-free renderer
  * into the app shell (the dynamic run-loop repaint is #228, above):
  * - `state-model.ts`'s {@link StudioState} gains `turtleWorld`/`turtleScene` slots (plus the
- *   `turtleState` projection of the world's active turtle), reusing `@openlogo/turtle`'s own
+ *   `turtleState` projection of the world's last-acted turtle), reusing `@openlogo/turtle`'s own
  *   `TurtleWorldState`/`TurtleScene` types verbatim and defaulting to its
  *   `INITIAL_TURTLE_WORLD_STATE`/`INITIAL_TURTLE_SCENE` program-start defaults.
  * - {@link Canvas2DContext} names the real Canvas 2D context surface this package forwards (this

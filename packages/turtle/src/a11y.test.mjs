@@ -128,10 +128,10 @@ test("every color-independent cue kind is distinct", () => {
 
 // --- describeTurtleWorldState (#749, spec/rendering.md:191) ------------------------------------
 
-/** A `TurtleWorldState` over `states` (`[id, state]` pairs in creation order) with `activeId`
- * active. */
-function turtleWorld(states, activeId) {
-  return { turtles: new Map(states), activeTurtleId: activeId };
+/** A `TurtleWorldState` over `states` (`[id, state]` pairs in creation order) with `lastActedId`
+ * as the last-acted turtle. */
+function turtleWorld(states, lastActedId) {
+  return { turtles: new Map(states), lastActedTurtleId: lastActedId };
 }
 
 test("describeTurtleWorldState of a single-turtle world is byte-identical to describeTurtleState", () => {
@@ -153,7 +153,7 @@ test("describeTurtleWorldState of a single-turtle world is byte-identical to des
   );
 });
 
-test("describeTurtleWorldState identifies the active turtle once there is more than one", () => {
+test("describeTurtleWorldState names the described turtle once there is more than one", () => {
   // spec/rendering.md:191 — "Implementations with multiple turtles MUST identify the active turtle
   // or addressed turtle set." The #749 defect was that this text named no turtle at all while
   // reporting one particular turtle's attributes.
@@ -175,13 +175,15 @@ test("describeTurtleWorldState identifies the active turtle once there is more t
   );
   assert.equal(
     OL.describeTurtleWorldState(world),
-    "active turtle 3 of 3 at x 0 y 10 heading 0 degrees pen down color blue width 1 hidden",
+    "turtle #2 at x 0 y 10 heading 0 degrees pen down color blue width 1 hidden",
   );
 });
 
-test("describeTurtleWorldState numbers the active turtle by creation order, not by turtle id", () => {
-  // Ids are an allocator detail no OpenLogo program can print; the ordinal is what a learner can
-  // match against the turtles on screen.
+test("describeTurtleWorldState names the turtle by its id, matching the identity an OpenLogo program prints", () => {
+  // `print who` / `print :friend` render a turtle value as `turtle #<id>` (@openlogo/core's
+  // OLTurtle.printedForm; spec/turtles-and-sprites.md:39,:85). A screen-reader user has only text
+  // channels, so the state region must use that same name — a creation-order ordinal would read
+  // "turtle 2" for the turtle the output pane calls "turtle #7".
   const world = turtleWorld(
     [
       [0, OL.INITIAL_TURTLE_STATE],
@@ -191,7 +193,7 @@ test("describeTurtleWorldState numbers the active turtle by creation order, not 
   );
   assert.equal(
     OL.describeTurtleWorldState(world),
-    "active turtle 2 of 2 at x 0 y 0 heading 0 degrees pen down color green width 1",
+    "turtle #7 at x 0 y 0 heading 0 degrees pen down color green width 1",
   );
 });
 
@@ -205,14 +207,31 @@ test("describeTurtleWorldState still appends the current instruction for a multi
   );
   assert.equal(
     OL.describeTurtleWorldState(world, { currentInstruction: "forward 10" }),
-    'active turtle 2 of 2 at x 0 y 0 heading 0 degrees pen down color green width 1 instruction "forward 10"',
+    'turtle #1 at x 0 y 0 heading 0 degrees pen down color green width 1 instruction "forward 10"',
   );
 });
 
 test("describeTurtleWorldState of an empty world falls back to the program-start defaults", () => {
   // A hand-built world naming no live turtle must still announce something rather than throw.
   assert.equal(
-    OL.describeTurtleWorldState({ turtles: new Map(), activeTurtleId: 0 }),
+    OL.describeTurtleWorldState({ turtles: new Map(), lastActedTurtleId: 0 }),
     OL.describeTurtleState(OL.INITIAL_TURTLE_STATE),
   );
+});
+
+test("describeTurtleWorldState never announces an identity no live turtle has", () => {
+  // A multi-turtle world whose lastActedTurtleId names an absent turtle must not claim to be
+  // describing `turtle #4` — nothing in the world corresponds to that name.
+  const world = turtleWorld(
+    [
+      [0, OL.INITIAL_TURTLE_STATE],
+      [1, { ...OL.INITIAL_TURTLE_STATE, color: "green" }],
+    ],
+    4,
+  );
+  assert.equal(
+    OL.describeTurtleWorldState(world),
+    OL.describeTurtleState(OL.INITIAL_TURTLE_STATE),
+  );
+  assert.equal(world.turtles.size > 1, true);
 });

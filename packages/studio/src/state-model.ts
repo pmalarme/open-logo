@@ -27,15 +27,15 @@
  *   #128 persistence when a storage operation degrades gracefully instead of crashing or silently
  *   losing data. `null` means there is nothing to show.
  * - `turtleWorld`/`turtleScene` — the per-turtle world (every live turtle's own avatar state plus
- *   which one is active) and the retained drawing scene the Canvas view (#218) paints, reusing
+ *   which one last acted) and the retained drawing scene the Canvas view (#218) paints, reusing
  *   `@openlogo/turtle`'s own {@link TurtleWorldState}/{@link TurtleScene} types verbatim (never a
  *   studio-invented fork). Both start at `@openlogo/turtle`'s program-start defaults
  *   (`INITIAL_TURTLE_WORLD_STATE`/`INITIAL_TURTLE_SCENE`) and are replaced wholesale by
  *   `@openlogo/turtle`'s own reducers — studio never re-derives turtle coordinates or scene items
  *   itself. `run-controller.ts` (#228) keeps them live by pushing each `TurtleAnimationController`
  *   snapshot.
- * - `turtleState` — a **derived** read of `turtleWorld`: the *active* turtle's own state
- *   (`@openlogo/turtle`'s `activeTurtleState`), i.e. the turtle that most recently moved or
+ * - `turtleState` — a **derived** read of `turtleWorld`: the *last-acted* turtle's own state
+ *   (`@openlogo/turtle`'s `lastActedTurtleState`), i.e. the turtle that most recently moved or
  *   changed. It is never set on its own — {@link StudioStateStore.setTurtleWorld} always commits
  *   the pair — so a pane reading `turtleState` and a pane painting `turtleWorld` can never
  *   disagree about which turtle they are showing (issue #749: they used to, because every turtle's
@@ -102,7 +102,7 @@ import type {
 import {
   INITIAL_TURTLE_SCENE,
   INITIAL_TURTLE_WORLD_STATE,
-  activeTurtleState,
+  lastActedTurtleState,
 } from "@openlogo/turtle";
 import { DEFAULT_SPEED_SLIDER_VALUE } from "./turtle-speed.js";
 
@@ -273,7 +273,7 @@ export function createStudioState(
     lesson: initial?.lesson ?? INITIAL_LESSON,
     notice: initial?.notice ?? null,
     turtleWorld: initialWorld,
-    turtleState: activeTurtleState(initialWorld),
+    turtleState: lastActedTurtleState(initialWorld),
     turtleScene: initial?.turtleScene ?? INITIAL_TURTLE_SCENE,
     speedSliderValue: initial?.speedSliderValue ?? DEFAULT_SPEED_SLIDER_VALUE,
     tutorOutput: initial?.tutorOutput ?? [],
@@ -323,7 +323,7 @@ export function createStudioState(
       commit({ notice });
     },
     setTurtleWorld(turtleWorld) {
-      commit({ turtleWorld, turtleState: activeTurtleState(turtleWorld) });
+      commit({ turtleWorld, turtleState: lastActedTurtleState(turtleWorld) });
     },
     setTurtleScene(turtleScene) {
       commit({ turtleScene });

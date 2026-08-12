@@ -30,7 +30,7 @@ import { INITIAL_TURTLE_STATE, type TurtleState } from "./state.js";
 import {
   MAIN_TURTLE_ID,
   type TurtleWorldState,
-  activeTurtleState,
+  lastActedTurtleState,
   reduceTurtleWorldState,
 } from "./world-state.js";
 
@@ -83,7 +83,7 @@ function clampSpeed(stepsPerSecond: number): number {
 export interface TurtleAnimationOptions {
   /**
    * Turtle state to start the **main turtle** from; defaults to {@link INITIAL_TURTLE_STATE}. It
-   * seeds the world's {@link MAIN_TURTLE_ID} entry, which is also the initially active turtle, so
+   * seeds the world's {@link MAIN_TURTLE_ID} entry, which is also the initially last-acted turtle, so
    * a single-turtle caller's `initialState` still is exactly what `getSnapshot().state` reports
    * before any event is consumed.
    */
@@ -105,14 +105,14 @@ export interface AnimationSnapshot {
   /** Current playback status. */
   readonly status: PlaybackStatus;
   /**
-   * The **active** turtle's state as of every event consumed so far — the turtle the avatar and
-   * the non-visual state description are about (`spec/rendering.md:115`). With a single turtle
-   * that is simply the main turtle's folded state, unchanged from before per-turtle folding
-   * existed; under Sprites it is the turtle that most recently moved or changed, rather than every
-   * turtle's attributes merged into one record.
+   * The **last-acted** turtle's state as of every event consumed so far — the turtle the
+   * non-visual state description is about. With a single turtle that is simply the main turtle's
+   * folded state, unchanged from before per-turtle folding existed; under Sprites it is the turtle
+   * a state-bearing event most recently targeted, rather than every turtle's attributes merged
+   * into one record.
    */
   readonly state: TurtleState;
-  /** Every live turtle's own state plus the active turtle, folded from every event consumed so
+  /** Every live turtle's own state plus the last-acted turtle, folded from every event consumed so
    * far. This is what a renderer paints avatars from. */
   readonly world: TurtleWorldState;
   /** Retained scene folded from every event consumed so far. */
@@ -130,7 +130,7 @@ export interface AnimationSnapshot {
  * controller stays O(n) total across a full run (never re-reducing an already-folded prefix)
  * and can never diverge from what a direct `reduceTurtleWorldEvents`/`reduceSceneEvents` call over
  * the same events would produce. {@link AnimationSnapshot.state} is read out of that same world
- * ({@link activeTurtleState}) rather than folded a second time, so the avatar, the state text, and
+ * ({@link lastActedTurtleState}) rather than folded a second time, so the avatar, the state text, and
  * the per-turtle world can never disagree.
  *
  * Step boundaries follow `spec/rendering.md`/`spec/execution-model.md` exactly: one step is an
@@ -161,7 +161,7 @@ export class TurtleAnimationController {
       turtles: new Map([
         [MAIN_TURTLE_ID, options.initialState ?? INITIAL_TURTLE_STATE],
       ]),
-      activeTurtleId: MAIN_TURTLE_ID,
+      lastActedTurtleId: MAIN_TURTLE_ID,
     };
     this.initialScene = options.initialScene ?? INITIAL_TURTLE_SCENE;
     this.initialOverlay = options.initialOverlay ?? INITIAL_OVERLAY_STATE;
@@ -178,7 +178,7 @@ export class TurtleAnimationController {
     return {
       cursor: this.cursor,
       status: this.status,
-      state: activeTurtleState(this.world),
+      state: lastActedTurtleState(this.world),
       world: this.world,
       scene: this.scene,
       overlay: this.overlay,

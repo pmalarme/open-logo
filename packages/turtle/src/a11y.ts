@@ -9,8 +9,8 @@
  */
 
 import type { Point } from "@openlogo/core";
-import type { TurtleState } from "./state.js";
-import { type TurtleWorldState, activeTurtleState } from "./world-state.js";
+import { INITIAL_TURTLE_STATE, type TurtleState } from "./state.js";
+import type { TurtleWorldState } from "./world-state.js";
 
 /**
  * Optional context for {@link describeTurtleState} beyond the turtle state itself.
@@ -78,39 +78,38 @@ export function describeTurtleState(
 }
 
 /**
- * Builds the non-visual state description for a whole {@link TurtleWorldState}: the **active**
- * turtle's state (`spec/rendering.md:115` — the avatar "indicates the active turtle's position,
- * heading, visibility, and shape"), identified by which turtle it is whenever the program drives
- * more than one.
+ * Builds the non-visual state description for a whole {@link TurtleWorldState}: the state of the
+ * turtle a state-bearing event most recently targeted, identified by name whenever the program
+ * drives more than one turtle.
  *
  * `spec/rendering.md:191` makes that identification a MUST: "Implementations with multiple turtles
- * MUST identify the active turtle or addressed turtle set." So a world holding several turtles is
- * described as `active turtle <n> of <total> at x … y … heading … degrees pen … color … width …`,
- * where `<n>` is the active turtle's 1-based position in creation order — a stable, learner-facing
- * ordinal rather than the internal `turtle_id`, which is an allocator detail no OpenLogo program
- * can print.
+ * MUST identify the active turtle or addressed turtle set." A world holding several turtles is
+ * therefore described as `turtle #<id> at x … y … heading … degrees pen … color … width …`, using
+ * **exactly the identity the language itself prints** for a turtle value — `@openlogo/core`'s
+ * `OLTurtle.printedForm` renders `turtle #<id>`, which is what a learner sees from `print who` or
+ * `print :friend` (`spec/turtles-and-sprites.md:39`, `:85`). A screen-reader user therefore hears
+ * the same name in the state region that the output pane gives them, and can match the two without
+ * seeing the drawing. Any second numbering — a creation-order ordinal, say — would be off by one
+ * against `print who` for every turtle, which defeats the purpose of the MUST.
  *
  * A world holding just the main turtle — every Turtle & Rendering program, and every Sprites
  * program before its first `new_turtle` — has nothing to disambiguate, so it produces exactly
  * {@link describeTurtleState}'s wording, byte for byte, including the spec's own worked example
  * text. That is the compatibility property this function is built around: adding multi-turtle
- * identification must not perturb single-turtle announcements.
+ * identification must not perturb single-turtle announcements. A world whose
+ * `lastActedTurtleId` names no live turtle (only constructible by hand) is described at the
+ * program-start defaults *without* a name, rather than announcing an identity nothing in the world
+ * corresponds to.
  */
 export function describeTurtleWorldState(
   world: TurtleWorldState,
   options: TurtleStateDescriptionOptions = {},
 ): string {
-  const state = activeTurtleState(world);
-  const ids = [...world.turtles.keys()];
-  if (ids.length < 2) {
-    return describeState("turtle", state, options);
+  const state = world.turtles.get(world.lastActedTurtleId);
+  if (state === undefined || world.turtles.size < 2) {
+    return describeState("turtle", state ?? INITIAL_TURTLE_STATE, options);
   }
-  const ordinal = ids.indexOf(world.activeTurtleId) + 1;
-  return describeState(
-    `active turtle ${ordinal} of ${ids.length}`,
-    state,
-    options,
-  );
+  return describeState(`turtle #${world.lastActedTurtleId}`, state, options);
 }
 
 /**

@@ -3,12 +3,12 @@ import { test } from "node:test";
 import * as OL from "@openlogo/studio";
 import { MAIN_TURTLE_ID } from "@openlogo/turtle";
 
-/** A `TurtleWorldState` holding just the main turtle at `state`, active — what a single-turtle
+/** A `TurtleWorldState` holding just the main turtle at `state`, last-acted — what a single-turtle
  * (Turtle & Rendering) program's event stream folds to. */
 function singleTurtleWorld(state) {
   return {
     turtles: new Map([[MAIN_TURTLE_ID, state]]),
-    activeTurtleId: MAIN_TURTLE_ID,
+    lastActedTurtleId: MAIN_TURTLE_ID,
   };
 }
 
@@ -253,7 +253,7 @@ test("createCanvasViewController.repaint() paints one avatar per visible turtle 
       [1, { ...turtleState, position: [50, 0] }],
       [2, { ...turtleState, position: [-50, 0], visible: false }],
     ]),
-    activeTurtleId: 1,
+    lastActedTurtleId: 1,
   });
   controller.repaint();
 
@@ -301,7 +301,7 @@ test("the state model defaults turtleWorld/turtleState/turtleScene to @openlogo/
     visible: true,
   });
   assert.deepEqual([...turtleWorld.turtles.keys()], [MAIN_TURTLE_ID]);
-  assert.equal(turtleWorld.activeTurtleId, MAIN_TURTLE_ID);
+  assert.equal(turtleWorld.lastActedTurtleId, MAIN_TURTLE_ID);
   assert.deepEqual(turtleScene, { background: "white", items: [] });
 });
 
@@ -316,7 +316,7 @@ test("setTurtleWorld/setTurtleScene replace the shared snapshot, observed by eve
   assert.equal(
     state.getState().turtleState,
     nextTurtleState,
-    "turtleState is derived from the world's active turtle in the same commit",
+    "turtleState is derived from the world's last-acted turtle in the same commit",
   );
   assert.notEqual(
     state.getState(),
@@ -329,20 +329,20 @@ test("setTurtleWorld/setTurtleScene replace the shared snapshot, observed by eve
   assert.equal(state.getState().turtleScene, nextTurtleScene);
 });
 
-test("setTurtleWorld derives turtleState from the ACTIVE turtle, not the first or last one (#749)", () => {
+test("setTurtleWorld derives turtleState from the LAST-ACTED turtle, not the first or last-created one (#749)", () => {
   const state = OL.createStudioState();
   const base = state.getState().turtleState;
-  const activeState = { ...base, color: "blue", visible: false };
+  const lastActedState = { ...base, color: "blue", visible: false };
   state.setTurtleWorld({
     turtles: new Map([
       [0, base],
       [1, { ...base, color: "green" }],
-      [2, activeState],
+      [2, lastActedState],
       [3, { ...base, color: "orange" }],
     ]),
-    activeTurtleId: 2,
+    lastActedTurtleId: 2,
   });
-  assert.equal(state.getState().turtleState, activeState);
+  assert.equal(state.getState().turtleState, lastActedState);
 });
 
 test("setViewport adopts a new viewport that the next repaint() paints through (#474 DPR resize)", () => {
