@@ -78,8 +78,8 @@ export const MAIN_TURTLE_ID: TurtleId = 0;
  * every effect event carries is a `turtle_id` (`spec/turtles-and-sprites.md:113`: "Implementations
  * MUST produce trace events with the appropriate turtle identity so animation, stepping, `why`, and
  * `debug` can explain **which turtle moved or changed**"), so what the reducer derives *from effect
- * events alone* is which turtle an event last acted on — the turtle a learner just watched act,
- * which is exactly the question a stepping/animation consumer asks. It is deliberately **not** the
+ * events alone* is which turtle an event last acted on — which is exactly the question a
+ * stepping/animation consumer asks. It is deliberately **not** the
  * addressed set: when an `ask :b [ … ]` block ends the runtime restores the previously addressed
  * set (`spec/turtles-and-sprites.md:58`), but the stream's last per-turtle effect is still `:b`'s,
  * so `:b` stays the last-acted turtle here while the addressed set is back to whatever `tell` had
@@ -97,7 +97,8 @@ export const MAIN_TURTLE_ID: TurtleId = 0;
  * lands in the same step as the block's last inner instruction: the addressed set flips back in the
  * very frame that renders the block's last inner move. That is inherent to the trace model and is
  * why keeping both fields matters — that one step's world reports the set that is addressed again
- * *and* the turtle the step actually changed, so a consumer can describe both rather than having to
+ * *and* the turtle the step's last per-turtle command drove, so a consumer can describe both rather
+ * than having to
  * pick one and silently drop the other.
  */
 export interface TurtleWorldState {

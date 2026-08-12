@@ -134,7 +134,7 @@ export interface AnimationSnapshot {
  * and can never diverge from what a direct `reduceTurtleWorldEvents`/`reduceSceneEvents` call over
  * the same events would produce. {@link AnimationSnapshot.state} is read out of that same world
  * ({@link lastActedTurtleState}) rather than folded a second time, so the avatar, the state text, and
- * the per-turtle world can never disagree about the turtle that just acted — and the addressed set
+ * the per-turtle world can never disagree about the turtle a command last drove — and the addressed set
  * the state text also names comes from that one world too, so it cannot drift from the avatars
  * either.
  *

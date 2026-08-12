@@ -440,7 +440,7 @@ function describeCurrentInstruction(
 /** The full non-visual turtle-state text: `describeTurtleWorldState`'s wording — which names the
  * turtle it describes once the world holds more than one live turtle (`spec/rendering.md:191`,
  * #749) and
- * identifies the addressed turtle set whenever that set is not simply the turtle that just acted
+ * identifies the addressed turtle set whenever that set is not exactly the turtle a command last drove
  * (#770), and is byte-identical to `describeTurtleState`'s wording while one
  * live turtle is addressing itself — plus, when available, the current source instruction (#410). */
 function describeFullTurtleState(state: StudioState): string {

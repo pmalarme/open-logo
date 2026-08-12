@@ -127,7 +127,7 @@ function addressingClause(ids: readonly TurtleId[]): string {
  *   `spec/rendering.md:191` asks only that the addressed set be *identified*. Every turtle's avatar
  *   stays on the canvas, and the per-turtle states stay published on
  *   {@link TurtleWorldState.turtles} for a future inspect-each-turtle affordance.
- * - **Describe the turtle that acted.** The numbers are those of
+ * - **Describe the turtle a command last drove.** The numbers are those of
  *   {@link TurtleWorldState.lastActedTurtleId}, because this region is also how a non-visual user
  *   follows *progress* (`spec/rendering.md:193`: the drawing surface must not be the only way to
  *   understand program progress). Describing the restored/current turtle instead would silently drop

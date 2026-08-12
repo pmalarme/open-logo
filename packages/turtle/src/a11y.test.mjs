@@ -317,7 +317,7 @@ test("describeTurtleWorldState identifies the addressed turtle after an ask bloc
 });
 
 test("describeTurtleWorldState keeps the wording exactly as #749 baselined it when the addressed turtle is the one that acted", () => {
-  // `tell :b` / `forward 10`: the addressed set is exactly the turtle that acted, so there is
+  // `tell :b` / `forward 10`: the addressed set is exactly the turtle `lastActedTurtleId` names, so there is
   // nothing to disambiguate and the text stays the plain `turtle #<id>` sentence, unchanged.
   const world = addressedWorld(
     [
@@ -379,7 +379,8 @@ test("describeTurtleWorldState says plainly when nothing is addressed (tell [ ])
 
 test("describeTurtleWorldState names the turtle again as soon as a second one exists, even with addressing unchanged", () => {
   // `:friend = new_turtle` adds a live turtle without touching the addressed set, so the addressed
-  // set is still exactly the turtle that acted — no addressing clause — but #749's rule applies and
+  // set is still exactly the turtle `lastActedTurtleId` names — no addressing clause — but #749's
+  // rule applies and
   // the subject is named. This is the exact boundary of the byte-identical guarantee: one live
   // turtle addressing itself, not "any Sprites program before it addresses something else".
   const world = addressedWorld(

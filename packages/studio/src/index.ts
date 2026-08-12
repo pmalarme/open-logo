@@ -86,7 +86,7 @@
  *   rendered via `@openlogo/turtle`'s published `describeTurtleWorldState` — which names the
  *   turtle it describes once the world holds more than one live turtle (#749), and additionally
  *   identifies
- *   the **addressed turtle set** whenever that set is not simply the turtle that just acted
+ *   the **addressed turtle set** whenever that set is not exactly the turtle a command last drove
  *   (#770, e.g. `addressed turtles #1 #2. turtle #2 at x …`) — never re-derived here —
  *   updating in lockstep with the Canvas view on every run tick, `step()`, and `reset()`.
  *

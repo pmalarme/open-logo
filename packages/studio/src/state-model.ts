@@ -44,7 +44,7 @@
  *
  *   #770 deliberately leaves that subject as the last-acted turtle rather than re-pointing it at
  *   the newly folded addressed/current turtle. The two answer different questions: `turtleState` is
- *   "what did the learner just watch move" — the projection of the most recent per-turtle effect,
+ *   "which turtle did a command last drive" — the projection of the most recent per-turtle effect,
  *   which is what a stepping/animation consumer wants — while the addressed set is "what will the
  *   next command drive", which is what the a11y region must announce (`spec/rendering.md:191`).
  *   Nothing renders `turtleState` today (the Canvas view paints `turtleWorld`'s turtles, and

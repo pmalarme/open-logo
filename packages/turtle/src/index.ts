@@ -27,7 +27,7 @@
  * (`describeTurtleState`, and `describeTurtleWorldState` which additionally names the turtle it
  * describes once the world holds more than one live turtle, and identifies the **addressed turtle
  * set**
- * whenever that set is not simply the turtle that just acted),
+ * whenever that set is not exactly the turtle a command last drove),
  * color-independent feedback descriptors for
  * otherwise color-only rendering state, and a `renderFrame` reduced-motion paint mode that
  * instantly drains and paints the retained scene without ever changing the event stream, final
