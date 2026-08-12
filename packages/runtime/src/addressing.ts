@@ -83,9 +83,11 @@ export function snapshotAddressing(
  * `runPerTurtleCommand`, so a `who` inside an argument reports the turtle actually running the
  * command), and an addressing form reached from that argument would otherwise publish the transient
  * pointer as if it were the addressed set's current turtle — a snapshot whose two halves contradict
- * each other and whose `current_turtle_id` disagrees with `who` on the very next statement. Deriving
- * from the set makes the payload self-consistent by construction. `null` for the empty set keeps this
- * implementation's own `who` fallback out of the portable contract (see `AddressingSnapshot`).
+ * each other and whose value goes stale the moment the command's loop moves on. Deriving from the set
+ * makes the payload self-consistent by construction: it describes **addressing**, and the transient
+ * per-turtle pointer is expressed where it belongs, on each effect event's own `turtle_id`. `null`
+ * for the empty set keeps this implementation's own `who` fallback out of the portable contract (see
+ * `AddressingSnapshot`).
  *
  * The envelope carries **no** `turtle_id`: it is "present only when the event is turtle-specific"
  * (`spec/execution-model.md:638`), and an addressing event describes a *set*, not one turtle — the

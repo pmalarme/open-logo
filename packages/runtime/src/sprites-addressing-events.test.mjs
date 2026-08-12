@@ -117,6 +117,71 @@ test("an addressing form reached from a per-turtle command's ARGUMENT is still n
   ]);
 });
 
+test("a scene-only clean reached from a per-turtle command's argument is never stamped", () => {
+  // `clear` may carry a `turtle_id` — `clear_screen` homes the current turtle and is stamped at
+  // emission — but `clean` only wipes the shared drawing surface and concerns no turtle. Since
+  // argument evaluation runs inside the per-turtle stamping window, a `clean` in a reporter's body
+  // would otherwise be labelled with each acting turtle in turn (turtles 1 and 2 here).
+  const result = execute(
+    [
+      ":a = new_turtle",
+      ":b = new_turtle",
+      "define wipe",
+      "  clean",
+      "  return 5",
+      "end",
+      "tell [ :a :b ]",
+      "forward wipe",
+    ].join("\n"),
+    "main.logo",
+  );
+  assert.deepEqual(result.diagnostics, []);
+  const clears = result.events
+    .filter((event) => event.kind === "clear")
+    .map((event) => [event.payload.mode, event.turtle_id]);
+  assert.deepEqual(clears, [
+    ["clean", undefined],
+    ["clean", undefined],
+  ]);
+});
+
+test("who inside the argument still reports the acting turtle while the snapshot reports the set", () => {
+  // The documented division of labour: an addressing snapshot describes ADDRESSING (the set and its
+  // first member), while the transient per-turtle pointer — which makes `who` report the turtle
+  // actually running a multi-turtle command — is expressed on each effect event's own `turtle_id`.
+  // Inside turtle 2's run the nested `ask` restores to the set [1, 2] and reports current turtle 1,
+  // while `print who` on the next line of the same argument reports turtle 2. Both are correct and
+  // neither is the other's business; this pins that they are deliberately different views.
+  const result = execute(
+    [
+      ":a = new_turtle",
+      ":b = new_turtle",
+      "define nudge",
+      "  ask :a [ right 1 ]",
+      "  print who",
+      "  return 3",
+      "end",
+      "tell [ :a :b ]",
+      "forward nudge",
+    ].join("\n"),
+    "main.logo",
+  );
+  assert.deepEqual(result.diagnostics, []);
+  // `who` inside the argument: turtle 1 on the first run, turtle 2 on the second.
+  const printed = result.events
+    .filter((event) => event.kind === "print")
+    .map((event) => event.payload.values[0].id);
+  assert.deepEqual(printed, [1, 2]);
+  // Every addressing snapshot in the same stream reports the addressed set's own first member.
+  assert.deepEqual(addressingEvents(result.events), [
+    ["tell", [1, 2], 1],
+    ["ask", [1], 1],
+    ["ask", [1, 2], 1],
+    ["ask", [1], 1],
+    ["ask", [1, 2], 1],
+  ]);
+});
+
 test("current_turtle_id follows the addressed set, never the per-turtle loop's transient pointer", () => {
   // Regression for the review-gate finding that `runPerTurtleCommand` re-aims `addressing.currentId`
   // at each addressed turtle in turn (so a `who` inside an argument reports the turtle actually

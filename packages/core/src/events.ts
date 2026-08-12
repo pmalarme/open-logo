@@ -57,22 +57,26 @@ export const OL_EVENT_KINDS = [
 export type EventKind = (typeof OL_EVENT_KINDS)[number];
 
 /**
- * The registered kinds that are **turtle-specific** — the only kinds whose envelope may carry a
- * `turtle_id`. `spec/execution-model.md:638` is explicit: "`turtle-id` | Turtle identity; present
- * only when the event is turtle-specific, otherwise absent", and `spec/turtles-and-sprites.md:113`
- * scopes the identity requirement to explaining "which turtle moved or changed".
+ * The registered kinds whose envelope **may carry** a `turtle_id`. `spec/execution-model.md:638` is
+ * explicit: "`turtle-id` | Turtle identity; present only when the event is turtle-specific,
+ * otherwise absent", and `spec/turtles-and-sprites.md:113` scopes the identity requirement to
+ * explaining "which turtle moved or changed".
  *
- * These are exactly the per-turtle effects: movement, turning, pen/width/color, the segment drawn,
+ * These are the per-turtle effects — movement, turning, pen/width/color, the segment drawn,
  * `fill`/`stamp` (which "use the current turtle's pen and shape state",
- * `spec/turtles-and-sprites.md:109`), shape/visibility, and `clear` (one canvas clear, homing the
- * current turtle). Every other kind describes the program or the scene rather than one turtle:
+ * `spec/turtles-and-sprites.md:109`), shape/visibility, `clear` (one canvas clear, which homes the
+ * current turtle), and `spawn-turtle` (`spec/turtles-and-sprites.md:34`, whose envelope names the
+ * turtle just created). Every other kind describes the program or the scene rather than one turtle:
  * `instruction`, `procedure-enter`/`procedure-exit`/`return`, `print`, `sound`, `overlay`,
  * `background-change`, `error`, `tutor-output`, and `primitive` — including the addressing
  * `primitive` events, whose {@link AddressingSnapshot} describes a *set* of turtles.
  *
- * `spawn-turtle` is deliberately absent: it is *about* a turtle, but it carries that identity
- * authoritatively in its own {@link SpawnTurtlePayload.turtle_id} at emission, so it is never
- * labelled after the fact by a producer stamping the acting turtle.
+ * This is a **classification**, not a licence to label: it says which kinds are turtle-specific at
+ * all, not that a producer may attribute any such event to whichever turtle is currently acting.
+ * `spawn-turtle` and `clear` both carry their identity authoritatively at emission (and `clear`'s
+ * `clean` mode is scene-only, concerning no turtle), so a producer synthesizing an acting turtle's
+ * id must apply its own, narrower policy — see `@openlogo/runtime`'s
+ * `ACTING_TURTLE_STAMPABLE_KINDS`.
  *
  * Lives here, next to the registry it partitions, so a producer stamping envelopes and a consumer
  * validating them share one list instead of each hard-coding its own (issue #764).
@@ -89,9 +93,14 @@ export const OL_TURTLE_SPECIFIC_EVENT_KINDS: ReadonlySet<EventKind> = new Set([
   "shape-change",
   "visibility-change",
   "clear",
+  "spawn-turtle",
 ]);
 
-/** Type guard: may an event of this `kind` carry a `turtle_id`? See {@link OL_TURTLE_SPECIFIC_EVENT_KINDS}. */
+/**
+ * Type guard: may an event of this `kind` carry a `turtle_id` at all?
+ * See {@link OL_TURTLE_SPECIFIC_EVENT_KINDS} — including why "may carry" is not the same question
+ * as "may be labelled with the turtle that is currently acting".
+ */
 export function isTurtleSpecificEventKind(kind: string): boolean {
   return OL_TURTLE_SPECIFIC_EVENT_KINDS.has(kind as EventKind);
 }
@@ -436,14 +445,23 @@ export type PrimitiveName = string;
  * - {@link addressed_turtle_ids} is the whole set a subsequent turtle command applies to, once for
  *   each (`spec/turtles-and-sprites.md:113`), deduplicated and in first-occurrence order — the same
  *   order `each` iterates. It MAY be empty (`tell [ ]` addresses no turtle).
- * - {@link current_turtle_id} is the single turtle `who` reports and whose state the movement
- *   reporters read: **the set's first member** (`spec/turtles-and-sprites.md:26`), and `null` exactly
- *   when the set is empty. It is derived from the set itself rather than from any separate pointer,
- *   so the two halves of this payload can never contradict each other. `null` is deliberate: the spec
- *   defines no current turtle for an empty addressed set, so an implementation's own fallback there
- *   (this one keeps reporting the main turtle from `who`) MUST NOT become binding on every
- *   implementation through a conformance fixture — the event claims nothing instead, and a consumer
- *   picks its own display fallback.
+ * - {@link current_turtle_id} is **the addressed set's first member** — the turtle `who` reports
+ *   between commands (`spec/turtles-and-sprites.md:26`) — and `null` exactly when the set is empty.
+ *   It is derived from the set itself rather than from any separate pointer, so the two halves of
+ *   this payload can never contradict each other. `null` is deliberate: the spec defines no current
+ *   turtle for an empty addressed set, so an implementation's own fallback there (this one keeps
+ *   reporting the main turtle from `who`) MUST NOT become binding on every implementation through a
+ *   conformance fixture — the event claims nothing instead, and a consumer picks its own display
+ *   fallback.
+ *
+ * Note what `current_turtle_id` deliberately does **not** track: while a single command runs for a
+ * multi-turtle addressed set, `who` momentarily reports each addressed turtle in turn, so that a
+ * reporter evaluated in that command's argument sees the turtle actually running it
+ * (`spec/turtles-and-sprites.md:113`). That transient pointer is *not* a change of the addressed set,
+ * and the stream expresses it where it belongs — on each effect event's own `turtle_id` — rather than
+ * by rewriting the addressed-set snapshot. An addressing event emitted inside that window (from an
+ * addressing form reached through the argument) therefore reports the set's first member, which can
+ * differ from what a `print who` on the next line inside that same argument would report.
  *
  * The snapshot is **absolute, not a delta**: a consumer folds it by assignment, never by inferring
  * which transition produced it, so entering an `ask` scope, narrowing per `each` iteration, and

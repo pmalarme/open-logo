@@ -208,7 +208,9 @@ test("primitive payload accepts a non-interaction primitive name (generic catch-
 test("the registry marks exactly the per-turtle effect kinds as turtle-specific (issue #764)", () => {
   // spec/execution-model.md:638 — the envelope's `turtle-id` is "present only when the event is
   // turtle-specific, otherwise absent". This partition is what lets a producer stamp envelopes and a
-  // consumer validate them from one list instead of each hard-coding its own.
+  // consumer validate them from one list instead of each hard-coding its own. It answers "may this
+  // kind carry an id at all", NOT "may a producer label it with whichever turtle is acting" — the
+  // narrower producer policy lives in @openlogo/runtime and excludes `spawn-turtle` and `clear`.
   for (const kind of [
     "move",
     "turn",
@@ -221,13 +223,15 @@ test("the registry marks exactly the per-turtle effect kinds as turtle-specific 
     "shape-change",
     "visibility-change",
     "clear",
+    // `spawn-turtle`'s envelope names the turtle just created (spec/turtles-and-sprites.md:34), so
+    // it is turtle-specific even though it carries that id authoritatively rather than by stamping.
+    "spawn-turtle",
   ]) {
     assert.ok(OL.isTurtleSpecificEventKind(kind), `${kind} is turtle-specific`);
     assert.ok(OL.OL_TURTLE_SPECIFIC_EVENT_KINDS.has(kind));
   }
   // Program/scene kinds are not turtle-specific — including `primitive`, whose addressing payload
-  // describes a SET of turtles, and `spawn-turtle`, which carries its identity in its own payload
-  // rather than being labelled after the fact.
+  // describes a SET of turtles.
   for (const kind of [
     "instruction",
     "procedure-enter",
@@ -240,7 +244,6 @@ test("the registry marks exactly the per-turtle effect kinds as turtle-specific 
     "error",
     "tutor-output",
     "primitive",
-    "spawn-turtle",
   ]) {
     assert.equal(
       OL.isTurtleSpecificEventKind(kind),

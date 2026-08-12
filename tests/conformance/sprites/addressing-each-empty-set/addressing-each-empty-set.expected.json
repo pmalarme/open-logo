@@ -1,5 +1,5 @@
 {
-  "description": "issue #766: `each` over an empty addressed set (`tell [ ]`) runs its block zero times, so it narrows zero times and emits no per-iteration addressing event — but its restoration still runs and still publishes the (unchanged, empty) set, so the stream never goes silent about what is addressed. The current turtle falls back to the main turtle (id 0), matching what `who` reports for an empty set.",
+  "description": "issue #766: `each` over an empty addressed set (`tell [ ]`) runs its block zero times, so it narrows zero times and emits no per-iteration addressing event — but its restoration still runs and still publishes the (unchanged, empty) set, so the stream never goes silent about what is addressed. `current_turtle_id` is `null`: the spec defines no current turtle for an empty addressed set, so this implementation's own fallback (`who` keeps reporting the main turtle) stays out of the portable contract rather than becoming binding on every implementation.",
   "profiles": ["sprites"],
   "execute": true,
   "events": [

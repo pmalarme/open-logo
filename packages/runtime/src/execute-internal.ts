@@ -51,7 +51,7 @@ import type {
   WidthChangePayload,
 } from "@openlogo/core";
 import { OLTurtle, makeSpan, typeNameOf } from "@openlogo/core";
-import { isTurtleSpecificEventKind } from "@openlogo/core";
+import { OL_TURTLE_SPECIFIC_EVENT_KINDS } from "@openlogo/core";
 import type {
   BlockNode,
   CallNode,
@@ -3297,23 +3297,42 @@ function runPerTurtleCommand(
 }
 
 /**
+ * The kinds a per-turtle command run may have **labelled with the turtle that is currently acting**
+ * — the narrower producer policy that sits under `@openlogo/core`'s classification of which kinds
+ * may carry a `turtle_id` at all ({@link OL_TURTLE_SPECIFIC_EVENT_KINDS}, issue #764). Derived from
+ * that set so the two can never drift, minus the two kinds that already know their own turtle:
+ *
+ * - `spawn-turtle` carries the identity of the turtle it just created in its own envelope and
+ *   payload (`spec/turtles-and-sprites.md:34`). A `new_turtle` evaluated in a command's argument
+ *   position must keep that id, never the acting turtle's.
+ * - `clear` is **payload-dependent**: `clear_screen` homes the current turtle and is stamped at
+ *   emission by {@link clearScreen} when addressing is explicit, but `clean` only wipes the shared
+ *   drawing surface and concerns no turtle at all. Synthesizing the acting turtle here would attach
+ *   an id to a scene-only `clean` — and would contradict {@link clearScreen}, which deliberately
+ *   stamps one mode and not the other.
+ */
+const ACTING_TURTLE_STAMPABLE_KINDS: ReadonlySet<string> = new Set(
+  [...OL_TURTLE_SPECIFIC_EVENT_KINDS].filter(
+    (kind) => kind !== "spawn-turtle" && kind !== "clear",
+  ),
+);
+
+/**
  * Stamp `turtle_id` onto the turtle-specific events emitted at or after `firstEventIndex` — the
  * events one addressed turtle's command run just produced (`spec/turtles-and-sprites.md:113`:
  * turtle-specific events "MUST" carry the acting turtle's identity). Only events that do **not**
- * already carry a `turtle_id` are stamped: an event that arrives with its own authoritative id — a
- * `spawn-turtle` emitted by a `new_turtle` evaluated in the command's argument position, or an event
- * a nested per-turtle command already stamped — keeps that id, so the acting turtle's id is never
- * written over another turtle's. The payload is untouched.
+ * already carry a `turtle_id` are stamped, so an event that arrives with its own authoritative id
+ * keeps it and the acting turtle's id is never written over another turtle's. The payload is
+ * untouched.
  *
- * Only kinds the registry marks turtle-specific are stamped
- * ({@link OL_TURTLE_SPECIFIC_EVENT_KINDS}, `spec/execution-model.md:638`: `turtle-id` is "present
- * only when the event is turtle-specific, otherwise absent"). This window is wider than it looks —
+ * Only {@link ACTING_TURTLE_STAMPABLE_KINDS} are stamped. This window is wider than it looks —
  * **argument evaluation runs inside it** — so `forward some_reporter` also emits that reporter's
- * `procedure-enter`/`instruction`/`return`/`procedure-exit` and any `print` here, and an addressing
- * form in its body emits an addressing `primitive` here too. None of those is turtle-specific: before
- * the filter they picked up a `turtle_id` that tracked *addressing context* rather than
- * turtle-specificity (issue #764), and for an addressing event the stamp was actively misleading,
- * naming a turtle the event's own addressed set need not even contain.
+ * `procedure-enter`/`instruction`/`return`/`procedure-exit` and any `print` here, an addressing form
+ * in its body emits an addressing `primitive` here, and a `clean` in its body emits a scene-only
+ * `clear` here. None of those is the acting turtle's effect: before the filter they picked up a
+ * `turtle_id` that tracked *addressing context* rather than turtle-specificity (issue #764), and for
+ * an addressing event the stamp was actively misleading, naming a turtle the event's own addressed
+ * set need not even contain.
  */
 function stampTurtleId(
   environment: Environment,
@@ -3322,7 +3341,8 @@ function stampTurtleId(
 ): void {
   const produced = environment.events.slice(firstEventIndex);
   const stamped = produced.map((event) =>
-    event.turtle_id === undefined && isTurtleSpecificEventKind(event.kind)
+    event.turtle_id === undefined &&
+    ACTING_TURTLE_STAMPABLE_KINDS.has(event.kind)
       ? { ...event, turtle_id: id }
       : event,
   );
