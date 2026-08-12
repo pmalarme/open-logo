@@ -63,17 +63,21 @@ export const MAIN_TURTLE_ID: TurtleId = 0;
  *   turtle or addressed turtle set").
  *
  * It is called *last-acted*, not *active*, on purpose. This package consumes the trace stream and
- * nothing else, and `spec/execution-model.md`'s event registry has **no addressing event**:
- * `tell`/`ask`/`each` emit nothing a consumer can see. What *is* visible is each effect event's
- * `turtle_id` (`spec/turtles-and-sprites.md:113`: "Implementations MUST produce trace events with
- * the appropriate turtle identity so animation, stepping, `why`, and `debug` can explain **which
- * turtle moved or changed**"). So the most this reducer can honestly know is which turtle an event
- * last acted on. In particular, when an `ask :b [ … ]` block ends the runtime restores the
- * previously addressed set (`spec/turtles-and-sprites.md:58`), but the stream's last per-turtle
- * event is still `:b`'s, so `:b` stays the last-acted turtle here. Reporting the runtime's restored
- * addressed set would require an addressing event in the trace contract — a cross-package,
- * owner-reviewed change to `@openlogo/core`, tracked separately; this package must not invent one
- * or reach into `@openlogo/runtime` for it.
+ * nothing else, and what every effect event carries is a `turtle_id`
+ * (`spec/turtles-and-sprites.md:113`: "Implementations MUST produce trace events with the
+ * appropriate turtle identity so animation, stepping, `why`, and `debug` can explain **which
+ * turtle moved or changed**"), so the most this reducer derives *from effect events alone* is which
+ * turtle an event last acted on. In particular, when an `ask :b [ … ]` block ends the runtime
+ * restores the previously addressed set (`spec/turtles-and-sprites.md:58`), but the stream's last
+ * per-turtle effect is still `:b`'s, so `:b` stays the last-acted turtle here.
+ *
+ * Since issue #766 the stream *does* carry the addressed set: every `tell`, every `ask`/`each`
+ * entry, and every restoration path emits a `primitive` event whose payload carries
+ * `addressing: { addressed_turtle_ids, current_turtle_id }` (`@openlogo/core`'s
+ * `AddressingSnapshot`). This reducer does not fold it yet — tracking a real addressed set here and
+ * naming it in {@link describeTurtleWorldState} is the consumer follow-up to that producer slice —
+ * so `lastActedTurtleId` remains exactly what its name says, and this package still must not reach
+ * into `@openlogo/runtime` for addressing (the dependency runs turtle → core only).
  *
  * During stepping and animation — the cases the live avatar and the a11y region exist for — the
  * last-acted turtle *is* the turtle a learner just watched act, which is what makes it the right
