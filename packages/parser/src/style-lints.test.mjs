@@ -280,8 +280,10 @@ test("ol-style-name-case: a known Core primitive/command callee IS checked for n
 test("ol-style-name-case: a non-lowercase structural keyword is flagged for every control/define form", () => {
   // `spec/style-guide.md` "Keywords are lowercase" explicitly names `REPEAT`/`Define` as the
   // avoided spelling in its own quick-checklist row, checked by this same code. One fixture per
-  // `STRUCTURAL_KEYWORD` entry (If, While, Repeat, Forever, ForIn, ForRange, ProcedureDef, Return,
-  // Stop, Throw), plus one per `map`/`filter`/`reduce` comprehension form.
+  // keyword `structuralKeywordFor` resolves: the static `STRUCTURAL_KEYWORD` entries (If, While,
+  // Repeat, Forever, ForIn, ForRange, Stop, Throw) plus its three dynamic cases — `ProcedureDef`
+  // and `Return`, which read their own surface spelling since Heritage gave each a second
+  // legitimate one (issue #737), and one per `map`/`filter`/`reduce` comprehension form.
   const cases = [
     ["IF 1 == 1 [ print 1 ]", "IF"],
     ["WHILE 1 == 1 [ stop ]", "WHILE"],
@@ -666,4 +668,87 @@ test("check() never runs style lints unless options.style === true", () => {
     profiles: ["core-language"],
   }).diagnostics;
   assert.deepEqual(diagnostics, []);
+});
+
+// --- ol-style-name-case and the Heritage keyword spellings (issue #737) ------------------------
+// `ProcedureDef` and `Return` each have TWO/THREE legitimate lowercase spellings once the Heritage
+// profile is active — `to` beside `define`, and `output`/`op` beside `return`
+// (spec/conformance.md#heritage, "alternate spellings only"). This lint judges CASING only
+// (spec/style-guide.md "Keywords are lowercase"); preferring a Heritage spelling is a profile
+// choice, not a style violation, and no `ol-style-*` code in the registry expresses that opinion.
+// Before the fix `structuralKeywordFor` compared the source against a hardcoded canonical, so
+// `to f` was sliced to `"define".length` and flagged as the mis-cased name `"to f"` — a false
+// positive whose `params.name` was neither lowercase advice nor even a keyword.
+
+const HERITAGE_STYLE = ["core-language", "heritage"];
+
+test("ol-style-name-case: a lowercase Heritage keyword spelling is clean, exactly like its Core twin", () => {
+  const clean = [
+    "define f\n  return 5\nend",
+    "to f\n  return 5\nend",
+    "define f\n  output 5\nend",
+    "define f\n  op 5\nend",
+    "to f\n  op 5\nend",
+    "to f\n  output 5\nend",
+  ];
+  for (const source of clean) {
+    assert.deepEqual(
+      checkStyle(source, HERITAGE_STYLE),
+      [],
+      `expected no style finding for: ${JSON.stringify(source)}`,
+    );
+  }
+});
+
+test("ol-style-name-case: a mis-cased Heritage keyword is still flagged, naming its own spelling", () => {
+  // The casing lint keeps working for the Heritage spellings — it just measures each against the
+  // keyword that was actually written. `params.name` is the literal source slice (the lint's own
+  // subject), so it is surface by definition, exactly as `REPEAT`/`DEFINE` already are.
+  const cases = [
+    ["TO f\n  return 5\nend", "TO"],
+    ["To f\n  return 5\nend", "To"],
+    ["define f\n  OUTPUT 5\nend", "OUTPUT"],
+    ["define f\n  OP 5\nend", "OP"],
+  ];
+  for (const [source, expectedName] of cases) {
+    const diagnostics = checkStyle(source, HERITAGE_STYLE).filter(
+      (d) => d.code === "ol-style-name-case",
+    );
+    assert.deepEqual(
+      diagnostics.map((d) => d.params.name),
+      [expectedName],
+      `expected only ${expectedName} to be flagged in: ${source}`,
+    );
+  }
+});
+
+test("ol-style-name-case: a mis-cased Heritage keyword's span covers exactly that keyword", () => {
+  // The old hardcoded-canonical slice measured every `Return` against `"return".length` and every
+  // `ProcedureDef` against `"define".length`, so it ran past a shorter Heritage spelling into the
+  // rest of the line (`op 5` reported `"op 5"`, `to double :n` reported `"to dou"`). Each spelling's
+  // span is asserted here, not just its name, so a re-widened slice fails on the span even if the
+  // reported name happened to survive.
+  //
+  // `OUTPUT` is the one case that CANNOT catch that regression: `"OUTPUT".length` is 6, exactly
+  // `"return".length`, so the old algorithm produced the identical name and span. It is kept as a
+  // behaviour assertion for the longest Heritage escape spelling, not as a regression trap — the
+  // trap is `OP`/`TO`/`To`, whose spellings are shorter than the canonical they were measured
+  // against.
+  const cases = [
+    ["define f\n  OP 5\nend", [2, 3], [2, 5]],
+    ["define f\n  OUTPUT 5\nend", [2, 3], [2, 9]],
+    ["TO f\n  return 5\nend", [1, 1], [1, 3]],
+    ["To double :n\n  return :n\nend", [1, 1], [1, 3]],
+  ];
+  for (const [source, start, end] of cases) {
+    const diagnostics = checkStyle(source, HERITAGE_STYLE).filter(
+      (d) => d.code === "ol-style-name-case",
+    );
+    assert.equal(diagnostics.length, 1, `one finding for: ${source}`);
+    assert.deepEqual(
+      diagnostics[0].source_span,
+      { document: doc, start, end },
+      `span should cover exactly the keyword in: ${source}`,
+    );
+  }
 });

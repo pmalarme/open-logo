@@ -633,6 +633,77 @@ export function heritageAliasNames(): readonly string[] {
 }
 
 /**
+ * The **Heritage** form heads (issue #667, slice H2) — the special-form spellings that are not
+ * *names* the reader lowers to a call, but surface tags on the same Core AST node as their Core
+ * equivalent — each mapped to the Core spelling it is an alternate spelling of. `make` → `set`
+ * (the word-shaped Core assignment; `=` is the other Core form), `to` → `define`, and
+ * `output`/`op` → `return`.
+ *
+ * This is the form-head counterpart of {@link HERITAGE_ALIAS_CANONICAL}, and it lives here — beside
+ * it — so the parser has exactly ONE table answering "what Core spelling is this Heritage spelling
+ * an alternate of". Two consumers need that answer for different reasons, and they must never drift:
+ * `checker-heritage-form.ts` points a Core-only learner's did-you-mean at the Core spelling, and
+ * `checker-control-flow.ts` canonicalizes `params.keyword` so a Heritage escape's diagnostic
+ * identity is byte-identical to its Core twin's (`spec/error-model.md:235-238`, issue #737).
+ *
+ * Declared `as const` so {@link canonicalOfHeritageFormHead} can report each head's canonical as a
+ * literal type: that is what lets a caller thread a canonical spelling into a diagnostic param
+ * without a cast, and what makes feeding a *surface* spelling to a canonical-typed parameter a
+ * compile error rather than a silently divergent diagnostic.
+ */
+const HERITAGE_FORM_HEAD_CANONICAL = {
+  make: "set",
+  to: "define",
+  output: "return",
+  op: "return",
+} as const;
+
+/** One of the four Heritage form-head spellings — the keys of {@link HERITAGE_FORM_HEAD_CANONICAL}. */
+export type HeritageFormHead = keyof typeof HERITAGE_FORM_HEAD_CANONICAL;
+
+/**
+ * The Core spelling a Heritage form head is an alternate spelling of, as a **literal type**:
+ * `canonicalOfHeritageFormHead("op")` is typed `"return"`, not `string`. Callers that must produce
+ * a canonical value — a diagnostic's structured params above all — get it from this one registry
+ * rather than repeating the mapping, so a Heritage spelling can never reach a canonical position.
+ */
+export function canonicalOfHeritageFormHead<Head extends HeritageFormHead>(
+  head: Head,
+): (typeof HERITAGE_FORM_HEAD_CANONICAL)[Head] {
+  return HERITAGE_FORM_HEAD_CANONICAL[head];
+}
+
+/** Every Heritage form-head spelling, sorted for deterministic iteration. */
+const HERITAGE_FORM_HEAD_NAMES: readonly HeritageFormHead[] = Object.freeze(
+  (Object.keys(HERITAGE_FORM_HEAD_CANONICAL) as HeritageFormHead[]).sort(),
+);
+
+/** The full list of Heritage form-head spellings, in sorted order. */
+export function heritageFormHeadNames(): readonly HeritageFormHead[] {
+  return HERITAGE_FORM_HEAD_NAMES;
+}
+
+/**
+ * Every surface spelling that exists ONLY in the Heritage profile — the short command/reporter
+ * aliases ({@link heritageAliasNames}) plus the form heads ({@link heritageFormHeadNames}) — sorted
+ * for deterministic iteration.
+ *
+ * This is the enumerable definition of "a Heritage surface spelling", and it exists so the
+ * canonical-diagnostic-params guard (`heritage-canonical-diagnostic-params.test.mjs`, issue #737)
+ * is driven by the registry instead of a hand-kept list: a future slice that adds a Heritage
+ * spelling to either table is automatically pulled into that guard, so the class of bug where a
+ * surface spelling leaks into a diagnostic's structured params cannot quietly reappear.
+ */
+const HERITAGE_SURFACE_SPELLINGS: readonly string[] = Object.freeze(
+  [...HERITAGE_ALIAS_NAMES, ...HERITAGE_FORM_HEAD_NAMES].sort(),
+);
+
+/** The full list of Heritage-only surface spellings. See {@link HERITAGE_SURFACE_SPELLINGS}. */
+export function heritageSurfaceSpellings(): readonly string[] {
+  return HERITAGE_SURFACE_SPELLINGS;
+}
+
+/**
  * The default (bare-call) arity a Heritage short alias groups its arguments by, or `undefined` when
  * `name` is not a Heritage short alias. Because Heritage adds no semantics, this is exactly the
  * canonical command's own default arity ({@link primitiveArity} of the resolved Core name) — the

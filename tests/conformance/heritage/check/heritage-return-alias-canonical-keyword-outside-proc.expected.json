@@ -1,0 +1,32 @@
+{
+  "description": "Heritage escape-spelling diagnostic identity is CANONICAL, not the surface spelling (issue #737). With Heritage active, `output 5` and `op 6` at top level are outside any procedure and are caught by the semantic checker's control-flow rule (`checker-control-flow.ts`). `output`/`op` are Heritage *alternate spellings* of Core `return` (`spec/conformance.md#heritage` — \"alternate spellings only, no new semantics\"), lowered onto the same `Return` node, so all three spellings are ONE condition and must carry ONE machine-readable identity: `params.keyword` is `\"return\"` for both lines here — byte-identical to the two diagnostics `return 5` / `return 6` raises (`tests/conformance/core-language/check/return-outside-proc` is the single-line Core twin). Diagnostic identity is `code` plus structured `params` and the same condition MUST keep the same params (`spec/error-model.md:235-238`); a param whose value changed with the spelling would be an observable semantic difference. The prose `message` DOES name the learner's own word (`output …`, `op …`) — that is the localization boundary and is permitted — and `source_span` still covers exactly the surface control word (6 columns for `output`, 2 for `op`), proving canonicalizing the param did not canonicalize the span. This fixture asserts `params.keyword` directly: the absence of such an assertion is what let all three instances of this bug class ship.",
+  "profiles": ["core-language", "data", "heritage"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-return-outside-proc",
+      "source_span": {
+        "document": "heritage/check/heritage-return-alias-canonical-keyword-outside-proc",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "params": { "keyword": "return" },
+      "message": "output only reports a value from inside a procedure. put it between 'define' and 'end'.",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-return-outside-proc",
+      "source_span": {
+        "document": "heritage/check/heritage-return-alias-canonical-keyword-outside-proc",
+        "start": [2, 1],
+        "end": [2, 3]
+      },
+      "params": { "keyword": "return" },
+      "message": "op only reports a value from inside a procedure. put it between 'define' and 'end'.",
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

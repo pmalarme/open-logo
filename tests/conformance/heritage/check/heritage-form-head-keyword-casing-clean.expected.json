@@ -1,0 +1,8 @@
+{
+  "description": "A lowercase Heritage form head is NOT a style violation (issue #737, second instance of the same class). With Heritage active and the Layer-3 style lints on, `to double :n / output :n * 2 / end` reports NOTHING: `ol-style-name-case` judges CASING only (`spec/style-guide.md` \"Keywords are lowercase\", `spec/tooling.md:240`), and `to`/`output` are lowercase alternate spellings of `define`/`return` (`spec/conformance.md#heritage`), not mis-cased Core keywords. Before the fix the lint compared the source against a HARDCODED canonical keyword per node kind, so this very source raised TWO false positives: `\"to dou\"` at [1,1]-[1,7] (`\"define\".length` characters sliced off `to double`) and `\"output\"` at [2,3]-[2,9] — the second advising that the already-lowercase word `output` should be lowercase. Both leaked a Heritage surface spelling into structured params, and the first was not even a keyword. An empty `diagnostics` list with `\"style\": true` is therefore a genuine trap, not an absence of proof. The companion unit tests in `packages/parser/src/style-lints.test.mjs` additionally assert that a MIS-cased Heritage keyword (`TO`, `To`, `OUTPUT`, `OP`) is still flagged and names its own spelling, and that its span covers exactly that keyword.",
+  "profiles": ["core-language", "data", "heritage"],
+  "check": true,
+  "style": true,
+  "events": [],
+  "diagnostics": []
+}

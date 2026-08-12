@@ -447,3 +447,121 @@ test("a comprehension body inside a `when` handler is still a comprehension boun
   assert.equal(diagnostics.length, 1);
   assert.equal(diagnostics[0].code, "ol-return-in-comprehension");
 });
+
+// --- Heritage spellings keep the CANONICAL diagnostic identity (issue #737) -------------------
+// `output`/`op` are Heritage *alternate spellings* of `return` (spec/conformance.md#heritage —
+// "alternate spellings only, no new semantics"), lowered onto the same `Return` node. Diagnostic
+// identity is `code` plus structured `params`, and the same condition MUST keep the same code AND
+// the same params (spec/error-model.md:235-238), so all three spellings raise byte-identical
+// diagnostics — `params.keyword` is always the canonical `"return"`. Only the prose `message` may
+// echo the learner's own word; that is the localization boundary and it is permitted.
+
+const HERITAGE_ACTIVE = ["core-language", "heritage"];
+
+// Every surface spelling of the ONE construct, with the canonical word it must report as.
+const RETURN_SPELLINGS = ["return", "output", "op"];
+
+test("ol-return-outside-proc: every `return` spelling reports the canonical keyword, not the surface one", () => {
+  for (const spelling of RETURN_SPELLINGS) {
+    const diagnostics = controlFlowFindings(`${spelling} 5`, HERITAGE_ACTIVE);
+    assert.equal(diagnostics.length, 1, `one finding for ${spelling}`);
+    const [finding] = diagnostics;
+    assert.equal(finding.code, "ol-return-outside-proc");
+    assert.deepEqual(
+      finding.params,
+      { keyword: "return" },
+      `${spelling} must report params.keyword "return", never its surface spelling`,
+    );
+    assert.equal(finding.stage, "semantic");
+    assert.equal(finding.severity, "error");
+  }
+});
+
+test("ol-return-outside-proc: a Heritage spelling's params are byte-identical to the Core twin's", () => {
+  // The class rule stated as the reviewers should check it: compare the actual emitted params of
+  // the two programs, rather than reasoning about intent.
+  const [core] = controlFlowFindings("return 5", HERITAGE_ACTIVE);
+  for (const spelling of ["output", "op"]) {
+    const [heritage] = controlFlowFindings(`${spelling} 5`, HERITAGE_ACTIVE);
+    assert.deepEqual(heritage.params, core.params);
+    assert.equal(heritage.code, core.code);
+    assert.equal(heritage.stage, core.stage);
+    assert.equal(heritage.severity, core.severity);
+  }
+});
+
+test("ol-return-outside-proc: the prose message still echoes the learner's own spelling", () => {
+  // Params are canonical; prose is presentation (spec/error-model.md "Localization boundary"), so a
+  // learner who wrote `op` is answered about `op`.
+  for (const spelling of RETURN_SPELLINGS) {
+    const [finding] = controlFlowFindings(`${spelling} 5`, HERITAGE_ACTIVE);
+    assert.match(
+      finding.message,
+      new RegExp(`^${spelling} only reports a value`),
+      `message should name the surface spelling ${spelling}`,
+    );
+  }
+});
+
+test("ol-return-outside-proc: the span still covers exactly the surface control word", () => {
+  // Canonicalizing the param must not canonicalize the span — it points at what was typed.
+  const expectedEnd = { return: 7, output: 7, op: 3 };
+  for (const spelling of RETURN_SPELLINGS) {
+    const [finding] = controlFlowFindings(`${spelling} 5`, HERITAGE_ACTIVE);
+    assert.deepEqual(finding.source_span, {
+      document: "unit.logo",
+      start: [1, 1],
+      end: [1, expectedEnd[spelling]],
+    });
+  }
+});
+
+test("ol-return-in-comprehension: every `return` spelling reports the canonical keyword", () => {
+  for (const spelling of RETURN_SPELLINGS) {
+    const diagnostics = controlFlowFindings(
+      `print map n in :nums [ ${spelling} :n ]`,
+      HERITAGE_ACTIVE,
+    );
+    assert.equal(diagnostics.length, 1, `one finding for ${spelling}`);
+    const [finding] = diagnostics;
+    assert.equal(finding.code, "ol-return-in-comprehension");
+    assert.deepEqual(
+      finding.params,
+      { keyword: "return", form: "map" },
+      `${spelling} must report params.keyword "return", never its surface spelling`,
+    );
+  }
+});
+
+test("ol-return-in-comprehension: a Heritage spelling's params are byte-identical to the Core twin's", () => {
+  const [core] = controlFlowFindings(
+    "print map n in :nums [ return :n ]",
+    HERITAGE_ACTIVE,
+  );
+  for (const spelling of ["output", "op"]) {
+    const [heritage] = controlFlowFindings(
+      `print map n in :nums [ ${spelling} :n ]`,
+      HERITAGE_ACTIVE,
+    );
+    assert.deepEqual(heritage.params, core.params);
+    assert.equal(heritage.code, core.code);
+  }
+});
+
+test("ol-return-in-comprehension: `stop` still reports itself, and every comprehension form is canonical", () => {
+  // `stop` has no Heritage spelling, so its canonical word is `stop` — canonicalization must not
+  // collapse it into `return`.
+  const [stopFinding] = controlFlowFindings(
+    "print map n in :nums [ stop ]",
+    HERITAGE_ACTIVE,
+  );
+  assert.deepEqual(stopFinding.params, { keyword: "stop", form: "map" });
+  for (const form of ["filter", "reduce"]) {
+    const source =
+      form === "reduce"
+        ? "print reduce acc n in :nums from 0 [ op :acc ]"
+        : "print filter n in :nums [ op :n ]";
+    const [finding] = controlFlowFindings(source, HERITAGE_ACTIVE);
+    assert.deepEqual(finding.params, { keyword: "return", form });
+  }
+});

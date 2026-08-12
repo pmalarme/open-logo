@@ -47,13 +47,15 @@ import type {
 } from "./ast.js";
 import { walk } from "./ast.js";
 import type { CheckProfile } from "./check.js";
+import { canonicalOfHeritageFormHead } from "./signatures.js";
+import type { HeritageFormHead } from "./signatures.js";
 
 /**
  * The surface head keyword a Heritage-spelled node was written with, or `undefined` when the node
  * is the Core spelling (`Assign form: "equals"`/`"set"`, `ProcedureDef keyword: "define"`,
  * `Return keyword: "return"`) — which this gate never touches.
  */
-function heritageHead(node: AnyNode): string | undefined {
+function heritageHead(node: AnyNode): HeritageFormHead | undefined {
   if (node.kind === "Assign") {
     return (node as AssignNode).form === "make" ? "make" : undefined;
   }
@@ -66,22 +68,6 @@ function heritageHead(node: AnyNode): string | undefined {
   }
   return undefined;
 }
-
-/**
- * The Core spelling each Heritage form head maps onto (`spec/conformance.md#heritage` — "alternate
- * spellings only"): the did-you-mean always points a Core-only learner straight at the Core form
- * they should write instead. This is a fixed, one-to-one mapping rather than a Levenshtein search
- * because these are *known* aliases, not typos — and because every head is itself a reserved word
- * in the visible-name set, a distance search would otherwise suggest the head back to itself
- * (`did you mean make?`). `make` → `set` (the `set … to` spelling; `=` is the other Core form but
- * `set` is the word-shaped equivalent), `to` → `define`, and `output`/`op` → `return`.
- */
-const CORE_EQUIVALENT: Readonly<Record<string, string>> = {
-  make: "set",
-  to: "define",
-  output: "return",
-  op: "return",
-};
 
 /**
  * The source span of the head keyword itself — the node's `source_span` starts exactly at the head
@@ -120,8 +106,14 @@ const VALUE_OF_KEY_HEAD = "value";
  * The Heritage form-head rule: with the Heritage profile inactive, every `make`/`to`/`output`/`op`
  * head — and every `value of … for key` reader — raises one `ol-unknown-command` at the head word.
  * For the four form heads the did-you-mean points at the Core spelling to use instead
- * ({@link CORE_EQUIVALENT}); the reader carries no suggestion (its Core equivalent is the `[]`/`.`
- * selector syntax, not a word). With Heritage active, it raises nothing.
+ * ({@link canonicalOfHeritageFormHead}); the reader carries no suggestion (its Core equivalent is
+ * the `[]`/`.` selector syntax, not a word). With Heritage active, it raises nothing.
+ *
+ * `params.name` is the *surface* head here, and deliberately so: unlike the canonical-params rule
+ * the escape diagnostics follow (`checker-control-flow.ts`, issue #737), this diagnostic's subject
+ * IS the word the learner wrote, and its Core twin raises nothing at all — `set x to 1` is simply
+ * valid. There is no "same condition, two spellings" pair to keep byte-identical; naming the
+ * canonical spelling here would report a word that appears nowhere at the diagnostic's own span.
  */
 export function heritageFormRule(
   program: ProgramNode,
@@ -149,7 +141,7 @@ export function heritageFormRule(
     if (head === undefined) {
       return;
     }
-    const suggestion = CORE_EQUIVALENT[head] as string;
+    const suggestion = canonicalOfHeritageFormHead(head);
     diagnostics.push({
       code: "ol-unknown-command",
       source_span: headSpan(node.source_span, head),

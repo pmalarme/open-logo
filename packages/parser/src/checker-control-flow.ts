@@ -29,6 +29,18 @@
  * a procedure body, and the form of the nearest enclosing comprehension body — so an escape is
  * judged by where it *lexically* sits. Diagnostic identity is `code` + `params`; messages are warm
  * lowercase Logo prose and never part of the contract.
+ *
+ * ## `params.keyword` is CANONICAL, the message is the learner's own word (issue #737)
+ *
+ * The two `keyword`-carrying codes above are raised by all three surface spellings of one
+ * construct — Core `return` and the Heritage spellings `output`/`op`, which the reader lowers onto
+ * the same {@link ReturnNode}. Heritage is "alternate spellings only, no new semantics"
+ * (`spec/conformance.md#heritage`) and the same condition MUST keep the same code AND the same
+ * structured params (`spec/error-model.md:235-238`), so `params.keyword` is always the canonical
+ * Core word — `output 5` and `return 5` at top level are byte-identical diagnostics apart from
+ * prose. Echoing the surface spelling in the *message* is the localization boundary and is
+ * permitted. The canonicalization is by construction, not by convention: see
+ * {@link CanonicalEscapeKeyword} and {@link canonicalEscapeKeyword}.
  */
 
 import type { Diagnostic, SourceSpan } from "@openlogo/core";
@@ -46,7 +58,10 @@ import type {
 } from "./ast.js";
 import { childrenOf } from "./ast.js";
 import type { CheckProfile } from "./check.js";
-import { interactionEventsBlockHeadNames } from "./signatures.js";
+import {
+  canonicalOfHeritageFormHead,
+  interactionEventsBlockHeadNames,
+} from "./signatures.js";
 
 /** The three comprehension forms, the `form` param value for the comprehension-scoped codes. */
 type ComprehensionForm = ComprehensionNode["form"];
@@ -240,6 +255,90 @@ function comprehensionBinderDiagnostics(
 }
 
 /**
+ * The **canonical Core** control word an escape is reported under. Deliberately narrower than
+ * {@link ReturnNode.keyword} (`"return" | "output" | "op"`): the Heritage spellings are excluded
+ * *by type*, so a diagnostic factory that declares a parameter of this type cannot be handed a
+ * surface spelling — `params: { keyword: node.keyword }` stops compiling. That is the structural
+ * guard for this rule (issue #737); the prose message still echoes what the learner typed.
+ *
+ * Its reach is exactly the two factories below, because `Diagnostic.params` is
+ * `Record<string, unknown>` and cannot be typed per code: a NEW diagnostic site written inline here
+ * rather than routed through a factory would still compile. The complete guard for the class is
+ * therefore the registry-driven `heritage-canonical-diagnostic-params.test.mjs`, which checks
+ * emitted params for every Heritage spelling the parser knows; this type is what stops the two
+ * known sites from silently regressing.
+ */
+type CanonicalEscapeKeyword = "return" | "stop";
+
+/**
+ * The canonical Core control word for an escape, resolved through the Heritage registry rather
+ * than a local literal: `output`/`op` resolve to `return` via
+ * {@link canonicalOfHeritageFormHead}, `return` is already canonical, and a `stop` — which has no
+ * Heritage spelling — is `"stop"`.
+ *
+ * Diagnostic identity is `code` plus structured `params`, and the same condition MUST keep the same
+ * params (`spec/error-model.md:235-238`). Heritage is "alternate spellings only, no new semantics"
+ * (`spec/conformance.md#heritage`), so `output 5` and `return 5` at top level are ONE condition and
+ * must carry one machine-readable identity — the surface spelling belongs in the prose, never in
+ * the params. This mirrors H5 (#670)'s `operation` and H4 (#733)'s `callable`, both of which are
+ * canonical by construction through a shared helper for exactly this reason.
+ */
+function canonicalEscapeKeyword(
+  node: ReturnNode | StopNode,
+): CanonicalEscapeKeyword {
+  if (node.kind === "Stop") {
+    return "stop";
+  }
+  return node.keyword === "return"
+    ? "return"
+    : canonicalOfHeritageFormHead(node.keyword);
+}
+
+/** The control word exactly as the learner wrote it — prose only, never a diagnostic param. */
+function surfaceEscapeKeyword(node: ReturnNode | StopNode): string {
+  return node.kind === "Stop" ? "stop" : node.keyword;
+}
+
+/**
+ * Build an `ol-return-in-comprehension`. `keyword` is typed {@link CanonicalEscapeKeyword} so only
+ * a canonical spelling can reach `params`; `surface` is the learner's own word, used for prose.
+ */
+function returnInComprehensionDiagnostic(
+  node: ReturnNode | StopNode,
+  keyword: CanonicalEscapeKeyword,
+  surface: string,
+  form: ComprehensionForm,
+): Diagnostic {
+  return {
+    code: "ol-return-in-comprehension",
+    source_span: controlWordSpan(node),
+    params: { keyword, form },
+    message: `${surface} doesn't belong in a ${form} — a ${form} reports its last expression instead.`,
+    stage: "semantic",
+    severity: "error",
+  };
+}
+
+/**
+ * Build an `ol-return-outside-proc`. As above, `keyword` only accepts a canonical spelling — here
+ * always `"return"`, since a `stop` outside a procedure is the separate `ol-stop-outside-proc`.
+ */
+function returnOutsideProcDiagnostic(
+  node: ReturnNode,
+  keyword: CanonicalEscapeKeyword,
+  surface: string,
+): Diagnostic {
+  return {
+    code: "ol-return-outside-proc",
+    source_span: controlWordSpan(node),
+    params: { keyword },
+    message: `${surface} only reports a value from inside a procedure. put it between 'define' and 'end'.`,
+    stage: "semantic",
+    severity: "error",
+  };
+}
+
+/**
  * The diagnostic a `return`/`stop` raises given its lexical context, or `undefined` when it is
  * validly placed (inside a procedure and not inside a comprehension). A comprehension context wins
  * over the outside-a-procedure check, so a nested escape is always the comprehension code.
@@ -248,17 +347,15 @@ function escapeDiagnostic(
   node: ReturnNode | StopNode,
   context: Context,
 ): Diagnostic | undefined {
-  const keyword = node.kind === "Stop" ? "stop" : node.keyword;
+  const keyword = canonicalEscapeKeyword(node);
+  const surface = surfaceEscapeKeyword(node);
   if (context.comprehensionForm !== undefined) {
-    const form = context.comprehensionForm;
-    return {
-      code: "ol-return-in-comprehension",
-      source_span: controlWordSpan(node),
-      params: { keyword, form },
-      message: `${keyword} doesn't belong in a ${form} — a ${form} reports its last expression instead.`,
-      stage: "semantic",
-      severity: "error",
-    };
+    return returnInComprehensionDiagnostic(
+      node,
+      keyword,
+      surface,
+      context.comprehensionForm,
+    );
   }
   if (context.inProcedure) {
     return undefined;
@@ -274,14 +371,7 @@ function escapeDiagnostic(
       severity: "error",
     };
   }
-  return {
-    code: "ol-return-outside-proc",
-    source_span: controlWordSpan(node),
-    params: { keyword: node.keyword },
-    message: `${node.keyword} only reports a value from inside a procedure. put it between 'define' and 'end'.`,
-    stage: "semantic",
-    severity: "error",
-  };
+  return returnOutsideProcDiagnostic(node, keyword, surface);
 }
 
 /**
