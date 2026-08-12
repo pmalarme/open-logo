@@ -19,6 +19,19 @@ import { walk } from "./ast.js";
 import type { CheckProfile } from "./check.js";
 import { collectVisibleNames, isOptionalProfileName } from "./checker-names.js";
 import { levenshteinDistance } from "./levenshtein.js";
+import { heritageAliasNames } from "./signatures.js";
+
+/**
+ * The ten Heritage short command aliases (`fd`/`bk`/…/`pr`, issue #668) as a lookup set, so the
+ * did-you-mean tie-break can rank a full canonical name ahead of the short alias that spells it —
+ * the "full canonical names over short aliases" step of `spec/error-model.md:145-146`.
+ */
+const HERITAGE_ALIAS_NAMES: ReadonlySet<string> = new Set(heritageAliasNames());
+
+/** Whether `name` is one of the ten Heritage short command aliases. */
+function isHeritageAliasName(name: string): boolean {
+  return HERITAGE_ALIAS_NAMES.has(name.toLowerCase());
+}
 
 /**
  * Grammar operator symbols/words the reader lowers to a {@link CallNode} with the operator as
@@ -70,9 +83,9 @@ function isProfileStatement(node: AnyNode): node is ProfileStatementNode {
  * The best did-you-mean candidate for `name` among `candidates`, or `undefined` when none is
  * within {@link MAX_SUGGESTION_DISTANCE}. Deterministic tie-break per `spec/error-model.md:145-146`:
  * lowest Levenshtein distance first; on a distance tie, a Core Language candidate outranks an
- * optional-profile one ({@link isOptionalProfileName}); ties within the same tier fall back to
- * lexicographic order. (The spec's further "full canonical names over short aliases" tie-break step
- * is a structural no-op even with the Heritage aliases now visible — see {@link isBetterTie}.)
+ * optional-profile one ({@link isOptionalProfileName}); within the same profile tier a full
+ * canonical name outranks a short Heritage alias ({@link isHeritageAliasName}); and only then does
+ * lexicographic order decide.
  */
 function bestSuggestion(
   name: string,
@@ -101,25 +114,28 @@ function bestSuggestion(
 
 /**
  * Whether `candidate` should replace `current` as the did-you-mean pick when both are tied at the
- * same Levenshtein distance: a Core Language word beats an optional-profile word regardless of
- * spelling, and within the same tier the lexicographically earlier name wins.
+ * same Levenshtein distance. Three ordered rungs, per `spec/error-model.md:145-146`:
  *
- * The spec's further "full canonical names over short aliases" tie-break step
- * (`spec/error-model.md:145-146`) is a no-op in practice even now that the Heritage profile (issue
- * #668) adds the two-letter aliases `fd`/`bk`/…/`pr` to the visible-name set: a suggestion candidate
- * must be within {@link MAX_SUGGESTION_DISTANCE} (2) of the unknown word, and a two-letter alias and
- * a ≥4-letter full canonical name can never both be within distance 2 of the *same* word (the word
- * would have to be simultaneously ≤4 and ≥ length−2 characters, and no alias sorts before its own
- * far-longer canonical besides). So a full-name-vs-alias distance tie is structurally unreachable,
- * and adding an explicit alias branch here would be untestable dead code — the existing
- * Core-beats-optional and lexicographic rules already produce the spec's ordering for every case
- * that can actually occur.
+ * 1. A Core Language word beats an optional-profile word ({@link isOptionalProfileName}).
+ * 2. Within the same profile tier, a full canonical name beats a short Heritage alias
+ *    ({@link isHeritageAliasName}) — the spec's "full canonical names over short aliases" step. This
+ *    rung IS reachable: with the Data and Heritage profiles both active, the unknown word `dca` sits
+ *    at distance 2 from both the Data primitive `dict` and the Heritage alias `cs`; both are
+ *    optional-profile, so rung 1 cannot separate them and rung 2 must pick the full name `dict`. (A
+ *    Heritage alias vs. its OWN Core canonical — `cs` vs `clear_screen` — is always split by rung 1,
+ *    since the canonical is Core; rung 2 handles the alias-vs-*other*-profile's-full-name case.)
+ * 3. Otherwise the lexicographically earlier name wins, for a stable, deterministic result.
  */
 function isBetterTie(candidate: string, current: string): boolean {
   const candidateIsOptionalProfile = isOptionalProfileName(candidate);
   const currentIsOptionalProfile = isOptionalProfileName(current);
   if (candidateIsOptionalProfile !== currentIsOptionalProfile) {
     return !candidateIsOptionalProfile;
+  }
+  const candidateIsAlias = isHeritageAliasName(candidate);
+  const currentIsAlias = isHeritageAliasName(current);
+  if (candidateIsAlias !== currentIsAlias) {
+    return !candidateIsAlias;
   }
   return candidate < current;
 }

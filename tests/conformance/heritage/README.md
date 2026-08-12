@@ -24,6 +24,9 @@ here fixture-by-fixture as each Heritage slice lands:
 - `check/heritage-aliases-{accepted-when-active,rejected-in-core}` — the ten short command aliases
   `fd`/`bk`/`lt`/`rt`/`pu`/`pd`/`st`/`ht`/`cs`/`pr` are gated on the `heritage` profile, visible only
   when it is active and otherwise `ol-unknown-command` (slice H3, #668).
+- `check/heritage-alias-suggestion-loses-tie-to-full-name` — a did-you-mean tie between a full
+  canonical name and a short alias resolves to the full name (`dca` → `dict`, not the alias `cs`),
+  per `spec/error-model.md:145-146` (slice H3, #668).
 - `execution/heritage-forms-execute-like-core` — the form heads execute through the identical Core
   node kinds (slice H2, #667).
 - `execution/heritage-aliases-execute-like-core` — the ten command aliases produce a full event

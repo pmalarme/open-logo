@@ -235,3 +235,44 @@ test("an alias program with heritage active is not flagged, but the Core-name tw
     [],
   );
 });
+
+// ---------------------------------------------------------------------------
+// The did-you-mean tie-break: a full canonical name outranks a short alias
+// (spec/error-model.md:145-146) when both tie on Levenshtein distance and sit
+// in the same profile tier — reachable with Data + Heritage both active.
+// ---------------------------------------------------------------------------
+
+function suggestionFor(source, profiles) {
+  const finding = checkSource(source, profiles).find(
+    (d) => d.code === "ol-unknown-command",
+  );
+  assert.ok(
+    finding,
+    `expected ol-unknown-command for ${JSON.stringify(source)}`,
+  );
+  return finding.params.suggestion;
+}
+
+test("a tie between a Data primitive and a Heritage alias picks the full name, not the alias", () => {
+  // `dca` is Levenshtein distance 2 from BOTH the Data primitive `dict` and the Heritage alias `cs`.
+  // Both are optional-profile, so the Core-beats-optional rung cannot separate them; the full name
+  // `dict` must win over the short alias `cs`. This exercises the `candidateIsAlias` rung in both
+  // directions as the loop visits `cs` (alias) and `dict` (full name) in set order.
+  assert.equal(
+    suggestionFor("dca\n", ["core-language", "data", "heritage"]),
+    "dict",
+  );
+  // Without Heritage the alias is not even a candidate, so `dict` wins trivially — same answer,
+  // proving the fix did not change the non-Heritage outcome.
+  assert.equal(suggestionFor("dca\n", ["core-language", "data"]), "dict");
+});
+
+test("an alias still wins when it is strictly the closest candidate", () => {
+  // `c` is distance 1 from `cs` and distance ≥2 from any full name, so the alias legitimately wins
+  // on distance alone — the tie-break rungs never run. Heritage alternate spellings remain
+  // suggestible; the rung only demotes them on a *tie* with a full name.
+  assert.equal(
+    suggestionFor("c\n", ["core-language", "data", "heritage"]),
+    "cs",
+  );
+});

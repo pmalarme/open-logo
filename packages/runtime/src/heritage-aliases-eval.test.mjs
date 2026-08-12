@@ -156,3 +156,41 @@ test("aliases and Core spellings intermixed in one program are equivalent statem
   const allCore = eventsOf("forward 10\nforward 10\nright 90\nright 90\n");
   assert.deepEqual(withoutSpans(mixed), withoutSpans(allCore));
 });
+
+// ---------------------------------------------------------------------------
+// A user procedure named like an alias SHADOWS the alias (the chokepoint must
+// never hijack a user's `define fd :x … end`)
+// ---------------------------------------------------------------------------
+
+test("a user procedure whose name is an alias shadows the alias, exactly as an ordinary name would", () => {
+  // `define fd :x … end` makes `fd` the user's procedure — the chokepoint must NOT rewrite `fd` to
+  // `forward` and run the turtle, which would silently invent a semantic difference from what the
+  // learner wrote (and would fire even with Heritage inactive, since the reader sets `canonical`
+  // profile-blind). Proof: the alias-named procedure behaves identically to the same program written
+  // with an ordinary (non-alias) procedure name — same event kinds and same payloads once the
+  // procedure's own name (necessarily `fd` vs `foo`) is disregarded.
+  const shadow = eventsOf("define fd :x\n  print :x\nend\nfd 99\n");
+  const ordinary = eventsOf("define foo :x\n  print :x\nend\nfoo 99\n");
+  const stripNames = (events) =>
+    withoutSpans(events).map(({ payload, ...rest }) => ({
+      ...rest,
+      payload:
+        rest.kind === "procedure-enter" || rest.kind === "procedure-exit"
+          ? { ...payload, name: "·" }
+          : payload,
+    }));
+  assert.deepEqual(stripNames(shadow), stripNames(ordinary));
+  // Concretely: the user's `print` ran and NO `move` was emitted (the alias did not reach `forward`).
+  assert.ok(shadow.some((e) => e.kind === "print"));
+  assert.ok(!shadow.some((e) => e.kind === "move"));
+});
+
+test("an alias whose CANONICAL name is a user procedure dispatches to that procedure", () => {
+  // The mirror case: the user overrides `forward` itself. `fd` should then dispatch to the user's
+  // `forward` (the alias means "whatever `forward` means"), not a built-in turtle move — and
+  // identically to writing `forward` directly, since both resolve to the same procedure.
+  const alias = eventsOf("define forward :x\n  print :x\nend\nfd 7\n");
+  const core = eventsOf("define forward :x\n  print :x\nend\nforward 7\n");
+  assert.deepEqual(withoutSpans(alias), withoutSpans(core));
+  assert.ok(!alias.some((e) => e.kind === "move"));
+});
