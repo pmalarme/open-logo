@@ -439,6 +439,39 @@ test("the dispatch-boundary budget guard stops a due every handler with no orpha
   assert.deepEqual(last.payload.values, [1]);
 });
 
+test("an empty-bodied handler is still delivered at an exhausted budget (no statement gate)", () => {
+  // An empty handler body has no per-statement budget gate and costs zero instructions, so it must
+  // be delivered (its block-head `instruction` event emitted) even when the budget is already spent —
+  // the dispatch guard's budget branch applies ONLY to non-empty bodies. `when "start" [ ]` fires
+  // immediately at registration. The event stream is: the `when` registration statement
+  // (`instruction{ProfileStatement}` + `primitive{when}`), then the handler-fire block-head
+  // (`instruction{ProfileStatement}`) for the empty body. At budget 1 the trailing top-level `print 9`
+  // then halts, but the handler's block-head must already be present — not wrongly suppressed.
+  const source = ['when "start" [ ]', "print 9"].join("\n");
+  const isProfileStart = (event) =>
+    event.kind === "instruction" &&
+    event.payload.statement_kind === "ProfileStatement";
+  const atBudget1 = execute(source, doc, { instructionBudget: 1 });
+  // Two ProfileStatement `instruction` events: [0] the `when` registration statement, and the empty
+  // handler's own fire block-head. The latter proves the guard did NOT suppress a zero-cost handler.
+  assert.equal(atBudget1.events.filter(isProfileStart).length, 2);
+  // Nothing printed (`print 9` was halted by the budget) but the run halted on the budget, not on a
+  // suppressed handler.
+  assert.deepEqual(printedValues(atBudget1), []);
+  assert.equal(atBudget1.diagnostics.length, 1);
+  assert.equal(atBudget1.diagnostics[0].params.limit, "instruction-budget");
+  // The handler-fire block-head is the LAST event — the empty handler was delivered, then the budget
+  // stopped the following statement, leaving no orphan (the handler produced its start with no body,
+  // which is exactly a full delivery of an empty body).
+  const last = atBudget1.events[atBudget1.events.length - 1];
+  assert.ok(isProfileStart(last));
+  // With enough budget for the trailing statement, the empty handler still fires and `print 9` runs —
+  // identical handler delivery, just more budget for what follows.
+  const atBudget3 = execute(source, doc, { instructionBudget: 3 });
+  assert.deepEqual(printedValues(atBudget3), [[9]]);
+  assert.equal(atBudget3.events.filter(isProfileStart).length, 2);
+});
+
 test("a runaway handler body halts with ol-limit(instruction-budget), not an infinite loop", () => {
   // An `on_key` body with an unbounded `forever` is bounded by the instruction budget — the handler
   // cannot hang the run. Proves the safety budget reaches inside handler bodies.

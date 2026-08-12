@@ -581,35 +581,46 @@ export function checkExecutionLimits(
 }
 
 /**
- * A **non-incrementing** instruction-budget boundary probe for {@link dispatchDueHandlers}'s handler
- * invocations (issue #686, slice I7): returns the `ol-limit(instruction-budget)` diagnostic to stop
- * on when the budget is already so close to exhausted that the handler about to be dispatched could
- * not execute even its first body statement — otherwise `undefined`.
+ * The **non-incrementing** instruction-budget boundary probe every handler invocation passes BEFORE
+ * emitting its block-head `instruction` event (issue #686, slice I7): returns the
+ * `ol-limit(instruction-budget)` diagnostic to stop on when a **non-empty** handler body's budget is
+ * already so close to exhausted that it could not run even its first statement — otherwise
+ * `undefined`.
  *
- * Handler dispatch is deliberately *not* one of the per-statement budgeted instructions (a handler's
- * block-head `instruction` event is not counted), so this probe must NOT consume an instruction the
- * way {@link checkExecutionLimits} does — a handler that *does* run still costs only its body's
+ * It must NOT consume an instruction the way {@link checkExecutionLimits} does: handler dispatch is
+ * deliberately *not* one of the per-statement budgeted instructions (a handler's block-head
+ * `instruction` event is not counted), so a handler that *does* run still costs only its body's
  * statements, exactly as before this guard existed. It only inspects the accumulated count.
  *
- * The predicate is `count >= budget`, not `count > budget`, because it must predict what the body's
- * *own* first per-statement gate will do: {@link executeStatements} runs its first statement only
- * after `count++ ; count > budget` passes, i.e. only while `count < budget` on entry. So a handler
- * entered at `count >= budget` would emit its block-head `instruction` event and then halt before
- * running a single statement — an orphan "handler started but produced nothing" trace. Halting here,
- * before the block-head is emitted, is what makes an exhausted budget "stop future handler delivery"
- * (`spec/interaction-events.md`'s "Errors and cancellation") leave a coherent trace: a handler is
- * either delivered in full or not started at all, never traced as started-yet-empty.
+ * Why the predicate is `count >= budget`, and only for a non-empty body (`bodyHasStatements`): it
+ * must predict what the body's *own* first per-statement gate will do. {@link executeStatements} runs
+ * its first statement only after `count++ ; count > budget` passes, i.e. only while `count < budget`
+ * on entry — so a non-empty handler entered at `count >= budget` would emit its block-head then halt
+ * before running a single statement (an orphan "started but produced nothing" trace). An **empty**
+ * handler body has no statement gate and costs zero instructions, so it must still be delivered (its
+ * block-head emitted) even at an exhausted budget; applying the budget pre-halt to it would wrongly
+ * reject a valid zero-cost handler and change budget accounting. So the budget branch is guarded by
+ * `bodyHasStatements`.
  *
- * External *signal* cancellation needs no check here: every statement — including the top-level ones
- * between ticks and a handler body's own statements — already passes {@link checkExecutionLimits},
- * which halts on an aborted signal, so an abort is always caught at the next statement boundary and
- * can never reach a handler dispatch with the run still live.
+ * Signal cancellation is deliberately NOT re-checked here. Every statement — top-level ones between
+ * ticks, and each handler body's own first statement — already passes {@link checkExecutionLimits},
+ * which halts on an aborted signal. Because `execute()` is fully synchronous, a real `AbortSignal`'s
+ * `aborted` is a stable boolean throughout a run (it cannot flip between this probe and the body's
+ * first-statement gate), so a pre-aborted run halts at the first statement it reaches — before any
+ * tick, and thus before any handler dispatch — and no faithful signal can leave an orphan
+ * handler-start. Adding an abort branch here would be unreachable under any real signal (dead code
+ * that cannot meet the 100% branch gate); the budget boundary is the only case a handler dispatch can
+ * actually straddle.
  */
 export function pendingExecutionHalt(
   environment: Environment,
   source_span: SourceSpan,
+  bodyHasStatements: boolean,
 ): Diagnostic | undefined {
-  if (environment.instructionCount.count >= environment.instructionBudget) {
+  if (
+    bodyHasStatements &&
+    environment.instructionCount.count >= environment.instructionBudget
+  ) {
     return runtimeDiag.instructionLimit(
       source_span,
       environment.instructionBudget,

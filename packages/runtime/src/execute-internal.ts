@@ -2225,27 +2225,31 @@ function isWhenStatement(statement: StatementNode): boolean {
 /**
  * The non-consuming budget gate every handler invocation passes BEFORE emitting its block-head
  * `instruction` event (issue #686, slice I7). Returns the `ol-limit` {@link ExecSignal} to halt with
- * when the instruction budget is already too near exhaustion for the handler's body to run even one
+ * when a non-empty handler body's instruction budget is already too near exhaustion to run even one
  * statement — otherwise `undefined` to proceed.
  *
  * Placing it here, at the single entry every `invoke*Handler` shares, guards BOTH handler-delivery
  * paths uniformly: the immediate `when "start"` fire during registration ({@link fireEvent}) and the
  * tick-driven same-tick dispatch ({@link dispatchDueHandlers}). An exhausted budget must "stop future
  * handler delivery" (`spec/interaction-events.md`'s "Errors and cancellation") on every path — so a
- * handler that would begin only to have its body immediately halted is not started at all, and the
- * trace never shows a handler that emitted its block-head yet produced no effect (an incoherent
- * partial delivery). {@link pendingExecutionHalt} is non-consuming, so a handler that DOES run still
- * costs only its body's instructions — handler dispatch itself was never one of the per-statement
- * budgeted instructions. External signal cancellation is already caught upstream at every statement's
- * {@link checkExecutionLimits}, so it can never reach a handler dispatch with the run still live.
+ * handler that would begin only to be immediately halted is not started at all, and the trace never
+ * shows a handler that emitted its block-head yet produced no effect (an incoherent partial
+ * delivery). {@link pendingExecutionHalt} is non-consuming, so a handler that DOES run still costs
+ * only its body's instructions; an **empty**-bodied handler is always delivered (its block-head
+ * emitted) because it has no statement gate and costs nothing — `bodyHasStatements` gates the budget
+ * branch accordingly. Signal cancellation needs no re-check here: `execute()` is synchronous, so a
+ * real `AbortSignal` is stable across the run and a pre-aborted run halts at the first statement
+ * (before any tick) via {@link checkExecutionLimits}, never reaching a handler dispatch with the run
+ * still live.
  */
 function guardHandlerDispatch(
-  keyword: { source_span: SourceSpan },
+  handler: { keyword: { source_span: SourceSpan }; block: BlockNode },
   environment: Environment,
 ): ExecSignal | undefined {
   const limitDiagnostic = pendingExecutionHalt(
     environment,
-    keyword.source_span,
+    handler.keyword.source_span,
+    handler.block.body.length > 0,
   );
   return limitDiagnostic ? halt(limitDiagnostic) : undefined;
 }
@@ -2270,7 +2274,7 @@ function invokeWhenHandler(
   handler: WhenHandler,
   environment: Environment,
 ): ExecSignal {
-  const guard = guardHandlerDispatch(handler.keyword, environment);
+  const guard = guardHandlerDispatch(handler, environment);
   if (guard) {
     return guard;
   }
@@ -2597,7 +2601,7 @@ function invokeEveryHandler(
   handler: EveryHandler,
   environment: Environment,
 ): ExecSignal {
-  const guard = guardHandlerDispatch(handler.keyword, environment);
+  const guard = guardHandlerDispatch(handler, environment);
   if (guard) {
     return guard;
   }
@@ -2641,7 +2645,7 @@ function invokeOnKeyHandler(
   handler: OnKeyHandler,
   environment: Environment,
 ): ExecSignal {
-  const guard = guardHandlerDispatch(handler.keyword, environment);
+  const guard = guardHandlerDispatch(handler, environment);
   if (guard) {
     return guard;
   }
@@ -2678,7 +2682,7 @@ function invokeOnClickHandler(
   handler: OnClickHandler,
   environment: Environment,
 ): ExecSignal {
-  const guard = guardHandlerDispatch(handler.keyword, environment);
+  const guard = guardHandlerDispatch(handler, environment);
   if (guard) {
     return guard;
   }
