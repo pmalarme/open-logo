@@ -1,0 +1,7 @@
+{
+  "description": "issue #671 (H6 tooling): with the Heritage profile active (and Data, on which Heritage depends per spec/conformance.md#heritage), a whole program that exercises ALL FOUR Heritage syntactic shapes in awkward positions - the `to … output` procedure form-heads (#151/#667), a `make` assignment, the short command aliases `fd`/`rt`/`pu`/`pd`/`st`/`ht` (some inside a `repeat [ … ]` block, #668), the list-reporter aliases `bf`/`se` in expression position (#669), and the `value of … for key` reader (#670) - passes the Layer-2 checker with no diagnostics. This is the profile-active positive of the Heritage recognition contract (spec/tooling.md); its Core-only negative is `heritage-tooling-program-without-heritage-profile`. It complements the per-shape H2-H5 accepted fixtures by proving all four shapes recognized together in one program.",
+  "profiles": ["core-language", "data", "heritage"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

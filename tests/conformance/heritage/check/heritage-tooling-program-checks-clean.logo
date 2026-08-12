@@ -1,0 +1,12 @@
+to describe :d
+  make "count" 3
+  repeat 2 [ fd 10 rt 90 ]
+  pu
+  pd
+  st
+  ht
+  print bf [1 2]
+  print se [1] [2]
+  print value of :d for key "name"
+  output :count
+end
