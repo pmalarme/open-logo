@@ -81,6 +81,28 @@ export function isOptionalProfileName(name: string): boolean {
 }
 
 /**
+ * Every name the program itself *declares* — user procedures (`ProcedureDef`) and, when Data is
+ * relevant, `struct` constructors (`StructDef`) — lowercased. These are program-declared, not
+ * profile-owned: they are visible regardless of the active profile set (mirroring
+ * {@link collectVisibleNames}'s unconditional procedure/struct walk). The did-you-mean tie-break
+ * uses this to tell a user's `define fd … end` apart from the Heritage alias `fd` that happens to
+ * share its spelling — a declared name must never be demoted as if it were the short alias
+ * (`spec/error-model.md:145-146` orders full canonical names over *Heritage aliases*, not over a
+ * learner's own procedures).
+ */
+export function collectDeclaredNames(
+  program: ProgramNode,
+): ReadonlySet<string> {
+  const names = new Set<string>();
+  walk(program, (node) => {
+    if (node.kind === "ProcedureDef" || node.kind === "StructDef") {
+      names.add(node.name.name.toLowerCase());
+    }
+  });
+  return names;
+}
+
+/**
  * Every name visible to a call site in `program` under the active `profiles`, lowercased to
  * OpenLogo's canonical spelling (identifiers are case-insensitive). Includes Core primitives and
  * reserved structural words only when `"core-language"` is active, Turtle & Rendering primitives

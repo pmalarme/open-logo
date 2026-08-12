@@ -276,3 +276,24 @@ test("an alias still wins when it is strictly the closest candidate", () => {
     "cs",
   );
 });
+
+test("a user procedure named like an alias is NOT demoted — it is the learner's own procedure", () => {
+  // `define fd … end` makes `fd` the program's own procedure, which shares its spelling with the
+  // Heritage alias `fd`. The alias-demotion rung must exempt it: for the misspelling `fdck` (distance
+  // 2 from both the declared `fd` and the Data primitive `pick`) the declared name must be treated as
+  // an ordinary full name, not demoted as the short alias — so `fd` wins the tie over `pick`
+  // lexicographically, exactly as it would for any non-alias-spelled procedure. This holds whether or
+  // not Heritage is active, since a declared name is visible regardless of profile.
+  assert.equal(
+    suggestionFor("define fd\nend\nfdck\n", ["core-language", "data"]),
+    "fd",
+  );
+  assert.equal(
+    suggestionFor("define fd\nend\nfdck\n", [
+      "core-language",
+      "data",
+      "heritage",
+    ]),
+    "fd",
+  );
+});

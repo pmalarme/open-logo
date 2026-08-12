@@ -17,7 +17,11 @@ import type {
 } from "./ast.js";
 import { walk } from "./ast.js";
 import type { CheckProfile } from "./check.js";
-import { collectVisibleNames, isOptionalProfileName } from "./checker-names.js";
+import {
+  collectDeclaredNames,
+  collectVisibleNames,
+  isOptionalProfileName,
+} from "./checker-names.js";
 import { levenshteinDistance } from "./levenshtein.js";
 import { heritageAliasNames } from "./signatures.js";
 
@@ -28,9 +32,18 @@ import { heritageAliasNames } from "./signatures.js";
  */
 const HERITAGE_ALIAS_NAMES: ReadonlySet<string> = new Set(heritageAliasNames());
 
-/** Whether `name` is one of the ten Heritage short command aliases. */
-function isHeritageAliasName(name: string): boolean {
-  return HERITAGE_ALIAS_NAMES.has(name.toLowerCase());
+/**
+ * Whether `name`, as a suggestion candidate, is a Heritage short alias to be *demoted* below full
+ * canonical names on a tie. A name that the program itself declares (`declared`) is the learner's
+ * own procedure/struct — never the alias — even when its spelling collides with one (`define fd …`),
+ * so it is exempt from demotion.
+ */
+function isDemotableHeritageAlias(
+  name: string,
+  declared: ReadonlySet<string>,
+): boolean {
+  const lower = name.toLowerCase();
+  return HERITAGE_ALIAS_NAMES.has(lower) && !declared.has(lower);
 }
 
 /**
@@ -84,12 +97,14 @@ function isProfileStatement(node: AnyNode): node is ProfileStatementNode {
  * within {@link MAX_SUGGESTION_DISTANCE}. Deterministic tie-break per `spec/error-model.md:145-146`:
  * lowest Levenshtein distance first; on a distance tie, a Core Language candidate outranks an
  * optional-profile one ({@link isOptionalProfileName}); within the same profile tier a full
- * canonical name outranks a short Heritage alias ({@link isHeritageAliasName}); and only then does
- * lexicographic order decide.
+ * canonical name outranks a short Heritage alias ({@link isDemotableHeritageAlias}); and only then
+ * does lexicographic order decide. `declared` names the program's own procedures/structs so a
+ * learner's `define fd … end` is never mistaken for the Heritage alias it spells.
  */
 function bestSuggestion(
   name: string,
   candidates: ReadonlySet<string>,
+  declared: ReadonlySet<string>,
 ): string | undefined {
   let best: string | undefined;
   let bestDistance = Number.POSITIVE_INFINITY;
@@ -104,7 +119,7 @@ function bestSuggestion(
       bestDistance = distance;
       continue;
     }
-    if (distance === bestDistance && isBetterTie(candidate, best)) {
+    if (distance === bestDistance && isBetterTie(candidate, best, declared)) {
       best = candidate;
     }
   }
@@ -118,22 +133,28 @@ function bestSuggestion(
  *
  * 1. A Core Language word beats an optional-profile word ({@link isOptionalProfileName}).
  * 2. Within the same profile tier, a full canonical name beats a short Heritage alias
- *    ({@link isHeritageAliasName}) — the spec's "full canonical names over short aliases" step. This
- *    rung IS reachable: with the Data and Heritage profiles both active, the unknown word `dca` sits
- *    at distance 2 from both the Data primitive `dict` and the Heritage alias `cs`; both are
+ *    ({@link isDemotableHeritageAlias}) — the spec's "full canonical names over short aliases" step.
+ *    This rung IS reachable: with the Data and Heritage profiles both active, the unknown word `dca`
+ *    sits at distance 2 from both the Data primitive `dict` and the Heritage alias `cs`; both are
  *    optional-profile, so rung 1 cannot separate them and rung 2 must pick the full name `dict`. (A
  *    Heritage alias vs. its OWN Core canonical — `cs` vs `clear_screen` — is always split by rung 1,
- *    since the canonical is Core; rung 2 handles the alias-vs-*other*-profile's-full-name case.)
+ *    since the canonical is Core; rung 2 handles the alias-vs-*other*-profile's-full-name case.) A
+ *    candidate the program itself declares (a user `define fd … end`, tracked in `declared`) is that
+ *    procedure, not the alias, so it is exempt — it is ordered by rung 1/rung 3 like any full name.
  * 3. Otherwise the lexicographically earlier name wins, for a stable, deterministic result.
  */
-function isBetterTie(candidate: string, current: string): boolean {
+function isBetterTie(
+  candidate: string,
+  current: string,
+  declared: ReadonlySet<string>,
+): boolean {
   const candidateIsOptionalProfile = isOptionalProfileName(candidate);
   const currentIsOptionalProfile = isOptionalProfileName(current);
   if (candidateIsOptionalProfile !== currentIsOptionalProfile) {
     return !candidateIsOptionalProfile;
   }
-  const candidateIsAlias = isHeritageAliasName(candidate);
-  const currentIsAlias = isHeritageAliasName(current);
+  const candidateIsAlias = isDemotableHeritageAlias(candidate, declared);
+  const currentIsAlias = isDemotableHeritageAlias(current, declared);
   if (candidateIsAlias !== currentIsAlias) {
     return !candidateIsAlias;
   }
@@ -157,6 +178,7 @@ export function unknownCommandRule(
   profiles: readonly CheckProfile[],
 ): readonly Diagnostic[] {
   const visible = collectVisibleNames(program, profiles);
+  const declared = collectDeclaredNames(program);
   const diagnostics: Diagnostic[] = [];
 
   walk(program, (node) => {
@@ -176,7 +198,7 @@ export function unknownCommandRule(
       return;
     }
 
-    const suggestion = bestSuggestion(lower, visible);
+    const suggestion = bestSuggestion(lower, visible, declared);
     const params: Record<string, unknown> =
       suggestion === undefined ? { name: raw } : { name: raw, suggestion };
 
