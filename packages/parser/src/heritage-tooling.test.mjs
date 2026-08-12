@@ -97,7 +97,11 @@ function commandAliasCall(alias) {
 const VALUE_OF_KEY_KEYWORDS = ["value", "for", "key"];
 
 const HERITAGE_PROFILES = ["core-language", "data", "heritage"];
-const CORE_PROFILES = ["core-language", "data"];
+// The negative (unknown-command) direction is checked with the MINIMAL profile set — pure Core, no
+// Data — so a passing negative proves each Heritage spelling is unknown without relying on any other
+// profile being present (Data does not change these diagnostics; verified). Heritage-depends-on-Data
+// only matters in the positive direction, which uses HERITAGE_PROFILES above.
+const CORE_PROFILES = ["core-language"];
 
 /**
  * One whole Heritage program placing every shape in an awkward position: the `to … output … op`
