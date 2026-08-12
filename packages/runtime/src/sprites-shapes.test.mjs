@@ -192,3 +192,44 @@ test("set_shape does not change a turtle's identity (== still holds after set_sh
   const [print] = result.events.filter((event) => event.kind === "print");
   assert.deepEqual(print.payload.values, [true]);
 });
+
+test("clear_screen under tell stamps its single clear event with the homed turtle's id", () => {
+  // `clear_screen` is a canvas-global command: it emits exactly one `clear` event, not one per
+  // addressed turtle. But its homing acts on the current turtle, so under explicit addressing that
+  // one event carries the homed turtle's `turtle_id` — letting a per-turtle state reducer home the
+  // turtle the runtime actually homed instead of assuming the main turtle.
+  const result = execute(
+    ":a = new_turtle\ntell [ :a ]\nforward 10\nclear_screen",
+    "main.logo",
+  );
+  assert.deepEqual(result.diagnostics, []);
+  const clears = of(result.events, "clear");
+  assert.equal(clears.length, 1);
+  assert.equal(clears[0].turtle_id, 1);
+  assert.deepEqual(clears[0].payload, { mode: "clear_screen" });
+});
+
+test("clear_screen before any tell emits one un-stamped clear (main turtle)", () => {
+  // Implicit main turtle: no `tell` has run, so addressing is implicit and the `clear` event carries
+  // no `turtle_id`, exactly as the pre-slice Turtle & Rendering `clear` fixtures.
+  const result = execute("forward 10\nclear_screen", "main.logo");
+  assert.deepEqual(result.diagnostics, []);
+  const clears = of(result.events, "clear");
+  assert.equal(clears.length, 1);
+  assert.equal(clears[0].turtle_id, undefined);
+});
+
+test("clean under tell stamps its clear event but does not home the turtle", () => {
+  // `clean` clears only the drawing; it homes no turtle. Under explicit addressing the single clear
+  // event still carries the current turtle's id (harmless — a `clean` clear changes no per-turtle
+  // state), keeping attribution uniform with `clear_screen`.
+  const result = execute(
+    ":a = new_turtle\ntell [ :a ]\nforward 10\nclean",
+    "main.logo",
+  );
+  assert.deepEqual(result.diagnostics, []);
+  const clears = of(result.events, "clear");
+  assert.equal(clears.length, 1);
+  assert.equal(clears[0].turtle_id, 1);
+  assert.deepEqual(clears[0].payload, { mode: "clean" });
+});

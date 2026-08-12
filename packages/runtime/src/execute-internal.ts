@@ -627,22 +627,36 @@ function isTurtleClearCall(statement: StatementNode): boolean {
  * merged) fold a `clear{mode:"clear_screen"}` event into a position/heading reset themselves, so
  * emitting `move`/`turn` here as well would double-home the reducer's turtle state. This mirrors
  * how {@link setVisibility}/{@link setPen} emit only their own single event, not a compound one.
+ *
+ * Still exactly one `clear` event, but under explicit addressing (`tell`/`ask`/`each`) it carries
+ * the homed turtle's `turtle_id` (`addressing.currentId`) so a per-turtle state reducer homes the
+ * turtle the runtime actually homed rather than assuming the main turtle; before any `tell` it stays
+ * un-stamped, exactly as the pre-slice Turtle & Rendering `clear` fixtures expect.
  */
 function clearScreen(
   environment: Environment,
   mode: "clear_screen" | "clean",
   source_span: SourceSpan,
 ): void {
-  const { turtle } = environment;
+  const { turtle, addressing } = environment;
   if (mode === "clear_screen") {
     turtle.x = 0;
     turtle.y = 0;
     turtle.heading = 0;
   }
+  // The canvas clear is emitted once (not per turtle — see {@link isPerTurtleCommand}), but
+  // `clear_screen`'s homing acts on the *current* turtle. Once `tell`/`ask`/`each` has made the
+  // addressed set explicit that current turtle need not be the main turtle, so the single `clear`
+  // event carries `addressing.currentId` — exactly the `turtle_id` {@link stampTurtleId} would put
+  // on a per-turtle event — so a per-turtle state reducer homes the turtle the runtime actually
+  // homed instead of guessing the main turtle. Before any `tell` (`explicit === false`) the event
+  // stays un-stamped, matching every Turtle & Rendering `clear` fixture emitted before this slice.
+  const turtle_id = addressing.explicit ? addressing.currentId : undefined;
   environment.events.push({
     seq: environment.events.length,
     kind: "clear",
     source_span,
+    ...(turtle_id === undefined ? {} : { turtle_id }),
     payload: { mode } satisfies ClearPayload,
   });
 }
@@ -2855,9 +2869,10 @@ function dispatchProfileStatement(
  * The canvas-global turtle commands are deliberately excluded: `set_background`, `grid`, `axes`, and
  * `measure` describe the drawing surface, not one turtle's avatar, so they run once regardless of
  * how many turtles are addressed. `clear_screen`/`clean` is also excluded — it clears the whole
- * canvas (one `clear` event) and homes only the current turtle, exactly as before this slice; a
- * per-turtle multiplication would emit N `clear` events for one canvas clear, which no renderer
- * expects (`clearScreen`'s doc comment).
+ * canvas (one `clear` event) and homes only the current turtle; a per-turtle multiplication would
+ * emit N `clear` events for one canvas clear, which no renderer expects. Under explicit addressing
+ * that single event is stamped with the homed turtle's `turtle_id` (see {@link clearScreen}), so it
+ * stays one event yet still names which turtle was homed (`clearScreen`'s doc comment).
  */
 function isPerTurtleCommand(statement: StatementNode): boolean {
   return (

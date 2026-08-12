@@ -166,7 +166,10 @@ test("a clean clear leaves per-turtle state untouched", () => {
   assert.deepEqual(world.get(1).position, [0, 50]);
 });
 
-test("a clear_screen clear homes the addressed turtle only", () => {
+test("a stamped clear_screen clear homes only the turtle it names", () => {
+  // The runtime stamps a `clear_screen`'s single `clear` event with the homed turtle's `turtle_id`
+  // under explicit addressing (`tell`/`ask`/`each`), so the reducer homes exactly that turtle and
+  // leaves every other turtle's state untouched (`clearScreen`'s doc comment in the runtime).
   const world = OL.reduceTurtleWorldEvents([
     spawn(1),
     event("move", { from: [0, 0], to: [0, 50], heading: 90 }, 1),
@@ -177,6 +180,17 @@ test("a clear_screen clear homes the addressed turtle only", () => {
   assert.equal(world.get(1).heading, 0);
   assert.deepEqual(world.get(0).position, [10, 0]);
   assert.equal(world.get(0).heading, 45);
+});
+
+test("an un-stamped clear_screen clear homes the main turtle", () => {
+  // Before any `tell` the runtime emits `clear` with no `turtle_id`; it homes the main turtle (id
+  // 0), matching the pre-slice single-turtle reducer and Turtle & Rendering `clear` fixtures.
+  const world = OL.reduceTurtleWorldEvents([
+    event("move", { from: [0, 0], to: [7, 0], heading: 90 }, undefined),
+    event("clear", { mode: "clear_screen" }, undefined),
+  ]);
+  assert.deepEqual(world.get(0).position, [0, 0]);
+  assert.equal(world.get(0).heading, 0);
 });
 
 test("reduceTurtleWorldEvents defaults its seed to the initial world", () => {

@@ -54,13 +54,18 @@ export const MAIN_TURTLE_ID: TurtleId = 0;
 export type TurtleWorldState = ReadonlyMap<TurtleId, TurtleState>;
 
 /**
- * The program-start world: just the main turtle at its {@link INITIAL_TURTLE_STATE}. Frozen and
- * shared, like {@link INITIAL_TURTLE_STATE} itself; every reducer call returns a fresh map rather
- * than mutating this one, so it is safe to reuse as the seed for any fold.
+ * The program-start world: just the main turtle at its {@link INITIAL_TURTLE_STATE}. Shared as the
+ * default fold seed; every {@link reduceTurtleWorldState} call copies the world before mutating
+ * (`new Map(world)`), so this instance is never written through internally. It is typed
+ * {@link TurtleWorldState} (a `ReadonlyMap`) so the compiler rejects `.set`/`.delete`/`.clear` on it
+ * — `Object.freeze` is deliberately *not* used here because it does not make a `Map`'s entries
+ * immutable (a frozen `Map` still honors `.set`), so it would give false assurance; the read-only
+ * type plus the copy-on-write fold is the actual guarantee.
  */
-export const INITIAL_TURTLE_WORLD_STATE: TurtleWorldState = Object.freeze(
-  new Map<TurtleId, TurtleState>([[MAIN_TURTLE_ID, INITIAL_TURTLE_STATE]]),
-) as TurtleWorldState;
+export const INITIAL_TURTLE_WORLD_STATE: TurtleWorldState = new Map<
+  TurtleId,
+  TurtleState
+>([[MAIN_TURTLE_ID, INITIAL_TURTLE_STATE]]);
 
 /**
  * Reduces one trace event into the next per-turtle world state. A `spawn-turtle` event registers
