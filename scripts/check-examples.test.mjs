@@ -342,11 +342,12 @@ test("detectUsedProfiles finds heritage for the 'make' assignment spelling", () 
   assert.deepEqual(detectUsedProfiles('make "x" 1\n'), ["heritage"]);
 });
 
-test("detectUsedProfiles finds heritage for the 'to'/'output'/'op' reserved words (fifth review round)", () => {
-  // Fifth review round (rubber-duck-v10): to/output/op have NO Call/ParenCall — or any other —
-  // AST production at all (packages/parser/src/parser.ts's NON_PRIMARY_NAMES), so an example
-  // using them always produces an ol-bad-token diagnostic naming the exact reserved word; that
-  // diagnostic, not any AST node, is what RESERVED_WORD_PROFILES scans for.
+test("detectUsedProfiles finds heritage for the 'to'/'output'/'op' spellings via their AST nodes", () => {
+  // As of issue #667 (slice H2) `to`/`output`/`op` parse into real AST nodes — `ProcedureDef`
+  // with `keyword: "to"` and `Return` with `keyword: "output"/"op"` — NOT the `ol-bad-token`
+  // diagnostic they produced before, so detectUsedProfiles recognizes them from those node shapes
+  // in its walk (see #701: this detector keys on AST shape, so a form gaining a production moves
+  // its detection off the vanished diagnostic and onto the node).
   assert.deepEqual(
     detectUsedProfiles("to draw_tick :size\nforward :size\nend\n"),
     ["heritage"],
@@ -356,10 +357,11 @@ test("detectUsedProfiles finds heritage for the 'to'/'output'/'op' reserved word
 });
 
 test("detectUsedProfiles does NOT flag heritage for 'to' in its three legitimate non-Heritage roles (for-range bound, set-assignment preposition, add-to-list preposition)", () => {
-  // `to` is also a plain keyword in three grammar productions that consume it with zero
-  // diagnostics (spec/grammar.md:104, :113, :128) — the reserved-word scan must not conflate
-  // those with the Heritage `to … end` procedure-definition spelling, or a plain example using
-  // one of them would be spuriously flagged as needing Heritage (breaking acceptance criterion 3).
+  // `to` is also a plain keyword in three grammar productions (spec/grammar.md:104, :113, :128)
+  // where it appears mid-statement, never as a statement opener — so the reader never dispatches
+  // `parseProcedureDef` for them and no `ProcedureDef keyword:"to"` node results, so a plain
+  // example using one of them is never spuriously flagged as needing Heritage (acceptance
+  // criterion 3).
   assert.deepEqual(detectUsedProfiles("for i from 1 to 5 [ print :i ]\n"), []);
   assert.deepEqual(detectUsedProfiles("local x\nset x to 5\nprint :x\n"), []);
   // `add … to …` is itself a Data-profile construct (rubber-duck-v11 review), so this must

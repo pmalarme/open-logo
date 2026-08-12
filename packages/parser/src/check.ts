@@ -14,7 +14,10 @@
  * here; #113's `ol-undefined-var`/`ol-reserved-word` (alongside #79/#113's completed
  * `ol-not-a-place`) are the third; #114's `ol-return-outside-proc`/`ol-stop-outside-proc`/
  * `ol-return-in-comprehension`/`ol-no-value`/`ol-duplicate-binder` control-flow statics are the
- * last Layer-2 (error) rule registered.
+ * last Layer-2 (error) rule registered. Issue #667's Heritage form-head gate
+ * (`checker-heritage-form.ts`) registers second, right after `ol-unknown-command`, since it too
+ * reports an `ol-unknown-command` for an unrecognized command spelling — the Heritage
+ * `make`/`to`/`output`/`op` heads when the Heritage profile is inactive.
  *
  * Layer-3 style lints (issue #115) are a **separate, opt-in** {@link STYLE_RULES} array, run
  * only when `options.style === true` (default off). Style rules MUST NOT run unconditionally:
@@ -28,6 +31,7 @@ import type { Diagnostic } from "@openlogo/core";
 import type { ProgramNode } from "./ast.js";
 import { arityRule } from "./checker-arity.js";
 import { controlFlowRule } from "./checker-control-flow.js";
+import { heritageFormRule } from "./checker-heritage-form.js";
 import { notAPlaceRule } from "./checker-not-a-place.js";
 import { reservedWordRule } from "./checker-reserved-word.js";
 import { STYLE_RULES } from "./checker-style.js";
@@ -130,6 +134,7 @@ export type CheckRule = (
  */
 const RULES: readonly CheckRule[] = [
   unknownCommandRule,
+  heritageFormRule,
   unknownTypeRule,
   unknownFieldRule,
   arityRule,

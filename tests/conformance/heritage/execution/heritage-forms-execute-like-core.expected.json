@@ -1,0 +1,88 @@
+{
+  "description": "Heritage forms execute through the identical Core code path (issue #667, slice H2): `to … end` (procedure def), `op` (return), and `make` (assign) produce a trace whose `statement_kind`s are the Core node kinds `ProcedureDef`/`Return`/`Assign` — NOT any Heritage-specific kind — because Heritage adds 'alternate spellings only, no new semantics' (spec/conformance.md#heritage) and the runtime is spelling-blind. The program defines `double` with `to`/`op`, assigns `:size` with `make`, and prints `double :size` = 20, exactly as the `define`/`return`/`set` spelling would.",
+  "profiles": ["core-language", "data", "heritage"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-forms-execute-like-core",
+        "start": [1, 1],
+        "end": [3, 4]
+      },
+      "payload": { "statement_kind": "ProcedureDef" }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-forms-execute-like-core",
+        "start": [4, 1],
+        "end": [4, 15]
+      },
+      "payload": { "statement_kind": "Assign" }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-forms-execute-like-core",
+        "start": [5, 1],
+        "end": [5, 19]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 3,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "heritage/execution/heritage-forms-execute-like-core",
+        "start": [5, 7],
+        "end": [5, 19]
+      },
+      "payload": { "name": "double", "args": [10] }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-forms-execute-like-core",
+        "start": [2, 3],
+        "end": [2, 12]
+      },
+      "payload": { "statement_kind": "Return" }
+    },
+    {
+      "seq": 5,
+      "kind": "return",
+      "source_span": {
+        "document": "heritage/execution/heritage-forms-execute-like-core",
+        "start": [2, 3],
+        "end": [2, 12]
+      },
+      "payload": { "value": 20 }
+    },
+    {
+      "seq": 6,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "heritage/execution/heritage-forms-execute-like-core",
+        "start": [5, 7],
+        "end": [5, 19]
+      },
+      "payload": { "name": "double", "result": 20 }
+    },
+    {
+      "seq": 7,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/heritage-forms-execute-like-core",
+        "start": [5, 1],
+        "end": [5, 19]
+      },
+      "payload": { "values": [20] }
+    }
+  ],
+  "diagnostics": []
+}

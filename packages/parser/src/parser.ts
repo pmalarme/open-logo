@@ -15,10 +15,13 @@
  * Scope for this slice is the Core surface: prefix calls, the precedence ladder, blocks,
  * assignment, `local`, dotted places (`:a.b.c`), worded `is`-predicates, comparison chains,
  * the parenthesized variadic `(and …)`/`(or …)`, and dict literals (`{ key: value … }`, the
- * Data profile's `dict-literal` production). Index/key selectors (`:a[i]`), struct and the
- * other Data forms, and the Heritage spellings (`make`/`to`/`output`/`op`/aliases) are handled
- * by their own later slices; until then those spellings degrade to ordinary calls or a
- * collected diagnostic rather than a crash.
+ * Data profile's `dict-literal` production). The Heritage assignment/procedure spellings
+ * `make`/`to`/`output`/`op` also parse structurally — into the same `Assign`/`ProcedureDef`/
+ * `Return` nodes as their Core equivalents, discriminated by `form`/`keyword` (issues #151, #667) —
+ * with their profile-legality (Heritage active?) left to the Layer-2 checker's form-head gate.
+ * Index/key selectors (`:a[i]`), struct and the other Data forms, and the remaining Heritage
+ * short-command aliases are handled by their own later slices; until then those spellings degrade
+ * to ordinary calls or a collected diagnostic rather than a crash.
  */
 
 import { makeSpan } from "@openlogo/core";
@@ -32,8 +35,10 @@ import type {
   ExpressionNode,
   NumberLitNode,
   PlaceSegment,
+  ProcedureDefNode,
   ProcedureParam,
   ProgramNode,
+  ReturnNode,
   SpannedName,
   StatementNode,
   WordLitNode,
@@ -157,11 +162,33 @@ const PROFILE_STATEMENT_FORMS: ReadonlyMap<string, ProfileStatementForm> =
   ]);
 
 /**
- * Pre-scan the token stream for the two user-declared forms that register a callable name, so a
- * later prefix call to either knows how many arguments to gather:
+ * Whether the token at index `k` begins a statement — i.e. it is the first token of the stream, the
+ * previous token is a statement terminator (`newline`), or the previous token opens a block (`[`), so
+ * the first statement inside an inline block body counts too. Used by {@link collectUserArities} to
+ * distinguish the Heritage procedure *opener* `to` (statement-leading) from `to`'s mid-statement
+ * reserved roles (`set … to`, `for … from … to`, and the Data `add … to <list>` preposition,
+ * `spec/grammar.md:365`), so only the opener registers a callable arity. Including `[` keeps a
+ * nested `[to f :x … end …]` procedure registering its arity exactly as the equivalent nested
+ * `define` already does — the mid-statement `to` prepositions never sit directly after `[` (their
+ * operands always come between the block opener and the `to`), so widening the start set stays safe.
+ */
+function atStatementStart(tokens: readonly LexToken[], k: number): boolean {
+  if (k === 0) {
+    return true;
+  }
+  const previous = (tokens[k - 1] as LexToken).kind;
+  return previous === "newline" || previous === "lbracket";
+}
+
+/**
+ * Pre-scan the token stream for the user-declared forms that register a callable name, so a
+ * later prefix call to any of them knows how many arguments to gather:
  *
  * - `define <name> :p …` — a user procedure; its default arity is the count of leading required
  *   `:name` parameters (an optional `( :name default )` parameter does not count).
+ * - `to <name> :p …` — the Heritage alternate procedure spelling (`spec/grammar.md:146`), which
+ *   registers a callable of the same default arity as `define`, gated to a statement-leading `to`
+ *   so `to`'s mid-statement preposition roles never mis-register a following name.
  * - `struct <name> [ f1 f2 … ]` — a Data-profile record type whose type name becomes a constructor
  *   reporter (`spec/data-structures.md:254,264`); its arity is the declared field count. Without
  *   this, a bare constructor call like `point 3 4` would read `point` as a zero-arity call and
@@ -191,7 +218,18 @@ function collectUserArities(
     if (nameTok.kind !== "name") {
       continue;
     }
-    if (headText === "define") {
+    if (
+      headText === "define" ||
+      (headText === "to" && atStatementStart(tokens, k))
+    ) {
+      // `to` is the Heritage alternate spelling of `define` (`spec/grammar.md:146`), so a
+      // `to <name> :p …` procedure registers a callable of the same default arity — the count of
+      // leading `:name` parameters — exactly as `define` does, so a later bare call to it groups
+      // its arguments correctly. `to` has three contextual reserved roles (`spec/grammar.md:365`):
+      // only the Heritage procedure *opener* begins a statement, whereas the `set … to` and
+      // `for … from … to` prepositions and the Data `add … to <list>` preposition all appear
+      // mid-statement — so {@link atStatementStart} gates this to the opener alone and never
+      // mis-registers the `<list>` name in `add 3 to colors` as a procedure.
       let arity = 0;
       for (let j = k + 2; j < tokens.length; j += 1) {
         if ((tokens[j] as LexToken).kind !== "variable") {
@@ -1566,9 +1604,25 @@ export function parse(source: string, document = "<input>"): ParseResult {
         case "for":
           return parseFor();
         case "define":
-          return parseProcedureDef();
+          return parseProcedureDef("define");
+        case "to":
+          // `to` is a contextual keyword with three non-procedure roles (`set … to`,
+          // `for … from … to`, and the Data `add … to <list>` preposition, `spec/grammar.md:365`).
+          // It opens a Heritage procedure ONLY when a name follows it (`to <name> …`); anything
+          // else — including a `to` reached during error recovery of a malformed `set :x to 100` —
+          // is not a definition, so fall through to the generic token handling that already
+          // reports it, rather than mis-entering `parseProcedureDef` and cascading a spurious
+          // diagnostic on the token after `to`.
+          if (peek(1).kind === "name") {
+            return parseProcedureDef("to");
+          }
+          break;
         case "return":
-          return parseReturn();
+          return parseReturn("return");
+        case "output":
+          return parseReturn("output");
+        case "op":
+          return parseReturn("op");
         case "stop":
           return parseStop();
         case "throw":
@@ -2122,7 +2176,21 @@ export function parse(source: string, document = "<input>"): ParseResult {
     return undefined;
   }
 
-  function parseProcedureDef(): StatementNode | undefined {
+  /**
+   * Parse a procedure definition: Core `define name :params… <body> end`
+   * (`define-statement`, `spec/grammar.md:145`) or the Heritage alternate spelling
+   * `to name :params… <body> end` (`to-statement`, `spec/grammar.md:146`). Both share the identical
+   * grammar after the opener keyword and the same `define-end ::= "end" [ "define" ]` closer
+   * (`spec/grammar.md:147`, `spec/style.md:287` — a `to` body closes with `end` or `end define`,
+   * never `end to`), so `to` reuses this whole function and every diagnostic label ("define"): the
+   * only difference is the {@link ProcedureDefNode} `keyword` recorded, which the Layer-2 Heritage
+   * form-head gate (issue #667) consults to reject `to` when the Heritage profile is inactive. `to`
+   * reaches here only as a *statement opener*; its other reserved-word roles (`set … to`,
+   * `for … from … to`) consume the word inside those parsers and never dispatch here.
+   */
+  function parseProcedureDef(
+    keyword: ProcedureDefNode["keyword"],
+  ): StatementNode | undefined {
     const defTok = current();
     advance();
     const nameTok = current();
@@ -2173,10 +2241,19 @@ export function parse(source: string, document = "<input>"): ParseResult {
     }
     const body = parseLongBlock("define", defTok.source_span);
     const span = spanToHere(defTok.source_span.start);
-    return ast.procedureDef(name, params, body, span);
+    return ast.procedureDef(keyword, name, params, body, span);
   }
 
-  function parseReturn(): StatementNode | undefined {
+  /**
+   * Parse a return statement: Core `return value` or the Heritage alternate spellings
+   * `output value` / `op value` (`return-statement`, `spec/grammar.md:150`). All three share the
+   * identical grammar and lower to the same {@link ReturnNode}; `keyword` records the surface word
+   * only so the Layer-2 Heritage form-head gate (issue #667) can reject `output`/`op` when the
+   * Heritage profile is inactive.
+   */
+  function parseReturn(
+    keyword: ReturnNode["keyword"],
+  ): StatementNode | undefined {
     const token = current();
     advance();
     const value = parseExpression();
@@ -2185,7 +2262,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
       return undefined;
     }
     return ast.returnStmt(
-      "return",
+      keyword,
       value,
       spanFrom(token.source_span.start, value),
     );
