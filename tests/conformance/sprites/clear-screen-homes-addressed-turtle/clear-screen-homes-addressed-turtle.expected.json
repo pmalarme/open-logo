@@ -1,0 +1,120 @@
+{
+  "description": "issue #677 (SP5): `clear_screen` is a canvas-global command emitting exactly one `clear` event (not one per addressed turtle), but its homing acts on the current turtle. Under `tell [ :a ]` the single `clear` event carries the homed turtle's `turtle_id` (1) so a per-turtle state reducer homes exactly :a — the turtle the runtime actually homed — not the main turtle (clearScreen's doc comment; spec/rendering.md's \"Clear operations\").",
+  "profiles": ["sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/clear-screen-homes-addressed-turtle/clear-screen-homes-addressed-turtle",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/clear-screen-homes-addressed-turtle/clear-screen-homes-addressed-turtle",
+        "start": [1, 6],
+        "end": [1, 16]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/clear-screen-homes-addressed-turtle/clear-screen-homes-addressed-turtle",
+        "start": [2, 1],
+        "end": [2, 12]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/clear-screen-homes-addressed-turtle/clear-screen-homes-addressed-turtle",
+        "start": [3, 1],
+        "end": [3, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/clear-screen-homes-addressed-turtle/clear-screen-homes-addressed-turtle",
+        "start": [3, 1],
+        "end": [3, 11]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/clear-screen-homes-addressed-turtle/clear-screen-homes-addressed-turtle",
+        "start": [3, 1],
+        "end": [3, 11]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/clear-screen-homes-addressed-turtle/clear-screen-homes-addressed-turtle",
+        "start": [4, 1],
+        "end": [4, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "clear",
+      "source_span": {
+        "document": "sprites/clear-screen-homes-addressed-turtle/clear-screen-homes-addressed-turtle",
+        "start": [4, 1],
+        "end": [4, 13]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "mode": "clear_screen"
+      }
+    }
+  ],
+  "diagnostics": []
+}
