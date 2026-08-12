@@ -27,16 +27,25 @@
 // exists would let a program check clean and then fail at runtime — a false tooling claim, worse
 // for a learner than the honest `ol-unknown-command`. Its tooling ships with its evaluator.
 //
-// Highlighting is **profile-blind by design** — `highlight()`/`semanticTokens()` take no profile
-// argument (`spec/tooling.md:26`, and lines 175-176 scope profile-awareness to the *checker*/reader,
-// not the highlighter). So every one of the five names classifies as `primitive` +
-// `defaultLibrary`, exactly as the Sprites and Sound names do — never `keyword`, which the
-// highlighter reserves for the profile-independent Core reserved words. This mirrors the reusable
-// shape `sound-tooling.test.mjs`/`sprites-tooling.test.mjs` established for the M5 tooling slices.
+// Highlighting is currently **profile-blind**: `highlight()`/`semanticTokens()` take no active-
+// profile argument, so they emit the profile-neutral fallback `primitive` for all five names. Note
+// this is a KNOWN DEVIATION from the normative token-class model, not the final word:
+// `spec/tooling.md:30` puts "profile block-heads when their profile is active" in the `keyword`
+// class, so under an active `interaction-events` profile the four block-heads SHOULD ultimately be
+// `keyword`. The parser cannot express that yet — giving the highlighter a profile set changes one
+// of the four shared cross-package contracts and is tracked as its own serialized slice, issue
+// #740. `wait` is unaffected either way: it is an ordinary Kind-C primitive, so `primitive` is its
+// correct final class (as it is for the Sound commands, `spec/interaction-events.md`: "Sound
+// command names are ordinary primitive names when the Sound profile is present").
+//
+// The assertions below therefore lock TODAY's profile-neutral fallback so the behavior is
+// intentional and visible rather than accidental — matching `sound-tooling.test.mjs` and
+// `sprites-tooling.test.mjs`. #740 updates all three together.
 //
 // Every name is exercised in **awkward positions** — inside a `[ … ]` instruction block, inside
-// `repeat`, and nested in a procedure body — via one shared whole-program constant, so a regression
-// that only handled a top-level occurrence (or only a subset of the five names) cannot slip through.
+// `repeat`, inside an `if`, and nested in a procedure body — via one shared whole-program constant,
+// so a regression that only handled a top-level occurrence (or only a subset of the five names)
+// cannot slip through.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -339,7 +348,8 @@ test("check: `wait` is a primitive, so redefining it under an active profile rai
   // `OL_PROFILE_RESERVED_WORDS`), but `spec/tooling.md:184` makes redefining a *primitive*
   // `ol-reserved-word` all the same, with `namespace: "primitive"` rather than `"reserved"`.
   // Sound's identically-shaped `set_tempo`, Geometry's `grid`, and Data's `list` already behaved
-  // this way; before I8 `wait` was the one profile primitive a program could silently shadow.
+  // this way; before I8 `wait` was the only one of those four profiles' primitives a program could
+  // silently shadow.
   for (const primitive of Object.keys(INTERACTION_PRIMITIVES)) {
     const [finding, ...rest] = checkDiagnostics(
       `define ${primitive}\nend`,
