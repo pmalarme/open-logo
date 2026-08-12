@@ -1,0 +1,92 @@
+{
+  "description": "issue #681 (slice I2), the observable half of the BLOCKING property: `spec/interaction-events.md:108-111` — while `input` is waiting the implementation \"MUST NOT run new OpenLogo instructions or event handler blocks until the read finishes or the program is cancelled.\" A key `a` is pending from tick 0 and an `on_key \"a\"` handler is registered, yet the read delivers nothing: the stream contains the handler REGISTRATION `primitive`, the read`s own `primitive`, and the final `print` of the answer — no `handler ran`. Its control twin `input-blocking-control-wait-delivers` runs the identical program with `wait 0` in the reading position and the SAME pending key, and there the handler DOES fire; the pair is what makes this an assertion rather than a vacuous absence. A fixture cannot prove the property in full — with a scripted answer the read returns immediately, so there is no waiting interval a headless fold can observe — so the complete proof, including that a read never advances the tick clock (no `every` can come due), lives in `packages/runtime/src/interaction-input-blocking.test.mjs`.",
+  "profiles": ["core-language", "turtle-rendering", "interaction-events"],
+  "execute": true,
+  "executeOptions": {
+    "hostInput": {
+      "events": [
+        {
+          "tick": 0,
+          "kind": "key",
+          "key": "a"
+        }
+      ],
+      "responses": ["tom"]
+    }
+  },
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/input/input-does-not-deliver-handlers",
+        "start": [1, 1],
+        "end": [1, 35]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/input/input-does-not-deliver-handlers",
+        "start": [1, 1],
+        "end": [1, 35]
+      },
+      "payload": {
+        "name": "on_key"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/input/input-does-not-deliver-handlers",
+        "start": [2, 1],
+        "end": [2, 32]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/input/input-does-not-deliver-handlers",
+        "start": [2, 11],
+        "end": [2, 32]
+      },
+      "payload": {
+        "name": "input"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/input/input-does-not-deliver-handlers",
+        "start": [3, 1],
+        "end": [3, 14]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/input/input-does-not-deliver-handlers",
+        "start": [3, 1],
+        "end": [3, 14]
+      },
+      "payload": {
+        "values": ["tom"]
+      }
+    }
+  ],
+  "diagnostics": []
+}

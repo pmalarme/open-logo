@@ -115,13 +115,19 @@ export function discoverFixtures(root = ROOT) {
 }
 
 /**
- * Validate `ExecuteOptions.hostInput` (issue #686, slice I7): a fixture-supplied, tick-scheduled
- * list of the key presses, clicks, and named events a host would deliver, so a headless conformance
- * fixture can prove handlers fire in the normative same-tick order. Returns `null` when valid, or an
+ * Validate `ExecuteOptions.hostInput` (issue #686, slice I7; extended by #681, slice I2): the host
+ * side of a headless run. It carries two independent fields, each optional:
+ *
+ *   - `events` — a tick-scheduled list of the key presses, clicks, and named events a host would
+ *     deliver, so a fixture can prove handlers fire in the normative same-tick order.
+ *   - `responses` — the scripted answers this run's `input` reads consume in order
+ *     ({@link validateHostResponses}).
+ *
+ * Returns `null` when valid, or an
  * error string naming the first offending entry/field. Validated as strictly as `signal` so a
  * malformed schedule is rejected here rather than silently ignored by `execute()` (the durable-false-
- * claim hole the harness closes elsewhere). Each entry must be a plain object with a numeric `tick`
- * and a discriminated `kind`:
+ * claim hole the harness closes elsewhere). Each `events` entry must be a plain object with a
+ * numeric `tick` and a discriminated `kind`:
  *   - `{ tick, kind: "key",   key }`   — `key` a string (the pressed key word)
  *   - `{ tick, kind: "click" }`        — no further field
  *   - `{ tick, kind: "event", event }` — `event` a string (the delivered named event)
@@ -130,10 +136,10 @@ export function discoverFixtures(root = ROOT) {
  */
 function validateHostInput(hostInput) {
   // `hostInput` is an OBJECT (issue #686, slice I7 — mirrors `ExecuteOptions.hostInput`), not the
-  // bare `events` array, so issue #681 can add scripted `input` `responses` beside `events` without
+  // bare `events` array, so issue #681's scripted `input` `responses` sit beside `events` without
   // reshaping this seam or migrating any fixture, per the maintainer's #657 ruling. Reject unknown
-  // keys inside it — naming the allowed keys — so a typo'd sub-key (`event`, `evetns`) cannot mask a
-  // delivery that never happens, and so adding `responses` here later is a one-line extension.
+  // keys inside it — naming the allowed keys — so a typo'd sub-key (`event`, `evetns`, `response`)
+  // cannot mask a delivery or an answer that never happens.
   if (
     typeof hostInput !== "object" ||
     hostInput === null ||
@@ -141,15 +147,15 @@ function validateHostInput(hostInput) {
   ) {
     return `"executeOptions.hostInput" must be an object when present`;
   }
-  // `responses` (issue #681's scripted `input` answers, #657 ruling) is reserved but NOT accepted by
-  // this slice: I7 has no `input` reader, so a fixture supplying it would prove nothing. It is
-  // deliberately omitted from the allow-list below so it is rejected until #681 wires it up — the
-  // one-line extension is to add "responses" here and validate it then.
-  const ALLOWED_HOST_INPUT_KEYS = new Set(["events"]);
+  const ALLOWED_HOST_INPUT_KEYS = new Set(["events", "responses"]);
   for (const key of Object.keys(hostInput)) {
     if (!ALLOWED_HOST_INPUT_KEYS.has(key)) {
       return `"executeOptions.hostInput.${key}" is not a known hostInput key (known keys: ${[...ALLOWED_HOST_INPUT_KEYS].join(", ")})`;
     }
+  }
+  const responsesError = validateHostResponses(hostInput.responses);
+  if (responsesError !== null) {
+    return responsesError;
   }
   if (hostInput.events === undefined) {
     return null;
@@ -189,6 +195,36 @@ function validateHostInput(hostInput) {
       if (!ALLOWED_KEYS[entry.kind].has(key)) {
         return `${at} has an unexpected field "${key}" for kind "${entry.kind}"`;
       }
+    }
+  }
+  return null;
+}
+
+/**
+ * Validate `ExecuteOptions.hostInput.responses` (issue #681, slice I2): the scripted answers a
+ * fixture's `input` reads consume, in order, so a headless conformance fixture can prove the
+ * blocking reader's number-vs-word rule and its after-effects without a real input device — the
+ * maintainer's #657 ruling that `input` is tested by **mocking the answer**, with no new event kind.
+ * Returns `null` when valid (including when absent), or an error string naming the first offending
+ * entry.
+ *
+ * Each entry MUST be a **string**: it is the raw text a learner would have typed, and `input`
+ * classifies it as a number or a word by parsing it (`spec/interaction-events.md:136-137`). A
+ * fixture writing the bare JSON number `42` instead of `"42"` is therefore rejected here rather than
+ * silently reaching `execute()` — it would look like proof of the number branch while actually
+ * skipping the very parse that branch is about. Validated as strictly as `events` above, for the
+ * same durable-false-claim reason.
+ */
+function validateHostResponses(responses) {
+  if (responses === undefined) {
+    return null;
+  }
+  if (!Array.isArray(responses)) {
+    return `"executeOptions.hostInput.responses" must be an array when present`;
+  }
+  for (let index = 0; index < responses.length; index += 1) {
+    if (typeof responses[index] !== "string") {
+      return `"executeOptions.hostInput.responses[${index}]" must be a string (the raw text the learner typed — write "42", not 42)`;
     }
   }
   return null;

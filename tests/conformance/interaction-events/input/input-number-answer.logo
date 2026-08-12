@@ -1,0 +1,2 @@
+:answer = input "how old are you?"
+print :answer + 1

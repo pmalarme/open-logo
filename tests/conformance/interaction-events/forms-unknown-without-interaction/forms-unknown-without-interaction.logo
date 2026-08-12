@@ -1,4 +1,5 @@
 wait 1
+:answer = input "who is there?"
 when "start" [ forward 1 ]
 every 2 [ forward 1 ]
 on_key "a" [ forward 1 ]

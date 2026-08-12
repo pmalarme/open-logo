@@ -1,0 +1,61 @@
+{
+  "description": "issue #681 (slice I2), the NUMBER half of the number-vs-word rule: `spec/interaction-events.md:136-137` — \"If the submitted text parses as an OpenLogo number literal, the reporter returns a number.\" The scripted answer is the TEXT \"42\" (the raw characters a learner would type), and the read reports the NUMBER 42, proven by arithmetic rather than by printed text: `:answer + 1` prints 43, which only a number can do — the word \"42\" would raise `ol-type` instead. Pair with `input-word-answer`, which scripts a non-numeral through the identical program shape. Per the maintainer's #657 ruling `input` is tested by MOCKING the answer through `executeOptions.hostInput.responses` (a FIFO consumed in order by each `input` call), and the read introduces NO new event kind: it emits the ordinary catch-all `primitive` event named `input` (`spec/interaction-events.md:105-106`) AFTER the read finishes, so `spec/execution-model.md`'s trace/event registry is unchanged. The payload carries only `name` — never the prompt or the submitted text — and no `turtle-id`, because a read concerns no turtle.",
+  "profiles": ["core-language", "turtle-rendering", "interaction-events"],
+  "execute": true,
+  "executeOptions": {
+    "hostInput": {
+      "responses": ["42"]
+    }
+  },
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/input/input-number-answer",
+        "start": [1, 1],
+        "end": [1, 35]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/input/input-number-answer",
+        "start": [1, 11],
+        "end": [1, 35]
+      },
+      "payload": {
+        "name": "input"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/input/input-number-answer",
+        "start": [2, 1],
+        "end": [2, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/input/input-number-answer",
+        "start": [2, 1],
+        "end": [2, 18]
+      },
+      "payload": {
+        "values": [43]
+      }
+    }
+  ],
+  "diagnostics": []
+}

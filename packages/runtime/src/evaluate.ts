@@ -94,6 +94,12 @@ import type { TickClock } from "./interaction.js";
 import { createEventHandlerRegistry } from "./interaction.js";
 import type { EventHandlerRegistry } from "./interaction.js";
 import type { HostInputEvent } from "./interaction.js";
+import {
+  emitInputPrimitive,
+  interpretSubmittedText,
+  isLearnerText,
+  takeInputResponse,
+} from "./interaction.js";
 import { createSoundState } from "./sound-state.js";
 import type { SoundState } from "./sound-state.js";
 import { defaultTutorTemplate } from "./tutor-templates.js";
@@ -364,6 +370,26 @@ export interface Environment {
    * the checkpoint is revisited every tick.
    */
   readonly hostInputConsumed: { count: number };
+  /**
+   * The scripted answers this run's `input` reads consume, in order (issue #681, slice I2 —
+   * `ExecuteOptions.hostInput.responses`, see `index.ts`, per the maintainer's #657 ruling that
+   * `input` is tested by mocking the answer with no new event kind). A **FIFO queue**: the first
+   * `input` call takes entry 0, the second entry 1, and so on ({@link takeInputResponse}). Empty
+   * (frozen `[]`) for every ordinary headless run, in which case the first `input` has no answer to
+   * take and the read ends the only other way `spec/interaction-events.md:110-111` allows — as a
+   * cancelled program ({@link runtimeDiag.inputNotAnswered}). Headless execution *input*, never
+   * observable in any event payload: the `primitive` event a read emits carries only the name
+   * `input`, never the prompt or the submitted text.
+   */
+  readonly hostResponses: readonly string[];
+  /**
+   * How many entries of {@link Environment.hostResponses} earlier `input` reads have already taken
+   * (issue #681). A mutable box (like `hostInputConsumed`) so the forward cursor is shared across
+   * every recursive `executeStatements`/`evaluate` call against this environment — a read inside a
+   * procedure, a loop body, or an event handler block draws from the same queue as a top-level one,
+   * and no answer is ever handed out twice.
+   */
+  readonly hostResponsesConsumed: { count: number };
 }
 
 /**
@@ -526,6 +552,8 @@ export function createEnvironment(): Environment {
     eventHandlers: createEventHandlerRegistry(),
     hostInput: [],
     hostInputConsumed: { count: 0 },
+    hostResponses: [],
+    hostResponsesConsumed: { count: 0 },
     // No real parsed program backs this bare environment, so `program` is a placeholder empty
     // `Program` node — safe because none of this package's own expression-only unit tests
     // exercise the Educational meta-commands (`execute-internal.ts`'s
@@ -1039,6 +1067,7 @@ export function isSupportedExpression(
         name === "new_turtle" ||
         name === "who" ||
         name === "turtles" ||
+        name === "input" ||
         procedures.has(name) ||
         structs.has(name);
       return (
@@ -2199,6 +2228,9 @@ function evaluateCall(
   }
   if (name === "turtles") {
     return evaluateTurtles(node, environment);
+  }
+  if (name === "input") {
+    return evaluateInput(node, environment);
   }
   if (environment.procedures.has(name)) {
     return environment.callProcedure(node, environment);
@@ -4544,6 +4576,66 @@ function evaluateTurtles(
     return fail(arityDiagnostic);
   }
   return ok(environment.turtleWorld.ids().map((id) => new OLTurtle(id)));
+}
+
+/**
+ * `input <prompt>` (Interaction & Events profile, issue #681, slice I2 —
+ * `spec/interaction-events.md:126-137`): a Kind-R reporter taking one prompt that displays the
+ * prompt, waits for the learner to enter one value, and reports it as a word or a number. It is
+ * "the only blocking read in OpenLogo v0.1 and belongs to this profile, not Core" (`:134-135`,
+ * `spec/conformance.md:167-169`).
+ *
+ * Four steps, in this order:
+ *
+ *   1. **Arity** — exactly one input, guarded here because `execute()` runs `parse()` without the
+ *      static checker, exactly like every other reporter.
+ *   2. **Prompt type** — a prompt that "cannot be displayed as learner text" raises `ol-type`
+ *      (`:131`); see {@link isLearnerText} for what qualifies and why the rule is narrower than
+ *      `print`'s.
+ *   3. **The read** — take the next scripted answer ({@link takeInputResponse}) from the run's FIFO
+ *      queue (`ExecuteOptions.hostInput.responses`, the #657 ruling). With no answer left the read
+ *      can never finish, so it takes the only other ending `:110-111` allows and the program is
+ *      cancelled ({@link runtimeDiag.inputNotAnswered}).
+ *   4. **The after-effect event** — one `primitive` event naming `input`, emitted *after* the answer
+ *      is in hand ({@link emitInputPrimitive}), then the value is reported per `:136-137`
+ *      ({@link interpretSubmittedText}).
+ *
+ * The **blocking** property (`:108-111` — while the read waits, no new OpenLogo instruction and no
+ * event handler block may run) is upheld by what this function does *not* do: it reaches no
+ * {@link yieldToEventLoop} checkpoint and never advances the tick clock, so no `when`/`on_key`/
+ * `on_click`/`every` handler can be delivered across a read, and the next instruction cannot start
+ * because evaluation has not returned. See `interaction.ts`'s header and
+ * `interaction-input-blocking.test.mjs`, which proves it differentially against `wait`.
+ */
+function evaluateInput(
+  node: ArithmeticCallNode,
+  environment: Environment,
+): EvalResult {
+  const arityDiagnostic = requireExactArgs(node, "input", 1);
+  if (arityDiagnostic !== undefined) {
+    return fail(arityDiagnostic);
+  }
+  const promptNode = arg(node, 0);
+  const promptResult = evaluate(promptNode, environment);
+  if (!promptResult.ok) {
+    return promptResult;
+  }
+  if (!isLearnerText(promptResult.value)) {
+    return fail(
+      runtimeDiag.inputPromptNotText(promptNode.source_span, {
+        actual: typeNameOf(promptResult.value),
+      }),
+    );
+  }
+  const answer = takeInputResponse(
+    environment.hostResponses,
+    environment.hostResponsesConsumed,
+  );
+  if (answer === undefined) {
+    return fail(runtimeDiag.inputNotAnswered(node.source_span));
+  }
+  emitInputPrimitive(environment.events, node.source_span);
+  return ok(interpretSubmittedText(answer));
 }
 
 /**

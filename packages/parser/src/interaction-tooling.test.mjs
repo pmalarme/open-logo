@@ -1,6 +1,7 @@
-// Unit tests for the **tooling** view of the Interaction & Events profile's five implemented names
-// — the block-heads `when`/`every`/`on_key`/`on_click` (issues #682–#685, slices I3–I6) and the
-// `wait <n>` primitive (issue #680, slice I1). This file is slice I8 of the Interaction epic #661
+// Unit tests for the **tooling** view of the Interaction & Events profile's six names — the
+// block-heads `when`/`every`/`on_key`/`on_click` (issues #682–#685, slices I3–I6), the `wait <n>`
+// primitive (issue #680, slice I1), and the `input <prompt>` reporter (issue #681, slice I2). This
+// file is slice I8 of the Interaction epic #661
 // (`spec/tooling.md`'s token classes + three checker layers, `spec/interaction-events.md`'s
 // "Profiles and reservation" section).
 //
@@ -12,31 +13,38 @@
 //      profile**"). Slices I3–I6 already taught the Layer-2 checker to treat them as visible
 //      command names (`interactionEventsBlockHeadNames` in `collectVisibleNames`), so this slice
 //      LOCKS that half with fixtures rather than re-adding it.
-//   2. `wait` is an ordinary Kind-C primitive in the arity table (`spec/interaction-events.md`'s
-//      "Profiles and reservation" table: `wait <n>` | C | number). I1 registered its *reader*
-//      arity but deliberately deferred its *checker visibility* to this slice; before I8 `wait`
-//      raised `ol-unknown-command` even under an active `interaction-events` profile — a profile
-//      whose own primitive is unknown is not conformant. I8 registers it in `collectVisibleNames`'
-//      `interaction-events` gate (via `interactionPrimitiveNames()`), so it now checks clean with
-//      the profile active and stays `ol-unknown-command` without it. I8 also gives `wait` the
-//      static arity range its fixed-arity shape requires, so a wrong input count is caught at
-//      `stage=semantic` exactly as Sound's identically-shaped `set_tempo` already was.
+//   2. `wait` and `input` are the profile's two ordinary calls (`spec/interaction-events.md:65`:
+//      "`input` and `wait` are ordinary calls and take no block") and live in the arity table — a
+//      Kind-C command taking one number and a Kind-R reporter taking one prompt
+//      (`spec/interaction-events.md`'s "Profiles and reservation" table). I1 registered `wait`'s
+//      *reader* arity but deliberately deferred its *checker visibility* to this slice; before I8
+//      `wait` raised `ol-unknown-command` even under an active `interaction-events` profile — a
+//      profile whose own primitive is unknown is not conformant. I8 registers it in
+//      `collectVisibleNames`' `interaction-events` gate (via `interactionPrimitiveNames()`), so it
+//      now checks clean with the profile active and stays `ol-unknown-command` without it. I8 also
+//      gives it the static arity range its fixed-arity shape requires, so a wrong input count is
+//      caught at `stage=semantic` exactly as Sound's identically-shaped `set_tempo` already was.
 //
-// `input` is deliberately NOT covered here: its slice (#681, I2) is unimplemented, so it has no
-// arity entry and is not a visible name. Registering it as a known callee while no evaluator
-// exists would let a program check clean and then fail at runtime — a false tooling claim, worse
-// for a learner than the honest `ol-unknown-command`. Its tooling ships with its evaluator.
+// `input` reaches this file through the SAME table, but it got there in its own slice. I8
+// deliberately left it out and locked the exclusion (see the test below, now updated): `input` had
+// no evaluator, and registering a known callee with nothing behind it would let a program check
+// clean and then fail at runtime — a false tooling claim, worse for a learner than the honest
+// `ol-unknown-command`. Slice I2 (#681) ships the evaluator, so `input` joins
+// `INTERACTION_PRIMITIVE_ARITY` there and both halves of its registration land together. The
+// assertion that replaces the old exclusion is its mirror image — `input` now checks clean under an
+// active profile and is STILL `ol-unknown-command` without one — so the profile gate this file
+// guards is proven in both directions for every name.
 //
 // Highlighting is currently **profile-blind**: `highlight()`/`semanticTokens()` take no active-
-// profile argument, so they emit the profile-neutral fallback `primitive` for all five names. Note
+// profile argument, so they emit the profile-neutral fallback `primitive` for all six names. Note
 // this is a KNOWN DEVIATION from the normative token-class model, not the final word:
 // `spec/tooling.md:30` puts "profile block-heads when their profile is active" in the `keyword`
 // class, so under an active `interaction-events` profile the four block-heads SHOULD ultimately be
 // `keyword`. The parser cannot express that yet — giving the highlighter a profile set changes one
 // of the four shared cross-package contracts and is tracked as its own serialized slice, issue
-// #740. `wait` is unaffected either way: it is an ordinary Kind-C primitive, so `primitive` is its
-// correct final class (as it is for the Sound commands, `spec/interaction-events.md`: "Sound
-// command names are ordinary primitive names when the Sound profile is present").
+// #740. `wait` and `input` are unaffected either way: they are ordinary primitives, so `primitive`
+// is their correct final class (as it is for the Sound commands, `spec/interaction-events.md`:
+// "Sound command names are ordinary primitive names when the Sound profile is present").
 //
 // The assertions below therefore lock TODAY's profile-neutral fallback so the behavior is
 // intentional and visible rather than accidental — matching `sound-tooling.test.mjs` and
@@ -44,7 +52,7 @@
 //
 // Every name is exercised in **awkward positions** — inside a `[ … ]` instruction block, inside
 // `repeat`, inside an `if`, and nested in a procedure body — via one shared whole-program constant,
-// so a regression that only handled a top-level occurrence (or only a subset of the five names)
+// so a regression that only handled a top-level occurrence (or only a subset of the six names)
 // cannot slip through.
 
 import assert from "node:assert/strict";
@@ -71,22 +79,26 @@ const INTERACTION_BLOCK_HEADS = Object.freeze({
 /** The profile's ordinary primitives, one representative correct call each. */
 const INTERACTION_PRIMITIVES = Object.freeze({
   wait: "wait 1",
+  input: ':answer = input "who?"',
 });
 
-/** All five implemented Interaction names, block-heads and primitives together. */
+/** All six implemented Interaction names, block-heads and primitives together. */
 const INTERACTION_NAMES = Object.freeze([
   ...Object.keys(INTERACTION_BLOCK_HEADS),
   ...Object.keys(INTERACTION_PRIMITIVES),
 ]);
 
 /**
- * A whole Interaction program placing every one of the five names in an awkward position — a
+ * A whole Interaction program placing every one of the six names in an awkward position — a
  * procedure body, inside `repeat`, and inside a `[ … ]` block — so a regression that only handled a
- * top-level occurrence of one name cannot pass. Not one of the five sits at top level. Each of the
- * five spellings occurs exactly once, letting the highlighting/semantic-token assertions count
+ * top-level occurrence of one name cannot pass. Not one of the six sits at top level. Each of the
+ * six spellings occurs exactly once, letting the highlighting/semantic-token assertions count
  * `=== 1` per name.
  *
  *   - `wait 1`   — inside a `[ … ]` block inside `repeat`, inside `tick`'s procedure body.
+ *   - `input`    — in a value position inside `tick`'s procedure body (it is the profile's only
+ *                  reporter, so it appears as the right-hand side of an assignment rather than as a
+ *                  statement of its own).
  *   - `when`     — inside `arm`'s procedure body.
  *   - `every`    — inside a `[ … ]` block inside `repeat`, inside `arm`'s body.
  *   - `on_key`   — inside an `if` block inside `arm`'s body.
@@ -95,6 +107,7 @@ const INTERACTION_NAMES = Object.freeze([
 const NESTED_INTERACTION_PROGRAM = [
   "define tick",
   "  repeat 2 [ wait 1 ]",
+  '  :answer = input "who?"',
   "end",
   "define arm",
   '  when "start" [ tick ]',
@@ -280,9 +293,9 @@ test("check: a whole Interaction program in awkward positions checks clean under
 });
 
 test("check: that same program under Core-only flags each Interaction name as unknown, once each", () => {
-  // Nesting must not hide an Interaction name from the checker: the primitive (`wait`) and every
-  // block-head (`when`, `every`, `on_key`, `on_click`) is reported once — and only those are (the
-  // user procedure `tick` and its calls are known). This proves both shapes route through
+  // Nesting must not hide an Interaction name from the checker: each primitive (`wait`, `input`) and
+  // every block-head (`when`, `every`, `on_key`, `on_click`) is reported once — and only those are
+  // (the user procedure `tick` and its calls are known). This proves both shapes route through
   // `collectVisibleNames` and are gated purely on the `interaction-events` profile.
   const diagnostics = checkDiagnostics(
     NESTED_INTERACTION_PROGRAM,
@@ -296,19 +309,32 @@ test("check: that same program under Core-only flags each Interaction name as un
   assert.equal(
     diagnostics.length,
     INTERACTION_NAMES.length,
-    "only the five Interaction names are unknown under Core-only",
+    "only the six Interaction names are unknown under Core-only",
   );
 });
 
-test("check: `input` stays ol-unknown-command even under an active profile — its slice (#681) is unimplemented", () => {
-  // Deliberate scope boundary for I8 (recorded on issue #687). `input` is listed in the profile's
-  // spec table but has no evaluator and no arity entry, so registering it as a known callee here
-  // would be a false tooling claim: `check()` would pass and the program would then fail at
-  // runtime. The honest `ol-unknown-command` is the better learner experience, and `input`'s
-  // tooling ships in the same slice as its implementation. Written as a bare call (with an
-  // argument the profile-blind reader cannot group for an unregistered name, `input "x"` is a
-  // parse-stage `ol-bad-token`, which would mask the semantic finding under test).
-  const diagnostics = checkDiagnostics("input", INTERACTION_PROFILES);
+test("check: `input` checks clean under an active profile now that its slice (#681) implements it", () => {
+  // The mirror image of I8's original scope boundary (recorded on issue #687), updated to the truth
+  // slice I2 (#681) established. `input` is listed in the profile's spec table but, while it had no
+  // evaluator, registering it as a known callee here would have been a false tooling claim:
+  // `check()` would pass and the program would then fail at runtime. #681 ships `evaluateInput`, so
+  // both halves of its registration land together and the honest answer flips from
+  // `ol-unknown-command` to clean. Written as a real one-argument call, since `input` is a Kind-R
+  // reporter that reports a value.
+  assert.deepEqual(
+    checkDiagnostics(':answer = input "who?"', INTERACTION_PROFILES),
+    [],
+  );
+});
+
+test("check: `input` is STILL ol-unknown-command without the profile — it is not a Core name", () => {
+  // The other direction of the same gate: `spec/conformance.md:167-169` puts `input` in Interaction &
+  // Events, and `spec/interaction-events.md:11` is explicit that "OpenLogo **Core** remains
+  // non-interactive: `input` is defined here, not in Core". A Core-only program that calls it must
+  // still be told the name is unknown. Written as a bare call (with an argument the profile-blind
+  // reader CAN now group, since the reader's arity table is profile-blind by design, the semantic
+  // finding is the only one).
+  const diagnostics = checkDiagnostics(':answer = input "who?"', CORE_PROFILES);
   assert.equal(diagnostics.length, 1);
   assert.equal(diagnostics[0].code, "ol-unknown-command");
   assert.equal(diagnostics[0].params.name, "input");
@@ -431,6 +457,47 @@ test("check: `wait`'s arity is not checked without the profile — the name is u
   // The two rules must never double-report: under Core-only `wait` is not visible, so it is
   // `ol-unknown-command`'s concern alone and the arity rule stays silent.
   const diagnostics = checkDiagnostics("(wait 1 2)", CORE_PROFILES);
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].code, "ol-unknown-command");
+});
+
+test("check: a parenthesized (input) with no prompt raises ol-not-enough-inputs at stage=semantic", () => {
+  // `input <prompt>` is Kind-R taking exactly one prompt, so the same fixed-arity range `wait` has
+  // catches an under-supplied call statically rather than leaving it to the runtime guard.
+  const [finding, ...rest] = checkDiagnostics(
+    ":answer = (input)",
+    INTERACTION_PROFILES,
+  );
+  assert.deepEqual(rest, []);
+  assert.equal(finding.code, "ol-not-enough-inputs");
+  assert.equal(finding.stage, "semantic");
+  assert.deepEqual(finding.params, {
+    callable: "input",
+    expected: 1,
+    actual: 0,
+  });
+});
+
+test("check: an over-supplied parenthesized (input a b) raises ol-too-many-inputs", () => {
+  const [finding, ...rest] = checkDiagnostics(
+    ':answer = (input "a" "b")',
+    INTERACTION_PROFILES,
+  );
+  assert.deepEqual(rest, []);
+  assert.equal(finding.code, "ol-too-many-inputs");
+  assert.equal(finding.stage, "semantic");
+  assert.deepEqual(finding.params, {
+    callable: "input",
+    expected: 1,
+    actual: 2,
+  });
+});
+
+test("check: `input`'s arity is not checked without the profile — the name is unknown instead", () => {
+  const diagnostics = checkDiagnostics(
+    ':answer = (input "a" "b")',
+    CORE_PROFILES,
+  );
   assert.equal(diagnostics.length, 1);
   assert.equal(diagnostics[0].code, "ol-unknown-command");
 });

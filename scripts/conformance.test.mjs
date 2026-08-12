@@ -1965,8 +1965,8 @@ test("loadFixture reads an executeOptions.hostInput schedule of keys, clicks, an
 
 test("loadFixture accepts a hostInput object that omits events (nothing to deliver)", () => {
   // A `hostInput` object with no `events` key is valid — it simply delivers nothing, the same as
-  // omitting `hostInput` entirely. This is the shape #681 will use when it supplies only scripted
-  // `input` `responses` (reserved, #657 ruling) and no tick-scheduled events.
+  // omitting `hostInput` entirely. This is the shape an `input` fixture uses when it supplies only
+  // scripted `responses` (issue #681, #657 ruling) and no tick-scheduled events.
   const loaded = loadHostInputFixture("host-input-no-events", {
     profiles: ["core-language"],
     execute: true,
@@ -2088,8 +2088,8 @@ test("loadFixture rejects an array executeOptions.hostInput (the old bare-array 
 });
 
 test("loadFixture rejects an unknown key inside executeOptions.hostInput", () => {
-  // A typo of `events` (or issue #681's not-yet-wired `responses`) must be rejected, naming the
-  // allowed keys, so a sub-key typo cannot mask a delivery that never happens.
+  // A typo of `events` or `responses` must be rejected, naming the allowed keys, so a sub-key typo
+  // cannot mask a delivery — or an answer — that never happens.
   const loaded = loadHostInputFixture("host-input-unknown-key", {
     profiles: ["core-language"],
     execute: true,
@@ -2100,7 +2100,98 @@ test("loadFixture rejects an unknown key inside executeOptions.hostInput", () =>
   assert.ok(loaded.error);
   assert.ok(
     loaded.error.includes(
-      '"executeOptions.hostInput.evetns" is not a known hostInput key (known keys: events)',
+      '"executeOptions.hostInput.evetns" is not a known hostInput key (known keys: events, responses)',
+    ),
+  );
+});
+
+test("loadFixture rejects a near-miss of `responses` rather than silently dropping the answers", () => {
+  // The specific typo this slice introduces the risk of: `response` (singular) would load clean, be
+  // ignored by execute(), and turn every `input` read into an unanswered one — a fixture that looks
+  // like proof of the reader while proving only the cancellation path.
+  const loaded = loadHostInputFixture("host-input-responses-typo", {
+    profiles: ["core-language", "interaction-events"],
+    execute: true,
+    executeOptions: { hostInput: { response: ["tom"] } },
+    events: [],
+    diagnostics: [],
+  });
+  assert.ok(loaded.error);
+  assert.ok(
+    loaded.error.includes(
+      '"executeOptions.hostInput.response" is not a known hostInput key (known keys: events, responses)',
+    ),
+  );
+});
+
+test("loadFixture reads an executeOptions.hostInput.responses queue of scripted input answers", () => {
+  // The #657 ruling's one convention: `responses` sits beside `events` on the same `hostInput`
+  // object (issue #681). Order is the FIFO each `input` call consumes.
+  const loaded = loadHostInputFixture("host-input-responses", {
+    profiles: ["core-language", "interaction-events"],
+    execute: true,
+    executeOptions: { hostInput: { responses: ["tom", "42"] } },
+    events: [],
+    diagnostics: [],
+  });
+  assert.equal(loaded.error, undefined);
+  assert.deepEqual(loaded.expected.executeOptions.hostInput.responses, [
+    "tom",
+    "42",
+  ]);
+});
+
+test("loadFixture accepts events and responses together on one hostInput object", () => {
+  const loaded = loadHostInputFixture("host-input-both", {
+    profiles: ["core-language", "interaction-events"],
+    execute: true,
+    executeOptions: {
+      hostInput: {
+        events: [{ tick: 1, kind: "click" }],
+        responses: ["tom"],
+      },
+    },
+    events: [],
+    diagnostics: [],
+  });
+  assert.equal(loaded.error, undefined);
+  assert.deepEqual(loaded.expected.executeOptions.hostInput, {
+    events: [{ tick: 1, kind: "click" }],
+    responses: ["tom"],
+  });
+});
+
+test("loadFixture rejects a non-array executeOptions.hostInput.responses", () => {
+  const loaded = loadHostInputFixture("host-input-responses-not-array", {
+    profiles: ["core-language"],
+    execute: true,
+    executeOptions: { hostInput: { responses: "tom" } },
+    events: [],
+    diagnostics: [],
+  });
+  assert.ok(loaded.error);
+  assert.ok(
+    loaded.error.includes(
+      '"executeOptions.hostInput.responses" must be an array',
+    ),
+  );
+});
+
+test("loadFixture rejects a non-string entry in executeOptions.hostInput.responses", () => {
+  // The bare JSON number `42` is the tempting mistake: it would look like proof of the number branch
+  // while skipping the very parse (`spec/interaction-events.md:136-137`) that branch is about. An
+  // answer is the raw TEXT the learner typed, so it must be written `"42"`.
+  const loaded = loadHostInputFixture("host-input-responses-not-string", {
+    profiles: ["core-language"],
+    execute: true,
+    executeOptions: { hostInput: { responses: ["tom", 42] } },
+    events: [],
+    diagnostics: [],
+  });
+  assert.ok(loaded.error);
+  assert.ok(
+    loaded.error.includes(
+      '"executeOptions.hostInput.responses[1]" must be a string',
     ),
   );
 });
@@ -2250,6 +2341,26 @@ test("produce forwards executeOptions.hostInput to execute() so a headless fixtu
   const printed = result.events.filter((event) => event.kind === "print");
   assert.equal(printed.length, 1);
   assert.deepEqual(printed[0].payload.values, [1]);
+});
+
+test("produce forwards executeOptions.hostInput.responses to execute() so a headless fixture can answer a read", () => {
+  // The other half of the same seam (issue #681): scripted answers reach `execute()` verbatim, so a
+  // fixture's `input` read reports the value `spec/interaction-events.md:136-137` prescribes.
+  const result = produce(
+    'print input "q"',
+    "test-doc",
+    true,
+    false,
+    ["core-language", "interaction-events"],
+    false,
+    { hostInput: { responses: ["42"] } },
+  );
+  assert.deepEqual(result.diagnostics, []);
+  const printed = result.events.filter((event) => event.kind === "print");
+  assert.equal(printed.length, 1);
+  // `"42"` parses as a number literal, so the read reports the NUMBER 42 — proof the answer really
+  // travelled through and was classified, not merely echoed.
+  assert.deepEqual(printed[0].payload.values, [42]);
 });
 
 test("loadFixture handles missing .expected.json file", () => {

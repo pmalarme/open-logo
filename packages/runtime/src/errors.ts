@@ -652,6 +652,25 @@ export interface OnKeyKeyNotWordParams {
   readonly actual: OLTypeName;
 }
 
+/**
+ * Params for the `ol-type` raised by `input` when its prompt cannot be displayed as learner text
+ * (`spec/interaction-events.md:131`, issue #681). `input` "displays the prompt and waits for the
+ * learner to enter one value" (`:134`), so the prompt has to *be* text a person can read: the
+ * scalars `word`, `number`, and `boolean` render as exactly the characters shown. A `list`, `dict`,
+ * or `record` renders as a bracketed container view and a `turtle` as the opaque identity tag
+ * `turtle #<id>` (`spec/turtles-and-sprites.md:13`) — debugging renderings of a structure, not a
+ * question authored for a learner — so those raise this diagnostic. This narrower-than-`print` rule
+ * is the spec's own asymmetry: `print` (`spec/commands.md`) has no error clause at all and accepts
+ * every value, while `input` is given one specifically for its prompt, which would be dead text if
+ * every value qualified. `actual` is the argument's runtime type name (`@openlogo/core`'s
+ * `typeNameOf`) so the diagnostic identity records what was supplied; `expected` is the fixed
+ * `"text"`, naming the spec's own phrase. Mirrors the `{ operation, expected, actual }` shape of
+ * {@link WhenEventNotWordParams}/{@link OnKeyKeyNotWordParams}.
+ */
+export interface InputPromptNotTextParams {
+  readonly actual: OLTypeName;
+}
+
 /** Runtime-stage diagnostics, one builder per `ol-*` code the evaluator can raise. */
 export const runtimeDiag = {
   /**
@@ -1653,6 +1672,47 @@ export const runtimeDiag = {
       source_span,
       { operation: "every", ...params },
       `every needs a positive whole number of ticks, but got ${params.value}.`,
+    );
+  },
+
+  /**
+   * `ol-type` (issue #681, slice I2) — `input`'s prompt cannot be displayed as learner text
+   * (`spec/interaction-events.md:131`, and the profile's error table). Carries the
+   * `{ operation: "input", expected: "text", actual }` identity shape shared by the other
+   * Interaction `ol-type` builders. See {@link InputPromptNotTextParams} for why the accepted set is
+   * the scalars (`word`/`number`/`boolean`) rather than everything `print` can render.
+   */
+  inputPromptNotText(
+    source_span: SourceSpan,
+    params: InputPromptNotTextParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-type",
+      source_span,
+      { operation: "input", expected: "text", actual: params.actual },
+      `input needs a prompt it can show as text, but got a ${params.actual}.`,
+    );
+  },
+
+  /**
+   * `ol-limit` (issue #681, slice I2) — an `input` read that no host can answer.
+   * `spec/interaction-events.md:108-111` gives a blocking read exactly two endings: it "finishes or
+   * the program is cancelled". A headless `execute()` with no scripted answer left
+   * (`ExecuteOptions.hostInput.responses` absent or already drained) can never reach the first, so
+   * the read takes the second and the run stops here. Deliberately shares
+   * {@link runtimeDiag.cancelled}'s `ol-limit`/`{ limit: "cancelled" }` **identity** — the spec's own
+   * word for this ending, and diagnostic identity is code + params, not prose
+   * (`spec/error-model.md:193-194`) — while its message names `input`, so a learner is told which
+   * instruction is waiting rather than just that "something" was cancelled. Returning a made-up
+   * answer (an empty word, say) instead would let the program run on as if the learner had answered:
+   * a silent wrong result, the failure mode a diagnostic exists to prevent.
+   */
+  inputNotAnswered(source_span: SourceSpan): Diagnostic {
+    return runtimeError(
+      "ol-limit",
+      source_span,
+      { limit: "cancelled" },
+      "input is waiting for an answer, but this run has no way to supply one, so the program was cancelled before it finished.",
     );
   },
 } as const;

@@ -5046,6 +5046,29 @@ function sortHostInputByTick(
  * queued. Frozen so an accidental push can never leak input into an unrelated run. */
 const EMPTY_HOST_INPUT: readonly HostInputEvent[] = Object.freeze([]);
 
+/**
+ * Copy `responses` into a fresh array of scripted `input` answers, returning a frozen empty array
+ * when a caller supplies none (issue #681, slice I2 — `ExecuteOptions.hostInput.responses`). Order
+ * is caller order and is preserved exactly: it IS the FIFO the reads consume
+ * ({@link takeInputResponse}), so — unlike {@link sortHostInputByTick}'s tick sort — there is
+ * nothing to reorder. A defensive copy, for the same reason: a caller's array is never mutated and
+ * the environment's view of the queue cannot change after construction, so the run stays
+ * deterministic even if the caller keeps pushing to their own array.
+ */
+function copyHostResponses(
+  responses: readonly string[] | undefined,
+): readonly string[] {
+  if (responses === undefined || responses.length === 0) {
+    return EMPTY_HOST_RESPONSES;
+  }
+  return [...responses];
+}
+
+/** The shared frozen empty answer queue every ordinary headless run gets (issue #681): no `input`
+ * read has a scripted answer, so the first one ends the run as cancelled rather than inventing a
+ * reply. Frozen so an accidental push can never leak an answer into an unrelated run. */
+const EMPTY_HOST_RESPONSES: readonly string[] = Object.freeze([]);
+
 function createExecutionEnvironment(
   program: ProgramNode,
   procedures: ProcedureRegistry,
@@ -5082,6 +5105,8 @@ function createExecutionEnvironment(
     eventHandlers: createEventHandlerRegistry(),
     hostInput: sortHostInputByTick(options?.hostInput?.events),
     hostInputConsumed: { count: 0 },
+    hostResponses: copyHostResponses(options?.hostInput?.responses),
+    hostResponsesConsumed: { count: 0 },
     source,
     program,
     hintProgress: new Map(),
