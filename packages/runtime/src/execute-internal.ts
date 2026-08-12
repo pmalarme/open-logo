@@ -43,13 +43,14 @@ import type {
   SoundPayload,
   SourceSpan,
   StampPayload,
+  TraceEvent,
   TurnPayload,
   TurtleId,
   TutorCommand,
   VisibilityChangePayload,
   WidthChangePayload,
 } from "@openlogo/core";
-import { OLTurtle, typeNameOf } from "@openlogo/core";
+import { OLTurtle, makeSpan, typeNameOf } from "@openlogo/core";
 import type {
   BlockNode,
   CallNode,
@@ -3695,6 +3696,7 @@ function runProcedure(
   node: CallNode | ParenCallNode,
   environment: Environment,
 ): ProcedureOutcome {
+  environment.lastCallSpan.span = node.callee.source_span;
   if (environment.callDepth.length >= environment.recursionDepthLimit) {
     return {
       ok: false,
@@ -4525,6 +4527,41 @@ function executeStatements(
 export const DEFAULT_RECURSION_DEPTH_LIMIT = 500;
 export const DEFAULT_INSTRUCTION_BUDGET = 1_000_000;
 
+/**
+ * The highest procedure-call recursion depth the interpreter will honor regardless of what a
+ * caller configures via {@link ExecuteOptions.recursionDepthLimit} — the reconciliation issue #726
+ * requires between OpenLogo's *language-level* depth budget and the *host's* native call stack.
+ *
+ * OpenLogo's recursion-depth budget is a language limit; V8's call stack is a host limit, and each
+ * OpenLogo procedure frame costs several native frames along the
+ * `evaluate` → `evaluateCall` → `callProcedure` → `runProcedure` → `runProcedureBody` →
+ * `executeStatements` chain. If a caller sets `recursionDepthLimit` higher than the host stack can
+ * actually hold, the native stack overflows *first* and the learner gets a raw
+ * `RangeError: Maximum call stack size exceeded` with no source span and no learner-facing meaning
+ * — which `spec/error-model.md` (stable `ol-*` codes, always a span) and the team working
+ * agreement §8 (a budget that keeps runaway programs *stable*) both forbid. So the configured
+ * limit is **clamped** to this ceiling: the interpreter promises no depth it cannot deliver, and
+ * the `ol-limit`/`recursion-depth` diagnostic reports the depth it actually enforced.
+ *
+ * The value is chosen with a **documented headroom margin**. Measured cold (worst-case, no JIT
+ * warmup) on Node 22 — the `.nvmrc`/CI pin and the authoritative host for this repo — the real
+ * interpreter overflows its default-stack recursion at roughly 800 OpenLogo frames, and that
+ * figure drifts *down* as the evaluator gains features (every M5 slice adds frames to the hot
+ * chain — the very drift that turned #722 into the trigger for this bug). Pinning the ceiling to
+ * {@link DEFAULT_RECURSION_DEPTH_LIMIT} (500) keeps a comfortable ~40% margin below that cold
+ * floor, so ordinary programs are unaffected (they never reach 500) and a future slice adding a
+ * frame to the chain does not silently erode the guarantee. It is deliberately equal to the
+ * default rather than higher: a caller *raising* the budget must not be able to push past what the
+ * host can survive.
+ *
+ * This is a ceiling, not a guarantee the host can always honor it: a host with an unusually small
+ * stack (a browser tab — V8 stacks there are typically smaller than Node's — or a
+ * `--stack-size`-reduced Node) can still overflow below 500. That residual case is caught at the
+ * `runProgram` boundary (see its escaped-`RangeError` guard) and likewise turned into an
+ * `ol-limit`/`recursion-depth` diagnostic, so a raw host error can never escape to the caller.
+ */
+export const HOST_SAFE_RECURSION_DEPTH = DEFAULT_RECURSION_DEPTH_LIMIT;
+
 /** {@link ExecuteOptions.learnerLevel}'s default when a caller does not supply one — the
  * first/movement level (`spec/educational-model.md`'s level table), the least-prior-knowledge
  * assumption when a caller does not track curriculum progression itself. */
@@ -4548,6 +4585,32 @@ function resolvePositiveFiniteLimit(
   return value !== undefined && Number.isFinite(value) && value > 0
     ? value
     : fallback;
+}
+
+/**
+ * The recursion-depth limit `execute()` will *actually* enforce for a given
+ * {@link ExecuteOptions.recursionDepthLimit} request — the single, observable definition of the
+ * clamp. A requested limit is first normalised by {@link resolvePositiveFiniteLimit} (omitted /
+ * `NaN` / non-positive / non-finite → {@link DEFAULT_RECURSION_DEPTH_LIMIT}) and then capped at
+ * {@link HOST_SAFE_RECURSION_DEPTH}, because the interpreter's own depth counter must trip before
+ * the host's native stack can overflow (issue #726).
+ *
+ * This makes the clamp a *readable contract* rather than a silent narrowing: a host or the studio
+ * can call this to learn the effective ceiling before running, and a test locks it (requesting
+ * `1000` yields `500`) so the next person to change {@link HOST_SAFE_RECURSION_DEPTH} has a failing
+ * assertion telling them what capability they are altering. **A caller can no longer obtain
+ * recursion deeper than {@link HOST_SAFE_RECURSION_DEPTH}** — that configurability is deliberately
+ * removed here, since a limit the host cannot honour is a promise the implementation cannot keep;
+ * the guard layer ({@link recoverFromNativeStackOverflow}) still protects any host whose stack is
+ * smaller than the clamp.
+ */
+export function resolveEffectiveRecursionDepthLimit(
+  requested: number | undefined,
+): number {
+  return Math.min(
+    resolvePositiveFiniteLimit(requested, DEFAULT_RECURSION_DEPTH_LIMIT),
+    HOST_SAFE_RECURSION_DEPTH,
+  );
 }
 
 /**
@@ -4599,10 +4662,10 @@ function createExecutionEnvironment(
     events: [],
     foreverIterationLimit,
     callDepth: [],
-    recursionDepthLimit: resolvePositiveFiniteLimit(
+    recursionDepthLimit: resolveEffectiveRecursionDepthLimit(
       options?.recursionDepthLimit,
-      DEFAULT_RECURSION_DEPTH_LIMIT,
     ),
+    lastCallSpan: { span: null },
     instructionBudget: resolvePositiveFiniteLimit(
       options?.instructionBudget,
       DEFAULT_INSTRUCTION_BUDGET,
@@ -4626,6 +4689,119 @@ function createExecutionEnvironment(
 }
 
 /**
+ * Whether `error` is a genuine native stack-overflow, across every JS engine OpenLogo runs on
+ * (Node and the studio's browser targets — Chromium, Firefox, Safari; see
+ * `docs/adr/0013-studio-editor-component.md`). Each engine reserves a distinct, stable signature for
+ * stack exhaustion, and *only* for that condition:
+ * - V8 (Node, Chromium) and JavaScriptCore (Safari): a `RangeError` whose message is
+ *   `Maximum call stack size exceeded`.
+ * - SpiderMonkey (Firefox): an `InternalError` whose message is `too much recursion` (its class is
+ *   *not* `RangeError`, so an `instanceof RangeError` gate would let a real Firefox overflow escape
+ *   raw — reintroducing issue #726 on that target).
+ *
+ * Matching these known signatures (rather than merely `instanceof RangeError`) is what keeps
+ * {@link recoverFromNativeStackOverflow} from misclassifying an *unrelated* error — e.g. a
+ * `RangeError` thrown by an injected `tutorTemplates` callback or an option getter — as a
+ * learner-facing recursion overflow; those must surface as the integration bugs they are. The
+ * property access is guarded defensively so a thrown non-`Error` value (or one with no string
+ * `message`) can never itself throw here.
+ */
+function isNativeStackOverflow(error: unknown): boolean {
+  if (!(error instanceof Error) || typeof error.message !== "string") {
+    return false;
+  }
+  return (
+    error.message === "Maximum call stack size exceeded" ||
+    error.message === "too much recursion"
+  );
+}
+
+/**
+ * Convert an error that escaped the `parse` → execute pipeline into an {@link ExecuteResult}, per
+ * issue #726's first acceptance criterion: recursion (or any nesting) that exceeds what the host
+ * stack can support must stop with an `ol-*` diagnostic carrying a source span, never a raw
+ * `RangeError` reaching the caller.
+ *
+ * The interpreter clamps `recursionDepthLimit` to {@link HOST_SAFE_RECURSION_DEPTH} so its own
+ * depth counter normally trips before V8's native stack does. But two things can still overflow the
+ * native stack before that counter fires: a host with an unusually small stack — a browser tab (V8
+ * stacks there are typically smaller than Node's) or a `--stack-size`-reduced Node — recursing
+ * below the ceiling, and deeply nested *expression* evaluation or *parsing* (which the depth
+ * counter does not bound at all). A native stack overflow surfaces with an engine-specific
+ * signature (`RangeError: Maximum call stack size exceeded` on V8/JSC, `InternalError: too much
+ * recursion` on Firefox), matched by {@link isNativeStackOverflow}. So *only* a genuine overflow is
+ * rewritten into the `ol-limit`/`recursion-depth` diagnostic — carrying `fallbackSpan` (the deepest
+ * procedure call reached, or the whole-program/whole-source span when the overflow preceded any
+ * call). The partial event trace collected so far is preserved (empty when the overflow happened
+ * during parsing), matching how a language-level `halt` returns its events. Any other error —
+ * including an unrelated `RangeError` thrown by an injected callback such as `tutorTemplates`, which
+ * must surface as the integration bug it is rather than a bogus learner-facing recursion diagnostic
+ * — is a genuine bug and is rethrown unchanged.
+ *
+ * Extracted into its own function (rather than inlined in the `catch`) so both arms — the overflow
+ * rewrite and the rethrow of an unrelated error — are directly and deterministically unit testable,
+ * and so a caller can supply whichever span best explains the overflow.
+ */
+function recoverFromNativeStackOverflow(
+  error: unknown,
+  fallbackSpan: SourceSpan,
+  events: readonly TraceEvent[],
+  recursionDepthLimit: number,
+): ExecuteResult {
+  if (isNativeStackOverflow(error)) {
+    return {
+      events: [...events],
+      diagnostics: [
+        runtimeDiag.recursionLimit(fallbackSpan, recursionDepthLimit),
+      ],
+    };
+  }
+  throw error;
+}
+
+/**
+ * **Test-only.** Direct handle on {@link recoverFromNativeStackOverflow} so both of its arms — the
+ * `RangeError` → `ol-limit` rewrite and the rethrow of any other error — are covered
+ * deterministically, without having to provoke a real, host-dependent native stack overflow inside
+ * the test process. Never re-exported by `index.ts`; reachable only by this package's own tests
+ * importing this module by relative path (see the header comment and
+ * {@link executeWithForeverIterationLimitForTests}).
+ */
+export function recoverFromNativeStackOverflowForTests(
+  error: unknown,
+  fallbackSpan: SourceSpan,
+  events: readonly TraceEvent[],
+  recursionDepthLimit: number,
+): ExecuteResult {
+  return recoverFromNativeStackOverflow(
+    error,
+    fallbackSpan,
+    events,
+    recursionDepthLimit,
+  );
+}
+
+/**
+ * A {@link SourceSpan} covering `source` in its entirety (line 1, column 1 to just past the last
+ * character), used as the {@link recoverFromNativeStackOverflow} fallback span when a native stack
+ * overflow happens during parsing — before any AST node or procedure call exists to point at. It
+ * still gives the learner a document-anchored diagnostic rather than a bare host trace.
+ */
+function wholeSourceSpan(source: string, document: string): SourceSpan {
+  let line = 1;
+  let column = 1;
+  for (const character of source) {
+    if (character === "\n") {
+      line += 1;
+      column = 1;
+    } else {
+      column += 1;
+    }
+  }
+  return makeSpan(document, [1, 1], [line, column]);
+}
+
+/**
  * Parse `source` and run it, sharing {@link execute}'s and
  * {@link executeWithForeverIterationLimitForTests}'s logic. `foreverIterationLimit` is
  * `undefined` for every real `execute()` call — see `index.ts`'s `execute()` doc comment — so a
@@ -4646,38 +4822,55 @@ export function runProgram(
   foreverIterationLimit: number | undefined,
   options?: ExecuteOptions,
 ): ExecuteResult {
-  const { ast: program, diagnostics } = parse(source, document);
-  if (diagnostics.length > 0) {
-    return { events: [], diagnostics };
-  }
+  // Issue #726: the whole `parse` → execute pipeline runs inside one guard. On a host whose native
+  // stack is smaller than `HOST_SAFE_RECURSION_DEPTH` assumes, or for deeply nested expressions /
+  // parsing (which the recursion-depth counter does not bound), V8 can still overflow with a raw
+  // `RangeError`. That must never escape to the caller — `spec/error-model.md` requires a stable
+  // `ol-*` code with a source span. `environment` is captured as it becomes available so the guard
+  // can point at the deepest procedure call reached; before it exists (an overflow during parsing)
+  // the guard falls back to a whole-source span.
+  let environment: Environment | undefined;
+  try {
+    const { ast: program, diagnostics } = parse(source, document);
+    if (diagnostics.length > 0) {
+      return { events: [], diagnostics };
+    }
 
-  const procedures = collectProcedures(program);
-  const structResult = collectStructs(program, procedures);
-  if (!structResult.ok) {
-    return { events: [], diagnostics: [structResult.diagnostic] };
-  }
+    const procedures = collectProcedures(program);
+    const structResult = collectStructs(program, procedures);
+    if (!structResult.ok) {
+      return { events: [], diagnostics: [structResult.diagnostic] };
+    }
 
-  const environment = createExecutionEnvironment(
-    program,
-    procedures,
-    structResult.structs,
-    foreverIterationLimit,
-    options,
-    source,
-  );
-  const signal = executeStatements(program.body, environment);
-  const diagnostic =
-    signal.kind === "halt"
-      ? signal.diagnostic
-      : signal.kind === "return"
-        ? runtimeDiag.returnOutsideProc(signal.source_span, signal.keyword)
-        : signal.kind === "stop"
-          ? runtimeDiag.stopOutsideProc(signal.source_span)
-          : undefined;
-  return {
-    events: environment.events,
-    diagnostics: diagnostic ? [diagnostic] : [],
-  };
+    environment = createExecutionEnvironment(
+      program,
+      procedures,
+      structResult.structs,
+      foreverIterationLimit,
+      options,
+      source,
+    );
+    const signal = executeStatements(program.body, environment);
+    const diagnostic =
+      signal.kind === "halt"
+        ? signal.diagnostic
+        : signal.kind === "return"
+          ? runtimeDiag.returnOutsideProc(signal.source_span, signal.keyword)
+          : signal.kind === "stop"
+            ? runtimeDiag.stopOutsideProc(signal.source_span)
+            : undefined;
+    return {
+      events: environment.events,
+      diagnostics: diagnostic ? [diagnostic] : [],
+    };
+  } catch (error) {
+    return recoverFromNativeStackOverflow(
+      error,
+      environment?.lastCallSpan.span ?? wholeSourceSpan(source, document),
+      environment?.events ?? [],
+      environment?.recursionDepthLimit ?? HOST_SAFE_RECURSION_DEPTH,
+    );
+  }
 }
 
 /**

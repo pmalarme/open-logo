@@ -28,7 +28,10 @@ import {
   execute,
   DEFAULT_INSTRUCTION_BUDGET,
   DEFAULT_RECURSION_DEPTH_LIMIT,
+  HOST_SAFE_RECURSION_DEPTH,
+  resolveEffectiveRecursionDepthLimit,
 } from "@openlogo/runtime";
+import { recoverFromNativeStackOverflowForTests } from "../dist/execute-internal.js";
 
 const doc = "budget.logo";
 
@@ -88,11 +91,56 @@ test("a small recursion-depth override raises ol-limit/recursion-depth sooner th
   });
 });
 
-test("a recursion-depth override larger than the 500 default lets deeper-than-default recursion complete", () => {
+test("a recursion-depth override larger than the host-safe ceiling is clamped, so deeper recursion trips ol-limit at the ceiling instead of a raw RangeError (issue #726)", () => {
+  // Issue #726's core reconciliation: OpenLogo's recursion-depth budget is a *language* limit,
+  // V8's call stack is a *host* limit, and each OpenLogo frame costs several native frames on the
+  // `evaluate` -> `evaluateCall` -> `callProcedure` chain. A caller that sets `recursionDepthLimit`
+  // above what the host stack can hold must NOT get a raw `RangeError: Maximum call stack size
+  // exceeded` (no `ol-*` code, no source span, forbidden by `spec/error-model.md`). So the
+  // configured limit is clamped to `HOST_SAFE_RECURSION_DEPTH`, and recursion deeper than that
+  // ceiling degrades to the ordinary `ol-limit`/`recursion-depth` diagnostic — reporting the depth
+  // actually enforced (the clamp), not the unhonoured configured value.
+  //
+  // The asserted depth is chosen against a documented headroom margin rather than a value that
+  // silently drifts as the evaluator grows: `HOST_SAFE_RECURSION_DEPTH` is pinned to 500, ~40%
+  // below the ~800-frame cold overflow floor measured on Node 22 (the `.nvmrc`/CI pin), so this
+  // test is deterministic on Node 22 and a future slice adding a frame to the hot chain cannot tip
+  // it into a `RangeError` — the clamp guarantees the counter always trips first. See
+  // `HOST_SAFE_RECURSION_DEPTH`'s doc comment for the full rationale and the smallest-host caveat.
+  const configured = HOST_SAFE_RECURSION_DEPTH + 500;
   const result = execute(
-    "define countdown :n\n  if :n == 0 [\n    return 0\n  ]\n  return countdown :n - 1\nend\nprint countdown 600",
+    "define countdown :n\n  if :n == 0 [\n    return 0\n  ]\n  return countdown :n - 1\nend\nprint countdown 100000",
     doc,
-    { recursionDepthLimit: 1000 },
+    { recursionDepthLimit: configured },
+  );
+  // Exactly one diagnostic, and it is the friendly recursion-depth limit — never a host error.
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-limit");
+  assert.deepEqual(result.diagnostics[0].params, {
+    limit: "recursion-depth",
+    // Reports the CLAMPED depth (the ceiling actually enforced), not the larger configured value.
+    value: HOST_SAFE_RECURSION_DEPTH,
+  });
+  // It carries a real source span (the deepest call site), per `spec/error-model.md` — a raw
+  // `RangeError` would have none.
+  assert.ok(
+    result.diagnostics[0].source_span,
+    "the recursion-depth diagnostic must carry a source span",
+  );
+  // Nothing was printed: the recursion never reached `:n == 0`, it tripped the ceiling first.
+  assert.equal(printedCount(result), 0);
+});
+
+test("recursion up to just under the host-safe ceiling completes normally, with no ol-limit and no host error (issue #726)", () => {
+  // The clamp does not penalise programs that stay within the ceiling: recursion one level shy of
+  // `HOST_SAFE_RECURSION_DEPTH` runs to completion. This is the deterministic Node-22-safe successor
+  // to the old depth-600/limit-1000 assertion, which promised a depth (600 within a limit of 1000)
+  // the host could not honor and so overflowed the native stack on CI's Node 22.
+  const depth = HOST_SAFE_RECURSION_DEPTH - 1;
+  const result = execute(
+    `define countdown :n\n  if :n == 0 [\n    return 0\n  ]\n  return countdown :n - 1\nend\nprint countdown ${depth}`,
+    doc,
+    { recursionDepthLimit: HOST_SAFE_RECURSION_DEPTH },
   );
   assert.deepEqual(result.diagnostics, []);
   assert.deepEqual(
@@ -264,4 +312,160 @@ test("a comprehension's reduce loop is budgeted too (its own separate loop from 
     value: 3,
   });
   assert.equal(printedCount(result), 0);
+});
+
+// Issue #726 — the last-resort guard: if a host stack smaller than `HOST_SAFE_RECURSION_DEPTH`
+// assumes (a browser tab, a `--stack-size`-reduced Node) overflows *before* the interpreter's
+// clamped depth counter trips — or deeply nested expression evaluation / parsing overflows, which
+// the counter does not bound — the escaping native `RangeError` must still become an `ol-*`
+// diagnostic with a source span, never reach the caller raw. `recoverFromNativeStackOverflow` (the
+// `runProgram` catch body) is exercised here directly with a fabricated `RangeError` rather than by
+// provoking a real, host-dependent overflow, so both arms are covered deterministically on Node 22.
+test("the native-stack-overflow guard rewrites an escaped RangeError into ol-limit/recursion-depth with the supplied span and preserved trace (issue #726)", () => {
+  const callSpan = {
+    document: doc,
+    start: [2, 3],
+    end: [2, 15],
+  };
+  const events = [{ kind: "print", payload: { values: [1] } }];
+
+  const result = recoverFromNativeStackOverflowForTests(
+    new RangeError("Maximum call stack size exceeded"),
+    callSpan,
+    events,
+    HOST_SAFE_RECURSION_DEPTH,
+  );
+
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-limit");
+  assert.deepEqual(result.diagnostics[0].params, {
+    limit: "recursion-depth",
+    value: HOST_SAFE_RECURSION_DEPTH,
+  });
+  // The diagnostic points at the supplied span (the deepest call reached), not a bare host trace.
+  assert.deepEqual(result.diagnostics[0].source_span, callSpan);
+  // The partial trace collected before the overflow is preserved (copied), as a language-level
+  // halt does — and it is a copy, not the caller's array.
+  assert.deepEqual(result.events, events);
+  assert.notEqual(result.events, events);
+});
+
+test("the native-stack-overflow guard also rewrites Firefox's overflow signature (InternalError: too much recursion), an intended browser target — issue #726, rubber-duck round 2", () => {
+  // Firefox (SpiderMonkey) reports stack exhaustion as `InternalError: too much recursion`, NOT a
+  // `RangeError: Maximum call stack size exceeded`. The studio targets Firefox (ADR-0013), so an
+  // `instanceof RangeError` gate would let a real Firefox overflow escape raw — reintroducing #726
+  // on that host. Node has no `InternalError` global, so we synthesise the exact signature: a
+  // plain Error whose message is Firefox's. isNativeStackOverflow matches on message, so this is
+  // reclassified into the same ol-limit diagnostic as the V8 case.
+  const span = { document: doc, start: [1, 1], end: [1, 1] };
+  const firefoxOverflow = new Error("too much recursion");
+
+  const result = recoverFromNativeStackOverflowForTests(
+    firefoxOverflow,
+    span,
+    [],
+    HOST_SAFE_RECURSION_DEPTH,
+  );
+
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-limit");
+  assert.equal(result.diagnostics[0].params.limit, "recursion-depth");
+});
+
+test("the native-stack-overflow guard rethrows any non-RangeError unchanged — it must never mask a genuine bug (issue #726)", () => {
+  const span = { document: doc, start: [1, 1], end: [1, 1] };
+  const bug = new TypeError("a genuine interpreter bug");
+
+  assert.throws(
+    () =>
+      recoverFromNativeStackOverflowForTests(
+        bug,
+        span,
+        [],
+        HOST_SAFE_RECURSION_DEPTH,
+      ),
+    (thrown) => thrown === bug,
+  );
+
+  // A thrown non-Error value (a `throw "..."` or `throw {}`) has no `message` string, so the guard's
+  // defensive type check — not just the message comparison — must reject it and rethrow it verbatim
+  // rather than dereferencing a missing `.message`.
+  const notAnError = "a raw thrown string, not an Error";
+  assert.throws(
+    () =>
+      recoverFromNativeStackOverflowForTests(
+        notAnError,
+        span,
+        [],
+        HOST_SAFE_RECURSION_DEPTH,
+      ),
+    (thrown) => thrown === notAnError,
+  );
+});
+
+test("the native-stack-overflow guard rethrows an *unrelated* RangeError unchanged — only a genuine V8 stack overflow is a recursion diagnostic (issue #726, rubber-duck NB#1)", () => {
+  // A `RangeError` is not automatically a stack overflow: an injected callback (e.g.
+  // `tutorTemplates`) or an option getter can throw one for its own reasons — `new Array(-1)`,
+  // `Number.prototype.toFixed(101)`, an explicit `throw new RangeError(...)`. The guard must match
+  // V8's exact overflow message ("Maximum call stack size exceeded") and rethrow anything else, so
+  // a real integration bug surfaces as itself rather than a bogus learner-facing recursion halt.
+  const span = { document: doc, start: [1, 1], end: [1, 1] };
+  const unrelated = new RangeError(
+    "toFixed() digits argument must be between 0 and 100",
+  );
+
+  assert.throws(
+    () =>
+      recoverFromNativeStackOverflowForTests(
+        unrelated,
+        span,
+        [],
+        HOST_SAFE_RECURSION_DEPTH,
+      ),
+    (thrown) => thrown === unrelated,
+  );
+});
+
+test("resolveEffectiveRecursionDepthLimit locks the clamp contract: a request deeper than the host-safe ceiling resolves to the ceiling (issue #726)", () => {
+  // The clamp is an *observable, tested* contract, not a silent narrowing (orchestrator finding):
+  // the effective ceiling is publicly readable, and this assertion pins requesting 1000 -> 500 so
+  // the next person to change `HOST_SAFE_RECURSION_DEPTH` gets a failing test telling them exactly
+  // which capability they are altering. Configuring recursion deeper than the ceiling is removed by
+  // design — the implementation must not promise a depth the host stack cannot honour.
+  //
+  // The ceiling is pinned to the LITERAL 500, not to `HOST_SAFE_RECURSION_DEPTH` — otherwise raising
+  // the constant to 600 would move both sides of the assertion together and the test would keep
+  // passing while silently changing the contract it exists to protect (rubber-duck round 2, NB#3).
+  assert.equal(HOST_SAFE_RECURSION_DEPTH, 500);
+  assert.equal(resolveEffectiveRecursionDepthLimit(1000), 500);
+  // A request at or below the ceiling is honoured unchanged...
+  assert.equal(resolveEffectiveRecursionDepthLimit(50), 50);
+  assert.equal(resolveEffectiveRecursionDepthLimit(500), 500);
+  // ...and an omitted / non-usable request falls back to the default, then is likewise capped.
+  assert.equal(
+    resolveEffectiveRecursionDepthLimit(undefined),
+    DEFAULT_RECURSION_DEPTH_LIMIT,
+  );
+});
+
+test("a deeply nested expression that overflows the host stack during parsing yields ol-limit/recursion-depth, not a raw RangeError escaping execute() (issue #726)", () => {
+  // A real, host-independent trigger for the guard: 20000-deep nested parentheses overflow V8's
+  // native stack while *parsing*, on every supported host, long before any depth counter could
+  // apply. Before #726 this threw a raw `RangeError` out of `execute()` with no `ol-*` code and no
+  // span; now it is caught at the `runProgram` boundary and rewritten into the friendly
+  // recursion-depth diagnostic carrying a whole-source span.
+  const depth = 20000;
+  const source = `\nprint ${"(".repeat(depth)}1${" + 1)".repeat(depth)}`;
+  const result = execute(source, doc);
+
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-limit");
+  assert.equal(result.diagnostics[0].params.limit, "recursion-depth");
+  assert.equal(result.diagnostics[0].params.value, HOST_SAFE_RECURSION_DEPTH);
+  // A whole-source span, document-anchored (spanning the leading newline into line 2) — never a
+  // bare host trace.
+  assert.equal(result.diagnostics[0].source_span.document, doc);
+  assert.deepEqual(result.diagnostics[0].source_span.start, [1, 1]);
+  assert.equal(result.diagnostics[0].source_span.end[0], 2);
+  assert.deepEqual(result.events, []);
 });

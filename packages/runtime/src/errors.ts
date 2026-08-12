@@ -1123,18 +1123,22 @@ export const runtimeDiag = {
 
   /**
    * `ol-limit`: a configurable safety limit was reached — here, the procedure-call recursion
-   * depth (`spec/execution-model.md:551-557`, `spec/error-model.md:119`). Raised at the call site
-   * that would have pushed one frame past `limit`, instead of letting the host's own call stack
-   * overflow and expose a raw stack-trace crash. `params.limit` names which limit this is
-   * (`"recursion-depth"`, matching the spec's example) and `params.value` is the configured
-   * threshold, per `ol-limit`'s `{limit, optional value}` param shape.
+   * depth (`spec/execution-model.md:551-557`, `spec/error-model.md:119`). Raised either at the call
+   * site that would have pushed one frame past `limit`, or — issue #726 — when nesting deep enough
+   * to overflow the host's own call stack is caught at the `execute()` boundary (a smaller host
+   * stack, or expression/parse nesting the depth counter does not itself bound), instead of letting
+   * a raw stack-trace crash escape. `params.limit` names which limit this is (`"recursion-depth"`,
+   * matching the spec's example) and `params.value` is the enforced threshold, per `ol-limit`'s
+   * `{limit, optional value}` param shape. The message speaks of "nesting" rather than counting a
+   * precise number of procedure calls, so it reads correctly for the parse/expression-overflow case
+   * too, where no procedure frames were involved.
    */
   recursionLimit(source_span: SourceSpan, value: number): Diagnostic {
     return runtimeError(
       "ol-limit",
       source_span,
       { limit: "recursion-depth", value },
-      `this call is nested ${value} procedure calls deep, which is too deep — check for a recursive procedure that never stops calling itself.`,
+      `this is nested too deep (the procedure-recursion limit is ${value}) — check for a recursive procedure that never stops calling itself, or an expression nested far too deeply.`,
     );
   },
 
