@@ -117,9 +117,43 @@ test("play raises ol-range for an odd-length melody list and emits no sound even
   assert.equal(result.diagnostics[0].code, "ol-range");
   assert.deepEqual(result.diagnostics[0].params, {
     operation: "play",
+    value: 3,
     length: 3,
   });
   assert.ok(!result.events.some((event) => event.kind === "sound"));
+});
+
+test("play reports an earlier bad duration before the odd-length structural error", () => {
+  // `["c4" 0 "e4"]` is odd-length AND has a non-positive duration in the first pair. Left-to-right
+  // validation means the earlier `0` duration wins over the trailing unmatched pitch (rubber-duck).
+  const result = execute('play ["c4" 0 "e4"]', "main.logo");
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-range");
+  assert.deepEqual(result.diagnostics[0].params, {
+    operation: "play",
+    value: "0",
+  });
+});
+
+test("play reports a bad pitch before the odd-length structural error", () => {
+  // Single-element list: the pitch "h9" is both malformed AND leaves the list odd. The leftmost
+  // offending element (the bad pitch) wins.
+  const result = execute('play ["h9"]', "main.logo");
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-type");
+  assert.equal(result.diagnostics[0].params.expected, "pitch");
+});
+
+test("play reports a well-formed trailing pitch with no duration as odd-length", () => {
+  // A single VALID pitch with no partner: no earlier element error, so the odd-length rule fires.
+  const result = execute('play ["c4"]', "main.logo");
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-range");
+  assert.deepEqual(result.diagnostics[0].params, {
+    operation: "play",
+    value: 1,
+    length: 1,
+  });
 });
 
 test("play raises ol-type (expected:word) for a non-word pitch element", () => {

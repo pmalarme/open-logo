@@ -1376,9 +1376,11 @@ export const runtimeDiag = {
   /**
    * `ol-range` (issue #691) — `play`'s melody list has an odd number of elements. The list is
    * pitch/duration pairs, so "The list length MUST be even" (`spec/interaction-events.md`'s `play`
-   * entry lists `ol-range`). Kept distinct from a non-list argument's `ol-type` (`expected: "list"`)
-   * and from a step's non-positive `duration` ({@link nonPositiveDuration}). See
-   * {@link OddMelodyLengthParams}.
+   * entry lists `ol-range`). `spec/error-model.md:100` requires `operation` plus `index` **or**
+   * `value` for `ol-range` (`length` is only optional), so `value` carries the offending odd count
+   * and `length` repeats it for a descriptive name. Kept distinct from a non-list argument's
+   * `ol-type` (`expected: "list"`) and from a step's non-positive `duration`
+   * ({@link nonPositiveDuration}). See {@link OddMelodyLengthParams}.
    */
   oddMelodyLength(
     source_span: SourceSpan,
@@ -1387,7 +1389,7 @@ export const runtimeDiag = {
     return runtimeError(
       "ol-range",
       source_span,
-      { operation: "play", length: params.length },
+      { operation: "play", value: params.length, length: params.length },
       `play needs a melody of pitch/duration pairs, so the list length must be even, but got ${String(params.length)}.`,
     );
   },

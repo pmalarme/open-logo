@@ -1960,17 +1960,14 @@ function executeSoundPlayCall(
     );
   }
   const elements = melodyResult.value;
-  if (elements.length % 2 !== 0) {
-    return halt(
-      runtimeDiag.oddMelodyLength(melodyArg.source_span, {
-        length: elements.length,
-      }),
-    );
-  }
   const melody: MelodyStep[] = [];
+  // Validate elements strictly left-to-right so the EARLIEST offending element wins, exactly like
+  // `note` validates its pitch before its duration (rubber-duck, #691): an up-front parity check
+  // would let an odd-length list mask an earlier bad pitch/duration (e.g. `play ["c4" 0 "e4"]` must
+  // report the `0` duration, not the odd length). The odd-length `ol-range` is therefore raised only
+  // when the loop reaches a final pitch with no duration partner, after every earlier pair passed.
   for (let index = 0; index < elements.length; index += 2) {
     const pitchValue = elements[index];
-    const durationValue = elements[index + 1];
     if (typeof pitchValue !== "string") {
       return halt(
         runtimeDiag.placeType(melodyArg.source_span, {
@@ -1989,6 +1986,16 @@ function executeSoundPlayCall(
         }),
       );
     }
+    if (index + 1 >= elements.length) {
+      // A well-formed pitch with no duration partner: the list is odd-length. `spec/
+      // interaction-events.md`'s `play` entry: "The list length MUST be even" -> `ol-range`.
+      return halt(
+        runtimeDiag.oddMelodyLength(melodyArg.source_span, {
+          length: elements.length,
+        }),
+      );
+    }
+    const durationValue = elements[index + 1];
     const duration = requireNumber(
       durationValue,
       melodyArg.source_span,
