@@ -5107,6 +5107,7 @@ function createExecutionEnvironment(
     hostInputConsumed: { count: 0 },
     hostResponses: copyHostResponses(options?.hostInput?.responses),
     hostResponsesConsumed: { count: 0 },
+    hostReader: options?.hostInput?.read,
     source,
     program,
     hintProgress: new Map(),

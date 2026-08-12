@@ -147,6 +147,10 @@ function validateHostInput(hostInput) {
   ) {
     return `"executeOptions.hostInput" must be an object when present`;
   }
+  // `read` (issue #681's live host reader) is deliberately NOT in this list. Like `tutorTemplates`
+  // on `executeOptions` itself it is a FUNCTION, so no JSON fixture can supply one — a fixture
+  // naming it is a mistake and is correctly rejected here, which is also what keeps `responses` the
+  // single fixture convention the #657 ruling fixed.
   const ALLOWED_HOST_INPUT_KEYS = new Set(["events", "responses"]);
   for (const key of Object.keys(hostInput)) {
     if (!ALLOWED_HOST_INPUT_KEYS.has(key)) {

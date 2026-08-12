@@ -94,6 +94,7 @@ import type { TickClock } from "./interaction.js";
 import { createEventHandlerRegistry } from "./interaction.js";
 import type { EventHandlerRegistry } from "./interaction.js";
 import type { HostInputEvent } from "./interaction.js";
+import type { HostInputReader } from "./index.js";
 import {
   emitInputPrimitive,
   interpretSubmittedText,
@@ -390,6 +391,18 @@ export interface Environment {
    * and no answer is ever handed out twice.
    */
   readonly hostResponsesConsumed: { count: number };
+  /**
+   * The host's live `input` reader, when the caller supplied one (issue #681 —
+   * `ExecuteOptions.hostInput.read`, see `index.ts`). Authoritative over
+   * {@link Environment.hostResponses}: a run with a real host does not consult the scripted queue at
+   * all. `undefined` for every fixture and every ordinary headless run, which is what makes
+   * `responses` the single JSON-expressible convention the #657 ruling asked for.
+   *
+   * The read is outstanding for exactly the duration of this call, and the call is synchronous, so
+   * `spec/interaction-events.md:108-111`'s "MUST NOT run new OpenLogo instructions or event handler
+   * blocks" holds by construction: there is no suspension point at which anything else could run.
+   */
+  readonly hostReader?: HostInputReader;
 }
 
 /**
@@ -4627,10 +4640,8 @@ function evaluateInput(
       }),
     );
   }
-  const answer = takeInputResponse(
-    environment.hostResponses,
-    environment.hostResponsesConsumed,
-  );
+  const promptText = printedForm(promptResult.value);
+  const answer = readInputAnswer(promptText, environment);
   if (answer === undefined) {
     // The read can never finish, so it takes the only other ending `spec/interaction-events.md:
     // 110-111` allows — "until the read finishes or the program is cancelled" — through the SHARED
@@ -4643,6 +4654,37 @@ function evaluateInput(
   }
   emitInputPrimitive(environment.events, node.source_span);
   return ok(interpretSubmittedText(answer));
+}
+
+/**
+ * Perform the read itself: display `promptText` to the host and wait for the one value the learner
+ * enters (`spec/interaction-events.md:134`). Reports the submitted text, or `undefined` when the
+ * read cannot be answered at all.
+ *
+ * Two hosts, one meaning. A caller that supplied a live reader
+ * ({@link ExecuteOptions.hostInput.read}) gets it called with the prompt — that call IS the
+ * outstanding read, and it is where a real host shows the prompt and collects the answer. A caller
+ * that supplied only the scripted FIFO ({@link ExecuteOptions.hostInput.responses}, the one
+ * JSON-expressible convention the #657 ruling fixed for fixtures) gets the next queued answer. The
+ * reader wins when both are present: a run with a real host must never quietly prefer a stale
+ * script.
+ *
+ * Either way the read is **synchronous**, which is how `spec/interaction-events.md:108-111`'s "MUST
+ * NOT run new OpenLogo instructions or event handler blocks until the read finishes" is upheld —
+ * not by a check, but by there being no suspension point at which anything else could be scheduled.
+ * `interaction-input-blocking.test.mjs` probes that window from inside the reader.
+ */
+function readInputAnswer(
+  promptText: string,
+  environment: Environment,
+): string | undefined {
+  if (environment.hostReader !== undefined) {
+    return environment.hostReader(promptText);
+  }
+  return takeInputResponse(
+    environment.hostResponses,
+    environment.hostResponsesConsumed,
+  );
 }
 
 /**

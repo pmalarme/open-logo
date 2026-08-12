@@ -6,27 +6,36 @@
 //    OpenLogo instructions or event handler blocks until the read finishes or the program is
 //    cancelled."
 //
-// **This file is where that MUST is proven.** Conformance fixtures structurally cannot prove it: a
-// fixture's answer is scripted, so the read returns immediately and there is no "waiting" interval a
-// headless source→events fold can observe. What IS observable — and is what the MUST actually
-// forbids — is *interleaving*: in this single-threaded evaluator the only OpenLogo code that can run
-// between two instructions is an event handler block, and handler delivery happens exclusively at a
-// `wait`'s per-tick checkpoint (`execute-internal.ts`'s `dispatchDueHandlers`, reached through
-// `interaction.ts`'s `yieldToEventLoop`). So the property has two observable halves:
+// **This file is where that MUST is proven**, in three layers of increasing directness.
 //
-//   1. **No handler block runs across a read.** Proven DIFFERENTIALLY: each test schedules host
-//      input that a `wait 0` in the very same position provably DOES deliver, and asserts an `input`
-//      in that position delivers nothing. The paired `wait` assertion is what makes this a proof
-//      rather than a vacuous "nothing happened" — without it, a program whose handler could never
-//      fire for an unrelated reason would pass just as happily.
+//   0. **From INSIDE the outstanding read.** `ExecuteOptions.hostInput.read` (issue #681) is the
+//      host's live reader, and the read is outstanding for exactly the duration of that call — so
+//      assertions made inside it are made while the read is unresolved, which is the very window
+//      the MUST governs. The probe is the reader's own call log: a handler body that also reads can
+//      only reach the reader by running, so its absence mid-read is positive evidence that no
+//      handler block ran. This is the "scripted reader that can hold the read open" the maintainer's
+//      ruling on #657 required #681 to cover, and it carries the read's other ending too — a reader
+//      reporting `undefined` cancels the run — so resolving and cancelling an outstanding read are
+//      independently controllable through one seam.
+//   1. **No handler block runs ACROSS a read**, with a scripted answer. Proven DIFFERENTIALLY: each
+//      test schedules host input that a `wait 0` in the very same position provably DOES deliver,
+//      and asserts an `input` in that position delivers nothing. The paired `wait` assertion is what
+//      makes this a proof rather than a vacuous "nothing happened" — without it, a program whose
+//      handler could never fire for an unrelated reason would pass just as happily. A further test
+//      shows a read leaves pending input OUTSTANDING rather than dropping it
+//      (`spec/interaction-events.md:91-93`): a later `wait` still delivers what the reads passed
+//      over.
 //   2. **A read does not advance the tick clock**, so no `every` handler can come due because of
 //      one — the second way handler code could otherwise sneak in.
 //
-// Together those close every path by which "new OpenLogo instructions or event handler blocks" could
-// run during a read. The implementation upholds them by ABSENCE: `evaluateInput` reaches no
-// `yieldToEventLoop` checkpoint and never calls `advanceTickClock`. The tempting wrong
-// implementation — pumping the event loop while "waiting for the host to answer" — flips every
-// assertion below.
+// Conformance fixtures reach none of this: a fixture's answer is scripted, so the read returns
+// immediately and there is no waiting interval a headless source→events fold can observe, and a
+// fixture cannot supply a function at all. The implementation upholds the MUST by ABSENCE plus
+// SYNCHRONY: `evaluateInput` reaches no `yieldToEventLoop` checkpoint (`execute-internal.ts`'s
+// `dispatchDueHandlers` is reached only from a `wait`), never calls `advanceTickClock`, and performs
+// the read in a synchronous call with no suspension point at which anything else could be
+// scheduled. The tempting wrong implementation — pumping the event loop while "waiting for the host
+// to answer" — flips the assertions below.
 //
 // Node-version trap: on Node 24+ `--experimental-test-coverage` silently excludes `*.test.mjs`, so
 // verify coverage on Node 22 (`.nvmrc`), the version CI pins.
@@ -60,6 +69,130 @@ function bothForms(buildSource, options) {
     withWait: execute(buildSource("wait 0"), doc, options),
   };
 }
+
+// --- The outstanding read: observed from inside the window, through the injected reader ---------
+
+test("while a read is OUTSTANDING, no further instruction and no handler block has run", () => {
+  // The strongest form of `spec/interaction-events.md:108-111`, and the one the scripted-answer
+  // tests below structurally cannot reach: `ExecuteOptions.hostInput.read` is the live host reader,
+  // and the read is outstanding for exactly the duration of that call — so the assertions INSIDE it
+  // are made while the read is unresolved, which is the very window the MUST governs.
+  //
+  // The probe is the reader's own call log. A handler body that also reads (`print input
+  // "from-handler"`) can only reach the reader by running, so if any handler block ran while the
+  // first read was outstanding, `prompts` would already contain "from-handler" at that moment. The
+  // key is pending from tick 0 and provably deliverable — the `wait 0` at the end delivers it.
+  const prompts = [];
+  const observedInsideFirstRead = [];
+  const result = execute(
+    [
+      'on_key "a" [ print input "from-handler" ]',
+      ':a = input "first"',
+      ':b = input "second"',
+      'print "reads-done"',
+      "wait 0",
+    ].join("\n"),
+    doc,
+    {
+      hostInput: {
+        events: KEY_AT_TICK_ZERO,
+        read: (prompt) => {
+          prompts.push(prompt);
+          if (prompt === "first") {
+            // Mid-read, with the read unresolved: nothing else may have run.
+            observedInsideFirstRead.push(...prompts);
+          }
+          return `answer-to-${prompt}`;
+        },
+      },
+    },
+  );
+
+  assert.deepEqual(result.diagnostics, []);
+  // Inside the outstanding first read, the only read that had begun was that read itself.
+  assert.deepEqual(observedInsideFirstRead, ["first"]);
+  // And over the whole run the handler's own read happens strictly after both top-level reads and
+  // after the statement that follows them — i.e. only once a checkpoint was reached.
+  assert.deepEqual(prompts, ["first", "second", "from-handler"]);
+  assert.deepEqual(printedWords(result), [
+    "reads-done",
+    "answer-to-from-handler",
+  ]);
+});
+
+test("the reader receives the prompt as displayable text — this is how a host shows it", () => {
+  // `spec/interaction-events.md:134`: "`input` displays the prompt and waits for the learner to
+  // enter one value." The runtime's half of "displays" is handing the host the prompt already
+  // rendered to the text a learner sees; the number prompt proves it is rendered, not passed raw.
+  const prompts = [];
+  const result = execute(
+    ['print input "what is your name?"', "print input 42"].join("\n"),
+    doc,
+    {
+      hostInput: {
+        read: (prompt) => {
+          prompts.push(prompt);
+          return "ok";
+        },
+      },
+    },
+  );
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(prompts, ["what is your name?", "42"]);
+});
+
+test("a reader that declines to answer cancels the run — the read's other ending, on demand", () => {
+  // `:110-111` again: "until the read finishes or the program is cancelled". A live host that
+  // cannot answer (the learner closed the prompt, the session ended) reports `undefined`, and the
+  // run takes the cancelled ending at that read — resolved and cancelled are therefore independently
+  // controllable through one seam, not two.
+  const result = execute(
+    ':a = input "first"\n:b = input "second"\nprint "never"',
+    doc,
+    {
+      hostInput: {
+        read: (prompt) => (prompt === "first" ? "answered" : undefined),
+      },
+    },
+  );
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-limit");
+  assert.deepEqual(result.diagnostics[0].params, { limit: "cancelled" });
+  // The first read completed (its primitive event is there); the second ended the run.
+  assert.deepEqual(
+    result.events.filter((event) => event.kind === "primitive").length,
+    1,
+  );
+  assert.deepEqual(printedWords(result), []);
+});
+
+test("a live reader is authoritative over the scripted queue — a real host never replays a stale script", () => {
+  const prompts = [];
+  const result = execute('print input "q"', doc, {
+    hostInput: {
+      responses: ["from-the-script"],
+      read: (prompt) => {
+        prompts.push(prompt);
+        return "from-the-host";
+      },
+    },
+  });
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(prompts, ["q"]);
+  assert.deepEqual(printedWords(result), ["from-the-host"]);
+});
+
+test("a reader's answer is classified by the same number-vs-word rule as a scripted one", () => {
+  // One meaning, two hosts: `spec/interaction-events.md:136-137` applies to whatever text the
+  // learner submitted, however it reached the runtime.
+  const result = execute(
+    ':n = input "n"\nprint :n is a "number"\n:w = input "w"\nprint :w is a "number"',
+    doc,
+    { hostInput: { read: (prompt) => (prompt === "n" ? "42" : "tom") } },
+  );
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(printedWords(result), [true, false]);
+});
 
 // --- Half 1: no event handler block runs across a read ------------------------------------------
 

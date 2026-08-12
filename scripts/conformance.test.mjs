@@ -2124,6 +2124,25 @@ test("loadFixture rejects a near-miss of `responses` rather than silently droppi
   );
 });
 
+test("loadFixture rejects the function-typed hostInput.read key (no JSON fixture can supply a live reader)", () => {
+  // Issue #681's live host reader is a function, exactly like `tutorTemplates` on `executeOptions`
+  // itself. Rejecting it by name is what keeps `responses` the ONE fixture convention the #657
+  // ruling fixed: a fixture cannot half-express an interactive host and quietly prove nothing.
+  const loaded = loadHostInputFixture("host-input-read-rejected", {
+    profiles: ["core-language", "interaction-events"],
+    execute: true,
+    executeOptions: { hostInput: { read: "not-a-function-in-json" } },
+    events: [],
+    diagnostics: [],
+  });
+  assert.ok(loaded.error);
+  assert.ok(
+    loaded.error.includes(
+      '"executeOptions.hostInput.read" is not a known hostInput key (known keys: events, responses)',
+    ),
+  );
+});
+
 test("loadFixture reads an executeOptions.hostInput.responses queue of scripted input answers", () => {
   // The #657 ruling's one convention: `responses` sits beside `events` on the same `hostInput`
   // object (issue #681). Order is the FIFO each `input` call consumes.

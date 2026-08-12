@@ -234,7 +234,36 @@ export interface HostInput {
    * `ol-limit` — deliberately, rather than inventing an answer the learner never gave.
    */
   readonly responses?: readonly string[];
+  /**
+   * The host's live reader for `input` (issue #681, slice I2) — the *interactive* half of the seam
+   * `responses` mocks. When supplied it is authoritative: each `input` read calls it with the
+   * prompt, already rendered to the text a learner would see, and the read stays outstanding for
+   * exactly the duration of that call. Returning a string finishes the read with that submitted
+   * text (classified by `spec/interaction-events.md:136-137` exactly as a scripted answer is);
+   * returning `undefined` means the host cannot or will not answer, which ends the read the only
+   * other way `:110-111` allows — the program is cancelled.
+   *
+   * This is how a real host both **displays the prompt** (`:134`) and holds the read open: the
+   * reader IS the outstanding read, so a caller can observe, from inside it, that no further
+   * OpenLogo instruction and no event handler block has run — the normative MUST at `:108-111`,
+   * which is why `interaction-input-blocking.test.mjs` probes the window through this seam.
+   *
+   * It is a **function**, so — like {@link ExecuteOptions.tutorTemplates} — no JSON fixture can
+   * supply it, and the conformance harness rejects it by name. That is deliberate: it keeps ONE
+   * fixture convention (`responses`) per the #657 ruling while giving hosts and unit tests the
+   * reactive seam a static list cannot express. Omit it and reads fall back to `responses`.
+   */
+  readonly read?: HostInputReader;
 }
+
+/**
+ * A host's live `input` reader (issue #681). Called with the prompt as displayable text; reports
+ * the text the learner submitted, or `undefined` to leave the read unanswered and cancel the run.
+ * Synchronous by design: `spec/interaction-events.md:108-111` requires that no OpenLogo instruction
+ * and no handler block run until the read finishes, and a synchronous call is that guarantee by
+ * construction — there is no suspension point at which anything else could be scheduled.
+ */
+export type HostInputReader = (prompt: string) => string | undefined;
 
 /**
  * Parse `source` and execute its top-level statements, emitting one `instruction` event per
