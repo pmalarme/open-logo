@@ -85,8 +85,9 @@ export function describeTurtleState(
  * `spec/rendering.md:191` makes that identification a MUST: "Implementations with multiple turtles
  * MUST identify the active turtle or addressed turtle set." A world holding several turtles is
  * therefore described as `turtle #<id> at x … y … heading … degrees pen … color … width …`, using
- * **exactly the identity the language itself prints** for a turtle value — `@openlogo/core`'s
- * `OLTurtle.printedForm` renders `turtle #<id>`, which is what a learner sees from `print who` or
+ * **exactly the identity the language itself prints** for a turtle value: `@openlogo/runtime`'s
+ * `printedForm` renders a turtle as `turtle #<id>` from `@openlogo/core`'s `OLTurtle.id`
+ * (`packages/runtime/src/evaluate.ts`), which is what a learner sees from `print who` or
  * `print :friend` (`spec/turtles-and-sprites.md:39`, `:85`). A screen-reader user therefore hears
  * the same name in the state region that the output pane gives them, and can match the two without
  * seeing the drawing. Any second numbering — a creation-order ordinal, say — would be off by one

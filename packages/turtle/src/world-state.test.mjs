@@ -295,6 +295,69 @@ test("an un-stamped event makes the main turtle the last-acted one again", () =>
   assert.equal(world.lastActedTurtleId, OL.MAIN_TURTLE_ID);
 });
 
+test("a scene-only per-turtle command (stamp) makes its turtle the last-acted one", () => {
+  // `tell :a` / `forward 10` / `ask :b [ stamp ]`. `stamp` and `fill` are per-turtle commands
+  // (spec/turtles-and-sprites.md:109 — they "use the current turtle's pen and shape state") that
+  // write into the shared scene rather than the turtle, so they change no TurtleState. Ignoring
+  // them would leave `:a` reported as the last turtle to act while `:b` is the one that just did
+  // something.
+  const world = OL.reduceTurtleWorldEvents([
+    spawn(1),
+    spawn(2),
+    event("move", { from: [0, 0], to: [0, 10], heading: 0 }, 1),
+    event(
+      "stamp",
+      { position: [0, 0], heading: 0, shape: "turtle", color: "black" },
+      2,
+    ),
+  ]);
+  assert.equal(world.lastActedTurtleId, 2);
+  // The stamp changed no turtle's own state, so the turtle map is reused untouched.
+  assert.deepEqual(world.turtles.get(2), {
+    position: [0, 0],
+    heading: 0,
+    penDown: true,
+    color: "black",
+    width: 1,
+    shape: "turtle",
+    visible: true,
+  });
+});
+
+test("a scene-only per-turtle command (fill) makes its turtle the last-acted one", () => {
+  const world = OL.reduceTurtleWorldEvents([
+    spawn(1),
+    spawn(2),
+    event("move", { from: [0, 0], to: [0, 10], heading: 0 }, 1),
+    event("fill", { color: "green" }, 2),
+  ]);
+  assert.equal(world.lastActedTurtleId, 2);
+});
+
+test("a scene-only per-turtle command for the already-last-acted turtle leaves the world referentially unchanged", () => {
+  // Nothing about the world differs, so there is no reason to hand back a new object and make
+  // every downstream reference check see a change.
+  const before = OL.reduceTurtleWorldEvents([
+    spawn(1),
+    event("move", { from: [0, 0], to: [0, 10], heading: 0 }, 1),
+  ]);
+  const after = OL.reduceTurtleWorldState(
+    before,
+    event("fill", { color: "green" }, 1),
+  );
+  assert.equal(after, before);
+});
+
+test("a scene-only per-turtle command naming an unspawned turtle is ignored", () => {
+  const world = OL.reduceTurtleWorldEvents([
+    spawn(1),
+    event("move", { from: [0, 0], to: [0, 10], heading: 0 }, 1),
+    event("fill", { color: "green" }, 9),
+  ]);
+  assert.equal(world.lastActedTurtleId, 1);
+  assert.deepEqual([...world.turtles.keys()], [0, 1]);
+});
+
 test("lastActedTurtleState falls back to the program-start defaults for a hand-built world naming an absent turtle", () => {
   // The type cannot enforce that `lastActedTurtleId` is a live key, so the accessor stays total
   // instead of throwing at paint/announce time.

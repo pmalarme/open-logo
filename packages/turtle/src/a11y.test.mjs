@@ -180,10 +180,10 @@ test("describeTurtleWorldState names the described turtle once there is more tha
 });
 
 test("describeTurtleWorldState names the turtle by its id, matching the identity an OpenLogo program prints", () => {
-  // `print who` / `print :friend` render a turtle value as `turtle #<id>` (@openlogo/core's
-  // OLTurtle.printedForm; spec/turtles-and-sprites.md:39,:85). A screen-reader user has only text
-  // channels, so the state region must use that same name — a creation-order ordinal would read
-  // "turtle 2" for the turtle the output pane calls "turtle #7".
+  // `print who` / `print :friend` render a turtle value as `turtle #<id>` (@openlogo/runtime's
+  // printedForm, over @openlogo/core's OLTurtle.id; spec/turtles-and-sprites.md:39,:85). A
+  // screen-reader user has only text channels, so the state region must use that same name — a
+  // creation-order ordinal would read "turtle 2" for the turtle the output pane calls "turtle #7".
   const world = turtleWorld(
     [
       [0, OL.INITIAL_TURTLE_STATE],

@@ -136,6 +136,17 @@ export function lastActedTurtleState(world: TurtleWorldState): TurtleState {
 }
 
 /**
+ * Per-turtle command kinds that act on a turtle without changing its own {@link TurtleState}:
+ * `fill` and `stamp` both "use the current turtle's pen and shape state"
+ * (`spec/turtles-and-sprites.md:109`) and write into the shared retained scene rather than into the
+ * turtle. They carry the acting turtle's `turtle_id` like any other per-turtle effect, so they must
+ * still mark that turtle as the one that acted — otherwise `tell :a` / `forward 10` /
+ * `ask :b [ stamp ]` would leave `:a` reported as the last turtle to act even though `:b` is the
+ * turtle that just did something.
+ */
+const SCENE_ONLY_TURTLE_KINDS: ReadonlySet<string> = new Set(["fill", "stamp"]);
+
+/**
  * Reduces one trace event into the next per-turtle world state. A `spawn-turtle` event registers
  * the newly created turtle at the full initial state its payload carries
  * (`spec/turtles-and-sprites.md`'s "Turtle creation" section — a new turtle starts at the same
@@ -153,15 +164,15 @@ export function lastActedTurtleState(world: TurtleWorldState): TurtleState {
  * its commands) is ignored rather than inventing a turtle, keeping the reducer total without
  * fabricating identities.
  *
- * A turtle becomes {@link TurtleWorldState.lastActedTurtleId} exactly when a **state-bearing** event
- * targeted it — the same condition that produces a new world. Note this is "an event of a
- * state-bearing kind arrived for that turtle", *not* "its fields actually differ": every
- * state-bearing branch of {@link reduceTurtleState} spreads a fresh object, so a repeated `pen_down`
- * while the pen is already down still counts as that turtle acting (which is right — the learner
- * did drive it). Only a `clean` clear and the non-state kinds (`instruction`, `print`,
- * `procedure-enter`, …) return the same reference, and those must not re-point the last-acted
- * turtle: they carry no `turtle_id` and would otherwise silently snap it back to the main turtle in
- * the middle of a sprite's block.
+ * A turtle becomes {@link TurtleWorldState.lastActedTurtleId} when a **state-bearing** event
+ * targeted it, or when one of the {@link SCENE_ONLY_TURTLE_KINDS} per-turtle commands did. Note the
+ * state-bearing condition is "an event of a state-bearing kind arrived for that turtle", *not* "its
+ * fields actually differ": every state-bearing branch of {@link reduceTurtleState} spreads a fresh
+ * object, so a repeated `pen_down` while the pen is already down still counts as that turtle acting
+ * (which is right — the learner did drive it). The remaining kinds — a `clean` clear, `instruction`,
+ * `print`, `procedure-enter`, … — must *not* re-point the last-acted turtle: they carry no
+ * `turtle_id` and would otherwise silently snap it back to the main turtle in the middle of a
+ * sprite's block.
  */
 export function reduceTurtleWorldState(
   world: TurtleWorldState,
@@ -188,7 +199,15 @@ export function reduceTurtleWorldState(
   }
   const reduced = reduceTurtleState(current, event);
   if (reduced === current) {
-    return world;
+    // The turtle's own state is unchanged, so the turtle map is reused as-is; only a scene-only
+    // per-turtle command still re-points the last-acted turtle.
+    if (
+      !SCENE_ONLY_TURTLE_KINDS.has(event.kind) ||
+      world.lastActedTurtleId === id
+    ) {
+      return world;
+    }
+    return { turtles: world.turtles, lastActedTurtleId: id };
   }
   const turtles = new Map(world.turtles);
   turtles.set(id, reduced);
