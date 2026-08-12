@@ -28,5 +28,14 @@ that requires it — see `scripts/examples-gate.mjs`.
   zero or negative count is `ol-range`, the event
   sequence is deterministic across runs, and `check`-mode fixtures prove `every` is visible only under
   the `interaction-events` profile and rejected Core-only.
+- **`on_key/`** — the `on_key <key-word> <block>` keyboard handler (issue #684, slice I5):
+  registration emits `primitive` after the handler is registered; a key press is host input, so in a
+  headless batch run the handler is registered but never delivered (locked by
+  `on-key-registered-not-delivered`, mirroring I3's `when "stop"`); a non-word key is `ol-type`, the
+  multiline `... end on_key` form behaves identically to the bracket form, a mismatched `end` label is
+  `ol-mismatched-end`, `on_key` registers correctly in awkward positions (nested in `repeat`,
+  registered twice for the same key) with insertion-ordered handlers for #686/I7, and `check`-mode
+  fixtures prove `on_key` is visible only under the `interaction-events` profile and rejected
+  Core-only.
 
 Fixture shape and conventions: see [`../README.md`](../README.md).

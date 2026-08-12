@@ -1,0 +1,56 @@
+{
+  "description": "issue #684 (slice I5): registration is not invocation, and a key press is host input — a headless batch `execute()` run has no keyboard, so an `on_key \"space\" [ ... ]` handler is registered (emitting the `instruction`+`primitive` pair, seq 0-1) but never fires. This mirrors I3's `when \"stop\"` narrowing: the following `print \"mid\"` runs (seq 2-3) and that is the whole event stream — `\"moved\"` is never printed. This slice deliberately does NOT synthesize a synthetic key-injection API to make the handler fire; delivering a key press belongs to a later interactive host slice. Locking that narrowing with this fixture makes it falsifiable rather than silently omitted.",
+  "profiles": ["interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-registered-not-delivered",
+        "start": [1, 1],
+        "end": [1, 33]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-registered-not-delivered",
+        "start": [1, 1],
+        "end": [1, 33]
+      },
+      "payload": {
+        "name": "on_key"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-registered-not-delivered",
+        "start": [2, 1],
+        "end": [2, 12]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-registered-not-delivered",
+        "start": [2, 1],
+        "end": [2, 12]
+      },
+      "payload": {
+        "values": ["mid"]
+      }
+    }
+  ],
+  "diagnostics": []
+}

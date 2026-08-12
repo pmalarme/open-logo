@@ -311,6 +311,37 @@ export interface EveryHandler {
 }
 
 /**
+ * One registered `on_key <key-word> <block>` handler (issue #684, slice I5 —
+ * `spec/interaction-events.md`'s `### on_key <key-word> <block>`): a keyboard handler that runs its
+ * `block` when the named `key` is pressed. Like {@link WhenHandler} it captures the
+ * {@link Environment} at registration time so the body runs in its **registration-time lexical
+ * scope** ("A handler block is a normal OpenLogo block"), and the head-keyword {@link SpannedName}
+ * whose span the handler-block's opening `instruction` event carries ("The start of a handler block
+ * emits an `instruction` event for the block-head that caused the handler to run").
+ *
+ * `key` is the validated key word (`"space"`, `"enter"`, `"a"`, …), stored verbatim: word values are
+ * case-significant in OpenLogo (unlike case-insensitive identifiers), and the spec mandates no
+ * folding, so the exact spelling the learner wrote is preserved. The runtime never validates it
+ * against a closed set — `spec/interaction-events.md` only says implementations SHOULD document their
+ * supported key words, so any word is accepted and a handler for a key this host never delivers
+ * simply never runs.
+ *
+ * A key press is **host input**: in a headless batch `execute()` run there is no keyboard, so an
+ * `on_key` handler registers but is never delivered — exactly like a `when "stop"` handler in a
+ * headless run (locked by the `on-key-registered-not-delivered` fixture). Synthesizing a key press
+ * is a host concern outside this slice, so this handler carries no delivery-state flag: it holds the
+ * captured block and scope, ready for an interactive host slice to deliver it. It lives in its own
+ * registration-ordered list so #686/I7 can impose the spec's same-tick delivery order
+ * (`when`/`on_key`/`on_click` first, then due `every`) across handler kinds without reworking it.
+ */
+export interface OnKeyHandler {
+  readonly key: string;
+  readonly block: BlockNode;
+  readonly keyword: SpannedName;
+  readonly environment: Environment;
+}
+
+/**
  * The Interaction & Events **event-handler registry** (issue #682, slice I3): every `when` handler
  * registered so far, in registration order. A single append-only list (rather than a map keyed by
  * event word) is deliberate — it preserves one total registration order across all events, which is
@@ -321,17 +352,18 @@ export interface EveryHandler {
  * This is the structure the file header promised the rest of the track would hang off the tick
  * clock's {@link yieldToEventLoop} seam: `when` populates it and `"start"` fires from it immediately
  * on registration (the run has already started). `every`/`on_key`/`on_click` (#683–#685) add their
- * own handler kinds alongside it, and an interactive host slice later delivers `"stop"` and the
- * timed/input events from it.
+ * own handler kinds alongside it (`every` in #683, `on_key` in #684), and an interactive host slice
+ * later delivers `"stop"` and the timed/input events from it.
  */
 export interface EventHandlerRegistry {
   readonly handlers: WhenHandler[];
   readonly everyHandlers: EveryHandler[];
+  readonly onKeyHandlers: OnKeyHandler[];
 }
 
 /** A fresh, empty event-handler registry — the state at program start (no handlers registered). */
 export function createEventHandlerRegistry(): EventHandlerRegistry {
-  return { handlers: [], everyHandlers: [] };
+  return { handlers: [], everyHandlers: [], onKeyHandlers: [] };
 }
 
 /**
@@ -415,6 +447,36 @@ export function registerEveryHandler(
 }
 
 /**
+ * Register an `on_key <key-word> <block>` handler (issue #684, slice I5,
+ * `spec/interaction-events.md`'s `### on_key <key-word> <block>`), appending it to `registry` in
+ * registration order and returning the created {@link OnKeyHandler}. `key` MUST already be the
+ * validated key word (a `word` value, stored verbatim — case-significant, never folded); `environment` is captured so the handler body later runs in its
+ * registration-time lexical scope. Registration is side-effect-only on the registry; the caller
+ * emits the `primitive` event `spec/interaction-events.md` requires "after the handler is
+ * registered". `on_key` handlers live in their own list (never bucketed with `when`'s one-shot
+ * handlers or `every`'s timed handlers) so the spec's same-tick delivery order — pending `when`,
+ * then pending `on_key`, then `on_click`, then due `every` (#686/I7) — can filter each kind
+ * independently while each kind preserves its own registration order. In a headless batch run no key
+ * press is ever delivered, so this list is populated but never drained here.
+ */
+export function registerOnKeyHandler(
+  registry: EventHandlerRegistry,
+  key: string,
+  block: BlockNode,
+  keyword: SpannedName,
+  environment: Environment,
+): OnKeyHandler {
+  const handler: OnKeyHandler = {
+    key,
+    block,
+    keyword,
+    environment,
+  };
+  registry.onKeyHandlers.push(handler);
+  return handler;
+}
+
+/**
  * The batch of `every` handlers to invoke on `tick` — the tick the clock has just advanced to — in
  * registration order, claimed atomically **before any handler body runs**. A handler is due when
  * `tick >= handler.nextDueTick`; because `runWait` calls the dispatch once per tick (monotonically,
@@ -493,5 +555,25 @@ export function emitEveryPrimitive(
     kind: "primitive",
     source_span,
     payload: { name: "every" } satisfies PrimitivePayload,
+  });
+}
+
+/**
+ * Emit the `primitive` event `spec/interaction-events.md` requires an `on_key` registration to emit
+ * **after** the handler is registered ("Event registration forms emit `primitive` events after the
+ * handler is registered", issue #684). Like {@link emitWhenPrimitive}, the {@link PrimitivePayload}
+ * carries only the primitive `name` — never the key word, tick, or any timing — keeping the stream
+ * headless (`spec/execution-model.md`'s trace-and-event registry). Pushed onto the shared event sink
+ * with the next monotonic `seq`.
+ */
+export function emitOnKeyPrimitive(
+  events: TraceEvent[],
+  source_span: SourceSpan,
+): void {
+  events.push({
+    seq: events.length,
+    kind: "primitive",
+    source_span,
+    payload: { name: "on_key" } satisfies PrimitivePayload,
   });
 }
