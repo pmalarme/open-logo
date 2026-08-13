@@ -1,0 +1,7 @@
+{
+  "description": "Issue #746, the profile-INACTIVE direction: byte-for-byte the same source as `reserved-reporters-with-sprites`, checked under Core + Turtle & Rendering alone, is completely clean. Without `sprites` claimed the reporters register nothing (`collectVisibleNames` gates them on the profile), so `new_turtle`/`who`/`turtles` are ordinary names a program is free to declare — mirroring `reserved-procedures-without-sprites`, which does the same for the block-heads. `spec/tooling.md:175-176` requires the Layer-2 rules be applied against the **active profile set**, so it is the *pairing* of these two fixtures, not either alone, that proves the primitive category is profile-gated rather than unconditional. Note this is a bare *declaration*: the `ol-unknown-command` a **call** to one of these names raises under Core-only is a different rule, covered by `sprites/reporters-unknown-without-sprites`. Sharing one source with the rejecting sibling is deliberate, so the two cannot diverge and silently stop testing the gate. `\"check\": true` for the same reason as the sibling: this is a checker rule with no execution.",
+  "profiles": ["core-language", "turtle-rendering"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

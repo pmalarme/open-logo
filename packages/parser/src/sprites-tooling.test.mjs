@@ -17,6 +17,10 @@
 //      `ol-unknown-command` even under an active `sprites` profile — a profile whose own reporters
 //      are unknown is not conformant. SP6 registers them in `collectVisibleNames`' `sprites` gate,
 //      so they now check clean with the profile active and stay `ol-unknown-command` without it.
+//      Issue #746 then closed the mirror-image hole: being a *primitive* rather than a reserved word
+//      decides which `namespace` a redefinition reports (`"primitive"`, not `"reserved"`), not
+//      whether it is reportable at all (`spec/tooling.md:184`), so `define who` now collides under
+//      an active profile exactly as `define grid`/`define wait` do — and stays legal without it.
 //
 // Highlighting is **profile-blind by design** — `highlight()`/`semanticTokens()` take no profile
 // argument (`spec/tooling.md:26`, and lines 175-176 scope profile-awareness to the *checker*/reader,
@@ -115,10 +119,12 @@ test("highlight: every Sprites name stays primitive nested in a whole program (b
   }
 });
 
-test("highlight: a Sprites reporter name is never a keyword — it can be redefined as a procedure name", () => {
+test("highlight: a Sprites reporter name is never a keyword — its call site highlights as a procedure name", () => {
   // The reporters are not reserved words in any profile, so a user procedure literally named `who`
   // resolves to `procedure-name` at its call site, proving the name is not locked to
-  // `primitive`/`keyword` the way a Core reserved word is.
+  // `primitive`/`keyword` the way a Core reserved word is. This is a *highlighting* claim only —
+  // highlighting is profile-blind (`spec/tooling.md:26`), and the checker separately rejects this
+  // very program under an active `sprites` profile (issue #746, asserted below).
   const source = "define who\nend\nwho";
   const tokens = OL.highlight(source, doc).filter((t) => t.text === "who");
   assert.equal(tokens.length, 2);
@@ -233,8 +239,8 @@ test("check: that same program under Core-only flags each Sprites name as unknow
 
 test("check: redefining a Sprites block-head under an active profile raises ol-reserved-word", () => {
   // `tell`/`ask`/`each` are reserved only when Sprites is active (C1 #663). The reporters are NOT
-  // reserved in any profile — asserted by the redefinition test below and the `who` procedure
-  // highlight test above.
+  // reserved in any profile — they collide as *primitives* instead, with `namespace: "primitive"`
+  // rather than `"reserved"` (issue #746, asserted by the reporter redefinition tests below).
   for (const head of Object.keys(SPRITES_BLOCK_HEADS)) {
     const diagnostics = checkDiagnostics(
       `define ${head}\nend`,
@@ -258,15 +264,56 @@ test("check: redefining a Sprites block-head is allowed under Core-only (no spri
   }
 });
 
-test("check: a Sprites reporter is never reserved — it may be redefined even under an active profile", () => {
-  // Reporters are ordinary primitives, not reserved words: a user `define who … end` shadows the
-  // built-in without `ol-reserved-word` (contrast the block-heads above). The redefinition checks
-  // fully clean under an active profile.
+test("check: redefining a Sprites reporter under an active profile raises ol-reserved-word as a primitive, not a reserved word", () => {
+  // Issue #746. Until this fix the reporters were the one Sprites shape a program could silently
+  // shadow: this test asserted `define who … end` checked *clean* under an active profile, which
+  // pinned the defect rather than the rule. `spec/tooling.md:184` is a normative Layer-2 "Required
+  // behavior" row listing **primitive** beside "reserved word" — and `:175-176` applies it against
+  // the active profile set — so `new_turtle`/`who`/`turtles` (C3 Kind-R primitives) collide exactly
+  // as `grid` (Geometry), `set_tempo` (Sound), `dict` (Data), and `wait` (Interaction) already did.
+  //
+  // The reporter/block-head distinction this file exists to keep separate is preserved and now
+  // asserted *precisely* rather than as presence-vs-absence: a block-head reports
+  // `namespace: "reserved"` (above), a reporter reports `namespace: "primitive"`. `params.name` is
+  // the surface spelling the learner wrote, at that name's own span (#737).
+  for (const reporter of Object.keys(SPRITES_REPORTERS)) {
+    const diagnostics = checkDiagnostics(
+      `define ${reporter}\nend`,
+      SPRITES_PROFILES,
+    );
+    assert.equal(
+      diagnostics.length,
+      1,
+      `redefining ${reporter} should raise exactly one diagnostic`,
+    );
+    const [finding] = diagnostics;
+    assert.equal(finding.code, "ol-reserved-word");
+    assert.deepEqual(finding.params, {
+      name: reporter,
+      namespace: "primitive",
+    });
+    assert.equal(finding.stage, "semantic");
+    assert.equal(finding.severity, "error");
+    assert.deepEqual(
+      finding.source_span.start,
+      [1, 8],
+      `${reporter} should be reported at the procedure-name token, not the define`,
+    );
+    assert.deepEqual(finding.source_span.end, [1, 8 + reporter.length]);
+  }
+});
+
+test("check: redefining a Sprites reporter is allowed under Core-only — the rule is profile-gated", () => {
+  // The other direction of #746, and the property the reporters share with the block-heads above:
+  // with `sprites` inactive the name registers nothing, so it stays an ordinary name a Core-only
+  // program is free to declare — exactly as `define ask` is legal without Sprites. The `ol-unknown-
+  // command` a *call* to it would raise is a different rule, exercised above; a bare declaration is
+  // fully clean.
   for (const reporter of Object.keys(SPRITES_REPORTERS)) {
     assert.deepEqual(
-      checkDiagnostics(`define ${reporter}\nend`, SPRITES_PROFILES),
+      checkDiagnostics(`define ${reporter}\nend`, CORE_PROFILES),
       [],
-      `${reporter} is a reporter, not a reserved word — redefining it must check clean`,
+      `${reporter} is an ordinary name under Core-only and may be redefined`,
     );
   }
 });

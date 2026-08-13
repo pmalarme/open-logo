@@ -103,9 +103,32 @@
  * same — the block-head/primitive distinction decides which branch reports it and under which
  * profile, not whether it is reportable at all. Without this, `wait` was the Interaction profile's
  * one primitive and yet the only one of the Data/Geometry/Sound/Interaction primitives a program
- * could silently shadow. (The Turtle & Rendering and Sprites primitive tables are still not
- * consulted here, so `define forward`/`define who` remain accepted — a separate pre-existing gap,
- * not this profile's to close.)
+ * could silently shadow.
+ *
+ * Issues #746 (Sprites half) and #742 (Heritage half) close the last two holes in that same
+ * primitive category, and had to land **together** — see {@link primitiveCollision}, which is where
+ * every profile's table is now consulted from. #746 adds the Sprites reporters `new_turtle`/`who`/
+ * `turtles` (`signatures.ts`'s `spritesPrimitiveArity`), gated on `"sprites"`, so they collide
+ * exactly as `grid` (Geometry), `set_tempo` (Sound), `dict` (Data), and `wait` (Interaction &
+ * Events) already did. #742 adds the Heritage short aliases, gated on `"heritage"`, by **resolving
+ * the alias to its canonical spelling and re-running that same table lookup** — never by a second
+ * table of its own. Heritage is "alternate spellings only, no new semantics"
+ * (`spec/conformance.md:146`), so `define pr` had to be exactly as (il)legal as `define print`;
+ * before this, `define print` raised while `define pr` was accepted **and the shadow took effect**,
+ * so `pr 7` then reported `ol-bad-token` — a Heritage program could silently lose its `print`.
+ * Resolving through {@link canonicalOfHeritageAlias} makes that symmetry hold **by construction**
+ * (the model slice H5/#670 and #733/#747 established), so an alias can never drift from its
+ * canonical: whatever table the canonical is in — or is *not* in — decides both spellings alike.
+ *
+ * **Turtle & Rendering is still deliberately not consulted** (issue #783, which awaits a maintainer
+ * ruling on whether `tooling.md:184`'s primitive category binds for a profile that shipped in the
+ * 0.1.0 minimal claim). That is a scope boundary, not an oversight, and the resolve-to-canonical
+ * design above is precisely what keeps it from leaking: `define forward` is accepted, so
+ * `define fd` — which resolves to `forward` and finds no consulted table — is accepted too. The nine
+ * turtle aliases (`fd bk lt rt st ht pu pd cs`) therefore stay legal *because* their canonicals do,
+ * and the day #783 wires in `turtlePrimitiveArity` all nine start colliding with no further edit
+ * here. A parallel alias table would have had to be revisited by hand instead, which is exactly the
+ * drift this design forbids.
  */
 
 import type { Diagnostic } from "@openlogo/core";
@@ -127,11 +150,13 @@ import type {
 import { walk } from "./ast.js";
 import { isReservedWord } from "./reserved.js";
 import {
+  canonicalOfHeritageAlias,
   corePrimitiveArity,
   dataPrimitiveArity,
   geometryPrimitiveArity,
   interactionPrimitiveArity,
   soundPrimitiveArity,
+  spritesPrimitiveArity,
 } from "./signatures.js";
 import type { CheckProfile } from "./check.js";
 
@@ -141,16 +166,29 @@ type Namespace = "reserved" | "primitive" | "procedure" | "struct";
 /** The empty struct-name set for callers that have no struct collisions to check. */
 const NO_STRUCTS: ReadonlySet<string> = new Set();
 
-/** The collision category `name` falls into under `profiles`, or `undefined` if it is free to declare. */
-function collidingNamespace(
+/**
+ * `"primitive"` when `name` is a built-in of some **active** profile, `undefined` otherwise — the
+ * whole of {@link collidingNamespace}'s primitive category, in one place, so a profile slice adds
+ * exactly one branch here (`spec/tooling.md:184` "Required behavior", applied against the active
+ * profile set per `:175-176`).
+ *
+ * Two properties this function exists to guarantee:
+ *
+ * 1. **Every profile is gated on its own claim**, so a Core-only program stays free to
+ *    `define grid`/`define who`/`define pr`, exactly as it is free to `define ask`.
+ * 2. **A Heritage alias is its canonical, by construction.** The `heritage` branch resolves through
+ *    {@link canonicalOfHeritageAlias} and re-enters this same function on the canonical spelling
+ *    rather than consulting a table of its own, so `define pr` is exactly as (il)legal as
+ *    `define print` — no arity or name knowledge is duplicated and the two spellings cannot drift
+ *    (issue #742; the same resolve-then-reuse shape as `signatures.ts`'s `heritageAliasArity`).
+ *    The recursion is depth-1 by construction: no canonical spelling is itself an alias, which
+ *    `checker-reserved-word.test.mjs` pins directly off the registry so a future alias whose
+ *    canonical is another alias is caught rather than looping.
+ */
+function primitiveCollision(
   name: string,
   profiles: readonly CheckProfile[],
-  declaredProcedures: ReadonlySet<string>,
-  declaredStructs: ReadonlySet<string> = NO_STRUCTS,
 ): Namespace | undefined {
-  if (isReservedWord(name, profiles)) {
-    return "reserved";
-  }
   if (
     profiles.includes("core-language") &&
     corePrimitiveArity(name) !== undefined
@@ -174,6 +212,35 @@ function collidingNamespace(
     interactionPrimitiveArity(name) !== undefined
   ) {
     return "primitive";
+  }
+  if (
+    profiles.includes("sprites") &&
+    spritesPrimitiveArity(name) !== undefined
+  ) {
+    return "primitive";
+  }
+  if (profiles.includes("heritage")) {
+    const canonical = canonicalOfHeritageAlias(name);
+    if (canonical !== undefined) {
+      return primitiveCollision(canonical, profiles);
+    }
+  }
+  return undefined;
+}
+
+/** The collision category `name` falls into under `profiles`, or `undefined` if it is free to declare. */
+function collidingNamespace(
+  name: string,
+  profiles: readonly CheckProfile[],
+  declaredProcedures: ReadonlySet<string>,
+  declaredStructs: ReadonlySet<string> = NO_STRUCTS,
+): Namespace | undefined {
+  if (isReservedWord(name, profiles)) {
+    return "reserved";
+  }
+  const primitive = primitiveCollision(name, profiles);
+  if (primitive !== undefined) {
+    return primitive;
   }
   if (declaredProcedures.has(name)) {
     return "procedure";
@@ -293,7 +360,8 @@ function assignedBareName(node: AssignNode): SpannedName | undefined {
  * ruling — see the module doc comment's form table and the two boundary notes it states).
  *
  * *Registrations* — every `define`/`local`/`struct` whose name collides
- * with a reserved word, a Core, Data, Geometry, Sound, or Interaction & Events primitive, or an
+ * with a reserved word, a primitive of any active profile ({@link primitiveCollision} — Core, Data,
+ * Geometry, Sound, Interaction & Events, Sprites, or a Heritage alias of any of them), or an
  * existing procedure/struct raises
  * one diagnostic at that name's own span. A `local` is checked against every procedure name in the
  * program, since procedures are visible program-wide regardless of declaration order

@@ -1,0 +1,53 @@
+{
+  "description": "Issue #746 (Sprites half of the alias/Sprites shadowing fix, landed with #742): with `sprites` ACTIVE, redefining one of the profile's three turtle-identity reporters raises `ol-reserved-word` with `namespace` `primitive`. `spec/tooling.md:184` is a normative Layer-2 \"Required behavior\" row — \"Redefining a reserved word, **primitive**, existing procedure, existing type constructor, or existing alias → `ol-reserved-word`\" — and `:175-176` requires it be applied against the active profile set. `new_turtle`/`who`/`turtles` are Sprites **primitives** (`spec/turtles-and-sprites.md`'s \"Canonical forms\" table: each Kind-R, arity 0), so with the profile claimed they must collide exactly as `grid` (Geometry), `set_tempo` (Sound), `dict` (Data), and `wait` (Interaction & Events) already did; before this fix the Sprites table was simply never consulted and `define who` was silently accepted, leaving a claimed profile with a normative requirement unmet. Note the `namespace` is `primitive`, NOT `reserved`: the reporters are ordinary primitives, unlike the block-heads `tell`/`ask`/`each`, which `spec/turtles-and-sprites.md:154` reserves and which the sibling `reserved-procedures-with-sprites` fixture pins as `reserved`. The two categories are reported by different branches and must not be conflated. Paired with `reserved-reporters-without-sprites`, which checks this exact source under Core+Turtle alone and is clean. `\"check\": true` (semantic-checker only, no execution) because this is a checker rule: the procedures are never called and no events are produced.",
+  "profiles": ["core-language", "turtle-rendering", "sprites"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "sprites/reserved-reporters-with-sprites/reserved-reporters-with-sprites",
+        "start": [1, 8],
+        "end": [1, 18]
+      },
+      "params": {
+        "name": "new_turtle",
+        "namespace": "primitive"
+      },
+      "message": "new_turtle is already a primitive, so it can't be redefined here.",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "sprites/reserved-reporters-with-sprites/reserved-reporters-with-sprites",
+        "start": [3, 8],
+        "end": [3, 11]
+      },
+      "params": {
+        "name": "who",
+        "namespace": "primitive"
+      },
+      "message": "who is already a primitive, so it can't be redefined here.",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "sprites/reserved-reporters-with-sprites/reserved-reporters-with-sprites",
+        "start": [5, 8],
+        "end": [5, 15]
+      },
+      "params": {
+        "name": "turtles",
+        "namespace": "primitive"
+      },
+      "message": "turtles is already a primitive, so it can't be redefined here.",
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}
