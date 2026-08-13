@@ -99,7 +99,6 @@ import {
   snapshotValue,
   requireNumber,
   requireWholeNumber,
-  turtleStateFor,
   type AssignResult,
   type Environment,
   type EvalResult,
