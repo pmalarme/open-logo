@@ -176,6 +176,6 @@ An implementation MUST report learner-facing diagnostics using the shape defined
 - a non-turtle input to `tell` or `ask` raises `ol-type`;
 - a list passed to `tell` or `ask` that contains a non-turtle value raises `ol-type`;
 - `each` outside an active addressed set still uses the current addressed set, which is the default turtle set at top level;
-- redefining `tell`, `ask`, or `each` while the profile is active raises `ol-reserved-word`.
+- introducing the name `tell`, `ask`, or `each` while the profile is active raises `ol-reserved-word`, at every form that introduces a name and not only at the declaration forms (see [grammar.md](grammar.md#reserved-words-and-namespaces)).
 
 Messages should explain the intended mental model, for example: `tell needs a turtle or a list of turtles to choose who moves.`

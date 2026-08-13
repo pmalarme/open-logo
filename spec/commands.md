@@ -119,7 +119,7 @@ define grow :n
 end
 ```
 
-- **Possible errors:** `ol-reserved-word` when a name is a reserved word. Used outside any procedure, `local` introduces the name in the top-level program frame rather than raising an error.
+- **Possible errors:** `ol-reserved-word` when a name is a reserved word, and — because `local` registers a name rather than only binding one — when a name collides with a primitive, an existing procedure, or a struct type constructor: `local count` raises with `namespace: "primitive"` (see [grammar.md](grammar.md#reserved-words-and-namespaces)). Used outside any procedure, `local` introduces the name in the top-level program frame rather than raising an error.
 
 ### `thing`
 
@@ -810,7 +810,7 @@ for name in :names
 end for
 ```
 
-- **Possible errors:** `ol-type`.
+- **Possible errors:** `ol-type`; `ol-reserved-word` when the binder is a reserved word, because a binder introduces a name (see [grammar.md](grammar.md#reserved-words-and-namespaces)).
 
 ### `for … from … to …`
 
@@ -829,7 +829,7 @@ for i from 1 to 4
 end for
 ```
 
-- **Possible errors:** `ol-type`, `ol-range`.
+- **Possible errors:** `ol-type`, `ol-range`; `ol-reserved-word` when the loop variable is a reserved word, because a binder introduces a name (see [grammar.md](grammar.md#reserved-words-and-namespaces)).
 
 ### `forever`
 
@@ -866,7 +866,7 @@ end forever
 :doubled = map num in :nums [ :num * 2 ]
 ```
 
-- **Possible errors:** `ol-type`, `ol-no-value`, `ol-return-in-comprehension`.
+- **Possible errors:** `ol-type`, `ol-no-value`, `ol-return-in-comprehension`; `ol-reserved-word` when the binder is a reserved word, because a binder introduces a name (see [grammar.md](grammar.md#reserved-words-and-namespaces)).
 
 ### `filter`
 
@@ -884,7 +884,7 @@ end forever
 :bigs = filter num in :nums [ :num > 1 ]
 ```
 
-- **Possible errors:** `ol-not-boolean`, `ol-no-value`, `ol-return-in-comprehension`.
+- **Possible errors:** `ol-not-boolean`, `ol-no-value`, `ol-return-in-comprehension`; `ol-reserved-word` when the binder is a reserved word, because a binder introduces a name (see [grammar.md](grammar.md#reserved-words-and-namespaces)).
 
 ### `reduce`
 
@@ -902,7 +902,7 @@ end forever
 :total = reduce sum num in :nums from 0 [ :sum + :num ]
 ```
 
-- **Possible errors:** `ol-no-value`, `ol-duplicate-binder`, `ol-return-in-comprehension`.
+- **Possible errors:** `ol-no-value`, `ol-duplicate-binder`, `ol-return-in-comprehension`; `ol-reserved-word` when the accumulator binder or the item binder is a reserved word, because both introduce a name (see [grammar.md](grammar.md#reserved-words-and-namespaces)).
 
 ## Procedures
 
@@ -927,7 +927,7 @@ end
 print double 5
 ```
 
-- **Possible errors:** `ol-reserved-word` when the procedure name collides with a reserved word or existing name. Wrong argument counts are reported at the call site as `ol-not-enough-inputs` or `ol-too-many-inputs`, not by `define` itself.
+- **Possible errors:** `ol-reserved-word` when the procedure name collides with a reserved word or existing name, and when a parameter name is a reserved word, because parameters introduce names too (see [grammar.md](grammar.md#reserved-words-and-namespaces)). Wrong argument counts are reported at the call site as `ol-not-enough-inputs` or `ol-too-many-inputs`, not by `define` itself.
 
 ### `return`
 
