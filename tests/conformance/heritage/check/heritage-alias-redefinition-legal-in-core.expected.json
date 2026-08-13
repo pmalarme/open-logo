@@ -1,0 +1,7 @@
+{
+  "description": "Issue #742, the profile-INACTIVE direction: byte-for-byte the same source as `heritage-alias-redefinition-rejected-when-active`, checked under Core alone, is completely clean. Without `heritage` claimed, `pr`/`bf`/`bl`/`se` and the nine turtle aliases are ordinary names that register nothing, so a learner is free to declare any of them — exactly as `define ask` stays legal without Sprites. `spec/tooling.md:175-176` requires the Layer-2 rules be applied against the **active profile set**, so the fix must not become a Core-wide land-grab: it is the *pairing* of these two fixtures, not either alone, that proves `ol-reserved-word`'s primitive category is profile-gated rather than unconditional. Sharing one source with the rejecting sibling is deliberate — it removes the possibility that the two fixtures diverge and the gate silently stops being tested. `\"check\": true` for the same reason as the sibling: this is a checker rule with no execution.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}
