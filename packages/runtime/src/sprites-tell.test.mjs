@@ -521,6 +521,10 @@ test("#782: a tell in an argument does not re-aim the non-movement command it is
   // `forward`. `set_color` addressed to :a keeps recolouring :a even though its argument's procedure
   // re-addressed :b, so the `color-change` event and its `turtle_id` describe one turtle; the
   // `tell` still takes effect for what follows, which `who` then reports.
+  //
+  // :b is pre-coloured blue so the `from` field discriminates (recolouring :b would report
+  // `from: "blue"`), and :a draws afterwards so the segment's captured pen colour proves which
+  // turtle actually changed rather than only which id the event claims.
   const result = execute(
     [
       "define choose_color",
@@ -529,20 +533,31 @@ test("#782: a tell in an argument does not re-aim the non-movement command it is
       "end",
       ":a = new_turtle",
       ":b = new_turtle",
+      "tell :b",
+      'set_color "blue"',
       "tell :a",
       "set_color choose_color",
       "print who",
+      "tell :a",
+      "forward 5",
     ].join("\n"),
     "main.logo",
   );
   assert.deepEqual(result.diagnostics, []);
-  const colorChange = result.events.find(
-    (event) => event.kind === "color-change",
-  );
-  assert.equal(colorChange.turtle_id, 1);
-  assert.deepEqual(colorChange.payload, { from: "black", to: "red" });
+  const colorChanges = result.events
+    .filter((event) => event.kind === "color-change")
+    .map((event) => [event.turtle_id, event.payload]);
+  assert.deepEqual(colorChanges, [
+    [2, { from: "black", to: "blue" }],
+    [1, { from: "black", to: "red" }],
+  ]);
   const printEvent = result.events.find((event) => event.kind === "print");
   assert.equal(printEvent.payload.values[0].id, 2);
+  // :a really carries the new pen colour: its segment captures "red", not the "black" it would
+  // still be if the argument's `tell` had re-aimed `set_color` at :b.
+  const segment = result.events.find((event) => event.kind === "draw-segment");
+  assert.equal(segment.turtle_id, 1);
+  assert.equal(segment.payload.color, "red");
 });
 
 test("#782: an ask inside a procedure still restores the caller's addressed set (tell persists, ask does not)", () => {
