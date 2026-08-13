@@ -1,0 +1,3 @@
+:ages = { tom: 8 }
+:k = [ 1 2 ]
+print value of :ages for key :k

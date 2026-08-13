@@ -1,0 +1,56 @@
+{
+  "description": "Heritage `value of … for key` REJECTS a RECORD container with `ol-type` `expected: \"dict\"`, `operation: \"field\"`. This is the one container type with NO Core twin, and the fixture exists to record that deliberately rather than leave it to be discovered as a bug: the reader's operand is typed `dictExpr` (`spec/data-structures.md:268`), so a record is out of range — while the Core `.field` selector it otherwise twins ACCEPTS records (`spec/data-structures.md:252-327`), where `:p.tom` reports `ol-unknown-field` instead. The divergence predates issue #784 (before it, the reader rejected records with `expected: \"list or dict\"`), is spec-mandated rather than accidental, and closing it either way would be a `spec/` decision, not a runtime one — so this fixture pins the current behaviour so any future change to it is a deliberate, reviewed one. The rejection itself is coherent under `dictExpr`; only the absence of a twin is notable. Heritage depends on Data (`spec/conformance.md:301`), so both `data` and `heritage` are active.",
+  "profiles": ["core-language", "data", "heritage"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-record-container-rejected",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": { "statement_kind": "StructDef" }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-record-container-rejected",
+        "start": [2, 1],
+        "end": [2, 15]
+      },
+      "payload": { "statement_kind": "Assign" }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-record-container-rejected",
+        "start": [3, 1],
+        "end": [3, 32]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-record-container-rejected",
+        "start": [3, 16],
+        "end": [3, 18]
+      },
+      "params": {
+        "expected": "dict",
+        "actual": "record",
+        "value": { "x": 1, "y": 2 },
+        "operation": "field"
+      },
+      "message": "field needs a dict, but got a record.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

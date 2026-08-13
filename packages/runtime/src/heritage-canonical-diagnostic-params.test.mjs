@@ -51,18 +51,20 @@
 //   4. EXACT PARAMS for the one Heritage form no registry enumerates — the worded
 //      `value of … for key` reader (EXTRA_TWINS). Properties 1 and 2 both run over those pairs, but
 //      neither can pin the expected canonical VALUE there: the form's spelling is not in the
-//      registries, so property 2 has no pattern for it, and the reader is a PARALLEL IMPLEMENTATION
-//      of the Core selector's dict read (`evaluateValueOfKey` → `readDictByKey`, versus the
-//      selector's `resolveDictSegment`) — two hand-synchronised copies. Property 1 therefore still
-//      catches a leak in ONE copy, which is genuine drift between them; what it cannot see is a leak
-//      in shared builder territory, which lands on both sides at once. Only an exact expectation
-//      covers both, so its params are pinned by value.
+//      registries, so property 2 has no pattern for it, and property 1 compares the two sides only
+//      against each other. Since issue #784 the reader shares the Core selectors' own
+//      `resolveDictSegment` rather than restating it, so there is no second copy for property 1 to
+//      catch drifting; what property 1 still does catch is a wrong ARGUMENT from one side, which
+//      moves that side alone. What neither can see is a defect in the shared code itself, which
+//      moves both sides together. Only an exact expectation covers that, so its params are pinned
+//      by value.
 //
 // Those registries enumerate SINGLE-WORD spellings only. Heritage also adds one multi-word FORM,
 // the worded dictionary reader `value of … for key` (slice H5, #670), which no registry lists —
 // so registry coverage alone is NOT coverage of Heritage. It is therefore twinned explicitly in
-// EXTRA_TWINS below, against the Core `:dict["key"]` selector it mirrors, and it is property 4, not
-// 1 or 2, that actually pins it.
+// EXTRA_TWINS below, against the Core selector it mirrors — the dotted `:dict.key` for the
+// operand's own type, the runtime-key `:dict["key"]` for the key's (see EXTRA_TWINS) — and it is
+// property 4, not 1 or 2, that actually pins it.
 //
 // Properties 1 and 2 exempt only the explicitly audited param FIELDS whose subject IS the learner's
 // own text (documented with its spec citation in SURFACE_SUBJECT_PARAMS). Exemption is per FIELD,
@@ -96,6 +98,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { OLTurtle } from "@openlogo/core";
 import {
   canonicalOfHeritageAlias,
   heritageAliasArity,
@@ -106,6 +109,16 @@ import {
 import { execute } from "@openlogo/runtime";
 
 const doc = "heritage-canonical-diagnostic-params.logo";
+
+/**
+ * The id `who` reports at top level — the single default main turtle every world starts with,
+ * before any `tell` re-points the addressed set (`spec/turtles-and-sprites.md:44`). Restated here
+ * rather than imported because the runtime's `MAIN_TURTLE_ID` is internal to `turtle-world.ts` and
+ * `@openlogo/turtle`, which exports it, sits on the far side of a package boundary this test must
+ * not cross. Should the runtime ever renumber the main turtle, the turtle twin below fails loudly
+ * on the mismatch rather than degrading silently.
+ */
+const MAIN_TURTLE_ID = 0;
 
 /** Every diagnostic an EXECUTED document produces — the runtime stage this guard exists for. */
 function diagnosticsFor(source) {
@@ -237,6 +250,37 @@ const TWINS = [
 ];
 
 /**
+ * Every non-dict container type a program can build, EXCEPT `record`, with the Core value each
+ * evaluates to.
+ *
+ * `record` is excluded because it has no Core twin to compare against: the reader rejects it
+ * (`spec/data-structures.md:268` types the operand `dictExpr`) while the Core dotted selector
+ * ACCEPTS records and reports `ol-unknown-field` instead, so the two sides legitimately differ and
+ * a twin pair would be asserting a falsehood. That case is pinned on its own, without a twin, by
+ * `tests/conformance/heritage/execution/heritage-value-of-key-record-container-rejected`.
+ *
+ * This enumeration exists because issue #784 survived by CORPUS SHAPE, not by absence of tests. The
+ * reader had one non-dict twin and it used a number — the only non-dict type the corpus exercised,
+ * and one for which the WRONG params (`expected: "list or dict"`, the `[key]` selector's set) still
+ * produce a sentence that reads sensibly. A list operand made the same params say "index needs a
+ * list or dict, but got a list": `list` is the only non-dict container INSIDE that `expected` set,
+ * so it alone made the diagnostic name the offending value's own type as what it required.
+ * Enumerating the types, rather than picking one, removes shape as a hiding place: a future
+ * divergence that is coherent for some types and not others can no longer land on whichever type
+ * nobody wrote a twin for.
+ *
+ * `turtle` is included even though it needs the Sprites profile, because it is a container type a
+ * learner can reach (`who`) and therefore one this reader must answer coherently.
+ */
+const NON_DICT_CONTAINERS = [
+  { type: "number", setup: ":x = 5", value: 5 },
+  { type: "word", setup: ':x = "hi"', value: "hi" },
+  { type: "boolean", setup: ":x = true", value: true },
+  { type: "list", setup: ":x = [ 1 2 ]", value: [1, 2] },
+  { type: "turtle", setup: ":x = who", value: new OLTurtle(MAIN_TURTLE_ID) },
+];
+
+/**
  * Heritage shapes the registries do NOT enumerate, twinned explicitly, each with the EXACT params
  * its Core twin reports.
  *
@@ -252,15 +296,21 @@ const TWINS = [
  * surface head is the bare word `value` (`checker-heritage-form.ts`'s `VALUE_OF_KEY_HEAD`), so a
  * leak could read `operation: "value"` — which no `"value of"`/`"for key"` phrase would catch — while
  * a pattern broad enough to catch it, or a `for key` fragment, would fire spuriously on ordinary
- * learner text that is not Heritage at all. Twin equality does not close the gap either: the reader
- * is a PARALLEL IMPLEMENTATION of the Core selector's dict read — `evaluateValueOfKey` →
- * `readDictByKey`, which nothing else calls, versus the selector's `resolveDictSegment` — two
- * hand-synchronised copies that must report identical params forever. A leak in shared builder or
- * convention territory therefore lands on BOTH sides at once, where equality is blind. (A leak in
- * one copy alone IS drift the equality property catches — which is the other half of why two
- * implementations that must agree deserve a by-value pin.) An exact expectation covers both cases.
- * Issue #755 tracks making the form enumerable in the parser; when it lands these pairs join TWINS
- * and this list goes.
+ * learner text that is not Heritage at all. An exact expectation covers both cases.
+ *
+ * The reader is no longer a parallel implementation: since issue #784 it calls the very same
+ * `resolveDictSegment` the Core selectors call, so there is no second copy for twin equality to
+ * catch drifting. Equality still catches a wrong ARGUMENT from one side — `operation`, and so which
+ * Core twin this spelling claims, which is exactly what #784 got wrong. What it cannot see is a
+ * defect in the shared code itself, which moves both sides together; that is what these by-value
+ * pins exist for. Issue #755 tracks making the form enumerable in the parser; when it lands these
+ * pairs join TWINS and this list goes.
+ *
+ * **Which Core twin.** The reader is dict-only (`spec/data-structures.md:268` types its operand
+ * `dictExpr`), so the container-type twin is the dotted selector `:x.tom` — specifically its dict
+ * branch, since `.key` also accepts records — NOT `:x["tom"]`. Pairing it with `[key]` is precisely
+ * what produced #784's self-contradictory message. `[key]` remains the twin for the runtime-KEY
+ * failure, which `.tom` — whose key is a parse-time identifier — cannot express.
  */
 const EXTRA_TWINS = [
   {
@@ -269,24 +319,27 @@ const EXTRA_TWINS = [
     note: "value of … for key on a missing key — ol-unknown-key { key }",
     expected: [{ code: "ol-unknown-key", params: { key: "zed" } }],
   },
-  {
-    heritage: ':n = 5\nprint value of :n for key "a"',
-    core: ':n = 5\nprint :n["a"]',
-    note: "value of … for key on a non-dict — ol-type { expected, actual, value, operation }",
+  // One pair per non-dict container type (issue #784). The Core side is the dotted `.tom`
+  // selector, which is what makes `expected: "dict"` / `operation: "field"` the twin's own params
+  // rather than a value invented for Heritage.
+  ...NON_DICT_CONTAINERS.map(({ type, setup, value }) => ({
+    heritage: `${setup}\nprint value of :x for key "tom"`,
+    core: `${setup}\nprint :x.tom`,
+    note: `value of … for key on a non-dict ${type} container — ol-type { expected, actual, value, operation }`,
     expected: [
       {
         code: "ol-type",
         params: {
-          expected: "list or dict",
-          actual: "number",
-          value: 5,
-          operation: "index",
+          expected: "dict",
+          actual: type,
+          value,
+          operation: "field",
         },
       },
     ],
-  },
+  })),
   {
-    // The third failure mode `evaluate.ts`'s dict-read guard documents, and the one the other two
+    // The third failure mode `evaluate.ts`'s dict-read guard documents, and the one the other
     // pairs miss: a key that is neither word nor number. The key is bound to `:k` on both sides so
     // the two programs supply the SAME evaluated value. An inline key would not be a twin on either
     // of two mechanisms: for a LIST key the inline Core form does not even parse
@@ -437,13 +490,14 @@ test("every alias twin reaches a CANONICAL-carrying field, not just a spelling-i
 });
 
 test("the worded `value of … for key` reader reports EXACTLY the Core selector's params, on both sides", () => {
-  // The registries do not enumerate this form (#755), so the whole-word matcher cannot guard it —
-  // and twin equality only half can: the reader is a parallel implementation of the Core selector's
-  // dict read (`readDictByKey`, called from nowhere else, versus `resolveDictSegment`), so a leak in
-  // one copy alone diverges and IS caught, while a leak in shared builder or convention territory
-  // lands on both sides at once and is not. Pinning the params by value covers both: any surface
-  // fragment reaching `operation`, `key`, or any sibling — including the parser's bare head word
-  // `value` — fails here, on whichever side it appears.
+  // The registries do not enumerate this form (#755), so the whole-word matcher cannot guard it.
+  // Twin equality guards it only partly, and in a way that changed shape with issue #784: the
+  // reader now calls the Core selectors' own `resolveDictSegment` instead of restating it, so
+  // there is no longer a second copy that could drift out of step. Equality does still catch a
+  // wrong ARGUMENT from one side, which moves that side alone; what stays invisible to it is a
+  // defect in the shared code itself, which moves both sides together. Pinning the params by value
+  // covers that: any surface fragment reaching `operation`, `key`, or any sibling — including the
+  // parser's bare head word `value` — fails here, on whichever side it appears.
   for (const twin of EXTRA_TWINS) {
     for (const source of [twin.heritage, twin.core]) {
       const findings = diagnosticsFor(source);

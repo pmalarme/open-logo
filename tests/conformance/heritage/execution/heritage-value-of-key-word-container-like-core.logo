@@ -1,0 +1,2 @@
+:w = "hi"
+print value of :w for key "tom"

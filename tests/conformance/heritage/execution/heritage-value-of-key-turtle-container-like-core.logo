@@ -1,0 +1,2 @@
+:t = who
+print value of :t for key "tom"
