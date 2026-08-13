@@ -266,7 +266,7 @@ export interface Environment {
   readonly signal?: CancellationSignal;
   /**
    * The per-run turtle-identity allocator and live-turtle registry ({@link TurtleWorld}). Like
-   * {@link turtle}/{@link randomNumberGenerator}, a single shared mutable object rather than a
+   * {@link addressing}/{@link randomNumberGenerator}, a single shared mutable object rather than a
    * reassigned field, so a `new_turtle` allocation made anywhere in the program (inside a
    * procedure, loop, or comprehension sharing this same `Environment`) is observed by every later
    * `new_turtle`/`turtles`/`who` in the run. The Sprites `new_turtle`/`turtles`/`who` reporters
