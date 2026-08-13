@@ -1,5 +1,5 @@
 {
-  "description": "issue #782: the `who`/position AGREEMENT INVARIANT itself, stated with no hard-coded coordinate. `spec/turtles-and-sprites.md:26` defines `who` as \"the turtle currently running turtle commands\" and `:105` evaluates the movement reporters \"for the current turtle\" — ONE current turtle — so any pair `who` and `ycor` can produce must be a state some single turtle really has. After a callee's `tell :b`, `ask who [ :seen = ycor ]` records the y of the very turtle `who` reports, and `print :seen == ycor` compares it with the y the caller's own `ycor` reports; `true` is possible only when both name the same turtle. `ask` restores the addressed set on exit (`:58`) — visible here as the second `ask` addressing `primitive` — so the trailing `ycor` is read under the same set the `ask` was entered with, and the comparison is not an artifact of the `ask`. The defect made this print `false`: `who` followed the shared pointer to :b while `ycor` read the caller's stale cached :a.",
+  "description": "issue #782: the `who`/position AGREEMENT INVARIANT itself, stated with no hard-coded coordinate. `spec/turtles-and-sprites.md:26` defines `who` as \"the turtle currently running turtle commands\" and `:105` evaluates the movement reporters \"for the current turtle\" — ONE current turtle — so any pair `who` and `ycor` can produce must be a state some single turtle really has. After a callee's `tell :b`, `:reported` is what the caller's own `ycor` says, `:current` is the turtle `who` names, and `:actual` is that turtle's real y, read by addressing it; `print :actual == :reported` is `true` only when both name the same turtle. Both reads are taken BEFORE the `ask`, which is what makes this fixture able to fail: re-establishing the addressed set — the `ask` entry primitive at seq 26, or any turtle command — re-derived the stale per-`Environment` cache and healed the divergence, so an invariant written as `ask who [ ... ]` would have passed on the broken runtime. `ask` restores the previous set on exit (`:58`, the second `ask` primitive at seq 28), leaving the addressed set unchanged by the measurement.",
   "profiles": ["sprites"],
   "execute": true,
   "events": [
@@ -321,7 +321,7 @@
       "source_span": {
         "document": "sprites/who-position-agreement-invariant/who-position-agreement-invariant",
         "start": [12, 1],
-        "end": [12, 10]
+        "end": [12, 17]
       },
       "payload": {
         "statement_kind": "Assign"
@@ -333,26 +333,22 @@
       "source_span": {
         "document": "sprites/who-position-agreement-invariant/who-position-agreement-invariant",
         "start": [13, 1],
-        "end": [13, 25]
+        "end": [13, 15]
       },
       "payload": {
-        "statement_kind": "ProfileStatement"
+        "statement_kind": "Assign"
       }
     },
     {
       "seq": 24,
-      "kind": "primitive",
+      "kind": "instruction",
       "source_span": {
         "document": "sprites/who-position-agreement-invariant/who-position-agreement-invariant",
-        "start": [13, 1],
-        "end": [13, 25]
+        "start": [14, 1],
+        "end": [14, 12]
       },
       "payload": {
-        "name": "ask",
-        "addressing": {
-          "addressed_turtle_ids": [2],
-          "current_turtle_id": 2
-        }
+        "statement_kind": "Assign"
       }
     },
     {
@@ -360,11 +356,11 @@
       "kind": "instruction",
       "source_span": {
         "document": "sprites/who-position-agreement-invariant/who-position-agreement-invariant",
-        "start": [13, 11],
-        "end": [13, 23]
+        "start": [15, 1],
+        "end": [15, 32]
       },
       "payload": {
-        "statement_kind": "Assign"
+        "statement_kind": "ProfileStatement"
       }
     },
     {
@@ -372,8 +368,8 @@
       "kind": "primitive",
       "source_span": {
         "document": "sprites/who-position-agreement-invariant/who-position-agreement-invariant",
-        "start": [13, 1],
-        "end": [13, 25]
+        "start": [15, 1],
+        "end": [15, 32]
       },
       "payload": {
         "name": "ask",
@@ -388,20 +384,48 @@
       "kind": "instruction",
       "source_span": {
         "document": "sprites/who-position-agreement-invariant/who-position-agreement-invariant",
-        "start": [14, 1],
-        "end": [14, 20]
+        "start": [15, 16],
+        "end": [15, 30]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 28,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/who-position-agreement-invariant/who-position-agreement-invariant",
+        "start": [15, 1],
+        "end": [15, 32]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [2],
+          "current_turtle_id": 2
+        }
+      }
+    },
+    {
+      "seq": 29,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/who-position-agreement-invariant/who-position-agreement-invariant",
+        "start": [16, 1],
+        "end": [16, 27]
       },
       "payload": {
         "statement_kind": "Call"
       }
     },
     {
-      "seq": 28,
+      "seq": 30,
       "kind": "print",
       "source_span": {
         "document": "sprites/who-position-agreement-invariant/who-position-agreement-invariant",
-        "start": [14, 1],
-        "end": [14, 20]
+        "start": [16, 1],
+        "end": [16, 27]
       },
       "payload": {
         "values": [true]

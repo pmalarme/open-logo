@@ -404,11 +404,15 @@ test("#782: a tell two call frames deep persists too — nesting does not re-sco
 });
 
 test("#782: the who/position agreement invariant holds after a callee's tell, with no hard-coded coordinate", () => {
-  // States the invariant itself rather than one instance of it: `ask who [ ... ]` records the y of
-  // the very turtle `who` reports, and compares it with the y the caller's own `ycor` reports. Only
-  // one current turtle exists (`spec/turtles-and-sprites.md:26,105`), so the two MUST agree; `ask`
-  // restores the addressed set on exit (`:58`), so the trailing `ycor` is read under the set that
-  // was active before it.
+  // States the invariant itself rather than one instance of it. `:reported` is what the caller's own
+  // `ycor` says; `:current` is the turtle `who` names; `:actual` is that turtle's real y, read by
+  // addressing it. Only one current turtle exists (`spec/turtles-and-sprites.md:26,105`), so the two
+  // MUST be equal — the pair `who`/`ycor` produce has to be a state some single turtle really has.
+  //
+  // Both reads happen BEFORE the `ask`: re-establishing the addressed set is precisely what used to
+  // paper over the divergence (the defect self-healed on the next addressing form or turtle command),
+  // so an invariant written as `ask who [ ... ]` would have passed on the broken runtime. Reading
+  // `ycor` and `who` first is what makes this test able to fail.
   const result = execute(
     [
       ":a = new_turtle",
@@ -422,9 +426,11 @@ test("#782: the who/position agreement invariant holds after a callee's tell, wi
       "  tell :b",
       "end",
       "go",
-      ":seen = 0",
-      "ask who [ :seen = ycor ]",
-      "print :seen == ycor",
+      ":reported = ycor",
+      ":current = who",
+      ":actual = 0",
+      "ask :current [ :actual = ycor ]",
+      "print :actual == :reported",
     ].join("\n"),
     "main.logo",
   );
@@ -471,17 +477,24 @@ test("#782: heading and pos agree with who after a callee's tell too, not just y
 
 test("#782: a turtle command after a callee's tell applies to the newly addressed turtle (the self-heal path)", () => {
   // The path that made the defect intermittent: the first turtle command after the call re-derived
-  // the stale cache and hid the divergence. It must apply to the turtle the callee addressed, and
-  // its events must carry that turtle's id (`spec/turtles-and-sprites.md:113`).
+  // the stale cache and hid the divergence, so the wrong answer was only visible in the window
+  // between the call returning and the next turtle command. Reading `ycor` inside that window first
+  // is what makes this test able to fail; the command that follows must then apply to the turtle the
+  // callee addressed, with its events carrying that turtle's id (`spec/turtles-and-sprites.md:113`).
   const result = execute(
     [
       ":a = new_turtle",
       ":b = new_turtle",
       "tell :a",
+      "forward 10",
+      "tell :b",
+      "forward 20",
+      "tell :a",
       "define go",
       "  tell :b",
       "end",
       "go",
+      "print ycor",
       "forward 40",
       "print who",
       "print ycor",
@@ -489,12 +502,18 @@ test("#782: a turtle command after a callee's tell applies to the newly addresse
     "main.logo",
   );
   assert.deepEqual(result.diagnostics, []);
-  assert.deepEqual(moves(result.events), [[2, [0, 40]]]);
+  assert.deepEqual(moves(result.events), [
+    [1, [0, 10]],
+    [2, [0, 20]],
+    [2, [0, 60]],
+  ]);
   const prints = result.events
     .filter((event) => event.kind === "print")
     .map((event) => event.payload.values[0]);
-  assert.equal(prints[0].id, 2);
-  assert.equal(prints[1], 40);
+  // In the divergence window: :b's y of 20, not :a's 10. After the command: still :b, now at 60.
+  assert.equal(prints[0], 20);
+  assert.equal(prints[1].id, 2);
+  assert.equal(prints[2], 60);
 });
 
 test("#782: a tell in an argument does not re-aim the non-movement command it is an argument of", () => {

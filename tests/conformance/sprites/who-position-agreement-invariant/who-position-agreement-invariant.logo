@@ -9,6 +9,8 @@ define go
   tell :b
 end
 go
-:seen = 0
-ask who [ :seen = ycor ]
-print :seen == ycor
+:reported = ycor
+:current = who
+:actual = 0
+ask :current [ :actual = ycor ]
+print :actual == :reported

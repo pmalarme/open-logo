@@ -1,5 +1,5 @@
 {
-  "description": "issue #782 (the self-heal path): a turtle command issued AFTER a callee's `tell` applies to the newly addressed turtle. `go` runs `tell :b`, then the caller's `forward 40` moves :b — one `move`/`draw-segment` pair carrying `turtle_id: 2`, the acting turtle's identity (`spec/turtles-and-sprites.md:46,113`) — and `who`/`ycor` then agree on :b at y 40. This is the path that made the defect intermittent and position-dependent: the next turtle command re-derived the stale per-`Environment` cache from the shared pointer and hid the divergence, so the wrong answer was only observable in the window between the call returning and the next turtle command. Pinning the healed state here means a regression cannot be masked by simply running one more command.",
+  "description": "issue #782 (the self-heal path): a turtle command issued AFTER a callee's `tell` applies to the newly addressed turtle, and the reading taken BEFORE it is already correct. `go` runs `tell :b`; the very next statement's `ycor` must report :b's y of 20 — not the :a (y 10) the caller had addressed — and only then does `forward 40` move :b from 20 to 60, emitting one `move`/`draw-segment` pair carrying `turtle_id: 2`, the acting turtle's identity (`spec/turtles-and-sprites.md:46,113`). That first read is what makes this fixture able to fail: the defect was only observable in the window between the call returning and the next turtle command, because re-establishing the addressed set (any turtle command, `tell`, `ask`, or `each`) re-derived the stale per-`Environment` cache and healed it. A fixture that only looked after the command would pass on the broken runtime too.",
   "profiles": ["sprites"],
   "execute": true,
   "events": [
@@ -101,44 +101,50 @@
       "source_span": {
         "document": "sprites/tell-in-procedure-then-turtle-command/tell-in-procedure-then-turtle-command",
         "start": [4, 1],
-        "end": [6, 4]
-      },
-      "payload": {
-        "statement_kind": "ProcedureDef"
-      }
-    },
-    {
-      "seq": 7,
-      "kind": "instruction",
-      "source_span": {
-        "document": "sprites/tell-in-procedure-then-turtle-command/tell-in-procedure-then-turtle-command",
-        "start": [7, 1],
-        "end": [7, 3]
+        "end": [4, 11]
       },
       "payload": {
         "statement_kind": "Call"
       }
     },
     {
-      "seq": 8,
-      "kind": "procedure-enter",
+      "seq": 7,
+      "kind": "move",
       "source_span": {
         "document": "sprites/tell-in-procedure-then-turtle-command/tell-in-procedure-then-turtle-command",
-        "start": [7, 1],
-        "end": [7, 3]
+        "start": [4, 1],
+        "end": [4, 11]
       },
       "payload": {
-        "name": "go",
-        "args": []
-      }
+        "from": [0, 0],
+        "to": [0, 10],
+        "heading": 0
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 8,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-then-turtle-command/tell-in-procedure-then-turtle-command",
+        "start": [4, 1],
+        "end": [4, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "color": "black",
+        "width": 1
+      },
+      "turtle_id": 1
     },
     {
       "seq": 9,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/tell-in-procedure-then-turtle-command/tell-in-procedure-then-turtle-command",
-        "start": [5, 3],
-        "end": [5, 10]
+        "start": [5, 1],
+        "end": [5, 8]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -149,8 +155,8 @@
       "kind": "primitive",
       "source_span": {
         "document": "sprites/tell-in-procedure-then-turtle-command/tell-in-procedure-then-turtle-command",
-        "start": [5, 3],
-        "end": [5, 10]
+        "start": [5, 1],
+        "end": [5, 8]
       },
       "payload": {
         "name": "tell",
@@ -162,11 +168,147 @@
     },
     {
       "seq": 11,
-      "kind": "procedure-exit",
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-then-turtle-command/tell-in-procedure-then-turtle-command",
+        "start": [6, 1],
+        "end": [6, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-then-turtle-command/tell-in-procedure-then-turtle-command",
+        "start": [6, 1],
+        "end": [6, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 20],
+        "heading": 0
+      },
+      "turtle_id": 2
+    },
+    {
+      "seq": 13,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-then-turtle-command/tell-in-procedure-then-turtle-command",
+        "start": [6, 1],
+        "end": [6, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 20],
+        "color": "black",
+        "width": 1
+      },
+      "turtle_id": 2
+    },
+    {
+      "seq": 14,
+      "kind": "instruction",
       "source_span": {
         "document": "sprites/tell-in-procedure-then-turtle-command/tell-in-procedure-then-turtle-command",
         "start": [7, 1],
-        "end": [7, 3]
+        "end": [7, 8]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-then-turtle-command/tell-in-procedure-then-turtle-command",
+        "start": [7, 1],
+        "end": [7, 8]
+      },
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-then-turtle-command/tell-in-procedure-then-turtle-command",
+        "start": [8, 1],
+        "end": [10, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-then-turtle-command/tell-in-procedure-then-turtle-command",
+        "start": [11, 1],
+        "end": [11, 3]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-then-turtle-command/tell-in-procedure-then-turtle-command",
+        "start": [11, 1],
+        "end": [11, 3]
+      },
+      "payload": {
+        "name": "go",
+        "args": []
+      }
+    },
+    {
+      "seq": 19,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-then-turtle-command/tell-in-procedure-then-turtle-command",
+        "start": [9, 3],
+        "end": [9, 10]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 20,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-then-turtle-command/tell-in-procedure-then-turtle-command",
+        "start": [9, 3],
+        "end": [9, 10]
+      },
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [2],
+          "current_turtle_id": 2
+        }
+      }
+    },
+    {
+      "seq": 21,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-then-turtle-command/tell-in-procedure-then-turtle-command",
+        "start": [11, 1],
+        "end": [11, 3]
       },
       "payload": {
         "name": "go",
@@ -174,67 +316,91 @@
       }
     },
     {
-      "seq": 12,
+      "seq": 22,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/tell-in-procedure-then-turtle-command/tell-in-procedure-then-turtle-command",
-        "start": [8, 1],
-        "end": [8, 11]
+        "start": [12, 1],
+        "end": [12, 11]
       },
       "payload": {
         "statement_kind": "Call"
       }
     },
     {
-      "seq": 13,
+      "seq": 23,
+      "kind": "print",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-then-turtle-command/tell-in-procedure-then-turtle-command",
+        "start": [12, 1],
+        "end": [12, 11]
+      },
+      "payload": {
+        "values": [20]
+      }
+    },
+    {
+      "seq": 24,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-then-turtle-command/tell-in-procedure-then-turtle-command",
+        "start": [13, 1],
+        "end": [13, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 25,
       "kind": "move",
       "source_span": {
         "document": "sprites/tell-in-procedure-then-turtle-command/tell-in-procedure-then-turtle-command",
-        "start": [8, 1],
-        "end": [8, 11]
+        "start": [13, 1],
+        "end": [13, 11]
       },
       "payload": {
-        "from": [0, 0],
-        "to": [0, 40],
+        "from": [0, 20],
+        "to": [0, 60],
         "heading": 0
       },
       "turtle_id": 2
     },
     {
-      "seq": 14,
+      "seq": 26,
       "kind": "draw-segment",
       "source_span": {
         "document": "sprites/tell-in-procedure-then-turtle-command/tell-in-procedure-then-turtle-command",
-        "start": [8, 1],
-        "end": [8, 11]
+        "start": [13, 1],
+        "end": [13, 11]
       },
       "payload": {
-        "from": [0, 0],
-        "to": [0, 40],
+        "from": [0, 20],
+        "to": [0, 60],
         "color": "black",
         "width": 1
       },
       "turtle_id": 2
     },
     {
-      "seq": 15,
+      "seq": 27,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/tell-in-procedure-then-turtle-command/tell-in-procedure-then-turtle-command",
-        "start": [9, 1],
-        "end": [9, 10]
+        "start": [14, 1],
+        "end": [14, 10]
       },
       "payload": {
         "statement_kind": "Call"
       }
     },
     {
-      "seq": 16,
+      "seq": 28,
       "kind": "print",
       "source_span": {
         "document": "sprites/tell-in-procedure-then-turtle-command/tell-in-procedure-then-turtle-command",
-        "start": [9, 1],
-        "end": [9, 10]
+        "start": [14, 1],
+        "end": [14, 10]
       },
       "payload": {
         "values": [
@@ -245,27 +411,27 @@
       }
     },
     {
-      "seq": 17,
+      "seq": 29,
       "kind": "instruction",
       "source_span": {
         "document": "sprites/tell-in-procedure-then-turtle-command/tell-in-procedure-then-turtle-command",
-        "start": [10, 1],
-        "end": [10, 11]
+        "start": [15, 1],
+        "end": [15, 11]
       },
       "payload": {
         "statement_kind": "Call"
       }
     },
     {
-      "seq": 18,
+      "seq": 30,
       "kind": "print",
       "source_span": {
         "document": "sprites/tell-in-procedure-then-turtle-command/tell-in-procedure-then-turtle-command",
-        "start": [10, 1],
-        "end": [10, 11]
+        "start": [15, 1],
+        "end": [15, 11]
       },
       "payload": {
-        "values": [40]
+        "values": [60]
       }
     }
   ],
