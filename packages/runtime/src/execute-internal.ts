@@ -2671,8 +2671,8 @@ function executeAsk(
     // it unwinds the enclosing procedure or program, exactly as it would without the `ask`.
     return signal.kind === "normal" ? undefined : signal;
   } finally {
-    // Restore exactly one level: the saved ids, explicit flag, and current turtle (with its derived
-    // state cache), so an `ask` at top level before any `tell` leaves addressing implicit again and
+    // Restore exactly one level: the saved ids, explicit flag, and current turtle, so an `ask` at
+    // top level before any `tell` leaves addressing implicit again and
     // its events carry no `turtle-id`, and a nested `ask`/`tell` scope unwinds to precisely the set
     // that was active before this `ask`. The restore emits its own addressing `primitive` event, so
     // the stream shows the previous set coming back on every exit path — including the abnormal ones
@@ -3056,7 +3056,7 @@ function executeEach(
     return undefined;
   } finally {
     // Restore exactly one level: the addressed set active before `each`, its explicit flag, and the
-    // current turtle (with its derived state cache), so `each` composes with the enclosing `tell`/
+    // current turtle, so `each` composes with the enclosing `tell`/
     // `ask` scope and leaves it exactly as it found it. The restore emits its own addressing
     // `primitive` event on every exit path, normal or abnormal (issue #766).
     restoreAddressedSet(

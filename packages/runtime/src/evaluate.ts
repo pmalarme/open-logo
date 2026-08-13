@@ -228,7 +228,7 @@ export interface CancellationSignal {
  * `target-source-span` value `hint` MUST carry
  * (`spec/execution-model.md#tutor-output-educational-profile`) when no narrower target is
  * selected. `hintProgress` is the host-implementation-defined progression state
- * `spec/execution-model.md:641-652` calls for: a mutable map (like `instructionCount`/`turtle`,
+ * `spec/execution-model.md:641-652` calls for: a mutable map (like `instructionCount`/`addressing`,
  * shared unchanged across every recursive `executeStatements`/`evaluate` call in one `execute()`
  * run) from a serialized `target-source-span` key to the last {@link TutorHintStage} emitted for
  * it, so a repeated `hint` for the same target escalates one stage per call within a single run.
@@ -303,7 +303,7 @@ export interface Environment {
   ) => EvalResult;
   /**
    * The shared, mutable `random`/`randomize` generator state (issue #287,
-   * `random-number-generator.ts`). A box like `instructionCount`/`turtle` rather than a plain
+   * `random-number-generator.ts`). A box like `instructionCount`/`addressing` rather than a plain
    * value, so a `randomize` reseed (or a `random` draw) made from anywhere in the program —
    * including deep inside a procedure call or loop body sharing this same `Environment` — is
    * observed by every later draw in the same run.
@@ -311,7 +311,7 @@ export interface Environment {
   readonly randomNumberGenerator: RandomNumberGeneratorState;
   /**
    * The Interaction & Events tick clock (issue #680, `spec/interaction-events.md`, §Time, ticks,
-   * and handlers) — a mutable box (like {@link Environment.instructionCount}/`turtle`) holding the
+   * and handlers) — a mutable box (like {@link Environment.instructionCount}/{@link Environment.addressing}) holding the
    * current logical tick, shared by every recursive `executeStatements`/`evaluate` call against
    * this same environment so a `wait`'s tick advance is observed program-wide. Headless execution
    * state: it MUST NOT appear in any event payload (`interaction.ts`'s header). Future timed
@@ -321,7 +321,7 @@ export interface Environment {
   /**
    * The shared, mutable Sound-profile scheduling state (issue #689, `sound-state.ts`) — currently
    * the tempo `set_tempo` sets and `note`/`play`/`rest` will read. A box like
-   * `instructionCount`/`turtle`/`randomNumberGenerator` rather than a plain value, so a `set_tempo`
+   * `instructionCount`/`addressing`/`randomNumberGenerator` rather than a plain value, so a `set_tempo`
    * made from anywhere in the program — including deep inside a procedure call or loop body sharing
    * this same `Environment` — is observed by every later sound command in the same run.
    */

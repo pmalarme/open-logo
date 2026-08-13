@@ -338,8 +338,10 @@ test("a nested tell run in an early iteration of a multi-turtle command persists
 // --- #782: a `tell` inside a procedure ------------------------------------------------------
 //
 // `spec/turtles-and-sprites.md:46` makes `tell` a plain command that "changes the current addressed
-// set for subsequent turtle commands"; only `ask` (`:58`) and `each` (`:78`) are described as
-// restoring a previous set. A procedure body is neither, so a callee's `tell` PERSISTS after the
+// set for subsequent turtle commands", with no scoping language attached to it. `ask` is the form
+// the spec explicitly scopes — `:58`, "The previous addressed set is restored after the block
+// finishes" — and `each` (`:78`) narrows to one turtle per iteration within the current `tell`/`ask`
+// set. A procedure body is neither, so a callee's `tell` PERSISTS after the
 // call returns and the caller's reporters must observe it. The bug these tests pin: the current
 // turtle's state used to be cached per `Environment`, and `runProcedure` shallow-copies that object,
 // so a callee's `tell` updated the shared addressed-set pointer `who` reads while leaving the
