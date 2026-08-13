@@ -1,0 +1,2 @@
+:b = true
+print value of :b for key "tom"

@@ -1148,8 +1148,8 @@ export function isSupportedArgument(
 }
 
 /**
- * Is every postfix segment of `place` supported? A `.field` segment (dict-only, issue #322) is
- * always supported — its key is a parse-time literal, never evaluated. An `index` segment
+ * Is every postfix segment of `place` supported? A `.field` segment (a dict or record read, issue
+ * #322) is always supported — its key is a parse-time literal, never evaluated. An `index` segment
  * (`:l[i]`/`:d[key]`) is supported when its key expression is. Vacuously `true` for a
  * zero-segment place (a bare `:name` grown into a place only in assignment-target position).
  */
@@ -1284,17 +1284,36 @@ function evaluateDictLit(
 
 /**
  * `value of <dictionary> for key <key>` (issue #322, `spec/grammar.md:213`) — the Heritage dict
- * reader, read-only and **exactly** equivalent to the Core dict read `dictionary[key]`
- * (`spec/data-structures.md:226-229,265-268`). Heritage is "alternate spellings only, no new
- * semantics" (`spec/conformance.md:146`), so this maps onto the identical `[key]`-on-a-dict path
- * {@link resolvePlaceSegment} takes for a Core selector: a non-dict operand raises `ol-type`
- * `expected: "list or dict"`, a non-word/number key raises `ol-type` `expected: "word or number"`,
- * and a missing key raises `ol-unknown-key` — every code, param (including the Core `operation:
- * "index"`, never a Heritage spelling), and message byte-identical to `:d[:k]`. The diagnostic
- * *span* points at the offending sub-expression (the operand for an operand-type error, the key for
- * a key-type/missing-key error), which is the reader's analog of the `[ … ]` span the selector
- * points at; a span reflecting where the learner wrote the fault is a localization concern
- * (`spec/localization.md`), not part of the machine-readable contract.
+ * reader, read-only and a **dict-only** read: `spec/data-structures.md:268` types its operand
+ * `dictExpr`, so unlike the Core `[key]` selector (which also indexes lists) it accepts nothing but
+ * a dict. Heritage is "alternate spellings only, no new semantics" (`spec/conformance.md:146`), so
+ * rather than restating that read it calls the very same {@link resolveDictSegment} the Core
+ * `:d.key` and `:d[key]` selectors call — the reader builds no dict-read diagnostic of its own, so
+ * there is no second copy to drift out of step with Core, which is how issue #784 happened.
+ *
+ * Its Core twin is the **dotted** selector `:d.key` — specifically that selector's dict branch,
+ * since `.key` also accepts records — not `:d[key]`: passing `operation: "field"` makes a non-dict
+ * operand report `expected: "dict"` exactly as `:x.tom` does. `:d[key]`'s `expected: "list or dict"`
+ * is the wrong twin for a dict-only read and was actively self-contradictory for a list operand
+ * ("index needs a list or dict, but got a list", issue #784);
+ * `{ expected: "dict", operation: "index" }` is not a shape any Core program can produce, and
+ * `operation: "value of"` would leak the Heritage spelling into machine-readable params (blocked by
+ * issue #670). `operation: "field"` is the one choice that is both coherent for every operand type
+ * and reachable from Core. The prose therefore reads "field needs a dict…" for a `for key` spelling
+ * — byte-identical, for every operand type but `record` (below), to what the twin Core `:x.tom`
+ * prints, which is precisely the Heritage guarantee (`spec/error-model.md:235-238`: identity is
+ * `code` plus `params`; prose is presentation).
+ *
+ * A **record** operand is the one container type with no Core twin: `dictExpr` excludes it, so the
+ * reader rejects it, while Core's `.key` selector accepts records and reports `ol-unknown-field`.
+ * That divergence predates this reader's diagnostic fix and is mandated by the spec rather than by
+ * this code; `tests/conformance/heritage/execution/heritage-value-of-key-record-container-rejected`
+ * pins it so any change to it is a deliberate `spec/` decision.
+ *
+ * The diagnostic *span* points at the offending sub-expression (the operand for an operand-type
+ * error, the key for a key-type/missing-key error), which is the reader's analog of the single
+ * `[ … ]`/`.key` span a selector points at; a span reflecting where the learner wrote the fault is a
+ * localization concern (`spec/localization.md`), not part of the machine-readable contract.
  */
 function evaluateValueOfKey(
   node: ValueOfKeyNode,
@@ -1308,55 +1327,18 @@ function evaluateValueOfKey(
   if (!keyResult.ok) {
     return keyResult;
   }
-  return readDictByKey(
+  const resolved = resolveDictSegment(
     dictResult.value,
     node.dictionary.source_span,
     keyResult.value,
     node.key.source_span,
+    false,
+    "field",
   );
-}
-
-/**
- * The shared dict-read semantics behind both the Core `:d[key]` selector's dict branch
- * ({@link resolvePlaceSegment}) and the Heritage `value of … for key` reader
- * ({@link evaluateValueOfKey}) — one code path so the two spellings are provably equivalent
- * (`spec/conformance.md#heritage`). `container` must be a dict (else `ol-type`
- * `expected: "list or dict"`, matching the selector's non-list/dict message), `key` must be a word
- * or number (else `ol-type` `expected: "word or number"`), and a missing key raises
- * `ol-unknown-key` (`spec/data-structures.md:231,268`). The two spans let each caller point the
- * container-type error and the key-type/missing-key error at the right piece of its own surface
- * syntax.
- */
-function readDictByKey(
-  container: OLValue,
-  containerSpan: SourceSpan,
-  key: OLValue,
-  keySpan: SourceSpan,
-): EvalResult {
-  if (!(container instanceof OLDict)) {
-    return fail(
-      runtimeDiag.placeType(containerSpan, {
-        expected: "list or dict",
-        actual: typeNameOf(container),
-        value: container,
-        operation: "index",
-      }),
-    );
+  if (!resolved.ok) {
+    return fail(resolved.diagnostic);
   }
-  if (typeof key !== "string" && typeof key !== "number") {
-    return fail(
-      runtimeDiag.placeType(keySpan, {
-        expected: "word or number",
-        actual: typeNameOf(key),
-        value: key,
-        operation: "index",
-      }),
-    );
-  }
-  if (!container.has(key)) {
-    return fail(runtimeDiag.unknownKey(keySpan, { key }));
-  }
-  return ok(container.get(key) as OLValue);
+  return ok(resolved.dict.get(resolved.key) as OLValue);
 }
 
 /**
@@ -1432,9 +1414,24 @@ type PlaceSegmentResolution =
   | { readonly ok: false; readonly diagnostic: Diagnostic };
 
 /**
- * Resolve one postfix place segment — a dotted `.field` (dict-only, its key a parse-time
- * literal) or a bracketed `[key]` selector (a list index or a dict key, decided by `container`'s
- * actual runtime type) — against `container` (issue #322, `spec/data-structures.md:173-217`).
+ * What {@link resolveDictSegment} resolves to — the dict-shaped subset of
+ * {@link PlaceSegmentResolution}. Narrower than the full union so the Heritage reader can read
+ * `.dict`/`.key` off a successful result without re-narrowing on `kind`.
+ */
+type DictSegmentResolution =
+  | {
+      readonly ok: true;
+      readonly kind: "dict";
+      readonly dict: OLDict;
+      readonly key: OLDictKey;
+    }
+  | { readonly ok: false; readonly diagnostic: Diagnostic };
+
+/**
+ * Resolve one postfix place segment — a dotted `.field` (a dict or record read, its key a
+ * parse-time literal) or a bracketed `[key]` selector (a list index or a dict key, decided by
+ * `container`'s actual runtime type) — against `container` (issue #322,
+ * `spec/data-structures.md:173-217`).
  *
  * `allowMissingDictKey` controls only the dict branch: `false` (every read, and every
  * *intermediate* write segment) requires the key to already exist — `ol-unknown-key` otherwise,
@@ -1460,8 +1457,9 @@ function resolvePlaceSegment(
     }
     return resolveDictSegment(
       container,
-      segment,
+      segment.source_span,
       segment.name.name,
+      segment.source_span,
       allowMissingDictKey,
       "field",
     );
@@ -1508,21 +1506,11 @@ function resolvePlaceSegment(
   }
 
   if (container instanceof OLDict) {
-    if (typeof key !== "string" && typeof key !== "number") {
-      return {
-        ok: false,
-        diagnostic: runtimeDiag.placeType(segment.source_span, {
-          expected: "word or number",
-          actual: typeNameOf(key),
-          value: key,
-          operation: "index",
-        }),
-      };
-    }
     return resolveDictSegment(
       container,
-      segment,
+      segment.source_span,
       key,
+      segment.source_span,
       allowMissingDictKey,
       "index",
     );
@@ -1540,21 +1528,52 @@ function resolvePlaceSegment(
 }
 
 /**
- * Shared tail of {@link resolvePlaceSegment}'s `.field` and dict-typed `[key]` branches: reject a
- * non-dict container (`ol-type`, `expected: "dict"`), then either require the key to already
- * exist (`ol-unknown-key` otherwise) or let it pass through unresolved for the caller to upsert.
+ * **The** dict read — the single code path behind all three OpenLogo dict-read spellings: the Core
+ * `.field` selector's dict branch and the Core `[key]` selector's dict branch (both via
+ * {@link resolvePlaceSegment}) and the Heritage `value of … for key` reader
+ * ({@link evaluateValueOfKey}). Every diagnostic raised by reading a dict BY KEY is built here and
+ * nowhere else — the other dict primitives (`keys`, `values`, `remove key`) raise their own
+ * operation-specific `ol-type` — so there is no second copy for a spelling to drift out of step
+ * with, the failure mode that shipped a self-contradictory diagnostic in issue #784, where a
+ * Heritage-only helper restated this read and got its expectation wrong.
+ *
+ * That centralization moves where each kind of mistake shows up, and the two kinds are guarded
+ * differently. Changing the `operation` ARGUMENT one caller passes moves that caller alone — flip
+ * the Heritage reader's `"field"` to `"index"` and the Core dotted selector still passes `"field"`
+ * — so a Heritage/Core twin comparison catches it. A defect in the shared code BELOW moves every
+ * caller that reaches it, including both sides of such a pair, which is exactly what comparing them
+ * cannot see; that case is held by the by-value param pins in
+ * `heritage-canonical-diagnostic-params.test.mjs` and by the Core fixtures. Not every caller reaches
+ * every branch, so not every argument is observable: Core's `[key]` selector calls this only once
+ * `container` is already a dict, which puts the container-type branch out of its reach, and a
+ * `.field` key is a parse-time identifier that never fails the key-type branch.
+ *
+ * In order: `container` must be a dict (else `ol-type`, `expected: "dict"`, `operation` naming the
+ * caller's Core operation), `key` must be a word or number (else `ol-type`
+ * `expected: "word or number"`), and — unless `allowMissingDictKey` lets a write's final segment
+ * upsert — the key must already exist (else `ol-unknown-key`, `spec/data-structures.md:231,268`).
+ *
+ * The key-type check reports `operation: "index"` for every caller, because the only spellings that
+ * can reach it with a bad key take a *runtime* key: `:d[:k]` and `value of :d for key :k`, whose
+ * shared Core twin is the selector. A `.field` key is a parse-time identifier, so it is a word by
+ * construction and never fails this check.
+ *
+ * The two spans let each caller point the container-type error and the key-type/missing-key error at
+ * the right piece of its own surface syntax: a selector passes its one segment span twice, while the
+ * worded reader points at its operand and its key sub-expression respectively.
  */
 function resolveDictSegment(
   container: OLValue,
-  segment: PlaceSegment,
-  key: OLDictKey,
+  containerSpan: SourceSpan,
+  key: OLValue,
+  keySpan: SourceSpan,
   allowMissingDictKey: boolean,
   operation: "field" | "index",
-): PlaceSegmentResolution {
+): DictSegmentResolution {
   if (!(container instanceof OLDict)) {
     return {
       ok: false,
-      diagnostic: runtimeDiag.placeType(segment.source_span, {
+      diagnostic: runtimeDiag.placeType(containerSpan, {
         expected: "dict",
         actual: typeNameOf(container),
         value: container,
@@ -1562,10 +1581,21 @@ function resolveDictSegment(
       }),
     };
   }
+  if (typeof key !== "string" && typeof key !== "number") {
+    return {
+      ok: false,
+      diagnostic: runtimeDiag.placeType(keySpan, {
+        expected: "word or number",
+        actual: typeNameOf(key),
+        value: key,
+        operation: "index",
+      }),
+    };
+  }
   if (!allowMissingDictKey && !container.has(key)) {
     return {
       ok: false,
-      diagnostic: runtimeDiag.unknownKey(segment.source_span, { key }),
+      diagnostic: runtimeDiag.unknownKey(keySpan, { key }),
     };
   }
   return { ok: true, kind: "dict", dict: container, key };
