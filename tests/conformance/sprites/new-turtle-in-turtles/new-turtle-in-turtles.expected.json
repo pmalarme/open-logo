@@ -1,5 +1,5 @@
 {
-  "description": "issue #673: a turtle obtained from `new_turtle` is the same turtle (id-based `==`, C3) as the last element of `turtles`, proving `turtles` reports the already-existing turtles (main first, then each `new_turtle` in creation order) rather than fresh unrelated ones. SP2's `tell :friend` / `who == :friend` form is deferred to SP2 (no `tell` yet); this is the SP1-reachable equivalent of that identity assertion.",
+  "description": "issue #673: a turtle obtained from `new_turtle` is the same turtle (id-based `==`, C3) as the last element of `turtles`, proving `turtles` reports the already-existing turtles (main first, then each `new_turtle` in creation order) rather than fresh unrelated ones. This is the SP1-reachable identity assertion: when it was written SP1 had no `tell`, so the `tell :friend` / `who == :friend` form was deferred to SP2. SP2 has since landed it — that form is now covered by the sibling fixture tell-who-identity — and this fixture remains the `turtles`-based equivalent, proving identity through the reporter rather than through addressing.",
   "profiles": ["sprites"],
   "execute": true,
   "events": [
