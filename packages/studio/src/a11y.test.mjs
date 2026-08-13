@@ -558,11 +558,11 @@ test("two independent consumers of the same turtle-state region observe identica
   assert.deepEqual(consumerA, [region.getText()]);
 });
 
-test("the state text names the described turtle once a program drives more than one (#749, spec/rendering.md:191)", () => {
+test("the state text names the described turtle once the world holds more than one live turtle (#749, spec/rendering.md:191)", () => {
   // The #749 reproduction, as a screen reader hears it: `tell [ :a :b ]` / `forward 10` /
   // `ask :b [ hide_turtle set_color "blue" ]`. Before the fix the region announced ":b's" blue,
   // hidden attributes with no identity at all — indistinguishable from the one turtle a
-  // single-turtle program has. Now the text names which turtle it is describing.
+  // Turtle & Rendering program has. Now the text names which turtle it is describing.
   const state = OL.createStudioState();
   const region = OL.createTurtleStateRegion(state);
   const base = {
@@ -614,9 +614,101 @@ test("the state region names a turtle exactly as the output pane does, so the tw
   );
 });
 
-test("the state text of a single-turtle program never names a turtle (byte-identical to spec/rendering.md's example)", () => {
+test("the state text identifies the whole addressed turtle set, end to end from a real program (#770, spec/rendering.md:191)", () => {
+  // `tell [ :a :b ]` addresses two turtles at once, and no single turtle is "the" answer: the
+  // per-turtle effects that follow name whichever turtle each one drove. Driving the real runtime
+  // proves the addressing snapshots #766 publishes survive the whole chain — runtime → trace
+  // stream → `reduceTurtleWorldState` → this region — and reach a screen reader as the set.
+  const state = OL.createStudioState();
+  const region = OL.createTurtleStateRegion(state);
+  const controller = OL.createRunController(state);
+  state.setSource(
+    [":a = new_turtle", ":b = new_turtle", "tell [ :a :b ]", "forward 10"].join(
+      "\n",
+    ),
+  );
+  controller.run();
+
+  assert.equal(
+    region.getText(),
+    "addressed turtles #1 #2. turtle #2 at x 0 y 10 heading 0 degrees pen down color black width 1 current instruction forward 10",
+  );
+  // Both addressed turtles really did move — the text names the set precisely because describing
+  // one of them alone would be describing half the drawing.
+  const { turtleWorld } = state.getState();
+  assert.deepEqual(turtleWorld.turtles.get(1).position, [0, 10]);
+  assert.deepEqual(turtleWorld.turtles.get(2).position, [0, 10]);
+});
+
+test("the state text follows an ask block in and back out again, end to end (#770)", () => {
+  // #770's acceptance criterion as a learner hears it. Inside `ask :b [ … ]` only `:b` is
+  // addressed, and `:b` is also what acts, so the text is the plain `turtle #2` sentence; when the
+  // block ends the runtime restores `{ :a, :b }` (spec/turtles-and-sprites.md:58) and the text
+  // names that set again — while still reporting `:b`'s state, because `:b` is what changed.
+  //
+  // The restore lands in the SAME step as the block's last inner instruction (a step spans one
+  // `instruction` event to the next), so that final sentence carries both halves of the step at
+  // once: the set that is addressed again, and the change the step actually made. Describing the
+  // restored turtle instead would announce `:a`, still black — and `:b` turning blue would never
+  // be announced at all (rubber-duck finding 1 on this slice).
+  const state = OL.createStudioState();
+  const region = OL.createTurtleStateRegion(state);
+  const controller = OL.createRunController(state);
+  state.setSource(
+    [
+      ":a = new_turtle",
+      ":b = new_turtle",
+      "tell [ :a :b ]",
+      "forward 10",
+      'ask :b [ set_color "blue" ]',
+    ].join("\n"),
+  );
+
+  controller.step(); // :a = new_turtle
+  controller.step(); // :b = new_turtle
+  controller.step(); // tell [ :a :b ]
+  assert.match(region.getText(), /^addressed turtles #1 #2\. turtle #/);
+
+  controller.step(); // forward 10
+  controller.step(); // ask :b [ … ] — its entry narrows the addressed set to { :b }
+  assert.equal(
+    region.getText(),
+    'turtle #2 at x 0 y 10 heading 0 degrees pen down color black width 1 current instruction ask :b [ set_color "blue" ]',
+  );
+
+  controller.step(); // the block's inner instruction — and, in the same step, the exit's restore
+  assert.equal(
+    region.getText(),
+    'addressed turtles #1 #2. turtle #2 at x 0 y 10 heading 0 degrees pen down color blue width 1 current instruction set_color "blue"',
+  );
+  // The restored set is named, and the turtle that actually turned blue is the one described.
+  const { turtleWorld } = state.getState();
+  assert.equal(turtleWorld.lastActedTurtleId, 2);
+  assert.equal(turtleWorld.turtles.get(2).color, "blue");
+  assert.equal(turtleWorld.turtles.get(1).color, "black");
+});
+
+test("the state text says plainly when a program addresses no turtle at all (#770)", () => {
+  // `tell [ ]` addresses nothing, and the spec defines no current turtle for an empty set — the
+  // stream reports `current_turtle_id: null` and leaves the display fallback to the consumer.
+  const state = OL.createStudioState();
+  const region = OL.createTurtleStateRegion(state);
+  const controller = OL.createRunController(state);
+  state.setSource(
+    [":a = new_turtle", "tell :a", "forward 10", "tell [ ]"].join("\n"),
+  );
+  controller.run();
+
+  assert.equal(
+    region.getText(),
+    "no addressed turtles. turtle #1 at x 0 y 10 heading 0 degrees pen down color black width 1 current instruction tell [ ]",
+  );
+});
+
+test("the state text of a Turtle & Rendering program never names a turtle (byte-identical to spec/rendering.md's example)", () => {
   // The compatibility half of #749: naming the described turtle must not leak into the
-  // single-turtle wording `spec/rendering.md:191` gives verbatim.
+  // wording `spec/rendering.md:191` gives verbatim. The condition is one live turtle addressing
+  // itself, which no Turtle & Rendering program can leave — `tell` is a Sprites primitive.
   const state = OL.createStudioState();
   const region = OL.createTurtleStateRegion(state);
   state.setTurtleWorld(

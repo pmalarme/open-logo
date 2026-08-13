@@ -26,8 +26,9 @@
  * - `notice` — a non-fatal, learner-visible status (e.g. "your work could not be saved"), set by
  *   #128 persistence when a storage operation degrades gracefully instead of crashing or silently
  *   losing data. `null` means there is nothing to show.
- * - `turtleWorld`/`turtleScene` — the per-turtle world (every live turtle's own avatar state plus
- *   which one last acted) and the retained drawing scene the Canvas view (#218) paints, reusing
+ * - `turtleWorld`/`turtleScene` — the per-turtle world (every live turtle's own avatar state, the
+ *   addressed turtle set, and which turtle last acted) and the retained drawing scene the Canvas
+ *   view (#218) paints, reusing
  *   `@openlogo/turtle`'s own {@link TurtleWorldState}/{@link TurtleScene} types verbatim (never a
  *   studio-invented fork). Both start at `@openlogo/turtle`'s program-start defaults
  *   (`INITIAL_TURTLE_WORLD_STATE`/`INITIAL_TURTLE_SCENE`) and are replaced wholesale by
@@ -40,6 +41,16 @@
  *   commits the pair — so a pane reading `turtleState` and a pane painting `turtleWorld` can never
  *   disagree about which turtle they are showing (issue #749: they used to, because every turtle's
  *   attributes were folded into one record).
+ *
+ *   #770 deliberately leaves that subject as the last-acted turtle rather than re-pointing it at
+ *   the newly folded addressed/current turtle. The two answer different questions: `turtleState` is
+ *   "which turtle did a command last drive" — the projection of the most recent per-turtle effect,
+ *   which is what a stepping/animation consumer wants — while the addressed set is "what will the
+ *   next command drive", which is what the a11y region must announce (`spec/rendering.md:191`).
+ *   Nothing renders `turtleState` today (the Canvas view paints `turtleWorld`'s turtles, and
+ *   `a11y.ts` describes `turtleWorld` through `describeTurtleWorldState`), so the two cannot appear
+ *   to contradict each other on screen; a pane that ever needs the addressed turtle should read it
+ *   from `turtleWorld` rather than have this projection quietly change meaning.
  * - `speedSliderValue` (#310) — the learner-facing turtle-speed slider position, a plain number
  *   in `turtle-speed.ts`'s `[SPEED_SLIDER_MIN, SPEED_SLIDER_MAX]` range (the top value being the
  *   dedicated "instant / no animation" end). Defaults to `turtle-speed.ts`'s

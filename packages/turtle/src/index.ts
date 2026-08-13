@@ -14,8 +14,9 @@
  *
  * This slice publishes the deterministic turtle-**state** reducer (position, heading, pen,
  * color, width, shape, visibility), the per-turtle **world** reducer (every live turtle's own
- * state plus the last-acted turtle, routed by the event stream's `turtle_id` — what a Sprites
- * drawing is painted and described from), the deterministic retained-**scene** reducer
+ * state, the addressed turtle set, and the last-acted turtle, routed by the event stream's
+ * `turtle_id` and addressing snapshots — what a Sprites drawing is painted and described from), the
+ * deterministic retained-**scene** reducer
  * (background, segments, fills, stamps), the **Canvas live renderer**, deterministic **SVG** and
  * **PNG** export — all three renderers paint the same retained data through the same
  * dependency-injected `RenderTarget` abstraction and coordinate mapping, and all three accept
@@ -23,8 +24,11 @@
  * **animation/execution-control** cursor (`run`/`pause`/`step`/`speed`/`reset`+`replay`) that
  * paces consumption of that same event stream without ever re-deriving it, and **rendering
  * accessibility** primitives: a non-visual textual state description
- * (`describeTurtleState`, and `describeTurtleWorldState` which additionally identifies the
- * turtle it describes once a program drives more than one), color-independent feedback descriptors for
+ * (`describeTurtleState`, and `describeTurtleWorldState` which additionally names the turtle it
+ * describes once the world holds more than one live turtle, and identifies the **addressed turtle
+ * set**
+ * whenever that set is not exactly the turtle a command last drove),
+ * color-independent feedback descriptors for
  * otherwise color-only rendering state, and a `renderFrame` reduced-motion paint mode that
  * instantly drains and paints the retained scene without ever changing the event stream, final
  * scene, turtle state, or export output.

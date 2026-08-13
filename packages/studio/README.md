@@ -25,7 +25,8 @@ Every pane composes over **one** shared instance — never a per-pane copy:
   `@openlogo/edu` content), `notice` (a non-fatal, learner-visible status set by e.g. #128
   persistence when it degrades gracefully), and `turtleWorld`/`turtleScene` (the Canvas view's
   per-turtle avatar state + retained scene, #218 — `@openlogo/turtle`'s own types, defaulted to its
-  program-start `INITIAL_TURTLE_WORLD_STATE`/`INITIAL_TURTLE_SCENE`; `turtleState` is a derived
+  program-start `INITIAL_TURTLE_WORLD_STATE`/`INITIAL_TURTLE_SCENE`; `turtleWorld` also carries the
+  addressed turtle set the a11y text names, #770; `turtleState` is a derived
   read of `turtleWorld`'s last-acted turtle, #749). State changes only through its
   `set*` methods; `getState()` is stable by reference between changes, and `subscribe` notifies
   listeners synchronously after every change — see the doc comment in `state-model.ts` for the full
@@ -334,8 +335,12 @@ no DOM here to regress.
   `createTurtleStateRegion(state)` is a single, always-current `status`/`aria-live="polite"` text
   region over the shared store's `turtleWorld` slot (the same one #218 paints from and #228 pushes
   into on every run tick/`step()`/`reset()`), built from `@openlogo/turtle`'s published
-  `describeTurtleWorldState` (position/heading/pen wording, never re-derived here — plus, once a
-  program drives more than one turtle, the `turtle #<id>` name of the turtle being described, #749)
+  `describeTurtleWorldState` (position/heading/pen wording, never re-derived here — plus, once the
+  world holds more than one live turtle, the `turtle #<id>` name of the turtle being described, #749,
+  and — whenever the addressed set is not simply that turtle — the set itself, as
+  `addressed turtles #1 #2. turtle #2 at x …`, #770: the consumer half of the addressing
+  snapshots #766 publishes in the trace stream, which is what lets an `ask`/`each` block's restore
+  name the set that is addressed again while still reporting the change the block made)
   plus, when available,
   a trailing "current instruction `<exact source text>`" clause — `spec/rendering.md`'s Non-visual
   state descriptions minimum requires surfacing the current instruction alongside pen/visibility

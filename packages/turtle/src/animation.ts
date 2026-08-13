@@ -105,15 +105,18 @@ export interface AnimationSnapshot {
   /** Current playback status. */
   readonly status: PlaybackStatus;
   /**
-   * The **last-acted** turtle's state as of every event consumed so far — the turtle the
-   * non-visual state description is about. With a single turtle that is simply the main turtle's
+   * The **last-acted** turtle's state as of every event consumed so far — the turtle whose
+   * position/heading/pen the non-visual state description reports. With a single turtle that is
+   * simply the main turtle's
    * folded state, unchanged from before per-turtle folding existed; under Sprites it is the turtle
    * the most recent per-turtle command drove, rather than every turtle's attributes merged
-   * into one record.
+   * into one record. Which turtles are *addressed* is a separate question, answered by
+   * {@link AnimationSnapshot.world}'s `addressedTurtleIds` (which the state description also names
+   * whenever it is not simply this turtle).
    */
   readonly state: TurtleState;
-  /** Every live turtle's own state plus the last-acted turtle, folded from every event consumed so
-   * far. This is what a renderer paints avatars from. */
+  /** Every live turtle's own state, plus the addressed turtle set and the last-acted turtle, folded
+   * from every event consumed so far. This is what a renderer paints avatars from. */
   readonly world: TurtleWorldState;
   /** Retained scene folded from every event consumed so far. */
   readonly scene: TurtleScene;
@@ -131,7 +134,9 @@ export interface AnimationSnapshot {
  * and can never diverge from what a direct `reduceTurtleWorldEvents`/`reduceSceneEvents` call over
  * the same events would produce. {@link AnimationSnapshot.state} is read out of that same world
  * ({@link lastActedTurtleState}) rather than folded a second time, so the avatar, the state text, and
- * the per-turtle world can never disagree.
+ * the per-turtle world can never disagree about the turtle a command last drove — and the addressed set
+ * the state text also names comes from that one world too, so it cannot drift from the avatars
+ * either.
  *
  * Step boundaries follow `spec/rendering.md`/`spec/execution-model.md` exactly: one step is an
  * `instruction` event plus every effect event up to (but not including) the next `instruction`
@@ -162,6 +167,12 @@ export class TurtleAnimationController {
         [MAIN_TURTLE_ID, options.initialState ?? INITIAL_TURTLE_STATE],
       ]),
       lastActedTurtleId: MAIN_TURTLE_ID,
+      // Program-start addressing: the single default turtle is the addressed set
+      // (`spec/turtles-and-sprites.md`'s "Addressing model"), exactly as
+      // `INITIAL_TURTLE_WORLD_STATE` seeds it — the world differs only in the main turtle's own
+      // (optionally re-seeded) state.
+      addressedTurtleIds: [MAIN_TURTLE_ID],
+      currentTurtleId: MAIN_TURTLE_ID,
     };
     this.initialScene = options.initialScene ?? INITIAL_TURTLE_SCENE;
     this.initialOverlay = options.initialOverlay ?? INITIAL_OVERLAY_STATE;

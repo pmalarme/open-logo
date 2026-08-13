@@ -80,7 +80,20 @@
  * state: with several turtles the text now names **which** turtle it is describing, as
  * `turtle #<id>` — the same identity `print who` gives the learner — satisfying
  * `spec/rendering.md:191`'s "Implementations with multiple turtles MUST identify the active turtle
- * or addressed turtle set". A single-turtle program's text is unchanged, byte for byte.
+ * or addressed turtle set". A Turtle & Rendering program's text is unchanged, byte for byte.
+ *
+ * #770 closes the other half of that MUST — the **addressed turtle set**, which no single turtle
+ * name can express. `@openlogo/turtle` now folds the addressing snapshots the trace stream carries
+ * (issue #766) into the world, so whenever the addressed set is not simply the turtle that just
+ * acted the region leads with it: after `tell [ :a :b ]` it reads
+ * `addressed turtles #1 #2. turtle #2 at x … `, and after an `ask`/`each` block restores
+ * it names the restored set while still describing the turtle the block drove — so a
+ * non-visual learner hears both what will be driven next and what just happened. The wording, and
+ * why it names the set instead of enumerating every addressed turtle's attributes into this one
+ * live region, lives with the text in `@openlogo/turtle`'s `describeTurtleWorldState` — this module
+ * still writes no description logic of its own. A Turtle & Rendering program's text remains
+ * unchanged, byte for byte: `tell` is a Sprites primitive, so such a program can never leave the
+ * one-live-turtle-addressing-itself case that produces the spec's verbatim wording.
  *
  * #410 additionally appends the current source instruction, when one is available
  * (`spec/rendering.md`'s Non-visual state descriptions minimum: pen color/width, turtle
@@ -424,10 +437,12 @@ function describeCurrentInstruction(
   return ` current instruction ${extractSourceSpanText(source, span)}`;
 }
 
-/** The full non-visual turtle-state text: `describeTurtleWorldState`'s wording — which identifies
- * which turtle it is describing once the program drives more than one (`spec/rendering.md:191`), and is
- * byte-identical to the single-turtle `describeTurtleState` wording otherwise — plus, when
- * available, the current source instruction (#410). */
+/** The full non-visual turtle-state text: `describeTurtleWorldState`'s wording — which names the
+ * turtle it describes once the world holds more than one live turtle (`spec/rendering.md:191`,
+ * #749) and
+ * identifies the addressed turtle set whenever that set is not exactly the turtle a command last drove
+ * (#770), and is byte-identical to `describeTurtleState`'s wording while one
+ * live turtle is addressing itself — plus, when available, the current source instruction (#410). */
 function describeFullTurtleState(state: StudioState): string {
   return (
     describeTurtleWorldState(state.turtleWorld) +
@@ -441,8 +456,9 @@ export type TurtleStateTextListener = (text: string) => void;
 /**
  * The headless, always-current non-visual turtle-state text region over the shared state model.
  * Unlike {@link A11yAnnouncer}, this holds exactly one piece of text — the description of the
- * *current* {@link TurtleWorldState}'s last-acted turtle, plus (#410) the current source instruction
- * when available — that a renderer keeps mapped onto a single `status`/`aria-live="polite"`
+ * *current* {@link TurtleWorldState}: which turtles are addressed and the state of the one whose
+ * position the sentence reports, plus (#410) the current source instruction when available — that a
+ * renderer keeps mapped onto a single `status`/`aria-live="polite"`
  * region, rather than a growing announcement log.
  */
 export interface TurtleStateRegion {
@@ -458,8 +474,9 @@ export interface TurtleStateRegion {
 
 /**
  * Construct the turtle-state text region bound to the shared studio state model (never a copy).
- * The turtle-position/heading/pen wording — and, for a multi-turtle program, the described turtle's
- * identity — is computed via `@openlogo/turtle`'s published {@link describeTurtleWorldState}; this
+ * The turtle-position/heading/pen wording — and, for a multi-turtle program, the addressed set or
+ * the described turtle's identity — is computed via `@openlogo/turtle`'s published
+ * {@link describeTurtleWorldState}; this
  * module never re-derives it. (#410) The current source instruction, when
  * `state.currentInstructionSourceSpan` is available, is appended by slicing `state.source` (see
  * {@link extractSourceSpanText}). Recomputed on every store update, but
