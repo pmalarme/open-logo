@@ -13,7 +13,12 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createEnvironment, execute, turtleStateFor } from "@openlogo/runtime";
+import {
+  createEnvironment,
+  currentTurtleState,
+  execute,
+  turtleStateFor,
+} from "@openlogo/runtime";
 
 const moves = (events) =>
   events
@@ -231,9 +236,10 @@ test("an event that already carries a turtle_id (a spawn-turtle from a new_turtl
 test("a nested tell run during a command's argument evaluation keeps who and the movement reporters consistent", () => {
   // Regression for the current-turtle divergence: a procedure invoked while evaluating `forward`'s
   // argument runs `tell :b`, moving the current turtle for subsequent statements. The command still
-  // applies to the addressed `:a` (which moves), but afterwards `who` reports `:b` AND the movement
-  // reporters must describe `:b` too — the state pointer is re-derived from the single `currentId`,
-  // so it can never be left describing `:a` while `who` says `:b`.
+  // applies to the addressed `:a` (which moves) — the acting turtle is fixed when the statement
+  // begins, so the argument cannot re-aim the command it belongs to — but afterwards `who` reports
+  // `:b` AND the movement reporters must describe `:b` too, because both read the single
+  // `addressing.currentId`. Neither can be left describing `:a` while the other says `:b`.
   const result = execute(
     [
       "define retarget",
@@ -329,6 +335,225 @@ test("a nested tell run in an early iteration of a multi-turtle command persists
   assert.equal(prints[1], false);
 });
 
+// --- #782: a `tell` inside a procedure ------------------------------------------------------
+//
+// `spec/turtles-and-sprites.md:46` makes `tell` a plain command that "changes the current addressed
+// set for subsequent turtle commands"; only `ask` (`:58`) and `each` (`:78`) are described as
+// restoring a previous set. A procedure body is neither, so a callee's `tell` PERSISTS after the
+// call returns and the caller's reporters must observe it. The bug these tests pin: the current
+// turtle's state used to be cached per `Environment`, and `runProcedure` shallow-copies that object,
+// so a callee's `tell` updated the shared addressed-set pointer `who` reads while leaving the
+// caller's copy of the cache — read by `xcor`/`ycor`/`heading`/`pos` — aimed at the previous turtle.
+
+test("#782: a tell inside a procedure persists after the call — who and ycor describe the callee's turtle", () => {
+  const result = execute(
+    [
+      ":a = new_turtle",
+      ":b = new_turtle",
+      "tell :a",
+      "forward 10",
+      "tell :b",
+      "forward 20",
+      "tell :a",
+      "define go",
+      "  tell :b",
+      "end",
+      "go",
+      "print who",
+      "print ycor",
+    ].join("\n"),
+    "main.logo",
+  );
+  assert.deepEqual(result.diagnostics, []);
+  const prints = result.events
+    .filter((event) => event.kind === "print")
+    .map((event) => event.payload.values[0]);
+  // :b is turtle 2 and stands at y 20; :a is turtle 1 at y 10. The reported pair must be a state
+  // ONE turtle really has — the defect printed turtle #2 with :a's y of 10, which no turtle had.
+  assert.equal(prints[0].id, 2);
+  assert.equal(prints[1], 20);
+});
+
+test("#782: a tell two call frames deep persists too — nesting does not re-scope it", () => {
+  const result = execute(
+    [
+      ":a = new_turtle",
+      ":b = new_turtle",
+      "tell :b",
+      "forward 20",
+      "tell :a",
+      "forward 10",
+      "define inner",
+      "  tell :b",
+      "end",
+      "define outer",
+      "  inner",
+      "end",
+      "outer",
+      "print who",
+      "print ycor",
+    ].join("\n"),
+    "main.logo",
+  );
+  assert.deepEqual(result.diagnostics, []);
+  const prints = result.events
+    .filter((event) => event.kind === "print")
+    .map((event) => event.payload.values[0]);
+  assert.equal(prints[0].id, 2);
+  assert.equal(prints[1], 20);
+});
+
+test("#782: the who/position agreement invariant holds after a callee's tell, with no hard-coded coordinate", () => {
+  // States the invariant itself rather than one instance of it: `ask who [ ... ]` records the y of
+  // the very turtle `who` reports, and compares it with the y the caller's own `ycor` reports. Only
+  // one current turtle exists (`spec/turtles-and-sprites.md:26,105`), so the two MUST agree; `ask`
+  // restores the addressed set on exit (`:58`), so the trailing `ycor` is read under the set that
+  // was active before it.
+  const result = execute(
+    [
+      ":a = new_turtle",
+      ":b = new_turtle",
+      "tell :a",
+      "forward 10",
+      "tell :b",
+      "forward 20",
+      "tell :a",
+      "define go",
+      "  tell :b",
+      "end",
+      "go",
+      ":seen = 0",
+      "ask who [ :seen = ycor ]",
+      "print :seen == ycor",
+    ].join("\n"),
+    "main.logo",
+  );
+  assert.deepEqual(result.diagnostics, []);
+  const printEvent = result.events.find((event) => event.kind === "print");
+  assert.deepEqual(printEvent.payload, { values: [true] });
+});
+
+test("#782: heading and pos agree with who after a callee's tell too, not just ycor", () => {
+  // The cache the defect forked backed all four movement reporters, so pin the other two as well —
+  // a fix that re-derived only `ycor` would leave `heading`/`pos` describing the caller's turtle.
+  const result = execute(
+    [
+      ":a = new_turtle",
+      ":b = new_turtle",
+      "tell :a",
+      "right 45",
+      "tell :b",
+      "forward 20",
+      "right 90",
+      "tell :a",
+      "define go",
+      "  tell :b",
+      "end",
+      "go",
+      "print who",
+      "print heading",
+      "print pos",
+      "print ycor",
+    ].join("\n"),
+    "main.logo",
+  );
+  assert.deepEqual(result.diagnostics, []);
+  const prints = result.events
+    .filter((event) => event.kind === "print")
+    .map((event) => event.payload.values[0]);
+  // :b moved 20 up then turned to 90, so it stands at (0, 20) facing 90; :a only turned 45 and never
+  // moved, so it is at (0, 0) facing 45. Every reporter must describe :b, not :a.
+  assert.equal(prints[0].id, 2);
+  assert.equal(prints[1], 90);
+  assert.deepEqual(prints[2], [0, 20]);
+  assert.equal(prints[3], 20);
+});
+
+test("#782: a turtle command after a callee's tell applies to the newly addressed turtle (the self-heal path)", () => {
+  // The path that made the defect intermittent: the first turtle command after the call re-derived
+  // the stale cache and hid the divergence. It must apply to the turtle the callee addressed, and
+  // its events must carry that turtle's id (`spec/turtles-and-sprites.md:113`).
+  const result = execute(
+    [
+      ":a = new_turtle",
+      ":b = new_turtle",
+      "tell :a",
+      "define go",
+      "  tell :b",
+      "end",
+      "go",
+      "forward 40",
+      "print who",
+      "print ycor",
+    ].join("\n"),
+    "main.logo",
+  );
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(moves(result.events), [[2, [0, 40]]]);
+  const prints = result.events
+    .filter((event) => event.kind === "print")
+    .map((event) => event.payload.values[0]);
+  assert.equal(prints[0].id, 2);
+  assert.equal(prints[1], 40);
+});
+
+test("#782: a tell in an argument does not re-aim the non-movement command it is an argument of", () => {
+  // The acting turtle is fixed when the statement begins, for EVERY per-turtle command — not just
+  // `forward`. `set_color` addressed to :a keeps recolouring :a even though its argument's procedure
+  // re-addressed :b, so the `color-change` event and its `turtle_id` describe one turtle; the
+  // `tell` still takes effect for what follows, which `who` then reports.
+  const result = execute(
+    [
+      "define choose_color",
+      "  tell :b",
+      '  return "red"',
+      "end",
+      ":a = new_turtle",
+      ":b = new_turtle",
+      "tell :a",
+      "set_color choose_color",
+      "print who",
+    ].join("\n"),
+    "main.logo",
+  );
+  assert.deepEqual(result.diagnostics, []);
+  const colorChange = result.events.find(
+    (event) => event.kind === "color-change",
+  );
+  assert.equal(colorChange.turtle_id, 1);
+  assert.deepEqual(colorChange.payload, { from: "black", to: "red" });
+  const printEvent = result.events.find((event) => event.kind === "print");
+  assert.equal(printEvent.payload.values[0].id, 2);
+});
+
+test("#782: an ask inside a procedure still restores the caller's addressed set (tell persists, ask does not)", () => {
+  // The counterpart of the persistence rule: `ask` IS scoped (`spec/turtles-and-sprites.md:58`), and
+  // making a callee's `tell` visible must not accidentally make a callee's `ask` leak. After `nudge`
+  // returns, the addressed set is still the caller's :a — proven by `who` and by a `forward` landing
+  // on :a — even though the `ask` inside it addressed :b.
+  const result = execute(
+    [
+      ":a = new_turtle",
+      ":b = new_turtle",
+      "tell :a",
+      "define nudge",
+      "  ask :b [ forward 5 ]",
+      "end",
+      "nudge",
+      "print who",
+      "forward 7",
+    ].join("\n"),
+    "main.logo",
+  );
+  assert.deepEqual(result.diagnostics, []);
+  const printEvent = result.events.find((event) => event.kind === "print");
+  assert.equal(printEvent.payload.values[0].id, 1);
+  assert.deepEqual(moves(result.events), [
+    [2, [0, 5]],
+    [1, [0, 7]],
+  ]);
+});
+
 test("#748: a turtle listed twice is ONE member of the addressed set — a direct turtle command applies once (dedup by id)", () => {
   // The addressed set is a SET (spec/turtles-and-sprites.md:44) whose members compare by "Same
   // turtle identity" (spec/execution-model.md:540), and a turtle command "applies once for each
@@ -418,8 +643,12 @@ test("#748: a command's argument is evaluated once per MEMBER, not once per list
 
 test("turtleStateFor returns the registered state for a known id and throws for an unregistered one (internal invariant)", () => {
   const environment = createEnvironment();
-  // The main turtle (id 0) is always registered and is the same object `environment.turtle` aliases.
-  assert.equal(turtleStateFor(environment.addressing, 0), environment.turtle);
+  // The main turtle (id 0) is always registered and is the state the current-turtle accessor
+  // resolves to before any `tell` — one object, reached two ways (#782: nothing caches a second).
+  assert.equal(
+    turtleStateFor(environment.addressing, 0),
+    currentTurtleState(environment),
+  );
   // No turtle 99 was ever spawned, so requesting its state is an invariant violation, not a user
   // error — real source can never reach this because every addressed id is a spawned/main id.
   assert.throws(

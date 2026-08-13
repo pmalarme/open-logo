@@ -1,0 +1,10 @@
+:a = new_turtle
+:b = new_turtle
+tell :a
+define go
+  tell :b
+end
+go
+forward 40
+print who
+print ycor

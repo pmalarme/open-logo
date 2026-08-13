@@ -1,0 +1,15 @@
+:a = new_turtle
+:b = new_turtle
+tell :b
+forward 20
+tell :a
+forward 10
+define inner
+  tell :b
+end
+define outer
+  inner
+end
+outer
+print who
+print ycor

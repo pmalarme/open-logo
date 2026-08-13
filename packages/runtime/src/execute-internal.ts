@@ -83,6 +83,7 @@ import {
   checkExecutionLimits,
   createDefaultTurtleState,
   createTurtleAddressing,
+  currentTurtleState,
   evaluate,
   executeAdd,
   executeAssign,
@@ -106,6 +107,7 @@ import {
   type ProcedureRegistry,
   type StructRegistry,
   type TurtleAddressing,
+  type TurtleState,
 } from "./evaluate.js";
 import { runtimeDiag } from "./errors.js";
 import {
@@ -247,10 +249,10 @@ function isTurtleMoveCall(statement: StatementNode): boolean {
  */
 function moveTurtle(
   environment: Environment,
+  turtle: TurtleState,
   distance: number,
   source_span: SourceSpan,
 ): void {
-  const { turtle } = environment;
   const heading = turtle.heading;
   const radians = (heading * Math.PI) / 180;
   const from: Point = [turtle.x, turtle.y];
@@ -325,6 +327,13 @@ function executeTurtleMoveCall(
   if (!isSupportedArgument(arg, environment)) {
     return undefined;
   }
+  // Fix the acting turtle BEFORE the argument runs. A turtle command applies to the turtle(s)
+  // addressed when the statement began ({@link runPerTurtleCommand}'s `addressedIds` snapshot), so
+  // a `tell` reached from the argument — necessarily via a procedure call — must change the
+  // addressed set for what *follows*, never re-aim the command it is an argument of. Pinning it as
+  // a local keeps that a property of this call's stack frame rather than of any shared or copied
+  // state (issue #782).
+  const turtle = currentTurtleState(environment);
   const argResult = evaluate(arg, environment);
   if (!argResult.ok) {
     return halt(argResult.diagnostic);
@@ -353,7 +362,7 @@ function executeTurtleMoveCall(
   }
   const signedDistance =
     callableName.toLowerCase() === "back" ? -distance.value : distance.value;
-  moveTurtle(environment, signedDistance, moveCall.source_span);
+  moveTurtle(environment, turtle, signedDistance, moveCall.source_span);
   return undefined;
 }
 
@@ -383,10 +392,10 @@ function isTurtleTurnCall(statement: StatementNode): boolean {
  */
 function turnTurtle(
   environment: Environment,
+  turtle: TurtleState,
   deltaDegrees: number,
   source_span: SourceSpan,
 ): void {
-  const { turtle } = environment;
   const from = turtle.heading;
   const to = normalizeHeading(from + deltaDegrees);
   turtle.heading = to;
@@ -436,6 +445,8 @@ function executeTurtleTurnCall(
   if (!isSupportedArgument(arg, environment)) {
     return undefined;
   }
+  // Acting turtle pinned before the argument runs — see {@link executeTurtleMoveCall}.
+  const turtle = currentTurtleState(environment);
   const argResult = evaluate(arg, environment);
   if (!argResult.ok) {
     return halt(argResult.diagnostic);
@@ -462,7 +473,7 @@ function executeTurtleTurnCall(
   }
   const signedAngle =
     callableName.toLowerCase() === "left" ? -angle.value : angle.value;
-  turnTurtle(environment, signedAngle, turnCall.source_span);
+  turnTurtle(environment, turtle, signedAngle, turnCall.source_span);
   return undefined;
 }
 
@@ -494,10 +505,10 @@ function isTurtlePenCall(statement: StatementNode): boolean {
  */
 function setPen(
   environment: Environment,
+  turtle: TurtleState,
   penDown: boolean,
   source_span: SourceSpan,
 ): void {
-  const { turtle } = environment;
   const from = turtle.penDown ? "down" : "up";
   const to = penDown ? "down" : "up";
   turtle.penDown = penDown;
@@ -537,6 +548,7 @@ function executeTurtlePenCall(
   }
   setPen(
     environment,
+    currentTurtleState(environment),
     callableName.toLowerCase() === "pen_down",
     penCall.source_span,
   );
@@ -571,10 +583,10 @@ function isTurtleVisibilityCall(statement: StatementNode): boolean {
  */
 function setVisibility(
   environment: Environment,
+  turtle: TurtleState,
   visible: boolean,
   source_span: SourceSpan,
 ): void {
-  const { turtle } = environment;
   const from = turtle.visible;
   turtle.visible = visible;
   environment.events.push({
@@ -613,6 +625,7 @@ function executeTurtleVisibilityCall(
   }
   setVisibility(
     environment,
+    currentTurtleState(environment),
     callableName.toLowerCase() === "show_turtle",
     visibilityCall.source_span,
   );
@@ -655,7 +668,8 @@ function clearScreen(
   mode: "clear_screen" | "clean",
   source_span: SourceSpan,
 ): void {
-  const { turtle, addressing } = environment;
+  const turtle = currentTurtleState(environment);
+  const { addressing } = environment;
   if (mode === "clear_screen") {
     turtle.x = 0;
     turtle.y = 0;
@@ -773,6 +787,8 @@ function executeTurtleColorCall(
   if (!isSupportedArgument(arg, environment)) {
     return undefined;
   }
+  // Acting turtle pinned before the argument runs — see {@link executeTurtleMoveCall}.
+  const turtle = currentTurtleState(environment);
   const argResult = evaluate(arg, environment);
   if (!argResult.ok) {
     return halt(argResult.diagnostic);
@@ -787,7 +803,6 @@ function executeTurtleColorCall(
       }),
     );
   }
-  const { turtle } = environment;
   const from = turtle.color;
   turtle.color = color;
   environment.events.push({
@@ -938,6 +953,8 @@ function executeTurtleWidthCall(
   if (!isSupportedArgument(arg, environment)) {
     return undefined;
   }
+  // Acting turtle pinned before the argument runs — see {@link executeTurtleMoveCall}.
+  const turtle = currentTurtleState(environment);
   const argResult = evaluate(arg, environment);
   if (!argResult.ok) {
     return halt(argResult.diagnostic);
@@ -955,7 +972,6 @@ function executeTurtleWidthCall(
       }),
     );
   }
-  const { turtle } = environment;
   const from = turtle.width;
   turtle.width = width.value;
   environment.events.push({
@@ -1011,7 +1027,9 @@ function executeTurtleFillCall(
     seq: environment.events.length,
     kind: "fill",
     source_span: fillCall.source_span,
-    payload: { color: environment.turtle.color } satisfies FillPayload,
+    payload: {
+      color: currentTurtleState(environment).color,
+    } satisfies FillPayload,
   });
   return undefined;
 }
@@ -1056,7 +1074,7 @@ function executeTurtleStampCall(
       ),
     );
   }
-  const { turtle } = environment;
+  const turtle = currentTurtleState(environment);
   environment.events.push({
     seq: environment.events.length,
     kind: "stamp",
@@ -1218,7 +1236,7 @@ function executeTurtleMeasureCall(
       ),
     );
   }
-  const { turtle } = environment;
+  const turtle = currentTurtleState(environment);
   environment.events.push({
     seq: environment.events.length,
     kind: "overlay",
@@ -1297,6 +1315,8 @@ function executeTurtleShapeCall(
   if (!isSupportedArgument(arg, environment)) {
     return undefined;
   }
+  // Acting turtle pinned before the argument runs — see {@link executeTurtleMoveCall}.
+  const turtle = currentTurtleState(environment);
   const argResult = evaluate(arg, environment);
   if (!argResult.ok) {
     return halt(argResult.diagnostic);
@@ -1320,7 +1340,6 @@ function executeTurtleShapeCall(
     );
   }
   const shape = normalizeShape(argResult.value);
-  const { turtle } = environment;
   const from = turtle.shape;
   turtle.shape = shape;
   environment.events.push({
@@ -1359,10 +1378,10 @@ function isTurtlePositionCall(statement: StatementNode): boolean {
  */
 function moveTurtleTo(
   environment: Environment,
+  turtle: TurtleState,
   to: Point,
   source_span: SourceSpan,
 ): void {
-  const { turtle } = environment;
   const from: Point = [turtle.x, turtle.y];
   turtle.x = to[0];
   turtle.y = to[1];
@@ -1396,10 +1415,10 @@ function moveTurtleTo(
  */
 function setHeadingTo(
   environment: Environment,
+  turtle: TurtleState,
   to: number,
   source_span: SourceSpan,
 ): void {
-  const { turtle } = environment;
   const from = turtle.heading;
   turtle.heading = to;
   environment.events.push({
@@ -1453,8 +1472,9 @@ function executeTurtlePositionCall(
     );
   }
   if (isHome) {
-    moveTurtleTo(environment, [0, 0], positionCall.source_span);
-    setHeadingTo(environment, 0, positionCall.source_span);
+    const homingTurtle = currentTurtleState(environment);
+    moveTurtleTo(environment, homingTurtle, [0, 0], positionCall.source_span);
+    setHeadingTo(environment, homingTurtle, 0, positionCall.source_span);
     return undefined;
   }
   const [xArg, yArg] = positionCall.args as [ExpressionNode, ExpressionNode];
@@ -1464,6 +1484,8 @@ function executeTurtlePositionCall(
   ) {
     return undefined;
   }
+  // Acting turtle pinned before the arguments run — see {@link executeTurtleMoveCall}.
+  const turtle = currentTurtleState(environment);
   const xResult = evaluate(xArg, environment);
   if (!xResult.ok) {
     return halt(xResult.diagnostic);
@@ -1499,7 +1521,12 @@ function executeTurtlePositionCall(
       }),
     );
   }
-  moveTurtleTo(environment, [x.value, y.value], positionCall.source_span);
+  moveTurtleTo(
+    environment,
+    turtle,
+    [x.value, y.value],
+    positionCall.source_span,
+  );
   return undefined;
 }
 
@@ -1556,6 +1583,8 @@ function executeTurtleHeadingCall(
   if (!isSupportedArgument(arg, environment)) {
     return undefined;
   }
+  // Acting turtle pinned before the argument runs — see {@link executeTurtleMoveCall}.
+  const turtle = currentTurtleState(environment);
   const argResult = evaluate(arg, environment);
   if (!argResult.ok) {
     return halt(argResult.diagnostic);
@@ -1581,6 +1610,7 @@ function executeTurtleHeadingCall(
   }
   setHeadingTo(
     environment,
+    turtle,
     normalizeHeading(angle.value),
     headingCall.source_span,
   );
@@ -2473,7 +2503,8 @@ function turtleIdsFor(
  * **sets the addressed set** for every subsequent turtle command until the next `tell`. Evaluates
  * its single argument, coerces it to turtle ids ({@link turtleIdsFor} — `ol-type` on a non-turtle),
  * replaces {@link TurtleAddressing.ids}, marks addressing explicit so per-turtle events now carry a
- * `turtle-id`, and re-points {@link Environment.turtle} at the first addressed turtle so the
+ * `turtle-id`, and re-aims the current-turtle pointer
+ * ({@link TurtleAddressing.currentId}) at the first addressed turtle so the
  * movement reporters and `who` report it. An empty turtle list is a valid (if unusual) addressed
  * set — subsequent commands then apply to no turtle — and the current-turtle pointer falls back to
  * the main turtle so `who` and the movement reporters stay consistent.
@@ -2518,8 +2549,10 @@ function executeTell(
  * Point the addressed set at `ids` and re-derive the current turtle from its first member (the main
  * turtle when the set is empty), the one rule `tell`/`ask`/`each` share so `who` and the state
  * reporters (`xcor`/`ycor`/`heading`/`pos`) never diverge (`spec/turtles-and-sprites.md:44,113`).
- * Marks addressing explicit so per-turtle events now carry a `turtle-id`. `currentId` is the single
- * source of truth; {@link Environment.turtle} is its derived cache, written together here.
+ * Marks addressing explicit so per-turtle events now carry a `turtle-id`.
+ * {@link TurtleAddressing.currentId} is the single, shared record of which turtle is current —
+ * nothing caches the resolved state alongside it, so there is no second copy that could be written
+ * here and not there (issue #782).
  *
  * Emits the addressing `primitive` event for `primitive`/`source_span` **after** the change, so the
  * new addressed set is observable to a consumer (`spec/rendering.md:191`, issue #766). Emitting here
@@ -2539,7 +2572,6 @@ function pointAddressedSet(
   addressing.explicit = true;
   const [firstId = MAIN_TURTLE_ID] = ids;
   addressing.currentId = firstId;
-  environment.turtle = turtleStateFor(addressing, firstId);
   emitAddressingPrimitive(
     environment.events,
     source_span,
@@ -2550,8 +2582,9 @@ function pointAddressedSet(
 
 /**
  * Restore the addressing scope `snapshot` an `ask`/`each` saved on entry — the mirror of
- * {@link pointAddressedSet} and the only other writer of the addressed set. Re-derives
- * {@link Environment.turtle} from the restored current turtle, then emits the addressing `primitive`
+ * {@link pointAddressedSet} and the only other writer of the addressed set. Restoring
+ * {@link TurtleAddressing.currentId} restores the current turtle outright, since the state
+ * reporters and turtle commands resolve through it. Then emits the addressing `primitive`
  * event so a consumer sees the restored set (`spec/turtles-and-sprites.md:58` "The previous addressed
  * set is restored after the block finishes"; `spec/rendering.md:191`).
  *
@@ -2570,7 +2603,6 @@ function restoreAddressedSet(
   addressing.ids = snapshot.ids;
   addressing.explicit = snapshot.explicit;
   addressing.currentId = snapshot.currentId;
-  environment.turtle = turtleStateFor(addressing, snapshot.currentId);
   emitAddressingPrimitive(
     environment.events,
     source_span,
@@ -3239,18 +3271,20 @@ function isPerTurtleCommand(statement: StatementNode): boolean {
 /**
  * Run one per-turtle command once for **every** addressed turtle
  * (`spec/turtles-and-sprites.md:113` "When multiple turtles are addressed by `tell`, a turtle
- * command applies once for each addressed turtle"), pointing {@link Environment.turtle} at each
- * addressed turtle's own stored state ({@link Environment.addressing}) in turn so the existing
+ * command applies once for each addressed turtle"), pointing the current turtle
+ * ({@link TurtleAddressing.currentId}) at each
+ * addressed turtle in turn so the existing
  * single-turtle executors ({@link dispatchTurtleCommandOnce}) mutate the right per-turtle state
- * unchanged. After each turtle's run, the events that turtle produced are stamped with its
+ * unchanged — each resolves that turtle's own stored state through {@link currentTurtleState}.
+ * After each turtle's run, the events that turtle produced are stamped with its
  * `turtle-id` — but only once `tell` has made the addressed set explicit
  * ({@link TurtleAddressing.explicit}); before any `tell` the implicit default main turtle's events
  * carry no `turtle-id`, exactly as every Core/Turtle & Rendering fixture expects. A halting outcome
  * from any addressed turtle stops the loop immediately, so a diagnostic on one turtle is not masked
  * by a later turtle's success.
  *
- * Each iteration points the current turtle ({@link TurtleAddressing.currentId} and its derived
- * {@link Environment.turtle} cache) at the turtle whose turn it is, so a `who` evaluated *inside* the
+ * Each iteration points the current turtle at the turtle whose turn it is, so a `who` evaluated
+ * *inside* the
  * command's argument (e.g. `forward some_proc` where `some_proc` reads `who`) reports the turtle
  * actually running the command, not the first addressed one (`spec/turtles-and-sprites.md:26`).
  *
@@ -3274,7 +3308,6 @@ function runPerTurtleCommand(
   let outcome: ExecSignal | undefined;
   for (const id of addressedIds) {
     addressing.currentId = id;
-    environment.turtle = turtleStateFor(addressing, id);
     const firstEventIndex = environment.events.length;
     outcome = dispatchTurtleCommandOnce(statement, environment) as
       ExecSignal | undefined;
@@ -3292,7 +3325,6 @@ function runPerTurtleCommand(
   // reporters in agreement.
   const [firstId = MAIN_TURTLE_ID] = addressing.ids;
   addressing.currentId = firstId;
-  environment.turtle = turtleStateFor(addressing, firstId);
   return outcome;
 }
 
@@ -3367,7 +3399,8 @@ function dispatchTurtleCommand(
 }
 
 /**
- * Validate and run a single turtle command against {@link Environment.turtle} (the current turtle).
+ * Validate and run a single turtle command against the current turtle
+ * ({@link currentTurtleState}).
  * This is the original per-command dispatch — every `isTurtleXCall`/`executeTurtleXCall` branch —
  * now reached once per addressed turtle for a per-turtle command ({@link runPerTurtleCommand}) or
  * once for a canvas-global one ({@link dispatchTurtleCommand}).
@@ -5188,7 +5221,7 @@ function createExecutionEnvironment(
   options: ExecuteOptions | undefined,
   source: string,
 ): Environment {
-  const turtle = createDefaultTurtleState();
+  const mainTurtleState = createDefaultTurtleState();
   return {
     frames: [new Map()],
     repeatTurns: [],
@@ -5207,9 +5240,8 @@ function createExecutionEnvironment(
     ),
     instructionCount: { count: 0 },
     signal: options?.signal,
-    turtle,
     turtleWorld: new TurtleWorld(),
-    addressing: createTurtleAddressing(turtle),
+    addressing: createTurtleAddressing(mainTurtleState),
     randomNumberGenerator: createRandomNumberGeneratorState(),
     tickClock: createTickClock(),
     sound: createSoundState(),

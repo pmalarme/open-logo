@@ -53,6 +53,7 @@ import type { TutorLearnerLevel } from "./tutor-context.js";
 export {
   CYCLIC_PLACEHOLDER,
   createEnvironment,
+  currentTurtleState,
   evaluate,
   executeAdd,
   executeAssign,
