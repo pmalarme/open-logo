@@ -236,7 +236,7 @@ function isTurtleMoveCall(statement: StatementNode): boolean {
  * `spec/execution-model.md:592-593` requires, reporting the position change and heading. A
  * `draw-segment` reporting the same endpoints plus the pen color/width active at the moment the
  * segment is created (`spec/rendering.md`'s "Line segments" section) follows it **only while the
- * pen is down** (`environment.turtle.penDown`) — `spec/rendering.md`'s "Line segments" section: a segment
+ * pen is down** (the current turtle's `penDown`) — `spec/rendering.md`'s "Line segments" section: a segment
  * is drawn only while the pen is down; while up, the turtle still moves (and still emits `move`)
  * but leaves no trail (issue #206, `pen_up`/`pen_down`). `distance` is negative for `back`
  * (`back n` == `forward -n`, `spec/commands.md:1215`), positive for `forward`.
@@ -500,7 +500,7 @@ function isTurtlePenCall(statement: StatementNode): boolean {
  *
  * Setting has no `move`/`draw-segment` counterpart: it never moves or turns the turtle, so no
  * position or heading event follows it. It is, however, the reason {@link moveTurtle}'s
- * `draw-segment` is now conditional on `environment.turtle.penDown`.
+ * `draw-segment` is now conditional on the acting turtle's `penDown`.
  */
 function setPen(
   environment: Environment,

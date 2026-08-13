@@ -251,15 +251,16 @@ test("a `throw` inside each halts and restores the addressed set (finally runs o
   assert.deepEqual(moves(result.events), [[1, [0, 10]]]);
 });
 
-test("after a `stop` unwinds each, `who`, `xcor`, and the addressed set report the turtle(s) from before the loop (pointer + state cache + set restored, not leaked)", () => {
-  // Directly asserts the current-turtle pointer, its derived state cache (`environment.turtle`), AND
+test("after a `stop` unwinds each, `who`, `xcor`, and the addressed set report the turtle(s) from before the loop (pointer + set restored, not leaked)", () => {
+  // Directly asserts the current-turtle pointer AND
   // the id set are restored after an abnormal exit, distinguishing restoration from leakage. :a and :b
   // are given DIFFERENT positions (x 11 vs 22). `tell [ :a :b ]` makes :a (id 1, first of set) the
   // current turtle, but the `each` `stop`s during :b's iteration (`if who == :b [ stop ]` is false for
   // :a, true for :b), so the iteration turtle when `stop` fires is :b — DIFFERENT from the pre-each
   // pointer :a. After the call `who == :a` is true, `who == :b` is false, and a bare `xcor` reports 11
-  // (:a's x), not 22 (:b's): the finally restored `currentId` and `environment.turtle` to :a rather
-  // than leaking :b's pointer or cache. The trailing `forward 10` then runs for the restored
+  // (:a's x), not 22 (:b's): the finally restored `currentId` to :a rather
+  // than leaking :b's pointer — and because `who` and `xcor` both resolve through that one field
+  // (issue #782), restoring it restores both. The trailing `forward 10` then runs for the restored
   // `tell [ :a :b ]` set (both turtles), confirming the set — not just the pointer — is intact too.
   const result = execute(
     [
