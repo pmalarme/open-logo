@@ -1,0 +1,16 @@
+:a = new_turtle
+:b = new_turtle
+tell :a
+forward 10
+tell :b
+forward 20
+tell :a
+define go
+  tell :b
+end
+go
+:reported = ycor
+:current = who
+:actual = 0
+ask :current [ :actual = ycor ]
+print :actual == :reported

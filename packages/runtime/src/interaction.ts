@@ -74,7 +74,7 @@ import type { Environment } from "./evaluate.js";
 /**
  * The Interaction & Events tick clock: a single mutable box holding the current logical tick
  * (`spec/interaction-events.md`, §Time, ticks, and handlers). A box — like the environment's
- * `instructionCount`/`turtle` — rather than a plain field reassigned on {@link Environment}, so a
+ * `instructionCount`/`addressing` — rather than a plain field reassigned on {@link Environment}, so a
  * tick advance made from anywhere in the program (including deep inside a procedure call or loop
  * body sharing the same environment) is observed by every later read in the same run. The clock is
  * headless logical state and MUST NOT appear in any event payload (see the file header).

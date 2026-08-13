@@ -12,7 +12,7 @@
 
 /**
  * The Sound profile's mutable state — currently just the current tempo. A plain mutable box
- * (mirroring `evaluate.ts`'s `Environment.instructionCount`/`turtle` and
+ * (mirroring `evaluate.ts`'s `Environment.instructionCount`/`addressing` and
  * `random-number-generator.ts`'s `RandomNumberGeneratorState`) rather than a value replaced on
  * every change: every recursive `evaluate`/`executeStatements` call shares the very same
  * {@link import("./evaluate.js").Environment}, so only a shared mutable container lets a `set_tempo`

@@ -228,7 +228,7 @@ export interface CancellationSignal {
  * `target-source-span` value `hint` MUST carry
  * (`spec/execution-model.md#tutor-output-educational-profile`) when no narrower target is
  * selected. `hintProgress` is the host-implementation-defined progression state
- * `spec/execution-model.md:641-652` calls for: a mutable map (like `instructionCount`/`turtle`,
+ * `spec/execution-model.md:641-652` calls for: a mutable map (like `instructionCount`/`addressing`,
  * shared unchanged across every recursive `executeStatements`/`evaluate` call in one `execute()`
  * run) from a serialized `target-source-span` key to the last {@link TutorHintStage} emitted for
  * it, so a repeated `hint` for the same target escalates one stage per call within a single run.
@@ -265,21 +265,8 @@ export interface Environment {
   readonly instructionCount: { count: number };
   readonly signal?: CancellationSignal;
   /**
-   * The **current turtle**'s mutable drawing state — the one a turtle command reads and writes, and
-   * the one the movement reporters (`xcor`/`ycor`/`heading`/`pos`) and `who` report
-   * (`spec/turtles-and-sprites.md:105` "The movement reporters and commands are evaluated for the
-   * current turtle"). At top level, before any `tell`, this is the single default main turtle
-   * ({@link MAIN_TURTLE_ID}); a `tell` re-points it at the first addressed turtle. It is NOT
-   * `readonly`, because the addressed-set command loop (`execute-internal.ts`'s
-   * `dispatchTurtleCommand`) re-points it at each addressed turtle in turn so the existing
-   * single-turtle command executors mutate the right per-turtle state without being rewritten
-   * (issue #674). It always aliases the {@link addressing} store's entry for the current turtle, so
-   * a write through `turtle` is a write to that turtle's stored state.
-   */
-  turtle: TurtleState;
-  /**
    * The per-run turtle-identity allocator and live-turtle registry ({@link TurtleWorld}). Like
-   * {@link turtle}/{@link randomNumberGenerator}, a single shared mutable object rather than a
+   * {@link addressing}/{@link randomNumberGenerator}, a single shared mutable object rather than a
    * reassigned field, so a `new_turtle` allocation made anywhere in the program (inside a
    * procedure, loop, or comprehension sharing this same `Environment`) is observed by every later
    * `new_turtle`/`turtles`/`who` in the run. The Sprites `new_turtle`/`turtles`/`who` reporters
@@ -316,7 +303,7 @@ export interface Environment {
   ) => EvalResult;
   /**
    * The shared, mutable `random`/`randomize` generator state (issue #287,
-   * `random-number-generator.ts`). A box like `instructionCount`/`turtle` rather than a plain
+   * `random-number-generator.ts`). A box like `instructionCount`/`addressing` rather than a plain
    * value, so a `randomize` reseed (or a `random` draw) made from anywhere in the program —
    * including deep inside a procedure call or loop body sharing this same `Environment` — is
    * observed by every later draw in the same run.
@@ -324,7 +311,7 @@ export interface Environment {
   readonly randomNumberGenerator: RandomNumberGeneratorState;
   /**
    * The Interaction & Events tick clock (issue #680, `spec/interaction-events.md`, §Time, ticks,
-   * and handlers) — a mutable box (like {@link Environment.instructionCount}/`turtle`) holding the
+   * and handlers) — a mutable box (like {@link Environment.instructionCount}/{@link Environment.addressing}) holding the
    * current logical tick, shared by every recursive `executeStatements`/`evaluate` call against
    * this same environment so a `wait`'s tick advance is observed program-wide. Headless execution
    * state: it MUST NOT appear in any event payload (`interaction.ts`'s header). Future timed
@@ -334,7 +321,7 @@ export interface Environment {
   /**
    * The shared, mutable Sound-profile scheduling state (issue #689, `sound-state.ts`) — currently
    * the tempo `set_tempo` sets and `note`/`play`/`rest` will read. A box like
-   * `instructionCount`/`turtle`/`randomNumberGenerator` rather than a plain value, so a `set_tempo`
+   * `instructionCount`/`addressing`/`randomNumberGenerator` rather than a plain value, so a `set_tempo`
    * made from anywhere in the program — including deep inside a procedure call or loop body sharing
    * this same `Environment` — is observed by every later sound command in the same run.
    */
@@ -459,8 +446,8 @@ export function createDefaultTurtleState(): TurtleState {
  * run on {@link Environment.addressing}.
  *
  * - {@link states} maps every live turtle id to its own {@link TurtleState}. It is seeded with just
- *   the main turtle ({@link MAIN_TURTLE_ID}) — whose state object is the same one
- *   {@link Environment.turtle} starts aliasing — and `new_turtle` adds one fresh default state per
+ *   the main turtle ({@link MAIN_TURTLE_ID}) — the default turtle every non-Sprites program draws
+ *   with — and `new_turtle` adds one fresh default state per
  *   spawn (`spec/turtles-and-sprites.md:32`). This is what makes turtle state *per turtle*: two
  *   turtles no longer share one mutable object.
  * - {@link ids} is the current addressed set: the turtles a subsequent turtle command applies to,
@@ -470,10 +457,13 @@ export function createDefaultTurtleState(): TurtleState {
  * - {@link currentId} is the single "current turtle" — the one `who` reports and whose per-turtle
  *   state the movement reporters (`xcor`/`ycor`/`heading`/`pos`) read. It is always the first
  *   addressed turtle, or the main turtle when the addressed set is empty ({@link MAIN_TURTLE_ID}).
- *   Keeping it as the one source of truth (rather than a second bare state pointer) is what stops
- *   `who` and the state reporters from ever describing different turtles — including after a nested
- *   `tell` runs during a command's argument evaluation. {@link Environment.turtle} is a derived
- *   cache of `turtleStateFor(this, currentId)`, kept in lockstep by every writer of `currentId`.
+ *   It is the **one and only** record of which turtle is current: `who` reads it directly, and the
+ *   state reporters and every turtle command reach that turtle's state through it
+ *   ({@link currentTurtleState}). Nothing caches the resolved state on the {@link Environment}, so
+ *   `who` and the state reporters cannot describe different turtles — not after a nested `tell`
+ *   during a command's argument evaluation, and not after a `tell` inside a procedure body
+ *   (issue #782: a per-`Environment` cache used to survive `runProcedure`'s shallow copy and go
+ *   stale the moment a callee re-aimed the shared pointer).
  * - {@link explicit} records whether `tell` has run yet. Before any `tell`, the addressed set is the
  *   implicit default main turtle and per-turtle events carry NO `turtle-id` (preserving every
  *   Core/Turtle & Rendering fixture, whose main-turtle `move`/`turn`/… events have no `turtle-id`);
@@ -488,9 +478,8 @@ export interface TurtleAddressing {
 }
 
 /**
- * A fresh {@link TurtleAddressing} seeded with the single main turtle: its state is `mainState`
- * (the same object {@link Environment.turtle} starts aliasing, so a write through either is seen by
- * both), the addressed set is just the main turtle, the current turtle is the main turtle, and
+ * A fresh {@link TurtleAddressing} seeded with the single main turtle: its state is `mainState`,
+ * the addressed set is just the main turtle, the current turtle is the main turtle, and
  * addressing is still implicit (no `tell` has run). Exported so both {@link createEnvironment} and
  * `execute-internal.ts`'s `createExecutionEnvironment` build identical addressing state.
  */
@@ -524,6 +513,30 @@ export function turtleStateFor(
   return state;
 }
 
+/**
+ * The **current turtle**'s mutable drawing state — the one a turtle command reads and writes, and
+ * the one the movement reporters (`xcor`/`ycor`/`heading`/`pos`) report
+ * (`spec/turtles-and-sprites.md:105` "The movement reporters and commands are evaluated for the
+ * current turtle"). At top level, before any `tell`, that is the single default main turtle
+ * ({@link MAIN_TURTLE_ID}); a `tell` re-aims {@link TurtleAddressing.currentId} at the first
+ * addressed turtle and this resolves to that turtle's own state.
+ *
+ * **Derived, never cached** (issue #782). The state is looked up from `addressing` at each use, so
+ * `who` (which reads `addressing.currentId` directly) and the state reporters read the *same*
+ * source and cannot disagree by construction. The previous design kept a resolved
+ * `Environment.turtle` pointer alongside `currentId` and wrote both together; because
+ * `runProcedure` shallow-copies the `Environment` (`{...environment, frames: […]}`), a `tell` in a
+ * callee updated only the callee's copy of that pointer while `currentId` — living on the shared
+ * `addressing` object — was updated for everyone. After the call returned, `who` reported the
+ * callee's turtle and `ycor` reported the caller's: an impossible pair, emitted silently, that
+ * self-healed on the next turtle command. Deleting the second copy removes the class of bug rather
+ * than one instance of it — there is nothing left to keep in step.
+ */
+export function currentTurtleState(environment: Environment): TurtleState {
+  const { addressing } = environment;
+  return turtleStateFor(addressing, addressing.currentId);
+}
+
 /** The empty registry shared by every environment that has no user procedures to call. */
 const EMPTY_PROCEDURES: ProcedureRegistry = new Map();
 
@@ -544,7 +557,7 @@ const EMPTY_STRUCTS: StructRegistry = new Map();
  * is the only place real, finite production defaults are applied (issue #102).
  */
 export function createEnvironment(): Environment {
-  const turtle = createDefaultTurtleState();
+  const mainTurtleState = createDefaultTurtleState();
   return {
     frames: [new Map()],
     repeatTurns: [],
@@ -556,9 +569,8 @@ export function createEnvironment(): Environment {
     lastCallSpan: { span: null },
     instructionBudget: Number.POSITIVE_INFINITY,
     instructionCount: { count: 0 },
-    turtle,
     turtleWorld: new TurtleWorld(),
-    addressing: createTurtleAddressing(turtle),
+    addressing: createTurtleAddressing(mainTurtleState),
     randomNumberGenerator: createRandomNumberGeneratorState(),
     tickClock: createTickClock(),
     sound: createSoundState(),
@@ -1001,7 +1013,8 @@ function isLogicalOperator(name: string): name is LogicalOperator {
  * `is_a?` callees join the known-callee list above. As of issue #101 the Core list reporters
  * `first`/`last`/`butfirst`/`butlast`/`fput`/`lput`/`sentence`/`count` join the known-callee list
  * too. As of issue #203 the turtle-state reporters `xcor`/`ycor`/`heading`/`pos`/`towards`/
- * `distance` join the known-callee list as well — pure reads of {@link Environment.turtle} that
+ * `distance` join the known-callee list as well — pure reads of the current turtle's state
+ * ({@link currentTurtleState}) that
  * emit no trace event. As of issue #234 the word-constructor `word` joins the known-callee list.
  * As of issue #287 the Core Math reporter `random` joins the known-callee list too — it reads and
  * mutates {@link Environment.randomNumberGenerator} but, like the turtle-state reporters above, is
@@ -4367,13 +4380,17 @@ function requireExactArgs(
 
 /**
  * `xcor`/`ycor`/`heading`/`pos` (`spec/commands.md` "xcor"/"ycor"/"heading"/"pos") and `towards`/
- * `distance` (issue #203): pure reads of {@link Environment.turtle} — no `move`/`turn`/
+ * `distance` (issue #203): pure reads of the current turtle's state
+ * ({@link currentTurtleState}) — no `move`/`turn`/
  * `draw-segment` event is ever emitted, since reading position/heading is not an effect
  * (`spec/rendering.md`'s "Line segments"/"Turning" sections only describe events for the
  * *mutating* commands `forward`/`back`/`left`/`right`/`set_xy`/`set_heading`). `heading` returns
  * `turtle.heading` as-is: the statement side (`turnTurtle`/`setHeadingTurtle` in
  * `execute-internal.ts`) already keeps it normalized to `[0,360)` on every write, so there is
  * nothing left to normalize on read.
+ *
+ * Each read resolves the current turtle through {@link TurtleAddressing.currentId}, the same field
+ * `who` reports, so these reporters and `who` always describe one turtle (issue #782).
  */
 function evaluateXcor(
   node: ArithmeticCallNode,
@@ -4383,7 +4400,7 @@ function evaluateXcor(
   if (arityDiagnostic) {
     return fail(arityDiagnostic);
   }
-  return ok(environment.turtle.x);
+  return ok(currentTurtleState(environment).x);
 }
 
 function evaluateYcor(
@@ -4394,7 +4411,7 @@ function evaluateYcor(
   if (arityDiagnostic) {
     return fail(arityDiagnostic);
   }
-  return ok(environment.turtle.y);
+  return ok(currentTurtleState(environment).y);
 }
 
 function evaluateHeadingReporter(
@@ -4405,7 +4422,7 @@ function evaluateHeadingReporter(
   if (arityDiagnostic) {
     return fail(arityDiagnostic);
   }
-  return ok(environment.turtle.heading);
+  return ok(currentTurtleState(environment).heading);
 }
 
 /** `pos` — a fresh two-item list `[x y]` of the turtle's current position. */
@@ -4417,7 +4434,8 @@ function evaluatePos(
   if (arityDiagnostic) {
     return fail(arityDiagnostic);
   }
-  return ok([environment.turtle.x, environment.turtle.y]);
+  const turtle = currentTurtleState(environment);
+  return ok([turtle.x, turtle.y]);
 }
 
 /**
@@ -4458,8 +4476,9 @@ function evaluateTowards(
   if (!y.ok) {
     return fail(y.diagnostic);
   }
-  const dx = x.value - environment.turtle.x;
-  const dy = y.value - environment.turtle.y;
+  const turtle = currentTurtleState(environment);
+  const dx = x.value - turtle.x;
+  const dy = y.value - turtle.y;
   return ok(normalizeHeading((Math.atan2(dx, dy) * 180) / Math.PI));
 }
 
@@ -4494,8 +4513,9 @@ function evaluateDistance(
   if (!y.ok) {
     return fail(y.diagnostic);
   }
-  const dx = x.value - environment.turtle.x;
-  const dy = y.value - environment.turtle.y;
+  const turtle = currentTurtleState(environment);
+  const dx = x.value - turtle.x;
+  const dy = y.value - turtle.y;
   return ok(Math.hypot(dx, dy));
 }
 
@@ -4551,9 +4571,11 @@ function evaluateNewTurtle(
  * single default main turtle (`spec/turtles-and-sprites.md:44`), so `who` reports the main turtle
  * ({@link MAIN_TURTLE_ID}); after `tell :friend` it reports `:friend`, which is why
  * `tell :friend` then `who == :friend` is `true`. It reads the addressing's single
- * {@link TurtleAddressing.currentId} — the same source of truth the movement reporters read through
- * {@link Environment.turtle} — so `who` and `xcor`/`ycor`/`heading`/`pos` can never describe
- * different turtles. Reporting a fresh {@link OLTurtle} wrapper for
+ * {@link TurtleAddressing.currentId} — the same, and only, source of truth the movement reporters
+ * read through {@link currentTurtleState} — so `who` and `xcor`/`ycor`/`heading`/`pos` can never
+ * describe
+ * different turtles, including after a `tell` inside a procedure body (issue #782).
+ * Reporting a fresh {@link OLTurtle} wrapper for
  * that id is safe because turtle `==` compares ids, not JS instances, so `who == who` and
  * `who == :friend` hold across separate wrappers of the same turtle (C3, issue #665). Emits no
  * trace event — reading the current turtle is not an effect.

@@ -1,0 +1,394 @@
+{
+  "description": "issue #782: a `tell` two call frames deep persists exactly as one frame deep does. `spec/turtles-and-sprites.md:46` attaches no scoping to `tell`; `ask` is the form the spec explicitly restores (`:58`), and `each` (`:78`) narrows per iteration within the current set — so a procedure body, at any depth, re-scopes nothing. `outer` calls `inner`, which runs `tell :b`; both `procedure-exit` events pass with no restoring addressing `primitive` between them, and afterwards `who` reports :b (turtle 2) while `ycor` reports :b's own y of 20 — not the :a (y 10) the caller had addressed. This pins the current turtle as ONE shared fact rather than a per-call-frame one: with a per-`Environment` cache, each nested call gets its own copy, so the deeper the `tell` the staler the caller's reading.",
+  "profiles": ["sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-in-nested-procedure-persists/tell-in-nested-procedure-persists",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/tell-in-nested-procedure-persists/tell-in-nested-procedure-persists",
+        "start": [1, 6],
+        "end": [1, 16]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-in-nested-procedure-persists/tell-in-nested-procedure-persists",
+        "start": [2, 1],
+        "end": [2, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/tell-in-nested-procedure-persists/tell-in-nested-procedure-persists",
+        "start": [2, 6],
+        "end": [2, 16]
+      },
+      "turtle_id": 2,
+      "payload": {
+        "turtle_id": 2,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-in-nested-procedure-persists/tell-in-nested-procedure-persists",
+        "start": [3, 1],
+        "end": [3, 8]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/tell-in-nested-procedure-persists/tell-in-nested-procedure-persists",
+        "start": [3, 1],
+        "end": [3, 8]
+      },
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [2],
+          "current_turtle_id": 2
+        }
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-in-nested-procedure-persists/tell-in-nested-procedure-persists",
+        "start": [4, 1],
+        "end": [4, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/tell-in-nested-procedure-persists/tell-in-nested-procedure-persists",
+        "start": [4, 1],
+        "end": [4, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 20],
+        "heading": 0
+      },
+      "turtle_id": 2
+    },
+    {
+      "seq": 8,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/tell-in-nested-procedure-persists/tell-in-nested-procedure-persists",
+        "start": [4, 1],
+        "end": [4, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 20],
+        "color": "black",
+        "width": 1
+      },
+      "turtle_id": 2
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-in-nested-procedure-persists/tell-in-nested-procedure-persists",
+        "start": [5, 1],
+        "end": [5, 8]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/tell-in-nested-procedure-persists/tell-in-nested-procedure-persists",
+        "start": [5, 1],
+        "end": [5, 8]
+      },
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-in-nested-procedure-persists/tell-in-nested-procedure-persists",
+        "start": [6, 1],
+        "end": [6, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/tell-in-nested-procedure-persists/tell-in-nested-procedure-persists",
+        "start": [6, 1],
+        "end": [6, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "heading": 0
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 13,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/tell-in-nested-procedure-persists/tell-in-nested-procedure-persists",
+        "start": [6, 1],
+        "end": [6, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "color": "black",
+        "width": 1
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 14,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-in-nested-procedure-persists/tell-in-nested-procedure-persists",
+        "start": [7, 1],
+        "end": [9, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-in-nested-procedure-persists/tell-in-nested-procedure-persists",
+        "start": [10, 1],
+        "end": [12, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-in-nested-procedure-persists/tell-in-nested-procedure-persists",
+        "start": [13, 1],
+        "end": [13, 6]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "sprites/tell-in-nested-procedure-persists/tell-in-nested-procedure-persists",
+        "start": [13, 1],
+        "end": [13, 6]
+      },
+      "payload": {
+        "name": "outer",
+        "args": []
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-in-nested-procedure-persists/tell-in-nested-procedure-persists",
+        "start": [11, 3],
+        "end": [11, 8]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 19,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "sprites/tell-in-nested-procedure-persists/tell-in-nested-procedure-persists",
+        "start": [11, 3],
+        "end": [11, 8]
+      },
+      "payload": {
+        "name": "inner",
+        "args": []
+      }
+    },
+    {
+      "seq": 20,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-in-nested-procedure-persists/tell-in-nested-procedure-persists",
+        "start": [8, 3],
+        "end": [8, 10]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 21,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/tell-in-nested-procedure-persists/tell-in-nested-procedure-persists",
+        "start": [8, 3],
+        "end": [8, 10]
+      },
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [2],
+          "current_turtle_id": 2
+        }
+      }
+    },
+    {
+      "seq": 22,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "sprites/tell-in-nested-procedure-persists/tell-in-nested-procedure-persists",
+        "start": [11, 3],
+        "end": [11, 8]
+      },
+      "payload": {
+        "name": "inner",
+        "result": null
+      }
+    },
+    {
+      "seq": 23,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "sprites/tell-in-nested-procedure-persists/tell-in-nested-procedure-persists",
+        "start": [13, 1],
+        "end": [13, 6]
+      },
+      "payload": {
+        "name": "outer",
+        "result": null
+      }
+    },
+    {
+      "seq": 24,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-in-nested-procedure-persists/tell-in-nested-procedure-persists",
+        "start": [14, 1],
+        "end": [14, 10]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 25,
+      "kind": "print",
+      "source_span": {
+        "document": "sprites/tell-in-nested-procedure-persists/tell-in-nested-procedure-persists",
+        "start": [14, 1],
+        "end": [14, 10]
+      },
+      "payload": {
+        "values": [
+          {
+            "id": 2
+          }
+        ]
+      }
+    },
+    {
+      "seq": 26,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-in-nested-procedure-persists/tell-in-nested-procedure-persists",
+        "start": [15, 1],
+        "end": [15, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 27,
+      "kind": "print",
+      "source_span": {
+        "document": "sprites/tell-in-nested-procedure-persists/tell-in-nested-procedure-persists",
+        "start": [15, 1],
+        "end": [15, 11]
+      },
+      "payload": {
+        "values": [20]
+      }
+    }
+  ],
+  "diagnostics": []
+}
