@@ -79,7 +79,7 @@ OpenLogo has no `function` primitive, no `f(x,y)` call syntax, no lambda syntax,
 :nums[1] = 9
 ```
 
-- **Possible errors:** `ol-not-a-place`, `ol-unknown-field`, `ol-range`; reads of intermediate missing keys may raise `ol-unknown-key`; `ol-reserved-word` when the place head is a reserved word, because assignment introduces a name (see [grammar.md](grammar.md#reserved-words-and-namespaces)).
+- **Possible errors:** `ol-not-a-place`, `ol-unknown-field`, `ol-range`; reads of intermediate missing keys may raise `ol-unknown-key`; `ol-reserved-word` when the target is a **plain** `:name` with no postfix and that name is a reserved word, because only that spelling introduces a name — a nested write such as `:people.tom.age = 1` or `:nums[1] = 9` writes into an existing value and introduces nothing (see [grammar.md](grammar.md#reserved-words-and-namespaces)).
 
 ### `set … to`
 
@@ -98,7 +98,7 @@ set nums[1] to 9
 make "size" 120
 ```
 
-- **Possible errors:** `ol-not-a-place`, `ol-unknown-field`, `ol-range`; reads of intermediate missing keys may raise `ol-unknown-key`; `ol-reserved-word` when the place head is a reserved word, because assignment introduces a name (see [grammar.md](grammar.md#reserved-words-and-namespaces)).
+- **Possible errors:** `ol-not-a-place`, `ol-unknown-field`, `ol-range`; reads of intermediate missing keys may raise `ol-unknown-key`; `ol-reserved-word` when the target is a **plain** `name` with no postfix and that name is a reserved word, because only that spelling introduces a name — a nested write such as `set nums[1] to 9` writes into an existing value and introduces nothing (see [grammar.md](grammar.md#reserved-words-and-namespaces)).
 
 ### `local`
 
@@ -810,7 +810,7 @@ for name in :names
 end for
 ```
 
-- **Possible errors:** `ol-type`; `ol-reserved-word` when the binder is a reserved word, because a binder introduces a name (see [grammar.md](grammar.md#reserved-words-and-namespaces)).
+- **Possible errors:** `ol-type`; `ol-reserved-word` when a name the binder introduces — including a name inside a destructuring pattern — is a reserved word, because a binder introduces a name (see [grammar.md](grammar.md#reserved-words-and-namespaces)).
 
 ### `for … from … to …`
 
@@ -866,7 +866,7 @@ end forever
 :doubled = map num in :nums [ :num * 2 ]
 ```
 
-- **Possible errors:** `ol-type`, `ol-no-value`, `ol-return-in-comprehension`; `ol-reserved-word` when the binder is a reserved word, because a binder introduces a name (see [grammar.md](grammar.md#reserved-words-and-namespaces)).
+- **Possible errors:** `ol-type`, `ol-no-value`, `ol-return-in-comprehension`; `ol-reserved-word` when a name the binder introduces — including a name inside a destructuring pattern — is a reserved word, because a binder introduces a name (see [grammar.md](grammar.md#reserved-words-and-namespaces)).
 
 ### `filter`
 
@@ -884,7 +884,7 @@ end forever
 :bigs = filter num in :nums [ :num > 1 ]
 ```
 
-- **Possible errors:** `ol-not-boolean`, `ol-no-value`, `ol-return-in-comprehension`; `ol-reserved-word` when the binder is a reserved word, because a binder introduces a name (see [grammar.md](grammar.md#reserved-words-and-namespaces)).
+- **Possible errors:** `ol-not-boolean`, `ol-no-value`, `ol-return-in-comprehension`; `ol-reserved-word` when a name the binder introduces — including a name inside a destructuring pattern — is a reserved word, because a binder introduces a name (see [grammar.md](grammar.md#reserved-words-and-namespaces)).
 
 ### `reduce`
 
@@ -902,7 +902,7 @@ end forever
 :total = reduce sum num in :nums from 0 [ :sum + :num ]
 ```
 
-- **Possible errors:** `ol-no-value`, `ol-duplicate-binder`, `ol-return-in-comprehension`; `ol-reserved-word` when the accumulator binder or the item binder is a reserved word, because both introduce a name (see [grammar.md](grammar.md#reserved-words-and-namespaces)).
+- **Possible errors:** `ol-no-value`, `ol-duplicate-binder`, `ol-return-in-comprehension`; `ol-reserved-word` when the accumulator name, or a name the item binder introduces — including a name inside a destructuring pattern — is a reserved word, because both introduce a name (see [grammar.md](grammar.md#reserved-words-and-namespaces)).
 
 ## Procedures
 
