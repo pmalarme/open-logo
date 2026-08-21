@@ -466,20 +466,21 @@ test("the runtime twin corpus covers every Heritage surface spelling the parser 
   }
 });
 
-test("every worded form has a runtime twin that declares it and parses to its registered node kind", () => {
+test("every runtime twin that declares a worded form reaches it, and every worded form has one", () => {
   // The runtime counterpart of the parser guard's witness assertion (issue #755). Head-word
-  // coverage above answers "can this WORD leak into a param"; this answers "is there at least one
-  // twin declaring this form whose program reaches the form's AST shape here". They are different
-  // questions.
+  // coverage above answers "can this WORD leak into a param"; this answers "does every twin that
+  // declares a form still reach that form's AST shape here, and does every form have one".
   //
-  // The assertion is EXISTENTIAL, and reads accordingly: it fails when NO declared twin reaches the
-  // registered node kind. With several qualifying twins, one may stop reaching it without this
-  // firing — that case is caught by the by-value pins and twin equality, not here.
+  // Two rules, so neither direction has a hole. UNIVERSAL: every twin that declares `coversForm`
+  // must parse cleanly to that form's registered node kind, so a single twin quietly drifting off
+  // the form is caught here rather than left to assertions that would still pass — twin equality
+  // and the by-value pins both hold for a Heritage program rewritten into its Core spelling.
+  // EXISTENTIAL: every registered form must have at least one such twin.
   //
-  // Same limit as the parser side, stated the same way: a witness DECLARES the form (`coversForm`,
-  // author-supplied metadata) and parses cleanly to its registered node kind. It does not establish
-  // which PRODUCTION built the node — the AST records node kinds only — so the kind distinguishes
-  // registered forms just as long as no two share one, which the parser guard asserts.
+  // Same limit as the parser side, stated the same way: `coversForm` is author-supplied metadata,
+  // and what it is checked against is a node KIND. That does not establish which PRODUCTION built
+  // the node — the AST records kinds only — so the kind distinguishes registered forms just as long
+  // as no two share one, which the parser guard asserts.
   //
   // The AST check uses `@openlogo/parser`'s own `parse`/`walk` rather than re-deriving the shape:
   // `execute()` parses internally, so a program that does not parse cleanly never reaches the
@@ -487,6 +488,31 @@ test("every worded form has a runtime twin that declares it and parses to its re
   //
   // (The head/node uniqueness invariants this rests on are asserted in the parser guard, which owns
   // the registry; restating them here would be a second copy to drift.)
+  const names = new Set(heritageWordedFormNames());
+  // UNIVERSAL: no declaring twin may drift off its form.
+  for (const twin of ALL_TWINS) {
+    if (twin.coversForm === undefined) {
+      continue;
+    }
+    assert.ok(
+      names.has(twin.coversForm),
+      `${twin.note}: declares coversForm "${twin.coversForm}", which is not a registered Heritage ` +
+        "worded form any more",
+    );
+    const form = heritageWordedForm(twin.coversForm);
+    assert.ok(
+      astContains(twin.heritage, form.node),
+      `${twin.note}: declares coversForm "${twin.coversForm}" but its Heritage program does not ` +
+        `parse cleanly to a ${form.node} node — it no longer reaches the form it claims ` +
+        "(issues #741, #755).",
+    );
+    assert.ok(
+      twin.covers.includes(form.head),
+      `${twin.note}: declares coversForm "${twin.coversForm}" but does not list that form's head ` +
+        "in `covers`, so the surface-spelling assertions would skip it",
+    );
+  }
+  // EXISTENTIAL: no registered form may be left without one.
   for (const name of heritageWordedFormNames()) {
     const form = heritageWordedForm(name);
     const witnesses = ALL_TWINS.filter(
@@ -499,22 +525,6 @@ test("every worded form has a runtime twin that declares it and parses to its re
         `coversForm: "${name}" AND parses cleanly to a ${form.node} node, so it is unwitnessed by ` +
         "this check. (The by-value pins below still hold whatever twins DO exist; what is missing " +
         "here is a twin tied to this form — issues #741, #755.)",
-    );
-  }
-  const names = new Set(heritageWordedFormNames());
-  for (const twin of ALL_TWINS) {
-    if (twin.coversForm === undefined) {
-      continue;
-    }
-    assert.ok(
-      names.has(twin.coversForm),
-      `${twin.note}: claims coversForm "${twin.coversForm}", which is not a registered Heritage ` +
-        "worded form any more",
-    );
-    assert.ok(
-      twin.covers.includes(heritageWordedForm(twin.coversForm).head),
-      `${twin.note}: claims coversForm "${twin.coversForm}" but does not list that form's head ` +
-        "in `covers`, so the surface-spelling assertions would skip it",
     );
   }
   // The witness helper's clean-parse rule is asserted directly rather than merely relied on. A

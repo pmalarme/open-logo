@@ -345,7 +345,6 @@ const PARSE_TWINS = [
   },
   {
     covers: ["value"],
-    coversForm: "value-of-reader",
     heritage: "print value of",
     core: "print :ages[",
     note: "ol-bad-token — parse stage, worded reader truncated mid-form",
@@ -553,25 +552,34 @@ test("the worded-form registry's entries are frozen, so no consumer can poison w
   assert.equal(form.node, "ValueOfKey");
 });
 
-test("every worded form has a twin that declares it and parses to its registered node kind", () => {
+test("every twin that declares a worded form reaches it, and every worded form has one (parse/semantic)", () => {
   // Coverage for a multi-word form cannot be keyed on its head word alone. `covers: ["value"]` is
   // satisfied by any program containing the word, so a twin that lost its `value of … for key`
   // expression would keep the coverage assertion green while testing nothing — and two productions
   // that legitimately shared a head would let one form's twin stand in for the other's. That is
   // exactly the "a guard that looks like coverage but is not" defect issue #755 exists to close.
   //
-  // **Exactly what this checks, and what it does not.** A witness must DECLARE the form —
-  // `coversForm`, which is author-supplied metadata — and its program must parse CLEANLY to that
-  // form's registered node kind. It does not establish that the program used that PRODUCTION and no
-  // other: the AST records node kinds, not the production that built them (`ValueOfKeyNode` carries
-  // `kind`, operands and a span, and no production identifier), so two productions lowering to the
-  // same kind would be indistinguishable here. That is a property of the AST, not something this
-  // test can fix. What keeps the node kind a usable discriminator TODAY is the registry invariant
-  // asserted first below — no two worded forms share a node kind — which fails loudly the moment a
-  // future slice makes it ambiguous, rather than letting this quietly decay into self-attestation.
+  // **Exactly what this checks, and what it does not.** Two rules, one universal and one
+  // existential, so neither direction has a hole. UNIVERSAL: every twin that declares `coversForm`
+  // must parse CLEANLY to that form's registered node kind — so a single twin quietly losing the
+  // form is caught here, not left to assertions that would still pass. EXISTENTIAL: every
+  // registered form must have at least one such twin, so a form cannot be dropped from the corpus.
   //
-  // Those registry invariants come FIRST, because the witness check relies on them: asserting them
-  // after would let a witness failure mask the reason the witness check had stopped being usable.
+  // `coversForm` is author-supplied metadata, and what it is checked against is a node KIND. That
+  // does not establish which PRODUCTION built the node: the AST records kinds only (`ValueOfKeyNode`
+  // carries `kind`, its operands and a `source_span`, and no production identifier), so two
+  // productions lowering to the same kind would be indistinguishable here. That is a property of
+  // the AST, not something this test can fix. What keeps the node kind a usable discriminator TODAY
+  // is the registry invariant asserted first below — no two worded forms share a node kind — which
+  // fails loudly the moment a future slice makes it ambiguous, rather than letting this quietly
+  // decay into self-attestation.
+  //
+  // PARSE_TWINS deliberately do NOT declare `coversForm`: they exist to reach parse-stage params
+  // and so must fail to parse, which means they can never satisfy the universal rule. They still
+  // carry `covers`, because the head word is exactly what a parse-stage param could leak.
+  //
+  // Those registry invariants come FIRST, because both rules rest on them: asserting them after
+  // would let a witness failure mask the reason the node kind had stopped being usable.
   const heads = heritageWordedForms().map((form) => form.head);
   assert.equal(
     new Set(heads).size,
@@ -588,9 +596,34 @@ test("every worded form has a twin that declares it and parses to its registered
       "credit one form's twin to the other: give each form its own node kind, or give the witness " +
       "a discriminator the AST can actually express (issue #755).",
   );
+  const names = new Set(heritageWordedFormNames());
+  // UNIVERSAL: no declaring twin may drift off its form.
+  for (const twin of TWINS) {
+    if (twin.coversForm === undefined) {
+      continue;
+    }
+    assert.ok(
+      names.has(twin.coversForm),
+      `${twin.note}: declares coversForm "${twin.coversForm}", which is not a registered Heritage ` +
+        "worded form any more",
+    );
+    const form = OL.heritageWordedForm(twin.coversForm);
+    assert.ok(
+      astContains(twin.heritage, form.node),
+      `${twin.note}: declares coversForm "${twin.coversForm}" but its Heritage program does not ` +
+        `parse cleanly to a ${form.node} node — it no longer reaches the form it claims ` +
+        "(issue #755).",
+    );
+    assert.ok(
+      twin.covers.includes(form.head),
+      `${twin.note}: declares coversForm "${twin.coversForm}" but does not list that form's head ` +
+        "in `covers`, so the surface-spelling assertions would skip it",
+    );
+  }
+  // EXISTENTIAL: no registered form may be left without one.
   for (const name of heritageWordedFormNames()) {
     const form = OL.heritageWordedForm(name);
-    const witnesses = [...TWINS, ...PARSE_TWINS].filter(
+    const witnesses = TWINS.filter(
       (twin) =>
         twin.coversForm === name && astContains(twin.heritage, form.node),
     );
@@ -602,23 +635,13 @@ test("every worded form has a twin that declares it and parses to its registered
         "form, does not witness this one (issue #755).",
     );
   }
-  // No twin may declare a form the registry does not know (a stale entry), and a twin that declares
-  // one must also list that form's head in `covers`, or the surface-spelling assertions
-  // would skip the very word the form can leak.
-  const names = new Set(heritageWordedFormNames());
-  for (const twin of [...TWINS, ...PARSE_TWINS]) {
-    if (twin.coversForm === undefined) {
-      continue;
-    }
-    assert.ok(
-      names.has(twin.coversForm),
-      `${twin.note}: claims coversForm "${twin.coversForm}", which is not a registered Heritage ` +
-        "worded form any more",
-    );
-    assert.ok(
-      twin.covers.includes(OL.heritageWordedForm(twin.coversForm).head),
-      `${twin.note}: claims coversForm "${twin.coversForm}" but does not list that form's head ` +
-        "in `covers`, so the surface-spelling assertions would skip it",
+  // PARSE_TWINS may not smuggle in a `coversForm` they cannot honour.
+  for (const twin of PARSE_TWINS) {
+    assert.equal(
+      twin.coversForm,
+      undefined,
+      `${twin.note}: a parse-stage twin must not declare coversForm — it deliberately fails to ` +
+        "parse, so it can never reach the form's node kind",
     );
   }
 });
