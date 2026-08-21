@@ -38,7 +38,6 @@ import type {
   IsPredicateNode,
   NumberLitNode,
   SpannedName,
-  ValueOfKeyNode,
 } from "./ast.js";
 import { walk } from "./ast.js";
 import { parse } from "./parser.js";
@@ -322,15 +321,10 @@ export function highlight(source: string, document = "<input>"): Token[] {
   }
 
   /**
-   * `empty`/`member`/`of`/`a` are keywords in reader-recognized positions. `spec/tooling.md:97-98`
-   * is the normative highlighter instruction and names exactly one such position — "only inside an
-   * `is`-predicate" — which is this function; `spec/grammar.md:230` states the same adjacency rule.
-   * `spec/grammar.md:365` separately calls `of` the contextual preposition of the Heritage reader,
-   * which {@link markValueOfKeyPreposition} below marks as a *provisional* reading pending a
-   * maintainer ruling (see the tension paragraph in its doc comment); nothing here depends on that
-   * outcome. `is` itself, `between`, and `strictly` are already globally reserved. The grammar
-   * requires each word directly adjacent in the token stream (no `skipNewlines` between them), so
-   * once `is` is found the rest are just the following raw token indexes.
+   * `empty`/`member`/`of`/`a` are keywords only right after `is` (`spec/tooling.md:96-98`); `is`
+   * itself, `between`, and `strictly` are already globally reserved. The grammar requires each
+   * word directly adjacent in the token stream (no `skipNewlines` between them), so once `is` is
+   * found the rest are just the following raw token indexes.
    *
    * `node.operand`'s span always ends at a real, non-`eof` token, and the parser only ever
    * builds an `IsPredicateNode` when `is` is the literal next raw token after the operand
@@ -356,53 +350,6 @@ export function highlight(source: string, document = "<input>"): Token[] {
       case "between":
         break;
     }
-  }
-
-  /**
-   * `of` in the Heritage `value of <dict> for key <key>` reader (`spec/grammar.md:213`'s
-   * `value-of-reader`) is marked `keyword`, alongside the `is`-predicate's `of` above.
-   *
-   * What the spec settles: it is **not** `primitive`. `spec/tooling.md:31` scopes that class to
-   * "Built-in commands, reporters, and aliases from the C3 primitive matrix"; `of` is in no
-   * primitive table (`corePrimitiveArity("of") === undefined`) and `spec/commands.md` has no `of`
-   * entry. Shipping it as `primitive` — which `semanticTokens` then decorated with
-   * `defaultLibrary`, asserting standard-library membership — contradicted that row outright
-   * (issue #785).
-   *
-   * Why `keyword` is the replacement: `spec/localization.md:80,82` lists
-   * `value of dict for key key_value` among the Heritage grammar forms and states these forms "can
-   * contain structural words such as `to`, `of`, `for`, and `key` in fixed grammar slots" — naming
-   * `of` a structural word of this production, beside the three siblings that are reserved and so
-   * already `keyword`. `spec/tooling.md:30` opens the `keyword` row with "Structural words
-   * recognized by the reader", and `spec/grammar.md:365` calls this `of` "the contextual
-   * preposition in the heritage `value of … for key` reader".
-   *
-   * What the spec does NOT settle, recorded honestly: `spec/tooling.md:97-98` says a highlighter
-   * marks `empty`/`member`/`of`/`a` as `keyword` "only inside an `is`-predicate and as ordinary
-   * names elsewhere" — classification language, and exclusive. `spec/tooling.md:30`'s own
-   * enumeration is "the reserved words listed in [Reserved words] … plus profile block-heads", and
-   * `of` is neither. `spec/tooling.md:31`'s closing sentence ("Structural special-form heads are
-   * `keyword` …") speaks of special-form *heads*; this production's head is `value`, so it does not
-   * literally reach a medial preposition. And `OL_TOKEN_CLASSES` has no ordinary-identifier class,
-   * so "an ordinary name" has no representable class here — the bare-name fall-through is the very
-   * `primitive` that :31 excludes. No assignment satisfies every line, which is a spec defect, not
-   * an implementation choice: the classification is pending a maintainer ruling (issue #785,
-   * to be recorded in the reader's normative home, #656). This marking implements the reading
-   * above and must follow that ruling if it lands differently.
-   *
-   * Either way this is a *classification*, not a reservation: `of` remains redefinable and stays an
-   * ordinary name outside a reader-recognized position (`:of`, `define of`, `{ of: 2 }`).
-   *
-   * The node's span starts at its own `value` token, and the parser only builds a
-   * `ValueOfKeyNode` when `of` is the literal next raw token (`peek(1)`, no `skipNewlines`
-   * between) — so `byStart` always resolves and `of` is always the following index.
-   * {@link markContextualWord}'s own `"of"` text check is therefore redundant defence-in-depth
-   * here rather than a live branch (it is the shared helper's signature, kept for that reason).
-   * Marking by token index leaves every other `of` in the same document untouched.
-   */
-  function markValueOfKeyPreposition(node: ValueOfKeyNode): void {
-    const valueIndex = byStart.get(posKey(node.source_span.start)) as number;
-    markContextualWord(valueIndex + 1, "of");
   }
 
   // Run the positional pattern/field-list scan first: a `[` directly after `for`/`struct
@@ -481,9 +428,6 @@ export function highlight(source: string, document = "<input>"): Token[] {
         break;
       case "IsPredicate":
         markIsPredicateKeywords(node);
-        break;
-      case "ValueOfKey":
-        markValueOfKeyPreposition(node);
         break;
       default:
         break;

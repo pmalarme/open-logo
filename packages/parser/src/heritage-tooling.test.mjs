@@ -23,32 +23,13 @@
 //   3. Three list-reporter aliases — `bf`/`bl`/`se` (#669). Also ordinary primitive names, but they
 //      appear in EXPRESSION position (as arguments), a different highlighter path than a
 //      statement-head call — still `primitive` + `defaultLibrary`, like `butfirst`/`sentence`.
-//   4. The `value of <dict> for key <key>` reader (#670). A four-word grammar production
-//      (`spec/grammar.md:213`) lowering to a dedicated `ValueOfKeyNode`. All four of its words are
-//      `keyword` and none carries `defaultLibrary`. `value`/`for`/`key` because they are reserved
-//      words (`spec/tooling.md:92`); `of` because `spec/localization.md:80,82` lists this reader as
-//      a Heritage grammar form and states these forms "can contain structural words such as `to`,
-//      `of`, `for`, and `key` in fixed grammar slots" — naming `of` a structural word beside its
-//      three reserved siblings — while `spec/tooling.md:30` opens the `keyword` row with
-//      "Structural words recognized by the reader" and `spec/grammar.md:365` calls it "the
-//      contextual preposition in the heritage `value of … for key` reader".
-//
-//      Until issue #785 `of` alone was `primitive` + `defaultLibrary` — a class
-//      `spec/tooling.md:31` scopes to "commands, reporters, and aliases **from the C3 primitive
-//      matrix**", which `of` is not in (`corePrimitiveArity("of") === undefined`;
-//      `spec/commands.md` has no `of` row). That the old class was wrong is settled; which class
-//      replaces it is NOT fully settled by the spec as written — `spec/tooling.md:97-98` marks
-//      these words `keyword` "only inside an `is`-predicate", `:30`'s enumeration covers only
-//      reserved words and profile block-heads, and `OL_TOKEN_CLASSES` offers no ordinary-identifier
-//      class — so the classification is pending a maintainer ruling (#785, to be recorded in the
-//      reader's normative home, #656). These assertions track the reading implemented in
-//      `highlight.ts` and must move with that ruling.
-//
-//      Either way it is a classification, not a reservation: `of` stays redefinable and an ordinary
-//      name outside a reader-recognized position (`:of`, `define of`, `{ of: 2 }`), asserted below
-//      in both directions and with several roles present in ONE document pinned per occurrence, so
-//      a fix cannot mark every `of` wholesale. Recognized by the same `heritageFormRule` gate;
-//      because it reads a dict, Heritage depends on Data (`spec/conformance.md#heritage`).
+//   4. The `value of <dict> for key <key>` reader (#670). A four-keyword grammar production
+//      (`spec/grammar.md:213`) lowering to a dedicated `ValueOfKeyNode`: `value`/`for`/`key` are
+//      reserved words → `keyword`, while `of` is a contextual keyword that is `keyword` ONLY inside
+//      an `is`-predicate and an ordinary name elsewhere (`spec/tooling.md:97-98`), so here it stays
+//      `primitive` — the spec-correct classification, asserted so a regression cannot "tidy" it.
+//      Recognized by the same `heritageFormRule` gate; because it reads a dict, Heritage depends on
+//      Data (`spec/conformance.md#heritage`).
 //
 // Every classification is proven in **awkward positions** — inside a `[ … ]` block, inside `repeat`,
 // and in a procedure body — via one shared whole-program constant, so a regression that only handled
@@ -112,12 +93,8 @@ function commandAliasCall(alias) {
   return arity === 0 ? alias : `${alias} 1`;
 }
 
-/**
- * Every structural word of the `value of … for key` reader (`spec/grammar.md:213`) — all four are
- * `keyword`. `value`/`for`/`key` are reserved words; `of` is the contextual preposition this
- * production recognizes positionally (issue #785).
- */
-const VALUE_OF_KEY_WORDS = ["value", "of", "for", "key"];
+/** The three reserved-word keywords of the `value of … for key` reader (`of` is contextual — below). */
+const VALUE_OF_KEY_KEYWORDS = ["value", "for", "key"];
 
 const HERITAGE_PROFILES = ["core-language", "data", "heritage"];
 // The negative (unknown-command) direction is checked with the MINIMAL profile set — pure Core, no
@@ -267,176 +244,42 @@ test("semanticTokens: each list-reporter alias carries defaultLibrary in express
 });
 
 // =================================================================================================
-// Shape 4 — the `value of … for key` reader: all four structural words are keyword (issue #785)
+// Shape 4 — the `value of … for key` reader: reserved words keyword; contextual `of` stays primitive
 // =================================================================================================
 
-test("highlight: every structural word of the value-of-key reader is a keyword, `of` included", () => {
-  // Issue #785. `of` used to be the odd one out — `primitive`, while its three siblings in the SAME
-  // production were `keyword`. `spec/tooling.md:31` scopes `primitive` to "aliases from the C3
-  // primitive matrix"; `of` is in no primitive table, and `spec/tooling.md:30` puts "structural
-  // words recognized by the reader" in `keyword`, which `spec/grammar.md:365` says this `of` is
-  // ("the contextual preposition in the heritage `value of … for key` reader").
+test("highlight: value/for/key in the value-of-key reader are keywords", () => {
   const source = 'print value of :d for key "a"';
-  for (const word of VALUE_OF_KEY_WORDS) {
+  for (const word of VALUE_OF_KEY_KEYWORDS) {
     assert.equal(
       classOf(source, word),
       "keyword",
       `${word} should highlight as keyword in the value-of-key reader`,
     );
   }
-  assert.equal(
-    OL.corePrimitiveArity("of"),
-    undefined,
-    "`of` is in no C3 primitive table, so `primitive` is not an available class for it",
-  );
 });
 
-test("highlight: `of` is currently a keyword in BOTH reader-recognized contexts — the reader and an is-predicate", () => {
-  // As implemented, the two positions `spec/grammar.md:230,365` give `of` classify identically.
-  // That consistency is the argument FOR the provisional reading, not a rule the spec states: no
-  // normative line requires the two productions to agree, and a maintainer ruling against `keyword`
-  // for the reader (issue #785) would separate them and this assertion would move with it.
-  assert.equal(classOf('print value of :d for key "a"', "of"), "keyword");
+test("highlight: `of` in the value-of-key reader stays primitive — it is a keyword only inside an is-predicate", () => {
+  // `spec/tooling.md:97-98`: `of` is a contextual keyword, marked `keyword` ONLY inside an
+  // `is`-predicate and an ordinary name elsewhere. The `value of … for key` reader is not an
+  // is-predicate, so `of` here is an ordinary name → the highlighter's `primitive` fallback. Pinned
+  // so a future change cannot silently promote it to `keyword` (which would contradict the spec) —
+  // and, for contrast, `of` inside an `is`-predicate IS a keyword.
+  assert.equal(classOf('print value of :d for key "a"', "of"), "primitive");
   assert.equal(classOf("if :x is member of [1 2] [ ]", "of"), "keyword");
 });
 
-test("highlight: `of` outside a reader-recognized position stays an ordinary name, not a keyword", () => {
-  // The other direction of `spec/tooling.md:97-98` / `spec/grammar.md:365`: `of` is *contextual*,
-  // not reserved, so it remains freely usable as a variable, a procedure name, and a dict key. This
-  // is what the reader fix must not break — being `keyword` in one production must not lock the
-  // spelling globally the way a reserved word does.
-  assert.equal(classOf("local of\n:of = 5\nprint :of", ":of"), ":variable");
-  const declared = OL.highlight("define of :x\n print :x\nend\nof 3", doc)
-    .filter((t) => t.text === "of")
-    .map((t) => t.class);
-  assert.deepEqual(declared, ["procedure-name", "procedure-name"]);
-  assert.equal(classOf("print { of: 1 }", "of"), "dict-key");
-  assert.equal(classOf("print :d[of]", "of"), "dict-key");
-});
-
-test("highlight: the reader, is-predicate, procedure, dict-key, and variable roles of `of` are resolved per occurrence within ONE document", () => {
-  // Review-gate finding (NON-BLOCKING, rubber-duck): the assertions above use a separate document
-  // per role, so an implementation that marked EVERY `of` in any document containing a
-  // `ValueOfKeyNode` would survive them. This program gives `of` those five roles at once and pins
-  // each occurrence in source order, which is what the by-token-index marking actually guarantees.
-  // Binder positions (`local of`, `for of in …`) are deliberately NOT covered: they hit the general
-  // unresolved-bare-name fall-through documented at `highlight.ts:26-30`, which is not specific to
-  // `of` and is tracked as its own follow-up rather than pinned here.
-  const source = [
-    "define of :x", //                   1. procedure-name (declaration)
-    "  print :x",
-    "end",
-    "of 1", //                           2. procedure-name (reference)
-    ":of = 5", //                        (a `:variable` place, asserted separately below)
-    ":d = { of: 2 }", //                 3. dict-key
-    'print value of :d for key "of"', // 4. keyword (reader); the quoted "of" is a word literal
-    "print 3 is member of [ 3 ]", //     5. keyword (is-predicate)
-  ].join("\n");
-  const tokens = OL.highlight(source, doc);
-  assert.deepEqual(
-    tokens.filter((t) => t.text === "of").map((t) => t.class),
-    ["procedure-name", "procedure-name", "dict-key", "keyword", "keyword"],
-  );
-  assert.deepEqual(
-    tokens.filter((t) => t.text === ":of").map((t) => t.class),
-    [":variable"],
-  );
-  // The quoted `"of"` key is a word literal, never a structural word (`spec/tooling.md:25-26`:
-  // tokens inside closed strings are never classified as keywords).
-  const quoted = tokens.find((t) => t.text === '"of"');
-  assert.ok(quoted, 'expected the quoted "of" key to be its own token');
-  assert.equal(quoted.class, "word/string");
-});
-
-test("highlight: the reader's `of` is a keyword in awkward positions — nested, chained, and upper-case", () => {
-  // Tokenization is case-insensitive for structural words (`spec/tooling.md:23`), and the reader
-  // nests: `value of value of :d for key "a" for key "b"` is two `ValueOfKeyNode`s, so BOTH `of`
-  // tokens must resolve — a fix that only handled the first (or only a top-level) occurrence fails
-  // here.
-  assert.equal(
-    classOf('repeat 2 [ print value of :d for key "a" ]', "of"),
-    "keyword",
-  );
-  assert.equal(
-    classOf('define f :d\n print value of :d for key "a"\nend', "of"),
-    "keyword",
-  );
-  assert.equal(classOf('print VALUE OF :d FOR KEY "a"', "OF"), "keyword");
-  const chained = OL.highlight(
-    'print value of value of :d for key "a" for key "b"',
-    doc,
-  ).filter((t) => t.text === "of");
-  assert.equal(chained.length, 2, "a chained reader has two `of` tokens");
-  assert.ok(chained.every((t) => t.class === "keyword"));
-});
-
-test("highlight: a mid-edit or malformed reader degrades gracefully — `of` falls back, never throws, never marks a wrong token", () => {
-  // Review-gate finding (NON-BLOCKING, @testing). `highlight.ts:26-30` makes graceful degradation a
-  // contract: "unresolved symbols, mid-edit input, and malformed/unclosed constructs never throw and
-  // never misclassify". Every other assertion in this block uses a WELL-FORMED reader, so nothing
-  // pinned what happens at `parseValueOfKey`'s four `return undefined` bail-outs, where no
-  // `ValueOfKeyNode` is built and the marking path is never reached.
-  //
-  // This matters beyond tidiness: #830 (the reader is unreachable inside a parenthesized expression)
-  // will touch this exact parse path, and a plausible recovery improvement there — returning a
-  // PARTIAL `ValueOfKeyNode` for better diagnostics — would change the node's span or its build
-  // precondition. Today the only thing between that and marking the wrong token `keyword` is
-  // `markContextualWord`'s text guard, which nothing on this path exercises.
-  //
-  // The fall-back class asserted here is `primitive`, which is itself the general defect #831 (a
-  // name in no C3 table must not be `primitive`, `spec/tooling.md:31`). It is asserted as the
-  // CURRENT value, not as correct: when #831 lands, these expectations change to whatever class it
-  // chooses. What this test actually pins — and what must hold under either — is that no
-  // `ValueOfKeyNode` means `of` is left to the ordinary fall-back rather than marked `keyword` at a
-  // guessed index, and that `highlight()` does not throw.
-  const partial = {
-    "print value of": ["primitive"], //                     no dictionary expression
-    "print value of :d": ["primitive"], //                  no `for`
-    "print value of :d for": ["primitive"], //              no `key`
-    "print value of :d for key": ["primitive"], //          no key expression
-    'print value of :d for key "a': ["primitive"], //       unclosed word literal
-    'print value of :d key "a"': ["primitive"], //          `for` missing mid-form
-    // The inner reader consumes `for key "a"`, so the outer one runs out of input and bails; the
-    // inner node is discarded along with the failed outer parse, leaving ZERO `ValueOfKeyNode`s in
-    // the AST (verified) and therefore both `of` tokens on the fall-back path.
-    'print value of value of :d for key "a"': ["primitive", "primitive"],
-  };
-  for (const [source, expected] of Object.entries(partial)) {
-    let classes;
-    assert.doesNotThrow(
-      () => {
-        classes = OL.highlight(source, doc)
-          .filter((t) => t.text.toLowerCase() === "of")
-          .map((t) => t.class);
-      },
-      `highlight must not throw on ${JSON.stringify(source)}`,
-    );
-    assert.deepEqual(
-      classes,
-      expected,
-      `${JSON.stringify(source)} builds no ValueOfKeyNode, so its \`of\` falls back rather than being mis-marked`,
-    );
-  }
-  // A COMPLETE reader followed by unrelated junk still parses, so its `of` is still a keyword —
-  // degradation is scoped to the reader itself, not to any diagnostic anywhere in the document.
-  assert.equal(classOf('print value of :d for key "a" ]', "of"), "keyword");
-});
-
-test("semanticTokens: no structural word of the value-of-key reader carries defaultLibrary", () => {
-  // `defaultLibrary` asserts standard-library membership (`spec/tooling.md:277`). `of` used to
-  // carry it purely because it was classified `primitive`; with the class corrected the modifier
-  // goes with it, which is the half of #785 an LSP client actually consumes.
+test("semanticTokens: value/for/key carry no defaultLibrary (keywords); `of` does (ordinary primitive)", () => {
   const tokens = OL.semanticTokens('print value of :d for key "a"', doc);
-  for (const word of VALUE_OF_KEY_WORDS) {
+  for (const word of VALUE_OF_KEY_KEYWORDS) {
     const token = tokens.find((t) => t.text === word);
     assert.ok(token, `expected a semantic token for ${word}`);
-    assert.equal(token.class, "keyword", `${word} should be a keyword`);
-    assert.deepEqual(
-      token.modifiers,
-      [],
-      `${word} is structural, so it carries no modifier at all`,
-    );
+    assert.equal(token.class, "keyword");
+    assert.ok(!token.modifiers.includes("defaultLibrary"));
   }
+  const of = tokens.find((t) => t.text === "of");
+  assert.ok(of);
+  assert.equal(of.class, "primitive");
+  assert.ok(of.modifiers.includes("defaultLibrary"));
 });
 
 // =================================================================================================
@@ -478,14 +321,11 @@ test("highlight: every Heritage spelling keeps its class nested in a whole progr
       assert.equal(cls, "primitive", `nested ${alias} should stay primitive`);
     }
   }
-  for (const word of VALUE_OF_KEY_WORDS) {
-    const seen = classesOf(word);
-    assert.ok(seen.length >= 1, `expected ${word} in the nested program`);
-    for (const cls of seen) {
-      // Every occurrence, not just one: `includes("keyword")` would let a nested regression on a
-      // repeated structural word pass.
-      assert.equal(cls, "keyword", `nested ${word} should stay keyword`);
-    }
+  for (const word of VALUE_OF_KEY_KEYWORDS) {
+    assert.ok(
+      classesOf(word).includes("keyword"),
+      `nested ${word} should be a keyword`,
+    );
   }
 });
 
@@ -505,27 +345,6 @@ test("semanticTokens: every Heritage alias keeps primitive+defaultLibrary nested
       assert.ok(
         token.modifiers.includes("defaultLibrary"),
         `nested ${alias} should be a defaultLibrary primitive`,
-      );
-    }
-  }
-});
-
-test("semanticTokens: no reader word carries defaultLibrary nested in a whole program", () => {
-  // The nested counterpart of the #785 LSP assertion above: the reader inside a `to … end`
-  // procedure body must not reintroduce the standard-library modifier on any structural word.
-  const tokens = OL.semanticTokens(NESTED_HERITAGE_PROGRAM, doc);
-  for (const word of VALUE_OF_KEY_WORDS) {
-    const matches = tokens.filter((t) => t.text === word);
-    assert.ok(
-      matches.length >= 1,
-      `expected a semantic token for nested ${word}`,
-    );
-    for (const token of matches) {
-      assert.equal(token.class, "keyword", `nested ${word} should be keyword`);
-      assert.deepEqual(
-        token.modifiers,
-        [],
-        `nested ${word} should carry no modifier`,
       );
     }
   }

@@ -7,13 +7,8 @@
  *
  * Keywords are matched case-insensitively with lowercase as canonical, so
  * {@link isReservedWord} normalizes to lowercase before looking a name up. The four
- * contextual keywords `empty`, `member`, `of`, and `a` are deliberately **absent**: they are not
- * reserved, so a program may still declare them (`define of`, `:empty = 1`). Their *highlighting*
- * is positional — `keyword` just after `is` (`spec/tooling.md:97-98`), an ordinary name elsewhere
- * — and `of` is currently also highlighted `keyword` in the Heritage `value of … for key` reader,
- * a provisional reading pending a maintainer ruling (issue #785; see `highlight.ts`'s
- * `markValueOfKeyPreposition`). Registry membership is unaffected by that ruling either way: none
- * of the four is ever reserved.
+ * contextual keywords `empty`, `member`, `of`, and `a` are deliberately **absent**: they act
+ * as keywords only just after `is` and stay ordinary names everywhere else.
  *
  * Profile block-heads (`ask`/`each`/`tell`, `when`/`every`/`on_key`/`on_click`) are **not** in
  * {@link OL_RESERVED_WORDS}: they live in the profile-conditional {@link OL_PROFILE_RESERVED_WORDS}
