@@ -163,8 +163,13 @@ the gaps it found rather than rubber-stamping them:
   for the identical case — flagged here as normatively binding because the harness compares
   `params` exactly. **Issue #775 has since resolved it**: `executeWaitCall` now type-checks through
   the same shared `requireWholeNumber` as `executeEveryStatement` (and as `repeat` and `random`), so
-  both forms report `expected: "whole number"`, and `wait/wait-non-number-type-error` was updated in
-  that PR as the deliberate, disclosed conformance-breaking change it is.
+  both forms report `expected: "whole number"` with matching `actual`/`value` — one shared type
+  vocabulary; `params.operation` still names the primitive, so the two diagnostics stay
+  distinguishable. `wait/wait-non-number-type-error` was updated in that PR as the deliberate,
+  disclosed conformance-breaking change it is, and `wait/wait-non-whole-word` was added there for
+  the third arm the corpus had never covered: a *word* that parses as a non-whole number
+  (`wait "1.5"`), which pins `actual: "word"` / `value: "1.5"` rather than the pre-coerced
+  `number`/`1.5` the old `requireNumber` path reported.
 - **Profile-scoped reservation of the four block-heads.** `spec/interaction-events.md:43-46` reserves
   `when`/`every`/`on_key`/`on_click` **only within** the profile — a bidirectional MUST that had no
   fixture at all: `redefine-wait-reserved` covers only `wait`, which is a *primitive* name

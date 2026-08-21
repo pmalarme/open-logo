@@ -60,7 +60,6 @@
  */
 
 import type {
-  Diagnostic,
   OLValue,
   PrimitivePayload,
   SourceSpan,
@@ -146,48 +145,6 @@ export function isWaitCall(statement: StatementNode): boolean {
   return statement.callee.name.toLowerCase() === "wait";
 }
 
-/** The number `wait`'s single argument resolved to, or the diagnostic to halt on. */
-type TickCountOrDiagnostic =
-  | { readonly ok: true; readonly value: number }
-  | { readonly ok: false; readonly diagnostic: Diagnostic };
-
-/**
- * Validate the RANGE half of `wait`'s tick count: it MUST be **non-negative**
- * (`spec/interaction-events.md`, `wait <n>`: "`n` MUST be a non-negative whole number: a non-whole
- * count raises `ol-type`, and a negative count raises `ol-range`"). A negative count raises
- * `ol-range` ({@link runtimeDiag.negativeCount}) with `operation: "wait"` so the message names the
- * primitive; `wait 0` is valid and returns `0` (it yields with no tick advance and no visible
- * delay).
- *
- * `value` MUST already have passed the TYPE half — `requireWholeNumber(…, "wait")` in
- * `executeWaitCall`, the same builder `every`'s count, `repeat`'s count, and `random`'s bounds all
- * use. TYPE before RANGE is the ordering `repeat` established (`spec/execution-model.md:367-369`),
- * and routing the type half through that one shared builder is what makes `wait` and `every`
- * report a single diagnostic identity for a single input class (issue #775): before this,
- * `wait` type-checked with `requireNumber` and reported `params.expected: "number"` for a
- * non-number word where `every`/`repeat`/`random` all report `"whole number"` — and `params` are
- * part of a diagnostic's identity (`spec/error-model.md`), so that wording was observable and
- * conformance-binding, not cosmetic. This function therefore owns only the range rule; it does not
- * re-check wholeness, so a caller that skipped `requireWholeNumber` would let a fractional count
- * through (the same documented precondition {@link runWait} and the `errors.ts` range builders
- * carry).
- */
-export function validateTickCount(
-  value: number,
-  source_span: SourceSpan,
-): TickCountOrDiagnostic {
-  if (value < 0) {
-    return {
-      ok: false,
-      diagnostic: runtimeDiag.negativeCount(source_span, {
-        operation: "wait",
-        value,
-      }),
-    };
-  }
-  return { ok: true, value };
-}
-
 /**
  * Emit the `primitive` event `spec/interaction-events.md` requires `wait` to emit **after** the
  * pause completes ("`wait` emits a `primitive` event after the pause completes"). The catch-all
@@ -245,8 +202,9 @@ function emitInteractionPrimitive(
  * stopped, or the budget was cancelled) the pause aborts immediately: {@link runWait} returns `true`
  * and does **not** emit the trailing `primitive` event, because the pause did not complete. On a
  * clean pause it emits the `primitive` event AFTER the pause completes onto `events` and returns
- * `false`. `count` MUST already be a validated non-negative whole number (via
- * {@link validateTickCount}).
+ * `false`. `count` MUST already be a validated non-negative whole number — `executeWaitCall`'s
+ * `requireWholeNumber` (TYPE) then its non-negativity guard (RANGE), the same two-step
+ * `executeEveryStatement` applies to an `every` interval.
  *
  * `wait 0` advances the clock zero times but still {@link yieldToEventLoop}s exactly once — it
  * "yield[s] to the renderer and event loop without adding a visible delay" (a spec-mandated yield,

@@ -17,7 +17,6 @@ import {
   createTickClock,
   execute,
   isWaitCall,
-  validateTickCount,
   yieldToEventLoop,
 } from "@openlogo/runtime";
 import { parse } from "@openlogo/parser";
@@ -175,12 +174,13 @@ test("a word that reads as a non-whole number reports the WORD, like repeat's co
   assert.deepEqual(effectEvents(result), []);
 });
 
-test("wait and every report ONE identity for one input class (issue #775 regression guard)", () => {
+test("wait and every use ONE type vocabulary for one input class (issue #775 regression guard)", () => {
   // The defect: for the identical input class — a word that does not parse as a number — the two
   // Interaction numeric-argument forms disagreed (`every` said `whole number`, `wait` said
-  // `number`). Both are whole-number arguments per `spec/interaction-events.md`, so everything but
-  // `operation` must match. Comparing the two live diagnostics (rather than restating literals)
-  // means this fails if EITHER primitive drifts.
+  // `number`). Both are whole-number arguments per `spec/interaction-events.md`, so the type
+  // vocabulary — `expected`/`actual`/`value` — must match; `operation` still names the primitive
+  // and is what keeps the two diagnostics distinguishable. Comparing the two live diagnostics
+  // (rather than restating literals) means this fails if EITHER primitive drifts.
   const waitDiagnostic = execute('wait "soon"', doc).diagnostics[0];
   const everyDiagnostic = execute('every "soon" [ print "x" ]', doc)
     .diagnostics[0];
@@ -270,30 +270,13 @@ test("yieldToEventLoop is the dispatch seam: it forwards the tick to its dispatc
   assert.equal(clock.tick, 1);
 });
 
-// --- validateTickCount unit coverage: the RANGE half only (TYPE is the caller's) --------------
-
-test("validateTickCount rejects a negative whole number with ol-range", () => {
-  const outcome = validateTickCount(-4, makeSpan());
-  assert.equal(outcome.ok, false);
-  assert.equal(outcome.diagnostic.code, "ol-range");
-  assert.equal(outcome.diagnostic.params.value, -4);
-});
-
-test("validateTickCount accepts 0 and positive whole numbers", () => {
-  assert.deepEqual(validateTickCount(0, makeSpan()), { ok: true, value: 0 });
-  assert.deepEqual(validateTickCount(7, makeSpan()), { ok: true, value: 7 });
-});
-
-test("validateTickCount owns RANGE only — wholeness is the caller's requireWholeNumber (issue #775)", () => {
-  // Documenting the contract as a test: since #775 the TYPE half runs in `executeWaitCall` through
-  // the shared `requireWholeNumber` (so `wait` and `every` agree on one `ol-type` identity), and
-  // this helper checks only non-negativity. A fractional value therefore never reaches it in the
-  // runtime path; if a future caller skipped the type check, this is what it would see.
-  assert.deepEqual(validateTickCount(2.5, makeSpan()), {
-    ok: true,
-    value: 2.5,
-  });
-});
+// --- Tick-count validation is now entirely `executeWaitCall`'s, like `every`'s (issue #775) ----
+//
+// The exported `validateTickCount` helper is gone: after #775 its remaining job was a two-line
+// non-negativity guard, which `executeWaitCall` now performs inline exactly as
+// `executeEveryStatement` performs its own `<= 0` guard. Its behavior is covered end to end by the
+// `wait -1` / `wait 0` / `wait 2` tests above — no separate unit is needed, and there is no longer
+// a publicly exported "validate" that would silently accept a fractional count.
 
 // --- isWaitCall predicate: matches wait calls only --------------------------------------------
 
@@ -315,13 +298,4 @@ test("isWaitCall rejects a non-wait call and a non-call statement", () => {
 function firstStatement(source) {
   const result = parse(`${source}\n`, doc);
   return result.ast.body[0];
-}
-
-/** A throwaway source span for direct `validateTickCount` unit calls. */
-function makeSpan() {
-  return {
-    document: doc,
-    start: [1, 1],
-    end: [1, 2],
-  };
 }
