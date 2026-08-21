@@ -1,0 +1,38 @@
+{
+  "description": "issue #775 (review gate, QA finding N7): `wait [ 1 2 ]` -- a tick count that is neither a number nor a word. The corpus pinned only the `number` and `word` arms of `params.actual` for every `expected: \"whole number\"` diagnostic across the whole stack (`wait`, `every`, `repeat`, `random`), so an implementation could report anything at all for a list, boolean, dict, or record and still pass the full stack-neutral corpus -- confirmed by mutation. This fixture and its `every` twin (`every/every-non-number-boolean-type-error`, which covers `boolean`) close that: `actual` names the offending value's own type and `value` snapshots it as written. `spec/execution-model.md`'s value model makes `list` and `boolean` first-class Core values, so neither is a degenerate `word` -- and unlike a word there is no coercion rule that could rescue either, so this is `ol-type` outright with no wholeness question to reach. As with every other failed `wait` validation the `primitive` event is NOT emitted (the pause never runs), only the instruction event precedes the diagnostic, and the span covers just the argument.",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/wait/wait-non-number-list-type-error",
+        "start": [1, 1],
+        "end": [1, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "interaction-events/wait/wait-non-number-list-type-error",
+        "start": [1, 6],
+        "end": [1, 13]
+      },
+      "params": {
+        "expected": "whole number",
+        "actual": "list",
+        "value": [1, 2],
+        "operation": "wait"
+      },
+      "message": "wait needs a whole number, but got a list.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

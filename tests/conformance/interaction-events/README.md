@@ -173,6 +173,21 @@ the gaps it found rather than rubber-stamping them:
   `requireNumber` path reported. That arm is the only one that observes pre-coercion — a number
   literal was never a word, and a non-numeric word never coerces at all — and its absence was found
   by mutation: reintroducing the pre-coercion on `every` survived a fully green run.
+- **The arms of the two numeric-argument checks that only a *word* can reach**, added in the same
+  PR after mutation testing found each of them surviving a fully green run. The corpus had always
+  reached `ol-range` through a number literal (`wait -1`, `every 0`, `every -3`), so an
+  implementation could guard the range only when the argument was literally a number and let
+  `wait "-1"` **succeed** — emitting a trailing `primitive(wait)` as though a pause had run — or
+  register an `every` handler with an interval of `0`. `wait/wait-negative-word` and
+  `every/every-non-positive-word` close that, and they also pin a deliberate asymmetry that was
+  undocumented: on the `ol-range` arm `params.value` is the **coerced number**, not the word,
+  because range is a question about magnitude (which exists only after coercion) whereas `ol-type`
+  is a question about what the learner actually wrote. Separately,
+  `wait/wait-non-number-list-type-error` and `every/every-non-number-boolean-type-error` cover a
+  count that is neither a number nor a word: before them every `expected: "whole number"` fixture in
+  the whole corpus (`wait`, `every`, `repeat`, `random`) pinned `actual` as only `number` or `word`,
+  so an implementation could report anything at all for a list, boolean, dict, or record and still
+  pass the full stack-neutral corpus.
 - **Profile-scoped reservation of the four block-heads.** `spec/interaction-events.md:43-46` reserves
   `when`/`every`/`on_key`/`on_click` **only within** the profile — a bidirectional MUST that had no
   fixture at all: `redefine-wait-reserved` covers only `wait`, which is a *primitive* name

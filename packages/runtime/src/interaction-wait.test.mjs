@@ -134,8 +134,28 @@ test("wait -1 (negative) raises ol-range and emits no primitive event", () => {
   assert.equal(result.diagnostics.length, 1);
   const [diagnostic] = result.diagnostics;
   assert.equal(diagnostic.code, "ol-range");
-  assert.equal(diagnostic.params.operation, "wait");
-  assert.equal(diagnostic.params.value, -1);
+  assert.deepEqual(diagnostic.params, { operation: "wait", value: -1 });
+  assert.deepEqual(effectEvents(result), []);
+});
+
+test("a WORD that reads as a negative number still raises ol-range, with the coerced value", () => {
+  // The RANGE arm reached through a word. `spec/execution-model.md:33-34` accepts a word that
+  // parses as a number wherever a number is expected, so `wait "-1"` must reach the same `ol-range`
+  // the literal `-1` does. Nothing exercised that composition: every range case passed a number
+  // literal, so an implementation that guarded the range only when the argument was literally a
+  // number would let `wait "-1"` SUCCEED and emit a trailing `primitive(wait)` — an invisible wrong
+  // result for a pause primitive. Found by mutation; that mutation passed a fully green run.
+  //
+  // `params.value` is the COERCED number `-1`, not the word — the opposite of the `ol-type` arm
+  // above, deliberately: `ol-range` asks about magnitude, which exists only after coercion, while
+  // `ol-type` asks what the learner actually wrote.
+  const result = execute('wait "-1"', doc);
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-range");
+  assert.deepEqual(result.diagnostics[0].params, {
+    operation: "wait",
+    value: -1,
+  });
   assert.deepEqual(effectEvents(result), []);
 });
 
@@ -195,7 +215,7 @@ test("a tick count that is neither a number nor a word names its own type", () =
   }
 });
 
-test("wait and every use ONE type vocabulary for every input class (issue #775 regression guard)", () => {
+test("wait and every use ONE type vocabulary for every ol-type input class (issue #775 regression guard)", () => {
   // The defect: for the identical input class — a word that does not parse as a number — the two
   // Interaction numeric-argument forms disagreed (`every` said `whole number`, `wait` said
   // `number`). Both are whole-number arguments per `spec/interaction-events.md`, so the type
@@ -203,14 +223,17 @@ test("wait and every use ONE type vocabulary for every input class (issue #775 r
   // and is what keeps the two diagnostics distinguishable. Comparing the two live diagnostics
   // (rather than restating literals) means this fails if EITHER primitive drifts.
   //
-  // All three arms of the check are compared, not just the one that caused #775. `"soon"` alone is
-  // NOT enough: a word that never coerces reaches both implementations unchanged, so a form that
-  // pre-coerced numeric words before the wholeness check would still agree here. `"2.5"` is the arm
-  // that observes pre-coercion, and `2.5` anchors the plain non-whole number.
+  // All FIVE `ol-type` input classes are compared, not just the one that caused #775. `"soon"`
+  // alone is NOT enough: a word that never coerces reaches both implementations unchanged, so a
+  // form that pre-coerced numeric words before the wholeness check would still agree here. `"2.5"`
+  // is the arm that observes pre-coercion, `2.5` anchors the plain non-whole number, and the list
+  // and boolean cover the values that are neither number nor word.
   for (const [waitSource, everySource] of [
     ['wait "soon"', 'every "soon" [ print "x" ]'],
     ['wait "2.5"', 'every "2.5" [ print "x" ]'],
     ["wait 2.5", 'every 2.5 [ print "x" ]'],
+    ["wait [ 1 2 ]", 'every [ 1 2 ] [ print "x" ]'],
+    ["wait true", 'every true [ print "x" ]'],
   ]) {
     const waitDiagnostic = execute(waitSource, doc).diagnostics[0];
     const everyDiagnostic = execute(everySource, doc).diagnostics[0];
@@ -308,9 +331,11 @@ test("yieldToEventLoop is the dispatch seam: it forwards the tick to its dispatc
 //
 // The exported `validateTickCount` helper is gone: after #775 its remaining job was a two-line
 // non-negativity guard, which `executeWaitCall` now performs inline exactly as
-// `executeEveryStatement` performs its own `<= 0` guard. Its behavior is covered end to end by the
-// `wait -1` / `wait 0` / `wait 2` tests above — no separate unit is needed, and there is no longer
-// a publicly exported "validate" that would silently accept a fractional count.
+// `executeEveryStatement` performs its own `<= 0` guard. That guard is covered end to end by
+// `wait -1` (number literal), `wait "-1"` (the coerced-word arm — a number literal alone cannot
+// observe the coercion boundary the guard sits behind), and `wait 0` / `wait 2` for the values it
+// must let through. No separate unit is needed, and there is no longer a publicly exported
+// "validate" that would silently accept a fractional count.
 
 // --- isWaitCall predicate: matches wait calls only --------------------------------------------
 

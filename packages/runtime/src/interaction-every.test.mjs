@@ -220,6 +220,33 @@ test("every with a negative count raises ol-range", () => {
   assert.deepEqual(diagnostic.params, { operation: "every", value: -3 });
 });
 
+test("a WORD that reads as a non-positive number still raises ol-range, with the coerced value", () => {
+  // The RANGE arm reached through a word. `spec/execution-model.md:33-34` accepts a word that
+  // parses as a number wherever a number is expected, so `every "0"` must reach the same `ol-range`
+  // the literal `0` does. Nothing exercised that composition: every range case passed a number
+  // literal, so an implementation that guarded the range only when the argument was literally a
+  // number would REGISTER a handler with an interval of 0 or -3 — an unbounded-rerun hazard — and
+  // still pass a fully green run. Found by mutation.
+  //
+  // `params.value` is the COERCED number, not the word — the opposite of the `ol-type` arm above,
+  // deliberately: `ol-range` asks about magnitude, which exists only after coercion, while
+  // `ol-type` asks what the learner actually wrote.
+  for (const [source, value] of [
+    ['every "0" [ print "x" ]', 0],
+    ['every "-3" [ print "x" ]', -3],
+  ]) {
+    const result = execute(source, doc);
+    assert.equal(result.diagnostics.length, 1);
+    assert.equal(result.diagnostics[0].code, "ol-range");
+    assert.deepEqual(result.diagnostics[0].params, {
+      operation: "every",
+      value,
+    });
+    // The range check fails BEFORE registration — nothing registered, no `primitive(every)`.
+    assert.deepEqual(effectEvents(result), []);
+  }
+});
+
 test("every with a non-number count raises ol-type", () => {
   const result = execute('every "loud" [ print "x" ]', doc);
   assert.equal(result.diagnostics.length, 1);

@@ -1,0 +1,36 @@
+{
+  "description": "issue #775 (review gate, QA finding B2): `every \"0\"` -- the RANGE arm of `every`'s tick count reached through a WORD, the twin of `wait/wait-negative-word`. `spec/interaction-events.md`'s `### every <n> <block>` requires a positive whole number and raises `ol-range` on a zero or negative one; `spec/execution-model.md:33-34` makes \"words that parse as numbers are accepted where a number is expected\" a normative CORE rule, so `\"0\"` MUST reach that `ol-range` exactly as the literal `0` does (pinned by the sibling `every-zero-range-error`). Nothing covered the composition of those two rules: every RANGE fixture passed a number literal, so an implementation that trusted the type check to have already handled words -- guarding the range only when the argument was literally a number -- would REGISTER a handler with an interval of 0, an unbounded-rerun hazard, and still pass a fully green run (found by mutation). Note `params.value` is the COERCED number `0`, not the word `\"0\"` -- the opposite of the `ol-type` arm (`every-non-whole-word`), and deliberately so: `ol-range` is a question about magnitude, which only exists after coercion, while `ol-type` is a question about what the learner actually wrote. The check fails BEFORE registration, so no `primitive` event is emitted and no handler is registered; only the registration instruction precedes the diagnostic, and the span covers just the count argument.",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-non-positive-word",
+        "start": [1, 1],
+        "end": [1, 24]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-range",
+      "source_span": {
+        "document": "interaction-events/every/every-non-positive-word",
+        "start": [1, 7],
+        "end": [1, 10]
+      },
+      "params": {
+        "operation": "every",
+        "value": 0
+      },
+      "message": "every needs a positive whole number of ticks, but got 0.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

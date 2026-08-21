@@ -1,0 +1,38 @@
+{
+  "description": "issue #775 (review gate, QA finding N7): `every true [ … ]` -- a tick count that is neither a number nor a word, the twin of `wait/wait-non-number-list-type-error` (which covers `list`). Between them the pair pins both remaining arms of `params.actual` for the shared whole-number check: before them the corpus pinned only `number` and `word` across the whole stack (`wait`, `every`, `repeat`, `random`), so an implementation could report anything for a boolean, list, dict, or record and still pass the full stack-neutral corpus -- confirmed by mutation. `spec/execution-model.md`'s value model makes `boolean` a first-class Core value, and no coercion rule can rescue it (unlike a word), so this is `ol-type` outright with no wholeness question to reach. The check fails BEFORE registration, so no `primitive` event is emitted and no handler is registered; only the registration instruction precedes the diagnostic, and the span covers just the count argument.",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-non-number-boolean-type-error",
+        "start": [1, 1],
+        "end": [1, 25]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "interaction-events/every/every-non-number-boolean-type-error",
+        "start": [1, 7],
+        "end": [1, 11]
+      },
+      "params": {
+        "expected": "whole number",
+        "actual": "boolean",
+        "value": true,
+        "operation": "every"
+      },
+      "message": "every needs a whole number, but got a boolean.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}
