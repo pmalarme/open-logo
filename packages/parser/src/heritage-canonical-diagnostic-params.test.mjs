@@ -597,9 +597,9 @@ test("every worded form has a twin that declares it and parses to its registered
     assert.ok(
       witnesses.length > 0,
       `the worded form "${name}" (\`${form.phrase}\`) has no twin that declares ` +
-        `coversForm: "${name}" AND parses cleanly to a ${form.node} node. A twin that merely ` +
-        `mentions "${form.head}", or that declares a different form, leaves this one unexercised ` +
-        "— give it a program that uses it (issue #755).",
+        `coversForm: "${name}" AND parses cleanly to a ${form.node} node, so it is unwitnessed by ` +
+        `this check. A twin that merely mentions "${form.head}", or that declares a different ` +
+        "form, does not witness this one (issue #755).",
     );
   }
   // No twin may declare a form the registry does not know (a stale entry), and a twin that declares

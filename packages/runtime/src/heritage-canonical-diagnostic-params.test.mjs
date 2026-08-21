@@ -468,10 +468,13 @@ test("the runtime twin corpus covers every Heritage surface spelling the parser 
 
 test("every worded form has a runtime twin that declares it and parses to its registered node kind", () => {
   // The runtime counterpart of the parser guard's witness assertion (issue #755). Head-word
-  // coverage above answers "can this WORD leak into a param"; this answers "does a twin that
-  // declares this form actually reach its AST shape here". They are different questions, and only
-  // the second fails when a twin quietly stops using the form — or when a second registered form
-  // shares the head `value` and one form's twin is silently credited to the other.
+  // coverage above answers "can this WORD leak into a param"; this answers "is there at least one
+  // twin declaring this form whose program reaches the form's AST shape here". They are different
+  // questions.
+  //
+  // The assertion is EXISTENTIAL, and reads accordingly: it fails when NO declared twin reaches the
+  // registered node kind. With several qualifying twins, one may stop reaching it without this
+  // firing — that case is caught by the by-value pins and twin equality, not here.
   //
   // Same limit as the parser side, stated the same way: a witness DECLARES the form (`coversForm`,
   // author-supplied metadata) and parses cleanly to its registered node kind. It does not establish
@@ -493,8 +496,9 @@ test("every worded form has a runtime twin that declares it and parses to its re
     assert.ok(
       witnesses.length > 0,
       `the worded form "${name}" (\`${form.phrase}\`) has no runtime twin that declares ` +
-        `coversForm: "${name}" AND parses cleanly to a ${form.node} node — so nothing proves its ` +
-        "RUNTIME diagnostics are canonical (issues #741, #755).",
+        `coversForm: "${name}" AND parses cleanly to a ${form.node} node, so it is unwitnessed by ` +
+        "this check. (The by-value pins below still hold whatever twins DO exist; what is missing " +
+        "here is a twin tied to this form — issues #741, #755.)",
     );
   }
   const names = new Set(heritageWordedFormNames());
