@@ -63,8 +63,10 @@
 //
 // The registries enumerate SINGLE-WORD spellings and, since issue #755, the HEAD WORD of each
 // multi-word Heritage FORM. There is exactly one such form, the worded dictionary reader
-// `value of … for key` (slice H5, #670), whose head `value` is what a diagnostic could ever
-// contain — so it is registered, and registry coverage is now genuinely coverage of Heritage.
+// `value of … for key` (slice H5, #670), whose head `value` is the one word in it that names THIS
+// form unambiguously — `of`, `for` and `key` are ordinary vocabulary and can reach params on their
+// own account — so the head is what is registered for matching, and registry coverage is now
+// genuinely coverage of Heritage.
 // Before #755 no registry named the form at all while `heritageSurfaceSpellings()` described itself
 // as the enumerable definition of a Heritage surface spelling: there was no leak, but the claim was
 // false, which is the failure mode this saga has hit repeatedly. The form is still twinned in its
@@ -319,8 +321,9 @@ const NON_DICT_CONTAINERS = [
  * Heritage shapes that need an EXACT param expectation, twinned explicitly.
  *
  * Since issue #755 `heritageSurfaceSpellings()` does enumerate this form — by its head word
- * `value`, the one part of `value of … for key` that can ever sit in a diagnostic's params
- * (`checker-heritage-form.ts`'s `VALUE_OF_KEY`, read from that same registry). So these pairs
+ * `value`, the one word in `value of … for key` that names THIS form unambiguously when it turns up
+ * in a diagnostic's params (`checker-heritage-form.ts`'s `VALUE_OF_KEY`, read from that same
+ * registry). So these pairs
  * declare `covers` like any other twin and are held to the registry-coverage assertion too, plus
  * `coversForm` — the registered form's name, which is the grammar production it comes from — so the
  * witness assertion below is keyed on the FORM rather than on its head word, which two registered

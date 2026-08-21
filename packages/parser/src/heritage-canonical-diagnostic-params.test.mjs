@@ -635,7 +635,10 @@ test("every twin that declares a worded form reaches it, and every worded form h
         "form, does not witness this one (issue #755).",
     );
   }
-  // PARSE_TWINS may not smuggle in a `coversForm` they cannot honour.
+  // PARSE_TWINS may not smuggle in a `coversForm` they cannot honour — and must really be what they
+  // claim to be. A pair that quietly became a cleanly-parsing program would still pass every other
+  // assertion in this file while silently withdrawing the parse-stage reach the corpus exists to
+  // give, so both sides are checked to report at the parse stage.
   for (const twin of PARSE_TWINS) {
     assert.equal(
       twin.coversForm,
@@ -643,6 +646,17 @@ test("every twin that declares a worded form reaches it, and every worded form h
       `${twin.note}: a parse-stage twin must not declare coversForm — it deliberately fails to ` +
         "parse, so it can never reach the form's node kind",
     );
+    for (const [side, source] of [
+      ["heritage", twin.heritage],
+      ["core", twin.core],
+    ]) {
+      assert.ok(
+        OL.parse(source, doc).diagnostics.length > 0,
+        `${twin.note}: the ${side} side parses cleanly, so this pair no longer reaches the PARSE ` +
+          "stage it exists for — its findings would come from check() like any TWINS entry. Give " +
+          "it a program that fails to parse, or move it to TWINS.",
+      );
+    }
   }
   // And the clean-parse rule those twins fall foul of is asserted directly rather than merely
   // relied on: a RECOVERY AST can contain the very node kind sought, so without it a form could be
