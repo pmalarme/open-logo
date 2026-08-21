@@ -1,5 +1,5 @@
 {
-  "description": "issue #204: `clear_screen` clears the drawing and silently homes the turtle's position and heading to (0,0)/0 - emitting exactly one `clear{mode:\"clear_screen\"}` event (no separate `move`/`turn` for the homing; the turtle/scene reducer folds that in itself, spec/rendering.md's \"Clear operations\" table). A following `forward` proves the internal home by drawing from the origin at heading 0.",
+  "description": "issue #204 + issue #847: `clear_screen` clears the drawing and homes the turtle's position and heading to (0,0)/0 — and the homing is **observable**: it emits `move` (from [0 30], reporting the pre-reset heading 90) then `turn` (90 -> 0) before the single `clear{mode:\"clear_screen\"}`. Crucially there is NO `draw-segment` beside that `move` even though the pen is down, because the clear wipes the drawing anyway (spec/rendering.md's \"Clear operations\" table leaves clear_screen with no segments) — the two events are independent, so \"moved but drew nothing\" needs no renderer special case. Before this fix the homing was silent, so a consumer replaying the stream believed the turtle was still at [0 30] heading 90 while the runtime reported the origin (spec/turtles-and-sprites.md:113 requires trace events with the appropriate turtle identity so animation, stepping, `why`, and `debug` can explain which turtle moved). A following `forward` still draws from the origin at heading 0.",
   "profiles": ["turtle-rendering"],
   "execute": true,
   "events": [
@@ -65,6 +65,26 @@
     },
     {
       "seq": 6,
+      "kind": "move",
+      "source_span": {
+        "document": "turtle-rendering/screen/clear-screen-homes-turtle",
+        "start": [3, 1],
+        "end": [3, 13]
+      },
+      "payload": { "from": [0, 30], "to": [0, 0], "heading": 90 }
+    },
+    {
+      "seq": 7,
+      "kind": "turn",
+      "source_span": {
+        "document": "turtle-rendering/screen/clear-screen-homes-turtle",
+        "start": [3, 1],
+        "end": [3, 13]
+      },
+      "payload": { "from": 90, "to": 0 }
+    },
+    {
+      "seq": 8,
       "kind": "clear",
       "source_span": {
         "document": "turtle-rendering/screen/clear-screen-homes-turtle",
@@ -74,7 +94,7 @@
       "payload": { "mode": "clear_screen" }
     },
     {
-      "seq": 7,
+      "seq": 9,
       "kind": "instruction",
       "source_span": {
         "document": "turtle-rendering/screen/clear-screen-homes-turtle",
@@ -84,7 +104,7 @@
       "payload": { "statement_kind": "Call" }
     },
     {
-      "seq": 8,
+      "seq": 10,
       "kind": "move",
       "source_span": {
         "document": "turtle-rendering/screen/clear-screen-homes-turtle",
@@ -94,7 +114,7 @@
       "payload": { "from": [0, 0], "to": [0, 50], "heading": 0 }
     },
     {
-      "seq": 9,
+      "seq": 11,
       "kind": "draw-segment",
       "source_span": {
         "document": "turtle-rendering/screen/clear-screen-homes-turtle",

@@ -145,6 +145,39 @@ test("a scene-only clean reached from a per-turtle command's argument is never s
   ]);
 });
 
+test("clear_screen's homing move/turn carry the homed turtle's id under explicit addressing", () => {
+  // Issue #847 + spec/turtles-and-sprites.md:113: the homing is observable, so the events that
+  // describe it must name the turtle they homed — otherwise a per-turtle reducer would home the
+  // main turtle. `clear_screen` stays canvas-global (one `clear`, homing only the current turtle —
+  // issue #738 tracks homing every addressed turtle), so all three events name turtle 2 — the
+  // turtle the second `tell` made current — and turtle 1 is left where `forward 10` put it.
+  const result = execute(
+    [
+      ":a = new_turtle",
+      ":b = new_turtle",
+      "tell [ :a :b ]",
+      "forward 10",
+      "tell [ :b ]",
+      "clear_screen",
+    ].join("\n"),
+    "main.logo",
+  );
+  assert.deepEqual(result.diagnostics, []);
+  const homing = result.events
+    .slice(result.events.findIndex((event) => event.kind === "clear") - 2)
+    .map((event) => [event.kind, event.turtle_id]);
+  assert.deepEqual(homing, [
+    ["move", 2],
+    ["turn", 2],
+    ["clear", 2],
+  ]);
+  // …and no draw-segment came with it, even though turtle 2's pen is down.
+  assert.equal(
+    result.events.filter((event) => event.kind === "draw-segment").length,
+    2,
+  );
+});
+
 test("who inside the argument still reports the acting turtle while the snapshot reports the set", () => {
   // The documented division of labour: an addressing snapshot describes ADDRESSING (the set and its
   // first member), while the transient per-turtle pointer — which makes `who` report the turtle

@@ -1,0 +1,138 @@
+{
+  "description": "issue #847 regression: `clear_screen`'s homing MUST be observable in the trace stream, so a consumer that replays events agrees with the runtime instead of silently disagreeing with it. This is the exact reproduction from the issue: with a single turtle and no optional profiles, `forward 10` / `right 45` / `clear_screen` used to emit only `clear{mode:\"clear_screen\"}`, leaving a replaying consumer at [0 10] heading 45 while the `print pos` / `print heading` that follow report [0 0] and 0. Now the homing emits `move` ([0 10] -> [0 0], reporting the pre-reset heading 45 exactly as `home` does) then `turn` (45 -> 0) before the `clear`, so a fold of the events and the runtime's own state agree on both position and heading — the requirement in spec/turtles-and-sprites.md:113 that implementations produce trace events with the appropriate turtle identity so animation, stepping, `why`, and `debug` can explain which turtle moved or changed. The pen is DOWN throughout (the program never lifts it) and yet NO `draw-segment` accompanies the homing `move`: `clear_screen` has just wiped the drawing, so a line back to the origin would be exactly the artifact the clear removes (spec/rendering.md's \"Clear operations\" table leaves `clear_screen` with no drawing segments). `move` and `draw-segment` are independent event kinds, so \"moved but drew nothing\" is expressible with no renderer-side special case — contrast the `forward 10` at seq 1/2, where the same pen state DOES produce a `draw-segment`.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/screen/clear-screen-homing-is-observable",
+        "start": [1, 1],
+        "end": [1, 11]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "move",
+      "source_span": {
+        "document": "turtle-rendering/screen/clear-screen-homing-is-observable",
+        "start": [1, 1],
+        "end": [1, 11]
+      },
+      "payload": { "from": [0, 0], "to": [0, 10], "heading": 0 }
+    },
+    {
+      "seq": 2,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "turtle-rendering/screen/clear-screen-homing-is-observable",
+        "start": [1, 1],
+        "end": [1, 11]
+      },
+      "payload": { "from": [0, 0], "to": [0, 10], "color": "black", "width": 1 }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/screen/clear-screen-homing-is-observable",
+        "start": [2, 1],
+        "end": [2, 9]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 4,
+      "kind": "turn",
+      "source_span": {
+        "document": "turtle-rendering/screen/clear-screen-homing-is-observable",
+        "start": [2, 1],
+        "end": [2, 9]
+      },
+      "payload": { "from": 0, "to": 45 }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/screen/clear-screen-homing-is-observable",
+        "start": [3, 1],
+        "end": [3, 13]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 6,
+      "kind": "move",
+      "source_span": {
+        "document": "turtle-rendering/screen/clear-screen-homing-is-observable",
+        "start": [3, 1],
+        "end": [3, 13]
+      },
+      "payload": { "from": [0, 10], "to": [0, 0], "heading": 45 }
+    },
+    {
+      "seq": 7,
+      "kind": "turn",
+      "source_span": {
+        "document": "turtle-rendering/screen/clear-screen-homing-is-observable",
+        "start": [3, 1],
+        "end": [3, 13]
+      },
+      "payload": { "from": 45, "to": 0 }
+    },
+    {
+      "seq": 8,
+      "kind": "clear",
+      "source_span": {
+        "document": "turtle-rendering/screen/clear-screen-homing-is-observable",
+        "start": [3, 1],
+        "end": [3, 13]
+      },
+      "payload": { "mode": "clear_screen" }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/screen/clear-screen-homing-is-observable",
+        "start": [4, 1],
+        "end": [4, 10]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 10,
+      "kind": "print",
+      "source_span": {
+        "document": "turtle-rendering/screen/clear-screen-homing-is-observable",
+        "start": [4, 1],
+        "end": [4, 10]
+      },
+      "payload": { "values": [[0, 0]] }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/screen/clear-screen-homing-is-observable",
+        "start": [5, 1],
+        "end": [5, 14]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 12,
+      "kind": "print",
+      "source_span": {
+        "document": "turtle-rendering/screen/clear-screen-homing-is-observable",
+        "start": [5, 1],
+        "end": [5, 14]
+      },
+      "payload": { "values": [0] }
+    }
+  ],
+  "diagnostics": []
+}

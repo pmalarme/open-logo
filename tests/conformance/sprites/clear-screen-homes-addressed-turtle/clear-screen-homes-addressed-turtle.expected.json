@@ -1,5 +1,5 @@
 {
-  "description": "issue #677 (SP5): `clear_screen` is a canvas-global command emitting exactly one `clear` event (not one per addressed turtle), but its homing acts on the current turtle. Under `tell [ :a ]` the single `clear` event carries the homed turtle's `turtle_id` (1) so a per-turtle state reducer homes exactly :a — the turtle the runtime actually homed — not the main turtle (clearScreen's doc comment; spec/rendering.md's \"Clear operations\"). Every change of the addressed set — here from `tell` — also emits the addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }`, so a consumer can identify the addressed turtle set (issue #766, spec/rendering.md:191); `ask`/`each` emit one again when the previous set is restored, on every exit path.",
+  "description": "issue #677 (SP5) + issue #847: `clear_screen` is a canvas-global command emitting exactly one `clear` event (not one per addressed turtle), but its homing acts on the current turtle and is **observable** — it emits `move`/`turn` for the homing, with NO `draw-segment` even though the pen is down, because the clear wipes the drawing anyway. Under `tell [ :a ]` all three events carry the homed turtle's `turtle_id` (1) so a per-turtle state reducer homes exactly :a — the turtle the runtime actually homed — not the main turtle (clearScreen's doc comment; spec/rendering.md's \"Clear operations\"; spec/turtles-and-sprites.md:113). Every change of the addressed set — here from `tell` — also emits the addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }`, so a consumer can identify the addressed turtle set (issue #766, spec/rendering.md:191); `ask`/`each` emit one again when the previous set is restored, on every exit path.",
   "profiles": ["sprites"],
   "execute": true,
   "events": [
@@ -120,6 +120,35 @@
     },
     {
       "seq": 8,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/clear-screen-homes-addressed-turtle/clear-screen-homes-addressed-turtle",
+        "start": [4, 1],
+        "end": [4, 13]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "from": [0, 10],
+        "to": [0, 0],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "turn",
+      "source_span": {
+        "document": "sprites/clear-screen-homes-addressed-turtle/clear-screen-homes-addressed-turtle",
+        "start": [4, 1],
+        "end": [4, 13]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "from": 0,
+        "to": 0
+      }
+    },
+    {
+      "seq": 10,
       "kind": "clear",
       "source_span": {
         "document": "sprites/clear-screen-homes-addressed-turtle/clear-screen-homes-addressed-turtle",

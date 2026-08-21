@@ -1,0 +1,5 @@
+forward 10
+right 45
+clear_screen
+print pos
+print heading
