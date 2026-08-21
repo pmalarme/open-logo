@@ -117,7 +117,15 @@ test("wait 1.5 (non-whole) raises ol-type and emits no primitive event", () => {
   assert.equal(result.diagnostics.length, 1);
   const [diagnostic] = result.diagnostics;
   assert.equal(diagnostic.code, "ol-type");
-  assert.equal(diagnostic.params.operation, "wait");
+  // Exact params, not just the code: `params` are part of a diagnostic's identity
+  // (`spec/error-model.md`) and the conformance harness compares them exactly, so asserting only
+  // `code`/`operation` would let the #775 wording regress unnoticed.
+  assert.deepEqual(diagnostic.params, {
+    expected: "whole number",
+    actual: "number",
+    value: 1.5,
+    operation: "wait",
+  });
   // Only the instruction event — the pause never happened, so no primitive event.
   assert.deepEqual(effectEvents(result), []);
 });
@@ -132,11 +140,56 @@ test("wait -1 (negative) raises ol-range and emits no primitive event", () => {
   assert.deepEqual(effectEvents(result), []);
 });
 
-test("a non-numeric wait argument raises ol-type (wrong type, not wrong range)", () => {
+test("a non-numeric wait argument raises ol-type expecting a whole number (issue #775)", () => {
   const result = execute('wait "soon"', doc);
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-type");
+  // `wait`'s tick count is a WHOLE-number argument (`spec/interaction-events.md`'s `### wait <n>`:
+  // "`n` MUST be a non-negative whole number"), so a value that is not a number at all reports the
+  // whole-number expectation — the same spelling `every`, `repeat`, and `random` emit. Before #775
+  // this branch reported `expected: "number"` because `executeWaitCall` type-checked with
+  // `requireNumber` instead of `requireWholeNumber`.
+  assert.deepEqual(result.diagnostics[0].params, {
+    expected: "whole number",
+    actual: "word",
+    value: "soon",
+    operation: "wait",
+  });
   assert.deepEqual(effectEvents(result), []);
+});
+
+test("a word that reads as a non-whole number reports the WORD, like repeat's count does", () => {
+  // `wait "1.5"` coerces far enough to be recognized as non-whole, and the offending value is
+  // reported as the learner wrote it (`actual: "word"`, `value: "1.5"`) — exactly what
+  // `repeat "2.5"` reports. The pre-#775 path pre-coerced through `requireNumber` and reported
+  // `actual: "number"`, `value: 1.5`, losing the fact that the learner passed a word.
+  const result = execute('wait "1.5"', doc);
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-type");
+  assert.deepEqual(result.diagnostics[0].params, {
+    expected: "whole number",
+    actual: "word",
+    value: "1.5",
+    operation: "wait",
+  });
+  assert.deepEqual(effectEvents(result), []);
+});
+
+test("wait and every report ONE identity for one input class (issue #775 regression guard)", () => {
+  // The defect: for the identical input class — a word that does not parse as a number — the two
+  // Interaction numeric-argument forms disagreed (`every` said `whole number`, `wait` said
+  // `number`). Both are whole-number arguments per `spec/interaction-events.md`, so everything but
+  // `operation` must match. Comparing the two live diagnostics (rather than restating literals)
+  // means this fails if EITHER primitive drifts.
+  const waitDiagnostic = execute('wait "soon"', doc).diagnostics[0];
+  const everyDiagnostic = execute('every "soon" [ print "x" ]', doc)
+    .diagnostics[0];
+  assert.equal(waitDiagnostic.code, everyDiagnostic.code);
+  assert.equal(waitDiagnostic.params.expected, everyDiagnostic.params.expected);
+  assert.equal(waitDiagnostic.params.actual, everyDiagnostic.params.actual);
+  assert.equal(waitDiagnostic.params.value, everyDiagnostic.params.value);
+  assert.equal(waitDiagnostic.params.operation, "wait");
+  assert.equal(everyDiagnostic.params.operation, "every");
 });
 
 test("wait with no argument raises ol-not-enough-inputs", () => {
@@ -217,14 +270,7 @@ test("yieldToEventLoop is the dispatch seam: it forwards the tick to its dispatc
   assert.equal(clock.tick, 1);
 });
 
-// --- validateTickCount unit coverage (TYPE then RANGE, and the 0/positive happy paths) --------
-
-test("validateTickCount rejects a non-whole number with ol-type", () => {
-  const outcome = validateTickCount(2.5, makeSpan());
-  assert.equal(outcome.ok, false);
-  assert.equal(outcome.diagnostic.code, "ol-type");
-  assert.equal(outcome.diagnostic.params.operation, "wait");
-});
+// --- validateTickCount unit coverage: the RANGE half only (TYPE is the caller's) --------------
 
 test("validateTickCount rejects a negative whole number with ol-range", () => {
   const outcome = validateTickCount(-4, makeSpan());
@@ -236,6 +282,17 @@ test("validateTickCount rejects a negative whole number with ol-range", () => {
 test("validateTickCount accepts 0 and positive whole numbers", () => {
   assert.deepEqual(validateTickCount(0, makeSpan()), { ok: true, value: 0 });
   assert.deepEqual(validateTickCount(7, makeSpan()), { ok: true, value: 7 });
+});
+
+test("validateTickCount owns RANGE only — wholeness is the caller's requireWholeNumber (issue #775)", () => {
+  // Documenting the contract as a test: since #775 the TYPE half runs in `executeWaitCall` through
+  // the shared `requireWholeNumber` (so `wait` and `every` agree on one `ol-type` identity), and
+  // this helper checks only non-negativity. A fractional value therefore never reaches it in the
+  // runtime path; if a future caller skipped the type check, this is what it would see.
+  assert.deepEqual(validateTickCount(2.5, makeSpan()), {
+    ok: true,
+    value: 2.5,
+  });
 });
 
 // --- isWaitCall predicate: matches wait calls only --------------------------------------------

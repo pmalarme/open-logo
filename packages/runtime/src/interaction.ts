@@ -152,29 +152,30 @@ type TickCountOrDiagnostic =
   | { readonly ok: false; readonly diagnostic: Diagnostic };
 
 /**
- * Validate `wait`'s tick count: it MUST be a non-negative whole number
- * (`spec/interaction-events.md`, `wait <n>`). A non-whole count raises `ol-type`
- * ({@link runtimeDiag.notWholeNumber}) and a negative count raises `ol-range`
- * ({@link runtimeDiag.negativeCount}) — TYPE then RANGE, the same ordering `repeat`'s count
- * validation uses (`spec/execution-model.md:367-369`). `wait 0` is valid and returns `0` (it
- * yields with no tick advance and no visible delay). Reuses the shared `repeat`/`every` count
- * diagnostics rather than inventing ad-hoc strings, with `operation: "wait"` so the message names
- * the primitive.
+ * Validate the RANGE half of `wait`'s tick count: it MUST be **non-negative**
+ * (`spec/interaction-events.md`, `wait <n>`: "`n` MUST be a non-negative whole number: a non-whole
+ * count raises `ol-type`, and a negative count raises `ol-range`"). A negative count raises
+ * `ol-range` ({@link runtimeDiag.negativeCount}) with `operation: "wait"` so the message names the
+ * primitive; `wait 0` is valid and returns `0` (it yields with no tick advance and no visible
+ * delay).
+ *
+ * `value` MUST already have passed the TYPE half — `requireWholeNumber(…, "wait")` in
+ * `executeWaitCall`, the same builder `every`'s count, `repeat`'s count, and `random`'s bounds all
+ * use. TYPE before RANGE is the ordering `repeat` established (`spec/execution-model.md:367-369`),
+ * and routing the type half through that one shared builder is what makes `wait` and `every`
+ * report a single diagnostic identity for a single input class (issue #775): before this,
+ * `wait` type-checked with `requireNumber` and reported `params.expected: "number"` for a
+ * non-number word where `every`/`repeat`/`random` all report `"whole number"` — and `params` are
+ * part of a diagnostic's identity (`spec/error-model.md`), so that wording was observable and
+ * conformance-binding, not cosmetic. This function therefore owns only the range rule; it does not
+ * re-check wholeness, so a caller that skipped `requireWholeNumber` would let a fractional count
+ * through (the same documented precondition {@link runWait} and the `errors.ts` range builders
+ * carry).
  */
 export function validateTickCount(
   value: number,
   source_span: SourceSpan,
 ): TickCountOrDiagnostic {
-  if (!Number.isInteger(value)) {
-    return {
-      ok: false,
-      diagnostic: runtimeDiag.notWholeNumber(source_span, {
-        actual: "number",
-        value,
-        operation: "wait",
-      }),
-    };
-  }
   if (value < 0) {
     return {
       ok: false,

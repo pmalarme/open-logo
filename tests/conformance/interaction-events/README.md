@@ -158,14 +158,13 @@ the gaps it found rather than rubber-stamping them:
   as numbers are accepted where a number is expected" a normative **Core** rule: `wait "2"` is legal
   and must pause for 2 ticks. Without the positive half, an implementation that rejected *every*
   word — violating that Core rule — would pass the whole corpus while the negatives looked like
-  proof that words are simply illegal here. The negatives also record an observable wording
-  asymmetry: `every` reports `params.expected: "whole number"` where `wait` reports `"number"` for
-  the identical case. `spec/interaction-events.md` fixes only the `ol-type` **code** for both, so
-  both are recorded as emitted rather than normalized. **Note this is now normatively binding**: the
-  harness compares `params` exactly, so aligning the two later is a conformance-breaking change to
-  both fixtures, not a free refactor. The root cause is runtime-side (`executeEveryStatement` calls
-  `requireWholeNumber` directly, `executeWaitCall` calls `requireNumber` then `validateTickCount`),
-  outside this slice's write-set — **filed as a follow-up** for `@interpreter`.
+  proof that words are simply illegal here. The negatives originally recorded an observable wording
+  asymmetry — `every` reported `params.expected: "whole number"` where `wait` reported `"number"`
+  for the identical case — flagged here as normatively binding because the harness compares
+  `params` exactly. **Issue #775 has since resolved it**: `executeWaitCall` now type-checks through
+  the same shared `requireWholeNumber` as `executeEveryStatement` (and as `repeat` and `random`), so
+  both forms report `expected: "whole number"`, and `wait/wait-non-number-type-error` was updated in
+  that PR as the deliberate, disclosed conformance-breaking change it is.
 - **Profile-scoped reservation of the four block-heads.** `spec/interaction-events.md:43-46` reserves
   `when`/`every`/`on_key`/`on_click` **only within** the profile — a bidirectional MUST that had no
   fixture at all: `redefine-wait-reserved` covers only `wait`, which is a *primitive* name

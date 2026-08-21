@@ -2162,12 +2162,18 @@ const NOT_A_TURTLE_COMMAND = Symbol("not-a-turtle-command");
 /**
  * Validate and run a `wait <n>` statement matched by {@link isWaitCall} (issue #680,
  * `spec/interaction-events.md`, `wait <n>`): exactly one numeric argument
- * (`ol-not-enough-inputs`/`ol-too-many-inputs` on the wrong arity, `ol-type` on a non-number via
- * {@link requireNumber}), which MUST be a non-negative whole number
- * (`ol-type`/`ol-range` otherwise, via {@link validateTickCount}) — then the pause + trailing
- * `primitive` event are produced by {@link runWait}. Returns an {@link ExecSignal} to halt on, or
- * `undefined` for {@link executeStatements} to `continue` on success (including the "left
- * un-evaluated" case for an unsupported argument expression, mirroring the turtle commands).
+ * (`ol-not-enough-inputs`/`ol-too-many-inputs` on the wrong arity), which MUST be a non-negative
+ * **whole** number — `ol-type` via {@link requireWholeNumber} for a non-whole or non-number count,
+ * then `ol-range` via {@link validateTickCount} for a negative one. That is deliberately the exact
+ * type-then-range shape {@link executeEveryStatement} uses (issue #775): both Interaction numeric
+ * arguments are whole-number arguments, so both must reach the *same* `ol-type` identity —
+ * `expected: "whole number"` — for the same input class, the spelling `repeat` and `random` already
+ * emit. Using {@link requireNumber} here instead reported `expected: "number"` for a non-number
+ * word, an observable divergence (`params` are part of diagnostic identity,
+ * `spec/error-model.md`). The pause + trailing `primitive` event are produced by {@link runWait}.
+ * Returns an {@link ExecSignal} to halt on, or `undefined` for {@link executeStatements} to
+ * `continue` on success (including the "left un-evaluated" case for an unsupported argument
+ * expression, mirroring the turtle commands).
  *
  * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
  * {@link dispatchTurtleCommand}: `executeStatements` recurses once per procedure call, so this
@@ -2203,7 +2209,7 @@ function executeWaitCall(
   if (!argResult.ok) {
     return halt(argResult.diagnostic);
   }
-  const ticks = requireNumber(argResult.value, arg.source_span, "wait");
+  const ticks = requireWholeNumber(argResult.value, arg.source_span, "wait");
   if (!ticks.ok) {
     return halt(ticks.diagnostic);
   }
