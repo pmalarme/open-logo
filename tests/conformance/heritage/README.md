@@ -68,15 +68,20 @@ here fixture-by-fixture as each Heritage slice lands:
   reader and the Core `:d["k"]` selector, over the same undefined operand, report byte-identical
   `ol-undefined-var` params naming only the learner's variable. The head word `value` reaches no
   structured param on either side (issue #755).
-- `execution/heritage-value-of-key-{reads,missing-key,bad-key-type}-like-core`,
-  `execution/heritage-value-of-key-{non-dict,word,boolean,list,turtle}-container-like-core`, and
-  `execution/heritage-value-of-key-record-container-rejected` — the reader shares the Core dict
-  read (since #784 it calls the selectors' own `resolveDictSegment`), so it produces the same value
-  and the same diagnostics as the Core selector — diagnostics match by construction, not just
-  results (slice H5, #670; container matrix #784). Note which Core twin each mirrors: a wrong
-  CONTAINER type is the dotted `:d.key` selector's `ol-type` with `operation: "field"`, while a
-  wrong KEY type is the `:d[key]` selector's `ol-type` with `operation: "index"`. Pairing the
-  container cases with `[key]` is precisely what produced #784.
+- `execution/heritage-value-of-key-{reads,missing-key,bad-key-type}-like-core` and
+  `execution/heritage-value-of-key-{non-dict,word,boolean,list,turtle}-container-like-core` — the
+  reader shares the Core dict read (since #784 it calls the selectors' own `resolveDictSegment`),
+  so it produces the same value and the same diagnostics as the Core selector — diagnostics match
+  by construction, not just results (slice H5, #670; container matrix #784). Note which Core twin
+  each mirrors: a wrong CONTAINER type is the dotted `:d.key` selector's `ol-type` with
+  `operation: "field"`, while a wrong KEY type is the `:d[key]` selector's `ol-type` with
+  `operation: "index"`. Pairing the container cases with `[key]` is precisely what produced #784.
+- `execution/heritage-value-of-key-record-container-rejected` — deliberately NOT a `-like-core`
+  fixture, and the one container type with **no** Core twin: the reader's operand is typed
+  `dictExpr` (`spec/data-structures.md:268`) so a record is out of range and raises `ol-type`,
+  while the Core `.field` selector it otherwise mirrors accepts records and reports
+  `ol-unknown-field`. The divergence is spec-mandated, not accidental; the fixture pins it so any
+  future change is a reviewed `spec/` decision (#784).
 - `check/heritage-tooling-program-{checks-clean,without-heritage-profile}` — a whole program mixing
   all four Heritage shapes checks clean under the profile and is rejected head-by-head
   (`ol-unknown-command`) without it (slice H6, #671).
