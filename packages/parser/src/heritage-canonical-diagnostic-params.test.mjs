@@ -644,6 +644,19 @@ test("every twin that declares a worded form reaches it, and every worded form h
         "parse, so it can never reach the form's node kind",
     );
   }
+  // And the clean-parse rule those twins fall foul of is asserted directly rather than merely
+  // relied on: a RECOVERY AST can contain the very node kind sought, so without it a form could be
+  // "witnessed" by a program the language never actually reads as that form.
+  assert.equal(
+    astContains('print value of :d for key "k" ]', "ValueOfKey"),
+    false,
+    "a program that does not parse must not witness a form, however its recovery AST looks",
+  );
+  assert.equal(
+    astContains(':d = { k: 1 }\nprint value of :d for key "k"', "ValueOfKey"),
+    true,
+    "a cleanly-parsing program that uses the form must witness it",
+  );
 });
 
 test("the twin corpus covers every Heritage surface spelling the parser knows", () => {
