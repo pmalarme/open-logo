@@ -1,0 +1,42 @@
+{
+  "description": "issue #768, the BOOLEAN half of what the ruling newly rejects: `spec/interaction-events.md:129`/`:131` — the prompt MUST be a `word`, and anything else raises `ol-type`. Paired with `input-prompt-number-rejected`, this pins BOTH scalars that #681 previously accepted, which is what makes the ruling's narrowing observable rather than a comment: an implementation still carrying #681's scalar reading passes every other fixture in this directory and fails exactly these two. `boolean` is worth its own fixture rather than folding into the number case because it is the kind whose printed form (`true`) reads most like an ordinary prompt word, so it is the likeliest to be waved through by an implementation that classifies by appearance instead of by type. The `instruction` event is emitted first (seq 0) and the check fails before the read, so no `primitive` event is emitted and nothing is printed; the scripted answer stays unconsumed, which is also what distinguishes this from the read's cancelled ending (`input-unanswered-cancels`).",
+  "profiles": ["core-language", "turtle-rendering", "interaction-events"],
+  "execute": true,
+  "executeOptions": {
+    "hostInput": {
+      "responses": ["tom"]
+    }
+  },
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/input/input-prompt-boolean-rejected",
+        "start": [1, 1],
+        "end": [1, 17]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "interaction-events/input/input-prompt-boolean-rejected",
+        "start": [1, 13],
+        "end": [1, 17]
+      },
+      "params": {
+        "operation": "input",
+        "expected": "word",
+        "actual": "boolean"
+      },
+      "message": "input needs a prompt word, but got a boolean.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

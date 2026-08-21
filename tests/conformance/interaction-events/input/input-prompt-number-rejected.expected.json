@@ -1,0 +1,42 @@
+{
+  "description": "issue #768 (the maintainer's ruling on `input`'s prompt type), the NUMBER half of what that ruling newly rejects: `spec/interaction-events.md:129`/`:131` — \"**Args:** one prompt, which MUST be a `word`\" / \"**Errors:** `ol-type` if the prompt is not a `word`\", which the profile's error table (`:350`) classes as \"an argument has the wrong type\". #681 shipped a wider implementation-defined reading (the scalars `word`/`number`/`boolean` were all accepted) while the clause still read \"cannot be displayed as learner text\"; the ruling narrowed it to word-only, because `word` — the reporter whose whole job is building text — already refuses non-words (`word \"Question\" 3` raises `ol-type` with `expected: \"word\"`), so word-ness is the language's existing standard for \"this argument must be text\". `params.expected` is therefore `\"word\"`, the same identity `word` itself and the profile's `when`/`on_key` report, not the one-off `\"text\"` #681 used. The `print` statement's `instruction` event is emitted first (seq 0), then the prompt check fails BEFORE the read — so no `primitive` event is emitted and nothing is printed. An answer IS scripted, which is what makes this the type error rather than the read's other spec-sanctioned ending: with the queue non-empty the run cannot be taking the unanswered-cancels path (`input-unanswered-cancels`). Its discriminating twin is `input-prompt-numeric-word-accepted`, the byte-identical program with the prompt quoted.",
+  "profiles": ["core-language", "turtle-rendering", "interaction-events"],
+  "execute": true,
+  "executeOptions": {
+    "hostInput": {
+      "responses": ["tom"]
+    }
+  },
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/input/input-prompt-number-rejected",
+        "start": [1, 1],
+        "end": [1, 15]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "interaction-events/input/input-prompt-number-rejected",
+        "start": [1, 13],
+        "end": [1, 15]
+      },
+      "params": {
+        "operation": "input",
+        "expected": "word",
+        "actual": "number"
+      },
+      "message": "input needs a prompt word, but got a number.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

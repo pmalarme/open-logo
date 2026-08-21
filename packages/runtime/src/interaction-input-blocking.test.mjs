@@ -120,13 +120,15 @@ test("while a read is OUTSTANDING, no further instruction and no handler block h
   ]);
 });
 
-test("the reader receives the prompt as displayable text — this is how a host shows it", () => {
+test("the reader receives the prompt word verbatim — this is how a host shows it", () => {
   // `spec/interaction-events.md:134`: "`input` displays the prompt and waits for the learner to
-  // enter one value." The runtime's half of "displays" is handing the host the prompt already
-  // rendered to the text a learner sees; the number prompt proves it is rendered, not passed raw.
+  // enter one value." The runtime's half of "displays" is handing the host exactly the text a
+  // learner sees. Since the #768 ruling the prompt is always a `word` (`:129`), so that text IS the
+  // word — passed through unquoted and unrendered. The numeral word `"42"` proves it: it arrives as
+  // the two characters `42`, with no quotes added and no re-rendering on the way out.
   const prompts = [];
   const result = execute(
-    ['print input "what is your name?"', "print input 42"].join("\n"),
+    ['print input "what is your name?"', 'print input "42"'].join("\n"),
     doc,
     {
       hostInput: {

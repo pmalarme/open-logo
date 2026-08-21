@@ -1,0 +1,49 @@
+{
+  "description": "issue #768: the POSITIVE complement of the `input-prompt-*-rejected` fixtures, and the one that makes them discriminating rather than vacuous. The program is byte-identical to `input-prompt-number-rejected` except that the prompt is quoted — `input \"42\"` versus `input 42` — so the two prompts display the same two characters and differ only in TYPE. A word prompt is accepted (`spec/interaction-events.md:129`: \"**Args:** one prompt, which MUST be a `word`\"): the read runs, emits its `primitive` event named `input` after the answer is in hand, and reports the scripted answer, which `print` then prints. Without this half an implementation that rejected EVERY prompt would pass all three rejection fixtures while violating the rule's whole point; and an implementation that checked the prompt's PRINTED FORM instead of its type would accept both members of this pair and pass all four. Only the pair pins the boundary the #768 ruling drew. This is also why `params.expected` is `\"word\"` and not `\"text\"`: the constraint is a type, and OpenLogo already spells that type as `word` (`word \"Question\" 3` raises `ol-type` with `expected: \"word\"`).",
+  "profiles": ["core-language", "turtle-rendering", "interaction-events"],
+  "execute": true,
+  "executeOptions": {
+    "hostInput": {
+      "responses": ["tom"]
+    }
+  },
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/input/input-prompt-numeric-word-accepted",
+        "start": [1, 1],
+        "end": [1, 17]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/input/input-prompt-numeric-word-accepted",
+        "start": [1, 7],
+        "end": [1, 17]
+      },
+      "payload": {
+        "name": "input"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/input/input-prompt-numeric-word-accepted",
+        "start": [1, 1],
+        "end": [1, 17]
+      },
+      "payload": {
+        "values": ["tom"]
+      }
+    }
+  ],
+  "diagnostics": []
+}
