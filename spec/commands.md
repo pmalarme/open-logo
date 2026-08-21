@@ -119,7 +119,7 @@ define grow :n
 end
 ```
 
-- **Possible errors:** `ol-reserved-word` when a name is a reserved word. Used outside any procedure, `local` introduces the name in the top-level program frame rather than raising an error.
+- **Possible errors:** none from the name itself. `local` binds a name rather than declaring a callable, so any name is legal, including a keyword or a primitive. Used outside any procedure, `local` introduces the name in the top-level program frame rather than raising an error.
 
 ### `thing`
 
@@ -458,7 +458,7 @@ print pi
 
 Booleans are strict. The only boolean literals are `true` and `false`. Conditions and logical operands must already be boolean values. OpenLogo has no truthiness.
 
-Comparisons may be **chained**: `1 < :x < 10` means `1 < :x and :x < 10`, with each operand evaluated once. Alongside the prefix `?`-predicates below, OpenLogo offers equivalent **worded predicates** that read as English and also return booleans, written **operand-first** with the value before `is`: `<value> is empty` (see `empty?`), `<value> is member of <collection>` (see `member?`), `<value> is a <type-word>` (see `is_a?`), and `<value> is [ strictly ] between <low> and <high>` (inclusive, or exclusive with `strictly`). Only `is`, `strictly`, and `between` are reserved; `empty`, `member`, `of`, and `a` are contextual keywords after `is`. There is no infix `in` membership operator — use the worded form or `member?`.
+Comparisons may be **chained**: `1 < :x < 10` means `1 < :x and :x < 10`, with each operand evaluated once. Alongside the prefix `?`-predicates below, OpenLogo offers equivalent **worded predicates** that read as English and also return booleans, written **operand-first** with the value before `is`: `<value> is empty` (see `empty?`), `<value> is member of <collection>` (see `member?`), `<value> is a <type-word>` (see `is_a?`), and `<value> is [ strictly ] between <low> and <high>` (inclusive, or exclusive with `strictly`). Only `is`, `strictly`, and `between` are keywords; `empty`, `member`, `of`, and `a` are contextual keywords after `is`. There is no infix `in` membership operator — use the worded form or `member?`.
 
 ### `==`
 
@@ -927,7 +927,7 @@ end
 print double 5
 ```
 
-- **Possible errors:** `ol-reserved-word` when the procedure name collides with a reserved word or existing name. Wrong argument counts are reported at the call site as `ol-not-enough-inputs` or `ol-too-many-inputs`, not by `define` itself.
+- **Possible errors:** `ol-reserved-word` when the procedure name is a built-in name, and `ol-duplicate-definition` when the program already declares that name. Wrong argument counts are reported at the call site as `ol-not-enough-inputs` or `ol-too-many-inputs`, not by `define` itself.
 
 ### `return`
 

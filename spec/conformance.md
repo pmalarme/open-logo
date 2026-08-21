@@ -246,7 +246,7 @@ purposes.
 
 | Feature | Owning profile | Required for minimal conformance? | Notes |
 |---|---|---:|---|
-| Lexing, parsing, reserved words, block delimiters, precedence | Core Language | Yes | Defined by [grammar.md](grammar.md). |
+| Lexing, parsing, keywords, block delimiters, precedence | Core Language | Yes | Defined by [grammar.md](grammar.md). |
 | Reader/evaluator, fixed default arity, variadic parentheses, block-result rule | Core Language | Yes | Defined by [execution-model.md](execution-model.md). |
 | Values `number`, `word`, `list`, `boolean` | Core Language | Yes | No arrays, no null, no procedure values. |
 | Variables with `:name`, `<place> = <value>`, and `set … to` | Core Language | Yes | `make` spelling is Heritage. |
@@ -339,6 +339,17 @@ Core programs.
 updates MAY clarify text without changing required behavior. Minor or major versions MAY add,
 remove, or change profile requirements; implementations MUST NOT claim conformance to a different
 version without checking that version's conformance document.
+
+The **built-in names** — the keywords and primitives a program may not declare, defined by
+[grammar.md](grammar.md#keywords-primitives-and-built-in-names) — are part of that versioned
+contract. Each version of this specification determines them exactly: they are the keyword list in
+[grammar.md](grammar.md#keywords-primitives-and-built-in-names) plus every primitive and alias
+spelling assigned by the [C3 primitive matrix](commands.md) and the profile documents. An
+implementation claiming conformance to a version MUST reject a declaration of exactly that version's
+built-in names — no more and no fewer — **independently of which profiles it claims**, because a
+program cannot declare the profiles it requires and a name that is takeable in one implementation
+but not in another would be unpredictable. Adding or removing a built-in name is therefore a
+specification change, and one that MAY break conforming programs.
 
 Portable programs SHOULD declare the profiles they require in documentation or host metadata. A
 program that uses an optional profile is not portable to implementations that do not claim that

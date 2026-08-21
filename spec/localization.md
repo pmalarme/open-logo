@@ -24,10 +24,10 @@ The form registers `new_name` as a single-token synonym for `existing_name`, whe
 
 - a primitive name such as `forward`
 - a procedure name registered during the pre-pass and definition phase
-- a reserved keyword such as `define`, `repeat`, `for`, or `end`
+- a keyword such as `define`, `repeat`, `for`, or `end`
 - an already registered alias
 
-`new_name`, the new spelling, MUST be a valid identifier under the lexical rules in [grammar](grammar.md) and MUST be fresh in the active program namespace after imports and built-ins are considered. Reusing an existing primitive, procedure, type constructor, reserved keyword, or previously registered alias as `new_name` raises `ol-reserved-word`. The `existing_name` operand is unrestricted: it is the name the alias points to and may itself be a reserved keyword, which is exactly how localized packs rename keywords.
+`new_name`, the new spelling, MUST be a valid identifier under the lexical rules in [grammar](grammar.md) and MUST be fresh in the active program namespace after imports and built-ins are considered. A built-in name — a keyword, a primitive, or an alias spelling of one — raises `ol-reserved-word` there, and a name the program already declares, including a previously registered alias, raises `ol-duplicate-definition`. The `existing_name` operand is unrestricted: it is the name the alias points to and may itself be a keyword, which is exactly how localized packs rename keywords.
 
 ```logo
 alias avance forward
@@ -46,10 +46,10 @@ The C2 pre-pass resolves `import` and `alias` before normal reading and evaluati
 1. load imported modules
 2. collect exported aliases from those modules
 3. collect aliases declared in the current source
-4. reject collisions with `ol-reserved-word`
+4. reject a built-in `new_name` with `ol-reserved-word` and an already-declared one with `ol-duplicate-definition`
 5. normalize aliased tokens to their canonical spelling for parsing and tooling
 
-Because aliases are resolved before parsing structural forms, an alias for a reserved keyword can appear anywhere the canonical keyword could appear.
+Because aliases are resolved before parsing structural forms, an alias for a keyword can appear anywhere the canonical keyword could appear.
 
 ```logo
 alias repete repeat
@@ -95,27 +95,29 @@ avance 100
 
 The alias substitutes exactly one token. It cannot define a new multi-token grammar pattern. For example, a pack may alias `definir` to `define`, but it cannot use `alias` alone to invent a new phrase with a different word order.
 
-## Reserved words and collisions
+## Built-in names and collisions
 
-The normative reserved-word list is owned by [grammar](grammar.md). Reserved words include structural keywords such as `define`, `to`, `end`, `return`, `set`, `make`, `if`, `else`, `repeat`, `for`, `in`, `from`, `to`, `key`, `value`, `map`, `filter`, `reduce`, `struct`, `alias`, `import`, and `export`.
+The normative keyword list is owned by [grammar](grammar.md#keywords-primitives-and-built-in-names), which also defines **built-in names** as the keywords plus every primitive and alias spelling. Keywords include structural words such as `define`, `to`, `end`, `return`, `set`, `make`, `if`, `else`, `repeat`, `for`, `in`, `from`, `to`, `key`, `value`, `map`, `filter`, `reduce`, `struct`, `alias`, `import`, and `export`.
 
-Reserved words may be aliased:
+Keywords may be aliased:
 
 ```logo
 alias definir define
 alias fin end
 ```
 
-Reserved words may not be redefined as procedures, variables, or type constructors, nor reused as a new alias spelling (`new_name`). Any attempt to introduce a `new_name` already occupied by a reserved word, primitive, procedure, type constructor, or alias raises `ol-reserved-word`. A reserved word may still serve as the `existing_name` an alias points to.
+A built-in name may not be declared as a procedure or type constructor, nor introduced as a new alias spelling (`new_name`); such an attempt raises `ol-reserved-word`. A `new_name` that the program already declares — as a procedure, a type constructor, or an earlier alias — raises `ol-duplicate-definition` instead. Binding is unaffected: a built-in name may always be used as a variable, a parameter, a field name, or a dictionary key. A keyword may still serve as the `existing_name` an alias points to.
 
 ```logo
-alias repeat forward    # error: repeat already exists
+alias repeat forward    # error: repeat is a built-in name
 define alias
   forward 10
-end                     # error: alias is reserved
+end                     # error: alias is a built-in name
+
+:repeat = 4             # fine: binding a value to a name is always legal
 ```
 
-Dictionary keys and record field names follow their own rules. Dict keys are data, so reserved words may appear as keys. Record fields live in a per-type namespace reached through `:record.field`; they do not create global aliases.
+Dictionary keys and record field names follow their own rules. Dict keys are data, so built-in names may appear as keys. Record fields live in a per-type namespace reached through `:record.field`; they do not create global aliases.
 
 ## Authoring a localized keyword pack
 
