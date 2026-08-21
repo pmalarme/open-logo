@@ -102,7 +102,10 @@
 // learner named their variable `fd`. Today's corpus cannot hit that: no learner-chosen name, key, or
 // value it puts in front of the runtime collides with a Heritage spelling. If you add a program
 // whose identifiers do collide, rename the identifier rather than widening SURFACE_SUBJECT_PARAMS —
-// that allow-list is for fields that are surface BY CONTRACT, not for corpus accidents.
+// that allow-list is for fields that are surface BY CONTRACT, not for corpus accidents. Watch
+// `value` in particular: since #755 it is a registered spelling like any other, but unlike
+// `fd`/`bk`/`op`/… it is ordinary English, so a twin written as `value of :d for key "value"` would
+// trip `ol-unknown-key`'s `key` — which this file does NOT exempt. Rename the key instead.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";

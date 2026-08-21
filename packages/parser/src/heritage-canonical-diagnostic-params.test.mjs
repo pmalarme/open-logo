@@ -66,6 +66,12 @@
 // `:missing_input`). If you add a program whose identifiers collide with an alias spelling, rename
 // the identifier rather than widening SURFACE_SUBJECT_PARAMS — that allow-list is for fields that
 // are surface BY CONTRACT, not for corpus accidents.
+//
+// Watch `value` in particular. Since #755 it is a registered spelling like any other, but unlike
+// `fd`/`bk`/`op`/… it is ordinary English, so it is far likelier to turn up as a learner's own
+// identifier, dict key, or word literal. Nothing in today's corpus collides — but a twin written as
+// `value of :d for key "value"` would trip `ol-unknown-key`'s `key`, which is deliberately NOT
+// exempt. Rename the key; do not widen the allow-list to accommodate it.
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";

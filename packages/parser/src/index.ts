@@ -114,6 +114,10 @@ export {
 } from "./signatures.js";
 export type {
   HeritageFormHead,
+  // Exported to name the shapes the worded-form API already hands out: `HeritageWordedForm` is
+  // `heritageWordedForms()`'s element type in the emitted `.d.ts`, and `HeritageWordedFormName` is
+  // the constraint on `heritageWordedForm<Name extends …>`. Neither has an in-repo consumer today —
+  // a caller that must annotate either would otherwise have to restate a structural literal.
   HeritageWordedForm,
   HeritageWordedFormName,
 } from "./signatures.js";
