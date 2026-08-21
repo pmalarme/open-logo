@@ -13,9 +13,22 @@
 // #733), and `keyword` (#737) — each time caught only by review, and once against two domain PASS
 // verdicts. Every fix was correct and every fix was local, so the class stayed open. This test is
 // the structural guard that closes it: it is driven by the parser's own Heritage registries
-// (`heritageSurfaceSpellings()` = `heritageAliasNames()` + `heritageFormHeadNames()`), so a slice
-// that adds a fourteenth alias or a fifth form head CANNOT land without either extending the twin
-// corpus below or failing this test. A comment would not have caught instances two and three.
+// (`heritageSurfaceSpellings()` = `heritageAliasNames()` + `heritageFormHeadNames()` +
+// `heritageWordedFormHeads()`), so a slice that adds a fourteenth alias, a fifth form head, or a
+// second worded form CANNOT land without either extending the twin corpus below or failing this
+// test. A comment would not have caught instances two and three.
+//
+// Those registries cover every spelling `spec/conformance.md:146-157`'s Heritage inventory writes
+// in code formatting, and saying so is itself a guarded claim (issue #755): until that issue,
+// `heritageSurfaceSpellings()` was the two SINGLE-WORD tables only and its doc comment nevertheless
+// called itself "the enumerable definition of a Heritage surface spelling" — so a reader trusting
+// it would have believed the worded dictionary reader `value of … for key` was covered here when
+// nothing named it at all. There was no leak to fix; the defect was the false claim, which is why
+// the registry grew a third table rather than the guard growing a hand-written exception. The test
+// "the registries enumerate every code-formatted Heritage spelling the spec lists" below now holds
+// the registries against that spec inventory directly, so the claim cannot go stale a second time —
+// with the one residual gap that test documents in its own comment (a spelling the spec writes in
+// bare prose).
 //
 // Two independent properties are asserted, both over BOTH stages — the corpus includes programs
 // that fail to parse, because `check()` never runs on those and a parse-stage param would
@@ -53,8 +66,15 @@
 // `:missing_input`). If you add a program whose identifiers collide with an alias spelling, rename
 // the identifier rather than widening SURFACE_SUBJECT_PARAMS — that allow-list is for fields that
 // are surface BY CONTRACT, not for corpus accidents.
+//
+// Watch `value` in particular. Since #755 it is a registered spelling like any other, but unlike
+// `fd`/`bk`/`op`/… it is ordinary English, so it is far likelier to turn up as a learner's own
+// identifier, dict key, or word literal. Nothing in today's corpus collides — but a twin written as
+// `value of :d for key "value"` would trip `ol-unknown-key`'s `key`, which is deliberately NOT
+// exempt. Rename the key; do not widen the allow-list to accommodate it.
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import * as OL from "@openlogo/parser";
 import {
@@ -63,6 +83,9 @@ import {
   heritageAliasNames,
   heritageFormHeadNames,
   heritageSurfaceSpellings,
+  heritageWordedFormHeads,
+  heritageWordedFormNames,
+  heritageWordedForms,
 } from "@openlogo/parser";
 
 const doc = "heritage-canonical-diagnostic-params.logo";
@@ -91,6 +114,33 @@ function stagedDiagnosticsFor(source, profiles = PROFILES) {
   return parseDiagnostics.length > 0
     ? parseDiagnostics
     : OL.check(ast, { profiles, source, style: true }).diagnostics;
+}
+
+/**
+ * Does `source` parse CLEANLY to an AST containing a node of `kind`? Used to check that a twin's
+ * program really reaches the AST shape a Heritage form lowers onto, rather than merely mentioning
+ * the form's head word somewhere in the program. It does not identify the PRODUCTION: the AST
+ * records node kinds only, so this distinguishes registered forms only as long as no two share a
+ * kind — the invariant the witness test asserts before relying on it.
+ *
+ * The clean-parse requirement is load-bearing, not incidental: the reader builds a RECOVERY AST for
+ * a program that fails to parse, and that recovery AST can contain the very node kind being looked
+ * for — `print value of :d for key "k" ]` reports `ol-unmatched-bracket` and still yields a
+ * `ValueOfKey`. Without this check a form could be "covered" solely by a twin that never parses,
+ * which says nothing about the form as the language actually reads it.
+ */
+function astContains(source, kind) {
+  const { ast, diagnostics } = OL.parse(source, doc);
+  if (diagnostics.length > 0) {
+    return false;
+  }
+  let found = false;
+  OL.walk(ast, (node) => {
+    if (node.kind === kind) {
+      found = true;
+    }
+  });
+  return found;
 }
 
 /**
@@ -226,6 +276,45 @@ const TWINS = [
       note: `short alias ${alias} → ${canonicalOfHeritageAlias(alias)}`,
     };
   }),
+  // --- worded forms -------------------------------------------------------------------------
+  // The multi-word Heritage spellings (issue #755). `value of … for key` is the only one today,
+  // and it is the reason the registry grew a third table: it is a FORM, not a callable name, so
+  // neither single-word table could hold it and the guard was blind to it.
+  //
+  // These declare `coversForm` — the grammar PRODUCTION name — as well as `covers`, and the two
+  // answer different questions. `covers` feeds the surface-spelling coverage assertion, which is
+  // about the WORD that can leak into a param. `coversForm` feeds the witness assertion, which is
+  // about the FORM: two productions could legitimately share a head word, and then head-based
+  // coverage would let one form's twin stand in for the other's, which is exactly the
+  // looks-like-coverage-but-is-not defect this issue closes.
+  //
+  // Its Core twin is the `[]`/`.` selector syntax (`spec/data-structures.md:265-268`) rather than
+  // a Core word, so these pairs differ by a whole expression shape and not just a spelling — which
+  // is exactly what makes them worth asserting: the two forms must still report the SAME condition
+  // identically.
+  //
+  // The programs are chosen for a reason the vacuity test below would otherwise expose. With
+  // Heritage ACTIVE the reader raises nothing of its own at either stage this package can reach —
+  // every failure it can produce (`ol-unknown-key`, `ol-type`) is runtime-stage, and is twinned in
+  // `@openlogo/runtime`'s counterpart guard. So the pairs here put the reader inside a program that
+  // reports for an INDEPENDENT reason and assert that the surface spelling perturbs nothing: an
+  // undefined operand, and a `return` escape inside a comprehension, which is the one pair that
+  // reaches a canonical-carrying param (`keyword`) with the reader in the program.
+  {
+    covers: ["value"],
+    coversForm: "value-of-reader",
+    heritage: 'print value of :missing_input for key "tom"',
+    core: 'print :missing_input["tom"]',
+    note: "worded reader over an undefined dict — ol-undefined-var",
+  },
+  {
+    covers: ["value"],
+    coversForm: "value-of-reader",
+    heritage:
+      ':ages = { tom: 11 }\n:nums = [ 1 ]\nprint map n in :nums [ output value of :ages for key "tom" ]',
+    core: ':ages = { tom: 11 }\n:nums = [ 1 ]\nprint map n in :nums [ return :ages["tom"] ]',
+    note: "worded reader inside a comprehension escape — ol-return-in-comprehension { keyword }",
+  },
 ];
 
 /**
@@ -260,6 +349,12 @@ const PARSE_TWINS = [
     core: "repeat set [ ]",
     note: "ol-bad-token — parse stage, assignment head in an expression position",
   },
+  {
+    covers: ["value"],
+    heritage: "print value of",
+    core: "print :ages[",
+    note: "ol-bad-token — parse stage, worded reader truncated mid-form",
+  },
 ];
 
 /** Every Heritage-only spelling as a whole-word, case-insensitive matcher. */
@@ -267,6 +362,322 @@ const SURFACE_PATTERNS = heritageSurfaceSpellings().map((spelling) => ({
   spelling,
   pattern: new RegExp(`\\b${spelling}\\b`, "i"),
 }));
+
+test("the registries enumerate every code-formatted Heritage spelling the spec lists", () => {
+  // The claim `heritageSurfaceSpellings()` makes about itself, held against the spec rather than
+  // against a hand-kept copy of it — which is the whole of issue #755. Before it, the registry was
+  // the two single-word tables and its doc comment nevertheless called itself "the enumerable
+  // definition of a Heritage surface spelling"; the worded reader `value of … for key` was in the
+  // spec's inventory and in no registry, so a reader trusting that comment believed this guard
+  // covered a form nothing named. Restating the inventory here would reproduce the same failure one
+  // level up, so the inventory is read from `spec/conformance.md`'s Heritage bullet list itself.
+  //
+  // The bullets are the normative inventory (`spec/conformance.md:146-153`, "It includes:"). Every
+  // code span in them is either a Heritage surface spelling, the phrase of a worded form, or a CORE
+  // canonical the list names as the thing a Heritage spelling stands for (`return`, for
+  // `output`/`op`) — and the registries know all three, so the check closes in both directions with
+  // no exception list to go stale.
+  //
+  // If the spec's Heritage section is reworded this test fails. That is the intent: a change to the
+  // normative Heritage inventory is exactly when these registries must be re-checked by a human.
+  //
+  // **What this does and does not guarantee.** It reads SPELLINGS the inventory writes in code
+  // formatting, which is that section's own convention throughout. A bullet that named a spelling
+  // in bare prose would be invisible to it, so it additionally asserts that every bullet carries at
+  // least one code span — which catches a new bullet added in prose, the realistic drift — but a
+  // second, unformatted spelling smuggled into an EXISTING bullet would still slip past. That
+  // residual gap is why the claim above is "every spelling the inventory writes in code formatting"
+  // and not "every spelling", and it is not closable without parsing English.
+  //
+  // Line endings normalised: the repo is checked out with CRLF on Windows, and the section/bullet
+  // shapes below are the point of the test, not the platform's newline.
+  const conformance = readFileSync(
+    new URL("../../../spec/conformance.md", import.meta.url),
+    "utf8",
+  ).replace(/\r\n/g, "\n");
+  const section = /\n### Heritage\n([\s\S]*?)\n### /.exec(conformance);
+  assert.ok(
+    section,
+    "spec/conformance.md must still have a `### Heritage` section — if it moved, repoint this test",
+  );
+  const inventory = /It includes:\n\n([\s\S]*?)\n\n/.exec(section[1]);
+  assert.ok(
+    inventory,
+    "the Heritage section must still introduce its inventory with `It includes:` followed by a " +
+      "bullet list — if the spec reworded it, re-check the registries against the new wording",
+  );
+  const bullets = inventory[1]
+    .split("\n- ")
+    .map((bullet) => bullet.replace(/^- /, "").trim());
+  assert.ok(
+    bullets.length > 3,
+    `only ${bullets.length} bullets found in the Heritage inventory — the list did not parse as ` +
+      "expected",
+  );
+  for (const bullet of bullets) {
+    // A bullet with no code span names its spellings in prose, where nothing below can see them.
+    assert.match(
+      bullet,
+      /`[^`]+`/,
+      "spec/conformance.md's Heritage inventory has a bullet with no code-formatted spelling — " +
+        `"${bullet}". This test reads spellings from code spans, so an unformatted one would be ` +
+        "invisible to it: either format the spelling, or register it by hand (issue #755).",
+    );
+  }
+  // Extracted from the whole inventory block, NOT per physical line: a bullet the spec later
+  // reflows across lines keeps its spellings on continuation lines, and reading only lines that
+  // start with `- ` would silently drop them — a completeness check with a hole in it, which is the
+  // very defect this test exists to prevent. Splitting into LOGICAL bullets above keeps the
+  // per-bullet formatting check correct across a reflow for the same reason.
+  const listed = [...inventory[1].matchAll(/`([^`]+)`/g)].map(
+    (match) => match[1],
+  );
+  assert.ok(
+    listed.length > 10,
+    `only ${listed.length} code spans found in the Heritage inventory — the bullet list did not ` +
+      "parse as expected",
+  );
+
+  const spellings = new Set(heritageSurfaceSpellings());
+  const phrases = new Set(heritageWordedForms().map((form) => form.phrase));
+  // The Core spellings the inventory names as what a Heritage form stands for. Derived from the
+  // form-head registry, not written out, so it cannot drift either.
+  const canonicals = new Set(
+    heritageFormHeadNames().map((head) => OL.canonicalOfHeritageFormHead(head)),
+  );
+  for (const entry of listed) {
+    assert.ok(
+      spellings.has(entry) || phrases.has(entry) || canonicals.has(entry),
+      `spec/conformance.md's Heritage inventory lists \`${entry}\`, which no parser registry ` +
+        "knows. Add it to heritageAliasNames(), heritageFormHeadNames(), or " +
+        "heritageWordedForms() so the canonical-diagnostic-params guards cover it (issue #755).",
+    );
+  }
+  // And the other direction: nothing in the registries is absent from the spec's inventory.
+  for (const spelling of heritageSurfaceSpellings()) {
+    assert.ok(
+      listed.includes(spelling) || heritageWordedFormHeads().includes(spelling),
+      `the parser registers \`${spelling}\` as a Heritage surface spelling, but ` +
+        "spec/conformance.md's Heritage inventory does not list it",
+    );
+  }
+  // The worded forms are carried into the surface spellings by their HEAD, and the head is what a
+  // diagnostic can ever contain — so assert the bridge explicitly rather than inferring it.
+  for (const form of heritageWordedForms()) {
+    assert.ok(
+      listed.includes(form.phrase),
+      `the parser registers the worded form \`${form.phrase}\`, but spec/conformance.md's ` +
+        "Heritage inventory does not list that phrase verbatim",
+    );
+    assert.ok(
+      form.phrase.split(/\s+/).includes(form.head),
+      `worded form \`${form.phrase}\` must contain its own head word \`${form.head}\``,
+    );
+    assert.ok(
+      spellings.has(form.head),
+      `worded form \`${form.phrase}\`'s head \`${form.head}\` must reach ` +
+        "heritageSurfaceSpellings(), or the guards below never match it",
+    );
+  }
+});
+
+test("the checker's worded-reader head and node agree with the registry", () => {
+  // `checker-heritage-form.ts` spans and reports the reader's head, and matches its AST node kind,
+  // from `heritageWordedForm("value-of-reader")` rather than restating either literal — a second
+  // private copy beside the registry is how a spelling drifts out from under a guard that looks
+  // like it covers it, which is the failure mode issue #755 is about.
+  //
+  // What this asserts is AGREEMENT, observed through the checker's own output, and nothing more: it
+  // fails the moment the checker reports a head or spans a node the registry does not name. It
+  // cannot prove the checker READS the registry — re-inlining the matching literal `"value"` would
+  // still pass — so the test name claims agreement, not provenance. What holds the provenance is
+  // the lookup in the source; what this adds is that the two cannot silently drift apart.
+  const form = OL.heritageWordedForm("value-of-reader");
+  assert.equal(form.phrase, "value of … for key");
+  assert.equal(form.node, "ValueOfKey");
+  assert.deepEqual([...heritageWordedFormHeads()], [form.head]);
+
+  const source = ':ages = { tom: 11 }\nprint value of :ages for key "tom"';
+  const rejected = stagedDiagnosticsFor(source, ["core-language", "data"]);
+  assert.equal(rejected.length, 1);
+  assert.equal(rejected[0].code, "ol-unknown-command");
+  assert.deepEqual(rejected[0].params, { name: form.head });
+  // `params.name` and `source_span` must quote the SAME text — so slice the span out of the source
+  // and compare, rather than only checking its length. A length check alone passes even when the
+  // rule spans a completely different node, which is exactly how a head/node mismatch would hide.
+  const [startLine, startColumn] = rejected[0].source_span.start;
+  const [endLine, endColumn] = rejected[0].source_span.end;
+  assert.equal(startLine, endLine);
+  const line = source.split("\n")[startLine - 1];
+  assert.equal(line.slice(startColumn - 1, endColumn - 1), form.head);
+});
+
+test("the worded-form registry's entries are frozen, so no consumer can poison what the guards match on", () => {
+  // `heritageWordedForm` hands out the entry object itself rather than a copy, and both guards plus
+  // `checker-heritage-form.ts` read the same object. An unfrozen entry would let one consumer
+  // rewrite the head every other consumer reads — the checker would report a poisoned name while
+  // `heritageSurfaceSpellings()` still matched on the real one, which is the single-source-of-truth
+  // guarantee this table exists to provide (issue #755). `as const` is a TYPE-level assertion and
+  // stops nothing at runtime, so this asserts the runtime freeze, on both fields the checker reads.
+  //
+  // Scope, stated precisely: this covers the ENTRIES, which are the only part of the registry a
+  // consumer can reach. `signatures.ts` also freezes the table itself, but that table is module-
+  // private — no external caller can add, replace, or drop a production, so no test here can
+  // exercise it. That freeze guards against an accident inside `signatures.ts`, and nothing below
+  // proves it.
+  for (const form of heritageWordedForms()) {
+    assert.ok(
+      Object.isFrozen(form),
+      `worded form \`${form.phrase}\`'s entry must be frozen`,
+    );
+    assert.throws(
+      () => {
+        "use strict";
+        form.head = "poisoned";
+      },
+      TypeError,
+      `writing \`${form.phrase}\`'s head must throw, not silently poison the registry`,
+    );
+    assert.throws(
+      () => {
+        "use strict";
+        form.node = "DictLit";
+      },
+      TypeError,
+      `writing \`${form.phrase}\`'s node kind must throw — the witness assertions match on it`,
+    );
+    assert.ok(
+      heritageSurfaceSpellings().includes(form.head),
+      `the head \`${form.head}\` the checker reports must still be the one the surface matcher ` +
+        "enumerates",
+    );
+  }
+  // And the values a consumer reads back are unchanged after those attempted writes.
+  const form = OL.heritageWordedForm("value-of-reader");
+  assert.equal(form.head, "value");
+  assert.equal(form.node, "ValueOfKey");
+});
+
+test("every twin that declares a worded form reaches it, and every worded form has one (parse/semantic)", () => {
+  // Coverage for a multi-word form cannot be keyed on its head word alone. `covers: ["value"]` is
+  // satisfied by any program containing the word, so a twin that lost its `value of … for key`
+  // expression would keep the coverage assertion green while testing nothing — and two productions
+  // that legitimately shared a head would let one form's twin stand in for the other's. That is
+  // exactly the "a guard that looks like coverage but is not" defect issue #755 exists to close.
+  //
+  // **Exactly what this checks, and what it does not.** Two rules, one universal and one
+  // existential, so neither direction has a hole. UNIVERSAL: every twin that declares `coversForm`
+  // must parse CLEANLY to that form's registered node kind — so a single twin quietly losing the
+  // form is caught here, not left to assertions that would still pass. EXISTENTIAL: every
+  // registered form must have at least one such twin, so a form cannot be dropped from the corpus.
+  //
+  // `coversForm` is author-supplied metadata, and what it is checked against is a node KIND. That
+  // does not establish which PRODUCTION built the node: the AST records kinds only (`ValueOfKeyNode`
+  // carries `kind`, its operands and a `source_span`, and no production identifier), so two
+  // productions lowering to the same kind would be indistinguishable here. That is a property of
+  // the AST, not something this test can fix. What keeps the node kind a usable discriminator TODAY
+  // is the registry invariant asserted first below — no two worded forms share a node kind — which
+  // fails loudly the moment a future slice makes it ambiguous, rather than letting this quietly
+  // decay into self-attestation.
+  //
+  // PARSE_TWINS deliberately do NOT declare `coversForm`: they exist to reach parse-stage params
+  // and so must fail to parse, which means they can never satisfy the universal rule. They still
+  // carry `covers`, because the head word is exactly what a parse-stage param could leak.
+  //
+  // Those registry invariants come FIRST, because both rules rest on them: asserting them after
+  // would let a witness failure mask the reason the node kind had stopped being usable.
+  const heads = heritageWordedForms().map((form) => form.head);
+  assert.equal(
+    new Set(heads).size,
+    heads.length,
+    `two Heritage worded forms share a head word (${JSON.stringify(heads)}). Give each form a ` +
+      "distinct head, or teach the surface matcher about the ambiguity.",
+  );
+  const nodes = heritageWordedForms().map((form) => form.node);
+  assert.equal(
+    new Set(nodes).size,
+    nodes.length,
+    `two Heritage worded forms lower to the same AST node kind (${JSON.stringify(nodes)}). The ` +
+      "witness assertion below uses the node kind to tell registered forms apart, so it would " +
+      "credit one form's twin to the other: give each form its own node kind, or give the witness " +
+      "a discriminator the AST can actually express (issue #755).",
+  );
+  const names = new Set(heritageWordedFormNames());
+  // UNIVERSAL: no declaring twin may drift off its form.
+  for (const twin of TWINS) {
+    if (twin.coversForm === undefined) {
+      continue;
+    }
+    assert.ok(
+      names.has(twin.coversForm),
+      `${twin.note}: declares coversForm "${twin.coversForm}", which is not a registered Heritage ` +
+        "worded form any more",
+    );
+    const form = OL.heritageWordedForm(twin.coversForm);
+    assert.ok(
+      astContains(twin.heritage, form.node),
+      `${twin.note}: declares coversForm "${twin.coversForm}" but its Heritage program does not ` +
+        `parse cleanly to a ${form.node} node — it no longer reaches the form it claims ` +
+        "(issue #755).",
+    );
+    assert.ok(
+      twin.covers.includes(form.head),
+      `${twin.note}: declares coversForm "${twin.coversForm}" but does not list that form's head ` +
+        "in `covers`, so the surface-spelling assertions would skip it",
+    );
+  }
+  // EXISTENTIAL: no registered form may be left without one.
+  for (const name of heritageWordedFormNames()) {
+    const form = OL.heritageWordedForm(name);
+    const witnesses = TWINS.filter(
+      (twin) =>
+        twin.coversForm === name && astContains(twin.heritage, form.node),
+    );
+    assert.ok(
+      witnesses.length > 0,
+      `the worded form "${name}" (\`${form.phrase}\`) has no twin that declares ` +
+        `coversForm: "${name}" AND parses cleanly to a ${form.node} node, so it is unwitnessed by ` +
+        `this check. A twin that merely mentions "${form.head}", or that declares a different ` +
+        "form, does not witness this one (issue #755).",
+    );
+  }
+  // PARSE_TWINS may not smuggle in a `coversForm` they cannot honour — and must really be what they
+  // claim to be. A pair that quietly became a cleanly-parsing program would still pass every other
+  // assertion in this file while silently withdrawing the parse-stage reach the corpus exists to
+  // give, so both sides are checked to report at the parse stage.
+  for (const twin of PARSE_TWINS) {
+    assert.equal(
+      twin.coversForm,
+      undefined,
+      `${twin.note}: a parse-stage twin must not declare coversForm — it deliberately fails to ` +
+        "parse, so it can never reach the form's node kind",
+    );
+    for (const [side, source] of [
+      ["heritage", twin.heritage],
+      ["core", twin.core],
+    ]) {
+      assert.ok(
+        OL.parse(source, doc).diagnostics.length > 0,
+        `${twin.note}: the ${side} side parses cleanly, so this pair no longer reaches the PARSE ` +
+          "stage it exists for — its findings would come from check() like any TWINS entry. Give " +
+          "it a program that fails to parse, or move it to TWINS.",
+      );
+    }
+  }
+  // And the clean-parse rule those twins fall foul of is asserted directly rather than merely
+  // relied on: a RECOVERY AST can contain the very node kind sought, so without it a form could be
+  // "witnessed" by a program the language never actually reads as that form.
+  assert.equal(
+    astContains('print value of :d for key "k" ]', "ValueOfKey"),
+    false,
+    "a program that does not parse must not witness a form, however its recovery AST looks",
+  );
+  assert.equal(
+    astContains(':d = { k: 1 }\nprint value of :d for key "k"', "ValueOfKey"),
+    true,
+    "a cleanly-parsing program that uses the form must witness it",
+  );
+});
 
 test("the twin corpus covers every Heritage surface spelling the parser knows", () => {
   // The anti-fourth-instance guard. Driven by the registries, not a hand-kept list: adding a
@@ -279,7 +690,7 @@ test("the twin corpus covers every Heritage surface spelling the parser knows", 
       covered.has(spelling),
       `Heritage spelling "${spelling}" has no twin in TWINS — add one so its diagnostics are ` +
         `proven canonical (issue #737). Every spelling in heritageAliasNames() + ` +
-        `heritageFormHeadNames() must be covered.`,
+        `heritageFormHeadNames() + heritageWordedFormHeads() must be covered.`,
     );
   }
   // And nothing covers a spelling the registries do not know (a stale entry).
@@ -291,8 +702,11 @@ test("the twin corpus covers every Heritage surface spelling the parser knows", 
   }
   assert.equal(
     expected.length,
-    heritageAliasNames().length + heritageFormHeadNames().length,
-    "heritageSurfaceSpellings() must be exactly the aliases plus the form heads",
+    heritageAliasNames().length +
+      heritageFormHeadNames().length +
+      heritageWordedFormHeads().length,
+    "heritageSurfaceSpellings() must be exactly the aliases plus the form heads plus the worded " +
+      "form heads",
   );
   // Every alias resolves to its canonical's own arity — the invariant the twin corpus is built on,
   // so the two sides of each alias pair differ only in the spelling.

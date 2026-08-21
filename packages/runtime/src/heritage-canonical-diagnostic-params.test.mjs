@@ -34,9 +34,10 @@
 //
 // Four properties. However each twin is authored — the short-alias twins are generated from
 // `heritageAliasNames()`, the rest are hand-written literals — property 3 pins the union of their
-// `covers` to `heritageSurfaceSpellings()` = `heritageAliasNames()` + `heritageFormHeadNames()`, in
-// both directions. So a slice that adds a fourteenth alias or a fifth form head CANNOT land without
-// either extending the twin corpus below or failing this test:
+// `covers` to `heritageSurfaceSpellings()` = `heritageAliasNames()` + `heritageFormHeadNames()` +
+// `heritageWordedFormHeads()`, in both directions. So a slice that adds a fourteenth alias, a fifth
+// form head, or a second worded form CANNOT land without either extending the twin corpus below or
+// failing this test:
 //
 //   1. TWIN EQUALITY — for each Heritage spelling, an EXECUTED program written with it and the same
 //      program written with its Core spelling produce diagnostics with identical `code`, `stage`,
@@ -48,23 +49,30 @@
 //      diagnostic only the Heritage side can ever raise, which has no twin to disagree with.
 //   3. COVERAGE — every spelling the registries know has a twin, and no twin names a spelling they
 //      no longer know.
-//   4. EXACT PARAMS for the one Heritage form no registry enumerates — the worded
-//      `value of … for key` reader (EXTRA_TWINS). Properties 1 and 2 both run over those pairs, but
-//      neither can pin the expected canonical VALUE there: the form's spelling is not in the
-//      registries, so property 2 has no pattern for it, and property 1 compares the two sides only
-//      against each other. Since issue #784 the reader shares the Core selectors' own
-//      `resolveDictSegment` rather than restating it, so there is no second copy for property 1 to
-//      catch drifting; what property 1 still does catch is a wrong ARGUMENT from one side, which
-//      moves that side alone. What neither can see is a defect in the shared code itself, which
-//      moves both sides together. Only an exact expectation covers that, so its params are pinned
-//      by value.
+//   4. EXACT PARAMS for the worded `value of … for key` reader (EXTRA_TWINS). Properties 1 and 2
+//      both run over those pairs, but neither can pin the expected canonical VALUE there. Property
+//      2's whole-word matcher does now see the form's head word `value` — and, because `\b` matches
+//      at a space, any phrase fragment beginning with it — but it is blind to a defect that puts NO
+//      Heritage word in the params at all, such as `operation: "field"` silently becoming
+//      `"index"`. Property 1 compares the two sides only against each other, and since issue #784
+//      the reader shares the Core selectors' own `resolveDictSegment` rather than restating it, so
+//      there is no second copy for it to catch drifting; what it still catches is a wrong ARGUMENT
+//      from one side, which moves that side alone. What neither can see is a defect in the shared
+//      code itself, which moves both sides together. Only an exact expectation covers that, so
+//      these params are pinned by value.
 //
-// Those registries enumerate SINGLE-WORD spellings only. Heritage also adds one multi-word FORM,
-// the worded dictionary reader `value of … for key` (slice H5, #670), which no registry lists —
-// so registry coverage alone is NOT coverage of Heritage. It is therefore twinned explicitly in
-// EXTRA_TWINS below, against the Core selector it mirrors — the dotted `:dict.key` for the
-// operand's own type, the runtime-key `:dict["key"]` for the key's (see EXTRA_TWINS) — and it is
-// property 4, not 1 or 2, that actually pins it.
+// The registries enumerate SINGLE-WORD spellings and, since issue #755, the HEAD WORD of each
+// multi-word Heritage FORM. There is exactly one such form, the worded dictionary reader
+// `value of … for key` (slice H5, #670), whose head `value` is the one word in it that names THIS
+// form unambiguously — `of`, `for` and `key` are ordinary vocabulary and can reach params on their
+// own account — so the head is what is registered for matching, and registry coverage is now
+// genuinely coverage of Heritage.
+// Before #755 no registry named the form at all while `heritageSurfaceSpellings()` described itself
+// as the enumerable definition of a Heritage surface spelling: there was no leak, but the claim was
+// false, which is the failure mode this saga has hit repeatedly. The form is still twinned in its
+// own EXTRA_TWINS list — against the Core selector it mirrors, the dotted `:dict.key` for the
+// operand's own type and the runtime-key `:dict["key"]` for the key's — because property 4 needs a
+// list whose every entry carries an `expected`; its entries now declare `covers` like any other.
 //
 // Properties 1 and 2 exempt only the explicitly audited param FIELDS whose subject IS the learner's
 // own text (documented with its spec citation in SURFACE_SUBJECT_PARAMS). Exemption is per FIELD,
@@ -94,7 +102,10 @@
 // learner named their variable `fd`. Today's corpus cannot hit that: no learner-chosen name, key, or
 // value it puts in front of the runtime collides with a Heritage spelling. If you add a program
 // whose identifiers do collide, rename the identifier rather than widening SURFACE_SUBJECT_PARAMS —
-// that allow-list is for fields that are surface BY CONTRACT, not for corpus accidents.
+// that allow-list is for fields that are surface BY CONTRACT, not for corpus accidents. Watch
+// `value` in particular: since #755 it is a registered spelling like any other, but unlike
+// `fd`/`bk`/`op`/… it is ordinary English, so a twin written as `value of :d for key "value"` would
+// trip `ol-unknown-key`'s `key` — which this file does NOT exempt. Rename the key instead.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -105,6 +116,11 @@ import {
   heritageAliasNames,
   heritageFormHeadNames,
   heritageSurfaceSpellings,
+  heritageWordedForm,
+  heritageWordedFormHeads,
+  heritageWordedFormNames,
+  parse,
+  walk,
 } from "@openlogo/parser";
 import { execute } from "@openlogo/runtime";
 
@@ -123,6 +139,30 @@ const MAIN_TURTLE_ID = 0;
 /** Every diagnostic an EXECUTED document produces — the runtime stage this guard exists for. */
 function diagnosticsFor(source) {
   return execute(source, doc).diagnostics;
+}
+
+/**
+ * Does `source` parse CLEANLY to an AST containing a node of `kind`? Used to check that a twin's
+ * program reaches the AST shape a Heritage form lowers onto, rather than merely mentioning its head
+ * word. It does not identify the PRODUCTION: the AST records node kinds only, so it distinguishes
+ * registered forms only as long as no two share a kind — an invariant the parser guard asserts.
+ *
+ * The clean-parse requirement is load-bearing: the reader builds a RECOVERY AST for a program that
+ * does not parse, and that AST can contain the very node kind sought — so without this check a form
+ * could be "covered" by a program `execute()` never even runs.
+ */
+function astContains(source, kind) {
+  const { ast, diagnostics } = parse(source, doc);
+  if (diagnostics.length > 0) {
+    return false;
+  }
+  let found = false;
+  walk(ast, (node) => {
+    if (node.kind === kind) {
+      found = true;
+    }
+  });
+  return found;
 }
 
 /**
@@ -281,30 +321,34 @@ const NON_DICT_CONTAINERS = [
 ];
 
 /**
- * Heritage shapes the registries do NOT enumerate, twinned explicitly, each with the EXACT params
- * its Core twin reports.
+ * Heritage shapes that need an EXACT param expectation, twinned explicitly.
  *
- * `heritageSurfaceSpellings()` lists single-word spellings — short aliases and form heads. Heritage
- * also adds one multi-WORD form, the worded dictionary reporter `value of … for key`
- * (`spec/conformance.md#heritage`, slice H5/#670), which no registry names, so registry coverage is
- * not by itself coverage of Heritage. These pairs are held to every property below except the
- * registry-coverage assertion, which is deliberately about registry drift; keeping them in their own
- * list is what stops "covers a spelling the registries do not know" from firing on them.
+ * Since issue #755 `heritageSurfaceSpellings()` does enumerate this form — by its head word
+ * `value`, the literal unique to `value of … for key`'s grammar production and so its
+ * least-ambiguous representative when a diagnostic's params are scanned
+ * (`checker-heritage-form.ts`'s `VALUE_OF_KEY`, read from that same registry). It is not proof of
+ * provenance: a learner may name a dict key `value`. So these pairs
+ * declare `covers` like any other twin and are held to the registry-coverage assertion too, plus
+ * `coversForm` — the registered form's name, which is the grammar production it comes from — so the
+ * witness assertion below is keyed on the FORM rather than on its head word, which two registered
+ * forms could legitimately share.
+ * They keep their own list because property 4 — the by-value pin — needs a corpus whose every entry
+ * carries an `expected`, and because a multi-word form has no `aliasProgram`-style generator.
  *
  * `expected` pins each pair's params BY VALUE rather than leaving them to the whole-word matcher,
- * because for this form the matcher is the wrong tool in both directions. The parser's designated
- * surface head is the bare word `value` (`checker-heritage-form.ts`'s `VALUE_OF_KEY_HEAD`), so a
- * leak could read `operation: "value"` — which no `"value of"`/`"for key"` phrase would catch — while
- * a pattern broad enough to catch it, or a `for key` fragment, would fire spuriously on ordinary
- * learner text that is not Heritage at all. An exact expectation covers both cases.
+ * because the matcher alone cannot see every way this form's params can go wrong. It catches a
+ * leaked `value` — and, since `\b` matches at a space, a leaked `"value of"` too — but it is blind
+ * to a defect that puts no Heritage word in the params at all: `operation: "field"` becoming
+ * `"index"`, or `expected: "dict"` becoming something else, are wrong machine-readable identities
+ * carrying no surface spelling to match on. Widening the matcher to catch those is not possible
+ * (they are ordinary words), so an exact expectation is what covers them.
  *
  * The reader is no longer a parallel implementation: since issue #784 it calls the very same
  * `resolveDictSegment` the Core selectors call, so there is no second copy for twin equality to
  * catch drifting. Equality still catches a wrong ARGUMENT from one side — `operation`, and so which
  * Core twin this spelling claims, which is exactly what #784 got wrong. What it cannot see is a
  * defect in the shared code itself, which moves both sides together; that is what these by-value
- * pins exist for. Issue #755 tracks making the form enumerable in the parser; when it lands these
- * pairs join TWINS and this list goes.
+ * pins exist for.
  *
  * **Which Core twin.** The reader is dict-only (`spec/data-structures.md:268` types its operand
  * `dictExpr`), so the container-type twin is the dotted selector `:x.tom` — specifically its dict
@@ -314,6 +358,8 @@ const NON_DICT_CONTAINERS = [
  */
 const EXTRA_TWINS = [
   {
+    covers: ["value"],
+    coversForm: "value-of-reader",
     heritage: ':ages = { tom: 11 }\nprint value of :ages for key "zed"',
     core: ':ages = { tom: 11 }\nprint :ages["zed"]',
     note: "value of … for key on a missing key — ol-unknown-key { key }",
@@ -323,6 +369,8 @@ const EXTRA_TWINS = [
   // selector, which is what makes `expected: "dict"` / `operation: "field"` the twin's own params
   // rather than a value invented for Heritage.
   ...NON_DICT_CONTAINERS.map(({ type, setup, value }) => ({
+    covers: ["value"],
+    coversForm: "value-of-reader",
     heritage: `${setup}\nprint value of :x for key "tom"`,
     core: `${setup}\nprint :x.tom`,
     note: `value of … for key on a non-dict ${type} container — ol-type { expected, actual, value, operation }`,
@@ -339,6 +387,8 @@ const EXTRA_TWINS = [
     ],
   })),
   {
+    covers: ["value"],
+    coversForm: "value-of-reader",
     // The third failure mode `evaluate.ts`'s dict-read guard documents, and the one the other
     // pairs miss: a key that is neither word nor number. The key is bound to `:k` on both sides so
     // the two programs supply the SAME evaluated value. An inline key would not be a twin on either
@@ -366,11 +416,9 @@ const EXTRA_TWINS = [
 ];
 
 /**
- * Every twin, registry-driven and explicit alike — the corpus properties 1 and 2 and the supporting
- * invariants run over. The other two properties are deliberately narrower: property 3, the
- * registry-coverage assertion, uses `TWINS` alone because it is about registry DRIFT and
- * `EXTRA_TWINS` carry no `covers`; property 4 uses `EXTRA_TWINS` alone because it exists for exactly
- * those pairs (see `EXTRA_TWINS` above).
+ * Every twin, registry-driven and explicit alike — the corpus properties 1, 2 and 3 and the
+ * supporting invariants run over. Property 4 is deliberately narrower: it uses `EXTRA_TWINS` alone
+ * because it exists for exactly those pairs (see `EXTRA_TWINS` above).
  */
 const ALL_TWINS = [...TWINS, ...EXTRA_TWINS];
 
@@ -383,28 +431,31 @@ const SURFACE_PATTERNS = heritageSurfaceSpellings().map((spelling) => ({
 test("the runtime twin corpus covers every Heritage surface spelling the parser knows", () => {
   // The anti-next-instance guard. Driven by the registries, not a hand-kept list: adding a Heritage
   // spelling without adding a twin fails here rather than shipping unchecked at the runtime stage.
-  const covered = new Set(TWINS.flatMap((twin) => twin.covers));
+  const covered = new Set(ALL_TWINS.flatMap((twin) => twin.covers));
   const expected = heritageSurfaceSpellings();
   assert.ok(expected.length > 0, "the Heritage registries must not be empty");
   for (const spelling of expected) {
     assert.ok(
       covered.has(spelling),
-      `Heritage spelling "${spelling}" has no twin in TWINS — add one so its RUNTIME diagnostics ` +
-        `are proven canonical (issue #741). Every spelling in heritageAliasNames() + ` +
-        `heritageFormHeadNames() must be covered.`,
+      `Heritage spelling "${spelling}" has no twin in the corpus — add one so its RUNTIME ` +
+        `diagnostics are proven canonical (issue #741). Every spelling in heritageAliasNames() + ` +
+        `heritageFormHeadNames() + heritageWordedFormHeads() must be covered.`,
     );
   }
   // And nothing covers a spelling the registries do not know (a stale entry).
   for (const spelling of covered) {
     assert.ok(
       expected.includes(spelling),
-      `TWINS covers "${spelling}", which is not a Heritage surface spelling any more`,
+      `the corpus covers "${spelling}", which is not a Heritage surface spelling any more`,
     );
   }
   assert.equal(
     expected.length,
-    heritageAliasNames().length + heritageFormHeadNames().length,
-    "heritageSurfaceSpellings() must be exactly the aliases plus the form heads",
+    heritageAliasNames().length +
+      heritageFormHeadNames().length +
+      heritageWordedFormHeads().length,
+    "heritageSurfaceSpellings() must be exactly the aliases plus the form heads plus the worded " +
+      "form heads",
   );
   // Every alias resolves to its canonical's own arity — the invariant the twin corpus is built on,
   // so the two sides of each alias pair differ only in the spelling.
@@ -420,6 +471,83 @@ test("the runtime twin corpus covers every Heritage surface spelling the parser 
       `alias ${alias} must resolve to a canonical spelling`,
     );
   }
+});
+
+test("every runtime twin that declares a worded form reaches it, and every worded form has one", () => {
+  // The runtime counterpart of the parser guard's witness assertion (issue #755). Head-word
+  // coverage above answers "can this WORD leak into a param"; this answers "does every twin that
+  // declares a form still reach that form's AST shape here, and does every form have one".
+  //
+  // Two rules, so neither direction has a hole. UNIVERSAL: every twin that declares `coversForm`
+  // must parse cleanly to that form's registered node kind, so a single twin quietly drifting off
+  // the form is caught here rather than left to assertions that would still pass — twin equality
+  // and the by-value pins both hold for a Heritage program rewritten into its Core spelling.
+  // EXISTENTIAL: every registered form must have at least one such twin.
+  //
+  // Same limit as the parser side, stated the same way: `coversForm` is author-supplied metadata,
+  // and what it is checked against is a node KIND. That does not establish which PRODUCTION built
+  // the node — the AST records kinds only — so the kind distinguishes registered forms just as long
+  // as no two share one, which the parser guard asserts.
+  //
+  // The AST check uses `@openlogo/parser`'s own `parse`/`walk` rather than re-deriving the shape:
+  // `execute()` parses internally, so a program that does not parse cleanly never reaches the
+  // runtime stage this file guards at all, which is why a clean parse is required.
+  //
+  // (The head/node uniqueness invariants this rests on are asserted in the parser guard, which owns
+  // the registry; restating them here would be a second copy to drift.)
+  const names = new Set(heritageWordedFormNames());
+  // UNIVERSAL: no declaring twin may drift off its form.
+  for (const twin of ALL_TWINS) {
+    if (twin.coversForm === undefined) {
+      continue;
+    }
+    assert.ok(
+      names.has(twin.coversForm),
+      `${twin.note}: declares coversForm "${twin.coversForm}", which is not a registered Heritage ` +
+        "worded form any more",
+    );
+    const form = heritageWordedForm(twin.coversForm);
+    assert.ok(
+      astContains(twin.heritage, form.node),
+      `${twin.note}: declares coversForm "${twin.coversForm}" but its Heritage program does not ` +
+        `parse cleanly to a ${form.node} node — it no longer reaches the form it claims ` +
+        "(issues #741, #755).",
+    );
+    assert.ok(
+      twin.covers.includes(form.head),
+      `${twin.note}: declares coversForm "${twin.coversForm}" but does not list that form's head ` +
+        "in `covers`, so the surface-spelling assertions would skip it",
+    );
+  }
+  // EXISTENTIAL: no registered form may be left without one.
+  for (const name of heritageWordedFormNames()) {
+    const form = heritageWordedForm(name);
+    const witnesses = ALL_TWINS.filter(
+      (twin) =>
+        twin.coversForm === name && astContains(twin.heritage, form.node),
+    );
+    assert.ok(
+      witnesses.length > 0,
+      `the worded form "${name}" (\`${form.phrase}\`) has no runtime twin that declares ` +
+        `coversForm: "${name}" AND parses cleanly to a ${form.node} node, so it is unwitnessed by ` +
+        "this check. (The by-value pins below still hold whatever twins DO exist; what is missing " +
+        "here is a twin tied to this form — issues #741, #755.)",
+    );
+  }
+  // The witness helper's clean-parse rule is asserted directly rather than merely relied on. A
+  // RECOVERY AST can contain the very node kind sought, so without it a form could be "witnessed"
+  // by a program `execute()` never even parses — and this guard is about the runtime stage, which
+  // such a program never reaches.
+  assert.equal(
+    astContains('print value of :d for key "k" ]', "ValueOfKey"),
+    false,
+    "a program that does not parse must not witness a form, however its recovery AST looks",
+  );
+  assert.equal(
+    astContains(':d = { k: 1 }\nprint value of :d for key "k"', "ValueOfKey"),
+    true,
+    "a cleanly-parsing program that uses the form must witness it",
+  );
 });
 
 test("the runtime twin corpus is not vacuous — every pair raises at least one diagnostic", () => {
@@ -490,14 +618,16 @@ test("every alias twin reaches a CANONICAL-carrying field, not just a spelling-i
 });
 
 test("the worded `value of … for key` reader reports EXACTLY the Core selector's params, on both sides", () => {
-  // The registries do not enumerate this form (#755), so the whole-word matcher cannot guard it.
-  // Twin equality guards it only partly, and in a way that changed shape with issue #784: the
-  // reader now calls the Core selectors' own `resolveDictSegment` instead of restating it, so
-  // there is no longer a second copy that could drift out of step. Equality does still catch a
-  // wrong ARGUMENT from one side, which moves that side alone; what stays invisible to it is a
-  // defect in the shared code itself, which moves both sides together. Pinning the params by value
-  // covers that: any surface fragment reaching `operation`, `key`, or any sibling — including the
-  // parser's bare head word `value` — fails here, on whichever side it appears.
+  // The registries enumerate this form by its head word `value` (#755), so the whole-word matcher
+  // now guards that string — but it is blind to a wrong value in a field that carries no Heritage
+  // word at all (`operation: "field"` → `"index"`, say). Twin equality guards the pair only partly,
+  // and in a way that changed shape with issue #784: the reader now calls the Core selectors' own
+  // `resolveDictSegment` instead of restating it, so there is no longer a second copy that could
+  // drift out of step. Equality does still catch a wrong ARGUMENT from one side, which moves that
+  // side alone; what stays invisible to it is a defect in the shared code itself, which moves both
+  // sides together. Pinning the params by value covers both blind spots: any wrong field — a
+  // surface fragment in `operation` or `key`, or an ordinary word in the wrong slot — fails here,
+  // on whichever side it appears.
   for (const twin of EXTRA_TWINS) {
     for (const source of [twin.heritage, twin.core]) {
       const findings = diagnosticsFor(source);

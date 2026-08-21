@@ -47,7 +47,10 @@ import type {
 } from "./ast.js";
 import { walk } from "./ast.js";
 import type { CheckProfile } from "./check.js";
-import { canonicalOfHeritageFormHead } from "./signatures.js";
+import {
+  canonicalOfHeritageFormHead,
+  heritageWordedForm,
+} from "./signatures.js";
 import type { HeritageFormHead } from "./signatures.js";
 
 /**
@@ -97,10 +100,19 @@ function messageFor(head: string, suggestion: string | undefined): string {
 }
 
 /**
- * The `value of … for key` reader head is the literal word `value` (5 chars), so its head span is
- * the node start extended by that length — mirroring {@link headSpan} for the four form heads.
+ * The `value of … for key` reader's registry entry — its head word `value` (5 chars, so its head
+ * span is the node start extended by that length, mirroring {@link headSpan} for the four form
+ * heads) and the AST node kind the reader lowers it onto.
+ *
+ * Read from the parser's Heritage worded-form registry rather than restated here, so this rule
+ * keeps NO second copy of the form's surface word or node kind: the canonical-diagnostic-params
+ * guards match that registry's words against every diagnostic's structured params, and a private
+ * copy beside the registry is precisely how a spelling drifts out from under a guard that looks
+ * like it covers it (issue #755). The registry's entries are frozen, so what this rule reports and
+ * what {@link heritageSurfaceSpellings} enumerates come from one immutable object rather than two
+ * that must be kept in step.
  */
-const VALUE_OF_KEY_HEAD = "value";
+const VALUE_OF_KEY = heritageWordedForm("value-of-reader");
 
 /**
  * The Heritage form-head rule: with the Heritage profile inactive, every `make`/`to`/`output`/`op`
@@ -126,12 +138,12 @@ export function heritageFormRule(
   const diagnostics: Diagnostic[] = [];
 
   walk(program, (node) => {
-    if (node.kind === "ValueOfKey") {
+    if (node.kind === VALUE_OF_KEY.node) {
       diagnostics.push({
         code: "ol-unknown-command",
-        source_span: headSpan(node.source_span, VALUE_OF_KEY_HEAD),
-        params: { name: VALUE_OF_KEY_HEAD },
-        message: messageFor(VALUE_OF_KEY_HEAD, undefined),
+        source_span: headSpan(node.source_span, VALUE_OF_KEY.head),
+        params: { name: VALUE_OF_KEY.head },
+        message: messageFor(VALUE_OF_KEY.head, undefined),
         stage: "semantic",
         severity: "error",
       });
