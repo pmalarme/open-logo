@@ -183,19 +183,27 @@ the gaps it found rather than rubber-stamping them:
   undocumented: on the `ol-range` arm `params.value` is the **coerced number**, not the word,
   because range is a question about magnitude (which exists only after coercion) whereas `ol-type`
   is a question about what the learner actually wrote. Separately,
-  `wait/wait-non-number-list-type-error` and   `every/every-non-number-boolean-type-error` cover a count that is neither a number nor a word:
-  before them every `expected: "whole number"` fixture in the whole corpus (`wait`, `every`,
-  `repeat`, `random`) pinned `actual` as only `number` or `word`, so an implementation could report
-  anything at all for a list or a boolean and still pass the full stack-neutral corpus. Finally
-  `wait/wait-negative-non-whole` and `every/every-negative-non-whole` pin a count that is **both**
-  non-whole and out of range — the only input class that can observe the normative TYPE-before-RANGE
-  ordering (`spec/interaction-events.md`'s two entries, `spec/commands.md`'s `repeat` entry). Every
-  other count fixture is non-whole *or* out of range, never both, so an implementation that checked
-  range first passed the whole corpus while putting a fractional value into an `ol-range` count
-  diagnostic — which `spec/error-model.md` scopes to a negative *whole*-number count — and silently
-  splitting `wait`/`every` from `repeat`.
+  `wait/wait-non-number-list-type-error`, `every/every-non-number-boolean-type-error`, and the pair
+  `wait/wait-turtle-type-error` / `every/every-turtle-type-error` cover a count that is neither a
+  number nor a word: before them every `expected: "whole number"` fixture in the whole corpus
+  (`wait`, `every`, `repeat`, `random`) pinned `actual` as only `number` or `word`, so an
+  implementation could report anything at all for a list, boolean, or turtle and still pass the full
+  stack-neutral corpus. The turtle pair needs the **Sprites** profile only to *construct* the value
+  (`new_turtle`); the check under test is the Interaction one, and a turtle's `params.value`
+  serialises faithfully as `{ "id": 1 }` — the exact shape `sprites/turtle-type-diagnostic` already
+  binds. Finally `wait/wait-negative-non-whole` and `every/every-negative-non-whole`, with their
+  `-word` twins `wait/wait-negative-non-whole-word` and `every/every-negative-non-whole-word`, pin a
+  count that is **both** non-whole and out of range — the only input class that can observe the
+  normative TYPE-before-RANGE ordering (`spec/interaction-events.md`'s two entries,
+  `spec/commands.md`'s `repeat` entry). Every other count fixture is non-whole *or* out of range,
+  never both, so an implementation that checked range first passed the whole corpus while putting a
+  fractional value into an `ol-range` count diagnostic — which `spec/error-model.md` scopes to a
+  negative *whole*-number count — and silently splitting `wait`/`every` from `repeat`. The `-word`
+  twins exist because a word takes the coercion path, so ordering could be correct for numbers and
+  wrong for words; both gaps were found by mutation.
 
-  **Deliberately NOT fixtured: the `dict` and `record` arms of that same `params.actual`.**
+  **Deliberately NOT fixtured: the `dict` and `record` arms of that same `params.actual`** (the
+  `turtle` arm IS fixtured — see above — because its value snapshot is faithful).
   `spec/error-model.md` requires an `ol-type` to "name the expected learner concept, such as number,
   word, list, dict, record, or boolean", and the runtime does — `wait { name: "ada" }` reports
   `actual: "dict"`. But `params.value` currently serialises to JSON **lossily** for both

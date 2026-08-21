@@ -1,0 +1,70 @@
+{
+  "description": "issue #775 (review gate, QA finding B5): `wait :t` where `:t` is a TURTLE -- the seventh and last arm of `params.actual` for the shared whole-number check, and the one type outside `number`/`word` that this corpus can pin faithfully. `spec/error-model.md` requires an `ol-type` to name the learner concept, and `turtle` is a first-class value (`spec/turtles-and-sprites.md`), so a turtle count must be reported as a turtle -- not silently relabelled. Mislabelling ONLY this arm passed a fully green run until this fixture existed (found by mutation), because the other arms are each pinned by their own fixture and nothing reached this one. Unlike the `dict` and `record` arms -- deliberately not fixtured, see this directory's README -- a turtle's `params.value` serialises faithfully as `{ \"id\": 1 }`, the exact shape `sprites/turtle-type-diagnostic` already binds, so there is no lossy-value objection here. Needs the Sprites profile only to CONSTRUCT the turtle (`new_turtle`); the check under test is the Interaction one. The `spawn-turtle` event from the assignment precedes the `wait` instruction; the `primitive` event is NOT emitted (the pause never runs) and the span covers just the argument. Its `every` twin is `every/every-turtle-type-error`.",
+  "profiles": ["core-language", "sprites", "interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/wait/wait-turtle-type-error",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "interaction-events/wait/wait-turtle-type-error",
+        "start": [1, 6],
+        "end": [1, 16]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/wait/wait-turtle-type-error",
+        "start": [2, 1],
+        "end": [2, 8]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "interaction-events/wait/wait-turtle-type-error",
+        "start": [2, 6],
+        "end": [2, 8]
+      },
+      "params": {
+        "expected": "whole number",
+        "actual": "turtle",
+        "value": { "id": 1 },
+        "operation": "wait"
+      },
+      "message": "wait needs a whole number, but got a turtle.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

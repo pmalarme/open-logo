@@ -306,24 +306,26 @@ test("a count that is BOTH non-whole AND non-positive raises ol-type, not ol-ran
 });
 
 test("a count that is neither a number nor a word names its own type", () => {
-  // Completeness across the value model (`spec/execution-model.md`'s Core values plus the Data
-  // profile's `dict`/`record`): each reaches the same `ol-type` with `actual` naming the offending
-  // type, never a coerced stand-in. `spec/error-model.md` requires the message to "name the
-  // expected learner concept, such as number, word, list, dict, record, or boolean", so labelling a
-  // dict a word would violate a MUST. `wait` is pinned the same way in `interaction-wait.test.mjs`.
+  // Completeness across the value model (`spec/execution-model.md`'s Core values, the Data
+  // profile's `dict`/`record`, and the Sprites profile's `turtle` — every `OLTypeName` outside
+  // `number`/`word`): each reaches the same `ol-type` with `actual` naming the offending type,
+  // never a coerced stand-in. `spec/error-model.md` requires the message to "name the expected
+  // learner concept, such as number, word, list, dict, record, or boolean", so labelling a dict or
+  // a turtle a word would violate a MUST. `wait` is pinned the same way in
+  // `interaction-wait.test.mjs`.
   //
-  // The `dict` and `record` arms are unit-only, deliberately: their `params.value` currently
-  // serialises to JSON lossily, so a conformance fixture would make that lossy shape normatively
-  // binding on every implementation. See the "Deliberately NOT fixtured" note in
-  // `tests/conformance/interaction-events/README.md`.
+  // The `dict` and `record` arms are unit-only, deliberately: their `params.value` serialises to
+  // JSON lossily, so a conformance fixture would make that lossy shape normatively binding on every
+  // implementation. See the "Deliberately NOT fixtured" note in
+  // `tests/conformance/interaction-events/README.md`. The LIVE value is not lossy, so it is
+  // asserted here; only its JSON form is unsafe to pin.
+  const structPrelude = 'struct person [ name age ]\n:p = person "ada" 36\n';
   for (const [source, actual] of [
     ['every [ 1 2 ] [ print "x" ]', "list"],
     ['every true [ print "x" ]', "boolean"],
     ['every { name: "ada" } [ print "x" ]', "dict"],
-    [
-      'struct person [ name age ]\n:p = person "ada" 36\nevery :p [ print "x" ]\n',
-      "record",
-    ],
+    [`${structPrelude}every :p [ print "x" ]\n`, "record"],
+    [':t = new_turtle\nevery :t [ print "x" ]\n', "turtle"],
   ]) {
     const result = execute(source, doc);
     assert.equal(result.diagnostics.length, 1);
@@ -332,7 +334,7 @@ test("a count that is neither a number nor a word names its own type", () => {
     assert.equal(result.diagnostics[0].params.actual, actual);
     assert.equal(result.diagnostics[0].params.operation, "every");
   }
-  // The two classes whose value snapshot IS faithfully comparable are pinned whole.
+  // The classes whose value snapshot IS faithfully comparable are pinned whole.
   for (const [source, actual, value] of [
     ['every [ 1 2 ] [ print "x" ]', "list", [1, 2]],
     ['every true [ print "x" ]', "boolean", true],
@@ -344,8 +346,23 @@ test("a count that is neither a number nor a word names its own type", () => {
       value,
       operation: "every",
     });
-    assert.deepEqual(effectEvents(result), []);
   }
+  // A turtle's value is an `OLTurtle` instance, so it is pinned by its `id` rather than by a
+  // structural deep-equal against a plain object — the conformance twin
+  // `every/every-turtle-type-error` pins its `{ "id": 1 }` serialisation, which is faithful.
+  const turtleValue = execute(':t = new_turtle\nevery :t [ print "x" ]\n', doc)
+    .diagnostics[0].params.value;
+  assert.equal(turtleValue.id, 1);
+  // The dict/record value is only lossy through JSON: assert the live payload through its public
+  // API, so the snapshot is pinned without making its serialisation normative.
+  const dictValue = execute('every { name: "ada" } [ print "x" ]', doc)
+    .diagnostics[0].params.value;
+  assert.equal(dictValue.get("name"), "ada");
+  const recordValue = execute(`${structPrelude}every :p [ print "x" ]\n`, doc)
+    .diagnostics[0].params.value;
+  assert.equal(recordValue.type, "person");
+  assert.deepEqual(recordValue.fields(), ["name", "age"]);
+  assert.equal(recordValue.get("name"), "ada");
 });
 
 // --- Unsupported / un-evaluable count arguments ------------------------------------------------

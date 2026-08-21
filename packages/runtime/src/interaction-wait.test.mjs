@@ -219,24 +219,27 @@ test("a count that is BOTH non-whole AND negative raises ol-type, not ol-range (
 });
 
 test("a tick count that is neither a number nor a word names its own type", () => {
-  // Completeness across the value model (`spec/execution-model.md`'s Core values plus the Data
-  // profile's `dict`/`record`): each reaches the same `ol-type` with `actual` naming the offending
-  // type, never a coerced stand-in. `spec/error-model.md` requires the message to "name the
-  // expected learner concept, such as number, word, list, dict, record, or boolean", so labelling a
-  // dict a word would violate a MUST. `every` is pinned the same way in
+  // Completeness across the value model (`spec/execution-model.md`'s Core values, the Data
+  // profile's `dict`/`record`, and the Sprites profile's `turtle` — every `OLTypeName` outside
+  // `number`/`word`): each reaches the same `ol-type` with `actual` naming the offending type,
+  // never a coerced stand-in. `spec/error-model.md` requires the message to "name the expected
+  // learner concept, such as number, word, list, dict, record, or boolean", so labelling a dict or
+  // a turtle a word would violate a MUST. `every` is pinned the same way in
   // `interaction-every.test.mjs`.
   //
   // The `dict` and `record` arms are unit-only, deliberately: their `params.value` currently
   // serialises to JSON lossily (`{"entries":{}}` for a dict, `slots:{}` for a record — the Map
   // contents vanish), so a conformance fixture would make that lossy shape normatively binding on
   // every implementation. See the "Deliberately NOT fixtured" note in
-  // `tests/conformance/interaction-events/README.md`. Asserting `actual` here needs no serialised
-  // value, so the concept name is still pinned.
+  // `tests/conformance/interaction-events/README.md`. The LIVE value is not lossy, so it is
+  // asserted here; only its JSON form is unsafe to pin.
+  const structPrelude = 'struct person [ name age ]\n:p = person "ada" 36\n';
   for (const [source, actual] of [
     ["wait [ 1 2 ]", "list"],
     ["wait true", "boolean"],
     ['wait { name: "ada" }', "dict"],
-    ['struct person [ name age ]\n:p = person "ada" 36\nwait :p\n', "record"],
+    [`${structPrelude}wait :p\n`, "record"],
+    [":t = new_turtle\nwait :t\n", "turtle"],
   ]) {
     const result = execute(source, doc);
     assert.equal(result.diagnostics.length, 1);
@@ -245,7 +248,7 @@ test("a tick count that is neither a number nor a word names its own type", () =
     assert.equal(result.diagnostics[0].params.actual, actual);
     assert.equal(result.diagnostics[0].params.operation, "wait");
   }
-  // The two classes whose value snapshot IS faithfully comparable are pinned whole.
+  // The classes whose value snapshot IS faithfully comparable are pinned whole.
   for (const [source, actual, value] of [
     ["wait [ 1 2 ]", "list", [1, 2]],
     ["wait true", "boolean", true],
@@ -257,8 +260,23 @@ test("a tick count that is neither a number nor a word names its own type", () =
       value,
       operation: "wait",
     });
-    assert.deepEqual(effectEvents(result), []);
   }
+  // A turtle's value is an `OLTurtle` instance, so it is pinned by its `id` rather than by a
+  // structural deep-equal against a plain object — the conformance twin
+  // `wait/wait-turtle-type-error` pins its `{ "id": 1 }` serialisation, which is faithful.
+  const turtleValue = execute(":t = new_turtle\nwait :t\n", doc).diagnostics[0]
+    .params.value;
+  assert.equal(turtleValue.id, 1);
+  // The dict/record value is only lossy through JSON: assert the live payload through its public
+  // API, so the snapshot is pinned without making its serialisation normative.
+  const dictValue = execute('wait { name: "ada" }', doc).diagnostics[0].params
+    .value;
+  assert.equal(dictValue.get("name"), "ada");
+  const recordValue = execute(`${structPrelude}wait :p\n`, doc).diagnostics[0]
+    .params.value;
+  assert.equal(recordValue.type, "person");
+  assert.deepEqual(recordValue.fields(), ["name", "age"]);
+  assert.equal(recordValue.get("name"), "ada");
 });
 
 test("wait and every use ONE type vocabulary for every ol-type input class (issue #775 regression guard)", () => {
@@ -269,16 +287,16 @@ test("wait and every use ONE type vocabulary for every ol-type input class (issu
   // and is what keeps the two diagnostics distinguishable. Comparing the two live diagnostics
   // (rather than restating literals) means this fails if EITHER primitive drifts.
   //
-  // All SEVEN `ol-type` input classes are compared, not just the one that caused #775. `"soon"`
-  // alone is NOT enough: a word that never coerces reaches both implementations unchanged, so a
-  // form that pre-coerced numeric words before the wholeness check would still agree here. `"2.5"`
-  // is the arm that observes pre-coercion, `2.5` anchors the plain non-whole number, `-1.5`/`-2.5`
-  // is the both-non-whole-and-out-of-range class that observes TYPE-before-RANGE, and the list,
-  // boolean, dict, and record cover every value that is neither number nor word.
+  // EVERY `ol-type` input class is compared, not just the one that caused #775. `"soon"` alone is
+  // NOT enough: a word that never coerces reaches both implementations unchanged, so a form that
+  // pre-coerced numeric words before the wholeness check would still agree here. `"2.5"` is the arm
+  // that observes pre-coercion, `2.5` anchors the plain non-whole number, `-1.5` is the
+  // both-non-whole-and-out-of-range class that observes TYPE-before-RANGE, and the list, boolean,
+  // dict, record, and turtle cover every value that is neither number nor word.
   //
   // `value` is compared only where its snapshot is faithfully comparable: a dict/record `value`
-  // currently serialises lossily, and comparing the two live objects would pass vacuously, so those
-  // two classes compare `expected`/`actual` and are pinned per-primitive above.
+  // serialises lossily and comparing the two live objects would pass vacuously, so those two
+  // classes compare `expected`/`actual` and have their payloads pinned per-primitive above.
   const structPrelude = 'struct person [ name age ]\n:p = person "ada" 36\n';
   for (const [waitSource, everySource, comparesValue] of [
     ['wait "soon"', 'every "soon" [ print "x" ]', true],
@@ -287,6 +305,11 @@ test("wait and every use ONE type vocabulary for every ol-type input class (issu
     ["wait -1.5", 'every -1.5 [ print "x" ]', true],
     ["wait [ 1 2 ]", 'every [ 1 2 ] [ print "x" ]', true],
     ["wait true", 'every true [ print "x" ]', true],
+    [
+      ":t = new_turtle\nwait :t\n",
+      ':t = new_turtle\nevery :t [ print "x" ]\n',
+      true,
+    ],
     ['wait { name: "ada" }', 'every { name: "ada" } [ print "x" ]', false],
     [
       `${structPrelude}wait :p\n`,
