@@ -324,9 +324,10 @@ const NON_DICT_CONTAINERS = [
  * Heritage shapes that need an EXACT param expectation, twinned explicitly.
  *
  * Since issue #755 `heritageSurfaceSpellings()` does enumerate this form — by its head word
- * `value`, the one word in `value of … for key` that names THIS form unambiguously when it turns up
- * in a diagnostic's params (`checker-heritage-form.ts`'s `VALUE_OF_KEY`, read from that same
- * registry). So these pairs
+ * `value`, the literal unique to `value of … for key`'s grammar production and so its
+ * least-ambiguous representative when a diagnostic's params are scanned
+ * (`checker-heritage-form.ts`'s `VALUE_OF_KEY`, read from that same registry). It is not proof of
+ * provenance: a learner may name a dict key `value`. So these pairs
  * declare `covers` like any other twin and are held to the registry-coverage assertion too, plus
  * `coversForm` — the registered form's name, which is the grammar production it comes from — so the
  * witness assertion below is keyed on the FORM rather than on its head word, which two registered

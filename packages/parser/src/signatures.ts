@@ -750,15 +750,17 @@ export function heritageFormHeadNames(): readonly HeritageFormHead[] {
  * parses to that kind rather than merely mentioning the form's head word — the AST records node
  * kinds, not the production that built them, so it distinguishes registered forms only as long as
  * no two share a kind, an invariant the parser guard asserts. And `head` is the word the
- * form is identified BY — the only word in the phrase that appears in no other production, and so
- * the only one whose presence in a diagnostic's structured params unambiguously names THIS form.
- * The others are ordinary vocabulary and can reach params on their own account (a malformed form
- * quotes whatever token it stopped at through `ol-bad-token`'s `text`, and a key can be any word at
- * all): `of` is the contextual preposition of the `is member of` predicate (`spec/grammar.md:365`),
- * `for` opens the Core `for … in`/`for … from … to` loops, and `key` is also the Data profile's
- * `remove key … from` (`spec/grammar.md:115`) — which is why the head, not the phrase, is what
- * {@link HERITAGE_SURFACE_SPELLINGS} registers for canonical-param matching. The operands the
- * phrase elides are a dict and a word/number key (`spec/data-structures.md:268`).
+ * form is identified BY — the only literal unique to this grammar production, and so its
+ * least-ambiguous representative in the registry. It is NOT a proof token: `value` turning up in a
+ * diagnostic's params does not establish that this form produced it, because a learner may name a
+ * dict key `value` like any other word. The phrase's other literals are weaker still, being
+ * ordinary vocabulary that reaches params on its own account (a malformed form quotes whatever
+ * token it stopped at through `ol-bad-token`'s `text`): `of` is the contextual preposition of the
+ * `is member of` predicate (`spec/grammar.md:365`), `for` opens the Core `for … in`/`for … from … to`
+ * loops, and `key` is also the Data profile's `remove key … from` (`spec/grammar.md:115`) — which is
+ * why the head, not the phrase, is what {@link HERITAGE_SURFACE_SPELLINGS} registers for
+ * canonical-param matching. The operands the phrase elides are a dict and a word/number key
+ * (`spec/data-structures.md:268`).
  *
  * There is deliberately no `canonical` column. The four form heads each map onto a Core WORD
  * (`make` → `set`, `to` → `define`, `output`/`op` → `return`), which is what lets
@@ -848,12 +850,14 @@ export function heritageWordedForms(): readonly HeritageWordedForm[] {
 }
 
 /**
- * Every Heritage worded form's head word, sorted for deterministic iteration. This is the part of
- * a worded form that names it unambiguously when it reaches a diagnostic's structured params —
- * `checker-heritage-form.ts` emits exactly this word as the `ol-unknown-command` `name` when
- * Heritage is inactive — so it is what {@link HERITAGE_SURFACE_SPELLINGS} carries on the form's
- * behalf. The phrase's other words are ordinary vocabulary and are deliberately not registered:
- * matching on them would fire on learner text that is not Heritage at all.
+ * Every Heritage worded form's head word, sorted for deterministic iteration. This is the literal
+ * unique to the form's grammar production, and so its least-ambiguous representative when a
+ * diagnostic's structured params are scanned — `checker-heritage-form.ts` emits exactly this word
+ * as the `ol-unknown-command` `name` when Heritage is inactive — which is what
+ * {@link HERITAGE_SURFACE_SPELLINGS} carries on the form's behalf. It does not prove provenance: a
+ * learner may name a dict key `value` like any other word. The phrase's other literals are not
+ * registered at all, being ordinary vocabulary that matching on would fire on text that is not
+ * Heritage.
  */
 const HERITAGE_WORDED_FORM_HEADS: readonly string[] = Object.freeze(
   HERITAGE_WORDED_FORM_ENTRIES.map((form) => form.head).sort(),
