@@ -108,6 +108,7 @@ export {
   heritageFormHeadNames,
   heritageWordedForm,
   heritageWordedForms,
+  heritageWordedFormNames,
   heritageWordedFormHeads,
   heritageSurfaceSpellings,
 } from "./signatures.js";

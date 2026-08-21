@@ -20,6 +20,8 @@
  * productions, not this table.
  */
 
+import type { NodeKind } from "./ast.js";
+
 /**
  * Default arity of each Core primitive, keyed by its canonical lowercase name. Kept module-
  * private so the table is immutable from outside — callers read it only through the pure
@@ -742,14 +744,15 @@ export function heritageFormHeadNames(): readonly HeritageFormHead[] {
  * worded dictionary reporter `value of … for key` (slice H5, issue #670), whose production is
  * `spec/grammar.md:213`'s `value-of-reader`.
  *
- * Each entry records the whole `phrase` — quoted verbatim from that spec bullet, so the guard
- * below can hold this table against the spec's own inventory without normalising anything — and
- * the `head`, the single word in that phrase which is Heritage-EXCLUSIVE. The other three are not:
- * `of` is the contextual preposition of the `is member of` predicate (`spec/grammar.md:365`),
- * `for` opens the Core `for … in`/`for … from … to` loops, and `key` is the Data profile's
- * `remove key … from` (`spec/grammar.md:115`). Across the whole normative grammar the literal
- * token `"value"` appears in this production and nowhere else, so the head alone identifies the
- * form. The operands the phrase elides are a dict and a word/number key
+ * Each entry records three things. `phrase` is quoted verbatim from that spec bullet, so a guard
+ * can hold this table against the spec's own inventory without normalising anything. `node` is the
+ * AST node kind the reader lowers the form onto, which is what lets a guard prove a test program
+ * really contains the form rather than merely mentioning its head word. And `head` is the word the
+ * form is identified BY — the one part of the phrase that can reach a diagnostic's structured
+ * params, and the only word in it that appears in no other production: `of` is the contextual
+ * preposition of the `is member of` predicate (`spec/grammar.md:365`), `for` opens the Core
+ * `for … in`/`for … from … to` loops, and `key` is also the Data profile's `remove key … from`
+ * (`spec/grammar.md:115`). The operands the phrase elides are a dict and a word/number key
  * (`spec/data-structures.md:268`).
  *
  * There is deliberately no `canonical` column. The four form heads each map onto a Core WORD
@@ -762,8 +765,15 @@ export function heritageFormHeadNames(): readonly HeritageFormHead[] {
  * live in its own table rather than being forced into the head→canonical map.
  */
 const HERITAGE_WORDED_FORMS = {
-  "value-of-reader": { head: "value", phrase: "value of … for key" },
-} as const;
+  "value-of-reader": {
+    head: "value",
+    phrase: "value of … for key",
+    node: "ValueOfKey",
+  },
+} as const satisfies Record<
+  string,
+  { head: string; phrase: string; node: NodeKind }
+>;
 
 /**
  * One of the Heritage worded forms, named by its grammar production — the keys of
@@ -789,15 +799,29 @@ export function heritageWordedForm<Name extends HeritageWordedFormName>(
 }
 
 /**
+ * Every Heritage worded form's grammar-production name, sorted for deterministic iteration — the
+ * enumerable counterpart of {@link heritageWordedForm}. A guard that must prove each FORM is
+ * covered (rather than merely its head word, which any program may contain by accident) iterates
+ * these and looks each one up.
+ */
+const HERITAGE_WORDED_FORM_NAMES: readonly HeritageWordedFormName[] =
+  Object.freeze(
+    (Object.keys(HERITAGE_WORDED_FORMS) as HeritageWordedFormName[]).sort(),
+  );
+
+/** The full list of Heritage worded-form production names, in sorted order. */
+export function heritageWordedFormNames(): readonly HeritageWordedFormName[] {
+  return HERITAGE_WORDED_FORM_NAMES;
+}
+
+/**
  * Every Heritage worded form, sorted by production name for deterministic iteration. The
  * enumerable counterpart of {@link heritageFormHeadNames} for the multi-word spellings, so a
  * consumer that must name the form to a learner has the phrase without restating it.
  */
 const HERITAGE_WORDED_FORM_ENTRIES: readonly HeritageWordedForm[] =
   Object.freeze(
-    (Object.keys(HERITAGE_WORDED_FORMS) as HeritageWordedFormName[])
-      .sort()
-      .map((name) => HERITAGE_WORDED_FORMS[name]),
+    HERITAGE_WORDED_FORM_NAMES.map((name) => HERITAGE_WORDED_FORMS[name]),
   );
 
 /** The full list of Heritage worded forms. See {@link HERITAGE_WORDED_FORM_ENTRIES}. */
@@ -821,9 +845,17 @@ export function heritageWordedFormHeads(): readonly string[] {
 }
 
 /**
- * Every surface spelling that exists ONLY in the Heritage profile — the short command/reporter
- * aliases ({@link heritageAliasNames}), the form heads ({@link heritageFormHeadNames}), and the
- * worded forms' heads ({@link heritageWordedFormHeads}) — sorted for deterministic iteration.
+ * Every surface WORD that identifies a Heritage-only FORM — the short command/reporter aliases
+ * ({@link heritageAliasNames}), the form heads ({@link heritageFormHeadNames}), and the worded
+ * forms' heads ({@link heritageWordedFormHeads}) — sorted for deterministic iteration.
+ *
+ * Read "identifies" precisely: these are the words a learner writes to make the reader take a
+ * Heritage spelling rather than a Core one. Several of them are ALSO ordinary Core vocabulary in
+ * some other position, so this is not a list of Heritage-exclusive tokens: `to` is the preposition
+ * of Core's `set … to` and the bound of `for … from … to` (`spec/grammar.md:104,128`) as well as
+ * the Heritage procedure opener, and the worded reader's head `value` is a globally reserved word
+ * (`spec/grammar.md:358`). What each entry has in common is that a diagnostic naming it would be
+ * naming the learner's Heritage spelling of a condition their Core twin raises identically.
  *
  * This is the enumerable definition of "a Heritage surface spelling", and it exists so the
  * canonical-diagnostic-params guards (`heritage-canonical-diagnostic-params.test.mjs` in
@@ -831,14 +863,15 @@ export function heritageWordedFormHeads(): readonly string[] {
  * runtime stage, issue #741) are driven by the registry instead of a hand-kept list: a future slice
  * that adds a Heritage spelling to any of the three tables is automatically pulled into both
  * guards, so the class of bug where a surface spelling leaks into a diagnostic's structured params
- * cannot quietly reappear.
+ * is much harder to reintroduce unnoticed.
  *
- * "Spelling" here means a WORD, which is why {@link HERITAGE_WORDED_FORMS} contributes its head
+ * A spelling here is a WORD, which is why {@link HERITAGE_WORDED_FORMS} contributes its head
  * rather than its phrase: a leak is a string sitting in a param, and the guards match whole words
- * against rendered param values. The three tables together are the whole of
- * `spec/conformance.md:146-157`'s Heritage inventory (issue #755) — before that they were the
- * single-word tables only, and the doc comment here claimed a completeness the worded reader
- * disproved.
+ * against rendered param values. The three tables together cover every spelling
+ * `spec/conformance.md:146-157`'s Heritage inventory writes in code formatting (issue #755) — an
+ * agreement the parser guard asserts against the spec file itself, rather than by restating it
+ * here. Before #755 these were the single-word tables only, and this comment nevertheless claimed a
+ * completeness the worded reader disproved.
  */
 const HERITAGE_SURFACE_SPELLINGS: readonly string[] = Object.freeze(
   [

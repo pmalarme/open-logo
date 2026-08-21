@@ -50,14 +50,16 @@
 //   3. COVERAGE — every spelling the registries know has a twin, and no twin names a spelling they
 //      no longer know.
 //   4. EXACT PARAMS for the worded `value of … for key` reader (EXTRA_TWINS). Properties 1 and 2
-//      both run over those pairs, but neither can pin the expected canonical VALUE there: property
-//      1 compares the two sides only against each other, and property 2's whole-word matcher sees
-//      the form's head word `value` but not the surrounding phrase. Since issue #784 the reader
-//      shares the Core selectors' own `resolveDictSegment` rather than restating it, so there is no
-//      second copy for property 1 to catch drifting; what property 1 still does catch is a wrong
-//      ARGUMENT from one side, which moves that side alone. What neither can see is a defect in the
-//      shared code itself, which moves both sides together. Only an exact expectation covers that,
-//      so its params are pinned by value.
+//      both run over those pairs, but neither can pin the expected canonical VALUE there. Property
+//      2's whole-word matcher does now see the form's head word `value` — and, because `\b` matches
+//      at a space, any phrase fragment beginning with it — but it is blind to a defect that puts NO
+//      Heritage word in the params at all, such as `operation: "field"` silently becoming
+//      `"index"`. Property 1 compares the two sides only against each other, and since issue #784
+//      the reader shares the Core selectors' own `resolveDictSegment` rather than restating it, so
+//      there is no second copy for it to catch drifting; what it still catches is a wrong ARGUMENT
+//      from one side, which moves that side alone. What neither can see is a defect in the shared
+//      code itself, which moves both sides together. Only an exact expectation covers that, so
+//      these params are pinned by value.
 //
 // The registries enumerate SINGLE-WORD spellings and, since issue #755, the HEAD WORD of each
 // multi-word Heritage FORM. There is exactly one such form, the worded dictionary reader
@@ -296,11 +298,12 @@ const NON_DICT_CONTAINERS = [
  * carries an `expected`, and because a multi-word form has no `aliasProgram`-style generator.
  *
  * `expected` pins each pair's params BY VALUE rather than leaving them to the whole-word matcher,
- * because for this form the matcher alone is the wrong tool in both directions. The registered head
- * is the bare word `value`, so the matcher does now catch a leaked `operation: "value"` — but a
- * leak of the surrounding phrase (`"value of"`, `"for key"`) would slip past a whole-word `value`
- * test, while a pattern broad enough to catch every fragment would fire spuriously on ordinary
- * learner text that is not Heritage at all. An exact expectation covers both cases.
+ * because the matcher alone cannot see every way this form's params can go wrong. It catches a
+ * leaked `value` — and, since `\b` matches at a space, a leaked `"value of"` too — but it is blind
+ * to a defect that puts no Heritage word in the params at all: `operation: "field"` becoming
+ * `"index"`, or `expected: "dict"` becoming something else, are wrong machine-readable identities
+ * carrying no surface spelling to match on. Widening the matcher to catch those is not possible
+ * (they are ordinary words), so an exact expectation is what covers them.
  *
  * The reader is no longer a parallel implementation: since issue #784 it calls the very same
  * `resolveDictSegment` the Core selectors call, so there is no second copy for twin equality to
@@ -498,15 +501,15 @@ test("every alias twin reaches a CANONICAL-carrying field, not just a spelling-i
 
 test("the worded `value of … for key` reader reports EXACTLY the Core selector's params, on both sides", () => {
   // The registries enumerate this form by its head word `value` (#755), so the whole-word matcher
-  // now guards that one string — but not the rest of the phrase, and not a wrong value in a field
-  // that carries no Heritage word at all. Twin equality guards it only partly, and in a way that
-  // changed shape with issue #784: the reader now calls the Core selectors' own
+  // now guards that string — but it is blind to a wrong value in a field that carries no Heritage
+  // word at all (`operation: "field"` → `"index"`, say). Twin equality guards the pair only partly,
+  // and in a way that changed shape with issue #784: the reader now calls the Core selectors' own
   // `resolveDictSegment` instead of restating it, so there is no longer a second copy that could
   // drift out of step. Equality does still catch a wrong ARGUMENT from one side, which moves that
   // side alone; what stays invisible to it is a defect in the shared code itself, which moves both
-  // sides together. Pinning the params by value covers that: any surface fragment reaching
-  // `operation`, `key`, or any sibling — including the parser's bare head word `value` — fails
-  // here, on whichever side it appears.
+  // sides together. Pinning the params by value covers both blind spots: any wrong field — a
+  // surface fragment in `operation` or `key`, or an ordinary word in the wrong slot — fails here,
+  // on whichever side it appears.
   for (const twin of EXTRA_TWINS) {
     for (const source of [twin.heritage, twin.core]) {
       const findings = diagnosticsFor(source);
