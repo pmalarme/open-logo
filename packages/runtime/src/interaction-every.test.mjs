@@ -281,17 +281,63 @@ test("a word that reads as a non-whole number reports the WORD, not a coerced nu
   assert.deepEqual(effectEvents(result), []);
 });
 
+test("a count that is BOTH non-whole AND non-positive raises ol-type, not ol-range (TYPE before RANGE)", () => {
+  // The only input class that can observe the ORDER of the two checks — every other case is
+  // non-whole OR out of range, never both. `spec/interaction-events.md`'s `### every <n> <block>`
+  // orders them ("a non-whole count raises `ol-type`, and a zero or negative count raises
+  // `ol-range`"), matching `spec/commands.md`'s `repeat` entry. Running the range check first would
+  // put a FRACTIONAL value into an `ol-range` count diagnostic and split `every` from `repeat`.
+  // Found by mutation: the inverted order passed a fully green run until this case existed.
+  for (const [source, actual, value] of [
+    ['every -2.5 [ print "x" ]', "number", -2.5],
+    ['every "-2.5" [ print "x" ]', "word", "-2.5"],
+  ]) {
+    const result = execute(source, doc);
+    assert.equal(result.diagnostics.length, 1);
+    assert.equal(result.diagnostics[0].code, "ol-type");
+    assert.deepEqual(result.diagnostics[0].params, {
+      expected: "whole number",
+      actual,
+      value,
+      operation: "every",
+    });
+    assert.deepEqual(effectEvents(result), []);
+  }
+});
+
 test("a count that is neither a number nor a word names its own type", () => {
-  // Completeness across the value model (`spec/execution-model.md`'s Core values): a list and a
-  // boolean reach the same `ol-type` with `actual` naming the offending type, never a coerced
-  // stand-in. `wait` is pinned the same way in `interaction-wait.test.mjs`.
+  // Completeness across the value model (`spec/execution-model.md`'s Core values plus the Data
+  // profile's `dict`/`record`): each reaches the same `ol-type` with `actual` naming the offending
+  // type, never a coerced stand-in. `spec/error-model.md` requires the message to "name the
+  // expected learner concept, such as number, word, list, dict, record, or boolean", so labelling a
+  // dict a word would violate a MUST. `wait` is pinned the same way in `interaction-wait.test.mjs`.
+  //
+  // The `dict` and `record` arms are unit-only, deliberately: their `params.value` currently
+  // serialises to JSON lossily, so a conformance fixture would make that lossy shape normatively
+  // binding on every implementation. See the "Deliberately NOT fixtured" note in
+  // `tests/conformance/interaction-events/README.md`.
+  for (const [source, actual] of [
+    ['every [ 1 2 ] [ print "x" ]', "list"],
+    ['every true [ print "x" ]', "boolean"],
+    ['every { name: "ada" } [ print "x" ]', "dict"],
+    [
+      'struct person [ name age ]\n:p = person "ada" 36\nevery :p [ print "x" ]\n',
+      "record",
+    ],
+  ]) {
+    const result = execute(source, doc);
+    assert.equal(result.diagnostics.length, 1);
+    assert.equal(result.diagnostics[0].code, "ol-type");
+    assert.equal(result.diagnostics[0].params.expected, "whole number");
+    assert.equal(result.diagnostics[0].params.actual, actual);
+    assert.equal(result.diagnostics[0].params.operation, "every");
+  }
+  // The two classes whose value snapshot IS faithfully comparable are pinned whole.
   for (const [source, actual, value] of [
     ['every [ 1 2 ] [ print "x" ]', "list", [1, 2]],
     ['every true [ print "x" ]', "boolean", true],
   ]) {
     const result = execute(source, doc);
-    assert.equal(result.diagnostics.length, 1);
-    assert.equal(result.diagnostics[0].code, "ol-type");
     assert.deepEqual(result.diagnostics[0].params, {
       expected: "whole number",
       actual,

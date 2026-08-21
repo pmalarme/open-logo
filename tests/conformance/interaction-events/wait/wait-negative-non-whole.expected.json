@@ -1,0 +1,38 @@
+{
+  "description": "issue #775 (review gate, QA finding B3): `wait -1.5` -- a count that is BOTH non-whole AND out of range, the only input class that can observe the order of the two checks. `spec/interaction-events.md`'s `### wait <n>` orders them explicitly (\"a non-whole count raises `ol-type`, and a negative count raises `ol-range`\"), the same TYPE-before-RANGE ordering `spec/commands.md`'s `repeat` entry states (\"The checks are ordered: if `count` is not a whole number it raises `ol-type` ...; otherwise, if it is negative, it raises `ol-range`\"). Every other count fixture in the corpus is non-whole OR out of range, never both, so an implementation that ran the range check FIRST would pass the entire corpus while reporting `ol-range` here. That mutation survived a fully green run until this fixture existed. Getting the order wrong is not cosmetic: it would put a FRACTIONAL value into an `ol-range` count diagnostic, which `spec/error-model.md`'s `ol-range` entry scopes to a negative WHOLE-number count while `:99` makes a wrong-typed value `ol-type` -- and it would silently split `wait`/`every` from `repeat`, which is the cross-form consistency this whole change exists to establish. Its `every` twin is `every/every-negative-non-whole`. As with every other failed `wait` validation the `primitive` event is NOT emitted, only the instruction event precedes the diagnostic, and the span covers just the argument.",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/wait/wait-negative-non-whole",
+        "start": [1, 1],
+        "end": [1, 10]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "interaction-events/wait/wait-negative-non-whole",
+        "start": [1, 6],
+        "end": [1, 10]
+      },
+      "params": {
+        "expected": "whole number",
+        "actual": "number",
+        "value": -1.5,
+        "operation": "wait"
+      },
+      "message": "wait needs a whole number, but got a number.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

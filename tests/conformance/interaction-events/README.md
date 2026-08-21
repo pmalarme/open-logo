@@ -183,11 +183,30 @@ the gaps it found rather than rubber-stamping them:
   undocumented: on the `ol-range` arm `params.value` is the **coerced number**, not the word,
   because range is a question about magnitude (which exists only after coercion) whereas `ol-type`
   is a question about what the learner actually wrote. Separately,
-  `wait/wait-non-number-list-type-error` and `every/every-non-number-boolean-type-error` cover a
-  count that is neither a number nor a word: before them every `expected: "whole number"` fixture in
-  the whole corpus (`wait`, `every`, `repeat`, `random`) pinned `actual` as only `number` or `word`,
-  so an implementation could report anything at all for a list, boolean, dict, or record and still
-  pass the full stack-neutral corpus.
+  `wait/wait-non-number-list-type-error` and   `every/every-non-number-boolean-type-error` cover a count that is neither a number nor a word:
+  before them every `expected: "whole number"` fixture in the whole corpus (`wait`, `every`,
+  `repeat`, `random`) pinned `actual` as only `number` or `word`, so an implementation could report
+  anything at all for a list or a boolean and still pass the full stack-neutral corpus. Finally
+  `wait/wait-negative-non-whole` and `every/every-negative-non-whole` pin a count that is **both**
+  non-whole and out of range — the only input class that can observe the normative TYPE-before-RANGE
+  ordering (`spec/interaction-events.md`'s two entries, `spec/commands.md`'s `repeat` entry). Every
+  other count fixture is non-whole *or* out of range, never both, so an implementation that checked
+  range first passed the whole corpus while putting a fractional value into an `ol-range` count
+  diagnostic — which `spec/error-model.md` scopes to a negative *whole*-number count — and silently
+  splitting `wait`/`every` from `repeat`.
+
+  **Deliberately NOT fixtured: the `dict` and `record` arms of that same `params.actual`.**
+  `spec/error-model.md` requires an `ol-type` to "name the expected learner concept, such as number,
+  word, list, dict, record, or boolean", and the runtime does — `wait { name: "ada" }` reports
+  `actual: "dict"`. But `params.value` currently serialises to JSON **lossily** for both
+  (`{"entries":{}}` for a dict, `{"type":…,"declaredFields":[…],"slots":{}}` for a record — the Map
+  contents vanish), and the harness compares `params` exactly. A fixture would therefore make that
+  lossy shape normatively binding on every conforming implementation, which is the same reason
+  #688 declined to fixture `input`'s undisplayable-prompt `ol-type` pending #768. The behavior is
+  pinned instead by `packages/runtime/src/interaction-{wait,every}.test.mjs`, which assert the
+  concept name without a serialised value. The serialisation itself is pre-existing and shared with
+  `repeat`/`random` — **filed as a follow-up** for `@interpreter`; the fixtures land once it is
+  settled.
 - **Profile-scoped reservation of the four block-heads.** `spec/interaction-events.md:43-46` reserves
   `when`/`every`/`on_key`/`on_click` **only within** the profile — a bidirectional MUST that had no
   fixture at all: `redefine-wait-reserved` covers only `wait`, which is a *primitive* name
