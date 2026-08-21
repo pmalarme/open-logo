@@ -119,13 +119,13 @@ A **sprite** is a visible turtle with a shape. `set_shape` is owned by the Turtl
 ```logo
 :bee = new_turtle
 ask :bee [
-  set_shape "bee"
+  set_shape "arrow"
   set_color "yellow"
   forward 60
 ]
 ```
 
-The word names an implementation-provided or user-provided shape. Renderers SHOULD provide a small default shape set and MUST document the words they accept. Shape changes emit the `shape-change` trace event from [execution-model.md](execution-model.md). `stamp` draws the current shape onto the shared drawing surface.
+The word names a shape the implementation provides. The portable shape words, the requirement that an implementation publish a complete description of the shape words its `set_shape` accepts, and the status of user-provided shapes are defined once by [rendering.md](rendering.md#turtle-avatar-and-shapes); the Sprites profile adds no shape words of its own. Shape changes emit the `shape-change` trace event from [execution-model.md](execution-model.md). `stamp` draws the current shape onto the shared drawing surface.
 
 Shapes do not change the identity of a turtle. A turtle remains the same value after `set_shape`, after movement, and after pen changes.
 
