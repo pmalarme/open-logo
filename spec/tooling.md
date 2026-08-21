@@ -95,7 +95,8 @@ highlighters and linters can share the same names:
 
 `to` is contextual: it is both the heritage procedure opener and the slot word in `set ... to` and
 `for ... from ... to`. The words `empty`, `member`, `of`, and `a` are contextual keywords: a
-highlighter marks them as `keyword` only inside an `is`-predicate and as ordinary names elsewhere.
+highlighter marks them as `keyword` only inside an `is`-predicate or the heritage
+`value of … for key` reader, and as ordinary names elsewhere.
 (`is`, `between`, and `strictly` are globally reserved and appear in the list above.) Profile forms are
 reserved only when their profile is active: the `ask` and `each` block-heads and the `tell` command
 for Sprites; the `when`, `every`, `on_key`, and `on_click` block-heads for Interaction.
