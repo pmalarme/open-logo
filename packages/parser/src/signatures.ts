@@ -746,8 +746,10 @@ export function heritageFormHeadNames(): readonly HeritageFormHead[] {
  *
  * Each entry records three things. `phrase` is quoted verbatim from that spec bullet, so a guard
  * can hold this table against the spec's own inventory without normalising anything. `node` is the
- * AST node kind the reader lowers the form onto, which is what lets a guard prove a test program
- * really contains the form rather than merely mentioning its head word. And `head` is the word the
+ * AST node kind the reader lowers the form onto, which lets a guard check that a test program
+ * parses to that kind rather than merely mentioning the form's head word — the AST records node
+ * kinds, not the production that built them, so it distinguishes registered forms only as long as
+ * no two share a kind, an invariant the parser guard asserts. And `head` is the word the
  * form is identified BY — the one part of the phrase that can reach a diagnostic's structured
  * params, and the only word in it that appears in no other production: `of` is the contextual
  * preposition of the `is member of` predicate (`spec/grammar.md:365`), `for` opens the Core

@@ -137,8 +137,10 @@ function diagnosticsFor(source) {
 }
 
 /**
- * Does `source` parse CLEANLY to an AST containing a node of `kind`? Used to prove a twin really
- * USES the Heritage form it claims, rather than merely mentioning its head word.
+ * Does `source` parse CLEANLY to an AST containing a node of `kind`? Used to check that a twin's
+ * program reaches the AST shape a Heritage form lowers onto, rather than merely mentioning its head
+ * word. It does not identify the PRODUCTION: the AST records node kinds only, so it distinguishes
+ * registered forms only as long as no two share a kind — an invariant the parser guard asserts.
  *
  * The clean-parse requirement is load-bearing: the reader builds a RECOVERY AST for a program that
  * does not parse, and that AST can contain the very node kind sought — so without this check a form
@@ -320,8 +322,9 @@ const NON_DICT_CONTAINERS = [
  * `value`, the one part of `value of … for key` that can ever sit in a diagnostic's params
  * (`checker-heritage-form.ts`'s `VALUE_OF_KEY`, read from that same registry). So these pairs
  * declare `covers` like any other twin and are held to the registry-coverage assertion too, plus
- * `coversForm` — the grammar PRODUCTION name — so the witness assertion below identifies the FORM
- * rather than merely its head word, which two productions could legitimately share.
+ * `coversForm` — the registered form's name, which is the grammar production it comes from — so the
+ * witness assertion below is keyed on the FORM rather than on its head word, which two registered
+ * forms could legitimately share.
  * They keep their own list because property 4 — the by-value pin — needs a corpus whose every entry
  * carries an `expected`, and because a multi-word form has no `aliasProgram`-style generator.
  *
@@ -465,16 +468,15 @@ test("the runtime twin corpus covers every Heritage surface spelling the parser 
 
 test("every worded form has a runtime twin that declares it and parses to its registered node kind", () => {
   // The runtime counterpart of the parser guard's witness assertion (issue #755). Head-word
-  // coverage above answers "can this WORD leak into a param"; this answers "is this FORM actually
-  // executed here". They are different questions, and only the second fails when a twin quietly
-  // stops using the form — or when a second production shares the head `value` and one form's twin
-  // is silently credited to the other.
+  // coverage above answers "can this WORD leak into a param"; this answers "does a twin that
+  // declares this form actually reach its AST shape here". They are different questions, and only
+  // the second fails when a twin quietly stops using the form — or when a second registered form
+  // shares the head `value` and one form's twin is silently credited to the other.
   //
-  // Same limit as the parser side, stated the same way: a witness must DECLARE the production
-  // (`coversForm`, author-supplied metadata) and parse cleanly to its registered node kind. The AST
-  // records node kinds, not the production that built them, so the node kind discriminates between
-  // productions only because the parser guard asserts no two worded forms share one — that
-  // invariant is what keeps this from being pure self-attestation.
+  // Same limit as the parser side, stated the same way: a witness DECLARES the form (`coversForm`,
+  // author-supplied metadata) and parses cleanly to its registered node kind. It does not establish
+  // which PRODUCTION built the node — the AST records node kinds only — so the kind distinguishes
+  // registered forms just as long as no two share one, which the parser guard asserts.
   //
   // The AST check uses `@openlogo/parser`'s own `parse`/`walk` rather than re-deriving the shape:
   // `execute()` parses internally, so a program that does not parse cleanly never reaches the

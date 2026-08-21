@@ -111,15 +111,17 @@ function stagedDiagnosticsFor(source, profiles = PROFILES) {
 }
 
 /**
- * Does `source` parse CLEANLY to an AST containing a node of `kind`? Used to prove a twin really
- * USES the form it claims to cover, rather than merely mentioning its head word somewhere in the
- * program.
+ * Does `source` parse CLEANLY to an AST containing a node of `kind`? Used to check that a twin's
+ * program really reaches the AST shape a Heritage form lowers onto, rather than merely mentioning
+ * the form's head word somewhere in the program. It does not identify the PRODUCTION: the AST
+ * records node kinds only, so this distinguishes registered forms only as long as no two share a
+ * kind — the invariant the witness test asserts before relying on it.
  *
  * The clean-parse requirement is load-bearing, not incidental: the reader builds a RECOVERY AST for
  * a program that fails to parse, and that recovery AST can contain the very node kind being looked
  * for — `print value of :d for key "k" ]` reports `ol-unmatched-bracket` and still yields a
  * `ValueOfKey`. Without this check a form could be "covered" solely by a twin that never parses,
- * which proves nothing about the form as the language actually reads it.
+ * which says nothing about the form as the language actually reads it.
  */
 function astContains(source, kind) {
   const { ast, diagnostics } = OL.parse(source, doc);
@@ -558,21 +560,18 @@ test("every worded form has a twin that declares it and parses to its registered
   // that legitimately shared a head would let one form's twin stand in for the other's. That is
   // exactly the "a guard that looks like coverage but is not" defect issue #755 exists to close.
   //
-  // **Exactly what this proves, and what it does not.** A witness must DECLARE the production —
+  // **Exactly what this checks, and what it does not.** A witness must DECLARE the form —
   // `coversForm`, which is author-supplied metadata — and its program must parse CLEANLY to that
-  // production's registered node kind. It does not prove the program used that production and no
-  // other: the AST records node kinds, not the production that built them, so two productions
-  // lowering to the same kind would be indistinguishable here. That is a property of the AST, not
-  // something this test can fix. What makes the node kind a sound discriminator TODAY is the
-  // registry invariant asserted below — no two worded forms share a node kind — which fails loudly
-  // the moment a future slice makes it ambiguous, rather than silently degrading this test into
-  // self-attestation.
-  // The registry invariants come FIRST, because the witness check below relies on them. Every
-  // worded form's head must be unique — `heritageSurfaceSpellings()` carries heads, so two forms
-  // sharing one would be indistinguishable there — and so must every form's NODE KIND, which is
-  // what makes the witness check discriminate between productions rather than merely agree with a
-  // twin's own claim. Asserting them after the witness loop would let a witness failure mask the
-  // reason the witness check had stopped being sound.
+  // form's registered node kind. It does not establish that the program used that PRODUCTION and no
+  // other: the AST records node kinds, not the production that built them (`ValueOfKeyNode` carries
+  // `kind`, operands and a span, and no production identifier), so two productions lowering to the
+  // same kind would be indistinguishable here. That is a property of the AST, not something this
+  // test can fix. What keeps the node kind a usable discriminator TODAY is the registry invariant
+  // asserted first below — no two worded forms share a node kind — which fails loudly the moment a
+  // future slice makes it ambiguous, rather than letting this quietly decay into self-attestation.
+  //
+  // Those registry invariants come FIRST, because the witness check relies on them: asserting them
+  // after would let a witness failure mask the reason the witness check had stopped being usable.
   const heads = heritageWordedForms().map((form) => form.head);
   assert.equal(
     new Set(heads).size,
@@ -585,9 +584,9 @@ test("every worded form has a twin that declares it and parses to its registered
     new Set(nodes).size,
     nodes.length,
     `two Heritage worded forms lower to the same AST node kind (${JSON.stringify(nodes)}). The ` +
-      "witness assertion below uses the node kind to tell productions apart, so it would credit " +
-      "one form's twin to the other: give each form its own node kind, or give the witness a " +
-      "discriminator the AST can actually express (issue #755).",
+      "witness assertion below uses the node kind to tell registered forms apart, so it would " +
+      "credit one form's twin to the other: give each form its own node kind, or give the witness " +
+      "a discriminator the AST can actually express (issue #755).",
   );
   for (const name of heritageWordedFormNames()) {
     const form = OL.heritageWordedForm(name);
@@ -599,12 +598,12 @@ test("every worded form has a twin that declares it and parses to its registered
       witnesses.length > 0,
       `the worded form "${name}" (\`${form.phrase}\`) has no twin that declares ` +
         `coversForm: "${name}" AND parses cleanly to a ${form.node} node. A twin that merely ` +
-        `mentions "${form.head}", or that claims a different production, proves nothing about ` +
-        "this form — give it a program that actually uses it (issue #755).",
+        `mentions "${form.head}", or that declares a different form, leaves this one unexercised ` +
+        "— give it a program that uses it (issue #755).",
     );
   }
-  // No twin may claim a production the registry does not know (a stale entry), and a twin that
-  // claims one must also list that form's head in `covers`, or the surface-spelling assertions
+  // No twin may declare a form the registry does not know (a stale entry), and a twin that declares
+  // one must also list that form's head in `covers`, or the surface-spelling assertions
   // would skip the very word the form can leak.
   const names = new Set(heritageWordedFormNames());
   for (const twin of [...TWINS, ...PARSE_TWINS]) {
