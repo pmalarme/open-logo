@@ -474,17 +474,17 @@ test("the registries enumerate every code-formatted Heritage spelling the spec l
   }
 });
 
-test("the checker's worded-reader head and node agree with the registry, and are not a private copy", () => {
+test("the checker's worded-reader head and node agree with the registry", () => {
   // `checker-heritage-form.ts` spans and reports the reader's head, and matches its AST node kind,
   // from `heritageWordedForm("value-of-reader")` rather than restating either literal — a second
   // private copy beside the registry is how a spelling drifts out from under a guard that looks
   // like it covers it, which is the failure mode issue #755 is about.
   //
-  // What this asserts is AGREEMENT, observed through the checker's own output: it fails if the
-  // checker ever reports a head that differs from the registry's. It cannot, on its own, prove the
-  // checker READS the registry — re-inlining the matching literal `"value"` would still pass. What
-  // makes the provenance hold is the registry lookup in the source plus this test failing the
-  // moment the two disagree, which is what a later edit to either side would cause.
+  // What this asserts is AGREEMENT, observed through the checker's own output, and nothing more: it
+  // fails the moment the checker reports a head or spans a node the registry does not name. It
+  // cannot prove the checker READS the registry — re-inlining the matching literal `"value"` would
+  // still pass — so the test name claims agreement, not provenance. What holds the provenance is
+  // the lookup in the source; what this adds is that the two cannot silently drift apart.
   const form = OL.heritageWordedForm("value-of-reader");
   assert.equal(form.phrase, "value of … for key");
   assert.equal(form.node, "ValueOfKey");
@@ -513,46 +513,82 @@ test("the worded-form registry's entries are frozen, so no consumer can poison w
   // guarantee this table exists to provide (issue #755). `as const` is a TYPE-level assertion and
   // stops nothing at runtime, so this asserts the runtime freeze, on both fields the checker reads.
   //
-  // Scope, stated precisely: this covers the ENTRY, which is the only part of the registry a
+  // Scope, stated precisely: this covers the ENTRIES, which are the only part of the registry a
   // consumer can reach. `signatures.ts` also freezes the table itself, but that table is module-
   // private — no external caller can add, replace, or drop a production, so no test here can
   // exercise it. That freeze guards against an accident inside `signatures.ts`, and nothing below
   // proves it.
+  for (const form of heritageWordedForms()) {
+    assert.ok(
+      Object.isFrozen(form),
+      `worded form \`${form.phrase}\`'s entry must be frozen`,
+    );
+    assert.throws(
+      () => {
+        "use strict";
+        form.head = "poisoned";
+      },
+      TypeError,
+      `writing \`${form.phrase}\`'s head must throw, not silently poison the registry`,
+    );
+    assert.throws(
+      () => {
+        "use strict";
+        form.node = "DictLit";
+      },
+      TypeError,
+      `writing \`${form.phrase}\`'s node kind must throw — the witness assertions match on it`,
+    );
+    assert.ok(
+      heritageSurfaceSpellings().includes(form.head),
+      `the head \`${form.head}\` the checker reports must still be the one the surface matcher ` +
+        "enumerates",
+    );
+  }
+  // And the values a consumer reads back are unchanged after those attempted writes.
   const form = OL.heritageWordedForm("value-of-reader");
-  assert.ok(Object.isFrozen(form), "each worded-form entry must be frozen");
-  assert.throws(
-    () => {
-      "use strict";
-      form.head = "poisoned";
-    },
-    TypeError,
-    "writing a worded form's head must throw, not silently poison the registry",
-  );
-  assert.throws(
-    () => {
-      "use strict";
-      form.node = "DictLit";
-    },
-    TypeError,
-    "writing a worded form's node kind must throw — the witness assertions match on it",
-  );
-  assert.equal(OL.heritageWordedForm("value-of-reader").head, "value");
-  assert.equal(OL.heritageWordedForm("value-of-reader").node, "ValueOfKey");
-  assert.ok(
-    heritageSurfaceSpellings().includes(form.head),
-    "the head the checker reports must still be the one the surface matcher enumerates",
-  );
+  assert.equal(form.head, "value");
+  assert.equal(form.node, "ValueOfKey");
 });
 
-test("every worded form has a twin whose program really contains that PRODUCTION, not just its head word", () => {
+test("every worded form has a twin that declares it and parses to its registered node kind", () => {
   // Coverage for a multi-word form cannot be keyed on its head word alone. `covers: ["value"]` is
   // satisfied by any program containing the word, so a twin that lost its `value of … for key`
   // expression would keep the coverage assertion green while testing nothing — and two productions
   // that legitimately shared a head would let one form's twin stand in for the other's. That is
-  // exactly the "a guard that looks like coverage but is not" defect issue #755 exists to close, so
-  // it is closed on the FORM's own identity: a twin declares `coversForm`, the grammar production
-  // name, and must ALSO parse cleanly to an AST containing that production's node kind. The name
-  // pins which form is claimed; the AST proves the claim.
+  // exactly the "a guard that looks like coverage but is not" defect issue #755 exists to close.
+  //
+  // **Exactly what this proves, and what it does not.** A witness must DECLARE the production —
+  // `coversForm`, which is author-supplied metadata — and its program must parse CLEANLY to that
+  // production's registered node kind. It does not prove the program used that production and no
+  // other: the AST records node kinds, not the production that built them, so two productions
+  // lowering to the same kind would be indistinguishable here. That is a property of the AST, not
+  // something this test can fix. What makes the node kind a sound discriminator TODAY is the
+  // registry invariant asserted below — no two worded forms share a node kind — which fails loudly
+  // the moment a future slice makes it ambiguous, rather than silently degrading this test into
+  // self-attestation.
+  // The registry invariants come FIRST, because the witness check below relies on them. Every
+  // worded form's head must be unique — `heritageSurfaceSpellings()` carries heads, so two forms
+  // sharing one would be indistinguishable there — and so must every form's NODE KIND, which is
+  // what makes the witness check discriminate between productions rather than merely agree with a
+  // twin's own claim. Asserting them after the witness loop would let a witness failure mask the
+  // reason the witness check had stopped being sound.
+  const heads = heritageWordedForms().map((form) => form.head);
+  assert.equal(
+    new Set(heads).size,
+    heads.length,
+    `two Heritage worded forms share a head word (${JSON.stringify(heads)}). Give each form a ` +
+      "distinct head, or teach the surface matcher about the ambiguity.",
+  );
+  const nodes = heritageWordedForms().map((form) => form.node);
+  assert.equal(
+    new Set(nodes).size,
+    nodes.length,
+    `two Heritage worded forms lower to the same AST node kind (${JSON.stringify(nodes)}). The ` +
+      "witness assertion below uses the node kind to tell productions apart, so it would credit " +
+      "one form's twin to the other: give each form its own node kind, or give the witness a " +
+      "discriminator the AST can actually express (issue #755).",
+  );
   for (const name of heritageWordedFormNames()) {
     const form = OL.heritageWordedForm(name);
     const witnesses = [...TWINS, ...PARSE_TWINS].filter(
@@ -586,16 +622,6 @@ test("every worded form has a twin whose program really contains that PRODUCTION
         "in `covers`, so the surface-spelling assertions would skip it",
     );
   }
-  // Every worded form's head must be unique: `heritageSurfaceSpellings()` carries heads, so two
-  // forms sharing one would be indistinguishable there. `coversForm` makes the WITNESS unambiguous
-  // regardless; this keeps the registry from creating the ambiguity in the first place.
-  const heads = heritageWordedForms().map((form) => form.head);
-  assert.equal(
-    new Set(heads).size,
-    heads.length,
-    `two Heritage worded forms share a head word (${JSON.stringify(heads)}). Give each form a ` +
-      "distinct head, or teach the surface matcher about the ambiguity.",
-  );
 });
 
 test("the twin corpus covers every Heritage surface spelling the parser knows", () => {

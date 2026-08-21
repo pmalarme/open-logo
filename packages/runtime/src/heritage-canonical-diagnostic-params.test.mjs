@@ -463,16 +463,25 @@ test("the runtime twin corpus covers every Heritage surface spelling the parser 
   }
 });
 
-test("every worded form has a runtime twin whose program really contains that PRODUCTION", () => {
+test("every worded form has a runtime twin that declares it and parses to its registered node kind", () => {
   // The runtime counterpart of the parser guard's witness assertion (issue #755). Head-word
   // coverage above answers "can this WORD leak into a param"; this answers "is this FORM actually
   // executed here". They are different questions, and only the second fails when a twin quietly
   // stops using the form — or when a second production shares the head `value` and one form's twin
   // is silently credited to the other.
   //
+  // Same limit as the parser side, stated the same way: a witness must DECLARE the production
+  // (`coversForm`, author-supplied metadata) and parse cleanly to its registered node kind. The AST
+  // records node kinds, not the production that built them, so the node kind discriminates between
+  // productions only because the parser guard asserts no two worded forms share one — that
+  // invariant is what keeps this from being pure self-attestation.
+  //
   // The AST check uses `@openlogo/parser`'s own `parse`/`walk` rather than re-deriving the shape:
   // `execute()` parses internally, so a program that does not parse cleanly never reaches the
   // runtime stage this file guards at all, which is why a clean parse is required.
+  //
+  // (The head/node uniqueness invariants this rests on are asserted in the parser guard, which owns
+  // the registry; restating them here would be a second copy to drift.)
   for (const name of heritageWordedFormNames()) {
     const form = heritageWordedForm(name);
     const witnesses = ALL_TWINS.filter(

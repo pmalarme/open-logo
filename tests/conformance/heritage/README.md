@@ -68,8 +68,8 @@ here fixture-by-fixture as each Heritage slice lands:
   reader and the Core `:d["k"]` selector, over the same undefined operand, report byte-identical
   `ol-undefined-var` params naming only the learner's variable. The head word `value` reaches no
   structured param on either side (issue #755).
-- `execution/heritage-value-of-key-{reads,missing-key,bad-key-type}-like-core` and
-  `execution/heritage-value-of-key-{non-dict,word,boolean,list,turtle}-container-like-core` — the
+- `execution/heritage-value-of-key-{reads,missing-key,bad-key-type,non-dict}-like-core` and
+  `execution/heritage-value-of-key-{word,boolean,list,turtle}-container-like-core` — the
   reader shares the Core dict read (since #784 it calls the selectors' own `resolveDictSegment`),
   so it produces the same value and the same diagnostics as the Core selector — diagnostics match
   by construction, not just results (slice H5, #670; container matrix #784). Note which Core twin
