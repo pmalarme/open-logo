@@ -106,9 +106,16 @@ export {
   heritageAliasArityRange,
   canonicalOfHeritageFormHead,
   heritageFormHeadNames,
+  heritageWordedForm,
+  heritageWordedForms,
+  heritageWordedFormHeads,
   heritageSurfaceSpellings,
 } from "./signatures.js";
-export type { HeritageFormHead } from "./signatures.js";
+export type {
+  HeritageFormHead,
+  HeritageWordedForm,
+  HeritageWordedFormName,
+} from "./signatures.js";
 
 export { highlight, OL_BRACKET_ROLES, OL_TOKEN_CLASSES } from "./highlight.js";
 export type { BracketRole, Token, TokenClass } from "./highlight.js";

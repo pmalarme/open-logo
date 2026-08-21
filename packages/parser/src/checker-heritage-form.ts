@@ -47,7 +47,10 @@ import type {
 } from "./ast.js";
 import { walk } from "./ast.js";
 import type { CheckProfile } from "./check.js";
-import { canonicalOfHeritageFormHead } from "./signatures.js";
+import {
+  canonicalOfHeritageFormHead,
+  heritageWordedForm,
+} from "./signatures.js";
 import type { HeritageFormHead } from "./signatures.js";
 
 /**
@@ -99,8 +102,14 @@ function messageFor(head: string, suggestion: string | undefined): string {
 /**
  * The `value of … for key` reader head is the literal word `value` (5 chars), so its head span is
  * the node start extended by that length — mirroring {@link headSpan} for the four form heads.
+ *
+ * Read from the parser's Heritage worded-form registry rather than restated here, so this rule and
+ * {@link heritageSurfaceSpellings} can never disagree about what the form's surface word is: the
+ * canonical-diagnostic-params guards match that registry's words against every diagnostic's
+ * structured params, and a second private copy of the string is precisely how a spelling drifts out
+ * from under a guard that looks like it covers it (issue #755).
  */
-const VALUE_OF_KEY_HEAD = "value";
+const VALUE_OF_KEY_HEAD = heritageWordedForm("value-of-reader").head;
 
 /**
  * The Heritage form-head rule: with the Heritage profile inactive, every `make`/`to`/`output`/`op`
