@@ -273,6 +273,13 @@ const TWINS = [
   // and it is the reason the registry grew a third table: it is a FORM, not a callable name, so
   // neither single-word table could hold it and the guard was blind to it.
   //
+  // These declare `coversForm` — the grammar PRODUCTION name — as well as `covers`, and the two
+  // answer different questions. `covers` feeds the surface-spelling coverage assertion, which is
+  // about the WORD that can leak into a param. `coversForm` feeds the witness assertion, which is
+  // about the FORM: two productions could legitimately share a head word, and then head-based
+  // coverage would let one form's twin stand in for the other's, which is exactly the
+  // looks-like-coverage-but-is-not defect this issue closes.
+  //
   // Its Core twin is the `[]`/`.` selector syntax (`spec/data-structures.md:265-268`) rather than
   // a Core word, so these pairs differ by a whole expression shape and not just a spelling — which
   // is exactly what makes them worth asserting: the two forms must still report the SAME condition
@@ -287,12 +294,14 @@ const TWINS = [
   // reaches a canonical-carrying param (`keyword`) with the reader in the program.
   {
     covers: ["value"],
+    coversForm: "value-of-reader",
     heritage: 'print value of :missing_input for key "tom"',
     core: 'print :missing_input["tom"]',
     note: "worded reader over an undefined dict — ol-undefined-var",
   },
   {
     covers: ["value"],
+    coversForm: "value-of-reader",
     heritage:
       ':ages = { tom: 11 }\n:nums = [ 1 ]\nprint map n in :nums [ output value of :ages for key "tom" ]',
     core: ':ages = { tom: 11 }\n:nums = [ 1 ]\nprint map n in :nums [ return :ages["tom"] ]',
@@ -334,6 +343,7 @@ const PARSE_TWINS = [
   },
   {
     covers: ["value"],
+    coversForm: "value-of-reader",
     heritage: "print value of",
     core: "print :ages[",
     note: "ol-bad-token — parse stage, worded reader truncated mid-form",
@@ -495,28 +505,91 @@ test("the checker's worded-reader head and node agree with the registry, and are
   assert.equal(line.slice(startColumn - 1, endColumn - 1), form.head);
 });
 
-test("every worded form has a twin whose program really contains the form, not just its head word", () => {
-  // Coverage for a multi-word form cannot be keyed on its head word alone: `covers: ["value"]` is
+test("the worded-form registry is frozen, so no consumer can poison what the guards match on", () => {
+  // `heritageWordedForm` hands out the entry object itself rather than a copy, and both guards plus
+  // `checker-heritage-form.ts` read the same object. An unfrozen entry would let one consumer
+  // rewrite the head every other consumer reads — the checker would report a poisoned name while
+  // `heritageSurfaceSpellings()` still matched on the real one, which is the single-source-of-truth
+  // guarantee this table exists to provide (issue #755). `as const` is a TYPE-level assertion and
+  // stops nothing at runtime, so this asserts the runtime freeze.
+  const form = OL.heritageWordedForm("value-of-reader");
+  assert.ok(Object.isFrozen(form), "each worded-form entry must be frozen");
+  assert.throws(
+    () => {
+      "use strict";
+      form.head = "poisoned";
+    },
+    TypeError,
+    "writing a worded form's head must throw, not silently poison the registry",
+  );
+  assert.equal(OL.heritageWordedForm("value-of-reader").head, "value");
+  // And the table itself: no consumer may add, replace, or drop a production.
+  assert.throws(
+    () => {
+      "use strict";
+      OL.heritageWordedForm("value-of-reader").node = "DictLit";
+    },
+    TypeError,
+    "writing a worded form's node kind must throw",
+  );
+  assert.ok(
+    heritageSurfaceSpellings().includes(form.head),
+    "the head the checker reports must still be the one the surface matcher enumerates",
+  );
+});
+
+test("every worded form has a twin whose program really contains that PRODUCTION, not just its head word", () => {
+  // Coverage for a multi-word form cannot be keyed on its head word alone. `covers: ["value"]` is
   // satisfied by any program containing the word, so a twin that lost its `value of … for key`
-  // expression — or a second worded form that happened to share the head `value` — would keep the
-  // coverage assertion green while testing nothing. That is exactly the "a guard that looks like
-  // coverage but is not" defect issue #755 exists to close, so it is closed by PRODUCTION name and
-  // by the AST: every registered worded form must have a twin whose Heritage program parses to an
-  // AST actually containing that form's node kind.
+  // expression would keep the coverage assertion green while testing nothing — and two productions
+  // that legitimately shared a head would let one form's twin stand in for the other's. That is
+  // exactly the "a guard that looks like coverage but is not" defect issue #755 exists to close, so
+  // it is closed on the FORM's own identity: a twin declares `coversForm`, the grammar production
+  // name, and must ALSO parse cleanly to an AST containing that production's node kind. The name
+  // pins which form is claimed; the AST proves the claim.
   for (const name of heritageWordedFormNames()) {
     const form = OL.heritageWordedForm(name);
     const witnesses = [...TWINS, ...PARSE_TWINS].filter(
       (twin) =>
-        twin.covers.includes(form.head) &&
-        astContains(twin.heritage, form.node),
+        twin.coversForm === name && astContains(twin.heritage, form.node),
     );
     assert.ok(
       witnesses.length > 0,
-      `the worded form "${name}" (\`${form.phrase}\`) has no twin whose Heritage program parses ` +
-        `to a ${form.node} node. A twin that merely mentions "${form.head}" proves nothing about ` +
-        "the form — give it a program that actually uses it (issue #755).",
+      `the worded form "${name}" (\`${form.phrase}\`) has no twin that declares ` +
+        `coversForm: "${name}" AND parses cleanly to a ${form.node} node. A twin that merely ` +
+        `mentions "${form.head}", or that claims a different production, proves nothing about ` +
+        "this form — give it a program that actually uses it (issue #755).",
     );
   }
+  // No twin may claim a production the registry does not know (a stale entry), and a twin that
+  // claims one must also list that form's head in `covers`, or the surface-spelling assertions
+  // would skip the very word the form can leak.
+  const names = new Set(heritageWordedFormNames());
+  for (const twin of [...TWINS, ...PARSE_TWINS]) {
+    if (twin.coversForm === undefined) {
+      continue;
+    }
+    assert.ok(
+      names.has(twin.coversForm),
+      `${twin.note}: claims coversForm "${twin.coversForm}", which is not a registered Heritage ` +
+        "worded form any more",
+    );
+    assert.ok(
+      twin.covers.includes(OL.heritageWordedForm(twin.coversForm).head),
+      `${twin.note}: claims coversForm "${twin.coversForm}" but does not list that form's head ` +
+        "in `covers`, so the surface-spelling assertions would skip it",
+    );
+  }
+  // Every worded form's head must be unique: `heritageSurfaceSpellings()` carries heads, so two
+  // forms sharing one would be indistinguishable there. `coversForm` makes the WITNESS unambiguous
+  // regardless; this keeps the registry from creating the ambiguity in the first place.
+  const heads = heritageWordedForms().map((form) => form.head);
+  assert.equal(
+    new Set(heads).size,
+    heads.length,
+    `two Heritage worded forms share a head word (${JSON.stringify(heads)}). Give each form a ` +
+      "distinct head, or teach the surface matcher about the ambiguity.",
+  );
 });
 
 test("the twin corpus covers every Heritage surface spelling the parser knows", () => {

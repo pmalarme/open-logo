@@ -104,11 +104,13 @@ function messageFor(head: string, suggestion: string | undefined): string {
  * span is the node start extended by that length, mirroring {@link headSpan} for the four form
  * heads) and the AST node kind the reader lowers it onto.
  *
- * Read from the parser's Heritage worded-form registry rather than restated here, so this rule and
- * {@link heritageSurfaceSpellings} can never disagree about what the form's surface word is: the
- * canonical-diagnostic-params guards match that registry's words against every diagnostic's
- * structured params, and a second private copy of the string is precisely how a spelling drifts out
- * from under a guard that looks like it covers it (issue #755).
+ * Read from the parser's Heritage worded-form registry rather than restated here, so this rule
+ * keeps NO second copy of the form's surface word or node kind: the canonical-diagnostic-params
+ * guards match that registry's words against every diagnostic's structured params, and a private
+ * copy beside the registry is precisely how a spelling drifts out from under a guard that looks
+ * like it covers it (issue #755). The registry's entries are frozen, so what this rule reports and
+ * what {@link heritageSurfaceSpellings} enumerates come from one immutable object rather than two
+ * that must be kept in step.
  */
 const VALUE_OF_KEY = heritageWordedForm("value-of-reader");
 

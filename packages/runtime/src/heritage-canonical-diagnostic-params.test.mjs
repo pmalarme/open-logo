@@ -111,7 +111,11 @@ import {
   heritageAliasNames,
   heritageFormHeadNames,
   heritageSurfaceSpellings,
+  heritageWordedForm,
   heritageWordedFormHeads,
+  heritageWordedFormNames,
+  parse,
+  walk,
 } from "@openlogo/parser";
 import { execute } from "@openlogo/runtime";
 
@@ -130,6 +134,28 @@ const MAIN_TURTLE_ID = 0;
 /** Every diagnostic an EXECUTED document produces — the runtime stage this guard exists for. */
 function diagnosticsFor(source) {
   return execute(source, doc).diagnostics;
+}
+
+/**
+ * Does `source` parse CLEANLY to an AST containing a node of `kind`? Used to prove a twin really
+ * USES the Heritage form it claims, rather than merely mentioning its head word.
+ *
+ * The clean-parse requirement is load-bearing: the reader builds a RECOVERY AST for a program that
+ * does not parse, and that AST can contain the very node kind sought — so without this check a form
+ * could be "covered" by a program `execute()` never even runs.
+ */
+function astContains(source, kind) {
+  const { ast, diagnostics } = parse(source, doc);
+  if (diagnostics.length > 0) {
+    return false;
+  }
+  let found = false;
+  walk(ast, (node) => {
+    if (node.kind === kind) {
+      found = true;
+    }
+  });
+  return found;
 }
 
 /**
@@ -292,8 +318,10 @@ const NON_DICT_CONTAINERS = [
  *
  * Since issue #755 `heritageSurfaceSpellings()` does enumerate this form — by its head word
  * `value`, the one part of `value of … for key` that can ever sit in a diagnostic's params
- * (`checker-heritage-form.ts`'s `VALUE_OF_KEY_HEAD`, now read from that same registry). So these
- * pairs declare `covers` like any other twin and are held to the registry-coverage assertion too.
+ * (`checker-heritage-form.ts`'s `VALUE_OF_KEY`, read from that same registry). So these pairs
+ * declare `covers` like any other twin and are held to the registry-coverage assertion too, plus
+ * `coversForm` — the grammar PRODUCTION name — so the witness assertion below identifies the FORM
+ * rather than merely its head word, which two productions could legitimately share.
  * They keep their own list because property 4 — the by-value pin — needs a corpus whose every entry
  * carries an `expected`, and because a multi-word form has no `aliasProgram`-style generator.
  *
@@ -321,6 +349,7 @@ const NON_DICT_CONTAINERS = [
 const EXTRA_TWINS = [
   {
     covers: ["value"],
+    coversForm: "value-of-reader",
     heritage: ':ages = { tom: 11 }\nprint value of :ages for key "zed"',
     core: ':ages = { tom: 11 }\nprint :ages["zed"]',
     note: "value of … for key on a missing key — ol-unknown-key { key }",
@@ -331,6 +360,7 @@ const EXTRA_TWINS = [
   // rather than a value invented for Heritage.
   ...NON_DICT_CONTAINERS.map(({ type, setup, value }) => ({
     covers: ["value"],
+    coversForm: "value-of-reader",
     heritage: `${setup}\nprint value of :x for key "tom"`,
     core: `${setup}\nprint :x.tom`,
     note: `value of … for key on a non-dict ${type} container — ol-type { expected, actual, value, operation }`,
@@ -348,6 +378,7 @@ const EXTRA_TWINS = [
   })),
   {
     covers: ["value"],
+    coversForm: "value-of-reader",
     // The third failure mode `evaluate.ts`'s dict-read guard documents, and the one the other
     // pairs miss: a key that is neither word nor number. The key is bound to `:k` on both sides so
     // the two programs supply the SAME evaluated value. An inline key would not be a twin on either
@@ -430,6 +461,61 @@ test("the runtime twin corpus covers every Heritage surface spelling the parser 
       `alias ${alias} must resolve to a canonical spelling`,
     );
   }
+});
+
+test("every worded form has a runtime twin whose program really contains that PRODUCTION", () => {
+  // The runtime counterpart of the parser guard's witness assertion (issue #755). Head-word
+  // coverage above answers "can this WORD leak into a param"; this answers "is this FORM actually
+  // executed here". They are different questions, and only the second fails when a twin quietly
+  // stops using the form — or when a second production shares the head `value` and one form's twin
+  // is silently credited to the other.
+  //
+  // The AST check uses `@openlogo/parser`'s own `parse`/`walk` rather than re-deriving the shape:
+  // `execute()` parses internally, so a program that does not parse cleanly never reaches the
+  // runtime stage this file guards at all, which is why a clean parse is required.
+  for (const name of heritageWordedFormNames()) {
+    const form = heritageWordedForm(name);
+    const witnesses = ALL_TWINS.filter(
+      (twin) =>
+        twin.coversForm === name && astContains(twin.heritage, form.node),
+    );
+    assert.ok(
+      witnesses.length > 0,
+      `the worded form "${name}" (\`${form.phrase}\`) has no runtime twin that declares ` +
+        `coversForm: "${name}" AND parses cleanly to a ${form.node} node — so nothing proves its ` +
+        "RUNTIME diagnostics are canonical (issues #741, #755).",
+    );
+  }
+  const names = new Set(heritageWordedFormNames());
+  for (const twin of ALL_TWINS) {
+    if (twin.coversForm === undefined) {
+      continue;
+    }
+    assert.ok(
+      names.has(twin.coversForm),
+      `${twin.note}: claims coversForm "${twin.coversForm}", which is not a registered Heritage ` +
+        "worded form any more",
+    );
+    assert.ok(
+      twin.covers.includes(heritageWordedForm(twin.coversForm).head),
+      `${twin.note}: claims coversForm "${twin.coversForm}" but does not list that form's head ` +
+        "in `covers`, so the surface-spelling assertions would skip it",
+    );
+  }
+  // The witness helper's clean-parse rule is asserted directly rather than merely relied on. A
+  // RECOVERY AST can contain the very node kind sought, so without it a form could be "witnessed"
+  // by a program `execute()` never even parses — and this guard is about the runtime stage, which
+  // such a program never reaches.
+  assert.equal(
+    astContains('print value of :d for key "k" ]', "ValueOfKey"),
+    false,
+    "a program that does not parse must not witness a form, however its recovery AST looks",
+  );
+  assert.equal(
+    astContains(':d = { k: 1 }\nprint value of :d for key "k"', "ValueOfKey"),
+    true,
+    "a cleanly-parsing program that uses the form must witness it",
+  );
 });
 
 test("the runtime twin corpus is not vacuous — every pair raises at least one diagnostic", () => {

@@ -763,13 +763,18 @@ export function heritageFormHeadNames(): readonly HeritageFormHead[] {
  * inventing one would name something absent from the diagnostic's own span. That is exactly why
  * `checker-heritage-form.ts` gives this form's rejection no `did you mean`, and why the form must
  * live in its own table rather than being forced into the head→canonical map.
+ *
+ * Each entry and the table itself are frozen at RUNTIME, not merely `as const` at the type level:
+ * {@link heritageWordedForm} hands the entry object straight to callers rather than copying it, so
+ * an unfrozen entry would let one consumer mutate the head every other consumer reads — which is
+ * precisely the single-source-of-truth guarantee this table exists to provide.
  */
 const HERITAGE_WORDED_FORMS = {
-  "value-of-reader": {
+  "value-of-reader": Object.freeze({
     head: "value",
     phrase: "value of … for key",
     node: "ValueOfKey",
-  },
+  }),
 } as const satisfies Record<
   string,
   { head: string; phrase: string; node: NodeKind }
@@ -797,6 +802,12 @@ export function heritageWordedForm<Name extends HeritageWordedFormName>(
 ): (typeof HERITAGE_WORDED_FORMS)[Name] {
   return HERITAGE_WORDED_FORMS[name];
 }
+
+/**
+ * The frozen worded-form table itself, so no caller can add, replace, or delete a production. The
+ * entries were frozen at their literals above; this closes the table around them.
+ */
+Object.freeze(HERITAGE_WORDED_FORMS);
 
 /**
  * Every Heritage worded form's grammar-production name, sorted for deterministic iteration — the
