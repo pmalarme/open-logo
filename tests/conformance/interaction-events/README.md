@@ -212,9 +212,10 @@ the gaps it found rather than rubber-stamping them:
   lossy shape normatively binding on every conforming implementation, which is the same reason
   #688 declined to fixture `input`'s undisplayable-prompt `ol-type` pending #768. The behavior is
   pinned instead by `packages/runtime/src/interaction-{wait,every}.test.mjs`, which assert the
-  concept name without a serialised value. The serialisation itself is pre-existing and shared with
-  `repeat`/`random` — **filed as a follow-up** for `@interpreter`; the fixtures land once it is
-  settled.
+  concept name **and** the live payload through its public API (`OLDict.keys`/`get`,
+  `OLRecord.type`/`fields`/`get`) without binding a serialised value. The serialisation itself is
+  pre-existing and shared with `repeat`/`random` — **filed as a follow-up** for `@interpreter`; the
+  fixtures land once it is settled.
 - **Profile-scoped reservation of the four block-heads.** `spec/interaction-events.md:43-46` reserves
   `when`/`every`/`on_key`/`on_click` **only within** the profile — a bidirectional MUST that had no
   fixture at all: `redefine-wait-reserved` covers only `wait`, which is a *primitive* name

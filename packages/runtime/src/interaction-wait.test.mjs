@@ -271,6 +271,7 @@ test("a tick count that is neither a number nor a word names its own type", () =
   // API, so the snapshot is pinned without making its serialisation normative.
   const dictValue = execute('wait { name: "ada" }', doc).diagnostics[0].params
     .value;
+  assert.deepEqual(dictValue.keys(), ["name"]);
   assert.equal(dictValue.get("name"), "ada");
   const recordValue = execute(`${structPrelude}wait :p\n`, doc).diagnostics[0]
     .params.value;
