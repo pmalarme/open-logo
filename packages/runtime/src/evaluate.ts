@@ -2183,9 +2183,12 @@ function resolveHeritageAliasName(
  * `spec/error-model.md` never permits as an outcome. The statement path had no such bug precisely
  * because it rewrites the node before dispatching, so making this path rewrite too removes the
  * divergence rather than papering over it: `print fd` now runs the user's `forward` and reports
- * `ol-not-enough-inputs`/`ol-too-many-inputs`/`ol-no-output` against it exactly as `print forward`
- * does, with the canonical name in `params.callable` (issues #670/#733/#741's rule that structured
- * params never carry a surface spelling).
+ * `ol-not-enough-inputs`/`ol-too-many-inputs` (`params.callable`) and `ol-no-output`
+ * (`params.procedure`) against it exactly as `print forward` does, each carrying the CANONICAL
+ * name. That is the rule issues #670/#733/#741 established for the params on *this* kind of path —
+ * a name identifying the callable a diagnostic is about. It is not a blanket claim about every
+ * param: `ol-reserved-word`'s `name` is deliberately the SURFACE spelling, because its subject is
+ * the registration the learner wrote at that very span (`spec/error-model.md:124`, issue #737).
  */
 function withResolvedCallee(
   node: ArithmeticCallNode,

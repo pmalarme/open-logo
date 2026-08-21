@@ -297,8 +297,12 @@ test("#787: a user procedure named like the alias still shadows it in reporter p
 });
 
 test("#787: an ordinary reporter-position procedure call is untouched", () => {
-  // The no-op guard for `withResolvedCallee`'s early return: a callee carrying no `canonical` must
-  // be dispatched as the very same node object, so Core behaviour is bit-for-bit unchanged.
+  // The no-op guard for `withResolvedCallee`'s early return. What is asserted is BEHAVIOURAL
+  // non-regression: a callee carrying no `canonical` takes the Core path unchanged. An earlier
+  // wording claimed "the very same node object is dispatched" — object identity is an
+  // implementation detail this test cannot see and the language does not promise, so a
+  // copy-returning implementation would pass it too and the claim was simply unfalsifiable here.
+  // The early return exists for cheapness, not for an identity contract.
   const events = eventsOf(
     "define twice :x\n  return :x + :x\nend\nprint twice 4\n",
   );
