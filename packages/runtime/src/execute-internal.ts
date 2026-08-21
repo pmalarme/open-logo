@@ -2227,7 +2227,6 @@ function executeWaitCall(
       }),
     );
   }
-  const count = ticks.value;
   // Dispatch every due handler on each tick the pause advances through, in the normative same-tick
   // order (`when` → `on_key` → `on_click` → due `every`, `spec/interaction-events.md:84-89`) —
   // `dispatchDueHandlers` composes the four buckets and first moves any host-scheduled key/click/
@@ -2241,7 +2240,7 @@ function executeWaitCall(
   const interrupted = runWait(
     environment.tickClock,
     environment.events,
-    count,
+    ticks.value,
     waitCall.source_span,
     (tick) => {
       const signal = dispatchDueHandlers(

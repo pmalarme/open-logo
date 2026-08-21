@@ -166,10 +166,13 @@ the gaps it found rather than rubber-stamping them:
   both forms report `expected: "whole number"` with matching `actual`/`value` — one shared type
   vocabulary; `params.operation` still names the primitive, so the two diagnostics stay
   distinguishable. `wait/wait-non-number-type-error` was updated in that PR as the deliberate,
-  disclosed conformance-breaking change it is, and `wait/wait-non-whole-word` was added there for
-  the third arm the corpus had never covered: a *word* that parses as a non-whole number
-  (`wait "1.5"`), which pins `actual: "word"` / `value: "1.5"` rather than the pre-coerced
-  `number`/`1.5` the old `requireNumber` path reported.
+  disclosed conformance-breaking change it is, and the pair `wait/wait-non-whole-word` /
+  `every/every-non-whole-word` was added there for the third arm the corpus had never covered on
+  either side: a *word* that parses as a non-whole number (`wait "1.5"`, `every "2.5"`), which pins
+  `actual: "word"` and the value as written rather than the pre-coerced `number` the old
+  `requireNumber` path reported. That arm is the only one that observes pre-coercion — a number
+  literal was never a word, and a non-numeric word never coerces at all — and its absence was found
+  by mutation: reintroducing the pre-coercion on `every` survived a fully green run.
 - **Profile-scoped reservation of the four block-heads.** `spec/interaction-events.md:43-46` reserves
   `when`/`every`/`on_key`/`on_click` **only within** the profile — a bidirectional MUST that had no
   fixture at all: `redefine-wait-reserved` covers only `wait`, which is a *primitive* name

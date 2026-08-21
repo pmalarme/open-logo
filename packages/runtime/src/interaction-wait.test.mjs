@@ -174,22 +174,56 @@ test("a word that reads as a non-whole number reports the WORD, like repeat's co
   assert.deepEqual(effectEvents(result), []);
 });
 
-test("wait and every use ONE type vocabulary for one input class (issue #775 regression guard)", () => {
+test("a tick count that is neither a number nor a word names its own type", () => {
+  // Completeness across the value model (`spec/execution-model.md`'s Core values): a list and a
+  // boolean reach the same `ol-type` with `actual` naming the offending type, never a coerced
+  // stand-in. `every` is pinned the same way in `interaction-every.test.mjs`.
+  for (const [source, actual, value] of [
+    ["wait [ 1 2 ]", "list", [1, 2]],
+    ["wait true", "boolean", true],
+  ]) {
+    const result = execute(source, doc);
+    assert.equal(result.diagnostics.length, 1);
+    assert.equal(result.diagnostics[0].code, "ol-type");
+    assert.deepEqual(result.diagnostics[0].params, {
+      expected: "whole number",
+      actual,
+      value,
+      operation: "wait",
+    });
+    assert.deepEqual(effectEvents(result), []);
+  }
+});
+
+test("wait and every use ONE type vocabulary for every input class (issue #775 regression guard)", () => {
   // The defect: for the identical input class — a word that does not parse as a number — the two
   // Interaction numeric-argument forms disagreed (`every` said `whole number`, `wait` said
   // `number`). Both are whole-number arguments per `spec/interaction-events.md`, so the type
   // vocabulary — `expected`/`actual`/`value` — must match; `operation` still names the primitive
   // and is what keeps the two diagnostics distinguishable. Comparing the two live diagnostics
   // (rather than restating literals) means this fails if EITHER primitive drifts.
-  const waitDiagnostic = execute('wait "soon"', doc).diagnostics[0];
-  const everyDiagnostic = execute('every "soon" [ print "x" ]', doc)
-    .diagnostics[0];
-  assert.equal(waitDiagnostic.code, everyDiagnostic.code);
-  assert.equal(waitDiagnostic.params.expected, everyDiagnostic.params.expected);
-  assert.equal(waitDiagnostic.params.actual, everyDiagnostic.params.actual);
-  assert.equal(waitDiagnostic.params.value, everyDiagnostic.params.value);
-  assert.equal(waitDiagnostic.params.operation, "wait");
-  assert.equal(everyDiagnostic.params.operation, "every");
+  //
+  // All three arms of the check are compared, not just the one that caused #775. `"soon"` alone is
+  // NOT enough: a word that never coerces reaches both implementations unchanged, so a form that
+  // pre-coerced numeric words before the wholeness check would still agree here. `"2.5"` is the arm
+  // that observes pre-coercion, and `2.5` anchors the plain non-whole number.
+  for (const [waitSource, everySource] of [
+    ['wait "soon"', 'every "soon" [ print "x" ]'],
+    ['wait "2.5"', 'every "2.5" [ print "x" ]'],
+    ["wait 2.5", 'every 2.5 [ print "x" ]'],
+  ]) {
+    const waitDiagnostic = execute(waitSource, doc).diagnostics[0];
+    const everyDiagnostic = execute(everySource, doc).diagnostics[0];
+    assert.equal(waitDiagnostic.code, everyDiagnostic.code);
+    assert.equal(
+      waitDiagnostic.params.expected,
+      everyDiagnostic.params.expected,
+    );
+    assert.equal(waitDiagnostic.params.actual, everyDiagnostic.params.actual);
+    assert.deepEqual(waitDiagnostic.params.value, everyDiagnostic.params.value);
+    assert.equal(waitDiagnostic.params.operation, "wait");
+    assert.equal(everyDiagnostic.params.operation, "every");
+  }
 });
 
 test("wait with no argument raises ol-not-enough-inputs", () => {

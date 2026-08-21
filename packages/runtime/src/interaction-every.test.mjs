@@ -189,7 +189,16 @@ test("every with a non-whole count raises ol-type", () => {
   assert.equal(result.diagnostics.length, 1);
   const diagnostic = result.diagnostics[0];
   assert.equal(diagnostic.code, "ol-type");
-  assert.equal(diagnostic.params.operation, "every");
+  // Exact params, not just the code: `params` are part of a diagnostic's identity
+  // (`spec/error-model.md`) and the conformance harness compares them exactly. Asserting only
+  // `code`/`operation` is precisely what let `wait`'s wording drift away from `every`'s until
+  // issue #775 caught it, so the twin is pinned the same way here.
+  assert.deepEqual(diagnostic.params, {
+    expected: "whole number",
+    actual: "number",
+    value: 2.5,
+    operation: "every",
+  });
   // The type check fails BEFORE registration — no `primitive(every)` event, and no handler runs.
   assert.deepEqual(effectEvents(result), []);
 });
@@ -215,7 +224,55 @@ test("every with a non-number count raises ol-type", () => {
   const result = execute('every "loud" [ print "x" ]', doc);
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-type");
+  assert.deepEqual(result.diagnostics[0].params, {
+    expected: "whole number",
+    actual: "word",
+    value: "loud",
+    operation: "every",
+  });
   assert.deepEqual(effectEvents(result), []);
+});
+
+test("a word that reads as a non-whole number reports the WORD, not a coerced number", () => {
+  // The third arm of the tick-count type check, and the one that pins WHICH value the diagnostic
+  // names. `spec/execution-model.md:33-34` coerces a numeric word far enough to be judged
+  // non-whole, but the learner wrote a word, so `actual`/`value` must say so. An implementation
+  // that pre-coerced the word before the wholeness check would report `number`/`2.5` and still
+  // satisfy the other two arms — a number literal was never a word, and `"loud"` never coerces at
+  // all — which is exactly the defect issue #775 removed from `wait`. Found by mutation: that
+  // pre-coercion survived a fully green run until this case (and the twin conformance fixture
+  // `every/every-non-whole-word`) existed.
+  const result = execute('every "2.5" [ print "x" ]', doc);
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-type");
+  assert.deepEqual(result.diagnostics[0].params, {
+    expected: "whole number",
+    actual: "word",
+    value: "2.5",
+    operation: "every",
+  });
+  assert.deepEqual(effectEvents(result), []);
+});
+
+test("a count that is neither a number nor a word names its own type", () => {
+  // Completeness across the value model (`spec/execution-model.md`'s Core values): a list and a
+  // boolean reach the same `ol-type` with `actual` naming the offending type, never a coerced
+  // stand-in. `wait` is pinned the same way in `interaction-wait.test.mjs`.
+  for (const [source, actual, value] of [
+    ['every [ 1 2 ] [ print "x" ]', "list", [1, 2]],
+    ['every true [ print "x" ]', "boolean", true],
+  ]) {
+    const result = execute(source, doc);
+    assert.equal(result.diagnostics.length, 1);
+    assert.equal(result.diagnostics[0].code, "ol-type");
+    assert.deepEqual(result.diagnostics[0].params, {
+      expected: "whole number",
+      actual,
+      value,
+      operation: "every",
+    });
+    assert.deepEqual(effectEvents(result), []);
+  }
 });
 
 // --- Unsupported / un-evaluable count arguments ------------------------------------------------
