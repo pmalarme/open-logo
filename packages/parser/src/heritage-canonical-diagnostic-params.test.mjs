@@ -25,9 +25,10 @@
 // it would have believed the worded dictionary reader `value of … for key` was covered here when
 // nothing named it at all. There was no leak to fix; the defect was the false claim, which is why
 // the registry grew a third table rather than the guard growing a hand-written exception. The test
-// "the registries enumerate every Heritage spelling the spec lists" below now holds the registries
-// against that spec inventory directly, so the claim cannot go stale a second time — with the one
-// residual gap that test documents in its own comment (a spelling the spec writes in bare prose).
+// "the registries enumerate every code-formatted Heritage spelling the spec lists" below now holds
+// the registries against that spec inventory directly, so the claim cannot go stale a second time —
+// with the one residual gap that test documents in its own comment (a spelling the spec writes in
+// bare prose).
 //
 // Two independent properties are asserted, both over BOTH stages — the corpus includes programs
 // that fail to parse, because `check()` never runs on those and a parse-stage param would
@@ -110,13 +111,21 @@ function stagedDiagnosticsFor(source, profiles = PROFILES) {
 }
 
 /**
- * Does `source` parse to an AST containing a node of `kind`? Used to prove a twin really USES the
- * form it claims to cover, rather than merely mentioning its head word somewhere in the program.
- * A program that fails to parse trivially contains nothing, which is the right answer here: the
- * parse-stage twins deliberately do not parse, so they cannot be a form's witness.
+ * Does `source` parse CLEANLY to an AST containing a node of `kind`? Used to prove a twin really
+ * USES the form it claims to cover, rather than merely mentioning its head word somewhere in the
+ * program.
+ *
+ * The clean-parse requirement is load-bearing, not incidental: the reader builds a RECOVERY AST for
+ * a program that fails to parse, and that recovery AST can contain the very node kind being looked
+ * for — `print value of :d for key "k" ]` reports `ol-unmatched-bracket` and still yields a
+ * `ValueOfKey`. Without this check a form could be "covered" solely by a twin that never parses,
+ * which proves nothing about the form as the language actually reads it.
  */
 function astContains(source, kind) {
-  const { ast } = OL.parse(source, doc);
+  const { ast, diagnostics } = OL.parse(source, doc);
+  if (diagnostics.length > 0) {
+    return false;
+  }
   let found = false;
   OL.walk(ast, (node) => {
     if (node.kind === kind) {
@@ -337,7 +346,7 @@ const SURFACE_PATTERNS = heritageSurfaceSpellings().map((spelling) => ({
   pattern: new RegExp(`\\b${spelling}\\b`, "i"),
 }));
 
-test("the registries enumerate every Heritage spelling the spec lists", () => {
+test("the registries enumerate every code-formatted Heritage spelling the spec lists", () => {
   // The claim `heritageSurfaceSpellings()` makes about itself, held against the spec rather than
   // against a hand-kept copy of it — which is the whole of issue #755. Before it, the registry was
   // the two single-word tables and its doc comment nevertheless called itself "the enumerable
@@ -381,9 +390,8 @@ test("the registries enumerate every Heritage spelling the spec lists", () => {
       "bullet list — if the spec reworded it, re-check the registries against the new wording",
   );
   const bullets = inventory[1]
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.startsWith("- "));
+    .split("\n- ")
+    .map((bullet) => bullet.replace(/^- /, "").trim());
   assert.ok(
     bullets.length > 3,
     `only ${bullets.length} bullets found in the Heritage inventory — the list did not parse as ` +
@@ -399,8 +407,13 @@ test("the registries enumerate every Heritage spelling the spec lists", () => {
         "invisible to it: either format the spelling, or register it by hand (issue #755).",
     );
   }
-  const listed = bullets.flatMap((bullet) =>
-    [...bullet.matchAll(/`([^`]+)`/g)].map((match) => match[1]),
+  // Extracted from the whole inventory block, NOT per physical line: a bullet the spec later
+  // reflows across lines keeps its spellings on continuation lines, and reading only lines that
+  // start with `- ` would silently drop them — a completeness check with a hole in it, which is the
+  // very defect this test exists to prevent. Splitting into LOGICAL bullets above keeps the
+  // per-bullet formatting check correct across a reflow for the same reason.
+  const listed = [...inventory[1].matchAll(/`([^`]+)`/g)].map(
+    (match) => match[1],
   );
   assert.ok(
     listed.length > 10,
