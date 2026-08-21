@@ -1,0 +1,19 @@
+{
+  "description": "issue #844 negative case: without the `geometry` profile active, `grid` is not a visible primitive, so the arity gate must not fire — the callee is simply unknown and belongs to `ol-unknown-command` (issue #117), never double-reported as an arity error. Mirrors the `data`/`sound`/`interaction-events` gating discipline the other profile branches of checker-arity.ts already follow, and the reserved-word negative in geometry/check/reserved-word-not-gated-without-geometry.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "geometry/check/arity-paren-not-gated-without-geometry",
+        "start": [1, 2],
+        "end": [1, 6]
+      },
+      "params": { "name": "grid" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

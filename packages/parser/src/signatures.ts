@@ -342,6 +342,27 @@ export function geometryPrimitiveArity(name: string): number | undefined {
 }
 
 /**
+ * The inclusive input-count range a Geometry-profile overlay primitive accepts, or `undefined` when
+ * `name` is not one of `grid`/`axes`/`measure`. All three are strictly fixed-arity 0 — none has a
+ * variadic or alternate parenthesized form (`spec/geometry-module.md`'s `## grid`, `## axes`, and
+ * `## measure` sections each specify a Kind-C command taking no inputs) — so `max` always equals
+ * `min` ({@link geometryPrimitiveArity}). Mirrors {@link soundPrimitiveArityRange} exactly; the
+ * static arity checker (`checker-arity.ts`) consults this to flag an overlay primitive given too
+ * many inputs in its parenthesized form (`(grid 50)`) under the active `geometry` profile, so the
+ * checker agrees with the runtime arity check instead of staying silent where the runtime raises
+ * `ol-too-many-inputs` (issue #844). Matching is case-insensitive.
+ */
+export function geometryPrimitiveArityRange(
+  name: string,
+): { readonly min: number; readonly max: number } | undefined {
+  const min = geometryPrimitiveArity(name);
+  if (min === undefined) {
+    return undefined;
+  }
+  return { min, max: min };
+}
+
+/**
  * Every Geometry-profile overlay primitive's canonical lowercase name, sorted for deterministic
  * iteration. This is the enumerable counterpart to {@link geometryPrimitiveArity} — the checker's
  * visible-name model (`checker-names.ts`) needs the full name *list*, gated on the `geometry`

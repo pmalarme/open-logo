@@ -1,0 +1,19 @@
+{
+  "description": "issue #844: the CHECK-mode half of the checker/runtime agreement for `grid`'s arity. `grid` is Kind C, arity 0 (spec/geometry-module.md's `## grid`), so the parenthesized form is the only way to over-supply it — and the static checker must raise `ol-too-many-inputs` there at `stage: \"semantic\"`, gated on the active `geometry` profile. Its execute-mode twin is geometry/overlays/grid-too-many-inputs, which pins the identical code/params/span at `stage: \"runtime\"`: same call, same verdict, both stages.",
+  "profiles": ["core-language", "geometry"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-too-many-inputs",
+      "source_span": {
+        "document": "geometry/check/arity-paren-grid-too-many",
+        "start": [1, 2],
+        "end": [1, 6]
+      },
+      "params": { "callable": "grid", "expected": 0, "actual": 1 },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}
