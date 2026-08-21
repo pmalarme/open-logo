@@ -7,7 +7,9 @@
 //   * every lexical class reachable without symbol discovery: keyword, primitive, number,
 //     word/string, :variable, comment, bracket, brace, paren, operator, index/dot, dict-key;
 //   * all 5 bracket delimiter roles: list, instruction-block, selector, pattern, field-list;
-//   * contextual reserved words in/out of `is`-predicate position (spec/tooling.md:96-98);
+//   * contextual reserved words in/out of `is`-predicate position (spec/tooling.md:96-98); `of`'s
+//     second reader-recognized position, the Heritage `value of … for key` reader
+//     (spec/grammar.md:365), is proven in `heritage-tooling.test.mjs` (issue #785);
 //   * comment/string atomicity (spec/tooling.md:25-26);
 //   * negative-literal-as-number merging vs. genuine binary subtraction; and
 //   * the semantic bucket (#120): procedure-name (declaration + resolved calls), type-name
@@ -457,9 +459,9 @@ test("role field-list vs role list: `struct` is not special-cased when the brack
   );
 });
 
-// --- Contextual reserved words (spec/tooling.md:96-98) ------------------------------------
+// --- Contextual reserved words (spec/tooling.md:96-98; `of` also spec/grammar.md:365) --------
 
-test("contextual: empty/member/of/a are keyword only immediately after is", () => {
+test("contextual: empty/member/a are keyword only immediately after is, and so is `of` there", () => {
   assert.equal(
     OL.highlight("print :x is empty", doc).find(
       (token) => token.text === "empty",
@@ -480,7 +482,12 @@ test("contextual: empty/member/of/a are keyword only immediately after is", () =
   );
 });
 
-test("contextual: empty/member/of/a are ordinary primitive names outside is-predicate position", () => {
+test("contextual: empty/member/of/a in a plain call position are ordinary names, not is-predicate keywords", () => {
+  // `of` has a SECOND reader-recognized position — the Heritage `value of … for key` reader, where
+  // it is `keyword` (issue #785, proven in `heritage-tooling.test.mjs`). These four bare calls are
+  // in no such position, so each falls through to the bare-name class. (That the fall-through class
+  // is `primitive` at all is the separate general defect #831; this test pins the contextual-word
+  // behaviour, not that choice.)
   assert.equal(OL.highlight("print empty", doc).at(-1).class, "primitive");
   assert.equal(OL.highlight("print member", doc).at(-1).class, "primitive");
   assert.equal(OL.highlight("print of", doc).at(-1).class, "primitive");
