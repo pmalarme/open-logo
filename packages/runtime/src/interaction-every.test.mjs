@@ -312,13 +312,9 @@ test("a count that is neither a number nor a word names its own type", () => {
   // never a coerced stand-in. `spec/error-model.md` requires the message to "name the expected
   // learner concept, such as number, word, list, dict, record, or boolean", so labelling a dict or
   // a turtle a word would violate a MUST. `wait` is pinned the same way in
-  // `interaction-wait.test.mjs`.
-  //
-  // The `dict` and `record` arms are unit-only, deliberately: their `params.value` serialises to
-  // JSON lossily, so a conformance fixture would make that lossy shape normatively binding on every
-  // implementation. See the "Deliberately NOT fixtured" note in
-  // `tests/conformance/interaction-events/README.md`. The LIVE value is not lossy, so it is
-  // asserted here; only its JSON form is unsafe to pin.
+  // `interaction-wait.test.mjs`, and every class here has a conformance twin under
+  // `tests/conformance/interaction-events/` — the harness unwraps an `OLDict`/`OLRecord` into a
+  // plain key→value object, so those fixtures compare the contents too.
   const structPrelude = 'struct person [ name age ]\n:p = person "ada" 36\n';
   for (const [source, actual] of [
     ['every [ 1 2 ] [ print "x" ]', "list"],
@@ -353,8 +349,9 @@ test("a count that is neither a number nor a word names its own type", () => {
   const turtleValue = execute(':t = new_turtle\nevery :t [ print "x" ]\n', doc)
     .diagnostics[0].params.value;
   assert.equal(turtleValue.id, 1);
-  // The dict/record value is only lossy through JSON: assert the live payload through its public
-  // API, so the snapshot is pinned without making its serialisation normative.
+  // The dict/record values are class instances, so they are asserted through their public API
+  // rather than by a structural deep-equal — `assert.deepEqual` is strict here and would compare
+  // prototypes and private backing Maps. The conformance twins pin the same contents.
   const dictValue = execute('every { name: "ada" } [ print "x" ]', doc)
     .diagnostics[0].params.value;
   assert.deepEqual(dictValue.keys(), ["name"]);
@@ -364,6 +361,7 @@ test("a count that is neither a number nor a word names its own type", () => {
   assert.equal(recordValue.type, "person");
   assert.deepEqual(recordValue.fields(), ["name", "age"]);
   assert.equal(recordValue.get("name"), "ada");
+  assert.equal(recordValue.get("age"), 36);
 });
 
 // --- Unsupported / un-evaluable count arguments ------------------------------------------------
