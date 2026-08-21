@@ -505,13 +505,19 @@ test("the checker's worded-reader head and node agree with the registry, and are
   assert.equal(line.slice(startColumn - 1, endColumn - 1), form.head);
 });
 
-test("the worded-form registry is frozen, so no consumer can poison what the guards match on", () => {
+test("the worded-form registry's entries are frozen, so no consumer can poison what the guards match on", () => {
   // `heritageWordedForm` hands out the entry object itself rather than a copy, and both guards plus
   // `checker-heritage-form.ts` read the same object. An unfrozen entry would let one consumer
   // rewrite the head every other consumer reads — the checker would report a poisoned name while
   // `heritageSurfaceSpellings()` still matched on the real one, which is the single-source-of-truth
   // guarantee this table exists to provide (issue #755). `as const` is a TYPE-level assertion and
-  // stops nothing at runtime, so this asserts the runtime freeze.
+  // stops nothing at runtime, so this asserts the runtime freeze, on both fields the checker reads.
+  //
+  // Scope, stated precisely: this covers the ENTRY, which is the only part of the registry a
+  // consumer can reach. `signatures.ts` also freezes the table itself, but that table is module-
+  // private — no external caller can add, replace, or drop a production, so no test here can
+  // exercise it. That freeze guards against an accident inside `signatures.ts`, and nothing below
+  // proves it.
   const form = OL.heritageWordedForm("value-of-reader");
   assert.ok(Object.isFrozen(form), "each worded-form entry must be frozen");
   assert.throws(
@@ -522,16 +528,16 @@ test("the worded-form registry is frozen, so no consumer can poison what the gua
     TypeError,
     "writing a worded form's head must throw, not silently poison the registry",
   );
-  assert.equal(OL.heritageWordedForm("value-of-reader").head, "value");
-  // And the table itself: no consumer may add, replace, or drop a production.
   assert.throws(
     () => {
       "use strict";
-      OL.heritageWordedForm("value-of-reader").node = "DictLit";
+      form.node = "DictLit";
     },
     TypeError,
-    "writing a worded form's node kind must throw",
+    "writing a worded form's node kind must throw — the witness assertions match on it",
   );
+  assert.equal(OL.heritageWordedForm("value-of-reader").head, "value");
+  assert.equal(OL.heritageWordedForm("value-of-reader").node, "ValueOfKey");
   assert.ok(
     heritageSurfaceSpellings().includes(form.head),
     "the head the checker reports must still be the one the surface matcher enumerates",
