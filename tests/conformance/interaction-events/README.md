@@ -265,7 +265,7 @@ ruled: **the spec does not settle it.** `spec/interaction-events.md` says a hand
 enqueued "when an event
 fires" but never states whether a `when` registration is one-shot or persistent, and both standard
 v0.1 event words are inherently once-per-run — `"start"` is "the start of the interactive run" and
-`"stop"` is "a requested stop notification before termination" (`:154-157`). A fixture asserting
+`"stop"` is "a requested stop notification before termination" (`:152-156`). A fixture asserting
 either reading would bind every implementation to a clause the spec has not written, and the
 alternative reading matters mainly for the vendor-prefixed events the spec permits but does not
 define. This also sits in `packages/runtime/`, outside this slice's write-set. **Filed for a

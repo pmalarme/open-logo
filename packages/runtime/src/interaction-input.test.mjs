@@ -343,12 +343,29 @@ test("a prompt that is not a word raises ol-type", () => {
   }
 });
 
-test("a rejected prompt consumes no answer and emits no primitive event", () => {
-  // The prompt is checked BEFORE the read, so a bad prompt must not silently eat the queue's head —
-  // otherwise a later read in a longer program would be answered off-by-one.
-  const result = runWithAnswers("print input [1 2]", ["tom"]);
-  assert.equal(result.diagnostics[0].code, "ol-type");
-  assert.deepEqual(effectEvents(result), []);
+test("a rejected prompt never reaches the read — the host reader is never called", () => {
+  // The prompt is checked BEFORE the read. A conformance fixture cannot prove that: a
+  // source→events fold sees only an absent `primitive`, and absence is not ordering. The live
+  // reader seam makes the ordering directly observable — if the check ran after the read, a bad
+  // prompt would still have put a question in front of the learner, and on the `responses` path it
+  // would have eaten the queue's head, so a later read in a longer program would be answered
+  // off-by-one.
+  let reads = 0;
+  const withReader = execute("print input [1 2]", doc, {
+    hostInput: {
+      read: () => {
+        reads += 1;
+        return "tom";
+      },
+    },
+  });
+  assert.equal(reads, 0);
+  assert.equal(withReader.diagnostics[0].code, "ol-type");
+  assert.deepEqual(effectEvents(withReader), []);
+
+  const withResponses = runWithAnswers("print input [1 2]", ["tom"]);
+  assert.equal(withResponses.diagnostics[0].code, "ol-type");
+  assert.deepEqual(effectEvents(withResponses), []);
 });
 
 test("a word prompt is accepted whatever text it holds, including a numeral", () => {
