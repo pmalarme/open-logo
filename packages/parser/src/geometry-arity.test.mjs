@@ -11,9 +11,10 @@ import * as OL from "@openlogo/parser";
  * against the built `@openlogo/parser` entry point per the shared black-box test convention.
  *
  * Also covers issue #427 (M4 audit): `define`/`struct` registrations that redefine
- * `grid`/`axes`/`measure` must raise `ol-reserved-word` (`namespace: "primitive"`) when the
+ * `grid`/`axes`/`measure` must raise `ol-reserved-word` when the
  * `geometry` profile is active — the checker's static parity counterpart to the runtime's own
- * `isPrimitiveName()` collision guard (#403) — and must not raise when it is inactive.
+ * `isPrimitiveName()` collision guard (#403) — and must not raise when it is inactive. (Issue #838
+ * removed that diagnostic's `namespace` param; `local` became a binding form under ruling #833.)
  *
  * And issue #844: the Layer-2 arity gate for these three, so `check()` agrees with the runtime's
  * call-time arity check on `(grid 50)` instead of staying silent where `execute()` raises
@@ -157,7 +158,7 @@ test("without the geometry profile active, grid/axes/measure parse cleanly but a
 
 // --- reserved-word collisions (issue #427, M4 audit) ---------------------------
 
-test("a struct type name colliding with a Geometry primitive raises ol-reserved-word (primitive wins)", () => {
+test("a struct type name colliding with a Geometry primitive raises ol-reserved-word", () => {
   for (const name of ["grid", "axes", "measure"]) {
     const ast = parseClean(`struct ${name} [ x ]`);
     const { diagnostics } = OL.check(ast, {
@@ -165,8 +166,8 @@ test("a struct type name colliding with a Geometry primitive raises ol-reserved-
     });
     assert.equal(diagnostics.length, 1);
     assert.equal(diagnostics[0].code, "ol-reserved-word");
-    assert.equal(diagnostics[0].params.namespace, "primitive");
-    assert.equal(diagnostics[0].params.name, name);
+    // `params: { name }` only since issue #838 (`spec/error-model.md:125`).
+    assert.deepEqual(diagnostics[0].params, { name });
   }
 });
 
@@ -178,7 +179,7 @@ test("a define colliding with a Geometry primitive raises ol-reserved-word", () 
     });
     assert.equal(diagnostics.length, 1);
     assert.equal(diagnostics[0].code, "ol-reserved-word");
-    assert.equal(diagnostics[0].params.namespace, "primitive");
+    assert.deepEqual(diagnostics[0].params, { name });
   }
 });
 
@@ -196,10 +197,6 @@ test("a local naming a Geometry primitive is a binding, so it raises nothing", (
 });
 
 test("without the geometry profile active, define/local/struct grid/axes/measure raise no reserved-word collision", () => {
-  // The `define`/`struct` halves are SHIPPED BEHAVIOUR, not a spec requirement: `spec/grammar.md:408`
-  // makes every profile's primitives built-in names unconditionally, so a conforming implementation
-  // must raise on them with or without `geometry`. Retiring the gate is #841's, which flips those
-  // assertions. The `local` half is correct and permanent — binding is free (`grammar.md:386`).
   for (const name of ["grid", "axes", "measure"]) {
     const defineOnly = parseClean(`define ${name}\nend`);
     assert.deepEqual(

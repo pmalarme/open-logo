@@ -1,7 +1,125 @@
 {
-  "description": "Issue #742, the profile-INACTIVE direction: byte-for-byte the same source as `heritage-alias-redefinition-rejected-when-active`, checked under Core alone, is completely clean. Without `heritage` claimed, `pr`/`bf`/`bl`/`se` and the nine turtle aliases are ordinary names that register nothing, so the shipped checker accepts a declaration of any of them — exactly as `define ask` is accepted without Sprites. SCOPE, CORRECTED: maintainer ruling #833 (merged as #875) retracted the profile gate for the NAMING axis. `spec/grammar.md:408` makes every profile's primitives -- and every alias spelling of one -- built-in names unconditionally, so a conforming 0.4.0 implementation must raise `ol-reserved-word` here with or without the profile. `spec/tooling.md:175-176` gates which names are AVAILABLE (the `ol-unknown-command` axis) and does not gate the reserved-word rule; the earlier reading of it here conflated the two axes. This fixture therefore pins SHIPPED BEHAVIOUR the spec now contradicts, and is kept red-flagged rather than deleted so the behaviour is not silently unpinned; issue #841 lands the always-on built-in-names list and flips this expectation. Sharing one source with the rejecting sibling is deliberate — it removes the possibility that the two fixtures diverge and the gate silently stops being tested. `\"check\": true` for the same reason as the sibling: this is a checker rule with no execution.",
+  "description": "THE PROFILE-GATE BOUNDARY, half retired (issue #742, REVERSED IN PART by ruling #833 / issue #838). Byte-for-byte the same source as `heritage-alias-redefinition-rejected-when-active`, checked under Core alone. It used to be COMPLETELY CLEAN, and its stated purpose was to prove that `ol-reserved-word`'s primitive category is profile-gated rather than unconditional. Ruling #833 overturned exactly that premise: spec/grammar.md:408 -- \"a name that could be declared in one implementation but not in another would be invisible and unpredictable to a learner\" -- makes every profile's names built in whether or not the profile is claimed, and spec/grammar.md:414 makes every alias spelling a built-in name. So the NINE turtle aliases `fd`/`bk`/`lt`/`rt`/`st`/`ht`/`pu`/`pd`/`cs` now raise here, Core-only, exactly as they do with `heritage` claimed. FOUR remain clean -- `pr`/`bf`/`bl`/`se` -- and that is a deliberate, temporary boundary, not an inconsistency in the ruling: issue #838 blocked only the 45 names it had MEASURED as free, and those four resolve to the CORE canonicals `print`/`butfirst`/`butlast`/`sentence`, which are still reached through the profile-gated branch. Issue #841's always-on built-in-names list retires that branch and takes these last four with it, at which point this fixture becomes 13 diagnostics and its name stops being true. Sharing one source with the rejecting sibling is still deliberate: it removes the possibility that the two fixtures diverge, and the DIFFERENCE between them is now precisely the size of the gate that is left. `\"check\": true` for the same reason as the sibling: this is a checker rule with no execution.",
   "profiles": ["core-language"],
   "check": true,
   "events": [],
-  "diagnostics": []
+  "diagnostics": [
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "heritage/check/heritage-alias-redefinition-legal-in-core",
+        "start": [1, 8],
+        "end": [1, 10]
+      },
+      "params": {
+        "name": "fd"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "heritage/check/heritage-alias-redefinition-legal-in-core",
+        "start": [3, 8],
+        "end": [3, 10]
+      },
+      "params": {
+        "name": "bk"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "heritage/check/heritage-alias-redefinition-legal-in-core",
+        "start": [5, 8],
+        "end": [5, 10]
+      },
+      "params": {
+        "name": "lt"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "heritage/check/heritage-alias-redefinition-legal-in-core",
+        "start": [7, 8],
+        "end": [7, 10]
+      },
+      "params": {
+        "name": "rt"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "heritage/check/heritage-alias-redefinition-legal-in-core",
+        "start": [9, 8],
+        "end": [9, 10]
+      },
+      "params": {
+        "name": "st"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "heritage/check/heritage-alias-redefinition-legal-in-core",
+        "start": [11, 8],
+        "end": [11, 10]
+      },
+      "params": {
+        "name": "ht"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "heritage/check/heritage-alias-redefinition-legal-in-core",
+        "start": [13, 8],
+        "end": [13, 10]
+      },
+      "params": {
+        "name": "pu"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "heritage/check/heritage-alias-redefinition-legal-in-core",
+        "start": [15, 8],
+        "end": [15, 10]
+      },
+      "params": {
+        "name": "pd"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "heritage/check/heritage-alias-redefinition-legal-in-core",
+        "start": [17, 8],
+        "end": [17, 10]
+      },
+      "params": {
+        "name": "cs"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
 }

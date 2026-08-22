@@ -21,20 +21,18 @@
 //      `ol-unknown-command` even under an active `sprites` profile — a profile whose own reporters
 //      are unknown is not conformant. SP6 registers them in `collectVisibleNames`' `sprites` gate,
 //      so they now check clean with the profile active and stay `ol-unknown-command` without it.
-//      Issue #746 then closed the mirror-image hole: being a *primitive* rather than a reserved word
-//      decides which `namespace` a redefinition reports (`"primitive"`, not `"reserved"`), not
+//      Issue #746 then closed the mirror-image hole: being a *primitive* rather than a keyword
+//      decides which BRANCH of the checker reports a redefinition, not
 //      whether it is reportable at all (`spec/tooling.md:185`), so `define who` now collides under
 //      an active profile exactly as `define grid`/`define wait` do — and stays legal without it.
+//      (Issue #838 removed the `namespace` param that used to make the branch visible in the
+//      diagnostic; the branches remain, the label does not.)
 //
-// Highlighting is currently **profile-blind** — `highlight()`/`semanticTokens()` take no profile
-// argument — so every one of the six names classifies as `primitive` + `defaultLibrary`, exactly as
-// `when`/`every` (Interaction) and the Sound commands do. Note this is a KNOWN DEVIATION from the
-// normative token-class model, not the final word: `spec/tooling.md:30` puts the profile block-heads
-// and the mode-switch command `tell` in the `keyword` class while their profile is active, so under
-// an active `sprites` profile those three SHOULD ultimately be `keyword`. The parser cannot express
-// that yet — giving the highlighter a profile set changes one of the four shared cross-package
-// contracts and is tracked as its own serialized slice, issue #740. The reporters are unaffected
-// either way: they are ordinary primitives, so `primitive` is their correct final class. This
+// Highlighting is **profile-blind by design** — `highlight()`/`semanticTokens()` take no profile
+// argument (`spec/tooling.md:26`, and lines 175-176 scope profile-awareness to the *checker*/reader,
+// not the highlighter). So every one of the six names classifies as `primitive` +
+// `defaultLibrary`, exactly as `when`/`every` (Interaction) and the Sound commands do — never
+// `keyword`, which the highlighter reserves for the profile-independent Core keywords. This
 // mirrors the reusable shape `sound-tooling.test.mjs` established for the M5 tooling slices.
 //
 // Every name is exercised in **awkward positions** — inside a `[ … ]` instruction block, inside
@@ -246,11 +244,11 @@ test("check: that same program under Core-only flags each Sprites name as unknow
 // --- Reserved-word gating: block-heads only, and only under an active profile ------------------
 
 test("check: redefining a Sprites block-head under an active profile raises ol-reserved-word", () => {
-  // `tell`/`ask`/`each` are treated as reserved only when Sprites is active (C1 #663) — the shipped
-  // behaviour, which `spec/turtles-and-sprites.md:154` now makes unconditional; retiring the gate
-  // is #841. The reporters are NOT reserved in any profile — they collide as *primitives* instead,
-  // with `namespace: "primitive"` rather than `"reserved"` (issue #746, asserted by the reporter
-  // redefinition tests below).
+  // `tell`/`ask`/`each` are reserved only when Sprites is active (C1 #663; a gate
+  // `spec/grammar.md:408` has since overruled and issue #841 retires). The reporters are NOT
+  // keywords in any profile — they collide through the checker's *primitive* branch instead
+  // (issue #746, asserted by the reporter redefinition tests below), which since issue #838 is a
+  // difference in branch only: both report the same one-param `ol-reserved-word`.
   for (const head of Object.keys(SPRITES_BLOCK_HEADS)) {
     const diagnostics = checkDiagnostics(
       `define ${head}\nend`,
@@ -274,7 +272,7 @@ test("check: redefining a Sprites block-head is allowed under Core-only (no spri
   }
 });
 
-test("check: redefining a Sprites reporter under an active profile raises ol-reserved-word as a primitive, not a reserved word", () => {
+test("check: redefining a Sprites reporter under an active profile raises ol-reserved-word", () => {
   // Issue #746. Until this fix the reporters were the one Sprites shape a program could silently
   // shadow: this test asserted `define who … end` checked *clean* under an active profile, which
   // pinned the defect rather than the rule. `spec/tooling.md:185` is a normative Layer-2 "Required
@@ -283,10 +281,11 @@ test("check: redefining a Sprites reporter under an active profile raises ol-res
   // primitives) collide exactly
   // as `grid` (Geometry), `set_tempo` (Sound), `dict` (Data), and `wait` (Interaction) already did.
   //
-  // The reporter/block-head distinction this file exists to keep separate is preserved and now
-  // asserted *precisely* rather than as presence-vs-absence: a block-head reports
-  // `namespace: "reserved"` (above), a reporter reports `namespace: "primitive"`. `params.name` is
-  // the surface spelling the learner wrote, at that name's own span (#737).
+  // The reporter/block-head distinction this file exists to keep separate is preserved in the
+  // checker's BRANCHES, but is no longer visible in the diagnostic: issue #838 removed the
+  // `namespace` param, because `spec/error-model.md:125,132-141` makes keyword-vs-primitive "an
+  // implementation distinction the learner never has to learn". `params.name` is the surface
+  // spelling the learner wrote, at that name's own span (#737).
   for (const reporter of Object.keys(SPRITES_REPORTERS)) {
     const diagnostics = checkDiagnostics(
       `define ${reporter}\nend`,
@@ -299,10 +298,7 @@ test("check: redefining a Sprites reporter under an active profile raises ol-res
     );
     const [finding] = diagnostics;
     assert.equal(finding.code, "ol-reserved-word");
-    assert.deepEqual(finding.params, {
-      name: reporter,
-      namespace: "primitive",
-    });
+    assert.deepEqual(finding.params, { name: reporter });
     assert.equal(finding.stage, "semantic");
     assert.equal(finding.severity, "error");
     assert.deepEqual(
@@ -317,11 +313,9 @@ test("check: redefining a Sprites reporter under an active profile raises ol-res
 test("check: redefining a Sprites reporter is allowed under Core-only — the rule is profile-gated", () => {
   // The other direction of #746, and the property the reporters share with the block-heads above:
   // with `sprites` inactive the name registers nothing, so it stays an ordinary name a Core-only
-  // program is currently accepted in declaring — exactly as `define ask` is accepted without
-  // Sprites. That gate is shipped behaviour, not what the spec requires (`spec/grammar.md:408`
-  // makes profile primitives built-in names unconditionally); retiring it is #841's. The
-  // `ol-unknown-command` a *call* to it would raise is a different rule, exercised above; a bare
-  // declaration is fully clean.
+  // program is free to declare — exactly as `define ask` is legal without Sprites. The `ol-unknown-
+  // command` a *call* to it would raise is a different rule, exercised above; a bare declaration is
+  // fully clean.
   for (const reporter of Object.keys(SPRITES_REPORTERS)) {
     assert.deepEqual(
       checkDiagnostics(`define ${reporter}\nend`, CORE_PROFILES),

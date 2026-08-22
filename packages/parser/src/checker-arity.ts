@@ -68,7 +68,7 @@ function isCallSite(node: AnyNode): node is CallNode | ParenCallNode {
  * Every user procedure's arity, keyed by its canonical lowercase name. A procedure's required
  * floor is its count of parameters without a default; its ceiling is its total parameter count.
  * A later `define` of the same name overwrites the earlier one here — redefining a procedure is
- * `ol-reserved-word`'s concern (issue #113), not this rule's.
+ * `ol-duplicate-definition`'s concern (issues #113, #838), not this rule's.
  */
 function collectProcedureArities(
   program: ProgramNode,
@@ -97,7 +97,7 @@ function isStructDef(node: AnyNode): node is StructDefNode {
  * floor and ceiling are both its declared field count, since a constructor call is always exact
  * (`spec/data-structures.md:252-266`), never optional/variadic. Mirrors
  * {@link collectProcedureArities} exactly, including "a later `struct` of the same name overwrites
- * the earlier one here" (redefinition collisions are `ol-reserved-word`'s concern,
+ * the earlier one here" (redefinition collisions are `ol-duplicate-definition`'s concern,
  * `checker-reserved-word.ts`, not this rule's) — and mirrors `@openlogo/runtime`'s own phase-1
  * struct registration (`execute-internal.ts`'s `collectStructs`), which likewise collects every
  * `StructDef` before any statement runs.

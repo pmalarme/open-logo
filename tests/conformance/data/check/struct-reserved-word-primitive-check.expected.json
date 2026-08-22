@@ -1,5 +1,5 @@
 {
-  "description": "M4 audit finding F3 (issue #405): `checker-reserved-word.ts` now checks a `struct` type name against Data-primitive names when the `data` profile is active, so `struct dict` raises `ol-reserved-word` (`namespace: \"primitive\"`) statically — the static counterpart to the existing runtime fixture `data/struct-runtime/struct-reserved-word-primitive`.",
+  "description": "M4 audit finding F3 (issue #405): the declaration-slot rule checks a `struct` type name against Data-primitive names when the `data` profile is active, so `struct dict` raises `ol-reserved-word` statically -- the static counterpart to the existing runtime fixture `data/struct-runtime/struct-reserved-word-primitive`. Issue #838 dropped the `namespace: \"primitive\"` param this pinned (spec/error-model.md:125 gives `params: { name }` only); the runtime sibling still carries it, because #839 owns the runtime half of that removal.",
   "profiles": ["core-language", "data"],
   "check": true,
   "events": [],
@@ -11,8 +11,10 @@
         "start": [1, 8],
         "end": [1, 12]
       },
-      "params": { "name": "dict", "namespace": "primitive" },
-      "message": "dict is already a primitive, so it can't be redefined here.",
+      "params": {
+        "name": "dict"
+      },
+      "message": "dict is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     }

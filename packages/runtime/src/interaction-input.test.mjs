@@ -442,7 +442,7 @@ test("the primitive wins over a same-named user procedure, in a program the chec
   });
   assert.deepEqual(
     checked.diagnostics.map((finding) => [finding.code, finding.params]),
-    [["ol-reserved-word", { name: "input", namespace: "primitive" }]],
+    [["ol-reserved-word", { name: "input" }]],
     "the checker is what tells a learner about the collision",
   );
 

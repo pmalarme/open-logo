@@ -18,7 +18,7 @@
 //
 // Measured at the previous HEAD (`31781c7`), sanity-asserted: all 43 keywords parsed clean, executed
 // clean and printed their value, yet checked `ol-reserved-word` from every binding position — 43 of
-// 43. `local` was the same, with `local count` additionally reporting `namespace: "primitive"`.
+// 43. `local` was the same, with `local count` additionally reporting a primitive collision.
 // After this change all 44 (the list gained `mod`) are clean at check from every binding position,
 // while `define`/`struct` still reject all 44.
 //
@@ -271,17 +271,14 @@ test("matching stays case-insensitive: an upper-case keyword binds just as freel
 });
 
 test("at a declaration slot, matching is case-insensitive but the reported name keeps the source spelling", () => {
-  // The other side of case-insensitivity, and the one with a reportable name. `collidingNamespace`
+  // The other side of case-insensitivity, and the one with a reportable name. `isBuiltInName`
   // looks the name up lowercased while `reservedWordDiagnostic` reports `spannedName.name`, so the
   // learner is told the spelling they wrote. A "simplification" that reported the lowercased lookup
   // key instead would regress this silently, which is why it is pinned rather than assumed.
-  for (const [written, namespace] of [
-    ["REPEAT", "reserved"],
-    ["CoUnT", "primitive"],
-  ]) {
+  for (const written of ["REPEAT", "CoUnT"]) {
     const findings = reservedFindings(`define ${written}\nend\n`);
     assert.equal(findings.length, 1, `define ${written} must raise once`);
-    assert.deepEqual(findings[0].params, { name: written, namespace });
+    assert.deepEqual(findings[0].params, { name: written });
   }
 });
 
@@ -295,10 +292,7 @@ test("non-regression: `define` and `struct` still reject every keyword", () => {
       1,
       `define ${word} must raise exactly one ol-reserved-word`,
     );
-    assert.deepEqual(defineFindings[0].params, {
-      name: word,
-      namespace: "reserved",
-    });
+    assert.deepEqual(defineFindings[0].params, { name: word });
     const structFindings = reservedFindings(
       `struct ${word} [ a ]\n`,
       CORE_AND_DATA,
@@ -308,36 +302,33 @@ test("non-regression: `define` and `struct` still reject every keyword", () => {
       1,
       `struct ${word} must raise exactly one ol-reserved-word`,
     );
-    assert.deepEqual(structFindings[0].params, {
-      name: word,
-      namespace: "reserved",
-    });
+    assert.deepEqual(structFindings[0].params, { name: word });
   }
 });
 
-test("non-regression: `define` keeps its full four-category check", () => {
+test("non-regression: `define` keeps its full check, now split across two codes", () => {
+  // Issue #838 divided the old four-category `namespace` between two codes that each mean one
+  // thing (`spec/error-model.md:132-141`): a keyword or primitive is `ol-reserved-word` ("OpenLogo
+  // owns this name"), while an earlier procedure or struct declaration is `ol-duplicate-definition`
+  // ("something already declares this name") carrying both spans. All four situations are still
+  // caught; only the reporting changed.
   const [primitiveFinding] = reservedFindings("define count\nend\n");
-  assert.deepEqual(primitiveFinding.params, {
-    name: "count",
-    namespace: "primitive",
-  });
+  assert.deepEqual(primitiveFinding.params, { name: "count" });
 
-  const [procedureFinding] = reservedFindings(
+  const [procedureFinding] = checkSource(
     "define myproc\n  print 1\nend\ndefine myproc\n  print 2\nend\n",
   );
-  assert.deepEqual(procedureFinding.params, {
-    name: "myproc",
-    namespace: "procedure",
-  });
+  assert.equal(procedureFinding.code, "ol-duplicate-definition");
+  assert.equal(procedureFinding.params.name, "myproc");
+  assert.deepEqual(procedureFinding.params.original_span.start, [1, 8]);
 
-  const [structFinding] = reservedFindings(
+  const [structFinding] = checkSource(
     "struct point [ x y ]\ndefine point\nend\n",
     CORE_AND_DATA,
   );
-  assert.deepEqual(structFinding.params, {
-    name: "point",
-    namespace: "struct",
-  });
+  assert.equal(structFinding.code, "ol-duplicate-definition");
+  assert.equal(structFinding.params.name, "point");
+  assert.deepEqual(structFinding.params.original_span.start, [1, 8]);
 });
 
 test("the declaration slot and the binding slot of one statement are judged separately", () => {

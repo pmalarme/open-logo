@@ -715,21 +715,26 @@ test("define first ... end collides with a Core primitive", () => {
   );
   assert.equal(finding.stage, "semantic");
   assert.equal(finding.severity, "error");
-  assert.deepEqual(finding.params, { name: "first", namespace: "primitive" });
+  assert.deepEqual(finding.params, { name: "first" });
 });
 
 test("define repeat ... end collides with a reserved structural word", () => {
   const [finding] = checkSource("define repeat :x\n  print :x\nend\n").filter(
     isReservedWordFinding,
   );
-  assert.deepEqual(finding.params, { name: "repeat", namespace: "reserved" });
+  assert.deepEqual(finding.params, { name: "repeat" });
 });
 
-test("thing is reachable in two categories at once; the reserved-word category wins over primitive", () => {
-  const [finding] = checkSource("define thing :x\n  print :x\nend\n").filter(
+test("thing is reachable in two categories at once; it is still reported exactly once", () => {
+  // `thing` is both a keyword and a Core primitive. Issue #838 removed the `namespace` param that
+  // used to make the priority order observable (`"reserved"` over `"primitive"`), so what is left
+  // to pin is the invariant that outlived it: `isBuiltInName` short-circuits at the first yes, so a
+  // doubly-built-in name produces ONE diagnostic, not one per category.
+  const findings = checkSource("define thing :x\n  print :x\nend\n").filter(
     isReservedWordFinding,
   );
-  assert.deepEqual(finding.params, { name: "thing", namespace: "reserved" });
+  assert.equal(findings.length, 1);
+  assert.deepEqual(findings[0].params, { name: "thing" });
 });
 
 test("a Core primitive collision is only checked when core-language is an active profile", () => {
@@ -742,17 +747,23 @@ test("a Core primitive collision is only checked when core-language is an active
 });
 
 test("two define f ... end blocks only flag the second, later occurrence", () => {
+  // Issue #838 recoded this from `ol-reserved-word` with `namespace: "procedure"` to
+  // `ol-duplicate-definition`: a name the program itself declared is not a name OpenLogo owns
+  // (`spec/grammar.md:412`). The new code carries the earlier declaration's span so the message can
+  // name the line the learner already used.
   const findings = checkSource(
     "define f :a\n  print :a\nend\ndefine f :a\n  print :a\nend\n",
-  ).filter(isReservedWordFinding);
+  ).filter((finding) => finding.code === "ol-duplicate-definition");
   assert.equal(findings.length, 1);
-  assert.deepEqual(findings[0].params, { name: "f", namespace: "procedure" });
+  assert.equal(findings[0].params.name, "f");
+  assert.deepEqual(findings[0].params.original_span.start, [1, 8]);
+  assert.deepEqual(findings[0].source_span.start, [4, 8]);
 });
 
 test("local first inside a procedure body is a binding, so it no longer collides", () => {
   // Reversed by maintainer ruling #833 (issue #837): `local` is a binding form, not one of the four
   // declaration slots, and `spec/grammar.md:386` makes accepting the name a MUST. `local first`
-  // used to report `namespace: "primitive"`.
+  // used to report a primitive collision.
   assert.deepEqual(
     checkSource("define g :y\n  local first\n  print :y\nend\n").filter(
       isReservedWordFinding,

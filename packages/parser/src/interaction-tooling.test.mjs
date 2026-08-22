@@ -8,12 +8,11 @@
 // Two shapes with deliberately different mechanics — proven not to leak into each other:
 //
 //   1. Block-head forms `when`/`every`/`on_key`/`on_click` lower to a `ProfileStatement` and are
-//      treated as reserved words *only when the Interaction & Events profile is active* — the
-//      shipped behaviour, which `spec/grammar.md:408` retracts in favour of an unconditional rule
-//      ("what a profile decides is whether a name *works*, never whether a program may declare
-//      it"); retiring the gate is #841. Slices I3–I6 already taught the Layer-2 checker to treat
-//      them as visible command names (`interactionEventsBlockHeadNames` in `collectVisibleNames`),
-//      so this slice LOCKS that half with fixtures rather than re-adding it.
+//      reserved words *only when the Interaction & Events profile is active*
+//      (`spec/interaction-events.md`: "They are reserved **only within the Interaction & Events
+//      profile**"). Slices I3–I6 already taught the Layer-2 checker to treat them as visible
+//      command names (`interactionEventsBlockHeadNames` in `collectVisibleNames`), so this slice
+//      LOCKS that half with fixtures rather than re-adding it.
 //   2. `wait` and `input` are the profile's two ordinary calls (`spec/interaction-events.md:65`:
 //      "`input` and `wait` are ordinary calls and take no block") and live in the arity table — a
 //      Kind-C command taking one number and a Kind-R reporter taking one prompt
@@ -39,15 +38,13 @@
 // Highlighting is currently **profile-blind**: `highlight()`/`semanticTokens()` take no active-
 // profile argument, so they emit the profile-neutral fallback `primitive` for all six names. Note
 // this is a KNOWN DEVIATION from the normative token-class model, not the final word:
-// `spec/tooling.md:30` puts the profile block-heads together with the Sprites mode-switch command
-// `tell` in the `keyword` class "while their profile is active", so under an active
-// `interaction-events` profile the four block-heads SHOULD ultimately be
+// `spec/tooling.md:30` puts "profile block-heads when their profile is active" in the `keyword`
+// class, so under an active `interaction-events` profile the four block-heads SHOULD ultimately be
 // `keyword`. The parser cannot express that yet — giving the highlighter a profile set changes one
 // of the four shared cross-package contracts and is tracked as its own serialized slice, issue
 // #740. `wait` and `input` are unaffected either way: they are ordinary primitives, so `primitive`
-// is their correct final class — as it is for the Sound command names, which
-// `spec/interaction-events.md:47` makes "built-in names on the same unconditional terms", with the
-// profile deciding "only whether they work".
+// is their correct final class (as it is for the Sound commands, `spec/interaction-events.md`:
+// "Sound command names are ordinary primitive names when the Sound profile is present").
 //
 // The assertions below therefore lock TODAY's profile-neutral fallback so the behavior is
 // intentional and visible rather than accidental — matching `sound-tooling.test.mjs` and
@@ -180,7 +177,7 @@ test("highlight: `wait` is never a keyword — a same-named procedure highlights
   // `keyword` class: the profile-blind highlighter resolves a user `define wait` to
   // `procedure-name` at its call site, unlike a Core reserved word which stays `keyword` no matter
   // what. This is purely a *token-class* statement — the checker separately reports that
-  // redefinition as `ol-reserved-word` (`namespace: "primitive"`, asserted below), which is a
+  // redefinition as `ol-reserved-word` (asserted below), which is a
   // legality question the highlighter deliberately does not answer.
   const source = "define wait\nend\nwait";
   const tokens = OL.highlight(source, doc).filter((t) => t.text === "wait");
@@ -346,9 +343,8 @@ test("check: `input` is STILL ol-unknown-command without the profile — it is n
 // --- Reserved-word gating: block-heads only, and only under an active profile -------------------
 
 test("check: redefining an Interaction block-head under an active profile raises ol-reserved-word", () => {
-  // `when`/`every`/`on_key`/`on_click` are **treated as** reserved only when Interaction & Events is
-  // active (C1 #663) — shipped behaviour that `spec/grammar.md:408` makes unconditional; retiring
-  // the gate is #841. `wait` is NOT reserved —
+  // `when`/`every`/`on_key`/`on_click` are reserved only when Interaction & Events is active
+  // (`spec/interaction-events.md` §Profiles and reservation, C1 #663). `wait` is NOT reserved —
   // asserted by the redefinition test below and the `wait` procedure highlight test above.
   for (const head of Object.keys(INTERACTION_BLOCK_HEADS)) {
     const diagnostics = checkDiagnostics(
@@ -376,10 +372,13 @@ test("check: redefining an Interaction block-head is allowed under Core-only (no
 test("check: `wait` is a primitive, so redefining it under an active profile raises ol-reserved-word", () => {
   // `wait` is NOT a profile block-head (contrast the four heads above — it never appears in
   // `OL_PROFILE_KEYWORDS`), but `spec/tooling.md:185` makes redefining a *primitive*
-  // `ol-reserved-word` all the same, with `namespace: "primitive"` rather than `"reserved"`.
-  // Sound's identically-shaped `set_tempo`, Geometry's `grid`, and Data's `list` already behaved
-  // this way; before I8 `wait` was the only one of those four profiles' primitives a program could
-  // silently shadow.
+  // `ol-reserved-word` all the same. That block-head/primitive distinction decides which BRANCH of
+  // the checker reports it, and since issue #838 no longer shows up in the diagnostic at all:
+  // `spec/error-model.md:125` gives the code `params: { name }` only, because whether the taken
+  // name is a keyword or a primitive "is an implementation distinction the learner never has to
+  // learn". Sound's identically-shaped `set_tempo`, Geometry's `grid`, and Data's `list` already
+  // behaved this way; before I8 `wait` was the only one of those four profiles' primitives a
+  // program could silently shadow.
   for (const primitive of Object.keys(INTERACTION_PRIMITIVES)) {
     const [finding, ...rest] = checkDiagnostics(
       `define ${primitive}\nend`,
@@ -390,16 +389,14 @@ test("check: `wait` is a primitive, so redefining it under an active profile rai
     assert.equal(finding.stage, "semantic");
     assert.deepEqual(finding.params, {
       name: primitive,
-      namespace: "primitive",
     });
   }
 });
 
 test("check: `wait` may be redefined under Core-only — it is not visible, so it collides with nothing", () => {
   // The profile gate cuts both ways: with `interaction-events` inactive `wait` registers no
-  // primitive at all (`collectVisibleNames`), so a Core-only program is currently accepted in
-  // declaring `wait`, exactly as it is for `grid` without Geometry. That gate is shipped
-  // behaviour, not what the spec requires (`spec/grammar.md:408`); retiring it is #841's.
+  // primitive at all (`collectVisibleNames`), so a Core-only program is free to `define wait`,
+  // exactly as it is free to `define grid` without Geometry.
   for (const primitive of Object.keys(INTERACTION_PRIMITIVES)) {
     assert.deepEqual(
       checkDiagnostics(`define ${primitive}\nend`, CORE_PROFILES),

@@ -82,6 +82,7 @@ import {
   soundPrimitiveArity,
   spritesPrimitiveArity,
   turtlePrimitiveArity,
+  tutorPrimitiveArity,
   walk,
 } from "@openlogo/parser";
 import { execute } from "@openlogo/runtime";
@@ -321,12 +322,18 @@ export function blockFingerprint(source) {
 }
 
 /**
- * Names that OpenLogo itself provides — every profile's primitives **plus every Heritage surface
- * spelling**. A `setup` preamble supplies *context*; it must never redefine the language, because a
+ * Names that OpenLogo itself provides — **every** profile's primitives plus every Heritage surface
+ * spelling. A `setup` preamble supplies *context*; it must never redefine the language, because a
  * preamble that shadows a provided name can make a real defect vanish: `define set_shape :s end`
  * would turn the canonical `set_shape "bee"` regression green, and `define fd :n end` would do the
  * same for `fd "x"`'s `ol-type`. `heritageSurfaceSpellings()` is the parser's own enumeration
  * (issue #852), so the alias list cannot drift from it here.
+ *
+ * **"Every profile" has to mean every profile.** A missing table is a silent hole rather than a
+ * loud one: the guard simply stops recognising that profile's names, and a setup shadowing one
+ * sails through. Tutor's `challenge` was exactly that hole until issue #838 gave the profile a
+ * registry (`tutorPrimitiveArity`) and wired it in here — before that there was no table to
+ * consult, so a preamble could redefine `challenge` and no gate would say a word.
  */
 function isPrimitiveName(name) {
   // OpenLogo identifiers are case-insensitive, so `define FD :n end` shadows `fd` just as surely
@@ -345,6 +352,7 @@ function isPrimitiveName(name) {
     interactionPrimitiveArity,
     soundPrimitiveArity,
     spritesPrimitiveArity,
+    tutorPrimitiveArity,
   ].some((arityOf) => arityOf(canonical) !== undefined);
 }
 
@@ -450,8 +458,38 @@ export function analyzeBlock(
       // be supporting. It must also not absorb the block's malformed structure (`setup: "repeat 1"`
       // plus a block ending `end repeat`), which standalone parsing is what catches.
       const preamble = parse(setup, `${label} (setup)`);
+      const malformed = preamble.diagnostics.filter(
+        (diagnostic) => diagnostic.severity === "error",
+      );
+      if (malformed.length > 0) {
+        return {
+          ...empty,
+          setupError: malformed
+            .map((diagnostic) => `${diagnostic.code}: ${diagnostic.message}`)
+            .join("; "),
+        };
+      }
+      // A preamble supplies context; it must not redefine the language. Shadowing a provided name
+      // would let a setup silence a real defect rather than reveal it — at any nesting depth, and
+      // for Heritage spellings as much as Core primitives.
+      //
+      // This runs BEFORE the semantic/runtime validation below, and did not have to before issue
+      // #838: `define set_shape :s end` used to check clean, so this guard was the only thing that
+      // caught it. Now the checker rejects it too, with the deliberately category-free
+      // "set_shape is already part of OpenLogo. choose another name." — true, but addressed to a
+      // learner, and it would replace the advice a docs author actually needs here. Order decides
+      // which message a contributor sees, so the specific one goes first.
+      const preambleDefines = definedNames(preamble.ast);
+      const shadowed = [...preambleDefines]
+        .filter((name) => isPrimitiveName(name))
+        .sort();
+      if (shadowed.length > 0) {
+        return {
+          ...empty,
+          setupError: `it redefines the built-in ${shadowed.join(", ")} — a setup supplies context, it must not shadow a primitive`,
+        };
+      }
       const broken = [
-        ...preamble.diagnostics,
         ...check(preamble.ast, {
           profiles: OL_CHECK_PROFILES,
           source: setup,
@@ -466,19 +504,6 @@ export function analyzeBlock(
           setupError: broken
             .map((diagnostic) => `${diagnostic.code}: ${diagnostic.message}`)
             .join("; "),
-        };
-      }
-      // A preamble supplies context; it must not redefine the language. Shadowing a provided name
-      // would let a setup silence a real defect rather than reveal it — at any nesting depth, and
-      // for Heritage spellings as much as Core primitives.
-      const preambleDefines = definedNames(preamble.ast);
-      const shadowed = [...preambleDefines]
-        .filter((name) => isPrimitiveName(name))
-        .sort();
-      if (shadowed.length > 0) {
-        return {
-          ...empty,
-          setupError: `it redefines the built-in ${shadowed.join(", ")} — a setup supplies context, it must not shadow a primitive`,
         };
       }
       // Procedure resolution is whole-program, so a block that redefines a name the preamble also

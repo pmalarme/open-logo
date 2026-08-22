@@ -223,7 +223,7 @@ test("Sprites active: define ask/each/tell raises ol-reserved-word (AC 1)", () =
       "sprites",
     ]).filter(isReservedWordFinding);
     assert.ok(finding, `${word} should be flagged when sprites is active`);
-    assert.deepEqual(finding.params, { name: word, namespace: "reserved" });
+    assert.deepEqual(finding.params, { name: word });
     assert.equal(finding.stage, "semantic");
     assert.equal(finding.severity, "error");
   }
@@ -238,7 +238,7 @@ test("Sprites active: struct tell raises ol-reserved-word, while local tell does
     "data",
     "sprites",
   ]).filter(isReservedWordFinding);
-  assert.deepEqual(finding.params, { name: "tell", namespace: "reserved" });
+  assert.deepEqual(finding.params, { name: "tell" });
   assert.deepEqual(
     checkSource("define g :y\n  local tell\n  print :y\nend\n", [
       "core-language",
@@ -259,7 +259,7 @@ test("Interaction & Events active: define when/every/on_key/on_click raises ol-r
       finding,
       `${word} should be flagged when interaction-events is active`,
     );
-    assert.deepEqual(finding.params, { name: word, namespace: "reserved" });
+    assert.deepEqual(finding.params, { name: word });
   }
 });
 
@@ -292,5 +292,5 @@ test("a Core reserved-word collision is unaffected by an active profile", () => 
     "core-language",
     "sprites",
   ]).filter(isReservedWordFinding);
-  assert.deepEqual(finding.params, { name: "repeat", namespace: "reserved" });
+  assert.deepEqual(finding.params, { name: "repeat" });
 });

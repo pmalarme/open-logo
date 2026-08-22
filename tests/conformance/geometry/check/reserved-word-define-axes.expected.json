@@ -1,5 +1,5 @@
 {
-  "description": "ol-reserved-word (issue #427, M4 audit): `define axes ... end` redefines `axes`, a Geometry overlay primitive (spec/geometry-module.md's `## axes`). The static checker flags the procedure name at its own span with `namespace: \"primitive\"`, gated on the active `geometry` profile.",
+  "description": "ol-reserved-word (issue #427, M4 audit): `define axes ... end` redefines `axes`, a Geometry overlay primitive (spec/geometry-module.md's `## axes`). The static checker flags the procedure name at its own span, gated on the active `geometry` profile. Issue #838 dropped the `namespace: \"primitive\"` param (spec/error-model.md:125). The overlays are the deliberate counterpoint to `geometry/check/stdlib-names-are-definable`: `grid`/`axes`/`measure` are renderer-backed PRIMITIVES and so are built-in names, while `polygon`/`circle`/`arc`/`star`/`area`/`perimeter` are OpenLogo source and stay free to define (spec/grammar.md:412).",
   "profiles": ["core-language", "geometry"],
   "check": true,
   "events": [],
@@ -11,7 +11,9 @@
         "start": [1, 8],
         "end": [1, 12]
       },
-      "params": { "name": "axes", "namespace": "primitive" },
+      "params": {
+        "name": "axes"
+      },
       "stage": "semantic",
       "severity": "error"
     }

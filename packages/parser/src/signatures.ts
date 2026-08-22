@@ -311,6 +311,30 @@ export function educationalPrimitiveNames(): readonly string[] {
 }
 
 /**
+ * The **Tutor (AI)** profile's one command (issue #838), whose canonical signature is normative in
+ * [`spec/conformance.md`](../../../spec/conformance.md#tutor-ai): `challenge` is a Command, arity 0,
+ * invoked as the bare word — the same "zero-input bare Command" shape as the Educational
+ * meta-commands it augments (`spec/ai-tutor.md:173`).
+ *
+ * Tutor has no runtime yet, so before this slice `challenge` was the one built-in name with **no
+ * registry at all** and therefore the one a program could declare with nothing to consult. It gets
+ * its own table for the same reason {@link EDUCATIONAL_PRIMITIVE_ARITY} does: Tutor is a profile of
+ * its own in the DAG, and a table per profile is what lets each be enumerated independently.
+ */
+const TUTOR_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
+  ["challenge", 0],
+]);
+
+/**
+ * The default arity of a Tutor-profile command, or `undefined` when `name` is not `challenge`.
+ * Matching is case-insensitive. {@link TUTOR_PRIMITIVE_ARITY} is this profile's single
+ * source-of-truth table, mirroring {@link educationalPrimitiveArity}.
+ */
+export function tutorPrimitiveArity(name: string): number | undefined {
+  return TUTOR_PRIMITIVE_ARITY.get(name.toLowerCase());
+}
+
+/**
  * Default arities for the **Geometry** profile's renderer-backed overlay primitives (issue #341):
  * `grid`/`axes`/`measure`, derived from
  * [`spec/geometry-module.md`](../../../spec/geometry-module.md)'s `## grid`, `## axes`, and
@@ -966,7 +990,7 @@ export function heritageAliasArityRange(
  * Every profile's primitive-arity table the reader consults, in lookup order. Core Language is
  * checked first (today's only always-visible table), then each optional profile's Core-spelled
  * primitives as they are registered — currently Turtle & Rendering, Data, Educational, Geometry,
- * Interaction & Events, Sound, and Sprites. A later profile slice adds its table here rather than editing
+ * Interaction & Events, Sound, Sprites, and Tutor. A later profile slice adds its table here rather than editing
  * {@link primitiveArity}'s body. Heritage short aliases are deliberately NOT a table here: they
  * carry no arity of their own — {@link heritageAliasArity} resolves the alias to its canonical and
  * reads that canonical's arity from these very tables, so there is never a duplicate arity number.
@@ -980,6 +1004,13 @@ const PROFILE_PRIMITIVE_ARITY_TABLES: readonly ReadonlyMap<string, number>[] = [
   INTERACTION_PRIMITIVE_ARITY,
   SOUND_PRIMITIVE_ARITY,
   SPRITES_PRIMITIVE_ARITY,
+  // Tutor's `challenge` is arity 0, which is also `arityOf`'s fallback, so this entry changes no
+  // reader behavior TODAY — a QA review measured that removing it fails no test. It is registered
+  // anyway, because the alternative is that Tutor is the one profile the reader's single lookup
+  // does not cover, and the day the profile gains a primitive that takes an input, that omission
+  // would surface as a misgrouped call rather than as a missing table. Coverage by construction,
+  // not by the current arity happening to match the default.
+  TUTOR_PRIMITIVE_ARITY,
 ];
 
 /**

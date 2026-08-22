@@ -12,11 +12,10 @@ import * as OL from "@openlogo/parser";
  * per the shared black-box test convention.
  *
  * Also covers the reserved-word collision parity: `define`/`struct` registrations that
- * redefine `set_tempo`/`beep` must raise `ol-reserved-word` (`namespace: "primitive"`) when the
+ * redefine `set_tempo`/`beep` must raise `ol-reserved-word` when the
  * `sound` profile is active — the checker's static counterpart to the runtime's own
- * `isPrimitiveName()` collision guard (#403) — and must not raise when it is inactive. (`local` is
- * a binding form and raises nothing at all: maintainer ruling #833 / issue #837, and
- * `spec/grammar.md:386` is a normative MUST. See the corrected assertions below.)
+ * `isPrimitiveName()` collision guard (#403) — and must not raise when it is inactive. (Issue #838
+ * removed that diagnostic's `namespace` param; `local` became a binding form under ruling #833.)
  */
 
 function parseClean(source) {
@@ -246,7 +245,7 @@ test("without the sound profile active, set_tempo/beep parse cleanly but are fla
 
 // --- reserved-word collisions --------------------------------------------------
 
-test("a struct type name colliding with a Sound primitive raises ol-reserved-word (primitive wins)", () => {
+test("a struct type name colliding with a Sound primitive raises ol-reserved-word", () => {
   for (const name of ["set_tempo", "beep", "note", "rest", "play"]) {
     const ast = parseClean(`struct ${name} [ x ]`);
     const { diagnostics } = OL.check(ast, {
@@ -254,8 +253,8 @@ test("a struct type name colliding with a Sound primitive raises ol-reserved-wor
     });
     assert.equal(diagnostics.length, 1);
     assert.equal(diagnostics[0].code, "ol-reserved-word");
-    assert.equal(diagnostics[0].params.namespace, "primitive");
-    assert.equal(diagnostics[0].params.name, name);
+    // `params: { name }` only since issue #838 (`spec/error-model.md:125`).
+    assert.deepEqual(diagnostics[0].params, { name });
   }
 });
 
@@ -267,7 +266,7 @@ test("a define colliding with a Sound primitive raises ol-reserved-word", () => 
     });
     assert.equal(diagnostics.length, 1);
     assert.equal(diagnostics[0].code, "ol-reserved-word");
-    assert.equal(diagnostics[0].params.namespace, "primitive");
+    assert.deepEqual(diagnostics[0].params, { name });
   }
 });
 
@@ -285,10 +284,6 @@ test("a local naming a Sound primitive is a binding, so it raises nothing", () =
 });
 
 test("without the sound profile active, define/local/struct set_tempo/beep raise no reserved-word collision", () => {
-  // The `define`/`struct` halves are SHIPPED BEHAVIOUR, not a spec requirement: `spec/grammar.md:408`
-  // makes every profile's primitives built-in names unconditionally, so a conforming implementation
-  // must raise on them with or without `sound`. Retiring the gate is #841's, which flips those
-  // assertions. The `local` half is correct and permanent — binding is free (`grammar.md:386`).
   for (const name of ["set_tempo", "beep", "note", "rest", "play"]) {
     const defineOnly = parseClean(`define ${name}\nend`);
     assert.deepEqual(
