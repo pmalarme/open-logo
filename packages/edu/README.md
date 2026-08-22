@@ -109,18 +109,19 @@ name.** For lesson content that splits cleanly in two.
 Every worked example and reference solution is both **executed** against `@openlogo/runtime` and
 **statically checked** with `@openlogo/parser`'s `check()` in this package's tests, so lesson content
 can drift neither from real execution behavior nor from the naming rules. The two gates are
-genuinely different: `ol-reserved-word` is a semantic diagnostic that only `check()` produces, so a
-lesson that *declared a procedure* named after a built-in would run cleanly through an
-execution-only test. (The runtime's own phase-1 registration guard does catch some `struct`
-collisions, so the hole is not total — but a procedure declaration, which is what Level 5 teaches,
-falls straight through it.)
+genuinely different: for a **procedure** declaration, `ol-reserved-word` is a semantic diagnostic
+produced only by `check()`, so a lesson that declared a procedure named after a built-in would run
+cleanly through an execution-only test. (The runtime's own phase-1 registration guard does raise it
+for some `struct` collisions, so the hole is not total — but a procedure declaration, which is what
+Level 5 teaches, falls straight through it.)
 
 Note the rule above is the **completed** one. `check()` does not consult every primitive table yet —
 Turtle & Rendering awaits [#783](https://github.com/pmalarme/open-logo/issues/783) and the
 meta-commands are not wired in — so `define forward` and `define hint` are still accepted today. The
 naming half of the gate is therefore enforced by `built-in-names.test.mjs`'s own `builtInKind()`,
-which reads the completed rule straight off `@openlogo/parser`'s registries, and not by `check()`.
-Lesson content is held to the finished rule now, so nothing breaks when those slices land.
+which reads the completed rule off `@openlogo/parser`'s registries **plus one explicit exception for
+the Tutor (AI) profile's `challenge`**, whose signature table does not exist yet — and not by
+`check()`. Lesson content is held to the finished rule now, so nothing breaks when those slices land.
 
 Later levels (Level 6 onward) add their own `lessons/level-N.ts` module and extend the registry
 additively — no shared file needs an ever-growing literal, and no level uses a concept from a later

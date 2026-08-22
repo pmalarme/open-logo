@@ -24,9 +24,10 @@
 // {@link builtInKind} therefore evaluates the *completed* rule of `spec/grammar.md:361-363,414`
 // directly off the registries `@openlogo/parser` already publishes: the keyword list under **every**
 // profile (`spec/grammar.md:408` — profile words are built-in unconditionally), every primitive
-// table, and every Heritage alias spelling. That way this audit protects the curriculum on the day
-// those slices land rather than on the day a learner hits it. Where the two halves disagree, the
-// registry half is the stricter one and the one that decides.
+// table, and every Heritage alias spelling — plus {@link TUTOR_AI_PRIMITIVES}, one explicit
+// exception for a name the spec assigns whose profile has no signature table yet. That way this
+// audit protects the curriculum on the day those slices land rather than on the day a learner hits
+// it. Where the two halves disagree, the registry half is the stricter one and the one that decides.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as OL from "@openlogo/edu";
@@ -78,18 +79,6 @@ const TUTOR_AI_PRIMITIVES = new Set(["challenge"]);
 const HERITAGE_ALIASES = new Set(heritageAliasNames());
 
 /**
- * The `alias` declaration slot, which cannot be read off the AST. `spec/grammar.md:382` names four
- * slots; three of them ({@link declaredNames} reads `define`, the heritage `to`, and `struct` from
- * `ProcedureDef`/`StructDef` nodes) are modeled, but Modules is a later profile — `alias fd forward`
- * does not parse at all today (measured: two `ol-bad-token`s), so there is no node to walk. This
- * pattern covers the fourth slot until there is, and captures the **first** operand, which is the
- * declared one (`spec/grammar.md:410`); the second is the name being pointed at and is unrestricted.
- * The identifier form follows `spec/grammar.md:54-55` and the `i` flag follows `:13`.
- */
-const ALIAS_DECLARATION =
-  /^[ \t]*alias[ \t]+([\p{XID_Start}_][\p{XID_Continue}_]*[?!]?)/gimu;
-
-/**
  * Why `name` is a built-in name under the completed ruling, or `"free"` when a program may declare
  * it. Two things this deliberately does that a naive lookup would not:
  *
@@ -125,12 +114,13 @@ function diagnosticCodes(source) {
 }
 
 /**
- * The names `source` declares. `define`, the heritage `to`, and `struct` are read off the parsed
- * AST rather than matched in the text, which is what makes this sound: a declaration nested inside
- * an `if` or a `repeat` block is still a declaration and is found, while `define forward` sitting
- * inside a `/* … *\/` block comment (`spec/grammar.md:32`) is not one and is not. A line-oriented
- * pattern gets both of those backwards. The fourth slot, `alias`, has no node to walk — see
- * {@link ALIAS_DECLARATION}.
+ * The fourth declaration slot, `alias`, is deliberately **not** extracted — and the test named for
+ * it below is the tripwire that keeps this from being forgotten. `spec/grammar.md:382` names the
+ * slot, but Modules is a later profile and `alias` does not parse at all today, so there is no node
+ * to walk; and scanning the source text for one is exactly the unsoundness the AST removed for the
+ * other three slots, because `alias repeat forward` sitting inside a `/* … *\/` block comment
+ * (`spec/grammar.md:32`) is not a declaration. Until the slot is reachable, the corpus gate covers
+ * it for free: a lesson containing a real `alias` fails "statically clean" on `ol-bad-token`.
  */
 function declaredNames(source) {
   const { ast } = parse(source);
@@ -140,9 +130,6 @@ function declaredNames(source) {
       names.push(node.name.name);
     }
   });
-  for (const match of source.matchAll(ALIAS_DECLARATION)) {
-    names.push(match[1]);
-  }
   return names;
 }
 
@@ -223,7 +210,7 @@ test("the names a learner reaches for are owned across all three categories", ()
 // attributed to the wrong name — `empty` is explicitly not a built-in name (`:380`) while `empty?`
 // is a Core primitive. `challenge` covers the last case: a name the spec assigns whose profile has
 // no signature table yet.
-test("the audit models every declaration slot, case-insensitively, suffix and all", () => {
+test("the audit models the three reachable declaration slots, case and suffix included", () => {
   assert.deepEqual(declaredNames("define polygon :sides\n  forward 1\nend"), [
     "polygon",
   ]);
@@ -231,8 +218,6 @@ test("the audit models every declaration slot, case-insensitively, suffix and al
     "triangle",
   ]);
   assert.deepEqual(declaredNames("struct point [ x y ]"), ["point"]);
-  // Only `alias`'s FIRST operand declares (`spec/grammar.md:410`); the second is unrestricted.
-  assert.deepEqual(declaredNames("alias fd forward"), ["fd"]);
   assert.deepEqual(declaredNames("define empty? :xs\n  return 1\nend"), [
     "empty?",
   ]);
@@ -254,6 +239,19 @@ test("the audit models every declaration slot, case-insensitively, suffix and al
   assert.equal(builtInKind("empty?"), "primitive");
   assert.equal(builtInKind("challenge"), "primitive");
   assert.equal(builtInKind("Polygon"), "free");
+});
+
+// The fourth declaration slot of `spec/grammar.md:382` is not modeled, and this is the tripwire
+// that says so out loud. `alias` is unreachable today — Modules is a later profile — so the corpus
+// gate already covers it: a lesson containing a real one fails "statically clean". The day this
+// test starts failing, `alias` has become parseable and {@link declaredNames} must learn to walk
+// its node, because from then on the corpus gate would accept `alias polygon forward` in silence.
+test("the alias declaration slot is unreachable, so the corpus gate covers it", () => {
+  assert.equal(
+    diagnosticCodes("alias fd forward").includes("ol-bad-token"),
+    true,
+  );
+  assert.deepEqual(declaredNames("alias fd forward"), []);
 });
 
 // AC2: `spec/grammar.md:412` protects `spec/educational-model.md:169` ("Learners build `polygon`
