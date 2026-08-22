@@ -194,10 +194,12 @@ test("a bare `value` in parentheses is still rejected", () => {
   // not smuggle it in as a callee. Assert the COMPLETE diagnostic set, not a filtered subset: a
   // count-only or filtered assertion passes when `ol-bad-token` is raised at the wrong offset,
   // names the wrong token, comes from the wrong stage, or is accompanied by spurious extras.
-  // Exactly one diagnostic is correct — `( value )` is balanced, so no `ol-unmatched-paren`
-  // belongs here (`spec/error-model.md` reserves it for a delimiter with no partner). This is the
-  // negative half of #830, also pinned as
-  // `heritage/check/heritage-bare-value-in-parentheses-is-rejected`.
+  // Exactly one PARSE diagnostic is correct — `( value )` is balanced, so no `ol-unmatched-paren`
+  // belongs here (`spec/error-model.md` reserves it for a delimiter with no partner) — plus
+  // `print`'s semantic arity diagnostic, since the rejected operand really does leave `print`
+  // without an input. The conformance twin
+  // `heritage/check/heritage-bare-value-in-parentheses-is-rejected` pins only the parse one,
+  // because the harness returns parse diagnostics unchanged and never reaches `check()`.
   const diagnostics = allDiagnostics("print (value)\n");
   assert.deepEqual(
     diagnostics.map((diagnostic) => diagnostic.code),
@@ -232,5 +234,29 @@ test("a balanced group whose operand is rejected reports no unmatched parenthesi
     unbalanced.includes("ol-unmatched-paren"),
     true,
     "an unclosed group must still report ol-unmatched-paren",
+  );
+});
+
+test("the group recovery only fires when the operand consumed nothing", () => {
+  // The `pos === beforeInner` guard in `parseParenthesized`. Without it the recovery re-reports
+  // after an operand that ALREADY diagnosed and advanced, blaming the innocent token behind it:
+  // `( + 1 )` would name `1`, a perfectly valid token, alongside the real complaint about `+`.
+  const codes = OL.parse("print (+ 1)\n", doc).diagnostics.map((d) => d.code);
+  const named = OL.parse("print (+ 1)\n", doc)
+    .diagnostics.filter((d) => d.code === "ol-bad-token")
+    .map((d) => d.params.text);
+  assert.deepEqual(named, ["+"], "recovery blamed a token it did not reject");
+  assert.equal(codes.filter((c) => c === "ol-bad-token").length, 1);
+});
+
+test("the group recovery keeps a delimiter's own diagnostic code", () => {
+  // It reports through `unexpected()`, not a blanket `badToken`, so a closing delimiter inside a
+  // group still gets the code `spec/error-model.md` gives it: `( ] )` is a bracket-matching
+  // error, not a generic bad token.
+  const diagnostics = OL.parse("print (])\n", doc).diagnostics;
+  assert.deepEqual(
+    diagnostics.map((d) => d.code),
+    ["ol-unmatched-bracket"],
+    "a `]` inside a group must keep ol-unmatched-bracket",
   );
 });
