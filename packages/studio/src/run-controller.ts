@@ -311,7 +311,8 @@ export interface RunControllerOptions {
    * Draws the `ExecuteOptions.randomSeed` (#865) each `run()` pins its whole `input` attempt chain
    * to (#881) — see this module's doc comment ("#881"). Defaults to `Date.now`, the same
    * implementation-chosen seed `@openlogo/runtime` falls back to on its own, so an ordinary studio
-   * run is as unpredictable as it has always been.
+   * run retains exactly the clock-seeded behavior it has always had — which is a weaker property
+   * than it sounds, since two runs starting in the same millisecond receive the same seed.
    *
    * Inject a counter here to make a run **exactly** reproducible — a test that needs to prove a
    * replay cannot diverge injects a source that returns a *different* seed on every call, so an
@@ -602,25 +603,30 @@ export function createRunController(
   let promptOutstanding = false;
   let promptGeneration = 0;
   // The attempt pump's re-entrancy guard. A host may answer synchronously from inside `present()`
-  // — i.e. from inside the very attempt that asked — so `pump()` is a loop with a "go again" flag
-  // rather than recursion: a synchronous answer marks `pumpAgain` and unwinds, and the running loop
-  // picks up the next attempt. `pumpAgain` is also what tells the settle hook that the attempt it
-  // is settling has already been superseded.
+  // — i.e. from inside the very attempt that asked — so `pump()` is a loop with a pending-request
+  // marker rather than recursion: a synchronous answer records the request and unwinds, and the
+  // running loop picks up the next attempt. The marker carries the {@link chainGeneration} the
+  // request was made for, which is what tells a stale retry apart from a genuinely new chain: a
+  // queued answer whose chain has since been ended by Stop/Reset is dropped, while a `reset()`
+  // immediately followed by `run()` — both from inside `present()` — records a request for the NEW
+  // chain and is honoured. A bare boolean could not tell those two apart, and silently lost the
+  // second. `null` means no attempt is pending. It is also what tells the settle hook that the
+  // attempt it is settling has already been superseded.
   let pumping = false;
-  let pumpAgain = false;
+  let pendingPumpGeneration: number | null = null;
   // #881 — the one random seed every attempt of the current chain executes with. Drawn once by
   // `run()` (and once per lazy `step()` preparation, which is its own single-attempt chain), so
   // attempt k+1 reproduces attempt k exactly up to the read the new answer extends.
   let chainRandomSeed = 0;
   // Which chain the pump loop is driving. A synchronous host may answer AND then call `stop()` or
-  // `reset()` before `present()` returns — the answer sets `pumpAgain`, and the lifecycle call then
-  // unwinds into a pump loop that would otherwise run one more attempt on a chain the learner has
-  // already ended. Observed: `respond(); stop()` replaced the output the learner had just seen with
-  // the empty output of a pre-cancelled attempt, and `respond(); reset()` finished `"done"` over an
-  // emptied `chainSource` instead of settling `"idle"`. Every entry point that ends or restarts a
-  // chain bumps this, and `pump()` captures it once and stops the moment it changes — the same
-  // generation-token shape `promptGeneration` already uses for a late responder, kept separate
-  // because the responder itself bumps that one.
+  // `reset()` before `present()` returns — the answer records a pending pump request, and the
+  // lifecycle call then unwinds into a pump loop that would otherwise run one more attempt on a
+  // chain the learner has already ended. Observed: `respond(); stop()` replaced the output the
+  // learner had just seen with the empty output of a pre-cancelled attempt, and `respond(); reset()`
+  // finished `"done"` over an emptied `chainSource` instead of settling `"idle"`. Every entry point
+  // that ends or restarts a chain bumps this, and the pending request carries the generation it was
+  // made for — the same generation-token shape `promptGeneration` already uses for a late
+  // responder, kept separate because the responder itself bumps that one.
   let chainGeneration = 0;
 
   /** Push `current`'s folded per-turtle world/scene into the shared store and repaint (never
@@ -648,17 +654,17 @@ export function createRunController(
    * called `stop()`, in which case `runStatus` stays `"stopped"` even if a subsequent manual
    * `step()` exhausts the animation (see `userStopped`'s doc comment above).
    *
-   * #769 adds the two attempt-chain outcomes ahead of that. `pumpAgain` means a host already
-   * answered this attempt's question synchronously, so the *next* attempt supersedes this one and
-   * its (probe) outcome must not be committed. Otherwise, an attempt that ended on an unanswered
-   * read has now drawn everything up to that read, which is exactly when the question is put to the
-   * learner.
+   * #769 adds the two attempt-chain outcomes ahead of that. A pending pump request means a host
+   * already answered this attempt's question synchronously (or ended and restarted the chain), so
+   * the *next* attempt supersedes this one and its (probe) outcome must not be committed.
+   * Otherwise, an attempt that ended on an unanswered read has now drawn everything up to that
+   * read, which is exactly when the question is put to the learner.
    */
   function settleAttempt(current: TurtleAnimationController): void {
     if (current.getSnapshot().status !== "done") {
       return;
     }
-    if (pumpAgain) {
+    if (pendingPumpGeneration !== null) {
       return;
     }
     if (pendingRead !== null) {
@@ -889,9 +895,9 @@ export function createRunController(
   /**
    * Drive attempts of the current chain (#769) until one finishes without an unanswered read, or
    * until a question is left outstanding for the learner. Re-entrant by design: a host that answers
-   * synchronously calls back into `pump()` from inside the attempt that asked, which only marks
-   * `pumpAgain` so the already-running loop takes the next attempt — never a nested call stack that
-   * would grow with the number of questions.
+   * synchronously calls back into `pump()` from inside the attempt that asked, which only records a
+   * pending request so the already-running loop takes the next attempt — never a nested call stack
+   * that would grow with the number of questions.
    *
    * #881 — each iteration strictly consumes one more read than the last: the chain's source, seed,
    * and every already-recorded answer are frozen, so a read's prompt at a given FIFO position is
@@ -899,23 +905,25 @@ export function createRunController(
    * this loop terminate for any program with a bounded number of reads, and it is why the
    * no-progress retry cap this loop used to carry is gone — see this module's doc comment ("#881").
    *
-   * The loop also stops when the chain it started on has ended: a synchronous host can answer and
-   * then press Stop or Reset before `present()` returns, and without this check the queued
-   * `pumpAgain` would run one more attempt over the top of the outcome those already committed.
-   * See {@link chainGeneration}.
+   * The request is **tagged with the chain it was made for**, and the loop continues only while the
+   * pending one still names the current chain. That single comparison covers both re-entrant orders
+   * a synchronous host can produce from inside `present()`: answering and then pressing Stop/Reset
+   * leaves a request for a chain that has since ended, which is dropped rather than run over the
+   * top of the outcome those already committed; while `reset()` immediately followed by `run()`
+   * records a request for the **new** chain, which is honoured rather than silently lost. See
+   * {@link pendingPumpGeneration}.
    */
   function pump(): void {
     if (pumping) {
-      pumpAgain = true;
+      pendingPumpGeneration = chainGeneration;
       return;
     }
     pumping = true;
-    const generation = chainGeneration;
     try {
       do {
-        pumpAgain = false;
+        pendingPumpGeneration = null;
         playCurrentAttempt(prepare(chainSource, options?.inputPrompt));
-      } while (pumpAgain && generation === chainGeneration);
+      } while (pendingPumpGeneration === chainGeneration);
     } finally {
       pumping = false;
     }

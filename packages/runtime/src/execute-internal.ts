@@ -3817,8 +3817,8 @@ function executeRandomizeCall(
     // no input uses an implementation seed") leaves the choice entirely to the implementation, and
     // deriving it keeps a run that a host pinned with `ExecuteOptions.randomSeed` deterministic
     // END TO END — a clock read here would silently re-enter entropy and undo that seed. An
-    // unseeded run is unaffected: its initial state is still the clock, so every seed derived from
-    // it stays unpredictable. See {@link drawImplementationSeed}, including why the state is
+    // unseeded run is unaffected: its initial state is still the clock, so it retains the prior
+    // clock-seeded behavior exactly. See {@link drawImplementationSeed}, including why the state is
     // advanced rather than replaced by a drawn value.
     environment.randomNumberGenerator.state = drawImplementationSeed(
       environment.randomNumberGenerator,

@@ -1298,3 +1298,43 @@ test("a host that stops from inside present() WITHOUT answering has its question
     "the read ended unanswered, so the runtime's own cancellation is published",
   );
 });
+
+test("a host that resets and then re-runs, inside present(), starts the new chain rather than losing it", () => {
+  // Round 3, logic/spec reviewer. The first version of the chain-generation guard told a stale
+  // retry apart from a live chain with a plain boolean, which could only say "something is
+  // pending" — so `reset()` followed by `run()` from inside present() queued a request the loop
+  // then discarded as stale, and the new run vanished: one prompt, status "idle", no result. The
+  // pending request now carries the generation it was made for, so a request naming the NEW chain
+  // is honoured while one naming an ended chain is dropped.
+  const store = OL.createStudioState({ source: DRAW_ASK_PRINT_SOURCE });
+  let firstPresentation = true;
+  const host = createEndingPromptHost((controller, respond) => {
+    if (firstPresentation) {
+      firstPresentation = false;
+      controller.reset();
+      controller.run();
+      return;
+    }
+    respond("42");
+  });
+  const controller = OL.createRunController(store, {
+    inputPrompt: host,
+    randomSeedSource: createSeedQueue([11]),
+  });
+  host.controller = controller;
+
+  controller.run();
+
+  assert.equal(
+    host.prompts.length,
+    2,
+    "the re-run chain must actually ask its question — silently dropping it is the defect",
+  );
+  assert.equal(store.getState().runStatus, "done");
+  assert.deepEqual(store.getState().output, ["511587", "42"]);
+  assert.notEqual(
+    store.getState().lastRunResult,
+    null,
+    "the re-run must commit a real result, not leave the studio idle",
+  );
+});

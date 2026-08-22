@@ -100,11 +100,11 @@ const IMPLEMENTATION_RESEED_STRIDE = 0x9e3779b9;
  * #865 — is what makes a **seeded** run deterministic all the way through: such a program would
  * otherwise re-enter wall-clock entropy and undo the pinned
  * {@link createRandomNumberGeneratorState} seed, which is precisely why issue #881 recorded that a
- * host seed alone "is not sufficient on its own". An **unseeded** run is unaffected and stays
- * unpredictable, because its initial state is still the clock and every seed derived from it
- * inherits that unpredictability. It also removes a real defect the clock had: two bare `randomize`
- * calls landing within the same millisecond reseeded to the *identical* state, so `randomize` twice
- * produced the very same sequence twice.
+ * host seed alone "is not sufficient on its own". An **unseeded** run is unaffected and retains the
+ * prior clock-seeded behavior exactly, because its initial state is still the clock and every seed
+ * derived from it descends from that. It also removes a real defect the clock had: two bare
+ * `randomize` calls landing within the same millisecond reseeded to the *identical* state, so
+ * `randomize` twice produced the very same sequence twice.
  *
  * **Why the state is advanced rather than replaced by a drawn value.** The obvious derivation —
  * feeding {@link nextRandomInt}'s output back in as the new state — is **not injective**: it maps
