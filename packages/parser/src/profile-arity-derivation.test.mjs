@@ -396,6 +396,12 @@ test("a user procedure's and a struct constructor's params.callable is the DECLA
     assert.equal(findings[0].params.callable, declared, source);
     assert.equal(findings[0].params.expected, expected, source);
     assert.equal(findings[0].params.actual, actual, source);
+    // Symmetry with the procedure loop above: the struct constructor is the second callable
+    // reached through `checkExactArity`, and its prose must carry the declared spelling too.
+    assert.ok(
+      findings[0].message.startsWith(`${declared} `),
+      `${source}: message should open with the declared spelling, got ${JSON.stringify(findings[0].message)}`,
+    );
   }
 
   // And the property that motivates all of it: one defect, one identity, however it is spelled.
