@@ -157,23 +157,62 @@
  * and when the learner answers, that answer joins the FIFO and the **same captured source** is
  * executed again from the top. N reads cost N+1 executions.
  *
- * **Why a replay still honors "the program must not appear to continue" — for a deterministic
- * program.** The learner never observes the cancel-and-re-run, because this module already reduces
- * the *whole* event stream wholesale on every attempt (`collectOutput` → `setOutput`,
- * `setDiagnostics`, `setTutorOutput`, and a fresh `TurtleAnimationController` over the run's
- * events). **When the replayed prefix reproduces the probe's** — which it does for any program whose
- * prefix is deterministic, i.e. every program that does not draw unseeded randomness before a read —
- * attempt *k+1*'s stream begins with attempt *k*'s, so each wholesale replacement can only *extend*
- * what is on screen: output grows monotonically, the canvas resumes rather than blanking (the new
- * animation is fast-forwarded past the events already drawn — see `prepare()`), and no consumer
- * double-counts, because `run-log.ts`/`tutor-output-pane.ts` accumulate only on the `"running"` →
- * terminal transition a probe never reaches. From the learner's side the program stops at the
- * question and continues from exactly there, which is what `:108-111` asks a host to show.
+ * **Why a replay honors "the program must not appear to continue".** The learner never observes the
+ * cancel-and-re-run, because this module already reduces the *whole* event stream wholesale on
+ * every attempt (`collectOutput` → `setOutput`, `setDiagnostics`, `setTutorOutput`, and a fresh
+ * `TurtleAnimationController` over the run's events). Attempt *k+1*'s stream begins with attempt
+ * *k*'s, so each wholesale replacement can only *extend* what is on screen: output grows
+ * monotonically, the canvas resumes rather than blanking (the new animation is fast-forwarded past
+ * the events already drawn — see `prepare()`), and no consumer double-counts, because
+ * `run-log.ts`/`tutor-output-pane.ts` accumulate only on the `"running"` → terminal transition a
+ * probe never reaches. From the learner's side the program stops at the question and continues from
+ * exactly there, which is what `:108-111` asks a host to show.
  *
- * That qualifier is load-bearing and is **not** claimed unconditionally: when the prefix is *not*
- * deterministic the guarantee genuinely does not hold — already-drawn output can change, the
- * question can change, and one question can be asked more than once. That is the scoped limitation
- * tracked as issue **#881**; see the caveat at the end of this comment.
+ * ## #881 — why "attempt *k+1* begins with attempt *k*" is now unconditional
+ * Before #881 that claim carried a qualifier: it held only "for a program whose prefix is
+ * deterministic". A program drawing unseeded randomness before a read re-randomized on every
+ * attempt, so the replay could reach a **different question** than the learner was shown, and
+ * already-drawn output could change underneath them.
+ *
+ * `run()` now pins **one `ExecuteOptions.randomSeed` (#865) per chain**, drawn from
+ * {@link RunControllerOptions.randomSeedSource} (`Date.now` by default — the very seed the runtime
+ * would otherwise have chosen for itself, so an ordinary run is no more predictable than before).
+ * That closes it completely, because `@openlogo/runtime`'s clock fallback was its **only** source
+ * of nondeterminism: nothing else there reads a wall clock or `Math.random()`, the tick clock is a
+ * pure counter, and since #865 even a no-argument `randomize` derives its implementation-chosen
+ * seed from the generator instead of the clock. With the seed fixed, `execute()` is a pure function
+ * of source, document, and options — so every attempt of a chain is *bit-identical* up to the read
+ * the newest answer extends. Concretely, for the whole program class #881 named:
+ * - the branch a `random` chose does not change under the covers, and the question is not re-asked;
+ * - the output and drawing the learner has already observed are never rewritten by a later attempt;
+ * - two distinct `input` sites asking the identical prompt text each receive their own answer,
+ *   because a read's FIFO position is now stable across attempts and therefore identifies the site.
+ *
+ * The seed is drawn **per chain, not per attempt** — that distinction is the whole fix, and
+ * `run-controller-input.test.mjs` pins it with a seed source that hands out a different seed on
+ * every call, so drawing per attempt diverges deterministically rather than by luck.
+ *
+ * What remains is not a correctness gap but a mechanism one: the read is still *reconciled* rather
+ * than genuinely blocking, and N reads still cost N+1 executions. Issue **#876** (a Worker +
+ * `Atomics.wait` execution host) is that mechanism; the replay stays as the degraded mode for any
+ * deployment that is not cross-origin isolated.
+ *
+ * {@link resolveRecordedAnswer}'s prompt pairing is kept as defence in depth rather than deleted:
+ * it is what makes "an answer can never reach a question the learner was not shown" true **by
+ * construction** instead of by trusting the determinism argument above, and it costs one comparison
+ * per read.
+ *
+ * The chain's **no-progress retry cap** (`MAX_INPUT_REPLAY_RETRIES`, removed by #881) went the
+ * other way, because #881 makes the situation it guarded provably unreachable rather than merely
+ * unlikely. The cap ended a chain whose replay kept diverging and therefore kept answering nothing
+ * new. But a read at FIFO position *i* takes its prompt from the source, the chain's pinned seed,
+ * and answers *0…i-1* — all frozen for the life of the chain, since an answer is recorded once and
+ * never revised. So position *i*'s prompt is **invariant across attempts**; the FIFO grows by
+ * exactly one entry per attempt, and a chain can never fail to make progress. Keeping a counter for
+ * a branch no program can reach would have been untestable code guarding an impossible state.
+ * (What the cap never covered, before or after, is a chain with genuinely *unbounded* reads such as
+ * `forever [ input "?" ]` under a synchronous host: every attempt there answers one more read, so
+ * it always counted as progress. That remains bounded only by the instruction budget.)
  *
  * A probe's own diagnostics are deliberately withheld while its question is outstanding, because the
  * only diagnostic a probe can carry is the reader's own forced cancellation: parse diagnostics stop
@@ -190,26 +229,6 @@
  * `step()` deliberately does **not** drive this flow: it is a scrubber over an already-produced
  * event stream (see "#228" above), so there is no execution in progress for a read to block, and its
  * lazy `prepare()` therefore installs no reader at all — behavior unchanged from before #769.
- *
- * One honest caveat, tracked as issue **#881**: `random` with no `randomize <seed>` seeds from the
- * wall clock per `execute()` call, so a replayed prefix is not guaranteed to reproduce the probe's.
- * Two consequences, and the dangerous one is handled rather than merely documented:
- * - An answer is **never** bound to a question the learner was not shown. Answers are recorded with
- *   the prompt they answered ({@link RecordedAnswer}) and a read only draws from the FIFO when the
- *   recorded prompt matches this attempt's; a diverged replay that reaches a *different* question
- *   at that position drops the rest of the FIFO and asks the learner the question it is actually
- *   asking. Position alone would have silently handed `"5"` — given for "how many sides?" — to a
- *   replay that asked "what colour?".
- * - What remains is **#881**: for nondeterminism evaluated *before* a read, the replay can still
- *   reach a different question (so the learner is visibly re-asked rather than silently mis-bound),
- *   two distinct `input` sites asking the identical prompt text are not told apart, and already-
- *   drawn output can change. Every committed state is one whole attempt's own reduction, so none is
- *   internally inconsistent, and an explicit `randomize <seed>` makes the chain exact today. The
- *   durable fix is issue **#876** (a Worker + `Atomics.wait` execution host), which removes the
- *   replay entirely; issue **#865** (an `ExecuteOptions` RNG seed) would narrow the window but is
- *   not sufficient alone while a no-argument `randomize` still draws fresh wall-clock entropy.
- *   `@orchestrator` shipped this slice with that limitation scoped to #881 rather than block the
- *   whole capability behind #876 — see the #769 PR for the recorded ruling.
  */
 
 import { execute, printedForm } from "@openlogo/runtime";
@@ -242,28 +261,6 @@ import {
 
 /** The document identifier passed to `execute()` when the caller doesn't supply one. */
 export const DEFAULT_RUN_DOCUMENT = "studio-session";
-
-/**
- * How many **consecutive attempts that answer no new read** one `input` chain may make before the
- * run is abandoned (#769).
- *
- * Deliberately *not* a cap on total attempts. A well-behaved chain costs one execution per read —
- * a program with a hundred `input`s legitimately makes a hundred and one attempts, and capping the
- * total would cancel it after the hundredth answer. What must be bounded is a chain that cannot
- * make **progress**: a *diverged* replay re-asks the question it actually reached, and if the
- * divergence is systematic — nondeterminism that keeps choosing a different question, issue
- * **#881** — every attempt can diverge again and the chain answers nothing new, forever. With the
- * studio's asynchronous `<dialog>` host each iteration needs a learner action, so that is merely
- * tedious; with a **synchronous** host (the shape a `window.prompt`-backed one would have, and the
- * shape this module's own tests use) it is an unbounded loop with no yield, i.e. a hung tab.
- *
- * Progress is measured as the chain's accumulated answers growing: an attempt that leaves the FIFO
- * no longer than the previous attempt found it has answered nothing new. Reaching the limit ends
- * the run the only other way `spec/interaction-events.md:110-111` allows — the read is left
- * unanswered — so it surfaces as the runtime's own `ol-limit`/`cancelled` diagnostic at the waiting
- * `input`, exactly like a dismissed prompt. No studio-invented diagnostic.
- */
-export const MAX_INPUT_REPLAY_RETRIES = 64;
 
 /** Optional configuration for {@link createRunController}. */
 export interface RunControllerOptions {
@@ -307,6 +304,18 @@ export interface RunControllerOptions {
    * `input` read cancels the program exactly as it did before this option existed.
    */
   readonly inputPrompt?: InputPromptHost;
+  /**
+   * Draws the `ExecuteOptions.randomSeed` (#865) each `run()` pins its whole `input` attempt chain
+   * to (#881) — see this module's doc comment ("#881"). Defaults to `Date.now`, the same
+   * implementation-chosen seed `@openlogo/runtime` falls back to on its own, so an ordinary studio
+   * run is as unpredictable as it has always been.
+   *
+   * Inject a counter here to make a run **exactly** reproducible — a test that needs to prove a
+   * replay cannot diverge injects a source that returns a *different* seed on every call, so an
+   * implementation that drew per attempt instead of per chain diverges deterministically rather
+   * than by luck.
+   */
+  readonly randomSeedSource?: () => number;
 }
 
 /**
@@ -322,10 +331,10 @@ interface PendingRead {
 
 /**
  * One answer the learner has already given during the current chain (#769), remembered **with the
- * question it answered**. A replay re-executes the whole program, and an unseeded `random` before a
- * read can make the replayed prefix reach a *different* question at the same position — so binding
- * answers by position alone could hand an answer to a question the learner was never shown. Pairing
- * each answer with its prompt is what makes that impossible; see {@link resolveRecordedAnswer}.
+ * question it answered**. Binding answers by position alone would, if a replay ever reached a
+ * different question at the same position, hand an answer to a question the learner was never
+ * shown. Pairing each answer with its prompt is what makes that impossible; see
+ * {@link resolveRecordedAnswer}.
  */
 export interface RecordedAnswer {
   /** The question, exactly as the learner was shown it. */
@@ -355,20 +364,21 @@ export interface RecordedAnswerResolution {
  * provoke.
  *
  * An answer is used **only** when the entry at this position was given for this same `prompt`.
- * "This same question" means **this prompt text at this FIFO position** — deliberately not read
- * identity, which prompt text cannot express (see the limitation below). Otherwise the read cannot
- * be answered: either the chain has no answer for this position yet, or a nondeterministic prefix
- * has reached a different question here than the learner was shown. In that second case every
- * remaining answer is dropped as well — handing one to the wrong question would silently apply a
- * learner's answer to something they never saw, which is the failure this pairing exists to prevent.
+ * "This same question" means **this prompt text at this FIFO position**. Otherwise the read cannot
+ * be answered: the chain has no answer for this position yet, or — the case this pairing exists to
+ * make impossible — a replay reached a different question here than the learner was shown. In that
+ * second case every remaining answer is dropped as well, since handing one to the wrong question
+ * would silently apply a learner's answer to something they never saw.
  *
- * What this does **not** solve is recorded in issue **#881**: prompt text is not read identity, so
- * two distinct `input` sites asking the identical question are indistinguishable here; the
- * learner's earlier answer to a question a diverged replay no longer asks is **discarded** (they are
- * asked the new one instead, so the answer is lost, not carried over); and because each re-ask can
- * itself diverge, the number of times one question is asked terminates only probabilistically. What
- * is genuinely eliminated is an answer reaching a question it did not answer. The durable fix is
- * issue **#876**.
+ * Since **#881** pinned one `ExecuteOptions.randomSeed` per chain (see this module's doc comment),
+ * a replay the run controller itself drives is bit-identical up to the newest read, so the
+ * divergence arm is unreachable through `run()`: position is now a stable read identity, which is
+ * exactly what lets **two distinct `input` sites asking the identical prompt text** each receive
+ * their own answer. This function is nonetheless kept, exported, and directly tested — it is what
+ * makes "an answer never reaches a question it did not answer" hold **by construction** rather than
+ * by trusting that determinism argument, and it costs one comparison per read. The remaining gap is
+ * a mechanism one, not a correctness one: the read is reconciled rather than genuinely blocking,
+ * which is issue **#876**.
  */
 export function resolveRecordedAnswer(
   answers: readonly RecordedAnswer[],
@@ -531,6 +541,11 @@ export function createRunController(
 ): RunController {
   const document = options?.document ?? DEFAULT_RUN_DOCUMENT;
   const signal: MutableCancellationSignal = { aborted: false };
+  // #881 — where each chain's pinned `ExecuteOptions.randomSeed` (#865) comes from. `Date.now` is
+  // exactly what `@openlogo/runtime` would have chosen for itself, so an unpinned studio run is
+  // no more predictable than before; what changes is that the choice is now made ONCE per chain
+  // instead of once per `execute()` call.
+  const drawRandomSeed = options?.randomSeedSource ?? Date.now;
 
   // The current turtle animation player (#228), rebuilt fresh on every prepare() (called by
   // run(), and by step() lazily when nothing has started yet — #289) over that run's own
@@ -590,12 +605,10 @@ export function createRunController(
   // is settling has already been superseded.
   let pumping = false;
   let pumpAgain = false;
-  // How many consecutive attempts of the current chain have answered no new read (#769), bounded by
-  // MAX_INPUT_REPLAY_RETRIES so a chain that cannot converge ends rather than looping.
-  // `answeredAtLastAttempt` is the FIFO length the previous attempt started from; `-1` makes the
-  // first attempt of every chain count as progress. Both reset by run()/reset(), like `answers`.
-  let attemptsWithoutProgress = 0;
-  let answeredAtLastAttempt = -1;
+  // #881 — the one random seed every attempt of the current chain executes with. Drawn once by
+  // `run()` (and once per lazy `step()` preparation, which is its own single-attempt chain), so
+  // attempt k+1 reproduces attempt k exactly up to the read the new answer extends.
+  let chainRandomSeed = 0;
 
   /** Push `current`'s folded per-turtle world/scene into the shared store and repaint (never
    * called with a null animation — callers only invoke this once `animation` has been
@@ -732,6 +745,11 @@ export function createRunController(
     const execOptions: ExecuteOptions = {
       signal,
       tutorTemplates: eduTutorTemplate,
+      // #881 — the chain's pinned seed (#865). This is what makes the replay a genuine
+      // continuation rather than a fresh roll of the dice: `@openlogo/runtime`'s clock fallback
+      // was its only source of nondeterminism, so with the seed fixed every attempt of this chain
+      // reproduces the previous one exactly up to the read.
+      randomSeed: chainRandomSeed,
       ...(host === undefined
         ? {}
         : {
@@ -859,6 +877,12 @@ export function createRunController(
    * synchronously calls back into `pump()` from inside the attempt that asked, which only marks
    * `pumpAgain` so the already-running loop takes the next attempt — never a nested call stack that
    * would grow with the number of questions.
+   *
+   * #881 — each iteration strictly consumes one more read than the last: the chain's source, seed,
+   * and every already-recorded answer are frozen, so a read's prompt at a given FIFO position is
+   * the same on every attempt and the newest answer always advances the chain. That is what makes
+   * this loop terminate for any program with a bounded number of reads, and it is why the
+   * no-progress retry cap this loop used to carry is gone — see this module's doc comment ("#881").
    */
   function pump(): void {
     if (pumping) {
@@ -869,23 +893,6 @@ export function createRunController(
     try {
       do {
         pumpAgain = false;
-        // #769 — bound only chains that make no PROGRESS (see MAX_INPUT_REPLAY_RETRIES). A
-        // legitimate chain answers one more read per attempt, so its FIFO grows every time; a
-        // systematically diverging one keeps truncating back and answers nothing new.
-        if (answers.length > answeredAtLastAttempt) {
-          answeredAtLastAttempt = answers.length;
-          attemptsWithoutProgress = 0;
-        } else {
-          attemptsWithoutProgress += 1;
-          if (attemptsWithoutProgress > MAX_INPUT_REPLAY_RETRIES) {
-            // This chain cannot converge. End it the only other way a read can end, publishing the
-            // cancellation the last attempt already produced, rather than looping forever on a
-            // synchronous host.
-            commitCancelledRead();
-            state.setRunStatus("stopped");
-            return;
-          }
-        }
         playCurrentAttempt(prepare(chainSource, options?.inputPrompt));
       } while (pumpAgain);
     } finally {
@@ -902,14 +909,14 @@ export function createRunController(
       return;
     }
     // #769 — a fresh chain: no answers carried over, nothing drawn yet, and the program text pinned
-    // for every attempt this chain makes.
+    // for every attempt this chain makes. #881 pins the chain's randomness the same way and for the
+    // same reason: every attempt must be the SAME run, not merely the same program.
     answers = [];
     shownEventCount = 0;
-    attemptsWithoutProgress = 0;
-    answeredAtLastAttempt = -1;
     promptGeneration += 1;
     promptOutstanding = false;
     chainSource = state.getState().source;
+    chainRandomSeed = drawRandomSeed();
     pump();
   }
 
@@ -931,8 +938,6 @@ export function createRunController(
     chainSource = "";
     attemptDiagnostics = [];
     shownEventCount = 0;
-    attemptsWithoutProgress = 0;
-    answeredAtLastAttempt = -1;
     signal.aborted = false;
     userStopped = false;
     state.setOutput([]);
@@ -962,7 +967,11 @@ export function createRunController(
     // blank studio animates the first instruction instead of silently doing nothing. Once an
     // animation already exists (mid-run, paused, or exhausted), this is exactly the pre-#289
     // behavior: step the existing one, never rebuilding it from a possibly-changed source. No
-    // prompt host is installed (#769) — see this module's doc comment.
+    // prompt host is installed (#769) — see this module's doc comment. #881: a lazy preparation is
+    // its own one-attempt chain, so it draws its own seed rather than reusing a finished run's.
+    if (animation === null) {
+      chainRandomSeed = drawRandomSeed();
+    }
     const current = animation ?? prepare(state.getState().source, undefined);
     current.step();
     pushTurtleSnapshot(current);

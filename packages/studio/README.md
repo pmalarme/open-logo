@@ -193,18 +193,14 @@ shapes with an **attempt chain**.
   read with none left records its prompt and returns `undefined`. That attempt is a **probe**: its
   animation draws everything up to the read, the question is asked, and the answer re-executes the
   **source captured at `run()`** from the top. N reads cost N+1 executions.
-- **Why a replay still looks like blocking — for a deterministic program.** The controller already
-  reduces the *whole* event stream wholesale every attempt, and **when the replayed prefix reproduces
-  the probe's** (which it does for any program that does not draw unseeded randomness before a read)
-  attempt *k+1*'s stream starts with attempt *k*'s, so each replacement can only extend what is on
-  screen: output grows monotonically, the canvas resumes (the new animation is fast-forwarded past
-  the events already drawn, so it never blanks and redraws), and neither the run log nor the
-  tutor-output pane double-counts, because both accumulate only on the `"running"` → terminal
-  transition a probe never reaches. That qualifier is load-bearing and is **not** claimed
-  unconditionally — when the prefix is not deterministic the guarantee genuinely does not hold, which
-  is the scoped limitation below. A probe's own diagnostics are withheld until the learner genuinely
-  dismisses the question — the only diagnostic a probe can carry is the reader's own forced
-  cancellation.
+- **Why a replay looks like blocking.** The controller already reduces the *whole* event stream
+  wholesale every attempt, and attempt *k+1*'s stream starts with attempt *k*'s, so each replacement
+  can only extend what is on screen: output grows monotonically, the canvas resumes (the new
+  animation is fast-forwarded past the events already drawn, so it never blanks and redraws), and
+  neither the run log nor the tutor-output pane double-counts, because both accumulate only on the
+  `"running"` → terminal transition a probe never reaches. A probe's own diagnostics are withheld
+  until the learner genuinely dismisses the question — the only diagnostic a probe can carry is the
+  reader's own forced cancellation.
 - **Run/Stop/Reset.** `runStatus` stays `"running"` for the whole chain (the program *is* running,
   blocked on a read), which is also what makes `run()`'s #314 guard ignore a second Run and the
   Start/Stop toggle offer Stop, with no new state. **Stop** withdraws the question and commits the
@@ -223,23 +219,36 @@ shapes with an **attempt chain**.
   `nextFocusStop`/`previousFocusStop` prove it cycles both ways. The dialog starts closed, so until a
   program asks something it is absent from the layout, the tab order, and the accessibility tree —
   which is why the e2e layout baselines are unchanged.
-- **One honest caveat, tracked as [#881](https://github.com/pmalarme/open-logo/issues/881).**
-  `random` with no `randomize <seed>` seeds from the wall clock per `execute()` call, so a replayed
-  prefix is not guaranteed to reproduce the probe's. The **dangerous** half of that is handled, not
-  merely documented: answers are recorded together with the prompt they answered, and a read only
-  draws from the FIFO when the recorded prompt matches this attempt's — so a diverged replay that
-  reaches a *different* question at that position re-asks the learner instead of silently applying
-  `"5"`, given for "how many sides?", to a run that asked "what colour?". What remains is #881: for
-  nondeterminism evaluated *before* a read the replay can still reach a different question (visibly
-  re-asking rather than silently mis-binding), two distinct `input` sites asking identical prompt
-  text are not told apart, and already-drawn output can change. Every committed state is one whole
-  attempt's own reduction, so none is internally inconsistent, and an explicit `randomize <seed>`
-  makes the chain exact today. The durable fix is
+- **One pinned random seed per chain ([#881](https://github.com/pmalarme/open-logo/issues/881),
+  closed).** A replay is only a continuation if it *reproduces* the attempt before it. Before this,
+  `random` with no `randomize <seed>` reseeded from the wall clock on every `execute()` call, so a
+  program whose control flow depended on randomness *before* a read could replay into a **different
+  question** than the learner was shown, and already-drawn output could change underneath them —
+  a conformance problem, since `spec/execution-model.md`'s event stream is normative and
+  deterministic, not merely a UX wrinkle. `run()` now draws one
+  [`ExecuteOptions.randomSeed`](https://github.com/pmalarme/open-logo/issues/865) per chain (from
+  `RunControllerOptions.randomSeedSource`, `Date.now` by default — the same implementation-chosen
+  seed the runtime would have picked itself, so an ordinary run is no more predictable than before)
+  and every attempt of that chain executes with it. That closes the gap **completely**, because the
+  clock fallback was `@openlogo/runtime`'s only source of nondeterminism: nothing else there reads a
+  wall clock or `Math.random()`, the tick clock is a pure counter, and since #865 even a no-argument
+  `randomize` derives its implementation seed from the generator rather than the clock. So every
+  attempt is bit-identical up to the read the newest answer extends — the branch a `random` chose
+  cannot change under the covers, the question is never re-asked, what is already on screen is never
+  rewritten, and two `input` sites asking the identical prompt text each receive their own answer,
+  because a read's FIFO position is now a stable identity.
+- **What that removed, and what it kept.** The no-progress retry cap (`MAX_INPUT_REPLAY_RETRIES`) is
+  **gone**: a read at FIFO position *i* takes its prompt from the source, the pinned seed, and
+  answers *0…i-1*, all frozen for the life of the chain, so the FIFO grows by exactly one entry per
+  attempt and a chain can never stall. Recording each answer **with the question it answered**
+  (`resolveRecordedAnswer`) is **kept** as defence in depth — it makes "an answer never reaches a
+  question the learner was not shown" true by construction rather than by trusting that argument,
+  for one comparison per read.
+- **What is still outstanding.** Not correctness but mechanism: the read is *reconciled* rather than
+  genuinely blocking, and N reads still cost N+1 executions.
   [#876](https://github.com/pmalarme/open-logo/issues/876) (a Worker + `Atomics.wait` execution
-  host), which removes the replay entirely;
-  [#865](https://github.com/pmalarme/open-logo/issues/865) (an `ExecuteOptions` RNG seed) would
-  narrow the window but is not sufficient alone while a no-argument `randomize` still draws fresh
-  wall-clock entropy.
+  host) is that mechanism; the replay stays as the degraded mode wherever `SharedArrayBuffer` is
+  unavailable for want of COOP/COEP cross-origin isolation.
 
 ## Friendlier run-status labels (#311)
 
