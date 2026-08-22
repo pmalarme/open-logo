@@ -185,7 +185,7 @@ test("`tell` is a COMMAND, not a special form — `( tell :t )` stays legal", ()
   );
 });
 
-test("`tell` is exempt from ol-bad-token in value position too, not only as a callee", () => {
+test("`tell` is exempt from ol-bad-token in value position too, not only in statement position", () => {
   // What this guards, stated precisely: **this rule** never reports `ol-bad-token` for `tell`, in
   // any position. It deliberately does NOT assert that `print tell` is diagnostic-free overall, and
   // the assertion is scoped to `ol-bad-token` for that reason — `print tell` and `repeat tell [ ]`
@@ -199,8 +199,10 @@ test("`tell` is exempt from ol-bad-token in value position too, not only as a ca
   assert.deepEqual(badTokenTexts("print tell\n", profiles), []);
   assert.deepEqual(badTokenTexts("repeat tell [ ]\n", profiles), []);
   // Full arity, still used as a value: a *no-value* question rather than an arity one, and OpenLogo
-  // answers it for no Kind-C command today (`print forward` is equally undiagnosed). Also not this
-  // rule's, and pinned here so the two gaps are not confused for one.
+  // answers it for no Kind-C command today (`print ( forward 10 )` is equally undiagnosed). The
+  // parenthesized spelling is deliberate — it supplies every required input, so it isolates
+  // command-as-value from the missing-input case above, which a bare `print forward` would not.
+  // Also not this rule's, and pinned here so the two gaps are not confused for one.
   assert.deepEqual(
     badTokenTexts(":t = new_turtle\nprint ( tell :t )\n", profiles),
     [],

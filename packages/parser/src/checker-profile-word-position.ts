@@ -78,14 +78,20 @@
  * same reasoning recorded at the raise site — see `@openlogo/runtime`'s `errors.ts` ("Registry stage
  * is `semantic`, but raised here at `stage: \"runtime\"`") and `evaluate.ts`. This rule is the first
  * on the **`parse`/`semantic`** axis, which is worth naming: `repeat key [ ]` reports `ol-bad-token`
- * at `parse` from the reader while `repeat when [ ]` reports it at `semantic` from here. **No
- * consumer distinguishes the two once it has the diagnostic in hand** — only
- * `scripts/markdown-examples-gate.mjs` branches on `stage` at all, and it keys on `"runtime"`, while
- * `packages/studio/src/diagnostics.ts` renders every stage identically by explicit design. What does
- * differ is *reaching* a consumer at all: a parse-only caller never runs `check()`, so the studio's
- * live wiring surfaces the reader's half by default and this half only when `semanticCheck` is on
- * (`packages/studio/src/diagnostics.ts`'s `runChecks`). That is a property of which layers a caller
- * chooses to run, not of the two diagnostics being treated differently.
+ * at `parse` from the reader while `repeat when [ ]` reports it at `semantic` from here. **Neither
+ * diagnostic is *rendered* differently**: `packages/studio/src/diagnostics.ts` renders every stage
+ * identically by explicit design, and the only `stage` *branch* in the repository is
+ * `scripts/markdown-examples-gate.mjs`, which keys on `"runtime"`. Structured consumers do of course
+ * carry the field through and compare it — the conformance harness diffs it exactly
+ * (`scripts/harness/index.mjs`'s `projectDiagnostic`) and `packages/studio/src/a11y.ts` folds it into
+ * a diagnostics-list identity key — so a fixture pins whichever stage is chosen; that is the field
+ * doing its job, not two defects being treated differently.
+ *
+ * What genuinely differs is *reaching* a consumer at all. A parse-only caller never runs `check()`,
+ * and the studio's `semanticCheck` still defaults **off** pending epic #108
+ * (`packages/studio/src/diagnostics.ts`'s `runChecks`), so a learner in today's studio sees the
+ * reader's `repeat key [ ]` and nothing for `repeat when [ ]` until semantic checking is switched
+ * on. That is a property of which layers a caller chooses to run, not of the stage field.
  */
 
 import type { Diagnostic } from "@openlogo/core";
@@ -134,8 +140,10 @@ function isCallLike(node: AnyNode): node is CallNode | ParenCallNode {
  *   recorded above. That table and that rule belong to another slice.
  * - `print ( tell :t )` supplies the input and still uses a **command as a value**. That is a
  *   *no-value* question, not an arity one, and OpenLogo answers it for no Kind-C command today —
- *   `print forward`, `print right`, and `print setxy` are equally undiagnosed. A language-wide,
- *   pre-existing hole, not something about `tell`.
+ *   `print ( forward 10 )`, `print ( right 90 )`, and `print ( setxy 1 2 )` are equally
+ *   undiagnosed. The parenthesized spelling is the point: it supplies every required input, so it
+ *   isolates *command as a value* from the missing-input case above, which a bare `print forward`
+ *   would not. A language-wide, pre-existing hole, not something about `tell`.
  *
  * Both are out of this slice's scope and left exactly as they were.
  *
