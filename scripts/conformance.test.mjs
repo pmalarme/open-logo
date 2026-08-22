@@ -2649,7 +2649,11 @@ test("PROFILE_DEPS registers heritage with core-language + data + turtle-renderi
   // Core Language, on Data (its `value of … for key` reader operates on dicts), AND on Turtle &
   // Rendering (issue #860): nine of its thirteen alias spellings — fd/bk/lt/rt/pu/pd/st/ht/cs —
   // spell Turtle & Rendering primitives, so owing those aliases means owning what they spell.
-  assert.deepEqual(PROFILE_DEPS.heritage, ["core-language", "data", "turtle-rendering"]);
+  assert.deepEqual(PROFILE_DEPS.heritage, [
+    "core-language",
+    "data",
+    "turtle-rendering",
+  ]);
   const closure = closureOf("heritage");
   assert.ok(closure.has("heritage"));
   assert.ok(closure.has("core-language"));

@@ -152,7 +152,7 @@ The **Heritage** profile is **alternate spellings only**. It does not add new se
 - `make` as the heritage assignment spelling;
 - `to` as the heritage procedure-definition spelling;
 - `output` and `op` as heritage spellings for `return`;
-- short command aliases `fd`, `bk`, `lt`, `rt`, `pu`, `pd`, `st`, `ht`, `cs`, and `pr`, of which the nine turtle aliases spell Turtle & Rendering primitives and therefore also need the **Turtle & Rendering** profile, while `pr` spells the Core `print`;
+- short command aliases `fd`, `bk`, `lt`, `rt`, `pu`, `pd`, `st`, `ht`, `cs`, and `pr`, of which the nine turtle aliases spell Turtle & Rendering primitives and therefore also need the **Turtle & Rendering** profile, while `pr` spells a Core output command;
 - list-reporter alias spellings `bf`, `bl`, and `se`;
 - the worded dictionary reporter spelling `value of … for key`, which operates on dicts and therefore also needs the **Data** profile.
 
