@@ -32,11 +32,16 @@
  * assignment target, or any syntax error is caught wherever it sits. **Execution, however, stops at
  * the first runtime error** — so in a block whose first statement already raises (typically
  * `ol-undefined-var`, because its value is assigned in the prose), the statements *below* that line
- * are checked statically but never run, and a runtime-only defect down there — `ol-type`,
- * `ol-range`, `ol-unknown-key`, `ol-unknown-field` — would not be observed. That is a property of
- * the runtime, not something this gate can paper over, so it is **made visible instead of claimed
- * away**: such a block is reported as `PARTIAL` with its own count in the summary line, naming the
- * line execution stopped at. Do not read a green run as "every line of every block executed".
+ * would be checked statically but never run, and a runtime-only defect down there — `ol-type`,
+ * `ol-range`, `ol-unknown-key`, `ol-unknown-field` — would not be observed.
+ *
+ * Two things address that. An entry may carry a **`setup`** preamble: faithful context drawn from
+ * the surrounding prose, prepended before the block runs, which lets the excerpt execute to
+ * completion and assert a clean result instead of halting on line one. Where that is impossible —
+ * a `forever` demo, a blocking `input`, or a block whose whole point is the error it stops on — the
+ * limit is **made visible rather than claimed away**: the block is reported as `PARTIAL` with its
+ * own count in the summary line, naming the line execution stopped at. Four of 315 blocks are
+ * `PARTIAL` today. Do not read a green run as "every line of every block executed".
  *
  * **Determinism.** The instruction budget is fixed ({@link DOCUMENTATION_INSTRUCTION_BUDGET}) and
  * file order is a code-unit sort, so a run is reproducible. One exposure remains: blocks that call
@@ -61,6 +66,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, sep } from "node:path";
+import { isDiagnosticCode } from "@openlogo/core";
 import { OL_CHECK_PROFILES, check, parse } from "@openlogo/parser";
 import { execute } from "@openlogo/runtime";
 import { IMPLEMENTED_PROFILES, detectUsedProfiles } from "./examples-gate.mjs";
@@ -86,6 +92,10 @@ export const DOCUMENTATION_INSTRUCTION_BUDGET = 100_000;
  * The `kind` values an expectation entry may declare, mapped to the manifest field each asserts.
  * `kind` is documentation for the human reading the manifest; the assertion is what makes an entry
  * a check rather than a mute button.
+ *
+ * A `prose-fragment` may also carry a `setup` preamble — faithful context drawn from the
+ * surrounding prose — which lets the excerpt run to completion and assert a clean result instead of
+ * halting at its first undefined name. Any entry may carry an `issue`; `known-broken` must.
  */
 export const EXPECTATION_KINDS = new Map([
   /** An excerpt whose names are defined in the surrounding prose, not in the block. */
@@ -102,8 +112,14 @@ export const EXPECTATION_KINDS = new Map([
   ["known-broken", "codes"],
 ]);
 
-/** Shape every declared diagnostic code must have — the `ol-*` registry `@openlogo/core` owns. */
-const OL_CODE_PATTERN = /^ol-[a-z0-9-]+$/;
+/**
+ * True when `code` is a real entry in the `ol-*` registry `@openlogo/core` owns — not merely
+ * `ol-`-shaped. Checking the shape alone would let an invented `ol-not-real` into the manifest and
+ * make an expectation permanently unmatchable, so the registry itself is the authority.
+ */
+function isDeclarableCode(code) {
+  return typeof code === "string" && isDiagnosticCode(code);
+}
 
 /**
  * Markdown fence constructs {@link extractFencedBlocks} deliberately refuses to guess at. None
@@ -117,6 +133,8 @@ export const UNSUPPORTED_FENCE_REASONS = Object.freeze({
   LIST_MARKER: "a fence sharing its line with a list marker",
   DEEP_INDENT:
     "a fence indented four or more columns, which CommonMark may read as indented code",
+  BACKTICK_IN_INFO:
+    "a backtick fence whose info string contains a backtick, which CommonMark does not read as a fence at all",
   UNCLOSED:
     "a fence that is never closed — the rest of the file is swallowed into it",
 });
@@ -170,12 +188,30 @@ function unsupportedFenceReason(line) {
     return UNSUPPORTED_FENCE_REASONS.LIST_MARKER;
   }
   const opener = FENCE_OPENER.exec(line);
+  if (opener === null) {
+    return null;
+  }
+  const [, indent, fence, info] = opener;
   // A tab is worth four columns, so any tab in the indent already reaches the indented-code
   // threshold. Everything this corpus uses sits at zero to three spaces.
-  if (opener !== null && (opener[1].includes("\t") || opener[1].length >= 4)) {
+  if (indent.includes("\t") || indent.length >= 4) {
     return UNSUPPORTED_FENCE_REASONS.DEEP_INDENT;
   }
+  // CommonMark: a backtick fence's info string may not contain a backtick, so such a line is not a
+  // fence at all. Rather than quietly consuming it as one, say so.
+  if (fence[0] === "`" && info.includes("`")) {
+    return UNSUPPORTED_FENCE_REASONS.BACKTICK_IN_INFO;
+  }
   return null;
+}
+
+/** Remove up to `width` leading spaces, the way CommonMark strips a fence's own indentation. */
+function stripIndent(line, width) {
+  let removed = 0;
+  while (removed < width && line[removed] === " ") {
+    removed += 1;
+  }
+  return line.slice(removed);
 }
 
 /**
@@ -212,9 +248,7 @@ export function extractFencedBlocks(text) {
     const [, indent, fence, info] = opener;
     const startLine = index + 1;
 
-    const closer = new RegExp(
-      `^[ \\t]*\\${fence[0]}{${fence.length},}[ \\t]*$`,
-    );
+    const closer = new RegExp(`^ {0,3}\\${fence[0]}{${fence.length},}[ \\t]*$`);
     const body = [];
     let cursor = index + 1;
     let closed = false;
@@ -223,8 +257,7 @@ export function extractFencedBlocks(text) {
         closed = true;
         break;
       }
-      const line = lines[cursor];
-      body.push(line.startsWith(indent) ? line.slice(indent.length) : line);
+      body.push(stripIndent(lines[cursor], indent.length));
       cursor += 1;
     }
     if (!closed) {
@@ -281,75 +314,104 @@ export function lastExecutableLine(source) {
  * through by an incidental profile mention. `check()` runs with the full profile set so an
  * inactive-profile name never masquerades as an unknown command.
  *
- * @returns `{ unimplementedProfiles, codes, details, internalError, partialFrom }` — `codes` is the
- *   sorted, de-duplicated set of error-severity `ol-*` codes across all three stages (empty when
- *   the block is clean); `details` are human-readable `line: code — message` strings whose line
- *   numbers are absolute in the containing file; `internalError` is a message when the gate itself
- *   threw, which is never something an expectation may declare; `partialFrom` is the absolute line
- *   execution stopped at when it stopped **before** the block's last executable line, and `null`
- *   otherwise — see this module's header for why that is surfaced rather than claimed away.
+ * `setup` is optional OpenLogo source prepended to the block before analysis, so an excerpt whose
+ * context lives in the prose can be given that context and run to completion instead of halting on
+ * its first undefined name. Reported line numbers stay anchored to the real file: the preamble's
+ * own lines are subtracted. The setup must itself be clean — a diagnostic landing inside it is
+ * reported as `setupError` and never folded into the block's codes, because a broken preamble would
+ * otherwise read as a defect in the documentation.
+ *
+ * @returns `{ unimplementedProfiles, codes, details, internalError, setupError, partialFrom }`.
+ *   `codes` is the sorted, de-duplicated set of error-severity `ol-*` codes across all three stages
+ *   (empty when the block is clean); `details` are `line: code — message` strings whose line numbers
+ *   are absolute in the containing file; `internalError` is a message when the gate itself threw;
+ *   `partialFrom` is the absolute line execution stopped at when it stopped **before** the block's
+ *   last executable line, and `null` otherwise — see this module's header for why that is surfaced
+ *   rather than claimed away.
  */
 export function analyzeBlock(
   source,
   label,
-  { startLine = 0, gateUnimplementedProfiles = true } = {},
+  { startLine = 0, gateUnimplementedProfiles = true, setup } = {},
 ) {
+  const preambleLines = setup === undefined ? 0 : setup.split("\n").length;
+  const analyzed = setup === undefined ? source : `${setup}\n${source}`;
+  // Diagnostics are reported against `analyzed`; subtracting the preamble keeps every line number
+  // anchored to the block as it appears in the file.
+  const offset = startLine - preambleLines;
+  const empty = {
+    unimplementedProfiles: [],
+    codes: [],
+    details: [],
+    internalError: null,
+    setupError: null,
+    partialFrom: null,
+  };
   let unimplementedProfiles = [];
   let diagnostics;
   let runtimeErrorLines = [];
   try {
-    unimplementedProfiles = detectUsedProfiles(source).filter(
+    unimplementedProfiles = detectUsedProfiles(analyzed).filter(
       (profile) => !IMPLEMENTED_PROFILES.includes(profile),
     );
     if (gateUnimplementedProfiles && unimplementedProfiles.length > 0) {
-      return {
-        unimplementedProfiles,
-        codes: [],
-        details: [],
-        internalError: null,
-        partialFrom: null,
-      };
+      return { ...empty, unimplementedProfiles };
     }
 
-    const parsed = parse(source, label);
-    const executed = execute(source, label, {
+    const parsed = parse(analyzed, label);
+    const executed = execute(analyzed, label, {
       instructionBudget: DOCUMENTATION_INSTRUCTION_BUDGET,
     });
+    // Only a *runtime*-stage error halts execution. `execute()` also returns the parse-stage
+    // diagnostics it collected on the way in; counting those as a halt would mislabel a block that
+    // never ran at all as one whose later lines were skipped.
     runtimeErrorLines = executed.diagnostics
-      .filter((diagnostic) => diagnostic.severity === "error")
+      .filter(
+        (diagnostic) =>
+          diagnostic.severity === "error" && diagnostic.stage === "runtime",
+      )
       .map((diagnostic) => diagnostic.source_span.start[0]);
     diagnostics = [
       ...parsed.diagnostics,
-      ...check(parsed.ast, { profiles: OL_CHECK_PROFILES, source }).diagnostics,
+      ...check(parsed.ast, { profiles: OL_CHECK_PROFILES, source: analyzed })
+        .diagnostics,
       ...executed.diagnostics,
     ];
   } catch (error) {
     // A gate must never itself crash on an unexpected internal error — but it must never call one
     // a diagnostic either, so this is its own state rather than a pseudo `ol-*` code.
+    return { ...empty, unimplementedProfiles, internalError: error.message };
+  }
+
+  const errors = diagnostics.filter(
+    (diagnostic) => diagnostic.severity === "error",
+  );
+  const inPreamble = errors.filter(
+    (diagnostic) => diagnostic.source_span.start[0] <= preambleLines,
+  );
+  if (inPreamble.length > 0) {
     return {
+      ...empty,
       unimplementedProfiles,
-      codes: [],
-      details: [],
-      internalError: error.message,
-      partialFrom: null,
+      setupError: inPreamble
+        .map((diagnostic) => `${diagnostic.code}: ${diagnostic.message}`)
+        .join("; "),
     };
   }
 
   const haltLine = runtimeErrorLines.length === 0 ? null : runtimeErrorLines[0];
-  const errors = diagnostics.filter(
-    (diagnostic) => diagnostic.severity === "error",
-  );
   return {
     unimplementedProfiles,
     codes: [...new Set(errors.map((diagnostic) => diagnostic.code))].sort(),
     details: errors.map(
       (diagnostic) =>
-        `${startLine + diagnostic.source_span.start[0]}: ${diagnostic.code} — ${diagnostic.message}`,
+        `${offset + diagnostic.source_span.start[0]}: ${diagnostic.code} — ${diagnostic.message}`,
     ),
     internalError: null,
+    setupError: null,
     partialFrom:
-      haltLine !== null && haltLine < lastExecutableLine(source)
-        ? startLine + haltLine
+      haltLine !== null && haltLine < lastExecutableLine(analyzed)
+        ? offset + haltLine
         : null,
   };
 }
@@ -383,8 +445,12 @@ export function suggestExpectation(block, codes, expectationsPath) {
 /**
  * Validate one manifest entry's shape. Returns an array of human-readable problems (empty when the
  * entry is well-formed), so a typo'd `kind`, a missing rationale, an untracked `known-broken`
- * defect, or a declared code outside the `ol-*` registry shape fails the gate rather than silently
- * disabling a check.
+ * defect, or a declared code that is not in `@openlogo/core`'s `ol-*` registry fails the gate
+ * rather than silently disabling a check.
+ *
+ * `issue` is optional on every kind and validated whenever it is present, so any entry that records
+ * a defect can carry its tracking issue; it is *required* only for `known-broken`, the one kind
+ * whose whole meaning is "this document is wrong and someone must fix it".
  */
 export function validateExpectationEntry(entry, file, position) {
   const where = `${file} entry ${position}`;
@@ -397,6 +463,9 @@ export function validateExpectationEntry(entry, file, position) {
       `${where}: missing "why" — every exception states its rationale`,
     );
   }
+  if (entry.setup !== undefined && typeof entry.setup !== "string") {
+    problems.push(`${where}: "setup" must be a string of OpenLogo source`);
+  }
   const asserts = EXPECTATION_KINDS.get(entry.kind);
   if (asserts === undefined) {
     problems.push(
@@ -404,23 +473,37 @@ export function validateExpectationEntry(entry, file, position) {
     );
     return problems;
   }
-  if (entry.kind === "known-broken" && !/^#\d+$/.test(entry.issue ?? "")) {
+  const issueRequired = entry.kind === "known-broken";
+  if (
+    (issueRequired || entry.issue !== undefined) &&
+    !/^#\d+$/.test(entry.issue ?? "")
+  ) {
     problems.push(
-      `${where}: a "known-broken" entry records a real defect, so it must carry its tracking "issue" (e.g. "#123")`,
+      issueRequired
+        ? `${where}: a "known-broken" entry records a real defect, so it must carry its tracking "issue" (e.g. "#123")`
+        : `${where}: "issue" must look like "#123"`,
     );
   }
   const declared = entry[asserts];
-  if (!Array.isArray(declared) || declared.length === 0) {
+  if (!Array.isArray(declared)) {
+    problems.push(
+      `${where}: a "${entry.kind}" entry must list the ${asserts} it asserts`,
+    );
+    return problems;
+  }
+  // An empty `codes` is meaningful only alongside a `setup` preamble: it asserts "given this
+  // context, the block runs clean". Without one it would assert nothing at all.
+  if (declared.length === 0 && entry.setup === undefined) {
     problems.push(
       `${where}: a "${entry.kind}" entry must list the ${asserts} it asserts`,
     );
     return problems;
   }
   if (asserts === "codes") {
-    const invalid = declared.filter((code) => !OL_CODE_PATTERN.test(code));
+    const invalid = declared.filter((code) => !isDeclarableCode(code));
     if (invalid.length > 0) {
       problems.push(
-        `${where}: "codes" must be ol-* registry codes (got ${invalid.join(", ")})`,
+        `${where}: "codes" must be codes from @openlogo/core's ol-* registry (got ${invalid.join(", ")})`,
       );
     }
   }
@@ -449,6 +532,9 @@ export function loadExpectations(expectationsPath = EXPECTATIONS_PATH) {
 export function describeExpectationMismatch(expectation, analysis) {
   if (analysis.internalError !== null) {
     return `the gate itself threw (${analysis.internalError}), which no expectation may declare`;
+  }
+  if (analysis.setupError !== null) {
+    return `this entry's own "setup" preamble is broken (${analysis.setupError}) — fix the preamble, it is not documentation`;
   }
   if (expectation.kind === "profile-not-implemented") {
     const declared = [...expectation.profiles].sort();
@@ -555,6 +641,7 @@ export function runMarkdownExamplesGate({
         gateUnimplementedProfiles:
           expectation === undefined ||
           expectation.kind === "profile-not-implemented",
+        setup: expectation?.setup,
       });
 
       if (expectation !== undefined) {

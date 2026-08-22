@@ -194,6 +194,7 @@ test("extractFencedBlocks refuses to guess at fence constructs it does not imple
       UNSUPPORTED_FENCE_REASONS.DEEP_INDENT,
     ],
     ["\t```logo\n\tforward 10\n\t```", UNSUPPORTED_FENCE_REASONS.DEEP_INDENT],
+    ["```lo`go\nforward 10\n```", UNSUPPORTED_FENCE_REASONS.BACKTICK_IN_INFO],
   ]) {
     const { blocks, problems } = extractFencedBlocks(markdown);
     assert.deepEqual(
@@ -209,6 +210,43 @@ test("extractFencedBlocks refuses to guess at fence constructs it does not imple
   }
 });
 
+test("extractFencedBlocks allows a backtick in a TILDE fence's info string", () => {
+  // CommonMark forbids backticks only in a BACKTICK fence's info string.
+  const { blocks, problems } = extractFencedBlocks(
+    ["~~~lo`go", "forward 10", "~~~"].join("\n"),
+  );
+  assert.deepEqual(problems, []);
+  assert.equal(blocks[0].language, "lo`go");
+});
+
+test("extractFencedBlocks does not accept a four-column-indented closing fence", () => {
+  // Four columns is indented code, so it does not close the block — the fence runs to EOF.
+  const { blocks, problems } = extractFencedBlocks(
+    ["```logo", "forward 10", "    ```"].join("\n"),
+  );
+  assert.deepEqual(problems, [
+    { line: 1, reason: UNSUPPORTED_FENCE_REASONS.UNCLOSED },
+  ]);
+  assert.equal(blocks[0].source, "forward 10\n    ```");
+
+  // Three columns still closes it.
+  assert.deepEqual(
+    extractFencedBlocks(["```logo", "forward 10", "   ```"].join("\n"))
+      .problems,
+    [],
+  );
+});
+
+test("extractFencedBlocks removes UP TO the opener's indentation, not all or nothing", () => {
+  const { blocks } = extractFencedBlocks(
+    ["   ```logo", "   forward 10", " right 90", "     back 5", "   ```"].join(
+      "\n",
+    ),
+  );
+  // Three columns removed: the 1-space line loses its one space, the 5-space line keeps two.
+  assert.equal(blocks[0].source, "forward 10\nright 90\n  back 5");
+});
+
 // --- analyzeBlock ---------------------------------------------------------------------------
 
 test("analyzeBlock reports no codes for a clean program", () => {
@@ -217,6 +255,7 @@ test("analyzeBlock reports no codes for a clean program", () => {
     codes: [],
     details: [],
     internalError: null,
+    setupError: null,
     partialFrom: null,
   });
 });
@@ -271,8 +310,52 @@ test("analyzeBlock reports where execution stopped short of the block's end", ()
   );
   // A clean block never halts at all.
   assert.equal(analyzeBlock("forward 10\nright 90", "clean").partialFrom, null);
-  // Neither does one that only fails statically — nothing ran, but nothing was cut short either.
-  assert.equal(analyzeBlock("repeat 4", "static").partialFrom, null);
+});
+
+test("analyzeBlock counts only a RUNTIME error as an execution halt", () => {
+  // `execute()` returns the parse diagnostics it collected on the way in. Treating those as a halt
+  // would mislabel a block that never ran at all as one whose later lines were skipped.
+  const parseOnly = analyzeBlock("repeat 4\nforward 10", "static", {
+    startLine: 10,
+  });
+  assert.deepEqual(parseOnly.codes, ["ol-missing-end"]);
+  assert.equal(parseOnly.partialFrom, null);
+});
+
+test("analyzeBlock runs a block to completion when given a setup preamble", () => {
+  const source = 'forward :size\nset_shape "bee"';
+  // Without context the runtime halts on line 1 and never sees the bad shape word.
+  const bare = analyzeBlock(source, "bare", { startLine: 100 });
+  assert.deepEqual(bare.codes, ["ol-undefined-var"]);
+  assert.equal(bare.partialFrom, 101);
+
+  // With it, the block executes to the end — and the real defect surfaces.
+  const withSetup = analyzeBlock(source, "with-setup", {
+    startLine: 100,
+    setup: ":size = 50",
+  });
+  assert.deepEqual(withSetup.codes, ["ol-type"]);
+  assert.equal(withSetup.partialFrom, null);
+  // Line numbers stay anchored to the file, not to the preamble.
+  assert.match(withSetup.details[0], /^102: ol-type — /);
+});
+
+test("analyzeBlock asserts a clean run when the setup supplies everything missing", () => {
+  const result = analyzeBlock("forward :size\nright 90", "clean-with-setup", {
+    startLine: 5,
+    setup: ":size = 50",
+  });
+  assert.deepEqual(result.codes, []);
+  assert.equal(result.setupError, null);
+  assert.equal(result.partialFrom, null);
+});
+
+test("analyzeBlock reports a broken setup preamble as its own failure, not the block's", () => {
+  const result = analyzeBlock("forward :size", "bad-setup", {
+    setup: ":size = :never_defined",
+  });
+  assert.match(result.setupError, /ol-undefined-var/);
+  assert.deepEqual(result.codes, []);
 });
 
 test("lastExecutableLine ignores blank lines and whole-line comments", () => {
@@ -377,19 +460,77 @@ test("validateExpectationEntry requires the field its kind asserts", () => {
   );
 });
 
-test("validateExpectationEntry rejects a declared code outside the ol-* registry shape", () => {
+test("validateExpectationEntry rejects a declared code outside @openlogo/core's ol-* registry", () => {
+  const problems = validateExpectationEntry(
+    {
+      fingerprint: "a",
+      kind: "prose-fragment",
+      why: "w",
+      codes: ["ol-type", "gate-threw", "ol-not-real", 42],
+    },
+    "spec/x.md",
+    0,
+  );
+  // `ol-not-real` is ol-shaped but not in the registry, and 42 is not a string at all.
+  assert.match(
+    problems[0],
+    /must be codes from @openlogo\/core's ol-\* registry/,
+  );
+  assert.match(problems[0], /gate-threw/);
+  assert.match(problems[0], /ol-not-real/);
+  assert.match(problems[0], /42/);
+});
+
+test("validateExpectationEntry accepts an empty codes list only alongside a setup", () => {
+  const base = {
+    fingerprint: "a",
+    kind: "prose-fragment",
+    why: "w",
+    codes: [],
+  };
+  assert.match(
+    validateExpectationEntry(base, "spec/x.md", 0)[0],
+    /must list the codes it asserts/,
+  );
+  // With a setup, `codes: []` is a real assertion: "given this context, it runs clean".
+  assert.deepEqual(
+    validateExpectationEntry({ ...base, setup: ":size = 50" }, "spec/x.md", 0),
+    [],
+  );
+});
+
+test("validateExpectationEntry rejects a non-string setup", () => {
   assert.match(
     validateExpectationEntry(
       {
         fingerprint: "a",
         kind: "prose-fragment",
         why: "w",
-        codes: ["ol-type", "gate-threw", "TypeError"],
+        codes: ["ol-type"],
+        setup: 7,
       },
       "spec/x.md",
       0,
     )[0],
-    /"codes" must be ol-\* registry codes \(got gate-threw, TypeError\)/,
+    /"setup" must be a string of OpenLogo source/,
+  );
+});
+
+test("validateExpectationEntry allows an issue on any kind but validates its shape", () => {
+  const base = {
+    fingerprint: "a",
+    kind: "not-openlogo",
+    why: "w",
+    codes: ["ol-bad-token"],
+  };
+  assert.deepEqual(validateExpectationEntry(base, "spec/x.md", 0), []);
+  assert.deepEqual(
+    validateExpectationEntry({ ...base, issue: "#42" }, "spec/x.md", 0),
+    [],
+  );
+  assert.match(
+    validateExpectationEntry({ ...base, issue: "42" }, "spec/x.md", 0)[0],
+    /"issue" must look like "#123"/,
   );
 });
 
@@ -445,6 +586,7 @@ test("describeExpectationMismatch accepts a matching codes expectation", () => {
         codes: ["ol-range", "ol-type"],
         unimplementedProfiles: [],
         internalError: null,
+        setupError: null,
       },
     ),
     null,
@@ -456,6 +598,7 @@ test("describeExpectationMismatch names what it got instead", () => {
     codes: ["ol-range"],
     unimplementedProfiles: [],
     internalError: null,
+    setupError: null,
   };
   assert.match(
     describeExpectationMismatch(
@@ -483,6 +626,7 @@ test("describeExpectationMismatch asserts the profile set for a skip expectation
       codes: [],
       unimplementedProfiles: ["localization", "modules"],
       internalError: null,
+      setupError: null,
     }),
     null,
   );
@@ -491,6 +635,7 @@ test("describeExpectationMismatch asserts the profile set for a skip expectation
       codes: [],
       unimplementedProfiles: ["modules"],
       internalError: null,
+      setupError: null,
     }),
     /expected it to need localization, modules but it needs modules/,
   );
@@ -499,6 +644,7 @@ test("describeExpectationMismatch asserts the profile set for a skip expectation
       codes: [],
       unimplementedProfiles: [],
       internalError: null,
+      setupError: null,
     }),
     /no unimplemented profile — it can run now/,
   );
@@ -508,10 +654,69 @@ test("describeExpectationMismatch never lets an expectation excuse an internal f
   assert.match(
     describeExpectationMismatch(
       { kind: "deliberate-error", codes: ["ol-type"] },
-      { codes: [], unimplementedProfiles: [], internalError: "boom" },
+      {
+        codes: [],
+        unimplementedProfiles: [],
+        internalError: "boom",
+        setupError: null,
+      },
     ),
     /the gate itself threw \(boom\), which no expectation may declare/,
   );
+});
+
+test("describeExpectationMismatch blames a broken setup on the entry, not the document", () => {
+  assert.match(
+    describeExpectationMismatch(
+      { kind: "prose-fragment", codes: [] },
+      {
+        codes: [],
+        unimplementedProfiles: [],
+        internalError: null,
+        setupError: "ol-undefined-var: :nope has no value yet",
+      },
+    ),
+    /this entry's own "setup" preamble is broken \(ol-undefined-var[^)]*\) — fix the preamble/,
+  );
+});
+
+test("the gate fails an entry whose setup preamble is itself broken", () => {
+  const source = "forward :size";
+  writeMarkdown("excerpt.md", logoBlock(source));
+  const result = runOverTemp({
+    [keyFor("excerpt.md")]: [
+      expectationFor(source, {
+        kind: "prose-fragment",
+        why: "context from the prose",
+        codes: [],
+        setup: ":size = :typo_in_the_preamble",
+      }),
+    ],
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.lines[0], /this entry's own "setup" preamble is broken/);
+});
+
+test("the gate runs a listed excerpt to completion when its setup supplies the context", () => {
+  const source = 'forward :size\nset_shape "arrow"';
+  writeMarkdown("excerpt.md", logoBlock(source));
+  const expectations = {
+    [keyFor("excerpt.md")]: [
+      expectationFor(source, {
+        kind: "prose-fragment",
+        why: ":size comes from the surrounding prose",
+        codes: [],
+        setup: ":size = 50",
+      }),
+    ],
+  };
+  const passing = runOverTemp(expectations);
+  assert.equal(passing.ok, true);
+  assert.equal(passing.counts.partial, 0);
+
+  // …and the second line is genuinely executed: break it and the gate notices.
+  writeMarkdown("excerpt.md", logoBlock('forward :size\nset_shape "bee"'));
+  assert.equal(runOverTemp(expectations).ok, false);
 });
 
 // --- runMarkdownExamplesGate ----------------------------------------------------------------

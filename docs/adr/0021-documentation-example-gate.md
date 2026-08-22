@@ -74,8 +74,10 @@ to entries pinned by the first 16 hex digits of the SHA-256 of the block's sourc
 a block therefore never churn the manifest, while editing the block itself changes its fingerprint
 and **forces a re-triage**. Each entry carries a closed `kind` (`prose-fragment`,
 `deliberate-error`, `not-openlogo`, `non-terminating`, `profile-not-implemented`, `known-broken`), a
-mandatory `why`, and the field its kind asserts — `codes` (validated against the `ol-*` shape) or
-`profiles`. `known-broken` additionally requires its tracking `issue`, and is announced on every run.
+mandatory `why` stating only what is verifiable about the block, and the field its kind asserts —
+`codes` (validated against `@openlogo/core`'s `ol-*` registry, not merely its shape) or `profiles`.
+An entry may also carry a `setup` preamble (see Consequences) and an `issue`; `known-broken` requires
+one, and is announced on every run.
 
 **Everything is asserted in both directions.** The gate fails when a listed block stops producing
 its declared codes, when it becomes clean (a stale expectation), when a fingerprint matches no block
@@ -100,16 +102,21 @@ guard fails loudly and this decision can be revisited with a new ADR.
 
 **Execution stops at a block's first runtime error.** Parsing and static checking always cover the
 whole block, so a misspelled command, undefined variable, bad arity, or syntax error is caught
-wherever it sits. But the lines *below* a block's first runtime error are never executed, so a
+wherever it sits. But the lines *below* a block's first runtime error would never execute, so a
 runtime-only defect down there (`ol-type`, `ol-range`, `ol-unknown-key`, `ol-unknown-field`) would
-not be observed. This is a property of the runtime, not something the gate can paper over — so it is
-**surfaced rather than claimed away**: such a block is reported as `PARTIAL`, with its own count in
-the summary line. A green run does not mean every line of every block executed, and the gate says so.
+not be observed. Two things address this. An entry may carry a **`setup` preamble** — faithful
+context drawn from the surrounding prose, prepended before the block runs — which lets an excerpt
+execute to completion and assert a clean result instead of halting on line one; 31 of the 34
+affected blocks are handled that way. Where it is impossible (a `forever` demo, a blocking `input`,
+or a block whose whole point is the error it stops on), the limit is **surfaced rather than claimed
+away**: the block is reported as `PARTIAL`, with its own count in the summary line. Four of 315
+blocks are `PARTIAL` today. A green run does not mean every line of every block executed, and the
+gate says so.
 
 **Unlabelled fences are invisible by construction**, so the convention "OpenLogo source in prose is
-fenced ` ```logo `" is now recorded in AGENTS.md, the Definition-of-Done skill, and the Epic Gate. Six
-programs already hiding in bare fences under `docs/learn-how-its-built/` were relabelled when the
-gate landed.
+fenced ` ```logo `" is now recorded in AGENTS.md, the Definition-of-Done skill, and the Epic Gate.
+Eight programs already hiding in bare fences under `docs/learn-how-its-built/` were relabelled when
+the gate landed.
 
 **Blocks needing an unimplemented profile are recorded, not silently skipped.** Modules,
 Localization, Educational, and Tutor (AI) have no implementation yet, so their spellings are not in
@@ -120,6 +127,7 @@ so a block that quietly starts needing a different profile, or stops needing one
 it. The failure message prints the exact JSON entry to paste, but the gate never writes the manifest
 itself — an auto-updating golden file would rubber-stamp the regression it exists to catch.
 
-**Runtime cost** is roughly twenty seconds for the 300-plus-block corpus on a developer machine
-(measured on Windows/Node 26; the `spec/examples/*.logo` half is about two of those seconds), inside
-the existing `test` job. Acceptable for a gate that runs every program the documentation teaches.
+**Runtime cost is about two seconds, not the twenty the wall clock suggests.** The 300-plus-block
+corpus costs ≈2 s (the `spec/examples/*.logo` half ≈1 s). `npm run examples` measures ≈20 s
+end-to-end on Windows/Node 26 because `preexamples` rebuilds the workspace first; in CI's `test`
+job that build is already paid for by `pretest`, so the **marginal** cost of this gate is ≈2 s.
