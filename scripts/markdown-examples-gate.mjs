@@ -468,7 +468,7 @@ export function analyzeBlock(
       // This runs BEFORE the semantic/runtime validation below, and did not have to before issue
       // #838: `define set_shape :s end` used to check clean, so this guard was the only thing that
       // caught it. Now the checker rejects it too, with the deliberately category-free
-      // "set_shape is already part of OpenLogo. Choose another name." — true, but addressed to a
+      // "set_shape is already part of OpenLogo. choose another name." — true, but addressed to a
       // learner, and it would replace the advice a docs author actually needs here. Order decides
       // which message a contributor sees, so the specific one goes first.
       const preambleDefines = definedNames(preamble.ast);

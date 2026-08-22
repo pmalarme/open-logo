@@ -216,17 +216,24 @@ test("#838 AC2: a built-in name is rejected in the source spelling the learner w
 
 // --- #838 AC4: one code, one sentence, no namespace --------------------------------------------
 
-test("#838 AC4: ol-reserved-word carries params { name } only and names no category", () => {
+test("#838 AC4: ol-reserved-word carries params { name } only, names no category, and keeps the lowercase voice", () => {
   // Issue #883, measured before the fix: `define thing` produced the ungrammatical "thing is
   // already a reserved", and `define count` leaked the word *primitive* into learner text. One
   // sentence replaces both (`spec/error-model.md:125`), and the three forbidden words are asserted
   // rather than assumed, because a well-meaning "clearer" message is exactly how they come back.
+  //
+  // The lowercase `choose` after the period is asserted for the same reason. It is the house voice
+  // (`spec/error-model.md:18`, "the warm, lowercase Logo voice", and its `:20` example
+  // `i don't know how to fowad. did you mean forward?`), which every shipped diagnostic already
+  // follows. It looks like a typo to anyone reading this one message in isolation, and
+  // `docs/design-notes/0007-binding-vs-registration.md:369-370` capitalizes it — so without this
+  // assertion a future "fix" would silently take this diagnostic out of step with the product.
   for (const name of ["thing", "count", "forward", "fd", "challenge", "mod"]) {
     const [finding] = reservedWordFindings(`define ${name}\nend\n`, CORE_ONLY);
     assert.deepEqual(Object.keys(finding.params), ["name"]);
     assert.equal(
       finding.message,
-      `${name} is already part of OpenLogo. Choose another name.`,
+      `${name} is already part of OpenLogo. choose another name.`,
     );
     for (const forbidden of ["keyword", "primitive", "alias", "reserved"]) {
       assert.ok(
@@ -254,7 +261,7 @@ test("#838 AC5: a procedure defined twice raises ol-duplicate-definition with bo
     start: [1, 8],
     end: [1, 9],
   });
-  assert.equal(finding.message, "You already defined f on line 1.");
+  assert.equal(finding.message, "you already defined f on line 1.");
   assert.equal(finding.stage, "semantic");
   assert.equal(finding.severity, "error");
 });

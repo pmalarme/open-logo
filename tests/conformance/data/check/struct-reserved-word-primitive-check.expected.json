@@ -14,7 +14,7 @@
       "params": {
         "name": "dict"
       },
-      "message": "dict is already part of OpenLogo. Choose another name.",
+      "message": "dict is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     }

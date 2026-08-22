@@ -14,7 +14,7 @@
       "params": {
         "name": "tell"
       },
-      "message": "tell is already part of OpenLogo. Choose another name.",
+      "message": "tell is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -28,7 +28,7 @@
       "params": {
         "name": "ask"
       },
-      "message": "ask is already part of OpenLogo. Choose another name.",
+      "message": "ask is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -42,7 +42,7 @@
       "params": {
         "name": "each"
       },
-      "message": "each is already part of OpenLogo. Choose another name.",
+      "message": "each is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     }

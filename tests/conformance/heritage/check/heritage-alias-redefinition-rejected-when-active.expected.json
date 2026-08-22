@@ -14,7 +14,7 @@
       "params": {
         "name": "fd"
       },
-      "message": "fd is already part of OpenLogo. Choose another name.",
+      "message": "fd is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -28,7 +28,7 @@
       "params": {
         "name": "bk"
       },
-      "message": "bk is already part of OpenLogo. Choose another name.",
+      "message": "bk is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -42,7 +42,7 @@
       "params": {
         "name": "lt"
       },
-      "message": "lt is already part of OpenLogo. Choose another name.",
+      "message": "lt is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -56,7 +56,7 @@
       "params": {
         "name": "rt"
       },
-      "message": "rt is already part of OpenLogo. Choose another name.",
+      "message": "rt is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -70,7 +70,7 @@
       "params": {
         "name": "st"
       },
-      "message": "st is already part of OpenLogo. Choose another name.",
+      "message": "st is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -84,7 +84,7 @@
       "params": {
         "name": "ht"
       },
-      "message": "ht is already part of OpenLogo. Choose another name.",
+      "message": "ht is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -98,7 +98,7 @@
       "params": {
         "name": "pu"
       },
-      "message": "pu is already part of OpenLogo. Choose another name.",
+      "message": "pu is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -112,7 +112,7 @@
       "params": {
         "name": "pd"
       },
-      "message": "pd is already part of OpenLogo. Choose another name.",
+      "message": "pd is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -126,7 +126,7 @@
       "params": {
         "name": "cs"
       },
-      "message": "cs is already part of OpenLogo. Choose another name.",
+      "message": "cs is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -140,7 +140,7 @@
       "params": {
         "name": "pr"
       },
-      "message": "pr is already part of OpenLogo. Choose another name.",
+      "message": "pr is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -154,7 +154,7 @@
       "params": {
         "name": "bf"
       },
-      "message": "bf is already part of OpenLogo. Choose another name.",
+      "message": "bf is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -168,7 +168,7 @@
       "params": {
         "name": "bl"
       },
-      "message": "bl is already part of OpenLogo. Choose another name.",
+      "message": "bl is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -182,7 +182,7 @@
       "params": {
         "name": "se"
       },
-      "message": "se is already part of OpenLogo. Choose another name.",
+      "message": "se is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     }

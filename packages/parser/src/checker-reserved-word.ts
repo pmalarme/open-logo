@@ -85,7 +85,7 @@
  *   *"thing is already a reserved"* and the jargon-leaking *"count is already a primitive"* that
  *   issue #883 reported. Whether the taken name is a keyword, a primitive, or an alias spelling "is
  *   an implementation distinction the learner never has to learn" — so the one message is
- *   {@link builtInMessage}'s *"`<name>` is already part of OpenLogo. Choose another name."*, and
+ *   {@link builtInMessage}'s *"`<name>` is already part of OpenLogo. choose another name."*, and
  *   the words *keyword*, *primitive* and *alias* MUST NOT appear in it.
  * - **`ol-duplicate-definition` — something in the program already declares this name.** The
  *   `procedure` and `struct` namespaces move here (`spec/grammar.md:412`), and the code carries
@@ -306,9 +306,17 @@ function isBuiltInName(
 /**
  * The one learner-facing sentence for a built-in name, from `spec/error-model.md:125`. It names no
  * category on purpose: *keyword*, *primitive* and *alias* MUST NOT appear (issue #883).
+ *
+ * **Lowercase after the period is deliberate**, and is the house voice rather than a typo:
+ * `spec/error-model.md:18` requires "the warm, **lowercase** Logo voice", and its own canonical
+ * example at `:20` reads `i don't know how to fowad. did you mean forward?`. Every shipped
+ * diagnostic already follows it — `@openlogo/runtime`'s `errors.ts` has
+ * "…`check the spelling.`" and "…`put it between 'define' and 'end'.`". The capitalized
+ * spelling in `docs/design-notes/0007-binding-vs-registration.md` is the outlier (non-normative,
+ * tracked as issue #887), not the model.
  */
 function builtInMessage(name: string): string {
-  return `${name} is already part of OpenLogo. Choose another name.`;
+  return `${name} is already part of OpenLogo. choose another name.`;
 }
 
 function reservedWordDiagnostic(spannedName: SpannedName): Diagnostic {
@@ -338,7 +346,7 @@ function duplicateDefinitionDiagnostic(
     code: "ol-duplicate-definition",
     source_span: spannedName.source_span,
     params: { name: spannedName.name, original_span: originalSpan },
-    message: `You already defined ${spannedName.name} on line ${originalSpan.start[0]}.`,
+    message: `you already defined ${spannedName.name} on line ${originalSpan.start[0]}.`,
     stage: "semantic",
     severity: "error",
   };

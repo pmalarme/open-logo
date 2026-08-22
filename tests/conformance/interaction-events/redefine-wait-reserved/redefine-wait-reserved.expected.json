@@ -14,7 +14,7 @@
       "params": {
         "name": "wait"
       },
-      "message": "wait is already part of OpenLogo. Choose another name.",
+      "message": "wait is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     }
