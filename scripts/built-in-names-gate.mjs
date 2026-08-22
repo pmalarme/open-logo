@@ -46,10 +46,14 @@
  *    `stdlib/*.logo` file, every `contextual-keyword` records the positions that make it structural,
  *    and no excluded name also appears in `names`. Deleting `stdlib/geometry/polygon.logo`, or
  *    "helpfully" promoting `polygon` to a built-in, fails the build.
- * 6. **No unregistered profile** ({@link profileCoverageFindings}). Every profile in the checker's
- *    own profile list either has at least one `primitive` entry backed by a real registry, or is
- *    declared in `profilesWithoutPrimitives` **with a reason** — and a declared-empty profile that
- *    later ships a primitive fails too. This is the clause that would have caught Tutor (AI) having
+ * 6. **No unregistered profile** ({@link profileInventoryFindings},
+ *    {@link profileCoverageFindings}). The profile inventory is tied across three surfaces —
+ *    `spec/conformance.md`'s sections (the normative inventory), the manifest's id map, and the
+ *    checker's `OL_CHECK_PROFILES` — and then every profile either has at least one `primitive`
+ *    entry backed by a real registry, or is declared in `profilesWithoutPrimitives` **with a
+ *    reason**; a declared-empty profile that later ships a primitive fails too. Enumerating
+ *    profiles from the implementation alone would leave a profile the spec adds and the checker has
+ *    never heard of invisible. This is the clause that would have caught Tutor (AI) having
  *    no registry at all, and it is why the gate is not a plain diff of whatever tables exist: a
  *    missing table must be a failure, not an empty set that trivially matches.
  * 7. **Prose drift, across BOTH hand-maintained lists** ({@link proseFindings}). `spec/grammar.md`'s
@@ -94,6 +98,12 @@ export const GRAMMAR_PATH = join("spec", "grammar.md");
 
 /** Carries both hand-maintained lists this gate covers: the C19 mirror and the token class. */
 export const TOOLING_PATH = join("spec", "tooling.md");
+
+/**
+ * The normative inventory of what profiles exist and what each ships (ADR-0021 §3 clause 2). The
+ * gate reads it; it never writes to `spec/`.
+ */
+export const CONFORMANCE_PATH = join("spec", "conformance.md");
 
 /**
  * The closed per-accessor status vocabulary (ADR-0021 §2). `present` must resolve; `declared` is
@@ -751,6 +761,74 @@ export function proseFindings(manifest, io) {
   return findings;
 }
 
+/**
+ * The profile sections of `spec/conformance.md`: every `###` heading between the "Required
+ * profiles" and "Feature to profile table" headings, which is the region covering the required and
+ * optional profile sections. Anchored on the existing headings, fail-closed if either moves.
+ */
+export function extractConformanceProfiles(text) {
+  const lines = text.split(/\r?\n/);
+  const start = lines.indexOf("## Required profiles");
+  const end = lines.indexOf("## Feature to profile table");
+  if (start === -1 || end === -1 || end < start) {
+    return null;
+  }
+  return lines
+    .slice(start, end)
+    .filter((line) => line.startsWith("### "))
+    .map((line) => line.slice(4).trim());
+}
+
+/**
+ * Tie the profile inventory across all three surfaces: `spec/conformance.md`'s sections (the
+ * normative inventory), the manifest's id map, and the checker's `OL_CHECK_PROFILES`.
+ *
+ * Without this, {@link profileCoverageFindings} would enumerate profiles from the *implementation*,
+ * so a profile the spec adds and the checker has never heard of would be invisible — the gate would
+ * cover twelve profiles because twelve ids happen to exist, which is the same shape as diffing
+ * whatever tables happen to exist.
+ */
+export function profileInventoryFindings(manifest, api, io) {
+  const findings = [];
+  const sections = extractConformanceProfiles(io.readText(CONFORMANCE_PATH));
+  if (sections === null) {
+    findings.push(
+      `${CONFORMANCE_PATH}: could not find the profile sections between "## Required profiles" and "## Feature to profile table" — the anchor this gate reads has moved`,
+    );
+  }
+  const ids = manifest.profiles.ids;
+  if (sections !== null) {
+    const named = Object.values(ids);
+    const unmapped = sections.filter((section) => !named.includes(section));
+    const phantom = named.filter((name) => !sections.includes(name));
+    if (unmapped.length > 0) {
+      findings.push(
+        `${CONFORMANCE_PATH}: profile section(s) ${unmapped.join(", ")} have no id in ${MANIFEST_PATH} — a profile the spec ships and the gate has never heard of is unchecked`,
+      );
+    }
+    if (phantom.length > 0) {
+      findings.push(
+        `${MANIFEST_PATH}: profile name(s) ${phantom.join(", ")} have no section in ${CONFORMANCE_PATH}`,
+      );
+    }
+  }
+  const unknown = Object.keys(ids).filter(
+    (id) => !api.OL_CHECK_PROFILES.includes(id),
+  );
+  const unlisted = api.OL_CHECK_PROFILES.filter((id) => ids[id] === undefined);
+  if (unknown.length > 0) {
+    findings.push(
+      `${MANIFEST_PATH}: profile id(s) ${unknown.join(", ")} are not in the checker's OL_CHECK_PROFILES`,
+    );
+  }
+  if (unlisted.length > 0) {
+    findings.push(
+      `${MANIFEST_PATH}: the checker knows profile(s) ${unlisted.join(", ")} that the manifest does not map to a ${CONFORMANCE_PATH} section`,
+    );
+  }
+  return findings;
+}
+
 /** `specVersion` must match `openlogo.version`, or "ships with every spec version" is decorative. */
 export function versionFindings(manifest, api) {
   if (manifest.specVersion === api.OPENLOGO_VERSION) {
@@ -792,6 +870,7 @@ export function runBuiltInNamesGate({
     ...implementationFindings(resolved, api),
     ...aliasFindings(resolved, api),
     ...carveOutFindings(resolved, io),
+    ...profileInventoryFindings(resolved, api, io),
     ...profileCoverageFindings(resolved, api),
     ...proseFindings(resolved, io),
   ];

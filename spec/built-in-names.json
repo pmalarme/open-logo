@@ -212,6 +212,23 @@
       }
     }
   },
+  "profiles": {
+    "about": "The profile inventory, tying three surfaces together. The NORMATIVE inventory is spec/conformance.md's own profile sections (ADR-0021 §3 clause 2), the implementation's is OL_CHECK_PROFILES, and this map is what makes them comparable. It is data rather than derived because the two spellings do not correspond mechanically -- `Interaction & Events` and `Tutor (AI)` do not become `interaction-events` and `tutor-ai` by any rule a reader could reconstruct -- so a guessed transformation would be a hand-maintained claim wearing an algorithm's clothes. Gated in BOTH directions: a profile added to spec/conformance.md with no checker id fails, and a checker id with no section fails.",
+    "ids": {
+      "core-language": "Core Language",
+      "turtle-rendering": "Turtle & Rendering",
+      "geometry": "Geometry",
+      "data": "Data",
+      "heritage": "Heritage",
+      "sprites": "Sprites",
+      "interaction-events": "Interaction & Events",
+      "sound": "Sound",
+      "modules": "Modules",
+      "localization": "Localization",
+      "educational": "Educational",
+      "tutor-ai": "Tutor (AI)"
+    }
+  },
   "profilesWithoutPrimitives": {
     "modules": "The Modules profile's surface is the Core keywords `import` and `export` plus module resolution; it introduces no primitive of its own (spec/conformance.md's Modules section). ADR-0021 §5 additionally forbids a loaded library's procedures from ever entering this list -- they register through the ordinary phase-1 procedure table, so colliding with one raises ol-duplicate-definition, not ol-reserved-word.",
     "localization": "Localization ships `alias` keyword packs -- alternate spellings declared in OpenLogo source -- rather than primitives (spec/conformance.md's Localization section). An alias spelling a program declares is a program name, not a built-in one."

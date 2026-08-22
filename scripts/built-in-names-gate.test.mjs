@@ -35,6 +35,7 @@ import {
   ACCESSOR_KINDS,
   ACCESSOR_STATUSES,
   CATEGORIES,
+  CONFORMANCE_PATH,
   GRAMMAR_PATH,
   MANIFEST_PATH,
   REAL_IO,
@@ -45,6 +46,7 @@ import {
   carveOutFindings,
   deriveSummary,
   entryFindings,
+  extractConformanceProfiles,
   extractGrammarKeywordBlock,
   extractToolingC19Mirror,
   extractToolingKeywordRow,
@@ -52,6 +54,7 @@ import {
   loadManifest,
   parseArgs,
   profileCoverageFindings,
+  profileInventoryFindings,
   proseFindings,
   registryHas,
   registryMembers,
@@ -98,6 +101,7 @@ function tinyFixture() {
       },
     },
     profilesWithoutPrimitives: {},
+    profiles: { ids: { "core-language": "Core Language" } },
     tokenClassKeyword: {
       omitsKeywords: [],
       addsExcluded: [],
@@ -897,6 +901,62 @@ test("profileCoverageFindings treats an absent declaration block as empty", () =
   assert.deepEqual(profileCoverageFindings(manifest, api), []);
 });
 
+test("the profile inventory ties spec/conformance.md, the manifest and the checker together", () => {
+  assert.deepEqual(
+    Object.keys(REAL_MANIFEST.profiles.ids).sort(),
+    [...realParserApi.OL_CHECK_PROFILES].sort(),
+  );
+  assert.deepEqual(
+    profileInventoryFindings(REAL_MANIFEST, realParserApi, REAL_IO),
+    [],
+  );
+});
+
+test("INJECTED DRIFT: a profile spec/conformance.md ships that the gate has never heard of", () => {
+  const manifest = manifestCopy();
+  delete manifest.profiles.ids.sound;
+  const findings = profileInventoryFindings(manifest, realParserApi, REAL_IO);
+  assert.deepEqual(findings, [
+    `${CONFORMANCE_PATH}: profile section(s) Sound have no id in ${MANIFEST_PATH} — a profile the spec ships and the gate has never heard of is unchecked`,
+    `${MANIFEST_PATH}: the checker knows profile(s) sound that the manifest does not map to a ${CONFORMANCE_PATH} section`,
+  ]);
+});
+
+test("INJECTED DRIFT: a manifest profile with no section and no checker id", () => {
+  const manifest = manifestCopy();
+  manifest.profiles.ids.telepathy = "Telepathy";
+  const findings = profileInventoryFindings(manifest, realParserApi, REAL_IO);
+  assert.deepEqual(findings, [
+    `${MANIFEST_PATH}: profile name(s) Telepathy have no section in ${CONFORMANCE_PATH}`,
+    `${MANIFEST_PATH}: profile id(s) telepathy are not in the checker's OL_CHECK_PROFILES`,
+  ]);
+});
+
+test("the conformance profile-section extractor fails closed on a moved anchor", () => {
+  assert.equal(extractConformanceProfiles("nothing"), null);
+  assert.equal(
+    extractConformanceProfiles(
+      "## Feature to profile table\n## Required profiles\n",
+    ),
+    null,
+    "the two anchors in the wrong order",
+  );
+  assert.deepEqual(
+    extractConformanceProfiles(
+      "## Required profiles\n### Core Language\n## Optional profiles\n### Sound\n## Feature to profile table\n### Not a profile\n",
+    ),
+    ["Core Language", "Sound"],
+  );
+  const findings = profileInventoryFindings(
+    REAL_MANIFEST,
+    realParserApi,
+    fakeIo({ [CONFORMANCE_PATH]: "nothing" }),
+  );
+  assert.deepEqual(findings, [
+    `${CONFORMANCE_PATH}: could not find the profile sections between "## Required profiles" and "## Feature to profile table" — the anchor this gate reads has moved`,
+  ]);
+});
+
 test("proseFindings rejects a delta that does not correspond to real data", () => {
   const manifest = manifestCopy();
   manifest.tokenClassKeyword.omitsKeywords = ["mod", "banana"];
@@ -1016,6 +1076,8 @@ test("a run with every registry enumerable prints no unenumerable note", () => {
       "The normative OpenLogo keyword list is:\n\n```logo\ndefine\n```\n",
     [TOOLING_PATH]:
       "x this is the C19 registry repeated y:\n\n`define`.\n\n| `keyword` | `define` |\n",
+    [CONFORMANCE_PATH]:
+      "## Required profiles\n### Core Language\n## Feature to profile table\n",
   });
   const result = runBuiltInNamesGate({ manifest, api, io });
   assert.deepEqual(result.findings, []);
