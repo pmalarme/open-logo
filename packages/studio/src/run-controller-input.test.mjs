@@ -1203,17 +1203,23 @@ test("issue #881: a run with no injected seed source still completes (the Date.n
 // empty `lastRunResult.source` instead of `"idle"`. Both are exactly the "already-observed state is
 // never rewritten" guarantee #881 claims, so they are pinned here.
 
-/** A host that answers synchronously and then calls `act` on the controller, still inside present(). */
+/**
+ * A host whose `present()` hands the controller AND the responder to `act`, so a test can pin the
+ * exact re-entrant order it cares about — answer then stop, answer then reset, or stop without
+ * answering at all.
+ */
 function createEndingPromptHost(act) {
   const host = {
     prompts: [],
+    dismissCount: 0,
     controller: null,
     present(request, respond) {
       host.prompts.push(request.prompt);
-      respond("7");
-      act(host.controller);
+      act(host.controller, respond);
     },
-    dismiss() {},
+    dismiss() {
+      host.dismissCount += 1;
+    },
   };
   return host;
 }
@@ -1226,7 +1232,8 @@ const DRAW_ASK_PRINT_SOURCE = [
 
 test("a host that answers and then stops, inside present(), keeps the output already shown", () => {
   const store = OL.createStudioState({ source: DRAW_ASK_PRINT_SOURCE });
-  const host = createEndingPromptHost((controller) => {
+  const host = createEndingPromptHost((controller, respond) => {
+    respond("7");
     controller.stop();
   });
   const controller = OL.createRunController(store, {
@@ -1247,7 +1254,8 @@ test("a host that answers and then stops, inside present(), keeps the output alr
 
 test("a host that answers and then resets, inside present(), settles idle rather than running again", () => {
   const store = OL.createStudioState({ source: DRAW_ASK_PRINT_SOURCE });
-  const host = createEndingPromptHost((controller) => {
+  const host = createEndingPromptHost((controller, respond) => {
+    respond("7");
     controller.reset();
   });
   const controller = OL.createRunController(store, {
@@ -1264,5 +1272,29 @@ test("a host that answers and then resets, inside present(), settles idle rather
     store.getState().lastRunResult,
     null,
     "a queued replay must not commit a run over the top of Reset — least of all one whose source Reset had already cleared",
+  );
+});
+
+test("a host that stops from inside present() WITHOUT answering has its question withdrawn", () => {
+  // The other order, and the one that reaches `dismiss()`: nothing was answered, so the read really
+  // did end unanswered and Stop must withdraw the question rather than leave it on screen.
+  const store = OL.createStudioState({ source: DRAW_ASK_PRINT_SOURCE });
+  const host = createEndingPromptHost((controller) => {
+    controller.stop();
+  });
+  const controller = OL.createRunController(store, {
+    inputPrompt: host,
+    randomSeedSource: createSeedQueue([11]),
+  });
+  host.controller = controller;
+
+  controller.run();
+
+  assert.equal(host.dismissCount, 1, "Stop must take the question down");
+  assert.equal(store.getState().runStatus, "stopped");
+  assert.deepEqual(
+    store.getState().diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-limit"],
+    "the read ended unanswered, so the runtime's own cancellation is published",
   );
 });
