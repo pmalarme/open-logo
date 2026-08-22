@@ -1,0 +1,33 @@
+# Issue #830, execution twin of `heritage/check/heritage-value-of-key-reader-in-parentheses`.
+# `execute()` runs `parse()` and never `check()`, so the runtime keeps its own copy of these
+# rules and the parenthesized reader has to be proven to RUN, not merely to parse clean.
+#
+# Every `print` below pins a VALUE that only exists if the `(` path actually entered the
+# `value-of-reader` (`spec/grammar.md:203`, defined :217) instead of taking `value` as a
+# `parenthesized-call` callee (:215). The reader operates on a dict, so Heritage also needs
+# Data (`spec/conformance.md:301`).
+:d = { a: 7 b: "a" }
+:nested = { inner: { x: 9 } }
+
+# The shape the issue reports: the whole reader wrapped in parentheses.
+print (value of :d for key "a")
+
+# A parenthesized reader as the reader's own DICTIONARY operand.
+print value of (value of :nested for key "inner") for key "x"
+
+# A parenthesized reader as the reader's own KEY operand: the inner reader reports the word
+# "a", which the outer reader then uses as its key.
+print value of :d for key (value of :d for key "b")
+
+# Redundant grouping must not change the value.
+print ((value of :d for key "a"))
+
+# A parenthesized reader composes with the rest of the expression grammar.
+print (value of :d for key "a") + 1
+
+# A parenthesized reader takes postfixes, so it is a real `primary` (`spec/grammar.md:192`).
+print (value of :nested for key "inner").x
+
+# The parenthesized reader agrees with the Core twins it is specified to correspond to.
+print :d["a"]
+print :nested.inner.x

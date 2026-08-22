@@ -1,0 +1,35 @@
+# Issue #830: the Heritage `value of … for key …` reader must be reachable INSIDE parentheses.
+# `spec/grammar.md` derives it there — `primary` (:193-204) offers both `parenthesized-expression`
+# (:199, defined :213) and `value-of-reader` (:203, defined :217), so
+# `expression → … → primary → value-of-reader` makes `( value of :d for key "a" )` a
+# `parenthesized-expression` wrapping a `value-of-reader`.
+#
+# This once failed with `ol-bad-token`: the `(` path took `value` as a `parenthesized-call`
+# callee (:215) and never entered the reader. #885 fixed it incidentally by deriving
+# `NON_PRIMARY_NAMES` from the keyword registry, which contains `value` — so `isCalleeName`
+# now rejects it and the `(` path falls through to the reader. Nothing pinned that, hence this
+# fixture: the reader must stay reachable through every parenthesized shape.
+#
+# The reader operates on a dict, so Heritage also needs Data (`spec/conformance.md:301`).
+:d = { a: 7 b: "a" }
+:nested = { inner: { x: 9 } }
+
+# The shape the issue reports: the whole reader wrapped in parentheses.
+print (value of :d for key "a")
+
+# A parenthesized reader as the reader's own DICTIONARY operand.
+print value of (value of :nested for key "inner") for key "x"
+
+# A parenthesized reader as the reader's own KEY operand.
+print value of :d for key (value of :d for key "b")
+
+# Redundant grouping must not change reachability.
+print ((value of :d for key "a"))
+
+# A parenthesized reader composes with the rest of the expression grammar.
+print (value of :d for key "a") + 1
+print 1 + (value of :d for key "a")
+
+# A parenthesized reader takes postfixes, so it is a real `primary` (:192).
+print (value of :nested for key "inner").x
+print (value of :nested for key "inner")[x]
