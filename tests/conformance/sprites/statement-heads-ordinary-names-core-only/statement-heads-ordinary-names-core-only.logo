@@ -1,5 +1,4 @@
 repeat ask [ ]
 repeat each [ ]
-repeat tell [ ]
 print ask
 :x = each

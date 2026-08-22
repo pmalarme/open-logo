@@ -32,6 +32,28 @@ const PROFILE_WORDS = Object.entries(OL.OL_PROFILE_KEYWORDS).flatMap(
   ([profile, words]) => words.map((word) => ({ profile, word })),
 );
 
+/**
+ * The C3 **Kind** classification this rule turns on, mirroring `SPECIAL_FORM_PROFILE_WORDS` in
+ * `checker-profile-word-position.ts`. Kind **S** words have no callable form and are rejected in
+ * callee position; Kind **C** words are commands, genuinely ARE `callable-name`s, and must not be.
+ * Sources: `spec/turtles-and-sprites.md`'s canonical-forms table (`tell` C, `ask`/`each` S) and
+ * `spec/interaction-events.md`'s (all four S).
+ */
+const SPECIAL_FORM_WORDS = [
+  "ask",
+  "each",
+  "when",
+  "every",
+  "on_key",
+  "on_click",
+];
+const COMMAND_WORDS = ["tell"];
+
+/** The Kind-S entries of {@link PROFILE_WORDS} — the words this rule actually rejects. */
+const SPECIAL_FORM_PROFILE_WORDS = PROFILE_WORDS.filter(({ word }) =>
+  SPECIAL_FORM_WORDS.includes(word),
+);
+
 /** Core Language plus Turtle & Rendering plus `profile` — a realistic active set for that profile. */
 function activeSetFor(profile) {
   return ["core-language", "turtle-rendering", profile];
@@ -66,10 +88,28 @@ test("the registry still contributes the seven words this rule is about", () => 
   ]);
 });
 
-test("every profile word is rejected in value position when its profile is active", () => {
+test("every registry word is deliberately classified Kind S or Kind C — no default", () => {
+  // The drift guard for the rule's `SPECIAL_FORM_PROFILE_WORDS`. `spec/grammar.md:390` matches a
+  // keyword as `callable-name` "only where the C3 primitive matrix also gives that word a callable
+  // form", so the C3 Kind column decides whether this rule may reject a word — and that column has
+  // no representation in `signatures.ts` today. A future profile keyword nobody classifies must fail
+  // loudly here rather than silently defaulting to "reject" (which breaks a legitimate command, as
+  // it did for `tell` in this slice's first revision) or to "allow" (which reopens #864 for it).
+  assert.deepEqual(
+    [...SPECIAL_FORM_WORDS, ...COMMAND_WORDS].sort(),
+    PROFILE_WORDS.map(({ word }) => word).sort(),
+  );
+  assert.deepEqual(
+    SPECIAL_FORM_WORDS.filter((word) => COMMAND_WORDS.includes(word)),
+    [],
+    "a word cannot be both a special form and a command",
+  );
+});
+
+test("every special-form word is rejected in value position when its profile is active", () => {
   // The three positions issue #864 measured: a call argument, an assignment right-hand side, and
   // the `repeat` count from `spec/grammar.md:390`'s own worked example.
-  for (const { profile, word } of PROFILE_WORDS) {
+  for (const { profile, word } of SPECIAL_FORM_PROFILE_WORDS) {
     const profiles = activeSetFor(profile);
     for (const source of [
       `print ${word}\n`,
@@ -104,17 +144,54 @@ test("the diagnostic is the full C10 shape, with the span on the word alone", ()
 
 test("the message names the word and the closest legal form, in the lowercase Logo voice", () => {
   // Pinned in a UNIT test on purpose: the conformance harness excludes `message` from comparison
-  // (`scripts/harness/index.mjs`'s `projectDiagnostic`), so a fixture cannot hold this wording.
-  assert.equal(
-    allDiagnostics("print when\n", activeSetFor("interaction-events"))[0]
-      .message,
-    "i don't know how to read when here. when starts its own instruction, so it cannot make a value.",
+  // (`scripts/harness/index.mjs`'s `projectDiagnostic`), so a fixture cannot hold this wording — the
+  // unit assertion is the SOLE guard on it. Swept over every rejected word rather than sampling one,
+  // so a future profile block-head is covered the moment it is classified.
+  for (const { profile, word } of SPECIAL_FORM_PROFILE_WORDS) {
+    assert.equal(
+      allDiagnostics(`print ${word}\n`, activeSetFor(profile))[0].message,
+      `i don't know how to read ${word} here. ${word} starts its own instruction, so it cannot make a value.`,
+      `\`print ${word}\` did not get the shared message template`,
+    );
+  }
+});
+
+test("`tell` is a COMMAND, not a special form — `( tell :t )` stays legal", () => {
+  // The regression this slice's first revision introduced and a review caught. The C3 Sprites row
+  // gives `tell <turtle|turtle-list>` Kind **C** (`spec/turtles-and-sprites.md`'s canonical-forms
+  // table: "The C3 Sprites rows are authoritative"), and `spec/grammar.md:408` calls it "the Sprites
+  // command `tell` — a mode switch that takes no block". A command HAS a callable form, so
+  // `spec/grammar.md:390` matches `tell` as a `callable-name` and `( tell :t )` is a legitimate
+  // `parenthesized-call`, exactly as `( forward 5 )` is. Rejecting it turned a valid program into an
+  // error: measured, this source checked clean before the rule existed.
+  const profiles = activeSetFor("sprites");
+
+  assert.deepEqual(
+    allDiagnostics(":t = new_turtle\n( tell :t )\nforward 10\n", profiles),
+    [],
   );
-  // Every word gets the same shape, quoted back in the learner's own surface spelling.
-  assert.equal(
-    allDiagnostics("print tell\n", activeSetFor("sprites"))[0].message,
-    "i don't know how to read tell here. tell starts its own instruction, so it cannot make a value.",
+  assert.deepEqual(
+    allDiagnostics(":t = new_turtle\ntell :t\nforward 10\n", profiles),
+    [],
   );
+  // The contrast that keeps this test honest: its Kind-S siblings in the SAME profile, in the SAME
+  // parenthesized position, are still rejected.
+  assert.deepEqual(
+    badTokenTexts(":t = new_turtle\n( ask :t [ forward 1 ] )\n", profiles),
+    ["ask"],
+  );
+});
+
+test("`tell` in value position is left exactly as it was — a different defect, not this rule's", () => {
+  // `print tell` is still undiagnosed, and that is deliberate. `tell` reports no value and takes one
+  // input, so the honest diagnosis is an arity/no-value finding from `checker-arity.ts`, not a
+  // derivation error from here — a different mechanism in a different rule. Asserted rather than
+  // left implicit so the boundary is visible: if a later slice fixes it, this test fails and states
+  // exactly which decision is being revisited.
+  const profiles = activeSetFor("sprites");
+
+  assert.deepEqual(badTokenTexts("print tell\n", profiles), []);
+  assert.deepEqual(badTokenTexts("repeat tell [ ]\n", profiles), []);
 });
 
 test("the word is quoted back in the learner's own spelling, and matching is case-insensitive", () => {

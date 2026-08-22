@@ -17,6 +17,12 @@
  * `repeat <word> [ ]` — a silent no-op (saga #811): the `repeat` ran with no count and nothing said
  * so.
  *
+ * **This rule closes six of those seven.** The seventh, `tell`, is a *command* rather than a special
+ * form, so it genuinely has a callable form and must not be rejected here — the C3 **Kind** column
+ * is the whole distinction, and {@link SPECIAL_FORM_PROFILE_WORDS} is where it is recorded and why.
+ * A review of the first revision of this slice caught that: rejecting `tell` broke the legitimate
+ * `( tell :t )`, which had checked clean.
+ *
  * **Why this cannot be fixed in the reader, and so lives here instead.** `parser.ts`'s
  * `PROFILE_STATEMENT_FORMS` states the design: *"The reader is deliberately profile-blind — it never
  * inspects the active profile set"*, and it must stay that way, because a Core-only program may
@@ -38,8 +44,9 @@
  *
  * **Why the callee, rather than a value-slot walk.** `spec/grammar.md:390` draws the line at what a
  * word is *matched as*: a keyword "is matched as `callable-name` only where the
- * [C3 primitive matrix](commands.md) also gives that word a callable form". None of the seven has a
- * callable form — each is a statement-form head — so a `Call`/`ParenCall` whose callee is one of
+ * [C3 primitive matrix](commands.md) also gives that word a callable form". That sentence is also
+ * what scopes this rule to **six of the seven** profile words — see
+ * {@link SPECIAL_FORM_PROFILE_WORDS}. For those six, a `Call`/`ParenCall` whose callee is one of
  * them is, by construction, the mis-derivation the spec forbids, wherever that node sits. Keying on
  * the callee therefore needs no slot classification and covers the issue's own positions plus one
  * they do not list: a statement-position `( when 1 )`, which reads as a `parenthesized-call` with
@@ -63,6 +70,18 @@
  * active (that is the whole premise), and `spec/tooling.md:181` scopes that code to a name that is
  * not known at all. Core-only, where the word genuinely is unknown, `ol-unknown-command` is what
  * still fires — from `checker-unknown-command.ts`, unchanged.
+ *
+ * **On the `parse`/`semantic` split for one code.** `spec/error-model.md:95` heads its registry
+ * column *"**Usual** stage"*, not "Stage", and `:77` makes the stage a property of detection, so one
+ * code reaching two stages is the model working as specified rather than an anomaly. Twelve codes in
+ * the corpus already do it on the `semantic`/`runtime` axis, for exactly this reason and with the
+ * same reasoning recorded at the raise site — see `@openlogo/runtime`'s `errors.ts` ("Registry stage
+ * is `semantic`, but raised here at `stage: \"runtime\"`") and `evaluate.ts`. This rule is the first
+ * on the **`parse`/`semantic`** axis, which is worth naming: `repeat key [ ]` reports `ol-bad-token`
+ * at `parse` from the reader while `repeat when [ ]` reports it at `semantic` from here. The two are
+ * behaviourally indistinguishable to every consumer in this repository — only
+ * `scripts/markdown-examples-gate.mjs` branches on `stage` at all, and it keys on `"runtime"`, while
+ * `packages/studio/src/diagnostics.ts` renders every stage identically by explicit design.
  */
 
 import type { Diagnostic } from "@openlogo/core";
@@ -74,6 +93,54 @@ import { isProfileKeyword } from "./keywords.js";
 function isCallLike(node: AnyNode): node is CallNode | ParenCallNode {
   return node.kind === "Call" || node.kind === "ParenCall";
 }
+
+/**
+ * The profile words the C3 matrix classifies **Kind S — special form**, and therefore the only ones
+ * this rule may reject. `spec/grammar.md:390` matches a keyword as `callable-name` "only where the
+ * [C3 primitive matrix](commands.md) also gives that word a callable form", so the C3 **Kind**
+ * column is the whole test, and it does not answer the same for all seven profile words:
+ *
+ * | Word | C3 Kind | Callable form? | Rejected here? |
+ * |---|---|---|---|
+ * | `ask <turtle\|turtle-list> <block>` | **S** | no | **yes** |
+ * | `each <block>` | **S** | no | **yes** |
+ * | `when <event-word> <block>` | **S** | no | **yes** |
+ * | `every <n> <block>` | **S** | no | **yes** |
+ * | `on_key <key-word> <block>` | **S** | no | **yes** |
+ * | `on_click <block>` | **S** | no | **yes** |
+ * | `tell <turtle\|turtle-list>` | **C** | **yes** | **no** |
+ *
+ * Sources: `spec/turtles-and-sprites.md`'s canonical-forms table ("The C3 Sprites rows are
+ * authoritative", giving `tell` **C**, `ask` and `each` **S") and `spec/interaction-events.md`'s
+ * (all four block-heads **S**).
+ *
+ * **`tell` is deliberately exempt, and this is the one distinction the rule turns on.** It is a
+ * *command*, not a special form — `spec/grammar.md:408` itself calls it "the Sprites command `tell`
+ * — a mode switch that takes no block". A command has a callable form, so `tell` genuinely *is* a
+ * `callable-name` and `( tell :t )` is a legitimate `parenthesized-call`, exactly as `( forward 5 )`
+ * is. Rejecting it here would turn a valid program into an error: measured, `( tell :t )` checked
+ * clean before this rule existed. That `tell` in a *value* position (`print tell`) is still
+ * undiagnosed is a real but **different** defect with a different mechanism — `tell` reports no
+ * value and takes one input, so the honest diagnosis is an arity/no-value finding from
+ * `checker-arity.ts`, not a derivation error from here. It is out of this slice's scope and left
+ * exactly as it was.
+ *
+ * Kept as an explicit set rather than derived, because the C3 **Kind** column has no representation
+ * in `signatures.ts` today (`SPRITES_STATEMENT_FORM_NAMES` lists all three Sprites heads together,
+ * and `spritesPrimitiveArity("tell")` is `undefined`). `checker-profile-word-position.test.mjs`
+ * pins this set against `OL_PROFILE_KEYWORDS` so a future profile word cannot be added without
+ * being deliberately classified — it fails loudly rather than defaulting either way.
+ */
+const SPECIAL_FORM_PROFILE_WORDS: ReadonlySet<string> = new Set([
+  // Sprites (`spec/turtles-and-sprites.md`) — `tell` is Kind C and is absent on purpose.
+  "ask",
+  "each",
+  // Interaction & Events (`spec/interaction-events.md`).
+  "when",
+  "every",
+  "on_key",
+  "on_click",
+]);
 
 /**
  * The one learner-facing sentence, in the lowercase Logo voice `spec/error-model.md:18` requires.
@@ -100,15 +167,18 @@ function badTokenDiagnostic(node: CallNode | ParenCallNode): Diagnostic {
 }
 
 /**
- * Report every place an **active** profile's statement-form head was read as a callee, in source
- * order (which the pre-order {@link walk} gives directly).
+ * Report every place an **active** profile's special-form head was read as a callee, in source order
+ * (which the pre-order {@link walk} gives directly).
  *
  * The span covers just the head word, not the enclosing call: `spec/error-model.md:41-42` wants "the
  * most local repair site", and the word itself is what the learner has to replace.
  *
- * The gate is the shared {@link isProfileKeyword} registry rather than a table of its own, so a
- * profile slice that adds a block-head to `OL_PROFILE_KEYWORDS` gets this rule for free — the same
- * derive-from-the-registry property issue #837 proved for the Core half when adding `mod`.
+ * Two gates, in order, and both are load-bearing: {@link isProfileKeyword} keys the rule to the
+ * shared registry **and** to the active profile set — so a profile slice that adds a block-head is
+ * covered for free (the derive-from-the-registry property issue #837 proved for the Core half), and
+ * a Core-only program keeps every one of these words as an ordinary name. Then
+ * {@link SPECIAL_FORM_PROFILE_WORDS} keeps the rejection to the words that genuinely have no
+ * callable form, which is what leaves the Sprites *command* `tell` alone.
  */
 export function profileWordPositionRule(
   program: ProgramNode,
@@ -117,7 +187,14 @@ export function profileWordPositionRule(
   const diagnostics: Diagnostic[] = [];
 
   walk(program, (node) => {
-    if (isCallLike(node) && isProfileKeyword(node.callee.name, profiles)) {
+    if (!isCallLike(node)) {
+      return;
+    }
+    const name = node.callee.name.toLowerCase();
+    if (
+      isProfileKeyword(name, profiles) &&
+      SPECIAL_FORM_PROFILE_WORDS.has(name)
+    ) {
       diagnostics.push(badTokenDiagnostic(node));
     }
   });
