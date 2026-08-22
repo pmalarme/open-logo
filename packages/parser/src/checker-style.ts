@@ -18,7 +18,7 @@
  *   (comprehension-body, error-severity) — both reuse the exact same
  *   {@link producesValue}/command-vs-reporter classification from that module so the two never
  *   drift apart. Reproduces the spec's own worked example — the `… end repeat` block form at
- *   `spec/tooling.md:254-263`, written here in its equivalent bracket form:
+ *   `spec/tooling.md:255-264`, written here in its equivalent bracket form:
  *   `repeat 4 [ :side * 2 ]` → `ol-style-useless-value { form: "repeat" }`.
  * - `ol-style-equality-confusion` — a standalone top-level comparison statement (a
  *   `ComparisonChain` containing at least one `==`/`!=`, or a `Call`/`ParenCall` whose callee is

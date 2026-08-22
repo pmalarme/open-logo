@@ -250,6 +250,7 @@ it MUST keep the code identity stable when the rule is enabled.
 | `ol-style-equality-confusion` | A standalone comparison statement such as `:x == :y` whose boolean result is discarded, which usually means an assignment `=` was intended. `=` inside a condition is a parse error, not a style warning. |
 | `ol-style-deep-nesting` | Deep unlabeled nesting should be refactored or labeled with matching `end <form>` where long blocks are used. |
 | `ol-style-hidden-abstraction` | A shortcut procedure such as `draw_square 100` hides a concept that the surrounding lesson expects the learner to build from `repeat`. |
+| `ol-style-nested-handler` | An `every` handler whose block registers another handler, which accumulates handlers without bound: each firing adds one more. Handlers registered inside `on_key`/`on_click` blocks are not flagged, because a key press or click is bounded by the user. |
 
 Example style diagnostics:
 

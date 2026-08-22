@@ -192,7 +192,7 @@ test("highlight: each Heritage form head is a keyword, like its Core equivalent 
 
 test("semanticTokens: each Heritage form head carries no defaultLibrary — it is a keyword, not a primitive", () => {
   // Keyword-class tokens get NO `defaultLibrary` modifier (that modifier is the `primitive`/library
-  // marker, `spec/tooling.md:278`). Assert the class and the absence of the modifier so a form head
+  // marker, `spec/tooling.md:279`). Assert the class and the absence of the modifier so a form head
   // can never be mistaken for a callable primitive.
   const cases = {
     make: 'make "n" 1',
@@ -429,7 +429,7 @@ test("highlight: a mid-edit or malformed reader degrades gracefully — `of` fal
 });
 
 test("semanticTokens: no structural word of the value-of-key reader carries defaultLibrary", () => {
-  // `defaultLibrary` asserts standard-library membership (`spec/tooling.md:278`). `of` used to
+  // `defaultLibrary` asserts standard-library membership (`spec/tooling.md:279`). `of` used to
   // carry it purely because it was classified `primitive`; with the class corrected the modifier
   // goes with it, which is the half of #785 an LSP client actually consumes.
   const tokens = OL.semanticTokens('print value of :d for key "a"', doc);

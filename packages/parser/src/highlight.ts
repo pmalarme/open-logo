@@ -100,7 +100,7 @@ export interface Token {
    * `procedure-name`, `type-name`, `field-name`, and `:variable` (a procedure's own `:param`)
    * — `true` at the binding site, `false` at every other (use/call) site. Consumed by
    * `semantic-tokens.ts` (issue #121) to compute the LSP `declaration`/`reference` modifiers
-   * from `spec/tooling.md:278`; absent on classes with no such split (e.g. `keyword`, `number`).
+   * from `spec/tooling.md:279`; absent on classes with no such split (e.g. `keyword`, `number`).
    */
   readonly declaration?: boolean;
 }
