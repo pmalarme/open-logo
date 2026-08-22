@@ -37,20 +37,20 @@
 // active profile and is STILL `ol-unknown-command` without one — so the profile gate this file
 // guards is proven in both directions for every name.
 //
-// Highlighting is currently **profile-blind**: `highlight()`/`semanticTokens()` take no active-
-// profile argument, so they emit the profile-neutral fallback `primitive` for all six names. Note
-// this is a KNOWN DEVIATION from the normative token-class model, not the final word:
-// `spec/tooling.md:30` puts "profile block-heads when their profile is active" in the `keyword`
-// class, so under an active `interaction-events` profile the four block-heads SHOULD ultimately be
-// `keyword`. The parser cannot express that yet — giving the highlighter a profile set changes one
-// of the four shared cross-package contracts and is tracked as its own serialized slice, issue
-// #740. `wait` and `input` are unaffected either way: they are ordinary primitives, so `primitive`
-// is their correct final class (as it is for the Sound commands, `spec/interaction-events.md`:
-// "Sound command names are ordinary primitive names when the Sound profile is present").
+// Highlighting is **profile-aware** since issue #740: `highlight()`/`semanticTokens()` take an
+// active-profile set. `spec/tooling.md:30` puts the profile block-heads in the `keyword` class
+// "while their profile is active", and `:31` puts "a profile word whose profile is inactive" in
+// `primitive`. So the six names split, and the split is the point of this file's highlighting
+// half: the four BLOCK-HEADS `when`/`every`/`on_key`/`on_click` are `keyword` with
+// `interaction-events` claimed and `primitive` without it, while `wait` and `input` are
+// `primitive` either way — they are ordinary primitives (`:31`, "profile primitives when
+// enabled"), the same control case `sound-tooling.test.mjs` locks for the Sound commands
+// ("Sound command names are ordinary primitive names when the Sound profile is present").
 //
-// The assertions below therefore lock TODAY's profile-neutral fallback so the behavior is
-// intentional and visible rather than accidental — matching `sound-tooling.test.mjs` and
-// `sprites-tooling.test.mjs`. #740 updates all three together.
+// Both directions are asserted for every name. Before #740 this file asserted only the
+// profile-neutral `primitive` reading and carried a KNOWN DEVIATION note saying the parser could
+// not express the other one; it can now, so the note is retired. Nothing here is inverted — the
+// old assertions were the INACTIVE half of the pair and remain true; the ACTIVE half is new.
 //
 // Every name is exercised in **awkward positions** — inside a `[ … ]` instruction block, inside
 // `repeat`, inside an `if`, and nested in a procedure body — via one shared whole-program constant,
@@ -120,100 +120,206 @@ const NESTED_INTERACTION_PROGRAM = [
   "arm",
 ].join("\n");
 
-// --- Highlighting: every Interaction name classifies as primitive (profile-blind) --------------
+// --- Highlighting: block-heads move with the profile, primitives never do ----------------------
 
-test("highlight: each Interaction block-head and primitive classifies as primitive (profile-blind)", () => {
+/**
+ * The class each of the six names takes, written as DATA for both profile settings rather than
+ * computed from the same rule the classifier implements — a helper that re-derives the rule would
+ * agree with a broken classifier. Read down the two columns and the asymmetry #740 exists to
+ * create is visible at a glance: only the four block-heads move; `wait` and `input` never do.
+ */
+const EXPECTED_CLASS = Object.freeze({
+  inactive: Object.freeze({
+    when: "primitive",
+    every: "primitive",
+    on_key: "primitive",
+    on_click: "primitive",
+    wait: "primitive",
+    input: "primitive",
+  }),
+  active: Object.freeze({
+    when: "keyword",
+    every: "keyword",
+    on_key: "keyword",
+    on_click: "keyword",
+    wait: "primitive",
+    input: "primitive",
+  }),
+});
+
+/** The two profile settings under test, paired with the expectation table above. */
+const PROFILE_CASES = Object.freeze([
+  {
+    label: "interaction INACTIVE",
+    profiles: CORE_PROFILES,
+    expected: "inactive",
+  },
+  {
+    label: "interaction ACTIVE",
+    profiles: INTERACTION_PROFILES,
+    expected: "active",
+  },
+]);
+
+test("highlight: each Interaction name takes its profile-dependent class in isolation", () => {
+  for (const { label, profiles, expected } of PROFILE_CASES) {
+    for (const [name, source] of [
+      ...Object.entries(INTERACTION_BLOCK_HEADS),
+      ...Object.entries(INTERACTION_PRIMITIVES),
+    ]) {
+      const tokens = OL.highlight(source, doc, { profiles }).filter(
+        (t) => t.text === name,
+      );
+      // Assert the token EXISTS before asserting its class: a `filter(...).every(...)` over an
+      // empty list passes vacuously, which would hide the very regression this test guards.
+      assert.equal(
+        tokens.length,
+        1,
+        `expected exactly one ${name} token in ${JSON.stringify(source)} (${label})`,
+      );
+      assert.equal(
+        tokens[0].class,
+        EXPECTED_CLASS[expected][name],
+        `${name} in ${JSON.stringify(source)} with ${label}`,
+      );
+    }
+  }
+});
+
+test("highlight: the profile-dependent class survives nesting in a whole program", () => {
+  for (const { label, profiles, expected } of PROFILE_CASES) {
+    const tokens = OL.highlight(NESTED_INTERACTION_PROGRAM, doc, { profiles });
+    for (const name of INTERACTION_NAMES) {
+      const nameTokens = tokens.filter((t) => t.text === name);
+      assert.equal(
+        nameTokens.length,
+        1,
+        `expected exactly one ${name} token in the nested program (${label})`,
+      );
+      assert.equal(
+        nameTokens[0].class,
+        EXPECTED_CLASS[expected][name],
+        `nested ${name} with ${label}`,
+      );
+    }
+  }
+});
+
+test("highlight: omitting the profile set reads as Core-only, so it matches the INACTIVE column", () => {
+  // The parameter is optional and defaults to `DEFAULT_CHECK_PROFILES`. This is what kept #740
+  // additive rather than breaking: every pre-existing caller asserts the inactive reading, which
+  // is still correct. Asserted rather than assumed, because it is the whole compatibility claim.
   for (const [name, source] of [
     ...Object.entries(INTERACTION_BLOCK_HEADS),
     ...Object.entries(INTERACTION_PRIMITIVES),
   ]) {
-    const tokens = OL.highlight(source, doc).filter((t) => t.text === name);
-    // Assert the token EXISTS before asserting its class: a `filter(...).every(...)` over an empty
-    // list passes vacuously, which would hide the very regression this test guards against.
-    assert.equal(
-      tokens.length,
-      1,
-      `expected exactly one ${name} token in ${JSON.stringify(source)}`,
+    const omitted = OL.highlight(source, doc).filter((t) => t.text === name);
+    const explicit = OL.highlight(source, doc, {
+      profiles: CORE_PROFILES,
+    }).filter((t) => t.text === name);
+    assert.equal(omitted.length, 1, `expected a ${name} token`);
+    assert.deepEqual(
+      omitted.map((t) => t.class),
+      explicit.map((t) => t.class),
     );
-    assert.equal(
-      tokens[0].class,
-      "primitive",
-      `${name} should highlight as primitive in ${JSON.stringify(source)}`,
-    );
+    assert.equal(omitted[0].class, EXPECTED_CLASS.inactive[name]);
   }
 });
 
-test("highlight: every Interaction name stays primitive nested in a whole program (block, repeat, procedure body)", () => {
-  const tokens = OL.highlight(NESTED_INTERACTION_PROGRAM, doc);
-  for (const name of INTERACTION_NAMES) {
-    const nameTokens = tokens.filter((t) => t.text === name);
-    assert.equal(
-      nameTokens.length,
-      1,
-      `expected exactly one ${name} token in the nested program`,
-    );
-    assert.equal(
-      nameTokens[0].class,
-      "primitive",
-      `${name} should highlight as primitive even when nested`,
-    );
-  }
-});
-
-test("highlight: keywords are case-insensitive — an upper-case Interaction name is still primitive", () => {
+test("highlight: matching stays case-insensitive in BOTH profile directions", () => {
   // `spec/tooling.md:23`: tokenization is case-insensitive for keywords and built-in primitives.
-  for (const name of INTERACTION_NAMES) {
-    const upper = name.toUpperCase();
-    const [token] = OL.highlight(upper, doc);
-    assert.equal(
-      token.class,
-      "primitive",
-      `${upper} should highlight as primitive`,
-    );
+  // Checked under an active profile too, since that path is a different lookup (`isProfileKeyword`)
+  // from the Core one and could lose case-insensitivity without any Core test noticing.
+  for (const { label, profiles, expected } of PROFILE_CASES) {
+    for (const name of INTERACTION_NAMES) {
+      const upper = name.toUpperCase();
+      const [token] = OL.highlight(upper, doc, { profiles });
+      assert.equal(
+        token.class,
+        EXPECTED_CLASS[expected][name],
+        `${upper} with ${label}`,
+      );
+    }
   }
 });
 
 test("highlight: `wait` is never a keyword — a same-named procedure highlights as procedure-name", () => {
-  // `wait` is an ordinary primitive, not a reserved word in any profile
+  // `wait` is an ordinary primitive, not a block-head in any profile
   // (`spec/interaction-events.md` reserves only the four block-heads), so it never reaches the
-  // `keyword` class: the profile-blind highlighter resolves a user `define wait` to
-  // `procedure-name` at its call site, unlike a Core reserved word which stays `keyword` no matter
-  // what. This is purely a *token-class* statement — the checker separately reports that
-  // redefinition as `ol-reserved-word` (asserted below), which is a
-  // legality question the highlighter deliberately does not answer.
+  // `keyword` class in either direction. The checker separately reports that redefinition as
+  // `ol-reserved-word` (asserted below) — a legality question the highlighter does not answer.
   const source = "define wait\nend\nwait";
-  const tokens = OL.highlight(source, doc).filter((t) => t.text === "wait");
-  assert.equal(tokens.length, 2);
-  assert.ok(tokens.every((t) => t.class === "procedure-name"));
-});
-
-// --- Semantic tokens: every Interaction name carries defaultLibrary -----------------------------
-
-test("semanticTokens: each Interaction block-head and primitive call carries the defaultLibrary modifier", () => {
-  for (const [name, source] of [
-    ...Object.entries(INTERACTION_BLOCK_HEADS),
-    ...Object.entries(INTERACTION_PRIMITIVES),
-  ]) {
-    const token = OL.semanticTokens(source, doc).find((t) => t.text === name);
-    assert.ok(token, `expected a semantic token for ${name}`);
-    assert.equal(token.class, "primitive");
+  for (const { label, profiles } of PROFILE_CASES) {
+    const tokens = OL.highlight(source, doc, { profiles }).filter(
+      (t) => t.text === "wait",
+    );
+    assert.equal(tokens.length, 2, label);
     assert.ok(
-      token.modifiers.includes("defaultLibrary"),
-      `${name} should be a defaultLibrary primitive`,
+      tokens.every((t) => t.class === "procedure-name"),
+      label,
     );
   }
 });
 
-test("semanticTokens: every Interaction name carries defaultLibrary when nested in a whole program", () => {
-  const tokens = OL.semanticTokens(NESTED_INTERACTION_PROGRAM, doc);
-  for (const name of INTERACTION_NAMES) {
-    const token = tokens.find((t) => t.text === name);
-    assert.ok(token, `expected a semantic token for nested ${name}`);
-    assert.equal(token.class, "primitive");
-    assert.ok(
-      token.modifiers.includes("defaultLibrary"),
-      `nested ${name} should be a defaultLibrary primitive`,
-    );
+test("highlight: symbol discovery still demotes a BLOCK-HEAD under an active profile", () => {
+  // `spec/tooling.md:30` — "[Disambiguating identifiers] is what demotes a token to
+  // `procedure-name`, `type-name`, or `field-name` once parsing or symbol discovery resolves it."
+  // So the profile check must run AFTER discovery, not before. Hoisting it would silently paint
+  // this learner's own procedure `keyword`, and nothing else in the suite would notice.
+  const source = "define when\n  print 1\nend\nwhen";
+  const tokens = OL.highlight(source, doc, {
+    profiles: INTERACTION_PROFILES,
+  }).filter((t) => t.text === "when");
+  assert.equal(tokens.length, 2);
+  assert.ok(tokens.every((t) => t.class === "procedure-name"));
+});
+
+// --- Semantic tokens: defaultLibrary follows the class, not the name ---------------------------
+
+test("semanticTokens: a primitive keeps defaultLibrary in both directions; a block-head loses it when active", () => {
+  // `defaultLibrary` is scoped to the `primitive` class, so an active block-head sheds it purely
+  // by becoming `keyword` — #740's step 3 falls out of the classification instead of needing its
+  // own rule. (That the INACTIVE fallback still carries `defaultLibrary` at all is the separate,
+  // tracked defect #831; this file pins today's behaviour either way.)
+  for (const { label, profiles, expected } of PROFILE_CASES) {
+    for (const [name, source] of [
+      ...Object.entries(INTERACTION_BLOCK_HEADS),
+      ...Object.entries(INTERACTION_PRIMITIVES),
+    ]) {
+      const token = OL.semanticTokens(source, doc, { profiles }).find(
+        (t) => t.text === name,
+      );
+      assert.ok(token, `expected a semantic token for ${name} (${label})`);
+      const expectedClass = EXPECTED_CLASS[expected][name];
+      assert.equal(token.class, expectedClass, `${name} (${label})`);
+      assert.equal(
+        token.modifiers.includes("defaultLibrary"),
+        expectedClass === "primitive",
+        `${name} (${label}) defaultLibrary must follow the class`,
+      );
+    }
+  }
+});
+
+test("semanticTokens: the same split holds when nested in a whole program", () => {
+  for (const { label, profiles, expected } of PROFILE_CASES) {
+    const tokens = OL.semanticTokens(NESTED_INTERACTION_PROGRAM, doc, {
+      profiles,
+    });
+    for (const name of INTERACTION_NAMES) {
+      const token = tokens.find((t) => t.text === name);
+      assert.ok(
+        token,
+        `expected a semantic token for nested ${name} (${label})`,
+      );
+      const expectedClass = EXPECTED_CLASS[expected][name];
+      assert.equal(token.class, expectedClass, `nested ${name} (${label})`);
+      assert.equal(
+        token.modifiers.includes("defaultLibrary"),
+        expectedClass === "primitive",
+        `nested ${name} (${label}) defaultLibrary must follow the class`,
+      );
+    }
   }
 });
 

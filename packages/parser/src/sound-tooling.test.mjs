@@ -135,6 +135,62 @@ test("semanticTokens: every Sound command carries defaultLibrary when nested in 
   }
 });
 
+// --- The control case for #740: an ACTIVE profile must NOT move a Sound command ---------------
+
+test("highlight: every Sound command stays primitive with the sound profile ACTIVE", () => {
+  // This is the asymmetry that makes #740's Sprites/Interaction change a *fix* rather than a
+  // blanket rule. `spec/tooling.md:30` moves only "the profile block-heads together with the
+  // Sprites mode-switch command `tell`" into `keyword` while their profile is active; `:31` keeps
+  // "profile primitives when enabled" in `primitive`. `spec/interaction-events.md` says it in
+  // words: "Sound command names are ordinary primitive names when the Sound profile is present."
+  //
+  // Sound has no block-heads at all, so ALL FIVE commands are the control: if a future change
+  // classified profile words by profile membership instead of by block-head-ness, these rows go
+  // red and the Sprites/Interaction rows stay green. Asserted in both directions and nested, so
+  // the control cannot pass merely because the profile was never switched on.
+  for (const profiles of [SOUND_PROFILES, ["core-language"]]) {
+    const label = profiles.includes("sound") ? "ACTIVE" : "INACTIVE";
+    for (const [name, source] of Object.entries(SOUND_CALLS)) {
+      const token = OL.highlight(source, doc, { profiles }).find(
+        (t) => t.text === name,
+      );
+      assert.ok(token, `expected a ${name} token (sound ${label})`);
+      assert.equal(token.class, "primitive", `${name} (sound ${label})`);
+    }
+    const nested = OL.highlight(NESTED_SOUND_PROGRAM, doc, { profiles });
+    for (const name of Object.keys(SOUND_CALLS)) {
+      const commandTokens = nested.filter((t) => t.text === name);
+      assert.equal(
+        commandTokens.length,
+        1,
+        `expected exactly one nested ${name} token (sound ${label})`,
+      );
+      assert.equal(
+        commandTokens[0].class,
+        "primitive",
+        `nested ${name} (sound ${label})`,
+      );
+    }
+  }
+});
+
+test("semanticTokens: a Sound command keeps defaultLibrary with the sound profile ACTIVE", () => {
+  // The modifier follows the class, so the control case has to hold here too: an active Sound
+  // profile must not strip `defaultLibrary` the way it legitimately does for an active
+  // Sprites/Interaction block-head, which sheds it by becoming `keyword`.
+  for (const [name, source] of Object.entries(SOUND_CALLS)) {
+    const token = OL.semanticTokens(source, doc, {
+      profiles: SOUND_PROFILES,
+    }).find((t) => t.text === name);
+    assert.ok(token, `expected a semantic token for ${name}`);
+    assert.equal(token.class, "primitive");
+    assert.ok(
+      token.modifiers.includes("defaultLibrary"),
+      `${name} should stay a defaultLibrary primitive under an active profile`,
+    );
+  }
+});
+
 // --- Checker recognition: active `sound` clean; Core-only unknown -----------------------------
 
 /** `check()` diagnostics for `source` under the given profiles (parse must be clean first). */
