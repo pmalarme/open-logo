@@ -7,6 +7,14 @@
   ruling, and explains the ruling rather than the pre-ruling spec text. At the time it was accepted,
   the normative `spec/` sections it cites had not yet been amended to match; the closing section
   records exactly which ones, as a dated statement of fact.
+- Measurements: every present-tense statement about implementation behaviour in this record was
+  measured at commit `1499e1e` and describes the tree as it stood when the record was accepted.
+  Where a later slice is expected to change that behaviour, the record names the slice. Read every
+  "today" as "at `1499e1e`".
+- Waiver: `@orchestrator`, under maintainer-delegated authority for saga #572, granted an explicit
+  waiver of LDR-0000's rule that an LDR states only behaviour the spec already states — because
+  this record explains a maintainer-signed-off ruling whose normative text was still in flight
+  (#833, residue tracked by #855, a required precondition of the Saga Gate #696).
 - Related: [LDR-0001](0001-places-and-value-semantics.md) (what a *place* is, and why writing
   through one introduces no name); [LDR-0005](0005-profiles-and-the-conformance-dag.md) (why this
   rule is nevertheless **not** profile-conditional);
@@ -41,7 +49,7 @@ type constructors" — packs two unrelated questions under the single word *rede
 
 Only the second can collide with the language, because only the second puts a name where the reader
 looks. Conflating them produced errors in **both** directions at once, and the project shipped both
-mistakes before noticing. Measured at saga tip `7a37504`:
+mistakes before noticing. Measured at saga tip `1499e1e`:
 
 | program | today's behaviour | what it should be |
 |---|---|---|
@@ -185,7 +193,7 @@ whole design exists to remove.
 
 The obvious guess is that `define if` is rejected because the parser would break. It is not. Every
 one of these parses cleanly; the failure is entirely semantic, and today it is mostly silent.
-Measured at `7a37504`, shadowing produces **three different outcomes depending on which built-in
+Measured at `1499e1e`, shadowing produces **three different outcomes depending on which built-in
 you picked**:
 
 | program | result | who won | diagnosed today? |

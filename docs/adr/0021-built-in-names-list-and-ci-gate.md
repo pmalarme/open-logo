@@ -10,6 +10,10 @@
   `polygon` is a library, not a built-in);
   [LDR-0007](../design-notes/0007-binding-vs-registration.md) (the language-design decision this
   record supplies the mechanism for); ruling #833 rule 7; slice #841 (the implementation)
+- Measurements: every present-tense statement about implementation behaviour in this record was
+  measured at commit `1499e1e` and describes the tree as it stood when the record was accepted.
+  Where a later slice is expected to change that behaviour, the record names the slice. Read every
+  "today" as "at `1499e1e`".
 
 ## Context
 
@@ -22,7 +26,7 @@ that is an architecture decision rather than a language one.
 
 The decision matters because the current arrangement has no source at all — the names are spread
 across the implementation with no single place to read them, and nothing compares that spread to
-the spec. Measured at saga tip `7a37504`, `@openlogo/parser` exposes:
+the spec. Measured at saga tip `1499e1e`, `@openlogo/parser` exposes:
 
 - `OL_RESERVED_WORDS` — **43** Core keywords;
 - `OL_PROFILE_RESERVED_WORDS` — a **Record keyed by profile**, not a flat list:
@@ -143,8 +147,13 @@ built-in name* as *what is*:
   silently leaves four. A parallel alias list would have to be revisited by hand every time a
   canonical moved; an edge cannot drift from its target. Heritage *worded forms* — `value of … for
   key`, and the form heads `make`/`to`/`output`/`op` — are **not** `aliasOf` edges: they are grammar
-  spellings rather than name-for-name substitutions, and `heritageWordedForms()` (added by #852) is
-  where they enumerate.
+  spellings rather than name-for-name substitutions. They enumerate through `heritageWordedForms()`
+  (added by #852), whose registry `HERITAGE_WORDED_FORMS` in `packages/parser/src/signatures.ts` is
+  keyed by **production name** — measured, one entry today:
+  `{ head: "value", phrase: "value of … for key", node: "ValueOfKey" }`, with the heads folded into
+  `heritageSurfaceSpellings()`. If the list ever needs to represent worded forms, that
+  production-name keying is the shape to mirror — a `head` is not a name-for-name alias, so it has
+  no `aliasOf` target to point at.
 - **One name can hold two roles, so `category` needs a stated precedence.** Measured, `thing` is
   the only name in the tree that is simultaneously in `OL_RESERVED_WORDS` **and**
   `corePrimitiveArity` (arity 1). `category` records **`keyword` first, then `primitive`** —
