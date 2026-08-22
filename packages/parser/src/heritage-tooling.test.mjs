@@ -450,12 +450,13 @@ test("semanticTokens: no structural word of the value-of-key reader carries defa
 // =================================================================================================
 
 test("highlight: a short alias name is never a keyword — it can be redefined as a procedure name", () => {
-  // Reserved block-heads always highlight `keyword`; the short aliases are NOT reserved words, so a
-  // user procedure literally named `fd` resolves to `procedure-name` at its declaration and call —
-  // proving the alias is classified by name/role, not locked to `primitive` the way a keyword is.
-  // (Declaring `fd` is accepted only because the Turtle & Rendering table is not yet consulted —
-  // shipped behaviour that `spec/grammar.md:408` retracts, retired by #841. This test is about token
-  // recovery for such a declaration, not about its legality.)
+  // This is a *highlighting* claim only — `highlight()` never calls `check()`. The short aliases are
+  // not keywords, so a user procedure literally named `fd` resolves to `procedure-name` at its
+  // declaration and call — proving the alias is classified by name/role, not locked to `primitive`
+  // the way a keyword is. Declaring `fd` is nonetheless ILLEGAL: since #838 wired
+  // `turtlePrimitiveArity` into the declaration-slot rule, the checker raises `ol-reserved-word` on
+  // it Core-only (measured; pinned by `heritage/check/heritage-alias-redefinition-legal-in-core`).
+  // What this test pins is token recovery for such a declaration, not its legality.
   const tokens = OL.highlight("define fd\nend\nfd", doc).filter(
     (t) => t.text === "fd",
   );

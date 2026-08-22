@@ -14,8 +14,12 @@ import * as OL from "@openlogo/parser";
  * Also covers the reserved-word collision parity: `define`/`struct` registrations that
  * redefine `set_tempo`/`beep` must raise `ol-reserved-word` when the
  * `sound` profile is active — the checker's static counterpart to the runtime's own
- * `isPrimitiveName()` collision guard (#403) — and must not raise when it is inactive. (Issue #838
- * removed that diagnostic's `namespace` param; `local` became a binding form under ruling #833.)
+ * `isPrimitiveName()` collision guard (#403) — and must not raise when it is inactive. That
+ * inactive-profile half is SHIPPED BEHAVIOUR, not a spec requirement: `spec/grammar.md:408` makes
+ * every profile's primitives built-in names unconditionally, so a conforming implementation must
+ * raise with or without `sound`; retiring the gate is #841's, which flips those assertions.
+ * (Issue #838 removed that diagnostic's `namespace` param; `local` became a binding form under
+ * ruling #833 and raises nothing at all.)
  */
 
 function parseClean(source) {
