@@ -734,11 +734,11 @@ test("groups arguments by arity and treats unknown names as zero-arity", () => {
 
 // --- Public registries ------------------------------------------------------
 
-test("exposes the reserved-word registry", () => {
-  assert.ok(OL.isReservedWord("define"));
-  assert.ok(OL.isReservedWord("REPEAT"));
-  assert.equal(OL.isReservedWord("wibble"), false);
-  assert.ok(OL.OL_RESERVED_WORDS.includes("map"));
+test("exposes the keyword registry", () => {
+  assert.ok(OL.isKeyword("define"));
+  assert.ok(OL.isKeyword("REPEAT"));
+  assert.equal(OL.isKeyword("wibble"), false);
+  assert.ok(OL.OL_KEYWORDS.includes("map"));
 });
 
 test("exposes the core primitive arities", () => {

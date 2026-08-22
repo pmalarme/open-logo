@@ -42,7 +42,7 @@ import type {
 } from "./ast.js";
 import { walk } from "./ast.js";
 import { parse } from "./parser.js";
-import { isReservedWord } from "./reserved.js";
+import { isKeyword } from "./keywords.js";
 import type { LexToken, LexTokenKind } from "./tokens.js";
 import { tokenize } from "./tokens.js";
 
@@ -106,9 +106,11 @@ export interface Token {
 }
 
 /**
- * Word-spelled operators (`spec/tooling.md:39`): reserved (`and`, `or`, `not`) or not
- * (`mod`), but always `operator`, never `keyword`. Checked before the reserved-word lookup so
- * `and`/`or`/`not` don't fall through to `keyword`.
+ * Word-spelled operators (`spec/tooling.md:39`): `and`, `or`, `not`, and `mod` — always
+ * `operator`, never `keyword`. Checked before the {@link isKeyword} lookup so none of the four
+ * falls through to `keyword`: all four are on the keyword list (`spec/grammar.md:373`), and
+ * `spec/grammar.md:378` makes that list and the `keyword` **token class** "different sets on
+ * purpose", so membership here is what decides the class.
  */
 const WORD_OPERATORS = new Set(["and", "or", "not", "mod"]);
 
@@ -325,7 +327,7 @@ export function highlight(source: string, document = "<input>"): Token[] {
    * `empty`/`member`/`of`/`a` are keywords in reader-recognized positions. `spec/tooling.md:97-99`
    * is the normative highlighter instruction and names two: "only inside an `is`-predicate or the
    * heritage `value of … for key` reader, and as ordinary names elsewhere". This function handles
-   * the first — `spec/grammar.md:230` states its adjacency rule — and
+   * the first — `spec/grammar.md:234` states its adjacency rule — and
    * {@link markValueOfKeyPreposition} below handles the second. `is` itself, `between`, and
    * `strictly` are already globally reserved. The grammar requires each word directly adjacent in
    * the token stream (no `skipNewlines` between them), so once `is` is found the rest are just the
@@ -373,12 +375,12 @@ export function highlight(source: string, document = "<input>"): Token[] {
    * `value of dict for key key_value` among the Heritage grammar forms and states these forms "can
    * contain structural words such as `to`, `of`, `for`, and `key` in fixed grammar slots" — naming
    * `of` a structural word of this production, beside the three siblings that are reserved and so
-   * already `keyword`; and `spec/grammar.md:365` calls this `of` "the contextual preposition in the
+   * already `keyword`; and `spec/grammar.md:380` calls this `of` "the contextual preposition in the
    * heritage `value of … for key` reader".
    *
-   * Not every passage is yet phrased to match. `spec/grammar.md:230` and `:365`,
+   * Not every passage is yet phrased to match. `spec/grammar.md:234` and `:380`,
    * `spec/execution-model.md:154-156`, and `spec/commands.md:461` still scope these four words'
-   * contextual-keyword status to the `is`-predicate — `:365` then adds the reader parenthetical
+   * contextual-keyword status to the `is`-predicate — `:380` then adds the reader parenthetical
    * quoted above, so it has carried that tension since the spec's initial commit, independently of
    * #785. All four are about reader recognition and *reservation* rather than token class:
    * `spec/grammar.md:7` scopes that document to "lexis, reader-visible syntax … and reserved
@@ -395,7 +397,7 @@ export function highlight(source: string, document = "<input>"): Token[] {
    *
    * This is a *classification*, not a reservation: `of` is still not a reserved word, so it stays
    * redefinable and remains an ordinary name outside these two positions (`:of`, `define of`,
-   * `{ of: 2 }`) — see `reserved.ts`, which deliberately omits all four contextual words.
+   * `{ of: 2 }`) — see `keywords.ts`, which deliberately omits all four contextual words.
    *
    * The node's span starts at its own `value` token, and the parser only builds a
    * `ValueOfKeyNode` when `of` is the literal next raw token (`peek(1)`, no `skipNewlines`
@@ -659,7 +661,7 @@ export function highlight(source: string, document = "<input>"): Token[] {
         source_span: token.source_span,
       };
     }
-    if (isReservedWord(lower)) {
+    if (isKeyword(lower)) {
       return {
         class: "keyword",
         text: token.text,

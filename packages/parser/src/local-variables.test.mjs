@@ -1,14 +1,17 @@
-// Unit tests for the `local` declaration statement (issue #56). Confirms the merged parser's
-// exact AST shape for both local-statement forms defined by spec/grammar.md:153
+// Unit tests for the `local` binding statement (issue #56). `local` is a BINDING form, not one of
+// the grammar's four declaration slots (spec/grammar.md:382,386 — maintainer ruling #833), so it
+// registers nothing callable and never raises `ol-reserved-word`; `keyword-binding-forms.test.mjs`
+// pins that. This file confirms the merged parser's exact AST shape for both local-statement forms
+// defined by spec/grammar.md:155
 // (`local-statement ::= "local" name | "(" "local" name { name } ")"`) — a `Local` node whose
 // `names` are `SpannedName`s, not colon-places or `VarRef`s — plus documents, as known-gap unit
-// tests (not conformance fixtures, since the M1 harness is parse-only and the merged parser has
-// no semantic checker), that: (a) an initializer form `local x = 1` is not supported — the
-// parser stops after the bare name and reports `ol-bad-token` at `=`; and (b) using the reserved
-// word `local` as an ordinary identifier (procedure name, variable read) is accepted with zero
-// diagnostics at the parse stage even though spec/grammar.md:367 reserves it, because
-// `ol-reserved-word` is a semantic-stage diagnostic (spec/error-model.md) not yet emitted by any
-// merged checker.
+// tests (not conformance fixtures, since the M1 harness is parse-only), that: (a) an initializer
+// form `local x = 1` is not supported — the parser stops after the bare name and reports
+// `ol-bad-token` at `=`; and (b) using the keyword `local` as an ordinary identifier (procedure
+// name, variable read) is accepted with zero diagnostics at the parse stage, which
+// spec/grammar.md:390 states normatively: the declaration slots "admit them too — `define end` and
+// `struct if` **parse**, and are then rejected by the rule above; that is precisely why
+// `ol-reserved-word` is a semantic diagnostic".
 //
 // Runs under `node --test` against the built `@openlogo/parser` package, exercising only its
 // public `parse` surface.
@@ -20,7 +23,7 @@ import * as OL from "@openlogo/parser";
 const doc = "local-variables.logo";
 const span = (start, end) => ({ document: doc, start, end });
 
-test("local x declares a single local variable as a Local node with one SpannedName", () => {
+test("local x binds a single local variable as a Local node with one SpannedName", () => {
   const { ast, diagnostics } = OL.parse("local x", doc);
 
   assert.deepEqual(diagnostics, []);
@@ -33,7 +36,7 @@ test("local x declares a single local variable as a Local node with one SpannedN
   assert.deepEqual(local.names[0].source_span, span([1, 7], [1, 8]));
 });
 
-test("(local x y z) declares several local variables in one Local node", () => {
+test("(local x y z) binds several local variables in one Local node", () => {
   const { ast, diagnostics } = OL.parse("(local x y z)", doc);
 
   assert.deepEqual(diagnostics, []);
@@ -59,7 +62,7 @@ test("a single local x inside (local x) still produces a Local node with one nam
   assert.equal(local.names[0].name, "x");
 });
 
-test("local declares in a procedure body and the same name is usable as a colon-place afterward", () => {
+test("local binds in a procedure body and the same name is usable as a colon-place afterward", () => {
   const source = "define compute\n  local x\n  :x = 1\n  return :x\nend";
   const { ast, diagnostics } = OL.parse(source, doc);
 
@@ -73,7 +76,7 @@ test("local declares in a procedure body and the same name is usable as a colon-
   assert.equal(body[2].value.name, "x");
 });
 
-test("known gap: local has no initializer form — local x = 1 parses only the bare declaration, then reports ol-bad-token at '='", () => {
+test("known gap: local has no initializer form — local x = 1 parses only the bare binding, then reports ol-bad-token at '='", () => {
   const { ast, diagnostics } = OL.parse("local x = 1", doc);
 
   assert.equal(diagnostics.length, 1);
@@ -81,7 +84,7 @@ test("known gap: local has no initializer form — local x = 1 parses only the b
   assert.deepEqual(diagnostics[0].params, { text: "=" });
   assert.deepEqual(diagnostics[0].source_span, span([1, 9], [1, 10]));
 
-  // The declaration itself still parses as a valid, single-name Local node.
+  // The binding itself still parses as a valid, single-name Local node.
   const local = ast.body[0];
   assert.equal(local.kind, "Local");
   assert.equal(local.names.length, 1);
@@ -119,7 +122,7 @@ test("known gap: (local) with zero names reports ol-bad-token at the closing par
   assert.deepEqual(local.names, []);
 });
 
-test("known gap: local is a reserved word per spec/grammar.md:356,367 but the merged parser has no semantic checker, so using it as an ordinary identifier is accepted with zero diagnostics at the parse stage", () => {
+test("local is a keyword per spec/grammar.md:369, and the reader still admits it as an identifier — the rejection is semantic, not lexical", () => {
   const asVarRead = OL.parse("print :local", doc);
   assert.deepEqual(asVarRead.diagnostics, []);
   assert.equal(asVarRead.ast.body[0].args[0].kind, "VarRef");
@@ -129,8 +132,12 @@ test("known gap: local is a reserved word per spec/grammar.md:356,367 but the me
   assert.deepEqual(asProcName.diagnostics, []);
   assert.equal(asProcName.ast.body[0].kind, "ProcedureDef");
   assert.equal(asProcName.ast.body[0].name.name, "local");
-  // ol-reserved-word (spec/error-model.md) is a semantic-stage diagnostic; no checker is merged
-  // yet, so this collision is not flagged. Tracked as expected M1 scope, not a new bug — see
-  // AGENTS.md's Core-Language build order and the harness note in scripts/harness/index.mjs that
-  // produce() only calls parse().
+  // The two halves diverge only at the semantic stage, and for different reasons. `print :local` is
+  // a variable READ, so what the checker says about it depends on whether `local` is bound — an
+  // unbound read raises `ol-undefined-var` (`spec/error-model.md`), exactly as any other unbound
+  // name would; the keyword spelling changes nothing either way. `define local` is a DECLARATION
+  // slot and raises `ol-reserved-word` from `checker-reserved-word.ts` regardless of any binding.
+  // That both spellings still *parse* is what `declared-callable-name` expanding to plain
+  // `identifier` buys (spec/grammar.md:165,390). Binding positions proper — `local local`,
+  // `:local = 1` — are pinned in `keyword-binding-forms.test.mjs`.
 });

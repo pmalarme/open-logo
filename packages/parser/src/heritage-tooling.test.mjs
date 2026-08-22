@@ -34,11 +34,11 @@
 //      contain structural words such as `to`, `of`, `for`, and `key` in fixed grammar slots" —
 //      naming `of` a structural word beside its three reserved siblings — `spec/tooling.md:30`
 //      opens the `keyword` row with "Structural words recognized by the reader", and
-//      `spec/grammar.md:365` calls it "the contextual preposition in the heritage
+//      `spec/grammar.md:380` calls it "the contextual preposition in the heritage
 //      `value of … for key` reader". Not every passage is yet phrased to match:
-//      `spec/grammar.md:230`, `:365`, `spec/execution-model.md:154-156`, and
+//      `spec/grammar.md:234`, `:380`, `spec/execution-model.md:154-156`, and
 //      `spec/commands.md:461` still scope these words' contextual-keyword status to the
-//      `is`-predicate — a tension `:365` has carried since the spec's initial commit, since it also
+//      `is`-predicate — a tension `:380` has carried since the spec's initial commit, since it also
 //      contains the reader parenthetical. All four govern reader recognition and reservation, not
 //      the token-class model that `spec/tooling.md` owns; tightening them is a maintainer call
 //      raised with the ruling.
@@ -303,7 +303,7 @@ test("highlight: `of` is a keyword in BOTH positions `spec/tooling.md:97-99` nam
 });
 
 test("highlight: `of` outside a reader-recognized position stays an ordinary name, not a keyword", () => {
-  // The other direction of `spec/tooling.md:97-99` / `spec/grammar.md:365`: `of` is *contextual*,
+  // The other direction of `spec/tooling.md:97-99` / `spec/grammar.md:380`: `of` is *contextual*,
   // not reserved, so it remains freely usable as a variable, a procedure name, and a dict key. This
   // is what the reader fix must not break — being `keyword` in one production must not lock the
   // spelling globally the way a reserved word does.

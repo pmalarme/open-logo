@@ -1,5 +1,5 @@
 /**
- * `@openlogo/parser` — lexer, reader, EBNF grammar, AST, reserved words, syntax highlighting,
+ * `@openlogo/parser` — lexer, reader, EBNF grammar, AST, keywords, syntax highlighting,
  * and the syntax/semantic checker. Depends on `@openlogo/core`.
  *
  * ```ts
@@ -80,16 +80,12 @@ export { resolveRecordField } from "./checker-type-field.js";
 export type { RecordFieldAccess } from "./checker-type-field.js";
 
 export {
-  isProfileReservedWord,
-  isReservedWord,
-  OL_PROFILE_RESERVED_WORDS,
-  OL_RESERVED_WORDS,
-} from "./reserved.js";
-export type {
-  ProfileReservedWord,
-  ReservedWord,
-  ReservingProfile,
-} from "./reserved.js";
+  isKeyword,
+  isProfileKeyword,
+  OL_KEYWORDS,
+  OL_PROFILE_KEYWORDS,
+} from "./keywords.js";
+export type { Keyword, KeywordProfile, ProfileKeyword } from "./keywords.js";
 
 export {
   corePrimitiveArity,

@@ -541,23 +541,14 @@
       "fingerprint": "125aa8d3bcc293b4",
       "excerpt": "define to end return output op stop throw",
       "kind": "not-openlogo",
-      "why": "The reserved-word inventory: a bare vocabulary listing (it contains `import`/`export`, which is the only reason the profile detector ever read it as a Modules example), not OpenLogo source. The fence language is wrong — ```text would be right — which this gate reports rather than edits, because spec/ is maintainer-owned. Asserted so the listing cannot change unnoticed while mislabeled.",
+      "why": "The keyword inventory: a bare vocabulary listing (it contains `import`/`export`, which is the only reason the profile detector ever read it as a Modules example), not OpenLogo source. The fence language is wrong — ```text would be right — which this gate reports rather than edits, because spec/ is maintainer-owned. Asserted so the listing cannot change unnoticed while mislabeled. `ol-reserved-word` left the observed set with #837: read as source, the listing's `set make local thing` line is a BINDING of the name `make`, and maintainer ruling #833 makes binding any name legal (spec/grammar.md:386). Nothing about the listing changed — only what the checker says about reading it as a program.",
       "issue": "#888",
       "codes": [
         "ol-bad-token",
         "ol-mismatched-end",
         "ol-missing-end",
-        "ol-reserved-word",
         "ol-stop-outside-proc"
       ]
-    },
-    {
-      "fingerprint": "ea6cc8eb827559e1",
-      "excerpt": ":end = 1",
-      "kind": "implementation-behind",
-      "why": "NOT a spec defect and NOT a teaching example: the spec is right and the implementation is behind. #875 ruled that binding data to any name is always legal — `:end = 1` and `local count` are conforming programs — and this block is the worked example of that ruling. The checker slice that deletes the `bindingCollision` path (#838, sequenced behind #837) has not landed, so the runtime still raises ol-reserved-word for the binding lines. Delete this entry when #838 lands; until then the gate asserts the divergence rather than hiding it.",
-      "codes": ["ol-reserved-word"],
-      "issue": "#838"
     }
   ],
   "spec/interaction-events.md": [

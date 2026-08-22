@@ -35,7 +35,7 @@
 import type { CheckProfile } from "./check.js";
 import type { ProgramNode } from "./ast.js";
 import { walk } from "./ast.js";
-import { OL_RESERVED_WORDS } from "./reserved.js";
+import { OL_KEYWORDS } from "./keywords.js";
 import {
   corePrimitiveNames,
   dataPrimitiveNames,
@@ -140,7 +140,7 @@ export function collectVisibleNames(
     for (const name of corePrimitiveNames()) {
       names.add(name);
     }
-    for (const word of OL_RESERVED_WORDS) {
+    for (const word of OL_KEYWORDS) {
       names.add(word);
     }
   }

@@ -1,5 +1,5 @@
 {
-  "description": "A `struct` type name colliding with a built-in primitive raises `ol-reserved-word` at phase-1 registration (issue #329, `spec/data-structures.md:264`): `forward` is a Turtle primitive, so `struct forward` cannot register a constructor of that name (`namespace: \"primitive\"`).",
+  "description": "A `struct` type name colliding with a built-in primitive raises `ol-reserved-word` at phase-1 registration (issue #329, `spec/data-structures.md:323`): `forward` is a Turtle primitive, so `struct forward` cannot register a constructor of that name (`namespace: \"primitive\"`).",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [],

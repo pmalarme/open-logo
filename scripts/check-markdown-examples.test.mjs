@@ -1087,14 +1087,24 @@ test("a known-broken block passes but is announced on every run", () => {
 test("a spec-ahead-of-implementation block is announced as its own state, not as broken prose", () => {
   // A staged spec-then-code ruling lands the rule before the slice implementing it, so a
   // CONFORMING program still raises for a while. Saying `known-broken` would blame the document.
-  const source = ":end = 1";
+  //
+  // The sample was `:end = 1` when this gate landed, which was the live instance of that state:
+  // #875 ruled binding any name legal while the checker still rejected it. Issue #837 implemented
+  // the ruling, so `:end = 1` is now clean and can no longer demonstrate this reporting path, and
+  // the repository has no block in that state at all (the gate reports "0
+  // spec-ahead-of-implementation"). The specimen below is therefore SYNTHETIC: `define repeat` is a
+  // conforming rejection, not a real spec-ahead divergence, and its `why`/`issue` are fixture text
+  // chosen to exercise the formatter. This test asserts how the `implementation-behind` kind is
+  // ANNOUNCED — the counts, the `SPEC-AHEAD` prefix, the issue in parentheses, the summary line —
+  // not that any such block currently exists.
+  const source = "define repeat\nend";
   writeMarkdown("ruled.md", logoBlock(source));
   const result = runOverTemp({
     [keyFor("ruled.md")]: [
       expectationFor(source, {
         kind: "implementation-behind",
-        issue: "#838",
-        why: "the spec ruled binding a keyword legal; the checker slice has not landed",
+        issue: "#000",
+        why: "synthetic specimen: a staged ruling whose implementing slice has not landed",
         codes: ["ol-reserved-word"],
       }),
     ],
@@ -1104,7 +1114,7 @@ test("a spec-ahead-of-implementation block is announced as its own state, not as
   assert.equal(result.counts.knownBroken, 0);
   assert.match(
     result.lines[0],
-    /^SPEC-AHEAD .*ruled\.md:1 \(#838\): the spec ruled/,
+    /^SPEC-AHEAD .*ruled\.md:1 \(#000\): synthetic specimen/,
   );
   assert.match(result.lines.at(-1), /1 spec-ahead-of-implementation/);
 });

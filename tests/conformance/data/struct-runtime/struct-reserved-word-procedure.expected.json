@@ -1,5 +1,5 @@
 {
-  "description": "A `struct` type name colliding with a user procedure raises `ol-reserved-word` at phase-1 registration (issue #329, `spec/data-structures.md:264`): `foo` is already a procedure, so `struct foo` cannot also register a constructor of that name (`namespace: \"procedure\"`).",
+  "description": "A `struct` type name colliding with a user procedure raises `ol-reserved-word` at phase-1 registration (issue #329, `spec/data-structures.md:323`): `foo` is already a procedure, so `struct foo` cannot also register a constructor of that name (`namespace: \"procedure\"`).",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [],

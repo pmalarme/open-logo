@@ -1,10 +1,13 @@
-// Unit tests for worded is-predicates (issue #53), per spec/grammar.md:181-184,230 and
+// Unit tests for worded is-predicates (issue #53), per spec/grammar.md:185-188,234 and
 // spec/execution-model.md:148-152. `coverage.test.mjs` already exercises the four predicate forms'
 // happy paths and their per-form syntax-error recovery; this file targets what that leaves
 // untested: exact source spans for every form (operand-inclusive span, `test.type`/`low`/`high`
 // sub-spans), the predicate used as an `if` condition and as an assignment value (not just a bare
 // `print` argument), the contextual keywords (`empty`, `member`, `of`, `a`) staying usable as
-// ordinary names outside an `is`-predicate per spec/grammar.md:230, precedence against `and`/`or`
+// ordinary names in the plain read and call positions exercised below when they do not directly
+// follow `is` (spec/grammar.md:234; `of` is additionally structural in the Heritage
+// `value of … for key` reader, spec/grammar.md:380, which is out of scope here), precedence against
+// `and`/`or`
 // (the predicate binds at the comparison level, tighter than both), and a known parser gap this
 // slice discovered (duplicate `ol-bad-token` for `is member` with no `of` and no valid collection).
 //
@@ -122,9 +125,12 @@ test("is-predicates bind tighter than `and`/`or`: parenthesized predicates combi
   assert.equal(call.args[1].test.form, "a");
 });
 
-test("the contextual keywords `empty`, `member`, `of`, and `a` remain ordinary names outside `is` (spec/grammar.md:230)", () => {
-  // None of these four are in OL_RESERVED_WORDS (only `is`, `between`, `strictly` are), so they
-  // parse as plain call/variable names when not immediately following `is`.
+test("the contextual keywords `empty`, `member`, `of`, and `a` are ordinary names in plain read/call position (spec/grammar.md:234)", () => {
+  // None of these four are in OL_KEYWORDS (only `is`, `between`, `strictly` are), so they
+  // parse as plain call/variable names when not immediately following `is`. Scope note: this
+  // asserts the read/call positions below, not "everywhere outside `is`" — `of` is additionally
+  // structural as the preposition of the Heritage `value of … for key` reader
+  // (spec/grammar.md:380), which `heritage-tooling.test.mjs` and `value-of-key.test.mjs` cover.
   let { ast, diagnostics } = OL.parse("print :empty", doc);
   assert.deepEqual(diagnostics, []);
   assert.equal(ast.body[0].args[0].kind, "VarRef");

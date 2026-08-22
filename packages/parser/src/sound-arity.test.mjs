@@ -269,15 +269,16 @@ test("a define colliding with a Sound primitive raises ol-reserved-word", () => 
   }
 });
 
-test("a local colliding with a Sound primitive raises ol-reserved-word", () => {
+test("a local naming a Sound primitive is a binding, so it raises nothing", () => {
+  // Reversed by maintainer ruling #833 (issue #837): `local` is a binding form, not a declaration
+  // slot, and `spec/grammar.md:386` makes accepting the name a MUST. The `define`/`struct` rows
+  // above are the declaration slots and keep their collision assertions.
   for (const name of ["set_tempo", "beep", "note", "rest", "play"]) {
     const ast = parseClean(`define greet\n  local ${name}\nend`);
     const { diagnostics } = OL.check(ast, {
       profiles: ["core-language", "sound"],
     });
-    assert.equal(diagnostics.length, 1);
-    assert.equal(diagnostics[0].code, "ol-reserved-word");
-    assert.equal(diagnostics[0].params.namespace, "primitive");
+    assert.deepEqual(diagnostics, []);
   }
 });
 

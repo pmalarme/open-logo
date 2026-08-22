@@ -1,0 +1,22 @@
+{
+  "description": "ol-reserved-word (issue #837, maintainer ruling #833): DECLARING `mod` collides, with `namespace: \"reserved\"` -- the same namespace as its siblings `and`/`or`/`not`, NOT `\"primitive\"`. All four are word-spelled operators of the expression grammar rather than callable primitives (spec/grammar.md:378), and `mod` was the only one of the four missing from the keyword list, which is why `define mod` checked clean before this slice while `define and` already raised. Its token class is a separate, independent axis and does NOT change -- `mod` stays `operator`, exactly as `and` does, because spec/grammar.md:378 makes the `keyword` token class and the keyword list \"different sets on purpose\". Binding and calling `mod` are unaffected: keyword-mod-binds-and-calls-freely pins those. `\"check\": true` (semantic-checker only) -- nothing is executed and no events are produced.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "core-language/check/reserved-word-define-mod",
+        "start": [1, 8],
+        "end": [1, 11]
+      },
+      "params": {
+        "name": "mod",
+        "namespace": "reserved"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

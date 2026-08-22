@@ -178,12 +178,12 @@ test("#742: alias resolution is depth-1 — no canonical spelling is itself an a
 });
 
 test("#742: an alias collides from every registration form its canonical does", () => {
-  // `define` is not the only registration: `local` and `struct` route through the same
-  // `collidingNamespace`, so the alias must behave identically at all three or the shadow simply
-  // moves to whichever form was missed.
+  // `define` is not the only declaration slot: `struct` routes through the same
+  // `collidingNamespace`, so the alias must behave identically at both or the shadow simply
+  // moves to whichever form was missed. (`local` was a third row here until maintainer ruling
+  // #833 / issue #837 made it a binding form — see `keyword-binding-forms.test.mjs`.)
   for (const [label, aliasSource, canonicalSource] of [
     ["define", "define pr\nend\n", "define print\nend\n"],
-    ["local", "local pr\n", "local print\n"],
     ["struct", "struct pr [ x ]\n", "struct print [ x ]\n"],
   ]) {
     const aliasFindings = reservedWordFindings(aliasSource, ALL_PROFILES);

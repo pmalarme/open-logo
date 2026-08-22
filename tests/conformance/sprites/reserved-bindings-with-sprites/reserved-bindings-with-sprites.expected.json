@@ -1,53 +1,7 @@
 {
-  "description": "issue #739 (Epic Gate finding B3 on epic #660): with `sprites` active, `tell`/`ask`/`each` are profile reserved words, so binding any of them as a VARIABLE raises `ol-reserved-word` — the third of the three cases spec/turtles-and-sprites.md:154 names (\"programs MUST NOT redefine them as variables, procedures, or struct constructors\"), and the one that was unmet while `sprites` was already claimed. #679's reserved-procedures-*/reserved-struct-* fixtures cover the procedure and struct constructor cases; this pair covers the variable case, across three of the surface forms that create one: assignment's colon-place (`:tell = 1`), its bare-place spelling (`set ask to 2`), and a `for … in` binder (`for each in …`). The remaining forms — `for … from … to`, comprehension binders, the `reduce` accumulator, destructuring names, parameters, and Heritage `make` — are covered by core-language/check/reserved-word-binding-forms and the parser unit tests. One diagnostic per binding, each pointing at the bound name with `namespace` `reserved`. Paired with reserved-bindings-without-sprites, which semantically CHECKS this exact source under Core alone and is clean: together they prove the rule is gated on the active profile, not unconditional. `\"check\": true` (semantic-checker only) because this is a checker rule — no sprite is ever created and no events are produced.",
+  "description": "issue #837 (maintainer ruling #833), reversing issue #739 / Epic-Gate finding B3 on epic #660: with `sprites` active, binding `tell`/`ask`/`each` as a VARIABLE is ACCEPTED. spec/grammar.md:386 makes every binding form accept any name -- including a keyword, a primitive, or an alias spelling of one -- as a normative MUST, so the three surface forms here (assignment's colon-place `:tell = 1`, its bare-place spelling `set ask to 2`, and a `for ... in` binder) all check clean. This is the reason spec/turtles-and-sprites.md:154's older \"MUST NOT redefine them as variables\" wording in the profile document is being realigned by issue #855: what a profile decides is whether a name WORKS, never whether a program may declare it (spec/grammar.md:408), and a binding declares nothing. The procedure and struct-constructor cases are unchanged and still raise -- see reserved-procedures-with-sprites and reserved-struct-with-sprites, which are the declaration slots. Paired with reserved-bindings-without-sprites: both are now clean, which is the point -- binding freedom is profile-independent. `\"check\": true` (semantic-checker only) -- no sprite is created and no events are produced.",
   "profiles": ["core-language", "turtle-rendering", "sprites"],
   "check": true,
   "events": [],
-  "diagnostics": [
-    {
-      "code": "ol-reserved-word",
-      "source_span": {
-        "document": "sprites/reserved-bindings-with-sprites/reserved-bindings-with-sprites",
-        "start": [1, 1],
-        "end": [1, 6]
-      },
-      "params": {
-        "name": "tell",
-        "namespace": "reserved"
-      },
-      "message": "tell is already a reserved, so it can't be redefined here.",
-      "stage": "semantic",
-      "severity": "error"
-    },
-    {
-      "code": "ol-reserved-word",
-      "source_span": {
-        "document": "sprites/reserved-bindings-with-sprites/reserved-bindings-with-sprites",
-        "start": [2, 5],
-        "end": [2, 8]
-      },
-      "params": {
-        "name": "ask",
-        "namespace": "reserved"
-      },
-      "message": "ask is already a reserved, so it can't be redefined here.",
-      "stage": "semantic",
-      "severity": "error"
-    },
-    {
-      "code": "ol-reserved-word",
-      "source_span": {
-        "document": "sprites/reserved-bindings-with-sprites/reserved-bindings-with-sprites",
-        "start": [3, 5],
-        "end": [3, 9]
-      },
-      "params": {
-        "name": "each",
-        "namespace": "reserved"
-      },
-      "message": "each is already a reserved, so it can't be redefined here.",
-      "stage": "semantic",
-      "severity": "error"
-    }
-  ]
+  "diagnostics": []
 }

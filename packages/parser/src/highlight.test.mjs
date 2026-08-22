@@ -9,7 +9,7 @@
 //   * all 5 bracket delimiter roles: list, instruction-block, selector, pattern, field-list;
 //   * contextual reserved words in/out of `is`-predicate position (spec/tooling.md:96-99); `of`'s
 //     second reader-recognized position, the Heritage `value of … for key` reader
-//     (spec/grammar.md:365), is proven in `heritage-tooling.test.mjs` (issue #785);
+//     (spec/grammar.md:380), is proven in `heritage-tooling.test.mjs` (issue #785);
 //   * comment/string atomicity (spec/tooling.md:25-26);
 //   * negative-literal-as-number merging vs. genuine binary subtraction; and
 //   * the semantic bucket (#120): procedure-name (declaration + resolved calls), type-name
@@ -459,7 +459,7 @@ test("role field-list vs role list: `struct` is not special-cased when the brack
   );
 });
 
-// --- Contextual reserved words (spec/tooling.md:96-99; `of` also spec/grammar.md:365) --------
+// --- Contextual reserved words (spec/tooling.md:96-99; `of` also spec/grammar.md:380) --------
 
 test("contextual: empty/member/a are keyword only immediately after is, and so is `of` there", () => {
   assert.equal(
@@ -513,7 +513,7 @@ test("contextual: `to` is a keyword everywhere it is used (heritage opener, set.
   // spec/tooling.md:96 documents `to` as playing two grammatical roles (the heritage procedure
   // opener and the `set .../for ...` slot word) but — unlike empty/member/of/a — never carves out
   // an "ordinary name elsewhere" exception for it; `to` stays in the Core reserved-word list
-  // (reserved.ts) in every position, so the highlighter classifies it as keyword uniformly.
+  // (keywords.ts) in every position, so the highlighter classifies it as keyword uniformly.
   assert.equal(
     OL.highlight("to square :n\n  output :n\nend", doc)[0].class,
     "keyword",

@@ -1,0 +1,13 @@
+# Two declaration slots interleaved, so the rule's find order is exercised across BOTH node kinds
+# rather than within one. The three declarations below are `define repeat`, then `struct if`, then
+# `define while`, and the three findings MUST come out in that order. This is the guard the
+# `.sort(compareBySpanStart)` used to provide; issue #837 removed the sort when procedure PARAMETERS
+# stopped being checked (that was its only out-of-order case), leaving the walk's pre-order to carry
+# the promise on its own -- so the promise needs a mixed-kind fixture to stay honest.
+define repeat
+  print 1
+end
+struct if [ x y ]
+define while
+  print 2
+end

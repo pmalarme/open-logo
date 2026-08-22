@@ -1,5 +1,5 @@
 {
-  "description": "A second `struct` declaring an already-declared type name raises `ol-reserved-word` at phase-1 registration (issue #329, `spec/data-structures.md:264`): the type name registers a constructor in the callable namespace, so `struct point` declared twice collides (`namespace: \"struct\"`).",
+  "description": "A second `struct` declaring an already-declared type name raises `ol-reserved-word` at phase-1 registration (issue #329, `spec/data-structures.md:323`): the type name registers a constructor in the callable namespace, so `struct point` declared twice collides (`namespace: \"struct\"`).",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [],

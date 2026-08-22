@@ -1,5 +1,5 @@
 {
-  "description": "The unparenthesized local-statement form (local name) declares a single local variable with no diagnostics, per spec/grammar.md:153",
+  "description": "The unparenthesized local-statement form (local name) declares a single local variable with no diagnostics, per spec/grammar.md:155",
   "profiles": ["core-language"],
   "expect": "match",
   "events": [],

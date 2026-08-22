@@ -17,7 +17,7 @@ Scoped rules for files under `packages/parser/`. Read the always-on
 
 ## Responsibility
 Turn `.logo` text into structure and static findings. Owns the **lexer/reader**, the **EBNF grammar**,
-the **AST**, the **reserved-word registry**, the **syntax highlighter** (token classes), and the
+the **AST**, the **keyword registry**, the **syntax highlighter** (token classes), and the
 **syntax + semantic checker** (parse and semantic lint, plus `ol-style-*` style lints).
 
 ## Spec (normative)
@@ -34,7 +34,10 @@ the **AST**, the **reserved-word registry**, the **syntax highlighter** (token c
 ## Boundaries
 - Depends on **`@openlogo/core`** (diagnostics, values) only — never on `runtime`/`turtle`/`studio`.
 - **Highlighting and checking classify from the grammar**, not ad-hoc regex.
-- The reserved-word list is the single C19 registry shared by highlighter and checker — do not fork it.
+- The keyword list (`src/keywords.ts`) is the single registry shared by highlighter and checker — do
+  not fork it. It answers one question only: *may a program **declare** this name?* Binding a
+  built-in name is free in every position (`spec/grammar.md:363,386`), and the `keyword` token class
+  is a separate axis (`mod` and `and` are keywords painted `operator`).
 
 ## Conventions
 - Every AST node carries a `source_span`; one grammar production ↔ one node.

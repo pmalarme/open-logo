@@ -370,8 +370,8 @@ test("check: redefining an Interaction block-head is allowed under Core-only (no
 });
 
 test("check: `wait` is a primitive, so redefining it under an active profile raises ol-reserved-word", () => {
-  // `wait` is NOT a reserved block-head (contrast the four heads above — it never appears in
-  // `OL_PROFILE_RESERVED_WORDS`), but `spec/tooling.md:184` makes redefining a *primitive*
+  // `wait` is NOT a profile block-head (contrast the four heads above — it never appears in
+  // `OL_PROFILE_KEYWORDS`), but `spec/tooling.md:184` makes redefining a *primitive*
   // `ol-reserved-word` all the same, with `namespace: "primitive"` rather than `"reserved"`.
   // Sound's identically-shaped `set_tempo`, Geometry's `grid`, and Data's `list` already behaved
   // this way; before I8 `wait` was the only one of those four profiles' primitives a program could
