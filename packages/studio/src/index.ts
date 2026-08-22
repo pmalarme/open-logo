@@ -243,6 +243,30 @@
  *   instead of rendering `runStatus` raw, staying a thin, branch-free wiring layer.
  * - `a11y.ts`'s `describeRunStatus` gains the matching `"Run complete."` announcement for the new
  *   `"done"` value, keeping the existing `aria-live` announcement in sync with the visible label.
+ *
+ * #769 wires the studio's prompt UI to the blocking `input` reader seam #681 shipped in
+ * `@openlogo/runtime`, so a learner in the browser can actually answer `input "what is your name?"`:
+ * - {@link createInputPromptController} (`input-prompt.ts`) is the headless prompt: an
+ *   {@link InputPromptHost} the run controller `present()`s an outstanding read through, plus the
+ *   {@link InputPromptView} a renderer paints and the {@link INPUT_PROMPT_FOCUS_ORDER} focus scope
+ *   that keeps it keyboard-operable. `submit()`/`cancel()` are the learner's two endings, and
+ *   `cancel()` maps onto the runtime reader's own `undefined` — the read ends unanswered, which
+ *   cancels the run (`spec/interaction-events.md:110-111`).
+ * - {@link RunControllerOptions.inputPrompt} is how that host reaches the run controller. Supplying
+ *   it installs `ExecuteOptions.hostInput.read`; omitting it changes nothing at all. The runtime's
+ *   reader is synchronous and `execute()` never yields, so the run controller reconciles the two
+ *   with an **attempt chain** rather than by changing runtime semantics — see `run-controller.ts`'s
+ *   doc comment ("#769") for why replaying the captured source is observationally equivalent to
+ *   blocking **for a program whose replayed prefix is deterministic**, and issue **#881** for the
+ *   scoped limitation when it is not (already-drawn output can change, and so can the question).
+ *   {@link resolveRecordedAnswer} is the one tested place that decides how a read draws from the
+ *   chain's accumulated answers — an answer is reused only when it was given for that same prompt at
+ *   that same position, so a diverged replay can never apply it to a question the learner was not
+ *   shown, though the answer itself may be discarded and the question re-asked (#881).
+ * - `index.html`/`web/main.ts`/`web/styles.css` add the real prompt: a native modal `<dialog>` whose
+ *   accessible name is the program's own question, an autofocused answer field, and Escape/Cancel
+ *   routed to `cancel()`. It is closed — and so absent from both the layout and the accessibility
+ *   tree — until a program actually asks something.
  */
 
 export type {
@@ -313,12 +337,36 @@ export {
   createParserHighlighter,
 } from "./highlighter.js";
 
-export type { RunController, RunControllerOptions } from "./run-controller.js";
+export type {
+  RecordedAnswer,
+  RecordedAnswerResolution,
+  RunController,
+  RunControllerOptions,
+} from "./run-controller.js";
 export {
   DEFAULT_RUN_DOCUMENT,
+  MAX_INPUT_REPLAY_RETRIES,
   createRunController,
   mountRunController,
+  resolveRecordedAnswer,
 } from "./run-controller.js";
+
+export type {
+  InputPromptController,
+  InputPromptHost,
+  InputPromptRequest,
+  InputPromptResponder,
+  InputPromptView,
+  InputPromptViewListener,
+} from "./input-prompt.js";
+export {
+  INPUT_PROMPT_CANCEL_LABEL,
+  INPUT_PROMPT_FIELD_LABEL,
+  INPUT_PROMPT_FOCUS_ORDER,
+  INPUT_PROMPT_SUBMIT_LABEL,
+  createInputPromptController,
+  mapInputPromptRequestToView,
+} from "./input-prompt.js";
 
 export type {
   Persistence,
