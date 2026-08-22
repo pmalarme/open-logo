@@ -26,11 +26,15 @@
 //      whether it is reportable at all (`spec/tooling.md:185`), so `define who` now collides under
 //      an active profile exactly as `define grid`/`define wait` do — and stays legal without it.
 //
-// Highlighting is **profile-blind by design** — `highlight()`/`semanticTokens()` take no profile
-// argument (`spec/tooling.md:26`, and lines 175-176 scope profile-awareness to the *checker*/reader,
-// not the highlighter). So every one of the six names classifies as `primitive` +
-// `defaultLibrary`, exactly as `when`/`every` (Interaction) and the Sound commands do — never
-// `keyword`, which the highlighter reserves for the profile-independent Core keywords. This
+// Highlighting is currently **profile-blind** — `highlight()`/`semanticTokens()` take no profile
+// argument — so every one of the six names classifies as `primitive` + `defaultLibrary`, exactly as
+// `when`/`every` (Interaction) and the Sound commands do. Note this is a KNOWN DEVIATION from the
+// normative token-class model, not the final word: `spec/tooling.md:30` puts the profile block-heads
+// and the mode-switch command `tell` in the `keyword` class while their profile is active, so under
+// an active `sprites` profile those three SHOULD ultimately be `keyword`. The parser cannot express
+// that yet — giving the highlighter a profile set changes one of the four shared cross-package
+// contracts and is tracked as its own serialized slice, issue #740. The reporters are unaffected
+// either way: they are ordinary primitives, so `primitive` is their correct final class. This
 // mirrors the reusable shape `sound-tooling.test.mjs` established for the M5 tooling slices.
 //
 // Every name is exercised in **awkward positions** — inside a `[ … ]` instruction block, inside

@@ -450,6 +450,9 @@ test("highlight: a short alias name is never a keyword — it can be redefined a
   // Reserved block-heads always highlight `keyword`; the short aliases are NOT reserved words, so a
   // user procedure literally named `fd` resolves to `procedure-name` at its declaration and call —
   // proving the alias is classified by name/role, not locked to `primitive` the way a keyword is.
+  // (Declaring `fd` is accepted only because the Turtle & Rendering table is not yet consulted —
+  // shipped behaviour that `spec/grammar.md:408` retracts, retired by #841. This test is about token
+  // recovery for such a declaration, not about its legality.)
   const tokens = OL.highlight("define fd\nend\nfd", doc).filter(
     (t) => t.text === "fd",
   );

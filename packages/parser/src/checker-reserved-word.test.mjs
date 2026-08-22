@@ -19,11 +19,13 @@
 // `OL_CHECK_PROFILES` — rather than a hand-kept list, so a future slice that adds an alias or a
 // Sprites reporter is pulled into this guard automatically instead of quietly escaping it.
 //
-// **Turtle & Rendering is deliberately still not consulted** (issue #783, awaiting a maintainer
-// ruling): `define forward` is accepted, so `define fd` is accepted too. That is asserted here as an
+// **Turtle & Rendering is deliberately still not consulted** (issue #783): `define forward` is
+// accepted, so `define fd` is accepted too. The normative question is settled — `spec/grammar.md:408`
+// and `spec/tooling.md:185` make every profile's primitives built-in names unconditionally — so what
+// remains is implementation, tracked with the always-on list in #841. That is asserted here as an
 // explicit, intentional pairing rather than left to fall out silently — see the "tracks its
 // canonical" test, which pins the *relationship*, not today's answer, and so keeps passing
-// unchanged on the day #783 wires `turtlePrimitiveArity` in.
+// unchanged on the day #783/#841 wires `turtlePrimitiveArity` in.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -138,11 +140,12 @@ test("#742: no Heritage alias collides while the heritage profile is inactive", 
 
 test("#742: an alias tracks its canonical for Turtle & Rendering too — both accepted, together (#783)", () => {
   // The scope boundary, asserted rather than assumed. `fd` aliases `forward`, a Turtle & Rendering
-  // primitive whose table `collidingNamespace` deliberately does NOT consult while #783 awaits a
-  // maintainer ruling. Because the fix resolves to the canonical instead of keeping its own table,
-  // `define fd` is accepted *because* `define forward` is — and on the day #783 wires
-  // `turtlePrimitiveArity` in, both flip together with no edit to the Heritage branch. This test
-  // asserts the pairing, so it passes before and after that ruling; the per-name answer is pinned by
+  // primitive whose table `collidingNamespace` deliberately does NOT consult; #833/#875 settled the
+  // rule normatively (profile primitives are built-in names unconditionally) and #841 lands the
+  // implementation. Because the fix resolves to the canonical instead of keeping its own table,
+  // `define fd` is accepted *because* `define forward` is — and on the day that table is wired in,
+  // both flip together with no edit to the Heritage branch. This test
+  // asserts the pairing, so it passes before and after that change; the per-name answer is pinned by
   // the conformance fixtures instead.
   const turtleAliases = OL.heritageAliasNames().filter(
     (alias) =>
@@ -249,6 +252,9 @@ test("#746: every Sprites reporter collides as a primitive while sprites is acti
 });
 
 test("#746: no Sprites reporter collides while the sprites profile is inactive", () => {
+  // Shipped behaviour, not a spec requirement: `spec/grammar.md:408` makes profile primitives
+  // built-in names unconditionally, so a conforming implementation must raise here too. #841 flips
+  // this assertion when it lands the always-on list.
   for (const reporter of SPRITES_REPORTERS) {
     assert.deepEqual(
       reservedWordFindings(`define ${reporter}\nend\n`, CORE_ONLY),

@@ -113,9 +113,11 @@ const EXPRESSION_INITIAL_KEYWORDS: ReadonlySet<string> = new Set<string>([
  * has no hand-maintained exceptions at all.
  *
  * Scope is the **global Core registry only**. {@link OL_PROFILE_KEYWORDS} (`ask`/`each`/`tell`, the
- * four event heads) is deliberately excluded: those words are keywords only while their profile is
- * active, and this reader is profile-blind by design (see {@link PROFILE_STATEMENT_FORMS}) — a
- * Core-only program may legally `define ask … end` and call it. Rejecting them in value position is
+ * four event heads) is deliberately excluded: this reader is profile-blind by design (see
+ * {@link PROFILE_STATEMENT_FORMS}), so a Core-only program's `define ask … end` and its call are
+ * currently accepted. That acceptance is shipped behaviour, not what the spec requires —
+ * `spec/grammar.md:408` makes profile words built-in names unconditionally, and retiring the gate is
+ * #841's. Rejecting them in value position is
  * the profile-aware checker's job, not this set's (issue #864).
  *
  * The statement heads stay unaffected because {@link parseStatement} dispatches `add`/`remove`/
