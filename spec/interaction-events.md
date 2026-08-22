@@ -23,7 +23,7 @@ The **Interaction & Events** profile contains:
 
 | Form | Kind | Args | Result | Required by |
 |---|---:|---|---|---|
-| `input <prompt>` | R | prompt | word or number | Interaction & Events |
+| `input <prompt-word>` | R | prompt-word | word or number | Interaction & Events |
 | `when <event-word> <block>` | S | event-word, block | — | Interaction & Events |
 | `every <n> <block>` | S | number, block | — | Interaction & Events |
 | `on_key <key-word> <block>` | S | key-word, block | — | Interaction & Events |
@@ -50,7 +50,7 @@ because a profile decides whether such a word *works*, never whether a program m
 
 When the Interaction & Events profile is active, the Core `statement` production (see [grammar.md](grammar.md#profile-grammar-extensions)) gains these forms. They reuse the Core `expression`, `bracket-block`, `statement`, and `terminator` productions.
 
-```logo
+```ebnf
 interaction-statement ::= when-statement | every-statement
                         | on-key-statement | on-click-statement
 when-statement        ::= "when" expression event-block-tail
@@ -123,7 +123,7 @@ emit `primitive` events after the handler is registered.
 
 ## Interaction primitives
 
-### `input <prompt>`
+### `input <prompt-word>`
 
 - **Kind:** reporter
 - **Args:** one prompt, which MUST be a `word`

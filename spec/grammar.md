@@ -48,7 +48,7 @@ Horizontal whitespace and indentation are insignificant except as token separato
 
 The grammar below uses W3C/ISO-style EBNF. Literal terminals are quoted. `? name ?` denotes a lexical class or semantic predicate described in prose. `{ x }` means zero or more repetitions. `[ x ]` means an optional item. `(* x *)` is a comment. In the EBNF itself these meta-brackets are notation, not OpenLogo source brackets.
 
-```logo
+```ebnf
 name                ::= identifier
 identifier          ::= ascii-identifier | unicode-identifier
 ascii-identifier    ::= ( "a"..."z" | "_" ) { "a"..."z" | "0"..."9" | "_" } [ "?" | "!" ]
@@ -176,7 +176,7 @@ forward random 100
 
 Expression grammar:
 
-```logo
+```ebnf
 expression          ::= or-expression
 or-expression       ::= and-expression { "or" and-expression }
 and-expression      ::= comparison { "and" comparison }
@@ -364,7 +364,7 @@ Together, keywords and primitives are the **built-in names**. One rule governs t
 
 The normative OpenLogo keyword list is:
 
-```logo
+```text
 define to end return output op stop throw
 set make local thing
 if else while repeat for forever in from at by

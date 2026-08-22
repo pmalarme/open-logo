@@ -157,7 +157,7 @@ Sprite `ask` addresses turtles. User input is the `input` reporter in the [Inter
 
 When the Sprites profile is active, the Core `statement` production (see [grammar.md](grammar.md#profile-grammar-extensions)) gains these forms. They reuse the Core `expression`, `bracket-block`, `statement`, and `terminator` productions.
 
-```logo
+```ebnf
 sprites-statement   ::= tell-statement | ask-statement | each-statement
 tell-statement      ::= "tell" expression
 ask-statement       ::= "ask" expression sprites-block-tail

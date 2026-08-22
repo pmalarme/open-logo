@@ -219,12 +219,11 @@
       "setup": ":ages = { tom: 8 }\n:who = \"tom\""
     },
     {
-      "fingerprint": "c5c253e6b881681e",
+      "fingerprint": "4eb473f785e8d38a",
       "excerpt": ":people = dict",
       "kind": "deliberate-error",
-      "why": "Block comment '# error: the intermediate key tom is missing'. The prose above states that a missing intermediate container raises ol-unknown-key because OpenLogo does not auto-vivify. This is the one block the gate reports PARTIAL: the halt IS the lesson, so it cannot be given context, and the corrected '# ok:' example below it therefore never executes. Splitting it into two fenced blocks is a spec/ edit, tracked on #888.",
-      "codes": ["ol-unknown-key"],
-      "issue": "#888"
+      "why": "Block comment '# error: the intermediate key tom is missing'. The prose above states that a missing intermediate container raises ol-unknown-key because OpenLogo does not auto-vivify. Issue #888 split the original block in two, so the halt is now all this block demonstrates and it is no longer PARTIAL: the corrected '# ok:' construction is the separate block below it, which runs clean and needs no entry at all.",
+      "codes": ["ol-unknown-key"]
     },
     {
       "fingerprint": "6b6c5107d7a8d96c",
@@ -445,39 +444,12 @@
       "codes": ["ol-undefined-var"]
     },
     {
-      "fingerprint": "c59e7c7481b9889e",
-      "excerpt": "name                ::= identifier",
-      "kind": "not-openlogo",
-      "why": "EBNF production rules for the lexical grammar, fenced as ```logo. The fence language is wrong (```ebnf / ```text), which this gate reports (issue #888) rather than edits: spec/ is maintainer-owned. Asserted so the block cannot change unnoticed while mislabeled.",
-      "codes": [
-        "ol-bad-token",
-        "ol-not-enough-inputs",
-        "ol-unclosed-string",
-        "ol-unknown-command",
-        "ol-unmatched-paren"
-      ],
-      "issue": "#888"
-    },
-    {
       "fingerprint": "bf36b07cc9488524",
       "excerpt": "forward random 100",
       "kind": "prose-fragment",
       "why": "Excerpt, not a whole program: `:a` and `:b` are never assigned anywhere in this document — the entry illustrates a form, not a runnable program. Its `setup` preamble supplies the rest of that context, so the block runs to completion.",
       "codes": [],
       "setup": ":a = 1\n:b = 2"
-    },
-    {
-      "fingerprint": "c49eaa82caedca0c",
-      "excerpt": "expression          ::= or-expression",
-      "kind": "not-openlogo",
-      "why": "EBNF production rules for the expression grammar, fenced as ```logo. Same mislabeled-fence defect as the block above; reported, not edited.",
-      "codes": [
-        "ol-bad-token",
-        "ol-not-enough-inputs",
-        "ol-unknown-command",
-        "ol-unmatched-paren"
-      ],
-      "issue": "#888"
     },
     {
       "fingerprint": "6a13142b53785bd1",
@@ -525,30 +497,9 @@
       "why": "Excerpt, not a whole program: `:nums` is assigned in another block of this document. Its `setup` preamble supplies the rest of that context, so the block runs to completion.",
       "codes": [],
       "setup": ":nums = [1 2 3]"
-    },
-    {
-      "fingerprint": "125aa8d3bcc293b4",
-      "excerpt": "define to end return output op stop throw",
-      "kind": "not-openlogo",
-      "why": "The keyword inventory: a bare vocabulary listing (it contains `import`/`export`, which is the only reason the profile detector ever read it as a Modules example), not OpenLogo source. The fence language is wrong — ```text would be right — which this gate reports rather than edits, because spec/ is maintainer-owned. Asserted so the listing cannot change unnoticed while mislabeled. `ol-reserved-word` left the observed set with #837: read as source, the listing's `set make local thing` line is a BINDING of the name `make`, and maintainer ruling #833 makes binding any name legal (spec/grammar.md:386). Nothing about the listing changed — only what the checker says about reading it as a program.",
-      "issue": "#888",
-      "codes": [
-        "ol-bad-token",
-        "ol-mismatched-end",
-        "ol-missing-end",
-        "ol-stop-outside-proc"
-      ]
     }
   ],
   "spec/interaction-events.md": [
-    {
-      "fingerprint": "871bdf7c5030c999",
-      "excerpt": "interaction-statement ::= when-statement | every-statement",
-      "kind": "not-openlogo",
-      "why": "EBNF production rules for the Interaction & Events statements, fenced as ```logo. Same mislabeled-fence defect; reported, not edited.",
-      "codes": ["ol-bad-token", "ol-mismatched-end", "ol-unknown-command"],
-      "issue": "#888"
-    },
     {
       "fingerprint": "9d7bac193fa088f2",
       "excerpt": ":name = input \"what is your name?\"",
@@ -783,19 +734,6 @@
       "why": "Excerpt, not a whole program: `:t` is assigned in another block of this document. Its `setup` preamble supplies the rest of that context, so the block runs to completion.",
       "codes": [],
       "setup": ":t = new_turtle"
-    },
-    {
-      "fingerprint": "6d946969ffa69164",
-      "excerpt": "sprites-statement   ::= tell-statement | ask-statement | each-statement",
-      "kind": "not-openlogo",
-      "why": "EBNF production rules for the Sprites statements, fenced as ```logo. Same mislabeled-fence defect; reported, not edited.",
-      "codes": [
-        "ol-bad-token",
-        "ol-mismatched-end",
-        "ol-missing-end",
-        "ol-unknown-command"
-      ],
-      "issue": "#888"
     }
   ]
 }
