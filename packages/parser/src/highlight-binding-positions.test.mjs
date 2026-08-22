@@ -369,6 +369,11 @@ test("degradation boundary: an INCOMPLETE binding form keeps the old fallback cl
   // BOTH fallbacks are pinned, keyword and primitive: the primitive half is the one AC1's table
   // cared about most (`set count to 5`, `local forward`), so a row set that only ever spelled the
   // word `if` would leave the more important half of the boundary unasserted.
+  //
+  // Every row must DISCRIMINATE — the word has to be one that flips to `:variable` once the form
+  // is completed. A block head such as `local` is `keyword` on both sides of the boundary, so a
+  // row for it would assert nothing this test exists to pin (that the head never gets repainted
+  // is pinned by the `( local a b )` test above, which admits exactly two `:variable` tokens).
   for (const [source, word, expected] of [
     ["set if to\n", "if", "keyword"],
     ["set if\n", "if", "keyword"],
@@ -377,7 +382,6 @@ test("degradation boundary: an INCOMPLETE binding form keeps the old fallback cl
     ["print map if in\n", "if", "keyword"],
     ["for if from 1 to\n", "if", "keyword"],
     ["set count to\n", "count", "primitive"],
-    ["local\n", "local", "keyword"],
     ["for fd in\n", "fd", "primitive"],
     ["print map hint in\n", "hint", "primitive"],
     ["set counter to\n", "counter", "primitive"],
