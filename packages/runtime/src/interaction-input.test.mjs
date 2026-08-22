@@ -319,13 +319,15 @@ test("a prompt that is not a word raises ol-type", () => {
   // `boolean` are rejected alongside the compound kinds, and `params.expected` is `"word"` — the
   // same identity `word` itself reports for `word "Question" 3` — not the one-off `"text"`. Now that
   // the spec states the rule, the behavior is ALSO bound by conformance fixtures under
-  // `tests/conformance/interaction-events/input/`; this test keeps the kinds a fixture cannot reach
-  // cheaply (`dict` and `record` need the Data profile, `turtle` the Sprites one) under proof.
+  // `tests/conformance/interaction-events/input/`. This loop is what proves the rule holds for ALL
+  // SIX rejected kinds in one place: `dict` and `record` would drag the Data profile into an
+  // Interaction fixture and `turtle` the Sprites one, for no proof a `list` does not already give.
   for (const [source, actual] of [
     ["print input 42", "number"],
     ["print input true", "boolean"],
     ["print input [1 2]", "list"],
     ["print input {a: 1}", "dict"],
+    ["struct point [ x y ]\nprint input point 3 4", "record"],
     ["print input new_turtle", "turtle"],
   ]) {
     const result = runWithAnswers(source, ["tom"]);
@@ -350,10 +352,12 @@ test("a rejected prompt consumes no answer and emits no primitive event", () => 
 });
 
 test("a word prompt is accepted whatever text it holds, including a numeral", () => {
-  // The positive complement of the rejection loop above, and the discriminating half: the check is
-  // on the prompt's TYPE, not on how it prints. `input "42"` and `input 42` print the same four
-  // characters, yet only the word is a legal prompt — so an implementation that tested the printed
-  // form instead of the type would accept both and pass every negative case above.
+  // The positive complement of the rejection loop above, and the half that makes the pair
+  // discriminating: the check is on the prompt's TYPE, not on how it prints. `input "42"` and
+  // `input 42` display the same two characters, yet only the word is a legal prompt. So the two
+  // wrong implementations fail on opposite sides — one that classified by printed form would accept
+  // `input 42` and fail the rejection loop above, while one that rejected every prompt would fail
+  // this test. Neither member alone catches both.
   for (const prompt of ['"how old?"', '"42"', '""']) {
     const result = runWithAnswers(`print input ${prompt}`, ["tom"]);
     assert.deepEqual(result.diagnostics, [], `prompt ${prompt}`);

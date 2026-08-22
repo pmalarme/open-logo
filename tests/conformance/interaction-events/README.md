@@ -54,10 +54,11 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   `record` would drag in the Data profile and `turtle` the Sprites one for no extra proof, so all
   six kinds stay asserted together in `packages/runtime/src/interaction-input.test.mjs`), and
   `input-prompt-numeric-word-accepted`, the positive complement without which an implementation that
-  rejected *every* prompt would pass all three negatives. That last one is the discriminating pair:
-  it is byte-identical to `input-prompt-number-rejected` but for the quotes, so `input "42"` and
-  `input 42` display the same two characters and differ only in type — an implementation checking the
-  printed form rather than the type accepts both and fails the pair.
+  rejected *every* prompt would pass all three negatives. That last one forms a discriminating pair
+  with the number case: the two programs are byte-identical but for the quotes, so `input "42"` and
+  `input 42` display the same two characters and differ only in type. The two opposite wrong
+  implementations therefore fail on opposite members — reject-everything fails the positive,
+  classify-by-printed-form fails the number negative — and neither member alone catches both.
 
   The **blocking** property (`:108-111`) is observable here only as the *pair*
   `input-does-not-deliver-handlers` + `input-blocking-control-wait-delivers`: the same program and
