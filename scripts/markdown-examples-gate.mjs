@@ -175,8 +175,13 @@ export function toPosixPath(path) {
 export function findMarkdownFiles(roots = MARKDOWN_ROOTS) {
   const found = [];
   const visit = (directory) => {
-    const entries = readdirSync(directory, { withFileTypes: true }).sort(
-      (left, right) => (left.name < right.name ? -1 : 1),
+    const entries = readdirSync(directory, { withFileTypes: true });
+    // Branch-free comparator: `(a > b) - (a < b)` sorts by code unit without a conditional, so the
+    // sort's own coverage cannot depend on the order the filesystem happens to hand entries back —
+    // which differs between platforms.
+    entries.sort(
+      (left, right) =>
+        Number(left.name > right.name) - Number(left.name < right.name),
     );
     for (const entry of entries) {
       const path = join(directory, entry.name);

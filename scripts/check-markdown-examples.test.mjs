@@ -88,9 +88,12 @@ function expectationFor(source, overrides = {}) {
 
 /**
  * A block that makes the parser exhaust the call stack. It is the one input reachable from real
- * markdown that proves the gate reports an internal failure instead of crashing.
+ * markdown that proves the gate reports an internal failure instead of crashing. Deliberately far
+ * deeper than the shallowest depth that overflows: the usable stack differs by platform (Linux's
+ * default is several times Windows'), and a fixture that overflows on one and not the other would
+ * silently stop exercising the catch path on the platform CI runs.
  */
-const STACK_BUSTING_SOURCE = `print ${"(".repeat(20_000)}1${")".repeat(20_000)}`;
+const STACK_BUSTING_SOURCE = `print ${"(".repeat(200_000)}1${")".repeat(200_000)}`;
 
 // --- toPosixPath / blockFingerprint ---------------------------------------------------------
 
