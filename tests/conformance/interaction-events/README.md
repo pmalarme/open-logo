@@ -141,8 +141,10 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   evaluator behind it would let a program check clean and then fail at runtime, and #681 lands both
   halves of its registration together.
 - **`redefine-wait-reserved/`** — also issue #687: redefining the profile primitive `wait` raises
-  `ol-reserved-word` (`namespace: "primitive"`) under an active profile, the primitive branch of the
+  `ol-reserved-word` under an active profile, the primitive branch of the
   rule rather than the reserved-word branch (`wait` is not one of the four reserved block-heads).
+  Issue #838 removed that diagnostic's `namespace` param, so the two branches are now a distinction
+  in the checker only (`spec/error-model.md:125`).
 - **`bindings-free-with-interaction/`** and **`bindings-free-core-only/`** — issue #837: the same
   four block-heads used in **binding** positions (`:when = 1`, `set every to 2`, a `for on_key in …`
   binder, `local on_click`) check clean with the profile active *and* without it. Maintainer ruling
@@ -231,18 +233,19 @@ the gaps it found rather than rubber-stamping them:
   for words; every one of these gaps was found by mutation.
 - **Profile-scoped reservation of the four block-heads.** `spec/interaction-events.md:43-46` reserves
   `when`/`every`/`on_key`/`on_click` **only within** the profile — a bidirectional MUST that had no
-  fixture at all: `redefine-wait-reserved` covers only `wait`, which is a *primitive* name
-  (`namespace: "primitive"`), not a reserved block-head. The new pair
+  fixture at all: `redefine-wait-reserved` covers only `wait`, which is a *primitive* name,
+  not a reserved block-head. The new pair
   `block-heads-reserved-under-profile` / `block-heads-free-core-only` runs the **byte-identical**
-  source both ways — four `define`s raising `ol-reserved-word` with `namespace: "reserved"` under the
+  source both ways — four `define`s raising `ol-reserved-word` under the
   active profile, and checking clean under Core Language alone. Either fixture alone is satisfied by
   an implementation that reserves the words unconditionally or by one that never reserves them; only
   the pair pins the scope. This is the same gap class the Sprites terminal slice #679 found for its
-  own `ol-reserved-word` rule. (The recorded `message` reads "when is already a reserved, so it
-  can't be redefined here." — an ungrammatical pre-existing template in
-  `packages/parser/src/checker-reserved-word.ts`, already recorded by three Sprites fixtures.
-  `message` is excluded from harness comparison, so it binds nothing and fixing it needs no fixture
-  change; **filed as a follow-up** for `@language-designer`.)
+  own `ol-reserved-word` rule. (The recorded `message` used to read "when is already a reserved, so
+  it can't be redefined here." — an ungrammatical template filed as issue #883 and **fixed by issue
+  #838**, which replaced it with the one category-free sentence `spec/error-model.md:125` requires
+  and dropped the `namespace` param both halves of that message depended on. The scope pinned here
+  is itself on borrowed time: `spec/grammar.md:408` makes profile words built-in unconditionally,
+  and retiring the gate — which will flip `block-heads-free-core-only` — is issue #841.)
 
   Both fixtures of that pair use `define`, which issue #837 confirmed is the right slot: maintainer
   ruling #833 keys `ol-reserved-word` to the grammar's four **declaration** slots and frees every

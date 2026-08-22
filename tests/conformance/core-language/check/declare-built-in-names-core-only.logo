@@ -1,0 +1,15 @@
+define forward :n
+  print :n
+end
+define fd :n
+  print :n
+end
+define setxy :x :y
+  print :x
+end
+define hint
+  print 1
+end
+define challenge
+  print 1
+end

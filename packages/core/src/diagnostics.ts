@@ -44,6 +44,7 @@ export const OL_DIAGNOSTIC_CODES = [
   "ol-not-boolean",
   "ol-bad-color",
   "ol-reserved-word",
+  "ol-duplicate-definition",
   "ol-unknown-type",
   "ol-unknown-field",
   "ol-unknown-key",

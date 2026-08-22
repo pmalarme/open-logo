@@ -119,36 +119,42 @@ test("a struct constructor called (parenthesized) with too many inputs raises ol
   assert.equal(diagnostics[0].params.callable, "point");
 });
 
-// --- reserved-word collisions -------------------------------------------------
+// --- declaration-slot collisions ----------------------------------------------
 
-test("a struct type name colliding with a Data primitive raises ol-reserved-word (primitive wins)", () => {
+test("a struct type name colliding with a Data primitive raises ol-reserved-word", () => {
   const ast = parseClean("struct dict [ x ]");
   const { diagnostics } = OL.check(ast, {
     profiles: ["core-language", "data"],
   });
   assert.equal(diagnostics.length, 1);
   assert.equal(diagnostics[0].code, "ol-reserved-word");
-  assert.equal(diagnostics[0].params.namespace, "primitive");
+  // Issue #838 removed the `namespace` param: `ol-reserved-word` now means exactly "OpenLogo owns
+  // this name" and carries `params: { name }` only (`spec/error-model.md:125`).
+  assert.deepEqual(diagnostics[0].params, { name: "dict" });
 });
 
-test("a struct type name colliding with a define'd procedure raises ol-reserved-word", () => {
+test("a struct type name colliding with a define'd procedure raises ol-duplicate-definition", () => {
   const ast = parseClean("define point\nend\nstruct point [ x ]");
   const { diagnostics } = OL.check(ast, {
     profiles: ["core-language", "data"],
   });
   assert.equal(diagnostics.length, 1);
-  assert.equal(diagnostics[0].code, "ol-reserved-word");
-  assert.equal(diagnostics[0].params.namespace, "procedure");
+  // A name the PROGRAM declared is not a name OpenLogo owns, so #838 split this case out of
+  // `ol-reserved-word` (`spec/grammar.md:412`, `spec/error-model.md:126`) and gave it both spans.
+  assert.equal(diagnostics[0].code, "ol-duplicate-definition");
+  assert.equal(diagnostics[0].params.name, "point");
+  assert.deepEqual(diagnostics[0].params.original_span.start, [1, 8]);
 });
 
-test("a define colliding with an earlier struct type name raises ol-reserved-word", () => {
+test("a define colliding with an earlier struct type name raises ol-duplicate-definition", () => {
   const ast = parseClean("struct point [ x ]\ndefine point\nend");
   const { diagnostics } = OL.check(ast, {
     profiles: ["core-language", "data"],
   });
   assert.equal(diagnostics.length, 1);
-  assert.equal(diagnostics[0].code, "ol-reserved-word");
-  assert.equal(diagnostics[0].params.namespace, "struct");
+  assert.equal(diagnostics[0].code, "ol-duplicate-definition");
+  assert.equal(diagnostics[0].params.name, "point");
+  assert.deepEqual(diagnostics[0].params.original_span.start, [1, 8]);
 });
 
 test("two struct declarations sharing a name are checked in source order: the first is clean", () => {
@@ -157,28 +163,55 @@ test("two struct declarations sharing a name are checked in source order: the fi
     profiles: ["core-language", "data"],
   });
   assert.equal(diagnostics.length, 1);
-  assert.equal(diagnostics[0].code, "ol-reserved-word");
-  assert.equal(diagnostics[0].params.namespace, "struct");
+  assert.equal(diagnostics[0].code, "ol-duplicate-definition");
   assert.deepEqual(diagnostics[0].source_span.start, [2, 8]);
+  assert.deepEqual(diagnostics[0].params.original_span.start, [1, 8]);
 });
 
-test("without the data profile active, a struct name is not registered so no collision is reported", () => {
+test("without the data profile active, `dict` is not a built-in name, so `struct dict` is free", () => {
+  // The title used to say "a struct name is not registered so no collision is reported", which
+  // stated the pre-#838 rule as the reason and now contradicts the test six lines below: a struct
+  // DOES collide under Core alone when it duplicates an earlier declaration. The body was always
+  // right; only the stated reason was wrong.
+  //
+  // The real reason is narrower and belongs to a different rule: `dict` is a **Data primitive**, so
+  // it is a built-in name only while `data` is claimed. That gate is `ol-reserved-word`'s, not
+  // `ol-duplicate-definition`'s, and `spec/grammar.md:408` has already overruled it — retiring it is
+  // issue #841's, at which point this test flips to expecting `ol-reserved-word`.
   const ast = parseClean("struct dict [ x ]");
   const { diagnostics } = OL.check(ast, { profiles: ["core-language"] });
   assert.deepEqual(diagnostics, []);
 });
 
-test("without the data profile active, a struct name colliding with a procedure is not checked either way", () => {
-  const defineFirst = parseClean("define point\nend\nstruct point [ x ]");
-  assert.deepEqual(
-    OL.check(defineFirst, { profiles: ["core-language"] }).diagnostics,
-    [],
-  );
-  const structFirst = parseClean("struct point [ x ]\ndefine point\nend");
-  assert.deepEqual(
-    OL.check(structFirst, { profiles: ["core-language"] }).diagnostics,
-    [],
-  );
+test("without the data profile active, a struct DUPLICATING a procedure is still reported", () => {
+  // This asserted the opposite until issue #838's review round: "not checked either way". The gate
+  // it pinned was real (issue #405) but belonged to the OLD rule, where the diagnostic meant "this
+  // name is already taken" and a struct that registered nothing could not take one.
+  //
+  // `ol-duplicate-definition` asks a different question — did the PROGRAM declare this name twice?
+  // — and `spec/execution-model.md:82-88` answers it with no profile condition: "The reader
+  // registers every `define`/`to` procedure AND EVERY `struct` declaration … a name an earlier
+  // declaration in the program or an imported module already registered raises
+  // `ol-duplicate-definition`". `spec/data-structures.md:304` says the same. The runtime's phase-1
+  // guard is profile-blind too, so keeping the gate here made `check()` call clean a program that
+  // `execute()` then rejected.
+  //
+  // Its neighbours above are unaffected and still gated, which is the distinction worth keeping:
+  // `struct dict [ x ]` under Core alone stays clean because `dict` is only a BUILT-IN name when
+  // `data` is claimed (that gate is issue #841's to retire), and `local point` stays clean because
+  // `local` is a binding form (ruling #833). Only the duplicate question is profile-blind.
+  for (const [label, source, laterLine] of [
+    ["define then struct", "define point\nend\nstruct point [ x ]", 3],
+    ["struct then define", "struct point [ x ]\ndefine point\nend", 2],
+  ]) {
+    const { diagnostics } = OL.check(parseClean(source), {
+      profiles: ["core-language"],
+    });
+    assert.equal(diagnostics.length, 1, `${label} must be reported`);
+    assert.equal(diagnostics[0].code, "ol-duplicate-definition");
+    assert.deepEqual(diagnostics[0].source_span.start, [laterLine, 8]);
+    assert.deepEqual(diagnostics[0].params.original_span.start, [1, 8]);
+  }
 });
 
 test("without the data profile active, a local colliding with a struct name is not checked", () => {

@@ -277,9 +277,10 @@ export interface AssignNode extends NodeBase {
 }
 
 /**
- * `local name` or `(local name {name})` — declare one or more names in the current scope. The
- * names carry their own spans so the checker can point `ol-reserved-word`/`ol-duplicate-binder`
- * at each one.
+ * A `local name` or `(local name {name})` — declare one or more names in the current scope. The
+ * names carry their own spans so the checker can point `ol-duplicate-binder`
+ * at each one. (`local` is a **binding** form, not a declaration slot, so it never raises
+ * `ol-reserved-word` — maintainer ruling #833, `spec/grammar.md:386`.)
  */
 export interface LocalNode extends NodeBase {
   readonly kind: "Local";
