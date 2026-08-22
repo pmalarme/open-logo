@@ -1022,6 +1022,14 @@ interface ProfilePrimitives {
  * - `modules`, `localization` — neither profile defines a bare-call primitive: `spec/modules.md`'s
  *   `import`/`export` and `spec/localization.md`'s `alias` are grammar forms with their own
  *   productions, not callables whose arguments the reader groups.
+ *
+ * **Tutor's entry is load-bearing.** When issue #838 registered it, a QA review measured that
+ * removing it failed no test, and said so in a comment here. That is no longer true: issue #854
+ * routes `ol-style-name-case` to `challenge` through {@link primitiveArity}, so unregistering
+ * Tutor now reddens a test. The stale comment is deliberately not carried forward — a
+ * hand-maintained claim drifting from the registry it describes is epic #900's own failure mode,
+ * one file deeper. The proof is genuine but narrow: the Tutor table holds exactly one name, so it
+ * demonstrates that the entry is *reachable*, not that every future Tutor primitive would be.
  */
 const PROFILE_PRIMITIVES: Readonly<
   Record<CheckProfile, ProfilePrimitives | null>

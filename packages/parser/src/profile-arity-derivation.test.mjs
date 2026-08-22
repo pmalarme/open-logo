@@ -60,23 +60,44 @@ test("every registered primitive of every profile is arity-checked when its prof
   // Tutor's `challenge` is the one registered primitive with no checker visibility yet: it has no
   // runtime, and `checker-names.ts` deliberately withholds visibility from a name nothing can run,
   // so it is reported `ol-unknown-command` — alone, never alongside an arity finding. Asserting the
-  // exception as an exact set rather than a skip means the slice that gives Tutor visibility is
-  // told, by a failing test, that it now inherits the arity check for free.
+  // exception as an exact set rather than a skip makes this sweep the tripwire for the ONE way the
+  // derivation can still degrade: `collectVisibleNames` is not yet derived from the same registry
+  // (it hand-writes a branch per profile), so a future profile registered in `PROFILE_PRIMITIVES`
+  // — which TypeScript forces — but not made visible there would silently fall back to
+  // `ol-unknown-command` instead of being arity-checked. That failure is graceful, not wrong, but
+  // it is not silent: its name lands in `notYetVisible` and this assertion fails naming it.
   const notYetVisible = [];
+  const openVariadics = [];
+  let registered = 0;
   let checked = 0;
 
   for (const profile of OL.OL_CHECK_PROFILES) {
     const profiles = activeSet(profile);
     for (const name of OL.profilePrimitiveNames(profile)) {
+      registered += 1;
       const range = OL.activeProfilePrimitiveArityRange(name, profiles);
       assert.notEqual(
         range,
         undefined,
         `${name} is registered by ${profile} but the active-profile lookup does not see it`,
       );
+      assert.ok(
+        range.max >= range.min,
+        `${name}'s ceiling (${range.max}) is below its floor (${range.min})`,
+      );
       if (range.max === Number.POSITIVE_INFINITY) {
         // An open variadic (`(print …)`, `(list …)`) can never be over-supplied — by design.
+        openVariadics.push(name);
         continue;
+      }
+      if (range.max > range.min) {
+        // A BOUNDED alternate (`(random a b)`, `(randomize seed)`): supplying exactly the ceiling
+        // is legal and must stay clean, which is the half a too-many-only sweep never exercises.
+        assert.deepEqual(
+          checkCodes(parenCall(name, range.max), profiles),
+          [],
+          `${name} must accept its ceiling of ${range.max} inputs`,
+        );
       }
       const source = parenCall(name, range.max + 1);
       const diagnostics = checkCodes(source, profiles);
@@ -108,10 +129,18 @@ test("every registered primitive of every profile is arity-checked when its prof
   }
 
   assert.deepEqual([...new Set(notYetVisible)].sort(), ["challenge"]);
-  // A floor, so a registry entry silently reduced to an empty table cannot make this sweep vacuous.
+  // Account for every registered name exactly, rather than asserting a magic minimum: each is
+  // either arity-checked, an open variadic that cannot be over-supplied, or a not-yet-visible
+  // exception. A registry entry emptied or dropped shrinks `registered` without breaking the
+  // identity, so the floor below — deliberately just under today's exact count of 85 — is what
+  // stops the sweep going vacuous. Both must hold.
+  assert.equal(
+    checked + openVariadics.length + notYetVisible.length,
+    registered,
+  );
   assert.ok(
-    checked >= 80,
-    `expected the DAG to arity-check at least 80 primitives, checked ${checked}`,
+    registered >= 85,
+    `the DAG registers 85 primitives today; this sweep saw only ${registered}, so a registry entry was emptied or dropped`,
   );
 });
 
@@ -156,10 +185,20 @@ test("each profile's registry entry points at that profile's own source-of-truth
     const names = OL.profilePrimitiveNames(profile);
     assert.ok(names.length > 0, `${profile} registers no primitive`);
     for (const name of names) {
+      const range = OL.activeProfilePrimitiveArityRange(name, [profile]);
       assert.equal(
         arityOf(name),
-        OL.activeProfilePrimitiveArityRange(name, [profile]).min,
+        range.min,
         `${profile}'s registry entry disagrees with ${profile}'s own arity table for ${name}`,
+      );
+      // The ceiling half. A `maxArity` table wired to the wrong profile shows up here as a name
+      // whose ceiling is not reachable from its own profile alone, or as a whole-DAG lookup that
+      // resolves differently from the single-profile one — neither of which the `.min` comparison
+      // above can see, since only `core-language` and `data` register a ceiling table at all.
+      assert.deepEqual(
+        OL.activeProfilePrimitiveArityRange(name, OL.OL_CHECK_PROFILES),
+        range,
+        `${name} resolves to a different range under the whole DAG than under ${profile} alone`,
       );
     }
   }
@@ -299,6 +338,51 @@ test("a user procedure keeps its own arity and its canonical name, whatever the 
     (diagnostic) => diagnostic.code === "ol-not-enough-inputs",
   );
   assert.deepEqual(arity.params, { callable: "home", expected: 1, actual: 0 });
+});
+
+test("a user procedure's and a struct constructor's params.callable is canonical too, not the call site's spelling", () => {
+  // The declaration-side counterpart of the primitive table above, and the reason it needs its own
+  // test: a procedure named in all-lowercase makes `raw === lower`, so an assertion written that
+  // way cannot tell canonical from surface and would pass either way. These cases are deliberately
+  // MIXED CASE, and the call sites deliberately spell the name differently from the declaration.
+  //
+  // `params` is compared by the conformance harness (unlike `message`), so this is diagnostic
+  // IDENTITY, not prose. OpenLogo identifiers are case-insensitive, so `Sq`, `SQ`, and `sq` name
+  // one procedure — hence one condition, which `spec/error-model.md:253-256` requires to carry one
+  // set of params, in the canonical lowercase spelling `:199` prefers for display. Reporting the
+  // call site's spelling would make the same defect produce two different structured identities.
+  const procedureCases = [
+    ["define Sq :a\nend\nSQ", "sq", 1, 0],
+    ["define Sq :a\nend\n(sQ 1 2)", "sq", 1, 2],
+    ["define Sq :a\nend\n(Sq)", "sq", 1, 0],
+  ];
+  for (const [source, canonical, expected, actual] of procedureCases) {
+    const findings = checkCodes(source, ["core-language", "turtle-rendering"]);
+    assert.equal(findings.length, 1, source);
+    assert.equal(findings[0].params.callable, canonical, source);
+    assert.equal(findings[0].params.expected, expected, source);
+    assert.equal(findings[0].params.actual, actual, source);
+    assert.match(findings[0].message, new RegExp(`^${canonical} `), source);
+  }
+
+  // A struct constructor is exact-arity in either call form, and takes the identical canonical
+  // treatment — the second callable reached through `checkExactArity`.
+  const structCases = [
+    ["struct Point [ x y ]\n(POINT 1)", "point", 2, 1],
+    ["struct Point [ x y ]\n(pOiNt 1 2 3)", "point", 2, 3],
+  ];
+  for (const [source, canonical, expected, actual] of structCases) {
+    const findings = checkCodes(source, ["core-language", "data"]);
+    assert.equal(findings.length, 1, source);
+    assert.equal(findings[0].params.callable, canonical, source);
+    assert.equal(findings[0].params.expected, expected, source);
+    assert.equal(findings[0].params.actual, actual, source);
+  }
+
+  // And the property that motivates all of it: one defect, one identity, whatever the spelling.
+  const [lower] = checkCodes("define Sq :a\nend\n(sq 1 2)", ["core-language"]);
+  const [upper] = checkCodes("define Sq :a\nend\n(SQ 1 2)", ["core-language"]);
+  assert.deepEqual(lower.params, upper.params);
 });
 
 test("an unrecognized profile identifier registers nothing and breaks nothing", () => {

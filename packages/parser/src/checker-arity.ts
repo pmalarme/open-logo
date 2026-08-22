@@ -54,6 +54,18 @@
  * arity check for free. Grammar operator calls (`+`, `and`, comparison heads, …) are likewise never
  * registered as primitives, so they fall through the same "unknown arity → skip" path.
  *
+ * ## The one way this derivation can still degrade
+ * `collectVisibleNames` is **not yet derived** from `PROFILE_PRIMITIVES` — `checker-names.ts` still
+ * hand-writes an `if (active.has(<profile>))` branch per profile. So a future profile registered in
+ * the arity registry (which the compiler forces) but not made visible there would fall through the
+ * guard above and report `ol-unknown-command` instead of an arity finding. That degrades
+ * *gracefully* — no false positive, and the honest "I don't know this name" is the better of the two
+ * — and it is not silent: `profile-arity-derivation.test.mjs`'s DAG sweep collects every
+ * registered-but-invisible name and asserts the set is exactly `["challenge"]`, so the next such
+ * profile fails that test by name. Retiring the hand-written branches in `checker-names.ts` is the
+ * remaining half of epic #900's "no component enumerates built-in names by hand" and is deliberately
+ * left to its own slice, since that file is outside this one's declared write-set.
+ *
  * ## `params.callable` is the canonical name
  * Diagnostic identity is `code` plus `params`, and the same condition MUST carry the same
  * structured params (`spec/error-model.md:253-256`; canonical lowercase is also what the spec

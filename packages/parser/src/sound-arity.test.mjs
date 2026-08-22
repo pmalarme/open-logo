@@ -148,8 +148,11 @@ test("with the sound profile active, check() accepts a correctly-supplied Sound 
 });
 
 test("with the sound profile active, a non-Sound callee falls through to the Core arity check", () => {
-  // Exercises soundPrimitiveArityRange's undefined branch: a Core primitive is unknown to the Sound
-  // table, so the arity rule falls through to Core handling and still flags its wrong arity.
+  // Exercises the registry lookup's miss-and-continue path: `first` is not in the Sound table, so
+  // `activeProfilePrimitiveArityRange` keeps walking the active profiles and resolves it from Core,
+  // still flagging its wrong arity. (Until issue #874 this went through a dedicated
+  // `soundPrimitiveArityRange` accessor and a hand-written per-profile branch in `checker-arity.ts`;
+  // both are gone — one profile-keyed registry now serves every profile.)
   const { ast, diagnostics: parseDiagnostics } = OL.parse(
     "(first)",
     "sound-arity.logo",
