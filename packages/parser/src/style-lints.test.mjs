@@ -345,13 +345,21 @@ test("ol-style-name-case: keyword casing is silently skipped when no source text
   assert.deepEqual(diagnostics, []);
 });
 
-test("ol-style-name-case: local's own keyword casing is deliberately not checked (bare or paren form)", () => {
-  // `local` is excluded from `STRUCTURAL_KEYWORD` on purpose: its node span starts at the `local`
-  // token in the bare form but at the *opening paren* in `(local name …)`, and the AST does not
-  // record which surface form was parsed — so a blind span-start slice could misread the paren
-  // form. Both forms below are proven silently clean (not a false positive), and the gap is
-  // tracked in the #115 follow-up rather than guessed at.
-  for (const source of ["LOCAL badName\nprint 1", "(LOCAL badName)\nprint 1"]) {
+test("ol-style-name-case: local's keyword casing is judged from the word at the span start, so the paren form yields no false read", () => {
+  // Issue #854 replaced the hand-written `STRUCTURAL_KEYWORD` node-kind table with a leading-WORD
+  // read at each node's span start. `local` used to be excluded from that table by hand, because a
+  // fixed-length slice would have read `(loca` out of `(local name …)` — whose node span starts at
+  // the opening paren — and reported it verbatim as a mis-cased keyword. Reading a whole
+  // identifier-shaped word and asking the registries whether it *is* a built-in removes that
+  // hazard structurally: `(` starts no word, so the paren form simply yields no candidate.
+  //
+  // So the bare form is now judged like every other keyword-headed statement, and the paren form
+  // is still clean — but clean because nothing is misread there, not because a name was excluded.
+  const cases = [
+    ["LOCAL badName\nprint 1", ["LOCAL", "badName"]],
+    ["(LOCAL badName)\nprint 1", ["badName"]],
+  ];
+  for (const [source, expectedNames] of cases) {
     const { ast: program, diagnostics: parseDiagnostics } = OL.parse(
       source,
       doc,
@@ -362,14 +370,217 @@ test("ol-style-name-case: local's own keyword casing is deliberately not checked
       source,
       style: true,
     }).diagnostics.filter((d) => d.code === "ol-style-name-case");
-    // `badName` is still flagged as a user identifier (checkNamesIn's "Local" case); only the
-    // keyword's own casing is out of scope here.
     assert.deepEqual(
       diagnostics.map((d) => d.params.name),
-      ["badName"],
-      `expected only the user name to be flagged in: ${source}`,
+      expectedNames,
+      `expected ${JSON.stringify(expectedNames)} to be flagged in: ${source}`,
+    );
+    // Whatever else is true, the paren form must never report a truncated slice of the keyword.
+    for (const diagnostic of diagnostics) {
+      assert.ok(
+        !diagnostic.params.name.startsWith("("),
+        `a delimiter must never be reported as a name: ${diagnostic.params.name}`,
+      );
+    }
+  }
+});
+
+// --- ol-style-name-case: built-ins are derived from the registries (issue #854) -----------------
+
+const ALL_PROFILES = [
+  "core-language",
+  "turtle-rendering",
+  "data",
+  "heritage",
+  "sprites",
+  "interaction-events",
+  "sound",
+  "educational",
+  "geometry",
+];
+
+/** The `ol-style-name-case` names reported for `source`, in report order. */
+function nameCaseNames(source, profiles = ALL_PROFILES) {
+  return checkStyle(source, profiles)
+    .filter((d) => d.code === "ol-style-name-case")
+    .map((d) => d.params.name);
+}
+
+test("ol-style-name-case: every silent row of issue #854's reported table now warns", () => {
+  // The defect table verbatim. The first three rows already warned before #854 and must keep
+  // warning (a widening must not trade one gap for another); the last four were silent, which is
+  // the bug: `spec/tooling.md:241` requires that "built-ins should be shown lowercase", and
+  // `forward` is the first command a learner ever types.
+  const cases = [
+    ["TO f\nreturn 1\nend", ["TO"]],
+    ["define f\nOUTPUT 5\nend", ["OUTPUT"]],
+    ['PRINT "hi"', ["PRINT"]],
+    ['MAKE "x" 1', ["MAKE"]],
+    [':d = { a: 1 }\nprint VALUE of :d for key "a"', ["VALUE"]],
+    ["FORWARD 100", ["FORWARD"]],
+    ["FD 100", ["FD"]],
+  ];
+  for (const [source, expected] of cases) {
+    assert.deepEqual(
+      nameCaseNames(source),
+      expected,
+      `expected ${JSON.stringify(expected)} in: ${source}`,
     );
   }
+});
+
+test("ol-style-name-case: EVERY Heritage surface spelling is covered, driven by the registry itself", () => {
+  // The point of #854 is not that `MAKE` and `FD` were added to a list — it is that there is no
+  // list. This test names no spelling of its own: it iterates the registry
+  // (`heritageAliasNames()` + `heritageFormHeadNames()` + `heritageWordedFormHeads()` are exactly
+  // what `heritageSurfaceSpellings()` unions) and requires the lint to cover every entry. A
+  // spelling added to any of those three tables later joins this assertion automatically, so a
+  // hand-added entry could not make this pass while the derivation was broken.
+  const spellings = OL.heritageSurfaceSpellings();
+  assert.ok(spellings.length > 0, "the Heritage registry must not be empty");
+  assert.deepEqual(
+    [...spellings].sort(),
+    [
+      ...OL.heritageAliasNames(),
+      ...OL.heritageFormHeadNames(),
+      ...OL.heritageWordedFormHeads(),
+    ].sort(),
+    "heritageSurfaceSpellings() must stay the union of the three Heritage tables",
+  );
+  for (const spelling of OL.heritageAliasNames()) {
+    // A paren call takes any number of inputs, so one shape covers every alias regardless of arity.
+    const source = `(${spelling.toUpperCase()})`;
+    assert.deepEqual(
+      nameCaseNames(source),
+      [spelling.toUpperCase()],
+      `expected the Heritage alias ${spelling} to be casing-linted`,
+    );
+    assert.deepEqual(
+      nameCaseNames(`(${spelling})`),
+      [],
+      `expected the lowercase Heritage alias ${spelling} to be clean`,
+    );
+  }
+  for (const head of OL.heritageFormHeadNames()) {
+    assert.ok(
+      OL.isKeyword(head),
+      `the Heritage form head ${head} must reach the lint through the keyword registry`,
+    );
+  }
+});
+
+test("ol-style-name-case: optional-profile primitives are covered through the shared arity registry", () => {
+  // Each name here is asserted to be *in* its profile's arity table before its casing is checked,
+  // so the test fails if a primitive is renamed or dropped rather than silently checking a word
+  // that no longer exists. These are the profiles `CORE_CALLEE_NAMES` skipped entirely.
+  const cases = [
+    ["forward", OL.turtlePrimitiveArity],
+    ["home", OL.turtlePrimitiveArity],
+    ["pen_up", OL.turtlePrimitiveArity],
+    ["play", OL.soundPrimitiveArity],
+    ["new_turtle", OL.spritesPrimitiveArity],
+    ["wait", OL.interactionPrimitiveArity],
+    ["measure", OL.geometryPrimitiveArity],
+    ["explain", OL.educationalPrimitiveArity],
+    ["type_of", OL.dataPrimitiveArity],
+  ];
+  for (const [name, arityOf] of cases) {
+    assert.notEqual(
+      arityOf(name),
+      undefined,
+      `${name} must be registered in its profile's arity table`,
+    );
+    assert.deepEqual(
+      nameCaseNames(`(${name.toUpperCase()})`),
+      [name.toUpperCase()],
+      `expected the primitive ${name} to be casing-linted`,
+    );
+  }
+});
+
+test("ol-style-name-case: keyword-headed statements the node-kind table never reached are covered", () => {
+  // `Assign` and `ValueOfKey` were the two gaps issue #854 reported; `Add`/`Remove`/`Insert`/
+  // `Clear`/`StructDef` and the profile block-heads were never in the table either and were silent
+  // for the same reason. Reading the word at the span start reaches all of them at once.
+  const cases = [
+    ['MAKE "x" 1', ["MAKE"]],
+    ["SET x to 1", ["SET"]],
+    [":xs = [1 2]\nADD 3 to :xs", ["ADD"]],
+    [":xs = [1 2]\nREMOVE 1 from :xs", ["REMOVE"]],
+    [":xs = [1 2]\nINSERT 9 in :xs at 2", ["INSERT"]],
+    [":xs = [1 2]\nCLEAR :xs", ["CLEAR"]],
+    ["STRUCT point [ x y ]", ["STRUCT"]],
+    ["TELL 1\nforward 10", ["TELL"]],
+    ["ASK 1 [ forward 10 ]", ["ASK"]],
+    ['ON_KEY "a" [ forward 10 ]', ["ON_KEY"]],
+    ["EVERY 1 [ forward 10 ]", ["EVERY"]],
+  ];
+  for (const [source, expected] of cases) {
+    assert.deepEqual(
+      nameCaseNames(source),
+      expected,
+      `expected ${JSON.stringify(expected)} in: ${source}`,
+    );
+  }
+});
+
+test("ol-style-name-case: an uppercase word that is no registry's built-in is left alone", () => {
+  // The negative control that separates "consults the registries" from "flags every uppercase
+  // word". `my_proc` is in no table, so neither its definition-site call nor a bare call to an
+  // undeclared name earns a built-in casing finding.
+  assert.deepEqual(
+    nameCaseNames("define my_proc\nreturn 1\nend\nprint MY_PROC"),
+    [],
+  );
+  assert.deepEqual(nameCaseNames("print MY_PROC"), []);
+});
+
+test("ol-style-name-case: a built-in name the program itself declares is exempt", () => {
+  // `pd` is a Heritage alias, so `PD` is normally flagged — but a program that declares its own
+  // `pd` has a user procedure by that name, and user-procedure call casing is out of this rule's
+  // scope (the #115 follow-up). The A/B pair pins both sides of the exemption.
+  assert.deepEqual(nameCaseNames("print PD"), ["PD"]);
+  assert.deepEqual(nameCaseNames("define pd\nreturn 1\nend\nprint PD"), []);
+});
+
+test("ol-style-name-case: a built-in callee is reported once, keeping the identifier wording", () => {
+  // A `Program`/`Block` node's span starts at its first statement and a bare `Call`'s span starts
+  // at its own callee, so the same word is reachable twice. Exactly one finding must survive, and
+  // it must be the identifier-worded one this rule reported before #854.
+  const diagnostics = checkStyle('PRINT "hi"').filter(
+    (d) => d.code === "ol-style-name-case",
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, { name: "PRINT" });
+  assert.equal(
+    diagnostics[0].message,
+    "PRINT should be lowercase snake_case, like a learner would read it aloud.",
+  );
+  assert.deepEqual(diagnostics[0].source_span.start, [1, 1]);
+  assert.deepEqual(diagnostics[0].source_span.end, [1, 6]);
+});
+
+test("ol-style-name-case: built-in casing is judged the same under any profile set", () => {
+  // A built-in name's *identity* is profile-independent (`spec/grammar.md:408`: a program cannot
+  // declare which profiles it requires, so "what a profile decides is whether a name *works*,
+  // never whether a program may declare it"). Whether `forward` is available is
+  // `ol-unknown-command`'s job; its casing is not. This also pins that a Core-only caller keeps
+  // the coverage it had before #854.
+  for (const profiles of [["core-language"], ALL_PROFILES]) {
+    assert.deepEqual(nameCaseNames('PRINT "hi"', profiles), ["PRINT"]);
+    assert.deepEqual(nameCaseNames("FORWARD 100", profiles), ["FORWARD"]);
+  }
+});
+
+test("ol-style-name-case: a lowercase built-in-headed program is clean under every profile", () => {
+  // The positive control for the whole widening: none of these earns a warning, so the new
+  // findings above are about casing and not about the words themselves.
+  assert.deepEqual(
+    nameCaseNames(
+      'make "x" 1\nforward 100\nfd 10\nhome\ntell 1\nrepeat 4 [ print 1 ]',
+    ),
+    [],
+  );
 });
 
 // --- ol-style-magic-number ---------------------------------------------------------------------
