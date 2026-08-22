@@ -652,13 +652,13 @@ function isTurtleClearCall(statement: StatementNode): boolean {
  * **one deliberate difference: no `draw-segment` is ever emitted, whatever the pen state.**
  * `spec/rendering.md:36`'s "a pen-down move appends one straight segment" describes what a move
  * contributes to the **retained scene**, and `clear_screen`'s row of the "Clear operations" table
- * (`spec/rendering.md:148`) fixes that contribution at *cleared* — the operation is defined to
+ * (`spec/rendering.md:150`) fixes that contribution at *cleared* — the operation is defined to
  * leave no drawing segments at all, so a segment back to the origin would be exactly the artifact
  * the same instruction removes. `move` and `draw-segment` are independent events, so "moved but
  * drew nothing" is expressible without any renderer-side special case.
  *
  * The spec does **not** settle this explicitly. It does make the homing reproducible — through the
- * `clear` payload's mode (`spec/rendering.md:151`) — but says nothing about whether a *duplicate*
+ * `clear` payload's mode (`spec/rendering.md:153`) — but says nothing about whether a *duplicate*
  * `move`/`turn` representation of the same homing also carries a segment. Read as an exception-free
  * rule over every pen-down `move`, :36 would instead require `move`/`draw-segment`/`turn`/`clear`
  * (same empty final scene, but a trace claiming a segment the learner never drew). That reading was
@@ -724,10 +724,10 @@ function homeTurtleForClearScreen(
  * never had that gap, and now neither does `clear_screen`.
  *
  * The spec's own stated mechanism for reproducing the homing is the `clear` payload's mode
- * (`spec/rendering.md:151`: the payload "MUST distinguish drawing-only clearing from
+ * (`spec/rendering.md:153`: the payload "MUST distinguish drawing-only clearing from
  * clear-and-home behavior so playback and debugging can reproduce state exactly"), so the homing
  * pair is a deliberate, permitted **superset** of that minimum rather than a replacement for it.
- * It does **not** relieve a conforming consumer of :151's obligation to interpret the mode — a
+ * It does **not** relieve a conforming consumer of :153's obligation to interpret the mode — a
  * stamped `clear` already names the homed turtle. What it adds is that a generic `move`/`turn`
  * observer of *this producer's* stream stays correct without a `clear_screen`-shaped special case,
  * which is how animation, stepping, `why`, and `debug` already follow position and heading for
