@@ -54,6 +54,22 @@ function calleeNames(program) {
   return names;
 }
 
+/**
+ * Every `ParenCall` callee name in `program`, lowercased. Deliberately narrower than
+ * {@link calleeNames}: `( not 1 )` is a *grouped unary* that reads as a plain `Call`, not a
+ * `parenthesized-call`, so conflating the two node kinds would hide a regression that made `not` a
+ * genuine `callable-name`.
+ */
+function parenCallCalleeNames(program) {
+  const names = [];
+  OL.walk(program, (node) => {
+    if (node.kind === "ParenCall") {
+      names.push(node.callee.name.toLowerCase());
+    }
+  });
+  return names;
+}
+
 /** Parse diagnostics plus the semantic/style ones `check()` finds under every profile. */
 function allDiagnostics(source) {
   const { ast, diagnostics } = OL.parse(source, doc);
@@ -136,28 +152,47 @@ test("the six silently-accepted words are rejected in the issue's own `repeat` p
   }
 });
 
-test("no reserved word except `thing` and the operator words is a parenthesized-call callee", () => {
-  // `parenthesized-call ::= "(" callable-name { expression } ")"` (`spec/grammar.md:211`). The
-  // reader gates that position through `isCalleeName`, which derives its answer from the same two
-  // sets as the primary reader — so this sweep is what stops the two paths drifting apart, the very
-  // failure mode issue #853 fixed one layer up.
+test("no reserved word except `thing`, `and`, and `or` is a parenthesized-call callee", () => {
+  // `parenthesized-call ::= "(" callable-name { expression } ")"` (`spec/grammar.md:211`). Three
+  // reserved words legitimately reach a `ParenCall` callee, by two different routes:
   //
-  // Four reserved words legitimately reach a callee here. `thing` is a real Core primitive; `and`,
-  // `or`, and `not` are the grammar's own operator productions, which the reader lowers to a `Call`
-  // with the operator as callee (`spec/grammar.md:179-186`) and which `checker-unknown-command.ts`
-  // treats as always-visible `OPERATOR_CALLEES`. `( and :a :b :c )` is the spec's variadic form.
-  const OPERATOR_CALLEES = new Set(["and", "or", "not"]);
+  // - `thing` — the only one that passes `isCalleeName`, because it is the one reserved word that is
+  //   also a real Core primitive and so a genuine `callable-name`. This is the sweep that stops
+  //   `isCalleeName` drifting from the primary reader's sets, the failure mode issue #853 fixed one
+  //   layer up.
+  // - `and`/`or` — `isCalleeName` returns FALSE for both (they are in `NON_PRIMARY_NAMES`); they are
+  //   rescued by an explicit disjunct in `parseParenthesized`, because their variadic paren form is
+  //   normative: "`(and …)` for multiple operands" (`spec/commands.md:567`, `:586`) with
+  //   short-circuit semantics (`spec/execution-model.md:143`).
+  //
+  // `not` is deliberately absent: it never reaches this position at all — see the next test.
+  const VARIADIC_OPERATOR_CALLEES = new Set(["and", "or"]);
 
   for (const word of OL.OL_RESERVED_WORDS) {
     const { ast } = OL.parse(`print ( ${word} 1 )\n`, doc);
-    const kept = calleeNames(ast).filter((name) => name === word);
-    const allowed = word === "thing" || OPERATOR_CALLEES.has(word);
+    const kept = parenCallCalleeNames(ast).filter((name) => name === word);
+    const allowed = word === "thing" || VARIADIC_OPERATOR_CALLEES.has(word);
     assert.deepEqual(
       kept,
       allowed ? [word] : [],
       `\`( ${word} 1 )\` treated the reserved word as a callable-name`,
     );
   }
+});
+
+test("`( not 1 )` stays a grouped unary, never a parenthesized call", () => {
+  // `unary ::= "not" unary` (`spec/grammar.md:187`) inside a `parenthesized-expression`
+  // (`spec/grammar.md:209`) — parenthesising groups the unary expression, it does not make `not` a
+  // `callable-name`, and unlike `and`/`or` the spec gives `not` no paren form at all
+  // (`spec/commands.md:603-606`: "Signature: `not boolean`", "Kind: Reporter unary prefix").
+  // Asserted separately so the sweep above cannot pass by conflating the two node kinds.
+  const { ast } = OL.parse("print ( not true )\n", doc);
+
+  assert.deepEqual(parenCallCalleeNames(ast), []);
+  // Order-dependent on `walk`'s pre-order traversal, deliberately: the point is that `not` survives
+  // as an ordinary `Call` *nested inside* `print`'s argument, which the sequence shows and a set
+  // comparison would not.
+  assert.deepEqual(calleeNames(ast), ["print", "not"]);
 });
 
 test("the Heritage `value of … for key …` reader still parses", () => {
