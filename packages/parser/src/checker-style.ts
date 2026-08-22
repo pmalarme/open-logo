@@ -656,6 +656,13 @@ function checkNamesIn(node: AnyNode, diagnostics: Diagnostic[]): void {
  * The document is part of the key even though one `ProgramNode` is one document today: keying on
  * `line:column` alone would silently start dropping findings the moment a program spanned more
  * than one, and a de-duplicator that fails by *discarding* is the wrong failure direction.
+ *
+ * **No test guards the document component, and that is stated here rather than assumed.** A
+ * multi-document `ProgramNode` is not constructible through this package's public API — `parse()`
+ * takes one document — so there is no way to write a failing case for it today, and a mutation
+ * that drops `span.document` from this key goes green. It is defence for a shape the AST does not
+ * yet have; a slice that introduces multi-document programs owns writing the test that makes it
+ * fail closed.
  */
 function positionKey(span: Diagnostic["source_span"]): string {
   const [line, column] = span.start;
