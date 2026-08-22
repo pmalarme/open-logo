@@ -42,7 +42,17 @@
  * comment records the profile-gating this ruling reverses and the slice that lands it.
  */
 
-/** The keywords, in the grammar's grouping order (`spec/grammar.md:368-376`). */
+/**
+ * The keywords, in the grammar's grouping order (`spec/grammar.md:368-376`).
+ *
+ * **Adding or removing a keyword is a FIVE-PLACE edit, and none of the five is machine-gated.**
+ * `spec/grammar.md:368-375` is normative; `spec/tooling.md:91-94` mirrors it byte-for-byte;
+ * `spec/tooling.md:30` enumerates the `keyword` **token class**, which is this list minus the four
+ * word-spelled operators plus the contextual and profile words; this array; and
+ * `keywords.profiles.test.mjs`'s `EXPECTED_CORE_KEYWORDS`. No test reads `spec/*.md`, so nothing
+ * catches a partial edit — the `tooling.md` mirror had already drifted to 43 words (missing `mod`)
+ * before #855 restored it. Adding the drift gate is #841's (issue #855, review round 7).
+ */
 export const OL_KEYWORDS = [
   // Procedures and control transfer.
   "define",
@@ -178,8 +188,10 @@ export function isProfileKeyword(
  * With no `activeProfiles` (or a Core-only set) this consults only the profile-independent
  * {@link OL_KEYWORDS} — its long-standing behavior, kept **unchanged** so the Core keyword list
  * never grows. When `activeProfiles` is supplied, any {@link OL_PROFILE_KEYWORDS} word contributed
- * by an active profile also counts, so a consumer that already threads the active profile set (the
- * checker, the highlighter) gets profile-aware matching from this one registry without forking it.
+ * by an active profile also counts, so a consumer that already threads the active profile set — the
+ * **checker** (`check.ts`) — gets profile-aware matching from this one registry without forking it.
+ * The **highlighter does not**: `highlight.ts` calls this function with one argument, so its
+ * profile words fall through to the `primitive` fallback. Giving it a profile set is issue #740.
  *
  * Returns a plain `boolean` rather than a type predicate: matching is case-insensitive, so a
  * mixed-case keyword `name` is not literally a lowercase-canonical `Keyword`/`ProfileKeyword`, and

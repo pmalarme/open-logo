@@ -10,7 +10,7 @@ import * as OL from "@openlogo/parser";
  * only recognize them as known callees when the `geometry` profile is active. Behavior is verified
  * against the built `@openlogo/parser` entry point per the shared black-box test convention.
  *
- * Also covers issue #427 (M4 audit): `define`/`local`/`struct` registrations that redefine
+ * Also covers issue #427 (M4 audit): `define`/`struct` registrations that redefine
  * `grid`/`axes`/`measure` must raise `ol-reserved-word` (`namespace: "primitive"`) when the
  * `geometry` profile is active — the checker's static parity counterpart to the runtime's own
  * `isPrimitiveName()` collision guard (#403) — and must not raise when it is inactive.

@@ -39,13 +39,15 @@
 // Highlighting is currently **profile-blind**: `highlight()`/`semanticTokens()` take no active-
 // profile argument, so they emit the profile-neutral fallback `primitive` for all six names. Note
 // this is a KNOWN DEVIATION from the normative token-class model, not the final word:
-// `spec/tooling.md:30` puts "profile block-heads when their profile is active" in the `keyword`
-// class, so under an active `interaction-events` profile the four block-heads SHOULD ultimately be
+// `spec/tooling.md:30` puts the profile block-heads together with the Sprites mode-switch command
+// `tell` in the `keyword` class "while their profile is active", so under an active
+// `interaction-events` profile the four block-heads SHOULD ultimately be
 // `keyword`. The parser cannot express that yet — giving the highlighter a profile set changes one
 // of the four shared cross-package contracts and is tracked as its own serialized slice, issue
 // #740. `wait` and `input` are unaffected either way: they are ordinary primitives, so `primitive`
-// is their correct final class (as it is for the Sound commands, `spec/interaction-events.md`:
-// "Sound command names are ordinary primitive names when the Sound profile is present").
+// is their correct final class — as it is for the Sound command names, which
+// `spec/interaction-events.md:47` makes "built-in names on the same unconditional terms", with the
+// profile deciding "only whether they work".
 //
 // The assertions below therefore lock TODAY's profile-neutral fallback so the behavior is
 // intentional and visible rather than accidental — matching `sound-tooling.test.mjs` and
