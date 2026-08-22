@@ -41,22 +41,31 @@ the spec. Measured at saga tip `7a37504`, `@openlogo/parser` exposes:
 
 Three properties of that inventory are the whole problem:
 
-1. **There is no table for Tutor (AI).** `challenge` is in none of the eight — verified — and
-   nothing else ships it either: it occurs nowhere in `packages/`, and a bare `challenge` call is
-   `ol-bad-token` at parse. It is normative in
-   [`spec/conformance.md`](../../spec/conformance.md)'s *Tutor (AI)* section, and no registry (or
-   implementation) knows about it.
+1. **There is no table for Tutor (AI).** `challenge` is in none of the eight — verified, and
+   `packages/parser/src/educational-meta-commands.test.mjs` actively asserts its absence
+   (`educationalPrimitiveArity("challenge") === undefined`). Nothing implements it either: the word
+   appears under `packages/` only as a curriculum exercise-difficulty label
+   (`difficulty: "challenge"`), never as a command. Measured, a bare `challenge` **parses clean**,
+   raises `ol-unknown-command` at `check()`, and at `execute()` is diagnostic-clean while emitting
+   only an `instruction` event — so the Tutor (AI) profile's one normative command is, end to end,
+   an unknown name. It is normative in [`spec/conformance.md`](../../spec/conformance.md)'s
+   *Tutor (AI)* section, and no registry — or evaluator — knows about it.
 2. **The inventory itself drifts between branches.** Issue #841 was written against `main`, where
    there were **five** tables and no Sprites/Interaction/Sound/Heritage registries; the saga tip has
    eight plus the Heritage registries. The count of tables is not a stable fact, which is precisely
    why a gate cannot be built by diffing "the tables that happen to exist".
-3. **The primitive half does not enumerate.** The keyword half does: `OL_RESERVED_WORDS` and
-   `OL_PROFILE_RESERVED_WORDS` are exported constants, and the Heritage accessors are exported
-   functions. But the eight `*PrimitiveArity` functions answer only *is this name a primitive?*, one
-   name at a time. `signatures.ts` does define `corePrimitiveNames()`, `turtlePrimitiveNames()` and
-   siblings, but **none of them is exported from `packages/parser/src/index.ts`** — verified. Under
+3. **The primitive half does not enumerate, and the alias edges are not recoverable at all.** The
+   keyword half enumerates: `OL_RESERVED_WORDS` and `OL_PROFILE_RESERVED_WORDS` are exported
+   constants, and the Heritage accessors are exported functions. But the eight `*PrimitiveArity`
+   functions answer only *is this name a primitive?*, one name at a time. `signatures.ts` does
+   define `corePrimitiveNames()`, `turtlePrimitiveNames()` and siblings, but **none of them is
+   exported from `packages/parser/src/index.ts`** — verified. Under
    [ADR-0009](0009-test-layout.md)'s black-box rule a gate may only import the package's public
    entry, so today a gate literally cannot ask the implementation "what are all your primitives?"
+   Nor can it ask what an alias points at, except for Heritage: measured,
+   `canonicalOfHeritageAlias("fd")` is `"forward"`, but `canonicalOfHeritageAlias("setxy")` is
+   `undefined` — the Turtle & Rendering one-word spellings (`setxy`, `setbg`, `seth`, `setwidth`,
+   `setcolor`) are independent arity entries with no canonical mapping exposed anywhere.
 
 The combined effect is the bug class the ruling exists to close: **45** names are currently free at
 `define`, and no single artifact would have revealed it. The figure decomposes as **43**
@@ -108,36 +117,49 @@ built-in name* as *what is*:
   ],
   "excluded": [
     { "name": "polygon", "reason": "library",            "source": "stdlib/geometry/polygon.logo" },
-    { "name": "of",      "reason": "contextual-keyword", "positions": ["is-predicate"] }
+    { "name": "of",      "reason": "contextual-keyword", "positions": ["is-predicate", "value-of-reader"] }
   ]
 }
 ```
 
-- **`category`** is `keyword` or `primitive`, matching `spec/tooling.md`'s token classes. It is the
-  implementation's organizing split, not a learner-facing one (LDR-0007).
+- **`category`** is `keyword` or `primitive`. It reuses two of `spec/tooling.md`'s class *names*, but
+  it is not a token class: the two axes are independent (LDR-0007), and `mod` is the proof — it is
+  `category: "keyword"` here and painted `operator`, exactly like `and`. `category` records the
+  implementation's organizing split, not a learner-facing one, and never how a word is coloured.
 - **`profile`** tags every entry even though blocking no longer consults it. Reservation is
   unconditional (ruling 4), but docs, the highlighter, and per-profile reference tables all still
   need to know which profile owns a name. Recording it as *metadata* rather than as a *gate* is the
   point: nothing may branch on this field when deciding whether a name is blocked.
 - **`aliasOf`** is an edge, not a separate list. Every alias is a primitive
   (`spec/tooling.md`'s `primitive` token class covers aliases explicitly), so aliases live in
-  `names` with their canonical target recoverable. That covers both the Heritage short aliases
-  (`fd` → `forward`) and the Turtle & Rendering one-word spellings (`setxy` → `set_xy`), which are
-  two independent entries bound to one primitive and are the source of the call-site split
-  LDR-0007 describes. A parallel alias list would have to be revisited by hand every time a
+  `names` with their canonical target recorded. That covers both the Heritage short aliases
+  (`fd` → `forward`) and the **five** Turtle & Rendering one-word spellings — measured,
+  `setxy` → `set_xy`, `setbg` → `set_background`, `setcolor` → `set_color`, `seth` → `set_heading`
+  and `setwidth` → `set_width` — each of which is a pair of independent entries bound to one
+  primitive and each of which reproduces the call-site split LDR-0007 describes (shadow the short
+  spelling and the canonical still emits its effect event: `move`/`draw-segment`,
+  `background-change`, `color-change`, `turn`, `width-change` respectively). All five must be
+  represented, not just the underscore-only pairs: a fix that handles `setxy` and stops there
+  silently leaves four. A parallel alias list would have to be revisited by hand every time a
   canonical moved; an edge cannot drift from its target. Heritage *worded forms* — `value of … for
   key`, and the form heads `make`/`to`/`output`/`op` — are **not** `aliasOf` edges: they are grammar
   spellings rather than name-for-name substitutions, and `heritageWordedForms()` (added by #852) is
   where they enumerate.
+- **One name can hold two roles, so `category` needs a stated precedence.** Measured, `thing` is
+  the only name in the tree that is simultaneously in `OL_RESERVED_WORDS` **and**
+  `corePrimitiveArity` (arity 1). `category` records **`keyword` first, then `primitive`** —
+  mirroring the precedence the checker already applies when reporting a collision — and the gate
+  checks membership of *both* registries for such a name rather than demanding exactly one. Without
+  this, clause 1 below is unimplementable for `thing`.
 - **`excluded`** is the machine-readable record of the deliberate omissions, each with a `reason`.
   This is the property that must exist **in the data, not in a comment**, because every one of them
   looks like an oversight to anyone doing a "completeness" pass. Note the `positions` field records
-  where a contextual word is *structural*, which is a statement about the grammar, not about
-  highlighting: measured, the reader-form `of` in `value of :d for key "a"` is currently painted
-  `primitive` rather than `keyword` (the defect #785/#755 describe, whose fix was reverted in this
-  branch's history). Token class and registration are independent axes — LDR-0007 — so that
-  mismatch has no bearing on `of` being excluded, and `positions` must not be used to derive one
-  from the other.
+  where a contextual word is *structural in the grammar* — for `of` that is both the `is`-predicate
+  and the Heritage `value of … for key` reader, per `spec/grammar.md` — and is **not** a statement
+  about highlighting: measured, the reader-form `of` is currently painted `primitive` rather than
+  `keyword` (the defect #785/#755 describe, whose fix was reverted in this branch's history). Token
+  class and registration are independent axes — LDR-0007 — so that mismatch has no bearing on `of`
+  being excluded, and `positions` must not be used to derive one from the other.
 
 ### 3. What CI compares
 
@@ -147,12 +169,32 @@ The gate runs in the CI-enforced Definition of Done and fails on any of:
    read through `@openlogo/parser`'s public API. This is a comparison of **structured entries, not
    of a flattened name set**: for every name the gate checks that `category` matches the registry it
    came from (a keyword must come from `OL_RESERVED_WORDS`/`OL_PROFILE_RESERVED_WORDS`, a primitive
-   from a primitive table), that `profile` matches *which* registry it came from, and that every
-   `aliasOf` names a real entry that the implementation actually resolves the alias to. Comparing
-   names alone would accept `mod` implemented as a primitive, `forward` filed under the wrong
-   profile, or an `aliasOf` pointing at the wrong canonical — three ways for the list to be exactly
-   as wrong as no list. Note `OL_PROFILE_RESERVED_WORDS` is a Record keyed by profile: it supplies
-   the `profile` tag directly and must be flattened per key, not concatenated blindly.
+   from a primitive table, with the dual-role precedence above), that `profile` matches *which*
+   registry it came from, and that every `aliasOf` names a real entry. Comparing names alone would
+   accept `mod` implemented as a primitive, `forward` filed under the wrong profile, or an `aliasOf`
+   pointing at the wrong canonical — three ways for the list to be exactly as wrong as no list. Note
+   `OL_PROFILE_RESERVED_WORDS` is a Record keyed by profile: it supplies the `profile` tag directly
+   and must be flattened per key, not concatenated blindly.
+
+   **How far the alias half is checkable today, and what #841 must add.** Verifying that an
+   `aliasOf` edge is the one the implementation *actually resolves* is only possible where the
+   implementation exposes an edge at all. Measured, the public API exports exactly five alias
+   accessors — `canonicalOfHeritageAlias`, `canonicalOfHeritageFormHead`, `heritageAliasArity`,
+   `heritageAliasArityRange`, `heritageAliasNames` — and **all of them are Heritage**. So
+   `fd → forward` is fully verifiable, while `setxy → set_xy` is not: no turtle canonical accessor
+   exists, and no resolution happens at all (the two spellings are independent entries, which is
+   precisely why they split). Until #841 adds an enumerable canonical map covering the turtle
+   spellings — consumed by the resolver, so it cannot drift — the gate can only check that a turtle
+   `aliasOf` target is a real entry of equal arity. Adding that map is part of the same public-API
+   addition §4 already requires; without it the alias half of this clause is decorative for the very
+   entries the ADR uses as its worked example.
+
+   **On `tell`.** The category recorded is the one the registry supplies: `tell` is in
+   `OL_PROFILE_RESERVED_WORDS` today, so it lists as a `keyword` under `sprites`. Ruling #833 leaves
+   open whether it is finally *described* as a keyword or a primitive; if the maintainer moves it,
+   the registry moves and the file must move with it — which is the gate doing its job, not a
+   contradiction in it. Nothing here depends on the answer, because both categories are blocked at
+   registration.
 2. **An unregistered profile.** Every profile in `spec/conformance.md`'s DAG that ships primitives
    must have at least one `primitive` entry backed by a real registry. The normative inventory of
    what a profile ships is `spec/conformance.md`'s own profile sections together with
@@ -170,14 +212,17 @@ The gate runs in the CI-enforced Definition of Done and fails on any of:
 The gate must itself be proven — a fixture injecting a drift must make it fail — so a green gate is
 evidence rather than a comforting no-op.
 
-**Clauses 1 and 2 fail against the tree as it stands, by construction.** `challenge` belongs in
-`names` (it is normative in `spec/conformance.md`) and is in no registry, so the moment the file
-exists the gate is red. That is the intended sequence, not an oversight: closing it is part of slice
-#841, which adds the Tutor (AI) registry entry — and, because a bare arity-table entry would make
-the checker accept a call the evaluator cannot execute, the registry entry and the runtime primitive
-have to land together. Saying this explicitly is what stops the red gate from being "fixed" by
-dropping `challenge` from `names`, which would silently re-open the exact hole clause 2 exists to
-close.
+**Clause 1 fails against the tree as it stood when this record was accepted, in two independent
+ways, and neither is an oversight.** `challenge` belongs in `names` (it is normative in
+`spec/conformance.md`) and is in no registry; `mod` is filed `category: "keyword"` and is in neither
+`OL_RESERVED_WORDS` (43 entries, measured, no `mod`) nor `OL_PROFILE_RESERVED_WORDS`. The two are
+closed by **different slices**: `challenge` by #841, which adds the Tutor (AI) registry entry — and,
+because a bare arity-table entry would make the checker accept a call the evaluator cannot execute,
+that entry and the runtime primitive have to land together; `mod` by the grammar slice **#837**,
+which takes the keyword list from 43 to 44. A maintainer landing #841 alone should therefore expect
+the gate to be *still* red on `mod`, not green. Saying all of this explicitly is what stops the red
+gate from being "fixed" by dropping either name from `names`, which would silently re-open the exact
+holes these clauses exist to close.
 
 ### 4. The implementation consumes the list; it does not re-derive it
 

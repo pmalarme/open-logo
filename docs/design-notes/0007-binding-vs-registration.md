@@ -4,9 +4,9 @@
 - Date: 2026
 - Deciders: OpenLogo maintainer (@pmalarme) + team
 - Ruling: issue #833 (maintainer-signed-off). This record is the **rationale layer** over that
-  ruling. The normative `spec/` sections cited throughout are amended to match it by the grammar
-  slice (#837) and the error-model slice; until those land they still state the **pre-ruling** rule,
-  and where that matters this record says so inline rather than leaving a reader to trip over it.
+  ruling, and explains the ruling rather than the pre-ruling spec text. At the time it was accepted,
+  the normative `spec/` sections it cites had not yet been amended to match; the closing section
+  records exactly which ones, as a dated statement of fact.
 - Related: [LDR-0001](0001-places-and-value-semantics.md) (what a *place* is, and why writing
   through one introduces no name); [LDR-0005](0005-profiles-and-the-conformance-dag.md) (why this
   rule is nevertheless **not** profile-conditional);
@@ -104,7 +104,11 @@ implementer would guess wrong:
 Only the alias's **new** name registers; its `<existing>` operand is deliberately unrestricted and
 may itself be a keyword, because that is exactly how a localized keyword pack renames one —
 `alias definir define` ([`spec/localization.md`](../../spec/localization.md)). Blocking both
-operands would break the Localization profile outright.
+operands would break the Localization profile outright. (Forward-looking: when this record was
+accepted, `alias` was **not implemented** — measured, `alias definir define` raised `ol-bad-token`,
+as did every other `alias` form, because the reader had no `alias-statement`. Its registration
+position was designed but unreachable, so a slice acting on "registration positions are exactly
+these four" would then have found parser support for only three.)
 
 Registering a name **you** already registered is a different situation and gets its own code,
 `ol-duplicate-definition`, carrying both source spans so the message can point at the first
@@ -140,11 +144,11 @@ procedure without writing `define`, `to` or `struct`. So the intent survives int
 somewhere it cannot be side-stepped, which is a better outcome than either widening the binding rule
 until it rejects `:count` or narrowing it until it means nothing.
 
-(One asymmetry to expect while reading the current code: `local` is the odd one out. It is a binding
-position under this decision, but today it runs the **full** registration check, so `local count`
-raises `namespace: "primitive"` and `local end` raises `namespace: "reserved"` — while
-`local forward` is clean. The checker slice therefore has to remove a *primitive*-category check at
-`local`, not only a keyword one.)
+(One asymmetry to expect when reading the code as it stood at this record's acceptance: `local` was
+the odd one out. It is a binding position under this decision, but it then ran the **full**
+registration check, so `local count` raised `namespace: "primitive"` and `local end` raised
+`namespace: "reserved"` — while `local forward` was clean. The checker slice therefore has to remove
+a *primitive*-category check at `local`, not only a keyword one.)
 
 Writing *through* a place is not a binding at all and never was restricted: `:people.repeat = 1`
 and `:nums[1] = 9` introduce no name, they modify an existing value (LDR-0001). Field names, dict
@@ -164,12 +168,18 @@ does, and it goes through the same nonterminal as defining one.
 
 The rule is therefore **registration-position**-based. The grammar makes that derivable rather than
 merely asserted by giving the declaration slots their own nonterminals — `declared-callable-name`
-and `declared-type-name` — used by `define`, `to`, `struct` and `alias`'s first operand, while
-`callable-name`/`type-name` keep their current definitions for calls. Parsing is completely
-unchanged, because every one of these still expands to `identifier`; the split exists purely so the
-semantic rule can be read off the grammar instead of maintained as a prose list beside it. That
-matters more than it sounds: a prose enumeration of blocked positions would be a *second list that
-can drift from the grammar*, which is the precise failure mode this whole design exists to remove.
+and `declared-type-name`, **proposed by the grammar slice #837 and not present in
+`spec/grammar.md` when this record was accepted** — used by `define`, `to`, `struct` and `alias`'s
+first operand, while `callable-name`/`type-name` keep their current definitions for calls. (Every
+other nonterminal named in this section — `callable-name`, `type-name`, `fixed-call`,
+`parenthesized-call`, `type-constructor-call` — is existing normative text. Note also that
+`alias-statement` is written with bare `identifier` operands rather than `callable-name`, so
+extending the declaration slot to `alias`'s first operand is slightly more than a slot rename.)
+Parsing is completely unchanged, because every one of these still expands to `identifier`; the
+split exists purely so the semantic rule can be read off the grammar instead of maintained as a
+prose list beside it. That matters more than it sounds: a prose enumeration of blocked positions
+would be a *second list that can drift from the grammar*, which is the precise failure mode this
+whole design exists to remove.
 
 ### Registration is blocked because shadowing has no good outcome — and, worse, no consistent one
 
@@ -194,8 +204,14 @@ primitive, so defining either produces a **call-site-dependent split**: half the
 the learner's procedure and half reach the turtle, decided purely by which spelling was typed. The
 learner most likely to type the short form is the one least equipped to diagnose it.
 
-A language can afford shadowable built-ins when it has a compiler and a type checker to catch the
-consequences. OpenLogo's readers are children, and its feedback loop is a drawing that silently
+The same split is not confined to one pair: measured, **all five** Turtle & Rendering one-word
+spellings behave this way — `setxy`/`set_xy`, `setbg`/`set_background`, `setcolor`/`set_color`,
+`seth`/`set_heading`, `setwidth`/`set_width`. Shadow the short spelling and the canonical still
+emits its effect event; shadow the canonical and the short spelling does.
+
+A language can afford shadowable built-ins when a compiler and a type checker can catch **some** of
+the consequences — an incompatible later use, at least, even if a same-typed shadow slips through.
+OpenLogo has neither, its readers are children, and its feedback loop is a drawing that silently
 came out wrong. So the design goal is not "make shadowing well-defined" but "make the question not
 arise": if nothing shadows, there is no resolution order to learn, no precedence rule to document,
 and no silent no-op to debug. It also removes a real defect by construction — the runtime already
@@ -388,16 +404,17 @@ unrestricted), and
 [`spec/educational-model.md`](../../spec/educational-model.md) (Level 5 — "learners build `polygon`
 from `repeat`").
 
-**Reading these citations before the spec slices land.** The maintainer ruling this record explains
-is issue #833, and the normative text moves to match it in separate, serialized `spec/` PRs. Until
-they land, three of the sections cited above still state the *pre-ruling* rule, and a reader
-following the link will see the opposite of what this record says:
+**The state of the spec when this record was accepted.** The maintainer ruling this record explains
+is issue #833, and the normative text moves to match it in separate, serialized `spec/` PRs. At the
+time this record was accepted those PRs had not landed, so three of the sections cited above still
+stated the *pre-ruling* rule:
 
-- `spec/grammar.md` and `spec/tooling.md` still say built-in names "may not be redefined **as
-  variables**", the binding restriction this decision removes; the grammar slice (#837) inverts that
-  sentence, renames *reserved words* to *keywords* in both documents, and retitles them
-  *Keywords and namespaces* and *Keywords for tooling* — so a reader who finds those titles is
-  looking at the sections cited here.
-- `spec/error-model.md` still carries `ol-reserved-word`'s `namespace` parameter, which this
-  decision drops, and does not yet register `ol-duplicate-definition` at all; both changes land with
-  the error-model slice.
+- `spec/grammar.md` and `spec/tooling.md` still stated that built-in names may not be redefined **as
+  variables** — the binding restriction this decision removes — and still used the term *reserved
+  words*, which the grammar slice (#837) renames to *keywords*, retitling those sections
+  *Keywords and namespaces* and *Keywords for tooling*.
+- `spec/error-model.md` still carried `ol-reserved-word`'s `namespace` parameter, which this
+  decision drops, and did not yet register `ol-duplicate-definition` at all.
+
+#833 supersedes those statements. A reader who finds the renamed sections, or finds the text already
+inverted, is looking at the same sections cited here with the ruling applied.
