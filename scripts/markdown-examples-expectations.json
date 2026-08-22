@@ -21,17 +21,23 @@
     "  profile-not-implemented profiles  needs a profile no implementation provides yet",
     "  known-broken            codes     a REAL defect, recorded with its tracking issue — never a mute button",
     "",
-    "setup (optional, any codes-asserting kind): OpenLogo source prepended to the block before it is",
-    "run, supplying the context the surrounding prose describes. It lets an excerpt execute to",
-    "COMPLETION instead of halting on its first undefined name — which matters because the runtime",
-    "stops at the first error, so anything below that line would otherwise be statically checked but",
-    "never executed (the gate prints PARTIAL for the blocks where that still happens). A block with a",
-    "setup usually asserts `codes: []`: given this context, it runs clean. Keep a setup faithful to",
-    "what the prose actually says — it is context, not a fix. The preamble must itself be clean.",
+    "setup (optional): OpenLogo source prepended to the block before it runs, supplying the context",
+    "the surrounding prose describes. It lets an excerpt execute to COMPLETION instead of halting on",
+    "its first undefined name — which matters because the runtime stops at the first error, so",
+    "anything below that line would otherwise be statically checked but never executed. A block with",
+    "a setup usually asserts `codes: []`: given this context, it runs clean. `inputs` does the same",
+    "for a blocking `input` read, scripting the answer the learner would have typed.",
+    "",
+    "A setup supplies CONTEXT — it is not a fix and not a patch. The gate enforces that: the preamble",
+    "must parse, check and execute cleanly ON ITS OWN (so it can neither absorb the block's malformed",
+    "structure nor lean on a name the block defines), and it must not redefine a primitive at any",
+    "nesting depth (so it can never make a real defect vanish). Keep it faithful to what the prose",
+    "actually says.",
     "",
     "issue (optional on any kind, REQUIRED on known-broken): the issue tracking a recorded defect.",
     "known-broken must have one because its whole meaning is 'this document is wrong'; not-openlogo",
-    "entries carry one too, since a mislabeled fence is also a defect someone has to fix.",
+    "entries carry one too, since a mislabeled fence is also a defect someone has to fix. When a",
+    "tracked defect is fixed the entry is DELETED, not re-fingerprinted.",
     "",
     "Adding an entry is a triage decision, not a formality: `why` is mandatory and must state only",
     "what is verifiable about the block. If a block is simply wrong, fix the block."
@@ -50,16 +56,16 @@
       "fingerprint": "7c411c83a02b450c",
       "excerpt": ":x = [1, 2, 3]",
       "kind": "known-broken",
-      "issue": "#850",
-      "why": "DEFECT surfaced by this gate: ':x = [1, 2, 3]' separates list items with commas, which OpenLogo has no grammar for — list literals are space-separated ('[1 2 3]'). Recorded rather than fixed here because the record is Status: Accepted and docs edits are serialized; tracked on #850 until @orchestrator routes it to @documentation, then this entry is DELETED (not re-fingerprinted).",
+      "issue": "#887",
+      "why": "DEFECT surfaced by this gate: ':x = [1, 2, 3]' separates list items with commas, which OpenLogo has no grammar for — list literals are space-separated ('[1 2 3]'). Recorded rather than fixed here because the record is Status: Accepted and docs edits are serialized; tracked on #887, then this entry is DELETED (not re-fingerprinted).",
       "codes": ["ol-bad-token"]
     },
     {
       "fingerprint": "f7e6b44cdff8c4d9",
       "excerpt": ":x = [1, 2, 3]",
       "kind": "known-broken",
-      "issue": "#850",
-      "why": "Same defect as the entry above, in the second contrasting example of the same section: a comma-separated list literal. Tracked on #850 until routed; delete this entry when the block is fixed.",
+      "issue": "#887",
+      "why": "Same defect as the entry above, in the second contrasting example of the same section: a comma-separated list literal. Tracked on #887; delete this entry when the block is fixed.",
       "codes": ["ol-bad-token"]
     }
   ],
@@ -227,8 +233,9 @@
       "fingerprint": "c5c253e6b881681e",
       "excerpt": ":people = dict",
       "kind": "deliberate-error",
-      "why": "Block comment '# error: the intermediate key tom is missing'. The prose above states that a missing intermediate container raises ol-unknown-key because OpenLogo does not auto-vivify.",
-      "codes": ["ol-unknown-key"]
+      "why": "Block comment '# error: the intermediate key tom is missing'. The prose above states that a missing intermediate container raises ol-unknown-key because OpenLogo does not auto-vivify. This is the one block the gate reports PARTIAL: the halt IS the lesson, so it cannot be given context, and the corrected '# ok:' example below it therefore never executes. Splitting it into two fenced blocks is a spec/ edit, tracked on #888.",
+      "codes": ["ol-unknown-key"],
+      "issue": "#888"
     },
     {
       "fingerprint": "6b6c5107d7a8d96c",
@@ -445,7 +452,7 @@
       "fingerprint": "f964bdea097a6413",
       "excerpt": "name                ::= identifier",
       "kind": "not-openlogo",
-      "why": "EBNF production rules for the lexical grammar, fenced as ```logo. The fence language is wrong (```ebnf / ```text), which this gate reports (issue #850) rather than edits: spec/ is maintainer-owned. Asserted so the block cannot change unnoticed while mislabeled.",
+      "why": "EBNF production rules for the lexical grammar, fenced as ```logo. The fence language is wrong (```ebnf / ```text), which this gate reports (issue #888) rather than edits: spec/ is maintainer-owned. Asserted so the block cannot change unnoticed while mislabeled.",
       "codes": [
         "ol-bad-token",
         "ol-not-enough-inputs",
@@ -453,7 +460,7 @@
         "ol-unknown-command",
         "ol-unmatched-paren"
       ],
-      "issue": "#850"
+      "issue": "#888"
     },
     {
       "fingerprint": "bf36b07cc9488524",
@@ -474,7 +481,7 @@
         "ol-unknown-command",
         "ol-unmatched-paren"
       ],
-      "issue": "#850"
+      "issue": "#888"
     },
     {
       "fingerprint": "6a13142b53785bd1",
@@ -528,7 +535,7 @@
       "excerpt": "define to end return output op stop throw",
       "kind": "not-openlogo",
       "why": "The reserved-word inventory: a bare vocabulary listing (it contains `import`/`export`, which is the only reason the profile detector ever read it as a Modules example), not OpenLogo source. The fence language is wrong — ```text would be right — which this gate reports rather than edits, because spec/ is maintainer-owned. Asserted so the listing cannot change unnoticed while mislabeled.",
-      "issue": "#850",
+      "issue": "#888",
       "codes": [
         "ol-bad-token",
         "ol-mismatched-end",
@@ -545,7 +552,7 @@
       "kind": "not-openlogo",
       "why": "EBNF production rules for the Interaction & Events statements, fenced as ```logo. Same mislabeled-fence defect; reported, not edited.",
       "codes": ["ol-bad-token", "ol-mismatched-end", "ol-unknown-command"],
-      "issue": "#850"
+      "issue": "#888"
     },
     {
       "fingerprint": "9d7bac193fa088f2",
@@ -642,7 +649,8 @@
       "excerpt": "if :done [ print \"finished\" ]",
       "kind": "prose-fragment",
       "why": "Excerpt, not a whole program: `:done` is never assigned anywhere in this document — the entry illustrates a form, not a runnable program.",
-      "codes": ["ol-undefined-var"]
+      "codes": [],
+      "setup": ":done = true"
     },
     {
       "fingerprint": "d0d3472f29a8d4e4",
@@ -792,7 +800,7 @@
         "ol-missing-end",
         "ol-unknown-command"
       ],
-      "issue": "#850"
+      "issue": "#888"
     }
   ]
 }

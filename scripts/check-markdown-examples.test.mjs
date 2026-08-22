@@ -390,26 +390,53 @@ test("analyzeBlock does not call a multi-line final statement partial", () => {
   assert.equal(result.partialFrom, null);
 });
 
-test("analyzeBlock rejects a setup that does not parse standalone", () => {
-  // Without this, `setup: "repeat 1"` plus a block of `forward 10` / `end repeat` would
-  // concatenate into a valid program and pass clean, though neither half is valid on its own.
-  const result = analyzeBlock("forward 10\nend repeat", "absorbed", {
-    setup: "repeat 1",
-  });
-  assert.match(result.setupError, /ol-missing-end/);
-  assert.deepEqual(result.codes, []);
+test("PARTIAL is scoped to top-level statements, which is its documented limit", () => {
+  // A halt INSIDE the final statement is not reported: nothing after that statement was skipped,
+  // even though its body never ran. The remedy is a setup, not a wider measure.
+  const nested = analyzeBlock('if :done [ print "finished" ]', "nested");
+  assert.deepEqual(nested.codes, ["ol-undefined-var"]);
+  assert.equal(nested.partialFrom, null);
+  // Given the context, the body does run and the block is clean.
+  assert.deepEqual(
+    analyzeBlock('if :done [ print "finished" ]', "nested", {
+      setup: ":done = true",
+    }).codes,
+    [],
+  );
 });
 
-test("analyzeBlock rejects a setup that shadows a primitive", () => {
-  // `define set_shape :s end` would make the canonical set_shape "bee" regression go green.
-  const result = analyzeBlock('set_shape "bee"', "shadowed", {
-    setup: "define set_shape :s\nend define",
+test("analyzeBlock rejects a setup that does not stand on its own", () => {
+  // Parsing alone is not enough. `setup: "helper"` plus a block that defines `helper` would
+  // satisfy each other — the preamble leaning on the block it is supposed to be supporting.
+  const leaning = analyzeBlock("define helper\nend define", "leaning", {
+    setup: "helper",
   });
-  assert.match(
-    result.setupError,
-    /redefines the built-in set_shape — a setup supplies context, it must not shadow a primitive/,
-  );
-  assert.deepEqual(result.codes, []);
+  assert.match(leaning.setupError, /ol-unknown-command/);
+  assert.deepEqual(leaning.codes, []);
+
+  // And a preamble must not absorb the block's own malformed structure.
+  const absorbed = analyzeBlock("forward 10\nend repeat", "absorbed", {
+    setup: "repeat 1",
+  });
+  assert.match(absorbed.setupError, /ol-missing-end/);
+  assert.deepEqual(absorbed.codes, []);
+});
+
+test("analyzeBlock rejects a setup that shadows a primitive at any depth", () => {
+  // `define set_shape :s end` would make the canonical set_shape "bee" regression go green…
+  for (const setup of [
+    "define set_shape :s\nend define",
+    // …and a one-token wrapper must not smuggle it past the guard.
+    "repeat 1 [\n  define set_shape :s\n  end\n]",
+  ]) {
+    const result = analyzeBlock('set_shape "bee"', "shadowed", { setup });
+    assert.match(
+      result.setupError,
+      /redefines the built-in set_shape — a setup supplies context, it must not shadow a primitive/,
+      `setup ${JSON.stringify(setup)} should be rejected`,
+    );
+    assert.deepEqual(result.codes, []);
+  }
   // A setup MAY define a name of its own — that is ordinary context.
   assert.equal(
     analyzeBlock("move_and_turn", "helper", {

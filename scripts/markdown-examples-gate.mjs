@@ -80,6 +80,7 @@ import {
   soundPrimitiveArity,
   spritesPrimitiveArity,
   turtlePrimitiveArity,
+  walk,
 } from "@openlogo/parser";
 import { execute } from "@openlogo/runtime";
 import { IMPLEMENTED_PROFILES, detectUsedProfiles } from "./examples-gate.mjs";
@@ -323,12 +324,33 @@ function isPrimitiveName(name) {
 }
 
 /**
+ * Every primitive name a preamble redefines, **at any depth**. Checking only the top-level
+ * statements is not enough: wrapping the definition in a one-line block (`repeat 1 [ define
+ * set_shape :s end ]`) hides it from a shallow scan but not from the runtime, which is the same
+ * shadowing cheat through a one-token wrapper.
+ */
+function shadowedPrimitives(program) {
+  const found = new Set();
+  walk(program, (node) => {
+    if (node.kind === "ProcedureDef" && isPrimitiveName(node.name.name)) {
+      found.add(node.name.name);
+    }
+  });
+  return [...found].sort();
+}
+
+/**
  * The 1-based start line, within `source`, of the last **top-level statement** — the closest thing
  * to a program counter available without replaying the trace. A diagnostic's span points at the
  * construct that raised, not at where execution stopped, so comparing a halt against the last
  * statement's start is what distinguishes "a later statement never began" from "the final statement
- * ran and raised part-way through". Returns `0` for a block with no statements. Exported so its
- * edge cases are testable directly.
+ * ran and raised part-way through".
+ *
+ * The granularity is deliberate and is the measure's known limit: `PARTIAL` means *a later
+ * top-level statement never began*. A halt **inside** the final statement — `if :done [ print "x" ]`
+ * stopping on the condition, so the `print` never runs — is not reported, because nothing after
+ * that statement was skipped. Give such a block a `setup` if you want its body executed. Returns
+ * `0` for a block with no statements. Exported so its edge cases are testable directly.
  */
 export function lastStatementLine(program) {
   const statements = program.body;
@@ -393,14 +415,22 @@ export function analyzeBlock(
     offset = startLine - preambleLines;
 
     if (setup !== undefined) {
-      // The preamble must stand on its own. Without this, a `setup` of `repeat 1` and a block of
-      // `forward 10` / `end repeat` would concatenate into a valid program and pass clean, even
-      // though neither half is valid OpenLogo — the preamble would be absorbing the block's own
-      // malformed structure instead of supplying context to it.
+      // The preamble must stand on its own — parsed, statically checked, AND executed — with zero
+      // errors. Parsing alone is not enough: `setup: "helper"` plus a block that defines `helper`
+      // would satisfy each other, so the preamble would be leaning on the block it is supposed to
+      // be supporting. It must also not absorb the block's malformed structure (`setup: "repeat 1"`
+      // plus a block ending `end repeat`), which standalone parsing is what catches.
       const preamble = parse(setup, `${label} (setup)`);
-      const broken = preamble.diagnostics.filter(
-        (diagnostic) => diagnostic.severity === "error",
-      );
+      const broken = [
+        ...preamble.diagnostics,
+        ...check(preamble.ast, {
+          profiles: OL_CHECK_PROFILES,
+          source: setup,
+        }).diagnostics,
+        ...execute(setup, `${label} (setup)`, {
+          instructionBudget: DOCUMENTATION_INSTRUCTION_BUDGET,
+        }).diagnostics,
+      ].filter((diagnostic) => diagnostic.severity === "error");
       if (broken.length > 0) {
         return {
           ...empty,
@@ -410,14 +440,8 @@ export function analyzeBlock(
         };
       }
       // A preamble supplies context; it must not redefine the language. Shadowing a primitive
-      // would let a setup silence a real defect rather than reveal it.
-      const shadowed = preamble.ast.body
-        .filter(
-          (statement) =>
-            statement.kind === "ProcedureDef" &&
-            isPrimitiveName(statement.name.name),
-        )
-        .map((statement) => statement.name.name);
+      // would let a setup silence a real defect rather than reveal it — at any nesting depth.
+      const shadowed = shadowedPrimitives(preamble.ast);
       if (shadowed.length > 0) {
         return {
           ...empty,
@@ -458,18 +482,10 @@ export function analyzeBlock(
     const errors = diagnostics.filter(
       (diagnostic) => diagnostic.severity === "error",
     );
-    const inPreamble = errors.filter(
-      (diagnostic) => diagnostic.source_span.start[0] <= preambleLines,
-    );
-    if (inPreamble.length > 0) {
-      return {
-        ...empty,
-        unimplementedProfiles,
-        setupError: inPreamble
-          .map((diagnostic) => `${diagnostic.code}: ${diagnostic.message}`)
-          .join("; "),
-      };
-    }
+    // No check for diagnostics inside the preamble is needed here: the preamble was already
+    // parsed, checked and executed standalone above and had to be clean, and it runs first and
+    // unchanged in the combined program, so it cannot raise anything now that it did not raise
+    // then.
 
     const haltLine =
       runtimeErrorLines.length === 0 ? null : runtimeErrorLines[0];

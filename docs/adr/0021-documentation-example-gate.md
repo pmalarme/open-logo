@@ -107,20 +107,25 @@ runtime-only defect down there (`ol-type`, `ol-range`, `ol-unknown-key`, `ol-unk
 not be observed. Two things address this. An entry may carry a **`setup` preamble** — faithful
 context drawn from the surrounding prose, prepended before the block runs — which lets an excerpt
 execute to completion and assert a clean result instead of halting on line one; `inputs` does the
-same for a blocking `input`, scripting the answer the learner would have typed. 33 blocks are
-handled that way. A preamble must parse standalone and must not redefine a primitive, so it can
-only supply context, never absorb a block's malformed structure or shadow away a real defect. Where
-context is impossible — a block whose whole point is the error it stops on — the limit is
-**surfaced rather than claimed away**: the block is reported as `PARTIAL`, with its own count in the
-summary line. **One** of 315 blocks is `PARTIAL` today (`spec/data-structures.md`'s
-`ol-unknown-key` demo, which places its corrected example after a guaranteed halt). A green run does
-not mean every line of every block executed, and the gate says so.
+same for a blocking `input`, scripting the answer the learner would have typed. **34 blocks are
+handled that way: 33 carry a `setup`, one carries `inputs`.** A preamble must parse, check, *and*
+execute cleanly **on its own**, and must not redefine a primitive at any depth — so it can only
+supply context, never absorb a block's malformed structure, lean on the block it is supporting, or
+shadow away a real defect. Where context is impossible — a block whose whole point is the error it
+stops on — the limit is **surfaced rather than claimed away**: the block is reported as `PARTIAL`,
+with its own count in the summary line. **One** of 315 blocks is `PARTIAL` today:
+`spec/data-structures.md`'s `ol-unknown-key` demo, whose halt *is* the lesson and whose corrected
+`# ok:` example therefore never executes. Splitting that block is a `spec/` edit, tracked on #888.
+A green run does not mean every line of every block executed, and the gate says so.
 
 Measuring that honestly needs a program counter, not a span: a diagnostic points at the construct
 that raised, not at where execution stopped, so a multi-line final statement raising on its own head
 line has still run everything there was to run. The gate compares the halt against the **last
 top-level statement's** start line, which is why a `forever` demo and a `map` whose body did run are
-correctly *not* reported as partial.
+correctly *not* reported as partial. That granularity is the measure's known limit, stated rather
+than hidden: a halt *inside* the final statement — `if :done [ print "x" ]` stopping on the
+condition — is not reported, because nothing after that statement was skipped. The remedy for such a
+block is a `setup`, not a wider measure.
 
 **Unlabelled fences are invisible by construction**, so the convention "OpenLogo source in prose is
 fenced ` ```logo `" is now recorded in AGENTS.md, the Definition-of-Done skill, and the Epic Gate.
@@ -135,6 +140,14 @@ so a block that quietly starts needing a different profile, or stops needing one
 **The manifest is a maintenance surface**, and deliberately so: touching a listed block re-triages
 it. The failure message prints the exact JSON entry to paste, but the gate never writes the manifest
 itself — an auto-updating golden file would rubber-stamp the regression it exists to catch.
+
+**Recorded defects are routed, not excused.** Turning the gate on surfaced eight documentation
+defects, all tracked rather than fixed in this PR: two comma-separated list literals in
+`docs/design-notes/0006` (#887, `known-broken`), five fences labelled ` ```logo ` that hold EBNF or a
+word list (#888, `not-openlogo`), and `spec/data-structures.md`'s unreachable corrected example
+(#888). When each is fixed its entry is **deleted**, not re-fingerprinted — an `ebnf` fence is
+simply skipped by the gate rather than carved out of it — so the manifest shrinks toward holding
+only genuinely-exceptional blocks.
 
 **Runtime cost is about two seconds, not the twenty the wall clock suggests.** The 300-plus-block
 corpus costs ≈2 s (the `spec/examples/*.logo` half ≈1 s). `npm run examples` measures ≈20 s
