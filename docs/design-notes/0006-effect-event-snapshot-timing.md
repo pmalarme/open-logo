@@ -31,7 +31,7 @@ possible, and they disagree on this exact example:
 - **Emission-time:** evaluate every argument first (running every side effect, in order), then take
   one snapshot of the whole assembled payload immediately before the event is emitted. Every value
   in the payload reflects program state as of that single instant — after `mutate` has already run.
-  Result: `[1, 2] 0`.
+  Result: `[1 2] 0`.
 - **Evaluation-time:** freeze each argument's contribution to the payload the instant that argument
   is individually evaluated, before any later sibling argument runs. `:l` would be captured as
   `[1]`, before `mutate`'s `add 2 to :l` has had a chance to run. Result: `[1] 0`.
