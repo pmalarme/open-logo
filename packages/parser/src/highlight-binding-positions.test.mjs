@@ -43,6 +43,14 @@
 // keyword binder repeats its own spelling elsewhere in several templates (`for in in [1 2] …`,
 // `set to to 1`), so a text lookup would silently assert the wrong token.
 //
+// Two boundaries are deliberately pinned rather than fixed here, so neither can drift unnoticed:
+//   * a destructuring `[ :x :y ]` binder keeps `declaration: false` — its names were never
+//     mispainted (they are already `:variable`), and resolving them to their own binding sites
+//     would invert an assertion `semantic-tokens.test.mjs` pins;
+//   * an INCOMPLETE binding form (`set if to`, `for if in [1 2`) has no binding AST node, so the
+//     name keeps its pre-#840 fallback class. Recovering a binder from half-typed source is
+//     reader behaviour, not a token-class rule.
+//
 // Runs under `node --test` against the built `@openlogo/parser` package, exercising only its
 // public `parse`/`highlight`/`semanticTokens` surface.
 
@@ -154,7 +162,7 @@ function assertBoundAsVariable(form, word) {
 test("the registries are populated — otherwise every sweep below is vacuous", () => {
   assert.ok(OL.OL_KEYWORDS.length >= 44, "keyword registry");
   assert.ok(OL.heritageAliasNames().length >= 13, "heritage alias registry");
-  assert.equal(PROFILE_WORDS.length, 7, "profile keyword registry");
+  assert.ok(PROFILE_WORDS.length >= 7, "profile keyword registry");
   for (const name of PRIMITIVES) {
     assert.ok(
       OL.corePrimitiveArity(name) !== undefined ||
@@ -270,6 +278,8 @@ test("a nested place: the bare head is the variable, the selector's key stays da
   const tokens = OL.highlight("set nums[repeat] to 5\n", doc);
   assert.equal(tokens[1].text, "nums");
   assert.equal(tokens[1].class, ":variable");
+  // A write into an existing value is a reference, not a new binding (spec/grammar.md:404).
+  assert.equal(tokens[1].declaration, false);
   assert.equal(
     tokens.find((token) => token.text === "repeat").class,
     "dict-key",
@@ -311,24 +321,68 @@ test("AC2: the same spelling is a variable in a binding position and structural 
 
 // --- AC4: profile block-heads are classified unconditionally -----------------------------------
 
-test("AC4: profile block-heads classify unconditionally — the highlighter takes no profile input", () => {
+test("AC4: profile block-heads classify unconditionally — one class for every profile word", () => {
   // Rule 4 of #833: "a name that could be declared in one implementation but not in another would
   // be invisible and unpredictable to a learner" (`spec/grammar.md:408`). The highlighter is
-  // profile-blind by construction, which is what makes this unconditional; issue #740 (a
-  // profile-aware `highlight()`) is explicitly NOT wanted here, so the absence of that parameter
-  // is asserted rather than assumed. If a profile argument is ever added, this line is the
-  // deliberate red flag that says so.
-  assert.equal(OL.highlight.length, 1, "highlight(source, document = …)");
-  assert.equal(
-    OL.semanticTokens.length,
-    1,
-    "semanticTokens(source, document = …)",
+  // profile-blind — `highlight()` takes only `(source, document)` — so the seven words cannot
+  // vary with the profile set by construction.
+  //
+  // The class is pinned per word rather than as `keyword || primitive`: a disjunction would stay
+  // green if a block-head silently flipped, which is the whole failure mode this row guards. All
+  // seven are `primitive` today, matching what `sprites-tooling.test.mjs` and
+  // `interaction-tooling.test.mjs` already pin and document as the profile-blind reading of
+  // `spec/tooling.md:30-31` (issue #740 would revisit it; explicitly out of scope here).
+  //
+  // Deliberately NOT asserted via `highlight.length`: the second parameter already has a default,
+  // so `.length` is 1 whether or not a third profile parameter exists — such a test would be
+  // ineffective rather than protective.
+  assert.ok(
+    PROFILE_WORDS.length >= 7,
+    "expected the profile keyword registry to be populated",
   );
   for (const word of PROFILE_WORDS) {
     const [token] = OL.highlight(`${word} 1\n`, doc);
+    assert.equal(
+      token.text.toLowerCase(),
+      word,
+      "the first token must be the word under test",
+    );
+    assert.equal(
+      token.class,
+      "primitive",
+      `${word} in head position must stay structural and profile-independent`,
+    );
+  }
+});
+
+test("degradation boundary: an INCOMPLETE binding form keeps the old fallback class", () => {
+  // Honest limit, pinned rather than hidden. Classification is AST-driven, so a mid-edit form
+  // that produces no `Local`/`ForIn`/`Comprehension`/`Assign` node has no binding position to
+  // recognize, and the name falls back to `keyword`/`primitive` exactly as it did before #840.
+  // `highlight()` still never throws (`highlight.ts`'s never-throw contract), which is the part
+  // that matters for an editor typing character by character. Recovering a binder from a
+  // half-typed statement would be new reader behaviour, not a token-class change, so it is not
+  // part of this slice.
+  for (const source of [
+    "set if to\n",
+    "set if\n",
+    "for if in\n",
+    "for if in [1 2\n",
+    "print map if in\n",
+    "for if from 1 to\n",
+  ]) {
+    const { diagnostics } = OL.parse(source, doc);
     assert.ok(
-      token.class === "keyword" || token.class === "primitive",
-      `${word} in head position must stay structural, not ${token.class}`,
+      diagnostics.length > 0,
+      `${JSON.stringify(source)} must really be incomplete, or this row proves nothing`,
+    );
+    const token = OL.highlight(source, doc).find(
+      (candidate) => candidate.text === "if",
+    );
+    assert.equal(
+      token.class,
+      "keyword",
+      `${JSON.stringify(source)} has no binding node, so the fallback still applies`,
     );
   }
 });

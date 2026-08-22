@@ -98,11 +98,15 @@ export interface Token {
   readonly role?: BracketRole;
   /**
    * Present only on the classes with a decidable declaration/reference split —
-   * `procedure-name`, `type-name`, `field-name`, and `:variable` (a procedure's own `:param`,
-   * a `local` name, and a `for`/comprehension binder) — `true` at the binding site, `false` at
-   * every other (use/call/assignment-target) site. Consumed by `semantic-tokens.ts` (issue
-   * #121) to compute the LSP `declaration`/`reference` modifiers from `spec/tooling.md:278`;
-   * absent on classes with no such split (e.g. `keyword`, `number`).
+   * `procedure-name`, `type-name`, `field-name`, and `:variable`. `true` at a binding site
+   * **this pass resolves**, `false` at every other (use/call/assignment-target) site. The
+   * resolved binding sites are a procedure's own `:param`, a `local` name, and a `for`/
+   * comprehension binder or `reduce` accumulator; a destructuring `[ :x :y ]` binder is a
+   * binding site the grammar recognizes but this pass does **not** resolve, so its names carry
+   * `false` — a known limitation, not a claim that they are use sites (see {@link markBinder}).
+   * Consumed by `semantic-tokens.ts` (issue #121) to compute the LSP `declaration`/`reference`
+   * modifiers from `spec/tooling.md:277-279`; absent on classes with no such split (e.g.
+   * `keyword`, `number`).
    */
   readonly declaration?: boolean;
 }
@@ -251,10 +255,18 @@ export function highlight(source: string, document = "<input>"): Token[] {
 
   /**
    * Mark a `for`/`map`/`filter`/`reduce` binder's bare name as a `declaration` binding site.
-   * A destructuring `[ :x :y ]` binder (`spec/grammar.md:138-139`) names its members with
-   * `variable`-kind tokens that {@link classifyToken} already classes `:variable`, so it needs
-   * no marking here — and deliberately keeps its existing `reference` modifier, since resolving
-   * a destructured name's own binding site is not part of this rule.
+   *
+   * The `"kind" in binder` guard is a TYPE narrowing, not a behavioural one: it is what gives
+   * {@link markNameIndex} the `SpannedName` it requires. Deleting it changes nothing observable,
+   * because a destructuring `[ :x :y ]` binder's span starts at its `[` token and
+   * `markNameIndex`'s own `kind === "name"` check rejects that anyway.
+   *
+   * A destructuring binder (`spec/grammar.md:138-139`) therefore keeps the classification it
+   * already had: its members are `variable`-kind tokens that {@link classifyToken} classes
+   * `:variable` with `declaration: false`. That is a deliberate carry-over, not a decision this
+   * slice makes — issue #840 is scoped to names that were painted `keyword`/`primitive`, and a
+   * destructured `:x` never was. Resolving those names to their own binding sites would invert
+   * an assertion `semantic-tokens.test.mjs` already pins, so it belongs to its own slice.
    */
   function markBinder(binder: Binder): void {
     if (!("kind" in binder)) {
