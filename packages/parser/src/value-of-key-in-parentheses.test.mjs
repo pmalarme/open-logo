@@ -189,6 +189,30 @@ test("`value` and `key` remain legal data beside the parenthesized reader", () =
   assert.equal(valueOfKeyCount(ast), 1);
 });
 
+test("the group recovery never consumes an enclosing construct's delimiter", () => {
+  // `closesGroupAfterOneToken()`. The recovery may step over ONE token, so it must only do so
+  // when that actually reaches this group's `)`. An unterminated group whose next token belongs
+  // to an ENCLOSING construct must leave it alone: here the `end` closes the procedure, and
+  // eating it made `define` report a spurious `ol-missing-end`.
+  const procedure = "define f\n  print (\nend\n";
+  assert.deepEqual(
+    OL.parse(procedure, doc).diagnostics.map((d) => d.code),
+    ["ol-unmatched-paren"],
+    "the procedure's own `end` was consumed by the group recovery",
+  );
+
+  // The same for an `else` belonging to an outer `if`, whose body would otherwise be folded into
+  // the then-branch. The `if` itself still parses, so only the group's own error is reported.
+  const conditional = "if 1 [ print 1 ] else [ print 2 ]\n";
+  assert.deepEqual(OL.parse(conditional, doc).diagnostics, []);
+
+  // And the narrow case the recovery exists for still works: one rejected token, then the `)`.
+  assert.deepEqual(
+    OL.parse("print (value)\n", doc).diagnostics.map((d) => d.code),
+    ["ol-bad-token"],
+  );
+});
+
 test("a bare `value` in parentheses is still rejected", () => {
   // The reader is entered only when `of` directly follows, so parenthesizing a bare `value` must
   // not smuggle it in as a callee. Assert the COMPLETE diagnostic set, not a filtered subset: a
@@ -259,6 +283,13 @@ test("the group recovery only fires when the operand consumed nothing", () => {
       .map((d) => d.params.text),
     ["+"],
     "recovery blamed a token it did not reject",
+  );
+
+  // A multi-token operand is the other half of that limitation: the recovery declines entirely,
+  // so this is byte-identical to the base commit rather than half-recovered.
+  assert.deepEqual(
+    OL.parse("print (value 1)\n", doc).diagnostics.map((d) => d.code),
+    ["ol-unmatched-paren", "ol-bad-token", "ol-unmatched-paren"],
   );
 });
 

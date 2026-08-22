@@ -1406,6 +1406,27 @@ export function parse(source: string, document = "<input>"): ParseResult {
     return { key, value, source_span: spanBetween(key, value) };
   }
 
+  /**
+   * Is the token after {@link current} the `)` that closes this group (newlines aside)? This is
+   * the narrow licence {@link parseParenthesized}'s operand recovery needs: it may step over
+   * **one** rejected token, so it must only do so when doing that actually reaches the group's
+   * own `)`.
+   *
+   * Without this, the recovery consumed a structural token that belonged to an ENCLOSING
+   * construct. `define f` / `print (` / `end` has an unterminated group whose next token is the
+   * procedure's perfectly valid `end`: recovering there ate it, so the `define` never saw its
+   * closer and reported a spurious `ol-missing-end`. Same for an `else` belonging to an outer
+   * `if`, whose body then got folded into the then-branch. Those tokens must be left for the
+   * parser that owns them (issue #830 review).
+   */
+  function closesGroupAfterOneToken(): boolean {
+    let ahead = 1;
+    while (peek(ahead).kind === "newline") {
+      ahead += 1;
+    }
+    return peek(ahead).kind === "rparen";
+  }
+
   function parseParenthesized(): ExpressionNode | undefined {
     const open = current();
     advance();
@@ -1481,7 +1502,8 @@ export function parse(source: string, document = "<input>"): ParseResult {
       inner === undefined &&
       pos === beforeInner &&
       current().kind !== "rparen" &&
-      current().kind !== "eof"
+      current().kind !== "eof" &&
+      closesGroupAfterOneToken()
     ) {
       // The group's operand was rejected and the reader consumed NOTHING — `( value )`, where
       // {@link parseNamePrimary} declines a keyword without advancing. Report that token and step
