@@ -7,8 +7,11 @@
  *
  * Keywords are matched case-insensitively with lowercase as canonical, so
  * {@link isReservedWord} normalizes to lowercase before looking a name up. The four
- * contextual keywords `empty`, `member`, `of`, and `a` are deliberately **absent**: they act
- * as keywords only just after `is` and stay ordinary names everywhere else.
+ * contextual keywords `empty`, `member`, `of`, and `a` are deliberately **absent**: they are not
+ * reserved, so a program may still declare them (`define of`, `:empty = 1`). Their *highlighting*
+ * is positional — `spec/tooling.md:97-99` marks them `keyword` only inside an `is`-predicate or
+ * the heritage `value of … for key` reader (issue #785), and an ordinary name everywhere else.
+ * Registry membership is unaffected by that: none of the four is ever reserved.
  *
  * Profile block-heads (`ask`/`each`/`tell`, `when`/`every`/`on_key`/`on_click`) are **not** in
  * {@link OL_RESERVED_WORDS}: they live in the profile-conditional {@link OL_PROFILE_RESERVED_WORDS}
