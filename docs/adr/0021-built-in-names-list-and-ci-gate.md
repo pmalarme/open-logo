@@ -121,12 +121,12 @@ built-in name* as *what is*:
   // The tag→accessor mapping the gate reads. The ADR's table is this object, printed.
   // EXCERPT — 6 of the 14 tags shown; the table below lists all fourteen at 0.1.0.
   "registries": {
-    "reserved":          { "accessor": "OL_RESERVED_WORDS",         "status": "present" },
-    "profile-reserved":  { "accessor": "OL_PROFILE_RESERVED_WORDS", "status": "present" },
-    "core-primitive":    { "accessor": "corePrimitiveArity",        "status": "present" },
-    "turtle-primitive":  { "accessor": "turtlePrimitiveArity",      "status": "present" },
-    "tutor-primitive":   { "accessor": "tutorPrimitiveArity",       "status": "declared" },
-    "heritage-alias":    { "accessor": "heritageAliasNames",        "status": "present" }
+    "reserved":          { "lookup": "OL_RESERVED_WORDS",         "enumerate": "OL_RESERVED_WORDS",         "status": "present"  },
+    "profile-reserved":  { "lookup": "OL_PROFILE_RESERVED_WORDS", "enumerate": "OL_PROFILE_RESERVED_WORDS", "status": "present"  },
+    "core-primitive":    { "lookup": "corePrimitiveArity",        "enumerate": "corePrimitiveNames",        "status": "declared" },
+    "turtle-primitive":  { "lookup": "turtlePrimitiveArity",      "enumerate": "turtlePrimitiveNames",      "status": "declared" },
+    "tutor-primitive":   { "lookup": "tutorPrimitiveArity",       "enumerate": "tutorPrimitiveNames",       "status": "declared" },
+    "heritage-alias":    { "lookup": "heritageAliasNames",        "enumerate": "heritageAliasNames",        "status": "present"  }
     // … 8 more tags omitted from this excerpt
   },
   "names": [
@@ -187,22 +187,29 @@ built-in name* as *what is*:
   The vocabulary is **closed and enumerated** — no shorthand, because a pattern like
   `<profile>-primitive` is exactly the kind of thing a reader completes by guessing:
 
-  | tag | accessor |
-  |---|---|
-  | `reserved` | `OL_RESERVED_WORDS` |
-  | `profile-reserved` | `OL_PROFILE_RESERVED_WORDS` (keyed by profile) |
-  | `core-primitive` | `corePrimitiveArity` |
-  | `turtle-primitive` | `turtlePrimitiveArity` |
-  | `data-primitive` | `dataPrimitiveArity` |
-  | `educational-primitive` | `educationalPrimitiveArity` |
-  | `geometry-primitive` | `geometryPrimitiveArity` |
-  | `interaction-primitive` | `interactionPrimitiveArity` |
-  | `sound-primitive` | `soundPrimitiveArity` |
-  | `sprites-primitive` | `spritesPrimitiveArity` |
-  | **`tutor-primitive`** | **`tutorPrimitiveArity` — `status: "declared"`; does not exist yet, #841 creates it (see below)** |
-  | `heritage-alias` | `heritageAliasNames` |
-  | `heritage-form-head` | `heritageFormHeadNames` |
-  | `heritage-worded-form-head` | `heritageWordedFormHeads` |
+  | tag | `lookup` | `enumerate` | `status` at `0.1.0` |
+  |---|---|---|---|
+  | `reserved` | `OL_RESERVED_WORDS` | `OL_RESERVED_WORDS` (array) | `present` |
+  | `profile-reserved` | `OL_PROFILE_RESERVED_WORDS` | `OL_PROFILE_RESERVED_WORDS` (Record, per key) | `present` |
+  | `core-primitive` | `corePrimitiveArity` | `corePrimitiveNames` | `declared` |
+  | `turtle-primitive` | `turtlePrimitiveArity` | `turtlePrimitiveNames` | `declared` |
+  | `data-primitive` | `dataPrimitiveArity` | `dataPrimitiveNames` | `declared` |
+  | `educational-primitive` | `educationalPrimitiveArity` | `educationalPrimitiveNames` | `declared` |
+  | `geometry-primitive` | `geometryPrimitiveArity` | `geometryPrimitiveNames` | `declared` |
+  | `interaction-primitive` | `interactionPrimitiveArity` | `interactionPrimitiveNames` | `declared` |
+  | `sound-primitive` | `soundPrimitiveArity` | `soundPrimitiveNames` | `declared` |
+  | `sprites-primitive` | `spritesPrimitiveArity` | `spritesPrimitiveNames` | `declared` |
+  | **`tutor-primitive`** | `tutorPrimitiveArity` | `tutorPrimitiveNames` | `declared` — **neither exists; #841 creates both** |
+  | `heritage-alias` | `heritageAliasNames` | `heritageAliasNames` | `present` |
+  | `heritage-form-head` | `heritageFormHeadNames` | `heritageFormHeadNames` | `present` |
+  | `heritage-worded-form-head` | `heritageWordedFormHeads` | `heritageWordedFormHeads` | `present` |
+
+  Measured at `1499e1e`: **5 tags are `present` and 9 are `declared`.** Of the nine primitive tags,
+  every `lookup` resolves except `tutorPrimitiveArity`, and **none of the nine `*PrimitiveNames`
+  enumerators is exported** — which is why all nine are `declared` rather than `present`. The five
+  `present` tags (`reserved`, `profile-reserved`, and the three Heritage tags) resolve in both
+  roles. `corePrimitiveArity()` called with no argument throws `TypeError`, which is the concrete
+  reason a lookup cannot stand in for an enumerator.
 
   **The tag→accessor mapping is data, not prose: it lives in the file, as a top-level `registries`
   object** (tag → accessor name) alongside `specVersion`. That is what the gate reads; the table
@@ -214,22 +221,32 @@ built-in name* as *what is*:
   this table is not amended, it simply describes `0.1.0`. Because the gate consults the file and
   never this prose, the record going stale after a superseding ADR cannot break the gate.
 
-  Moving the mapping into data removes the human who was checking it, so the gate takes that over:
-  **every accessor in `registries` must resolve to a real export of `@openlogo/parser`.** A typo'd
-  accessor would otherwise make its registry silently unverifiable — entries claiming that tag would
-  be compared against nothing, which is a green gate proving less than it appears to, the failure
-  mode this whole record exists to prevent.
+  Moving the mapping into data removes the human who was checking it, so the gate takes that over.
+  Each tag names **two** accessors, because clause 1 checks two directions and they need different
+  shapes: a **`lookup`** (*is this name in this registry?*) and an **`enumerate`** (*what names does
+  this registry hold?*). Conflating them is not academic — the eight `*PrimitiveArity` functions are
+  lookups only. `corePrimitiveArity` is `(name) => …` over a module-private Map; called with no
+  argument it throws. So naming it alone would satisfy the per-name direction while leaving the
+  whole-list direction — *does the implementation hold a name the list forgot?* — unreachable for
+  the eight primitive tags, which cover most of the entries. That is the failure this record exists
+  to prevent, reproduced inside the mechanism meant to prevent it: a green gate proving less than it
+  appears to. Where one accessor serves both roles (`OL_RESERVED_WORDS` is an array;
+  `heritageAliasNames()` enumerates) the two fields name it twice rather than special-casing.
 
-  That check needs to distinguish an accessor that is *missing* from one that is *not built yet*,
-  and the distinction is **in the data, not in the gate's source**: each entry is
-  `{ "accessor": …, "status": "present" | "declared" }`. `present` means the export must resolve —
-  if it does not, that is drift and the build fails. `declared` means the registry is decided but
-  not yet created, so the export is *expected* to be absent; the gate accepts that, and fails if it
-  ever *does* resolve, because at that moment the entry should have become `present`. Exactly one
-  tag is `declared` at `0.1.0` — `tutor-primitive` — and #841 flips it to `present` in the same
-  change that creates `tutorPrimitiveArity`. Without this field the gate would need a hard-coded
-  exception naming `tutorPrimitiveArity`, which is the second list that drifts from the first, the
-  precise failure this record exists to remove.
+  **Every accessor named must resolve to a real export of `@openlogo/parser`**, and the check
+  distinguishes an accessor that is *missing* from one that is *not built yet* — **in the data, not
+  in the gate's source** — via `status`:
+  - **`present`** — every accessor of this tag must resolve; if one does not, that is drift and the
+    build fails.
+  - **`declared`** — decided but not yet created, so it is *expected* absent; the gate accepts that
+    and **fails if it ever does resolve**, because at that moment the entry should have become
+    `present`.
+
+  At `0.1.0` the `declared` tags are the nine primitive tags: eight whose `lookup` resolves but whose
+  `*PrimitiveNames` enumerator §4 requires #841 to export, plus `tutor-primitive`, whose `lookup`
+  does not exist either. #841 flips each to `present` in the same change that creates its accessors.
+  Without `status` the gate would need hard-coded exceptions naming those accessors — the second
+  list that drifts from the first, the precise failure this record exists to remove.
 - **Tutor (AI) gets its own registry: `tutorPrimitiveArity`.** This decision settles it here rather
   than deferring it, because an Accepted record must not hand an unresolved architecture choice to
   its implementing slice. The alternative — filing `challenge` in the existing
