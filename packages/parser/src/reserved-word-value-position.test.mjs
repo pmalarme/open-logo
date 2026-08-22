@@ -10,6 +10,11 @@
 // and nothing says so. `parser.ts` now derives its non-expression-head set from
 // `OL_RESERVED_WORDS`, so the sweeps below also fail if a future slice adds a reserved word without
 // deciding, deliberately, which side of the line it falls on.
+//
+// **Scope: the global Core registry only.** `OL_PROFILE_RESERVED_WORDS` (`ask`/`each`/`tell` and the
+// four event block-heads) is out of scope here and still reads clean in value position — the reader
+// is profile-blind by design, so rejecting those belongs to the profile-aware checker, not to this
+// set. Tracked separately; see the PR for #853.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -159,12 +164,17 @@ test("the Data mutation statement heads still parse as statements", () => {
   }
 });
 
-test("reserved words are still legal data keys, fields, and bare places", () => {
+test("reserved words are still legal data — dict keys, fields, and bare selector keys", () => {
+  // "Dictionary keys and selector bare keys are data, not declarations, so reserved words are legal
+  // keys" (`spec/grammar.md:369`). `[key]` is the BARE `identifier` alternative of `key-term`
+  // (`spec/grammar.md:111`) — the case that actually routes through `parseKeyTerm`'s `name` branch,
+  // which a quoted `["key"]` word literal would not exercise.
   const sources = [
     ":settings = { key: 1 value: 2 }",
     "print :settings.value",
-    'print :settings["key"]',
-    "set value to 1",
+    "print :settings[key]",
+    "print :settings[value]",
+    "struct point [ value key ]",
   ];
 
   for (const source of sources) {
@@ -174,4 +184,15 @@ test("reserved words are still legal data keys, fields, and bare places", () => 
       `\`${source}\` uses a reserved word as data, which stays legal (spec/grammar.md:369)`,
     );
   }
+});
+
+test("a reserved word as a bare place still parses, and the checker rejects the binding", () => {
+  // `set value to 1` is a BINDING, not data: `bare-place` reads a raw `name` token, so the reader
+  // is unaffected by the expression-position guard — but binding a reserved word is illegal
+  // (`spec/grammar.md:367`), and the semantic layer is what says so.
+  assert.deepEqual(OL.parse("set value to 1", doc).diagnostics, []);
+  assert.deepEqual(
+    allDiagnostics("set value to 1\n").map((diagnostic) => diagnostic.code),
+    ["ol-reserved-word"],
+  );
 });

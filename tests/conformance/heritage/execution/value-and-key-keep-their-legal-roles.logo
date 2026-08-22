@@ -1,8 +1,9 @@
 # The other half of issue #853: tightening expression position must not touch the LEGITIMATE roles
 # of `value` and `key`. The Heritage `value of … for key …` reader (spec/grammar.md:213) still
-# reads, and reserved words remain legal DATA — dictionary keys, `.field` names, and bare selector
-# keys ("Dictionary keys and selector bare keys are data, not declarations, so reserved words are
-# legal keys", spec/grammar.md:369). The reader operates on a dict, so Heritage also needs Data
+# reads, and reserved words remain legal DATA — dictionary keys, `.field` names, and BARE selector
+# keys, the `identifier` alternative of `key-term` (spec/grammar.md:111): "Dictionary keys and
+# selector bare keys are data, not declarations, so reserved words are legal keys"
+# (spec/grammar.md:369). The reader operates on a dict, so Heritage also needs Data
 # (spec/conformance.md:301).
 :settings = {
   key: "alpha"
@@ -10,4 +11,4 @@
 }
 print value of :settings for key "key"
 print :settings.value
-print :settings["key"]
+print :settings[key]

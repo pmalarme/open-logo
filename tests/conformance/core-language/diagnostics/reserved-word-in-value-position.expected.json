@@ -1,5 +1,5 @@
 {
-  "description": "`repeat value [ ]` and `repeat key [ ]` each report ol-bad-token at the offending word (issue #853). `value` and `key` are globally reserved (spec/grammar.md:358) and no `expression` alternative (spec/grammar.md:190-200) begins with either, so they are not permitted at this grammar position (spec/error-model.md:109). Before the fix both parsed and checked completely CLEAN in every profile set — a silent no-op. Parse-only negative fixture.",
+  "description": "Every globally reserved word that heads no `expression` alternative (spec/grammar.md:190-200) is reported as ol-bad-token at the offending token (spec/error-model.md:109). Issue #853: `value`, `key`, and the Data mutation heads `add`/`remove`/`insert`/`clear` all parsed AND checked completely CLEAN in every profile set — a silent no-op. Lines 13-14 are the issue's verbatim reproduction; the mutation heads are pinned in list-element value position so the contract is about acceptance, not one reader's error recovery. Parse-only negative fixture.",
   "profiles": ["core-language"],
   "expect": "match",
   "events": [],
@@ -8,8 +8,8 @@
       "code": "ol-bad-token",
       "source_span": {
         "document": "core-language/diagnostics/reserved-word-in-value-position",
-        "start": [7, 8],
-        "end": [7, 13]
+        "start": [13, 8],
+        "end": [13, 13]
       },
       "params": { "text": "value" },
       "stage": "parse",
@@ -19,10 +19,54 @@
       "code": "ol-bad-token",
       "source_span": {
         "document": "core-language/diagnostics/reserved-word-in-value-position",
-        "start": [8, 8],
-        "end": [8, 11]
+        "start": [14, 8],
+        "end": [14, 11]
       },
       "params": { "text": "key" },
+      "stage": "parse",
+      "severity": "error"
+    },
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/diagnostics/reserved-word-in-value-position",
+        "start": [15, 12],
+        "end": [15, 15]
+      },
+      "params": { "text": "add" },
+      "stage": "parse",
+      "severity": "error"
+    },
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/diagnostics/reserved-word-in-value-position",
+        "start": [16, 13],
+        "end": [16, 19]
+      },
+      "params": { "text": "remove" },
+      "stage": "parse",
+      "severity": "error"
+    },
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/diagnostics/reserved-word-in-value-position",
+        "start": [17, 12],
+        "end": [17, 18]
+      },
+      "params": { "text": "insert" },
+      "stage": "parse",
+      "severity": "error"
+    },
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/diagnostics/reserved-word-in-value-position",
+        "start": [18, 13],
+        "end": [18, 18]
+      },
+      "params": { "text": "clear" },
       "stage": "parse",
       "severity": "error"
     }

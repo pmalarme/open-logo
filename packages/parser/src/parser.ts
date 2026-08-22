@@ -94,14 +94,20 @@ const EXPRESSION_INITIAL_RESERVED_WORDS: ReadonlySet<string> = new Set<string>([
  *
  * **Derived from {@link OL_RESERVED_WORDS}, not hand-listed** (issue #853). "Reserved words are
  * structural tokens recognized by the reader" (`spec/grammar.md:367`) and may never be bound as a
- * primitive, procedure, or constructor, so *every* reserved word is illegal in expression position
- * except the handful {@link EXPRESSION_INITIAL_RESERVED_WORDS} names. Deriving the complement makes
- * that the invariant: a reserved word added to the registry in a future slice is rejected here
- * automatically, instead of silently becoming a zero-arity {@link ast.call} that no rule flags.
+ * primitive, procedure, or constructor, so *every* globally reserved word is illegal in expression
+ * position except the handful {@link EXPRESSION_INITIAL_RESERVED_WORDS} names. Deriving the
+ * complement makes that the invariant: a word added to that registry in a future slice is rejected
+ * here automatically, instead of silently becoming a zero-arity {@link ast.call} that no rule flags.
  * Before this, `repeat value [ ]` and `repeat key [ ]` parsed *and* checked completely CLEAN under
  * every profile set — as did the Data mutation heads `add`/`remove`/`insert`/`clear` in the same
  * position. That is the "silent no-op" class: the program does something other than what was
  * written, and nothing says so.
+ *
+ * Scope is the **global Core registry only**. `OL_PROFILE_RESERVED_WORDS` (`ask`/`each`/`tell`, the
+ * four event heads) is deliberately excluded: those words are reserved only while their profile is
+ * active, and this reader is profile-blind by design (see {@link PROFILE_STATEMENT_FORMS}) — a
+ * Core-only program may legally `define ask … end` and call it. Rejecting them in value position is
+ * the profile-aware checker's job, not this set's.
  *
  * The statement heads stay unaffected because {@link parseStatement} dispatches `add`/`remove`/
  * `insert`/`clear` by keyword *before* any expression is read, and bare-key positions

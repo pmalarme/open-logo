@@ -1,8 +1,18 @@
-# `value` and `key` are globally reserved structural words (spec/grammar.md:358) with no
-# expression-head role: no alternative of the `expression` production (spec/grammar.md:190-200)
-# begins with either, so the reader reports each as ol-bad-token at the offending token — the same
-# treatment every sibling reserved word already received. Before issue #853 both parsed silently
-# into a bare zero-argument call that no rule flagged, under every profile set: a `repeat` with no
-# count, and nothing said so. Parse-only negative fixture.
+# A globally reserved structural word (spec/grammar.md:355-362) heads no alternative of the
+# `expression` production (spec/grammar.md:190-200), so the reader reports each as ol-bad-token at
+# the offending token — "a valid OpenLogo token ... not permitted at the current grammar position"
+# (spec/error-model.md:109). Before issue #853 all six below parsed AND checked completely CLEAN
+# under every profile set: nothing said so.
+#
+# The first two lines are the issue's verbatim reproduction. The rest use a list element — a full
+# `expression` by spec/grammar.md:204 — because the Data mutation heads (spec/grammar.md:113-117)
+# are ALSO statement openers, so at the start of a statement the reader's error recovery re-enters
+# their statement form and adds a second, incidental diagnostic. Pinning them in a non-statement
+# value position keeps this stack-neutral contract about ACCEPTANCE, not about one reader's
+# recovery strategy. Parse-only negative fixture.
 repeat value [ ]
 repeat key [ ]
+:first = [ add ]
+:second = [ remove ]
+:third = [ insert ]
+:fourth = [ clear ]
