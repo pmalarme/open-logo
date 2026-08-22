@@ -196,8 +196,8 @@ test("the names a learner reaches for are owned across all three categories", ()
 // comment; folding case the way the host language does rather than the way `spec/grammar.md:13`
 // does; and dropping an identifier's `?`/`!` suffix (`spec/grammar.md:54-55`) so a declaration is
 // attributed to the wrong name — `empty` is explicitly not a built-in name (`:380`) while `empty?`
-// is a Core primitive. `challenge` covers the last case: a name the spec assigns whose profile has
-// no signature table yet.
+// is a Core primitive. `challenge` covers one more: a name that is owned by a profile document
+// rather than by the C3 matrix, and so is reached through its own `tutorPrimitiveArity` table.
 test("the audit models the three reachable declaration slots, case and suffix included", () => {
   assert.deepEqual(declaredNames("define polygon :sides\n  forward 1\nend"), [
     "polygon",
