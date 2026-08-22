@@ -33,7 +33,8 @@
 //      `spec/localization.md:80,82` lists this reader as a Heritage grammar form whose forms "can
 //      contain structural words such as `to`, `of`, `for`, and `key` in fixed grammar slots" —
 //      naming `of` a structural word beside its three reserved siblings — `spec/tooling.md:30`
-//      opens the `keyword` row with "Structural words recognized by the reader", and
+//      names `of` among the contextual words that take the `keyword` class in the structural
+//      positions it describes, and
 //      `spec/grammar.md:380` calls it "the contextual preposition in the heritage
 //      `value of … for key` reader". Not every passage is yet phrased to match:
 //      `spec/grammar.md:234`, `:380`, `spec/execution-model.md:154-156`, and

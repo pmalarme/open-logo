@@ -124,8 +124,9 @@ test("#742: the four Core-backed aliases are now rejected, with the surface spel
 
 test("#742: no Heritage alias collides while the heritage profile is inactive", () => {
   // The other direction, and the property that keeps this from being a Core-wide land-grab: `pr` is
-  // an ordinary name in a Core-only program, exactly as `define ask` stays legal without Sprites
-  // (`spec/tooling.md:175-176` — the rule is applied against the *active* profile set).
+  // an ordinary name in a Core-only program, exactly as `define ask` stays legal without Sprites.
+  // That gate is shipped behaviour, not what the spec requires: `spec/grammar.md:408` makes every
+  // profile's primitives built-in names unconditionally, and retiring the gate is #841's.
   for (const alias of OL.heritageAliasNames()) {
     assert.deepEqual(
       reservedWordFindings(`define ${alias}\nend\n`, CORE_ONLY),

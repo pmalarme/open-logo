@@ -395,8 +395,9 @@ test("check: `wait` is a primitive, so redefining it under an active profile rai
 
 test("check: `wait` may be redefined under Core-only — it is not visible, so it collides with nothing", () => {
   // The profile gate cuts both ways: with `interaction-events` inactive `wait` registers no
-  // primitive at all (`collectVisibleNames`), so a Core-only program is free to `define wait`,
-  // exactly as it is free to `define grid` without Geometry.
+  // primitive at all (`collectVisibleNames`), so a Core-only program is currently accepted in
+  // declaring `wait`, exactly as it is for `grid` without Geometry. That gate is shipped
+  // behaviour, not what the spec requires (`spec/grammar.md:408`); retiring it is #841's.
   for (const primitive of Object.keys(INTERACTION_PRIMITIVES)) {
     assert.deepEqual(
       checkDiagnostics(`define ${primitive}\nend`, CORE_PROFILES),

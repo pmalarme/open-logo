@@ -81,7 +81,8 @@
  * Issue #427 (M4 audit) extends the primitive branch again to the Geometry profile: `grid`,
  * `axes`, and `measure` (`signatures.ts`'s `geometryPrimitiveArity`) collide the same way a Core
  * or Data primitive does when `"geometry"` is active, mirroring the Data branch #405 added — gated
- * the same way, so a Core-only program is free to `define grid`.
+ * the same way, so a Core-only program is currently accepted when it declares `grid`. That gate is
+ * the shipped deviation #841 closes, not a rule the spec states.
  *
  * Issue #663 (C1, M5) extends the *keyword* branch the same profile-conditional way: the
  * Sprites block-heads `ask`/`each`/`tell` and the Interaction & Events block-heads
@@ -306,7 +307,11 @@ function isStructDef(node: AnyNode): node is StructDefNode {
  * `checker-names.ts`'s and `checker-arity.ts`'s own `data` gate: with `data` inactive, a struct
  * declaration registers no constructor at all (`collectVisibleNames`), so it must not participate
  * in collision checks here either, or a Core-only program could be flagged for a name that isn't
- * actually registered.
+ * actually registered. **That gate is shipped behaviour, not what the spec requires:**
+ * `spec/tooling.md:185` and `spec/grammar.md:382` make `struct` a declaration slot
+ * unconditionally, so `struct if [ x ]` must raise under Core-only too — measured, it is clean
+ * without `data` and raises with it. Retiring the gate belongs with the rest of the always-on list
+ * in #841.
  */
 export function reservedWordRule(
   program: ProgramNode,

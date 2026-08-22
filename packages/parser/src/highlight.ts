@@ -370,8 +370,9 @@ export function highlight(source: string, document = "<input>"): Token[] {
    * amendment and this marking ship in the same change, so no version of the tree has the code and
    * the spec disagreeing.
    *
-   * Supporting passages elsewhere in the spec: `spec/tooling.md:30` opens the `keyword` row with
-   * "Structural words recognized by the reader"; `spec/localization.md:80,82` lists
+   * Supporting passages elsewhere in the spec: `spec/tooling.md:30` names `of` among the contextual
+   * words that take the `keyword` class in the structural positions it describes;
+   * `spec/localization.md:80,82` lists
    * `value of dict for key key_value` among the Heritage grammar forms and states these forms "can
    * contain structural words such as `to`, `of`, `for`, and `key` in fixed grammar slots" — naming
    * `of` a structural word of this production, beside the three siblings that are reserved and so

@@ -313,9 +313,11 @@ test("check: redefining a Sprites reporter under an active profile raises ol-res
 test("check: redefining a Sprites reporter is allowed under Core-only — the rule is profile-gated", () => {
   // The other direction of #746, and the property the reporters share with the block-heads above:
   // with `sprites` inactive the name registers nothing, so it stays an ordinary name a Core-only
-  // program is free to declare — exactly as `define ask` is legal without Sprites. The `ol-unknown-
-  // command` a *call* to it would raise is a different rule, exercised above; a bare declaration is
-  // fully clean.
+  // program is currently accepted in declaring — exactly as `define ask` is accepted without
+  // Sprites. That gate is shipped behaviour, not what the spec requires (`spec/grammar.md:408`
+  // makes profile primitives built-in names unconditionally); retiring it is #841's. The
+  // `ol-unknown-command` a *call* to it would raise is a different rule, exercised above; a bare
+  // declaration is fully clean.
   for (const reporter of Object.keys(SPRITES_REPORTERS)) {
     assert.deepEqual(
       checkDiagnostics(`define ${reporter}\nend`, CORE_PROFILES),
