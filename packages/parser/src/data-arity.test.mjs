@@ -168,7 +168,16 @@ test("two struct declarations sharing a name are checked in source order: the fi
   assert.deepEqual(diagnostics[0].params.original_span.start, [1, 8]);
 });
 
-test("without the data profile active, a struct name is not registered so no collision is reported", () => {
+test("without the data profile active, `dict` is not a built-in name, so `struct dict` is free", () => {
+  // The title used to say "a struct name is not registered so no collision is reported", which
+  // stated the pre-#838 rule as the reason and now contradicts the test six lines below: a struct
+  // DOES collide under Core alone when it duplicates an earlier declaration. The body was always
+  // right; only the stated reason was wrong.
+  //
+  // The real reason is narrower and belongs to a different rule: `dict` is a **Data primitive**, so
+  // it is a built-in name only while `data` is claimed. That gate is `ol-reserved-word`'s, not
+  // `ol-duplicate-definition`'s, and `spec/grammar.md:408` has already overruled it — retiring it is
+  // issue #841's, at which point this test flips to expecting `ol-reserved-word`.
   const ast = parseClean("struct dict [ x ]");
   const { diagnostics } = OL.check(ast, { profiles: ["core-language"] });
   assert.deepEqual(diagnostics, []);
