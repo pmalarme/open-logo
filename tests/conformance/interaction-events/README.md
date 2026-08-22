@@ -80,7 +80,11 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   statement would have had, and a budget of 2 raises `ol-limit`.
   `when-host-delivered-firing-counts-against-budget` covers the other path — a named event delivered
   by the host through the tick dispatcher — because charging one path but not the other passed the
-  entire corpus.
+  entire corpus. `when-non-empty-body-refused-at-boundary-budget` is the discriminating twin of the
+  first at the *same* budget of 2: an empty body is delivered, a non-empty one is refused, because a
+  handler must afford its firing **and** its body's first statement. That absence — no second
+  `ProfileStatement` `instruction` event — is what a source→events fold observes, and dropping the
+  body-gate arm adds exactly that orphan block-head.
 - **`every/`** — the `every <n> <block>` repeated timed handler (issue #683, slice I4):
   registration emits `primitive` after the handler is registered, the block first runs `n` ticks
   **after registration** (not at a global multiple of `n`) and repeats every `n` ticks while a `wait`
@@ -100,8 +104,11 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   repair will build on; #828 only guarantees it is not taken away. Second, that growth is bounded by the **ordinary
   instruction budget** rather than by a mechanism of its own, because each firing is a charged
   instruction: `every-nested-registration-budgeted` raises `ol-limit` where its control twin
-  `every-single-registration-budgeted` — same empty body, same ticks, same budget — completes cleanly,
-  so the diagnostic is caused by the accumulation and not by a budget too small for any program.
+  `every-single-registration-budgeted` — one non-accumulating `every`, same 12 ticks, same budget of
+  14 — completes cleanly, so the diagnostic is caused by the accumulation and not by a budget too
+  small for any program. (The twins are not byte-identical bodies: the nested subject's *outer* body
+  holds the inner registration, while the control's body is empty. The control charges roughly 6
+  against 14, so it never approaches the boundary and the comparison stays honest.)
 - **`on_key/`** — the `on_key <key-word> <block>` keyboard handler (issue #684, slice I5):
   registration emits `primitive` after the handler is registered; a key press is host input, so in a
   headless batch run the handler is registered but never delivered (locked by
