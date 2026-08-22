@@ -119,13 +119,19 @@ built-in name* as *what is*:
 {
   "specVersion": "0.1.0",
   "names": [
-    { "name": "define", "category": "keyword",   "profile": "core-language" },
-    { "name": "ask",     "category": "keyword",   "profile": "sprites" },
-    { "name": "mod",     "category": "keyword",   "profile": "core-language" },
-    { "name": "forward", "category": "primitive", "profile": "turtle-rendering" },
-    { "name": "setxy",   "category": "primitive", "profile": "turtle-rendering", "aliasOf": "set_xy" },
-    { "name": "fd",      "category": "primitive", "profile": "heritage",         "aliasOf": "forward" },
-    { "name": "challenge", "category": "primitive", "profile": "tutor-ai" }
+    { "name": "define", "category": "keyword",   "profile": "core-language",    "registries": ["reserved"] },
+    { "name": "ask",     "category": "keyword",   "profile": "sprites",          "registries": ["profile-reserved"] },
+    { "name": "mod",     "category": "keyword",   "profile": "core-language",    "registries": ["reserved"] },
+    { "name": "to",      "category": "keyword",   "profile": "core-language",    "registries": ["reserved", "heritage-form-head"] },
+    { "name": "thing",   "category": "keyword",   "profile": "core-language",    "registries": ["reserved", "core-primitive"] },
+    { "name": "forward", "category": "primitive", "profile": "turtle-rendering", "registries": ["turtle-primitive"] },
+    { "name": "setxy",   "category": "primitive", "profile": "turtle-rendering", "registries": ["turtle-primitive"], "aliasOf": "set_xy" },
+    { "name": "fd",      "category": "primitive", "profile": "heritage",         "registries": ["heritage-alias"],   "aliasOf": "forward" },
+    // `challenge` is normative in spec/conformance.md but is in NO registry today, and there is no
+    // tutor-shaped table to name — see clause 2. #841 must choose its target registry (the existing
+    // educationalPrimitiveArity, or a new tutor one) and record that name here. Deliberately left
+    // unresolved rather than guessed: a fabricated registry name is the drift this file prevents.
+    { "name": "challenge", "category": "primitive", "profile": "tutor-ai",       "registries": ["<chosen by #841>"] }
   ],
   "excluded": [
     { "name": "polygon", "reason": "library",            "source": "stdlib/geometry/polygon.logo" },
@@ -162,12 +168,28 @@ built-in name* as *what is*:
   `heritageSurfaceSpellings()`. If the list ever needs to represent worded forms, that
   production-name keying is the shape to mirror — a `head` is not a name-for-name alias, so it has
   no `aliasOf` target to point at.
+- **`registries`** is the **complete, exact set of implementation registries the name must appear
+  in** — the field that makes the comparison bidirectional. `category` and `profile` are
+  single-valued summaries and cannot express a name registered in two places, so without this field
+  a dual-registered name normalizes to the same entry whether or not its second registration still
+  exists: drop `thing` from `corePrimitiveArity`, or `make` from `heritageFormHeadNames()`, and a
+  precedence-based gate would still see a matching keyword entry and report green. With
+  `registries`, membership is checked set-equal in both directions against the named accessors, so
+  either loss fails the build. The registry names are a closed vocabulary mapping one-to-one onto
+  the public API — `reserved`, `profile-reserved`, `<profile>-primitive`, `heritage-alias`,
+  `heritage-form-head`, `heritage-worded-form-head` — and adding a registry to the implementation
+  means adding its name here, which is itself the drift the gate exists to catch. Where a name has
+  no registry yet, the entry says so rather than naming a plausible-sounding one: `challenge` is in
+  none, and there is no tutor-shaped table in the API to point at, so #841 chooses its target and
+  records it. A guessed registry name would be indistinguishable from a measured one, in the file
+  whose whole purpose is that it cannot be guessed.
 - **Six names are reachable from two registries, so `category` needs a stated precedence.**
   Measured: `thing` is the only name in both `OL_RESERVED_WORDS` and a *primitive table*
   (`corePrimitiveArity`, arity 1); and `make`, `op`, `output`, `to` and `value` are each in
   `OL_RESERVED_WORDS` and a *Heritage* registry. `category` records **`keyword` first, then
-  `primitive`**, and such a name is filed once, as a keyword. Clause 1 states how the gate checks
-  it; without that precedence clause 1 is unimplementable for all six.
+  `primitive`**, `profile` follows the precedence-winning registry, and the full membership goes in
+  `registries`. Clause 1 states how the gate checks it; without that precedence *and* that field,
+  clause 1 is unimplementable for all six.
 - **`excluded`** is the machine-readable record of the deliberate omissions, each with a `reason`.
   This is the property that must exist **in the data, not in a comment**, because every one of them
   looks like an oversight to anyone doing a "completeness" pass. Note the `positions` field records
@@ -185,10 +207,11 @@ The gate runs in the CI-enforced Definition of Done and fails on any of:
 1. **Entry inequality in either direction** between `names` and the implementation's registries,
    read through `@openlogo/parser`'s public API. This is a comparison of **structured entries, not
    of a flattened name set**: for every name the gate checks that `category` matches the *kind* of
-   registry it came from, that `profile` matches *which* registry it came from, and that every
-   `aliasOf` names a real entry. Comparing names alone would accept `mod` implemented as a
-   primitive, `forward` filed under the wrong profile, or an `aliasOf` pointing at the wrong
-   canonical — three ways for the list to be exactly as wrong as no list.
+   registry it came from, that `profile` matches *which* registry it came from, that `registries` is
+   **set-equal** to the accessors the name actually appears in, and that every `aliasOf` names a
+   real entry. Comparing names alone would accept `mod` implemented as a primitive, `forward` filed
+   under the wrong profile, a name that quietly lost one of its two registrations, or an `aliasOf`
+   pointing at the wrong canonical — four ways for the list to be exactly as wrong as no list.
 
    **The registry→entry mapping has to be stated, because three of its cases are not the obvious
    one.** A gate written as "keyword ⇒ reserved list, primitive ⇒ a primitive table" is
@@ -199,16 +222,23 @@ The gate runs in the CI-enforced Definition of Done and fails on any of:
      in the `primitive` class. They map to `category: "primitive"`, `profile: "heritage"`, sourced
      from `heritageAliasNames()` — and the profile of a *canonical* (`forward` is
      `turtle-rendering`) is not the profile of its alias.
-   - **Five names are reachable from two registries.** `make`, `op`, `output`, `to` and `value` are
+   - **Six names are reachable from two registries.** `make`, `op`, `output`, `to` and `value` are
      in `OL_RESERVED_WORDS` *and* in a Heritage registry (`heritageFormHeadNames()`,
      `heritageWordedFormHeads()`); `thing` is in `OL_RESERVED_WORDS` *and* `corePrimitiveArity`.
-     Exact equality therefore requires a **stated precedence**, not deduplication by accident:
-     `category` is **`keyword` first, then `primitive`** — mirroring the precedence the checker
-     already applies when reporting a collision, measured (`define thing` reports
-     `namespace: "reserved"`, `define count` reports `"primitive"`) — and such a name is filed once,
-     as a keyword, with the gate checking membership of *both* its registries rather than demanding
-     exactly one. Without this the gate either misfiles the five Heritage heads as Heritage
-     primitives or rejects them outright.
+     Exact equality therefore requires both a **stated precedence** and a **recorded second
+     membership**, not deduplication by accident. `category` is **`keyword` first, then
+     `primitive`** — mirroring the precedence the checker already applies when reporting a
+     collision, measured (`define thing` reports `namespace: "reserved"`, `define count` reports
+     `"primitive"`) — so such a name is filed **once**, as a keyword, and `profile` is the owning
+     profile of the precedence-winning registry (`to` is `core-language`, not `heritage`). The
+     precedence is not a convention this decision invents: measured, all five Heritage heads carry
+     token class `keyword` while `fd`/`pr` carry `primitive`, matching `spec/tooling.md`'s own
+     "structural special-form heads are `keyword`" — the checker, the highlighter and the spec
+     already agree. The second membership is not inferred: it is recorded explicitly in the entry's
+     `registries` array (below), because `category` and `profile` are single-valued and therefore
+     cannot express it. Without both halves the gate either misfiles the five Heritage heads as
+     Heritage primitives, rejects them outright, or — if it merely dedupes — silently stops noticing
+     when a name's second registration disappears.
 
    **How far the alias half is checkable today, and what #841 must add.** Verifying that an
    `aliasOf` edge is the one the implementation *actually resolves* is only possible where the
