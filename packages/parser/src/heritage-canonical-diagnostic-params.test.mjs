@@ -736,8 +736,11 @@ test("the twin corpus is not vacuous — every pair raises at least one diagnost
   // `text` quotes the token). For those, what is asserted is code + stage + severity + count + the
   // param KEY SET, which is still what would break if a spelling changed a diagnostic's shape. The
   // pairs that do compare canonical values are the escape twins (`keyword`), the reporter aliases
-  // (`callable`), and `to print` (`namespace`). This is not a gap that can be closed by a better
-  // program: `cs 1` and `cs 1 2` only add another `ol-bad-token`, also `text`-only.
+  // (`callable`), and `to print` (`namespace`). That last one is temporary: spec ruling #833 drops
+  // `namespace` from `ol-reserved-word`, and its remaining param `name` is an audited surface
+  // subject above, so when the param goes this twin joins the structural group. This is not a gap
+  // that can be closed by a better program: `cs 1` and `cs 1 2` only add another `ol-bad-token`,
+  // also `text`-only.
   for (const twin of [...TWINS, ...PARSE_TWINS]) {
     const findings = stagedDiagnosticsFor(twin.heritage);
     assert.ok(

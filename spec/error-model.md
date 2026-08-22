@@ -63,9 +63,10 @@ resolved. They include bad tokens, unclosed strings or comments, unmatched delim
 and missing or mismatched `end` labels.
 
 `semantic` diagnostics come from understanding the program after parsing but before, or
-independent of, execution. They include unknown commands, wrong arity, reserved-word
-redefinition, unknown struct type declarations or constructors, invalid `return`
-placement, duplicate binders, and statically non-value-producing comprehension bodies.
+independent of, execution. They include unknown commands, wrong arity, declaring a
+built-in name, duplicate definitions, unknown struct type declarations or constructors,
+invalid `return` placement, duplicate binders, and statically non-value-producing
+comprehension bodies.
 
 `runtime` diagnostics come from evaluating values and state. They include type and range
 errors, division by zero, reading undefined variables, reading missing dictionary keys,
@@ -121,11 +122,28 @@ codes only outside the `ol-*` namespace.
 | `ol-user-error` | runtime | `message` | A program reached a `throw`, halting with the learner-facing message it supplied. Library procedures such as `polygon`, `star`, `circle`, `arc`, `area`, and `perimeter` use it to reject invalid input in their own words. v0.1 has no `try`/`catch`, so it stops the program like any other runtime error. |
 | `ol-not-boolean` | runtime | `actual`, optional `operation` | A condition or logical operand was not `true` or `false`. There is no truthiness. |
 | `ol-bad-color` | runtime | `value` | A color argument to `set_color` or `set_background` is not one of the accepted color forms: a palette name word, an `[r g b]` list of three numbers each `0` through `255`, or a `"#rrggbb"` hex word. The message SHOULD name the accepted forms. |
-| `ol-reserved-word` | semantic | `name`, `namespace` | A program attempted to redefine or collide with a reserved keyword, primitive, existing procedure, type constructor, or alias target where freshness is required. |
+| `ol-reserved-word` | semantic | `name` | A program tried to declare a built-in name — a keyword, a primitive, or an alias spelling of a primitive — in one of the four declaration slots (`define`, `to`, `struct`, or the first operand of `alias`). Say `{name} is already part of OpenLogo. choose another name.` The words *keyword*, *primitive*, and *alias* MUST NOT appear in the learner message. Binding a value to such a name is always legal and MUST NOT raise this code; see [grammar.md](grammar.md#keywords-primitives-and-built-in-names). |
+| `ol-duplicate-definition` | semantic | `name`, `original_span` | Something in the program already declares this name: a procedure defined twice, a struct declared twice, a procedure and a struct with the same name in either order, or an `alias` spelling that a declaration already takes, in either order. `source_span` points at the later declaration and `original_span` at the earlier one, so the message can say `you already defined {name} on line {line}.` Either span MAY name a different source document, so an imported module's declaration is an ordinary case. It MUST be an error and MUST NOT silently override the earlier declaration. A name OpenLogo itself provides raises `ol-reserved-word` instead; a name provided by a library written in OpenLogo — such as the derived Geometry standard library — raises this code, because that library's own source is the earlier declaration. |
 | `ol-unknown-type` | semantic | `name` | A type name in a **type position** — the type word of `is a` / `is_a?` — is not a known built-in type or declared struct. An unknown name in **callable position**, such as a constructor or command call, raises `ol-unknown-command` instead. |
 | `ol-unknown-field` | runtime | `type`, `field`, optional `write` | A record has no such field. This includes writing an unknown struct field; records are fixed-field values. |
 | `ol-unknown-key` | runtime | `key` | A required dictionary key is absent on read, or an intermediate dictionary key is absent in a nested access chain. Writing a missing final dictionary key upserts and MUST NOT raise this error. |
 | `ol-not-a-place` | semantic | optional `text` | The target of `=` or `set … to` is not assignable. Reporters such as `first`, `count`, and `keys` are not places. |
+
+`ol-reserved-word` and `ol-duplicate-definition` divide one question in two, and the division is
+what makes each of them mean exactly one thing. `ol-reserved-word` says **OpenLogo owns this name**;
+it applies only in the four declaration slots of [grammar.md](grammar.md#keywords-primitives-and-built-in-names)
+and carries no namespace: whether the taken name is a keyword, a primitive, or an alias spelling is
+an implementation distinction the learner never has to learn. `ol-duplicate-definition` says
+**something already declares this name** — the learner's own earlier definition, or a procedure from
+a library written in OpenLogo. The code `ol-reserved-word` keeps its spelling even though the
+specification now says *keyword* rather than *reserved word*: an `ol-*` code is a stable identity
+that tools and fixtures match on, renaming one is a breaking change, and the code itself never
+reaches a learner.
+
+`original_span` is an ordinary `params` entry with the same shape as `source_span`: a source
+document plus a character or line/column range, identifying the earlier declaration. Because
+`params` are part of diagnostic identity, an implementation MUST supply it rather than folding the
+earlier location into the message text.
 
 A malformed `dict-entry` (`dict-entry ::= dict-key ":" expression` in [grammar.md](grammar.md)) is
 the canonical example of the grammar-position case in the `ol-bad-token` row above, at **either**
