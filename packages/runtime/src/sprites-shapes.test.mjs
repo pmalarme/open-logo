@@ -236,4 +236,8 @@ test("clean under tell emits one un-stamped clear (it homes no turtle)", () => {
   assert.equal(clears.length, 1);
   assert.equal(clears[0].turtle_id, undefined);
   assert.deepEqual(clears[0].payload, { mode: "clean" });
+  // …and it emitted no homing at all: the only `move` is `forward 10`'s, and there is no `turn`.
+  // Without this, widening `clearScreen`'s `mode === "clear_screen"` guard would pass unnoticed.
+  assert.equal(of(result.events, "move").length, 1);
+  assert.equal(of(result.events, "turn").length, 0);
 });

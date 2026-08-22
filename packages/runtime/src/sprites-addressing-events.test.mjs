@@ -244,8 +244,14 @@ test("clear_screen homes the same turtles whichever order tell listed them in", 
   };
   const forwards = homedTurtles(":a :b");
   const backwards = homedTurtles(":b :a");
-  assert.deepEqual([...forwards.homed].sort(), [1, 2]);
-  assert.deepEqual([...forwards.homed].sort(), [...backwards.homed].sort());
+  // Numeric comparator: `Array.prototype.sort`'s default is lexicographic, which would order ten or
+  // more turtle ids wrongly and hide a genuine difference between the two orderings.
+  const byId = (left, right) => left - right;
+  assert.deepEqual([...forwards.homed].sort(byId), [1, 2]);
+  assert.deepEqual(
+    [...forwards.homed].sort(byId),
+    [...backwards.homed].sort(byId),
+  );
   assert.equal(forwards.clears, 1);
   assert.equal(backwards.clears, 1);
   assert.deepEqual(forwards.positions, [
