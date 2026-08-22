@@ -78,10 +78,14 @@
  * same reasoning recorded at the raise site — see `@openlogo/runtime`'s `errors.ts` ("Registry stage
  * is `semantic`, but raised here at `stage: \"runtime\"`") and `evaluate.ts`. This rule is the first
  * on the **`parse`/`semantic`** axis, which is worth naming: `repeat key [ ]` reports `ol-bad-token`
- * at `parse` from the reader while `repeat when [ ]` reports it at `semantic` from here. The two are
- * behaviourally indistinguishable to every consumer in this repository — only
+ * at `parse` from the reader while `repeat when [ ]` reports it at `semantic` from here. **No
+ * consumer distinguishes the two once it has the diagnostic in hand** — only
  * `scripts/markdown-examples-gate.mjs` branches on `stage` at all, and it keys on `"runtime"`, while
- * `packages/studio/src/diagnostics.ts` renders every stage identically by explicit design.
+ * `packages/studio/src/diagnostics.ts` renders every stage identically by explicit design. What does
+ * differ is *reaching* a consumer at all: a parse-only caller never runs `check()`, so the studio's
+ * live wiring surfaces the reader's half by default and this half only when `semanticCheck` is on
+ * (`packages/studio/src/diagnostics.ts`'s `runChecks`). That is a property of which layers a caller
+ * chooses to run, not of the two diagnostics being treated differently.
  */
 
 import type { Diagnostic } from "@openlogo/core";
@@ -119,11 +123,21 @@ function isCallLike(node: AnyNode): node is CallNode | ParenCallNode {
  * — a mode switch that takes no block". A command has a callable form, so `tell` genuinely *is* a
  * `callable-name` and `( tell :t )` is a legitimate `parenthesized-call`, exactly as `( forward 5 )`
  * is. Rejecting it here would turn a valid program into an error: measured, `( tell :t )` checked
- * clean before this rule existed. That `tell` in a *value* position (`print tell`) is still
- * undiagnosed is a real but **different** defect with a different mechanism — `tell` reports no
- * value and takes one input, so the honest diagnosis is an arity/no-value finding from
- * `checker-arity.ts`, not a derivation error from here. It is out of this slice's scope and left
- * exactly as it was.
+ * clean before this rule existed.
+ *
+ * **What `tell` is still missing, precisely, and why none of it belongs here.** Two distinct gaps,
+ * neither a derivation error:
+ *
+ * - `print tell` and `repeat tell [ ]` are **zero-input** calls of a one-input command, so the
+ *   honest finding is a *missing-input* one — `ol-not-enough-inputs` from `checker-arity.ts`.
+ *   `tell` escapes it only because `spritesPrimitiveArity("tell")` is `undefined`, exactly as
+ *   recorded above. That table and that rule belong to another slice.
+ * - `print ( tell :t )` supplies the input and still uses a **command as a value**. That is a
+ *   *no-value* question, not an arity one, and OpenLogo answers it for no Kind-C command today —
+ *   `print forward`, `print right`, and `print setxy` are equally undiagnosed. A language-wide,
+ *   pre-existing hole, not something about `tell`.
+ *
+ * Both are out of this slice's scope and left exactly as they were.
  *
  * Kept as an explicit set rather than derived, because the C3 **Kind** column has no representation
  * in `signatures.ts` today (`SPRITES_STATEMENT_FORM_NAMES` lists all three Sprites heads together,
@@ -174,11 +188,17 @@ function badTokenDiagnostic(node: CallNode | ParenCallNode): Diagnostic {
  * most local repair site", and the word itself is what the learner has to replace.
  *
  * Two gates, in order, and both are load-bearing: {@link isProfileKeyword} keys the rule to the
- * shared registry **and** to the active profile set — so a profile slice that adds a block-head is
- * covered for free (the derive-from-the-registry property issue #837 proved for the Core half), and
- * a Core-only program keeps every one of these words as an ordinary name. Then
- * {@link SPECIAL_FORM_PROFILE_WORDS} keeps the rejection to the words that genuinely have no
- * callable form, which is what leaves the Sprites *command* `tell` alone.
+ * shared registry **and** to the active profile set, so a Core-only program keeps every one of these
+ * words as an ordinary name. Then {@link SPECIAL_FORM_PROFILE_WORDS} keeps the rejection to the
+ * words that genuinely have no callable form, which is what leaves the Sprites *command* `tell`
+ * alone.
+ *
+ * **A new registry word is therefore not covered "for free" — it is covered *loudly*.** Adding one
+ * to `OL_PROFILE_KEYWORDS` passes the first gate but not the second, so the rule stays silent about
+ * it *and* `checker-profile-word-position.test.mjs`'s classification guard fails until someone
+ * decides its C3 Kind. That is deliberate: silently defaulting to "reject" is what broke `tell`, and
+ * silently defaulting to "allow" would reopen issue #864 for the new word. Failing is the only
+ * option that cannot be wrong by accident.
  */
 export function profileWordPositionRule(
   program: ProgramNode,

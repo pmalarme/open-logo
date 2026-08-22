@@ -18,8 +18,11 @@
 // question, asked at the four **declaration** slots, and is issue #841's: nothing here touches it.
 //
 // The sweeps run off `OL.OL_PROFILE_KEYWORDS` rather than a hand-written list, so a profile slice
-// that adds a block-head gets covered automatically — the same derive-from-the-registry property
-// #837 proved for the Core half when it added `mod`.
+// that adds a block-head cannot slip past them unnoticed. It is NOT covered automatically, and that
+// is the point: a new registry word fails the classification guard below until someone decides its
+// C3 Kind. Defaulting silently to "reject" is what broke the Sprites command `tell` in this slice's
+// first revision; defaulting silently to "allow" would reopen #864 for the new word. Failing loudly
+// is the only option that cannot be wrong by accident.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -182,16 +185,26 @@ test("`tell` is a COMMAND, not a special form — `( tell :t )` stays legal", ()
   );
 });
 
-test("`tell` in value position is left exactly as it was — a different defect, not this rule's", () => {
-  // `print tell` is still undiagnosed, and that is deliberate. `tell` reports no value and takes one
-  // input, so the honest diagnosis is an arity/no-value finding from `checker-arity.ts`, not a
-  // derivation error from here — a different mechanism in a different rule. Asserted rather than
-  // left implicit so the boundary is visible: if a later slice fixes it, this test fails and states
-  // exactly which decision is being revisited.
+test("`tell` is exempt from ol-bad-token in value position too, not only as a callee", () => {
+  // What this guards, stated precisely: **this rule** never reports `ol-bad-token` for `tell`, in
+  // any position. It deliberately does NOT assert that `print tell` is diagnostic-free overall, and
+  // the assertion is scoped to `ol-bad-token` for that reason — `print tell` and `repeat tell [ ]`
+  // are zero-input calls of a one-input command, so the finding they are still missing is
+  // `ol-not-enough-inputs` from `checker-arity.ts` (`tell` escapes it only because
+  // `spritesPrimitiveArity("tell")` is `undefined`). When that lands it must NOT have to touch this
+  // test, because it is a different rule answering a different question. A `deepEqual(..., [])` over
+  // *all* diagnostics would couple the two and break on a fix that is entirely correct.
   const profiles = activeSetFor("sprites");
 
   assert.deepEqual(badTokenTexts("print tell\n", profiles), []);
   assert.deepEqual(badTokenTexts("repeat tell [ ]\n", profiles), []);
+  // Full arity, still used as a value: a *no-value* question rather than an arity one, and OpenLogo
+  // answers it for no Kind-C command today (`print forward` is equally undiagnosed). Also not this
+  // rule's, and pinned here so the two gaps are not confused for one.
+  assert.deepEqual(
+    badTokenTexts(":t = new_turtle\nprint ( tell :t )\n", profiles),
+    [],
+  );
 });
 
 test("the word is quoted back in the learner's own spelling, and matching is case-insensitive", () => {
@@ -214,9 +227,10 @@ test("the word is quoted back in the learner's own spelling, and matching is cas
 test("a profile word is rejected as a parenthesized-call callee too, in either position", () => {
   // `parenthesized-call ::= "(" callable-name { expression } ")"` (`spec/grammar.md:215`), and
   // `spec/grammar.md:390` matches a keyword as `callable-name` "only where the C3 primitive matrix
-  // also gives that word a callable form" — which none of these seven has. The Core control
-  // `( key 1 )` is already a reader-side `ol-bad-token`; before this rule the profile spelling was
-  // clean in BOTH a value slot and as a bare statement.
+  // also gives that word a callable form" — which none of the six Kind-S words has. (`tell` DOES,
+  // which is why it is exempt; see its own test above.) The Core control `( key 1 )` is already a
+  // reader-side `ol-bad-token`; before this rule the profile spelling was clean in BOTH a value slot
+  // and as a bare statement.
   const profiles = activeSetFor("interaction-events");
 
   assert.deepEqual(badTokenTexts("print ( when 1 )\n", profiles), ["when"]);
