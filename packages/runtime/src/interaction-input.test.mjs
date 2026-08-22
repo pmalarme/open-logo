@@ -383,10 +383,11 @@ test("a rejected prompt never reaches the read — the host reader is never call
 test("a word prompt is accepted whatever text it holds, including a numeral", () => {
   // The positive complement of the rejection loop above, and the half that makes the pair
   // discriminating: the check is on the prompt's TYPE, not on how it prints. `input "42"` and
-  // `input 42` display the same two characters, yet only the word is a legal prompt. So the two
-  // wrong implementations fail on opposite sides — one that classified by printed form would accept
-  // `input 42` and fail the rejection loop above, while one that rejected every prompt would fail
-  // this test. Neither member alone catches both.
+  // `input 42` display the same two characters, yet the pair requires OPPOSITE verdicts on them. So
+  // no classifier that looks only at printed form can satisfy both members — it fails whichever one
+  // its decision goes against, accepting numerals to fail the rejection loop above or rejecting them
+  // to fail here — and an implementation that rejected every prompt fails here too. Neither member
+  // alone catches both.
   for (const prompt of ['"how old?"', '"42"', '""']) {
     const result = runWithAnswers(`print input ${prompt}`, ["tom"]);
     assert.deepEqual(result.diagnostics, [], `prompt ${prompt}`);
