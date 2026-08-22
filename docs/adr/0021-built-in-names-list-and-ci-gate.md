@@ -37,11 +37,19 @@ the spec. Measured at saga tip `1499e1e`, `@openlogo/parser` exposes:
   `corePrimitiveArity`, `turtlePrimitiveArity`, `dataPrimitiveArity`, `educationalPrimitiveArity`,
   `geometryPrimitiveArity`, `interactionPrimitiveArity`, `soundPrimitiveArity`,
   `spritesPrimitiveArity`;
-- `heritageAliasNames()` — **13** Heritage aliases (`bf bk bl cs fd ht lt pd pr pu rt se st`) —
-  plus, since #852, `heritageWordedFormNames()`/`heritageWordedFormHeads()` and a
-  `heritageSurfaceSpellings()` of **18** that finally includes the worded `value of … for key`
-  reader. Heritage therefore has two shapes, not one: short aliases that map to a canonical
-  spelling, and worded *forms* that do not.
+- `heritageAliasNames()` — **13** Heritage short aliases (`bf bk bl cs fd ht lt pd pr pu rt se st`).
+  Heritage has **three** shapes, not one, and they are registered differently: these 13 short
+  aliases; **4 form heads** (`make`, `op`, `output`, `to`, via `heritageFormHeadNames()`); and
+  **1 worded form** (`heritageWordedFormNames()` → `value-of-reader`, head `value`), added by #852,
+  which finally made `heritageSurfaceSpellings()` (**18**) enumerate every Heritage spelling.
+  Two measured facts about this shape matter for the gate, and both are counter-intuitive:
+  - **The 13 short aliases are in no primitive table at all.** Measured, every one of them returns
+    `undefined` from all eight `*PrimitiveArity` lookups; only their *canonicals* are in a table
+    (`fd` → `forward` in `turtle`, `pr` → `print` in `core`). They are registered solely in the
+    Heritage alias registry.
+  - **All five Heritage heads are also Core keywords.** `make`, `op`, `output`, `to` and `value`
+    appear in `OL_RESERVED_WORDS` *and* in a Heritage registry, so five of the 43 are reachable from
+    two places at once. (The 13 short aliases are not: none is in `OL_RESERVED_WORDS`.)
 
 Three properties of that inventory are the whole problem:
 
@@ -154,12 +162,12 @@ built-in name* as *what is*:
   `heritageSurfaceSpellings()`. If the list ever needs to represent worded forms, that
   production-name keying is the shape to mirror — a `head` is not a name-for-name alias, so it has
   no `aliasOf` target to point at.
-- **One name can hold two roles, so `category` needs a stated precedence.** Measured, `thing` is
-  the only name in the tree that is simultaneously in `OL_RESERVED_WORDS` **and**
-  `corePrimitiveArity` (arity 1). `category` records **`keyword` first, then `primitive`** —
-  mirroring the precedence the checker already applies when reporting a collision — and the gate
-  checks membership of *both* registries for such a name rather than demanding exactly one. Without
-  this, clause 1 below is unimplementable for `thing`.
+- **Six names are reachable from two registries, so `category` needs a stated precedence.**
+  Measured: `thing` is the only name in both `OL_RESERVED_WORDS` and a *primitive table*
+  (`corePrimitiveArity`, arity 1); and `make`, `op`, `output`, `to` and `value` are each in
+  `OL_RESERVED_WORDS` and a *Heritage* registry. `category` records **`keyword` first, then
+  `primitive`**, and such a name is filed once, as a keyword. Clause 1 states how the gate checks
+  it; without that precedence clause 1 is unimplementable for all six.
 - **`excluded`** is the machine-readable record of the deliberate omissions, each with a `reason`.
   This is the property that must exist **in the data, not in a comment**, because every one of them
   looks like an oversight to anyone doing a "completeness" pass. Note the `positions` field records
@@ -176,14 +184,31 @@ The gate runs in the CI-enforced Definition of Done and fails on any of:
 
 1. **Entry inequality in either direction** between `names` and the implementation's registries,
    read through `@openlogo/parser`'s public API. This is a comparison of **structured entries, not
-   of a flattened name set**: for every name the gate checks that `category` matches the registry it
-   came from (a keyword must come from `OL_RESERVED_WORDS`/`OL_PROFILE_RESERVED_WORDS`, a primitive
-   from a primitive table, with the dual-role precedence above), that `profile` matches *which*
-   registry it came from, and that every `aliasOf` names a real entry. Comparing names alone would
-   accept `mod` implemented as a primitive, `forward` filed under the wrong profile, or an `aliasOf`
-   pointing at the wrong canonical — three ways for the list to be exactly as wrong as no list. Note
-   `OL_PROFILE_RESERVED_WORDS` is a Record keyed by profile: it supplies the `profile` tag directly
-   and must be flattened per key, not concatenated blindly.
+   of a flattened name set**: for every name the gate checks that `category` matches the *kind* of
+   registry it came from, that `profile` matches *which* registry it came from, and that every
+   `aliasOf` names a real entry. Comparing names alone would accept `mod` implemented as a
+   primitive, `forward` filed under the wrong profile, or an `aliasOf` pointing at the wrong
+   canonical — three ways for the list to be exactly as wrong as no list.
+
+   **The registry→entry mapping has to be stated, because three of its cases are not the obvious
+   one.** A gate written as "keyword ⇒ reserved list, primitive ⇒ a primitive table" is
+   unimplementable against the tree as measured:
+   - `OL_PROFILE_RESERVED_WORDS` is a **Record keyed by profile**: it supplies the `profile` tag
+     directly and must be flattened per key, not concatenated blindly.
+   - The **13 Heritage short aliases are in no primitive table**, yet `spec/tooling.md` puts aliases
+     in the `primitive` class. They map to `category: "primitive"`, `profile: "heritage"`, sourced
+     from `heritageAliasNames()` — and the profile of a *canonical* (`forward` is
+     `turtle-rendering`) is not the profile of its alias.
+   - **Five names are reachable from two registries.** `make`, `op`, `output`, `to` and `value` are
+     in `OL_RESERVED_WORDS` *and* in a Heritage registry (`heritageFormHeadNames()`,
+     `heritageWordedFormHeads()`); `thing` is in `OL_RESERVED_WORDS` *and* `corePrimitiveArity`.
+     Exact equality therefore requires a **stated precedence**, not deduplication by accident:
+     `category` is **`keyword` first, then `primitive`** — mirroring the precedence the checker
+     already applies when reporting a collision, measured (`define thing` reports
+     `namespace: "reserved"`, `define count` reports `"primitive"`) — and such a name is filed once,
+     as a keyword, with the gate checking membership of *both* its registries rather than demanding
+     exactly one. Without this the gate either misfiles the five Heritage heads as Heritage
+     primitives or rejects them outright.
 
    **How far the alias half is checkable today, and what #841 must add.** Verifying that an
    `aliasOf` edge is the one the implementation *actually resolves* is only possible where the
@@ -298,6 +323,9 @@ it is the file that most needs review.
   a separate cross-cutting change with its own owner ([ADR-0006](0006-cross-cutting-contracts.md))
   and is deliberately **out of scope here** — this ADR decides the source of truth and the gate,
   nothing about the host API. A later slice may make it required; until then a host reads the file.
+  **This supersedes the feature-detection line in #841's Definition of Done**, which was written
+  before this decision and requires the list to be reported through feature detection; that
+  requirement moves to its own slice.
 - **Adding a primitive becomes a two-file change** — the registry and `spec/built-in-names.json` —
   and CI fails until both land. That friction is deliberate: it is what makes "a profile shipped a
   primitive nobody registered" impossible rather than merely unlikely.
