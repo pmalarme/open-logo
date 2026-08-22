@@ -39,9 +39,11 @@
 //
 // Every assertion is driven off the public registries (`OL_KEYWORDS`, `heritageAliasNames()`,
 // `OL_PROFILE_KEYWORDS`) rather than a hand-kept sample, so a built-in name added later is pulled
-// into this guard automatically. Each case locates its token by SOURCE POSITION, never by text: a
-// keyword binder repeats its own spelling elsewhere in several templates (`for in in [1 2] …`,
-// `set to to 1`), so a text lookup would silently assert the wrong token.
+// into this guard automatically. The registry-driven sweeps locate their token by SOURCE POSITION,
+// never by text: a keyword binder repeats its own spelling elsewhere in several templates
+// (`for in in [1 2] …`, `set to to 1`), so a text lookup would silently assert the wrong token.
+// The hand-written rows further down DO use a text lookup, which is sound only because each of
+// their sources contains the word under test exactly once — check that before adding a row.
 //
 // Two boundaries are deliberately pinned rather than fixed here, so neither can drift unnoticed:
 //   * a destructuring `[ :x :y ]` binder keeps `declaration: false` — its names were never
@@ -363,25 +365,42 @@ test("degradation boundary: an INCOMPLETE binding form keeps the old fallback cl
   // that matters for an editor typing character by character. Recovering a binder from a
   // half-typed statement would be new reader behaviour, not a token-class change, so it is not
   // part of this slice.
-  for (const source of [
-    "set if to\n",
-    "set if\n",
-    "for if in\n",
-    "for if in [1 2\n",
-    "print map if in\n",
-    "for if from 1 to\n",
+  //
+  // BOTH fallbacks are pinned, keyword and primitive: the primitive half is the one AC1's table
+  // cared about most (`set count to 5`, `local forward`), so a row set that only ever spelled the
+  // word `if` would leave the more important half of the boundary unasserted.
+  for (const [source, word, expected] of [
+    ["set if to\n", "if", "keyword"],
+    ["set if\n", "if", "keyword"],
+    ["for if in\n", "if", "keyword"],
+    ["for if in [1 2\n", "if", "keyword"],
+    ["print map if in\n", "if", "keyword"],
+    ["for if from 1 to\n", "if", "keyword"],
+    ["set count to\n", "count", "primitive"],
+    ["local\n", "local", "keyword"],
+    ["for fd in\n", "fd", "primitive"],
+    ["print map hint in\n", "hint", "primitive"],
+    ["set counter to\n", "counter", "primitive"],
   ]) {
     const { diagnostics } = OL.parse(source, doc);
     assert.ok(
       diagnostics.length > 0,
       `${JSON.stringify(source)} must really be incomplete, or this row proves nothing`,
     );
-    const token = OL.highlight(source, doc).find(
-      (candidate) => candidate.text === "if",
+    const hits = OL.highlight(source, doc).filter(
+      (candidate) => candidate.text === word,
+    );
+    // The text lookup below is only sound while the word appears once — assert that, rather
+    // than trusting it, so a later row with a repeating template fails loudly instead of
+    // silently asserting the wrong token.
+    assert.equal(
+      hits.length,
+      1,
+      `${JSON.stringify(source)} must contain \`${word}\` exactly once`,
     );
     assert.equal(
-      token.class,
-      "keyword",
+      hits[0].class,
+      expected,
       `${JSON.stringify(source)} has no binding node, so the fallback still applies`,
     );
   }
