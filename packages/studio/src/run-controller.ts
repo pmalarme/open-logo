@@ -623,10 +623,13 @@ export function createRunController(
   // lifecycle call then unwinds into a pump loop that would otherwise run one more attempt on a
   // chain the learner has already ended. Observed: `respond(); stop()` replaced the output the
   // learner had just seen with the empty output of a pre-cancelled attempt, and `respond(); reset()`
-  // finished `"done"` over an emptied `chainSource` instead of settling `"idle"`. Every entry point
-  // that ends or restarts a chain bumps this, and the pending request carries the generation it was
-  // made for — the same generation-token shape `promptGeneration` already uses for a late
-  // responder, kept separate because the responder itself bumps that one.
+  // finished `"done"` over an emptied `chainSource` instead of settling `"idle"`. **Stop and Reset
+  // are the only transitions that end a chain**, so they alone bump this; `run()` does not, because
+  // it is unreachable while a chain is live (`#314` ignores it unless `runStatus` has already left
+  // `"running"`, which only Stop/Reset do) — a bump there would be ceremony, not behaviour. The
+  // pending request carries the generation it was made for: the same generation-token shape
+  // `promptGeneration` already uses for a late responder, kept separate because the responder
+  // itself bumps that one.
   let chainGeneration = 0;
 
   /** Push `current`'s folded per-turtle world/scene into the shared store and repaint (never
@@ -926,6 +929,15 @@ export function createRunController(
       } while (pendingPumpGeneration === chainGeneration);
     } finally {
       pumping = false;
+      // A request the loop just REFUSED (it named a chain Stop/Reset has ended) must not outlive
+      // the loop: `settleAttempt` reads a non-null request as "this attempt was superseded, do not
+      // commit its outcome", so a stale one left behind would suppress settlement forever — a later
+      // lazy `step()` would finish its animation with `runStatus` stuck at `"running"`, which
+      // `run()`'s #314 guard then reads as a run in progress and ignores. It is cleared here rather
+      // than in `settleAttempt`'s condition because the suppression is correct *while* the loop is
+      // unwinding (that is what stops a probe's outcome overwriting Reset's `"idle"`) and wrong
+      // only once it has finished.
+      pendingPumpGeneration = null;
     }
   }
 
@@ -946,7 +958,6 @@ export function createRunController(
     promptOutstanding = false;
     chainSource = state.getState().source;
     chainRandomSeed = drawRandomSeed();
-    chainGeneration += 1;
     pump();
   }
 

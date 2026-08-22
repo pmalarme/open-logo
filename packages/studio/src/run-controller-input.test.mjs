@@ -1338,3 +1338,64 @@ test("a host that resets and then re-runs, inside present(), starts the new chai
     "the re-run must commit a real result, not leave the studio idle",
   );
 });
+
+test("a lazy step() after a chain was cancelled mid-present still settles, rather than sticking at running", () => {
+  // Round 4, logic/spec reviewer. The pump loop correctly REFUSED a request naming a chain Reset
+  // had ended — but left the request marker set. `settleAttempt` reads any pending request as
+  // "this attempt was superseded, do not commit its outcome", so the stale marker suppressed
+  // settlement forever: a later lazy `step()` finished its animation with runStatus stuck at
+  // "running", which run()'s #314 guard then reads as a run in progress and ignores. The studio
+  // was wedged with no way back except another Reset.
+  const store = OL.createStudioState({ source: DRAW_ASK_PRINT_SOURCE });
+  const host = createEndingPromptHost((controller, respond) => {
+    respond("7");
+    controller.reset();
+  });
+  const controller = OL.createRunController(store, {
+    inputPrompt: host,
+    randomSeedSource: createSeedQueue([11]),
+  });
+  host.controller = controller;
+
+  controller.run();
+  assert.equal(store.getState().runStatus, "idle");
+
+  store.setSource('print "new"');
+  controller.step();
+
+  assert.equal(
+    store.getState().runStatus,
+    "done",
+    "a stale pump request must not suppress settlement of a later, unrelated animation",
+  );
+  assert.deepEqual(store.getState().output, ["new"]);
+});
+
+test("run() is not ignored after a lazy step() follows a chain cancelled from inside present()", () => {
+  // The consequence the learner actually feels, and the reviewer's exact sequence: the stale marker
+  // left runStatus wedged at "running" after the step, which makes the Run button a no-op because
+  // #314 reads it as a run already in progress. The studio is stuck with no way back except Reset.
+  const store = OL.createStudioState({ source: DRAW_ASK_PRINT_SOURCE });
+  const host = createEndingPromptHost((controller, respond) => {
+    respond("7");
+    controller.reset();
+  });
+  const controller = OL.createRunController(store, {
+    inputPrompt: host,
+    randomSeedSource: createSeedQueue([11]),
+  });
+  host.controller = controller;
+
+  controller.run();
+  store.setSource('print "new"');
+  controller.step();
+  store.setSource('print "again"');
+  controller.run();
+
+  assert.equal(store.getState().runStatus, "done");
+  assert.deepEqual(
+    store.getState().output,
+    ["again"],
+    "Run must still work after stepping — a wedged runStatus silently swallows it",
+  );
+});
