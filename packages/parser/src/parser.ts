@@ -1480,7 +1480,8 @@ export function parse(source: string, document = "<input>"): ParseResult {
     if (
       inner === undefined &&
       pos === beforeInner &&
-      current().kind !== "rparen"
+      current().kind !== "rparen" &&
+      current().kind !== "eof"
     ) {
       // The group's operand was rejected and the reader consumed NOTHING — `( value )`, where
       // {@link parseNamePrimary} declines a keyword without advancing. Report that token and step
@@ -1495,6 +1496,11 @@ export function parse(source: string, document = "<input>"): ParseResult {
       // is already accounted for, and recovering again here would diagnose the innocent token
       // after it. {@link unexpected} rather than `badToken` so a delimiter keeps its own code —
       // `( ] )` must report `ol-unmatched-bracket`, not a generic bad token.
+      //
+      // `eof` is excluded because there is no token there to step over: an unterminated `( `
+      // consumes nothing, so it satisfies the progress guard, but its only real error is the
+      // unmatched `(` reported below. Recovering would add a spurious
+      // `ol-bad-token {"text":"end of file"}` in front of it (issue #830 review).
       diagnostics.push(unexpected(current()));
       advance();
       skipNewlines();

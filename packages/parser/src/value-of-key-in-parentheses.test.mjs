@@ -260,3 +260,19 @@ test("the group recovery keeps a delimiter's own diagnostic code", () => {
     "a `]` inside a group must keep ol-unmatched-bracket",
   );
 });
+
+test("an unterminated group reports only its unmatched parenthesis", () => {
+  // The `eof` arm of the recovery guard. An unterminated `( ` consumes nothing, so it satisfies
+  // the progress guard — but there is no token to step over, and its only real error is the
+  // unmatched `(`. Without the exclusion the recovery prefixes a spurious
+  // `ol-bad-token {"text":"end of file"}`. Both spellings are checked because the trailing
+  // newline changes which token the reader stops on.
+  for (const source of ["print (", "print (\n"]) {
+    const diagnostics = OL.parse(source, doc).diagnostics;
+    assert.deepEqual(
+      diagnostics.map((d) => d.code),
+      ["ol-unmatched-paren"],
+      `unterminated group over-reported: ${JSON.stringify(source)}`,
+    );
+  }
+});
