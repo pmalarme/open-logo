@@ -121,12 +121,12 @@ built-in name* as *what is*:
   // The tag→accessor mapping the gate reads. The ADR's table is this object, printed.
   // EXCERPT — 6 of the 14 tags shown; the table below lists all fourteen at 0.1.0.
   "registries": {
-    "reserved": "OL_RESERVED_WORDS",
-    "profile-reserved": "OL_PROFILE_RESERVED_WORDS",
-    "core-primitive": "corePrimitiveArity",
-    "turtle-primitive": "turtlePrimitiveArity",
-    "heritage-alias": "heritageAliasNames",
-    "heritage-form-head": "heritageFormHeadNames"
+    "reserved":          { "accessor": "OL_RESERVED_WORDS",         "status": "present" },
+    "profile-reserved":  { "accessor": "OL_PROFILE_RESERVED_WORDS", "status": "present" },
+    "core-primitive":    { "accessor": "corePrimitiveArity",        "status": "present" },
+    "turtle-primitive":  { "accessor": "turtlePrimitiveArity",      "status": "present" },
+    "tutor-primitive":   { "accessor": "tutorPrimitiveArity",       "status": "declared" },
+    "heritage-alias":    { "accessor": "heritageAliasNames",        "status": "present" }
     // … 8 more tags omitted from this excerpt
   },
   "names": [
@@ -199,7 +199,7 @@ built-in name* as *what is*:
   | `interaction-primitive` | `interactionPrimitiveArity` |
   | `sound-primitive` | `soundPrimitiveArity` |
   | `sprites-primitive` | `spritesPrimitiveArity` |
-  | **`tutor-primitive`** | **`tutorPrimitiveArity` — does not exist; #841 creates it (see below)** |
+  | **`tutor-primitive`** | **`tutorPrimitiveArity` — `status: "declared"`; does not exist yet, #841 creates it (see below)** |
   | `heritage-alias` | `heritageAliasNames` |
   | `heritage-form-head` | `heritageFormHeadNames` |
   | `heritage-worded-form-head` | `heritageWordedFormHeads` |
@@ -215,13 +215,21 @@ built-in name* as *what is*:
   never this prose, the record going stale after a superseding ADR cannot break the gate.
 
   Moving the mapping into data removes the human who was checking it, so the gate takes that over:
-  **every accessor name in `registries` must resolve to a real export of `@openlogo/parser`.** A
-  typo'd accessor would otherwise make its registry silently unverifiable — entries claiming that
-  tag would be compared against nothing, which is a green gate proving less than it appears to, the
-  failure mode this whole record exists to prevent. The one accessor that does not resolve is
-  `tutorPrimitiveArity`, deliberately, so the check needs an explicit **declared-but-not-yet-created**
-  state rather than treating every non-resolving accessor as drift; that state is what makes the
-  red-on-arrival condition below expressible instead of indistinguishable from a mistake.
+  **every accessor in `registries` must resolve to a real export of `@openlogo/parser`.** A typo'd
+  accessor would otherwise make its registry silently unverifiable — entries claiming that tag would
+  be compared against nothing, which is a green gate proving less than it appears to, the failure
+  mode this whole record exists to prevent.
+
+  That check needs to distinguish an accessor that is *missing* from one that is *not built yet*,
+  and the distinction is **in the data, not in the gate's source**: each entry is
+  `{ "accessor": …, "status": "present" | "declared" }`. `present` means the export must resolve —
+  if it does not, that is drift and the build fails. `declared` means the registry is decided but
+  not yet created, so the export is *expected* to be absent; the gate accepts that, and fails if it
+  ever *does* resolve, because at that moment the entry should have become `present`. Exactly one
+  tag is `declared` at `0.1.0` — `tutor-primitive` — and #841 flips it to `present` in the same
+  change that creates `tutorPrimitiveArity`. Without this field the gate would need a hard-coded
+  exception naming `tutorPrimitiveArity`, which is the second list that drifts from the first, the
+  precise failure this record exists to remove.
 - **Tutor (AI) gets its own registry: `tutorPrimitiveArity`.** This decision settles it here rather
   than deferring it, because an Accepted record must not hand an unresolved architecture choice to
   its implementing slice. The alternative — filing `challenge` in the existing
