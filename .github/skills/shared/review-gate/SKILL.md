@@ -99,15 +99,18 @@ in the same slice before the mechanical one held.
 
 A tree can be `git status`-clean and still be measured wrong, because the **build** can diverge from
 the SHA while the working tree looks fine. #897 already proved the same tree measures differently on
-different platforms; the rules below keep it from measuring differently on the *same* platform. A
-reviewer must be able to state which **artifacts** it measured, not merely which SHA:
+different platforms; the rules below keep it from measuring differently on the *same* platform.
+Issue **#884** records the observed instances. A reviewer must be able to state which **artifacts**
+it measured, not merely which SHA:
 
 1. **Serialize — never mutate the tree while a reviewer is measuring it.** A session that dispatches
    QA reviewers into its own worktree has **two writers on one `dist`**: the reviewer rebuilds while
    the author is still working, or two reviewers rebuild concurrently, and the measured artifacts
    belong to neither party's intended tree. This is a *concurrency* rule, distinct from rule 1
-   above — a tree can be clean and mid-rebuild. Order: reviewers finish → author re-verifies →
-   freeze → PR.
+   above — a tree can be clean and mid-rebuild. It produces false verdicts in **both** directions: a
+   red gate that is really the other reviewer's mutation still applied, or a mutation that looks
+   uncaught because the other reviewer reverted it mid-measurement. Order: reviewers finish →
+   author re-verifies → freeze → PR.
 2. **Do write-capable checks in a disposable checkout, never in the implementing worktree.** This is
    how rule 1 and "reviewers never edit the branch" hold together: a clean `npm ci`, a forced
    rebuild, and a mutation probe all have to write something. Clone the **exact SHA** to a scratch
@@ -115,7 +118,9 @@ reviewer must be able to state which **artifacts** it measured, not merely which
    no other actor writes to it. **Read source the same way** — `git show <sha>:<path>`, or from that
    checkout. Never read a mutable implementing worktree and treat it as the commit: a transient edit
    made and reverted between your two `git status` checks is invisible to both, so you would have
-   read something that exists in no commit at all.
+   read something that exists in no commit at all. #884 records exactly that — tracked files
+   transiently modified and reverted, and a transient `lint` failure clean on two immediate re-runs
+   — observed by a reviewer who re-checked `git status` around every measurement.
 3. **Confirm a mutation actually applied before believing its result.** A string-replace mutation
    that silently matched nothing (a CRLF mismatch) once left an all-green suite reading as "my test
    is not load-bearing". `git diff` the file to confirm the change is present, then confirm it
@@ -138,10 +143,11 @@ Do not trust the author's report or cached CI. From a clean checkout:
 - **Beware the incremental no-op trap:** a stale `.tsbuildinfo` can make `tsc -b` report success
   while emitting nothing. **mtime is the gate** — when the timestamp check says "up to date" the
   content is never read at all, so a file restored from a backup (older mtime than `dist`) is
-  silently skipped and the next run re-measures the *previous* content. One session reported a
-  regression that did not exist this way; the mirror image is worse, a stale build leaving a test
-  **green** under a change it never compiled. Force a clean build (delete `dist/` + `*.tsbuildinfo`,
-  or build with `--force`) and confirm the artifacts are regenerated — **in `dist`, not `src`**.
+  silently skipped and the next run re-measures the *previous* content. A restored file with an
+  older mtime once produced a reported regression that did not exist; the mirror image is worse, a
+  stale build leaving a test **green** under a change it never compiled. Force a clean build (delete
+  `dist/` + `*.tsbuildinfo`, or build with `--force`) and confirm the artifacts are regenerated —
+  **in `dist`, not `src`**.
 - Sanity-check the toolchain itself: the compiler resolves to **TypeScript 7** — peer-caps or
   transitive pins must not silently downgrade it.
 
