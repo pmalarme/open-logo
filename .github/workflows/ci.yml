@@ -207,6 +207,13 @@ jobs:
       - run: npm run -s test
       - run: npm run -s conformance
       - run: npm run -s examples
+      # Issue #841 / ADR-0021: spec/built-in-names.json is the authoritative built-in-names list,
+      # and this asserts the implementation's registries equal it exactly, in both directions —
+      # plus the two hand-maintained lists in spec/tooling.md and the normative block in
+      # spec/grammar.md. Adding a primitive is deliberately a two-file change (the registry and the
+      # list) and this is the half that fails until both land. It runs here rather than in its own
+      # job because it shares this job's build and is measured in milliseconds.
+      - run: npm run -s built-in-names
       # TODO(@devops + @testing): add integration and a11y/pedagogy gates as those
       # suites land (DoD sections 5-9); wire them here so they block merge.
 
