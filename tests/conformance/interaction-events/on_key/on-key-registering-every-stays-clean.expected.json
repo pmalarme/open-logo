@@ -1,9 +1,6 @@
 {
   "description": "the user-bounded control case: a key press is bounded by a finger, so an on_key handler registering a repeating every is a legitimate game pattern and MUST stay completely clean — one key press at tick 1 registers one every 10, which then fires exactly 3 times over the remaining 39 ticks with no ol-limit and no budget anomaly",
-  "profiles": [
-    "core-language",
-    "interaction-events"
-  ],
+  "profiles": ["core-language", "interaction-events"],
   "execute": true,
   "executeOptions": {
     "hostInput": {
@@ -22,14 +19,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/on_key/on-key-registering-every-stays-clean",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          42
-        ]
+        "start": [1, 1],
+        "end": [1, 42]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -40,14 +31,8 @@
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/on_key/on-key-registering-every-stays-clean",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          42
-        ]
+        "start": [1, 1],
+        "end": [1, 42]
       },
       "payload": {
         "name": "on_key"
@@ -58,14 +43,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/on_key/on-key-registering-every-stays-clean",
-        "start": [
-          2,
-          1
-        ],
-        "end": [
-          2,
-          8
-        ]
+        "start": [2, 1],
+        "end": [2, 8]
       },
       "payload": {
         "statement_kind": "Call"
@@ -76,14 +55,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/on_key/on-key-registering-every-stays-clean",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          7
-        ]
+        "start": [1, 1],
+        "end": [1, 7]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -94,14 +67,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/on_key/on-key-registering-every-stays-clean",
-        "start": [
-          1,
-          18
-        ],
-        "end": [
-          1,
-          40
-        ]
+        "start": [1, 18],
+        "end": [1, 40]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -112,14 +79,8 @@
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/on_key/on-key-registering-every-stays-clean",
-        "start": [
-          1,
-          18
-        ],
-        "end": [
-          1,
-          40
-        ]
+        "start": [1, 18],
+        "end": [1, 40]
       },
       "payload": {
         "name": "every"
@@ -130,14 +91,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/on_key/on-key-registering-every-stays-clean",
-        "start": [
-          1,
-          18
-        ],
-        "end": [
-          1,
-          23
-        ]
+        "start": [1, 18],
+        "end": [1, 23]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -148,14 +103,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/on_key/on-key-registering-every-stays-clean",
-        "start": [
-          1,
-          29
-        ],
-        "end": [
-          1,
-          38
-        ]
+        "start": [1, 29],
+        "end": [1, 38]
       },
       "payload": {
         "statement_kind": "Call"
@@ -166,19 +115,11 @@
       "kind": "print",
       "source_span": {
         "document": "interaction-events/on_key/on-key-registering-every-stays-clean",
-        "start": [
-          1,
-          29
-        ],
-        "end": [
-          1,
-          38
-        ]
+        "start": [1, 29],
+        "end": [1, 38]
       },
       "payload": {
-        "values": [
-          "s"
-        ]
+        "values": ["s"]
       }
     },
     {
@@ -186,14 +127,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/on_key/on-key-registering-every-stays-clean",
-        "start": [
-          1,
-          18
-        ],
-        "end": [
-          1,
-          23
-        ]
+        "start": [1, 18],
+        "end": [1, 23]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -204,14 +139,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/on_key/on-key-registering-every-stays-clean",
-        "start": [
-          1,
-          29
-        ],
-        "end": [
-          1,
-          38
-        ]
+        "start": [1, 29],
+        "end": [1, 38]
       },
       "payload": {
         "statement_kind": "Call"
@@ -222,19 +151,11 @@
       "kind": "print",
       "source_span": {
         "document": "interaction-events/on_key/on-key-registering-every-stays-clean",
-        "start": [
-          1,
-          29
-        ],
-        "end": [
-          1,
-          38
-        ]
+        "start": [1, 29],
+        "end": [1, 38]
       },
       "payload": {
-        "values": [
-          "s"
-        ]
+        "values": ["s"]
       }
     },
     {
@@ -242,14 +163,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/on_key/on-key-registering-every-stays-clean",
-        "start": [
-          1,
-          18
-        ],
-        "end": [
-          1,
-          23
-        ]
+        "start": [1, 18],
+        "end": [1, 23]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -260,14 +175,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/on_key/on-key-registering-every-stays-clean",
-        "start": [
-          1,
-          29
-        ],
-        "end": [
-          1,
-          38
-        ]
+        "start": [1, 29],
+        "end": [1, 38]
       },
       "payload": {
         "statement_kind": "Call"
@@ -278,19 +187,11 @@
       "kind": "print",
       "source_span": {
         "document": "interaction-events/on_key/on-key-registering-every-stays-clean",
-        "start": [
-          1,
-          29
-        ],
-        "end": [
-          1,
-          38
-        ]
+        "start": [1, 29],
+        "end": [1, 38]
       },
       "payload": {
-        "values": [
-          "s"
-        ]
+        "values": ["s"]
       }
     },
     {
@@ -298,14 +199,8 @@
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/on_key/on-key-registering-every-stays-clean",
-        "start": [
-          2,
-          1
-        ],
-        "end": [
-          2,
-          8
-        ]
+        "start": [2, 1],
+        "end": [2, 8]
       },
       "payload": {
         "name": "wait"

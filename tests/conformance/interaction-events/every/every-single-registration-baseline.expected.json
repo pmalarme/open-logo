@@ -1,9 +1,6 @@
 {
   "description": "the baseline twin of every-nested-registration-not-collapsed: one every 3 over the same 12 ticks fires exactly 4 times, so the nested fixture's 6 is a measured difference rather than an unanchored number",
-  "profiles": [
-    "core-language",
-    "interaction-events"
-  ],
+  "profiles": ["core-language", "interaction-events"],
   "execute": true,
   "events": [
     {
@@ -11,14 +8,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-single-registration-baseline",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          22
-        ]
+        "start": [1, 1],
+        "end": [1, 22]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -29,14 +20,8 @@
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-single-registration-baseline",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          22
-        ]
+        "start": [1, 1],
+        "end": [1, 22]
       },
       "payload": {
         "name": "every"
@@ -47,14 +32,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-single-registration-baseline",
-        "start": [
-          2,
-          1
-        ],
-        "end": [
-          2,
-          8
-        ]
+        "start": [2, 1],
+        "end": [2, 8]
       },
       "payload": {
         "statement_kind": "Call"
@@ -65,14 +44,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-single-registration-baseline",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          6
-        ]
+        "start": [1, 1],
+        "end": [1, 6]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -83,14 +56,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-single-registration-baseline",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          20
-        ]
+        "start": [1, 11],
+        "end": [1, 20]
       },
       "payload": {
         "statement_kind": "Call"
@@ -101,19 +68,11 @@
       "kind": "print",
       "source_span": {
         "document": "interaction-events/every/every-single-registration-baseline",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          20
-        ]
+        "start": [1, 11],
+        "end": [1, 20]
       },
       "payload": {
-        "values": [
-          "x"
-        ]
+        "values": ["x"]
       }
     },
     {
@@ -121,14 +80,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-single-registration-baseline",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          6
-        ]
+        "start": [1, 1],
+        "end": [1, 6]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -139,14 +92,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-single-registration-baseline",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          20
-        ]
+        "start": [1, 11],
+        "end": [1, 20]
       },
       "payload": {
         "statement_kind": "Call"
@@ -157,19 +104,11 @@
       "kind": "print",
       "source_span": {
         "document": "interaction-events/every/every-single-registration-baseline",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          20
-        ]
+        "start": [1, 11],
+        "end": [1, 20]
       },
       "payload": {
-        "values": [
-          "x"
-        ]
+        "values": ["x"]
       }
     },
     {
@@ -177,14 +116,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-single-registration-baseline",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          6
-        ]
+        "start": [1, 1],
+        "end": [1, 6]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -195,14 +128,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-single-registration-baseline",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          20
-        ]
+        "start": [1, 11],
+        "end": [1, 20]
       },
       "payload": {
         "statement_kind": "Call"
@@ -213,19 +140,11 @@
       "kind": "print",
       "source_span": {
         "document": "interaction-events/every/every-single-registration-baseline",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          20
-        ]
+        "start": [1, 11],
+        "end": [1, 20]
       },
       "payload": {
-        "values": [
-          "x"
-        ]
+        "values": ["x"]
       }
     },
     {
@@ -233,14 +152,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-single-registration-baseline",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          6
-        ]
+        "start": [1, 1],
+        "end": [1, 6]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -251,14 +164,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-single-registration-baseline",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          20
-        ]
+        "start": [1, 11],
+        "end": [1, 20]
       },
       "payload": {
         "statement_kind": "Call"
@@ -269,19 +176,11 @@
       "kind": "print",
       "source_span": {
         "document": "interaction-events/every/every-single-registration-baseline",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          20
-        ]
+        "start": [1, 11],
+        "end": [1, 20]
       },
       "payload": {
-        "values": [
-          "x"
-        ]
+        "values": ["x"]
       }
     },
     {
@@ -289,14 +188,8 @@
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-single-registration-baseline",
-        "start": [
-          2,
-          1
-        ],
-        "end": [
-          2,
-          8
-        ]
+        "start": [2, 1],
+        "end": [2, 8]
       },
       "payload": {
         "name": "wait"

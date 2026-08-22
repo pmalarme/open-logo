@@ -1,9 +1,6 @@
 {
   "description": "unbounded handler accumulation is bounded by the ordinary instruction budget: each handler firing is itself a charged instruction, so a repeating handler registering a repeating handler exhausts the budget and raises ol-limit instead of growing quadratically forever — the discriminating twin is every-single-registration-budgeted, which completes cleanly on the SAME budget",
-  "profiles": [
-    "core-language",
-    "interaction-events"
-  ],
+  "profiles": ["core-language", "interaction-events"],
   "execute": true,
   "executeOptions": {
     "instructionBudget": 14
@@ -14,14 +11,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-budgeted",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          24
-        ]
+        "start": [1, 1],
+        "end": [1, 24]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -32,14 +23,8 @@
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-budgeted",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          24
-        ]
+        "start": [1, 1],
+        "end": [1, 24]
       },
       "payload": {
         "name": "every"
@@ -50,14 +35,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-budgeted",
-        "start": [
-          2,
-          1
-        ],
-        "end": [
-          2,
-          8
-        ]
+        "start": [2, 1],
+        "end": [2, 8]
       },
       "payload": {
         "statement_kind": "Call"
@@ -68,14 +47,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-budgeted",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          6
-        ]
+        "start": [1, 1],
+        "end": [1, 6]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -86,14 +59,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-budgeted",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          22
-        ]
+        "start": [1, 11],
+        "end": [1, 22]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -104,14 +71,8 @@
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-budgeted",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          22
-        ]
+        "start": [1, 11],
+        "end": [1, 22]
       },
       "payload": {
         "name": "every"
@@ -122,14 +83,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-budgeted",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          6
-        ]
+        "start": [1, 1],
+        "end": [1, 6]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -140,14 +95,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-budgeted",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          22
-        ]
+        "start": [1, 11],
+        "end": [1, 22]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -158,14 +107,8 @@
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-budgeted",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          22
-        ]
+        "start": [1, 11],
+        "end": [1, 22]
       },
       "payload": {
         "name": "every"
@@ -176,14 +119,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-budgeted",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          16
-        ]
+        "start": [1, 11],
+        "end": [1, 16]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -194,14 +131,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-budgeted",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          6
-        ]
+        "start": [1, 1],
+        "end": [1, 6]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -212,14 +143,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-budgeted",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          22
-        ]
+        "start": [1, 11],
+        "end": [1, 22]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -230,14 +155,8 @@
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-budgeted",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          22
-        ]
+        "start": [1, 11],
+        "end": [1, 22]
       },
       "payload": {
         "name": "every"
@@ -248,14 +167,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-budgeted",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          16
-        ]
+        "start": [1, 11],
+        "end": [1, 16]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -266,14 +179,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-budgeted",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          16
-        ]
+        "start": [1, 11],
+        "end": [1, 16]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -284,14 +191,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-budgeted",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          6
-        ]
+        "start": [1, 1],
+        "end": [1, 6]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -302,14 +203,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-budgeted",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          22
-        ]
+        "start": [1, 11],
+        "end": [1, 22]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -320,14 +215,8 @@
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-budgeted",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          22
-        ]
+        "start": [1, 11],
+        "end": [1, 22]
       },
       "payload": {
         "name": "every"
@@ -338,14 +227,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-budgeted",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          16
-        ]
+        "start": [1, 11],
+        "end": [1, 16]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -357,14 +240,8 @@
       "code": "ol-limit",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-budgeted",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          16
-        ]
+        "start": [1, 11],
+        "end": [1, 16]
       },
       "params": {
         "limit": "instruction-budget",

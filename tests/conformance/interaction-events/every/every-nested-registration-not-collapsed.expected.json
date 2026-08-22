@@ -1,9 +1,6 @@
 {
   "description": "a repeating handler that registers another repeating handler keeps EVERY registration: each one is a distinct handler with its own capture, never collapsed or deduplicated, so 12 ticks fire the body 6 times (3 + 2 + 1 + 0 growth) rather than the 4 of a single every 3 — the discriminating twin is every-single-registration-baseline",
-  "profiles": [
-    "core-language",
-    "interaction-events"
-  ],
+  "profiles": ["core-language", "interaction-events"],
   "execute": true,
   "events": [
     {
@@ -11,14 +8,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-not-collapsed",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          34
-        ]
+        "start": [1, 1],
+        "end": [1, 34]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -29,14 +20,8 @@
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-not-collapsed",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          34
-        ]
+        "start": [1, 1],
+        "end": [1, 34]
       },
       "payload": {
         "name": "every"
@@ -47,14 +32,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-not-collapsed",
-        "start": [
-          2,
-          1
-        ],
-        "end": [
-          2,
-          8
-        ]
+        "start": [2, 1],
+        "end": [2, 8]
       },
       "payload": {
         "statement_kind": "Call"
@@ -65,14 +44,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-not-collapsed",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          6
-        ]
+        "start": [1, 1],
+        "end": [1, 6]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -83,14 +56,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-not-collapsed",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          32
-        ]
+        "start": [1, 11],
+        "end": [1, 32]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -101,14 +68,8 @@
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-not-collapsed",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          32
-        ]
+        "start": [1, 11],
+        "end": [1, 32]
       },
       "payload": {
         "name": "every"
@@ -119,14 +80,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-not-collapsed",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          6
-        ]
+        "start": [1, 1],
+        "end": [1, 6]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -137,14 +92,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-not-collapsed",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          32
-        ]
+        "start": [1, 11],
+        "end": [1, 32]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -155,14 +104,8 @@
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-not-collapsed",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          32
-        ]
+        "start": [1, 11],
+        "end": [1, 32]
       },
       "payload": {
         "name": "every"
@@ -173,14 +116,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-not-collapsed",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          16
-        ]
+        "start": [1, 11],
+        "end": [1, 16]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -191,14 +128,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-not-collapsed",
-        "start": [
-          1,
-          21
-        ],
-        "end": [
-          1,
-          30
-        ]
+        "start": [1, 21],
+        "end": [1, 30]
       },
       "payload": {
         "statement_kind": "Call"
@@ -209,19 +140,11 @@
       "kind": "print",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-not-collapsed",
-        "start": [
-          1,
-          21
-        ],
-        "end": [
-          1,
-          30
-        ]
+        "start": [1, 21],
+        "end": [1, 30]
       },
       "payload": {
-        "values": [
-          "x"
-        ]
+        "values": ["x"]
       }
     },
     {
@@ -229,14 +152,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-not-collapsed",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          6
-        ]
+        "start": [1, 1],
+        "end": [1, 6]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -247,14 +164,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-not-collapsed",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          32
-        ]
+        "start": [1, 11],
+        "end": [1, 32]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -265,14 +176,8 @@
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-not-collapsed",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          32
-        ]
+        "start": [1, 11],
+        "end": [1, 32]
       },
       "payload": {
         "name": "every"
@@ -283,14 +188,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-not-collapsed",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          16
-        ]
+        "start": [1, 11],
+        "end": [1, 16]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -301,14 +200,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-not-collapsed",
-        "start": [
-          1,
-          21
-        ],
-        "end": [
-          1,
-          30
-        ]
+        "start": [1, 21],
+        "end": [1, 30]
       },
       "payload": {
         "statement_kind": "Call"
@@ -319,19 +212,11 @@
       "kind": "print",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-not-collapsed",
-        "start": [
-          1,
-          21
-        ],
-        "end": [
-          1,
-          30
-        ]
+        "start": [1, 21],
+        "end": [1, 30]
       },
       "payload": {
-        "values": [
-          "x"
-        ]
+        "values": ["x"]
       }
     },
     {
@@ -339,14 +224,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-not-collapsed",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          16
-        ]
+        "start": [1, 11],
+        "end": [1, 16]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -357,14 +236,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-not-collapsed",
-        "start": [
-          1,
-          21
-        ],
-        "end": [
-          1,
-          30
-        ]
+        "start": [1, 21],
+        "end": [1, 30]
       },
       "payload": {
         "statement_kind": "Call"
@@ -375,19 +248,11 @@
       "kind": "print",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-not-collapsed",
-        "start": [
-          1,
-          21
-        ],
-        "end": [
-          1,
-          30
-        ]
+        "start": [1, 21],
+        "end": [1, 30]
       },
       "payload": {
-        "values": [
-          "x"
-        ]
+        "values": ["x"]
       }
     },
     {
@@ -395,14 +260,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-not-collapsed",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          6
-        ]
+        "start": [1, 1],
+        "end": [1, 6]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -413,14 +272,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-not-collapsed",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          32
-        ]
+        "start": [1, 11],
+        "end": [1, 32]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -431,14 +284,8 @@
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-not-collapsed",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          32
-        ]
+        "start": [1, 11],
+        "end": [1, 32]
       },
       "payload": {
         "name": "every"
@@ -449,14 +296,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-not-collapsed",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          16
-        ]
+        "start": [1, 11],
+        "end": [1, 16]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -467,14 +308,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-not-collapsed",
-        "start": [
-          1,
-          21
-        ],
-        "end": [
-          1,
-          30
-        ]
+        "start": [1, 21],
+        "end": [1, 30]
       },
       "payload": {
         "statement_kind": "Call"
@@ -485,19 +320,11 @@
       "kind": "print",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-not-collapsed",
-        "start": [
-          1,
-          21
-        ],
-        "end": [
-          1,
-          30
-        ]
+        "start": [1, 21],
+        "end": [1, 30]
       },
       "payload": {
-        "values": [
-          "x"
-        ]
+        "values": ["x"]
       }
     },
     {
@@ -505,14 +332,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-not-collapsed",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          16
-        ]
+        "start": [1, 11],
+        "end": [1, 16]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -523,14 +344,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-not-collapsed",
-        "start": [
-          1,
-          21
-        ],
-        "end": [
-          1,
-          30
-        ]
+        "start": [1, 21],
+        "end": [1, 30]
       },
       "payload": {
         "statement_kind": "Call"
@@ -541,19 +356,11 @@
       "kind": "print",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-not-collapsed",
-        "start": [
-          1,
-          21
-        ],
-        "end": [
-          1,
-          30
-        ]
+        "start": [1, 21],
+        "end": [1, 30]
       },
       "payload": {
-        "values": [
-          "x"
-        ]
+        "values": ["x"]
       }
     },
     {
@@ -561,14 +368,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-not-collapsed",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          16
-        ]
+        "start": [1, 11],
+        "end": [1, 16]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -579,14 +380,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-not-collapsed",
-        "start": [
-          1,
-          21
-        ],
-        "end": [
-          1,
-          30
-        ]
+        "start": [1, 21],
+        "end": [1, 30]
       },
       "payload": {
         "statement_kind": "Call"
@@ -597,19 +392,11 @@
       "kind": "print",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-not-collapsed",
-        "start": [
-          1,
-          21
-        ],
-        "end": [
-          1,
-          30
-        ]
+        "start": [1, 21],
+        "end": [1, 30]
       },
       "payload": {
-        "values": [
-          "x"
-        ]
+        "values": ["x"]
       }
     },
     {
@@ -617,14 +404,8 @@
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-nested-registration-not-collapsed",
-        "start": [
-          2,
-          1
-        ],
-        "end": [
-          2,
-          8
-        ]
+        "start": [2, 1],
+        "end": [2, 8]
       },
       "payload": {
         "name": "wait"

@@ -1,9 +1,6 @@
 {
   "description": "the control twin of every-nested-registration-budgeted: a single non-accumulating every with the same empty body over the same 12 ticks completes cleanly on the same instruction budget, so that fixture's ol-limit is caused by the accumulation and not merely by a budget too small for any program",
-  "profiles": [
-    "core-language",
-    "interaction-events"
-  ],
+  "profiles": ["core-language", "interaction-events"],
   "execute": true,
   "executeOptions": {
     "instructionBudget": 14
@@ -14,14 +11,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-single-registration-budgeted",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          12
-        ]
+        "start": [1, 1],
+        "end": [1, 12]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -32,14 +23,8 @@
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-single-registration-budgeted",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          12
-        ]
+        "start": [1, 1],
+        "end": [1, 12]
       },
       "payload": {
         "name": "every"
@@ -50,14 +35,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-single-registration-budgeted",
-        "start": [
-          2,
-          1
-        ],
-        "end": [
-          2,
-          8
-        ]
+        "start": [2, 1],
+        "end": [2, 8]
       },
       "payload": {
         "statement_kind": "Call"
@@ -68,14 +47,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-single-registration-budgeted",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          6
-        ]
+        "start": [1, 1],
+        "end": [1, 6]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -86,14 +59,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-single-registration-budgeted",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          6
-        ]
+        "start": [1, 1],
+        "end": [1, 6]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -104,14 +71,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-single-registration-budgeted",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          6
-        ]
+        "start": [1, 1],
+        "end": [1, 6]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -122,14 +83,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-single-registration-budgeted",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          6
-        ]
+        "start": [1, 1],
+        "end": [1, 6]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -140,14 +95,8 @@
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-single-registration-budgeted",
-        "start": [
-          2,
-          1
-        ],
-        "end": [
-          2,
-          8
-        ]
+        "start": [2, 1],
+        "end": [2, 8]
       },
       "payload": {
         "name": "wait"
