@@ -194,17 +194,26 @@ built-in name* as *what is*:
   | `heritage-worded-form-head` | `heritageWordedFormHeads` |
 
   Adding a registry to the implementation means adding its row here, which is itself drift the gate
-  catches.
+  catches. **This is the vocabulary as of spec version `0.1.0`, and this record is immutable** — a
+  future registry is therefore not an edit to this table but a versioned change to
+  `spec/built-in-names.json`'s schema, carried by the `specVersion` field and recorded in a
+  superseding ADR. The gate reads the file's schema, not this prose, so the two cannot drift; what
+  this table pins is the mapping at the version the decision was made.
 - **Tutor (AI) gets its own registry: `tutorPrimitiveArity`.** This decision settles it here rather
   than deferring it, because an Accepted record must not hand an unresolved architecture choice to
   its implementing slice. The alternative — filing `challenge` in the existing
   `educationalPrimitiveArity` — was rejected: it breaks the invariant clause 1 depends on, that
   `profile` matches *which* registry a name came from, since `challenge` is `tutor-ai` and that
-  table is Educational's. Keeping the invariant exception-free is worth one small table, and it
-  matches the shape every other profile that ships primitives already has (eight tables, one per
-  profile; Tutor (AI) is simply the missing ninth). #841 creates it and registers `challenge` in it,
-  together with the runtime primitive — a bare arity entry would make the checker accept a call the
-  evaluator cannot execute.
+  table is Educational's — which measurably holds exactly the four Educational baseline
+  meta-commands (`explain`, `why`, `hint`, `debug`). Keeping the invariant exception-free is worth
+  one small table, and it matches the shape of every profile whose primitives live in an arity
+  table — eight of them, covering eight profiles. **Heritage is not a counterexample**: it registers
+  *surface spellings of primitives owned elsewhere* rather than primitives of its own, so it carries
+  alias-shaped registries instead of a table, which is exactly why the 13 short aliases are in no
+  arity table. Modules and Localization ship no primitives at all. Tutor (AI) ships a primitive of
+  its own and has neither shape, so it is the one genuinely missing registry. #841 creates it and
+  registers `challenge` in it, together with the runtime primitive — a bare arity entry would make
+  the checker accept a call the evaluator cannot execute.
 - **Six names are reachable from two registries, so `category` needs a stated precedence.**
   Measured: `thing` is the only name in both `OL_RESERVED_WORDS` and a *primitive table*
   (`corePrimitiveArity`, arity 1); and `make`, `op`, `output`, `to` and `value` are each in
