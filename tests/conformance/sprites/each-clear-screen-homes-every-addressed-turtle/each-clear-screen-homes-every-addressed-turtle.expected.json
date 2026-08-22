@@ -1,5 +1,5 @@
 {
-  "description": "issue #679 (SP7) + issue #847: the documented way to home EVERY addressed turtle is `each [ clear_screen ]`, and this pins it. Where a bare `clear_screen` under `tell [ :a :b ]` emits ONE `clear` and homes only the current turtle (clear-screen-multi-turtle-homes-current; issue #738 tracks whether that should change), `each` runs the command once per addressed turtle, so each turtle gets its own canvas clear AND its own issue #847 homing triple - `move` ([0 10] -> [0 0], reporting the pre-reset heading 45) then `turn` (45 -> 0) then `clear`, all three stamped with that turtle's `turtle_id`. No `draw-segment` accompanies either homing move even though both pens are down: the same instruction goes on to clear the drawing (spec/rendering.md:36 describes what a pen-down move contributes to the RETAINED SCENE, and :150's \"Clear operations\" row fixes `clear_screen`'s contribution at *cleared*; escalated to the maintainer as issue #858). The trailing `each` proves the outcome rather than just the events - BOTH turtles report [0 0] and heading 0, unlike the single-`clear_screen` fixture where :b is left at [0 10] heading 45. Every change of the addressed set - the `tell`, each `each` iteration, and each restoration - emits an addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }` (issue #766, spec/rendering.md:193).",
+  "description": "issue #679 (SP7) + issue #847 + issue #738: pins `each [ clear_screen ]`, which differs from a bare `clear_screen` in exactly one way — the number of canvas clears. Since the maintainer's ruling on issue #738, both routes home EVERY addressed turtle (spec/turtles-and-sprites.md:111). What `each` adds is that the shared surface is cleared once per iteration instead of once for the statement: two turtles, two `clear` events. Each iteration still emits that turtle's issue #847 homing pair — `move` ([0 10] -> [0 0], reporting the pre-reset heading 45) then `turn` (45 -> 0), stamped with that turtle's `turtle_id` — before its `clear`. No `draw-segment` accompanies either homing move even though both pens are down: the same instruction goes on to clear the drawing (spec/rendering.md:36 describes what a pen-down move contributes to the RETAINED SCENE, and :150's \"Clear operations\" row fixes `clear_screen`'s contribution at *cleared*; escalated to the maintainer as issue #858). Neither `clear` carries a `turtle_id`, in this or any other mode — :113: \"A `clear` event describes the shared surface rather than any turtle, so it is not turtle-specific and carries no turtle identity\" — so even under `each`, where exactly one turtle IS addressed per iteration, the homing is reported only by the per-turtle `move`/`turn` events. The trailing `each` proves the outcome rather than just the events - BOTH turtles report [0 0] and heading 0, which the bare `clear_screen` under `tell` (clear-screen-multi-turtle-homes-all-addressed) now also produces, with one `clear` instead of two. Every change of the addressed set - the `tell`, each `each` iteration, and each restoration - emits an addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }` (issue #766, spec/rendering.md:193).",
   "profiles": ["sprites"],
   "execute": true,
   "events": [
@@ -286,7 +286,6 @@
         "start": [6, 8],
         "end": [6, 20]
       },
-      "turtle_id": 1,
       "payload": {
         "mode": "clear_screen"
       }
@@ -356,7 +355,6 @@
         "start": [6, 8],
         "end": [6, 20]
       },
-      "turtle_id": 2,
       "payload": {
         "mode": "clear_screen"
       }

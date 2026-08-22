@@ -118,8 +118,8 @@ test("an addressing form reached from a per-turtle command's ARGUMENT is still n
 });
 
 test("a scene-only clean reached from a per-turtle command's argument is never stamped", () => {
-  // `clear` may carry a `turtle_id` — `clear_screen` homes the current turtle and is stamped at
-  // emission — but `clean` only wipes the shared drawing surface and concerns no turtle. Since
+  // No `clear` carries a `turtle_id` in any mode (spec/turtles-and-sprites.md:113), and `clean`
+  // additionally concerns no turtle at all — it only wipes the shared drawing surface. Since
   // argument evaluation runs inside the per-turtle stamping window, a `clean` in a reporter's body
   // would otherwise be labelled with each acting turtle in turn (turtles 1 and 2 here).
   const result = execute(
@@ -148,9 +148,9 @@ test("a scene-only clean reached from a per-turtle command's argument is never s
 test("clear_screen's homing move/turn carry the homed turtle's id under explicit addressing", () => {
   // Issue #847 + spec/turtles-and-sprites.md:113: the homing is observable, so the events that
   // describe it must name the turtle they homed — otherwise a per-turtle reducer would home the
-  // main turtle. `clear_screen` stays canvas-global (one `clear`, homing only the current turtle —
-  // issue #738 tracks homing every addressed turtle), so all three events name turtle 2 — the
-  // turtle the second `tell` made current — and turtle 1 is left where `forward 10` put it.
+  // main turtle. The addressed set here is the single turtle 2, so the homing pair names it and
+  // turtle 1 is left where `forward 10` put it. The `clear` names nobody: it describes the shared
+  // surface (:113), so the identity lives on the movement events alone.
   const result = execute(
     [
       ":a = new_turtle",
@@ -169,7 +169,7 @@ test("clear_screen's homing move/turn carry the homed turtle's id under explicit
   assert.deepEqual(homing, [
     ["move", 2],
     ["turn", 2],
-    ["clear", 2],
+    ["clear", undefined],
   ]);
   // …and no draw-segment came with it, even though turtle 2's pen is down.
   assert.equal(
@@ -178,12 +178,125 @@ test("clear_screen's homing move/turn carry the homed turtle's id under explicit
   );
 });
 
-test("a clear_screen reached from a per-turtle command's argument homes and stamps each acting turtle", () => {
-  // The `clean` counterpart above proves a scene-only clear is never stamped. `clear_screen` is the
-  // opposite case: it homes the turtle that is currently acting, so all three of its issue #847
-  // events must name that turtle. Argument evaluation runs inside the per-turtle window, so the
-  // reporter's body runs once per addressed turtle and must home each of them in turn — the homed
-  // turtle and the stamped id cannot diverge, because both resolve through `addressing.currentId`.
+test("clear_screen under tell homes every addressed turtle but clears the surface once", () => {
+  // The issue #738 ruling: there is ONE shared drawing surface, so it is cleared once however many
+  // turtles are addressed (spec/turtles-and-sprites.md:111), while the homing is ordinary per-turtle
+  // movement and applies once for each addressed turtle (:113). So two turtles produce two homing
+  // pairs and exactly one `clear`.
+  const result = execute(
+    [
+      ":a = new_turtle",
+      ":b = new_turtle",
+      "tell [ :a :b ]",
+      "forward 10",
+      "right 45",
+      "clear_screen",
+    ].join("\n"),
+    "main.logo",
+  );
+  assert.deepEqual(result.diagnostics, []);
+  const homing = result.events
+    .slice(result.events.findIndex((event) => event.kind === "clear") - 4)
+    .map((event) => [event.kind, event.turtle_id]);
+  assert.deepEqual(homing, [
+    ["move", 1],
+    ["turn", 1],
+    ["move", 2],
+    ["turn", 2],
+    ["clear", undefined],
+  ]);
+});
+
+test("clear_screen homes the same turtles whichever order tell listed them in", () => {
+  // The wart the ruling removes (issue #738): "current" used to be the FIRST member of the addressed
+  // set, so `tell [ :a :b ]` homed :a and `tell [ :b :a ]` homed :b. spec/turtles-and-sprites.md:113
+  // now states the result "never depends on the order the turtles were listed in". Asserted on the
+  // homed SET rather than the event order, since the events do follow the addressed set's order.
+  const homedTurtles = (order) => {
+    const result = execute(
+      [
+        ":a = new_turtle",
+        ":b = new_turtle",
+        `tell [ ${order} ]`,
+        "forward 10",
+        "right 45",
+        "clear_screen",
+        "each [ print pos ]",
+      ].join("\n"),
+      "main.logo",
+    );
+    assert.deepEqual(result.diagnostics, []);
+    const clearIndex = result.events.findIndex(
+      (event) => event.kind === "clear",
+    );
+    return {
+      homed: new Set(
+        result.events
+          .slice(0, clearIndex)
+          .filter((event) => event.kind === "move" && event.payload.to[1] === 0)
+          .map((event) => event.turtle_id),
+      ),
+      clears: result.events.filter((event) => event.kind === "clear").length,
+      positions: result.events
+        .filter((event) => event.kind === "print")
+        .map((event) => event.payload.values[0]),
+    };
+  };
+  const forwards = homedTurtles(":a :b");
+  const backwards = homedTurtles(":b :a");
+  // Numeric comparator: `Array.prototype.sort`'s default is lexicographic, which would order ten or
+  // more turtle ids wrongly and hide a genuine difference between the two orderings.
+  const byId = (left, right) => left - right;
+  assert.deepEqual([...forwards.homed].sort(byId), [1, 2]);
+  assert.deepEqual(
+    [...forwards.homed].sort(byId),
+    [...backwards.homed].sort(byId),
+  );
+  assert.equal(forwards.clears, 1);
+  assert.equal(backwards.clears, 1);
+  assert.deepEqual(forwards.positions, [
+    [0, 0],
+    [0, 0],
+  ]);
+  assert.deepEqual(backwards.positions, forwards.positions);
+});
+
+test("clear_screen with an empty addressed set clears the surface and homes nobody", () => {
+  // `tell [ ]` addresses no turtle, so the per-turtle half of `clear_screen` applies zero times —
+  // the same empty-set no-op every other per-turtle command has. The shared surface is still
+  // cleared. The main turtle was never addressed, so it must NOT be homed: before issue #738 the
+  // homing followed the current turtle, which `tell [ ]` leaves pointing at it.
+  const result = execute(
+    ["forward 10", "right 30", "tell [ ]", "clear_screen", "print pos"].join(
+      "\n",
+    ),
+    "main.logo",
+  );
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(
+    result.events
+      .filter((event) => ["move", "turn", "clear"].includes(event.kind))
+      .map((event) => [event.kind, event.turtle_id]),
+    [
+      ["move", undefined],
+      ["turn", undefined],
+      ["clear", undefined],
+    ],
+  );
+  assert.deepEqual(
+    result.events.filter((event) => event.kind === "print")[0].payload
+      .values[0],
+    [0, 10],
+  );
+});
+
+test("a clear_screen reached from a per-turtle command's argument homes the addressed set", () => {
+  // The `clean` counterpart above proves a scene-only clear is never stamped; `clear_screen` is the
+  // homing case. Argument evaluation runs inside the per-turtle window, so the reporter's body runs
+  // once per addressed turtle — but the per-turtle loop only re-points the CURRENT turtle, it does
+  // not narrow the addressed set, so each run of `clear_screen` homes the whole `tell [ :a :b ]` set
+  // (spec/turtles-and-sprites.md:113). Two runs, two homing pairs each, one `clear` each — and none
+  // of the clears is stamped even though it was emitted inside the stamping window.
   const result = execute(
     [
       ":a = new_turtle",
@@ -204,19 +317,25 @@ test("a clear_screen reached from a per-turtle command's argument homes and stam
   assert.deepEqual(homing, [
     ["move", 1],
     ["turn", 1],
-    ["clear", 1],
-    ["move", 1],
     ["move", 2],
     ["turn", 2],
-    ["clear", 2],
+    ["clear", undefined],
+    ["move", 1],
+    ["move", 1],
+    ["turn", 1],
+    ["move", 2],
+    ["turn", 2],
+    ["clear", undefined],
     ["move", 2],
   ]);
 });
 
-test("clear_screen under ask homes and stamps the asked turtle, leaving the rest untouched", () => {
-  // `ask` is a scoped `tell`, and the stamp resolves through the same `addressing.currentId` the
-  // homing reads, so the homed turtle and the named turtle cannot diverge. Pinned so it stays that
-  // way: :b is homed and named, while :a keeps the position/heading `forward`/`right` gave it.
+test("clear_screen under ask homes the asked turtle, leaving the rest untouched", () => {
+  // `ask` is a scoped `tell`, so the addressed set inside the block is just :b and the homing loop
+  // reaches only that turtle. Pinned so it stays that way: :b is homed and named by its own
+  // `move`/`turn`, while :a keeps the position/heading `forward`/`right` gave it. The `clear`
+  // carries no identity even here, where exactly one turtle is addressed
+  // (spec/turtles-and-sprites.md:113).
   const result = execute(
     [
       ":a = new_turtle",
@@ -239,7 +358,7 @@ test("clear_screen under ask homes and stamps the asked turtle, leaving the rest
   assert.deepEqual(homing, [
     ["move", 2],
     ["turn", 2],
-    ["clear", 2],
+    ["clear", undefined],
   ]);
   const printed = result.events
     .filter((event) => event.kind === "print")

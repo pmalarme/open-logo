@@ -260,10 +260,25 @@ function foldAddressing(
  * state-bearing condition is "an event of a state-bearing kind arrived for that turtle", *not* "its
  * fields actually differ": every state-bearing branch of {@link reduceTurtleState} spreads a fresh
  * object, so a repeated `pen_down` while the pen is already down still counts as that turtle acting
- * (which is right — the learner did drive it). The remaining kinds — a `clean` clear, `instruction`,
- * `print`, `procedure-enter`, … — must *not* re-point the last-acted turtle: they carry no
- * `turtle_id` and would otherwise silently snap it back to the main turtle in the middle of a
- * sprite's block.
+ * (which is right — the learner did drive it). The remaining kinds — `instruction`, `print`,
+ * `procedure-enter`, … — must *not* re-point the last-acted turtle: they carry no `turtle_id` and
+ * would otherwise silently snap it back to the main turtle in the middle of a sprite's block. A
+ * `clear` never re-points it either, for the separate reason below.
+ *
+ * A `clear` event is **not folded into any turtle** (issue #738). It "describes the shared surface
+ * rather than any turtle, so it is not turtle-specific and carries no turtle identity", and
+ * "consumers MUST NOT read a `clear` event as an instruction to move a turtle: a turtle's position
+ * and heading change only through the events that report that turtle's movement"
+ * (`spec/turtles-and-sprites.md:113`). One `clear_screen` homes **every** addressed turtle, which no
+ * single identity on one shared-surface event could name — the homing arrives instead as one
+ * `move`/`turn` pair per addressed turtle, each carrying its own `turtle_id`, and those fold through
+ * the ordinary per-turtle path above. Routing the un-stamped `clear` through the
+ * {@link MAIN_TURTLE_ID} default instead would home the main turtle even when it was never
+ * addressed. The single-turtle {@link reduceTurtleState} still folds the payload's `mode`, which is
+ * the right reading *there*: it follows one turtle, so `spec/rendering.md:153`'s clear-and-home
+ * discriminator is all it needs, and a foreign producer's `clear`-only stream stays correct for it.
+ * The retained-scene reducer (`scene.ts`) clears the drawing on the same event, so nothing is lost
+ * by ignoring it here — this reducer holds turtle state only.
  *
  * A `primitive` event carrying an `addressing` snapshot updates
  * {@link TurtleWorldState.addressedTurtleIds}/{@link TurtleWorldState.currentTurtleId} instead (see
@@ -291,6 +306,11 @@ export function reduceTurtleWorldState(
       visible: payload.visible,
     });
     return { ...world, turtles };
+  }
+  if (event.kind === "clear") {
+    // Shared-surface, never a turtle: neither mode moves a turtle here, and the un-stamped
+    // envelope must not fall through to the MAIN_TURTLE_ID default below.
+    return world;
   }
   const id = event.turtle_id ?? MAIN_TURTLE_ID;
   const current = world.turtles.get(id);

@@ -193,11 +193,13 @@ test("set_shape does not change a turtle's identity (== still holds after set_sh
   assert.deepEqual(print.payload.values, [true]);
 });
 
-test("clear_screen under tell stamps its single clear event with the homed turtle's id", () => {
-  // `clear_screen` is a canvas-global command: it emits exactly one `clear` event, not one per
-  // addressed turtle. But its homing acts on the current turtle, so under explicit addressing that
-  // one event carries the homed turtle's `turtle_id` — letting a per-turtle state reducer home the
-  // turtle the runtime actually homed instead of assuming the main turtle.
+test("clear_screen under tell emits one un-stamped clear and names the homed turtle on its move", () => {
+  // `clear_screen` clears the one shared drawing surface exactly once, not once per addressed turtle
+  // (spec/turtles-and-sprites.md:111), and that `clear` names no turtle in any mode: ":113" — "A
+  // `clear` event describes the shared surface rather than any turtle, so it is not turtle-specific
+  // and carries no turtle identity". The homing it performs is per-turtle and is carried by the
+  // `move`/`turn` pair instead, which is what lets a per-turtle state reducer home the turtle the
+  // runtime actually homed instead of assuming the main turtle (issue #738).
   const result = execute(
     ":a = new_turtle\ntell [ :a ]\nforward 10\nclear_screen",
     "main.logo",
@@ -205,8 +207,11 @@ test("clear_screen under tell stamps its single clear event with the homed turtl
   assert.deepEqual(result.diagnostics, []);
   const clears = of(result.events, "clear");
   assert.equal(clears.length, 1);
-  assert.equal(clears[0].turtle_id, 1);
+  assert.equal(clears[0].turtle_id, undefined);
   assert.deepEqual(clears[0].payload, { mode: "clear_screen" });
+  const [homingMove] = of(result.events, "move").slice(-1);
+  assert.equal(homingMove.turtle_id, 1);
+  assert.deepEqual(homingMove.payload.to, [0, 0]);
 });
 
 test("clear_screen before any tell emits one un-stamped clear (main turtle)", () => {
@@ -220,8 +225,8 @@ test("clear_screen before any tell emits one un-stamped clear (main turtle)", ()
 });
 
 test("clean under tell emits one un-stamped clear (it homes no turtle)", () => {
-  // `clean` clears only the drawing; it homes no turtle, so its `clear` event carries no `turtle_id`
-  // even under explicit addressing — only `clear_screen`'s homing is turtle-specific.
+  // `clean` clears only the drawing; it homes no turtle, so beyond the shared-surface rule that
+  // keeps every `clear` un-stamped, it produces no per-turtle homing events either.
   const result = execute(
     ":a = new_turtle\ntell [ :a ]\nforward 10\nclean",
     "main.logo",
@@ -231,4 +236,8 @@ test("clean under tell emits one un-stamped clear (it homes no turtle)", () => {
   assert.equal(clears.length, 1);
   assert.equal(clears[0].turtle_id, undefined);
   assert.deepEqual(clears[0].payload, { mode: "clean" });
+  // …and it emitted no homing at all: the only `move` is `forward 10`'s, and there is no `turn`.
+  // Without this, widening `clearScreen`'s `mode === "clear_screen"` guard would pass unnoticed.
+  assert.equal(of(result.events, "move").length, 1);
+  assert.equal(of(result.events, "turn").length, 0);
 });

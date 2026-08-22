@@ -21,7 +21,6 @@
 
 import {
   isDiagnosticCode,
-  type ClearPayload,
   type Diagnostic,
   type DiagnosticCode,
   type ColorChangePayload,
@@ -226,6 +225,22 @@ function variableValuesSegment(
  * color, width"). Only the state-bearing event kinds change anything; every other kind is
  * ignored, matching the fold-only-what-matters pattern `@openlogo/turtle`'s state reducer uses
  * for the same event stream.
+ *
+ * A `clear` is deliberately **not** one of them, in either mode (issue #738).
+ * `spec/turtles-and-sprites.md:113` is explicit that "consumers MUST NOT read a `clear` event as an
+ * instruction to move a turtle: a turtle's position and heading change only through the events that
+ * report that turtle's movement" — and it names `debug` among the consumers that rule exists for.
+ * This fold used to home on `clear{mode:"clear_screen"}`, mirroring `@openlogo/turtle`'s
+ * `reduceTurtleState`; that mirroring was safe only while `clear_screen` homed whichever turtle was
+ * current. Now that it homes **every addressed turtle** — and so homes *none* when the addressed set
+ * is empty — the `clear` says nothing about the turtle this fold is following, and folding it made
+ * `debug` report `(0, 0)`/`0` for a `tell [ ] / clear_screen` the runtime had left untouched.
+ *
+ * Nothing is lost by dropping it: this reads the events of the run it is inside, and since issue
+ * #847 that producer emits an explicit `move`/`turn` pair for every turtle it actually homes, which
+ * the arms above already fold. `reduceTurtleState` keeps its `clear` branch for the different job it
+ * has — reducing an arbitrary producer's stream, where `spec/rendering.md:153`'s payload
+ * discriminator may be the only record of the homing.
  */
 function turtleStateSegment(events: readonly TraceEvent[]): string | undefined {
   let position: Point | undefined;
@@ -256,16 +271,6 @@ function turtleStateSegment(events: readonly TraceEvent[]): string | undefined {
       }
       case "width-change": {
         width = (event.payload as WidthChangePayload).to;
-        break;
-      }
-      case "clear": {
-        // Mirrors `@openlogo/turtle`'s `reduceTurtleState` (`spec/rendering.md`'s "`clear_screen`
-        // ... homes the turtle"): a `clear_screen` clear homes position and heading; a plain
-        // `clean` clear only clears the drawing and leaves turtle state untouched.
-        if ((event.payload as ClearPayload).mode === "clear_screen") {
-          position = [0, 0];
-          heading = 0;
-        }
         break;
       }
       default:
