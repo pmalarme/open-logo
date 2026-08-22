@@ -558,7 +558,7 @@
       "fingerprint": "9d7bac193fa088f2",
       "excerpt": ":name = input \"what is your name?\"",
       "kind": "prose-fragment",
-      "why": "Excerpt, not a whole program: `input` is the only blocking read in v0.1, so the learner's answer comes from outside the block. Its `inputs` script that answer, so the read completes and the greeting on line 2 actually runs — without one the read is cancelled (`ol-limit`) and the second line is never reached. Its `setup` preamble supplies the rest of that context, so the block runs to completion.",
+      "why": "Excerpt, not a whole program: `input` is the only blocking read in v0.1, so the learner's answer comes from outside the block. Its `inputs` scripts that answer, so the read completes and the greeting on line 2 actually runs — without one the read is cancelled (`ol-limit`) and the second line is never reached.",
       "codes": [],
       "inputs": ["tom"]
     },

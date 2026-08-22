@@ -114,14 +114,14 @@ profile's primitives *and* every Heritage surface spelling — at any depth. So 
 context: never absorb a block's malformed structure, never lean on the block it is supporting, never
 shadow away a real defect. Where context is impossible — a block whose whole point is the error it
 stops on — the limit is **surfaced rather than claimed away**: the block is reported as `PARTIAL`,
-with its own count in the summary line. Today that is exactly one block,
+with its own count in the summary line. At adoption exactly one block was in that state —
 `spec/data-structures.md`'s `ol-unknown-key` demo, whose halt *is* the lesson and whose corrected
 `# ok:` example therefore never executes; splitting it is a `spec/` edit, tracked on #888. A green
 run does not mean every line of every block executed, and the gate says so.
 
-Deliberately, no count in this record is a number you have to keep in sync: the gate prints the live
-totals — clean, asserted, known-broken, partial, failed — on every run, and a hand-maintained tally
-in an immutable document goes stale the first time someone adds an entry.
+Beyond that one historical note, no count in this record is a number anyone has to keep in sync:
+the gate prints the live totals — clean, asserted, known-broken, partial, failed — on every run, and
+a hand-maintained tally in an immutable document goes stale the first time someone adds an entry.
 
 Measuring that honestly needs a program counter, not a span: a diagnostic points at the construct
 that raised, not at where execution stopped, so a multi-line final statement raising on its own head

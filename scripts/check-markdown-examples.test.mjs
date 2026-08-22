@@ -439,10 +439,22 @@ test("analyzeBlock rejects a setup that shadows anything OpenLogo provides, at a
   }
   // Heritage surface spellings are provided names too: `define fd :n end` would silence `fd "x"`.
   assert.deepEqual(analyzeBlock('fd "x"', "heritage").codes, ["ol-type"]);
+  for (const setup of [
+    "define fd :n\nend define",
+    // OpenLogo identifiers are case-insensitive, so a mixed-case spelling shadows it too.
+    "define FD :n\nend define",
+  ]) {
+    assert.match(
+      analyzeBlock('fd "x"', "heritage", { setup }).setupError,
+      /redefines the built-in fd/,
+      `setup ${JSON.stringify(setup)} should be rejected`,
+    );
+  }
   assert.match(
-    analyzeBlock('fd "x"', "heritage", { setup: "define fd :n\nend define" })
-      .setupError,
-    /redefines the built-in fd/,
+    analyzeBlock('set_shape "bee"', "cased", {
+      setup: "define SET_SHAPE :s\nend define",
+    }).setupError,
+    /redefines the built-in set_shape/,
   );
   // A setup MAY define a name of its own — that is ordinary context.
   assert.equal(
@@ -453,39 +465,49 @@ test("analyzeBlock rejects a setup that shadows anything OpenLogo provides, at a
   );
 });
 
-test("analyzeBlock rejects a setup and block that define the same name", () => {
+test("analyzeBlock rejects a setup and block defining the same name, whatever the casing", () => {
   // Procedure resolution is whole-program, so a block redefining a preamble name changes what the
   // preamble means — it is no longer the standalone-clean program that was validated.
-  const result = analyzeBlock(
+  for (const block of [
     "define helper :n\nend define\nhelper 1",
-    "clash",
-    {
+    "define HELPER :n\nend define\nHELPER 1",
+  ]) {
+    const result = analyzeBlock(block, "clash", {
       setup: "define helper\nend define",
-    },
-  );
-  assert.match(result.setupError, /both it and the block define helper/);
-  assert.deepEqual(result.codes, []);
+    });
+    assert.match(
+      result.setupError,
+      /both it and the block define helper/,
+      `block ${JSON.stringify(block)} should collide`,
+    );
+    assert.deepEqual(result.codes, []);
+  }
 });
 
-test("a defect raised inside setup-supplied code is reported against the block, not above it", () => {
+test("a defect raised inside setup-supplied code fails unsuppressibly and cannot mask a later one", () => {
   // A `define` in the preamble defers its body, so standalone validation says nothing about what
-  // is inside it. When the block calls it, the diagnostic's span points into the preamble — which
-  // must never be reported at a line above the block's own opening fence.
-  const result = analyzeBlock("helper", "deferred", {
+  // is inside it. When the block calls it, the run halts there — so if that diagnostic were an
+  // ordinary block code, an expectation declaring it would pass while the block's OWN later
+  // defect (`set_shape "bee"`) never executed and was never seen.
+  const result = analyzeBlock('helper\nset_shape "bee"', "deferred", {
     startLine: 100,
-    setup: 'define helper\n  set_shape "bee"\nend define',
+    setup: 'define helper\n  forward "far"\nend define',
   });
-  // It stays in `codes`, so nothing is masked and `codes: []` would fail…
-  assert.deepEqual(result.codes, ["ol-type"]);
-  // …and it is attributed to the block's first body line, saying where it really came from.
-  assert.match(
-    result.details[0],
-    /^101: ol-type — .*\(raised inside this entry's setup preamble, at preamble line 2\)$/,
-  );
-  // A halt inside the preamble says nothing about the block's own progress.
+  assert.deepEqual(result.codes, []);
   assert.equal(result.partialFrom, null);
+  assert.match(
+    result.setupError,
+    /the block raised inside this entry's setup-supplied code — ol-type at preamble line 2 .* — a setup must be context the block can use/,
+  );
+  // And it cannot be declared away by an expectation.
+  assert.match(
+    describeExpectationMismatch(
+      { kind: "prose-fragment", codes: ["ol-type"] },
+      result,
+    ),
+    /setup" preamble is broken/,
+  );
 });
-
 test("analyzeBlock reports a malformed setup as an internal failure rather than crashing", () => {
   // A non-string setup used to throw out of the gate entirely, past the state built for exactly
   // this: the preamble arithmetic now lives inside the try.

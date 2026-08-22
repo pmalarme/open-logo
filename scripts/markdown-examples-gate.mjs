@@ -315,7 +315,11 @@ export function blockFingerprint(source) {
  * (issue #852), so the alias list cannot drift from it here.
  */
 function isPrimitiveName(name) {
-  if (heritageSurfaceSpellings().includes(name)) {
+  // OpenLogo identifiers are case-insensitive, so `define FD :n end` shadows `fd` just as surely
+  // as the lowercase spelling does. Compare on the canonical lowercase form throughout — the same
+  // normalisation `scripts/examples-gate.mjs`'s own shadow guard uses.
+  const canonical = name.toLowerCase();
+  if (heritageSurfaceSpellings().includes(canonical)) {
     return true;
   }
   return [
@@ -327,19 +331,20 @@ function isPrimitiveName(name) {
     interactionPrimitiveArity,
     soundPrimitiveArity,
     spritesPrimitiveArity,
-  ].some((arityOf) => arityOf(name) !== undefined);
+  ].some((arityOf) => arityOf(canonical) !== undefined);
 }
 
 /**
- * Every name a program defines, at any depth — procedures and struct types alike. Used both to
- * catch a preamble shadowing a provided name and to catch a preamble and its block defining the
- * same name, which would let the block change what the preamble means.
+ * Every name a program defines, at any depth, in OpenLogo's canonical lowercase form — procedures
+ * and struct types alike. Used both to catch a preamble shadowing a provided name and to catch a
+ * preamble and its block defining the same name, which would let the block change what the
+ * preamble means.
  */
 function definedNames(program) {
   const found = new Set();
   walk(program, (node) => {
     if (node.kind === "ProcedureDef" || node.kind === "StructDef") {
-      found.add(node.name.name);
+      found.add(node.name.name.toLowerCase());
     }
   });
   return found;
@@ -379,11 +384,15 @@ export function lastStatementLine(program) {
  * `setup` is optional OpenLogo source prepended to the block before analysis, so an excerpt whose
  * context lives in the prose can be given that context and run to completion instead of halting on
  * its first undefined name. Reported line numbers stay anchored to the real file: the preamble's
- * own lines are subtracted. The preamble must **parse standalone** and must itself be clean — a
- * diagnostic landing inside it is reported as `setupError`, never folded into the block's codes,
- * because a broken preamble would otherwise read as a defect in the documentation *and* could
- * absorb the block's own malformed structure. `inputs` scripts the answers a blocking `input` read
- * consumes, so an interaction example can run instead of being cancelled.
+ * own lines are subtracted. The preamble must **parse, check and execute cleanly on its own**, must
+ * not define a name the block also defines, and must not redefine anything OpenLogo provides at any
+ * depth — so it can only supply context, never absorb the block's malformed structure, lean on the
+ * block it supports, or shadow away a real defect. Anything that still raises **inside** the
+ * preamble once the block runs it (a deferred `define` body, which standalone validation cannot
+ * see) is reported as `setupError`: unsuppressible, never an ordinary block code, because such a
+ * diagnostic would otherwise halt the run *and* satisfy an expectation that declared it, hiding
+ * whatever the block's own later lines would have raised. `inputs` scripts the answers a blocking
+ * `input` read consumes, so an interaction example can run instead of being cancelled.
  *
  * @returns `{ unimplementedProfiles, codes, details, internalError, setupError, partialFrom }`.
  *   `codes` is the sorted, de-duplicated set of error-severity `ol-*` codes across all three stages
@@ -505,42 +514,47 @@ export function analyzeBlock(
       (diagnostic) => diagnostic.severity === "error",
     );
     // A `define` in the preamble defers its body, so standalone validation says nothing about what
-    // is inside it — the block calling that procedure can raise from a preamble line. The
-    // diagnostic is genuinely the block's (it made the call), so it stays in `codes` and nothing is
-    // masked; but its line must not be reported above the block's own opening fence. Clamp such a
-    // diagnostic to the block's first body line and say where it really came from.
-    const firstBodyLine = startLine + 1;
-    const attribute = (line) =>
-      line <= preambleLines ? firstBodyLine : offset + line;
-    const raisedInSetup = errors.some(
+    // is inside it — the block calling that procedure can raise from a preamble line. Such a
+    // diagnostic must NOT become an ordinary block code: it would halt the run before the block's
+    // own later lines executed, while satisfying an expectation that declares it, so a real defect
+    // below could never be seen. It becomes an unsuppressible `setupError` instead — worded to
+    // attribute it correctly (the block called into the setup; the setup is not "broken prose")
+    // and never printing a line above the block's own opening fence.
+    const fromSetup = errors.filter(
       (diagnostic) => diagnostic.source_span.start[0] <= preambleLines,
     );
+    if (fromSetup.length > 0) {
+      return {
+        ...empty,
+        unimplementedProfiles,
+        setupError:
+          `the block raised inside this entry's setup-supplied code — ` +
+          fromSetup
+            .map(
+              (diagnostic) =>
+                `${diagnostic.code} at preamble line ${diagnostic.source_span.start[0]} (${diagnostic.message})`,
+            )
+            .join("; ") +
+          ` — a setup must be context the block can use, not code that fails when the block calls it`,
+      };
+    }
 
     const haltLine =
       runtimeErrorLines.length === 0 ? null : runtimeErrorLines[0];
     return {
       unimplementedProfiles,
       codes: [...new Set(errors.map((diagnostic) => diagnostic.code))].sort(),
-      details: errors.map((diagnostic) => {
-        const line = diagnostic.source_span.start[0];
-        const origin =
-          line <= preambleLines
-            ? ` (raised inside this entry's setup preamble, at preamble line ${line})`
-            : "";
-        return `${attribute(line)}: ${diagnostic.code} — ${diagnostic.message}${origin}`;
-      }),
+      details: errors.map(
+        (diagnostic) =>
+          `${offset + diagnostic.source_span.start[0]}: ${diagnostic.code} — ${diagnostic.message}`,
+      ),
       internalError: null,
       setupError: null,
       // Partial only when a later top-level statement never began. A diagnostic's span points at
       // the construct that raised, not at where execution stopped, so a multi-line final statement
-      // that raises on its own head line has still run everything there was to run. A halt landing
-      // in the preamble carries no information about the block's own progress, so it is not
-      // reported as partial at all.
+      // that raises on its own head line has still run everything there was to run.
       partialFrom:
-        haltLine !== null &&
-        haltLine > preambleLines &&
-        haltLine < lastStatement &&
-        !raisedInSetup
+        haltLine !== null && haltLine < lastStatement
           ? offset + haltLine
           : null,
     };
