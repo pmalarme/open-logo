@@ -15,8 +15,8 @@
 //
 //   2. THE PROFILE GATE — reusing the visible-name mechanism (no net-new checker rule): with the
 //      Heritage profile INACTIVE, each alias is an unknown callee (`ol-unknown-command`); with
-//      Heritage ACTIVE (Core + its Data dependency, spec/conformance.md#heritage), all three
-//      resolve silently. `se`→`sentence` is a list reporter, so Data is the correct dependency.
+//      Heritage ACTIVE, all three resolve silently. `heritage` alone admits them: `butfirst`/
+//      `butlast`/`sentence` and the `list` type are Core (spec/conformance.md:52, :159-160).
 //
 //   3. ARITY — the alias groups arguments by the canonical reporter's own arity, and its static
 //      range is the canonical's (`se`→`sentence` is an open variadic; `bf`/`bl` are fixed-arity 1).
@@ -35,11 +35,14 @@ import {
 const doc = "heritage-list-reporter-aliases.logo";
 const span = (start, end) => ({ document: doc, start, end });
 
-// Heritage active needs only Core + Data to make these aliases VISIBLE: `se`→`sentence` builds a
-// list, so Data is the right dependency, and deliberately NOT turtle-rendering — the alias
-// SPELLINGS are gated on `heritage`, never on their canonical targets' profile. These four alias
-// Core reporters, so issue #860's new Heritage→Turtle & Rendering DAG edge (which the nine turtle
-// aliases carry) does not reach them; profile sets here are activation sets, not claims.
+// `heritage` ALONE makes these three aliases VISIBLE — the alias SPELLINGS are gated on
+// `heritage`, never on their canonical targets' profile — so neither of Heritage's cross-profile
+// DAG edges is what admits them. Data is NOT one of their requirements: `butfirst`/`butlast`/
+// `sentence` and the `list` type are Core (spec/conformance.md:52, :159-160). Heritage depends on
+// Data because of the `value of … for key` dict reader, and (issue #860) on Turtle & Rendering
+// because of the nine turtle aliases; neither reaches these three. The set below stays uniform
+// with the other Heritage test files, so Data is active here but unused — an activation set, not
+// a conformance claim.
 const HERITAGE_ACTIVE = ["core-language", "data", "heritage"];
 const CORE_ONLY = ["core-language", "data"];
 
@@ -201,9 +204,15 @@ test("a reporter alias as an assignment RHS carries canonical, like its Core twi
 // The profile gate (visible-name based, no net-new checker rule)
 // ---------------------------------------------------------------------------
 
-test("Heritage active accepts every reporter alias silently (needs only Core + Data)", () => {
+test("Heritage active accepts every reporter alias silently (needs only Core + Heritage)", () => {
   const source = 'print bf [1 2 3]\nprint bl [1 2 3]\nprint se "a" "b"\n';
   assert.deepEqual(checkSource(source, HERITAGE_ACTIVE), []);
+  // And with Data DEACTIVATED. These three alias Core reporters over the Core `list` type
+  // (spec/conformance.md:52, :159-160), so Heritage's Data edge — which exists for the
+  // `value of … for key` dict reader — is not what admits them. Without this line the test's own
+  // name would be an unmeasured claim, which is the defect the issue #860 review found in the
+  // sentence this replaces ("`se`→`sentence` builds a list, so Data is the right dependency").
+  assert.deepEqual(checkSource(source, ["core-language", "heritage"]), []);
 });
 
 test("Core rejects every reporter alias with ol-unknown-command, one diagnostic each", () => {
