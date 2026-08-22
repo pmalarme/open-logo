@@ -201,10 +201,40 @@ test("the group recovery never consumes an enclosing construct's delimiter", () 
     "the procedure's own `end` was consumed by the group recovery",
   );
 
-  // The same for an `else` belonging to an outer `if`, whose body would otherwise be folded into
-  // the then-branch. The `if` itself still parses, so only the group's own error is reported.
-  const conditional = "if 1 [ print 1 ] else [ print 2 ]\n";
-  assert.deepEqual(OL.parse(conditional, doc).diagnostics, []);
+  // The same for an `else` belonging to an outer `if`. This must contain a MALFORMED group, or it
+  // exercises nothing: a well-formed `if … else …` never reaches the recovery and would pass on
+  // the broken revision too. Here the unterminated group sits in the then-branch, so the next
+  // token the group sees is the outer `else`. Consuming it made the `if` lose its else-branch and
+  // fold `print 2` into the then-branch.
+  const conditional = "if 1\n  print (\nelse\n  print 2\nend\n";
+  const parsed = OL.parse(conditional, doc);
+  assert.deepEqual(
+    parsed.diagnostics.map((d) => d.code),
+    ["ol-unmatched-paren"],
+    "the outer `else` was consumed by the group recovery",
+  );
+  let conditionalNode;
+  OL.walk(parsed.ast, (node) => {
+    if (node.kind === "If") {
+      conditionalNode = node;
+    }
+  });
+  assert.notEqual(conditionalNode, undefined, "the `if` did not parse");
+  assert.notEqual(
+    conditionalNode.elseBody,
+    undefined,
+    "the else-branch was swallowed",
+  );
+  assert.equal(
+    conditionalNode.elseBody.body.length,
+    1,
+    "the else-branch lost its statement",
+  );
+  assert.equal(
+    conditionalNode.thenBody.body.length,
+    1,
+    "the else-branch's statement was folded into the then-branch",
+  );
 
   // And the narrow case the recovery exists for still works: one rejected token, then the `)`.
   assert.deepEqual(
