@@ -44,6 +44,7 @@ import {
   soundPrimitiveArity,
   spritesPrimitiveArity,
   turtlePrimitiveArity,
+  walk,
 } from "@openlogo/parser";
 
 /**
@@ -77,14 +78,16 @@ const TUTOR_AI_PRIMITIVES = new Set(["challenge"]);
 const HERITAGE_ALIASES = new Set(heritageAliasNames());
 
 /**
- * Matches a declaration slot's name. All four slots of `spec/grammar.md:382` are covered —
- * `define`, the heritage `to`, `struct`, and `alias`, whose **first** operand is the declared one
- * (`spec/grammar.md:410`), which is the one this captures. The identifier pattern follows
- * `spec/grammar.md:54-55` including the optional `?`/`!` suffix, and the `i` flag follows `:13`:
- * "Keywords and identifiers are case-insensitive."
+ * The `alias` declaration slot, which cannot be read off the AST. `spec/grammar.md:382` names four
+ * slots; three of them ({@link declaredNames} reads `define`, the heritage `to`, and `struct` from
+ * `ProcedureDef`/`StructDef` nodes) are modeled, but Modules is a later profile — `alias fd forward`
+ * does not parse at all today (measured: two `ol-bad-token`s), so there is no node to walk. This
+ * pattern covers the fourth slot until there is, and captures the **first** operand, which is the
+ * declared one (`spec/grammar.md:410`); the second is the name being pointed at and is unrestricted.
+ * The identifier form follows `spec/grammar.md:54-55` and the `i` flag follows `:13`.
  */
-const DECLARATION =
-  /^[ \t]*(?:define|to|struct|alias)[ \t]+([\p{XID_Start}_][\p{XID_Continue}_]*[?!]?)/gimu;
+const ALIAS_DECLARATION =
+  /^[ \t]*alias[ \t]+([\p{XID_Start}_][\p{XID_Continue}_]*[?!]?)/gimu;
 
 /**
  * Why `name` is a built-in name under the completed ruling, or `"free"` when a program may declare
@@ -121,9 +124,26 @@ function diagnosticCodes(source) {
   );
 }
 
-/** The names declared in `source` by a `define`, a heritage `to`, or a `struct`. */
+/**
+ * The names `source` declares. `define`, the heritage `to`, and `struct` are read off the parsed
+ * AST rather than matched in the text, which is what makes this sound: a declaration nested inside
+ * an `if` or a `repeat` block is still a declaration and is found, while `define forward` sitting
+ * inside a `/* … *\/` block comment (`spec/grammar.md:32`) is not one and is not. A line-oriented
+ * pattern gets both of those backwards. The fourth slot, `alias`, has no node to walk — see
+ * {@link ALIAS_DECLARATION}.
+ */
 function declaredNames(source) {
-  return [...source.matchAll(DECLARATION)].map((match) => match[1]);
+  const { ast } = parse(source);
+  const names = [];
+  walk(ast, (node) => {
+    if (node.kind === "ProcedureDef" || node.kind === "StructDef") {
+      names.push(node.name.name);
+    }
+  });
+  for (const match of source.matchAll(ALIAS_DECLARATION)) {
+    names.push(match[1]);
+  }
+  return names;
 }
 
 /** Every runnable OpenLogo program the curriculum shows a learner, each with a label. */
@@ -195,19 +215,38 @@ test("the names a learner reaches for are owned across all three categories", ()
   }
 });
 
-// The audit is only as good as its model of the grammar. Three ways a hand-rolled model silently
-// under-approximates the rule and lets a broken lesson through: missing a declaration slot, folding
-// case the way the host language does rather than the way `spec/grammar.md:13` does, and dropping an
-// identifier's `?`/`!` suffix (`spec/grammar.md:54-55`) so a declaration is attributed to the wrong
-// name. `challenge` covers the fourth: a name the spec assigns whose profile has no table yet.
+// The audit is only as good as its model of the grammar. Ways a hand-rolled model silently
+// under- or over-approximates the rule and so lets a broken lesson through, or invents a defect:
+// missing a declaration slot; missing a declaration *nested* in a block; reading one out of a block
+// comment; folding case the way the host language does rather than the way `spec/grammar.md:13`
+// does; and dropping an identifier's `?`/`!` suffix (`spec/grammar.md:54-55`) so a declaration is
+// attributed to the wrong name — `empty` is explicitly not a built-in name (`:380`) while `empty?`
+// is a Core primitive. `challenge` covers the last case: a name the spec assigns whose profile has
+// no signature table yet.
 test("the audit models every declaration slot, case-insensitively, suffix and all", () => {
-  assert.deepEqual(declaredNames("define polygon :sides\nend"), ["polygon"]);
-  assert.deepEqual(declaredNames("to triangle :size\nend"), ["triangle"]);
+  assert.deepEqual(declaredNames("define polygon :sides\n  forward 1\nend"), [
+    "polygon",
+  ]);
+  assert.deepEqual(declaredNames("to triangle :size\n  forward 1\nend"), [
+    "triangle",
+  ]);
   assert.deepEqual(declaredNames("struct point [ x y ]"), ["point"]);
   // Only `alias`'s FIRST operand declares (`spec/grammar.md:410`); the second is unrestricted.
   assert.deepEqual(declaredNames("alias fd forward"), ["fd"]);
-  assert.deepEqual(declaredNames("define empty? :xs\nend"), ["empty?"]);
-  assert.deepEqual(declaredNames("DEFINE FD :n\nend"), ["FD"]);
+  assert.deepEqual(declaredNames("define empty? :xs\n  return 1\nend"), [
+    "empty?",
+  ]);
+  assert.deepEqual(declaredNames("DEFINE FD :n\n  print :n\nend"), ["FD"]);
+  // A declaration nested in a block is still a declaration...
+  assert.deepEqual(
+    declaredNames("if true\n  define forward :n\n    print :n\n  end\nend if"),
+    ["forward"],
+  );
+  // ...and text inside a block comment is not one.
+  assert.deepEqual(
+    declaredNames("/* a note about\ndefine forward :n\nend\n*/\nforward 10"),
+    [],
+  );
 
   assert.equal(builtInKind("FD"), "alias");
   assert.equal(builtInKind("Repeat"), "keyword");

@@ -110,7 +110,10 @@ Every worked example and reference solution is both **executed** against `@openl
 **statically checked** with `@openlogo/parser`'s `check()` in this package's tests, so lesson content
 can drift neither from real execution behavior nor from the naming rules. The two gates are
 genuinely different: `ol-reserved-word` is a semantic diagnostic that only `check()` produces, so a
-lesson declaring a built-in name would run cleanly through an execution-only test.
+lesson that *declared a procedure* named after a built-in would run cleanly through an
+execution-only test. (The runtime's own phase-1 registration guard does catch some `struct`
+collisions, so the hole is not total — but a procedure declaration, which is what Level 5 teaches,
+falls straight through it.)
 
 Note the rule above is the **completed** one. `check()` does not consult every primitive table yet —
 Turtle & Rendering awaits [#783](https://github.com/pmalarme/open-logo/issues/783) and the
