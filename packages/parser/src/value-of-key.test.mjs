@@ -62,3 +62,19 @@ test("`value of <dict> for key` with no key expression reports a diagnostic and 
 
   assert.equal(diagnostics.length > 0, true);
 });
+
+test("the reader now works inside parentheses, and nested inside itself", () => {
+  // Both of these were BROKEN before issue #853 and are fixed as a side effect: while `value` was
+  // still a `callable-name`, `( value of … )` read the `value` as a parenthesized call and choked on
+  // `of`. Pinned here so a later change cannot silently re-break them.
+  for (const source of [
+    'print ( value of :ages for key "tom" )',
+    'print value of ( value of :nested for key "inner" ) for key "outer"',
+  ]) {
+    assert.deepEqual(
+      OL.parse(source, doc).diagnostics,
+      [],
+      `\`${source}\` must read as the value-of-key reader`,
+    );
+  }
+});

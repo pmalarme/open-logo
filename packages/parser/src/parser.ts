@@ -107,12 +107,17 @@ const EXPRESSION_INITIAL_RESERVED_WORDS: ReadonlySet<string> = new Set<string>([
  * four event heads) is deliberately excluded: those words are reserved only while their profile is
  * active, and this reader is profile-blind by design (see {@link PROFILE_STATEMENT_FORMS}) — a
  * Core-only program may legally `define ask … end` and call it. Rejecting them in value position is
- * the profile-aware checker's job, not this set's.
+ * the profile-aware checker's job, not this set's (issue #864).
  *
  * The statement heads stay unaffected because {@link parseStatement} dispatches `add`/`remove`/
- * `insert`/`clear` by keyword *before* any expression is read, and bare-key positions
- * (`key-term`, `dict-key`, `.field`, `bare-place`) read a raw `name` token rather than a primary —
- * "reserved words are legal keys" (`spec/grammar.md:369`) still holds.
+ * `insert`/`clear` by keyword *before* any expression is read, and the bare-key positions
+ * (`key-term`, `dict-key`, `.field`) read a raw `name` token rather than a primary — "Dictionary
+ * keys and selector bare keys are data, not declarations, so reserved words are legal keys"
+ * (`spec/grammar.md:369`) still holds.
+ *
+ * A `bare-place` (`set value to 1`) also reads a raw `name`, so it too is untouched here — but it is
+ * a **binding**, not data, and binding a reserved word stays illegal (`spec/grammar.md:367`). The
+ * semantic layer is what rejects it, with `ol-reserved-word`; this set neither adds nor removes that.
  *
  * `mod` is the one non-reserved entry: it is an infix operator word the precedence ladder consumes
  * (`spec/grammar.md:220`), never an expression head.
@@ -529,15 +534,21 @@ export function parse(source: string, document = "<input>"): ParseResult {
     return primitiveArity(name) ?? heritageAliasArity(name) ?? 0;
   }
 
+  /**
+   * Is `text` a legal `callable-name` for a parenthesized call (`spec/grammar.md:211`)? **Derived
+   * from the same two sets {@link parseNamePrimary} consults** (issue #853), so the primary reader
+   * and the parenthesized-call reader cannot drift apart: a word that may not begin an expression is
+   * not a callee either, and of the expression-initial reserved words only `thing` is a real
+   * callable — `true`/`false` are literals and `map`/`filter`/`reduce` open a comprehension, none of
+   * which is a `callable-name`. Hand-restating that second list here is the very drift this issue
+   * fixed one layer up, so it is computed instead.
+   */
   function isCalleeName(text: string): boolean {
     const lower = text.toLowerCase();
-    if (lower === "true" || lower === "false") {
+    if (NON_PRIMARY_NAMES.has(lower)) {
       return false;
     }
-    if (lower === "map" || lower === "filter" || lower === "reduce") {
-      return false;
-    }
-    return !NON_PRIMARY_NAMES.has(lower);
+    return lower === "thing" || !EXPRESSION_INITIAL_RESERVED_WORDS.has(lower);
   }
 
   // --- Expressions ---------------------------------------------------------

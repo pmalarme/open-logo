@@ -14,7 +14,7 @@
 // **Scope: the global Core registry only.** `OL_PROFILE_RESERVED_WORDS` (`ask`/`each`/`tell` and the
 // four event block-heads) is out of scope here and still reads clean in value position — the reader
 // is profile-blind by design, so rejecting those belongs to the profile-aware checker, not to this
-// set. Tracked separately; see the PR for #853.
+// set. Tracked as issue #864.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -132,6 +132,30 @@ test("the six silently-accepted words are rejected in the issue's own `repeat` p
       badTokens.some((diagnostic) => diagnostic.params.text === word),
       true,
       `\`repeat ${word} [ ]\` produced ${JSON.stringify(diagnostics.map((d) => d.code))}`,
+    );
+  }
+});
+
+test("no reserved word except `thing` and the operator words is a parenthesized-call callee", () => {
+  // `parenthesized-call ::= "(" callable-name { expression } ")"` (`spec/grammar.md:211`). The
+  // reader gates that position through `isCalleeName`, which derives its answer from the same two
+  // sets as the primary reader — so this sweep is what stops the two paths drifting apart, the very
+  // failure mode issue #853 fixed one layer up.
+  //
+  // Four reserved words legitimately reach a callee here. `thing` is a real Core primitive; `and`,
+  // `or`, and `not` are the grammar's own operator productions, which the reader lowers to a `Call`
+  // with the operator as callee (`spec/grammar.md:179-186`) and which `checker-unknown-command.ts`
+  // treats as always-visible `OPERATOR_CALLEES`. `( and :a :b :c )` is the spec's variadic form.
+  const OPERATOR_CALLEES = new Set(["and", "or", "not"]);
+
+  for (const word of OL.OL_RESERVED_WORDS) {
+    const { ast } = OL.parse(`print ( ${word} 1 )\n`, doc);
+    const kept = calleeNames(ast).filter((name) => name === word);
+    const allowed = word === "thing" || OPERATOR_CALLEES.has(word);
+    assert.deepEqual(
+      kept,
+      allowed ? [word] : [],
+      `\`( ${word} 1 )\` treated the reserved word as a callable-name`,
     );
   }
 });
