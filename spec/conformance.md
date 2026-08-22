@@ -80,8 +80,8 @@ SVG and PNG export targets are recommended.
 
 ## Optional profiles
 
-**Status: Normative.** Optional profiles MAY be implemented independently except where the dependency
-DAG below states a dependency, including the annotated cross-dependencies on **Data**.
+**Status: Normative.** Optional profiles MAY be implemented independently except where the dependency DAG
+below states a dependency, including the annotated cross-dependencies on **Data** and **Turtle & Rendering**.
 
 ### Geometry
 
@@ -152,7 +152,7 @@ The **Heritage** profile is **alternate spellings only**. It does not add new se
 - `make` as the heritage assignment spelling;
 - `to` as the heritage procedure-definition spelling;
 - `output` and `op` as heritage spellings for `return`;
-- short command aliases `fd`, `bk`, `lt`, `rt`, `pu`, `pd`, `st`, `ht`, `cs`, and `pr`;
+- short command aliases `fd`, `bk`, `lt`, `rt`, `pu`, `pd`, `st`, `ht`, `cs`, and `pr`, of which the nine turtle aliases spell Turtle & Rendering primitives and therefore also need the **Turtle & Rendering** profile, while `pr` spells the Core `print`;
 - list-reporter alias spellings `bf`, `bl`, and `se`;
 - the worded dictionary reporter spelling `value of … for key`, which operates on dicts and therefore also needs the **Data** profile.
 
@@ -272,7 +272,7 @@ purposes.
 | Dict-item or scalar-item destructuring | N/A — unsupported | — | Not a feature of either profile: v0.1 destructuring is flat and applies only to list and record items; applying a pattern binder to a dict or scalar item raises `ol-type` in every implementation. |
 | `add`, `remove`, `clear`, `insert` mutation forms | Data | No | Collection mutation profile. |
 | `make`, `to`, `output`, `op` spellings | Heritage | No | Alternate spellings only. |
-| `fd`, `bk`, `lt`, `rt`, `pu`, `pd`, `st`, `ht`, `cs`, `pr` | Heritage | No | Short command aliases only. |
+| `fd`, `bk`, `lt`, `rt`, `pu`, `pd`, `st`, `ht`, `cs`, `pr` | Heritage | No | Short command aliases only; the nine turtle aliases drive the turtle, so they also need Turtle & Rendering. |
 | `bf`, `bl`, `se` alias spellings | Heritage | No | Full-name reporters remain Core. |
 | `value of … for key` spelling | Heritage | No | Alternate dictionary reporter spelling; operates on dicts, so it also needs Data. |
 | Multiple turtles/sprites and sprite addressing | Sprites | No | Depends on Turtle & Rendering. |
@@ -293,7 +293,7 @@ Core Language
 │  ├─ Geometry        (also depends on Data)
 │  └─ Sprites
 ├─ Data
-├─ Heritage           (also depends on Data)
+├─ Heritage           (also depends on Data and Turtle & Rendering)
 ├─ Interaction & Events
 ├─ Sound
 ├─ Modules
@@ -302,7 +302,7 @@ Core Language
    └─ Tutor (AI)
 ```
 
-The tree layout lists each profile once, so two dependencies on **Data** appear as the `(also depends on Data)` annotations above rather than as extra branches. **Geometry** depends on **Data** because its `area` and `perimeter` reporters read a shape spec by list index, and **Heritage** depends on **Data** because its `value of … for key` reader operates on dicts. These annotated edges are normative: claiming **Geometry** or **Heritage** therefore also requires claiming **Data**.
+The tree layout lists each profile once, so a dependency that would otherwise need a second branch appears as an `(also depends on …)` annotation above rather than as an extra branch. **Geometry** depends on **Data** because its `area` and `perimeter` reporters read a shape spec by list index. **Heritage** depends on **Data** because its `value of … for key` reader operates on dicts, and on **Turtle & Rendering** because nine of its thirteen alias spellings — `fd`, `bk`, `lt`, `rt`, `pu`, `pd`, `st`, `ht`, and `cs` — are alternate spellings of Turtle & Rendering primitives, so an implementation that owes those aliases must own the primitives they spell (`pr`, `bf`, `bl`, and `se` alias Core names and add no edge). These annotated edges are normative: claiming **Geometry** or **Heritage** therefore also requires claiming **Data**, and claiming **Heritage** therefore also requires claiming **Turtle & Rendering**.
 
 The required minimal conformance path is:
 
