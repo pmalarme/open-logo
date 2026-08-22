@@ -1134,7 +1134,7 @@ test("ol-style-nested-handler: the message names both forms and says what to do"
   );
   assert.equal(
     diagnostic.message,
-    "every runs again and again, so this on_key adds another handler every time. register it once, outside the every.",
+    "every runs again and again, so this on_key can add another handler each time. register it once, outside the every.",
   );
   assert.equal(diagnostic.message, diagnostic.message.toLowerCase());
 });
@@ -1180,6 +1180,52 @@ test("ol-style-nested-handler: reports once and does not descend into a user-bou
   );
   assert.equal(diagnostics.length, 1);
   assert.deepEqual(diagnostics[0].params, { outer: "every", inner: "on_key" });
+});
+
+test("ol-style-nested-handler: a chain of everys reports each link exactly once", () => {
+  // Regression: descending THROUGH a registration made the outer visit report the deepest link as
+  // well, so `every 7` was reported twice for one defect. Each `every` is visited as an outer in its
+  // own right, so collection must stop at each registration rather than walk through it.
+  const diagnostics = nestedHandlerFindings(
+    "every 3 [ every 5 [ every 7 [ print 1 ] ] ]",
+  );
+  assert.equal(diagnostics.length, 2);
+  assert.deepEqual(
+    diagnostics.map((d) => d.source_span.start),
+    [
+      [1, 11],
+      [1, 21],
+    ],
+  );
+});
+
+test("ol-style-nested-handler: the check is lexical, so a registration behind a call is missed", () => {
+  // A DELIBERATE limitation, pinned so it is specified rather than accidental, and stated as such in
+  // the normative row. Interprocedural analysis with cycle protection is a large lift for an
+  // advisory warning, and it is safe to omit: the runtime half of #828 charges every handler firing
+  // against the instruction budget, so this program still terminates with `ol-limit`. Safety never
+  // depends on this lint -- only the explanation does.
+  assert.deepEqual(
+    nestedHandlerFindings(
+      'define setup\n  on_key "x" [ print 1 ]\nend\nevery 3 [ setup ]',
+    ),
+    [],
+  );
+});
+
+test("ol-style-nested-handler: no reachability analysis, matching the rest of the family", () => {
+  // `ol-style-useless-value` flags `if false [ repeat 4 [ :side * 2 ] ]` too: this family does not
+  // constant-fold, and a style linter that did would be growing an evaluator. The message says the
+  // registration CAN add a handler each time rather than that it does, which stays accurate for a
+  // conditional registration whether or not the condition is decidable.
+  for (const source of [
+    'every 3 [ if false [ on_key "x" [ print 1 ] ] ]',
+    'every 3 [ repeat 0 [ on_key "x" [ print 1 ] ] ]',
+  ]) {
+    const diagnostics = nestedHandlerFindings(source);
+    assert.equal(diagnostics.length, 1, `flagged: ${source}`);
+    assert.match(diagnostics[0].message, /can add another handler each time/);
+  }
 });
 
 test("ol-style-nested-handler: finds a registration nested at depth inside the handler body", () => {

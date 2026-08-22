@@ -1283,17 +1283,6 @@ const HANDLER_HEADS: ReadonlySet<string> = new Set([
   "on_click",
 ]);
 
-/**
- * The heads whose blocks are **user-bounded**, so {@link nestedHandlerRule} does not descend into
- * them. A key press or a click is paced by a person; a clock is not. This is the carve-out the #828
- * ruling makes normative, and it is why `on_key "space" [ every 10 [ shoot ] ]` stays completely
- * clean.
- */
-const USER_BOUNDED_HANDLER_HEADS: ReadonlySet<string> = new Set([
-  "on_key",
-  "on_click",
-]);
-
 /** The head keyword of `node` lowercased, or `undefined` when `node` is not a profile block-head. */
 function handlerHeadName(node: AnyNode): string | undefined {
   return node.kind === "ProfileStatement"
@@ -1311,22 +1300,31 @@ function nestedHandlerDiagnostic(
     code: "ol-style-nested-handler",
     source_span: node.source_span,
     params: { outer, inner },
-    message: `${outer} runs again and again, so this ${inner} adds another handler every time. register it once, outside the ${outer}.`,
+    message: `${outer} runs again and again, so this ${inner} can add another handler each time. register it once, outside the ${outer}.`,
     stage: "semantic",
     severity: "warning",
   };
 }
 
 /**
- * Collect the handler registrations `body` performs, at any depth, **without** descending into a
- * nested user-bounded handler's block ({@link USER_BOUNDED_HANDLER_HEADS}).
+ * Collect the handler registrations `body` performs, **stopping at each registration rather than
+ * descending through it**.
  *
- * The stop matters. In `every 3 [ on_key "x" [ every 10 [ shoot ] ] ]` the `on_key` registration is
- * itself reported — it accumulates, one per tick — but the `every 10` inside it is not, because a
- * key press guards it. Reporting both would put two warnings on one line and contradict the
- * user-bounded carve-out; the `on_key` is the registration that actually accumulates, so naming it
- * once is the finding. Descent is otherwise unrestricted, so a registration buried in a `repeat` or
- * an `if` inside the handler body is still found.
+ * Stopping is what keeps one finding per defect. The caller runs this for *every* `every` in the
+ * program, so a chain like `every 3 [ every 5 [ every 7 [ … ] ] ]` is covered by three separate
+ * visits: the outer reports `every 5`, and `every 5`'s own visit reports `every 7`. Descending
+ * through a registration instead made the outer visit report `every 7` as well, so the deepest
+ * link was reported twice for a single defect (the review-gate finding that produced this
+ * comment).
+ *
+ * The same stop is independently required for `on_key`/`on_click`, and there for a semantic reason
+ * rather than a bookkeeping one: in `every 3 [ on_key "x" [ every 10 [ … ] ] ]` the `on_key`
+ * registration is what accumulates, one per tick, while the `every 10` inside it is guarded by a key
+ * press and only misbehaves because the outer already did. Fix the outer and it disappears — and
+ * because `on_key` is not itself an outer, nothing re-reports its contents later.
+ *
+ * Descent is otherwise unrestricted, so a registration buried in a `repeat` or an `if` inside the
+ * handler body is still found.
  */
 function collectNestedRegistrations(
   body: BlockNode,
@@ -1336,9 +1334,7 @@ function collectNestedRegistrations(
     const head = handlerHeadName(node);
     if (head !== undefined && HANDLER_HEADS.has(head)) {
       out.push({ node, head });
-      if (USER_BOUNDED_HANDLER_HEADS.has(head)) {
-        return;
-      }
+      return;
     }
     for (const child of childrenOf(node)) {
       visit(child);
@@ -1365,6 +1361,24 @@ function collectNestedRegistrations(
  * The finding is reported at the **inner** registration's span, not the outer handler's: that is the
  * line the learner would move out of the block, and it keeps one finding per accumulating
  * registration when a body registers several.
+ *
+ * ## Two limitations, both deliberate, both safe by construction
+ *
+ * **The check is purely lexical.** A registration reached only through a procedure call —
+ * `define setup ; on_key "x" [ … ] ; end` invoked from `every 3 [ setup ]` — is NOT flagged. Making
+ * it so would mean interprocedural analysis with call-cycle protection inside a *style* linter,
+ * which is a large lift for an advisory warning. It is safe to omit because the two halves of the
+ * #828 ruling are not redundant: the runtime charges every handler firing against the instruction
+ * budget, so the interprocedural case still terminates with `ol-limit`. **Safety never depends on
+ * this lint** — only the explanation does. The normative row in `spec/tooling.md` says "lexically"
+ * for exactly this reason, so the limitation is specified rather than accidental.
+ *
+ * **No reachability analysis.** `every 3 [ if false [ on_key "x" [ … ] ] ]` is flagged even though
+ * the registration can never run. That matches the rest of this family — `ol-style-useless-value`
+ * flags `if false [ repeat 4 [ :side * 2 ] ]` the same way — and declining to constant-fold keeps a
+ * style linter from growing an evaluator. The message says the registration **can** add a handler
+ * each time rather than that it does, which is accurate for a conditional registration whether or
+ * not the condition is decidable.
  */
 export function nestedHandlerRule(
   program: ProgramNode,
