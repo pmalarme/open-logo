@@ -8,11 +8,12 @@
 // Two shapes with deliberately different mechanics — proven not to leak into each other:
 //
 //   1. Block-head forms `when`/`every`/`on_key`/`on_click` lower to a `ProfileStatement` and are
-//      reserved words *only when the Interaction & Events profile is active*
-//      (`spec/interaction-events.md`: "They are reserved **only within the Interaction & Events
-//      profile**"). Slices I3–I6 already taught the Layer-2 checker to treat them as visible
-//      command names (`interactionEventsBlockHeadNames` in `collectVisibleNames`), so this slice
-//      LOCKS that half with fixtures rather than re-adding it.
+//      treated as reserved words *only when the Interaction & Events profile is active* — the
+//      shipped behaviour, which `spec/grammar.md:408` retracts in favour of an unconditional rule
+//      ("what a profile decides is whether a name *works*, never whether a program may declare
+//      it"); retiring the gate is #841. Slices I3–I6 already taught the Layer-2 checker to treat
+//      them as visible command names (`interactionEventsBlockHeadNames` in `collectVisibleNames`),
+//      so this slice LOCKS that half with fixtures rather than re-adding it.
 //   2. `wait` and `input` are the profile's two ordinary calls (`spec/interaction-events.md:65`:
 //      "`input` and `wait` are ordinary calls and take no block") and live in the arity table — a
 //      Kind-C command taking one number and a Kind-R reporter taking one prompt

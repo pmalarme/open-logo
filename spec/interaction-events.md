@@ -41,10 +41,10 @@ The **Sound** profile contains:
 | `set_tempo <beats-per-minute>` | C | number | — | Sound |
 
 `when`, `every`, `on_key`, and `on_click` are profile block-heads. They are
-reserved **only within the Interaction & Events profile**. An implementation
-that does not declare this profile does not reserve those words except through a
-vendor extension or an imported alias. Sound command names are ordinary
-primitive names when the Sound profile is present.
+reserved **unconditionally**: every implementation reserves them whether or not it claims this profile,
+because a profile decides whether such a word *works*, never whether a program may declare it
+([grammar.md](grammar.md#keywords-primitives-and-built-in-names)). Declaring one at `define`, the heritage `to`,
+`struct`, or the first operand of `alias` raises `ol-reserved-word`; binding a value to one is always legal. Sound command names are ordinary primitive names when the Sound profile is present.
 
 ## Profile grammar
 

@@ -116,17 +116,17 @@ const KEYWORDS = new Set<string>(OL_KEYWORDS);
  * - `"interaction-events"` — the event block-heads `when`, `every`, `on_key`, and `on_click`
  *   (`spec/interaction-events.md#profiles-and-reservation`).
  *
- * **These words are still gated on their profile here, and the ruling reverses that.**
- * `spec/grammar.md:408` now says profile words are built-in names **unconditionally** — "a program
+ * **These words are still gated on their profile here, and the spec no longer is.**
+ * `spec/grammar.md:408` says profile words are built-in names **unconditionally** — "a program
  * cannot declare which profiles it requires … so a name that could be declared in one
  * implementation but not in another would be invisible and unpredictable to a learner", and "what a
- * profile decides is whether a name *works*, never whether a program may declare it". The two
- * profile documents still carry the older profile-conditional wording (`turtles-and-sprites.md:154`,
- * `interaction-events.md#profiles-and-reservation`); aligning them is #855, and the always-on
- * built-in-names list that retires this gate is #841. Until #841 lands, {@link isKeyword} keeps
- * consulting this registry only for **active** profiles — the behavior every current caller and
- * fixture is written against — so this comment records the pending reversal rather than asserting a
- * rule the spec no longer states.
+ * profile decides is whether a name *works*, never whether a program may declare it". Issue #855
+ * aligned the rest of the spec with that ruling, so `turtles-and-sprites.md:154`,
+ * `interaction-events.md#profiles-and-reservation`, and `spec/tooling.md:100-104` now state the
+ * unconditional rule too. The always-on built-in-names list that retires this gate is still #841:
+ * until it lands, {@link isKeyword} keeps consulting this registry only for **active** profiles —
+ * the behavior every current caller and fixture is written against — so this comment records a
+ * known, tracked deviation from the spec rather than a rule the spec still states.
  */
 export const OL_PROFILE_KEYWORDS = {
   sprites: ["ask", "each", "tell"],

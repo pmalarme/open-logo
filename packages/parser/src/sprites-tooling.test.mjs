@@ -242,9 +242,11 @@ test("check: that same program under Core-only flags each Sprites name as unknow
 // --- Reserved-word gating: block-heads only, and only under an active profile ------------------
 
 test("check: redefining a Sprites block-head under an active profile raises ol-reserved-word", () => {
-  // `tell`/`ask`/`each` are reserved only when Sprites is active (C1 #663). The reporters are NOT
-  // reserved in any profile — they collide as *primitives* instead, with `namespace: "primitive"`
-  // rather than `"reserved"` (issue #746, asserted by the reporter redefinition tests below).
+  // `tell`/`ask`/`each` are treated as reserved only when Sprites is active (C1 #663) — the shipped
+  // behaviour, which `spec/turtles-and-sprites.md:154` now makes unconditional; retiring the gate
+  // is #841. The reporters are NOT reserved in any profile — they collide as *primitives* instead,
+  // with `namespace: "primitive"` rather than `"reserved"` (issue #746, asserted by the reporter
+  // redefinition tests below).
   for (const head of Object.keys(SPRITES_BLOCK_HEADS)) {
     const diagnostics = checkDiagnostics(
       `define ${head}\nend`,

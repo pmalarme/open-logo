@@ -86,17 +86,17 @@
  * Issue #663 (C1, M5) extends the *keyword* branch the same profile-conditional way: the
  * Sprites block-heads `ask`/`each`/`tell` and the Interaction & Events block-heads
  * `when`/`every`/`on_key`/`on_click` count only when their profile is active
- * (`OL_PROFILE_KEYWORDS` in `keywords.ts`; `spec/turtles-and-sprites.md`,
- * `spec/interaction-events.md`). Threading the active `profiles` into `isKeyword` here — the
- * profile-blind default kept every Core-only program's `ask`/`when` an ordinary name — is the whole
- * wiring; the registry and its non-regression guarantee live in `keywords.ts`, whose doc comment
- * also records that `spec/grammar.md:408` now makes profile words built-in **unconditionally** and
- * that retiring this gate is issue #841's.
+ * (`OL_PROFILE_KEYWORDS` in `keywords.ts`). Threading the active `profiles` into `isKeyword` here —
+ * the profile-blind default kept every Core-only program's `ask`/`when` an ordinary name — is the
+ * whole wiring; the registry and its non-regression guarantee live in `keywords.ts`, whose doc
+ * comment also records that `spec/grammar.md:408` makes profile words built-in **unconditionally**,
+ * that `spec/turtles-and-sprites.md:154` and `spec/interaction-events.md#profiles-and-reservation`
+ * now say so too (issue #855), and that retiring this gate is issue #841's.
  *
  * Issue #687 (I8, M5) extends the *primitive* branch to the Interaction & Events profile's `wait`
  * (`signatures.ts`'s `interactionPrimitiveArity`), gated on `"interaction-events"` exactly like the
  * Data/Geometry/Sound branches above. `wait` is an ordinary primitive rather than a profile
- * block-head, but `spec/tooling.md:184` makes redefining a *primitive* `ol-reserved-word` just the
+ * block-head, but `spec/tooling.md:185` makes declaring a *primitive* `ol-reserved-word` just the
  * same — the block-head/primitive distinction decides which branch reports it and under which
  * profile, not whether it is reportable at all. Without this, `wait` was the Interaction profile's
  * one primitive and yet the only one of the Data/Geometry/Sound/Interaction primitives a program

@@ -229,7 +229,7 @@ the gaps it found rather than rubber-stamping them:
   *whole*-number count — and silently splitting `wait`/`every` from `repeat`. The `-word` twins
   exist because a word takes the coercion path, so ordering could be correct for numbers and wrong
   for words; every one of these gaps was found by mutation.
-- **Profile-scoped reservation of the four block-heads.** `spec/interaction-events.md:43-46` reserves
+- **Profile-scoped reservation of the four block-heads.** `spec/interaction-events.md:43-47` reserved
   `when`/`every`/`on_key`/`on_click` **only within** the profile — a bidirectional MUST that had no
   fixture at all: `redefine-wait-reserved` covers only `wait`, which is a *primitive* name
   (`namespace: "primitive"`), not a reserved block-head. The new pair
@@ -238,7 +238,11 @@ the gaps it found rather than rubber-stamping them:
   active profile, and checking clean under Core Language alone. Either fixture alone is satisfied by
   an implementation that reserves the words unconditionally or by one that never reserves them; only
   the pair pins the scope. This is the same gap class the Sprites terminal slice #679 found for its
-  own `ol-reserved-word` rule. (The recorded `message` reads "when is already a reserved, so it
+  own `ol-reserved-word` rule. **Maintainer ruling #833 has since retracted the `only within` half**:
+  `spec/grammar.md:408` makes profile words built-in names unconditionally, and issue #855 aligned
+  `spec/interaction-events.md:43-47` with it. The pair therefore now pins *shipped behaviour* rather
+  than a normative MUST, and `block-heads-free-core-only` asserts the opposite of what the spec
+  requires until issue #841 lands the always-on built-in-names list and flips it. (The recorded `message` reads "when is already a reserved, so it
   can't be redefined here." — an ungrammatical pre-existing template in
   `packages/parser/src/checker-reserved-word.ts`, already recorded by three Sprites fixtures.
   `message` is excluded from harness comparison, so it binds nothing and fixing it needs no fixture
