@@ -74,6 +74,9 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   immediately (the run has started), a `"stop"` handler fires once before termination, a non-word
   event is `ol-type`, a mismatched `end` label is `ol-mismatched-end`, and `check`-mode fixtures
   prove `when` is visible only under the `interaction-events` profile and rejected Core-only.
+  Issue **#828** adds `when-firing-counts-against-budget`: a handler *firing* is itself one charged
+  instruction, so an empty-bodied `"start"` handler consumes the instruction the following statement
+  would have had and a budget of 2 raises `ol-limit`.
 - **`every/`** — the `every <n> <block>` repeated timed handler (issue #683, slice I4):
   registration emits `primitive` after the handler is registered, the block first runs `n` ticks
   **after registration** (not at a global multiple of `n`) and repeats every `n` ticks while a `wait`
@@ -83,6 +86,15 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   zero or negative count is `ol-range`, the event
   sequence is deterministic across runs, and `check`-mode fixtures prove `every` is visible only under
   the `interaction-events` profile and rejected Core-only.
+  Issue **#828** adds the two properties that bound a handler which registers another handler. First,
+  registrations are **never collapsed, deduplicated, or replaced**: `every-nested-registration-not-collapsed`
+  (`every 3 [ every 3 [ … ] ]`) fires exactly **6** times over 12 ticks against exactly **4** for its
+  twin `every-single-registration-baseline`, so each registration provably survives with its own
+  capture (the property #821's E-A depends on). Second, that growth is bounded by the **ordinary
+  instruction budget** rather than by a mechanism of its own, because each firing is a charged
+  instruction: `every-nested-registration-budgeted` raises `ol-limit` where its control twin
+  `every-single-registration-budgeted` — same empty body, same ticks, same budget — completes cleanly,
+  so the diagnostic is caused by the accumulation and not by a budget too small for any program.
 - **`on_key/`** — the `on_key <key-word> <block>` keyboard handler (issue #684, slice I5):
   registration emits `primitive` after the handler is registered; a key press is host input, so in a
   headless batch run the handler is registered but never delivered (locked by
@@ -92,6 +104,12 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   registered twice for the same key) with insertion-ordered handlers for #686/I7, and `check`-mode
   fixtures prove `on_key` is visible only under the `interaction-events` profile and rejected
   Core-only.
+  Issue **#828** adds two more. `on-key-registering-every-stays-clean` is the ruled **user-bounded
+  control case**: a finger bounds the registration rate where a clock does not, so
+  `on_key "space" [ every 10 [ … ] ]` is a legitimate game pattern and stays completely clean (it runs
+  at the default budget and deliberately claims nothing about charging). `on-key-firing-counts-against-budget`
+  is what asserts the charge for this kind: four key presses on an empty-bodied handler exhaust a
+  budget of 5 and raise `ol-limit`.
 - **`on_click/`** — the `on_click <block>` pointer handler (issue #685, slice I6): the last handler
   form and the only one that takes **no argument** (`spec/interaction-events.md` §Profile grammar:
   "`on_click` takes none"). Registration emits `primitive` after the handler is registered; a click is
@@ -107,6 +125,10 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   insertion-ordered handlers kept in their own list for #686/I7's same-tick delivery order, and
   `check`-mode fixtures prove `on_click` is visible only under the `interaction-events` profile and
   rejected Core-only.
+  Issue **#828** adds `on-click-firing-counts-against-budget`: four clicks on an empty-bodied handler
+  exhaust a budget of 5 and raise `ol-limit`, asserting for this kind the same "a firing is one charged
+  instruction" rule the `when`, `every`, and `on_key` groups assert for theirs — the four together
+  cover the universal clause at `spec/interaction-events.md:79`.
 - **`dispatch/`** — the deterministic same-tick dispatch order + cancellation (issue #686, slice I7):
   the slice that proves the four handler forms COMPOSE. When several handlers of different kinds
   become due on one tick they fire in the normative order `when` → `on_key` → `on_click` → due `every`,

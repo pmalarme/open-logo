@@ -1,5 +1,5 @@
 {
-  "description": "the user-bounded control case: a key press is bounded by a finger, so an on_key handler registering a repeating every is a legitimate game pattern and MUST stay completely clean — one key press at tick 1 registers one every 10, which then fires exactly 3 times over the remaining 39 ticks with no ol-limit and no budget anomaly",
+  "description": "the user-bounded control case: a key press is bounded by a finger, so an on_key handler registering a repeating every is a legitimate game pattern and MUST stay completely clean — one key press at tick 1 registers one every 10, which then fires exactly 3 times over the remaining 39 ticks and the run completes with no diagnostic. This fixture is the ordering/consumption control, not budget evidence: it runs at the default instruction budget, so it deliberately claims nothing about charging - on-key-firing-counts-against-budget is what asserts that",
   "profiles": ["core-language", "interaction-events"],
   "execute": true,
   "executeOptions": {

@@ -1,0 +1,123 @@
+{
+  "description": "an on_key handler firing is itself one charged instruction, exactly as every other handler kind is: four key presses on an empty-bodied handler exhaust an instruction budget of 5 and raise ol-limit. The body is empty precisely so the firing is the ONLY thing that can be charged - an implementation that charged bodies but not firings completes this program cleanly, so the fixture flips on the rule it names",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "executeOptions": {
+    "instructionBudget": 5,
+    "hostInput": {
+      "events": [
+        {
+          "tick": 1,
+          "kind": "key",
+          "key": "space"
+        },
+        {
+          "tick": 2,
+          "kind": "key",
+          "key": "space"
+        },
+        {
+          "tick": 3,
+          "kind": "key",
+          "key": "space"
+        },
+        {
+          "tick": 4,
+          "kind": "key",
+          "key": "space"
+        }
+      ]
+    }
+  },
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-firing-counts-against-budget",
+        "start": [1, 1],
+        "end": [1, 19]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-firing-counts-against-budget",
+        "start": [1, 1],
+        "end": [1, 19]
+      },
+      "payload": {
+        "name": "on_key"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-firing-counts-against-budget",
+        "start": [2, 1],
+        "end": [2, 7]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-firing-counts-against-budget",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-firing-counts-against-budget",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-firing-counts-against-budget",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-limit",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-firing-counts-against-budget",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "params": {
+        "limit": "instruction-budget",
+        "value": 5
+      },
+      "message": "this program ran 5 instructions without finishing, which is the configured safety limit — check for a loop that never ends, such as an unbounded 'forever' or 'while' whose condition never becomes false.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}
