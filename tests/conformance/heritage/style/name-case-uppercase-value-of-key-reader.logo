@@ -1,0 +1,2 @@
+:d = { a: 1 }
+print VALUE of :d for key "a"
