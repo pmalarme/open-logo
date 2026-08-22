@@ -1,0 +1,8 @@
+# `value` and `key` are globally reserved structural words (spec/grammar.md:358) with no
+# expression-head role: no alternative of the `expression` production (spec/grammar.md:190-200)
+# begins with either, so the reader reports each as ol-bad-token at the offending token — the same
+# treatment every sibling reserved word already received. Before issue #853 both parsed silently
+# into a bare zero-argument call that no rule flagged, under every profile set: a `repeat` with no
+# count, and nothing said so. Parse-only negative fixture.
+repeat value [ ]
+repeat key [ ]

@@ -47,6 +47,7 @@ import type {
   WordLitNode,
 } from "./ast.js";
 import { parseDiag } from "./errors.js";
+import { OL_RESERVED_WORDS } from "./reserved.js";
 import {
   canonicalOfHeritageAlias,
   heritageAliasArity,
@@ -62,44 +63,59 @@ export interface ParseResult {
 }
 
 /**
- * Structural words that can never begin an expression, so the reader must not read them as a
- * bare call. This is intentionally narrower than {@link OL_RESERVED_WORDS}: reserved command
- * words like `thing`, `print`, `add`, and `value` *are* callables, whereas these are control,
- * binding, preposition, logic, predicate, and module keywords.
+ * The reserved words that genuinely *may* begin an `expression` (`spec/grammar.md:190-200`), and
+ * are therefore the only ones {@link parseNamePrimary} reads rather than rejecting:
+ *
+ * - `true`/`false` — the `boolean-literal` production (`spec/grammar.md:202`).
+ * - `map`/`filter`/`reduce` — the `comprehension` production (`spec/grammar.md:200,340-348`), which
+ *   "may appear anywhere a value is expected".
+ * - `thing` — the one reserved word that is *also* a Core primitive reporter (`thing "name`,
+ *   `spec/commands.md`), so it is a real `fixed-call` callee.
+ *
+ * `value` is deliberately absent: it heads the `value-of-reader` production
+ * (`spec/grammar.md:213`) only when `of` directly follows, which {@link parseNamePrimary} matches
+ * *before* consulting {@link NON_PRIMARY_NAMES} — so the reader form keeps working while a **bare**
+ * `value` is rejected like any other misplaced structural word.
  */
-const NON_PRIMARY_NAMES = new Set<string>([
-  "set",
-  "make",
-  "if",
-  "else",
-  "while",
-  "repeat",
-  "for",
-  "forever",
-  "define",
-  "to",
-  "end",
-  "return",
-  "output",
-  "op",
-  "stop",
-  "throw",
-  "local",
-  "in",
-  "from",
-  "at",
-  "by",
-  "and",
-  "or",
-  "not",
-  "is",
-  "between",
-  "strictly",
+const EXPRESSION_INITIAL_RESERVED_WORDS: ReadonlySet<string> = new Set<string>([
+  "thing",
+  "true",
+  "false",
+  "map",
+  "filter",
+  "reduce",
+]);
+
+/**
+ * Structural words that can never begin an expression, so the reader must not read them as a bare
+ * call — it returns `undefined` instead and the caller reports the token with `ol-bad-token`
+ * ("a token that is itself a valid OpenLogo token but is not permitted at the current grammar
+ * position", `spec/error-model.md:109`).
+ *
+ * **Derived from {@link OL_RESERVED_WORDS}, not hand-listed** (issue #853). "Reserved words are
+ * structural tokens recognized by the reader" (`spec/grammar.md:367`) and may never be bound as a
+ * primitive, procedure, or constructor, so *every* reserved word is illegal in expression position
+ * except the handful {@link EXPRESSION_INITIAL_RESERVED_WORDS} names. Deriving the complement makes
+ * that the invariant: a reserved word added to the registry in a future slice is rejected here
+ * automatically, instead of silently becoming a zero-arity {@link ast.call} that no rule flags.
+ * Before this, `repeat value [ ]` and `repeat key [ ]` parsed *and* checked completely CLEAN under
+ * every profile set — as did the Data mutation heads `add`/`remove`/`insert`/`clear` in the same
+ * position. That is the "silent no-op" class: the program does something other than what was
+ * written, and nothing says so.
+ *
+ * The statement heads stay unaffected because {@link parseStatement} dispatches `add`/`remove`/
+ * `insert`/`clear` by keyword *before* any expression is read, and bare-key positions
+ * (`key-term`, `dict-key`, `.field`, `bare-place`) read a raw `name` token rather than a primary —
+ * "reserved words are legal keys" (`spec/grammar.md:369`) still holds.
+ *
+ * `mod` is the one non-reserved entry: it is an infix operator word the precedence ladder consumes
+ * (`spec/grammar.md:220`), never an expression head.
+ */
+const NON_PRIMARY_NAMES: ReadonlySet<string> = new Set<string>([
+  ...OL_RESERVED_WORDS.filter(
+    (word) => !EXPRESSION_INITIAL_RESERVED_WORDS.has(word),
+  ),
   "mod",
-  "struct",
-  "alias",
-  "import",
-  "export",
 ]);
 
 const END_LABELS = new Set<string>([
@@ -1063,8 +1079,10 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * Heritage dict reader — a read-only equivalent of `dictionary.key`/`dictionary[key]`
    * (`spec/data-structures.md:183-195`). Both the dictionary and the key are full expressions
    * (unlike a selector's narrower `key-term`), so `value of ( f ) for key ( g )` is legal. Only
-   * intercepted here when `value` is directly followed by `of`, so a bare `value` (not a known
-   * primitive today) still falls through to {@link parseFixedCall} unchanged.
+   * intercepted here when `value` is directly followed by `of` — and that check runs *before*
+   * {@link NON_PRIMARY_NAMES}, which is what keeps this Heritage-gated form readable while a bare
+   * `value` (never a callable: it is a reserved structural word, `spec/grammar.md:358,367`) is
+   * rejected in expression position like every other misplaced keyword (issue #853).
    */
   function parseValueOfKey(token: LexToken): ExpressionNode | undefined {
     advance(); // "value"

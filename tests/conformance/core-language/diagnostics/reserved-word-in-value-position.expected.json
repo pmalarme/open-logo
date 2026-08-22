@@ -1,0 +1,30 @@
+{
+  "description": "`repeat value [ ]` and `repeat key [ ]` each report ol-bad-token at the offending word (issue #853). `value` and `key` are globally reserved (spec/grammar.md:358) and no `expression` alternative (spec/grammar.md:190-200) begins with either, so they are not permitted at this grammar position (spec/error-model.md:109). Before the fix both parsed and checked completely CLEAN in every profile set — a silent no-op. Parse-only negative fixture.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/diagnostics/reserved-word-in-value-position",
+        "start": [7, 8],
+        "end": [7, 13]
+      },
+      "params": { "text": "value" },
+      "stage": "parse",
+      "severity": "error"
+    },
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/diagnostics/reserved-word-in-value-position",
+        "start": [8, 8],
+        "end": [8, 11]
+      },
+      "params": { "text": "key" },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}
