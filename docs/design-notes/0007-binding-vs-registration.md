@@ -3,6 +3,10 @@
 - Status: Accepted
 - Date: 2026
 - Deciders: OpenLogo maintainer (@pmalarme) + team
+- Ruling: issue #833 (maintainer-signed-off). This record is the **rationale layer** over that
+  ruling. The normative `spec/` sections cited throughout are amended to match it by the grammar
+  slice (#837) and the error-model slice; until those land they still state the **pre-ruling** rule,
+  and where that matters this record says so inline rather than leaving a reader to trip over it.
 - Related: [LDR-0001](0001-places-and-value-semantics.md) (what a *place* is, and why writing
   through one introduces no name); [LDR-0005](0005-profiles-and-the-conformance-dag.md) (why this
   rule is nevertheless **not** profile-conditional);
@@ -11,14 +15,14 @@
 
 ## Context
 
-OpenLogo's keywords are ordinary English words. `end`, `count`, `value`, `key`, `at`, `by`, `from`,
-`in`, `clear` and `add` are all in the normative list in
-[`spec/grammar.md`](../../spec/grammar.md)'s *Reserved words and namespaces* section, and every one
-of them is also a word a nine-year-old will reach for when naming a piece of data. `:end` is the
-obvious name for when a timer stops; `:count` is the archetypal counter; `for end from 1 to 3` is a
-perfectly ordinary loop. A language that hands a learner a 43-word list of English nouns and then
-refuses to let them name anything after those nouns has taxed the learner for the implementation's
-convenience.
+OpenLogo's built-in names are ordinary English words. `end`, `value`, `key`, `at`, `by`, `from`,
+`in`, `clear` and `add` are all **keywords**, in the normative list in
+[`spec/grammar.md`](../../spec/grammar.md)'s *Reserved words and namespaces* section; `count`,
+`first` and `word` are Core **primitives** sitting beside them. Every one of them is also a word a
+nine-year-old will reach for when naming a piece of data. `:end` is the obvious name for when a
+timer stops; `:count` is the archetypal counter; `for end from 1 to 3` is a perfectly ordinary loop.
+A language that hands a learner a 43-word list of English nouns and then refuses to let them name
+anything after those nouns has taxed the learner for the implementation's convenience.
 
 At the same time, some names genuinely cannot be taken. If a learner writes their own `forward`,
 something has to give: either the learner's procedure wins and the turtle stops moving, or the
@@ -31,18 +35,20 @@ type constructors" — packs two unrelated questions under the single word *rede
 
 1. **Binding** — storing a value under a name in an environment. `:name = …`, `set … to …`,
    `local`, a procedure parameter, a `for`/comprehension binder, a destructuring pattern.
-2. **Registration** — adding a name to the callable and type tables the reader resolves calls
-   against. `define`, `to`, `struct`, and the *new* name of an `alias`.
+2. **Registration** — adding a name to one of the registries the reader resolves against: the
+   callable table, the type table, or the alias table. `define`, `to` (Heritage), `struct`, and the
+   *new* name of an `alias`.
 
 Only the second can collide with the language, because only the second puts a name where the reader
 looks. Conflating them produced errors in **both** directions at once, and the project shipped both
-mistakes before noticing. Measured at saga tip `747c2e2`:
+mistakes before noticing. Measured at saga tip `7a37504`:
 
 | program | today's behaviour | what it should be |
 |---|---|---|
 | `:end = 7` then `print :end` | `ol-reserved-word` at `check()` — but runs fine and prints `7` | legal |
 | `for end from 1 to 3` | `ol-reserved-word` at `check()` — but runs fine and prints `1 2 3` | legal |
-| `define forward :x` then `forward 10` | **no diagnostic at all**; prints the learner's body and emits **zero** move events | rejected |
+| `:count = 1` | clean everywhere — a *primitive*, so the binding rule never reached it | legal |
+| `define forward :x` then `forward 10` | **no diagnostic at all**; prints the learner's body and emits **zero** `move` events | rejected |
 
 The binding half was not an oversight: it was implemented deliberately (issue #739, "reserved word
 is reserved word") on the reading that the spec sentence meant what it said. The registration half
@@ -57,8 +63,14 @@ result was a language that rejected `:end = 7` — which is harmless — while s
 A **built-in name** is a name OpenLogo itself implements. It has two implementation categories and
 one learner-facing meaning:
 
-- a **keyword** — a structural word recognized by the reader (`define`, `if`, `repeat`, `end`, and
-  the profile block heads `ask`/`each`/`tell`/`when`/`every`/`on_key`/`on_click`);
+- a **keyword** — a structural word recognized by the reader (`define`, `if`, `repeat`, `end`; the
+  six profile block heads `ask`/`each` for Sprites and `when`/`every`/`on_key`/`on_click` for
+  Interaction & Events; and the Sprites command `tell`, which takes no block —
+  [`spec/grammar.md`](../../spec/grammar.md) calls it "a mode switch that takes no block", so it is
+  profile-*reserved* without being a block head. Whether `tell` is finally listed as a keyword or a
+  primitive is an open question on ruling #833 that the maintainer has not settled; under this
+  decision the outcome is identical either way, because both categories are blocked at
+  registration);
 - a **primitive** — a built-in command or reporter, **aliases included** (`forward`, `set_xy`,
   `setxy`, `fd`, `pr`, `grid`).
 
@@ -68,12 +80,14 @@ error. The category vocabulary is the one
 [`spec/tooling.md`](../../spec/tooling.md)'s *Normative token-class model* already uses; the
 umbrella term "built-in names" is what unifies them.
 
-**Registration positions are exactly**: `define <name>`, `to <name>`, `struct <name>`, and the new
-name of `alias <new> <existing>`. Taking a built-in name in one of those positions raises
-`ol-reserved-word`. Everything else that introduces a name is a binding position and is
-unrestricted: `:name = …`, `set … to …`, `make "name" …`, `local`, procedure parameters, `for`
-binders, comprehension binders and the `reduce` accumulator, destructuring patterns, struct field
-names, and dictionary keys.
+**Registration positions are exactly**: `define <name>`, `to <name>` (the Heritage procedure
+opener), `struct <name>`, and the new name of `alias <new> <existing>`. Taking a built-in name in
+one of those positions raises `ol-reserved-word`. Everything else that introduces a name is a
+binding position and is unrestricted: `:name = …`, `set … to …`, `make "name" …` (Heritage),
+`local`, procedure parameters, `for` binders, comprehension binders and the `reduce` accumulator,
+and destructuring patterns. Struct field names, dictionary keys and bare selector keys are freer
+still — [`spec/grammar.md`](../../spec/grammar.md) classifies them as **data, not declarations**, so
+they were never restricted in the first place and are not "positions" this decision had to free.
 
 Three consequences of that rule are worth stating explicitly, because each is a place a reasonable
 implementer would guess wrong:
@@ -86,6 +100,11 @@ implementer would guess wrong:
   source alone. Sprite and event names are owned whether or not the host implements Sprites.
 - **A name that OpenLogo *implements* is built-in; a name that merely *exists* is not.** The
   geometry standard library is OpenLogo source (see below), so its names are not built-in names.
+
+Only the alias's **new** name registers; its `<existing>` operand is deliberately unrestricted and
+may itself be a keyword, because that is exactly how a localized keyword pack renames one —
+`alias definir define` ([`spec/localization.md`](../../spec/localization.md)). Blocking both
+operands would break the Localization profile outright.
 
 Registering a name **you** already registered is a different situation and gets its own code,
 `ol-duplicate-definition`, carrying both source spans so the message can point at the first
@@ -114,23 +133,61 @@ Widening the rule one step further — to primitives as well as keywords — wou
 `:count = 1`, the archetypal beginner counter. A rule whose only stable stopping points are "reject
 ordinary English words" or "reject the word `count`" is the wrong rule.
 
+**#739's concern is not discarded — it is relocated.** Its worry was sound: a rule enforced only at
+an *optional* keyword can be evaded by omitting that keyword. This decision answers it by moving
+enforcement to the **registration positions, which are not optional** — there is no way to define a
+procedure without writing `define`, `to` or `struct`. So the intent survives intact and lands
+somewhere it cannot be side-stepped, which is a better outcome than either widening the binding rule
+until it rejects `:count` or narrowing it until it means nothing.
+
+(One asymmetry to expect while reading the current code: `local` is the odd one out. It is a binding
+position under this decision, but today it runs the **full** registration check, so `local count`
+raises `namespace: "primitive"` and `local end` raises `namespace: "reserved"` — while
+`local forward` is clean. The checker slice therefore has to remove a *primitive*-category check at
+`local`, not only a keyword one.)
+
 Writing *through* a place is not a binding at all and never was restricted: `:people.repeat = 1`
-and `:nums[1] = 9` introduce no name, they modify an existing value (LDR-0001). Field names and
-dict keys are the same story from the other side — `struct point [ repeat y ]` and `{ end: 1 }` are
-data, and both check clean today.
+and `:nums[1] = 9` introduce no name, they modify an existing value (LDR-0001). Field names, dict
+keys and bare selector keys are the same story from the other side — `struct point [ repeat y ]`,
+`{ end: 1 }` and `:ages[end]` are **data, not declarations**
+([`spec/grammar.md`](../../spec/grammar.md)), and all three check clean today.
+
+### The rule is keyed to the position, not to the grammar's name for the identifier
+
+There is one trap here that decided the design, and it is worth recording because the obvious
+formulation is wrong. `spec/grammar.md` reaches these names through two nonterminals,
+`callable-name` and `type-name` — but each of them appears at **registration** sites (`define`,
+`to`, `struct`) *and* at **call** sites (`fixed-call`, `parenthesized-call`,
+`type-constructor-call`). So "a built-in name is illegal at `callable-name`" would make
+**`forward 100` illegal**: calling a primitive is the single most common thing an OpenLogo program
+does, and it goes through the same nonterminal as defining one.
+
+The rule is therefore **registration-position**-based. The grammar makes that derivable rather than
+merely asserted by giving the declaration slots their own nonterminals — `declared-callable-name`
+and `declared-type-name` — used by `define`, `to`, `struct` and `alias`'s first operand, while
+`callable-name`/`type-name` keep their current definitions for calls. Parsing is completely
+unchanged, because every one of these still expands to `identifier`; the split exists purely so the
+semantic rule can be read off the grammar instead of maintained as a prose list beside it. That
+matters more than it sounds: a prose enumeration of blocked positions would be a *second list that
+can drift from the grammar*, which is the precise failure mode this whole design exists to remove.
 
 ### Registration is blocked because shadowing has no good outcome — and, worse, no consistent one
 
 The obvious guess is that `define if` is rejected because the parser would break. It is not. Every
 one of these parses cleanly; the failure is entirely semantic, and today it is mostly silent.
-Measured at `747c2e2`, shadowing produces **three different outcomes depending on which built-in
-you picked**, none of them announced at runtime:
+Measured at `7a37504`, shadowing produces **three different outcomes depending on which built-in
+you picked**:
 
-| program | result | who won |
-|---|---|---|
-| `define first :xs / return 999` then `print first [10 20 30]` | prints **`10`** | the primitive; the learner's procedure is dead |
-| `define forward :x / print 999` then `forward 10` | prints **`999`**, **0** move events | the learner; the turtle silently stops moving |
-| `define setxy :x :y / print 999` then `set_xy 10 20` | prints nothing, **2** move events | the primitive — because the *other spelling* was called |
+| program | result | who won | diagnosed today? |
+|---|---|---|---|
+| `define first :xs / return 999` then `print first [10 20 30]` | prints **`10`** | the primitive; the learner's procedure is dead | yes — `ol-reserved-word` at `check()` |
+| `define forward :x / print 999` then `forward 10` | prints **`999`**, **0** `move` events | the learner; the turtle silently stops moving | **no** — clean at every stage |
+| `define setxy :x :y / print 999` then `set_xy 10 20` | prints nothing, **1** `move` + **1** `draw-segment` event | the primitive — because the *other spelling* was called | **no** — clean at every stage |
+
+Nothing is announced *at runtime* in any of the three. The `check()` column carries its own lesson:
+blocking today is inconsistent **across profiles**, not merely incomplete. Core primitives like
+`first` are already caught; Turtle & Rendering names, Heritage aliases and Educational commands are
+not — which is the defect the unconditional rule closes.
 
 The third row is the sharpest. `setxy` and `set_xy` are two independent entries bound to one
 primitive, so defining either produces a **call-site-dependent split**: half the call sites reach
@@ -163,15 +220,19 @@ cannot hijack anything the way `define forward` does. It is blocked anyway. A ru
 exceptions is the entire value of this design; one saved identifier is not worth a footnote every
 learner has to carry. `mod` is blocked as a **keyword**, not as a primitive: it is a word-spelled
 infix operator whose three siblings `and`, `or` and `not` are already in the keyword list, and it
-was simply omitted. Its token class is unaffected — it stays `operator`, exactly like `and`.
-Keyword-list membership (*what you may not register*) and token class (*how it is coloured*) are
-independent axes.
+was simply omitted — so the Core keyword list goes from 43 words to **44**, and the keyword half of
+the built-in names from 50 to **51** once the profile-reserved words are counted. Its token class is
+unaffected — measured, it stays `operator`, exactly like `and`, which is on the keyword list and
+painted `operator` all the same. Keyword-list membership (*what you may not register*) and token
+class (*how it is coloured*) are independent axes.
 
 ### The subtle case: the geometry standard library is a library, not a built-in
 
 `polygon`, `circle`, `arc`, `star`, `area` and `perimeter` are **not** built-in names, and this is
-the one deliberate carve-out in an otherwise exceptionless rule. They are ordinary OpenLogo
-procedures, shipped as real `.logo` source (ADR-0012), and
+the **library carve-out** — the one place where a name OpenLogo ships is nevertheless free to take.
+(The contextual words below are a separate matter: they are not carved out of the rule, they simply
+never were built-in names.) They are ordinary OpenLogo procedures, shipped as real `.logo` source
+(ADR-0012), and
 [`spec/educational-model.md`](../../spec/educational-model.md)'s Level 5 material is explicit that
 learners **build** `polygon` from `repeat` and that it is never introduced as a black-box drawing
 trick. **A learner redefining `polygon` is the lesson**, not a mistake to diagnose.
@@ -189,8 +250,10 @@ in the file.
 
 `empty`, `member`, `of` and `a` act as keywords only inside an `is`-predicate — and `of` is also
 the preposition in the Heritage `value of … for key` reader — and are ordinary names everywhere
-else. They are **not** built-in names, and the exclusion has to be recorded explicitly or the next
-reader will "complete" the list by adding them.
+else. They are **not** built-in names — these four are the set ruling #833 excludes, and the
+exclusion has to be recorded explicitly or the next reader will "complete" the list by adding them.
+(That is a statement about these four words, not a promise that the contextual set can never grow:
+a future contextual word would be ruled on the same way, by the test below.)
 
 The test they pass is the same one this whole design turns on: *could taking this name make a
 definition silently dead, or the grammar ambiguous?* Measured, no — `define of` is legal, and
@@ -198,7 +261,9 @@ definition silently dead, or the grammar ambiguous?* Measured, no — `define of
 `print [ ] is empty` still reports `true`. Because these words are structural **by position only**,
 taking the name cannot break the reader. The inference to avoid is "the highlighter paints `of` as
 a keyword, therefore `define of` must be blocked": token class and registration are different
-questions with different, both-correct answers.
+questions with different, both-correct answers. `of` makes the point twice over — measured, it is
+painted `keyword` in `2 is member of [1 2]` and `primitive` in `value of :d for key "a"`, and
+neither classification has any bearing on whether `define of` is legal.
 
 ### Measuring, not inferring
 
@@ -221,8 +286,8 @@ And binding was always free: the Berkeley user manual's own worked example defin
 `TO PLURAL :WORD`, a variable named `WORD` living happily beside the primitive `WORD`, precisely
 because `:WORD` and `WORD` are lexically distinct. OpenLogo's two halves are each continuous with
 that tradition; what is new is that classic Logo had almost no keywords to reason about — Berkeley
-Logo describes its own syntax as having "no special forms except `TO`" — whereas OpenLogo has 43
-keywords plus 7 profile block heads, which is exactly why it needs one concept spanning keywords
+Logo describes its own syntax as having "no special forms except `TO`" — whereas OpenLogo has 44
+keywords plus 7 profile-reserved words, which is exactly why it needs one concept spanning keywords
 and primitives instead of a rule about primitives alone.
 
 **Python** hard-reserves its keywords — 35 of them in 3.11, enumerable as `keyword.kwlist`:
@@ -237,25 +302,29 @@ Python's bare `if` is not.
 
 **Go** reserves exactly 25 keywords, and puts its builtins — `len`, `cap`, `make`, `new`, `append`
 — in the universe block as *predeclared identifiers* rather than keywords. Declaring `len := 3`
-inside a function is legal Go and shadows the builtin for that scope. This is the design OpenLogo
-consciously rejects, and the reason is the audience, not the mechanism: Go's shadowing is caught
-almost immediately by a compiler and a type checker, and Go's users are professionals who can read
-the resulting error. A nine-year-old gets a turtle that stopped moving and no message at all.
+inside a function is legal Go and shadows the builtin for that scope. Go's trade-off is deliberate
+and defensible: the shadow is lexically scoped and explicit at the declaration, so a reader can see
+where it starts and ends. But the declaration itself is not diagnosed — nothing warns that `len` has
+been taken — and whether anything catches the consequence depends on the shadow's type. A later
+*incompatible* use fails to compile; a same-typed shadow compiles and silently changes what the
+program means. OpenLogo rejects the trade-off because its failure mode is worse in exactly the place
+Go's is mildest: there is no type checker standing behind it, and the symptom is a drawing that came
+out wrong with no message at all.
 
 **JavaScript** has reserved words plus a growing set of contextual ones — `of`, `as`, `from`,
 `get`, `set`, `async`, `await`, `let` outside strict mode — and its globals are just properties, so
 `Array = 5` is accepted at the top level. It is the cautionary tale for positional recognition at
 scale: each contextual keyword is individually reasonable and the accumulated rules are not
-learnable. OpenLogo keeps its contextual set to four words fixed by the `is`-predicate and the
-Heritage reader, and it deliberately does not grow.
+learnable. OpenLogo's contextual set is four words fixed by the `is`-predicate and the Heritage
+reader, and the bar for adding a fifth is the same test the four had to pass.
 
-**Java and C#** reserve a fixed keyword set (Java still reserving `goto` and `const` purely for
+**Java, C# and C++** reserve a fixed keyword set (Java still reserving `goto` and `const` purely for
 future use) while leaving library names such as `List` entirely available — you can declare a
 method named `list` — which is the ordinary "keywords are closed, library names are yours"
 settlement. C# adds a verbatim-identifier escape hatch, `@class`, and C++ goes further by reserving
 identifier *patterns* (a leading underscore followed by an uppercase letter, or any name containing
 a double underscore) to partition the namespace between the implementation and the user. OpenLogo
-needs neither: 50 keywords plus a published primitive list is small enough to state, and pattern
+needs neither: 51 keywords plus a published primitive list is small enough to state, and pattern
 reservation would tax every name a learner invents.
 
 **Rust** splits its keywords three ways — strict, reserved-for-future-use, and weak/contextual —
@@ -307,13 +376,28 @@ beginner can predict what a line does.
   for never having to explain a resolution order to a nine-year-old.
 
 Spec reference: [`spec/grammar.md`](../../spec/grammar.md) (*Reserved words and namespaces* — the
-keyword list, the shared callable namespace, and the field-name/dict-key carve-out),
+keyword list, the shared callable namespace, and the data-not-declarations rule for field names,
+dictionary keys and bare selector keys),
 [`spec/tooling.md`](../../spec/tooling.md) (*Normative token-class model* and *Reserved words for
 tooling* — the `keyword`/`primitive` token classes this record's two categories come from),
 [`spec/error-model.md`](../../spec/error-model.md) (*Normative code registry* — `ol-reserved-word`),
 [`spec/execution-model.md`](../../spec/execution-model.md) (*Reader pipeline* — the alias pre-pass
-and phase-1 registration, which is what "registration position" means operationally), and
+and phase-1 registration, which is what "registration position" means operationally),
+[`spec/localization.md`](../../spec/localization.md) (why an `alias`'s `existing_name` operand is
+unrestricted), and
 [`spec/educational-model.md`](../../spec/educational-model.md) (Level 5 — "learners build `polygon`
-from `repeat`"). The maintainer ruling this record explains is issue #833; the grammar slice
-(#837) renames *reserved words* to *keywords* throughout `spec/grammar.md`, so a reader who finds
-that section titled *Keywords and namespaces* is looking at the section cited here.
+from `repeat`").
+
+**Reading these citations before the spec slices land.** The maintainer ruling this record explains
+is issue #833, and the normative text moves to match it in separate, serialized `spec/` PRs. Until
+they land, three of the sections cited above still state the *pre-ruling* rule, and a reader
+following the link will see the opposite of what this record says:
+
+- `spec/grammar.md` and `spec/tooling.md` still say built-in names "may not be redefined **as
+  variables**", the binding restriction this decision removes; the grammar slice (#837) inverts that
+  sentence, renames *reserved words* to *keywords* in both documents, and retitles them
+  *Keywords and namespaces* and *Keywords for tooling* — so a reader who finds those titles is
+  looking at the sections cited here.
+- `spec/error-model.md` still carries `ol-reserved-word`'s `namespace` parameter, which this
+  decision drops, and does not yet register `ol-duplicate-definition` at all; both changes land with
+  the error-model slice.
