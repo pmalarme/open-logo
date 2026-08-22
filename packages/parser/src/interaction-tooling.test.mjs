@@ -8,9 +8,11 @@
 // Two shapes with deliberately different mechanics — proven not to leak into each other:
 //
 //   1. Block-head forms `when`/`every`/`on_key`/`on_click` lower to a `ProfileStatement` and are
-//      reserved words *only when the Interaction & Events profile is active*
-//      (`spec/interaction-events.md`: "They are reserved **only within the Interaction & Events
-//      profile**"). Slices I3–I6 already taught the Layer-2 checker to treat them as visible
+//      treated as reserved words *only when the Interaction & Events profile is active* — the
+//      shipped behaviour, which `spec/grammar.md:408` and `spec/interaction-events.md:43-47`
+//      retract in favour of an unconditional rule ("what a profile decides is whether a name
+//      *works*, never whether a program may declare it"); retiring the gate is #841.
+//      Slices I3–I6 already taught the Layer-2 checker to treat them as visible
 //      command names (`interactionEventsBlockHeadNames` in `collectVisibleNames`), so this slice
 //      LOCKS that half with fixtures rather than re-adding it.
 //   2. `wait` and `input` are the profile's two ordinary calls (`spec/interaction-events.md:65`:
@@ -343,9 +345,11 @@ test("check: `input` is STILL ol-unknown-command without the profile — it is n
 // --- Reserved-word gating: block-heads only, and only under an active profile -------------------
 
 test("check: redefining an Interaction block-head under an active profile raises ol-reserved-word", () => {
-  // `when`/`every`/`on_key`/`on_click` are reserved only when Interaction & Events is active
-  // (`spec/interaction-events.md` §Profiles and reservation, C1 #663). `wait` is NOT reserved —
-  // asserted by the redefinition test below and the `wait` procedure highlight test above.
+  // `when`/`every`/`on_key`/`on_click` are **treated as** reserved only when Interaction & Events
+  // is active (C1 #663) — shipped behaviour that `spec/grammar.md:408` and
+  // `spec/interaction-events.md:43-47` make unconditional; retiring the gate is #841. `wait` is NOT
+  // a block-head — asserted by the redefinition test below and the `wait` procedure highlight test
+  // above.
   for (const head of Object.keys(INTERACTION_BLOCK_HEADS)) {
     const diagnostics = checkDiagnostics(
       `define ${head}\nend`,

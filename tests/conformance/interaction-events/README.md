@@ -274,8 +274,9 @@ the gaps it found rather than rubber-stamping them:
   *whole*-number count — and silently splitting `wait`/`every` from `repeat`. The `-word` twins
   exist because a word takes the coercion path, so ordering could be correct for numbers and wrong
   for words; every one of these gaps was found by mutation.
-- **Profile-scoped reservation of the four block-heads.** `spec/interaction-events.md:43-46` reserves
-  `when`/`every`/`on_key`/`on_click` **only within** the profile — a bidirectional MUST that had no
+- **Profile-scoped reservation of the four block-heads.** `spec/interaction-events.md:43-47` reserved
+  `when`/`every`/`on_key`/`on_click` **only within** the profile *as that section read when this pair
+  was written* — a bidirectional MUST that had no
   fixture at all: `redefine-wait-reserved` covers only `wait`, which is a *primitive* name,
   not a reserved block-head. The new pair
   `block-heads-reserved-under-profile` / `block-heads-free-core-only` runs the **byte-identical**

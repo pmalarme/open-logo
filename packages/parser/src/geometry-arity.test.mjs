@@ -13,8 +13,12 @@ import * as OL from "@openlogo/parser";
  * Also covers issue #427 (M4 audit): `define`/`struct` registrations that redefine
  * `grid`/`axes`/`measure` must raise `ol-reserved-word` when the
  * `geometry` profile is active — the checker's static parity counterpart to the runtime's own
- * `isPrimitiveName()` collision guard (#403) — and must not raise when it is inactive. (Issue #838
- * removed that diagnostic's `namespace` param; `local` became a binding form under ruling #833.)
+ * `isPrimitiveName()` collision guard (#403) — and must not raise when it is inactive. That
+ * inactive-profile half is SHIPPED BEHAVIOUR, not a spec requirement: `spec/grammar.md:408` makes
+ * every profile's primitives built-in names unconditionally, so a conforming implementation must
+ * raise with or without `geometry`; retiring the gate is #841's, which flips those assertions.
+ * (Issue #838 removed that diagnostic's `namespace` param; `local` became a binding form under
+ * ruling #833 and raises nothing at all.)
  *
  * And issue #844: the Layer-2 arity gate for these three, so `check()` agrees with the runtime's
  * call-time arity check on `(grid 50)` instead of staying silent where `execute()` raises
