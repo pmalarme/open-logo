@@ -82,9 +82,48 @@ lesson-content shape elsewhere in the codebase — extend this contract instead.
 - `lessons/registry.ts` — aggregates every level's lessons/exercises into flat `LESSONS`/
   `EXERCISES` lists, plus `getLessonsByLevel`/`getExercisesByLevel`/`getExercisesByLesson`/
   `findLessonById`/`findExerciseById` helpers.
+- `lessons/built-in-names.test.mjs` — the built-in-names curriculum audit
+  ([#843](https://github.com/pmalarme/open-logo/issues/843)), kept as a test rather than a one-off
+  report. See [Naming rules for lesson authors](#naming-rules-for-lesson-authors) below.
 
-Every worked example and reference solution is executed against `@openlogo/runtime` in this
-package's tests, so lesson content can never drift from real execution behavior. Later levels
-(Level 6 onward) add their own `lessons/level-N.ts` module and extend the registry additively —
-no shared file needs an ever-growing literal, and no level uses a concept from a later level
-(`spec/educational-model.md:37`'s discovery guardrail).
+## Naming rules for lesson authors
+
+The maintainer ruling behind [`spec/grammar.md`](../../spec/grammar.md#keywords-primitives-and-built-in-names)
+is one sentence: **a program may not declare a built-in name, and a program may bind a value to any
+name.** For lesson content that splits cleanly in two.
+
+- **Declaring** — `define`, the heritage `to`, `struct`, and the first operand of `alias` — must use
+  a name OpenLogo does not already own. Under the ruling, a worked example or reference solution
+  that writes `define forward`, `define count`, or `define fd` raises `ol-reserved-word`, whatever
+  the spelling and whatever profiles are claimed. `grid`, `axes`, and `measure` are renderer-backed
+  overlays and are owned too; the derived Geometry standard library — `polygon`, `star`, `circle`,
+  `arc`, `area`, `perimeter` — is OpenLogo source and stays free, which is what keeps
+  `spec/educational-model.md`'s "Learners build `polygon` from `repeat`" true. The meta-commands
+  `explain`, `why`, `hint`, `debug`, and `challenge` are owned as well, so no lesson may define one.
+  Identifiers are case-insensitive (`spec/grammar.md:13`), so `define FD` is `define fd`.
+- **Binding** — `:name = value`, `set … to`, `make`, `local`, parameters, `for`/`map`/`filter`/
+  `reduce` binders, destructuring names, struct field names, and dictionary keys — accepts **any**
+  name. `:end = 1`, `local count`, and `{ value: 1 }` are conforming programs. A lesson must never
+  teach that these names are forbidden, because they are not: only declaring a callable with one is.
+
+Every worked example and reference solution is both **executed** against `@openlogo/runtime` and
+**statically checked** with `@openlogo/parser`'s `check()` in this package's tests, so lesson content
+can drift neither from real execution behavior nor from the naming rules. The two gates are
+genuinely different: for a **procedure** declaration, `ol-reserved-word` is a semantic diagnostic
+produced only by `check()`, so a lesson that declared a procedure named after a built-in would run
+cleanly through an execution-only test. (The runtime's own phase-1 registration guard does raise it
+for some `struct` collisions, so the hole is not total — but a procedure declaration, which is what
+Level 5 teaches, falls straight through it.)
+
+Note the rule above is enforced twice over, by two independent derivations. `check()` rejects a
+built-in name at the declaration slots, and `built-in-names.test.mjs`'s own `builtInKind()` reads
+the same rule off `@openlogo/parser`'s registries — the keyword list under every profile, every
+primitive table, and every Heritage alias — without consulting the checker at all. A curriculum name
+is reported the moment either one calls it owned, so a regression in either is caught. That second
+derivation is also what held lesson content to the finished rule while the checker was catching up:
+before [#838](https://github.com/pmalarme/open-logo/issues/838), `check()` consulted neither the
+Turtle & Rendering nor the Educational table, so `define forward` and `define hint` were accepted.
+
+Later levels (Level 6 onward) add their own `lessons/level-N.ts` module and extend the registry
+additively — no shared file needs an ever-growing literal, and no level uses a concept from a later
+level (`spec/educational-model.md:37`'s discovery guardrail).
