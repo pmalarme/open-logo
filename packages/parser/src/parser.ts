@@ -1406,27 +1406,6 @@ export function parse(source: string, document = "<input>"): ParseResult {
     return { key, value, source_span: spanBetween(key, value) };
   }
 
-  /**
-   * Is the token after {@link current} the `)` that closes this group (newlines aside)? This is
-   * the narrow licence {@link parseParenthesized}'s operand recovery needs: it may step over
-   * **one** rejected token, so it must only do so when doing that actually reaches the group's
-   * own `)`.
-   *
-   * Without this, the recovery consumed a structural token that belonged to an ENCLOSING
-   * construct. `define f` / `print (` / `end` has an unterminated group whose next token is the
-   * procedure's perfectly valid `end`: recovering there ate it, so the `define` never saw its
-   * closer and reported a spurious `ol-missing-end`. Same for an `else` belonging to an outer
-   * `if`, whose body then got folded into the then-branch. Those tokens must be left for the
-   * parser that owns them (issue #830 review).
-   */
-  function closesGroupAfterOneToken(): boolean {
-    let ahead = 1;
-    while (peek(ahead).kind === "newline") {
-      ahead += 1;
-    }
-    return peek(ahead).kind === "rparen";
-  }
-
   function parseParenthesized(): ExpressionNode | undefined {
     const open = current();
     advance();
@@ -1489,7 +1468,6 @@ export function parse(source: string, document = "<input>"): ParseResult {
         }
       }
     }
-    const beforeInner = pos;
     const inner = parseExpression();
     skipNewlines();
     if (inner === undefined && current().kind === "rparen") {
@@ -1497,59 +1475,6 @@ export function parse(source: string, document = "<input>"): ParseResult {
       diagnostics.push(
         parseDiag.badToken(current().source_span, current().text),
       );
-    }
-    if (
-      inner === undefined &&
-      pos === beforeInner &&
-      current().kind !== "rparen" &&
-      current().kind !== "eof" &&
-      closesGroupAfterOneToken()
-    ) {
-      // The group's operand was rejected and the reader consumed NOTHING — `( value )`, where
-      // {@link parseNamePrimary} declines a keyword without advancing. Report that token and step
-      // over it so the matching `)` below still closes the group. Without this, the `)` was never
-      // consumed, so a *balanced* `( … )` reported `ol-unmatched-paren` twice — once here for the
-      // `(` and once at statement level for the orphaned `)` — around the single real error.
-      // `spec/error-model.md` reserves `ol-unmatched-paren` for a delimiter that genuinely has no
-      // partner (issue #830 review).
-      //
-      // The `pos === beforeInner` guard is what keeps this honest: when the reader *did* consume
-      // and diagnose something (`( + 1 )` — `parsePrimary` reports `+` and advances), the operand
-      // is already accounted for, and recovering again here would diagnose the innocent token
-      // after it.
-      //
-      // `eof` is excluded for clarity of intent, and is also implied: there is no token at end of
-      // input to step over. An unterminated `( ` consumes nothing, so it satisfies the progress
-      // guard, but its only real error is the unmatched `(` reported below — recovering would add
-      // a spurious `ol-bad-token {"text":"end of file"}` in front of it.
-      // {@link closesGroupAfterOneToken} independently rejects eof (its lookahead finds no `)`),
-      // so the two guards agree; the explicit test is kept so a future change to the lookahead
-      // cannot silently re-open the eof case, and
-      // `heritage-unterminated-group-reports-only-unmatched-paren` pins the outcome either way.
-      //
-      // {@link resync} rather than a blanket `badToken` so the token keeps whatever code
-      // `spec/error-model.md` gives it — `( ] )` stays `ol-unmatched-bracket`, and `( end )` /
-      // `( else )` stay `ol-mismatched-end` with their `expected` param, which is what statement
-      // -level recovery would have reported before the group started consuming the token itself.
-      //
-      // KNOWN LIMITATION and a deliberate TRADE, both measured against the base commit:
-      //
-      // 1. PRE-EXISTING, untouched: this recovers exactly ONE token, so a group whose operand is
-      //    several tokens (`( value 1 )`, `( value value )`, `( value key )`) declines recovery
-      //    entirely and still reports `ol-unmatched-paren` for both of its balanced delimiters —
-      //    byte-identical to the base commit, order included.
-      // 2. NEW, introduced here: in a control-form header, `if ( value ) [ … ]` now reports
-      //    `ol-bad-token {"text":"["}` against the block-opening `[`, which is perfectly valid
-      //    syntax. The base never mentioned `[` — it reported two false `ol-unmatched-paren`
-      //    around the real error instead. So this trades two false diagnostics for one and names
-      //    the real error first; it is NOT a pre-existing wart, and it affects roughly 27 measured
-      //    shapes across `if`/`repeat`/`while`. Clearing it needs delimiter-aware synchronisation
-      //    to the matching `)`, wider than this slice is authorised for.
-      //
-      // The trade is asserted, not merely described — see the `if ( value ) [ … ]` regression
-      // test — so a future narrowing cannot change those shapes without a gate noticing.
-      resync();
-      skipNewlines();
     }
     if (current().kind === "rparen") {
       advance();
