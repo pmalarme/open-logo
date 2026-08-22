@@ -191,12 +191,19 @@ test("`value` and `key` remain legal data beside the parenthesized reader", () =
 
 test("a bare `value` in parentheses is still rejected", () => {
   // The reader is entered only when `of` directly follows, so parenthesizing a bare `value` must
-  // not smuggle it in as a callee. It reports `ol-bad-token` naming the word.
+  // not smuggle it in as a callee. Assert the diagnostic's IDENTITY, not just that one exists: a
+  // count-only assertion passes when `ol-bad-token` is raised at the wrong offset, names the wrong
+  // token, or comes from the wrong stage. This is the negative half of #830, also pinned as
+  // `heritage/check/heritage-bare-value-in-parentheses-is-rejected`.
   const diagnostics = allDiagnostics("print (value)\n");
   const badToken = diagnostics.filter(
     (diagnostic) => diagnostic.code === "ol-bad-token",
   );
   assert.equal(badToken.length, 1, "expected exactly one ol-bad-token");
+  assert.equal(badToken[0].params.text, "value");
+  assert.equal(badToken[0].stage, "parse");
+  assert.deepEqual(badToken[0].source_span.start, [1, 8]);
+  assert.deepEqual(badToken[0].source_span.end, [1, 13]);
   const { ast } = OL.parse("print (value)\n", doc);
   assert.equal(valueOfKeyCount(ast), 0);
   assert.equal(parenCallCallees(ast).includes("value"), false);

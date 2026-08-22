@@ -24,9 +24,14 @@ print ((value of :d for key "a"))
 
 # A parenthesized reader composes with the rest of the expression grammar.
 print (value of :d for key "a") + 1
+print 1 + (value of :d for key "a")
 
 # A parenthesized reader takes postfixes, so it is a real `primary` (`spec/grammar.md:192`).
 print (value of :nested for key "inner").x
+print (value of :nested for key "inner")[x]
+
+# Both readers parenthesized.
+print (value of (value of :nested for key "inner") for key "x")
 
 # The parenthesized reader agrees with the Core twins it is specified to correspond to.
 print :d["a"]
