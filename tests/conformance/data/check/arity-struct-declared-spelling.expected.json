@@ -1,0 +1,19 @@
+{
+  "description": "issue #874, the struct-constructor twin of core-language/check/arity-procedure-declared-spelling: a `struct` type's constructor is the SECOND callable reached through the checker's exact-arity path, so it needs its own stack-neutral pin rather than inheriting the procedure one. `struct Point` called as `(pOiNt 1)` reports `Point` — the declared spelling, not the call site's and not a lowercased form. Existing struct fixtures (struct-constructor-arity-too-few/too-many) name the type `point`, where all three candidate rules coincide, so they cannot distinguish this.",
+  "profiles": ["core-language", "data"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-not-enough-inputs",
+      "source_span": {
+        "document": "data/check/arity-struct-declared-spelling",
+        "start": [2, 2],
+        "end": [2, 7]
+      },
+      "params": { "callable": "Point", "expected": 2, "actual": 1 },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

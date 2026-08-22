@@ -1,0 +1,19 @@
+{
+  "description": "issue #874, the check half of a check/execute pair: `(clear_screen 10)` raises ol-too-many-inputs at the SEMANTIC stage here, with the same code, callable, expected, and actual as its runtime twin turtle-rendering/screen/clear-screen-too-many-inputs raises at the RUNTIME stage for byte-identical source. Reading the two fixtures side by side is the agreement #874 asked for, pinned in both directions: before the fix this program checked clean and only failed when run, so a learner's editor said nothing and the turtle then refused to move.",
+  "profiles": ["core-language", "turtle-rendering"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-too-many-inputs",
+      "source_span": {
+        "document": "turtle-rendering/check/arity-paren-clear-screen-too-many",
+        "start": [1, 2],
+        "end": [1, 14]
+      },
+      "params": { "callable": "clear_screen", "expected": 0, "actual": 1 },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}
