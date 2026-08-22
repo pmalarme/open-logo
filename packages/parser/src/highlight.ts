@@ -34,6 +34,7 @@ import { makeSpan } from "@openlogo/core";
 import type { Position, SourceSpan } from "@openlogo/core";
 import type {
   AnyNode,
+  Binder,
   DictEntryNode,
   IsPredicateNode,
   NumberLitNode,
@@ -97,10 +98,11 @@ export interface Token {
   readonly role?: BracketRole;
   /**
    * Present only on the classes with a decidable declaration/reference split —
-   * `procedure-name`, `type-name`, `field-name`, and `:variable` (a procedure's own `:param`)
-   * — `true` at the binding site, `false` at every other (use/call) site. Consumed by
-   * `semantic-tokens.ts` (issue #121) to compute the LSP `declaration`/`reference` modifiers
-   * from `spec/tooling.md:278`; absent on classes with no such split (e.g. `keyword`, `number`).
+   * `procedure-name`, `type-name`, `field-name`, and `:variable` (a procedure's own `:param`,
+   * a `local` name, and a `for`/comprehension binder) — `true` at the binding site, `false` at
+   * every other (use/call/assignment-target) site. Consumed by `semantic-tokens.ts` (issue
+   * #121) to compute the LSP `declaration`/`reference` modifiers from `spec/tooling.md:278`;
+   * absent on classes with no such split (e.g. `keyword`, `number`).
    */
   readonly declaration?: boolean;
 }
@@ -194,11 +196,34 @@ export function highlight(source: string, document = "<input>"): Token[] {
   const procCallIndexes = new Set<number>();
   const typeCallIndexes = new Set<number>();
   const fieldAccessIndexes = new Set<number>();
-  // A procedure's own `:param` is the only `:variable` binding site the AST can resolve
-  // directly (issue #121): `local`/`for`/comprehension binders parse as bare `name` tokens
-  // (see `ast.ts`'s `ProcedureParam` vs. `ForInNode.binder`/`ComprehensionBase.binder`), so they
-  // never reach this `:variable`-classed set at all — only a real `variable`-kind token can.
+  // A procedure's own `:param` is the only binding site whose token is *already* `variable`-kind
+  // (issue #121). `local`/`for`/comprehension binders parse as bare `name` tokens (see `ast.ts`'s
+  // `ProcedureParam` vs. `ForInNode.binder`/`ComprehensionBase.binder`), so they reach
+  // `classifyName` instead and are carried by `binderDeclIndexes` below.
   const paramDeclIndexes = new Set<number>();
+
+  // Binding positions whose name is a bare `name` token (issue #840). `spec/grammar.md:363` is
+  // the whole rule — "A program may not declare a built-in name. A program may bind a value to
+  // any name" — and `:390` lists the positions that "admit keywords freely", which "is what
+  // makes `:value = 1`, `{ value: 1 }`, `local end`, and `for end from 1 to 3` legal". A token
+  // there names a variable, so it is `:variable` (`spec/tooling.md:34`), never `keyword`
+  // (`:30`, "structural words recognized by the reader" — a binder is not structural) and never
+  // `primitive` (`:31`, scoped to "the C3 primitive matrix" — a learner's binder is in no
+  // matrix). This is decided from grammatical position, as `spec/tooling.md:18-21` requires and
+  // exactly as the `dict-key` precedent at `:41` already does; a lexical "is it reserved?" test
+  // cannot tell `local end` from `end`-the-block-terminator.
+  //
+  // The split mirrors what the two spellings of one assignment already do, so that `:count = 5`
+  // and `set count to 5` highlight identically:
+  //  - `binderDeclIndexes` — a `local` name, a `for`/`map`/`filter`/`reduce` binder, and the
+  //    `reduce` accumulator INTRODUCE a name, so they are `declaration` sites.
+  //  - `placeHeadIndexes` — the bare-form head of an assignment's place (`set count to 5`) is a
+  //    write to a name, so it is a `reference`, matching the colon-form `:count = 5` head.
+  // Only a bare `name` token is ever marked: `markNameIndex`'s kind guard leaves the colon-form
+  // head (`:count`, a `variable` token, already `:variable`) and the heritage `make "count" 1`
+  // target (a `word` token, `word/string`) exactly where they were.
+  const binderDeclIndexes = new Set<number>();
+  const placeHeadIndexes = new Set<number>();
 
   /**
    * Tag the raw token starting at `name`'s span with `target`, when it is a real token of
@@ -221,6 +246,19 @@ export function highlight(source: string, document = "<input>"): Token[] {
         (kind === "name" && dictColonSplits.has(index)))
     ) {
       target.add(index);
+    }
+  }
+
+  /**
+   * Mark a `for`/`map`/`filter`/`reduce` binder's bare name as a `declaration` binding site.
+   * A destructuring `[ :x :y ]` binder (`spec/grammar.md:136-137`) names its members with
+   * `variable`-kind tokens that {@link classifyToken} already classes `:variable`, so it needs
+   * no marking here — and deliberately keeps its existing `reference` modifier, since resolving
+   * a destructured name's own binding site is not part of this rule.
+   */
+  function markBinder(binder: Binder): void {
+    if (!("kind" in binder)) {
+      markNameIndex(binder, binderDeclIndexes);
     }
   }
 
@@ -455,10 +493,34 @@ export function highlight(source: string, document = "<input>"): Token[] {
       case "While":
       case "Repeat":
       case "Forever":
+        markBracketPair(node.body.source_span, "instruction-block");
+        break;
       case "ForIn":
+        markBracketPair(node.body.source_span, "instruction-block");
+        markBinder(node.binder);
+        break;
       case "ForRange":
+        markBracketPair(node.body.source_span, "instruction-block");
+        markNameIndex(node.variable, binderDeclIndexes);
+        break;
       case "Comprehension":
         markBracketPair(node.body.source_span, "instruction-block");
+        markBinder(node.binder);
+        if (node.form === "reduce") {
+          markNameIndex(node.accumulator, binderDeclIndexes);
+        }
+        break;
+      case "Local":
+        for (const name of node.names) {
+          markNameIndex(name, binderDeclIndexes);
+        }
+        break;
+      case "Assign":
+        // Only a real place has a name to highlight: a malformed target (`first :repeat = 5`,
+        // `3 = 5`) parses to some other expression and introduces nothing.
+        if (node.place.kind === "Place") {
+          markNameIndex(node.place.base, placeHeadIndexes);
+        }
         break;
       case "ProcedureDef":
         markBracketPair(node.body.source_span, "instruction-block");
@@ -626,6 +688,20 @@ export function highlight(source: string, document = "<input>"): Token[] {
         class: "keyword",
         text: token.text,
         source_span: token.source_span,
+      };
+    }
+    // A binding position (issue #840) decides the class before any name-based fallback below:
+    // the token names a variable, whatever it is spelled. Checked ahead of symbol discovery
+    // because no other role can occupy the same token — a `local`/binder name is never a call
+    // callee, a `define`/`struct` header name, or a `.field` segment — and ahead of the
+    // reserved-word/primitive fallbacks, which are exactly the two misclassifications
+    // `spec/grammar.md:386` forbids the tooling from implying.
+    if (binderDeclIndexes.has(index) || placeHeadIndexes.has(index)) {
+      return {
+        class: ":variable",
+        text: token.text,
+        source_span: token.source_span,
+        declaration: binderDeclIndexes.has(index),
       };
     }
     // Semantic disambiguation (#120): a name resolved by symbol discovery to a user procedure,

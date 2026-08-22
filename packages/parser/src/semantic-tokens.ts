@@ -13,11 +13,14 @@
  *    these to either its binding site (`define`/`struct` header) or a use site (call/field
  *    access), recorded on {@link Token.declaration}; this module reads that flag straight
  *    through as `declaration` or `reference`. No re-analysis needed.
- *  - `:variable` — the only binding site the AST can resolve directly is a procedure's own
- *    `:param` (`highlight.ts`'s `paramDeclIndexes`, exposed the same way via `declaration`);
- *    every other `:variable` token is a `reference` (a read, or an assignment/place target).
- *    `local`/`for`/comprehension binders parse as bare `name` tokens, or — for a destructuring
- *    `[ :x :y ]` pattern (`spec/grammar.md:136-137`) — as `:variable` tokens with no dedicated
+ *  - `:variable` — {@link highlight} resolves three binding sites directly: a procedure's own
+ *    `:param`, a `local` name, and a `for`/`map`/`filter`/`reduce` binder or `reduce`
+ *    accumulator (issue #840 — a bare name in a binding position is `:variable`, never
+ *    `keyword`/`primitive`, per `spec/grammar.md:363,386,390`). Each is recorded on
+ *    {@link Token.declaration} and read straight through as `declaration`; every other
+ *    `:variable` token is a `reference` (a read, or an assignment/place target — including the
+ *    bare-form head of `set count to 5`, which mirrors the colon-form `:count = 5`). A
+ *    destructuring `[ :x :y ]` pattern (`spec/grammar.md:136-137`) has no dedicated
  *    binding-site resolution here (see `ast.ts`'s `Binder`), so a destructured name's own `:x`
  *    token still surfaces only as a `reference`, never a `declaration`.
  *  - `:variable` reads of a `map`/`filter`/`reduce` binder or `reduce` accumulator inside that
