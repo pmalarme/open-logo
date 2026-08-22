@@ -193,8 +193,15 @@ test("a bare `value` in parentheses is still rejected", () => {
   // The reader is entered only when `of` directly follows, so parenthesizing a bare `value` must
   // not smuggle it in as a callee. Assert the diagnostic's IDENTITY, not just that one exists: a
   // count-only assertion passes when `ol-bad-token` is raised at the wrong offset, names the wrong
-  // token, or comes from the wrong stage. This is the negative half of #830, also pinned as
-  // `heritage/check/heritage-bare-value-in-parentheses-is-rejected`.
+  // token, or comes from the wrong stage.
+  //
+  // This is the negative half of #830, and it is covered HERE ONLY — there is no conformance
+  // fixture for it, so no other implementation is held to the rule. A stack-neutral fixture would
+  // have to pin the two false `ol-unmatched-paren` that a balanced `( value )` still reports,
+  // which would make a defect normative; the recovery that would have removed them was dropped
+  // with the rest of the diagnostic-quality work. Tracked as @testing's N2, declined and routed
+  // rather than fixed. The filter is deliberate for the same reason: it asserts the diagnostic
+  // that is CORRECT without pinning the two that are not.
   const diagnostics = allDiagnostics("print (value)\n");
   const badToken = diagnostics.filter(
     (diagnostic) => diagnostic.code === "ol-bad-token",
