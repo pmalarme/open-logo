@@ -1640,7 +1640,7 @@ The color concept is representation: the same visible idea can be named, measure
 
 ## Related primitives owned elsewhere
 
-- Geometry commands such as `polygon :sides :size`, `star :points :size (:step 2)`, `circle :radius (:segments 36)`, `arc :angle :radius`, `grid`, `axes`, `measure`, `area :shape`, and `perimeter :shape` are derived standard-library procedures specified in [geometry-module.md](geometry-module.md).
+- Geometry shapes such as `polygon :sides :size`, `star :points :size (:step 2)`, `circle :radius (:segments 36)`, `arc :angle :radius`, `area :shape`, and `perimeter :shape` are derived standard-library procedures written in OpenLogo source, specified in [geometry-module.md](geometry-module.md). The `grid`, `axes`, and `measure` overlays are the exception: they are renderer-backed **primitives**, specified behaviorally in the same document, so they are built-in names while the derived shapes are not (see [grammar.md](grammar.md#keywords-primitives-and-built-in-names)).
 - Data-profile mutation and structure primitives such as `list`, `add … to`, `remove … from`, `insert … in … at`, `clear`, dictionary literals, `keys`, `values`, `struct`, constructors, and record fields are specified in [data-structures.md](data-structures.md).
 - Sprite-profile primitives `new_turtle`, `tell`, `ask`, `each`, `turtles`, and `who` are specified in [turtles-and-sprites.md](turtles-and-sprites.md).
 - Interaction and sound primitives including `input`, `wait`, `when`, `every`, `on_key`, `on_click`, `note`, `play`, `beep`, `rest`, and `set_tempo` are specified in [interaction-events.md](interaction-events.md).

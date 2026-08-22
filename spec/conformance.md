@@ -87,7 +87,11 @@ DAG below states a dependency, including the annotated cross-dependencies on **D
 
 The **Geometry** profile provides the derived, source-shown standard library described in
 [geometry-module.md](geometry-module.md). Most geometry procedures are written in OpenLogo and build
-on Core control plus Turtle & Rendering behavior; they are not opaque primitive shortcuts. The
+on Core control plus Turtle & Rendering behavior; they are not opaque primitive shortcuts. Because
+v0.1.0 has no import or prelude hook — Modules is a separate profile and is not specified in this
+draft — a program obtains those procedures by declaring their source itself, which is also why they
+are library procedures rather than built-in names (see
+[grammar.md](grammar.md#keywords-primitives-and-built-in-names)). The
 `grid`, `axes`, and `measure` overlays are the exception: they are renderer-backed primitives that
 draw onto renderer overlay layers, specified behaviorally rather than as OpenLogo source. The
 `area` and `perimeter` reporters read their shape-spec argument by list index (`:shape[2]`), which
@@ -343,8 +347,10 @@ version without checking that version's conformance document.
 The **built-in names** — the keywords and primitives a program may not declare, defined by
 [grammar.md](grammar.md#keywords-primitives-and-built-in-names) — are part of that versioned
 contract. Each version of this specification determines them exactly: they are the keyword list in
-[grammar.md](grammar.md#keywords-primitives-and-built-in-names) plus every primitive and alias
-spelling assigned by the [C3 primitive matrix](commands.md) and the profile documents. An
+[grammar.md](grammar.md#keywords-primitives-and-built-in-names) plus every primitive — as
+[grammar.md](grammar.md#keywords-primitives-and-built-in-names) defines that term, which excludes
+names this specification gives as OpenLogo source, such as the derived Geometry shapes — and every
+alias spelling, assigned by the [C3 primitive matrix](commands.md) and the profile documents. An
 implementation claiming conformance to a version MUST reject a declaration of exactly that version's
 built-in names — no more and no fewer — **independently of which profiles it claims**, because a
 program cannot declare the profiles it requires and a name that is takeable in one implementation
