@@ -69,10 +69,11 @@ SHAs.
 ## Derived counts in prose are unenforced assertions
 
 A number written into prose — "14 fixtures", "three reviewers", "181 lines", "3599 tests passing" —
-is a claim **nothing recomputes**. It is true at the instant it was written and can drift silently
-from then on, with nothing to announce that it has. `spec/` fenced ` ```logo ` blocks are gated
-(item 6 above); the numbers in the prose around them are not. Issue **#898** catalogues the
-measured instances from saga #572 — every one caught by a reviewer re-deriving, none by a gate.
+is a claim **nothing recomputes**. It may be wrong the moment it is written (see the measurement
+traps below), and even when correct it can drift silently from then on, with nothing to announce
+that it has. `spec/` fenced ` ```logo ` blocks are gated (item 6 above); the numbers in the prose
+around them are not. Issue **#898** catalogues the measured instances from saga #572 — every one
+caught by a reviewer re-deriving, none by a gate.
 
 A number *looks* like evidence, which is what makes it dangerous, and a wrong one in a durable
 record **manufactures a future false alarm about the exact thing the record exists to reassure

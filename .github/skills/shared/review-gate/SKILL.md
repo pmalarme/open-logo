@@ -99,7 +99,7 @@ in the same slice before the mechanical one held.
 
 A tree can be `git status`-clean and still be measured wrong, because the **build** can diverge from
 the SHA while the working tree looks fine. #897 already proved the same tree measures differently on
-different platforms; these three modes (all observed in saga #572, catalogued on **#884**) prove it
+different platforms; the modes below — observed in saga #572's #840, #828, and #830 slices — show it
 can measure differently on the *same* platform. A reviewer must be able to state which **artifacts**
 it measured, not merely which SHA:
 
@@ -107,21 +107,18 @@ it measured, not merely which SHA:
    QA reviewers into its own worktree has **two writers on one `dist`**: the reviewer rebuilds while
    the author is still working, or two reviewers rebuild concurrently, and the measured artifacts
    belong to neither party's intended tree. This is a *concurrency* rule, distinct from rule 1
-   above. Order: reviewers finish → author re-verifies → freeze → PR. A reviewer wanting its own
-   clean-tree run should **clone to a scratch directory outside the repository** and build there.
-2. **`tsc -b` is mtime-based, so a restore may not rebuild.** Restoring a mutated file from a backup
-   gives it an mtime *older* than `dist`, so the build is skipped and the next run silently
-   re-measures the mutation — one session reported a regression that did not exist. The mirror image
-   is worse: a stale build leaves a test **green** under a mutation, and it gets certified
-   "mutation-checked" while asserting nothing. Force the mtime or build with `--force`, then
-   **confirm in `dist`, not `src`**.
-3. **Confirm a mutation actually applied.** One session's string-replace mutation did nothing (a
-   CRLF mismatch) and the all-green suite read as "my test is not load-bearing". `git diff` the file
-   to confirm the change is present, then confirm it reached `dist`. **A mutation you did not verify
-   applied is not a mutation test.**
-
-**Write every scratch probe outside the repository** (`$TMPDIR` / `$env:TEMP`) and delete it after.
-An untracked probe file is the cheapest way to dirty a tree you are in the middle of certifying.
+   above — a tree can be clean and mid-rebuild. Order: reviewers finish → author re-verifies →
+   freeze → PR.
+2. **Do write-capable checks in a disposable checkout, never in the implementing worktree.** This is
+   how rule 1 and "reviewers never edit the branch" hold together: a clean `npm ci`, a forced
+   rebuild, and a mutation probe all have to write something. Clone the **exact SHA** to a scratch
+   directory outside the repository and work there; nothing in it is ever committed or pushed, and
+   no other actor writes to it. Reading the implementing worktree is always fine; writing to it is
+   not.
+3. **Confirm a mutation actually applied before believing its result.** One session's string-replace
+   mutation did nothing (a CRLF mismatch) and the all-green suite read as "my test is not
+   load-bearing". `git diff` the file to confirm the change is present, then confirm it reached
+   `dist`. **A mutation you did not verify applied is not a mutation test.**
 
 ## The checklist
 
@@ -138,8 +135,12 @@ Do not trust the author's report or cached CI. From a clean checkout:
 - **Verify the build actually emitted artifacts** — do not accept a `0` exit code as proof. Confirm
   real `dist/*.js` **and** `*.d.ts` outputs exist and are fresh.
 - **Beware the incremental no-op trap:** a stale `.tsbuildinfo` can make `tsc -b` report success
-  while emitting nothing. Force a clean build (delete `dist/` + `*.tsbuildinfo`, or build with
-  `--force`) and confirm the artifacts are regenerated.
+  while emitting nothing. **mtime is the gate** — when the timestamp check says "up to date" the
+  content is never read at all, so a file restored from a backup (older mtime than `dist`) is
+  silently skipped and the next run re-measures the *previous* content. One session reported a
+  regression that did not exist this way; the mirror image is worse, a stale build leaving a test
+  **green** under a change it never compiled. Force a clean build (delete `dist/` + `*.tsbuildinfo`,
+  or build with `--force`) and confirm the artifacts are regenerated — **in `dist`, not `src`**.
 - Sanity-check the toolchain itself: the compiler resolves to **TypeScript 7** — peer-caps or
   transitive pins must not silently downgrade it.
 
@@ -250,7 +251,7 @@ ground out.
 
 - [ ] All required reviews run as sub-agents, **all ≠ author** (at least two): the **logic/spec reviewer** — `rubber-duck` (Claude/GPT large session model) **or a named non-author fallback** — plus **every** dispatched domain QA expert; reviewers stayed read-only.
 - [ ] **Every reviewer read the commit its verdict names**: tree clean (`git status --porcelain` empty) and pushed before each dispatch, every reviewer idle before any edit, reviewers asserted cleanliness themselves, and the branch was **frozen** once all verdicts landed on one SHA.
-- [ ] **Artifacts, not just a SHA**: the tree was never mutated while a reviewer was measuring it (no two writers on one `dist`); any forced rebuild was confirmed in `dist`, not `src`; any mutation was confirmed applied via `git diff` before its result was believed.
+- [ ] **Artifacts, not just a SHA**: the tree was never mutated while a reviewer was measuring it (no two writers on one `dist`); write-capable checks ran in a disposable checkout of the exact SHA outside the worktree; any mutation was confirmed applied via `git diff` and confirmed in `dist` before its result was believed.
 - [ ] Clean-tree DoD re-run — build **emits** verified (no stale-`.tsbuildinfo` no-op; TS 7 confirmed).
 - [ ] Spec-fidelity — canonical vocabulary; `ol-*` codes with spans; profile boundaries.
 - [ ] Conformance fixtures present, green, and extended.

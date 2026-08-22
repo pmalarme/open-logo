@@ -116,8 +116,9 @@ profile or the whole DAG. The runner discovers every `*.expected.json` and pairs
     `packages/runtime/src/`.
 - Keep results **deterministic**: assert semantic events and final state, never timing or frames.
 
-The harness validates every `kind`, `code`, and `profiles` tag against the `@openlogo/core`
-registries, so a fixture can never assert an off-contract shape.
+The harness validates every `kind` and `code` against the `@openlogo/core` registries, and every
+`profiles` tag against its own `PROFILE_DEPS` table (transcribed from `spec/conformance.md`'s DAG),
+so a fixture can never assert an off-contract shape.
 
 ## Graph fixtures: asserting reference identity and cycles (`$id` / `$ref`)
 

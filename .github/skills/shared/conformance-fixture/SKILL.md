@@ -54,7 +54,6 @@ forward.expected.json
 `check`, `style`, `executeOptions`, `events`, `diagnostics`. Any other top-level key is **silently
 dropped, not rejected**, so an assertion written in an invented field (a `turtle` final-state block,
 say) looks like proof and asserts nothing. Assert final turtle state through the `events` stream.
-Measured: no fixture in the corpus carries a top-level key outside that list.
 
 Events use the normative envelope — `seq`, `kind`, `source_span`, optional `turtle_id`, `payload` —
 and registered `kind` values (`instruction`, `move`, `draw-segment`, …) from
@@ -86,7 +85,7 @@ Include did-you-mean cases where `spec/error-model.md` defines them (e.g. `forwr
 
 ## A fixture `description` is an unverified claim
 
-`description` is **never validated**. The harness reads it, prints it, and compares nothing — so a
+`description` is **never validated**. The harness reads it and compares nothing — so a
 confident falsehood there passes every gate and misleads every later reader. That matters more here
 than it sounds: descriptions in this corpus are long, they carry the *reasoning* for a decision, and
 later slices cite them as settled fact (several record "this was escalated to the maintainer" or "a
@@ -100,8 +99,9 @@ writing an assertion that quietly asserts nothing:
   fixture's without failing.
 - An **unknown top-level key** is dropped rather than rejected (see "Fixture shape" above).
 
-What *is* proven: `events` and `diagnostics` are diffed item-by-item, and every `kind`, `code`, and
-`profiles` tag is validated against the `@openlogo/core` registries.
+What *is* proven: `events` and `diagnostics` are diffed item-by-item; every `kind` and `code` is
+validated against the `@openlogo/core` registries; and every `profiles` tag is validated against the
+harness's own `PROFILE_DEPS` table, transcribed from `spec/conformance.md`'s DAG.
 
 So:
 
