@@ -58,24 +58,6 @@
       "codes": ["ol-not-a-place"]
     }
   ],
-  "docs/design-notes/0006-effect-event-snapshot-timing.md": [
-    {
-      "fingerprint": "7c411c83a02b450c",
-      "excerpt": ":x = [1, 2, 3]",
-      "kind": "known-broken",
-      "issue": "#887",
-      "why": "DEFECT surfaced by this gate: ':x = [1, 2, 3]' separates list items with commas, which OpenLogo has no grammar for — list literals are space-separated ('[1 2 3]'). Recorded rather than fixed here because the record is Status: Accepted and docs edits are serialized; tracked on #887, then this entry is DELETED (not re-fingerprinted).",
-      "codes": ["ol-bad-token"]
-    },
-    {
-      "fingerprint": "f7e6b44cdff8c4d9",
-      "excerpt": ":x = [1, 2, 3]",
-      "kind": "known-broken",
-      "issue": "#887",
-      "why": "Same defect as the entry above, in the second contrasting example of the same section: a comma-separated list literal. Tracked on #887; delete this entry when the block is fixed.",
-      "codes": ["ol-bad-token"]
-    }
-  ],
   "docs/educational-commands.md": [
     {
       "fingerprint": "62bdd113cf88a286",
