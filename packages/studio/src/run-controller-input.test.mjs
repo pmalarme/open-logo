@@ -999,3 +999,26 @@ test("a chain well inside the cap is unaffected by it", () => {
   assert.equal(store.getState().runStatus, "done");
   assert.deepEqual(store.getState().output, ["before", "tom"]);
 });
+
+test("the retry budget is per-run, so replaying the same input program never exhausts it", () => {
+  // Round 4, @testing BLOCK-5. Their MD4 mutant — deleting run()'s reset of the stall counters —
+  // survived all 130 studio tests, and the consequence they measured is worse than a spurious
+  // cancel: run 34 of the SAME program stops before executing anything, so commitCancelledRead()
+  // republishes the PREVIOUS run's events under a "stopped" status. A completed run's output
+  // showing beneath a cancelled one. Third instance of covered-but-unasserted in this slice.
+  const store = OL.createStudioState({ source: ASK_NAME_SOURCE });
+  const controller = OL.createRunController(store, {
+    inputPrompt: createTestPromptHost(() => "tom"),
+  });
+
+  for (let run = 1; run <= OL.MAX_INPUT_REPLAY_RETRIES + 4; run += 1) {
+    controller.run();
+    assert.equal(
+      store.getState().runStatus,
+      "done",
+      `run ${run} must still complete — the retry budget belongs to one chain, not the session`,
+    );
+    assert.deepEqual(store.getState().output, ["before", "tom"]);
+    assert.deepEqual(store.getState().diagnostics, []);
+  }
+});
