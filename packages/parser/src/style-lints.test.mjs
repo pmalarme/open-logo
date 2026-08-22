@@ -1099,10 +1099,18 @@ test("ol-style-name-case: a mis-cased Heritage keyword's span covers exactly tha
 
 const INTERACTION_STYLE = ["core-language", "interaction-events"];
 
+/**
+ * Shared predicate rather than an inline arrow at each call site, deliberately: the repo's coverage
+ * gate counts `*.test.mjs` on Node 22, and `Array.filter`'s callback is never invoked on an empty
+ * array — so an arrow used only where the expected result is `[]` is a permanently uncalled
+ * function that drops this file below the 100% function bar (the same trap #882 hit). One predicate,
+ * exercised by the tests that DO find diagnostics, keeps every negative assertion honest and covered.
+ */
+const isNestedHandler = (diagnostic) =>
+  diagnostic.code === "ol-style-nested-handler";
+
 function nestedHandlerFindings(source) {
-  return checkStyle(source, INTERACTION_STYLE).filter(
-    (d) => d.code === "ol-style-nested-handler",
-  );
+  return checkStyle(source, INTERACTION_STYLE).filter(isNestedHandler);
 }
 
 test("ol-style-nested-handler: an every that registers an every is flagged once, at the inner span", () => {
@@ -1205,7 +1213,7 @@ test("ol-style-nested-handler: silent when the interaction-events profile is ina
   const diagnostics = OL.check(program, {
     profiles: ["core-language"],
     style: true,
-  }).diagnostics.filter((d) => d.code === "ol-style-nested-handler");
+  }).diagnostics.filter(isNestedHandler);
   assert.deepEqual(diagnostics, []);
 });
 
@@ -1214,8 +1222,5 @@ test("ol-style-nested-handler: never fires unless style checking is opted into",
   const diagnostics = OL.check(program, {
     profiles: INTERACTION_STYLE,
   }).diagnostics;
-  assert.deepEqual(
-    diagnostics.filter((d) => d.code === "ol-style-nested-handler"),
-    [],
-  );
+  assert.deepEqual(diagnostics.filter(isNestedHandler), []);
 });
