@@ -99,9 +99,8 @@ in the same slice before the mechanical one held.
 
 A tree can be `git status`-clean and still be measured wrong, because the **build** can diverge from
 the SHA while the working tree looks fine. #897 already proved the same tree measures differently on
-different platforms; the modes below — observed in saga #572's #840, #828, and #830 slices — show it
-can measure differently on the *same* platform. A reviewer must be able to state which **artifacts**
-it measured, not merely which SHA:
+different platforms; the rules below keep it from measuring differently on the *same* platform. A
+reviewer must be able to state which **artifacts** it measured, not merely which SHA:
 
 1. **Serialize — never mutate the tree while a reviewer is measuring it.** A session that dispatches
    QA reviewers into its own worktree has **two writers on one `dist`**: the reviewer rebuilds while
@@ -113,12 +112,14 @@ it measured, not merely which SHA:
    how rule 1 and "reviewers never edit the branch" hold together: a clean `npm ci`, a forced
    rebuild, and a mutation probe all have to write something. Clone the **exact SHA** to a scratch
    directory outside the repository and work there; nothing in it is ever committed or pushed, and
-   no other actor writes to it. Reading the implementing worktree is always fine; writing to it is
-   not.
-3. **Confirm a mutation actually applied before believing its result.** One session's string-replace
-   mutation did nothing (a CRLF mismatch) and the all-green suite read as "my test is not
-   load-bearing". `git diff` the file to confirm the change is present, then confirm it reached
-   `dist`. **A mutation you did not verify applied is not a mutation test.**
+   no other actor writes to it. **Read source the same way** — `git show <sha>:<path>`, or from that
+   checkout. Never read a mutable implementing worktree and treat it as the commit: a transient edit
+   made and reverted between your two `git status` checks is invisible to both, so you would have
+   read something that exists in no commit at all.
+3. **Confirm a mutation actually applied before believing its result.** A string-replace mutation
+   that silently matched nothing (a CRLF mismatch) once left an all-green suite reading as "my test
+   is not load-bearing". `git diff` the file to confirm the change is present, then confirm it
+   reached `dist`. **A mutation you did not verify applied is not a mutation test.**
 
 ## The checklist
 
