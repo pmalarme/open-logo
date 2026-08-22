@@ -1,0 +1,22 @@
+{
+  "description": "The `eof` arm of the group-operand recovery (issue #830 review, finding N9). An unterminated group consumes nothing, so it satisfies the recovery progress guard — but there is no token at end of input to step over, and its only real error is the unmatched `(`. Without the exclusion the parser prefixes a spurious `ol-bad-token {\"text\":\"end of file\"}`, naming a token that does not exist. This fixture exists because the stack-neutral corpus was BLIND to that rule: deleting the `eof` exclusion turned the unit test red while conformance stayed 834 passed / 0 failed. The two pre-existing `ol-unmatched-paren` fixtures both take the parenthesized-call branch, which is separately eof-guarded and never reaches this code, so no other implementation was held to it. Pinned as a `check` fixture; the harness returns parse diagnostics unchanged when parsing fails, so `check()` never runs and the single diagnostic below is the parse stage. Profiles match the positive twin `heritage-value-of-key-reader-in-parentheses` so the whole `(`-path family is asserted under one set (`spec/conformance.md:305`).",
+  "profiles": ["core-language", "data", "heritage"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unmatched-paren",
+      "source_span": {
+        "document": "heritage/check/heritage-unterminated-group-reports-only-unmatched-paren",
+        "start": [14, 7],
+        "end": [14, 8]
+      },
+      "params": {
+        "delimiter": "("
+      },
+      "message": "this ( doesn't have a matching parenthesis. a group needs both ( and ).",
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

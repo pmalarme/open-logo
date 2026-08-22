@@ -1518,23 +1518,36 @@ export function parse(source: string, document = "<input>"): ParseResult {
       // is already accounted for, and recovering again here would diagnose the innocent token
       // after it.
       //
-      // `eof` is excluded because there is no token there to step over: an unterminated `( `
-      // consumes nothing, so it satisfies the progress guard, but its only real error is the
-      // unmatched `(` reported below. Recovering would add a spurious
-      // `ol-bad-token {"text":"end of file"}` in front of it (issue #830 review).
+      // `eof` is excluded for clarity of intent, and is also implied: there is no token at end of
+      // input to step over. An unterminated `( ` consumes nothing, so it satisfies the progress
+      // guard, but its only real error is the unmatched `(` reported below — recovering would add
+      // a spurious `ol-bad-token {"text":"end of file"}` in front of it.
+      // {@link closesGroupAfterOneToken} independently rejects eof (its lookahead finds no `)`),
+      // so the two guards agree; the explicit test is kept so a future change to the lookahead
+      // cannot silently re-open the eof case, and
+      // `heritage-unterminated-group-reports-only-unmatched-paren` pins the outcome either way.
       //
       // {@link resync} rather than a blanket `badToken` so the token keeps whatever code
       // `spec/error-model.md` gives it — `( ] )` stays `ol-unmatched-bracket`, and `( end )` /
       // `( else )` stay `ol-mismatched-end` with their `expected` param, which is what statement
       // -level recovery would have reported before the group started consuming the token itself.
       //
-      // KNOWN LIMITATION, deliberately not fixed here: this recovers exactly ONE token, so a
-      // group whose operand is several tokens (`( value 1 )`, `( value value )`, `( value key )`)
-      // still reports `ol-unmatched-paren` for both of its balanced delimiters, and
-      // `if ( value ) [ … ]` still mis-blames the block-opening `[`. Clearing those needs
-      // delimiter-aware synchronisation to the matching `)`, a wider change than this slice is
-      // authorised for. Left exactly as found rather than half-fixed; the `( + 1 )` regression
-      // test asserts the full diagnostic list, so the wart is visible in-repo.
+      // KNOWN LIMITATION and a deliberate TRADE, both measured against the base commit:
+      //
+      // 1. PRE-EXISTING, untouched: this recovers exactly ONE token, so a group whose operand is
+      //    several tokens (`( value 1 )`, `( value value )`, `( value key )`) declines recovery
+      //    entirely and still reports `ol-unmatched-paren` for both of its balanced delimiters —
+      //    byte-identical to the base commit, order included.
+      // 2. NEW, introduced here: in a control-form header, `if ( value ) [ … ]` now reports
+      //    `ol-bad-token {"text":"["}` against the block-opening `[`, which is perfectly valid
+      //    syntax. The base never mentioned `[` — it reported two false `ol-unmatched-paren`
+      //    around the real error instead. So this trades two false diagnostics for one and names
+      //    the real error first; it is NOT a pre-existing wart, and it affects roughly 27 measured
+      //    shapes across `if`/`repeat`/`while`. Clearing it needs delimiter-aware synchronisation
+      //    to the matching `)`, wider than this slice is authorised for.
+      //
+      // The trade is asserted, not merely described — see the `if ( value ) [ … ]` regression
+      // test — so a future narrowing cannot change those shapes without a gate noticing.
       resync();
       skipNewlines();
     }

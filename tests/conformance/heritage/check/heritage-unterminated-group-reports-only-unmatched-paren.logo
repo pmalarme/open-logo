@@ -1,0 +1,14 @@
+# The `eof` arm of the group-operand recovery (issue #830 review, finding N9). An unterminated
+# group consumes nothing, so it satisfies the recovery's progress guard — but there is no token at
+# end of input to step over, and its only real error is the unmatched `(`. Without the exclusion
+# the parser prefixes a spurious `ol-bad-token {"text":"end of file"}`, naming a token that does
+# not exist.
+#
+# This fixture exists because the stack-neutral corpus was completely BLIND to that: deleting the
+# `eof` exclusion turned the unit test red while conformance stayed 834/0. The two pre-existing
+# `ol-unmatched-paren` fixtures both take the parenthesized-call branch, which is separately
+# eof-guarded and never reaches this code, so no other implementation was held to the rule.
+#
+# Profiles match the positive twin so the whole `(`-path family is asserted under one set
+# (`spec/conformance.md:305`).
+print (

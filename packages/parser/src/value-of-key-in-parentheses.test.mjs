@@ -323,6 +323,34 @@ test("the group recovery only fires when the operand consumed nothing", () => {
   );
 });
 
+test("a control-form header trades two false parens for one blamed `[`", () => {
+  // The NEW cost of the recovery, pinned so it cannot change unnoticed. In a block header the
+  // recovery consumes the rejected operand and reaches the `)`, so the group closes — and the
+  // control form then reads the block-opening `[` in a position it does not expect and blames it,
+  // though `[` is perfectly valid there.
+  //
+  // The base commit never mentioned `[`: it reported `ol-unmatched-paren` on BOTH balanced
+  // delimiters around the real error. So this is a deliberate trade of two false diagnostics for
+  // one, with the real error named first — not a pre-existing wart. Clearing it needs
+  // delimiter-aware synchronisation to the matching `)`, out of this slice's scope.
+  for (const head of ["if", "repeat", "while"]) {
+    const diagnostics = OL.parse(
+      `${head} (value) [ print 1 ]\n`,
+      doc,
+    ).diagnostics;
+    assert.deepEqual(
+      diagnostics.map((d) => d.code),
+      ["ol-bad-token", "ol-bad-token"],
+      `${head}: unexpected diagnostic set`,
+    );
+    assert.deepEqual(
+      diagnostics.map((d) => d.params.text),
+      ["value", "["],
+      `${head}: the trade changed shape`,
+    );
+  }
+});
+
 test("the group recovery keeps a delimiter's own diagnostic code", () => {
   // It reports through `resync()`, not a blanket `badToken`, so a token inside a group keeps the
   // code `spec/error-model.md` gives it rather than being flattened to a generic bad token.
