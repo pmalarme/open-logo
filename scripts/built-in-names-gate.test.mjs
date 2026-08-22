@@ -125,7 +125,6 @@ function tinyFixture() {
     WORDS: ["define"],
     coreArity: (name) => (name === "print" ? 1 : undefined),
     coreNames: () => ["print"],
-    canonicalOfHeritageAlias: () => undefined,
   };
   return { manifest, api };
 }
@@ -133,7 +132,7 @@ function tinyFixture() {
 /** An `io` port backed by an in-memory `{ path: text }` map plus an explicit existence set. */
 function fakeIo(files, existing = Object.keys(files)) {
   return {
-    readText: (path) => files[path] ?? "",
+    readText: (path) => files[path],
     exists: (path) => existing.includes(path),
   };
 }
@@ -480,6 +479,7 @@ test("INJECTED DRIFT: a profile that ships a primitive nobody registered is caug
 
 test("INJECTED DRIFT: a declared-not-yet-built accessor that quietly appears is caught", () => {
   const api = { ...realParserApi, tutorPrimitiveNames: () => ["challenge"] };
+  assert.deepEqual(api.tutorPrimitiveNames(), ["challenge"]);
   const result = runBuiltInNamesGate({ api });
   assert.equal(result.ok, false);
   assert.equal(
@@ -529,7 +529,7 @@ function proseIo(path, mutate) {
     [TOOLING_PATH]: path === TOOLING_PATH ? mutate(tooling) : tooling,
   };
   return {
-    readText: (candidate) => files[candidate] ?? REAL_IO.readText(candidate),
+    readText: (candidate) => files[candidate],
     exists: REAL_IO.exists,
   };
 }
@@ -678,7 +678,7 @@ test("accessorFindings rejects every value outside the closed vocabularies", () 
       },
     },
   };
-  const findings = accessorFindings(manifest, { y: () => undefined, z: [] });
+  const findings = accessorFindings(manifest, { y: [], z: [] });
   assert.deepEqual(findings, [
     'registry bad: category "colour" is outside the closed vocabulary [keyword, primitive]',
     'registry bad.lookup: kind "telepathy" is outside the closed vocabulary [array, record, arity, enumerator]',
@@ -703,6 +703,7 @@ test("registryHas answers through each accessor kind, and null when the answer i
   assert.equal(registryHas(at("record", "byProfile"), api, "ask"), true);
   assert.equal(registryHas(at("record", "byProfile"), api, "if"), false);
   assert.equal(registryHas(at("arity", "arity"), api, "print"), true);
+  assert.equal(registryHas(at("arity", "arity"), api, "if"), false);
   assert.equal(registryHas(at("enumerator", "names"), api, "fd"), true);
   assert.equal(
     registryHas(at("array", "words", "declared"), api, "end"),
