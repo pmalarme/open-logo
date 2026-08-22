@@ -64,6 +64,12 @@ export type DiagnosticCode = (typeof OL_DIAGNOSTIC_CODES)[number];
  * `ol-style-prefer-block` — the remaining four (`ol-style-full-name`, `ol-style-procedure-name`,
  * `ol-style-comment-style`, `ol-style-hidden-abstraction`) are tracked in the #169 follow-up
  * issue.
+ *
+ * Issue #828 adds `ol-style-nested-handler`, the first code in this family that is not sourced
+ * from `spec/style-guide.md`: it comes from the #828 ruling, which pairs the runtime's instruction
+ * budget (the guard that *bounds* unbounded handler accumulation) with a check-time lint that
+ * *teaches* why it happens. The budget catches; the lint explains. Registered normatively in
+ * `spec/tooling.md`'s "Layer 3: style lints" table alongside the other codes.
  */
 export const OL_STYLE_DIAGNOSTIC_CODES = [
   "ol-style-useless-value",
@@ -75,6 +81,7 @@ export const OL_STYLE_DIAGNOSTIC_CODES = [
   "ol-style-deep-nesting",
   "ol-style-block-indentation",
   "ol-style-prefer-block",
+  "ol-style-nested-handler",
 ] as const;
 
 /** A stable `ol-style-*` linter code. */
