@@ -184,7 +184,7 @@ test("`( not 1 )` stays a grouped unary, never a parenthesized call", () => {
   // `unary ::= "not" unary` (`spec/grammar.md:187`) inside a `parenthesized-expression`
   // (`spec/grammar.md:209`) — parenthesising groups the unary expression, it does not make `not` a
   // `callable-name`, and unlike `and`/`or` the spec gives `not` no paren form at all
-  // (`spec/commands.md:603-606`: "Signature: `not boolean`", "Kind: Reporter unary prefix").
+  // (`spec/commands.md:605-607`: "Signature: `not boolean`", "Kind: Reporter unary prefix").
   // Asserted separately so the sweep above cannot pass by conflating the two node kinds.
   const { ast } = OL.parse("print ( not true )\n", doc);
 
