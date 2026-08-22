@@ -161,13 +161,26 @@ npm run test         # node:test
 npm run coverage     # node:test 100% line/branch/function gate — verify on Node 22 (see .nvmrc)
 npm run conformance  # stack-neutral fixtures (placeholder until issue #6)
 npm run examples     # two gates: every spec/examples/*.logo file, then every ```logo block fenced in spec/ + docs/ markdown
+npm run built-in-names # spec/built-in-names.json vs the parser's registries, both directions + the prose lists
 ```
 
-These eight scripts are the CI-enforced Definition of Done; see
+These nine scripts are the CI-enforced Definition of Done; see
 [`docs/adr/0005-toolchain.md`](docs/adr/0005-toolchain.md) for why each tool was chosen (npm
 workspaces, `tsc -b`, Prettier, Biome, `node:test`), why coverage is pinned to Node 22, and the
 `typescript-eslint`/Vitest traps it avoids. Work in small, reviewable PRs and keep this file and the
 ADRs in sync as the toolchain evolves.
+
+`npm run built-in-names` asserts [`spec/built-in-names.json`](spec/built-in-names.json) — the
+**authoritative** list of every keyword and every primitive, aliases included, versioned with the
+spec ([ADR-0021](docs/adr/0021-built-in-names-list-and-ci-gate.md)) — against `@openlogo/parser`'s
+registries **in both directions**, comparing structured entries rather than a flat name set. It also
+gates the three hand-maintained prose lists that used to have nothing checking them: the normative
+keyword block in `spec/grammar.md`, the C19 mirror in `spec/tooling.md`, and `spec/tooling.md`'s
+`keyword` **token-class** enumeration — a different set from the keyword list on purpose
+(`spec/grammar.md:378`), which is why the manifest records only its *deltas* and the gate computes
+membership from them. **Adding a primitive is deliberately a two-file change** (the registry and the
+list) and this is the half that fails until both land. The list is under `spec/`, so it is
+maintainer-owned via `CODEOWNERS` like the rest of the contract.
 
 `npm run examples` is **two** gates behind one script. `scripts/check-examples.mjs` parses and
 executes every `spec/examples/*.logo` file whose required profiles are implemented, skipping the
