@@ -485,9 +485,10 @@ test("contextual: empty/member/a are keyword only immediately after is, and so i
 test("contextual: empty/member/of/a in a plain call position are ordinary names, not is-predicate keywords", () => {
   // `of` has a SECOND reader-recognized position — the Heritage `value of … for key` reader, where
   // it is `keyword` (issue #785, proven in `heritage-tooling.test.mjs`). These four bare calls are
-  // in no such position, so each falls through to the bare-name class. (That the fall-through class
-  // is `primitive` at all is the separate general defect #831; this test pins the contextual-word
-  // behaviour, not that choice.)
+  // in no such position, so each falls through to the bare-name class. (`spec/tooling.md:31` makes
+  // that fall-through class `primitive` normatively; what remains of defect #831 is only that
+  // `semanticTokens` then adds `defaultLibrary`, which `:31` forbids inferring. This test pins the
+  // contextual-word behaviour either way.)
   assert.equal(OL.highlight("print empty", doc).at(-1).class, "primitive");
   assert.equal(OL.highlight("print member", doc).at(-1).class, "primitive");
   assert.equal(OL.highlight("print of", doc).at(-1).class, "primitive");

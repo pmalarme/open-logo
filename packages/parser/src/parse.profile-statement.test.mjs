@@ -216,9 +216,11 @@ test("a user procedure named `tell` shadows the profile mode-switch command", ()
 });
 
 // --- Core-neutrality: define AND call a profile head as an ordinary procedure ---
-// spec/interaction-events.md §Profiles and reservation: "An implementation that does not declare
-// this profile does not reserve those words except through a vendor extension or an imported
-// alias." So a Core-only program must be free to both DECLARE and CALL these words. The reader is
+// A Core-only program is currently free to both DECLARE and CALL these words. That is SHIPPED
+// BEHAVIOUR, not a spec requirement: `spec/grammar.md:408` makes profile words built-in names
+// unconditionally, and #855 aligned `spec/interaction-events.md` with it, so a conforming
+// implementation must raise `ol-reserved-word` on the declaration. Retiring the gate is #841, which
+// flips these assertions. The reader is
 // profile-blind, so this proves the call side (not just the declaration side): a user-declared name
 // shadows the profile head, the trailing call parses as a `Call`, and the whole program is diagnostic
 // clean under Core-only checking. (End-to-end runtime execution — the call actually running the

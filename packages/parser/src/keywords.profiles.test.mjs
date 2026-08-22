@@ -9,12 +9,13 @@
 //   - Interaction active → when/every/on_key/on_click are keywords.
 //   - Core only        → ask/when are ordinary names AND the Core list is unchanged (non-regression).
 //
-// **The profile gate these tests pin is itself scheduled for removal.** `spec/grammar.md:408` now
+// **The profile gate these tests pin is a tracked deviation from the spec.** `spec/grammar.md:408`
 // says profile words are built-in names **unconditionally** — "what a profile decides is whether a
-// name *works*, never whether a program may declare it" — reversing the profile-conditional wording
-// the two profile documents still carry (aligning those is #855). The always-on built-in-names list
-// that retires the gate is #841. Until then these assertions describe the shipped behaviour, and the
-// citations above are to the sections as they read today, not to the reversed claim.
+// name *works*, never whether a program may declare it" — and issue #855 aligned the two profile
+// documents and `spec/tooling.md:100-104` with it, so no spec text carries the profile-conditional
+// wording any more. The always-on built-in-names list that retires the gate is #841. Until then
+// these assertions describe the shipped behaviour, and the section citations above are to the
+// sections that define these words, not to a profile-conditional reservation they no longer state.
 //
 // Runs under `node --test` against the built `@openlogo/parser` package.
 

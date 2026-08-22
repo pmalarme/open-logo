@@ -371,7 +371,7 @@ test("check: redefining an Interaction block-head is allowed under Core-only (no
 
 test("check: `wait` is a primitive, so redefining it under an active profile raises ol-reserved-word", () => {
   // `wait` is NOT a profile block-head (contrast the four heads above — it never appears in
-  // `OL_PROFILE_KEYWORDS`), but `spec/tooling.md:184` makes redefining a *primitive*
+  // `OL_PROFILE_KEYWORDS`), but `spec/tooling.md:185` makes redefining a *primitive*
   // `ol-reserved-word` all the same. That block-head/primitive distinction decides which BRANCH of
   // the checker reports it, and since issue #838 no longer shows up in the diagnostic at all:
   // `spec/error-model.md:125` gives the code `params: { name }` only, because whether the taken

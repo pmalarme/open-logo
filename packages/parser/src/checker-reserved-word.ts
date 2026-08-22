@@ -147,7 +147,7 @@
  * Issue #687 (I8, M5) extends the *primitive* branch to the Interaction & Events profile's `wait`
  * (`signatures.ts`'s `interactionPrimitiveArity`), gated on `"interaction-events"` exactly like the
  * Data/Geometry/Sound branches above. `wait` is an ordinary primitive rather than a profile
- * block-head, but `spec/tooling.md:184` makes redefining a *primitive* `ol-reserved-word` just the
+ * block-head, but `spec/tooling.md:185` makes redefining a *primitive* `ol-reserved-word` just the
  * same — the block-head/primitive distinction decides which branch reports it and under which
  * profile, not whether it is reportable at all. Without this, `wait` was the Interaction profile's
  * one primitive and yet the only one of the Data/Geometry/Sound/Interaction primitives a program
@@ -227,8 +227,11 @@ function unconditionalBuiltInName(name: string): boolean {
 
 /**
  * Is `name` a primitive of some **active** profile? The gated half of the primitive category, in
- * one place, so a profile slice adds exactly one branch here (`spec/tooling.md:184` "Required
- * behavior", applied against the active profile set per `:175-176`).
+ * one place, so a profile slice adds exactly one branch here (`spec/tooling.md:185` "Required
+ * behavior"). The active-profile gating here is shipped behaviour, not what that row requires:
+ * `:185` and `spec/grammar.md:408` make profile primitives built-in names whether or not their
+ * profile is claimed, while `:175-176` gates which names are *available* (the
+ * `ol-unknown-command` axis) — a different question from whether a name may be declared.
  *
  * Two properties this function exists to guarantee:
  *

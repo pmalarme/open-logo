@@ -539,7 +539,8 @@ export function interactionEventsBlockHeadNames(): readonly string[] {
  * its own active `sound` profile, `spec/tooling.md:175-176`), while the reader groups a bare call's
  * arguments for *any* recognized primitive regardless of profile — the profile-legality decision
  * belongs to the checker, not the reader. Sound command names are ordinary primitive names (not
- * reserved block-heads) when the profile is present (`spec/interaction-events.md`).
+ * reserved block-heads) whose availability requires the profile (`spec/interaction-events.md:47`;
+ * the names themselves are built-in unconditionally per `spec/grammar.md:408`).
  */
 const SOUND_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
   ["set_tempo", 1],

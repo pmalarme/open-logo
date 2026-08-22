@@ -151,7 +151,7 @@ Sprite `ask` addresses turtles. User input is the `input` reporter in the [Inter
 
 ## Reserved words in this profile
 
-`ask` and `each` are profile block-heads, and `tell` is a profile command that switches the addressed set without taking a block; all three are reserved only within the Sprites profile. They are not part of the Core reserved-word list in [grammar.md](grammar.md). When the Sprites profile is active, programs MUST NOT redefine them as variables, procedures, or struct constructors; doing so raises `ol-reserved-word`.
+`ask` and `each` are profile block-heads, and `tell` is a profile command that switches the addressed set without taking a block; all three are **built-in names unconditionally**, reserved in every implementation whether or not it claims the Sprites profile ([grammar.md](grammar.md#keywords-primitives-and-built-in-names)). They are not part of the Core reserved-word list in [grammar.md](grammar.md), and this profile gates their *behavior* rather than their *name*: what it decides is whether these words work, never whether a program may declare them. Declaring one at a declaration slot — `define`, the heritage `to`, `struct`, or the first operand of `alias` — raises `ol-reserved-word`. Binding a value to one is legal everywhere and MUST NOT raise a diagnostic, so `:tell = 1` and `set ask to 2` are conforming programs.
 
 ## Profile grammar
 
@@ -176,6 +176,6 @@ An implementation MUST report learner-facing diagnostics using the shape defined
 - a non-turtle input to `tell` or `ask` raises `ol-type`;
 - a list passed to `tell` or `ask` that contains a non-turtle value raises `ol-type`;
 - `each` outside an active addressed set still uses the current addressed set, which is the default turtle set at top level;
-- redefining `tell`, `ask`, or `each` while the profile is active raises `ol-reserved-word`.
+- declaring `tell`, `ask`, or `each` at a declaration slot — `define`, the heritage `to`, `struct`, or the first operand of `alias` — raises `ol-reserved-word` whether or not the profile is claimed; binding a value to one of those names never does.
 
 Messages should explain the intended mental model, for example: `tell needs a turtle or a list of turtles to choose who moves.`

@@ -113,9 +113,11 @@ const EXPRESSION_INITIAL_KEYWORDS: ReadonlySet<string> = new Set<string>([
  * has no hand-maintained exceptions at all.
  *
  * Scope is the **global Core registry only**. {@link OL_PROFILE_KEYWORDS} (`ask`/`each`/`tell`, the
- * four event heads) is deliberately excluded: those words are keywords only while their profile is
- * active, and this reader is profile-blind by design (see {@link PROFILE_STATEMENT_FORMS}) — a
- * Core-only program may legally `define ask … end` and call it. Rejecting them in value position is
+ * four event heads) is deliberately excluded: this reader is profile-blind by design (see
+ * {@link PROFILE_STATEMENT_FORMS}), so a Core-only program's `define ask … end` and its call are
+ * currently accepted. That acceptance is shipped behaviour, not what the spec requires —
+ * `spec/grammar.md:408` makes profile words built-in names unconditionally, and retiring the gate is
+ * #841's. Rejecting them in value position is
  * the profile-aware checker's job, not this set's (issue #864).
  *
  * The statement heads stay unaffected because {@link parseStatement} dispatches `add`/`remove`/
@@ -1704,10 +1706,12 @@ export function parse(source: string, document = "<input>"): ParseResult {
           break;
       }
       // A registered profile head becomes a profile statement (`ask`/`each`/`tell`, the four event
-      // heads) — the seam every M5 profile grammar slice hangs off. But these words are reserved
-      // only when their profile is active (C1 #663): a Core-only program may legally declare a
-      // procedure named `ask` (`define ask … end`) and call it, so a *user-declared* callable of the
-      // same spelling wins here and parses as an ordinary Core call. The reader stays profile-blind —
+      // heads) — the seam every M5 profile grammar slice hangs off. But these words are treated as
+      // reserved only when their profile is active (C1 #663 — shipped behaviour that
+      // `spec/grammar.md:408` makes unconditional; retiring the gate is #841): a Core-only program
+      // declaring a procedure named `ask` (`define ask … end`) and calling it is currently accepted
+      // by the shipped implementation, so a *user-declared* callable of the same spelling wins here
+      // and parses as an ordinary Core call. The reader stays profile-blind —
       // it never inspects the active profile set — and the checker (which does thread active
       // profiles) is what raises `ol-reserved-word` for a profile-active redefinition. Without this
       // guard the reader would mis-shape legitimate Core code (`define ask` / `ask`,
