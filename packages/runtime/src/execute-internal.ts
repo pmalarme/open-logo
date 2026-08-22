@@ -657,12 +657,14 @@ function isTurtleClearCall(statement: StatementNode): boolean {
  * the same instruction removes. `move` and `draw-segment` are independent events, so "moved but
  * drew nothing" is expressible without any renderer-side special case.
  *
- * The spec does **not** settle this explicitly — it never contemplated the homing being observable,
- * and :36 read as an exception-free rule over every pen-down `move` would instead require
- * `move`/`draw-segment`/`turn`/`clear` (same empty final scene, but a trace claiming a segment the
- * learner never drew). That reading was raised during this change's review gate; the decision here
- * is recorded and **escalated to the maintainer as issue #858** rather than silently settled.
- * Emitting the segment instead would be a one-line change.
+ * The spec does **not** settle this explicitly. It does make the homing reproducible — through the
+ * `clear` payload's mode (`spec/rendering.md:151`) — but says nothing about whether a *duplicate*
+ * `move`/`turn` representation of the same homing also carries a segment. Read as an exception-free
+ * rule over every pen-down `move`, :36 would instead require `move`/`draw-segment`/`turn`/`clear`
+ * (same empty final scene, but a trace claiming a segment the learner never drew). That reading was
+ * raised during this change's review gate; the decision here is recorded and **escalated to the
+ * maintainer as issue #858** rather than silently settled. Emitting the segment instead would be a
+ * one-line change.
  *
  * The `move` payload reports the heading the turtle *had* (heading is not changed by a position
  * move — same rule as {@link moveTurtleTo}); the following `turn` reports the reset to `0`, so a
@@ -724,13 +726,14 @@ function homeTurtleForClearScreen(
  * The spec's own stated mechanism for reproducing the homing is the `clear` payload's mode
  * (`spec/rendering.md:151`: the payload "MUST distinguish drawing-only clearing from
  * clear-and-home behavior so playback and debugging can reproduce state exactly"), so the homing
- * pair is a deliberate, permitted **superset** of that minimum rather than a replacement for it —
- * one that spares every consumer a `clear_screen`-shaped special case, since animation, stepping,
- * `why`, and `debug` already track position and heading through `move`/`turn` for every other
- * turtle command. Under `tell`, `spec/turtles-and-sprites.md:113` then applies directly:
- * implementations "MUST produce trace events with the appropriate turtle identity so animation,
- * stepping, `why`, and `debug` can explain which turtle moved or changed" — which a `clear` alone
- * cannot do for a *movement*.
+ * pair is a deliberate, permitted **superset** of that minimum rather than a replacement for it.
+ * It does **not** relieve a conforming consumer of :151's obligation to interpret the mode — a
+ * stamped `clear` already names the homed turtle. What it adds is that a generic `move`/`turn`
+ * observer of *this producer's* stream stays correct without a `clear_screen`-shaped special case,
+ * which is how animation, stepping, `why`, and `debug` already follow position and heading for
+ * every other turtle command. Under `tell`, `spec/turtles-and-sprites.md:113` then applies to these
+ * events directly: implementations "MUST produce trace events with the appropriate turtle identity
+ * so animation, stepping, `why`, and `debug` can explain which turtle moved or changed".
  *
  * The homing events come **before** the `clear`, which is the only order in which *every* prefix of
  * the stream folds to a state the runtime agrees with: `move` reports the pre-reset heading and

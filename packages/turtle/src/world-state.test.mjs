@@ -221,16 +221,26 @@ test("a stamped clear_screen clear homes only the turtle it names", () => {
 test("the runtime's full clear_screen triple homes only the turtle it names", () => {
   // The stream the runtime actually emits since issue #847: `move`/`turn`/`clear`, all three
   // stamped with the homed turtle. Folding the whole triple must reach the same world as folding
-  // the `clear` alone (above) and must still leave the other turtle alone - the `clear` fold is
-  // idempotent reinforcement of the explicit homing, not a second, competing home.
-  const world = OL.reduceTurtleWorldEvents([
+  // the `clear` alone - the `clear` fold is idempotent reinforcement of the explicit homing, not a
+  // second, competing home - and must still leave the other turtle alone. Asserted by comparing
+  // the two folds directly, so the stated equivalence is what fails if it ever breaks.
+  const before = [
     spawn(1),
     event("move", { from: [0, 0], to: [0, 50], heading: 90 }, 1),
     event("move", { from: [0, 0], to: [10, 0], heading: 45 }, 0),
+  ];
+  const clearOnly = OL.reduceTurtleWorldEvents([
+    ...before,
+    event("clear", { mode: "clear_screen" }, 1),
+  ]);
+  const world = OL.reduceTurtleWorldEvents([
+    ...before,
     event("move", { from: [0, 50], to: [0, 0], heading: 90 }, 1),
     event("turn", { from: 90, to: 0 }, 1),
     event("clear", { mode: "clear_screen" }, 1),
   ]);
+  assert.deepEqual(world.turtles.get(1), clearOnly.turtles.get(1));
+  assert.deepEqual(world.turtles.get(0), clearOnly.turtles.get(0));
   assert.deepEqual(world.turtles.get(1).position, [0, 0]);
   assert.equal(world.turtles.get(1).heading, 0);
   assert.deepEqual(world.turtles.get(0).position, [10, 0]);

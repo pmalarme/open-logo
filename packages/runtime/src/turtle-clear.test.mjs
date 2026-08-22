@@ -143,7 +143,7 @@ test("clear_screen emits its homing triple once per repeat iteration", () => {
   }
 });
 
-test("clear_screen inside a procedure homes the caller's turtle and reports the call-site span", () => {
+test("clear_screen inside a procedure homes the caller's turtle and reports the clear_screen statement's own span", () => {
   const result = execute(
     ["define wipe", "  clear_screen", "end", "forward 10", "wipe"].join("\n"),
     "main.logo",
@@ -162,15 +162,16 @@ test("clear_screen inside a procedure homes the caller's turtle and reports the 
     heading: 0,
   });
   // The homing events sit between the procedure's enter/exit and carry the `clear_screen` call's
-  // own span (line 2), not the call site of `wipe`.
+  // own span (line 2), not the call site of `wipe` (line 5).
   for (const event of homing.slice(1)) {
     assert.equal(event.source_span.start[0], 2);
   }
   const kinds = result.events.map((event) => event.kind);
-  assert.ok(
-    kinds.indexOf("procedure-enter") < kinds.indexOf("clear") &&
-      kinds.indexOf("clear") < kinds.indexOf("procedure-exit"),
-  );
+  // Guarded so the ordering comparison below cannot pass vacuously on a missing (-1) index.
+  assert.ok(kinds.includes("procedure-enter"));
+  assert.ok(kinds.includes("procedure-exit"));
+  assert.ok(kinds.indexOf("procedure-enter") < kinds.indexOf("clear"));
+  assert.ok(kinds.indexOf("clear") < kinds.indexOf("procedure-exit"));
 });
 
 test("clear_screen homes the turtle internally: a following forward draws from the origin", () => {
