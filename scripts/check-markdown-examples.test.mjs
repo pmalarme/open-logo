@@ -505,7 +505,7 @@ test("a defect raised inside setup-supplied code fails unsuppressibly and cannot
       { kind: "prose-fragment", codes: ["ol-type"] },
       result,
     ),
-    /setup" preamble is broken/,
+    /"setup" preamble is not usable as written/,
   );
 });
 test("analyzeBlock reports a malformed setup as an internal failure rather than crashing", () => {
@@ -887,7 +887,7 @@ test("describeExpectationMismatch blames a broken setup on the entry, not the do
         setupError: "ol-undefined-var: :nope has no value yet",
       },
     ),
-    /this entry's own "setup" preamble is broken \(ol-undefined-var[^)]*\) — fix the preamble/,
+    /this entry's "setup" preamble is not usable as written \(ol-undefined-var[^)]*\) — fix the preamble in the expectations manifest/,
   );
 });
 
@@ -905,7 +905,10 @@ test("the gate fails an entry whose setup preamble is itself broken", () => {
     ],
   });
   assert.equal(result.ok, false);
-  assert.match(result.lines[0], /this entry's own "setup" preamble is broken/);
+  assert.match(
+    result.lines[0],
+    /this entry's "setup" preamble is not usable as written/,
+  );
 });
 
 test("the gate runs a listed excerpt to completion when its setup supplies the context", () => {

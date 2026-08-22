@@ -41,8 +41,9 @@
  * a blocking `input` read, scripting the answer the learner would have typed.) Where that is
  * impossible — a block whose whole point is the error it stops on — the limit is **made visible
  * rather than claimed away**: the block is reported as `PARTIAL` with its own count in the summary
- * line, naming the line execution stopped at. One of 315 blocks is `PARTIAL` today. Do not read a
- * green run as "every line of every block executed".
+ * line, naming the line execution stopped at. The gate prints the live totals on every run, so no
+ * number is quoted here to go stale. Do not read a green run as "every line of every block
+ * executed".
  *
  * **Determinism.** The instruction budget is fixed ({@link DOCUMENTATION_INSTRUCTION_BUDGET}) and
  * file order is a code-unit sort, so a run is reproducible. One exposure remains: blocks that call
@@ -710,7 +711,7 @@ export function describeExpectationMismatch(expectation, analysis) {
     return `the gate itself threw (${analysis.internalError}), which no expectation may declare`;
   }
   if (analysis.setupError !== null) {
-    return `this entry's own "setup" preamble is broken (${analysis.setupError}) — fix the preamble, it is not documentation`;
+    return `this entry's "setup" preamble is not usable as written (${analysis.setupError}) — fix the preamble in the expectations manifest; it is not documentation prose`;
   }
   if (expectation.kind === "profile-not-implemented") {
     const declared = [...expectation.profiles].sort();
