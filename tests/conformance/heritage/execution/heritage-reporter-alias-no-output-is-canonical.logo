@@ -1,0 +1,9 @@
+# Issue #787: the reporter-position alias path reaching the user procedure's NO-OUTPUT guard.
+# `forward` is a command here — it never reaches `return` — so using it as a reporter is
+# `ol-no-output`. Fixtured because this diagnostic carries `params.procedure`, a DIFFERENT param
+# name from the arity diagnostics' `params.callable`, and params on this path are exactly what
+# this saga has gotten wrong five times.
+define forward
+  print 1
+end
+print fd

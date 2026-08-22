@@ -1,0 +1,78 @@
+{
+  "description": "Issue #787's HOST CRASH, executed. A Heritage short alias in REPORTER position whose canonical is a user procedure — `define forward … return 55 … end` then `print fd` — used to escape a raw JavaScript `TypeError: Cannot read properties of undefined (reading 'params')` to the embedder, with no `ol-*` diagnostic, no span, and no graceful stop. `spec/error-model.md` admits no such outcome: every failure must surface as a diagnostic a learner can act on, and a studio session would instead have watched the environment fall over. The cause was a two-name disagreement inside one call: `evaluate.ts`'s expression chokepoint resolved `fd` to `forward` for DISPATCH (so `environment.procedures.has(\"forward\")` matched) but handed the UNRESOLVED node on to `callProcedure`, whose `runProcedureBody` re-derives its lookup key from `node.callee.name` — it looked up `fd`, got `undefined`, and dereferenced it. The statement path never had this bug because `canonicalizeHeritageAliasCall` rewrites the callee before dispatching, so the fix makes the expression path rewrite too rather than adding a guard. The conforming outcome is not a diagnostic at all: `fd` IS `forward` (`spec/conformance.md:146`, \"alternate spellings only. It does not add new semantics\"), so the alias reaches whatever `forward` means — here the learner's own procedure — and prints 55. The event stream proves the canonicalization is total: `procedure-enter`/`procedure-exit` carry `name` `\"forward\"`, never the surface `fd`, while the `source_span`s still point at the two columns of `fd` the learner actually wrote. Note this reproduces only via `execute()`: `execute()` runs `parse()` only and NEVER `check()`, so no checker fix could have closed it (the same cross-stage split as #741). `\"execute\": true` for exactly that reason. TRANSITIONAL FIXTURE (ruling #833, slice #839): #833 rules that a built-in name may never be REGISTERED, and every one of the thirteen Heritage alias canonicals — `forward`, `butfirst`, `print`, … — is a built-in name (verified against the registry, not assumed). So once #839 adds the runtime phase-1 guard, `define forward` halts before phase 2 and NO source-level fixture can reach this branch any more — this one and its sibling `heritage-reporter-alias-arity-diagnostic-is-canonical` both stop being expressible as source→events, because the very setup they need becomes an error. They are therefore transitional by construction. The production fix is NOT transitional: the crash is live today (#839 is unmerged and `execute()` enforces nothing itself), and the defect underneath it is two chokepoints in one call path deriving the callee name differently, which is wrong however the naming rules land — `evaluate()` and `Environment` are lower-level surfaces a host can drive directly. When #839 lands, whoever owns it should carry this regression forward as a lower-level evaluator test rather than simply deleting the fixtures, so the chokepoint agreement stays pinned once the source-level route is gone.",
+  "profiles": ["core-language", "data", "turtle-rendering", "heritage"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-reporter-alias-reaches-canonical-user-procedure",
+        "start": [5, 1],
+        "end": [7, 4]
+      },
+      "payload": { "statement_kind": "ProcedureDef" }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-reporter-alias-reaches-canonical-user-procedure",
+        "start": [8, 1],
+        "end": [8, 9]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 2,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "heritage/execution/heritage-reporter-alias-reaches-canonical-user-procedure",
+        "start": [8, 7],
+        "end": [8, 9]
+      },
+      "payload": { "name": "forward", "args": [] }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-reporter-alias-reaches-canonical-user-procedure",
+        "start": [6, 3],
+        "end": [6, 12]
+      },
+      "payload": { "statement_kind": "Return" }
+    },
+    {
+      "seq": 4,
+      "kind": "return",
+      "source_span": {
+        "document": "heritage/execution/heritage-reporter-alias-reaches-canonical-user-procedure",
+        "start": [6, 3],
+        "end": [6, 12]
+      },
+      "payload": { "value": 55 }
+    },
+    {
+      "seq": 5,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "heritage/execution/heritage-reporter-alias-reaches-canonical-user-procedure",
+        "start": [8, 7],
+        "end": [8, 9]
+      },
+      "payload": { "name": "forward", "result": 55 }
+    },
+    {
+      "seq": 6,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/heritage-reporter-alias-reaches-canonical-user-procedure",
+        "start": [8, 1],
+        "end": [8, 9]
+      },
+      "payload": { "values": [55] }
+    }
+  ],
+  "diagnostics": []
+}

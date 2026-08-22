@@ -1,0 +1,8 @@
+# Issue #787's host-crash repro, EXECUTED. A Heritage short alias in REPORTER position whose
+# canonical is a user procedure. `execute()` runs `parse()` only and never `check()`, so this path
+# is the runtime's alone. Before the fix it raised a raw host `TypeError` instead of any `ol-*`
+# diagnostic; it must simply run the user's `forward` and print 55.
+define forward
+  return 55
+end
+print fd

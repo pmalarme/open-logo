@@ -2150,6 +2150,10 @@ export function executeRemoveKey(
  * payload. A user procedure whose name is the alias's surface spelling shadows the alias (`define bf
  * … end` makes `bf` the user's procedure), mirroring the statement chokepoint's guard: when the
  * surface name is a registered procedure we keep it so the call dispatches to that procedure.
+ *
+ * This resolves the **dispatch name** only; a call that dispatches onward to a *user procedure*
+ * must also carry the resolved name on the node itself — see {@link withResolvedCallee}, and issue
+ * #787 for what happened while it did not.
  */
 function resolveHeritageAliasName(
   node: ArithmeticCallNode,
@@ -2161,6 +2165,39 @@ function resolveHeritageAliasName(
     return surface;
   }
   return canonical.toLowerCase();
+}
+
+/**
+ * Rewrite `node`'s callee to the `name` {@link resolveHeritageAliasName} resolved, preserving the
+ * original `callee.source_span` (so a diagnostic still points at the alias the learner wrote) and
+ * `args` — the expression-position counterpart of `execute-internal.ts`'s
+ * `canonicalizeHeritageAliasCall`, which does exactly this for statements. A node whose callee
+ * already spells `name` — every Core-spelled call, and an alias shadowed by a same-named user
+ * procedure — is returned **unchanged**, so this is a strict no-op outside Heritage.
+ *
+ * Issue #787: without it the expression chokepoint resolved the alias for *dispatch* only and then
+ * handed the **unresolved** node to `callProcedure`, whose `runProcedureBody` re-derives the lookup
+ * key from `node.callee.name`. The two therefore disagreed, and `print fd` against a user
+ * `define forward … end` looked up `fd`, found nothing, and dereferenced `undefined` — a raw host
+ * `TypeError` escaping to the embedder instead of any `ol-*` diagnostic, which
+ * `spec/error-model.md` never permits as an outcome. The statement path had no such bug precisely
+ * because it rewrites the node before dispatching, so making this path rewrite too removes the
+ * divergence rather than papering over it: `print fd` now runs the user's `forward` and reports
+ * `ol-not-enough-inputs`/`ol-too-many-inputs` (`params.callable`) and `ol-no-output`
+ * (`params.procedure`) against it exactly as `print forward` does, each carrying the CANONICAL
+ * name. That is the rule issues #670/#733/#741 established for the params on *this* kind of path —
+ * a name identifying the callable a diagnostic is about. It is not a blanket claim about every
+ * param: `ol-reserved-word`'s `name` is deliberately the SURFACE spelling, because its subject is
+ * the registration the learner wrote at that very span (`spec/error-model.md:124`, issue #737).
+ */
+function withResolvedCallee(
+  node: ArithmeticCallNode,
+  name: string,
+): ArithmeticCallNode {
+  if (node.callee.name.toLowerCase() === name) {
+    return node;
+  }
+  return { ...node, callee: { ...node.callee, name } };
 }
 
 function evaluateCall(
@@ -2289,7 +2326,10 @@ function evaluateCall(
     return evaluateInput(node, environment);
   }
   if (environment.procedures.has(name)) {
-    return environment.callProcedure(node, environment);
+    return environment.callProcedure(
+      withResolvedCallee(node, name),
+      environment,
+    );
   }
   if (environment.structs.has(name)) {
     return evaluateStructConstructor(
