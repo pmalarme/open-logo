@@ -87,11 +87,11 @@ DAG below states a dependency, including the annotated cross-dependencies on **D
 
 The **Geometry** profile provides the derived, source-shown standard library described in
 [geometry-module.md](geometry-module.md). Most geometry procedures are written in OpenLogo and build
-on Core control plus Turtle & Rendering behavior; they are not opaque primitive shortcuts. Because
-v0.1.0 has no import or prelude hook — Modules is a separate profile and is not specified in this
-draft — a program obtains those procedures by declaring their source itself, which is also why they
-are library procedures rather than built-in names (see
-[grammar.md](grammar.md#keywords-primitives-and-built-in-names)). The
+on Core control plus Turtle & Rendering behavior; they are not opaque primitive shortcuts, and they
+are therefore library procedures rather than built-in names (see
+[grammar.md](grammar.md#keywords-primitives-and-built-in-names)). This specification defines no
+automatic preload of that library: a program obtains those procedures by declaring their source, or
+by importing a module that does under the **Modules** profile. The
 `grid`, `axes`, and `measure` overlays are the exception: they are renderer-backed primitives that
 draw onto renderer overlay layers, specified behaviorally rather than as OpenLogo source. The
 `area` and `perimeter` reporters read their shape-spec argument by list index (`:shape[2]`), which

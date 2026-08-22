@@ -1638,7 +1638,7 @@ set_color "#3366ff"
 
 The color concept is representation: the same visible idea can be named, measured as red-green-blue components, or encoded as a hex word.
 
-## Related primitives owned elsewhere
+## Related commands and library procedures owned elsewhere
 
 - Geometry shapes such as `polygon :sides :size`, `star :points :size (:step 2)`, `circle :radius (:segments 36)`, `arc :angle :radius`, `area :shape`, and `perimeter :shape` are derived standard-library procedures written in OpenLogo source, specified in [geometry-module.md](geometry-module.md). The `grid`, `axes`, and `measure` overlays are the exception: they are renderer-backed **primitives**, specified behaviorally in the same document, so they are built-in names while the derived shapes are not (see [grammar.md](grammar.md#keywords-primitives-and-built-in-names)).
 - Data-profile mutation and structure primitives such as `list`, `add … to`, `remove … from`, `insert … in … at`, `clear`, dictionary literals, `keys`, `values`, `struct`, constructors, and record fields are specified in [data-structures.md](data-structures.md).
