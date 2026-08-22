@@ -34,7 +34,7 @@ tries to build your tree; it only catches the second kind if you ask the checker
 a tree to check. Forget a closing `]`, or leave a `define` without an `end`, and you'll never get
 that far:
 
-```
+```logo
 define add_one :n
   return :n + 1
 ```
@@ -48,7 +48,7 @@ doesn't add up once OpenLogo looks at the whole picture — you called a command
 or read a variable you never set. This is where **the checker** — the same optional helper
 introduced back on page 01 — steps in. Type this:
 
-```
+```logo
 prnt
 ```
 

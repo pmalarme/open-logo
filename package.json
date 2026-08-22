@@ -25,7 +25,8 @@
     "coverage": "node scripts/coverage.mjs",
     "preconformance": "npm run -s build",
     "conformance": "node scripts/conformance.mjs",
-    "examples": "node scripts/check-examples.mjs",
+    "preexamples": "npm run -s build",
+    "examples": "node scripts/check-examples.mjs && node scripts/check-markdown-examples.mjs",
     "clean": "tsc -b --clean"
   },
   "devDependencies": {

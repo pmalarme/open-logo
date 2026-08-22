@@ -160,7 +160,7 @@ npm run format:check # Prettier
 npm run test         # node:test
 npm run coverage     # node:test 100% line/branch/function gate — verify on Node 22 (see .nvmrc)
 npm run conformance  # stack-neutral fixtures (placeholder until issue #6)
-npm run examples     # parse + execute every spec/examples/*.logo whose required profiles are implemented; skip the rest with a visible notice
+npm run examples     # two gates: every spec/examples/*.logo file, then every ```logo block fenced in spec/ + docs/ markdown
 ```
 
 These eight scripts are the CI-enforced Definition of Done; see
@@ -168,6 +168,28 @@ These eight scripts are the CI-enforced Definition of Done; see
 workspaces, `tsc -b`, Prettier, Biome, `node:test`), why coverage is pinned to Node 22, and the
 `typescript-eslint`/Vitest traps it avoids. Work in small, reviewable PRs and keep this file and the
 ADRs in sync as the toolchain evolves.
+
+`npm run examples` is **two** gates behind one script. `scripts/check-examples.mjs` parses and
+executes every `spec/examples/*.logo` file whose required profiles are implemented, skipping the
+rest with a visible notice. `scripts/check-markdown-examples.mjs` (issue #850, logic in
+`scripts/markdown-examples-gate.mjs`) then does the same for every ` ```logo ` block fenced inside
+`spec/**.md` and `docs/**.md` — the "and doc examples" half of the Definition of Done, previously
+unenforced, which is how a `set_shape "bee"` example that raises `ol-type` shipped inside a 0.1.0
+conformance claim.
+
+**Write OpenLogo source in prose inside a ` ```logo ` fence.** The gate keys on that info string, so
+a program in a bare ` ``` ` fence is never checked and silently erodes the corpus. Use a different
+info string (` ```text `, ` ```ebnf `) for anything that is *not* OpenLogo source, such as sample
+output, diagnostics, or grammar productions.
+
+**The rule the gate enforces is uniform:** a block either runs completely clean, or it carries an
+entry in `scripts/markdown-examples-expectations.json` that declares — and therefore **asserts** —
+exactly what it produces. There is no automatic tolerance, so a misspelled command or variable in an
+excerpt fails like any other defect. Never add an entry to silence a real defect: record it as
+`known-broken` with its tracking issue and route it to the document's owner (`spec/` is
+maintainer-owned). One honest limit, which the gate reports as `PARTIAL` rather than hiding:
+execution stops at a block's first runtime error, so lines below it are parsed and statically
+checked but not run. See [ADR-0022](docs/adr/0022-documentation-example-gate.md).
 
 `npm run coverage` runs through a thin deterministic wrapper (`scripts/coverage.mjs`, logic in
 `scripts/coverage-gate/classify.mjs`) rather than invoking `node --test` directly. Node's parallel

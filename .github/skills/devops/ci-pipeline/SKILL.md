@@ -23,7 +23,7 @@ Every merge to `main` must pass the same gates. This skill is how you wire and e
 | lint + format | Biome (lint) + Prettier (format) + OpenLogo style-lint | when `package.json` exists |
 | unit | package unit tests | when `package.json` exists |
 | **conformance** | stack-neutral `tests/conformance/` fixtures, **by profile along the DAG** | when fixtures exist |
-| integration + examples | vertical-slice integration + every `spec/examples/*.logo` still runs | when `package.json` exists |
+| integration + examples | vertical-slice integration + every `spec/examples/*.logo` **and** every ` ```logo ` block fenced in `spec/**.md` / `docs/**.md` (issue #850) still runs | when `package.json` exists |
 
 ### gh-aw compile-drift gate (issue #597)
 
