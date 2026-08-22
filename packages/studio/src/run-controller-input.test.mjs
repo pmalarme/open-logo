@@ -868,15 +868,8 @@ test("the run controller resolves every read through resolveRecordedAnswer, so a
   assert.deepEqual(host.prompts, ["how many sides?", "what colour?"]);
   assert.deepEqual(
     store.getState().output,
-    [
-      OL.resolveRecordedAnswer(
-        [{ prompt: "how many sides?", answer: "5" }],
-        0,
-        "how many sides?",
-      ).answer,
-      "red",
-    ],
-    "each value must be the answer resolveRecordedAnswer reports for ITS OWN question",
+    ["5", "red"],
+    "each value must be the answer given for ITS OWN question",
   );
 });
 
@@ -926,4 +919,57 @@ test("a DIVERGED replay re-asks the learner through the real controller, never s
   } finally {
     Date.now = realDateNow;
   }
+});
+
+test("a chain that can never converge is abandoned rather than looped forever (@testing N12)", () => {
+  // Round 3, @testing N12: their M8 mutant did not fail, it HUNG — 90s timeout. `pump()` is a
+  // `do … while (pumpAgain)` loop, and a SYNCHRONOUS host (the shape a `window.prompt`-backed one
+  // would have, and the shape these tests use) plus systematic divergence is an unbounded loop with
+  // no yield, i.e. a hung tab. Alternating the pinned clock between the two branch-selecting seeds
+  // makes every single attempt diverge, which is that scenario exactly — deterministically.
+  const realDateNow = Date.now;
+  let executions = 0;
+  Date.now = () => (executions++ % 2 === 0 ? 1 : 7);
+
+  try {
+    const store = OL.createStudioState({
+      source: [
+        'if (random 2) == 0 [ :answer = input "A?" ] else [ :answer = input "B?" ]',
+        "print :answer",
+      ].join("\n"),
+    });
+    const host = createTestPromptHost((prompt) => `answered-${prompt}`);
+
+    OL.createRunController(store, { inputPrompt: host }).run();
+
+    assert.equal(
+      executions,
+      OL.MAX_INPUT_ATTEMPTS,
+      "the chain must stop at the cap, never run unbounded",
+    );
+    assert.equal(store.getState().runStatus, "stopped");
+    assert.deepEqual(
+      store.getState().diagnostics.map((diagnostic) => diagnostic.code),
+      ["ol-limit"],
+      "an abandoned chain ends the read the only other way the spec allows — the runtime's own " +
+        "cancellation, never a studio-invented diagnostic",
+    );
+    assert.deepEqual(store.getState().output, []);
+  } finally {
+    Date.now = realDateNow;
+  }
+});
+
+test("a chain well inside the cap is unaffected by it", () => {
+  const store = OL.createStudioState({ source: ASK_NAME_SOURCE });
+  const host = createTestPromptHost(() => "tom");
+
+  OL.createRunController(store, { inputPrompt: host }).run();
+
+  assert.ok(
+    OL.MAX_INPUT_ATTEMPTS > 2,
+    "the cap must leave room for ordinary chains",
+  );
+  assert.equal(store.getState().runStatus, "done");
+  assert.deepEqual(store.getState().output, ["before", "tom"]);
 });

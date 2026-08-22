@@ -243,6 +243,23 @@ import {
 /** The document identifier passed to `execute()` when the caller doesn't supply one. */
 export const DEFAULT_RUN_DOCUMENT = "studio-session";
 
+/**
+ * How many executions one `input` attempt chain may take before the run is abandoned (#769).
+ *
+ * A well-behaved chain costs N+1 executions for N reads, so this is far above any plausible
+ * learner program. It exists for the case a chain cannot converge: a *diverged* replay re-asks the
+ * question it actually reached, and if the divergence is systematic — nondeterminism that keeps
+ * choosing a different question, issue **#881** — every attempt can diverge again. With the
+ * studio's asynchronous `<dialog>` host each iteration needs a learner action, so that is merely
+ * tedious; with a **synchronous** host (the shape a `window.prompt`-backed one would have, and the
+ * shape this module's own tests use) it is an unbounded loop with no yield, i.e. a hung tab.
+ *
+ * Reaching the cap ends the run the only other way `spec/interaction-events.md:110-111` allows —
+ * the read is left unanswered — so it surfaces as the runtime's own `ol-limit`/`cancelled`
+ * diagnostic at the waiting `input`, exactly like a dismissed prompt. No studio-invented diagnostic.
+ */
+export const MAX_INPUT_ATTEMPTS = 64;
+
 /** Optional configuration for {@link createRunController}. */
 export interface RunControllerOptions {
   /** The document identifier passed to `execute()`. Defaults to {@link DEFAULT_RUN_DOCUMENT}. */
@@ -568,6 +585,9 @@ export function createRunController(
   // is settling has already been superseded.
   let pumping = false;
   let pumpAgain = false;
+  // How many executions the current chain has taken (#769) — bounded by MAX_INPUT_ATTEMPTS so a
+  // chain that cannot converge ends rather than looping. Reset by run()/reset(), like `answers`.
+  let attemptCount = 0;
 
   /** Push `current`'s folded per-turtle world/scene into the shared store and repaint (never
    * called with a null animation — callers only invoke this once `animation` has been
@@ -841,6 +861,15 @@ export function createRunController(
     try {
       do {
         pumpAgain = false;
+        attemptCount += 1;
+        if (attemptCount > MAX_INPUT_ATTEMPTS) {
+          // #769 — this chain is not converging (see MAX_INPUT_ATTEMPTS). End it the only other
+          // way a read can end, publishing the cancellation the last attempt already produced,
+          // rather than looping forever on a synchronous host.
+          commitCancelledRead();
+          state.setRunStatus("stopped");
+          return;
+        }
         playCurrentAttempt(prepare(chainSource, options?.inputPrompt));
       } while (pumpAgain);
     } finally {
@@ -860,6 +889,7 @@ export function createRunController(
     // for every attempt this chain makes.
     answers = [];
     shownEventCount = 0;
+    attemptCount = 0;
     promptGeneration += 1;
     promptOutstanding = false;
     chainSource = state.getState().source;
@@ -884,6 +914,7 @@ export function createRunController(
     chainSource = "";
     attemptDiagnostics = [];
     shownEventCount = 0;
+    attemptCount = 0;
     signal.aborted = false;
     userStopped = false;
     state.setOutput([]);

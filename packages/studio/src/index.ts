@@ -245,7 +245,8 @@
  *   `"done"` value, keeping the existing `aria-live` announcement in sync with the visible label.
  *
  * #769 wires the studio's prompt UI to the blocking `input` reader seam #681 shipped in
- * `@openlogo/runtime`, so a learner in the browser can actually answer `input "what is your name?"`: * - {@link createInputPromptController} (`input-prompt.ts`) is the headless prompt: an
+ * `@openlogo/runtime`, so a learner in the browser can actually answer `input "what is your name?"`:
+ * - {@link createInputPromptController} (`input-prompt.ts`) is the headless prompt: an
  *   {@link InputPromptHost} the run controller `present()`s an outstanding read through, plus the
  *   {@link InputPromptView} a renderer paints and the {@link INPUT_PROMPT_FOCUS_ORDER} focus scope
  *   that keeps it keyboard-operable. `submit()`/`cancel()` are the learner's two endings, and
@@ -344,6 +345,7 @@ export type {
 } from "./run-controller.js";
 export {
   DEFAULT_RUN_DOCUMENT,
+  MAX_INPUT_ATTEMPTS,
   createRunController,
   mountRunController,
   resolveRecordedAnswer,
