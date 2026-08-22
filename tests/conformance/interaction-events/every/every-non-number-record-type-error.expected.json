@@ -1,0 +1,62 @@
+{
+  "description": "issue #775 (review gate): `every :p` where `:p` is a RECORD -- the twin of `wait/wait-non-number-dict-type-error`, completing `params.actual` across every `OLTypeName` outside `number`/`word` alongside the list, boolean, and turtle fixtures. Before them the whole corpus (`wait`, `every`, `repeat`, `random`) pinned `actual` as only `number` or `word`, so an implementation could report anything at all for a record and still pass -- confirmed by mutation. `spec/error-model.md` requires an `ol-type` to \"name the expected learner concept, such as number, word, list, dict, record, or boolean\", so calling a record a word would violate a MUST. The record's CONTENTS are genuinely compared: the harness unwraps an `OLRecord` into a plain field->value object before deep-comparing, and the reserved `__type` key opts in to asserting WHICH struct type it is (`tests/conformance/README.md`, \"Dict/record contents\" and \"Record struct type\") -- both are used here, so a `point`-shaped stand-in or a record with different field values fails. Needs the Data profile only to CONSTRUCT the value; the check under test is the Interaction one. The `struct` declaration and the assignment each emit their own instruction event first; the check fails BEFORE registration, so no `primitive` event is emitted and no handler is registered, and the span covers just the count argument.",
+  "profiles": ["core-language", "data", "interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-non-number-record-type-error",
+        "start": [1, 1],
+        "end": [1, 27]
+      },
+      "payload": {
+        "statement_kind": "StructDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-non-number-record-type-error",
+        "start": [2, 1],
+        "end": [2, 21]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-non-number-record-type-error",
+        "start": [3, 1],
+        "end": [3, 23]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "interaction-events/every/every-non-number-record-type-error",
+        "start": [3, 7],
+        "end": [3, 9]
+      },
+      "params": {
+        "expected": "whole number",
+        "actual": "record",
+        "value": { "__type": "person", "name": "ada", "age": 36 },
+        "operation": "every"
+      },
+      "message": "every needs a whole number, but got a record.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

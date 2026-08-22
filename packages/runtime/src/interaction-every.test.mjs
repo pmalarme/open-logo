@@ -189,7 +189,16 @@ test("every with a non-whole count raises ol-type", () => {
   assert.equal(result.diagnostics.length, 1);
   const diagnostic = result.diagnostics[0];
   assert.equal(diagnostic.code, "ol-type");
-  assert.equal(diagnostic.params.operation, "every");
+  // Exact params, not just the code: `params` are part of a diagnostic's identity
+  // (`spec/error-model.md`) and the conformance harness compares them exactly. Asserting only
+  // `code`/`operation` is precisely what let `wait`'s wording drift away from `every`'s until
+  // issue #775 caught it, so the twin is pinned the same way here.
+  assert.deepEqual(diagnostic.params, {
+    expected: "whole number",
+    actual: "number",
+    value: 2.5,
+    operation: "every",
+  });
   // The type check fails BEFORE registration — no `primitive(every)` event, and no handler runs.
   assert.deepEqual(effectEvents(result), []);
 });
@@ -211,11 +220,148 @@ test("every with a negative count raises ol-range", () => {
   assert.deepEqual(diagnostic.params, { operation: "every", value: -3 });
 });
 
+test("a WORD that reads as a non-positive number still raises ol-range, with the coerced value", () => {
+  // The RANGE arm reached through a word. `spec/execution-model.md:33-34` accepts a word that
+  // parses as a number wherever a number is expected, so `every "0"` must reach the same `ol-range`
+  // the literal `0` does. Nothing exercised that composition: every range case passed a number
+  // literal, so an implementation that guarded the range only when the argument was literally a
+  // number would REGISTER a handler with an interval of 0 or -3 — an unbounded-rerun hazard — and
+  // still pass a fully green run. Found by mutation.
+  //
+  // `params.value` is the COERCED number, not the word — the opposite of the `ol-type` arm above,
+  // deliberately: `ol-range` asks about magnitude, which exists only after coercion, while
+  // `ol-type` asks what the learner actually wrote.
+  for (const [source, value] of [
+    ['every "0" [ print "x" ]', 0],
+    ['every "-3" [ print "x" ]', -3],
+  ]) {
+    const result = execute(source, doc);
+    assert.equal(result.diagnostics.length, 1);
+    assert.equal(result.diagnostics[0].code, "ol-range");
+    assert.deepEqual(result.diagnostics[0].params, {
+      operation: "every",
+      value,
+    });
+    // The range check fails BEFORE registration — nothing registered, no `primitive(every)`.
+    assert.deepEqual(effectEvents(result), []);
+  }
+});
+
 test("every with a non-number count raises ol-type", () => {
   const result = execute('every "loud" [ print "x" ]', doc);
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-type");
+  assert.deepEqual(result.diagnostics[0].params, {
+    expected: "whole number",
+    actual: "word",
+    value: "loud",
+    operation: "every",
+  });
   assert.deepEqual(effectEvents(result), []);
+});
+
+test("a word that reads as a non-whole number reports the WORD, not a coerced number", () => {
+  // The third arm of the tick-count type check, and the one that pins WHICH value the diagnostic
+  // names. `spec/execution-model.md:33-34` coerces a numeric word far enough to be judged
+  // non-whole, but the learner wrote a word, so `actual`/`value` must say so. An implementation
+  // that pre-coerced the word before the wholeness check would report `number`/`2.5` and still
+  // satisfy the other two arms — a number literal was never a word, and `"loud"` never coerces at
+  // all — which is exactly the defect issue #775 removed from `wait`. Found by mutation: that
+  // pre-coercion survived a fully green run until this case (and the twin conformance fixture
+  // `every/every-non-whole-word`) existed.
+  const result = execute('every "2.5" [ print "x" ]', doc);
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-type");
+  assert.deepEqual(result.diagnostics[0].params, {
+    expected: "whole number",
+    actual: "word",
+    value: "2.5",
+    operation: "every",
+  });
+  assert.deepEqual(effectEvents(result), []);
+});
+
+test("a count that is BOTH non-whole AND non-positive raises ol-type, not ol-range (TYPE before RANGE)", () => {
+  // The only input class that can observe the ORDER of the two checks — every other case is
+  // non-whole OR out of range, never both. `spec/interaction-events.md`'s `### every <n> <block>`
+  // orders them ("a non-whole count raises `ol-type`, and a zero or negative count raises
+  // `ol-range`"), matching `spec/commands.md`'s `repeat` entry. Running the range check first would
+  // put a FRACTIONAL value into an `ol-range` count diagnostic and split `every` from `repeat`.
+  // Found by mutation: the inverted order passed a fully green run until this case existed.
+  for (const [source, actual, value] of [
+    ['every -2.5 [ print "x" ]', "number", -2.5],
+    ['every "-2.5" [ print "x" ]', "word", "-2.5"],
+  ]) {
+    const result = execute(source, doc);
+    assert.equal(result.diagnostics.length, 1);
+    assert.equal(result.diagnostics[0].code, "ol-type");
+    assert.deepEqual(result.diagnostics[0].params, {
+      expected: "whole number",
+      actual,
+      value,
+      operation: "every",
+    });
+    assert.deepEqual(effectEvents(result), []);
+  }
+});
+
+test("a count that is neither a number nor a word names its own type", () => {
+  // Completeness across the value model (`spec/execution-model.md`'s Core values, the Data
+  // profile's `dict`/`record`, and the Sprites profile's `turtle` — every `OLTypeName` outside
+  // `number`/`word`): each reaches the same `ol-type` with `actual` naming the offending type,
+  // never a coerced stand-in. `spec/error-model.md` requires the message to "name the expected
+  // learner concept, such as number, word, list, dict, record, or boolean", so labelling a dict or
+  // a turtle a word would violate a MUST. `wait` is pinned the same way in
+  // `interaction-wait.test.mjs`, and every class here has a conformance twin under
+  // `tests/conformance/interaction-events/` — the harness unwraps an `OLDict`/`OLRecord` into a
+  // plain key→value object, so those fixtures compare the contents too.
+  const structPrelude = 'struct person [ name age ]\n:p = person "ada" 36\n';
+  for (const [source, actual] of [
+    ['every [ 1 2 ] [ print "x" ]', "list"],
+    ['every true [ print "x" ]', "boolean"],
+    ['every { name: "ada" } [ print "x" ]', "dict"],
+    [`${structPrelude}every :p [ print "x" ]\n`, "record"],
+    [':t = new_turtle\nevery :t [ print "x" ]\n', "turtle"],
+  ]) {
+    const result = execute(source, doc);
+    assert.equal(result.diagnostics.length, 1);
+    assert.equal(result.diagnostics[0].code, "ol-type");
+    assert.equal(result.diagnostics[0].params.expected, "whole number");
+    assert.equal(result.diagnostics[0].params.actual, actual);
+    assert.equal(result.diagnostics[0].params.operation, "every");
+  }
+  // The classes whose value snapshot IS faithfully comparable are pinned whole.
+  for (const [source, actual, value] of [
+    ['every [ 1 2 ] [ print "x" ]', "list", [1, 2]],
+    ['every true [ print "x" ]', "boolean", true],
+  ]) {
+    const result = execute(source, doc);
+    assert.deepEqual(result.diagnostics[0].params, {
+      expected: "whole number",
+      actual,
+      value,
+      operation: "every",
+    });
+  }
+  // A turtle's value is an `OLTurtle` instance, so it is pinned by its `id` rather than by a
+  // structural deep-equal against a plain object — the conformance twin
+  // `every/every-turtle-type-error` pins its `{ "id": 1 }` serialisation, which is faithful.
+  const turtleValue = execute(':t = new_turtle\nevery :t [ print "x" ]\n', doc)
+    .diagnostics[0].params.value;
+  assert.equal(turtleValue.id, 1);
+  // The dict/record values are class instances, so they are asserted through their public API
+  // rather than by a structural deep-equal — `assert.deepEqual` is strict here and would compare
+  // prototypes and private backing Maps. The conformance twins pin the same contents.
+  const dictValue = execute('every { name: "ada" } [ print "x" ]', doc)
+    .diagnostics[0].params.value;
+  assert.deepEqual(dictValue.keys(), ["name"]);
+  assert.equal(dictValue.get("name"), "ada");
+  const recordValue = execute(`${structPrelude}every :p [ print "x" ]\n`, doc)
+    .diagnostics[0].params.value;
+  assert.equal(recordValue.type, "person");
+  assert.deepEqual(recordValue.fields(), ["name", "age"]);
+  assert.equal(recordValue.get("name"), "ada");
+  assert.equal(recordValue.get("age"), 36);
 });
 
 // --- Unsupported / un-evaluable count arguments ------------------------------------------------

@@ -184,6 +184,29 @@ test("repeat with a negative whole-number count raises ol-range after the type c
   );
 });
 
+test("a repeat count that is BOTH non-whole AND negative raises ol-type, not ol-range", () => {
+  // `spec/commands.md`'s `repeat` entry: "The checks are ordered: if `count` is not a whole number
+  // it raises `ol-type` (a whole number is required); otherwise, if it is negative, it raises
+  // `ol-range`." A value that is both is the only input class that can observe that order, and
+  // nothing exercised it. Getting it wrong would put a FRACTIONAL value into an `ol-range` count
+  // diagnostic, which `spec/error-model.md` scopes to a negative WHOLE-number count. Pinned here
+  // because `repeat` is the form `wait` and `every` were aligned to by issue #775 — the twin cases
+  // live in `interaction-wait.test.mjs` and `interaction-every.test.mjs`.
+  const result = execute("repeat -1.5 [\n  print 1\n]", doc);
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-type");
+  assert.deepEqual(result.diagnostics[0].params, {
+    expected: "whole number",
+    actual: "number",
+    value: -1.5,
+    operation: "repeat",
+  });
+  assert.equal(
+    result.events.filter((event) => event.kind === "print").length,
+    0,
+  );
+});
+
 test("a repeat count that itself fails to evaluate propagates that diagnostic", () => {
   const result = execute("repeat 1 / 0 [\n  print 1\n]", doc);
   assert.equal(result.diagnostics.length, 1);

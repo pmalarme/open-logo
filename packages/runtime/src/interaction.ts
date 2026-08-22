@@ -60,7 +60,6 @@
  */
 
 import type {
-  Diagnostic,
   OLValue,
   PrimitivePayload,
   SourceSpan,
@@ -146,47 +145,6 @@ export function isWaitCall(statement: StatementNode): boolean {
   return statement.callee.name.toLowerCase() === "wait";
 }
 
-/** The number `wait`'s single argument resolved to, or the diagnostic to halt on. */
-type TickCountOrDiagnostic =
-  | { readonly ok: true; readonly value: number }
-  | { readonly ok: false; readonly diagnostic: Diagnostic };
-
-/**
- * Validate `wait`'s tick count: it MUST be a non-negative whole number
- * (`spec/interaction-events.md`, `wait <n>`). A non-whole count raises `ol-type`
- * ({@link runtimeDiag.notWholeNumber}) and a negative count raises `ol-range`
- * ({@link runtimeDiag.negativeCount}) — TYPE then RANGE, the same ordering `repeat`'s count
- * validation uses (`spec/execution-model.md:367-369`). `wait 0` is valid and returns `0` (it
- * yields with no tick advance and no visible delay). Reuses the shared `repeat`/`every` count
- * diagnostics rather than inventing ad-hoc strings, with `operation: "wait"` so the message names
- * the primitive.
- */
-export function validateTickCount(
-  value: number,
-  source_span: SourceSpan,
-): TickCountOrDiagnostic {
-  if (!Number.isInteger(value)) {
-    return {
-      ok: false,
-      diagnostic: runtimeDiag.notWholeNumber(source_span, {
-        actual: "number",
-        value,
-        operation: "wait",
-      }),
-    };
-  }
-  if (value < 0) {
-    return {
-      ok: false,
-      diagnostic: runtimeDiag.negativeCount(source_span, {
-        operation: "wait",
-        value,
-      }),
-    };
-  }
-  return { ok: true, value };
-}
-
 /**
  * Emit the `primitive` event `spec/interaction-events.md` requires `wait` to emit **after** the
  * pause completes ("`wait` emits a `primitive` event after the pause completes"). The catch-all
@@ -244,8 +202,9 @@ function emitInteractionPrimitive(
  * stopped, or the budget was cancelled) the pause aborts immediately: {@link runWait} returns `true`
  * and does **not** emit the trailing `primitive` event, because the pause did not complete. On a
  * clean pause it emits the `primitive` event AFTER the pause completes onto `events` and returns
- * `false`. `count` MUST already be a validated non-negative whole number (via
- * {@link validateTickCount}).
+ * `false`. `count` MUST already be a validated non-negative whole number — `executeWaitCall`'s
+ * `requireWholeNumber` (TYPE) then its non-negativity guard (RANGE), the same two-step
+ * `executeEveryStatement` applies to an `every` interval.
  *
  * `wait 0` advances the clock zero times but still {@link yieldToEventLoop}s exactly once — it
  * "yield[s] to the renderer and event loop without adding a visible delay" (a spec-mandated yield,

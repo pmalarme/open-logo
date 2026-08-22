@@ -1,0 +1,38 @@
+{
+  "description": "issue #775 (review gate, QA finding N13): `wait \"-1.5\"` -- the TYPE-before-RANGE ordering reached through a WORD. The sibling pair `wait-negative-non-whole` / `every-negative-non-whole` pins that ordering for a number literal, but a word takes a different path: `spec/execution-model.md:33-34` coerces it first, so an implementation could order the checks correctly for numbers and range-first for words and still pass the corpus -- exactly the class the `-word` fixtures exist to close one level up (`wait-negative-word`, `wait-non-whole-word`). Found by mutation: inverting TYPE/RANGE for word arguments only left the whole corpus green. As on the plain-number arm, the correct answer is `ol-type` -- `params.actual` is `word` and `params.value` is the string the learner wrote, never the coerced `-1.5`, because the type question is settled before the range question is asked. The `primitive` event is NOT emitted, only the instruction event precedes the diagnostic, and the span covers just the argument. Its `every` twin is `every/every-negative-non-whole-word`.",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/wait/wait-negative-non-whole-word",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "interaction-events/wait/wait-negative-non-whole-word",
+        "start": [1, 6],
+        "end": [1, 12]
+      },
+      "params": {
+        "expected": "whole number",
+        "actual": "word",
+        "value": "-1.5",
+        "operation": "wait"
+      },
+      "message": "wait needs a whole number, but got a word.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

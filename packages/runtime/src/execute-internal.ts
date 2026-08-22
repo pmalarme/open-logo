@@ -129,7 +129,6 @@ import {
   registerWhenHandler,
   runWait,
   STANDARD_EVENT_WORDS,
-  validateTickCount,
   type EveryHandler,
   type HostInputEvent,
   type OnClickHandler,
@@ -2162,9 +2161,18 @@ const NOT_A_TURTLE_COMMAND = Symbol("not-a-turtle-command");
 /**
  * Validate and run a `wait <n>` statement matched by {@link isWaitCall} (issue #680,
  * `spec/interaction-events.md`, `wait <n>`): exactly one numeric argument
- * (`ol-not-enough-inputs`/`ol-too-many-inputs` on the wrong arity, `ol-type` on a non-number via
- * {@link requireNumber}), which MUST be a non-negative whole number
- * (`ol-type`/`ol-range` otherwise, via {@link validateTickCount}) — then the pause + trailing
+ * (`ol-not-enough-inputs`/`ol-too-many-inputs` on the wrong arity), which MUST be a non-negative
+ * **whole** number — `ol-type` via {@link requireWholeNumber} for a non-whole or non-number count,
+ * then `ol-range` via {@link runtimeDiag.negativeCount} for a negative one. That is deliberately
+ * the exact type-then-range shape {@link executeEveryStatement} applies to an `every` interval,
+ * down to the inline range guard (issue #775): both Interaction numeric arguments are whole-number
+ * arguments, so for one input class both must report one `ol-type` **type expectation** —
+ * `expected: "whole number"`, with `actual`/`value` naming the offending value as the learner wrote
+ * it — the spelling `repeat` and `random` already emit. (`operation` still names the primitive, so
+ * the two diagnostics remain distinguishable; it is the type vocabulary that is shared.) Using
+ * {@link requireNumber} here instead reported `expected: "number"` for a non-number word, and
+ * pre-coerced a word into a number so `actual`/`value` lost the word — an observable divergence,
+ * since `params` are part of a diagnostic's identity (`spec/error-model.md`). The pause + trailing
  * `primitive` event are produced by {@link runWait}. Returns an {@link ExecSignal} to halt on, or
  * `undefined` for {@link executeStatements} to `continue` on success (including the "left
  * un-evaluated" case for an unsupported argument expression, mirroring the turtle commands).
@@ -2203,13 +2211,21 @@ function executeWaitCall(
   if (!argResult.ok) {
     return halt(argResult.diagnostic);
   }
-  const ticks = requireNumber(argResult.value, arg.source_span, "wait");
+  const ticks = requireWholeNumber(argResult.value, arg.source_span, "wait");
   if (!ticks.ok) {
     return halt(ticks.diagnostic);
   }
-  const count = validateTickCount(ticks.value, arg.source_span);
-  if (!count.ok) {
-    return halt(count.diagnostic);
+  // RANGE after TYPE: `wait 0` is valid ("yields to the renderer and event loop without adding a
+  // visible delay"), only a negative count is out of range. Guarded inline, exactly as
+  // `executeEveryStatement` guards its own `<= 0` interval, so the two forms have no structural
+  // difference left for their diagnostics to drift through (issue #775).
+  if (ticks.value < 0) {
+    return halt(
+      runtimeDiag.negativeCount(arg.source_span, {
+        operation: "wait",
+        value: ticks.value,
+      }),
+    );
   }
   // Dispatch every due handler on each tick the pause advances through, in the normative same-tick
   // order (`when` → `on_key` → `on_click` → due `every`, `spec/interaction-events.md:84-89`) —
@@ -2224,7 +2240,7 @@ function executeWaitCall(
   const interrupted = runWait(
     environment.tickClock,
     environment.events,
-    count.value,
+    ticks.value,
     waitCall.source_span,
     (tick) => {
       const signal = dispatchDueHandlers(

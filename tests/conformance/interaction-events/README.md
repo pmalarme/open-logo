@@ -158,14 +158,56 @@ the gaps it found rather than rubber-stamping them:
   as numbers are accepted where a number is expected" a normative **Core** rule: `wait "2"` is legal
   and must pause for 2 ticks. Without the positive half, an implementation that rejected *every*
   word — violating that Core rule — would pass the whole corpus while the negatives looked like
-  proof that words are simply illegal here. The negatives also record an observable wording
-  asymmetry: `every` reports `params.expected: "whole number"` where `wait` reports `"number"` for
-  the identical case. `spec/interaction-events.md` fixes only the `ol-type` **code** for both, so
-  both are recorded as emitted rather than normalized. **Note this is now normatively binding**: the
-  harness compares `params` exactly, so aligning the two later is a conformance-breaking change to
-  both fixtures, not a free refactor. The root cause is runtime-side (`executeEveryStatement` calls
-  `requireWholeNumber` directly, `executeWaitCall` calls `requireNumber` then `validateTickCount`),
-  outside this slice's write-set — **filed as a follow-up** for `@interpreter`.
+  proof that words are simply illegal here. The negatives originally recorded an observable wording
+  asymmetry — `every` reported `params.expected: "whole number"` where `wait` reported `"number"`
+  for the identical case — flagged here as normatively binding because the harness compares
+  `params` exactly. **Issue #775 has since resolved it**: `executeWaitCall` now type-checks through
+  the same shared `requireWholeNumber` as `executeEveryStatement` (and as `repeat` and `random`), so
+  both forms report `expected: "whole number"` with matching `actual`/`value` — one shared type
+  vocabulary; `params.operation` still names the primitive, so the two diagnostics stay
+  distinguishable. `wait/wait-non-number-type-error` was updated in that PR as the deliberate,
+  disclosed conformance-breaking change it is, and the pair `wait/wait-non-whole-word` /
+  `every/every-non-whole-word` was added there for the third arm the corpus had never covered on
+  either side: a *word* that parses as a non-whole number (`wait "1.5"`, `every "2.5"`), which pins
+  `actual: "word"` and the value as written rather than the pre-coerced `number` the old
+  `requireNumber` path reported. That arm is the only one that observes pre-coercion — a number
+  literal was never a word, and a non-numeric word never coerces at all — and its absence was found
+  by mutation: reintroducing the pre-coercion on `every` survived a fully green run.
+- **The arms of the two numeric-argument checks that only a *word* can reach**, added in the same
+  PR after mutation testing found each of them surviving a fully green run. The corpus had always
+  reached `ol-range` through a number literal (`wait -1`, `every 0`, `every -3`), so an
+  implementation could guard the range only when the argument was literally a number and let
+  `wait "-1"` **succeed** — emitting a trailing `primitive(wait)` as though a pause had run — or
+  register an `every` handler with an interval of `0`. `wait/wait-negative-word` and
+  `every/every-non-positive-word` close that, and they also pin a deliberate asymmetry that was
+  undocumented: on the `ol-range` arm `params.value` is the **coerced number**, not the word,
+  because range is a question about magnitude (which exists only after coercion) whereas `ol-type`
+  is a question about what the learner actually wrote. Separately,
+  `wait/wait-non-number-list-type-error`, `every/every-non-number-boolean-type-error`,
+  `wait/wait-non-number-dict-type-error`, `every/every-non-number-record-type-error`, and the pair
+  `wait/wait-turtle-type-error` / `every/every-turtle-type-error` cover a count that is neither a
+  number nor a word — between them every `OLTypeName` outside `number`/`word`. Before them every
+  `expected: "whole number"` fixture in the whole corpus (`wait`, `every`, `repeat`, `random`)
+  pinned `actual` as only `number` or `word`, so an implementation could report anything at all for
+  a list, dict, record, boolean, or turtle and still pass the full stack-neutral corpus —
+  `spec/error-model.md` requires an `ol-type` to "name the expected learner concept, such as number,
+  word, list, dict, record, or boolean", so mislabelling one violates a MUST. Each pins the value as
+  well as the concept: the harness unwraps an `OLDict`/`OLRecord` into a plain key→value object
+  before deep-comparing (see this corpus's top-level README, "Dict/record contents"), the record
+  fixture opts into the reserved `__type` key so a same-shaped `struct` of another type cannot
+  masquerade, and a turtle's value is the `{ "id": 1 }` shape `sprites/turtle-type-diagnostic`
+  already binds. The dict/record and turtle fixtures declare the **Data** and **Sprites** profiles
+  only to *construct* their values; the check under test is the Interaction one. Finally
+  `wait/wait-negative-non-whole` and `every/every-negative-non-whole`, with their `-word` twins
+  `wait/wait-negative-non-whole-word` and `every/every-negative-non-whole-word`, pin a count that is
+  **both** non-whole and out of range — the only input class that can observe the normative
+  TYPE-before-RANGE ordering (`spec/interaction-events.md`'s two entries, `spec/commands.md`'s
+  `repeat` entry). Every other count fixture is non-whole *or* out of range, never both, so an
+  implementation that checked range first passed the whole corpus while putting a fractional value
+  into an `ol-range` count diagnostic — which `spec/error-model.md` scopes to a negative
+  *whole*-number count — and silently splitting `wait`/`every` from `repeat`. The `-word` twins
+  exist because a word takes the coercion path, so ordering could be correct for numbers and wrong
+  for words; every one of these gaps was found by mutation.
 - **Profile-scoped reservation of the four block-heads.** `spec/interaction-events.md:43-46` reserves
   `when`/`every`/`on_key`/`on_click` **only within** the profile — a bidirectional MUST that had no
   fixture at all: `redefine-wait-reserved` covers only `wait`, which is a *primitive* name
