@@ -1,0 +1,33 @@
+{
+  "description": "issue #851: `set_shape \"arrow\"` - `\"arrow\"` is one of the four portable shape words that `spec/rendering.md` now requires every implementation to support (MUST, raised from SHOULD), so it is accepted, updates `turtle.shape` from the default `\"turtle\"`, and emits `shape-change` ({from: \"turtle\", to: \"arrow\"}) with no diagnostic. It is also the word the runnable sprite example in `spec/turtles-and-sprites.md` uses, which no fixture asserted before this one.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/style/set-shape-arrow",
+        "start": [1, 1],
+        "end": [1, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "shape-change",
+      "source_span": {
+        "document": "turtle-rendering/style/set-shape-arrow",
+        "start": [1, 1],
+        "end": [1, 18]
+      },
+      "payload": {
+        "from": "turtle",
+        "to": "arrow"
+      }
+    }
+  ],
+  "diagnostics": []
+}

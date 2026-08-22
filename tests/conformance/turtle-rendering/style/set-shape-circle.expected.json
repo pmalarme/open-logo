@@ -1,0 +1,33 @@
+{
+  "description": "issue #851: `set_shape \"circle\"` - `\"circle\"` is one of the four portable shape words that `spec/rendering.md` now requires every implementation to support (MUST, raised from SHOULD), so it is accepted, updates `turtle.shape` from the default `\"turtle\"`, and emits `shape-change` ({from: \"turtle\", to: \"circle\"}) with no diagnostic. Together with `set-shape-basic` (`\"triangle\"`, whose `from` pins the default `\"turtle\"`) and `set-shape-arrow`, the four portable words are now covered.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/style/set-shape-circle",
+        "start": [1, 1],
+        "end": [1, 19]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "shape-change",
+      "source_span": {
+        "document": "turtle-rendering/style/set-shape-circle",
+        "start": [1, 1],
+        "end": [1, 19]
+      },
+      "payload": {
+        "from": "turtle",
+        "to": "circle"
+      }
+    }
+  ],
+  "diagnostics": []
+}
