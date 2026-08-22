@@ -178,6 +178,41 @@ test("clear_screen's homing move/turn carry the homed turtle's id under explicit
   );
 });
 
+test("a clear_screen reached from a per-turtle command's argument homes and stamps each acting turtle", () => {
+  // The `clean` counterpart above proves a scene-only clear is never stamped. `clear_screen` is the
+  // opposite case: it homes the turtle that is currently acting, so all three of its issue #847
+  // events must name that turtle. Argument evaluation runs inside the per-turtle window, so the
+  // reporter's body runs once per addressed turtle and must home each of them in turn — the homed
+  // turtle and the stamped id cannot diverge, because both resolve through `addressing.currentId`.
+  const result = execute(
+    [
+      ":a = new_turtle",
+      ":b = new_turtle",
+      "define wipe",
+      "  clear_screen",
+      "  return 5",
+      "end",
+      "tell [ :a :b ]",
+      "forward wipe",
+    ].join("\n"),
+    "main.logo",
+  );
+  assert.deepEqual(result.diagnostics, []);
+  const homing = result.events
+    .filter((event) => ["move", "turn", "clear"].includes(event.kind))
+    .map((event) => [event.kind, event.turtle_id]);
+  assert.deepEqual(homing, [
+    ["move", 1],
+    ["turn", 1],
+    ["clear", 1],
+    ["move", 1],
+    ["move", 2],
+    ["turn", 2],
+    ["clear", 2],
+    ["move", 2],
+  ]);
+});
+
 test("who inside the argument still reports the acting turtle while the snapshot reports the set", () => {
   // The documented division of labour: an addressing snapshot describes ADDRESSING (the set and its
   // first member), while the transient per-turtle pointer — which makes `who` report the turtle

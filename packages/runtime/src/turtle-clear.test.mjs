@@ -111,6 +111,68 @@ test("clear_screen's event stream and the runtime agree on the homed position an
   assert.equal(heading, 0);
 });
 
+test("clear_screen emits its homing triple once per repeat iteration", () => {
+  const result = execute("repeat 3 [ forward 10 clear_screen ]", "main.logo");
+  assert.deepEqual(result.diagnostics, []);
+  const homing = result.events
+    .filter((event) => ["move", "turn", "clear"].includes(event.kind))
+    .map((event) => event.kind);
+  assert.deepEqual(homing, [
+    // forward, then the homing triple - three times over.
+    "move",
+    "move",
+    "turn",
+    "clear",
+    "move",
+    "move",
+    "turn",
+    "clear",
+    "move",
+    "move",
+    "turn",
+    "clear",
+  ]);
+  // Each iteration starts from the origin again, so every forward is the same segment.
+  const segments = result.events.filter(
+    (event) => event.kind === "draw-segment",
+  );
+  assert.equal(segments.length, 3);
+  for (const segment of segments) {
+    assert.deepEqual(segment.payload.from, [0, 0]);
+    assert.deepEqual(segment.payload.to, [0, 10]);
+  }
+});
+
+test("clear_screen inside a procedure homes the caller's turtle and reports the call-site span", () => {
+  const result = execute(
+    ["define wipe", "  clear_screen", "end", "forward 10", "wipe"].join("\n"),
+    "main.logo",
+  );
+  assert.deepEqual(result.diagnostics, []);
+  const homing = result.events.filter((event) =>
+    ["move", "turn", "clear"].includes(event.kind),
+  );
+  assert.deepEqual(
+    homing.map((event) => event.kind),
+    ["move", "move", "turn", "clear"],
+  );
+  assert.deepEqual(homing[1].payload, {
+    from: [0, 10],
+    to: [0, 0],
+    heading: 0,
+  });
+  // The homing events sit between the procedure's enter/exit and carry the `clear_screen` call's
+  // own span (line 2), not the call site of `wipe`.
+  for (const event of homing.slice(1)) {
+    assert.equal(event.source_span.start[0], 2);
+  }
+  const kinds = result.events.map((event) => event.kind);
+  assert.ok(
+    kinds.indexOf("procedure-enter") < kinds.indexOf("clear") &&
+      kinds.indexOf("clear") < kinds.indexOf("procedure-exit"),
+  );
+});
+
 test("clear_screen homes the turtle internally: a following forward draws from the origin", () => {
   const result = execute(
     "forward 30\nright 90\nclear_screen\nforward 50",

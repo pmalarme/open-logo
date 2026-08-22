@@ -650,10 +650,19 @@ function isTurtleClearCall(statement: StatementNode): boolean {
  *
  * The event shape deliberately mirrors `home`'s ({@link moveTurtleTo} + {@link setHeadingTo}) with
  * **one deliberate difference: no `draw-segment` is ever emitted, whatever the pen state.**
- * `clear_screen` has just wiped — or is about to wipe — the drawing surface, so a line back to the
- * origin would be exactly the artifact the clear removes (`spec/rendering.md`'s "Clear operations"
- * table: `clear_screen` leaves *no* drawing segments). `move` and `draw-segment` are independent
- * events, so "moved but drew nothing" is expressible without any renderer-side special case.
+ * `spec/rendering.md:36`'s "a pen-down move appends one straight segment" describes what a move
+ * contributes to the **retained scene**, and `clear_screen`'s row of the "Clear operations" table
+ * (`spec/rendering.md:148`) fixes that contribution at *cleared* — the operation is defined to
+ * leave no drawing segments at all, so a segment back to the origin would be exactly the artifact
+ * the same instruction removes. `move` and `draw-segment` are independent events, so "moved but
+ * drew nothing" is expressible without any renderer-side special case.
+ *
+ * The spec does **not** settle this explicitly — it never contemplated the homing being observable,
+ * and :36 read as an exception-free rule over every pen-down `move` would instead require
+ * `move`/`draw-segment`/`turn`/`clear` (same empty final scene, but a trace claiming a segment the
+ * learner never drew). That reading was raised during this change's review gate; the decision here
+ * is recorded and **escalated to the maintainer as issue #858** rather than silently settled.
+ * Emitting the segment instead would be a one-line change.
  *
  * The `move` payload reports the heading the turtle *had* (heading is not changed by a position
  * move — same rule as {@link moveTurtleTo}); the following `turn` reports the reset to `0`, so a
@@ -670,18 +679,26 @@ function homeTurtleForClearScreen(
   identity: { readonly turtle_id?: TurtleId },
   source_span: SourceSpan,
 ): void {
+  // Position first, its event next, then heading and *its* event — so each payload is the
+  // point-in-time snapshot at the moment of emission (`spec/execution-model.md:652`) and each
+  // effect event follows the state change it describes (`spec/rendering.md:84`). Collapsing both
+  // mutations up front would emit a `move` reporting a heading the turtle no longer had.
   const from: Point = [turtle.x, turtle.y];
-  const heading = turtle.heading;
   turtle.x = 0;
   turtle.y = 0;
-  turtle.heading = 0;
   environment.events.push({
     seq: environment.events.length,
     kind: "move",
     source_span,
     ...identity,
-    payload: { from, to: [0, 0], heading } satisfies MovePayload,
+    payload: {
+      from,
+      to: [0, 0],
+      heading: turtle.heading,
+    } satisfies MovePayload,
   });
+  const heading = turtle.heading;
+  turtle.heading = 0;
   environment.events.push({
     seq: environment.events.length,
     kind: "turn",
@@ -699,18 +716,29 @@ function homeTurtleForClearScreen(
  *
  * `clear_screen` emits **three** events — `move`, `turn` (both via
  * {@link homeTurtleForClearScreen}), then the single `clear` — while `clean` emits only the
- * `clear`. Making the homing observable is required by `spec/turtles-and-sprites.md:113`
- * ("Implementations MUST produce trace events with the appropriate turtle identity so animation,
- * stepping, `why`, and `debug` can explain which turtle moved or changed") and fixes issue #847:
- * homing silently left a stream consumer believing the turtle was still where `clear_screen` found
- * it while the runtime reported the origin — the two disagreed with nothing in the stream to say
- * so. Explicit `home` never had that gap, and now neither does `clear_screen`.
+ * `clear`. This fixes issue #847: the homing used to be a silent internal state reset, leaving a
+ * stream consumer believing the turtle was still where `clear_screen` found it while the runtime
+ * reported the origin — the two disagreed with nothing in the stream to say so. Explicit `home`
+ * never had that gap, and now neither does `clear_screen`.
+ *
+ * The spec's own stated mechanism for reproducing the homing is the `clear` payload's mode
+ * (`spec/rendering.md:151`: the payload "MUST distinguish drawing-only clearing from
+ * clear-and-home behavior so playback and debugging can reproduce state exactly"), so the homing
+ * pair is a deliberate, permitted **superset** of that minimum rather than a replacement for it —
+ * one that spares every consumer a `clear_screen`-shaped special case, since animation, stepping,
+ * `why`, and `debug` already track position and heading through `move`/`turn` for every other
+ * turtle command. Under `tell`, `spec/turtles-and-sprites.md:113` then applies directly:
+ * implementations "MUST produce trace events with the appropriate turtle identity so animation,
+ * stepping, `why`, and `debug` can explain which turtle moved or changed" — which a `clear` alone
+ * cannot do for a *movement*.
  *
  * The homing events come **before** the `clear`, which is the only order in which *every* prefix of
  * the stream folds to a state the runtime agrees with: `move` reports the pre-reset heading and
  * `turn` then resets it, so a stepping consumer paused between them never sees a heading the
  * runtime never had. It also means a consumer that (wrongly) inferred drawing from `move` rather
- * than `draw-segment` has its stray segment wiped by the very next event.
+ * than `draw-segment` has its stray segment wiped by the `clear` that closes the same instruction
+ * step (`spec/rendering.md:86` — every effect event between two `instruction` events belongs to
+ * one user-visible step).
  * `@openlogo/turtle`'s `reduceTurtleState` still folds `clear{mode:"clear_screen"}` into its own
  * position/heading reset — deliberately kept, since `spec/rendering.md`'s "Clear operations"
  * requires the payload alone to distinguish clear-and-home from drawing-only clearing so playback
