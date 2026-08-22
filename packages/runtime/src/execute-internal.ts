@@ -5264,8 +5264,9 @@ export function resolveEffectiveRecursionDepthLimit(
  * `randomNumberGenerator`, the shared seeded `random`/`randomize` generator state, freshly seeded
  * per run; issue #865 lets a host pin that seed through `ExecuteOptions.randomSeed`, falling back
  * to {@link createRandomNumberGeneratorState}'s own `Date.now()` when none is supplied — so two
- * separate unseeded `execute()` calls are independent even before either program ever calls
- * `randomize`, while two calls sharing a seed reproduce each other exactly.
+ * unseeded `execute()` calls keep the clock-seeded behavior they have always had, while two calls
+ * sharing a seed reproduce each other exactly (given deterministic host collaborators — see
+ * `index.ts`'s `randomSeed` bullet).
  *
  * Issue #102: `options` supplies the three execution-safety gates `spec/execution-model.md:
  * 551-557` requires — `instructionBudget`/`recursionDepthLimit` fall back to
@@ -5364,9 +5365,10 @@ function createExecutionEnvironment(
     addressing: createTurtleAddressing(mainTurtleState),
     // Issue #865: `options.randomSeed` when a host pinned one, and only otherwise
     // `createRandomNumberGeneratorState`'s own `Date.now()` fallback. That fallback is this
-    // package's ONLY source of nondeterminism, so a pinned seed makes the whole run a pure
-    // function of its source and options — while an omitted one leaves an ordinary run seeded
-    // from the clock, exactly as before, and therefore still unpredictable.
+    // package's only AMBIENT entropy source, so a pinned seed reproduces a run exactly — given
+    // host collaborators that are deterministic too, since `hostInput.read`/`tutorTemplates` are
+    // caller-supplied functions and `signal` is caller-mutable (see `index.ts`'s `randomSeed`
+    // bullet). An omitted seed leaves an ordinary run seeded from the clock, exactly as before.
     randomNumberGenerator: createRandomNumberGeneratorState(
       options?.randomSeed,
     ),

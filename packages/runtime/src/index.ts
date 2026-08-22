@@ -189,8 +189,11 @@ export interface ExecuteResult {
  * - `randomSeed` (issue #865) — the seed this run's shared `random`/`randomize` generator starts
  *   from, so a **host can pin a run's randomness**. Omitted, the generator falls back to the host
  *   clock, which is the implementation's own choice of seed (`spec/commands.md`'s `randomize`
- *   entry: "with no seed the implementation chooses a seed") and leaves two runs of the same
- *   program independent, exactly as before this option existed.
+ *   entry: "with no seed the implementation chooses a seed") and retains exactly the clock-seeded
+ *   behavior runs had before this option existed. That is a weaker property than it may sound:
+ *   two runs starting in the same millisecond receive the *same* seed, and `Date.now() >>> 0`
+ *   repeats about every 49.7 days. No unpredictability is claimed or needed — `spec/commands.md`
+ *   promises "controlled unpredictability", not a cryptographic guarantee.
  *
  *   That clock fallback is `@openlogo/runtime`'s **only ambient entropy source** — no other code
  *   in this package reads a wall clock or `Math.random()`, and the tick clock is a pure counter —
@@ -307,7 +310,7 @@ export type HostInputReader = (prompt: string) => string | undefined;
  * `spec/execution-model.md:623-629` requires: an instruction budget, a recursion-depth limit, and
  * external cancellation — see {@link ExecuteOptions}. Every `forever` loop is bounded by the
  * (possibly default) instruction budget even with no `options` at all, since "`forever` is
- * therefore safe only because it is cancellable and budgeted" (`spec/execution-model.md:556-557`)
+ * therefore safe only because it is cancellable and budgeted" (`spec/execution-model.md:628-629`)
  * is not conditional on the caller opting in.
  */
 export function execute(

@@ -308,7 +308,9 @@ export function loadFixture(fixture) {
 
   // "executeOptions" (issue #195) is an opt-in object, valid only alongside "execute": true (and
   // NOT alongside "check": true), that is passed straight through to @openlogo/runtime's
-  // execute() third argument (ExecuteOptions: instructionBudget/recursionDepthLimit/signal). It
+  // execute() third argument. The JSON-expressible keys are enumerated by
+  // KNOWN_EXECUTE_OPTION_KEYS below — instructionBudget, recursionDepthLimit, signal, learnerLevel,
+  // hostInput, and randomSeed (issue #865) — and each is type-checked after it. It
   // exists so a fixture can deterministically trigger the execution-safety gates (ol-limit) with
   // a small, hand-reviewable budget/depth instead of hanging on the large production defaults.
   // `signal`, when present, must be a plain `{ aborted: boolean }` object — the only shape JSON

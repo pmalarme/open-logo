@@ -332,11 +332,13 @@ test("random emits no event beyond print's own", () => {
 });
 
 // --- issue #865: ExecuteOptions.randomSeed pins a run's randomness -----------------------------
-// The generator's Date.now() fallback is this package's ONLY source of nondeterminism (nothing
-// else reads a wall clock or Math.random(), and the tick clock is a pure counter), so a pinned
-// seed makes execute() a pure function of its source and options. Every determinism assertion
-// below is therefore paired with its inverse — "a different seed draws a different sequence" —
-// because "same seed, same output" alone also passes when the seed is ignored entirely.
+// The generator's Date.now() fallback is this package's only AMBIENT entropy source (nothing else
+// reads a wall clock or Math.random(), and the tick clock is a pure counter), so a pinned seed
+// reproduces a run exactly — given host collaborators that are deterministic too, which the tests
+// below are because they supply none. Every determinism assertion is paired with its inverse, and
+// the two covering a bare `randomize` pin EXACT sequences rather than merely comparing two runs:
+// two clock-seeded runs inside one millisecond also agree, so an equality-only assertion passes
+// against an implementation that ignores the seed entirely.
 
 const eightDraws = "repeat 8 [ print random 1000000 ]";
 

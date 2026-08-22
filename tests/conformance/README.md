@@ -52,13 +52,20 @@ profile or the whole DAG. The runner discovers every `*.expected.json` and pairs
   is not also `true` (since `check` takes precedence and short-circuits before `execute()` ever
   runs, see above) — is
   forwarded verbatim as `@openlogo/runtime`'s `execute()` third argument (`ExecuteOptions`:
-  `instructionBudget`, `recursionDepthLimit`, `signal`). It exists so a fixture can deterministically
-  trigger the execution-safety gates (`ol-limit`, `spec/execution-model.md:551-557`) with a small,
+  `instructionBudget`, `recursionDepthLimit`, `signal`, `learnerLevel`, `hostInput`, and
+  `randomSeed`). It exists so a fixture can deterministically
+  trigger the execution-safety gates (`ol-limit`, `spec/execution-model.md:623-629`) with a small,
   hand-reviewable budget/depth instead of the large production defaults (1,000,000
   instructions / 500 call frames), which would make an exact-diff fixture impractically large.
   `signal`, when present, must be a plain `{ "aborted": boolean }` object — the only shape JSON can
   express and the only shape `execute()` needs (it just reads `signal.aborted`); a fixture can
   therefore only assert the already-cancelled-before-start case, not cancellation mid-run.
+  `randomSeed` (a number, issue #865) pins the seed the run's shared `random`/`randomize` generator
+  starts from, so a fixture whose program uses `random` has a stable expected event stream at all.
+  Note what a single fixture still cannot express: the property `randomSeed` creates is that two
+  runs sharing a seed *agree*, and a fixture is one source to one expected stream, so cross-run
+  determinism stays a unit-test concern
+  (`packages/runtime/src/random-randomize.test.mjs`).
   Setting `executeOptions` without `"execute": true`, or alongside `"check": true`, is rejected —
   either would otherwise silently do nothing (parse-only fixtures never call `execute()`, and
   `check:true` fixtures never reach the `execute()` branch either), masking a fixture-author typo.

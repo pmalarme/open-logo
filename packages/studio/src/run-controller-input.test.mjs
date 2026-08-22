@@ -1193,3 +1193,76 @@ test("issue #881: a run with no injected seed source still completes (the Date.n
   assert.deepEqual(store.getState().output, ["before", "tom"]);
   assert.equal(store.getState().runStatus, "done");
 });
+
+// --- a synchronous host that ends the chain from inside present() -------------------------------
+// Round 2, logic/spec reviewer. A synchronous host may call `respond()` and THEN `stop()`/`reset()`
+// before `present()` returns. The answer queues a replay (`pumpAgain`); the lifecycle call then
+// unwinds into the pump loop, which used to run one more attempt over the top of the outcome
+// Stop/Reset had already committed. Measured before the fix: `respond(); stop()` replaced the
+// output the learner had just seen with `[]`, and `respond(); reset()` settled `"done"` with an
+// empty `lastRunResult.source` instead of `"idle"`. Both are exactly the "already-observed state is
+// never rewritten" guarantee #881 claims, so they are pinned here.
+
+/** A host that answers synchronously and then calls `act` on the controller, still inside present(). */
+function createEndingPromptHost(act) {
+  const host = {
+    prompts: [],
+    controller: null,
+    present(request, respond) {
+      host.prompts.push(request.prompt);
+      respond("7");
+      act(host.controller);
+    },
+    dismiss() {},
+  };
+  return host;
+}
+
+const DRAW_ASK_PRINT_SOURCE = [
+  "print random 1000000",
+  ':a = input "next?"',
+  "print :a",
+].join("\n");
+
+test("a host that answers and then stops, inside present(), keeps the output already shown", () => {
+  const store = OL.createStudioState({ source: DRAW_ASK_PRINT_SOURCE });
+  const host = createEndingPromptHost((controller) => {
+    controller.stop();
+  });
+  const controller = OL.createRunController(store, {
+    inputPrompt: host,
+    randomSeedSource: createSeedQueue([11]),
+  });
+  host.controller = controller;
+
+  controller.run();
+
+  assert.equal(store.getState().runStatus, "stopped");
+  assert.deepEqual(
+    store.getState().output,
+    ["511587"],
+    "Stop must not let a queued replay erase what the learner already saw",
+  );
+});
+
+test("a host that answers and then resets, inside present(), settles idle rather than running again", () => {
+  const store = OL.createStudioState({ source: DRAW_ASK_PRINT_SOURCE });
+  const host = createEndingPromptHost((controller) => {
+    controller.reset();
+  });
+  const controller = OL.createRunController(store, {
+    inputPrompt: host,
+    randomSeedSource: createSeedQueue([11]),
+  });
+  host.controller = controller;
+
+  controller.run();
+
+  assert.equal(store.getState().runStatus, "idle");
+  assert.deepEqual(store.getState().output, []);
+  assert.equal(
+    store.getState().lastRunResult,
+    null,
+    "a queued replay must not commit a run over the top of Reset — least of all one whose source Reset had already cleared",
+  );
+});

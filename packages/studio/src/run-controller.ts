@@ -612,6 +612,16 @@ export function createRunController(
   // `run()` (and once per lazy `step()` preparation, which is its own single-attempt chain), so
   // attempt k+1 reproduces attempt k exactly up to the read the new answer extends.
   let chainRandomSeed = 0;
+  // Which chain the pump loop is driving. A synchronous host may answer AND then call `stop()` or
+  // `reset()` before `present()` returns — the answer sets `pumpAgain`, and the lifecycle call then
+  // unwinds into a pump loop that would otherwise run one more attempt on a chain the learner has
+  // already ended. Observed: `respond(); stop()` replaced the output the learner had just seen with
+  // the empty output of a pre-cancelled attempt, and `respond(); reset()` finished `"done"` over an
+  // emptied `chainSource` instead of settling `"idle"`. Every entry point that ends or restarts a
+  // chain bumps this, and `pump()` captures it once and stops the moment it changes — the same
+  // generation-token shape `promptGeneration` already uses for a late responder, kept separate
+  // because the responder itself bumps that one.
+  let chainGeneration = 0;
 
   /** Push `current`'s folded per-turtle world/scene into the shared store and repaint (never
    * called with a null animation — callers only invoke this once `animation` has been
@@ -888,6 +898,11 @@ export function createRunController(
    * the same on every attempt and the newest answer always advances the chain. That is what makes
    * this loop terminate for any program with a bounded number of reads, and it is why the
    * no-progress retry cap this loop used to carry is gone — see this module's doc comment ("#881").
+   *
+   * The loop also stops when the chain it started on has ended: a synchronous host can answer and
+   * then press Stop or Reset before `present()` returns, and without this check the queued
+   * `pumpAgain` would run one more attempt over the top of the outcome those already committed.
+   * See {@link chainGeneration}.
    */
   function pump(): void {
     if (pumping) {
@@ -895,11 +910,12 @@ export function createRunController(
       return;
     }
     pumping = true;
+    const generation = chainGeneration;
     try {
       do {
         pumpAgain = false;
         playCurrentAttempt(prepare(chainSource, options?.inputPrompt));
-      } while (pumpAgain);
+      } while (pumpAgain && generation === chainGeneration);
     } finally {
       pumping = false;
     }
@@ -922,11 +938,14 @@ export function createRunController(
     promptOutstanding = false;
     chainSource = state.getState().source;
     chainRandomSeed = drawRandomSeed();
+    chainGeneration += 1;
     pump();
   }
 
   function stop(): void {
     signal.aborted = true;
+    // Ends this chain: a queued replay from a synchronous answer must not run after it.
+    chainGeneration += 1;
     userStopped = true;
     animation?.pause();
     if (withdrawPendingRead()) {
@@ -939,6 +958,8 @@ export function createRunController(
 
   function reset(): void {
     withdrawPendingRead();
+    // Ends this chain, exactly as stop() does — see chainGeneration.
+    chainGeneration += 1;
     answers = [];
     chainSource = "";
     attemptDiagnostics = [];
