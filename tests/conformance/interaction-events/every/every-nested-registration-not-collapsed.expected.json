@@ -1,5 +1,5 @@
 {
-  "description": "a repeating handler that registers another repeating handler keeps EVERY registration: each one is a distinct handler with its own capture, never collapsed or deduplicated, so 12 ticks fire the body 6 times (3 + 2 + 1 + 0 growth) rather than the 4 of a single every 3 — the discriminating twin is every-single-registration-baseline",
+  "description": "a repeating handler that registers another repeating handler keeps EVERY registration: each one is a distinct handler, never collapsed or deduplicated, so 12 ticks fire the body 6 times (3 + 2 + 1 + 0 growth) rather than the 4 of a single every 3 — the discriminating twin is every-single-registration-baseline. The bodies print a literal, so this pair observes collapse-freedom ONLY: it says nothing about capture, which is issue #821's separate ruling and is NOT repaired here (its E-A still prints 30 30 30)",
   "profiles": ["core-language", "interaction-events"],
   "execute": true,
   "events": [

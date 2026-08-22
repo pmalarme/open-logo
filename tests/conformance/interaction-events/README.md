@@ -74,9 +74,13 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   immediately (the run has started), a `"stop"` handler fires once before termination, a non-word
   event is `ol-type`, a mismatched `end` label is `ol-mismatched-end`, and `check`-mode fixtures
   prove `when` is visible only under the `interaction-events` profile and rejected Core-only.
-  Issue **#828** adds `when-firing-counts-against-budget`: a handler *firing* is itself one charged
-  instruction, so an empty-bodied `"start"` handler consumes the instruction the following statement
-  would have had and a budget of 2 raises `ol-limit`.
+  Issue **#828** adds two budget fixtures, one per delivery path, because `when` has two: a handler
+  *firing* is itself one charged instruction, so in `when-firing-counts-against-budget` an empty-bodied
+  `"start"` handler fired synchronously at registration consumes the instruction the following
+  statement would have had, and a budget of 2 raises `ol-limit`.
+  `when-host-delivered-firing-counts-against-budget` covers the other path — a named event delivered
+  by the host through the tick dispatcher — because charging one path but not the other passed the
+  entire corpus.
 - **`every/`** — the `every <n> <block>` repeated timed handler (issue #683, slice I4):
   registration emits `primitive` after the handler is registered, the block first runs `n` ticks
   **after registration** (not at a global multiple of `n`) and repeats every `n` ticks while a `wait`
