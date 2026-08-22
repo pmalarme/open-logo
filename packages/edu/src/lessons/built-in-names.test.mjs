@@ -149,6 +149,22 @@ test("every name the curriculum declares is free to declare under the completed 
   }
 });
 
+// The names a learner is most likely to reach for, and what each one now costs them. `spec/grammar
+// .md:382` — "**Nothing shadows.** `define count`, `define forward`, and `define fd` are equally
+// errors, whether the name is a keyword, a Core primitive, a profile primitive, or an alias
+// spelling of one." A lesson that ever suggests one of these as a procedure name is broken.
+test("the names a learner reaches for are owned across all three categories", () => {
+  for (const name of ["repeat", "end", "define"]) {
+    assert.equal(builtInKind(name), "keyword", name);
+  }
+  for (const name of ["forward", "print", "count"]) {
+    assert.equal(builtInKind(name), "primitive", name);
+  }
+  for (const name of ["fd", "pr"]) {
+    assert.equal(builtInKind(name), "alias", name);
+  }
+});
+
 // AC2: `spec/grammar.md:412` protects `spec/educational-model.md:169` ("Learners build `polygon`
 // from `repeat`") by making the derived Geometry standard library OpenLogo *source* rather than
 // primitives — while the renderer-backed overlays of `spec/educational-model.md:219` stay built in.
