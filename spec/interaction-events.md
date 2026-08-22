@@ -76,7 +76,7 @@ Handlers are registered during program execution. Registering a handler does not
 run its block immediately unless the triggering event is already being delivered
 by the implementation. A handler block is a normal OpenLogo block: it is a list
 of instructions, it runs for effects, and any final value is discarded under the
-block-result rule.
+block-result rule. Each registration creates a distinct handler: implementations MUST NOT collapse, deduplicate, or replace registrations, so a block that registers the same handler twice registers two handlers. Each handler invocation is itself an instruction and counts against the same execution budget as any other instruction ([execution safety](execution-model.md#execution-safety)); a repeating handler whose block registers further repeating handlers is therefore bounded exactly as `forever` is — the accumulating invocations exhaust the budget and raise `ol-limit` rather than growing without bound.
 
 When an event fires, the implementation enqueues a handler invocation. Handler
 invocations MUST run on the same OpenLogo execution thread as ordinary
@@ -349,7 +349,7 @@ Interaction handlers and sound commands use the diagnostic shape defined in
 |---|---|---|
 | `ol-type` | `input`, `when`, `every`, `on_key`, `wait`, sound commands | an argument has the wrong type |
 | `ol-range` | `every`, `wait`, `note`, `play`, `rest`, `set_tempo` | a number is outside the allowed range |
-| `ol-limit` | handler execution | an instruction budget or cancellation limit was reached |
+| `ol-limit` | handler execution | an instruction budget or cancellation limit was reached; each handler invocation counts as one instruction |
 
 Cancellation MUST be available while a program is waiting for input, waiting for
 ticks, running handlers, or playing sound. Cancellation stops future handler

@@ -80,6 +80,7 @@ import { isRecognizedShape, normalizeShape } from "./shape.js";
 import { isValidPitch } from "./pitch.js";
 import {
   bindElement,
+  chargeHandlerFiring,
   checkExecutionLimits,
   createDefaultTurtleState,
   createTurtleAddressing,
@@ -93,7 +94,6 @@ import {
   executeRemoveKey,
   findDuplicateBinderName,
   isSupportedArgument,
-  pendingExecutionHalt,
   printedForm,
   pushLoopFrame,
   snapshotValue,
@@ -2369,10 +2369,11 @@ function isWhenStatement(statement: StatementNode): boolean {
 }
 
 /**
- * The non-consuming halt gate every handler invocation passes BEFORE emitting its block-head
- * `instruction` event (issue #686, slice I7). Returns an `ol-limit` {@link ExecSignal} to halt with
- * when the run has been cancelled, or when a non-empty handler body's instruction budget is already
- * too near exhaustion to run even one statement — otherwise `undefined` to proceed.
+ * The halt gate every handler invocation passes BEFORE emitting its block-head
+ * `instruction` event (issue #686, slice I7; issue #828 makes it charge the firing). Returns an
+ * `ol-limit` {@link ExecSignal} to halt with
+ * when the run has been cancelled, or when the budget cannot afford this firing (or the first
+ * statement of a non-empty body) — otherwise `undefined` to proceed.
  *
  * Placing it here, at the single entry every `invoke*Handler` shares, guards BOTH handler-delivery
  * paths uniformly: the immediate `when "start"` fire during registration ({@link fireEvent}) and the
@@ -2380,10 +2381,13 @@ function isWhenStatement(statement: StatementNode): boolean {
  * run must "stop future handler delivery" (`spec/interaction-events.md`'s "Errors and cancellation")
  * on every path — so a handler that would begin only to be immediately halted is not started at all,
  * and the trace never shows a handler that emitted its block-head yet produced no effect (an
- * incoherent partial delivery). {@link pendingExecutionHalt} is non-consuming, so a handler that DOES
- * run still costs only its body's instructions; an **empty**-bodied handler is always delivered (its
- * block-head emitted) at an exhausted budget because it has no statement gate and costs nothing —
- * `bodyHasStatements` gates the budget branch accordingly. Cancellation, by contrast, is re-checked
+ * incoherent partial delivery). {@link chargeHandlerFiring} **charges the firing one instruction**
+ * (issue #828's ruling: handler firings are instructions and count against the ordinary budget),
+ * which is what bounds a repeating handler that registers another repeating handler — see that
+ * function's doc comment for the measurement showing an empty-bodied inner handler otherwise
+ * accumulates at zero budget cost. An **empty**-bodied handler is still delivered whenever its own
+ * firing fits, because it has no statement gate — `bodyHasStatements` gates only the extra
+ * first-statement arm accordingly. Cancellation, by contrast, is re-checked
  * here ungated by `bodyHasStatements`: the Web-Worker `Atomics` deployment ({@link CancellationSignal})
  * can flip `aborted` between this guard and the body's first-statement gate, so without an abort check
  * a handler cancelled at its dispatch boundary — or any empty handler, which never reaches a body
@@ -2394,7 +2398,7 @@ function guardHandlerDispatch(
   handler: { keyword: { source_span: SourceSpan }; block: BlockNode },
   environment: Environment,
 ): ExecSignal | undefined {
-  const limitDiagnostic = pendingExecutionHalt(
+  const limitDiagnostic = chargeHandlerFiring(
     environment,
     handler.keyword.source_span,
     handler.block.body.length > 0,

@@ -308,22 +308,43 @@ test("cancellation observed via the instruction budget stops further handler del
     'on_key "x" [ print 2 ]',
     "wait 1",
   ].join("\n");
-  const result = execute(source, doc, {
-    instructionBudget: 4,
-    hostInput: { events: [{ tick: 1, kind: "key", key: "x" }] },
-  });
-  assert.equal(result.diagnostics.length, 1);
-  assert.equal(result.diagnostics[0].code, "ol-limit");
-  assert.equal(result.diagnostics[0].params.limit, "instruction-budget");
+  // Swept rather than hardcoded, like the two boundary tests below: since #828 a handler FIRING is
+  // itself a charged instruction, so the exact budget at which delivery stops mid-tick is an
+  // implementation-accounting detail, while the PROPERTY under test — first handler delivered,
+  // second refused, no orphan block-head — is not. Sweeping pins the property and survives any
+  // future accounting shift; hardcoding pinned the accounting and broke on this one.
+  let halted = null;
+  for (let budget = 1; budget <= 20; budget++) {
+    const probe = execute(source, doc, {
+      instructionBudget: budget,
+      hostInput: { events: [{ tick: 1, kind: "key", key: "x" }] },
+    });
+    if (
+      probe.diagnostics.length === 1 &&
+      probe.diagnostics[0].params.limit === "instruction-budget" &&
+      printedValues(probe).length === 1 &&
+      printedValues(probe)[0][0] === 1
+    ) {
+      halted = probe;
+      break;
+    }
+  }
+  assert.ok(
+    halted,
+    "expected a budget where exactly the first handler completes then halts",
+  );
+  assert.equal(halted.diagnostics.length, 1);
+  assert.equal(halted.diagnostics[0].code, "ol-limit");
+  assert.equal(halted.diagnostics[0].params.limit, "instruction-budget");
   // The first handler's `print 1` fired; the budget then halts BEFORE the second handler's
   // `print 2`, so exactly `[[1]]` is printed — proof that delivery stops mid-tick and that
   // already-emitted events remain available (returned unchanged).
-  assert.deepEqual(printedValues(result), [[1]]);
+  assert.deepEqual(printedValues(halted), [[1]]);
   // And the cancelled second handler leaves NO orphan block-head in the trace: cancellation stops
   // future handler DELIVERY, so the halted handler is not started at all — the stream must not end
   // with a bare handler-start `instruction` that produced no effect. The final event is the first
   // handler's own `print`, not a second block-head.
-  const last = result.events[result.events.length - 1];
+  const last = halted.events[halted.events.length - 1];
   assert.equal(last.kind, "print");
   assert.deepEqual(last.payload.values, [1]);
 });
@@ -452,34 +473,47 @@ test("the dispatch-boundary budget guard stops a due every handler with no orpha
 });
 
 test("an empty-bodied handler is still delivered at an exhausted budget (no statement gate)", () => {
-  // An empty handler body has no per-statement budget gate and costs zero instructions, so it must
-  // be delivered (its block-head `instruction` event emitted) even when the budget is already spent —
-  // the dispatch guard's budget branch applies ONLY to non-empty bodies. `when "start" [ ]` fires
-  // immediately at registration. The event stream is: the `when` registration statement
-  // (`instruction{ProfileStatement}` + `primitive{when}`), then the handler-fire block-head
-  // (`instruction{ProfileStatement}`) for the empty body. At budget 1 the trailing top-level `print 9`
-  // then halts, but the handler's block-head must already be present — not wrongly suppressed.
-  const source = ['when "start" [ ]', "print 9"].join("\n");
+  // An empty handler body has no per-statement budget gate, so the ONLY budget a handler with an
+  // empty body must afford is its own firing (issue #828: a handler firing is itself one charged
+  // instruction). It therefore still runs at a budget where an otherwise identical handler with a
+  // NON-empty body is refused, because that one must additionally afford its body's first statement.
+  //
+  // This is asserted as a discriminating PAIR at the same budget rather than as a single delivery,
+  // so it pins the `bodyHasStatements` arm specifically: a mutation that dropped the arm (charging
+  // and gating both bodies alike) would deliver both, and a mutation that applied the body gate to
+  // every handler would deliver neither. Only the real rule delivers exactly one.
   const isProfileStart = (event) =>
     event.kind === "instruction" &&
     event.payload.statement_kind === "ProfileStatement";
-  const atBudget1 = execute(source, doc, { instructionBudget: 1 });
-  // Two ProfileStatement `instruction` events: [0] the `when` registration statement, and the empty
-  // handler's own fire block-head. The latter proves the guard did NOT suppress a zero-cost handler.
-  assert.equal(atBudget1.events.filter(isProfileStart).length, 2);
-  // Nothing printed (`print 9` was halted by the budget) but the run halted on the budget, not on a
-  // suppressed handler.
-  assert.deepEqual(printedValues(atBudget1), []);
-  assert.equal(atBudget1.diagnostics.length, 1);
-  assert.equal(atBudget1.diagnostics[0].params.limit, "instruction-budget");
-  // The handler-fire block-head is the LAST event — the empty handler was delivered, then the budget
-  // stopped the following statement, leaving no orphan (the handler produced its start with no body,
-  // which is exactly a full delivery of an empty body).
-  const last = atBudget1.events[atBudget1.events.length - 1];
-  assert.ok(isProfileStart(last));
+  // `when "start" [ … ]` fires immediately at registration during a batch run. Each program's
+  // ProfileStatement `instruction` events are: [0] the `when` registration statement itself, and —
+  // only if the handler is actually delivered — [1] the handler's own fire block-head.
+  const budget = 2;
+  const empty = execute('when "start" [ ]\nprint 9', doc, {
+    instructionBudget: budget,
+  });
+  const nonEmpty = execute('when "start" [ print 1 ]\nprint 9', doc, {
+    instructionBudget: budget,
+  });
+  // The empty-bodied handler WAS delivered: its block-head is present.
+  assert.equal(empty.events.filter(isProfileStart).length, 2);
+  // The non-empty twin at the very same budget was NOT: it could not afford its body's first
+  // statement, so the guard refused it before any block-head — no orphan "started but ran nothing".
+  assert.equal(nonEmpty.events.filter(isProfileStart).length, 1);
+  // Both runs halt on the budget, not on a suppressed handler, and neither printed.
+  for (const result of [empty, nonEmpty]) {
+    assert.deepEqual(printedValues(result), []);
+    assert.equal(result.diagnostics.length, 1);
+    assert.equal(result.diagnostics[0].params.limit, "instruction-budget");
+  }
+  // The empty handler's block-head is the LAST event — it was delivered, then the budget stopped the
+  // following statement, leaving no orphan (a start with no body IS a full delivery of an empty body).
+  assert.ok(isProfileStart(empty.events[empty.events.length - 1]));
   // With enough budget for the trailing statement, the empty handler still fires and `print 9` runs —
   // identical handler delivery, just more budget for what follows.
-  const atBudget3 = execute(source, doc, { instructionBudget: 3 });
+  const atBudget3 = execute('when "start" [ ]\nprint 9', doc, {
+    instructionBudget: 3,
+  });
   assert.deepEqual(printedValues(atBudget3), [[9]]);
   assert.equal(atBudget3.events.filter(isProfileStart).length, 2);
 });

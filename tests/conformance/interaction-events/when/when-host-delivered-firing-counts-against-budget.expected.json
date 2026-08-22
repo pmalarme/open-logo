@@ -1,0 +1,72 @@
+{
+  "description": "a when handler delivered by the HOST, through the tick dispatcher, is charged exactly like one fired synchronously at registration. when has two delivery paths - fireEvent for the immediate \"start\" fire, and the tick drain for host-delivered named events - and when-firing-counts-against-budget only exercises the first, so charging one but not the other passed the whole corpus. The empty body makes the firing the only chargeable thing: the registration and the wait consume the budget of 2, so the handler's own firing is the instruction that cannot be afforded and raises ol-limit. An implementation that charged only the registration-time path completes this program cleanly",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "executeOptions": {
+    "instructionBudget": 2,
+    "hostInput": {
+      "events": [
+        {
+          "tick": 1,
+          "kind": "event",
+          "event": "go"
+        }
+      ]
+    }
+  },
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/when/when-host-delivered-firing-counts-against-budget",
+        "start": [1, 1],
+        "end": [1, 14]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/when/when-host-delivered-firing-counts-against-budget",
+        "start": [1, 1],
+        "end": [1, 14]
+      },
+      "payload": {
+        "name": "when"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/when/when-host-delivered-firing-counts-against-budget",
+        "start": [2, 1],
+        "end": [2, 7]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-limit",
+      "source_span": {
+        "document": "interaction-events/when/when-host-delivered-firing-counts-against-budget",
+        "start": [1, 1],
+        "end": [1, 5]
+      },
+      "params": {
+        "limit": "instruction-budget",
+        "value": 2
+      },
+      "message": "this program ran 2 instructions without finishing, which is the configured safety limit — check for a loop that never ends, such as an unbounded 'forever' or 'while' whose condition never becomes false.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

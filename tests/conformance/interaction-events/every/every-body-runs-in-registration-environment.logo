@@ -1,0 +1,5 @@
+define setup :v
+  every 3 [ print :v ]
+end
+setup 7
+wait 3

@@ -633,38 +633,66 @@ export function checkExecutionLimits(
 }
 
 /**
- * The **non-incrementing** boundary probe every handler invocation passes BEFORE emitting its
- * block-head `instruction` event (issue #686, slice I7): returns a halting {@link Diagnostic} — a
- * `cancelled` when the run has been aborted, otherwise an `ol-limit(instruction-budget)` when a
- * **non-empty** handler body's budget is already so close to exhausted that it could not run even
- * its first statement — or `undefined` to proceed.
+ * The budget gate every handler invocation passes BEFORE emitting its block-head `instruction`
+ * event (issue #686, slice I7; issue #828): **charges the firing one instruction**, then returns a
+ * halting {@link Diagnostic} — a `cancelled` when the run has been aborted, an
+ * `ol-limit(instruction-budget)` when the firing itself, or the body's own first statement, could
+ * not be afforded — or `undefined` to proceed.
  *
- * It must NOT consume an instruction the way {@link checkExecutionLimits} does: handler dispatch is
- * deliberately *not* one of the per-statement budgeted instructions (a handler's block-head
- * `instruction` event is not counted), so a handler that *does* run still costs only its body's
- * statements, exactly as before this guard existed. It only inspects the accumulated count.
+ * ## Why a handler firing is itself a charged instruction (issue #828)
  *
- * Why the budget predicate is `count >= budget`, and only for a non-empty body
- * (`bodyHasStatements`): it must predict what the body's *own* first per-statement gate will do.
- * {@link executeStatements} runs its first statement only after `count++ ; count > budget` passes,
- * i.e. only while `count < budget` on entry — so a non-empty handler entered at `count >= budget`
- * would emit its block-head then halt before running a single statement (an orphan "started but
- * produced nothing" trace). An **empty** handler body has no statement gate and costs zero
- * instructions, so it must still be delivered (its block-head emitted) even at an exhausted budget;
- * applying the budget pre-halt to it would wrongly reject a valid zero-cost handler and change budget
- * accounting. So the budget branch is guarded by `bodyHasStatements`.
+ * This probe used to be deliberately **non**-consuming, on the reasoning that a handler costs only
+ * its body's statements. That left a hole with no lower bound: a repeating handler that registers
+ * another repeating handler — `every 3 [ every 3 [ … ] ]` — accumulates one more live handler per
+ * outer firing, so the firing rate grows quadratically in the number of ticks, and when the inner
+ * body is **empty** the entire accumulation costs *nothing*. Measured at saga tip `fc4371d` before
+ * this change: `every 3 [ every 3 [ ] ]` over a `wait 40` produced 121 events and **no** `ol-limit`
+ * at an instruction budget of 20, 40, 80, or 200 alike. Unbounded work, invisible to the budget.
  *
- * The **abort check is NOT gated on `bodyHasStatements`** and is checked first: a cancelled run must
- * stop future handler *delivery* of every kind, including a zero-cost empty handler, before its
- * block-head is emitted. This matters because the realistic deployment (see {@link CancellationSignal})
- * runs `execute()` in a Web Worker with an `Atomics`-backed `aborted` getter the main thread can flip
- * *between* this probe and the body's first-statement gate — so unlike the budget boundary, an aborted
- * signal observed here is not redundant with `checkExecutionLimits`: without this branch a handler
- * cancelled at its dispatch boundary (or any empty handler, which never reaches a body gate) would
- * emit an orphan block-head after cancellation. This is the review-gate finding that reversed an
- * earlier "abort is unreachable here" decline.
+ * The maintainer-delegated ruling on #828 is that handler firings **are** instructions and count
+ * against the ordinary budget, rather than that construct getting a mechanism of its own. The
+ * precedent is already in the spec: `spec/execution-model.md:625-629` — "Implementations must
+ * support cancellation. They should enforce configurable instruction budgets … **`forever` is
+ * therefore safe only because it is cancellable and budgeted.**" A repeating handler registering a
+ * repeating handler is the same shape — unbounded by construction, made safe by being budgeted — so
+ * it gets the same answer. Charging here, at the single entry every `invoke*Handler` shares, is what
+ * makes the accumulation terminate: with each firing charged, the quadratic growth burns the budget
+ * and trips the ordinary `ol-limit` instead of running away silently. Registrations are never
+ * collapsed, deduped, or replaced — each stays a distinct handler. That is collapse-freedom ONLY.
+ * Registration captures the live lexical environment; it neither snapshots values nor creates fresh
+ * bindings. So two registrations made in genuinely different environments do keep them
+ * (`define setup :v ; every 3 [ print :v ] ; end` called as `setup 7` then `setup 8` prints `7 8`),
+ * while two registrations sharing ONE binding both read it live at firing time
+ * (`:n = 10 ; every 3 [ print :n ] ; :n = 20 ; every 3 [ print :n ]` prints `20 20`). What is missing
+ * is fresh per-iteration bindings, which is why a loop body still reuses one binding
+ * (issue #821's E-A prints `30 30 30`). That is #821's separate ruling and is NOT repaired here;
+ * #828 only guarantees the collapse-freedom that repair will build on is not taken away.
+ *
+ * ## Why the halt predicate has two arms
+ *
+ * After the charge, the firing is unaffordable exactly when `count > budget` — the same
+ * `count++ ; count > budget` shape {@link checkExecutionLimits} uses, so a handler firing is
+ * budgeted identically to a statement or a loop pass.
+ *
+ * The extra `bodyHasStatements && count === budget` arm predicts what the body's *own* first
+ * per-statement gate will do. {@link executeStatements} runs its first statement only after
+ * `count++ ; count > budget` passes, i.e. only while `count < budget` on entry — so a non-empty
+ * handler entered at `count === budget` would emit its block-head and then halt before running a
+ * single statement, leaving an orphan "started but produced nothing" trace. An **empty** body has no
+ * statement gate, so it is delivered whenever its own firing fits.
+ *
+ * The **abort check is NOT gated on `bodyHasStatements`**, is checked first, and does not charge: a
+ * cancelled run must stop future handler *delivery* of every kind, including an empty handler,
+ * before its block-head is emitted. This matters because the realistic deployment (see
+ * {@link CancellationSignal}) runs `execute()` in a Web Worker with an `Atomics`-backed `aborted`
+ * getter the main thread can flip *between* this probe and the body's first-statement gate — so
+ * unlike the budget boundary, an aborted signal observed here is not redundant with
+ * {@link checkExecutionLimits}: without this branch a handler cancelled at its dispatch boundary (or
+ * any empty handler, which never reaches a body gate) would emit an orphan block-head after
+ * cancellation. This is the review-gate finding that reversed an earlier "abort is unreachable
+ * here" decline.
  */
-export function pendingExecutionHalt(
+export function chargeHandlerFiring(
   environment: Environment,
   source_span: SourceSpan,
   bodyHasStatements: boolean,
@@ -672,14 +700,11 @@ export function pendingExecutionHalt(
   if (environment.signal?.aborted) {
     return runtimeDiag.cancelled(source_span);
   }
-  if (
-    bodyHasStatements &&
-    environment.instructionCount.count >= environment.instructionBudget
-  ) {
-    return runtimeDiag.instructionLimit(
-      source_span,
-      environment.instructionBudget,
-    );
+  environment.instructionCount.count++;
+  const charged = environment.instructionCount.count;
+  const budget = environment.instructionBudget;
+  if (charged > budget || (bodyHasStatements && charged === budget)) {
+    return runtimeDiag.instructionLimit(source_span, budget);
   }
   return undefined;
 }
