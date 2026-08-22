@@ -127,11 +127,7 @@ built-in name* as *what is*:
     { "name": "forward", "category": "primitive", "profile": "turtle-rendering", "registries": ["turtle-primitive"] },
     { "name": "setxy",   "category": "primitive", "profile": "turtle-rendering", "registries": ["turtle-primitive"], "aliasOf": "set_xy" },
     { "name": "fd",      "category": "primitive", "profile": "heritage",         "registries": ["heritage-alias"],   "aliasOf": "forward" },
-    // `challenge` is normative in spec/conformance.md but is in NO registry today, and there is no
-    // tutor-shaped table to name — see clause 2. #841 must choose its target registry (the existing
-    // educationalPrimitiveArity, or a new tutor one) and record that name here. Deliberately left
-    // unresolved rather than guessed: a fabricated registry name is the drift this file prevents.
-    { "name": "challenge", "category": "primitive", "profile": "tutor-ai",       "registries": ["<chosen by #841>"] }
+    { "name": "challenge", "category": "primitive", "profile": "tutor-ai",       "registries": ["tutor-primitive"] }
   ],
   "excluded": [
     { "name": "polygon", "reason": "library",            "source": "stdlib/geometry/polygon.logo" },
@@ -175,14 +171,40 @@ built-in name* as *what is*:
   exists: drop `thing` from `corePrimitiveArity`, or `make` from `heritageFormHeadNames()`, and a
   precedence-based gate would still see a matching keyword entry and report green. With
   `registries`, membership is checked set-equal in both directions against the named accessors, so
-  either loss fails the build. The registry names are a closed vocabulary mapping one-to-one onto
-  the public API — `reserved`, `profile-reserved`, `<profile>-primitive`, `heritage-alias`,
-  `heritage-form-head`, `heritage-worded-form-head` — and adding a registry to the implementation
-  means adding its name here, which is itself the drift the gate exists to catch. Where a name has
-  no registry yet, the entry says so rather than naming a plausible-sounding one: `challenge` is in
-  none, and there is no tutor-shaped table in the API to point at, so #841 chooses its target and
-  records it. A guessed registry name would be indistinguishable from a measured one, in the file
-  whose whole purpose is that it cannot be guessed.
+  either loss fails the build.
+
+  The vocabulary is **closed and enumerated** — no shorthand, because a pattern like
+  `<profile>-primitive` is exactly the kind of thing a reader completes by guessing:
+
+  | tag | accessor |
+  |---|---|
+  | `reserved` | `OL_RESERVED_WORDS` |
+  | `profile-reserved` | `OL_PROFILE_RESERVED_WORDS` (keyed by profile) |
+  | `core-primitive` | `corePrimitiveArity` |
+  | `turtle-primitive` | `turtlePrimitiveArity` |
+  | `data-primitive` | `dataPrimitiveArity` |
+  | `educational-primitive` | `educationalPrimitiveArity` |
+  | `geometry-primitive` | `geometryPrimitiveArity` |
+  | `interaction-primitive` | `interactionPrimitiveArity` |
+  | `sound-primitive` | `soundPrimitiveArity` |
+  | `sprites-primitive` | `spritesPrimitiveArity` |
+  | **`tutor-primitive`** | **`tutorPrimitiveArity` — does not exist; #841 creates it (see below)** |
+  | `heritage-alias` | `heritageAliasNames` |
+  | `heritage-form-head` | `heritageFormHeadNames` |
+  | `heritage-worded-form-head` | `heritageWordedFormHeads` |
+
+  Adding a registry to the implementation means adding its row here, which is itself drift the gate
+  catches.
+- **Tutor (AI) gets its own registry: `tutorPrimitiveArity`.** This decision settles it here rather
+  than deferring it, because an Accepted record must not hand an unresolved architecture choice to
+  its implementing slice. The alternative — filing `challenge` in the existing
+  `educationalPrimitiveArity` — was rejected: it breaks the invariant clause 1 depends on, that
+  `profile` matches *which* registry a name came from, since `challenge` is `tutor-ai` and that
+  table is Educational's. Keeping the invariant exception-free is worth one small table, and it
+  matches the shape every other profile that ships primitives already has (eight tables, one per
+  profile; Tutor (AI) is simply the missing ninth). #841 creates it and registers `challenge` in it,
+  together with the runtime primitive — a bare arity entry would make the checker accept a call the
+  evaluator cannot execute.
 - **Six names are reachable from two registries, so `category` needs a stated precedence.**
   Measured: `thing` is the only name in both `OL_RESERVED_WORDS` and a *primitive table*
   (`corePrimitiveArity`, arity 1); and `make`, `op`, `output`, `to` and `value` are each in
@@ -278,15 +300,14 @@ evidence rather than a comforting no-op.
 
 **Clause 1 fails against the tree as it stood when this record was accepted, in two independent
 ways, and neither is an oversight.** `challenge` belongs in `names` (it is normative in
-`spec/conformance.md`) and is in no registry; `mod` is filed `category: "keyword"` and is in neither
-`OL_RESERVED_WORDS` (43 entries, measured, no `mod`) nor `OL_PROFILE_RESERVED_WORDS`. The two are
-closed by **different slices**: `challenge` by #841, which adds the Tutor (AI) registry entry — and,
-because a bare arity-table entry would make the checker accept a call the evaluator cannot execute,
-that entry and the runtime primitive have to land together; `mod` by the grammar slice **#837**,
-which takes the keyword list from 43 to 44. A maintainer landing #841 alone should therefore expect
-the gate to be *still* red on `mod`, not green. Saying all of this explicitly is what stops the red
-gate from being "fixed" by dropping either name from `names`, which would silently re-open the exact
-holes these clauses exist to close.
+`spec/conformance.md`) and its registry `tutorPrimitiveArity` does not exist yet; `mod` is filed
+`category: "keyword"` and is in neither `OL_RESERVED_WORDS` (43 entries, measured, no `mod`) nor
+`OL_PROFILE_RESERVED_WORDS`. The two are closed by **different slices**: `challenge` by #841, which
+creates the Tutor (AI) registry decided above and registers it there alongside the runtime
+primitive; `mod` by the grammar slice **#837**, which takes the keyword list from 43 to 44. A
+maintainer landing #841 alone should therefore expect the gate to be *still* red on `mod`, not
+green. Saying all of this explicitly is what stops the red gate from being "fixed" by dropping
+either name from `names`, which would silently re-open the exact holes these clauses exist to close.
 
 ### 4. The implementation consumes the list; it does not re-derive it
 
@@ -342,9 +363,10 @@ it is the file that most needs review.
 - **`spec/` gains a non-prose normative artifact**, following the precedent of `spec/examples/`.
   Reviewing JSON is a different activity from reviewing prose; the `excluded` array with its
   `reason` field exists partly so that a reviewer can see *intent*, not just membership.
-- **`@openlogo/parser`'s public API grows** by the enumerable name accessors, which is a
-  cross-cutting contract change under [ADR-0006](0006-cross-cutting-contracts.md) and needs the
-  owning agent's review.
+- **`@openlogo/parser`'s public API grows** by the enumerable name accessors, an enumerable
+  canonical map covering the Turtle & Rendering alias spellings, and a new `tutorPrimitiveArity`
+  registry for Tutor (AI) — a cross-cutting contract change under
+  [ADR-0006](0006-cross-cutting-contracts.md) that needs the owning agent's review.
 - **Feature detection MAY report the list; this decision does not require it.**
   `spec/conformance.md`'s feature-detection metadata already carries `openlogo.version`, the
   supported profile set, extension names and rendering targets, and exposing the built-in names
