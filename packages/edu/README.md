@@ -82,9 +82,34 @@ lesson-content shape elsewhere in the codebase — extend this contract instead.
 - `lessons/registry.ts` — aggregates every level's lessons/exercises into flat `LESSONS`/
   `EXERCISES` lists, plus `getLessonsByLevel`/`getExercisesByLevel`/`getExercisesByLesson`/
   `findLessonById`/`findExerciseById` helpers.
+- `lessons/built-in-names.test.mjs` — the built-in-names curriculum audit
+  ([#843](https://github.com/pmalarme/open-logo/issues/843)), kept as a test rather than a one-off
+  report. See [Naming rules for lesson authors](#naming-rules-for-lesson-authors) below.
 
-Every worked example and reference solution is executed against `@openlogo/runtime` in this
-package's tests, so lesson content can never drift from real execution behavior. Later levels
-(Level 6 onward) add their own `lessons/level-N.ts` module and extend the registry additively —
-no shared file needs an ever-growing literal, and no level uses a concept from a later level
+## Naming rules for lesson authors
+
+The maintainer ruling behind [`spec/grammar.md`](../../spec/grammar.md#keywords-primitives-and-built-in-names)
+is one sentence: **a program may not declare a built-in name, and a program may bind a value to any
+name.** For lesson content that splits cleanly in two.
+
+- **Declaring** — `define`, the heritage `to`, `struct`, and the first operand of `alias` — must use
+  a name OpenLogo does not already own. A worked example or reference solution that writes
+  `define forward`, `define count`, or `define fd` raises `ol-reserved-word`, whatever the spelling
+  and whatever profiles are claimed. `grid`, `axes`, and `measure` are renderer-backed overlays and
+  are owned too; the derived Geometry standard library — `polygon`, `star`, `circle`, `arc`, `area`,
+  `perimeter` — is OpenLogo source and stays free, which is what keeps
+  `spec/educational-model.md`'s "Learners build `polygon` from `repeat`" true. The educational
+  meta-commands `explain`, `why`, `hint`, and `debug` are owned as well, so no lesson may define one.
+- **Binding** — `:name = value`, `set … to`, `make`, `local`, parameters, `for`/`map`/`filter`/
+  `reduce` binders, destructuring names, struct field names, and dictionary keys — accepts **any**
+  name. `:end = 1`, `local count`, and `{ value: 1 }` are conforming programs. A lesson must never
+  teach that these names are forbidden, because they are not: only declaring a callable with one is.
+
+Every worked example and reference solution is both **executed** against `@openlogo/runtime` and
+**statically checked** with `@openlogo/parser`'s `check()` in this package's tests, so lesson content
+can drift neither from real execution behavior nor from the naming rules. The two gates are
+genuinely different: `ol-reserved-word` is a semantic diagnostic that only `check()` produces, so a
+lesson declaring a built-in name would run cleanly through an execution-only test. Later levels
+(Level 6 onward) add their own `lessons/level-N.ts` module and extend the registry additively — no
+shared file needs an ever-growing literal, and no level uses a concept from a later level
 (`spec/educational-model.md:37`'s discovery guardrail).
