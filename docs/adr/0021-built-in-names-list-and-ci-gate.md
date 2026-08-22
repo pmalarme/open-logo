@@ -113,6 +113,11 @@ Everything else (the primitive half, the aliases, the profile tags) lives only i
 ### 2. What the data must guarantee — and what it must not pin
 
 **This section's *invariants* are normative; the JSON below is an illustration, not the contract.**
+The prose following the illustration records the `0.1.0` state and the reasoning behind these
+invariants; where it states a **decision** rather than a field layout — the closed tag vocabulary,
+the `keyword`-before-`primitive` precedence, `profile` as metadata that must never gate blocking,
+and the Tutor registry — that decision is normative and is carried by an invariant below, by §3, or
+by ruling #833 itself. Nothing in this section is demoted except the shapes.
 The distinction matters because this record is `Status: Accepted` and therefore immutable, while a
 gate's data model is refined as it meets a real implementation — which happened three times during
 this record's own review. Pinning a field layout here would mean every later refinement needs a
@@ -248,7 +253,8 @@ and 5 require:
   scans them.
 
   **The tag→accessor mapping is data, not prose: it lives in the file, as a top-level `registries`
-  object** (tag → accessor name) alongside `specVersion`. That is what the gate reads; the table
+  object** (tag → its `lookup` and `enumerate` accessors, each with a status) alongside
+  `specVersion`. That is what the gate reads; the table
   above is its human-readable copy at version `0.1.0`, printed here so the decision is reviewable
   without opening the file. Putting the mapping in the file rather than in a second schema artifact
   keeps one thing versioned by one `specVersion`, and means a new registry is a **versioned change
@@ -280,11 +286,12 @@ and 5 require:
   - **`declared`** — decided but not yet created, so it is *expected* absent; the gate accepts that
     and **fails if it ever does resolve**, because at that moment it should have become `present`.
 
-  At `0.1.0` the `declared` accessors are the **nine `*PrimitiveNames` enumerators** §4 requires #841
-  to export, plus `tutorPrimitiveArity`, whose lookup does not exist either — ten in total, across
-  nine tags. #841 flips each to `present` in the same change that creates it. Without a per-accessor
-  `status` the gate would need hard-coded exceptions naming those accessors — the second list that
-  drifts from the first, the precise failure this record exists to remove.
+  At `0.1.0` the `declared` accessors are the **eight** `*PrimitiveNames` enumerators §4 requires
+  #841 to *export* (they already exist inside `signatures.ts`), plus **both** Tutor accessors, which
+  the Tutor decision below requires #841 to *create* — ten in total, across nine tags. #841 flips
+  each to `present` in the same change that lands it. Without a per-accessor `status` the gate would
+  need hard-coded exceptions naming those accessors — the second list that drifts from the first,
+  the precise failure this record exists to remove.
 - **Tutor (AI) gets its own registry: `tutorPrimitiveArity`.** This decision settles it here rather
   than deferring it, because an Accepted record must not hand an unresolved architecture choice to
   its implementing slice. The alternative — filing `challenge` in the existing
@@ -321,7 +328,10 @@ and 5 require:
 
 ### 3. What CI compares
 
-The gate runs in the CI-enforced Definition of Done and fails on any of:
+The clauses below are **normative**, and are stated in the illustration's vocabulary for
+concreteness. Under any other representation §2 permits, each clause binds to the invariant it
+implements rather than to the field name it happens to mention. The gate runs in the CI-enforced
+Definition of Done and fails on any of:
 
 1. **Entry inequality in either direction** between `names` and the implementation's registries,
    read through `@openlogo/parser`'s public API. This is a comparison of **structured entries, not
