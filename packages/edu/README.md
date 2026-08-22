@@ -93,13 +93,14 @@ is one sentence: **a program may not declare a built-in name, and a program may 
 name.** For lesson content that splits cleanly in two.
 
 - **Declaring** — `define`, the heritage `to`, `struct`, and the first operand of `alias` — must use
-  a name OpenLogo does not already own. A worked example or reference solution that writes
-  `define forward`, `define count`, or `define fd` raises `ol-reserved-word`, whatever the spelling
-  and whatever profiles are claimed. `grid`, `axes`, and `measure` are renderer-backed overlays and
-  are owned too; the derived Geometry standard library — `polygon`, `star`, `circle`, `arc`, `area`,
-  `perimeter` — is OpenLogo source and stays free, which is what keeps
-  `spec/educational-model.md`'s "Learners build `polygon` from `repeat`" true. The educational
-  meta-commands `explain`, `why`, `hint`, and `debug` are owned as well, so no lesson may define one.
+  a name OpenLogo does not already own. Under the ruling, a worked example or reference solution
+  that writes `define forward`, `define count`, or `define fd` raises `ol-reserved-word`, whatever
+  the spelling and whatever profiles are claimed. `grid`, `axes`, and `measure` are renderer-backed
+  overlays and are owned too; the derived Geometry standard library — `polygon`, `star`, `circle`,
+  `arc`, `area`, `perimeter` — is OpenLogo source and stays free, which is what keeps
+  `spec/educational-model.md`'s "Learners build `polygon` from `repeat`" true. The meta-commands
+  `explain`, `why`, `hint`, `debug`, and `challenge` are owned as well, so no lesson may define one.
+  Identifiers are case-insensitive (`spec/grammar.md:13`), so `define FD` is `define fd`.
 - **Binding** — `:name = value`, `set … to`, `make`, `local`, parameters, `for`/`map`/`filter`/
   `reduce` binders, destructuring names, struct field names, and dictionary keys — accepts **any**
   name. `:end = 1`, `local count`, and `{ value: 1 }` are conforming programs. A lesson must never
@@ -109,7 +110,15 @@ Every worked example and reference solution is both **executed** against `@openl
 **statically checked** with `@openlogo/parser`'s `check()` in this package's tests, so lesson content
 can drift neither from real execution behavior nor from the naming rules. The two gates are
 genuinely different: `ol-reserved-word` is a semantic diagnostic that only `check()` produces, so a
-lesson declaring a built-in name would run cleanly through an execution-only test. Later levels
-(Level 6 onward) add their own `lessons/level-N.ts` module and extend the registry additively — no
-shared file needs an ever-growing literal, and no level uses a concept from a later level
-(`spec/educational-model.md:37`'s discovery guardrail).
+lesson declaring a built-in name would run cleanly through an execution-only test.
+
+Note the rule above is the **completed** one. `check()` does not consult every primitive table yet —
+Turtle & Rendering awaits [#783](https://github.com/pmalarme/open-logo/issues/783) and the
+meta-commands are not wired in — so `define forward` and `define hint` are still accepted today. The
+naming half of the gate is therefore enforced by `built-in-names.test.mjs`'s own `builtInKind()`,
+which reads the completed rule straight off `@openlogo/parser`'s registries, and not by `check()`.
+Lesson content is held to the finished rule now, so nothing breaks when those slices land.
+
+Later levels (Level 6 onward) add their own `lessons/level-N.ts` module and extend the registry
+additively — no shared file needs an ever-growing literal, and no level uses a concept from a later
+level (`spec/educational-model.md:37`'s discovery guardrail).

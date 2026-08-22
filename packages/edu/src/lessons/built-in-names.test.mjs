@@ -11,9 +11,12 @@
 // **Why this file exists and the sibling `level-N.test.mjs` files are not enough.** Every other
 // test in this package validates lesson content with `execute()`, which runs `parse()` and then
 // the evaluator — it never calls `check()`. `ol-reserved-word` is a `stage: "semantic"` diagnostic
-// (`spec/grammar.md:390`), so it is produced *only* by `check()`: a lesson that declared a
-// built-in name would run cleanly through every existing test and ship. This file closes that gap
-// by putting the curriculum corpus through `check()` as well.
+// (`spec/grammar.md:390`), so for a *procedure* declaration it is produced only by `check()`: a
+// lesson containing `define count` or `define forward` runs cleanly through every existing test in
+// this package and would ship. (The runtime's own phase-1 registration guard does catch some
+// `struct` collisions, so the hole is not total — but a procedure declaration, which is what the
+// curriculum actually teaches at Level 5, falls straight through it.) This file closes that gap by
+// putting the curriculum corpus through `check()` as well.
 //
 // **The forward-looking half.** `checker-reserved-word.ts` does not yet consult every primitive
 // table — Turtle & Rendering awaits issue #783, and the Educational meta-commands are not wired in
@@ -22,7 +25,8 @@
 // directly off the registries `@openlogo/parser` already publishes: the keyword list under **every**
 // profile (`spec/grammar.md:408` — profile words are built-in unconditionally), every primitive
 // table, and every Heritage alias spelling. That way this audit protects the curriculum on the day
-// those slices land rather than on the day a learner hits it.
+// those slices land rather than on the day a learner hits it. Where the two halves disagree, the
+// registry half is the stricter one and the one that decides.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as OL from "@openlogo/edu";
@@ -59,26 +63,50 @@ const PRIMITIVE_TABLES = [
   spritesPrimitiveArity,
 ];
 
+/**
+ * Names this specification version assigns as primitives but `@openlogo/parser` has no signature
+ * table for yet. `challenge` is the Tutor (AI) profile's meta-command (`spec/conformance.md:239`,
+ * `:244`), and `spec/grammar.md:408` makes every profile's primitives built-in names "in **every**
+ * implementation, whether or not that profile is claimed" — so a learner may not declare it even
+ * though nothing rejects `define challenge` today. Delete an entry here the day its profile gains a
+ * table, rather than letting this set quietly become a second, drifting registry.
+ */
+const TUTOR_AI_PRIMITIVES = new Set(["challenge"]);
+
 /** Every Heritage alias spelling; `spec/grammar.md:359` makes an alias a built-in name too. */
 const HERITAGE_ALIASES = new Set(heritageAliasNames());
 
-/** Matches a declaration slot's name: `define x`, the heritage `to x`, or `struct x`. */
+/**
+ * Matches a declaration slot's name. All four slots of `spec/grammar.md:382` are covered —
+ * `define`, the heritage `to`, `struct`, and `alias`, whose **first** operand is the declared one
+ * (`spec/grammar.md:410`), which is the one this captures. The identifier pattern follows
+ * `spec/grammar.md:54-55` including the optional `?`/`!` suffix, and the `i` flag follows `:13`:
+ * "Keywords and identifiers are case-insensitive."
+ */
 const DECLARATION =
-  /^[ \t]*(?:define|to|struct)[ \t]+([A-Za-z_][A-Za-z0-9_]*)/gm;
+  /^[ \t]*(?:define|to|struct|alias)[ \t]+([\p{XID_Start}_][\p{XID_Continue}_]*[?!]?)/gimu;
 
 /**
  * Why `name` is a built-in name under the completed ruling, or `"free"` when a program may declare
- * it. Profiles are never gated here: `spec/grammar.md:408` makes every profile's keywords and
- * primitives built-in names "in **every** implementation, whether or not that profile is claimed".
+ * it. Two things this deliberately does that a naive lookup would not:
+ *
+ * - **Profiles are never gated.** `spec/grammar.md:408` makes every profile's keywords and
+ *   primitives built-in names whether or not that profile is claimed.
+ * - **The name is folded first.** `spec/grammar.md:13` makes identifiers case-insensitive, so
+ *   `define FD` declares the Heritage alias `fd` and must be caught as one.
  */
 function builtInKind(name) {
-  if (isKeyword(name, OL_CHECK_PROFILES)) {
+  const canonical = name.toLowerCase();
+  if (isKeyword(canonical, OL_CHECK_PROFILES)) {
     return "keyword";
   }
-  if (PRIMITIVE_TABLES.some((arityOf) => arityOf(name) !== undefined)) {
+  if (PRIMITIVE_TABLES.some((arityOf) => arityOf(canonical) !== undefined)) {
     return "primitive";
   }
-  if (HERITAGE_ALIASES.has(name)) {
+  if (TUTOR_AI_PRIMITIVES.has(canonical)) {
+    return "primitive";
+  }
+  if (HERITAGE_ALIASES.has(canonical)) {
     return "alias";
   }
   return "free";
@@ -114,10 +142,12 @@ const CURRICULUM_SOURCES = [
 
 // A harness that silently does nothing reports a clean corpus forever. `parse()` returns a
 // `ParseResult`, not a `ProgramNode`, so handing its result straight to `check()` type-checks in
-// plain JS and quietly finds nothing at all. These three controls pin that `diagnosticCodes` runs
-// both stages for real before any assertion below trusts an empty result.
+// plain JS and quietly finds nothing at all. These four controls pin that `diagnosticCodes` runs
+// both stages for real, and keeps both halves of each stage's output: `@` is rejected at the parse
+// stage, so dropping `parse()`'s own diagnostics fails here rather than in the corpus.
 test("the audit harness really runs both parse() and check()", () => {
   assert.deepEqual(diagnosticCodes("forward 10"), []);
+  assert.deepEqual(diagnosticCodes("@"), ["ol-bad-token"]);
   assert.deepEqual(diagnosticCodes("print :nope"), ["ol-undefined-var"]);
   assert.deepEqual(diagnosticCodes("define count\nend"), ["ol-reserved-word"]);
 });
@@ -149,10 +179,10 @@ test("every name the curriculum declares is free to declare under the completed 
   }
 });
 
-// The names a learner is most likely to reach for, and what each one now costs them. `spec/grammar
-// .md:382` — "**Nothing shadows.** `define count`, `define forward`, and `define fd` are equally
-// errors, whether the name is a keyword, a Core primitive, a profile primitive, or an alias
-// spelling of one." A lesson that ever suggests one of these as a procedure name is broken.
+// The names a learner is most likely to reach for, and what each one now costs them.
+// `spec/grammar.md:382` — "**Nothing shadows.** `define count`, `define forward`, and `define fd`
+// are equally errors, whether the name is a keyword, a Core primitive, a profile primitive, or an
+// alias spelling of one." A lesson that ever suggests one of these as a procedure name is broken.
 test("the names a learner reaches for are owned across all three categories", () => {
   for (const name of ["repeat", "end", "define"]) {
     assert.equal(builtInKind(name), "keyword", name);
@@ -163,6 +193,28 @@ test("the names a learner reaches for are owned across all three categories", ()
   for (const name of ["fd", "pr"]) {
     assert.equal(builtInKind(name), "alias", name);
   }
+});
+
+// The audit is only as good as its model of the grammar. Three ways a hand-rolled model silently
+// under-approximates the rule and lets a broken lesson through: missing a declaration slot, folding
+// case the way the host language does rather than the way `spec/grammar.md:13` does, and dropping an
+// identifier's `?`/`!` suffix (`spec/grammar.md:54-55`) so a declaration is attributed to the wrong
+// name. `challenge` covers the fourth: a name the spec assigns whose profile has no table yet.
+test("the audit models every declaration slot, case-insensitively, suffix and all", () => {
+  assert.deepEqual(declaredNames("define polygon :sides\nend"), ["polygon"]);
+  assert.deepEqual(declaredNames("to triangle :size\nend"), ["triangle"]);
+  assert.deepEqual(declaredNames("struct point [ x y ]"), ["point"]);
+  // Only `alias`'s FIRST operand declares (`spec/grammar.md:410`); the second is unrestricted.
+  assert.deepEqual(declaredNames("alias fd forward"), ["fd"]);
+  assert.deepEqual(declaredNames("define empty? :xs\nend"), ["empty?"]);
+  assert.deepEqual(declaredNames("DEFINE FD :n\nend"), ["FD"]);
+
+  assert.equal(builtInKind("FD"), "alias");
+  assert.equal(builtInKind("Repeat"), "keyword");
+  assert.equal(builtInKind("Forward"), "primitive");
+  assert.equal(builtInKind("empty?"), "primitive");
+  assert.equal(builtInKind("challenge"), "primitive");
+  assert.equal(builtInKind("Polygon"), "free");
 });
 
 // AC2: `spec/grammar.md:412` protects `spec/educational-model.md:169` ("Learners build `polygon`
@@ -193,14 +245,14 @@ test("the Geometry standard library stays learner-buildable and the overlays sta
 });
 
 // AC4: the meta-commands a learner asks for help with are themselves built-in names, so no lesson
-// may declare one. `challenge` belongs to the Tutor (AI) profile, which has no signature table in
-// `@openlogo/parser` yet, so it is checked only for absence from the corpus rather than for kind.
+// may declare one. `challenge` is the Tutor (AI) profile's, and reaches {@link builtInKind} through
+// {@link TUTOR_AI_PRIMITIVES} rather than a signature table — see that set's note.
 test("no lesson declares an educational meta-command", () => {
-  for (const name of ["explain", "why", "hint", "debug"]) {
+  for (const name of ["explain", "why", "hint", "debug", "challenge"]) {
     assert.equal(
       builtInKind(name),
       "primitive",
-      `\`${name}\` is an Educational profile primitive`,
+      `\`${name}\` is a meta-command OpenLogo owns`,
     );
   }
   const declared = new Set(
