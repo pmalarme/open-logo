@@ -98,7 +98,6 @@ import type { HostInputReader } from "./index.js";
 import {
   emitInputPrimitive,
   interpretSubmittedText,
-  isLearnerText,
   takeInputResponse,
 } from "./interaction.js";
 import { createSoundState } from "./sound-state.js";
@@ -4694,9 +4693,10 @@ function evaluateTurtles(
  *
  *   1. **Arity** — exactly one input, guarded here because `execute()` runs `parse()` without the
  *      static checker, exactly like every other reporter.
- *   2. **Prompt type** — a prompt that "cannot be displayed as learner text" raises `ol-type`
- *      (`:131`); see {@link isLearnerText} for what qualifies and why the rule is narrower than
- *      `print`'s.
+ *   2. **Prompt type** — the prompt MUST be a `word`; anything else raises `ol-type` (`:129`,
+ *      `:131`). Checked inline with `typeof value !== "string"`, exactly as the profile's other two
+ *      word-typed arguments (`when`'s event, `on_key`'s key) are; see
+ *      {@link InputPromptNotWordParams} for the #768 ruling that narrowed this from #681's scalars.
  *   3. **The read** — take the next scripted answer ({@link takeInputResponse}) from the run's FIFO
  *      queue (`ExecuteOptions.hostInput.responses`, the #657 ruling). With no answer left the read
  *      can never finish, so it takes the only other ending `:110-111` allows and the program is
@@ -4725,14 +4725,17 @@ function evaluateInput(
   if (!promptResult.ok) {
     return promptResult;
   }
-  if (!isLearnerText(promptResult.value)) {
+  if (typeof promptResult.value !== "string") {
     return fail(
-      runtimeDiag.inputPromptNotText(promptNode.source_span, {
+      runtimeDiag.inputPromptNotWord(promptNode.source_span, {
         actual: typeNameOf(promptResult.value),
       }),
     );
   }
-  const promptText = printedForm(promptResult.value);
+  // A word IS the text the learner reads, so no rendering step stands between the prompt value and
+  // the host: `printedForm` prints a word verbatim, and the guard above has ruled out every value
+  // that would need rendering at all.
+  const promptText = promptResult.value;
   const answer = readInputAnswer(promptText, environment);
   if (answer === undefined) {
     // The read can never finish, so it takes the only other ending `spec/interaction-events.md:

@@ -59,12 +59,7 @@
  * delivers nothing.
  */
 
-import type {
-  OLValue,
-  PrimitivePayload,
-  SourceSpan,
-  TraceEvent,
-} from "@openlogo/core";
+import type { PrimitivePayload, SourceSpan, TraceEvent } from "@openlogo/core";
 import type { BlockNode, SpannedName, StatementNode } from "@openlogo/parser";
 import { parse } from "@openlogo/parser";
 import { runtimeDiag } from "./errors.js";
@@ -241,29 +236,6 @@ export function runWait(
   }
   emitWaitPrimitive(events, source_span);
   return false;
-}
-
-/**
- * Is `value` displayable as learner text — the constraint `spec/interaction-events.md:131` puts on
- * `input`'s prompt ("`ol-type` if the prompt cannot be displayed as learner text")?
- *
- * The prompt is the question a person reads before answering (`:134`, "`input` displays the prompt
- * and waits for the learner to enter one value"), so it must be text: the scalars `word`, `number`,
- * and `boolean` render as exactly the characters displayed. Every other OpenLogo value is a
- * structure or an identity — a `list`/`dict`/`record` renders as a bracketed container view, a
- * `turtle` as the opaque tag `turtle #<id>` (`spec/turtles-and-sprites.md:13`) — which is a
- * debugging rendering, not a question authored for a learner, so it is not learner text.
- *
- * The rule has to be narrower than `print`, whose `printedForm` renders *every* value: `input` is
- * the only primitive the spec gives a prompt error clause at all (`print` has none), and a rule that
- * accepted everything would make that normative clause unreachable.
- */
-export function isLearnerText(value: OLValue): boolean {
-  return (
-    typeof value === "string" ||
-    typeof value === "number" ||
-    typeof value === "boolean"
-  );
 }
 
 /**

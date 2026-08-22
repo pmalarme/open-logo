@@ -126,9 +126,9 @@ emit `primitive` events after the handler is registered.
 ### `input <prompt>`
 
 - **Kind:** reporter
-- **Args:** one prompt value, normally a word
+- **Args:** one prompt, which MUST be a `word`
 - **Result:** a word or number
-- **Errors:** `ol-type` if the prompt cannot be displayed as learner text
+- **Errors:** `ol-type` if the prompt is not a `word`
 - **Concept:** explicit human input
 
 `input` displays the prompt and waits for the learner to enter one value. It is

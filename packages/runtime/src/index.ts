@@ -88,7 +88,6 @@ export {
   advanceTickClock,
   createTickClock,
   interpretSubmittedText,
-  isLearnerText,
   isWaitCall,
   takeInputResponse,
   yieldToEventLoop,
@@ -237,8 +236,9 @@ export interface HostInput {
   /**
    * The host's live reader for `input` (issue #681, slice I2) — the *interactive* half of the seam
    * `responses` mocks. When supplied it is authoritative: each `input` read calls it with the
-   * prompt, already rendered to the text a learner would see, and the read stays outstanding for
-   * exactly the duration of that call. Returning a string finishes the read with that submitted
+   * prompt word, which since the #768 ruling IS the text a learner sees (a word prints verbatim, so
+   * nothing is rendered on the way out), and the read stays outstanding for exactly the duration of
+   * that call. Returning a string finishes the read with that submitted
    * text (classified by `spec/interaction-events.md:136-137` exactly as a scripted answer is);
    * returning `undefined` means the host cannot or will not answer, which ends the read the only
    * other way `:110-111` allows — the program is cancelled.
@@ -258,7 +258,8 @@ export interface HostInput {
 }
 
 /**
- * A host's live `input` reader (issue #681). Called with the prompt as displayable text; reports
+ * A host's live `input` reader (issue #681). Called with the prompt word — the text to show the
+ * learner (`spec/interaction-events.md:129`: the prompt MUST be a `word`) — and reports
  * the text the learner submitted, or `undefined` to leave the read unanswered and cancel the run.
  * Synchronous by design: `spec/interaction-events.md:108-111` requires that no OpenLogo instruction
  * and no handler block run until the read finishes, and a synchronous call is that guarantee by

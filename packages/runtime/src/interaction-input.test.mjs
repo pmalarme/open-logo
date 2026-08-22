@@ -16,8 +16,7 @@
 //
 // Node-version trap: on Node 24+ `--experimental-test-coverage` silently excludes `*.test.mjs`, so
 // a local coverage green can be a false positive CI (Node 22) then fails. These tests exercise
-// every branch of `evaluateInput`, `interpretSubmittedText`, `takeInputResponse`, and
-// `isLearnerText`.
+// every branch of `evaluateInput`, `interpretSubmittedText`, and `takeInputResponse`.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -25,7 +24,6 @@ import { check, parse } from "@openlogo/parser";
 import {
   execute,
   interpretSubmittedText,
-  isLearnerText,
   takeInputResponse,
 } from "@openlogo/runtime";
 
@@ -310,22 +308,26 @@ test("an empty scripted answer is a real answer — the empty word — not an ex
   assert.deepEqual(printedValues(result), [true]);
 });
 
-// --- `spec/interaction-events.md:131`: the prompt must be displayable as learner text ------------
+// --- `spec/interaction-events.md:129`/`:131`: the prompt MUST be a word ---------------------------
 
-test("a prompt that cannot be displayed as learner text raises ol-type", () => {
-  // `spec/interaction-events.md:131`: "Errors: `ol-type` if the prompt cannot be displayed as
-  // learner text", which the profile's error table (`:350`) classes as "an argument has the wrong
-  // type". A list/dict/record renders as a container view and a turtle as the opaque tag
-  // `turtle #<id>` — a rendering of a structure, not a question authored for a person to answer.
+test("a prompt that is not a word raises ol-type", () => {
+  // `spec/interaction-events.md:129`/`:131`: "**Args:** one prompt, which MUST be a `word`" /
+  // "**Errors:** `ol-type` if the prompt is not a `word`", which the profile's error table (`:350`)
+  // classes as "an argument has the wrong type".
   //
-  // SCOPE: this is an implementation-defined reading of a genuinely ambiguous clause (see
-  // `InputPromptNotTextParams` in `errors.ts`), open as issue #768, so it is asserted HERE — where
-  // it binds only this runtime — and deliberately not in a conformance fixture, which would make
-  // one reading normative for every implementation. When #768 rules, this test either gains a
-  // fixture or is relaxed.
+  // The maintainer's ruling on issue #768 narrowed this from #681's scalar set: `number` and
+  // `boolean` are rejected alongside the compound kinds, and `params.expected` is `"word"` — the
+  // same identity `word` itself reports for `word "Question" 3` — not the one-off `"text"`. Now that
+  // the spec states the rule, the behavior is ALSO bound by conformance fixtures under
+  // `tests/conformance/interaction-events/input/`. This loop is what proves the rule holds for ALL
+  // SIX rejected kinds in one place: `dict` and `record` would drag the Data profile into an
+  // Interaction fixture and `turtle` the Sprites one, for no proof a `list` does not already give.
   for (const [source, actual] of [
+    ["print input 42", "number"],
+    ["print input true", "boolean"],
     ["print input [1 2]", "list"],
     ["print input {a: 1}", "dict"],
+    ["struct point [ x y ]\nprint input point 3 4", "record"],
     ["print input new_turtle", "turtle"],
   ]) {
     const result = runWithAnswers(source, ["tom"]);
@@ -335,36 +337,61 @@ test("a prompt that cannot be displayed as learner text raises ol-type", () => {
     assert.equal(finding.stage, "runtime");
     assert.deepEqual(finding.params, {
       operation: "input",
-      expected: "text",
+      expected: "word",
       actual,
     });
   }
 });
 
-test("a rejected prompt consumes no answer and emits no primitive event", () => {
-  // The prompt is checked BEFORE the read, so a bad prompt must not silently eat the queue's head —
-  // otherwise a later read in a longer program would be answered off-by-one.
-  const result = runWithAnswers("print input [1 2]", ["tom"]);
-  assert.equal(result.diagnostics[0].code, "ol-type");
-  assert.deepEqual(effectEvents(result), []);
+test("a rejected prompt never reaches the read — the host reader is never called", () => {
+  // The prompt is checked BEFORE the read. A conformance fixture cannot prove that: a
+  // source→events fold sees only an absent `primitive`, and absence is not ordering. The live
+  // reader seam makes the ordering directly observable — if the check ran after the read, a bad
+  // prompt would still have put a question in front of the learner, and on the `responses` path it
+  // would have eaten the queue's head, so a later read in a longer program would be answered
+  // off-by-one.
+  //
+  // The valid-prompt CONTROL comes first and is what makes the subject leg mean anything: it proves
+  // `reads` is a live instrument that this reader really does advance, so the subject's "still 1"
+  // records a read that did not happen rather than a counter that never could. Same control-plus-
+  // subject shape the corpus uses for the blocking property (`input-does-not-deliver-handlers` +
+  // `input-blocking-control-wait-delivers`).
+  let reads = 0;
+  const reader = () => {
+    reads += 1;
+    return "tom";
+  };
+
+  const control = execute('print input "who?"', doc, {
+    hostInput: { read: reader },
+  });
+  assert.deepEqual(control.diagnostics, []);
+  assert.equal(reads, 1);
+
+  const withReader = execute("print input [1 2]", doc, {
+    hostInput: { read: reader },
+  });
+  assert.equal(reads, 1);
+  assert.equal(withReader.diagnostics[0].code, "ol-type");
+  assert.deepEqual(effectEvents(withReader), []);
+
+  const withResponses = runWithAnswers("print input [1 2]", ["tom"]);
+  assert.equal(withResponses.diagnostics[0].code, "ol-type");
+  assert.deepEqual(effectEvents(withResponses), []);
 });
 
-test("word, number, and boolean prompts are all displayable learner text", () => {
-  // "normally a word" (`:129`) is a description, not a restriction: every scalar renders as exactly
-  // the characters shown, so each is a legitimate prompt.
-  for (const prompt of ['"how old?"', "42", "true"]) {
+test("a word prompt is accepted whatever text it holds, including a numeral", () => {
+  // The positive complement of the rejection loop above, and the half that makes the pair
+  // discriminating: the check is on the prompt's TYPE, not on how it prints. `input "42"` and
+  // `input 42` display the same two characters, yet the pair requires OPPOSITE verdicts on them. So
+  // no classifier that looks only at printed form can satisfy both members — it fails whichever one
+  // its decision goes against, accepting numerals to fail the rejection loop above or rejecting them
+  // to fail here — and an implementation that rejected every prompt fails here too. Neither member
+  // alone catches both.
+  for (const prompt of ['"how old?"', '"42"', '""']) {
     const result = runWithAnswers(`print input ${prompt}`, ["tom"]);
     assert.deepEqual(result.diagnostics, [], `prompt ${prompt}`);
     assert.deepEqual(printedValues(result), ["tom"]);
-  }
-});
-
-test("isLearnerText accepts exactly the scalars and rejects every structured or opaque value", () => {
-  for (const value of ["tom", "", 42, 0, true, false]) {
-    assert.equal(isLearnerText(value), true, `${JSON.stringify(value)}`);
-  }
-  for (const value of [[], [1, 2], new Map()]) {
-    assert.equal(isLearnerText(value), false, `${JSON.stringify(value)}`);
   }
 });
 

@@ -37,16 +37,31 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   gated on the profile, as `spec/conformance.md:167-169` and `spec/interaction-events.md:11`
   require.
 
-  **Deliberately NOT fixtured: the `ol-type` a prompt "that cannot be displayed as learner text"
-  raises (`:131`).** The behavior is implemented and covered by
-  `packages/runtime/src/interaction-input.test.mjs`, but *which* values qualify is genuinely
-  ambiguous in the spec — `printedForm` gives every v0.1 value a printed form
-  (`spec/execution-model.md:552-574`), while the clause and the profile's error table (`:350`) imply
-  some types must be wrong — and the question is open as **#768**. A fixture here is normative for
-  every implementation ("Any conforming implementation should pass them",
-  `.github/skills/shared/conformance-fixture/SKILL.md:13-15`), so shipping one would make one
-  reading of a contested clause binding ecosystem-wide on the strength of a hedge in its
-  description. It lands once #768 rules. The **blocking** property (`:108-111`) is observable here only as the *pair*
+  **The prompt's `ol-type` (`:131`) is now fixtured — the #768 ruling settled it.** #681 withheld
+  a fixture because "the prompt cannot be displayed as learner text" had two defensible readings and
+  a fixture is normative for every implementation ("Any conforming implementation should pass them",
+  `.github/skills/shared/conformance-fixture/SKILL.md:13-15`), so shipping one would have settled a
+  contested clause by fixture instead of by ruling. The maintainer then ruled **narrower than either
+  reading on the table**: the prompt MUST be a `word`, so `number` and `boolean` are rejected
+  alongside `list`/`dict`/`record`/`turtle`, and the diagnostic carries `expected: "word"` — the
+  identity the `word` reporter itself reports (`word "Question" 3`) and the one `when`/`on_key` use —
+  rather than #681's one-off `expected: "text"`. `spec/interaction-events.md:129`/`:131` now state
+  the rule outright ("**Args:** one prompt, which MUST be a `word`" / "**Errors:** `ol-type` if the
+  prompt is not a `word`"), so the fixtures transcribe a normative clause instead of binding a
+  reading. Four land: `input-prompt-number-rejected` and `input-prompt-boolean-rejected` (the two
+  kinds the ruling newly rejects, so an implementation still carrying #681's scalar reading fails
+  exactly these two and nothing else), `input-prompt-list-rejected` (the compound half — `dict` and
+  `record` would drag in the Data profile and `turtle` the Sprites one for no extra proof, so all
+  six kinds stay asserted together in `packages/runtime/src/interaction-input.test.mjs`), and
+  `input-prompt-numeric-word-accepted`, the positive complement without which an implementation that
+  rejected *every* prompt would pass all three negatives. That last one forms a discriminating pair
+  with the number case: the two programs are byte-identical but for the quotes, so `input "42"` and
+  `input 42` display the same two characters while the pair demands OPPOSITE verdicts on them. No
+  classifier that looks only at printed form can satisfy both — it fails whichever member its
+  decision goes against (accepting numerals fails the number negative, rejecting them fails the
+  positive) — and reject-everything fails the positive. Neither member alone catches both.
+
+  The **blocking** property (`:108-111`) is observable here only as the *pair*
   `input-does-not-deliver-handlers` + `input-blocking-control-wait-delivers`: the same program and
   the same tick-0 pending key, with a read in one and `wait 0` in the other, so the control proves
   the key was genuinely deliverable and only the read declined to deliver it. A fixture cannot
@@ -229,12 +244,14 @@ the gaps it found rather than rubber-stamping them:
   `SUPPORTED_PROFILES`, which this slice's own claim falsifies. All six now state what their fixture
   actually pins.
 
-**Deliberately NOT added: `input-prompt-not-text`.** #681 shipped 751 fixtures rather than 752 by
-withdrawing it, because **#768** records both readings of "the prompt cannot be displayed as learner
-text" (`spec/interaction-events.md:131`) as defensible. A fixture is normative for every
-implementation, so shipping one would settle a contested clause by fixture instead of by ruling. It
-lands when #768 rules — argue it there, not here. The behavior remains covered by
-`packages/runtime/src/interaction-input.test.mjs`.
+**Landed after the audit: the `input-prompt-*` fixtures.** #681 shipped 751 fixtures rather than 752
+by withdrawing `input-prompt-not-text`, because **#768** recorded both readings of "the prompt cannot
+be displayed as learner text" (`spec/interaction-events.md:131`) as defensible, and a fixture is
+normative for every implementation. #768 has since been ruled — the prompt MUST be a `word` — and the
+spec states that outright at `:129`/`:131`, so the four `input-prompt-*` fixtures described under
+`input/` above now transcribe a normative clause rather than settling a contested one. The runtime
+unit tests in `packages/runtime/src/interaction-input.test.mjs` remain, covering the three rejected
+kinds a fixture would have to import another profile to reach (`dict`, `record`, `turtle`).
 
 **Deliberately NOT added: a repeated-delivery fixture for `when`.** The #688 review found, and the
 author confirmed by direct execution, that a `when` handler fires **at most once per run**: with the
@@ -244,11 +261,12 @@ in `packages/runtime/src/interaction.ts`, locked by the #686 unit test "a one-sh
 fires at most once even if its event is pending twice"), and no fixture in this corpus delivers a
 named event twice, so the corpus neither pins nor contradicts it.
 
-It is left unfixtured on purpose, for the same reason as `input-prompt-not-text`: **the spec does
-not settle it.** `spec/interaction-events.md` says a handler invocation is enqueued "when an event
-fires" but never states whether a `when` registration is one-shot or persistent, and both standard
+It is left unfixtured on purpose, for the reason `input-prompt-not-text` was withheld before #768
+ruled: **the spec does not settle it.** `spec/interaction-events.md` says a handler invocation is
+enqueued "when an event fires" but never states whether a `when` registration is one-shot or
+persistent, and both standard
 v0.1 event words are inherently once-per-run — `"start"` is "the start of the interactive run" and
-`"stop"` is "a requested stop notification before termination" (`:154-157`). A fixture asserting
+`"stop"` is "a requested stop notification before termination" (`:152-156`). A fixture asserting
 either reading would bind every implementation to a clause the spec has not written, and the
 alternative reading matters mainly for the vendor-prefixed events the spec permits but does not
 define. This also sits in `packages/runtime/`, outside this slice's write-set. **Filed for a
