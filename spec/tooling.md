@@ -27,7 +27,7 @@ be classified as keywords, variables, operators, or delimiters.
 
 | Token class | Normative scope |
 |---|---|
-| `keyword` | Structural words recognized by the reader at the position they occupy, plus profile block-heads when their profile is active. Most [reserved words](#reserved-words-for-tooling) are painted this way, but that list answers a different question — *may a program declare this name?* — and does not decide this class: `and`, `or`, `not`, and `mod` are reserved words and are nevertheless classified `operator` below. The two axes are independent ([grammar.md](grammar.md#keywords-primitives-and-built-in-names)). |
+| `keyword` | Structural words recognized by the reader: every [reserved word](#reserved-words-for-tooling) **except** the word-spelled operators `and`, `or`, `not`, and `mod`, which are `operator` below, plus profile block-heads when their profile is active — this class follows whether a word *works* in the reader, never whether a program may declare it. [Disambiguating identifiers](#disambiguating-identifiers) governs when symbol discovery gives a token a more specific class instead. This class and the reserved list are **different sets on purpose** ([grammar.md](grammar.md#keywords-primitives-and-built-in-names)): that list answers only *may a program declare this name?*, so membership never by itself decides how a token is painted. |
 | `primitive` | Built-in commands, reporters, and aliases from the C3 primitive matrix, including full names such as `forward`, one-word aliases such as `setcolor`, short aliases such as `fd`, heritage command aliases such as `pr`, and profile primitives when enabled. Structural special-form heads are `keyword` unless they are being documented as callable entries. |
 | `number` | Numeric literals, including negative literals when the lexer rules classify the leading `-` as part of the number. |
 | `word/string` | Closed double-quoted word literals such as `"tom"`, `"#ff0000"`, and `"hello world"`, plus triple-quoted `"""..."""` multi-line word literals; escapes `\"` and `\\` remain inside the same token. |
@@ -90,8 +90,8 @@ here so highlighters and linters can share the same names. Membership answers on
 
 `define`, `to`, `end`, `return`, `output`, `op`, `stop`, `throw`, `set`, `make`, `local`, `thing`,
 `if`, `else`, `while`, `repeat`, `for`, `forever`, `in`, `from`, `at`, `by`, `key`, `value`,
-`add`, `remove`, `insert`, `clear`, `map`, `filter`, `reduce`, `and`, `or`, `not`, `mod`, `is`, `between`,
-`strictly`, `true`, `false`, `struct`, `alias`, `import`, `export`.
+`add`, `remove`, `insert`, `clear`, `map`, `filter`, `reduce`, `and`, `or`, `not`, `mod`, `true`, `false`,
+`is`, `between`, `strictly`, `struct`, `alias`, `import`, `export`.
 
 `to` is contextual: it is both the heritage procedure opener and the slot word in `set ... to` and
 `for ... from ... to`. The words `empty`, `member`, `of`, and `a` are contextual keywords: a
@@ -182,7 +182,7 @@ profile block-heads are available.
 | Not enough inputs for a fixed-arity or selected call form | `ol-not-enough-inputs` | Include callable name, expected count, and actual count. |
 | Too many inputs outside parenthesized alternate/variadic forms | `ol-too-many-inputs` | Include callable name and explain when parentheses are required. |
 | Undefined variable read | `ol-undefined-var` | Point at the `:variable` token or place head that reads an unbound value. |
-| Declaring a built-in name — a keyword, a primitive, or an alias spelling of one — in a declaration slot | `ol-reserved-word` | Apply at the four declaration slots only: `define`, the heritage `to`, `struct`, and the **first** operand of `alias`; profile keywords and primitives count there whether or not their profile is claimed. Do **not** apply at `local` or any other binding form — binding a value to a built-in name is legal everywhere and MUST NOT raise this or any other diagnostic, so `:end = 1`, `local count`, and `alias definir define` are conforming. A name the program itself already declared is `ol-duplicate-definition` instead. |
+| Declaring a built-in name — a keyword, a primitive, or an alias spelling of one — in a declaration slot | `ol-reserved-word` | Apply at the four declaration slots only: `define`, the heritage `to`, `struct`, and the **first** operand of `alias`; profile keywords and primitives count there whether or not their profile is claimed. Do **not** apply at `local` or any other binding form — binding a value to a built-in name is legal everywhere and MUST NOT raise this or any other diagnostic ([grammar.md](grammar.md#keywords-primitives-and-built-in-names)). A name the program itself already declared is `ol-duplicate-definition` instead. |
 | Unknown struct type in a type position | `ol-unknown-type` | Use only when a type position (the type word of `is a` / `is_a?`) names no registered type; an unknown callable or constructor name in call position is `ol-unknown-command`. |
 | Unknown record field | `ol-unknown-field` | Use for record field reads and writes; struct fields are fixed and never upsert. |
 | Assignment or `set` target is not an assignable place | `ol-not-a-place` | Reject reporter calls, literals, computed values, and parenthesized expressions as targets. |

@@ -23,7 +23,7 @@
 //      so they now check clean with the profile active and stay `ol-unknown-command` without it.
 //      Issue #746 then closed the mirror-image hole: being a *primitive* rather than a reserved word
 //      decides which `namespace` a redefinition reports (`"primitive"`, not `"reserved"`), not
-//      whether it is reportable at all (`spec/tooling.md:184`), so `define who` now collides under
+//      whether it is reportable at all (`spec/tooling.md:185`), so `define who` now collides under
 //      an active profile exactly as `define grid`/`define wait` do — and stays legal without it.
 //
 // Highlighting is **profile-blind by design** — `highlight()`/`semanticTokens()` take no profile
@@ -273,9 +273,10 @@ test("check: redefining a Sprites block-head is allowed under Core-only (no spri
 test("check: redefining a Sprites reporter under an active profile raises ol-reserved-word as a primitive, not a reserved word", () => {
   // Issue #746. Until this fix the reporters were the one Sprites shape a program could silently
   // shadow: this test asserted `define who … end` checked *clean* under an active profile, which
-  // pinned the defect rather than the rule. `spec/tooling.md:184` is a normative Layer-2 "Required
-  // behavior" row listing **primitive** beside "reserved word" — and `:175-176` applies it against
-  // the active profile set — so `new_turtle`/`who`/`turtles` (C3 Kind-R primitives) collide exactly
+  // pinned the defect rather than the rule. `spec/tooling.md:185` is a normative Layer-2 "Required
+  // behavior" row listing **primitive** beside "keyword" — and profile primitives count there
+  // whether or not their profile is claimed — so `new_turtle`/`who`/`turtles` (C3 Kind-R
+  // primitives) collide exactly
   // as `grid` (Geometry), `set_tempo` (Sound), `dict` (Data), and `wait` (Interaction) already did.
   //
   // The reporter/block-head distinction this file exists to keep separate is preserved and now

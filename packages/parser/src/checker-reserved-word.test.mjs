@@ -3,10 +3,10 @@
 // closed together — the Sprites reporter table, and the Heritage short aliases.
 //
 // Why one file for two issues: they are one property, and fixing either alone makes the language
-// *less* consistent. `spec/tooling.md:184` is a normative Layer-2 "Required behavior" row —
-// "Redefining a reserved word, **primitive**, existing procedure, existing type constructor, or
-// existing alias → `ol-reserved-word`" — and `:175-176` requires it be applied against the **active
-// profile set**. The checker honoured that for Core, Data, Geometry, Sound, and Interaction &
+// *less* consistent. `spec/tooling.md:185` is a normative Layer-2 "Required behavior" row —
+// declaring a built-in name, "a keyword, a **primitive**, or an alias spelling of one", at one of
+// the four declaration slots raises `ol-reserved-word`. The checker honoured that for Core, Data,
+// Geometry, Sound, and Interaction &
 // Events, but not for Sprites (#746) and not for the Heritage aliases (#742). Landing #746 alone
 // would have protected `forward`… while leaving `fd` open, moving the alias asymmetry from 4/13 to
 // 13/13 — strictly worse. So both land here.

@@ -25,7 +25,7 @@
 
 OpenLogo's built-in names are ordinary English words. `end`, `value`, `key`, `at`, `by`, `from`,
 `in`, `clear` and `add` are all **keywords**, in the normative list in
-[`spec/grammar.md`](../../spec/grammar.md)'s *Reserved words and namespaces* section; `count`,
+[`spec/grammar.md`](../../spec/grammar.md)'s *Keywords, primitives, and built-in names* section; `count`,
 `first` and `word` are Core **primitives** sitting beside them. Every one of them is also a word a
 nine-year-old will reach for when naming a piece of data. `:end` is the obvious name for when a
 timer stops; `:count` is the archetypal counter; `for end from 1 to 3` is a perfectly ordinary loop.
@@ -399,7 +399,7 @@ beginner can predict what a line does.
   for any program that had registered that name, which is a cost this design accepts in exchange
   for never having to explain a resolution order to a nine-year-old.
 
-Spec reference: [`spec/grammar.md`](../../spec/grammar.md) (*Reserved words and namespaces* — the
+Spec reference: [`spec/grammar.md`](../../spec/grammar.md) (*Keywords, primitives, and built-in names* — the
 keyword list, the shared callable namespace, and the data-not-declarations rule for field names,
 dictionary keys and bare selector keys),
 [`spec/tooling.md`](../../spec/tooling.md) (*Normative token-class model* and *Reserved words for

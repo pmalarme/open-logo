@@ -344,8 +344,9 @@ test("check: `input` is STILL ol-unknown-command without the profile — it is n
 // --- Reserved-word gating: block-heads only, and only under an active profile -------------------
 
 test("check: redefining an Interaction block-head under an active profile raises ol-reserved-word", () => {
-  // `when`/`every`/`on_key`/`on_click` are reserved only when Interaction & Events is active
-  // (`spec/interaction-events.md` §Profiles and reservation, C1 #663). `wait` is NOT reserved —
+  // `when`/`every`/`on_key`/`on_click` are **treated as** reserved only when Interaction & Events is
+  // active (C1 #663) — shipped behaviour that `spec/grammar.md:408` makes unconditional; retiring
+  // the gate is #841. `wait` is NOT reserved —
   // asserted by the redefinition test below and the `wait` procedure highlight test above.
   for (const head of Object.keys(INTERACTION_BLOCK_HEADS)) {
     const diagnostics = checkDiagnostics(
@@ -372,7 +373,7 @@ test("check: redefining an Interaction block-head is allowed under Core-only (no
 
 test("check: `wait` is a primitive, so redefining it under an active profile raises ol-reserved-word", () => {
   // `wait` is NOT a profile block-head (contrast the four heads above — it never appears in
-  // `OL_PROFILE_KEYWORDS`), but `spec/tooling.md:184` makes redefining a *primitive*
+  // `OL_PROFILE_KEYWORDS`), but `spec/tooling.md:185` makes redefining a *primitive*
   // `ol-reserved-word` all the same, with `namespace: "primitive"` rather than `"reserved"`.
   // Sound's identically-shaped `set_tempo`, Geometry's `grid`, and Data's `list` already behaved
   // this way; before I8 `wait` was the only one of those four profiles' primitives a program could

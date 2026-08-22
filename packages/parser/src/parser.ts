@@ -1707,9 +1707,9 @@ export function parse(source: string, document = "<input>"): ParseResult {
       // heads) — the seam every M5 profile grammar slice hangs off. But these words are treated as
       // reserved only when their profile is active (C1 #663 — shipped behaviour that
       // `spec/grammar.md:408` makes unconditional; retiring the gate is #841): a Core-only program
-      // may today legally declare a procedure named `ask` (`define ask … end`) and call it, so a
-      // *user-declared* callable of the same spelling wins here and parses as an ordinary Core call.
-      // The reader stays profile-blind —
+      // declaring a procedure named `ask` (`define ask … end`) and calling it is currently accepted
+      // by the shipped implementation, so a *user-declared* callable of the same spelling wins here
+      // and parses as an ordinary Core call. The reader stays profile-blind —
       // it never inspects the active profile set — and the checker (which does thread active
       // profiles) is what raises `ol-reserved-word` for a profile-active redefinition. Without this
       // guard the reader would mis-shape legitimate Core code (`define ask` / `ask`,

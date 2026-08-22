@@ -423,7 +423,7 @@ test("a failing prompt expression propagates its own diagnostic, not input's", (
 
 test("the primitive wins over a same-named user procedure, in a program the checker already rejects", () => {
   // `define input` is ILLEGAL under an active `interaction-events` profile: redefining a primitive
-  // raises `ol-reserved-word` (`spec/tooling.md:184`), asserted below so this test cannot be read as
+  // raises `ol-reserved-word` (`spec/tooling.md:185`), asserted below so this test cannot be read as
   // endorsing the program. What it locks is the runtime's dispatch order for a program that reached
   // `execute()` anyway — `execute()` runs `parse()` only, never `check()` — and that order is the
   // same for `input` as for every other primitive (`define random`/`define who` behave identically):

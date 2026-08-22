@@ -118,7 +118,7 @@
  * canonical: whatever table the canonical is in — or is *not* in — decides both spellings alike.
  *
  * **Turtle & Rendering is still deliberately not consulted** (issue #783, which awaits a maintainer
- * ruling on whether `tooling.md:184`'s primitive category binds for a profile that shipped in the
+ * ruling on whether `tooling.md:185`'s primitive category binds for a profile that shipped in the
  * 0.1.0 minimal claim). That is a scope boundary, not an oversight, and the resolve-to-canonical
  * design above is precisely what keeps it from leaking: `define forward` is accepted, so
  * `define fd` — which resolves to `forward` and finds no consulted table — is accepted too. The nine
@@ -158,7 +158,7 @@ const NO_STRUCTS: ReadonlySet<string> = new Set();
 /**
  * `"primitive"` when `name` is a built-in of some **active** profile, `undefined` otherwise — the
  * whole of {@link collidingNamespace}'s primitive category, in one place, so a profile slice adds
- * exactly one branch here (`spec/tooling.md:184` "Required behavior", applied against the active
+ * exactly one branch here (`spec/tooling.md:185` "Required behavior", applied against the active
  * profile set per `:175-176`).
  *
  * Two properties this function exists to guarantee:

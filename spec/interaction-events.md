@@ -44,7 +44,7 @@ The **Sound** profile contains:
 reserved **unconditionally**: every implementation reserves them whether or not it claims this profile,
 because a profile decides whether such a word *works*, never whether a program may declare it
 ([grammar.md](grammar.md#keywords-primitives-and-built-in-names)). Declaring one at `define`, the heritage `to`,
-`struct`, or the first operand of `alias` raises `ol-reserved-word`; binding a value to one is always legal. Sound command names are ordinary primitive names when the Sound profile is present.
+`struct`, or the first operand of `alias` raises `ol-reserved-word`; binding a value to one is always legal. Sound command names are ordinary primitives rather than block-heads, and are built-in names on the same unconditional terms; the Sound profile decides only whether they work.
 
 ## Profile grammar
 
