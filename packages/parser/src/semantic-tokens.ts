@@ -44,7 +44,12 @@ import type { Position } from "@openlogo/core";
 import type { AnyNode, Binder, ProgramNode } from "./ast.js";
 import { walk } from "./ast.js";
 import { parse } from "./parser.js";
-import type { BracketRole, Token, TokenClass } from "./highlight.js";
+import type {
+  BracketRole,
+  HighlightOptions,
+  Token,
+  TokenClass,
+} from "./highlight.js";
 import { highlight } from "./highlight.js";
 
 /**
@@ -97,8 +102,9 @@ function posKey(position: Position): string {
 export function semanticTokens(
   source: string,
   document = "<input>",
+  options: HighlightOptions = {},
 ): SemanticToken[] {
-  const tokens = highlight(source, document);
+  const tokens = highlight(source, document, options);
   const program = parse(source, document).ast;
   const readonlyReads = collectComprehensionBinderReads(program);
   return tokens.map((token) => ({
