@@ -1,8 +1,10 @@
 /**
  * Logic module for the **markdown fenced-block** half of the `examples` Definition-of-Done gate
  * (issue #850). Extracted so tests can import it directly for 100% coverage, keeping
- * `scripts/check-markdown-examples.mjs` a thin CLI shell — the same split
- * `scripts/examples-gate.mjs` + `scripts/check-examples.mjs` uses (docs/adr/0009).
+ * `scripts/check-markdown-examples.mjs` a thin CLI shell — the same shape
+ * `scripts/examples-gate.mjs` + `scripts/check-examples.mjs` and `scripts/harness/index.mjs` +
+ * `scripts/conformance.mjs` already have. A CLI shell is exercised through a subprocess, so it
+ * stays outside the loaded-module coverage set `docs/adr/0009-test-layout.md` defines.
  *
  * **Why this exists.** The Definition of Done says runnable `spec/examples/*.logo` **and doc
  * examples** still parse and run. Only the first half was enforced: `scripts/examples-gate.mjs`
@@ -10,33 +12,50 @@
  * docs prose was never parsed and never executed. That is how `set_shape "bee"` — a shape word no
  * conforming renderer accepts, raising `ol-type` — survived in `spec/turtles-and-sprites.md` into a
  * shipped 0.1.0 conformance claim, and was found by a human reading the prose rather than by CI.
+ * The design rationale is `docs/adr/0021-documentation-example-gate.md`.
  *
- * **What it checks.** Every fenced block whose info string is `logo` in `spec/**.md` and
- * `docs/**.md` is parsed ({@link analyzeBlock}), statically checked, and executed under a bounded
- * instruction budget. A block passes when it produces **no** error-severity `ol-*` diagnostic.
+ * **One rule, no exceptions:** every fenced block whose info string is `logo` in `spec/**.md` and
+ * `docs/**.md` is parsed, statically checked, and executed ({@link analyzeBlock}); it must either
+ * produce **no** error-severity `ol-*` diagnostic, or carry an entry in the expectations manifest
+ * that declares **exactly** what it does produce. There is no automatic tolerance and no
+ * "close enough" — a block the gate cannot fully account for fails.
  *
- * **The three traps a naive "execute everything" gate falls into**, and how each is handled
- * *without* requiring an annotation inside `spec/` (which is maintainer-owned — AGENTS.md — so
- * this gate must never add tags or headers to the prose it checks):
+ * That matters because the interesting failures hide in the excusable-looking cases. Most prose
+ * blocks are excerpts whose names live in the surrounding paragraph, so an earlier design
+ * auto-excused `ol-undefined-var`/`ol-unknown-command`. But `forwad 100` and `forward :szie` are
+ * *indistinguishable* from a legitimate excerpt by diagnostic code alone, so that tolerance would
+ * have silently swallowed exactly the typo class this gate exists to catch. Listing each excerpt
+ * (`kind: "prose-fragment"`) costs a manifest entry and buys an assertion.
  *
- * 1. **Blocks that are not OpenLogo at all.** `spec/grammar.md` fences EBNF production rules as
- *    ` ```logo `. Nothing can infer that, so those blocks are listed in the expectations manifest
- *    (`kind: "not-openlogo"`) — still *asserted*, so a mislabeled block cannot silently change.
- * 2. **Fragments.** Most prose blocks are excerpts whose variables and procedures are defined in
- *    the surrounding text, so they legitimately raise `ol-undefined-var`/`ol-unknown-command`.
- *    Those are auto-tolerated by {@link isContextFragment} — deliberately WITHOUT an annotation,
- *    so an unannotated block is never silently unchecked, only *narrowly* excused. Tolerance is
- *    limited to that closed code set (see {@link CONTEXT_TOLERATED_CODES}): the moment a fragment
- *    also raises anything else — `ol-type`, `ol-range`, `ol-unknown-key`, … — the gate fails.
- * 3. **Deliberately invalid programs.** `spec/error-model.md` and `spec/tooling.md` show code that
- *    MUST raise a specific `ol-*` code. These are the most valuable blocks to check, so they are
- *    listed with their exact expected codes and **asserted**: the gate fails both when the codes
- *    change *and* when a listed block becomes clean (a stale expectation), exactly like the
- *    `tests/conformance/_harness-selftest/` fixtures that declare `expect: "mismatch"`.
+ * **What a listed excerpt does and does not prove.** Parsing and static checking always cover the
+ * *whole* block, so a misspelled command, an undefined variable, a bad arity, a non-place
+ * assignment target, or any syntax error is caught wherever it sits. **Execution, however, stops at
+ * the first runtime error** — so in a block whose first statement already raises (typically
+ * `ol-undefined-var`, because its value is assigned in the prose), the statements *below* that line
+ * are checked statically but never run, and a runtime-only defect down there — `ol-type`,
+ * `ol-range`, `ol-unknown-key`, `ol-unknown-field` — would not be observed. That is a property of
+ * the runtime, not something this gate can paper over, so it is **made visible instead of claimed
+ * away**: such a block is reported as `PARTIAL` with its own count in the summary line, naming the
+ * line execution stopped at. Do not read a green run as "every line of every block executed".
  *
- * **Manifest keys are content fingerprints, not line numbers** ({@link blockFingerprint}): prose
- * edits above a block must not churn the manifest, but editing the *block itself* must force a
- * re-triage. A fingerprint that matches no block in its file fails the gate as a stale entry.
+ * **Determinism.** The instruction budget is fixed ({@link DOCUMENTATION_INSTRUCTION_BUDGET}) and
+ * file order is a code-unit sort, so a run is reproducible. One exposure remains: blocks that call
+ * `random` execute against `@openlogo/runtime`'s unseeded generator. No block's *diagnostics*
+ * depend on the value today, but one that branched on it (`if (random 2) == 0 [ … ]`) could flake.
+ * If `ExecuteOptions` ever gains a seed, pass a fixed one here.
+ *
+ * **The manifest lives outside the prose it describes.** `spec/` is maintainer-owned (AGENTS.md),
+ * so this gate must never add tags, headers, or annotations to the documents it checks — the same
+ * constraint that keeps `scripts/examples-profiles.json` out of `spec/examples/`.
+ *
+ * **Keys are content fingerprints, not line numbers** ({@link blockFingerprint}): prose edits above
+ * a block must not churn the manifest, but editing the *block itself* must force a re-triage. A
+ * fingerprint that matches no block in its file — or more than one — fails the gate.
+ *
+ * **Supported markdown subset.** {@link extractFencedBlocks} implements the CommonMark fence rules
+ * this corpus actually uses, and **fails loudly** on the ones it does not (see
+ * {@link UNSUPPORTED_FENCE_REASONS}) rather than guessing — so the gate is never silently wrong
+ * about where a block starts or ends.
  */
 
 import { createHash } from "node:crypto";
@@ -58,38 +77,49 @@ export const EXPECTATIONS_PATH = join(
 /**
  * Instruction budget for one documentation block. Far below `@openlogo/runtime`'s default
  * 1,000,000 so the whole corpus stays a few seconds, and far above anything a teaching example
- * needs — a block that reaches it is demonstrating `forever`/blocking `input` and is listed as
- * `non-terminating`. Fixed (never derived from the machine) so the gate is deterministic.
+ * needs — a block that reaches it is demonstrating `forever` or a blocking `input`, and is listed
+ * as `non-terminating`. Fixed (never derived from the machine) so the gate is deterministic.
  */
 export const DOCUMENTATION_INSTRUCTION_BUDGET = 100_000;
 
 /**
- * The closed set of `ol-*` codes that mean "this block is an excerpt whose context lives in the
- * surrounding prose" rather than "this block is wrong": a name it references is defined in an
- * earlier block or in the paragraph around it.
- *
- * `ol-bad-token` is deliberately NOT in this set even though an unknown callee makes the parser
- * mis-arity the call (`polygon 5 100` parses `polygon` as a zero-input command and reports its
- * inputs as stray tokens). It is tolerated only *alongside* `ol-unknown-command` — see
- * {@link isContextFragment} — so a genuine lexical error such as a comma-separated list
- * (`:x = [1, 2, 3]`) still fails on its own.
+ * The `kind` values an expectation entry may declare, mapped to the manifest field each asserts.
+ * `kind` is documentation for the human reading the manifest; the assertion is what makes an entry
+ * a check rather than a mute button.
  */
-export const CONTEXT_TOLERATED_CODES = new Set([
-  "ol-undefined-var",
-  "ol-unknown-command",
+export const EXPECTATION_KINDS = new Map([
+  /** An excerpt whose names are defined in the surrounding prose, not in the block. */
+  ["prose-fragment", "codes"],
+  /** The prose teaches this exact diagnostic; the block MUST keep producing it. */
+  ["deliberate-error", "codes"],
+  /** The fence says `logo` but holds EBNF/reserved-word text, not OpenLogo source. */
+  ["not-openlogo", "codes"],
+  /** Demonstrates `forever` or a blocking `input`, so it reaches the instruction budget. */
+  ["non-terminating", "codes"],
+  /** Uses a profile with no implementation yet, so it cannot be executed at all. */
+  ["profile-not-implemented", "profiles"],
+  /** A genuine defect in the prose, recorded and reported until its owner fixes it. */
+  ["known-broken", "codes"],
 ]);
 
-/** The closed set of `kind` values an expectation entry may declare. */
-export const EXPECTATION_KINDS = new Set([
-  /** The prose teaches this exact diagnostic; the block MUST keep producing it. */
-  "deliberate-error",
-  /** The fence is mislabeled `logo` but holds EBNF/reserved-word text, not OpenLogo source. */
-  "not-openlogo",
-  /** Demonstrates `forever` or a blocking `input`, so it reaches the instruction budget. */
-  "non-terminating",
-  /** A genuine defect in the prose, recorded (and reported) until its owner fixes it. */
-  "known-broken",
-]);
+/** Shape every declared diagnostic code must have — the `ol-*` registry `@openlogo/core` owns. */
+const OL_CODE_PATTERN = /^ol-[a-z0-9-]+$/;
+
+/**
+ * Markdown fence constructs {@link extractFencedBlocks} deliberately refuses to guess at. None
+ * occur in `spec/` or `docs/` today; if one appears, the gate fails and names it rather than
+ * mis-reading where the block begins or ends. See
+ * `docs/adr/0021-documentation-example-gate.md` for why this is a guard rather than a CommonMark
+ * dependency.
+ */
+export const UNSUPPORTED_FENCE_REASONS = Object.freeze({
+  BLOCKQUOTE: "a fence inside a blockquote (`>`)",
+  LIST_MARKER: "a fence sharing its line with a list marker",
+  DEEP_INDENT:
+    "a fence indented four or more columns, which CommonMark may read as indented code",
+  UNCLOSED:
+    "a fence that is never closed — the rest of the file is swallowed into it",
+});
 
 /** Convert a native path to the `/`-separated form used as a manifest key on every platform. */
 export function toPosixPath(path) {
@@ -124,38 +154,67 @@ export function findMarkdownFiles(roots = MARKDOWN_ROOTS) {
 }
 
 const FENCE_OPENER = /^([ \t]*)(`{3,}|~{3,})[ \t]*(\S*)/;
+const BLOCKQUOTED_FENCE = /^[ \t]*(?:>[ \t]*)+(?:`{3,}|~{3,})/;
+const LIST_MARKER_FENCE = /^[ \t]*(?:[-*+]|\d+[.)])[ \t]+(?:`{3,}|~{3,})/;
+
+/**
+ * Which {@link UNSUPPORTED_FENCE_REASONS} entry (if any) applies to a line that opens a fence.
+ * Checked before {@link FENCE_OPENER}, because a blockquoted or list-prefixed fence does not match
+ * that pattern at all — silently ignoring such a line would drop a real block on the floor.
+ */
+function unsupportedFenceReason(line) {
+  if (BLOCKQUOTED_FENCE.test(line)) {
+    return UNSUPPORTED_FENCE_REASONS.BLOCKQUOTE;
+  }
+  if (LIST_MARKER_FENCE.test(line)) {
+    return UNSUPPORTED_FENCE_REASONS.LIST_MARKER;
+  }
+  const opener = FENCE_OPENER.exec(line);
+  // A tab is worth four columns, so any tab in the indent already reaches the indented-code
+  // threshold. Everything this corpus uses sits at zero to three spaces.
+  if (opener !== null && (opener[1].includes("\t") || opener[1].length >= 4)) {
+    return UNSUPPORTED_FENCE_REASONS.DEEP_INDENT;
+  }
+  return null;
+}
 
 /**
  * Extract every fenced code block from `text`.
  *
- * Follows the CommonMark rules this repository's markdown actually relies on: a fence is three or
- * more backticks or tildes, it is closed by at least as many of the *same* character alone on a
- * line, the opener's indentation is stripped from each body line (so a block nested in a list item
- * yields its true source), and the info string's first word is the language. A fence character
- * that differs from the opener's — or a shorter run of it — is body text, which is what lets a
- * ` ```logo ` block quote a `~~~` fence and vice versa.
+ * Implements the CommonMark rules this corpus relies on: a fence is three or more backticks or
+ * tildes, closed by at least as many of the *same* character alone on a line; the opener's
+ * indentation is stripped from each body line (so a block nested in a list item yields its true
+ * source); the info string's first word is the language. A fence character that differs from the
+ * opener's — or a shorter run of it — is body text, which is what lets a ` ```logo ` block quote a
+ * `~~~` fence and vice versa.
  *
- * @returns `{ blocks, unterminated }` — `blocks` carry `{ language, source, startLine }` with
- *   `startLine` the 1-based line of the opening fence; `unterminated` lists the 1-based opener
- *   lines of fences never closed before end of file (malformed markdown, since such a fence
- *   swallows every block after it).
+ * @returns `{ blocks, problems }` — `blocks` carry `{ language, source, startLine }` with
+ *   `startLine` the 1-based line of the opening fence; `problems` are `{ line, reason }` for
+ *   fences the extractor refuses to guess at ({@link UNSUPPORTED_FENCE_REASONS}).
  */
 export function extractFencedBlocks(text) {
   const lines = text.split(/\r?\n/);
   const blocks = [];
-  const unterminated = [];
+  const problems = [];
   let index = 0;
   while (index < lines.length) {
+    const unsupported = unsupportedFenceReason(lines[index]);
+    if (unsupported !== null) {
+      problems.push({ line: index + 1, reason: unsupported });
+      index += 1;
+      continue;
+    }
     const opener = FENCE_OPENER.exec(lines[index]);
     if (opener === null) {
       index += 1;
       continue;
     }
     const [, indent, fence, info] = opener;
+    const startLine = index + 1;
+
     const closer = new RegExp(
       `^[ \\t]*\\${fence[0]}{${fence.length},}[ \\t]*$`,
     );
-    const startLine = index + 1;
     const body = [];
     let cursor = index + 1;
     let closed = false;
@@ -169,7 +228,10 @@ export function extractFencedBlocks(text) {
       cursor += 1;
     }
     if (!closed) {
-      unterminated.push(startLine);
+      problems.push({
+        line: startLine,
+        reason: UNSUPPORTED_FENCE_REASONS.UNCLOSED,
+      });
     }
     blocks.push({
       language: info.toLowerCase(),
@@ -178,7 +240,7 @@ export function extractFencedBlocks(text) {
     });
     index = cursor + 1;
   }
-  return { blocks, unterminated };
+  return { blocks, problems };
 }
 
 /**
@@ -191,96 +253,122 @@ export function blockFingerprint(source) {
 }
 
 /**
+ * The 1-based line, within `source`, of the last line carrying something the runtime would execute
+ * (ignoring blank lines and whole-line `#` comments), or `0` when there is none. Used to tell
+ * "execution stopped early" from "execution reached the end and the last statement happened to
+ * raise". Exported so its edge cases are testable directly: {@link analyzeBlock} only reaches it
+ * once a runtime error exists, which a block with no executable line can never produce.
+ */
+export function lastExecutableLine(source) {
+  const lines = source.split("\n");
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const text = lines[index].trim();
+    if (text !== "" && !text.startsWith("#")) {
+      return index + 1;
+    }
+  }
+  return 0;
+}
+
+/**
  * Parse, statically check, and execute one block.
  *
- * Profile gating runs first and mirrors `scripts/examples-gate.mjs`: a block using a profile with
- * no implementation yet (Modules, Localization, Educational, Tutor (AI)) is reported as skipped
- * with a visible notice rather than failed — its `alias`/`import` spellings are not in the grammar
- * yet, so every diagnostic it raises would be noise. `check()` runs with the full profile set so
- * an inactive-profile name never masquerades as an unknown command.
+ * When `gateUnimplementedProfiles` is true (the default), a block using a profile with no
+ * implementation yet — Modules, Localization, Educational, Tutor (AI) — returns early with those
+ * profiles and no codes: its `alias`/`import`/`challenge` spellings are not in the grammar yet, so
+ * every diagnostic it raised would be noise. The caller passes `false` when an expectation already
+ * declares what the block produces, so a *listed* block is analyzed for real rather than waved
+ * through by an incidental profile mention. `check()` runs with the full profile set so an
+ * inactive-profile name never masquerades as an unknown command.
  *
- * @returns `{ unimplementedProfiles, codes, details }` — `codes` is the sorted, de-duplicated set
- *   of error-severity `ol-*` codes across all three stages (empty when the block is clean), and
- *   `details` are human-readable `line: code — message` strings for the report.
+ * @returns `{ unimplementedProfiles, codes, details, internalError, partialFrom }` — `codes` is the
+ *   sorted, de-duplicated set of error-severity `ol-*` codes across all three stages (empty when
+ *   the block is clean); `details` are human-readable `line: code — message` strings whose line
+ *   numbers are absolute in the containing file; `internalError` is a message when the gate itself
+ *   threw, which is never something an expectation may declare; `partialFrom` is the absolute line
+ *   execution stopped at when it stopped **before** the block's last executable line, and `null`
+ *   otherwise — see this module's header for why that is surfaced rather than claimed away.
  */
-export function analyzeBlock(source, label, startLine = 0) {
+export function analyzeBlock(
+  source,
+  label,
+  { startLine = 0, gateUnimplementedProfiles = true } = {},
+) {
   let unimplementedProfiles = [];
   let diagnostics;
+  let runtimeErrorLines = [];
   try {
     unimplementedProfiles = detectUsedProfiles(source).filter(
       (profile) => !IMPLEMENTED_PROFILES.includes(profile),
     );
-    if (unimplementedProfiles.length > 0) {
-      return { unimplementedProfiles, codes: [], details: [] };
+    if (gateUnimplementedProfiles && unimplementedProfiles.length > 0) {
+      return {
+        unimplementedProfiles,
+        codes: [],
+        details: [],
+        internalError: null,
+        partialFrom: null,
+      };
     }
 
     const parsed = parse(source, label);
+    const executed = execute(source, label, {
+      instructionBudget: DOCUMENTATION_INSTRUCTION_BUDGET,
+    });
+    runtimeErrorLines = executed.diagnostics
+      .filter((diagnostic) => diagnostic.severity === "error")
+      .map((diagnostic) => diagnostic.source_span.start[0]);
     diagnostics = [
       ...parsed.diagnostics,
       ...check(parsed.ast, { profiles: OL_CHECK_PROFILES, source }).diagnostics,
-      ...execute(source, label, {
-        instructionBudget: DOCUMENTATION_INSTRUCTION_BUDGET,
-      }).diagnostics,
+      ...executed.diagnostics,
     ];
   } catch (error) {
-    // A gate must never itself crash on an unexpected internal error: report it as a finding.
+    // A gate must never itself crash on an unexpected internal error — but it must never call one
+    // a diagnostic either, so this is its own state rather than a pseudo `ol-*` code.
     return {
       unimplementedProfiles,
-      codes: ["gate-threw"],
-      details: [`${startLine}: gate-threw — ${error.message}`],
+      codes: [],
+      details: [],
+      internalError: error.message,
+      partialFrom: null,
     };
   }
 
+  const haltLine = runtimeErrorLines.length === 0 ? null : runtimeErrorLines[0];
   const errors = diagnostics.filter(
     (diagnostic) => diagnostic.severity === "error",
   );
-  const details = errors.map((diagnostic) => {
-    const line = startLine + diagnostic.source_span.start[0];
-    return `${line}: ${diagnostic.code} — ${diagnostic.message}`;
-  });
   return {
     unimplementedProfiles,
     codes: [...new Set(errors.map((diagnostic) => diagnostic.code))].sort(),
-    details,
+    details: errors.map(
+      (diagnostic) =>
+        `${startLine + diagnostic.source_span.start[0]}: ${diagnostic.code} — ${diagnostic.message}`,
+    ),
+    internalError: null,
+    partialFrom:
+      haltLine !== null && haltLine < lastExecutableLine(source)
+        ? startLine + haltLine
+        : null,
   };
 }
 
-/**
- * True when every code in `codes` is explained by context the block does not carry — i.e. a name
- * defined in the surrounding prose. `ol-bad-token` counts only when `ol-unknown-command` is also
- * present, because that pairing is exactly the parser mis-arity-ing a call to a procedure defined
- * elsewhere; on its own `ol-bad-token` is a real lexical error and must fail.
- *
- * An empty `codes` is not a fragment — a clean block is simply clean, and the caller distinguishes
- * the two so the report can count them separately.
- */
-export function isContextFragment(codes) {
-  if (codes.length === 0) {
-    return false;
-  }
-  const present = new Set(codes);
-  return codes.every(
-    (code) =>
-      CONTEXT_TOLERATED_CODES.has(code) ||
-      (code === "ol-bad-token" && present.has("ol-unknown-command")),
-  );
-}
-
-/** True when two sorted code lists hold the same codes. */
-function sameCodes(left, right) {
+/** True when two sorted string lists hold the same entries. */
+function sameList(left, right) {
   return (
     left.length === right.length &&
-    left.every((code, position) => code === right[position])
+    left.every((entry, position) => entry === right[position])
   );
 }
 
 /**
- * Format the manifest entry a human should paste into
- * `scripts/markdown-examples-expectations.json` after triaging a newly-failing block, so the fix
- * path is explicit rather than guessed. Deliberately not written automatically: an auto-updating
- * golden file would rubber-stamp exactly the regression this gate exists to catch.
+ * Format the manifest entry a human should paste into the expectations manifest after triaging a
+ * newly-failing block, so the fix path is explicit rather than guessed. Deliberately not written
+ * automatically: an auto-updating golden file would rubber-stamp exactly the regression this gate
+ * exists to catch.
  */
-export function suggestExpectation(block, codes) {
+export function suggestExpectation(block, codes, expectationsPath) {
   const excerpt = block.source.split("\n").find((line) => line.trim() !== "");
   const entry = {
     fingerprint: blockFingerprint(block.source),
@@ -289,13 +377,14 @@ export function suggestExpectation(block, codes) {
     why: "TODO: explain why this block cannot be clean",
     codes,
   };
-  return `      add to ${toPosixPath(EXPECTATIONS_PATH)}: ${JSON.stringify(entry)}`;
+  return `      add to ${toPosixPath(expectationsPath)}: ${JSON.stringify(entry)}`;
 }
 
 /**
  * Validate one manifest entry's shape. Returns an array of human-readable problems (empty when the
- * entry is well-formed), so a typo'd `kind` or a missing rationale fails the gate rather than
- * silently disabling a check.
+ * entry is well-formed), so a typo'd `kind`, a missing rationale, an untracked `known-broken`
+ * defect, or a declared code outside the `ol-*` registry shape fails the gate rather than silently
+ * disabling a check.
  */
 export function validateExpectationEntry(entry, file, position) {
   const where = `${file} entry ${position}`;
@@ -303,20 +392,37 @@ export function validateExpectationEntry(entry, file, position) {
   if (typeof entry.fingerprint !== "string" || entry.fingerprint === "") {
     problems.push(`${where}: missing "fingerprint"`);
   }
-  if (!EXPECTATION_KINDS.has(entry.kind)) {
-    problems.push(
-      `${where}: "kind" must be one of ${[...EXPECTATION_KINDS].join(", ")} (got ${JSON.stringify(entry.kind)})`,
-    );
-  }
   if (typeof entry.why !== "string" || entry.why.trim() === "") {
     problems.push(
       `${where}: missing "why" — every exception states its rationale`,
     );
   }
-  if (!Array.isArray(entry.codes) || entry.codes.length === 0) {
+  const asserts = EXPECTATION_KINDS.get(entry.kind);
+  if (asserts === undefined) {
     problems.push(
-      `${where}: "codes" must list the ol-* code(s) the block produces`,
+      `${where}: "kind" must be one of ${[...EXPECTATION_KINDS.keys()].join(", ")} (got ${JSON.stringify(entry.kind)})`,
     );
+    return problems;
+  }
+  if (entry.kind === "known-broken" && !/^#\d+$/.test(entry.issue ?? "")) {
+    problems.push(
+      `${where}: a "known-broken" entry records a real defect, so it must carry its tracking "issue" (e.g. "#123")`,
+    );
+  }
+  const declared = entry[asserts];
+  if (!Array.isArray(declared) || declared.length === 0) {
+    problems.push(
+      `${where}: a "${entry.kind}" entry must list the ${asserts} it asserts`,
+    );
+    return problems;
+  }
+  if (asserts === "codes") {
+    const invalid = declared.filter((code) => !OL_CODE_PATTERN.test(code));
+    if (invalid.length > 0) {
+      problems.push(
+        `${where}: "codes" must be ol-* registry codes (got ${invalid.join(", ")})`,
+      );
+    }
   }
   return problems;
 }
@@ -336,13 +442,42 @@ export function loadExpectations(expectationsPath = EXPECTATIONS_PATH) {
 }
 
 /**
+ * Compare one block's analysis against its expectation entry.
+ *
+ * @returns `null` when the block matches, or a human-readable description of the mismatch.
+ */
+export function describeExpectationMismatch(expectation, analysis) {
+  if (analysis.internalError !== null) {
+    return `the gate itself threw (${analysis.internalError}), which no expectation may declare`;
+  }
+  if (expectation.kind === "profile-not-implemented") {
+    const declared = [...expectation.profiles].sort();
+    if (sameList(analysis.unimplementedProfiles, declared)) {
+      return null;
+    }
+    return `expected it to need ${declared.join(", ")} but it needs ${
+      analysis.unimplementedProfiles.length === 0
+        ? "no unimplemented profile — it can run now"
+        : analysis.unimplementedProfiles.join(", ")
+    }`;
+  }
+  const declared = [...expectation.codes].sort();
+  if (sameList(analysis.codes, declared)) {
+    return null;
+  }
+  return `expected ${declared.join(", ")} but got ${
+    analysis.codes.length === 0 ? "a clean run" : analysis.codes.join(", ")
+  }`;
+}
+
+/**
  * Run the gate over every ` ```logo ` block in every markdown file under `roots`.
  *
  * Never calls `process.exit` — the CLI shell (`check-markdown-examples.mjs`) does that from the
  * returned `ok` flag.
  *
  * @returns `{ ok, counts, lines }` where `counts` is
- *   `{ total, clean, fragment, skipped, expected, failed }` and `lines` is the printable report.
+ *   `{ total, clean, expected, knownBroken, failed }` and `lines` is the printable report.
  */
 export function runMarkdownExamplesGate({
   roots = MARKDOWN_ROOTS,
@@ -353,10 +488,14 @@ export function runMarkdownExamplesGate({
   const counts = {
     total: 0,
     clean: 0,
-    fragment: 0,
-    skipped: 0,
     expected: 0,
+    knownBroken: 0,
+    partial: 0,
     failed: 0,
+  };
+  const fail = (line) => {
+    counts.failed += 1;
+    lines.push(`FAIL ${line}`);
   };
 
   const resolvedExpectations =
@@ -370,39 +509,35 @@ export function runMarkdownExamplesGate({
     return { ok: false, counts, lines };
   }
 
-  const unusedFingerprints = new Map();
+  // Every entry starts unmatched; a block that matches one removes it. Whatever is left over
+  // described a block that no longer exists (or has been edited), which is itself a failure.
+  const unmatched = new Map();
   for (const [file, entries] of Object.entries(resolvedExpectations)) {
     for (const [position, entry] of entries.entries()) {
       for (const problem of validateExpectationEntry(entry, file, position)) {
-        counts.failed += 1;
-        lines.push(`FAIL ${problem}`);
+        fail(problem);
       }
       const key = `${file}#${entry.fingerprint}`;
-      if (unusedFingerprints.has(key)) {
-        counts.failed += 1;
-        lines.push(
-          `FAIL ${file} entry ${position}: duplicate fingerprint ${entry.fingerprint} — one of the two entries is dead`,
+      if (unmatched.has(key)) {
+        fail(
+          `${file} entry ${position}: duplicate fingerprint ${entry.fingerprint} — one of the two entries is dead`,
         );
         continue;
       }
-      unusedFingerprints.set(
-        key,
-        `${file} entry ${position} (${entry.excerpt ?? ""})`,
-      );
+      unmatched.set(key, `${file} entry ${position} (${entry.excerpt ?? ""})`);
     }
   }
 
   for (const file of files) {
-    const text = readFileSync(file, "utf8");
-    const { blocks, unterminated } = extractFencedBlocks(text);
-    for (const line of unterminated) {
-      counts.failed += 1;
-      lines.push(
-        `FAIL ${file}:${line}: fence opened here is never closed — the rest of the file is swallowed into it`,
-      );
+    const { blocks, problems } = extractFencedBlocks(
+      readFileSync(file, "utf8"),
+    );
+    for (const problem of problems) {
+      fail(`${file}:${problem.line}: ${problem.reason}`);
     }
 
     const fileExpectations = resolvedExpectations[file] ?? [];
+    const alreadyMatched = new Set();
     for (const block of blocks) {
       if (block.language !== "logo") {
         continue;
@@ -413,72 +548,100 @@ export function runMarkdownExamplesGate({
       const expectation = fileExpectations.find(
         (entry) => entry.fingerprint === fingerprint,
       );
-      const { unimplementedProfiles, codes, details } = analyzeBlock(
-        block.source,
-        label,
-        block.startLine,
-      );
+      const analysis = analyzeBlock(block.source, label, {
+        startLine: block.startLine,
+        // A listed block is analyzed for real: its expectation already says what it produces, so
+        // an incidental unimplemented-profile mention must not wave it through unchecked.
+        gateUnimplementedProfiles:
+          expectation === undefined ||
+          expectation.kind === "profile-not-implemented",
+      });
 
       if (expectation !== undefined) {
-        unusedFingerprints.delete(`${file}#${fingerprint}`);
-        const declared = [...expectation.codes].sort();
-        if (sameCodes(codes, declared)) {
-          counts.expected += 1;
+        unmatched.delete(`${file}#${fingerprint}`);
+        if (alreadyMatched.has(fingerprint)) {
+          fail(
+            `${label}: a second block in this file has the same content as the expectation pinned by ` +
+              `${fingerprint} — one entry must not excuse two blocks; make them differ, or fix the duplicated prose`,
+          );
           continue;
         }
-        const got =
-          unimplementedProfiles.length > 0
-            ? `nothing — the block was skipped because it needs ${unimplementedProfiles.join(", ")}`
-            : codes.length === 0
-              ? "a clean run"
-              : codes.join(", ");
-        counts.failed += 1;
-        lines.push(
-          `FAIL ${label}: expected ${declared.join(", ")} (${expectation.kind}: ${expectation.why}) ` +
-            `but got ${got} — re-triage this block and update ${toPosixPath(expectationsPath)}`,
+        alreadyMatched.add(fingerprint);
+
+        const mismatch = describeExpectationMismatch(expectation, analysis);
+        if (mismatch === null) {
+          counts.expected += 1;
+          if (expectation.kind === "known-broken") {
+            counts.knownBroken += 1;
+            lines.push(
+              `KNOWN-BROKEN ${label} (${expectation.issue}): ${expectation.why}`,
+            );
+          }
+          if (analysis.partialFrom !== null) {
+            counts.partial += 1;
+            lines.push(
+              `PARTIAL ${label}: execution stopped at line ${analysis.partialFrom}`,
+            );
+          }
+          continue;
+        }
+        fail(
+          `${label}: ${mismatch} (${expectation.kind}: ${expectation.why}) — ` +
+            `re-triage this block and update ${toPosixPath(expectationsPath)}`,
         );
-        for (const detail of details) {
+        for (const detail of analysis.details) {
           lines.push(`      ${file}:${detail}`);
         }
         continue;
       }
 
-      if (unimplementedProfiles.length > 0) {
-        counts.skipped += 1;
-        lines.push(
-          `SKIP ${label} (requires ${unimplementedProfiles.join(", ")} — not yet implemented)`,
+      if (analysis.internalError !== null) {
+        fail(`${label}: the gate threw — ${analysis.internalError}`);
+        continue;
+      }
+      if (analysis.unimplementedProfiles.length > 0) {
+        fail(
+          `${label}: needs ${analysis.unimplementedProfiles.join(", ")}, which no implementation ` +
+            `provides yet — list it in ${toPosixPath(expectationsPath)} as "profile-not-implemented" ` +
+            `so the skip is recorded rather than silent`,
         );
         continue;
       }
-      if (codes.length === 0) {
+      if (analysis.codes.length === 0) {
         counts.clean += 1;
         continue;
       }
-      if (isContextFragment(codes)) {
-        counts.fragment += 1;
-        continue;
-      }
-      counts.failed += 1;
-      lines.push(`FAIL ${label}: ${codes.join(", ")}`);
-      for (const detail of details) {
+      // Lead with the offending line rather than the fence, so skimming a CI log lands on the
+      // defect; the block's own location follows for anyone hunting for its expectation entry.
+      fail(
+        `${file}:${analysis.details[0].split(":")[0]}: ${analysis.codes.join(", ")} ` +
+          `(in the logo block opening at ${label})`,
+      );
+      for (const detail of analysis.details) {
         lines.push(`      ${file}:${detail}`);
       }
-      lines.push(suggestExpectation(block, codes));
+      lines.push(suggestExpectation(block, analysis.codes, expectationsPath));
     }
   }
 
-  for (const [, description] of unusedFingerprints) {
-    counts.failed += 1;
-    lines.push(
-      `FAIL stale expectation — ${description} matches no logo block; delete it or re-fingerprint the block it described`,
+  for (const [, description] of unmatched) {
+    fail(
+      `stale expectation — ${description} matches no logo block; delete it or re-fingerprint the block it described`,
     );
   }
 
   lines.push(
     `markdown examples: ${counts.total} logo block(s) — ${counts.clean} clean, ` +
-      `${counts.fragment} prose fragment(s), ${counts.expected} expected-diagnostic, ` +
-      `${counts.skipped} skipped, ${counts.failed} failed`,
+      `${counts.expected} asserted expectation(s) of which ${counts.knownBroken} known-broken ` +
+      `and ${counts.partial} only partially executed, ${counts.failed} failed`,
   );
+  if (counts.partial > 0) {
+    lines.push(
+      "  PARTIAL means the runtime stopped at that block's first error, so the lines below it were parsed and " +
+        "statically checked but never run: a runtime-only defect there (ol-type, ol-range, ol-unknown-key, " +
+        "ol-unknown-field) would not be observed. Do not read a green run as 'every line of every block executed'.",
+    );
+  }
 
   return { ok: counts.failed === 0, counts, lines };
 }

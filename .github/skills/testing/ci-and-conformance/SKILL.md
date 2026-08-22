@@ -28,10 +28,14 @@ through (`docs/delivery.md`); you own the harness and the CI that runs it.
 5. **Regression:** every fixed bug gains a fixture so it can't return.
 6. **Documentation examples:** `npm run examples` runs `spec/examples/*.logo` **and** every
    ` ```logo ` block fenced in `spec/**.md` / `docs/**.md` (`scripts/markdown-examples-gate.mjs`,
-   issue #850). Prose excerpts are auto-tolerated for `ol-undefined-var`/`ol-unknown-command` only;
-   anything else must run clean or be listed in `scripts/markdown-examples-expectations.json`, where
-   its exact `ol-*` codes are **asserted** — so a deliberately-invalid teaching example is proven to
-   keep raising its documented diagnostic, and a listed block that becomes clean fails as stale.
+   issue #850, ADR-0021). One uniform rule: a block runs clean, or it is listed in
+   `scripts/markdown-examples-expectations.json` where its exact `ol-*` codes (or unimplemented
+   profiles) are **asserted** — so a deliberately-invalid teaching example is proven to keep raising
+   its documented diagnostic, and a listed block that becomes clean fails as stale. There is no
+   automatic tolerance, so a misspelled command in an excerpt fails like any other defect. The one
+   honest limit is reported, not hidden: execution stops at a block's first runtime error, so the
+   gate prints `PARTIAL` and a count for blocks whose later lines were statically checked but never
+   run.
 7. **CI (`shared/definition-of-done`):** wire `.github/workflows/` to run build, type-check/lint, unit,
    **coverage**, **conformance**, runnable examples, and applicable a11y/pedagogy checks on every PR.
    Required checks gate merges — the agent never merges.

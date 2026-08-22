@@ -1,23 +1,29 @@
 {
   "_readme": [
     "Expectations for the markdown fenced-block half of the `examples` Definition-of-Done gate",
-    "(issue #850) — see scripts/markdown-examples-gate.mjs. JSON has no comments, so keys that",
-    "begin with an underscore are documentation and are ignored by the gate.",
+    "(issue #850) — see scripts/markdown-examples-gate.mjs and docs/adr/0021-documentation-example-gate.md.",
+    "JSON has no comments, so keys beginning with an underscore are documentation and are ignored.",
     "",
-    "Every other key is a repository-relative POSIX path, and each entry pins one ```logo block by",
-    "the SHA-256 fingerprint of its source — so prose edits above a block never churn this file,",
-    "but editing the block itself forces a re-triage.",
+    "Every other key is a repository-relative POSIX path. Each entry pins ONE ```logo block by the",
+    "SHA-256 fingerprint of its source, so prose edits above a block never churn this file, while",
+    "editing the block itself forces a re-triage.",
     "",
-    "Every entry is ASSERTED, not merely tolerated: the gate fails when a listed block stops",
-    "producing exactly these codes — including when it becomes clean (a stale expectation) — and",
-    "when a fingerprint matches no block in its file. Blocks NOT listed here must run clean, except",
-    "for prose fragments whose names are defined in the surrounding text, which the gate tolerates",
-    "automatically (ol-undefined-var / ol-unknown-command only). Never add an entry to silence a",
-    "real defect: kind 'known-broken' records one, so it can be routed to its owner.",
+    "THE RULE: a ```logo block either runs completely clean, or it has an entry here that is",
+    "ASSERTED. There is no automatic tolerance. The gate fails when a listed block stops producing",
+    "exactly its declared codes/profiles, when it becomes clean (a stale expectation), when a",
+    "fingerprint matches no block — or matches two.",
     "",
-    "kind: deliberate-error | not-openlogo | non-terminating | known-broken."
+    "kind (and the field it asserts):",
+    "  prose-fragment          codes     an excerpt; its names are defined in the surrounding prose",
+    "  deliberate-error        codes     the prose teaches this exact diagnostic",
+    "  not-openlogo            codes     the fence says logo but holds EBNF/word-list text",
+    "  non-terminating         codes     demonstrates forever / a blocking input, so it hits the budget",
+    "  profile-not-implemented profiles  needs a profile no implementation provides yet",
+    "  known-broken            codes     a REAL defect, recorded with its tracking issue — never a mute button",
+    "",
+    "Adding an entry is a triage decision, not a formality: `why` is mandatory and a known-broken",
+    "entry must carry its tracking `issue`. If a block is simply wrong, fix the block."
   ],
-
   "docs/design-notes/0001-places-and-value-semantics.md": [
     {
       "fingerprint": "775da59cde50ac0e",
@@ -27,24 +33,24 @@
       "codes": ["ol-not-a-place"]
     }
   ],
-
   "docs/design-notes/0006-effect-event-snapshot-timing.md": [
     {
       "fingerprint": "7c411c83a02b450c",
       "excerpt": ":x = [1, 2, 3]",
       "kind": "known-broken",
-      "why": "DEFECT found by this gate (issue #850): ':x = [1, 2, 3]' separates list items with commas, which OpenLogo has no grammar for — list literals are space-separated ('[1 2 3]'). Recorded rather than fixed here: the record is Status: Accepted, so its edit is routed to @documentation via @orchestrator.",
+      "issue": "#850",
+      "why": "DEFECT surfaced by this gate: ':x = [1, 2, 3]' separates list items with commas, which OpenLogo has no grammar for — list literals are space-separated ('[1 2 3]'). Recorded rather than fixed here because the record is Status: Accepted and docs edits are serialized; tracked on #850 until @orchestrator routes it to @documentation, then this entry is DELETED (not re-fingerprinted).",
       "codes": ["ol-bad-token"]
     },
     {
       "fingerprint": "f7e6b44cdff8c4d9",
       "excerpt": ":x = [1, 2, 3]",
       "kind": "known-broken",
-      "why": "Same defect as the block above, in the second contrasting example of the same section: a comma-separated list literal. Routed, not fixed here.",
+      "issue": "#850",
+      "why": "Same defect as the entry above, in the second contrasting example of the same section: a comma-separated list literal. Tracked on #850 until routed; delete this entry when the block is fixed.",
       "codes": ["ol-bad-token"]
     }
   ],
-
   "docs/educational-commands.md": [
     {
       "fingerprint": "62bdd113cf88a286",
@@ -54,7 +60,22 @@
       "codes": ["ol-type"]
     }
   ],
-
+  "docs/learn-how-its-built/09-the-checker.md": [
+    {
+      "fingerprint": "985284e719fe2afb",
+      "excerpt": "define add_one :n",
+      "kind": "deliberate-error",
+      "why": "The page's 'shape problems' example: a `define` with no `end`, which the next line quotes back as 'define needs a body. wrap the body in [ ] or close it with end.' Asserting ol-missing-end keeps the page honest about what the reader will actually see.",
+      "codes": ["ol-missing-end"]
+    },
+    {
+      "fingerprint": "fa851f7c67c6d26b",
+      "excerpt": "prnt",
+      "kind": "deliberate-error",
+      "why": "The page's 'meaning problems' example: `prnt` parses fine but no such command exists, and the next line quotes the checker's reply 'i don't know how to prnt. did you mean print?'. Asserting ol-unknown-command keeps the did-you-mean example truthful.",
+      "codes": ["ol-unknown-command"]
+    }
+  ],
   "docs/learn-how-its-built/11-where-you-type-it.md": [
     {
       "fingerprint": "8a1ffef639ab2b35",
@@ -64,8 +85,86 @@
       "codes": ["ol-limit"]
     }
   ],
-
+  "spec/ai-tutor.md": [
+    {
+      "fingerprint": "90961001191b94a6",
+      "excerpt": "repeat 4",
+      "kind": "profile-not-implemented",
+      "why": "Uses the educational and tutor-ai profiles, which no implementation provides yet (spec/conformance.md's DAG), so the block cannot be parsed or executed at all.",
+      "profiles": ["educational", "tutor-ai"]
+    },
+    {
+      "fingerprint": "fcb9ea65a427d214",
+      "excerpt": ":doubled = map num in :nums [ :num * 2 ]",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:nums` is assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
+    {
+      "fingerprint": "e34cdacf8ec60939",
+      "excerpt": "# after drawing a square",
+      "kind": "profile-not-implemented",
+      "why": "Uses the tutor-ai profile, which no implementation provides yet (spec/conformance.md's DAG), so the block cannot be parsed or executed at all.",
+      "profiles": ["tutor-ai"]
+    },
+    {
+      "fingerprint": "673666cedc20f12d",
+      "excerpt": "# after learning variables",
+      "kind": "profile-not-implemented",
+      "why": "Uses the tutor-ai profile, which no implementation provides yet (spec/conformance.md's DAG), so the block cannot be parsed or executed at all.",
+      "profiles": ["tutor-ai"]
+    }
+  ],
   "spec/commands.md": [
+    {
+      "fingerprint": "ebc8abb1c53eaeea",
+      "excerpt": "set size to 100",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:nums` is assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
+    {
+      "fingerprint": "3792f144a077dc72",
+      "excerpt": "print \"hello\"",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:x` is assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
+    {
+      "fingerprint": "98fa6783cfe4273c",
+      "excerpt": "print :name != \"tom\"",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:name` is assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
+    {
+      "fingerprint": "0407d3727c6de741",
+      "excerpt": "if :count > 0 and :count < 10",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:count` is assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
+    {
+      "fingerprint": "3d5ec475b89de931",
+      "excerpt": "if :done or :is_ready",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:done` and `:is_ready` are assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
+    {
+      "fingerprint": "73d2ff1e2d88b151",
+      "excerpt": "if not :done",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:done` is assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
+    {
+      "fingerprint": "bb4b386884b3fbaf",
+      "excerpt": "if :count > 3",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:count` is assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
     {
       "fingerprint": "a52fc73091e7bbbc",
       "excerpt": "forever",
@@ -74,8 +173,35 @@
       "codes": ["ol-limit"]
     }
   ],
-
   "spec/data-structures.md": [
+    {
+      "fingerprint": "7e56ddebe36de79a",
+      "excerpt": "set people.tom.age to 10",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:people` is assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
+    {
+      "fingerprint": "a599c57cb14fcfa2",
+      "excerpt": "print :nums[1]     # => 1",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:nums` is assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
+    {
+      "fingerprint": "fe32acd66fe9bd5e",
+      "excerpt": ":who = \"tom\"",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:ages` is assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
+    {
+      "fingerprint": "8a958449242b06cf",
+      "excerpt": ":ages.max = 9",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:ages` and `:who` are assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
     {
       "fingerprint": "c5c253e6b881681e",
       "excerpt": ":people = dict",
@@ -91,7 +217,6 @@
       "codes": ["ol-unknown-field"]
     }
   ],
-
   "spec/educational-model.md": [
     {
       "fingerprint": "62bdd113cf88a286",
@@ -101,7 +226,6 @@
       "codes": ["ol-type"]
     }
   ],
-
   "spec/error-model.md": [
     {
       "fingerprint": "a663131086912422",
@@ -111,8 +235,181 @@
       "codes": ["ol-bad-token", "ol-no-value", "ol-unknown-command"]
     }
   ],
-
+  "spec/examples/README.md": [
+    {
+      "fingerprint": "2f2a62a111feff73",
+      "excerpt": "if :sides == 4",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:sides` is assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
+    {
+      "fingerprint": "ba495b32c2192dc8",
+      "excerpt": ":squares = map num in :nums [ :num * :num ]",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:nums` is assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
+    {
+      "fingerprint": "e754c1c1e49655ee",
+      "excerpt": "on_key \"left\" [ left :turn_size ]",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:turn_size` is assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
+    {
+      "fingerprint": "de7c0297441cbc19",
+      "excerpt": "set_tempo 120",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:melody` is assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    }
+  ],
+  "spec/execution-model.md": [
+    {
+      "fingerprint": "208faeb514581756",
+      "excerpt": "forward random 100",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `double` is defined elsewhere in this document, so the parser cannot know its arity and reports the inputs as stray tokens.",
+      "codes": ["ol-bad-token", "ol-unknown-command"]
+    },
+    {
+      "fingerprint": "4421c705749f1de9",
+      "excerpt": ":size = 100",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:nums`, `:p` and `:people` are assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
+    {
+      "fingerprint": "44519688eccc2760",
+      "excerpt": ":doubled = map num in :nums [ :num * 2 ]",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:nums` is assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
+    {
+      "fingerprint": "fc1b2690769e4d37",
+      "excerpt": "add (point 3 4) to :path",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:path` is assigned in the surrounding prose, not in the block; `point` is defined elsewhere in this document.",
+      "codes": ["ol-undefined-var", "ol-unknown-command"]
+    },
+    {
+      "fingerprint": "477c0c571dad2a76",
+      "excerpt": ":corners = (list (point 0 0) (point 100 90))",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:corners` is assigned in the surrounding prose, not in the block; `point` is defined elsewhere in this document.",
+      "codes": ["ol-undefined-var", "ol-unknown-command"]
+    }
+  ],
+  "spec/geometry-module.md": [
+    {
+      "fingerprint": "110627030f0c82cc",
+      "excerpt": "repeat :sides",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:sides` and `:size` are assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
+    {
+      "fingerprint": "6ad42ccc9c37a89a",
+      "excerpt": "polygon 5 100",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `polygon` is defined elsewhere in this document, so the parser cannot know its arity and reports the inputs as stray tokens.",
+      "codes": ["ol-bad-token", "ol-unknown-command"]
+    },
+    {
+      "fingerprint": "ea3787e5f1fc54a3",
+      "excerpt": "repeat :points",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:points`, `:size` and `:step` are assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
+    {
+      "fingerprint": "2f4611801db58758",
+      "excerpt": "360 * :step / :points",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:points` and `:step` are assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
+    {
+      "fingerprint": "1876e66eed1b78e0",
+      "excerpt": "star 5 100",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `star` is defined elsewhere in this document, so the parser cannot know its arity and reports the inputs as stray tokens.",
+      "codes": ["ol-bad-token", "ol-unknown-command"]
+    },
+    {
+      "fingerprint": "f5cae092efa45f07",
+      "excerpt": "local side",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:radius` and `:segments` are assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
+    {
+      "fingerprint": "90dd99ee79523eb0",
+      "excerpt": "2 * :radius * sin (180 / 36)",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:radius` is assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
+    {
+      "fingerprint": "3e04dd0688509826",
+      "excerpt": "circle 50",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `circle` is defined elsewhere in this document, so the parser cannot know its arity and reports the inputs as stray tokens.",
+      "codes": ["ol-bad-token", "ol-unknown-command"]
+    },
+    {
+      "fingerprint": "2c6af7d37d6bd14d",
+      "excerpt": "local segments",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:angle` and `:radius` are assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
+    {
+      "fingerprint": "8ddb4c7570e34876",
+      "excerpt": "[(:x - :radius * (cos :h)) (:y + :radius * (sin :h))]",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:h`, `:radius`, `:x` and `:y` are assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
+    {
+      "fingerprint": "a3edc636e6bea2df",
+      "excerpt": "[(:x - :radius * (cos :h) + :radius * (cos (:angle - :h)))",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:angle`, `:h`, `:radius`, `:x` and `:y` are assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
+    {
+      "fingerprint": "4f56a2d2a297dd61",
+      "excerpt": "arc 90 50",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `arc` is defined elsewhere in this document, so the parser cannot know its arity and reports the inputs as stray tokens.",
+      "codes": ["ol-bad-token", "ol-unknown-command"]
+    },
+    {
+      "fingerprint": "76216f084fdb4e42",
+      "excerpt": "print area [\"polygon\" 5 100]",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `area` is defined elsewhere in this document, so the parser cannot know its arity and reports the inputs as stray tokens.",
+      "codes": ["ol-bad-token", "ol-unknown-command"]
+    },
+    {
+      "fingerprint": "74e1055d98fb9cb9",
+      "excerpt": "print perimeter [\"polygon\" 5 100]",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `perimeter` is defined elsewhere in this document, so the parser cannot know its arity and reports the inputs as stray tokens.",
+      "codes": ["ol-bad-token", "ol-unknown-command"]
+    }
+  ],
   "spec/grammar.md": [
+    {
+      "fingerprint": "b9b1575db83a4714",
+      "excerpt": "# primary line comment",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:a` and `:b` are assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
     {
       "fingerprint": "f964bdea097a6413",
       "excerpt": "name                ::= identifier",
@@ -127,6 +424,13 @@
       ]
     },
     {
+      "fingerprint": "bf36b07cc9488524",
+      "excerpt": "forward random 100",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:a` and `:b` are assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
+    {
       "fingerprint": "c49eaa82caedca0c",
       "excerpt": "expression          ::= or-expression",
       "kind": "not-openlogo",
@@ -137,9 +441,57 @@
         "ol-unknown-command",
         "ol-unmatched-paren"
       ]
+    },
+    {
+      "fingerprint": "6a13142b53785bd1",
+      "excerpt": ":size = 100",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:nums`, `:p` and `:people` are assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
+    {
+      "fingerprint": "272241bed9c28f51",
+      "excerpt": "print :nums[1]",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:ages`, `:i`, `:nums` and `:who` are assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
+    {
+      "fingerprint": "8022e4440062db09",
+      "excerpt": "repeat 4 [ forward 100 right 90 ]",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:count` and `:nums` are assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
+    {
+      "fingerprint": "1be615ccd4fe645e",
+      "excerpt": "struct point [ x y ]",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:path` is assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
+    {
+      "fingerprint": "c18686e9b91de96f",
+      "excerpt": "for [:x :y] in :points",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:points` is assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
+    {
+      "fingerprint": "44519688eccc2760",
+      "excerpt": ":doubled = map num in :nums [ :num * 2 ]",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:nums` is assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
+    {
+      "fingerprint": "d5935e0e13e42c9a",
+      "excerpt": "define to end return output op stop throw",
+      "kind": "profile-not-implemented",
+      "why": "Uses the modules profile, which no implementation provides yet (spec/conformance.md's DAG), so the block cannot be parsed or executed at all.",
+      "profiles": ["modules"]
     }
   ],
-
   "spec/interaction-events.md": [
     {
       "fingerprint": "871bdf7c5030c999",
@@ -154,10 +506,116 @@
       "kind": "non-terminating",
       "why": "The `input` example. `input` is the only blocking read in v0.1, and with no host answer available the read ends the only other way spec/interaction-events.md:110-111 allows: the program is cancelled (ol-limit). The block itself is correct OpenLogo.",
       "codes": ["ol-limit"]
+    },
+    {
+      "fingerprint": "01d2b8f93afe2546",
+      "excerpt": "if :score == 10",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:score` is assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
     }
   ],
-
+  "spec/localization.md": [
+    {
+      "fingerprint": "a33b996119fa105c",
+      "excerpt": "alias new_name existing_name",
+      "kind": "profile-not-implemented",
+      "why": "Uses the localization profile, which no implementation provides yet (spec/conformance.md's DAG), so the block cannot be parsed or executed at all.",
+      "profiles": ["localization"]
+    },
+    {
+      "fingerprint": "f76992a8a6636775",
+      "excerpt": "alias avance forward",
+      "kind": "profile-not-implemented",
+      "why": "Uses the localization profile, which no implementation provides yet (spec/conformance.md's DAG), so the block cannot be parsed or executed at all.",
+      "profiles": ["localization"]
+    },
+    {
+      "fingerprint": "594f6110a5b1960f",
+      "excerpt": "alias repete repeat",
+      "kind": "profile-not-implemented",
+      "why": "Uses the localization profile, which no implementation provides yet (spec/conformance.md's DAG), so the block cannot be parsed or executed at all.",
+      "profiles": ["localization"]
+    },
+    {
+      "fingerprint": "6fd03d0f02570f6c",
+      "excerpt": "alias avance forward",
+      "kind": "profile-not-implemented",
+      "why": "Uses the localization profile, which no implementation provides yet (spec/conformance.md's DAG), so the block cannot be parsed or executed at all.",
+      "profiles": ["localization"]
+    },
+    {
+      "fingerprint": "366f460950b4e1f9",
+      "excerpt": "alias definir define",
+      "kind": "profile-not-implemented",
+      "why": "Uses the localization profile, which no implementation provides yet (spec/conformance.md's DAG), so the block cannot be parsed or executed at all.",
+      "profiles": ["localization"]
+    },
+    {
+      "fingerprint": "e3553b54ad19c9a7",
+      "excerpt": "alias repeat forward    # error: repeat already exists",
+      "kind": "profile-not-implemented",
+      "why": "Uses the localization profile, which no implementation provides yet (spec/conformance.md's DAG), so the block cannot be parsed or executed at all.",
+      "profiles": ["localization"]
+    },
+    {
+      "fingerprint": "7c340e28e0db0622",
+      "excerpt": "# module: francais",
+      "kind": "profile-not-implemented",
+      "why": "Uses the localization and modules profiles, which no implementation provides yet (spec/conformance.md's DAG), so the block cannot be parsed or executed at all.",
+      "profiles": ["localization", "modules"]
+    },
+    {
+      "fingerprint": "d6fdc3bff69b9f94",
+      "excerpt": "import \"francais\"",
+      "kind": "profile-not-implemented",
+      "why": "Uses the modules profile, which no implementation provides yet (spec/conformance.md's DAG), so the block cannot be parsed or executed at all.",
+      "profiles": ["modules"]
+    },
+    {
+      "fingerprint": "37bbc10758604ce7",
+      "excerpt": "import \"francais\"",
+      "kind": "profile-not-implemented",
+      "why": "Uses the modules profile, which no implementation provides yet (spec/conformance.md's DAG), so the block cannot be parsed or executed at all.",
+      "profiles": ["modules"]
+    },
+    {
+      "fingerprint": "967d5dd7c034eb9a",
+      "excerpt": "alias répète repeat",
+      "kind": "profile-not-implemented",
+      "why": "Uses the localization profile, which no implementation provides yet (spec/conformance.md's DAG), so the block cannot be parsed or executed at all.",
+      "profiles": ["localization"]
+    }
+  ],
   "spec/style-guide.md": [
+    {
+      "fingerprint": "cfecff4583964fbf",
+      "excerpt": "if :done [ print \"finished\" ]",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:done` is assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
+    {
+      "fingerprint": "d0d3472f29a8d4e4",
+      "excerpt": "repeat 4 [ forward 100  right 90 ]",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:done` is assigned in the surrounding prose, not in the block; `move_and_turn` is defined elsewhere in this document.",
+      "codes": ["ol-undefined-var", "ol-unknown-command"]
+    },
+    {
+      "fingerprint": "2f0d6e462de2305b",
+      "excerpt": "if :side_length > 0",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:side_length` is assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
+    {
+      "fingerprint": "6a733205a9b9bba2",
+      "excerpt": ":bigger = filter size in :sizes [ :size > 20 ]",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:sizes` is assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
     {
       "fingerprint": "2b5403f678d5fc01",
       "excerpt": "if :side_count = 4        # syntax error: a condition needs ==, not =",
@@ -166,14 +624,48 @@
       "codes": ["ol-bad-token", "ol-mismatched-end", "ol-missing-end"]
     },
     {
+      "fingerprint": "4bda7278995fae10",
+      "excerpt": "draw_square 100",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `draw_square` is defined elsewhere in this document, so the parser cannot know its arity and reports the inputs as stray tokens.",
+      "codes": ["ol-bad-token", "ol-unknown-command"]
+    },
+    {
       "fingerprint": "93154c617c1a0b2a",
       "excerpt": "repeat 4",
       "kind": "deliberate-error",
       "why": "The 'Undelimited bodies' anti-pattern: the prose states that a header followed by instructions with no [ ] block and no `end` is a parse error, even for a single instruction.",
       "codes": ["ol-missing-end"]
+    },
+    {
+      "fingerprint": "c1e58e9326f0d554",
+      "excerpt": "repeat 4",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:ready` is assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
+    {
+      "fingerprint": "0466a43f10d09dc0",
+      "excerpt": "define draw_corner_pattern",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:ready` is assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
+    {
+      "fingerprint": "a0da892d43b2d334",
+      "excerpt": "repeat 4",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:side_length` is assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
+    {
+      "fingerprint": "e275c4f400bc8005",
+      "excerpt": "repeat 4",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:side_length` is assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
     }
   ],
-
   "spec/tooling.md": [
     {
       "fingerprint": "d3f13952b8c9cb24",
@@ -216,10 +708,23 @@
       "kind": "deliberate-error",
       "why": "Layer-2 example: the Finding line asserts code=ol-no-value — `map` needs the last instruction in its block to make a value. `:nums` is undefined here too, because the block is also an excerpt.",
       "codes": ["ol-no-value", "ol-undefined-var"]
+    },
+    {
+      "fingerprint": "4d7d83c68427eb32",
+      "excerpt": "repeat 4",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:side` is assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
     }
   ],
-
   "spec/turtles-and-sprites.md": [
+    {
+      "fingerprint": "28ba7ca89c8dac68",
+      "excerpt": "ask :t",
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `:t` is assigned in the surrounding prose, not in the block.",
+      "codes": ["ol-undefined-var"]
+    },
     {
       "fingerprint": "6d946969ffa69164",
       "excerpt": "sprites-statement   ::= tell-statement | ask-statement | each-statement",

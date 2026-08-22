@@ -34,7 +34,7 @@ hand across it.
 
 Run this on the shipped runtime and see it for yourself:
 
-```
+```logo
 forward 50
 pen_up
 forward 50
@@ -79,7 +79,7 @@ drawing model.
 
 Draw our square from earlier pages, but lift the pen for the last side only:
 
-```
+```logo
 repeat 3 [ forward 100 right 90 ]
 pen_up
 forward 100

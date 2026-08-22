@@ -175,11 +175,21 @@ rest with a visible notice. `scripts/check-markdown-examples.mjs` (issue #850, l
 `scripts/markdown-examples-gate.mjs`) then does the same for every ` ```logo ` block fenced inside
 `spec/**.md` and `docs/**.md` — the "and doc examples" half of the Definition of Done, previously
 unenforced, which is how a `set_shape "bee"` example that raises `ol-type` shipped inside a 0.1.0
-conformance claim. Blocks that are excerpts of the surrounding prose are tolerated automatically
-(only `ol-undefined-var`/`ol-unknown-command`); everything else must run clean or be listed, with a
-rationale, in `scripts/markdown-examples-expectations.json`, where its exact `ol-*` codes are
-**asserted** rather than merely ignored. Never add an entry there to silence a real defect — record
-it as `known-broken` and route it to the document's owner (`spec/` is maintainer-owned).
+conformance claim.
+
+**Write OpenLogo source in prose inside a ` ```logo ` fence.** The gate keys on that info string, so
+a program in a bare ` ``` ` fence is never checked and silently erodes the corpus. Use a different
+info string (` ```text `, ` ```ebnf `) for anything that is *not* OpenLogo source, such as sample
+output, diagnostics, or grammar productions.
+
+**The rule the gate enforces is uniform:** a block either runs completely clean, or it carries an
+entry in `scripts/markdown-examples-expectations.json` that declares — and therefore **asserts** —
+exactly what it produces. There is no automatic tolerance, so a misspelled command or variable in an
+excerpt fails like any other defect. Never add an entry to silence a real defect: record it as
+`known-broken` with its tracking issue and route it to the document's owner (`spec/` is
+maintainer-owned). One honest limit, which the gate reports as `PARTIAL` rather than hiding:
+execution stops at a block's first runtime error, so lines below it are parsed and statically
+checked but not run. See [ADR-0021](docs/adr/0021-documentation-example-gate.md).
 
 `npm run coverage` runs through a thin deterministic wrapper (`scripts/coverage.mjs`, logic in
 `scripts/coverage-gate/classify.mjs`) rather than invoking `node --test` directly. Node's parallel

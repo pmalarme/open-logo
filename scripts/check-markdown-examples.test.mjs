@@ -1,14 +1,16 @@
-// Unit + regression tests for the markdown fenced-block DoD gate (issue #850). Per ADR-0009's
-// pattern these import scripts/markdown-examples-gate.mjs's logic directly (for 100% coverage)
-// plus one subprocess test for the CLI shell (scripts/check-markdown-examples.mjs), pointed at
-// isolated temp fixtures via --root/--expectations rather than the real spec/ + docs/ corpus.
+// Unit + regression tests for the markdown fenced-block DoD gate (issue #850). These import
+// scripts/markdown-examples-gate.mjs's logic directly (for 100% coverage) plus subprocess tests for
+// the CLI shell (scripts/check-markdown-examples.mjs), pointed at isolated temp fixtures via
+// --root/--expectations rather than the real spec/ + docs/ corpus.
 //
-// The self-test block at the end is the gate's own proof that it can go red — the same discipline
+// The SELF-TEST block at the end is the gate's own proof that it can go red — the same discipline
 // as tests/conformance/_harness-selftest/, whose fixtures deliberately declare expect: "mismatch".
 // A gate that passes because it checks nothing is worse than no gate, so every way this one is
-// supposed to fail (a runtime ol-type like the `set_shape "bee"` regression that motivated issue
-// #850, a stale expectation, a changed expectation, an unterminated fence, a malformed manifest
-// entry) has a test that asserts it actually fails.
+// supposed to fail has a test that asserts it actually fails: the runtime `ol-type` from the
+// `set_shape "bee"` regression that motivated #850, a misspelled command name (the case an earlier
+// design's automatic fragment tolerance would have swallowed), a mistyped variable, an edited or
+// stale expectation, a block that quietly starts needing an unimplemented profile, an unterminated
+// fence, and a malformed manifest entry.
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -17,16 +19,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
 import {
-  CONTEXT_TOLERATED_CODES,
   DOCUMENTATION_INSTRUCTION_BUDGET,
-  EXPECTATION_KINDS,
   EXPECTATIONS_PATH,
+  EXPECTATION_KINDS,
   MARKDOWN_ROOTS,
+  UNSUPPORTED_FENCE_REASONS,
   analyzeBlock,
   blockFingerprint,
+  describeExpectationMismatch,
   extractFencedBlocks,
   findMarkdownFiles,
-  isContextFragment,
+  lastExecutableLine,
   loadExpectations,
   parseArgs,
   runMarkdownExamplesGate,
@@ -60,10 +63,33 @@ function logoBlock(source) {
   return ["```logo", source, "```", ""].join("\n");
 }
 
+/** The manifest key a file written by {@link writeMarkdown} gets. */
+function keyFor(name) {
+  return `${toPosixPath(TEMP_DIR)}/${name}`;
+}
+
 /** Run the gate over the temp directory with an inline (already-parsed) expectations manifest. */
 function runOverTemp(expectations = {}) {
   return runMarkdownExamplesGate({ roots: [TEMP_DIR], expectations });
 }
+
+/** A well-formed expectation entry for `source`, overridable field by field. */
+function expectationFor(source, overrides = {}) {
+  return {
+    fingerprint: blockFingerprint(source),
+    excerpt: source.split("\n")[0],
+    kind: "deliberate-error",
+    why: "the prose teaches this diagnostic",
+    codes: ["ol-type"],
+    ...overrides,
+  };
+}
+
+/**
+ * A block that makes the parser exhaust the call stack. It is the one input reachable from real
+ * markdown that proves the gate reports an internal failure instead of crashing.
+ */
+const STACK_BUSTING_SOURCE = `print ${"(".repeat(20_000)}1${")".repeat(20_000)}`;
 
 // --- toPosixPath / blockFingerprint ---------------------------------------------------------
 
@@ -105,10 +131,10 @@ test("findMarkdownFiles defaults to the repository's spec/ and docs/ roots", () 
 // --- extractFencedBlocks --------------------------------------------------------------------
 
 test("extractFencedBlocks reads the language, source, and 1-based opener line", () => {
-  const { blocks, unterminated } = extractFencedBlocks(
+  const { blocks, problems } = extractFencedBlocks(
     ["prose", "```logo", "forward 10", "```", "more"].join("\n"),
   );
-  assert.deepEqual(unterminated, []);
+  assert.deepEqual(problems, []);
   assert.deepEqual(blocks, [
     { language: "logo", source: "forward 10", startLine: 2 },
   ]);
@@ -138,43 +164,87 @@ test("extractFencedBlocks treats a tilde fence as its own fence family", () => {
   assert.equal(blocks[0].source, "forward 10\n```");
 });
 
+test("extractFencedBlocks needs a closer at least as long as the opener", () => {
+  const { blocks } = extractFencedBlocks(
+    ["````logo", "```", "forward 10", "````"].join("\n"),
+  );
+  assert.equal(blocks[0].source, "```\nforward 10");
+});
+
 test("extractFencedBlocks reports a fence that is never closed", () => {
-  const { blocks, unterminated } = extractFencedBlocks(
+  const { blocks, problems } = extractFencedBlocks(
     ["```logo", "forward 10"].join("\n"),
   );
-  assert.deepEqual(unterminated, [1]);
+  assert.deepEqual(problems, [
+    { line: 1, reason: UNSUPPORTED_FENCE_REASONS.UNCLOSED },
+  ]);
   assert.equal(blocks[0].source, "forward 10");
+});
+
+test("extractFencedBlocks refuses to guess at fence constructs it does not implement", () => {
+  for (const [markdown, reason] of [
+    ["> ```logo\n> forward 10\n> ```", UNSUPPORTED_FENCE_REASONS.BLOCKQUOTE],
+    ["- ```logo\n  forward 10\n  ```", UNSUPPORTED_FENCE_REASONS.LIST_MARKER],
+    [
+      "1. ```logo\n   forward 10\n   ```",
+      UNSUPPORTED_FENCE_REASONS.LIST_MARKER,
+    ],
+    [
+      "    ```logo\n    forward 10\n    ```",
+      UNSUPPORTED_FENCE_REASONS.DEEP_INDENT,
+    ],
+    ["\t```logo\n\tforward 10\n\t```", UNSUPPORTED_FENCE_REASONS.DEEP_INDENT],
+  ]) {
+    const { blocks, problems } = extractFencedBlocks(markdown);
+    assert.deepEqual(
+      problems[0],
+      { line: 1, reason },
+      `expected ${reason} for ${JSON.stringify(markdown)}`,
+    );
+    // Refusing means it never yields a half-read `logo` block from the construct.
+    assert.deepEqual(
+      blocks.filter((block) => block.language === "logo"),
+      [],
+    );
+  }
 });
 
 // --- analyzeBlock ---------------------------------------------------------------------------
 
 test("analyzeBlock reports no codes for a clean program", () => {
-  const result = analyzeBlock("forward 10\nright 90", "clean");
-  assert.deepEqual(result, {
+  assert.deepEqual(analyzeBlock("forward 10\nright 90", "clean"), {
     unimplementedProfiles: [],
     codes: [],
     details: [],
+    internalError: null,
+    partialFrom: null,
   });
 });
 
-test("analyzeBlock collects sorted, de-duplicated error codes with absolute line numbers", () => {
-  const result = analyzeBlock('set_shape "bee"', "bee", 118);
+test("analyzeBlock collects sorted, de-duplicated codes with absolute line numbers", () => {
+  const result = analyzeBlock('set_shape "bee"', "bee", { startLine: 118 });
   assert.deepEqual(result.codes, ["ol-type"]);
   assert.match(result.details[0], /^119: ol-type — /);
 });
 
-test("analyzeBlock reports a block needing an unimplemented profile instead of failing it", () => {
+test("analyzeBlock gates a block needing an unimplemented profile by default", () => {
   const result = analyzeBlock("alias avance forward", "localized");
   assert.deepEqual(result.unimplementedProfiles, ["localization"]);
   assert.deepEqual(result.codes, []);
 });
 
-test("analyzeBlock turns an unexpected internal throw into a finding rather than crashing", () => {
-  // parse()/execute() reject a non-string source by throwing, which exercises the defensive
-  // catch: a gate must never itself crash on an unexpected internal error.
-  const result = analyzeBlock(undefined, "not-a-source", 5);
-  assert.deepEqual(result.codes, ["gate-threw"]);
-  assert.match(result.details[0], /^5: gate-threw — /);
+test("analyzeBlock analyzes for real when the caller turns profile gating off", () => {
+  const result = analyzeBlock("alias avance forward", "localized", {
+    gateUnimplementedProfiles: false,
+  });
+  assert.deepEqual(result.unimplementedProfiles, ["localization"]);
+  assert.deepEqual(result.codes, ["ol-bad-token", "ol-unknown-command"]);
+});
+
+test("analyzeBlock reports an internal failure instead of crashing the gate", () => {
+  const result = analyzeBlock(STACK_BUSTING_SOURCE, "deep");
+  assert.match(result.internalError, /call stack/i);
+  assert.deepEqual(result.codes, []);
 });
 
 test("the documentation instruction budget is a fixed, deterministic ceiling", () => {
@@ -184,30 +254,38 @@ test("the documentation instruction budget is a fixed, deterministic ceiling", (
   ]);
 });
 
-// --- isContextFragment ----------------------------------------------------------------------
+test("analyzeBlock reports where execution stopped short of the block's end", () => {
+  // The runtime halts at the first error, so line 2 is parsed and statically checked but never
+  // run. That limit is surfaced, not hidden — see the module header.
+  const halted = analyzeBlock('forward :size\nset_shape "arrow"', "halted", {
+    startLine: 100,
+  });
+  assert.equal(halted.partialFrom, 101);
 
-test("isContextFragment tolerates only names defined in the surrounding prose", () => {
-  assert.deepEqual([...CONTEXT_TOLERATED_CODES].sort(), [
-    "ol-undefined-var",
-    "ol-unknown-command",
-  ]);
-  assert.equal(isContextFragment(["ol-undefined-var"]), true);
-  assert.equal(isContextFragment(["ol-unknown-command"]), true);
+  // A block whose only error is on its last executable line ran to the end: not partial.
+  assert.equal(analyzeBlock("forward :size", "whole").partialFrom, null);
+  // Trailing blank lines and comments are not executable, so they do not make a block partial.
+  assert.equal(
+    analyzeBlock("forward :size\n\n# just a comment", "trailing").partialFrom,
+    null,
+  );
+  // A clean block never halts at all.
+  assert.equal(analyzeBlock("forward 10\nright 90", "clean").partialFrom, null);
+  // Neither does one that only fails statically — nothing ran, but nothing was cut short either.
+  assert.equal(analyzeBlock("repeat 4", "static").partialFrom, null);
 });
 
-test("isContextFragment does not treat a clean block as a fragment", () => {
-  assert.equal(isContextFragment([]), false);
+test("lastExecutableLine ignores blank lines and whole-line comments", () => {
+  assert.equal(lastExecutableLine("forward 10\nright 90"), 2);
+  assert.equal(lastExecutableLine("forward 10\n\n  # trailing note\n"), 1);
+  // No executable line at all — reachable only directly, since a block that runs nothing can
+  // never produce the runtime error that makes analyzeBlock consult this.
+  assert.equal(lastExecutableLine("\n   \n# only a comment"), 0);
+  assert.equal(lastExecutableLine(""), 0);
 });
 
-test("isContextFragment tolerates ol-bad-token only beside an unknown command", () => {
-  // `polygon 5 100` — the parser mis-arities a call to a procedure defined in the prose.
-  assert.equal(isContextFragment(["ol-bad-token", "ol-unknown-command"]), true);
-  // `:x = [1, 2, 3]` — a real lexical error with nothing to excuse it.
-  assert.equal(isContextFragment(["ol-bad-token"]), false);
-});
-
-test("isContextFragment fails a fragment that also raises a real error", () => {
-  assert.equal(isContextFragment(["ol-type", "ol-undefined-var"]), false);
+test("analyzeBlock treats a wholly blank block as having no executable line", () => {
+  assert.equal(analyzeBlock("\n   \n", "blank").partialFrom, null);
 });
 
 // --- suggestExpectation ---------------------------------------------------------------------
@@ -216,70 +294,123 @@ test("suggestExpectation prints a pasteable entry using the first non-blank line
   const suggestion = suggestExpectation(
     { source: "\n\nforward 10\nright 90" },
     ["ol-type"],
+    join("scripts", "expectations.json"),
   );
   assert.match(suggestion, /"excerpt":"forward 10"/);
   assert.match(suggestion, /"codes":\["ol-type"\]/);
   assert.match(suggestion, /"why":"TODO/);
+  assert.match(suggestion, /scripts\/expectations\.json/);
 });
 
 test("suggestExpectation copes with a block that has no non-blank line", () => {
-  assert.match(suggestExpectation({ source: "" }, ["ol-type"]), /"excerpt":""/);
+  assert.match(
+    suggestExpectation({ source: "" }, ["ol-type"], "x.json"),
+    /"excerpt":""/,
+  );
 });
 
 // --- validateExpectationEntry ---------------------------------------------------------------
 
-test("validateExpectationEntry accepts a well-formed entry", () => {
-  assert.deepEqual(
-    validateExpectationEntry(
-      {
-        fingerprint: "abc",
-        kind: "deliberate-error",
-        why: "because",
-        codes: ["ol-type"],
-      },
-      "spec/x.md",
-      0,
-    ),
-    [],
-  );
+test("validateExpectationEntry accepts a well-formed entry of every kind", () => {
+  for (const [kind, asserts] of EXPECTATION_KINDS) {
+    const entry = {
+      fingerprint: "abc",
+      kind,
+      why: "because",
+      [asserts]: asserts === "codes" ? ["ol-type"] : ["modules"],
+    };
+    if (kind === "known-broken") {
+      entry.issue = "#42";
+    }
+    assert.deepEqual(
+      validateExpectationEntry(entry, "spec/x.md", 0),
+      [],
+      `kind ${kind} should validate`,
+    );
+  }
 });
 
-test("validateExpectationEntry rejects every malformed field", () => {
+test("validateExpectationEntry rejects a missing fingerprint, rationale, and kind", () => {
   const problems = validateExpectationEntry(
     { fingerprint: "", kind: "made-up", why: "   ", codes: [] },
     "spec/x.md",
     2,
   );
-  assert.equal(problems.length, 4);
+  assert.equal(problems.length, 3);
   assert.ok(
     problems.every((problem) => problem.startsWith("spec/x.md entry 2:")),
   );
   assert.ok(
     problems.some((problem) => problem.includes('missing "fingerprint"')),
   );
+  assert.ok(problems.some((problem) => problem.includes('missing "why"')));
   assert.ok(
     problems.some((problem) => problem.includes('"kind" must be one of')),
   );
-  assert.ok(problems.some((problem) => problem.includes('missing "why"')));
-  assert.ok(problems.some((problem) => problem.includes('"codes" must list')));
 });
 
-test("validateExpectationEntry rejects wrongly-typed fields too", () => {
+test("validateExpectationEntry rejects wrongly-typed fingerprint and rationale", () => {
   const problems = validateExpectationEntry(
-    { fingerprint: 7, kind: "not-openlogo", why: 7, codes: "ol-type" },
+    { fingerprint: 7, kind: "not-openlogo", why: 7, codes: ["ol-type"] },
     "spec/x.md",
     0,
   );
-  assert.equal(problems.length, 3);
+  assert.equal(problems.length, 2);
 });
 
-test("the expectation kinds are a closed, documented set", () => {
-  assert.deepEqual([...EXPECTATION_KINDS].sort(), [
-    "deliberate-error",
-    "known-broken",
-    "non-terminating",
-    "not-openlogo",
-  ]);
+test("validateExpectationEntry requires the field its kind asserts", () => {
+  assert.match(
+    validateExpectationEntry(
+      { fingerprint: "a", kind: "prose-fragment", why: "w", codes: [] },
+      "spec/x.md",
+      0,
+    )[0],
+    /must list the codes it asserts/,
+  );
+  assert.match(
+    validateExpectationEntry(
+      { fingerprint: "a", kind: "profile-not-implemented", why: "w" },
+      "spec/x.md",
+      0,
+    )[0],
+    /must list the profiles it asserts/,
+  );
+});
+
+test("validateExpectationEntry rejects a declared code outside the ol-* registry shape", () => {
+  assert.match(
+    validateExpectationEntry(
+      {
+        fingerprint: "a",
+        kind: "prose-fragment",
+        why: "w",
+        codes: ["ol-type", "gate-threw", "TypeError"],
+      },
+      "spec/x.md",
+      0,
+    )[0],
+    /"codes" must be ol-\* registry codes \(got gate-threw, TypeError\)/,
+  );
+});
+
+test("validateExpectationEntry requires a known-broken entry to carry its tracking issue", () => {
+  for (const issue of [undefined, "", "nope", "850"]) {
+    assert.match(
+      validateExpectationEntry(
+        {
+          fingerprint: "a",
+          kind: "known-broken",
+          why: "a real defect",
+          issue,
+          codes: ["ol-bad-token"],
+        },
+        "spec/x.md",
+        0,
+      )[0],
+      /must carry its tracking "issue"/,
+      `issue ${JSON.stringify(issue)} should be rejected`,
+    );
+  }
 });
 
 // --- loadExpectations -----------------------------------------------------------------------
@@ -304,14 +435,99 @@ test("the repository's committed expectations manifest is well-formed", () => {
   }
 });
 
+// --- describeExpectationMismatch ------------------------------------------------------------
+
+test("describeExpectationMismatch accepts a matching codes expectation", () => {
+  assert.equal(
+    describeExpectationMismatch(
+      { kind: "deliberate-error", codes: ["ol-type", "ol-range"] },
+      {
+        codes: ["ol-range", "ol-type"],
+        unimplementedProfiles: [],
+        internalError: null,
+      },
+    ),
+    null,
+  );
+});
+
+test("describeExpectationMismatch names what it got instead", () => {
+  const analysis = {
+    codes: ["ol-range"],
+    unimplementedProfiles: [],
+    internalError: null,
+  };
+  assert.match(
+    describeExpectationMismatch(
+      { kind: "deliberate-error", codes: ["ol-type"] },
+      analysis,
+    ),
+    /expected ol-type but got ol-range/,
+  );
+  assert.match(
+    describeExpectationMismatch(
+      { kind: "deliberate-error", codes: ["ol-type"] },
+      { ...analysis, codes: [] },
+    ),
+    /but got a clean run/,
+  );
+});
+
+test("describeExpectationMismatch asserts the profile set for a skip expectation", () => {
+  const expectation = {
+    kind: "profile-not-implemented",
+    profiles: ["modules", "localization"],
+  };
+  assert.equal(
+    describeExpectationMismatch(expectation, {
+      codes: [],
+      unimplementedProfiles: ["localization", "modules"],
+      internalError: null,
+    }),
+    null,
+  );
+  assert.match(
+    describeExpectationMismatch(expectation, {
+      codes: [],
+      unimplementedProfiles: ["modules"],
+      internalError: null,
+    }),
+    /expected it to need localization, modules but it needs modules/,
+  );
+  assert.match(
+    describeExpectationMismatch(expectation, {
+      codes: [],
+      unimplementedProfiles: [],
+      internalError: null,
+    }),
+    /no unimplemented profile — it can run now/,
+  );
+});
+
+test("describeExpectationMismatch never lets an expectation excuse an internal failure", () => {
+  assert.match(
+    describeExpectationMismatch(
+      { kind: "deliberate-error", codes: ["ol-type"] },
+      { codes: [], unimplementedProfiles: [], internalError: "boom" },
+    ),
+    /the gate itself threw \(boom\), which no expectation may declare/,
+  );
+});
+
 // --- runMarkdownExamplesGate ----------------------------------------------------------------
 
 test("the gate passes a clean corpus and counts what it checked", () => {
   writeMarkdown("clean.md", logoBlock("forward 10\nright 90"));
   const result = runOverTemp();
   assert.equal(result.ok, true);
-  assert.equal(result.counts.total, 1);
-  assert.equal(result.counts.clean, 1);
+  assert.deepEqual(result.counts, {
+    total: 1,
+    clean: 1,
+    expected: 0,
+    knownBroken: 0,
+    partial: 0,
+    failed: 0,
+  });
   assert.match(result.lines.at(-1), /1 logo block\(s\) — 1 clean/);
 });
 
@@ -334,63 +550,153 @@ test("the gate fails when no markdown file is found at all", () => {
   assert.match(result.lines[0], /no \.md files found/);
 });
 
-test("the gate tolerates a prose fragment but still counts it visibly", () => {
+test("the gate fails an unlisted block that raises any diagnostic, and says how to triage it", () => {
   writeMarkdown("fragment.md", logoBlock("forward :size"));
   const result = runOverTemp();
-  assert.equal(result.ok, true);
-  assert.equal(result.counts.fragment, 1);
-  assert.match(result.lines.at(-1), /1 prose fragment\(s\)/);
-});
-
-test("the gate skips a block that needs a profile with no implementation yet", () => {
-  writeMarkdown("localized.md", logoBlock("alias avance forward"));
-  const result = runOverTemp();
-  assert.equal(result.ok, true);
-  assert.equal(result.counts.skipped, 1);
-  assert.match(result.lines[0], /SKIP .*requires localization/);
+  assert.equal(result.ok, false);
+  // The headline leads with the offending line, not the fence, so a CI-log skim lands on it.
+  assert.match(
+    result.lines[0],
+    /FAIL .*fragment\.md:2: ol-undefined-var \(in the logo block opening at .*fragment\.md:1\)/,
+  );
+  assert.match(result.lines[1], /:2: ol-undefined-var — /);
+  assert.ok(
+    result.lines.some((line) => /add to .*: \{"fingerprint"/.test(line)),
+    "the report offers the manifest entry to paste after triage",
+  );
 });
 
 test("the gate fails an unterminated fence, which would swallow later blocks", () => {
   writeMarkdown("broken.md", ["```logo", "forward 10"].join("\n"));
   const result = runOverTemp();
   assert.equal(result.ok, false);
-  assert.match(result.lines[0], /fence opened here is never closed/);
+  assert.match(result.lines[0], /is never closed/);
 });
 
-test("an expected-diagnostic block passes when it produces exactly its declared codes", () => {
-  const source = 'set_shape "bee"';
-  writeMarkdown("expected.md", logoBlock(source));
+test("the gate refuses to silently skip a block needing an unimplemented profile", () => {
+  writeMarkdown("one.md", logoBlock("alias avance forward"));
+  writeMarkdown(
+    "two.md",
+    logoBlock('# module: francais\nalias avance forward\nimport "x"'),
+  );
+  const result = runOverTemp();
+  assert.equal(result.ok, false);
+  assert.match(
+    result.lines[0],
+    /needs localization, which no implementation provides yet/,
+  );
+  assert.match(
+    result.lines[1],
+    /needs localization, modules, which no implementation provides yet/,
+  );
+  assert.ok(result.lines.every((line) => !line.startsWith("SKIP")));
+});
+
+test("a listed profile-not-implemented block passes and is counted as asserted", () => {
+  const source = "alias avance forward";
+  writeMarkdown("localized.md", logoBlock(source));
   const result = runOverTemp({
-    [`${toPosixPath(TEMP_DIR)}/expected.md`]: [
-      {
-        fingerprint: blockFingerprint(source),
-        excerpt: source,
-        kind: "deliberate-error",
-        why: "teaches the diagnostic",
-        codes: ["ol-type"],
-      },
+    [keyFor("localized.md")]: [
+      expectationFor(source, {
+        kind: "profile-not-implemented",
+        why: "Localization has no implementation yet",
+        codes: undefined,
+        profiles: ["localization"],
+      }),
     ],
   });
   assert.equal(result.ok, true);
   assert.equal(result.counts.expected, 1);
 });
 
+test("an expected-diagnostic block passes when it produces exactly its declared codes", () => {
+  const source = 'set_shape "bee"';
+  writeMarkdown("expected.md", logoBlock(source));
+  const result = runOverTemp({
+    [keyFor("expected.md")]: [expectationFor(source)],
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.counts.expected, 1);
+});
+
+test("a listed block is analyzed for real, not waved through by a profile mention", () => {
+  // Declaring anything other than profile-not-implemented turns profile gating off, so the block
+  // cannot hide a diagnostic behind an incidental unimplemented-profile spelling. `explain` is an
+  // Educational primitive — unimplemented — but it parses, so the rest of the block is real
+  // OpenLogo and its bad shape word is a genuine defect.
+  const source = 'set_shape "bee"\nexplain';
+  writeMarkdown("mixed.md", logoBlock(source));
+
+  // Left to the profile gate, the block would be skipped whole and the bad shape word never seen.
+  assert.deepEqual(analyzeBlock(source, "mixed").codes, []);
+
+  const result = runOverTemp({
+    [keyFor("mixed.md")]: [
+      expectationFor(source, {
+        kind: "prose-fragment",
+        codes: ["ol-undefined-var"],
+      }),
+    ],
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.lines[0], /expected ol-undefined-var but got ol-type/);
+});
+
+test("a known-broken block passes but is announced on every run", () => {
+  const source = ":x = [1, 2, 3]";
+  writeMarkdown("defect.md", logoBlock(source));
+  const result = runOverTemp({
+    [keyFor("defect.md")]: [
+      expectationFor(source, {
+        kind: "known-broken",
+        issue: "#851",
+        why: "commas are not OpenLogo",
+        codes: ["ol-bad-token"],
+      }),
+    ],
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.counts.knownBroken, 1);
+  assert.match(
+    result.lines[0],
+    /^KNOWN-BROKEN .*defect\.md:1 \(#851\): commas are not OpenLogo$/,
+  );
+  assert.match(result.lines.at(-1), /of which 1 known-broken/);
+});
+
+test("a listed excerpt that stops the runtime early is announced as PARTIAL, not silently passed", () => {
+  // The QA finding this exists for: `execute()` halts at the first error, so a runtime-only defect
+  // BELOW that line is never observed. The block still passes — its declared codes match — but the
+  // gate says out loud how far it actually got, so nobody reads green as "every line ran".
+  const source = 'forward :size\nset_shape "bee"';
+  writeMarkdown("excerpt.md", logoBlock(source));
+  const result = runOverTemp({
+    [keyFor("excerpt.md")]: [
+      expectationFor(source, {
+        kind: "prose-fragment",
+        why: ":size is assigned in the surrounding prose",
+        codes: ["ol-undefined-var"],
+      }),
+    ],
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.counts.partial, 1);
+  assert.match(
+    result.lines[0],
+    /^PARTIAL .*excerpt\.md:1: execution stopped at line 2$/,
+  );
+  assert.match(result.lines.at(-2), /and 1 only partially executed/);
+  assert.match(result.lines.at(-1), /^ {2}PARTIAL means the runtime stopped/);
+});
+
 test("the gate fails a listed block whose codes changed", () => {
   const source = 'set_shape "bee"';
   writeMarkdown("expected.md", logoBlock(source));
   const result = runOverTemp({
-    [`${toPosixPath(TEMP_DIR)}/expected.md`]: [
-      {
-        fingerprint: blockFingerprint(source),
-        excerpt: source,
-        kind: "deliberate-error",
-        why: "teaches the diagnostic",
-        codes: ["ol-range"],
-      },
-    ],
+    [keyFor("expected.md")]: [expectationFor(source, { codes: ["ol-range"] })],
   });
   assert.equal(result.ok, false);
-  assert.match(result.lines[0], /expected ol-range .* but got ol-type/);
+  assert.match(result.lines[0], /expected ol-range but got ol-type/);
   assert.match(result.lines[1], /ol-type — /);
 });
 
@@ -398,49 +704,17 @@ test("the gate fails a stale expectation whose block became clean", () => {
   const source = "forward 10";
   writeMarkdown("fixed.md", logoBlock(source));
   const result = runOverTemp({
-    [`${toPosixPath(TEMP_DIR)}/fixed.md`]: [
-      {
-        fingerprint: blockFingerprint(source),
-        excerpt: source,
-        kind: "deliberate-error",
-        why: "used to be wrong",
-        codes: ["ol-type"],
-      },
-    ],
+    [keyFor("fixed.md")]: [expectationFor(source, { why: "used to be wrong" })],
   });
   assert.equal(result.ok, false);
   assert.match(result.lines[0], /but got a clean run/);
 });
 
-test("the gate explains that a listed block was skipped for an unimplemented profile", () => {
-  const source = "alias avance forward";
-  writeMarkdown("localized.md", logoBlock(source));
-  const result = runOverTemp({
-    [`${toPosixPath(TEMP_DIR)}/localized.md`]: [
-      {
-        fingerprint: blockFingerprint(source),
-        excerpt: source,
-        kind: "deliberate-error",
-        why: "stale expectation",
-        codes: ["ol-bad-token"],
-      },
-    ],
-  });
-  assert.equal(result.ok, false);
-  assert.match(result.lines[0], /skipped because it needs localization/);
-});
-
 test("the gate fails an expectation whose fingerprint matches no block", () => {
   writeMarkdown("clean.md", logoBlock("forward 10"));
   const result = runOverTemp({
-    [`${toPosixPath(TEMP_DIR)}/clean.md`]: [
-      {
-        fingerprint: "0000000000000000",
-        excerpt: "gone",
-        kind: "deliberate-error",
-        why: "the block it described was deleted or edited",
-        codes: ["ol-type"],
-      },
+    [keyFor("clean.md")]: [
+      expectationFor("gone", { fingerprint: "0000000000000000" }),
     ],
   });
   assert.equal(result.ok, false);
@@ -450,13 +724,11 @@ test("the gate fails an expectation whose fingerprint matches no block", () => {
 test("a stale-expectation report copes with an entry that has no excerpt", () => {
   writeMarkdown("clean.md", logoBlock("forward 10"));
   const result = runOverTemp({
-    [`${toPosixPath(TEMP_DIR)}/clean.md`]: [
-      {
+    [keyFor("clean.md")]: [
+      expectationFor("gone", {
         fingerprint: "0000000000000000",
-        kind: "deliberate-error",
-        why: "no excerpt recorded",
-        codes: ["ol-type"],
-      },
+        excerpt: undefined,
+      }),
     ],
   });
   assert.equal(result.ok, false);
@@ -466,7 +738,7 @@ test("a stale-expectation report copes with an entry that has no excerpt", () =>
 test("the gate fails a malformed expectation entry", () => {
   writeMarkdown("clean.md", logoBlock("forward 10"));
   const result = runOverTemp({
-    [`${toPosixPath(TEMP_DIR)}/clean.md`]: [
+    [keyFor("clean.md")]: [
       { fingerprint: "abc", kind: "typo", why: "", codes: [] },
     ],
   });
@@ -479,20 +751,40 @@ test("the gate fails a malformed expectation entry", () => {
 test("the gate fails two entries that pin the same block, since one of them is dead", () => {
   const source = 'set_shape "bee"';
   writeMarkdown("expected.md", logoBlock(source));
-  const entry = {
-    fingerprint: blockFingerprint(source),
-    excerpt: source,
-    kind: "deliberate-error",
-    why: "teaches the diagnostic",
-    codes: ["ol-type"],
-  };
+  const entry = expectationFor(source);
   const result = runOverTemp({
-    [`${toPosixPath(TEMP_DIR)}/expected.md`]: [entry, { ...entry }],
+    [keyFor("expected.md")]: [entry, { ...entry }],
   });
   assert.equal(result.ok, false);
   assert.ok(
     result.lines.some((line) => line.includes("duplicate fingerprint")),
   );
+});
+
+test("the gate fails when one expectation would excuse two identical blocks", () => {
+  const source = 'set_shape "bee"';
+  writeMarkdown("twice.md", logoBlock(source) + logoBlock(source));
+  const result = runOverTemp({
+    [keyFor("twice.md")]: [expectationFor(source)],
+  });
+  assert.equal(result.ok, false);
+  assert.match(
+    result.lines[0],
+    /a second block in this file has the same content/,
+  );
+});
+
+test("the gate reports an internal failure rather than crashing, listed or not", () => {
+  writeMarkdown("deep.md", logoBlock(STACK_BUSTING_SOURCE));
+  const unlisted = runOverTemp();
+  assert.equal(unlisted.ok, false);
+  assert.match(unlisted.lines[0], /the gate threw — .*call stack/i);
+
+  const listed = runOverTemp({
+    [keyFor("deep.md")]: [expectationFor(STACK_BUSTING_SOURCE)],
+  });
+  assert.equal(listed.ok, false);
+  assert.match(listed.lines[0], /which no expectation may declare/);
 });
 
 test("the gate reads its manifest from disk when none is passed in", () => {
@@ -527,9 +819,11 @@ test('SELF-TEST: the gate fails the set_shape "bee" regression that motivated is
   const result = runOverTemp();
   assert.equal(result.ok, false);
   assert.equal(result.counts.failed, 1);
-  assert.match(result.lines[0], /FAIL .*turtles-and-sprites\.md:1: ol-type$/);
-  // The report names the offending line inside the block and quotes the learner message, so a
-  // human can find it without re-running anything.
+  assert.match(
+    result.lines[0],
+    /FAIL .*turtles-and-sprites\.md:4: ol-type \(in the logo block opening at .*:1\)$/,
+  );
+  // The report quotes the learner message, so a human can find it without re-running anything…
   assert.match(result.lines[1], /:4: ol-type — i don't know the shape "bee"/);
   // …and prints the manifest entry to paste if the failure is ever legitimate.
   assert.match(
@@ -555,6 +849,41 @@ test("SELF-TEST: the same block passes once the shape word is a portable one", (
   assert.equal(runOverTemp().ok, true);
 });
 
+test("SELF-TEST: a misspelled command name fails even though it looks like a prose excerpt", () => {
+  // `forwad 100` is indistinguishable by diagnostic code from a legitimate excerpt calling a
+  // procedure defined in the surrounding prose. An earlier design auto-tolerated that pairing and
+  // would have swallowed this; the manifest rule does not.
+  writeMarkdown("typo.md", logoBlock("forwad 100"));
+  const result = runOverTemp();
+  assert.equal(result.ok, false);
+  assert.match(result.lines[0], /ol-bad-token, ol-unknown-command/);
+  assert.ok(
+    result.lines.some((line) => line.includes("did you mean forward?")),
+    "the report quotes the did-you-mean message",
+  );
+});
+
+test("SELF-TEST: a mistyped variable inside a listed excerpt fails, because editing re-fingerprints it", () => {
+  const original = "forward :size";
+  const typo = "forward :szie";
+  writeMarkdown("excerpt.md", logoBlock(original));
+  const expectations = {
+    [keyFor("excerpt.md")]: [
+      expectationFor(original, {
+        kind: "prose-fragment",
+        why: ":size is assigned in the surrounding prose",
+        codes: ["ol-undefined-var"],
+      }),
+    ],
+  };
+  assert.equal(runOverTemp(expectations).ok, true);
+
+  writeMarkdown("excerpt.md", logoBlock(typo));
+  const result = runOverTemp(expectations);
+  assert.equal(result.ok, false);
+  assert.ok(result.lines.some((line) => line.includes("stale expectation")));
+});
+
 test("SELF-TEST: the real spec/ + docs/ corpus is green against the committed manifest", () => {
   const result = runMarkdownExamplesGate();
   assert.equal(
@@ -562,7 +891,7 @@ test("SELF-TEST: the real spec/ + docs/ corpus is green against the committed ma
     true,
     `markdown examples gate failed:\n${result.lines.join("\n")}`,
   );
-  assert.ok(result.counts.total > 100);
+  assert.ok(result.counts.total > 300);
 });
 
 // --- parseArgs + CLI shell ------------------------------------------------------------------
@@ -570,10 +899,7 @@ test("SELF-TEST: the real spec/ + docs/ corpus is green against the committed ma
 test("parseArgs collects repeated --root flags and --expectations", () => {
   assert.deepEqual(
     parseArgs(["--root=spec", "--root=docs", "--expectations=x.json"]),
-    {
-      roots: ["spec", "docs"],
-      expectationsPath: "x.json",
-    },
+    { roots: ["spec", "docs"], expectationsPath: "x.json" },
   );
 });
 
@@ -584,11 +910,11 @@ test("parseArgs leaves both options undefined when nothing is passed", () => {
   });
 });
 
-test("the CLI shell exits 0 and prints the report for a clean corpus", () => {
-  writeMarkdown("clean.md", logoBlock("forward 10"));
+/** Run the CLI shell over the temp directory with an empty on-disk manifest. */
+function runCli() {
   const expectationsPath = join(TEMP_DIR, "expectations.json");
   writeFileSync(expectationsPath, JSON.stringify({}), "utf8");
-  const run = spawnSync(
+  return spawnSync(
     process.execPath,
     [
       join("scripts", "check-markdown-examples.mjs"),
@@ -597,23 +923,18 @@ test("the CLI shell exits 0 and prints the report for a clean corpus", () => {
     ],
     { encoding: "utf8" },
   );
+}
+
+test("the CLI shell exits 0 and prints the report for a clean corpus", () => {
+  writeMarkdown("clean.md", logoBlock("forward 10"));
+  const run = runCli();
   assert.equal(run.status, 0);
   assert.match(run.stdout, /1 logo block\(s\) — 1 clean/);
 });
 
 test("the CLI shell exits 1 when a block regresses", () => {
   writeMarkdown("regressed.md", logoBlock('set_shape "bee"'));
-  const expectationsPath = join(TEMP_DIR, "expectations.json");
-  writeFileSync(expectationsPath, JSON.stringify({}), "utf8");
-  const run = spawnSync(
-    process.execPath,
-    [
-      join("scripts", "check-markdown-examples.mjs"),
-      `--root=${TEMP_DIR}`,
-      `--expectations=${expectationsPath}`,
-    ],
-    { encoding: "utf8" },
-  );
+  const run = runCli();
   assert.equal(run.status, 1);
   assert.match(run.stdout, /FAIL .*ol-type/);
 });
