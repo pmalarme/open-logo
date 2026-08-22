@@ -777,3 +777,105 @@ test("a host that answers the same question twice is ignored the second time", (
   assert.deepEqual(store.getState().output, ["before", "tom"]);
   assert.equal(store.getState().runStatus, "done");
 });
+
+/**
+ * `resolveRecordedAnswer` — round 2, @testing BLOCK-3. The prompt-binding mitigation was
+ * behaviour-changing, learner-visible, and load-bearing for the ruling that shipped this slice, yet
+ * reverting it to the round-1 positional reader killed no test: the divergence it guards can only
+ * be provoked through the public API by unseeded `random`, so it cannot be reached deterministically
+ * from a `run()`. Extracting the decision makes it directly provable — these are the assertions the
+ * mitigation was missing.
+ */
+
+test("resolveRecordedAnswer: a read with no answer recorded for its position must be asked", () => {
+  assert.deepEqual(OL.resolveRecordedAnswer([], 0, "who?"), {
+    answer: undefined,
+    retained: [],
+  });
+});
+
+test("resolveRecordedAnswer: an answer recorded for THIS question is reused, and the chain keeps every answer", () => {
+  const answers = [
+    { prompt: "who?", answer: "tom" },
+    { prompt: "how old?", answer: "9" },
+  ];
+
+  assert.deepEqual(OL.resolveRecordedAnswer(answers, 0, "who?"), {
+    answer: "tom",
+    retained: answers,
+  });
+  assert.deepEqual(OL.resolveRecordedAnswer(answers, 1, "how old?"), {
+    answer: "9",
+    retained: answers,
+  });
+});
+
+test("resolveRecordedAnswer: an answer recorded for a DIFFERENT question is never reused — it is dropped and the question is asked", () => {
+  // The whole point of the mitigation: `"5"` was given for "how many sides?", so a replay that
+  // reaches "what colour?" at that position must NOT receive it.
+  const answers = [
+    { prompt: "how many sides?", answer: "5" },
+    { prompt: "and then?", answer: "later" },
+  ];
+
+  assert.deepEqual(OL.resolveRecordedAnswer(answers, 0, "what colour?"), {
+    answer: undefined,
+    retained: [],
+  });
+});
+
+test("resolveRecordedAnswer: a divergence drops the answers AFTER it too, never just the mismatching one", () => {
+  // Everything past a divergence answers questions this attempt is not asking — keeping them would
+  // reintroduce the same misattribution one position later.
+  const answers = [
+    { prompt: "first?", answer: "a" },
+    { prompt: "second?", answer: "b" },
+    { prompt: "third?", answer: "c" },
+  ];
+
+  assert.deepEqual(OL.resolveRecordedAnswer(answers, 1, "something else?"), {
+    answer: undefined,
+    retained: [{ prompt: "first?", answer: "a" }],
+  });
+});
+
+test("resolveRecordedAnswer: identical prompt text at different positions is answered positionally", () => {
+  // A limitation as much as a behaviour, and it is why #881 stays open: prompt text is not read
+  // identity, so two distinct `input` sites asking the same question are indistinguishable here.
+  const answers = [
+    { prompt: "value?", answer: "one" },
+    { prompt: "value?", answer: "two" },
+  ];
+
+  assert.equal(OL.resolveRecordedAnswer(answers, 0, "value?").answer, "one");
+  assert.equal(OL.resolveRecordedAnswer(answers, 1, "value?").answer, "two");
+});
+
+test("the run controller resolves every read through resolveRecordedAnswer, so a replay reuses answers only for their own question", () => {
+  const store = OL.createStudioState({
+    source: [
+      ':sides = input "how many sides?"',
+      ':colour = input "what colour?"',
+      "print :sides",
+      "print :colour",
+    ].join("\n"),
+  });
+  const answerFor = { "how many sides?": "5", "what colour?": "red" };
+  const host = createTestPromptHost((prompt) => answerFor[prompt]);
+
+  OL.createRunController(store, { inputPrompt: host }).run();
+
+  assert.deepEqual(host.prompts, ["how many sides?", "what colour?"]);
+  assert.deepEqual(
+    store.getState().output,
+    [
+      OL.resolveRecordedAnswer(
+        [{ prompt: "how many sides?", answer: "5" }],
+        0,
+        "how many sides?",
+      ).answer,
+      "red",
+    ],
+    "each value must be the answer resolveRecordedAnswer reports for ITS OWN question",
+  );
+});

@@ -296,11 +296,57 @@ interface PendingRead {
  * question it answered**. A replay re-executes the whole program, and an unseeded `random` before a
  * read can make the replayed prefix reach a *different* question at the same position — so binding
  * answers by position alone could hand an answer to a question the learner was never shown. Pairing
- * each answer with its prompt is what makes that impossible; see `prepare()`'s reader.
+ * each answer with its prompt is what makes that impossible; see {@link resolveRecordedAnswer}.
  */
-interface RecordedAnswer {
+export interface RecordedAnswer {
+  /** The question, exactly as the learner was shown it. */
   readonly prompt: string;
+  /** The text they submitted for it. */
   readonly answer: string;
+}
+
+/** {@link resolveRecordedAnswer}'s verdict for a single read. */
+export interface RecordedAnswerResolution {
+  /**
+   * The learner's own answer to **this exact question**, or `undefined` when there is none and the
+   * question must be put to them.
+   */
+  readonly answer: string | undefined;
+  /**
+   * The answers the chain keeps. The same list, except when the replay diverged: then every entry
+   * from `cursor` on is dropped, because those answer questions this attempt is not asking.
+   */
+  readonly retained: readonly RecordedAnswer[];
+}
+
+/**
+ * Decide how the read at position `cursor` is answered from the chain's accumulated answers (#769)
+ * — the one tested place that owns this decision, extracted from `prepare()`'s reader so it can be
+ * proven directly rather than only through a replay whose divergence needs nondeterminism to
+ * provoke.
+ *
+ * An answer is used **only** when the entry at this position was given for this same `prompt`.
+ * Otherwise the read cannot be answered: either the chain has no answer for this position yet, or a
+ * nondeterministic prefix has reached a different question here than the learner was shown. In that
+ * second case every remaining answer is dropped as well — handing one to the wrong question would
+ * silently apply a learner's answer to something they never saw, which is the failure this pairing
+ * exists to prevent.
+ *
+ * What this does **not** solve is recorded in issue **#881**: prompt text is not read identity, so
+ * two distinct `input` sites asking the identical question are indistinguishable here; the
+ * learner's earlier answer to a question a diverged replay no longer asks is discarded (they are
+ * asked the new one instead); and each re-ask can itself diverge. The durable fix is issue **#876**.
+ */
+export function resolveRecordedAnswer(
+  answers: readonly RecordedAnswer[],
+  cursor: number,
+  prompt: string,
+): RecordedAnswerResolution {
+  const recorded = answers[cursor];
+  if (recorded?.prompt === prompt) {
+    return { answer: recorded.answer, retained: answers };
+  }
+  return { answer: undefined, retained: answers.slice(0, cursor) };
 }
 
 /** A mutable {@link CancellationSignal} this controller owns and flips via `stop()`/`reset()`. */
@@ -497,7 +543,7 @@ export function createRunController(
   // `promptOutstanding` guards the present-once rule (the settle hook runs on every animation tick
   // AND once more after playback), and `promptGeneration` invalidates a responder that arrives
   // after Stop/Reset already decided the run's outcome.
-  let answers: RecordedAnswer[] = [];
+  let answers: readonly RecordedAnswer[] = [];
   let chainSource = "";
   let pendingRead: PendingRead | null = null;
   let attemptDiagnostics: readonly Diagnostic[] = [];
@@ -588,7 +634,7 @@ export function createRunController(
         state.setRunStatus("stopped");
         return;
       }
-      answers.push({ prompt: read.prompt, answer });
+      answers = [...answers, { prompt: read.prompt, answer }];
       pump();
     });
   }
@@ -652,20 +698,16 @@ export function createRunController(
         : {
             hostInput: {
               read: (prompt: string): string | undefined => {
-                const recorded = answers[answerCursor];
-                if (recorded?.prompt === prompt) {
+                const resolution = resolveRecordedAnswer(
+                  answers,
+                  answerCursor,
+                  prompt,
+                );
+                answers = resolution.retained;
+                if (resolution.answer !== undefined) {
                   answerCursor += 1;
-                  return recorded.answer;
+                  return resolution.answer;
                 }
-                // Either the chain has no answer for this position yet, or a nondeterministic
-                // prefix (an unseeded `random` before the read) has reached a DIFFERENT question
-                // here than the learner was shown. Both mean this attempt cannot answer it, so it
-                // takes the reader's documented "cannot answer" ending. Every answer from this
-                // position on is dropped first: on a diverged replay those were given for
-                // questions this attempt is not asking, and handing one to the wrong question
-                // would silently apply a learner's answer to something they never saw. The
-                // learner is asked THIS question instead.
-                answers.length = answerCursor;
                 pendingRead = { prompt, host };
                 return undefined;
               },
