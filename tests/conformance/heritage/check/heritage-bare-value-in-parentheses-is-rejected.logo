@@ -11,4 +11,9 @@
 #
 # Heritage + Data are active so this asserts the rejection under the same profile set as the
 # positive twin, where the reader IS available (`spec/conformance.md:305`).
+#
+# Exactly ONE diagnostic is correct: `( value )` is BALANCED, so no `ol-unmatched-paren` belongs
+# here — `spec/error-model.md` reserves that code for a delimiter with no partner. The parser used
+# to emit it twice around the real error, because the group bailed without consuming its `)`; the
+# #830 review fixed that recovery in `parseParenthesized` and this fixture holds it.
 print (value)

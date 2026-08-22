@@ -33,3 +33,6 @@ print 1 + (value of :d for key "a")
 # A parenthesized reader takes postfixes, so it is a real `primary` (:192).
 print (value of :nested for key "inner").x
 print (value of :nested for key "inner")[x]
+
+# Both readers parenthesized: two `(`-path fall-throughs in one expression.
+print (value of (value of :nested for key "inner") for key "x")

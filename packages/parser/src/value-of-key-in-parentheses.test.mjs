@@ -191,20 +191,46 @@ test("`value` and `key` remain legal data beside the parenthesized reader", () =
 
 test("a bare `value` in parentheses is still rejected", () => {
   // The reader is entered only when `of` directly follows, so parenthesizing a bare `value` must
-  // not smuggle it in as a callee. Assert the diagnostic's IDENTITY, not just that one exists: a
-  // count-only assertion passes when `ol-bad-token` is raised at the wrong offset, names the wrong
-  // token, or comes from the wrong stage. This is the negative half of #830, also pinned as
+  // not smuggle it in as a callee. Assert the COMPLETE diagnostic set, not a filtered subset: a
+  // count-only or filtered assertion passes when `ol-bad-token` is raised at the wrong offset,
+  // names the wrong token, comes from the wrong stage, or is accompanied by spurious extras.
+  // Exactly one diagnostic is correct — `( value )` is balanced, so no `ol-unmatched-paren`
+  // belongs here (`spec/error-model.md` reserves it for a delimiter with no partner). This is the
+  // negative half of #830, also pinned as
   // `heritage/check/heritage-bare-value-in-parentheses-is-rejected`.
   const diagnostics = allDiagnostics("print (value)\n");
-  const badToken = diagnostics.filter(
-    (diagnostic) => diagnostic.code === "ol-bad-token",
+  assert.deepEqual(
+    diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-bad-token", "ol-not-enough-inputs"],
+    "expected the bad token plus print's now-missing input, and nothing else",
   );
-  assert.equal(badToken.length, 1, "expected exactly one ol-bad-token");
-  assert.equal(badToken[0].params.text, "value");
-  assert.equal(badToken[0].stage, "parse");
-  assert.deepEqual(badToken[0].source_span.start, [1, 8]);
-  assert.deepEqual(badToken[0].source_span.end, [1, 13]);
+  assert.equal(diagnostics[0].params.text, "value");
+  assert.equal(diagnostics[0].stage, "parse");
+  assert.deepEqual(diagnostics[0].source_span.start, [1, 8]);
+  assert.deepEqual(diagnostics[0].source_span.end, [1, 13]);
   const { ast } = OL.parse("print (value)\n", doc);
   assert.equal(valueOfKeyCount(ast), 0);
   assert.equal(parenCallCallees(ast).includes("value"), false);
+});
+
+test("a balanced group whose operand is rejected reports no unmatched parenthesis", () => {
+  // The recovery the #830 review added to `parseParenthesized`: when the operand does not parse
+  // and the reader leaves the token unconsumed, the group still consumes its `)`. Before it, a
+  // BALANCED `( … )` reported `ol-unmatched-paren` twice around the real error. Checked for a
+  // second keyword so this pins the recovery, not a `value`-specific special case.
+  for (const source of ["print (value)\n", "print (key)\n"]) {
+    const codes = allDiagnostics(source).map((diagnostic) => diagnostic.code);
+    assert.deepEqual(
+      codes,
+      ["ol-bad-token", "ol-not-enough-inputs"],
+      `spurious diagnostics: ${source}`,
+    );
+  }
+  // A genuinely unbalanced group must still report it, so the recovery has not silenced the code.
+  const unbalanced = allDiagnostics("print (1 + 2\n").map((d) => d.code);
+  assert.equal(
+    unbalanced.includes("ol-unmatched-paren"),
+    true,
+    "an unclosed group must still report ol-unmatched-paren",
+  );
 });

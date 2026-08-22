@@ -1476,6 +1476,21 @@ export function parse(source: string, document = "<input>"): ParseResult {
         parseDiag.badToken(current().source_span, current().text),
       );
     }
+    if (inner === undefined && current().kind !== "rparen") {
+      // The group's operand did not parse AND the reader left the offending token unconsumed —
+      // `( value )`, where `value` is a keyword {@link parseNamePrimary} declines without
+      // advancing. Report that token and step over it so the matching `)` below still closes the
+      // group. Without this recovery the `)` was never consumed, so a *balanced* `( … )` reported
+      // `ol-unmatched-paren` twice — once here for the `(` and once at statement level for the
+      // orphaned `)` — around the single `ol-bad-token` that is the only real error. Those two are
+      // false: `spec/error-model.md` reserves `ol-unmatched-paren` for a delimiter that genuinely
+      // has no partner (issue #830 review).
+      diagnostics.push(
+        parseDiag.badToken(current().source_span, current().text),
+      );
+      advance();
+      skipNewlines();
+    }
     if (current().kind === "rparen") {
       advance();
     } else {

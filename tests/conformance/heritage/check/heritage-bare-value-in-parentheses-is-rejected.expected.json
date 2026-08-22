@@ -1,48 +1,20 @@
 {
-  "description": "The NEGATIVE half of issue #830: parenthesizing a bare `value` must not smuggle the keyword in as a `parenthesized-call` callee (`spec/grammar.md:215`). The `(` path reaches the Heritage `value-of-reader` (:217) only when `of` directly follows `value`; otherwise `value` is rejected in expression position exactly as in any other (#853, #885), and `ol-bad-token` names the offending word. This shape had NO conformance coverage before this fixture — `core-language/diagnostics/reserved-word-in-value-position` asserts the same code for the UNparenthesized position only, proven by it staying green under the very mutation (making `isCalleeName` accept `value`) that reopens #830. Pinned as a `check` fixture, but note the harness returns PARSE diagnostics unchanged when parsing fails, so `check()` never runs here and no semantic diagnostic appears; the three below are the parse stage. Heritage + Data are active so the rejection is asserted under the same profile set as the positive twin `heritage-value-of-key-reader-in-parentheses`, where the reader IS available (`spec/conformance.md:305`).",
+  "description": "The NEGATIVE half of issue #830: parenthesizing a bare `value` must not smuggle the keyword in as a `parenthesized-call` callee (`spec/grammar.md:215`). The `(` path reaches the Heritage `value-of-reader` (:217) only when `of` directly follows `value`; otherwise `value` is rejected in expression position exactly as in any other (#853, #885), and a single `ol-bad-token` names the offending word. This shape had NO conformance coverage before this fixture — `core-language/diagnostics/reserved-word-in-value-position` asserts the same code for the UNparenthesized position only, proven by it staying green under the very mutation (making `isCalleeName` accept `value`) that reopens #830. Exactly ONE diagnostic is correct here: `( value )` is BALANCED, so `ol-unmatched-paren` must not appear — `spec/error-model.md` reserves it for a delimiter with no partner. The parser previously emitted it twice around this error because the group bailed without consuming its `)`; the review of #830 fixed that recovery in `parseParenthesized`, and this fixture is what holds it. Heritage + Data are active so the rejection is asserted under the same profile set as the positive twin `heritage-value-of-key-reader-in-parentheses`, where the reader IS available (`spec/conformance.md:305`).",
   "profiles": ["core-language", "data", "heritage"],
   "check": true,
   "events": [],
   "diagnostics": [
     {
-      "code": "ol-unmatched-paren",
-      "source_span": {
-        "document": "heritage/check/heritage-bare-value-in-parentheses-is-rejected",
-        "start": [14, 7],
-        "end": [14, 8]
-      },
-      "params": {
-        "delimiter": "("
-      },
-      "message": "this ( doesn't have a matching parenthesis. a group needs both ( and ).",
-      "stage": "parse",
-      "severity": "error"
-    },
-    {
       "code": "ol-bad-token",
       "source_span": {
         "document": "heritage/check/heritage-bare-value-in-parentheses-is-rejected",
-        "start": [14, 8],
-        "end": [14, 13]
+        "start": [19, 8],
+        "end": [19, 13]
       },
       "params": {
         "text": "value"
       },
       "message": "i don't know how to read value here.",
-      "stage": "parse",
-      "severity": "error"
-    },
-    {
-      "code": "ol-unmatched-paren",
-      "source_span": {
-        "document": "heritage/check/heritage-bare-value-in-parentheses-is-rejected",
-        "start": [14, 13],
-        "end": [14, 14]
-      },
-      "params": {
-        "delimiter": ")"
-      },
-      "message": "this ) doesn't have a matching parenthesis. a group needs both ( and ).",
       "stage": "parse",
       "severity": "error"
     }
