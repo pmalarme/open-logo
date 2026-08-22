@@ -437,3 +437,104 @@ test("web/main.ts still calls runController.reset() directly from the Reset butt
   assert.match(mainTs, /resetButton\.addEventListener\(\s*"click"/);
   assert.match(mainTs, /runController\.reset\(\)/);
 });
+
+test("#769: index.html declares the `input` prompt as a native <dialog>, closed until a program asks something", () => {
+  const dialogTag = openingTags.find(
+    (tag) => tag.startsWith("<dialog") && tag.includes('id="input-prompt"'),
+  );
+  assert.ok(dialogTag, "expected a native <dialog> for the input prompt");
+  assert.match(dialogTag, /id="input-prompt"/);
+  assert.doesNotMatch(
+    dialogTag,
+    /\sopen[\s>=]/,
+    "the prompt must start closed — a closed <dialog> is absent from the layout, the tab " +
+      "order, and the accessibility tree, which is what leaves REPL_FOCUS_ORDER and the e2e " +
+      "layout baselines untouched",
+  );
+});
+
+test("#769: the prompt dialog's accessible name is the program's own question, not a generic title", () => {
+  const dialogTag = openingTags.find(
+    (tag) => tag.startsWith("<dialog") && tag.includes('id="input-prompt"'),
+  );
+  assert.match(dialogTag, /aria-labelledby="input-prompt-message"/);
+  assert.match(
+    indexHtml,
+    /id="input-prompt-message"/,
+    "the element named by aria-labelledby must exist",
+  );
+  assert.match(
+    mainTs,
+    /inputPromptMessageElement\.textContent\s*=\s*view\.prompt/,
+    "the question text must come from the tested InputPromptView, via textContent (never markup)",
+  );
+});
+
+test("#769: every prompt control declared in INPUT_PROMPT_FOCUS_ORDER exists in index.html, in that order", () => {
+  const positions = OL.INPUT_PROMPT_FOCUS_ORDER.map((stop) => {
+    const position = indexHtml.indexOf(`id="${stop.id}"`);
+    assert.ok(
+      position >= 0,
+      `expected index.html to contain an element with id="${stop.id}"`,
+    );
+    return position;
+  });
+  assert.deepEqual(
+    positions,
+    [...positions].sort((a, b) => a - b),
+    "the prompt's controls must appear in exactly INPUT_PROMPT_FOCUS_ORDER's order",
+  );
+});
+
+test("#769: the answer field is labeled and autofocused, so showModal() lands on it", () => {
+  const fieldTag = openingTags.find((tag) =>
+    tag.includes('id="input-prompt-field"'),
+  );
+  assert.ok(fieldTag, "expected the prompt's answer field");
+  assert.match(fieldTag, /autofocus/);
+  const labelTag = openingTags.find((tag) =>
+    tag.includes('id="input-prompt-field-label"'),
+  );
+  assert.ok(labelTag, "expected a label element for the answer field");
+  assert.match(labelTag, /for="input-prompt-field"/);
+});
+
+test("#769: web/main.ts renders every prompt label from the tested view model, deciding nothing itself", () => {
+  assert.match(
+    mainTs,
+    /inputPromptFieldLabelElement\.textContent\s*=\s*view\.fieldLabel/,
+  );
+  assert.match(
+    mainTs,
+    /inputPromptSubmitButton\.textContent\s*=\s*view\.submitLabel/,
+  );
+  assert.match(
+    mainTs,
+    /inputPromptCancelButton\.textContent\s*=\s*view\.cancelLabel/,
+  );
+  assert.doesNotMatch(
+    mainTs,
+    new RegExp(`"${OL.INPUT_PROMPT_SUBMIT_LABEL}"`),
+    "labels belong to src/input-prompt.ts, never hardcoded in the wiring layer",
+  );
+});
+
+test("#769: web/main.ts opens the prompt modally and routes Escape and Cancel to the same tested ending", () => {
+  assert.match(mainTs, /createInputPromptController\(\)/);
+  assert.match(
+    mainTs,
+    /inputPrompt:\s*inputPromptController/,
+    "the prompt host must reach the run controller, which is what installs hostInput.read",
+  );
+  assert.match(
+    mainTs,
+    /inputPromptDialog\.showModal\(\)/,
+    "showModal() is what gives the question a real focus scope and Escape handling",
+  );
+  assert.match(mainTs, /inputPromptDialog\.addEventListener\(\s*"cancel"/);
+  assert.match(mainTs, /inputPromptCancelButton\.addEventListener\(\s*"click"/);
+  assert.match(
+    mainTs,
+    /inputPromptController\.submit\(inputPromptFieldElement\.value\)/,
+  );
+});
