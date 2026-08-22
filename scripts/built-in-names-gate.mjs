@@ -296,6 +296,14 @@ export function entryFindings(manifest, api) {
   const findings = [];
   const seen = new Set();
   const knownTags = Object.keys(manifest.registries);
+  // Enumerated once per tag rather than once per name-and-tag: the members are the same for every
+  // entry, and the per-name form made 148 x 14 enumerator calls to answer one question each.
+  const membersByTag = new Map(
+    Object.entries(manifest.registries).map(([tag, registry]) => [
+      tag,
+      registryMembers(registry, api),
+    ]),
+  );
   for (const entry of manifest.names) {
     if (seen.has(entry.name)) {
       findings.push(
@@ -324,7 +332,7 @@ export function entryFindings(manifest, api) {
       }
       if (held) {
         actual.push(tag);
-        const members = registryMembers(registry, api);
+        const members = membersByTag.get(tag);
         profileByTag.set(tag, members?.get(entry.name) ?? registry.profile);
       }
     }
