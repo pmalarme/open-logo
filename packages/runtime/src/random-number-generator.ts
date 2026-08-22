@@ -26,11 +26,16 @@ export interface RandomNumberGeneratorState {
 }
 
 /**
- * Seed a fresh {@link RandomNumberGeneratorState}. With no `seed` supplied,
- * `createEnvironment()`'s default and a no-argument `randomize` both fall back to the host clock —
- * the implementation's own choice of seed, per `spec/commands.md`: "with no seed the
- * implementation chooses a seed". `>>> 0` folds any seed (including a negative or fractional one)
- * into the unsigned 32-bit range the generator operates on.
+ * Seed a fresh {@link RandomNumberGeneratorState}. With no `seed` supplied the state falls back to
+ * the host clock — the implementation's own choice of seed, per `spec/commands.md`: "with no seed
+ * the implementation chooses a seed". `>>> 0` folds any seed (including a negative or fractional
+ * one) into the unsigned 32-bit range the generator operates on.
+ *
+ * That clock fallback is **this package's only source of nondeterminism** — nothing else in
+ * `@openlogo/runtime` reads a wall clock or `Math.random()`, and the tick clock
+ * (`interaction.ts`'s `createTickClock`) is a pure counter. So supplying a seed here makes an
+ * `execute()` call a pure function of its source and options, which is exactly what
+ * `ExecuteOptions.randomSeed` (issue #865, see `index.ts`) exists to give a host.
  */
 export function createRandomNumberGeneratorState(
   seed?: number,
@@ -69,6 +74,31 @@ export function nextRandomInt(
   return (
     min + Math.floor(nextRandomFloat(randomNumberGenerator) * (max - min + 1))
   );
+}
+
+/**
+ * Draw the implementation's *own* choice of seed from `randomNumberGenerator` itself — the seed a
+ * no-argument `randomize` reseeds with (`spec/execution-model.md:596-597`: "`randomize` with no
+ * input uses an implementation seed"; `spec/commands.md`'s `randomize` entry: "with no seed the
+ * implementation chooses a seed"). Both leave that choice entirely to the implementation, so
+ * deriving it from the generator's own next draw is conforming — and it is drawn through
+ * {@link nextRandomInt} rather than rescaling a float here, so there is still exactly one place
+ * that turns a draw into a whole number.
+ *
+ * Deriving it — rather than reading the clock a second time, which is what a bare `randomize` did
+ * before issue #865 — is what makes a **seeded** run deterministic all the way through: such a
+ * program would otherwise re-enter wall-clock entropy and undo the pinned
+ * {@link createRandomNumberGeneratorState} seed, which is precisely why issue #881 recorded that a
+ * host seed alone "is not sufficient on its own". An **unseeded** run is unaffected and stays
+ * unpredictable, because its initial state is still the clock and every seed derived from it
+ * inherits that unpredictability. It also removes a real defect the clock had: two bare `randomize`
+ * calls landing within the same millisecond reseeded to the *identical* state, so `randomize` twice
+ * produced the very same sequence twice.
+ */
+export function drawImplementationSeed(
+  randomNumberGenerator: RandomNumberGeneratorState,
+): number {
+  return nextRandomInt(randomNumberGenerator, 0, 0xffffffff);
 }
 
 /**

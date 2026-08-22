@@ -324,3 +324,95 @@ test("random emits no event beyond print's own", () => {
   );
   assert.deepEqual(nonPrintNonInstruction, []);
 });
+
+// --- issue #865: ExecuteOptions.randomSeed pins a run's randomness -----------------------------
+// The generator's Date.now() fallback is this package's ONLY source of nondeterminism (nothing
+// else reads a wall clock or Math.random(), and the tick clock is a pure counter), so a pinned
+// seed makes execute() a pure function of its source and options. Every determinism assertion
+// below is therefore paired with its inverse — "a different seed draws a different sequence" —
+// because "same seed, same output" alone also passes when the seed is ignored entirely.
+
+const eightDraws = "repeat 8 [ print random 1000000 ]";
+
+test("issue #865: the same randomSeed reproduces the identical sequence across two fresh runs", () => {
+  const first = execute(eightDraws, doc, { randomSeed: 20260822 });
+  const second = execute(eightDraws, doc, { randomSeed: 20260822 });
+  assert.deepEqual(first.diagnostics, []);
+  assert.deepEqual(second.diagnostics, []);
+  assert.deepEqual(printedValues(first), printedValues(second));
+});
+
+test("issue #865: a DIFFERENT randomSeed draws a different sequence (the seed is really consulted)", () => {
+  const first = printedValues(execute(eightDraws, doc, { randomSeed: 1 }));
+  const second = printedValues(execute(eightDraws, doc, { randomSeed: 2 }));
+  assert.equal(first.length, 8);
+  assert.notDeepEqual(first, second);
+});
+
+test("issue #865: randomSeed reproduces the WHOLE event stream, not just the printed values", () => {
+  const program = "repeat 8 [ forward random 100 right random 360 ]";
+  const first = execute(program, doc, { randomSeed: 7 });
+  const second = execute(program, doc, { randomSeed: 7 });
+  assert.deepEqual(first.diagnostics, []);
+  assert.deepEqual(first.events, second.events);
+  const other = execute(program, doc, { randomSeed: 8 });
+  assert.notDeepEqual(first.events, other.events);
+});
+
+test("issue #865: randomSeed changes which branch a random-controlled program takes", () => {
+  // The #881 shape: nondeterminism that decides WHICH question is asked. Pinning the seed pins
+  // the branch, and the two seeds below genuinely disagree — so this fails if the seed is dropped.
+  const program = 'if (random 2) == 0 [ print "heads" ] else [ print "tails" ]';
+  const tails = execute(program, doc, { randomSeed: 1 });
+  assert.deepEqual(tails.diagnostics, []);
+  assert.deepEqual(printedValues(tails), ["tails"]);
+  assert.deepEqual(printedValues(execute(program, doc, { randomSeed: 1 })), [
+    "tails",
+  ]);
+  const heads = execute(program, doc, { randomSeed: 7 });
+  assert.deepEqual(heads.diagnostics, []);
+  assert.deepEqual(printedValues(heads), ["heads"]);
+});
+
+test("issue #865: randomSeed is a host DEFAULT — an explicit (randomize seed) still overrides it", () => {
+  const program = "(randomize 123)\nprint random 100\nprint random 100";
+  const seeded = execute(program, doc, { randomSeed: 999 });
+  assert.deepEqual(seeded.diagnostics, []);
+  // The exact sequence the existing "(randomize 123)" test pins, unchanged by the host seed.
+  assert.deepEqual(printedValues(seeded), [78, 17]);
+});
+
+test("issue #865: a no-argument randomize keeps a seeded run deterministic (it no longer reads the clock)", () => {
+  const program = `randomize\n${eightDraws}`;
+  const first = printedValues(execute(program, doc, { randomSeed: 555 }));
+  const second = printedValues(execute(program, doc, { randomSeed: 555 }));
+  assert.equal(first.length, 8);
+  assert.deepEqual(first, second);
+  // ...and the derived seed really descends from the pinned one, so a different pin diverges.
+  assert.notDeepEqual(
+    printedValues(execute(program, doc, { randomSeed: 556 })),
+    first,
+  );
+});
+
+test("issue #865: two no-argument randomize calls in one run no longer collapse to the same state", () => {
+  // Before #865 both reseeded from Date.now(), so two calls landing in the same millisecond
+  // produced the IDENTICAL sequence twice. Pinned here so the assertion is deterministic.
+  const values = printedValues(
+    execute(
+      "randomize\nprint random 1000000\nprint random 1000000\nrandomize\nprint random 1000000\nprint random 1000000",
+      doc,
+      { randomSeed: 31337 },
+    ),
+  );
+  assert.equal(values.length, 4);
+  assert.notDeepEqual([values[0], values[1]], [values[2], values[3]]);
+});
+
+test("issue #865: omitting randomSeed leaves an ordinary run seeded from the clock and still in range", () => {
+  const result = execute("print random 100", doc, { instructionBudget: 500 });
+  assert.deepEqual(result.diagnostics, []);
+  const [value] = printedValues(result);
+  assert.equal(Number.isInteger(value), true);
+  assert.equal(value >= 0 && value <= 99, true);
+});

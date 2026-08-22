@@ -186,6 +186,26 @@ export interface ExecuteResult {
  *   depends on what the program has done so far. Defaults to an empty schedule, so an ordinary
  *   headless run delivers no key/click/named event at all and the I5/I6 never-fires behavior holds
  *   because nothing was ever pending.
+ * - `randomSeed` (issue #865) — the seed this run's shared `random`/`randomize` generator starts
+ *   from, so a **host can pin a run's randomness**. Omitted, the generator falls back to the host
+ *   clock, which is the implementation's own choice of seed (`spec/commands.md`'s `randomize`
+ *   entry: "with no seed the implementation chooses a seed") and leaves two runs of the same
+ *   program independent, exactly as before this option existed.
+ *
+ *   That clock fallback is `@openlogo/runtime`'s **only** source of nondeterminism — nothing else
+ *   in this package reads a wall clock or `Math.random()`, and the tick clock is a pure counter —
+ *   so supplying a seed makes `execute()` a **pure function** of `source`, `document`, and these
+ *   options. That is the whole point: before it, the only way to reproduce a run was to edit the
+ *   learner's own program to call `randomize`, which is not a contract a host can offer. A host
+ *   that needs a *replayable* run (`@openlogo/studio`'s `input` prompt, a visual-regression test,
+ *   a conformance case that wants "this program, with this randomness") pins one seed and gets
+ *   the identical event stream every time.
+ *
+ *   It is a **host default, not an override**: an explicit `(randomize 42)` in the program still
+ *   reseeds over it, per the program's own instructions. A no-argument `randomize` also keeps
+ *   choosing an implementation seed — but since #865 it derives that seed from the generator
+ *   rather than the clock (`random-number-generator.ts`'s `drawImplementationSeed`), so it cannot
+ *   silently re-enter entropy and undo a pinned seed mid-run.
  */
 export interface ExecuteOptions {
   readonly instructionBudget?: number;
@@ -194,6 +214,7 @@ export interface ExecuteOptions {
   readonly tutorTemplates?: TutorTemplateFn;
   readonly learnerLevel?: TutorLearnerLevel;
   readonly hostInput?: HostInput;
+  readonly randomSeed?: number;
 }
 
 /**
