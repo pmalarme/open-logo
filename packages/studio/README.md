@@ -223,16 +223,18 @@ shapes with an **attempt chain**.
   closed).** A replay is only a continuation if it *reproduces* the attempt before it. Before this,
   `random` with no `randomize <seed>` reseeded from the wall clock on every `execute()` call, so a
   program whose control flow depended on randomness *before* a read could replay into a **different
-  question** than the learner was shown, and already-drawn output could change underneath them —
-  a conformance problem, since `spec/execution-model.md`'s event stream is normative and
-  deterministic, not merely a UX wrinkle. `run()` now draws one
+  question** than the learner was shown, and already-drawn output could change underneath them.
+  `run()` now draws one
   [`ExecuteOptions.randomSeed`](https://github.com/pmalarme/open-logo/issues/865) per chain (from
   `RunControllerOptions.randomSeedSource`, `Date.now` by default — the same implementation-chosen
   seed the runtime would have picked itself, so an ordinary run is no more predictable than before)
-  and every attempt of that chain executes with it. That closes the gap **completely**, because the
-  clock fallback was `@openlogo/runtime`'s only source of nondeterminism: nothing else there reads a
-  wall clock or `Math.random()`, the tick clock is a pure counter, and since #865 even a no-argument
-  `randomize` derives its implementation seed from the generator rather than the clock. So every
+  and every attempt of that chain executes with it. That closes the gap **completely for this
+  host**, because the clock fallback is `@openlogo/runtime`'s only *ambient* entropy source: nothing
+  else there reads a wall clock or `Math.random()`, the tick clock is a pure counter, and since #865
+  even a no-argument `randomize` derives its implementation seed by advancing the generator rather
+  than reading the clock. The runtime's other caller-supplied functions cannot reintroduce variance
+  here either — this package passes `eduTutorTemplate`, a pure mapping, and a reader that answers
+  only from the chain's frozen FIFO. So every
   attempt is bit-identical up to the read the newest answer extends — the branch a `random` chose
   cannot change under the covers, the question is never re-asked, what is already on screen is never
   rewritten, and two `input` sites asking the identical prompt text each receive their own answer,

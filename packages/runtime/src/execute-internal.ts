@@ -3812,13 +3812,14 @@ function executeRandomizeCall(
     );
   }
   if (statement.args.length === 0) {
-    // Issue #865: the implementation's own seed is drawn from the generator itself rather than
-    // from the wall clock. `spec/execution-model.md:596-597` ("`randomize` with no input uses an
-    // implementation seed") leaves the choice entirely to the implementation, and deriving it
-    // keeps a run that a host pinned with `ExecuteOptions.randomSeed` deterministic END TO END —
-    // a clock read here would silently re-enter entropy and undo that seed. An unseeded run is
-    // unaffected: its initial state is still the clock, so every seed derived from it stays
-    // unpredictable. See {@link drawImplementationSeed}.
+    // Issue #865: the implementation's own seed is derived by advancing the generator's state
+    // rather than by reading the wall clock. `spec/execution-model.md:596-597` ("`randomize` with
+    // no input uses an implementation seed") leaves the choice entirely to the implementation, and
+    // deriving it keeps a run that a host pinned with `ExecuteOptions.randomSeed` deterministic
+    // END TO END — a clock read here would silently re-enter entropy and undo that seed. An
+    // unseeded run is unaffected: its initial state is still the clock, so every seed derived from
+    // it stays unpredictable. See {@link drawImplementationSeed}, including why the state is
+    // advanced rather than replaced by a drawn value.
     environment.randomNumberGenerator.state = drawImplementationSeed(
       environment.randomNumberGenerator,
     );

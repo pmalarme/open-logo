@@ -8,6 +8,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { execute } from "@openlogo/runtime";
+// `drawImplementationSeed` is module-internal (deliberately not part of `@openlogo/runtime`'s
+// public surface), so it is reached through this package's own `dist/` build — the same deep
+// relative import `execution-budget.test.mjs` and `not-a-place-text.test.mjs` already use for
+// internals. Testing it directly is what lets the no-short-cycle property below be proven in
+// milliseconds instead of through hundreds of thousands of `execute()` statements.
+import { drawImplementationSeed } from "../dist/random-number-generator.js";
 
 const doc = "acceptance.logo";
 
@@ -384,20 +390,34 @@ test("issue #865: randomSeed is a host DEFAULT — an explicit (randomize seed) 
 
 test("issue #865: a no-argument randomize keeps a seeded run deterministic (it no longer reads the clock)", () => {
   const program = `randomize\n${eightDraws}`;
-  const first = printedValues(execute(program, doc, { randomSeed: 555 }));
-  const second = printedValues(execute(program, doc, { randomSeed: 555 }));
-  assert.equal(first.length, 8);
-  assert.deepEqual(first, second);
+  // EXACT values, not just "the two runs agree". Two clock-seeded runs inside one millisecond also
+  // agree, so an equality-only assertion passes ~3% of the time against an implementation that
+  // reverted to `Date.now()` here — measured by @testing, who observed a whole file run go green
+  // under exactly that mutant. A clock-derived seed reproduces this pinned sequence with
+  // probability ~2^-32.
+  const expected = [
+    591681, 232006, 586643, 320322, 425916, 342336, 910498, 26572,
+  ];
+  assert.deepEqual(
+    printedValues(execute(program, doc, { randomSeed: 555 })),
+    expected,
+  );
+  assert.deepEqual(
+    printedValues(execute(program, doc, { randomSeed: 555 })),
+    expected,
+  );
   // ...and the derived seed really descends from the pinned one, so a different pin diverges.
-  assert.notDeepEqual(
+  assert.deepEqual(
     printedValues(execute(program, doc, { randomSeed: 556 })),
-    first,
+    [737296, 671487, 74112, 401733, 623432, 871019, 727490, 320218],
   );
 });
 
 test("issue #865: two no-argument randomize calls in one run no longer collapse to the same state", () => {
   // Before #865 both reseeded from Date.now(), so two calls landing in the same millisecond
-  // produced the IDENTICAL sequence twice. Pinned here so the assertion is deterministic.
+  // produced the IDENTICAL sequence twice. Pinned to exact values for the reason above: a
+  // "the two halves differ" assertion alone passes whenever a millisecond boundary happens to fall
+  // between the two `randomize` calls.
   const values = printedValues(
     execute(
       "randomize\nprint random 1000000\nprint random 1000000\nrandomize\nprint random 1000000\nprint random 1000000",
@@ -405,8 +425,66 @@ test("issue #865: two no-argument randomize calls in one run no longer collapse 
       { randomSeed: 31337 },
     ),
   );
-  assert.equal(values.length, 4);
+  assert.deepEqual(values, [570348, 701841, 29899, 755230]);
   assert.notDeepEqual([values[0], values[1]], [values[2], values[3]]);
+});
+
+test("issue #865: repeated no-argument randomize never collapses into a short cycle", () => {
+  // The reseed must not feed a DRAWN value back in as the generator's state: that mapping is not
+  // injective, so iterating it walks a rho and settles into a short cycle — measured at period
+  // 8,398 from seed 42 and 42,379 from seed 0 on an earlier revision of this slice, which would
+  // quietly degrade `random` for a program that reseeds in a loop. Advancing the state by an odd
+  // stride is a bijection, so every reseed reaches a state not seen before.
+  const generator = { state: 0 };
+  const seen = new Set();
+  for (let index = 0; index < 200000; index += 1) {
+    assert.equal(
+      seen.has(generator.state),
+      false,
+      `state ${generator.state} repeated after ${index} reseeds`,
+    );
+    seen.add(generator.state);
+    generator.state = drawImplementationSeed(generator);
+  }
+  assert.equal(seen.size, 200000);
+});
+
+test("issue #865: randomSeed 0 is honoured, not treated as 'no seed' (the falsy boundary)", () => {
+  const draws = "repeat 5 [ print random 100 ]";
+  assert.deepEqual(
+    printedValues(execute(draws, doc, { randomSeed: 0 })),
+    [26, 0, 22, 14, 46],
+  );
+  assert.deepEqual(
+    printedValues(execute(draws, doc, { randomSeed: 0 })),
+    [26, 0, 22, 14, 46],
+  );
+});
+
+test("issue #865: a host randomSeed and the program's own (randomize seed) agree for the same seed", () => {
+  // The host default IS the same seeding path the program-level command uses, so pinning 123 from
+  // outside must reproduce the sequence this file already pins for `(randomize 123)`.
+  assert.deepEqual(
+    printedValues(
+      execute("print random 100\nprint random 100", doc, { randomSeed: 123 }),
+    ),
+    [78, 17],
+  );
+});
+
+test("issue #865: omitting randomSeed falls back to the host clock", () => {
+  // Pins the fallback itself rather than just "a number in range": with `Date.now` stubbed, an
+  // omitted seed must reproduce exactly what passing that same value explicitly produces.
+  const realDateNow = Date.now;
+  Date.now = () => 123;
+  try {
+    assert.deepEqual(
+      printedValues(execute("print random 100\nprint random 100", doc)),
+      [78, 17],
+    );
+  } finally {
+    Date.now = realDateNow;
+  }
 });
 
 test("issue #865: omitting randomSeed leaves an ordinary run seeded from the clock and still in range", () => {

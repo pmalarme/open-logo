@@ -2,7 +2,7 @@
  * The Run/Stop/Reset/Step controller (#126) — wires the shared studio state model (#123) to
  * `@openlogo/runtime`'s {@link execute} and the execution-safety gates issue #102 added
  * (`ExecuteOptions.instructionBudget`/`recursionDepthLimit`/`signal`,
- * `spec/execution-model.md:551-557`). This module composes the runtime only: it never
+ * `spec/execution-model.md:623-629`). This module composes the runtime only: it never
  * re-implements evaluation, and every printed value it surfaces is already in the runtime's own
  * canonical form (`printedForm`), never re-formatted here.
  *
@@ -177,12 +177,15 @@
  * `run()` now pins **one `ExecuteOptions.randomSeed` (#865) per chain**, drawn from
  * {@link RunControllerOptions.randomSeedSource} (`Date.now` by default — the very seed the runtime
  * would otherwise have chosen for itself, so an ordinary run is no more predictable than before).
- * That closes it completely, because `@openlogo/runtime`'s clock fallback was its **only** source
- * of nondeterminism: nothing else there reads a wall clock or `Math.random()`, the tick clock is a
- * pure counter, and since #865 even a no-argument `randomize` derives its implementation-chosen
- * seed from the generator instead of the clock. With the seed fixed, `execute()` is a pure function
- * of source, document, and options — so every attempt of a chain is *bit-identical* up to the read
- * the newest answer extends. Concretely, for the whole program class #881 named:
+ * That closes it completely **for this host**, because `@openlogo/runtime`'s clock fallback is its
+ * only *ambient* entropy source: nothing else there reads a wall clock or `Math.random()`, the tick
+ * clock is a pure counter, and since #865 even a no-argument `randomize` derives its
+ * implementation-chosen seed by advancing the generator instead of reading the clock. The runtime's
+ * other two caller-supplied functions cannot reintroduce variance *here* either: this module's
+ * `tutorTemplates` is `eduTutorTemplate`, a pure mapping, and its `hostInput.read` answers only from
+ * the chain's frozen FIFO. So `execute()` is, for this caller, a function of the source and the
+ * answers given — and every attempt of a chain is *bit-identical* up to the read the newest answer
+ * extends. Concretely, for the whole program class #881 named:
  * - the branch a `random` chose does not change under the covers, and the question is not re-asked;
  * - the output and drawing the learner has already observed are never rewritten by a later attempt;
  * - two distinct `input` sites asking the identical prompt text each receive their own answer,
@@ -746,9 +749,11 @@ export function createRunController(
       signal,
       tutorTemplates: eduTutorTemplate,
       // #881 — the chain's pinned seed (#865). This is what makes the replay a genuine
-      // continuation rather than a fresh roll of the dice: `@openlogo/runtime`'s clock fallback
-      // was its only source of nondeterminism, so with the seed fixed every attempt of this chain
-      // reproduces the previous one exactly up to the read.
+      // continuation rather than a fresh roll of the dice: the runtime's clock fallback is its only
+      // ambient entropy source, and the two collaborators this module supplies alongside the seed
+      // are deterministic too (`eduTutorTemplate` is a pure mapping; the reader answers only from
+      // the chain's frozen FIFO), so every attempt reproduces the previous one exactly up to the
+      // read. See this module's doc comment ("#881").
       randomSeed: chainRandomSeed,
       ...(host === undefined
         ? {}

@@ -349,6 +349,7 @@ export function loadFixture(fixture) {
       "signal",
       "learnerLevel",
       "hostInput",
+      "randomSeed",
     ]);
     for (const key of Object.keys(spec.executeOptions)) {
       if (!KNOWN_EXECUTE_OPTION_KEYS.has(key)) {
@@ -363,6 +364,7 @@ export function loadFixture(fixture) {
       signal,
       learnerLevel,
       hostInput,
+      randomSeed,
     } = spec.executeOptions;
     if (
       instructionBudget !== undefined &&
@@ -410,6 +412,18 @@ export function loadFixture(fixture) {
       if (hostInputError !== null) {
         return { error: hostInputError };
       }
+    }
+    // "randomSeed" (issue #865 — ExecuteOptions.randomSeed) pins the seed the run's shared
+    // `random`/`randomize` generator starts from, so a fixture can express "this program, WITH this
+    // randomness" instead of being unable to use `random` at all. Type-checked exactly like the two
+    // numeric limits above: a non-number is a fixture mistake, rejected here rather than forwarded
+    // and silently folded to a state by `>>> 0`. Note what a single fixture still cannot express —
+    // the property #865 creates is that two runs sharing a seed AGREE, and the fixture format is one
+    // source to one expected event stream, so cross-run determinism stays a unit-test concern
+    // (`packages/runtime/src/random-randomize.test.mjs`). What this does buy is a fixture whose
+    // program uses `random` at all having a stable, reproducible expected stream.
+    if (randomSeed !== undefined && typeof randomSeed !== "number") {
+      return { error: `"executeOptions.randomSeed" must be a number` };
     }
   }
 

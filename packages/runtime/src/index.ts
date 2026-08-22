@@ -28,7 +28,7 @@
  * gives `for ... in` and `for ... from ... to ... by` their runtime meaning: both bind their loop
  * variable(s) in a fresh body-local frame each pass (never leaking past the loop) and thread
  * `repeatTurns` unchanged, so a `repeat`'s `repcount` still works correctly inside a nested `for`.
- * Issue #102 adds the execution-safety gates `spec/execution-model.md:551-557` requires: a
+ * Issue #102 adds the execution-safety gates `spec/execution-model.md:623-629` requires: a
  * configurable instruction budget, a configurable recursion-depth limit (promoting the
  * previously hardcoded procedure-call ceiling to a configurable one), and external cancellation
  * via a {@link CancellationSignal} — all surfaced through {@link ExecuteOptions} and all raising
@@ -120,7 +120,7 @@ export interface ExecuteResult {
 
 /**
  * Optional execution-safety configuration for {@link execute} (issue #102,
- * `spec/execution-model.md:551-557`, `spec/error-model.md:119`). Every field is optional and
+ * `spec/execution-model.md:623-629`, `spec/error-model.md:119`). Every field is optional and
  * independently defaulted — `execute(source, document)` with no third argument keeps behaving
  * exactly as before this issue, just now with a large-but-finite default budget/depth instead of
  * an implicit unlimited one for `forever` specifically.
@@ -192,10 +192,15 @@ export interface ExecuteResult {
  *   entry: "with no seed the implementation chooses a seed") and leaves two runs of the same
  *   program independent, exactly as before this option existed.
  *
- *   That clock fallback is `@openlogo/runtime`'s **only** source of nondeterminism — nothing else
+ *   That clock fallback is `@openlogo/runtime`'s **only ambient entropy source** — no other code
  *   in this package reads a wall clock or `Math.random()`, and the tick clock is a pure counter —
- *   so supplying a seed makes `execute()` a **pure function** of `source`, `document`, and these
- *   options. That is the whole point: before it, the only way to reproduce a run was to edit the
+ *   so supplying a seed makes `execute()` reproducible for a given `source`, `document`, and these
+ *   options. Two caveats, both the caller's own doing rather than the runtime's: `hostInput.read`
+ *   and `tutorTemplates` are caller-supplied **functions**, so a stateful one can still make two
+ *   otherwise identical runs differ, and `signal` is caller-mutable. With deterministic
+ *   collaborators — or none — a pinned seed reproduces the event stream exactly.
+ *
+ *   That is the whole point: before it, the only way to reproduce a run was to edit the
  *   learner's own program to call `randomize`, which is not a contract a host can offer. A host
  *   that needs a *replayable* run (`@openlogo/studio`'s `input` prompt, a visual-regression test,
  *   a conformance case that wants "this program, with this randomness") pins one seed and gets
@@ -203,9 +208,10 @@ export interface ExecuteResult {
  *
  *   It is a **host default, not an override**: an explicit `(randomize 42)` in the program still
  *   reseeds over it, per the program's own instructions. A no-argument `randomize` also keeps
- *   choosing an implementation seed — but since #865 it derives that seed from the generator
- *   rather than the clock (`random-number-generator.ts`'s `drawImplementationSeed`), so it cannot
- *   silently re-enter entropy and undo a pinned seed mid-run.
+ *   choosing an implementation seed — but since #865 it derives that seed by advancing the
+ *   generator's own state rather than reading the clock
+ *   (`random-number-generator.ts`'s `drawImplementationSeed`), so it cannot silently re-enter
+ *   entropy and undo a pinned seed mid-run.
  */
 export interface ExecuteOptions {
   readonly instructionBudget?: number;
@@ -298,7 +304,7 @@ export type HostInputReader = (prompt: string) => string | undefined;
  * through every statement, so an assignment in one statement is visible to every later read in
  * the same program (`spec/execution-model.md:316-327`) — procedure call frames land with #97.
  * `options` (issue #102) configures the three execution-safety gates
- * `spec/execution-model.md:551-557` requires: an instruction budget, a recursion-depth limit, and
+ * `spec/execution-model.md:623-629` requires: an instruction budget, a recursion-depth limit, and
  * external cancellation — see {@link ExecuteOptions}. Every `forever` loop is bounded by the
  * (possibly default) instruction budget even with no `options` at all, since "`forever` is
  * therefore safe only because it is cancellable and budgeted" (`spec/execution-model.md:556-557`)
