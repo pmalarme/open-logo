@@ -1,12 +1,13 @@
 {
   "_readme": [
     "Expectations for the markdown fenced-block half of the `examples` Definition-of-Done gate",
-    "(issue #850) — see scripts/markdown-examples-gate.mjs and docs/adr/0021-documentation-example-gate.md.",
+    "(issue #850) — see scripts/markdown-examples-gate.mjs and docs/adr/0022-documentation-example-gate.md.",
     "JSON has no comments, so keys beginning with an underscore are documentation and are ignored.",
     "",
     "Every other key is a repository-relative POSIX path. Each entry pins ONE ```logo block by the",
     "SHA-256 fingerprint of its source, so prose edits above a block never churn this file, while",
-    "editing the block itself forces a re-triage.",
+    "editing the block itself forces a re-triage. That is deliberate: this manifest fingerprints",
+    "repository content, so it must be re-derived against the branch it will merge into.",
     "",
     "THE RULE: a ```logo block either runs completely clean, or it has an entry here that is",
     "ASSERTED. There is no automatic tolerance. The gate fails when a listed block stops producing",
@@ -19,7 +20,14 @@
     "  not-openlogo            codes     the fence says logo but holds EBNF/word-list text",
     "  non-terminating         codes     demonstrates forever / a blocking input, so it hits the budget",
     "  profile-not-implemented profiles  needs a profile no implementation provides yet",
-    "  known-broken            codes     a REAL defect, recorded with its tracking issue — never a mute button",
+    "  implementation-behind   codes     the SPEC is right and the runtime has not caught up yet",
+    "  known-broken            codes     the DOCUMENT is wrong — a real defect, never a mute button",
+    "",
+    "implementation-behind vs known-broken is the distinction to get right. A staged spec-then-code",
+    "ruling lands the rule in spec/ before the slice that implements it, so for a while a conforming",
+    "program still raises. That block is CORRECT and the runtime is behind; saying `known-broken`",
+    "would blame the document. Both require the tracking `issue`, and both entries are DELETED when",
+    "the tracked work lands — never re-fingerprinted.",
     "",
     "setup (optional): OpenLogo source prepended to the block before it runs, supplying the context",
     "the surrounding prose describes. It lets an excerpt execute to COMPLETION instead of halting on",
@@ -30,14 +38,13 @@
     "",
     "A setup supplies CONTEXT — it is not a fix and not a patch. The gate enforces that: the preamble",
     "must parse, check and execute cleanly ON ITS OWN (so it can neither absorb the block's malformed",
-    "structure nor lean on a name the block defines), and it must not redefine a primitive at any",
-    "nesting depth (so it can never make a real defect vanish). Keep it faithful to what the prose",
-    "actually says.",
+    "structure nor lean on a name the block defines), it must not define a name the block also",
+    "defines, and it must not redefine anything OpenLogo provides — any primitive or Heritage surface",
+    "spelling, at any nesting depth, in any casing. Keep it faithful to what the prose actually says.",
     "",
-    "issue (optional on any kind, REQUIRED on known-broken): the issue tracking a recorded defect.",
-    "known-broken must have one because its whole meaning is 'this document is wrong'; not-openlogo",
-    "entries carry one too, since a mislabeled fence is also a defect someone has to fix. When a",
-    "tracked defect is fixed the entry is DELETED, not re-fingerprinted.",
+    "issue (optional on any kind; REQUIRED on known-broken and implementation-behind): the issue",
+    "tracking the work. not-openlogo entries carry one too, since a mislabeled fence is also a defect",
+    "someone has to fix.",
     "",
     "Adding an entry is a triage decision, not a formality: `why` is mandatory and must state only",
     "what is verifiable about the block. If a block is simply wrong, fix the block."
@@ -449,7 +456,7 @@
       "codes": ["ol-undefined-var"]
     },
     {
-      "fingerprint": "f964bdea097a6413",
+      "fingerprint": "c59e7c7481b9889e",
       "excerpt": "name                ::= identifier",
       "kind": "not-openlogo",
       "why": "EBNF production rules for the lexical grammar, fenced as ```logo. The fence language is wrong (```ebnf / ```text), which this gate reports (issue #888) rather than edits: spec/ is maintainer-owned. Asserted so the block cannot change unnoticed while mislabeled.",
@@ -531,7 +538,7 @@
       "setup": ":nums = [1 2 3]"
     },
     {
-      "fingerprint": "d5935e0e13e42c9a",
+      "fingerprint": "125aa8d3bcc293b4",
       "excerpt": "define to end return output op stop throw",
       "kind": "not-openlogo",
       "why": "The reserved-word inventory: a bare vocabulary listing (it contains `import`/`export`, which is the only reason the profile detector ever read it as a Modules example), not OpenLogo source. The fence language is wrong — ```text would be right — which this gate reports rather than edits, because spec/ is maintainer-owned. Asserted so the listing cannot change unnoticed while mislabeled.",
@@ -543,6 +550,14 @@
         "ol-reserved-word",
         "ol-stop-outside-proc"
       ]
+    },
+    {
+      "fingerprint": "ea6cc8eb827559e1",
+      "excerpt": ":end = 1",
+      "kind": "implementation-behind",
+      "why": "NOT a spec defect and NOT a teaching example: the spec is right and the implementation is behind. #875 ruled that binding data to any name is always legal — `:end = 1` and `local count` are conforming programs — and this block is the worked example of that ruling. The checker slice that deletes the `bindingCollision` path (#838, sequenced behind #837) has not landed, so the runtime still raises ol-reserved-word for the binding lines. Delete this entry when #838 lands; until then the gate asserts the divergence rather than hiding it.",
+      "codes": ["ol-reserved-word"],
+      "issue": "#838"
     }
   ],
   "spec/interaction-events.md": [
@@ -608,8 +623,8 @@
       "profiles": ["localization"]
     },
     {
-      "fingerprint": "e3553b54ad19c9a7",
-      "excerpt": "alias repeat forward    # error: repeat already exists",
+      "fingerprint": "a9412725f11b3190",
+      "excerpt": "alias repeat forward    # error: repeat is a built-in name",
       "kind": "profile-not-implemented",
       "why": "Uses the localization profile, which no implementation provides yet (spec/conformance.md's DAG), so the block cannot be parsed or executed at all.",
       "profiles": ["localization"]

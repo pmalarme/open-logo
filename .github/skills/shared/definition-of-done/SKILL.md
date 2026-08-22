@@ -27,7 +27,7 @@ A change is "done" only when it is proven, documented, and green. This skill is 
    (`shared/conformance-fixture`).
 6. **Runnable examples still run** — `npm run examples` covers both halves: `spec/examples/*.logo`
    files **and** every ` ```logo ` block fenced in `spec/**.md` / `docs/**.md` (issue #850,
-   [ADR-0021](../../../docs/adr/0021-documentation-example-gate.md)). Fence OpenLogo source in prose
+   [ADR-0022](../../../docs/adr/0022-documentation-example-gate.md)). Fence OpenLogo source in prose
    as ` ```logo ` — a bare fence is never checked. A block either runs clean or is listed, with a
    rationale, in `scripts/markdown-examples-expectations.json`, where its exact `ol-*` codes are
    asserted; never add an entry to silence a real defect — record it as `known-broken` with its

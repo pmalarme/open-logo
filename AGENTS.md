@@ -189,7 +189,7 @@ excerpt fails like any other defect. Never add an entry to silence a real defect
 `known-broken` with its tracking issue and route it to the document's owner (`spec/` is
 maintainer-owned). One honest limit, which the gate reports as `PARTIAL` rather than hiding:
 execution stops at a block's first runtime error, so lines below it are parsed and statically
-checked but not run. See [ADR-0021](docs/adr/0021-documentation-example-gate.md).
+checked but not run. See [ADR-0022](docs/adr/0022-documentation-example-gate.md).
 
 `npm run coverage` runs through a thin deterministic wrapper (`scripts/coverage.mjs`, logic in
 `scripts/coverage-gate/classify.mjs`) rather than invoking `node --test` directly. Node's parallel

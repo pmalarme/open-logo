@@ -146,13 +146,33 @@ so a block that quietly starts needing a different profile, or stops needing one
 it. The failure message prints the exact JSON entry to paste, but the gate never writes the manifest
 itself — an auto-updating golden file would rubber-stamp the regression it exists to catch.
 
-**Recorded defects are routed, not excused.** Turning the gate on surfaced eight documentation
-defects, all tracked rather than fixed in this PR: two comma-separated list literals in
-`docs/design-notes/0006` (#887, `known-broken`), five fences labelled ` ```logo ` that hold EBNF or a
-word list (#888, `not-openlogo`), and `spec/data-structures.md`'s unreachable corrected example
-(#888). When each is fixed its entry is **deleted**, not re-fingerprinted — an `ebnf` fence is
-simply skipped by the gate rather than carved out of it — so the manifest shrinks toward holding
-only genuinely-exceptional blocks.
+**Recorded defects are routed, not excused — and "defect" is not one category.** Turning the gate on
+surfaced eight documentation defects, all tracked rather than fixed in this PR: two comma-separated
+list literals in `docs/design-notes/0006` (#887, `known-broken`), five fences labelled ` ```logo `
+that hold EBNF or a word list (#888, `not-openlogo`), and `spec/data-structures.md`'s unreachable
+corrected example (#888).
+
+A ninth state appeared as soon as the gate met a moving branch, and it is a genuinely different
+thing. OpenLogo lands normative rulings in `spec/` **ahead of** the code slice that implements them,
+so for a window a *conforming* program still raises: #875 ruled that binding data to any name is
+always legal, `spec/grammar.md` shows `:end = 1` as the worked example, and the checker slice that
+removes the old collision path (#838) has not landed. Calling that `known-broken` would blame the
+document, which is right. It is **`implementation-behind`**: the spec is correct and the runtime is
+behind, tracked by the implementing issue. Every staged spec-then-code ruling opens this window, so
+the vocabulary is worth more than the single entry.
+
+Both kinds require their tracking issue, and both entries are **deleted** when the tracked work
+lands, not re-fingerprinted — as is `not-openlogo`, since a relabelled `ebnf` fence is simply
+skipped by the gate rather than carved out of it. The manifest shrinks toward holding only
+genuinely-exceptional blocks.
+
+**The manifest fingerprints repository content, so it is base-sensitive.** A branch carrying this
+gate must be re-derived against the branch it merges into: an amendment landing in `spec/` while the
+work is in review changes a pinned block's fingerprint, and the gate then correctly reports a stale
+expectation. That is the design working — an edited block must be re-triaged, not silently keep its
+old expectation — but it does mean "do not rebase, the merge is trial-run later" is the wrong advice
+for this one artifact. On its first encounter with a moved tip, the gate caught three drifted
+fingerprints, two silently-skipped profiles, and the spec-ahead divergence above.
 
 **Runtime cost is about two seconds, not the twenty the wall clock suggests.** The 300-plus-block
 corpus costs ≈2 s (the `spec/examples/*.logo` half ≈1 s). `npm run examples` measures ≈20 s

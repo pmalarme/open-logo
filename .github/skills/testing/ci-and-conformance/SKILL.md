@@ -28,7 +28,7 @@ through (`docs/delivery.md`); you own the harness and the CI that runs it.
 5. **Regression:** every fixed bug gains a fixture so it can't return.
 6. **Documentation examples:** `npm run examples` runs `spec/examples/*.logo` **and** every
    ` ```logo ` block fenced in `spec/**.md` / `docs/**.md` (`scripts/markdown-examples-gate.mjs`,
-   issue #850, ADR-0021). One uniform rule: a block runs clean, or it is listed in
+   issue #850, ADR-0022). One uniform rule: a block runs clean, or it is listed in
    `scripts/markdown-examples-expectations.json` where its exact `ol-*` codes (or unimplemented
    profiles) are **asserted** — so a deliberately-invalid teaching example is proven to keep raising
    its documented diagnostic, and a listed block that becomes clean fails as stale. There is no

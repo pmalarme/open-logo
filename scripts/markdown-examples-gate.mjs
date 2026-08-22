@@ -12,7 +12,7 @@
  * docs prose was never parsed and never executed. That is how `set_shape "bee"` — a shape word no
  * conforming renderer accepts, raising `ol-type` — survived in `spec/turtles-and-sprites.md` into a
  * shipped 0.1.0 conformance claim, and was found by a human reading the prose rather than by CI.
- * The design rationale is `docs/adr/0021-documentation-example-gate.md`.
+ * The design rationale is `docs/adr/0022-documentation-example-gate.md`.
  *
  * **One rule, no exceptions:** every fenced block whose info string is `logo` in `spec/**.md` and
  * `docs/**.md` is parsed, statically checked, and executed ({@link analyzeBlock}); it must either
@@ -124,6 +124,14 @@ export const EXPECTATION_KINDS = new Map([
   ["non-terminating", "codes"],
   /** Uses a profile with no implementation yet, so it cannot be executed at all. */
   ["profile-not-implemented", "profiles"],
+  /**
+   * The spec is **right** and the implementation has not caught up: a ruling landed in `spec/`
+   * ahead of the code slice that implements it, so a conforming program still raises. Distinct
+   * from `known-broken`, which says the *document* is wrong — here the document is correct and the
+   * runtime is behind. Requires the issue tracking the implementing slice, and the entry is
+   * deleted when that slice lands. Every staged spec-then-code ruling opens this window.
+   */
+  ["implementation-behind", "codes"],
   /** A genuine defect in the prose, recorded and reported until its owner fixes it. */
   ["known-broken", "codes"],
 ]);
@@ -141,7 +149,7 @@ function isDeclarableCode(code) {
  * Markdown fence constructs {@link extractFencedBlocks} deliberately refuses to guess at. None
  * occur in `spec/` or `docs/` today; if one appears, the gate fails and names it rather than
  * mis-reading where the block begins or ends. See
- * `docs/adr/0021-documentation-example-gate.md` for why this is a guard rather than a CommonMark
+ * `docs/adr/0022-documentation-example-gate.md` for why this is a guard rather than a CommonMark
  * dependency.
  */
 export const UNSUPPORTED_FENCE_REASONS = Object.freeze({
@@ -645,14 +653,15 @@ export function validateExpectationEntry(entry, file, position) {
       );
     }
   }
-  const issueRequired = entry.kind === "known-broken";
+  const issueRequired =
+    entry.kind === "known-broken" || entry.kind === "implementation-behind";
   if (
     (issueRequired || entry.issue !== undefined) &&
     !/^#\d+$/.test(entry.issue ?? "")
   ) {
     problems.push(
       issueRequired
-        ? `${where}: a "known-broken" entry records a real defect, so it must carry its tracking "issue" (e.g. "#123")`
+        ? `${where}: a "${entry.kind}" entry records work someone must finish, so it must carry its tracking "issue" (e.g. "#123")`
         : `${where}: "issue" must look like "#123"`,
     );
   }
@@ -753,6 +762,7 @@ export function runMarkdownExamplesGate({
     clean: 0,
     expected: 0,
     knownBroken: 0,
+    implementationBehind: 0,
     partial: 0,
     failed: 0,
   };
@@ -856,6 +866,12 @@ export function runMarkdownExamplesGate({
               `KNOWN-BROKEN ${label} (${expectation.issue}): ${expectation.why}`,
             );
           }
+          if (expectation.kind === "implementation-behind") {
+            counts.implementationBehind += 1;
+            lines.push(
+              `SPEC-AHEAD ${label} (${expectation.issue}): ${expectation.why}`,
+            );
+          }
           if (analysis.partialFrom !== null) {
             counts.partial += 1;
             lines.push(
@@ -911,7 +927,8 @@ export function runMarkdownExamplesGate({
 
   lines.push(
     `markdown examples: ${counts.total} logo block(s) — ${counts.clean} clean, ` +
-      `${counts.expected} asserted expectation(s) of which ${counts.knownBroken} known-broken ` +
+      `${counts.expected} asserted expectation(s) of which ${counts.knownBroken} known-broken, ` +
+      `${counts.implementationBehind} spec-ahead-of-implementation ` +
       `and ${counts.partial} only partially executed, ${counts.failed} failed`,
   );
   if (counts.partial > 0) {

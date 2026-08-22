@@ -558,7 +558,7 @@ test("validateExpectationEntry accepts a well-formed entry of every kind", () =>
       why: "because",
       [asserts]: asserts === "codes" ? ["ol-type"] : ["modules"],
     };
-    if (kind === "known-broken") {
+    if (kind === "known-broken" || kind === "implementation-behind") {
       entry.issue = "#42";
     }
     assert.deepEqual(
@@ -944,6 +944,7 @@ test("the gate passes a clean corpus and counts what it checked", () => {
     clean: 1,
     expected: 0,
     knownBroken: 0,
+    implementationBehind: 0,
     partial: 0,
     failed: 0,
   });
@@ -1081,6 +1082,50 @@ test("a known-broken block passes but is announced on every run", () => {
     /^KNOWN-BROKEN .*defect\.md:1 \(#851\): commas are not OpenLogo$/,
   );
   assert.match(result.lines.at(-1), /of which 1 known-broken/);
+});
+
+test("a spec-ahead-of-implementation block is announced as its own state, not as broken prose", () => {
+  // A staged spec-then-code ruling lands the rule before the slice implementing it, so a
+  // CONFORMING program still raises for a while. Saying `known-broken` would blame the document.
+  const source = ":end = 1";
+  writeMarkdown("ruled.md", logoBlock(source));
+  const result = runOverTemp({
+    [keyFor("ruled.md")]: [
+      expectationFor(source, {
+        kind: "implementation-behind",
+        issue: "#838",
+        why: "the spec ruled binding a keyword legal; the checker slice has not landed",
+        codes: ["ol-reserved-word"],
+      }),
+    ],
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.counts.implementationBehind, 1);
+  assert.equal(result.counts.knownBroken, 0);
+  assert.match(
+    result.lines[0],
+    /^SPEC-AHEAD .*ruled\.md:1 \(#838\): the spec ruled/,
+  );
+  assert.match(result.lines.at(-1), /1 spec-ahead-of-implementation/);
+});
+
+test("both tracked kinds must carry the issue that will close them", () => {
+  for (const kind of ["known-broken", "implementation-behind"]) {
+    assert.match(
+      validateExpectationEntry(
+        {
+          fingerprint: "a",
+          kind,
+          why: "tracked work",
+          codes: ["ol-bad-token"],
+        },
+        "spec/x.md",
+        0,
+      )[0],
+      /records work someone must finish, so it must carry its tracking "issue"/,
+      `${kind} should require an issue`,
+    );
+  }
 });
 
 test("a listed excerpt that stops the runtime early is announced as PARTIAL, not silently passed", () => {
