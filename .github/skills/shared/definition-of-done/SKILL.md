@@ -25,7 +25,11 @@ A change is "done" only when it is proven, documented, and green. This skill is 
    CI then fails.
 5. **Conformance fixtures pass** and were extended for the new/changed behavior
    (`shared/conformance-fixture`).
-6. **Runnable examples still run** — `spec/examples/*.logo` and doc snippets parse and execute.
+6. **Runnable examples still run** — `npm run examples` covers both halves: `spec/examples/*.logo`
+   files **and** every ` ```logo ` block fenced in `spec/**.md` / `docs/**.md` (issue #850). A block
+   that cannot be clean must be listed, with a rationale, in
+   `scripts/markdown-examples-expectations.json`, where its exact `ol-*` codes are asserted; never
+   add an entry to silence a real defect — record it as `known-broken` and route it to its owner.
 7. **Accessibility/pedagogy checks pass** where applicable (reduced-motion, keyboard, non-visual
    descriptions; progressive hints / no-spoilers).
 8. **Docs & spec cross-links updated** in the same PR (no drift).

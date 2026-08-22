@@ -1,0 +1,236 @@
+{
+  "_readme": [
+    "Expectations for the markdown fenced-block half of the `examples` Definition-of-Done gate",
+    "(issue #850) — see scripts/markdown-examples-gate.mjs. JSON has no comments, so keys that",
+    "begin with an underscore are documentation and are ignored by the gate.",
+    "",
+    "Every other key is a repository-relative POSIX path, and each entry pins one ```logo block by",
+    "the SHA-256 fingerprint of its source — so prose edits above a block never churn this file,",
+    "but editing the block itself forces a re-triage.",
+    "",
+    "Every entry is ASSERTED, not merely tolerated: the gate fails when a listed block stops",
+    "producing exactly these codes — including when it becomes clean (a stale expectation) — and",
+    "when a fingerprint matches no block in its file. Blocks NOT listed here must run clean, except",
+    "for prose fragments whose names are defined in the surrounding text, which the gate tolerates",
+    "automatically (ol-undefined-var / ol-unknown-command only). Never add an entry to silence a",
+    "real defect: kind 'known-broken' records one, so it can be routed to its owner.",
+    "",
+    "kind: deliberate-error | not-openlogo | non-terminating | known-broken."
+  ],
+
+  "docs/design-notes/0001-places-and-value-semantics.md": [
+    {
+      "fingerprint": "775da59cde50ac0e",
+      "excerpt": "struct point [ x y ]",
+      "kind": "deliberate-error",
+      "why": "The record's Context shows the natural-looking syntax OpenLogo rejects; the very next sentence says 'This raises ol-not-a-place'. A clean run here would mean the record no longer describes the language.",
+      "codes": ["ol-not-a-place"]
+    }
+  ],
+
+  "docs/design-notes/0006-effect-event-snapshot-timing.md": [
+    {
+      "fingerprint": "7c411c83a02b450c",
+      "excerpt": ":x = [1, 2, 3]",
+      "kind": "known-broken",
+      "why": "DEFECT found by this gate (issue #850): ':x = [1, 2, 3]' separates list items with commas, which OpenLogo has no grammar for — list literals are space-separated ('[1 2 3]'). Recorded rather than fixed here: the record is Status: Accepted, so its edit is routed to @documentation via @orchestrator.",
+      "codes": ["ol-bad-token"]
+    },
+    {
+      "fingerprint": "f7e6b44cdff8c4d9",
+      "excerpt": ":x = [1, 2, 3]",
+      "kind": "known-broken",
+      "why": "Same defect as the block above, in the second contrasting example of the same section: a comma-separated list literal. Routed, not fixed here.",
+      "codes": ["ol-bad-token"]
+    }
+  ],
+
+  "docs/educational-commands.md": [
+    {
+      "fingerprint": "62bdd113cf88a286",
+      "excerpt": "# why: debug can show that :size is a word when forward needs a number",
+      "kind": "deliberate-error",
+      "why": "Shows what `debug` explains — ':size = \"big\"' then 'forward :size'. The paragraph under it quotes the ol-type diagnostic this block must raise.",
+      "codes": ["ol-type"]
+    }
+  ],
+
+  "docs/learn-how-its-built/11-where-you-type-it.md": [
+    {
+      "fingerprint": "8a1ffef639ab2b35",
+      "excerpt": "forever [ forward 1 ]",
+      "kind": "non-terminating",
+      "why": "Demonstrates the execution budget itself; the next paragraph quotes the ol-limit line the runtime prints for exactly this program.",
+      "codes": ["ol-limit"]
+    }
+  ],
+
+  "spec/commands.md": [
+    {
+      "fingerprint": "a52fc73091e7bbbc",
+      "excerpt": "forever",
+      "kind": "non-terminating",
+      "why": "The C3 example for `forever`, whose own 'Possible errors' line is `ol-limit`. It runs until the budget stops it, by definition.",
+      "codes": ["ol-limit"]
+    }
+  ],
+
+  "spec/data-structures.md": [
+    {
+      "fingerprint": "c5c253e6b881681e",
+      "excerpt": ":people = dict",
+      "kind": "deliberate-error",
+      "why": "Block comment '# error: the intermediate key tom is missing'. The prose above states that a missing intermediate container raises ol-unknown-key because OpenLogo does not auto-vivify.",
+      "codes": ["ol-unknown-key"]
+    },
+    {
+      "fingerprint": "6b6c5107d7a8d96c",
+      "excerpt": "struct person [ name age ]",
+      "kind": "deliberate-error",
+      "why": "Block comment '# error: height is not a person field'. The prose above states that reading or writing an unknown field raises ol-unknown-field.",
+      "codes": ["ol-unknown-field"]
+    }
+  ],
+
+  "spec/educational-model.md": [
+    {
+      "fingerprint": "62bdd113cf88a286",
+      "excerpt": "# why: debug can show that :size is a word when forward needs a number",
+      "kind": "deliberate-error",
+      "why": "The same worked `debug` example as docs/educational-commands.md: a word passed to `forward`, which must raise ol-type for the command to have anything to explain.",
+      "codes": ["ol-type"]
+    }
+  ],
+
+  "spec/error-model.md": [
+    {
+      "fingerprint": "a663131086912422",
+      "excerpt": "fowad 100",
+      "kind": "deliberate-error",
+      "why": "The 'Good diagnostic style' listing: a series of deliberately-wrong programs, each followed by the learner-facing message it must produce. Execution stops at the first runtime error, so only these three codes surface.",
+      "codes": ["ol-bad-token", "ol-no-value", "ol-unknown-command"]
+    }
+  ],
+
+  "spec/grammar.md": [
+    {
+      "fingerprint": "f964bdea097a6413",
+      "excerpt": "name                ::= identifier",
+      "kind": "not-openlogo",
+      "why": "EBNF production rules for the lexical grammar, fenced as ```logo. The fence language is wrong (```ebnf / ```text), which this gate reports (issue #850) rather than edits: spec/ is maintainer-owned. Asserted so the block cannot change unnoticed while mislabeled.",
+      "codes": [
+        "ol-bad-token",
+        "ol-not-enough-inputs",
+        "ol-unclosed-string",
+        "ol-unknown-command",
+        "ol-unmatched-paren"
+      ]
+    },
+    {
+      "fingerprint": "c49eaa82caedca0c",
+      "excerpt": "expression          ::= or-expression",
+      "kind": "not-openlogo",
+      "why": "EBNF production rules for the expression grammar, fenced as ```logo. Same mislabeled-fence defect as the block above; reported, not edited.",
+      "codes": [
+        "ol-bad-token",
+        "ol-not-enough-inputs",
+        "ol-unknown-command",
+        "ol-unmatched-paren"
+      ]
+    }
+  ],
+
+  "spec/interaction-events.md": [
+    {
+      "fingerprint": "871bdf7c5030c999",
+      "excerpt": "interaction-statement ::= when-statement | every-statement",
+      "kind": "not-openlogo",
+      "why": "EBNF production rules for the Interaction & Events statements, fenced as ```logo. Same mislabeled-fence defect; reported, not edited.",
+      "codes": ["ol-bad-token", "ol-mismatched-end", "ol-unknown-command"]
+    },
+    {
+      "fingerprint": "9d7bac193fa088f2",
+      "excerpt": ":name = input \"what is your name?\"",
+      "kind": "non-terminating",
+      "why": "The `input` example. `input` is the only blocking read in v0.1, and with no host answer available the read ends the only other way spec/interaction-events.md:110-111 allows: the program is cancelled (ol-limit). The block itself is correct OpenLogo.",
+      "codes": ["ol-limit"]
+    }
+  ],
+
+  "spec/style-guide.md": [
+    {
+      "fingerprint": "2b5403f678d5fc01",
+      "excerpt": "if :side_count = 4        # syntax error: a condition needs ==, not =",
+      "kind": "deliberate-error",
+      "why": "The prose introduces it as 'a syntax error, not merely a style problem' and states the parser 'never finds a delimited body after the condition below and reports ol-missing-end'.",
+      "codes": ["ol-bad-token", "ol-mismatched-end", "ol-missing-end"]
+    },
+    {
+      "fingerprint": "93154c617c1a0b2a",
+      "excerpt": "repeat 4",
+      "kind": "deliberate-error",
+      "why": "The 'Undelimited bodies' anti-pattern: the prose states that a header followed by instructions with no [ ] block and no `end` is a parse error, even for a single instruction.",
+      "codes": ["ol-missing-end"]
+    }
+  ],
+
+  "spec/tooling.md": [
+    {
+      "fingerprint": "d3f13952b8c9cb24",
+      "excerpt": "repeat 4 forward 100",
+      "kind": "deliberate-error",
+      "why": "Layer-1 example: the Finding line under it asserts code=ol-missing-end, stage=parse. Asserting it here keeps the checker's own reference example honest.",
+      "codes": ["ol-missing-end"]
+    },
+    {
+      "fingerprint": "403a89ae53385f7f",
+      "excerpt": ":ages = { tom: 8, sophie: 6 }",
+      "kind": "deliberate-error",
+      "why": "Layer-1 example: the Finding line asserts code=ol-bad-token with params={ text: ',' } — commas are not separators in OpenLogo.",
+      "codes": ["ol-bad-token"]
+    },
+    {
+      "fingerprint": "da9d38a42e7fc25b",
+      "excerpt": "fowad 100",
+      "kind": "deliberate-error",
+      "why": "Layer-2 example: the Finding line asserts code=ol-unknown-command with a did-you-mean suggestion of `forward`. Listed explicitly — an unlisted misspelling would be auto-tolerated as a prose fragment, and this is precisely the block whose diagnostic must be asserted.",
+      "codes": ["ol-bad-token", "ol-unknown-command"]
+    },
+    {
+      "fingerprint": "72658f1fba3a11ba",
+      "excerpt": "print first",
+      "kind": "deliberate-error",
+      "why": "Layer-2 example: the Finding line asserts code=ol-not-enough-inputs for `first` with expected=1, actual=0.",
+      "codes": ["ol-not-enough-inputs"]
+    },
+    {
+      "fingerprint": "122c9f6381cb52d1",
+      "excerpt": "count :nums = 3",
+      "kind": "deliberate-error",
+      "why": "Layer-2 example: the Finding line asserts code=ol-not-a-place. `:nums` is undefined here too, because the block is also an excerpt.",
+      "codes": ["ol-not-a-place", "ol-undefined-var"]
+    },
+    {
+      "fingerprint": "75678075edc1182b",
+      "excerpt": ":doubled = map num in :nums [",
+      "kind": "deliberate-error",
+      "why": "Layer-2 example: the Finding line asserts code=ol-no-value — `map` needs the last instruction in its block to make a value. `:nums` is undefined here too, because the block is also an excerpt.",
+      "codes": ["ol-no-value", "ol-undefined-var"]
+    }
+  ],
+
+  "spec/turtles-and-sprites.md": [
+    {
+      "fingerprint": "6d946969ffa69164",
+      "excerpt": "sprites-statement   ::= tell-statement | ask-statement | each-statement",
+      "kind": "not-openlogo",
+      "why": "EBNF production rules for the Sprites statements, fenced as ```logo. Same mislabeled-fence defect; reported, not edited.",
+      "codes": [
+        "ol-bad-token",
+        "ol-mismatched-end",
+        "ol-missing-end",
+        "ol-unknown-command"
+      ]
+    }
+  ]
+}

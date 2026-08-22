@@ -160,7 +160,7 @@ npm run format:check # Prettier
 npm run test         # node:test
 npm run coverage     # node:test 100% line/branch/function gate — verify on Node 22 (see .nvmrc)
 npm run conformance  # stack-neutral fixtures (placeholder until issue #6)
-npm run examples     # parse + execute every spec/examples/*.logo whose required profiles are implemented; skip the rest with a visible notice
+npm run examples     # two gates: every spec/examples/*.logo file, then every ```logo block fenced in spec/ + docs/ markdown
 ```
 
 These eight scripts are the CI-enforced Definition of Done; see
@@ -168,6 +168,18 @@ These eight scripts are the CI-enforced Definition of Done; see
 workspaces, `tsc -b`, Prettier, Biome, `node:test`), why coverage is pinned to Node 22, and the
 `typescript-eslint`/Vitest traps it avoids. Work in small, reviewable PRs and keep this file and the
 ADRs in sync as the toolchain evolves.
+
+`npm run examples` is **two** gates behind one script. `scripts/check-examples.mjs` parses and
+executes every `spec/examples/*.logo` file whose required profiles are implemented, skipping the
+rest with a visible notice. `scripts/check-markdown-examples.mjs` (issue #850, logic in
+`scripts/markdown-examples-gate.mjs`) then does the same for every ` ```logo ` block fenced inside
+`spec/**.md` and `docs/**.md` — the "and doc examples" half of the Definition of Done, previously
+unenforced, which is how a `set_shape "bee"` example that raises `ol-type` shipped inside a 0.1.0
+conformance claim. Blocks that are excerpts of the surrounding prose are tolerated automatically
+(only `ol-undefined-var`/`ol-unknown-command`); everything else must run clean or be listed, with a
+rationale, in `scripts/markdown-examples-expectations.json`, where its exact `ol-*` codes are
+**asserted** rather than merely ignored. Never add an entry there to silence a real defect — record
+it as `known-broken` and route it to the document's owner (`spec/` is maintainer-owned).
 
 `npm run coverage` runs through a thin deterministic wrapper (`scripts/coverage.mjs`, logic in
 `scripts/coverage-gate/classify.mjs`) rather than invoking `node --test` directly. Node's parallel

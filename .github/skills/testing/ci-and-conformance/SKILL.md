@@ -26,10 +26,16 @@ through (`docs/delivery.md`); you own the harness and the CI that runs it.
 4. **Stability:** `repeat 10000 [ forward 1 ]` and nested `repeat` validate the **execution budget +
    cancellation** at the event level (not frames) and stay within time/memory bounds.
 5. **Regression:** every fixed bug gains a fixture so it can't return.
-6. **CI (`shared/definition-of-done`):** wire `.github/workflows/` to run build, type-check/lint, unit,
+6. **Documentation examples:** `npm run examples` runs `spec/examples/*.logo` **and** every
+   ` ```logo ` block fenced in `spec/**.md` / `docs/**.md` (`scripts/markdown-examples-gate.mjs`,
+   issue #850). Prose excerpts are auto-tolerated for `ol-undefined-var`/`ol-unknown-command` only;
+   anything else must run clean or be listed in `scripts/markdown-examples-expectations.json`, where
+   its exact `ol-*` codes are **asserted** — so a deliberately-invalid teaching example is proven to
+   keep raising its documented diagnostic, and a listed block that becomes clean fails as stale.
+7. **CI (`shared/definition-of-done`):** wire `.github/workflows/` to run build, type-check/lint, unit,
    **coverage**, **conformance**, runnable examples, and applicable a11y/pedagogy checks on every PR.
    Required checks gate merges — the agent never merges.
-7. **Post-M0 maintenance:** optional scheduled nightly conformance/stability + grammar-vs-highlighter
+8. **Post-M0 maintenance:** optional scheduled nightly conformance/stability + grammar-vs-highlighter
    drift checks that auto-file issues on regression.
 
 ## Critical rules
@@ -44,4 +50,5 @@ through (`docs/delivery.md`); you own the harness and the CI that runs it.
 - [ ] Coverage enforced: 100% line/branch/function for all delivered code.
 - [ ] Negative asserts exact `ol-*` code + span; fuzz + regression covered.
 - [ ] Stability: budget + cancellation at event level within bounds.
+- [ ] Documentation `logo` blocks parse + run (or are asserted in the expectations manifest).
 - [ ] CI enforces the full DoD; merges gated by required checks.

@@ -30,7 +30,7 @@ npm run build
 npm test             # unit tests
 npm run conformance  # stack-neutral source → events/diagnostics fixtures
 npm run coverage     # 100% line/branch/function coverage gate
-npm run examples     # runs the spec/examples/*.logo programs
+npm run examples     # runs the spec/examples/*.logo programs + every ```logo block in spec/ and docs/
 ```
 
 **Try a program:** the canonical square —
