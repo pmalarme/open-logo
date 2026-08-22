@@ -345,7 +345,7 @@ export type {
 } from "./run-controller.js";
 export {
   DEFAULT_RUN_DOCUMENT,
-  MAX_INPUT_ATTEMPTS,
+  MAX_INPUT_REPLAY_RETRIES,
   createRunController,
   mountRunController,
   resolveRecordedAnswer,

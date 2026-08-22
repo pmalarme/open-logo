@@ -244,21 +244,26 @@ import {
 export const DEFAULT_RUN_DOCUMENT = "studio-session";
 
 /**
- * How many executions one `input` attempt chain may take before the run is abandoned (#769).
+ * How many **consecutive attempts that answer no new read** one `input` chain may make before the
+ * run is abandoned (#769).
  *
- * A well-behaved chain costs N+1 executions for N reads, so this is far above any plausible
- * learner program. It exists for the case a chain cannot converge: a *diverged* replay re-asks the
- * question it actually reached, and if the divergence is systematic — nondeterminism that keeps
- * choosing a different question, issue **#881** — every attempt can diverge again. With the
+ * Deliberately *not* a cap on total attempts. A well-behaved chain costs one execution per read —
+ * a program with a hundred `input`s legitimately makes a hundred and one attempts, and capping the
+ * total would cancel it after the hundredth answer. What must be bounded is a chain that cannot
+ * make **progress**: a *diverged* replay re-asks the question it actually reached, and if the
+ * divergence is systematic — nondeterminism that keeps choosing a different question, issue
+ * **#881** — every attempt can diverge again and the chain answers nothing new, forever. With the
  * studio's asynchronous `<dialog>` host each iteration needs a learner action, so that is merely
  * tedious; with a **synchronous** host (the shape a `window.prompt`-backed one would have, and the
  * shape this module's own tests use) it is an unbounded loop with no yield, i.e. a hung tab.
  *
- * Reaching the cap ends the run the only other way `spec/interaction-events.md:110-111` allows —
- * the read is left unanswered — so it surfaces as the runtime's own `ol-limit`/`cancelled`
- * diagnostic at the waiting `input`, exactly like a dismissed prompt. No studio-invented diagnostic.
+ * Progress is measured as the chain's accumulated answers growing: an attempt that leaves the FIFO
+ * no longer than the previous attempt found it has answered nothing new. Reaching the limit ends
+ * the run the only other way `spec/interaction-events.md:110-111` allows — the read is left
+ * unanswered — so it surfaces as the runtime's own `ol-limit`/`cancelled` diagnostic at the waiting
+ * `input`, exactly like a dismissed prompt. No studio-invented diagnostic.
  */
-export const MAX_INPUT_ATTEMPTS = 64;
+export const MAX_INPUT_REPLAY_RETRIES = 64;
 
 /** Optional configuration for {@link createRunController}. */
 export interface RunControllerOptions {
@@ -585,9 +590,12 @@ export function createRunController(
   // is settling has already been superseded.
   let pumping = false;
   let pumpAgain = false;
-  // How many executions the current chain has taken (#769) — bounded by MAX_INPUT_ATTEMPTS so a
-  // chain that cannot converge ends rather than looping. Reset by run()/reset(), like `answers`.
-  let attemptCount = 0;
+  // How many consecutive attempts of the current chain have answered no new read (#769), bounded by
+  // MAX_INPUT_REPLAY_RETRIES so a chain that cannot converge ends rather than looping.
+  // `answeredAtLastAttempt` is the FIFO length the previous attempt started from; `-1` makes the
+  // first attempt of every chain count as progress. Both reset by run()/reset(), like `answers`.
+  let attemptsWithoutProgress = 0;
+  let answeredAtLastAttempt = -1;
 
   /** Push `current`'s folded per-turtle world/scene into the shared store and repaint (never
    * called with a null animation — callers only invoke this once `animation` has been
@@ -861,14 +869,22 @@ export function createRunController(
     try {
       do {
         pumpAgain = false;
-        attemptCount += 1;
-        if (attemptCount > MAX_INPUT_ATTEMPTS) {
-          // #769 — this chain is not converging (see MAX_INPUT_ATTEMPTS). End it the only other
-          // way a read can end, publishing the cancellation the last attempt already produced,
-          // rather than looping forever on a synchronous host.
-          commitCancelledRead();
-          state.setRunStatus("stopped");
-          return;
+        // #769 — bound only chains that make no PROGRESS (see MAX_INPUT_REPLAY_RETRIES). A
+        // legitimate chain answers one more read per attempt, so its FIFO grows every time; a
+        // systematically diverging one keeps truncating back and answers nothing new.
+        if (answers.length > answeredAtLastAttempt) {
+          answeredAtLastAttempt = answers.length;
+          attemptsWithoutProgress = 0;
+        } else {
+          attemptsWithoutProgress += 1;
+          if (attemptsWithoutProgress > MAX_INPUT_REPLAY_RETRIES) {
+            // This chain cannot converge. End it the only other way a read can end, publishing the
+            // cancellation the last attempt already produced, rather than looping forever on a
+            // synchronous host.
+            commitCancelledRead();
+            state.setRunStatus("stopped");
+            return;
+          }
         }
         playCurrentAttempt(prepare(chainSource, options?.inputPrompt));
       } while (pumpAgain);
@@ -889,7 +905,8 @@ export function createRunController(
     // for every attempt this chain makes.
     answers = [];
     shownEventCount = 0;
-    attemptCount = 0;
+    attemptsWithoutProgress = 0;
+    answeredAtLastAttempt = -1;
     promptGeneration += 1;
     promptOutstanding = false;
     chainSource = state.getState().source;
@@ -914,7 +931,8 @@ export function createRunController(
     chainSource = "";
     attemptDiagnostics = [];
     shownEventCount = 0;
-    attemptCount = 0;
+    attemptsWithoutProgress = 0;
+    answeredAtLastAttempt = -1;
     signal.aborted = false;
     userStopped = false;
     state.setOutput([]);

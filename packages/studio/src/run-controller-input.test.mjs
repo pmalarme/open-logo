@@ -942,10 +942,14 @@ test("a chain that can never converge is abandoned rather than looped forever (@
 
     OL.createRunController(store, { inputPrompt: host }).run();
 
+    // Attempt 1 and attempt 2 each answer a new read (the FIFO grows 0 -> 1), so both count as
+    // progress; from attempt 3 on every attempt diverges back to a one-entry FIFO and answers
+    // nothing new, so the retry budget is spent one per attempt and the chain is abandoned on the
+    // attempt after it runs out.
     assert.equal(
       executions,
-      OL.MAX_INPUT_ATTEMPTS,
-      "the chain must stop at the cap, never run unbounded",
+      OL.MAX_INPUT_REPLAY_RETRIES + 2,
+      "the chain must stop once it stops making progress, never run unbounded",
     );
     assert.equal(store.getState().runStatus, "stopped");
     assert.deepEqual(
@@ -960,6 +964,28 @@ test("a chain that can never converge is abandoned rather than looped forever (@
   }
 });
 
+test("a legitimate program with more reads than the retry budget still completes (the cap counts stalled retries, not reads)", () => {
+  // Round 4, logic/spec reviewer. The first version of this cap counted TOTAL attempts, so a valid
+  // program with MAX reads needed MAX+1 attempts and was cancelled after the learner's last answer.
+  // A legitimate chain answers one more read every attempt, so it must never spend retry budget at
+  // all, no matter how many questions it asks.
+  const reads = OL.MAX_INPUT_REPLAY_RETRIES + 6;
+  const store = OL.createStudioState({
+    source: [
+      `repeat ${reads} [ :value = input "value?" ]`,
+      'print "done"',
+    ].join("\n"),
+  });
+  const host = createTestPromptHost(() => "ok");
+
+  OL.createRunController(store, { inputPrompt: host }).run();
+
+  assert.equal(host.prompts.length, reads);
+  assert.deepEqual(store.getState().output, ["done"]);
+  assert.deepEqual(store.getState().diagnostics, []);
+  assert.equal(store.getState().runStatus, "done");
+});
+
 test("a chain well inside the cap is unaffected by it", () => {
   const store = OL.createStudioState({ source: ASK_NAME_SOURCE });
   const host = createTestPromptHost(() => "tom");
@@ -967,7 +993,7 @@ test("a chain well inside the cap is unaffected by it", () => {
   OL.createRunController(store, { inputPrompt: host }).run();
 
   assert.ok(
-    OL.MAX_INPUT_ATTEMPTS > 2,
+    OL.MAX_INPUT_REPLAY_RETRIES > 2,
     "the cap must leave room for ordinary chains",
   );
   assert.equal(store.getState().runStatus, "done");
