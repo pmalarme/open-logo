@@ -2,9 +2,10 @@
 name: definition-of-done
 description: >-
   The OpenLogo Definition of Done — the CI-enforced checklist and PR expectations every change must
-  meet before it can merge. Use to self-verify before opening or updating a pull request.
+  meet before it can merge, plus the ungated-prose rule (a derived count is an unenforced
+  assertion). Use to self-verify before opening or updating a pull request.
 created: 2025-06-01T00:00
-updated: 2026-08-02T00:00
+updated: 2026-08-22T00:00
 ---
 
 ## Purpose
@@ -34,7 +35,9 @@ A change is "done" only when it is proven, documented, and green. This skill is 
    tracking issue and route it to its owner.
 7. **Accessibility/pedagogy checks pass** where applicable (reduced-motion, keyboard, non-visual
    descriptions; progressive hints / no-spoilers).
-8. **Docs & spec cross-links updated** in the same PR (no drift).
+8. **Docs & spec cross-links updated** in the same PR (no drift). Any **count or `file:line`
+   citation** the change writes or touches is re-derived against the current tree, or replaced by a
+   pointer at what produces it (see "Derived counts in prose" below).
 9. **Self-review passed before the PR** — the implementing agent ran
    [`shared/review-gate`](../review-gate/SKILL.md) in-session: at least two non-author sub-agents —
    the logic/spec reviewer (`rubber-duck`, or a named fallback) plus **every** domain-adaptive QA
@@ -62,6 +65,48 @@ write-set), iterates until all reviewers return `pass` on one final SHA with not
 `@orchestrator` (or a human) does the final verification and merge. Still open after round 10? Do not
 open the PR: escalate to `@orchestrator`/the maintainer with the outstanding findings and per-round
 SHAs.
+
+## Derived counts in prose are unenforced assertions
+
+A number written into prose — "14 fixtures", "three reviewers", "181 lines", "3599 tests passing" —
+is a claim **nothing recomputes**. It is correct at the instant it was written and silently wrong
+forever after. `spec/` fenced ` ```logo ` blocks are gated (item 6 above); the numbers in the prose
+around them are not, and **seven such counts drifted during saga #572 alone** — the built-in-names
+gap (corrected four times), two spec-file lengths, an export count, an alias count, a passing-test
+count in a PR body, and a citation count. Every one was caught by a reviewer re-deriving; none by a
+gate, because no gate exists.
+
+A number *looks* like evidence, which is what makes it dangerous, and a wrong one in a durable
+record **manufactures a future false alarm about the exact thing the record exists to reassure
+about**: record 289 as a file's length and the next person running `wc -l` sees a mismatch and
+believes something shifted. In this saga counts were load-bearing — one sized a write-set, another
+fed an implementation plan.
+
+The rule, in priority order:
+
+1. **Prefer prose that derives or points** over prose that restates. Name the script, command, or
+   constant that produces the number (`npm run conformance`, `DEFAULT_INSTRUCTION_BUDGET`,
+   "the profiles listed in `spec/conformance.md`") instead of copying its current value. A pointer
+   stays true when the thing it points at changes.
+2. **When a literal number is genuinely clearer, re-derive it at the moment you write it** — not
+   from memory, not from an earlier PR body, not from another document — and again before the PR is
+   opened. Cite the command you ran.
+3. **Treat `docs/adr/` and `docs/design-notes/` as the highest-cost place for a number.** Those
+   records are **immutable once Accepted**, so a wrong count there can never be corrected in place,
+   only superseded by a new record. Prefer a pointer there, always.
+4. **`file:line` citations are the same defect wearing a different hat.** Verify every
+   `spec/*.md:<line>` against the *current* file; a renumbering elsewhere in the saga silently
+   invalidates citations nobody touched.
+
+Two measurement traps produced a *plausible wrong number* rather than an error, so re-derive with a
+command you have sanity-checked:
+
+- `Get-Content <file> | Measure-Object -Line` counts **non-blank** lines, not file length.
+- A de-duplicating script counts **unique citation strings**, not citation **sites**.
+
+Gating every number in prose is not tractable and is not attempted here; this is a stated,
+known-ungated surface. The reviewer-side counterpart is `shared/review-gate` item (f): re-derive,
+don't re-read.
 
 ## Three-tier governance ladder (Issue → Epic → Saga)
 
@@ -116,6 +161,7 @@ Sagas replaced GitHub milestones, so these gates operate on
 - [ ] conformance fixtures extended + green
 - [ ] examples run   - [ ] a11y/pedagogy (if applicable)
 - [ ] docs + spec cross-links updated
+- [ ] every count and `file:line` citation re-derived against the current tree (or replaced by a pointer)
 - [ ] self-review passed before PR (logic/spec reviewer + every domain QA, all ≠ author)
 - [ ] every finding resolved — blocking **and** non-blocking (fixed, or declined with rationale + follow-up issue); converged within 10 review rounds
 - [ ] one PR, write-set declared, shared files serialized

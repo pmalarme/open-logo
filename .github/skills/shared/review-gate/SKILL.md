@@ -5,9 +5,11 @@ description: >-
   non-author reviews as sub-agents (a logic/spec reviewer — rubber-duck or a named fallback — and
   every domain-adaptive QA that re-runs the Definition of Done from a clean tree), resolves *every*
   finding — blocking and non-blocking alike — over at most 10 iterations, and attaches all verdicts
-  before opening the PR. The orchestrator then does a final verification and merges.
+  before opening the PR. A verdict certifies a commit, so the tree must be clean and pushed before
+  each dispatch and frozen once every verdict stamps one SHA. The orchestrator then does a final
+  verification and merges.
 created: 2026-07-17T00:00
-updated: 2026-08-02T00:00
+updated: 2026-08-22T00:00
 ---
 
 ## Purpose
@@ -59,7 +61,43 @@ delivery agents). The agent doing the reviewing is **never the author**:
   independent reviews.
 - **Reviewers never edit the branch.** `rubber-duck` is read-only by design; the QA experts _can_
   edit but must not — a reviewer who changes the branch becomes an **author** and voids their own
-  verdict. Reviewers report findings; the **author** fixes them.
+  verdict. Reviewers report findings; the **author** fixes them. This includes **scratch probes**:
+  write them outside the repository (`$TMPDIR` / `$env:TEMP`), never into the worktree. A reviewer
+  who dirties the tree while measuring it has voided its own verdict and everyone else's.
+
+## A verdict certifies a commit, not the disk
+
+The same-SHA rule below assumes something it never checks: **that the SHA describes what the
+reviewer actually read.** A dirty working tree breaks that assumption invisibly — a reviewer
+dispatched while the author has uncommitted changes reads the **disk** and stamps a **commit**, and
+the two differ. It fails in both directions, and neither is detectable afterwards from the verdict,
+because the verdict names a SHA and a SHA looks authoritative:
+
+- **False pass** — the reviewer reads a fix that never landed, and stamps the commit that lacks it.
+- **False block** — the reviewer reads a defect already fixed on disk, and stamps a finding against
+  a commit that is fine.
+
+Found during the #835/#836 review: the author requested a stamp asserting `git status` clean while
+carrying uncommitted changes; two reviewers caught it independently, and one nearly filed a finding
+that was **true of the disk and false of the commit**. The #768 session hit the adjacent version —
+HEAD moved several times during a reviewer's run, and a verdict was nearly stamped to a stale SHA.
+
+Four rules, in order. They are **mechanical on purpose**: two discipline-based remedies ("remember
+not to edit mid-round") failed in the same slice before the mechanical one held.
+
+1. **Commit before dispatching a reviewer.** `git status --porcelain` must be empty — no
+   uncommitted edits, no untracked scratch files. Push it too, so the SHA exists somewhere other
+   than your disk.
+2. **Verify every reviewer is idle before editing anything.** Not "try to remember not to edit
+   mid-round" — *check*, every time, and only then touch the tree. This is the rule that actually
+   worked.
+3. **Freeze once every verdict stamps one SHA.** Between the last `pass` and opening the PR, the
+   branch does not move. Any later commit — including a "quiet" formatting push — **voids every
+   verdict** and requires a full re-dispatch (see the round rules below).
+4. **Reviewers assert cleanliness themselves.** Do not take it on trust from the author's report:
+   run `git status --porcelain` and `git rev-parse HEAD` yourself, at the start **and** at the end
+   of the review, and record both. If they differ, or the tree was dirty, say so and stamp nothing —
+   that is the same standard this gate applies to every other claim.
 
 ## The checklist
 
@@ -118,6 +156,13 @@ Ask: does this change require updating any of —
 If yes, the update **must be in the same PR**. A behavior change that leaves its guidance stale is a
 **block**, even when code and tests are green.
 
+**Re-derive, don't re-read.** Every number and every `file:line` citation the change adds or touches
+is an **unverified assertion** — nothing recomputes it (see
+[`shared/definition-of-done`](../definition-of-done/SKILL.md)'s "Derived counts in prose"). A
+reviewer checks them by measuring against the current tree, not by trusting the PR body: counts,
+file lengths, and `spec/*.md:<line>` ranges all drift silently, and this saga renumbered
+`spec/grammar.md` under existing citations.
+
 ## Findings — every finding gets resolved, blocking or not
 
 Reviewers raise findings at different severities: a `block` (the change is wrong, unproven, or
@@ -139,7 +184,8 @@ reviewable by `@orchestrator` and the maintainer.
 
 ## Iterate until everything passes — at most 10 rounds
 
-One **round** = dispatch reviewers → collect findings → fix/decline → commit. Repeat until **every**
+One **round** = **verify every reviewer is idle** → dispatch reviewers on a clean, committed,
+pushed HEAD → collect findings → fix/decline → commit. Repeat until **every**
 reviewer returns `pass` on the same final HEAD **and** every finding of every severity is fixed or
 declined-with-rationale. The loop is **bounded at 10 rounds** on one change.
 
@@ -152,10 +198,13 @@ ground out.
 
 ## Output — iterate to green, then hand over
 
-- **Review a clean, committed HEAD.** Commit the work first (no uncommitted changes) so the reviewers
-  see exactly what the PR will contain. Each sub-agent records findings tied to the checklist item it
+- **Review a clean, committed HEAD.** Commit **and push** the work first — `git status --porcelain`
+  empty — so the reviewers read exactly what the PR will contain and the SHA they stamp exists in
+  history (see "A verdict certifies a commit, not the disk"). Each sub-agent records findings tied
+  to the checklist item it
   fails, **marks each finding `block` or `non-blocking`**, **names the base + head commit SHA it
-  reviewed**, and ends with an explicit **verdict**: `pass` or `block` (with the specific items to
+  reviewed** and confirms the tree was clean at both ends of its run, and ends with an explicit
+  **verdict**: `pass` or `block` (with the specific items to
   fix). A `pass` that carries non-blocking findings is **not** a licence to open the PR — those
   findings are resolved first (see above).
 - On any `block` **or any unresolved finding of any severity**, the implementer **fixes (or declines
@@ -176,12 +225,13 @@ ground out.
 ## Checklist (record on the PR)
 
 - [ ] All required reviews run as sub-agents, **all ≠ author** (at least two): the **logic/spec reviewer** — `rubber-duck` (Claude/GPT large session model) **or a named non-author fallback** — plus **every** dispatched domain QA expert; reviewers stayed read-only.
+- [ ] **Every reviewer read the commit its verdict names**: tree clean (`git status --porcelain` empty) and pushed before each dispatch, every reviewer idle before any edit, reviewers asserted cleanliness themselves, and the branch was **frozen** once all verdicts landed on one SHA.
 - [ ] Clean-tree DoD re-run — build **emits** verified (no stale-`.tsbuildinfo` no-op; TS 7 confirmed).
 - [ ] Spec-fidelity — canonical vocabulary; `ol-*` codes with spans; profile boundaries.
 - [ ] Conformance fixtures present, green, and extended.
 - [ ] Runnable `spec/examples/*.logo` and doc snippets parse/run.
 - [ ] A11y / pedagogy checked where applicable.
-- [ ] Instructions / skills / docs / spec drift checked (in-PR if needed).
+- [ ] Instructions / skills / docs / spec drift checked (in-PR if needed); every count and `file:line` citation the change touches was **re-derived**, not trusted.
 - [ ] **Every finding resolved — blocking *and* non-blocking**: each one fixed, or declined with a one-line rationale (+ follow-up issue number when it is real work outside the write-set).
 - [ ] Converged within the **10-round cap** (otherwise: not opened — escalated to `@orchestrator`/maintainer with the open findings and per-round SHAs).
 - [ ] All verdicts `pass` on the **same final HEAD** (SHA-stamped) and attached; any later commit re-ran every reviewer; no self-merge.

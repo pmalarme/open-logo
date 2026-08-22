@@ -7,7 +7,7 @@ description: >-
   language-design rationale, and cross-language comparisons for advanced readers. Reviewed by
   @language-designer and @interpreter.
 created: 2026-07-23T00:00
-updated: 2026-07-23T00:00
+updated: 2026-08-22T00:00
 ---
 
 ## Purpose
@@ -63,6 +63,12 @@ originating motivation and the full seed list of LDRs.
   it → Consequences order; do not omit or reorder them.
 - Every LDR cites at least one normative `spec/` section; add the citation in Consequences (and
   inline elsewhere if it aids the reader).
+- **An LDR is immutable once Accepted, so it is the worst place for an unverified number.** Prefer
+  naming the source of a count (a spec section, a script, an exported constant) over copying its
+  current value, and verify every `spec/*.md:<line>` citation against the *current* file — a wrong
+  count or a stale line range in an immutable record can never be corrected in place, only
+  superseded. See [`shared/definition-of-done`](../../shared/definition-of-done/SKILL.md)'s
+  "Derived counts in prose".
 
 ## Checklist
 
@@ -70,6 +76,8 @@ originating motivation and the full seed list of LDRs.
 - [ ] All five sections present, in order: Context, Decision, Rationale, How other languages do it,
       Consequences.
 - [ ] At least one normative `spec/` section cited.
+- [ ] Every count and `spec/*.md:<line>` citation re-derived against the current tree, or replaced
+      by a pointer at its source — the record is immutable once Accepted.
 - [ ] Added to `docs/design-notes/README.md` index.
 - [ ] Cross-links added to/from `docs/learn-how-its-built/` where helpful; any `spec/` backlink is a
       separate, maintainer-reviewed `spec/` PR, never part of the LDR PR itself.
