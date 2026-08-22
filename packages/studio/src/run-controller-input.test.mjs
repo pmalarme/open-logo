@@ -879,3 +879,51 @@ test("the run controller resolves every read through resolveRecordedAnswer, so a
     "each value must be the answer resolveRecordedAnswer reports for ITS OWN question",
   );
 });
+
+test("a DIVERGED replay re-asks the learner through the real controller, never silently completing with the wrong answer", () => {
+  // Round 3, logic/spec reviewer. `resolveRecordedAnswer`'s own tests prove the rule, but they do
+  // not prove the CONTROLLER consults it: swapping the reader back to a positional one, while
+  // leaving the exported helper intact, passed every test. Divergence needs nondeterminism, and the
+  // only source is `random`, which seeds from `Date.now()` per `execute()` call
+  // (`createRandomNumberGeneratorState`). Pinning that clock makes the divergence deterministic.
+  //
+  // Seeds verified against the real runtime: 1 selects the `else` branch ("B?"), 7 selects the
+  // `then` branch ("A?"). So the chain runs 1 → asks "B?"; 7 → branch A, whose "A?" does NOT match
+  // the recorded "B?", so the learner is re-asked; 7 again → "A?" now matches and the run finishes.
+  const seeds = [1, 7, 7];
+  let executions = 0;
+  const realDateNow = Date.now;
+  Date.now = () => seeds[Math.min(executions++, seeds.length - 1)];
+
+  try {
+    const store = OL.createStudioState({
+      source: [
+        'if (random 2) == 0 [ :answer = input "A?" ] else [ :answer = input "B?" ]',
+        "print :answer",
+      ].join("\n"),
+    });
+    const host = createTestPromptHost((prompt) => `answered-${prompt}`);
+
+    OL.createRunController(store, { inputPrompt: host }).run();
+
+    assert.deepEqual(
+      host.prompts,
+      ["B?", "A?"],
+      "the learner must be re-asked the question the replay actually reached",
+    );
+    assert.deepEqual(
+      store.getState().output,
+      ["answered-A?"],
+      "the program must receive the answer given for the question it asked — never the answer to " +
+        "the question the learner was shown on an earlier, diverged attempt",
+    );
+    assert.equal(store.getState().runStatus, "done");
+    assert.equal(
+      executions,
+      3,
+      "the chain must have taken exactly three attempts",
+    );
+  } finally {
+    Date.now = realDateNow;
+  }
+});

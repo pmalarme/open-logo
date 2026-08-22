@@ -256,10 +256,12 @@
  *   reader is synchronous and `execute()` never yields, so the run controller reconciles the two
  *   with an **attempt chain** rather than by changing runtime semantics — see `run-controller.ts`'s
  *   doc comment ("#769") for why replaying the captured source is observationally equivalent to
- *   blocking, from the learner's side. {@link resolveRecordedAnswer} is the one tested place that
- *   decides how a read draws from the chain's accumulated answers — an answer is reused only when
- *   it was given for that same question, so a diverged replay can never apply it to one the learner
- *   was not shown (the residual is tracked as issue **#881**).
+ *   blocking **for a program whose replayed prefix is deterministic**, and issue **#881** for the
+ *   scoped limitation when it is not (already-drawn output can change, and so can the question).
+ *   {@link resolveRecordedAnswer} is the one tested place that decides how a read draws from the
+ *   chain's accumulated answers — an answer is reused only when it was given for that same prompt at
+ *   that same position, so a diverged replay can never apply it to a question the learner was not
+ *   shown, though the answer itself may be discarded and the question re-asked (#881).
  * - `index.html`/`web/main.ts`/`web/styles.css` add the real prompt: a native modal `<dialog>` whose
  *   accessible name is the program's own question, an autofocused answer field, and Escape/Cancel
  *   routed to `cancel()`. It is closed — and so absent from both the layout and the accessibility

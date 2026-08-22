@@ -193,14 +193,18 @@ shapes with an **attempt chain**.
   read with none left records its prompt and returns `undefined`. That attempt is a **probe**: its
   animation draws everything up to the read, the question is asked, and the answer re-executes the
   **source captured at `run()`** from the top. N reads cost N+1 executions.
-- **Why a replay still looks like blocking.** The controller already reduces the *whole* event stream
-  wholesale every attempt, and attempt *k+1*'s stream starts with attempt *k*'s, so each replacement
-  can only extend what is on screen: output grows monotonically, the canvas resumes (the new
-  animation is fast-forwarded past the events already drawn, so it never blanks and redraws), and
-  neither the run log nor the tutor-output pane double-counts, because both accumulate only on the
-  `"running"` → terminal transition a probe never reaches. A probe's own diagnostics are withheld
-  until the learner genuinely dismisses the question — the only diagnostic a probe can carry is the
-  reader's own forced cancellation.
+- **Why a replay still looks like blocking — for a deterministic program.** The controller already
+  reduces the *whole* event stream wholesale every attempt, and **when the replayed prefix reproduces
+  the probe's** (which it does for any program that does not draw unseeded randomness before a read)
+  attempt *k+1*'s stream starts with attempt *k*'s, so each replacement can only extend what is on
+  screen: output grows monotonically, the canvas resumes (the new animation is fast-forwarded past
+  the events already drawn, so it never blanks and redraws), and neither the run log nor the
+  tutor-output pane double-counts, because both accumulate only on the `"running"` → terminal
+  transition a probe never reaches. That qualifier is load-bearing and is **not** claimed
+  unconditionally — when the prefix is not deterministic the guarantee genuinely does not hold, which
+  is the scoped limitation below. A probe's own diagnostics are withheld until the learner genuinely
+  dismisses the question — the only diagnostic a probe can carry is the reader's own forced
+  cancellation.
 - **Run/Stop/Reset.** `runStatus` stays `"running"` for the whole chain (the program *is* running,
   blocked on a read), which is also what makes `run()`'s #314 guard ignore a second Run and the
   Start/Stop toggle offer Stop, with no new state. **Stop** withdraws the question and commits the

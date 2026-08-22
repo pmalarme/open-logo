@@ -157,16 +157,23 @@
  * and when the learner answers, that answer joins the FIFO and the **same captured source** is
  * executed again from the top. N reads cost N+1 executions.
  *
- * **Why a replay still honors "the program must not appear to continue".** The learner never
- * observes the cancel-and-re-run, because this module already reduces the *whole* event stream
- * wholesale on every attempt (`collectOutput` → `setOutput`, `setDiagnostics`, `setTutorOutput`, and
- * a fresh `TurtleAnimationController` over the run's events). Attempt *k+1*'s stream begins with
- * attempt *k*'s, so each wholesale replacement can only *extend* what is on screen: output grows
- * monotonically, the canvas resumes rather than blanking (the new animation is fast-forwarded past
- * the events already drawn — see `prepare()`), and no consumer double-counts, because
- * `run-log.ts`/`tutor-output-pane.ts` accumulate only on the `"running"` → terminal transition a
- * probe never reaches. From the learner's side the program stops at the question and continues from
- * exactly there, which is what `:108-111` asks a host to show.
+ * **Why a replay still honors "the program must not appear to continue" — for a deterministic
+ * program.** The learner never observes the cancel-and-re-run, because this module already reduces
+ * the *whole* event stream wholesale on every attempt (`collectOutput` → `setOutput`,
+ * `setDiagnostics`, `setTutorOutput`, and a fresh `TurtleAnimationController` over the run's
+ * events). **When the replayed prefix reproduces the probe's** — which it does for any program whose
+ * prefix is deterministic, i.e. every program that does not draw unseeded randomness before a read —
+ * attempt *k+1*'s stream begins with attempt *k*'s, so each wholesale replacement can only *extend*
+ * what is on screen: output grows monotonically, the canvas resumes rather than blanking (the new
+ * animation is fast-forwarded past the events already drawn — see `prepare()`), and no consumer
+ * double-counts, because `run-log.ts`/`tutor-output-pane.ts` accumulate only on the `"running"` →
+ * terminal transition a probe never reaches. From the learner's side the program stops at the
+ * question and continues from exactly there, which is what `:108-111` asks a host to show.
+ *
+ * That qualifier is load-bearing and is **not** claimed unconditionally: when the prefix is *not*
+ * deterministic the guarantee genuinely does not hold — already-drawn output can change, the
+ * question can change, and one question can be asked more than once. That is the scoped limitation
+ * tracked as issue **#881**; see the caveat at the end of this comment.
  *
  * A probe's own diagnostics are deliberately withheld while its question is outstanding, because the
  * only diagnostic a probe can carry is the reader's own forced cancellation: parse diagnostics stop
@@ -326,16 +333,20 @@ export interface RecordedAnswerResolution {
  * provoke.
  *
  * An answer is used **only** when the entry at this position was given for this same `prompt`.
- * Otherwise the read cannot be answered: either the chain has no answer for this position yet, or a
- * nondeterministic prefix has reached a different question here than the learner was shown. In that
- * second case every remaining answer is dropped as well — handing one to the wrong question would
- * silently apply a learner's answer to something they never saw, which is the failure this pairing
- * exists to prevent.
+ * "This same question" means **this prompt text at this FIFO position** — deliberately not read
+ * identity, which prompt text cannot express (see the limitation below). Otherwise the read cannot
+ * be answered: either the chain has no answer for this position yet, or a nondeterministic prefix
+ * has reached a different question here than the learner was shown. In that second case every
+ * remaining answer is dropped as well — handing one to the wrong question would silently apply a
+ * learner's answer to something they never saw, which is the failure this pairing exists to prevent.
  *
  * What this does **not** solve is recorded in issue **#881**: prompt text is not read identity, so
  * two distinct `input` sites asking the identical question are indistinguishable here; the
- * learner's earlier answer to a question a diverged replay no longer asks is discarded (they are
- * asked the new one instead); and each re-ask can itself diverge. The durable fix is issue **#876**.
+ * learner's earlier answer to a question a diverged replay no longer asks is **discarded** (they are
+ * asked the new one instead, so the answer is lost, not carried over); and because each re-ask can
+ * itself diverge, the number of times one question is asked terminates only probabilistically. What
+ * is genuinely eliminated is an answer reaching a question it did not answer. The durable fix is
+ * issue **#876**.
  */
 export function resolveRecordedAnswer(
   answers: readonly RecordedAnswer[],
