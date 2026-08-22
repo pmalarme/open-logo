@@ -73,6 +73,14 @@ export const INITIAL_TURTLE_STATE: TurtleState = Object.freeze({
  * (scene, control-flow, diagnostic, …) leaves state unchanged, so a sibling scene reducer can
  * fold the same stream alongside this one without either needing to know about the other's
  * kinds.
+ *
+ * Since issue #847 `@openlogo/runtime` also emits an explicit `move`/`turn` pair for that homing
+ * (before the `clear`, and deliberately with no `draw-segment`), so folding the `clear` is now
+ * **idempotent reinforcement rather than the only signal**. It is kept because
+ * `spec/rendering.md`'s "Clear operations" requires the `clear` payload alone to distinguish
+ * clear-and-home from drawing-only clearing "so playback and debugging can reproduce state
+ * exactly" — a stream from another producer may carry only the `clear`, and this reducer stays
+ * correct for it.
  */
 export function reduceTurtleState(
   state: TurtleState,

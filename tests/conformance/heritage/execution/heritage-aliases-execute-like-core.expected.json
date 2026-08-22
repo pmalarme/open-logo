@@ -325,6 +325,33 @@
     },
     {
       "seq": 25,
+      "kind": "move",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [9, 1],
+        "end": [9, 3]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 0],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 26,
+      "kind": "turn",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [9, 1],
+        "end": [9, 3]
+      },
+      "payload": {
+        "from": 0,
+        "to": 0
+      }
+    },
+    {
+      "seq": 27,
       "kind": "clear",
       "source_span": {
         "document": "heritage/execution/heritage-aliases-execute-like-core",
@@ -336,7 +363,7 @@
       }
     },
     {
-      "seq": 26,
+      "seq": 28,
       "kind": "instruction",
       "source_span": {
         "document": "heritage/execution/heritage-aliases-execute-like-core",
@@ -348,7 +375,7 @@
       }
     },
     {
-      "seq": 27,
+      "seq": 29,
       "kind": "procedure-enter",
       "source_span": {
         "document": "heritage/execution/heritage-aliases-execute-like-core",
@@ -361,7 +388,7 @@
       }
     },
     {
-      "seq": 28,
+      "seq": 30,
       "kind": "instruction",
       "source_span": {
         "document": "heritage/execution/heritage-aliases-execute-like-core",
@@ -373,7 +400,7 @@
       }
     },
     {
-      "seq": 29,
+      "seq": 31,
       "kind": "turn",
       "source_span": {
         "document": "heritage/execution/heritage-aliases-execute-like-core",
@@ -386,7 +413,7 @@
       }
     },
     {
-      "seq": 30,
+      "seq": 32,
       "kind": "instruction",
       "source_span": {
         "document": "heritage/execution/heritage-aliases-execute-like-core",
@@ -398,7 +425,7 @@
       }
     },
     {
-      "seq": 31,
+      "seq": 33,
       "kind": "turn",
       "source_span": {
         "document": "heritage/execution/heritage-aliases-execute-like-core",
@@ -411,7 +438,7 @@
       }
     },
     {
-      "seq": 32,
+      "seq": 34,
       "kind": "instruction",
       "source_span": {
         "document": "heritage/execution/heritage-aliases-execute-like-core",
@@ -423,7 +450,7 @@
       }
     },
     {
-      "seq": 33,
+      "seq": 35,
       "kind": "move",
       "source_span": {
         "document": "heritage/execution/heritage-aliases-execute-like-core",
@@ -437,7 +464,7 @@
       }
     },
     {
-      "seq": 34,
+      "seq": 36,
       "kind": "draw-segment",
       "source_span": {
         "document": "heritage/execution/heritage-aliases-execute-like-core",
@@ -452,7 +479,7 @@
       }
     },
     {
-      "seq": 35,
+      "seq": 37,
       "kind": "procedure-exit",
       "source_span": {
         "document": "heritage/execution/heritage-aliases-execute-like-core",
@@ -465,7 +492,7 @@
       }
     },
     {
-      "seq": 36,
+      "seq": 38,
       "kind": "instruction",
       "source_span": {
         "document": "heritage/execution/heritage-aliases-execute-like-core",
@@ -477,7 +504,7 @@
       }
     },
     {
-      "seq": 37,
+      "seq": 39,
       "kind": "print",
       "source_span": {
         "document": "heritage/execution/heritage-aliases-execute-like-core",

@@ -79,8 +79,14 @@ test("a procedure called via a body of aliases emits procedure-enter/exit with t
 });
 
 test("`cs` emits a clear event whose payload mode is the canonical `clear_screen`, not the alias", () => {
-  const [, clear] = eventsOf("cs\n"); // [instruction, clear]
-  assert.equal(clear.kind, "clear");
+  // [instruction, move, turn, clear] — since issue #847 `clear_screen` makes its homing
+  // observable, so the alias emits the homing pair before the clear just as the Core spelling does.
+  const events = eventsOf("cs\n");
+  assert.deepEqual(
+    events.map((e) => e.kind),
+    ["instruction", "move", "turn", "clear"],
+  );
+  const clear = events.at(-1);
   assert.deepEqual(clear.payload, { mode: "clear_screen" });
 });
 
