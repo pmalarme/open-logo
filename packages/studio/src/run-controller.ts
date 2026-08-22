@@ -214,12 +214,17 @@
  * exactly one entry per attempt, and a chain can never fail to make progress. Keeping a counter for
  * a branch no program can reach would have been untestable code guarding an impossible state.
  * (What the cap never covered, before or after, is a chain with genuinely *unbounded* reads such as
- * `forever [ input "?" ]` under a synchronous host: every attempt there answers one more read, so it
- * always counted as progress. That one does terminate — the single execution's `instructionBudget`
- * eventually fires — just slowly, since each attempt replays the whole prefix. What is bounded by
- * **nothing** is a *host* that restarts the run from inside `present()`, because each restart brings
- * a fresh budget; that is a host-contract matter and is documented on {@link InputPromptHost} in
- * `input-prompt.ts`.)
+ * `forever [ :answer = input "?" ]` under a synchronous host — note the **assignment**: a bare
+ * `input "?"` statement reads nothing at all, since a reporter in statement position is never
+ * evaluated, and that program simply exhausts its budget. Every attempt of the assigned form
+ * answers one more read, so it always counted as progress. A *single* `execute()` of it does
+ * terminate on the instruction budget in about three seconds; the studio's **replayed chain** of it
+ * terminates only in principle, because attempt *k* answers just *k* reads, so reaching the budget
+ * needs on the order of 10^11 presentations — measured at 52 presentations per second, i.e. decades.
+ * Treat it as a hang. What is bounded by
+ * **nothing** at all is a *host* that restarts the run from inside `present()`, because each restart
+ * brings a fresh budget; that is a host-contract matter and is documented on {@link InputPromptHost}
+ * in `input-prompt.ts`.)
  *
  * A probe's own diagnostics are deliberately withheld while its question is outstanding, because the
  * only diagnostic a probe can carry is the reader's own forced cancellation: parse diagnostics stop
@@ -627,11 +632,14 @@ export function createRunController(
   // lifecycle call then unwinds into a pump loop that would otherwise run one more attempt on a
   // chain the learner has already ended. Observed: `respond(); stop()` replaced the output the
   // learner had just seen with the empty output of a pre-cancelled attempt, and `respond(); reset()`
-  // finished `"done"` over an emptied `chainSource` instead of settling `"idle"`. **Stop and Reset
-  // are the only transitions that end a chain**, so they alone bump this; `run()` does not, because
-  // it is unreachable while a chain is live (`#314` ignores it unless `runStatus` has already left
-  // `"running"`, which only Stop/Reset do) — a bump there would be ceremony, not behaviour. The
-  // pending request carries the generation it was made for: the same generation-token shape
+  // finished `"done"` over an emptied `chainSource` instead of settling `"idle"`. Stop and Reset
+  // bump this because they are the only **re-entrant lifecycle operations that invalidate queued
+  // work** — not because they are the only ways a chain ends (normal completion and a dismissed
+  // question end one too, but neither leaves a queued request behind to invalidate). `run()` does
+  // not bump: it is unreachable while a chain is live, since `#314` ignores it unless `runStatus`
+  // has already left `"running"`, and a bump there is provably inert — the nested `pump()` reads
+  // `chainGeneration` at the moment it queues, so both sides of the comparison would move together.
+  // The pending request carries the generation it was made for: the same generation-token shape
   // `promptGeneration` already uses for a late responder, kept separate because the responder
   // itself bumps that one.
   let chainGeneration = 0;
@@ -937,10 +945,16 @@ export function createRunController(
       // the loop: `settleAttempt` reads a non-null request as "this attempt was superseded, do not
       // commit its outcome", so a stale one left behind would suppress settlement forever — a later
       // lazy `step()` would finish its animation with `runStatus` stuck at `"running"`, which
-      // `run()`'s #314 guard then reads as a run in progress and ignores. It is cleared here rather
-      // than in `settleAttempt`'s condition because the suppression is correct *while* the loop is
-      // unwinding (that is what stops a probe's outcome overwriting Reset's `"idle"`) and wrong
-      // only once it has finished.
+      // `run()`'s #314 guard then reads as a run in progress and ignores.
+      //
+      // Making `settleAttempt`'s own condition chain-aware instead measures **identically** on
+      // every probe and survives the whole suite, so this is a choice between two correct
+      // placements rather than a correctness argument — an earlier version of this comment claimed
+      // otherwise from reasoning that was never run, and `@testing` disproved it by building the
+      // variant. (The reason the variant is also safe: `reset()` calls `animation.reset()`, so the
+      // controller `settleAttempt` inspects is no longer `"done"` and it returns at its first check
+      // regardless.) Clearing here is preferred only because it bounds the marker's lifetime to the
+      // loop that owns it, so no other reader has to reason about a stale value at all.
       pendingPumpGeneration = null;
     }
   }

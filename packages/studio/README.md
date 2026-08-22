@@ -223,8 +223,8 @@ shapes with an **attempt chain**.
   closed).** A replay is only a continuation if it *reproduces* the attempt before it. Before this,
   `random` with no `randomize <seed>` reseeded from the wall clock on every `execute()` call, so a
   program whose control flow depended on randomness *before* a read could replay into a **different
-  question** than the learner was shown, and already-drawn output could change underneath them.
-  `run()` now draws one
+  question** than the learner was shown, and already-drawn output could change underneath
+  them. `run()` now draws one
   [`ExecuteOptions.randomSeed`](https://github.com/pmalarme/open-logo/issues/865) per chain (from
   `RunControllerOptions.randomSeedSource`, `Date.now` by default — the same implementation-chosen
   seed the runtime would have picked itself, so an ordinary run is no more predictable than before)
@@ -234,8 +234,8 @@ shapes with an **attempt chain**.
   even a no-argument `randomize` derives its implementation seed by advancing the generator rather
   than reading the clock. The runtime's other caller-supplied functions cannot reintroduce variance
   here either — this package passes `eduTutorTemplate`, a pure mapping, and a reader that answers
-  only from the chain's frozen FIFO. So every
-  attempt is bit-identical up to the read the newest answer extends — the branch a `random` chose
+  only from the chain's frozen FIFO. So every attempt is bit-identical up to the read the
+  newest answer extends — the branch a `random` chose
   cannot change under the covers, the question is never re-asked, what is already on screen is never
   rewritten, and two `input` sites asking the identical prompt text each receive their own answer,
   because a read's FIFO position is now a stable identity.
