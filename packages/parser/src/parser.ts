@@ -1494,15 +1494,26 @@ export function parse(source: string, document = "<input>"): ParseResult {
       // The `pos === beforeInner` guard is what keeps this honest: when the reader *did* consume
       // and diagnose something (`( + 1 )` — `parsePrimary` reports `+` and advances), the operand
       // is already accounted for, and recovering again here would diagnose the innocent token
-      // after it. {@link unexpected} rather than `badToken` so a delimiter keeps its own code —
-      // `( ] )` must report `ol-unmatched-bracket`, not a generic bad token.
+      // after it.
       //
       // `eof` is excluded because there is no token there to step over: an unterminated `( `
       // consumes nothing, so it satisfies the progress guard, but its only real error is the
       // unmatched `(` reported below. Recovering would add a spurious
       // `ol-bad-token {"text":"end of file"}` in front of it (issue #830 review).
-      diagnostics.push(unexpected(current()));
-      advance();
+      //
+      // {@link resync} rather than a blanket `badToken` so the token keeps whatever code
+      // `spec/error-model.md` gives it — `( ] )` stays `ol-unmatched-bracket`, and `( end )` /
+      // `( else )` stay `ol-mismatched-end` with their `expected` param, which is what statement
+      // -level recovery would have reported before the group started consuming the token itself.
+      //
+      // KNOWN LIMITATION, deliberately not fixed here: this recovers exactly ONE token, so a
+      // group whose operand is several tokens (`( value 1 )`, `( value value )`, `( value key )`)
+      // still reports `ol-unmatched-paren` for both of its balanced delimiters, and
+      // `if ( value ) [ … ]` still mis-blames the block-opening `[`. Clearing those needs
+      // delimiter-aware synchronisation to the matching `)`, a wider change than this slice is
+      // authorised for. Left exactly as found rather than half-fixed; the `( + 1 )` regression
+      // test asserts the full diagnostic list, so the wart is visible in-repo.
+      resync();
       skipNewlines();
     }
     if (current().kind === "rparen") {

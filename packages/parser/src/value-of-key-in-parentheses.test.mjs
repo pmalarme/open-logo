@@ -229,11 +229,13 @@ test("a balanced group whose operand is rejected reports no unmatched parenthesi
     );
   }
   // A genuinely unbalanced group must still report it, so the recovery has not silenced the code.
-  const unbalanced = allDiagnostics("print (1 + 2\n").map((d) => d.code);
-  assert.equal(
-    unbalanced.includes("ol-unmatched-paren"),
-    true,
-    "an unclosed group must still report ol-unmatched-paren",
+  // Asserted as the COMPLETE list: `.includes` would pass alongside arbitrary extra diagnostics.
+  // Note `1 + 2` parses, so `inner !== undefined` and the recovery branch never runs here — this
+  // pins the untouched path, which is the point.
+  assert.deepEqual(
+    allDiagnostics("print (1 + 2\n").map((d) => d.code),
+    ["ol-unmatched-paren"],
+    "an unclosed group must report exactly its unmatched parenthesis",
   );
 });
 
@@ -241,24 +243,48 @@ test("the group recovery only fires when the operand consumed nothing", () => {
   // The `pos === beforeInner` guard in `parseParenthesized`. Without it the recovery re-reports
   // after an operand that ALREADY diagnosed and advanced, blaming the innocent token behind it:
   // `( + 1 )` would name `1`, a perfectly valid token, alongside the real complaint about `+`.
-  const codes = OL.parse("print (+ 1)\n", doc).diagnostics.map((d) => d.code);
-  const named = OL.parse("print (+ 1)\n", doc)
-    .diagnostics.filter((d) => d.code === "ol-bad-token")
-    .map((d) => d.params.text);
-  assert.deepEqual(named, ["+"], "recovery blamed a token it did not reject");
-  assert.equal(codes.filter((c) => c === "ol-bad-token").length, 1);
+  //
+  // The COMPLETE list is asserted, which also makes the known limitation visible: this group is
+  // balanced, yet both parens are still reported unmatched, because recovery handles a
+  // single-token operand only. That is pre-existing and identical to the base commit — see the
+  // KNOWN LIMITATION note in `parseParenthesized`.
+  const diagnostics = OL.parse("print (+ 1)\n", doc).diagnostics;
+  assert.deepEqual(
+    diagnostics.map((d) => d.code),
+    ["ol-bad-token", "ol-unmatched-paren", "ol-unmatched-paren"],
+  );
+  assert.deepEqual(
+    diagnostics
+      .filter((d) => d.code === "ol-bad-token")
+      .map((d) => d.params.text),
+    ["+"],
+    "recovery blamed a token it did not reject",
+  );
 });
 
 test("the group recovery keeps a delimiter's own diagnostic code", () => {
-  // It reports through `unexpected()`, not a blanket `badToken`, so a closing delimiter inside a
-  // group still gets the code `spec/error-model.md` gives it: `( ] )` is a bracket-matching
-  // error, not a generic bad token.
-  const diagnostics = OL.parse("print (])\n", doc).diagnostics;
+  // It reports through `resync()`, not a blanket `badToken`, so a token inside a group keeps the
+  // code `spec/error-model.md` gives it rather than being flattened to a generic bad token.
+  // `( ] )` is a bracket-matching error; `( end )` and `( else )` are block-structure errors that
+  // carry an `expected` param, which is what statement-level recovery reported before the group
+  // began consuming the token itself.
   assert.deepEqual(
-    diagnostics.map((d) => d.code),
+    OL.parse("print (])\n", doc).diagnostics.map((d) => d.code),
     ["ol-unmatched-bracket"],
     "a `]` inside a group must keep ol-unmatched-bracket",
   );
+  for (const [source, expected] of [
+    ["print (end)\n", "block"],
+    ["print (else)\n", "if"],
+  ]) {
+    const diagnostics = OL.parse(source, doc).diagnostics;
+    assert.deepEqual(
+      diagnostics.map((d) => d.code),
+      ["ol-mismatched-end"],
+      `${source} lost its block-structure diagnostic`,
+    );
+    assert.equal(diagnostics[0].params.expected, expected);
+  }
 });
 
 test("an unterminated group reports only its unmatched parenthesis", () => {
