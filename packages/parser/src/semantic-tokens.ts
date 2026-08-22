@@ -20,7 +20,7 @@
  *    {@link Token.declaration} and read straight through as `declaration`; every other
  *    `:variable` token is a `reference` (a read, or an assignment/place target — including the
  *    bare-form head of `set count to 5`, which mirrors the colon-form `:count = 5`). A
- *    destructuring `[ :x :y ]` pattern (`spec/grammar.md:136-137`) has no dedicated
+ *    destructuring `[ :x :y ]` pattern (`spec/grammar.md:138-139`) has no dedicated
  *    binding-site resolution here (see `ast.ts`'s `Binder`), so a destructured name's own `:x`
  *    token still surfaces only as a `reference`, never a `declaration`.
  *  - `:variable` reads of a `map`/`filter`/`reduce` binder or `reduce` accumulator inside that
@@ -143,7 +143,7 @@ function modifiersFor(
 
 /**
  * The lowercase name(s) a comprehension binder introduces: one for a bare `name`, or one per
- * `:name` in a destructuring `[ :x :y ]` pattern (`spec/grammar.md:136-137`, mirroring
+ * `:name` in a destructuring `[ :x :y ]` pattern (`spec/grammar.md:138-139`, mirroring
  * `checker-undefined-var.ts`'s own `binderNames` helper for `for … in`/comprehension binders).
  */
 function namesOf(binder: Binder): string[] {

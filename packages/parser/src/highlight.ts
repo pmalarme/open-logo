@@ -251,7 +251,7 @@ export function highlight(source: string, document = "<input>"): Token[] {
 
   /**
    * Mark a `for`/`map`/`filter`/`reduce` binder's bare name as a `declaration` binding site.
-   * A destructuring `[ :x :y ]` binder (`spec/grammar.md:136-137`) names its members with
+   * A destructuring `[ :x :y ]` binder (`spec/grammar.md:138-139`) names its members with
    * `variable`-kind tokens that {@link classifyToken} already classes `:variable`, so it needs
    * no marking here — and deliberately keeps its existing `reference` modifier, since resolving
    * a destructured name's own binding site is not part of this rule.

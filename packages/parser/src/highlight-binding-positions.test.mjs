@@ -25,7 +25,8 @@
 //     is a name the *program* chose, not structure;
 //   * `primitive` (`spec/tooling.md:31`) is scoped to "the C3 primitive matrix", so painting a
 //     learner's own binder `primitive` asserts standard-library membership it does not have —
-//     `semanticTokens` then decorated it `defaultLibrary`, which is pinned against below.
+//     `semanticTokens` then decorated it `defaultLibrary` (`spec/tooling.md:277-279`), which is
+//     pinned against below.
 //
 // Measured at the previous HEAD (`fc4371d`), sanity-asserted with a probe that classified
 // `print 1` correctly first: `set if to 5`, `local if`, `for if in …`, and `map if in …` all
@@ -114,8 +115,10 @@ const PRIMITIVES = ["count", "forward", "print", "hint"];
 function bindingToken(form, word) {
   const source = form.prefix + word + form.suffix;
   const { diagnostics } = OL.parse(source, doc);
+  // Compared whole rather than projected to codes: an always-empty array never invokes a
+  // `.map` callback, which Node 22's coverage counts as an uncovered function.
   assert.deepEqual(
-    diagnostics.map((diagnostic) => diagnostic.code),
+    diagnostics,
     [],
     `${form.label} with \`${word}\` must parse clean: ${JSON.stringify(source)}`,
   );
@@ -334,7 +337,7 @@ test("AC4: profile block-heads classify unconditionally — the highlighter take
 
 test("semanticTokens: a binder is a `declaration` and loses the bogus `defaultLibrary`", () => {
   // The concrete learner-visible harm of the old `primitive` class: `local forward` claimed
-  // standard-library membership (`spec/tooling.md:277`) for the learner's own variable.
+  // standard-library membership (`spec/tooling.md:277-279`) for the learner's own variable.
   for (const [source, text] of [
     ["local forward\n", "forward"],
     ["for fd in [1 2] [ print 1 ]\n", "fd"],
