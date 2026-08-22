@@ -18,16 +18,15 @@
 // curriculum actually teaches at Level 5, falls straight through it.) This file closes that gap by
 // putting the curriculum corpus through `check()` as well.
 //
-// **The forward-looking half.** `checker-reserved-word.ts` does not yet consult every primitive
-// table — Turtle & Rendering awaits issue #783, and the Educational meta-commands are not wired in
-// either — so today `check()` alone would not catch a lesson that declared `forward` or `hint`.
-// {@link builtInKind} therefore evaluates the *completed* rule of `spec/grammar.md:361-363,414`
-// directly off the registries `@openlogo/parser` already publishes: the keyword list under **every**
-// profile (`spec/grammar.md:408` — profile words are built-in unconditionally), every primitive
-// table, and every Heritage alias spelling — plus {@link TUTOR_AI_PRIMITIVES}, one explicit
-// exception for a name the spec assigns whose profile has no signature table yet. That way this
-// audit protects the curriculum on the day those slices land rather than on the day a learner hits
-// it. Where the two halves disagree, the registry half is the stricter one and the one that decides.
+// **The independent half.** {@link builtInKind} does not ask `check()` whether a name is owned; it
+// evaluates the rule of `spec/grammar.md:361-363,414` directly off the registries `@openlogo/parser`
+// publishes — the keyword list under **every** profile (`spec/grammar.md:408` — profile words are
+// built-in unconditionally), every primitive table, and every Heritage alias spelling. That is a
+// second, independent derivation of the same rule, so the two halves cross-check each other: a
+// curriculum name is reported the moment *either* the checker or the spec's own registries call it
+// owned. It is also what let this audit hold the curriculum to the finished rule while the checker
+// was still catching up — before issue #838 landed, `check()` consulted neither the Turtle &
+// Rendering nor the Educational table, so `define forward` and `define hint` were accepted.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as OL from "@openlogo/edu";
@@ -45,35 +44,27 @@ import {
   soundPrimitiveArity,
   spritesPrimitiveArity,
   turtlePrimitiveArity,
+  tutorPrimitiveArity,
   walk,
 } from "@openlogo/parser";
 
 /**
  * Every primitive table the spec's built-in-name set draws on (`spec/grammar.md:414` — "every
- * primitive … assigned by the C3 primitive matrix and the profile documents"). Turtle & Rendering
- * and Educational are included deliberately: `check()` does not consult them yet, and a lesson
- * declaring `forward` or `hint` is exactly what this audit exists to prevent.
+ * primitive … assigned by the C3 primitive matrix and the profile documents"), including the
+ * Turtle & Rendering, Educational and Tutor (AI) tables. Listing every one is what makes
+ * {@link builtInKind} a derivation of the spec rather than a mirror of the checker's wiring.
  */
 const PRIMITIVE_TABLES = [
   corePrimitiveArity,
   turtlePrimitiveArity,
   dataPrimitiveArity,
   educationalPrimitiveArity,
+  tutorPrimitiveArity,
   geometryPrimitiveArity,
   interactionPrimitiveArity,
   soundPrimitiveArity,
   spritesPrimitiveArity,
 ];
-
-/**
- * Names this specification version assigns as primitives but `@openlogo/parser` has no signature
- * table for yet. `challenge` is the Tutor (AI) profile's meta-command (`spec/conformance.md:239`,
- * `:244`), and `spec/grammar.md:408` makes every profile's primitives built-in names "in **every**
- * implementation, whether or not that profile is claimed" — so a learner may not declare it even
- * though nothing rejects `define challenge` today. Delete an entry here the day its profile gains a
- * table, rather than letting this set quietly become a second, drifting registry.
- */
-const TUTOR_AI_PRIMITIVES = new Set(["challenge"]);
 
 /** Every Heritage alias spelling; `spec/grammar.md:359` makes an alias a built-in name too. */
 const HERITAGE_ALIASES = new Set(heritageAliasNames());
@@ -93,9 +84,6 @@ function builtInKind(name) {
     return "keyword";
   }
   if (PRIMITIVE_TABLES.some((arityOf) => arityOf(canonical) !== undefined)) {
-    return "primitive";
-  }
-  if (TUTOR_AI_PRIMITIVES.has(canonical)) {
     return "primitive";
   }
   if (HERITAGE_ALIASES.has(canonical)) {
@@ -283,8 +271,9 @@ test("the Geometry standard library stays learner-buildable and the overlays sta
 });
 
 // AC4: the meta-commands a learner asks for help with are themselves built-in names, so no lesson
-// may declare one. `challenge` is the Tutor (AI) profile's, and reaches {@link builtInKind} through
-// {@link TUTOR_AI_PRIMITIVES} rather than a signature table — see that set's note.
+// may declare one. `challenge` is the Tutor (AI) profile's (`spec/conformance.md:239`, `:244`) and
+// reaches {@link builtInKind} through `tutorPrimitiveArity`; `spec/grammar.md:408` makes it owned
+// whether or not that profile is claimed.
 test("no lesson declares an educational meta-command", () => {
   for (const name of ["explain", "why", "hint", "debug", "challenge"]) {
     assert.equal(

@@ -115,13 +115,14 @@ cleanly through an execution-only test. (The runtime's own phase-1 registration 
 for some `struct` collisions, so the hole is not total — but a procedure declaration, which is what
 Level 5 teaches, falls straight through it.)
 
-Note the rule above is the **completed** one. `check()` does not consult every primitive table yet —
-Turtle & Rendering awaits [#783](https://github.com/pmalarme/open-logo/issues/783) and the
-meta-commands are not wired in — so `define forward` and `define hint` are still accepted today. The
-naming half of the gate is therefore enforced by `built-in-names.test.mjs`'s own `builtInKind()`,
-which reads the completed rule off `@openlogo/parser`'s registries **plus one explicit exception for
-the Tutor (AI) profile's `challenge`**, whose signature table does not exist yet — and not by
-`check()`. Lesson content is held to the finished rule now, so nothing breaks when those slices land.
+Note the rule above is enforced twice over, by two independent derivations. `check()` rejects a
+built-in name at the declaration slots, and `built-in-names.test.mjs`'s own `builtInKind()` reads
+the same rule off `@openlogo/parser`'s registries — the keyword list under every profile, every
+primitive table, and every Heritage alias — without consulting the checker at all. A curriculum name
+is reported the moment either one calls it owned, so a regression in either is caught. That second
+derivation is also what held lesson content to the finished rule while the checker was catching up:
+before [#838](https://github.com/pmalarme/open-logo/issues/838), `check()` consulted neither the
+Turtle & Rendering nor the Educational table, so `define forward` and `define hint` were accepted.
 
 Later levels (Level 6 onward) add their own `lessons/level-N.ts` module and extend the registry
 additively — no shared file needs an ever-growing literal, and no level uses a concept from a later
