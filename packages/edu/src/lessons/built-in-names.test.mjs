@@ -227,11 +227,12 @@ test("the audit models the three reachable declaration slots, case and suffix in
     declaredNames("if true\n  define forward :n\n    print :n\n  end\nend if"),
     ["forward"],
   );
-  // ...and text inside a block comment is not one.
+  // ...and text inside a comment is not one, block or line.
   assert.deepEqual(
     declaredNames("/* a note about\ndefine forward :n\nend\n*/\nforward 10"),
     [],
   );
+  assert.deepEqual(declaredNames("# define forward :n\nforward 10"), []);
 
   assert.equal(builtInKind("FD"), "alias");
   assert.equal(builtInKind("Repeat"), "keyword");
