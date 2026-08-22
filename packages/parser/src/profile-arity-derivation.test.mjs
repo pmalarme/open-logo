@@ -129,19 +129,27 @@ test("every registered primitive of every profile is arity-checked when its prof
   }
 
   assert.deepEqual([...new Set(notYetVisible)].sort(), ["challenge"]);
-  // Account for every registered name exactly, rather than asserting a magic minimum: each is
-  // either arity-checked, an open variadic that cannot be over-supplied, or a not-yet-visible
-  // exception. A registry entry emptied or dropped shrinks `registered` without breaking the
-  // identity, so the floor below — deliberately just under today's exact count of 85 — is what
-  // stops the sweep going vacuous. Both must hold.
+  // The anti-vacuity guard, and the whole of it: 85 is the DAG's exact registered count today, not
+  // a conservative bound, so removing or emptying any entry trips this deliberately. If you are
+  // reading this because it failed, the question to answer is "was a primitive meant to disappear?"
+  // — not "is this bound stale?".
+  assert.ok(
+    registered >= 85,
+    `the DAG registers exactly 85 primitives today; this sweep saw only ${registered}, so a registry entry was emptied or dropped`,
+  );
+  // Every registered name was accounted for by exactly one of the three buckets. This is a loop
+  // invariant, not a property of the checker — as the loop is written today it cannot fail — and is
+  // kept only so a future edit that adds a fourth path through the body has to say which bucket it
+  // belongs to. The assertions above and below are what actually carry this test.
   assert.equal(
     checked + openVariadics.length + notYetVisible.length,
     registered,
   );
-  assert.ok(
-    registered >= 85,
-    `the DAG registers 85 primitives today; this sweep saw only ${registered}, so a registry entry was emptied or dropped`,
-  );
+  // The ceiling half, as a tripwire rather than a tautology: exactly these four names are open
+  // variadics across the whole DAG. A `maxArity` table wired to the wrong profile shows up here
+  // immediately — give `data` Core's ceiling table and `list` drops out of this set; give Core
+  // Data's and `print`/`word`/`sentence` do.
+  assert.deepEqual(openVariadics.sort(), ["list", "print", "sentence", "word"]);
 });
 
 test("a registered primitive is NOT arity-checked when its own profile is inactive", () => {
@@ -191,10 +199,14 @@ test("each profile's registry entry points at that profile's own source-of-truth
         range.min,
         `${profile}'s registry entry disagrees with ${profile}'s own arity table for ${name}`,
       );
-      // The ceiling half. A `maxArity` table wired to the wrong profile shows up here as a name
-      // whose ceiling is not reachable from its own profile alone, or as a whole-DAG lookup that
-      // resolves differently from the single-profile one — neither of which the `.min` comparison
-      // above can see, since only `core-language` and `data` register a ceiling table at all.
+      // Both reviewers flagged the comment that used to sit here as overpromising, and they were
+      // right: this does NOT catch a `maxArity` table wired to the wrong profile. A ceiling entry
+      // only fires when the name is also in the SAME entry's `arity` map, so a misrouted ceiling
+      // table is silently orphaned and both lookups return the same (wrongly flattened) range.
+      // What it does catch is a name whose range differs between its own profile and the whole DAG
+      // — i.e. a disjointness violation that shifts a name's range. That is belt-and-braces with
+      // the disjointness test below, which reports it more directly. The real ceiling guards are
+      // the open-variadic exact set and the bounded-alternate clean-at-ceiling probe in the sweep.
       assert.deepEqual(
         OL.activeProfilePrimitiveArityRange(name, OL.OL_CHECK_PROFILES),
         range,
@@ -340,49 +352,57 @@ test("a user procedure keeps its own arity and its canonical name, whatever the 
   assert.deepEqual(arity.params, { callable: "home", expected: 1, actual: 0 });
 });
 
-test("a user procedure's and a struct constructor's params.callable is canonical too, not the call site's spelling", () => {
-  // The declaration-side counterpart of the primitive table above, and the reason it needs its own
-  // test: a procedure named in all-lowercase makes `raw === lower`, so an assertion written that
-  // way cannot tell canonical from surface and would pass either way. These cases are deliberately
-  // MIXED CASE, and the call sites deliberately spell the name differently from the declaration.
+test("a user procedure's and a struct constructor's params.callable is the DECLARED spelling, not the call site's", () => {
+  // The declaration-side counterpart of the primitive table above, and a different rule from it.
   //
   // `params` is compared by the conformance harness (unlike `message`), so this is diagnostic
-  // IDENTITY, not prose. OpenLogo identifiers are case-insensitive, so `Sq`, `SQ`, and `sq` name
-  // one procedure — hence one condition, which `spec/error-model.md:253-256` requires to carry one
-  // set of params, in the canonical lowercase spelling `:199` prefers for display. Reporting the
-  // call site's spelling would make the same defect produce two different structured identities.
+  // IDENTITY. Identifiers are case-insensitive, so `Sq`, `SQ`, and `sq` name one procedure — one
+  // condition, which `spec/error-model.md:253-256` requires to carry one set of params. The call
+  // site's spelling therefore cannot be the identity. What supplies it is the name's *definition*:
+  // for a built-in that is the canonical lowercase name (asserted above); for a learner's own
+  // `define`/`struct` it is whatever they wrote. `define MyProc` reports `MyProc` however it is
+  // called — lowercasing would show a learner a name they never wrote, and echoing the call site
+  // would give one condition three identities (which is what the pre-#874 code did).
+  //
+  // Every case below spells the CALL SITE differently from the DECLARATION, so an implementation
+  // that echoed the call site fails all of them, and one that lowercased fails all of them too.
   const procedureCases = [
-    ["define Sq :a\nend\nSQ", "sq", 1, 0],
-    ["define Sq :a\nend\n(sQ 1 2)", "sq", 1, 2],
-    ["define Sq :a\nend\n(Sq)", "sq", 1, 0],
+    ["define Sq :a\nend\nSQ", "Sq", 1, 0],
+    ["define Sq :a\nend\n(sQ 1 2)", "Sq", 1, 2],
+    ["define Sq :a\nend\n(sq)", "Sq", 1, 0],
+    ["define lowerCased :a\nend\n(LOWERCASED 1 2)", "lowerCased", 1, 2],
   ];
-  for (const [source, canonical, expected, actual] of procedureCases) {
+  for (const [source, declared, expected, actual] of procedureCases) {
     const findings = checkCodes(source, ["core-language", "turtle-rendering"]);
     assert.equal(findings.length, 1, source);
-    assert.equal(findings[0].params.callable, canonical, source);
+    assert.equal(findings[0].params.callable, declared, source);
     assert.equal(findings[0].params.expected, expected, source);
     assert.equal(findings[0].params.actual, actual, source);
-    assert.match(findings[0].message, new RegExp(`^${canonical} `), source);
+    assert.ok(
+      findings[0].message.startsWith(`${declared} `),
+      `${source}: message should open with the declared spelling, got ${JSON.stringify(findings[0].message)}`,
+    );
   }
 
-  // A struct constructor is exact-arity in either call form, and takes the identical canonical
-  // treatment — the second callable reached through `checkExactArity`.
+  // A struct constructor is exact-arity in either call form, and takes the identical treatment —
+  // the second callable reached through `checkExactArity`.
   const structCases = [
-    ["struct Point [ x y ]\n(POINT 1)", "point", 2, 1],
-    ["struct Point [ x y ]\n(pOiNt 1 2 3)", "point", 2, 3],
+    ["struct Point [ x y ]\n(POINT 1)", "Point", 2, 1],
+    ["struct Point [ x y ]\n(pOiNt 1 2 3)", "Point", 2, 3],
   ];
-  for (const [source, canonical, expected, actual] of structCases) {
+  for (const [source, declared, expected, actual] of structCases) {
     const findings = checkCodes(source, ["core-language", "data"]);
     assert.equal(findings.length, 1, source);
-    assert.equal(findings[0].params.callable, canonical, source);
+    assert.equal(findings[0].params.callable, declared, source);
     assert.equal(findings[0].params.expected, expected, source);
     assert.equal(findings[0].params.actual, actual, source);
   }
 
-  // And the property that motivates all of it: one defect, one identity, whatever the spelling.
+  // And the property that motivates all of it: one defect, one identity, however it is spelled.
   const [lower] = checkCodes("define Sq :a\nend\n(sq 1 2)", ["core-language"]);
   const [upper] = checkCodes("define Sq :a\nend\n(SQ 1 2)", ["core-language"]);
   assert.deepEqual(lower.params, upper.params);
+  assert.equal(lower.params.callable, "Sq");
 });
 
 test("an unrecognized profile identifier registers nothing and breaks nothing", () => {

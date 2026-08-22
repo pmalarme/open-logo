@@ -66,13 +66,26 @@
  * remaining half of epic #900's "no component enumerates built-in names by hand" and is deliberately
  * left to its own slice, since that file is outside this one's declared write-set.
  *
- * ## `params.callable` is the canonical name
+ * ## `params.callable` is the name as its definition declares it
  * Diagnostic identity is `code` plus `params`, and the same condition MUST carry the same
- * structured params (`spec/error-model.md:253-256`; canonical lowercase is also what the spec
- * prefers for display, `:199`). OpenLogo identifiers are case-insensitive and Heritage is
- * "alternate spellings only, no new semantics" (`spec/conformance.md:146`), so `(REVERSE 1 2)`,
- * `(reverse 1 2)`, `(bf 1 2)`, and `(butfirst 1 2)` are each the same condition as their canonical
- * twin and report the canonical lowercase name — never the surface spelling.
+ * structured params (`spec/error-model.md:253-256`). OpenLogo identifiers are case-insensitive, so
+ * the *call site's* spelling can never be the identity: `(SQ 1 2)` and `(sq 1 2)` are one condition
+ * and must report one `callable`. The rule is therefore **the spelling the name's definition
+ * declares**, which resolves both kinds of callee without special-casing either:
+ *
+ * - **A built-in** is declared by OpenLogo itself, and its declared spelling is the canonical
+ *   lowercase name in `signatures.ts`. So `(REVERSE 1 2)` reports `reverse`, and a Heritage alias
+ *   reports its canonical twin (`(bf 1 2)` → `butfirst`) — Heritage is "alternate spellings only,
+ *   no new semantics" (`spec/conformance.md:146`), the behaviour issues #670/#733/#741/#787 pinned.
+ *   Before #874 only Core and Heritage did this while Data/Geometry/Sound/Interaction echoed the
+ *   surface spelling, so one condition had two identities depending on which profile owned it.
+ * - **A user procedure or struct constructor** is declared by the learner, and *its* declared
+ *   spelling is whatever the `define`/`struct` wrote. `define MyProc` reports `MyProc` — from the
+ *   declaration, not from the call — so `(MyProc)`, `(myproc)`, and `(MYPROC)` all report `MyProc`.
+ *   Lowercasing it would discard the only authority there is and show a learner a name they never
+ *   wrote; echoing the call site would give one condition three identities. Note the pre-#874 code
+ *   did the latter: it passed the *call site's* spelling, so the reported name changed with how the
+ *   procedure happened to be called.
  */
 
 import type { Diagnostic, SourceSpan } from "@openlogo/core";
@@ -93,6 +106,12 @@ import { activeProfilePrimitiveArityRange } from "./signatures.js";
 interface Arity {
   readonly required: number;
   readonly max: number;
+  /**
+   * The name exactly as its `define`/`struct` declared it, surface case preserved. This — not the
+   * call site's spelling and not a lowercased form — is what a finding reports as
+   * `params.callable`; see the module doc's `params.callable` section for why.
+   */
+  readonly declared: string;
 }
 
 function isCallSite(node: AnyNode): node is CallNode | ParenCallNode {
@@ -100,10 +119,11 @@ function isCallSite(node: AnyNode): node is CallNode | ParenCallNode {
 }
 
 /**
- * Every user procedure's arity, keyed by its canonical lowercase name. A procedure's required
- * floor is its count of parameters without a default; its ceiling is its total parameter count.
- * A later `define` of the same name overwrites the earlier one here — redefining a procedure is
- * `ol-duplicate-definition`'s concern (issues #113, #838), not this rule's.
+ * Every user procedure's arity, keyed by its canonical lowercase name and carrying the spelling its
+ * `define` declared. A procedure's required floor is its count of parameters without a default; its
+ * ceiling is its total parameter count. A later `define` of the same name overwrites the earlier one
+ * here — redefining a procedure is `ol-duplicate-definition`'s concern (issues #113, #838), not this
+ * rule's — so the declared spelling reported is the last declaration's, matching the arity beside it.
  */
 function collectProcedureArities(
   program: ProgramNode,
@@ -117,6 +137,7 @@ function collectProcedureArities(
       arities.set(node.name.name.toLowerCase(), {
         required,
         max: node.params.length,
+        declared: node.name.name,
       });
     }
   });
@@ -147,6 +168,7 @@ function collectStructConstructorArities(
       arities.set(node.name.name.toLowerCase(), {
         required: fieldCount,
         max: fieldCount,
+        declared: node.name.name,
       });
     }
   });
@@ -303,14 +325,20 @@ export function arityRule(
 
     const procedure = procedures.get(lower);
     if (procedure !== undefined) {
-      checkExactArity(lower, procedure, actual, span, diagnostics);
+      checkExactArity(procedure.declared, procedure, actual, span, diagnostics);
       return;
     }
 
     if (structs !== undefined) {
       const structArity = structs.get(lower);
       if (structArity !== undefined) {
-        checkExactArity(lower, structArity, actual, span, diagnostics);
+        checkExactArity(
+          structArity.declared,
+          structArity,
+          actual,
+          span,
+          diagnostics,
+        );
         return;
       }
     }
