@@ -749,11 +749,16 @@ test("two define f ... end blocks only flag the second, later occurrence", () =>
   assert.deepEqual(findings[0].params, { name: "f", namespace: "procedure" });
 });
 
-test("local first inside a procedure body collides with a Core primitive the same way define does", () => {
-  const [finding] = checkSource(
-    "define g :y\n  local first\n  print :y\nend\n",
-  ).filter(isReservedWordFinding);
-  assert.deepEqual(finding.params, { name: "first", namespace: "primitive" });
+test("local first inside a procedure body is a binding, so it no longer collides", () => {
+  // Reversed by maintainer ruling #833 (issue #837): `local` is a binding form, not one of the four
+  // declaration slots, and `spec/grammar.md:386` makes accepting the name a MUST. `local first`
+  // used to report `namespace: "primitive"`.
+  assert.deepEqual(
+    checkSource("define g :y\n  local first\n  print :y\nend\n").filter(
+      isReservedWordFinding,
+    ),
+    [],
+  );
 });
 
 test("a fresh, non-colliding define and local are never flagged ol-reserved-word", () => {

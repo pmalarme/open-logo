@@ -47,7 +47,7 @@ import type {
   WordLitNode,
 } from "./ast.js";
 import { parseDiag } from "./errors.js";
-import { OL_RESERVED_WORDS } from "./reserved.js";
+import { OL_KEYWORDS } from "./keywords.js";
 import {
   canonicalOfHeritageAlias,
   heritageAliasArity,
@@ -63,21 +63,21 @@ export interface ParseResult {
 }
 
 /**
- * The reserved words that genuinely *may* begin an `expression` (`spec/grammar.md:190-200`), and
+ * The keywords that genuinely *may* begin an `expression` (`spec/grammar.md:193-206`), and
  * are therefore the only ones {@link parseNamePrimary} reads rather than rejecting:
  *
- * - `true`/`false` — the `boolean-literal` production (`spec/grammar.md:202`).
- * - `map`/`filter`/`reduce` — the `comprehension` production (`spec/grammar.md:200,340-348`), which
- *   "may appear anywhere a value is expected".
- * - `thing` — the one reserved word that is *also* a Core primitive reporter (`thing "name`,
+ * - `true`/`false` — the `boolean-literal` production (`spec/grammar.md:206`).
+ * - `map`/`filter`/`reduce` — the `comprehension` production (`spec/grammar.md:133-136,342-352`),
+ *   which "may appear anywhere a value is expected".
+ * - `thing` — the one keyword that is *also* a Core primitive reporter (`thing "name`,
  *   `spec/commands.md`), so it is a real `fixed-call` callee.
  *
  * `value` is deliberately absent: it heads the `value-of-reader` production
- * (`spec/grammar.md:213`) only when `of` directly follows, which {@link parseNamePrimary} matches
+ * (`spec/grammar.md:217`) only when `of` directly follows, which {@link parseNamePrimary} matches
  * *before* consulting {@link NON_PRIMARY_NAMES} — so the reader form keeps working while a **bare**
  * `value` is rejected like any other misplaced structural word.
  */
-const EXPRESSION_INITIAL_RESERVED_WORDS: ReadonlySet<string> = new Set<string>([
+const EXPRESSION_INITIAL_KEYWORDS: ReadonlySet<string> = new Set<string>([
   "thing",
   "true",
   "false",
@@ -92,10 +92,10 @@ const EXPRESSION_INITIAL_RESERVED_WORDS: ReadonlySet<string> = new Set<string>([
  * ("a token that is itself a valid OpenLogo token but is not permitted at the current grammar
  * position", `spec/error-model.md:109`).
  *
- * **Derived from {@link OL_RESERVED_WORDS}, not hand-listed** (issue #853). "Reserved words are
- * structural tokens recognized by the reader" (`spec/grammar.md:367`) and may never be bound as a
- * primitive, procedure, or constructor, so *every* globally reserved word is illegal in expression
- * position except the handful {@link EXPRESSION_INITIAL_RESERVED_WORDS} names. Deriving the
+ * **Derived from {@link OL_KEYWORDS}, not hand-listed** (issue #853). A keyword is "a word the
+ * grammar itself gives meaning to rather than a name a program can introduce"
+ * (`spec/grammar.md:358`), so *every* keyword is illegal in expression position except the handful
+ * {@link EXPRESSION_INITIAL_KEYWORDS} names. Deriving the
  * complement makes that the invariant: a word added to that registry in a future slice is rejected
  * here automatically, instead of silently becoming a zero-arity {@link ast.call} that no rule flags.
  * Before this, `repeat value [ ]` and `repeat key [ ]` parsed *and* checked completely CLEAN under
@@ -103,8 +103,17 @@ const EXPRESSION_INITIAL_RESERVED_WORDS: ReadonlySet<string> = new Set<string>([
  * position. That is the "silent no-op" class: the program does something other than what was
  * written, and nothing says so.
  *
- * Scope is the **global Core registry only**. `OL_PROFILE_RESERVED_WORDS` (`ask`/`each`/`tell`, the
- * four event heads) is deliberately excluded: those words are reserved only while their profile is
+ * **That invariant has now had its first live test, and it held.** #853 had to carry `mod` as an
+ * explicit extra entry, because `mod` was the one reader-structural word missing from the registry —
+ * the gap #853 filed as #868. Issue #837 closes it: `mod` is a keyword
+ * (`spec/grammar.md:373`, and see `keywords.ts`), so the derivation now supplies it and the hand-kept
+ * exception is **gone**. Removing it is behaviour-preserving by construction — `mod` is in
+ * {@link OL_KEYWORDS} and not in {@link EXPRESSION_INITIAL_KEYWORDS}, so the filter yields it
+ * either way — which is exactly the property #853 built this derivation to guarantee. This set now
+ * has no hand-maintained exceptions at all.
+ *
+ * Scope is the **global Core registry only**. {@link OL_PROFILE_KEYWORDS} (`ask`/`each`/`tell`, the
+ * four event heads) is deliberately excluded: those words are keywords only while their profile is
  * active, and this reader is profile-blind by design (see {@link PROFILE_STATEMENT_FORMS}) — a
  * Core-only program may legally `define ask … end` and call it. Rejecting them in value position is
  * the profile-aware checker's job, not this set's (issue #864).
@@ -112,22 +121,17 @@ const EXPRESSION_INITIAL_RESERVED_WORDS: ReadonlySet<string> = new Set<string>([
  * The statement heads stay unaffected because {@link parseStatement} dispatches `add`/`remove`/
  * `insert`/`clear` by keyword *before* any expression is read, and the bare-key positions
  * (`key-term`, `dict-key`, `.field`) read a raw `name` token rather than a primary — "Dictionary
- * keys and selector bare keys are data, not declarations, so reserved words are legal keys"
- * (`spec/grammar.md:369`) still holds.
+ * keys and selector bare keys are data, not declarations, so built-in names are legal keys"
+ * (`spec/grammar.md:406`) still holds.
  *
- * A `bare-place` (`set value to 1`) also reads a raw `name`, so it too is untouched here — but it is
- * a **binding**, not data, and binding a reserved word stays illegal (`spec/grammar.md:367`). The
- * semantic layer is what rejects it, with `ol-reserved-word`; this set neither adds nor removes that.
- *
- * `mod` is the one non-reserved entry: it is an infix operator word the precedence ladder consumes
- * (`spec/grammar.md:220`), never an expression head.
+ * A `bare-place` (`set value to 1`) also reads a raw `name`, so it too is untouched here. It is a
+ * **binding** rather than data, and `spec/grammar.md:386` makes binding any name — keyword
+ * included — a conforming program, so nothing rejects it at either layer; this set neither adds nor
+ * removes that.
  */
-const NON_PRIMARY_NAMES: ReadonlySet<string> = new Set<string>([
-  ...OL_RESERVED_WORDS.filter(
-    (word) => !EXPRESSION_INITIAL_RESERVED_WORDS.has(word),
-  ),
-  "mod",
-]);
+const NON_PRIMARY_NAMES: ReadonlySet<string> = new Set<string>(
+  OL_KEYWORDS.filter((word) => !EXPRESSION_INITIAL_KEYWORDS.has(word)),
+);
 
 const END_LABELS = new Set<string>([
   "if",
@@ -176,7 +180,7 @@ interface ProfileStatementForm {
  * `bracket-block`, `statement`, and `terminator` productions."). Whether a form is *legal* under
  * the program's active profiles is left to the Layer-2 checker (`spec/tooling.md:175-176`),
  * mirroring how {@link primitiveArity} groups a profile primitive's arguments for the reader while
- * `check()` gates legality. The reserved-word registry (`OL_PROFILE_RESERVED_WORDS`, C1 #663) is
+ * `check()` gates legality. The keyword registry (`OL_PROFILE_KEYWORDS`, C1 #663) is
  * the checker's contract, not the reader's — this table is intentionally separate.
  *
  * Sources: `spec/turtles-and-sprites.md:161-167` (`tell`/`ask`/`each`),
@@ -200,8 +204,9 @@ const PROFILE_STATEMENT_FORMS: ReadonlyMap<string, ProfileStatementForm> =
  * previous token is a statement terminator (`newline`), or the previous token opens a block (`[`), so
  * the first statement inside an inline block body counts too. Used by {@link collectUserArities} to
  * distinguish the Heritage procedure *opener* `to` (statement-leading) from `to`'s mid-statement
- * reserved roles (`set … to`, `for … from … to`, and the Data `add … to <list>` preposition,
- * `spec/grammar.md:365`), so only the opener registers a callable arity. Including `[` keeps a
+ * keyword roles (`set … to` and `for … from … to`, `spec/grammar.md:380`, plus the Data
+ * `add … to <list>` preposition, `spec/grammar.md:115` — `:380` names the first two and the
+ * opener, not this one), so only the opener registers a callable arity. Including `[` keeps a
  * nested `[to f :x … end …]` procedure registering its arity exactly as the equivalent nested
  * `define` already does — the mid-statement `to` prepositions never sit directly after `[` (their
  * operands always come between the block opener and the `to`), so widening the start set stays safe.
@@ -259,11 +264,12 @@ function collectUserArities(
       // `to` is the Heritage alternate spelling of `define` (`spec/grammar.md:146`), so a
       // `to <name> :p …` procedure registers a callable of the same default arity — the count of
       // leading `:name` parameters — exactly as `define` does, so a later bare call to it groups
-      // its arguments correctly. `to` has three contextual reserved roles (`spec/grammar.md:365`):
-      // only the Heritage procedure *opener* begins a statement, whereas the `set … to` and
-      // `for … from … to` prepositions and the Data `add … to <list>` preposition all appear
-      // mid-statement — so {@link atStatementStart} gates this to the opener alone and never
-      // mis-registers the `<list>` name in `add 3 to colors` as a procedure.
+      // its arguments correctly. `to` carries FOUR roles: the Heritage procedure *opener*, plus the
+      // `set … to` and `for … from … to` prepositions (`spec/grammar.md:380` names those three) and
+      // the Data `add … to <list>` preposition (`spec/grammar.md:115`). Only the opener begins a
+      // statement; the other three appear mid-statement — so {@link atStatementStart} gates this to
+      // the opener alone and never mis-registers the `<list>` name in `add 3 to colors` as a
+      // procedure.
       let arity = 0;
       for (let j = k + 2; j < tokens.length; j += 1) {
         if ((tokens[j] as LexToken).kind !== "variable") {
@@ -535,10 +541,10 @@ export function parse(source: string, document = "<input>"): ParseResult {
   }
 
   /**
-   * Is `text` a legal `callable-name` for a parenthesized call (`spec/grammar.md:211`)? **Derived
+   * Is `text` a legal `callable-name` for a parenthesized call (`spec/grammar.md:215`)? **Derived
    * from the same two sets {@link parseNamePrimary} consults** (issue #853), so the primary reader
    * and the parenthesized-call reader cannot drift apart: a word that may not begin an expression is
-   * not a callee either, and of the expression-initial reserved words only `thing` is a real
+   * not a callee either, and of the expression-initial keywords only `thing` is a real
    * callable — `true`/`false` are literals and `map`/`filter`/`reduce` open a comprehension, none of
    * which is a `callable-name`. Hand-restating that second list here is the very drift this issue
    * fixed one layer up, so it is computed instead.
@@ -548,7 +554,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     if (NON_PRIMARY_NAMES.has(lower)) {
       return false;
     }
-    return lower === "thing" || !EXPRESSION_INITIAL_RESERVED_WORDS.has(lower);
+    return lower === "thing" || !EXPRESSION_INITIAL_KEYWORDS.has(lower);
   }
 
   // --- Expressions ---------------------------------------------------------
@@ -864,9 +870,9 @@ export function parse(source: string, document = "<input>"): ParseResult {
   }
 
   /**
-   * Parse one `key-term` inside a selector `[ … ]` (`spec/grammar.md:111`): a `number` (including a
+   * Parse one `key-term` inside a selector `[ … ]` (`spec/grammar.md:113`): a `number` (including a
    * negative literal such as `[-1]`), a word literal, a `:name` read, a bare identifier (a *literal
-   * word key*, never evaluated — reserved words are valid data here), or a parenthesized
+   * word key*, never evaluated — built-in names are valid data here), or a parenthesized
    * expression. Returns `undefined` for anything else so the caller can report the malformed
    * selector.
    */
@@ -1092,13 +1098,13 @@ export function parse(source: string, document = "<input>"): ParseResult {
   }
 
   /**
-   * `value of expression "for" "key" expression` (`spec/grammar.md:213`'s `value-of-reader`), the
+   * `value of expression "for" "key" expression` (`spec/grammar.md:217`'s `value-of-reader`), the
    * Heritage dict reader — a read-only equivalent of `dictionary.key`/`dictionary[key]`
    * (`spec/data-structures.md:183-195`). Both the dictionary and the key are full expressions
    * (unlike a selector's narrower `key-term`), so `value of ( f ) for key ( g )` is legal. Only
    * intercepted here when `value` is directly followed by `of` — and that check runs *before*
    * {@link NON_PRIMARY_NAMES}, which is what keeps this Heritage-gated form readable while a bare
-   * `value` (never a callable: it is a reserved structural word, `spec/grammar.md:358,367`) is
+   * `value` (never a callable: it is a keyword, `spec/grammar.md:358,371`) is
    * rejected in expression position like every other misplaced keyword (issue #853).
    */
   function parseValueOfKey(token: LexToken): ExpressionNode | undefined {
@@ -1335,7 +1341,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * `identifier | number` — narrower than {@link parseKeyTerm}'s selector `key-term`, which also
    * accepts `:name` reads, word literals, and parenthesized expressions — because a dict key is
    * always a literal, never evaluated (`spec/data-structures.md:143-171`). A bare identifier
-   * reuses {@link WordLitNode} exactly like a bare selector key; reserved words are legal keys
+   * reuses {@link WordLitNode} exactly like a bare selector key; built-in names are legal keys
    * for free, since the lexer never special-cases them. Returns `undefined` for anything else so
    * the caller can report the malformed entry.
    */
@@ -1663,9 +1669,9 @@ export function parse(source: string, document = "<input>"): ParseResult {
         case "define":
           return parseProcedureDef("define");
         case "to":
-          // `to` is a contextual keyword with three non-procedure roles (`set … to`,
-          // `for … from … to`, and the Data `add … to <list>` preposition, `spec/grammar.md:365`).
-          // It opens a Heritage procedure ONLY when a name follows it (`to <name> …`); anything
+          // `to` is a keyword with three non-procedure roles: the `set … to` and `for … from … to`
+          // prepositions (`spec/grammar.md:380`) and the Data `add … to <list>` preposition
+          // (`spec/grammar.md:115`). It opens a Heritage procedure ONLY when a name follows it (`to <name> …`); anything
           // else — including a `to` reached during error recovery of a malformed `set :x to 100` —
           // is not a definition, so fall through to the generic token handling that already
           // reports it, rather than mis-entering `parseProcedureDef` and cascading a spurious

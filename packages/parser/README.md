@@ -1,6 +1,6 @@
 # `@openlogo/parser`
 
-Lexer/reader, EBNF grammar, AST, reserved-word registry, the syntax **highlighter** (token classes),
+Lexer/reader, EBNF grammar, AST, keyword registry, the syntax **highlighter** (token classes),
 and the syntax + semantic **checker** (parse/semantic lint + `ol-style-*` style lints).
 
 - **Source root:** `src/` — public entry `src/index.ts` (suggested: `tokens.ts`, `reader.ts`,
@@ -31,6 +31,6 @@ that only need token class + text + span (e.g. the syntax/semantic checker).
 
 `src/grammar-version.ts` exports `OL_GRAMMAR_VERSION` and `assertGrammarVersionInSync()`, which
 throws if the highlighter's tracked grammar version ever drifts from `@openlogo/core`'s
-`OPENLOGO_VERSION`. Per the team charter, any future grammar/reserved-word change must bump
+`OPENLOGO_VERSION`. Per the team charter, any future grammar/keyword change must bump
 `OL_GRAMMAR_VERSION` (or the version it's checked against) in the same PR as the grammar change,
 so this check turns a silently-stale highlighter into a build-time/CI failure instead.

@@ -143,6 +143,12 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
 - **`redefine-wait-reserved/`** — also issue #687: redefining the profile primitive `wait` raises
   `ol-reserved-word` (`namespace: "primitive"`) under an active profile, the primitive branch of the
   rule rather than the reserved-word branch (`wait` is not one of the four reserved block-heads).
+- **`bindings-free-with-interaction/`** and **`bindings-free-core-only/`** — issue #837: the same
+  four block-heads used in **binding** positions (`:when = 1`, `set every to 2`, a `for on_key in …`
+  binder, `local on_click`) check clean with the profile active *and* without it. Maintainer ruling
+  #833 keys `ol-reserved-word` to the grammar's four declaration slots only, and
+  `spec/grammar.md:386` makes accepting any name in a binding position a MUST. See the terminal-slice
+  notes below for why this is a *pair* rather than a single fixture.
 
 Fixture shape and conventions: see [`../README.md`](../README.md).
 
@@ -237,6 +243,17 @@ the gaps it found rather than rubber-stamping them:
   `packages/parser/src/checker-reserved-word.ts`, already recorded by three Sprites fixtures.
   `message` is excluded from harness comparison, so it binds nothing and fixing it needs no fixture
   change; **filed as a follow-up** for `@language-designer`.)
+
+  Both fixtures of that pair use `define`, which issue #837 confirmed is the right slot: maintainer
+  ruling #833 keys `ol-reserved-word` to the grammar's four **declaration** slots and frees every
+  **binding** position for every name (`spec/grammar.md:363,386`). The second pair
+  `bindings-free-with-interaction` / `bindings-free-core-only` runs a byte-identical *binding* source
+  both ways — `:when = 1`, `set every to 2`, a `for on_key in …` binder, and `local on_click` — and
+  is clean in both directions, so profile-word binding freedom is pinned as **profile-independent**
+  rather than inferred. The two profile sets differ by exactly `interaction-events`, since this
+  profile depends only on Core (`PROFILE_DEPS`), so nothing else confounds the comparison. It mirrors
+  the Sprites `reserved-bindings-with-sprites` / `-without-sprites` pair, whose two halves became
+  clean under the same ruling.
 - **Description corrections.** Three fixtures still deferred handler delivery to "a later
   interactive host slice" that #686 had already landed (`on-key-registered-not-delivered`,
   `on-click-registered-not-delivered`, `when-stop-registered-not-delivered` — and `"stop"` is in

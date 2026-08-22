@@ -69,7 +69,7 @@ import {
   educationalPrimitiveArity,
   geometryPrimitiveArity,
   interactionPrimitiveArity,
-  isReservedWord,
+  isKeyword,
   parse,
   soundPrimitiveArity,
   turtlePrimitiveArity,
@@ -4177,9 +4177,9 @@ function isPrimitiveName(name: string): boolean {
  * [ field… ]` registers its type name → declaration in the callable namespace BEFORE any statement
  * runs, so a struct may be constructed before its textual declaration and so `type_of`/`is_a?` see
  * every struct type up front — exactly mirroring {@link collectProcedures}'s whole-program pre-scan
- * for `define`. Unlike procedures, a struct name that collides with a reserved word, a primitive
+ * for `define`. Unlike procedures, a struct name that collides with a keyword, a primitive
  * (any profile), an already-collected procedure, or an earlier `struct` of the same name raises
- * `ol-reserved-word` here at phase-1 (`spec/data-structures.md:264`), at `stage: "runtime"` —
+ * `ol-reserved-word` here at phase-1 (`spec/data-structures.md:323`), at `stage: "runtime"` —
  * because `execute()` runs `parse()` only, never `check()`, so the parser's `checker-reserved-word`
  * rule never runs. The `namespace` priority (`reserved` → `primitive` → `procedure` → `struct`)
  * matches that checker's "more fundamental category wins" ordering, extended with `struct` for a
@@ -4196,7 +4196,7 @@ function collectStructs(
       return;
     }
     const name = node.name.name;
-    const namespace = isReservedWord(name)
+    const namespace = isKeyword(name)
       ? "reserved"
       : isPrimitiveName(name)
         ? "primitive"

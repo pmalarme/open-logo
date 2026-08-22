@@ -1,19 +1,7 @@
 {
-  "description": "ol-reserved-word (issue #113): a `local first` declaration inside a procedure body collides with the Core primitive `first`, exactly as `define` does (spec/tooling.md:184 applies the rule to `define`, `to`, `struct`, `local`, and `alias` registrations alike). The checker flags the `local` name at its own span with `namespace: \"primitive\"`.",
+  "description": "ol-reserved-word (issue #837, maintainer ruling #833): `local first` is ACCEPTED. `local` is a binding form, not one of the grammar's four declaration slots (`define`, the heritage `to`, `struct`, and the first operand of `alias` -- spec/grammar.md:382), and spec/grammar.md:386 names `local <name>` among the forms that MUST accept any name. This fixture pinned the opposite from issue #113 until this reversal: `local first` reported `namespace: \"primitive\"`. The evidence for the reclassification is direct -- `local foo` registers nothing callable, so a later `foo` call raises `ol-unknown-command`. The declaration slots keep the full check; reserved-word-define-primitive pins that `define first` still collides.",
   "profiles": ["core-language"],
   "check": true,
   "events": [],
-  "diagnostics": [
-    {
-      "code": "ol-reserved-word",
-      "source_span": {
-        "document": "core-language/check/reserved-word-local-primitive",
-        "start": [2, 9],
-        "end": [2, 14]
-      },
-      "params": { "name": "first", "namespace": "primitive" },
-      "stage": "semantic",
-      "severity": "error"
-    }
-  ]
+  "diagnostics": []
 }

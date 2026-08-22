@@ -6,11 +6,15 @@
 //
 // Two shapes with deliberately different mechanics — proven not to leak into each other:
 //
-//   1. Block-head forms `tell`/`ask`/`each` lower to a `ProfileStatement` and are reserved words
-//      *only when the Sprites profile is active* (`spec/turtles-and-sprites.md#reserved-words-in-this-profile`,
-//      C1 #663). The Layer-2 checker was taught to treat them as visible command names by SP2–SP4
-//      (`spritesStatementFormNames` in `collectVisibleNames`), and redefining one under an active
-//      profile raises `ol-reserved-word`. This slice locks that with fixtures rather than re-adding.
+//   1. Block-head forms `tell`/`ask`/`each` lower to a `ProfileStatement` and are keywords of the
+//      Sprites profile — matched by `isKeyword` only while that profile is active today
+//      (`spec/turtles-and-sprites.md#reserved-words-in-this-profile`, C1 #663), though
+//      `spec/grammar.md:408` now makes profile words built-in **unconditionally** and issue #841
+//      lands the always-on list that retires the gate (the profile documents are realigned by #855).
+//      The Layer-2 checker was taught to treat them as visible command names by SP2–SP4
+//      (`spritesStatementFormNames` in `collectVisibleNames`), and **declaring** one — `define` or
+//      `struct`, not a binding — under an active profile raises `ol-reserved-word`. This slice locks
+//      that with fixtures rather than re-adding.
 //   2. Reporters `new_turtle`/`who`/`turtles` are ordinary zero-arity primitives in the arity table
 //      (`spec/turtles-and-sprites.md`'s C3 rows: each Kind-R, arity 0). SP1 registered their arities
 //      but deliberately deferred their *checker visibility* to this slice; before SP6 they raised
@@ -26,7 +30,7 @@
 // argument (`spec/tooling.md:26`, and lines 175-176 scope profile-awareness to the *checker*/reader,
 // not the highlighter). So every one of the six names classifies as `primitive` +
 // `defaultLibrary`, exactly as `when`/`every` (Interaction) and the Sound commands do — never
-// `keyword`, which the highlighter reserves for the profile-independent Core reserved words. This
+// `keyword`, which the highlighter reserves for the profile-independent Core keywords. This
 // mirrors the reusable shape `sound-tooling.test.mjs` established for the M5 tooling slices.
 //
 // Every name is exercised in **awkward positions** — inside a `[ … ]` instruction block, inside

@@ -56,7 +56,7 @@ test("a submitted answer that parses as a number literal reports a NUMBER", () =
   // coerces a numeric word (`"42" + 1` reports 43 with no diagnostic — only a non-numeric word like
   // `"tom"` raises `ol-type`), so an implementation that never reported a number at all would still
   // print 43 and pass. `assert.deepEqual` over the printed payload distinguishes the number `42`
-  // from the word `"42"`, and `is a "number"` (`spec/grammar.md:230` — `is a` accepts any value)
+  // from the word `"42"`, and `is a "number"` (`spec/grammar.md:234` — `is a` accepts any value)
   // states the same thing in the language itself.
   const result = runWithAnswers(
     ':answer = input "how old?"\nprint :answer\nprint :answer is a "number"',

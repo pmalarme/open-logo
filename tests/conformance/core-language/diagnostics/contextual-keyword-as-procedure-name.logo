@@ -1,8 +1,10 @@
-# The contextual keywords `empty`, `member`, `of`, and `a` are NOT in the reserved-word set
-# (spec/grammar.md:352-365): they act as keywords only immediately after `is`, and stay ordinary
-# names everywhere else. So each is a legal procedure name in the callable namespace, and calling
-# it resolves cleanly. This is the mirror of the reserved-word fixtures (issue #113): where
-# `define repeat ... end` raises `ol-reserved-word`, `define empty ... end` produces no diagnostic.
+# The contextual keywords `empty`, `member`, `of`, and `a` are NOT built-in names
+# (spec/grammar.md:380): they are structural by POSITION only -- just after `is` for all four, and
+# additionally in the Heritage `value of ... for key` reader for `of` -- and stay ordinary names
+# everywhere else. A declaration slot is one of those "everywhere else" positions, so each is a
+# legal procedure name in the callable namespace and calling it resolves cleanly. This is the
+# mirror of the built-in-name fixtures: where `define repeat ... end` raises `ol-reserved-word`,
+# `define empty ... end` produces no diagnostic.
 define empty :x
   print :x
 end

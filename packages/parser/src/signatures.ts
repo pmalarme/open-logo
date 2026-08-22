@@ -777,7 +777,7 @@ export function heritageFormHeadNames(): readonly HeritageFormHead[] {
  * dict key `value` like any other word. The phrase's other literals are weaker still, being
  * ordinary vocabulary that reaches params on its own account (a malformed form quotes whatever
  * token it stopped at through `ol-bad-token`'s `text`): `of` is the contextual preposition of the
- * `is member of` predicate (`spec/grammar.md:365`), `for` opens the Core `for … in`/`for … from … to`
+ * `is member of` predicate (`spec/grammar.md:380`), `for` opens the Core `for … in`/`for … from … to`
  * loops, and `key` is also the Data profile's `remove key … from` (`spec/grammar.md:115`) — which is
  * why the head, not the phrase, is what {@link HERITAGE_SURFACE_SPELLINGS} registers for
  * canonical-param matching. The operands the phrase elides are a dict and a word/number key
@@ -899,7 +899,7 @@ export function heritageWordedFormHeads(): readonly string[] {
  * some other position, so this is not a list of Heritage-exclusive tokens: `to` is the preposition
  * of Core's `set … to` and the bound of `for … from … to` (`spec/grammar.md:104,128`) as well as
  * the Heritage procedure opener, and the worded reader's head `value` is a globally reserved word
- * (`spec/grammar.md:358`). What each entry has in common is that a diagnostic naming it would be
+ * (`spec/grammar.md:371`). What each entry has in common is that a diagnostic naming it would be
  * naming the learner's Heritage spelling of a condition their Core twin raises identically.
  *
  * This is the enumerable definition of "a Heritage surface spelling", and it exists so the

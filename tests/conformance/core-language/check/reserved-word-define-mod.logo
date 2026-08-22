@@ -1,0 +1,3 @@
+define mod
+  print 1
+end
