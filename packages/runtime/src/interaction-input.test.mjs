@@ -350,16 +350,28 @@ test("a rejected prompt never reaches the read — the host reader is never call
   // prompt would still have put a question in front of the learner, and on the `responses` path it
   // would have eaten the queue's head, so a later read in a longer program would be answered
   // off-by-one.
+  //
+  // The valid-prompt CONTROL comes first and is what makes the subject leg mean anything: it proves
+  // `reads` is a live instrument that this reader really does advance, so the subject's "still 1"
+  // records a read that did not happen rather than a counter that never could. Same control-plus-
+  // subject shape the corpus uses for the blocking property (`input-does-not-deliver-handlers` +
+  // `input-blocking-control-wait-delivers`).
   let reads = 0;
-  const withReader = execute("print input [1 2]", doc, {
-    hostInput: {
-      read: () => {
-        reads += 1;
-        return "tom";
-      },
-    },
+  const reader = () => {
+    reads += 1;
+    return "tom";
+  };
+
+  const control = execute('print input "who?"', doc, {
+    hostInput: { read: reader },
   });
-  assert.equal(reads, 0);
+  assert.deepEqual(control.diagnostics, []);
+  assert.equal(reads, 1);
+
+  const withReader = execute("print input [1 2]", doc, {
+    hostInput: { read: reader },
+  });
+  assert.equal(reads, 1);
   assert.equal(withReader.diagnostics[0].code, "ol-type");
   assert.deepEqual(effectEvents(withReader), []);
 

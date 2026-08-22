@@ -262,8 +262,8 @@ named event twice, so the corpus neither pins nor contradicts it.
 
 It is left unfixtured on purpose, for the reason `input-prompt-not-text` was withheld before #768
 ruled: **the spec does not settle it.** `spec/interaction-events.md` says a handler invocation is
-enqueued "when an event
-fires" but never states whether a `when` registration is one-shot or persistent, and both standard
+enqueued "when an event fires" but never states whether a `when` registration is one-shot or
+persistent, and both standard
 v0.1 event words are inherently once-per-run — `"start"` is "the start of the interactive run" and
 `"stop"` is "a requested stop notification before termination" (`:152-156`). A fixture asserting
 either reading would bind every implementation to a clause the spec has not written, and the

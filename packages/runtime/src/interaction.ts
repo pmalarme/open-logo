@@ -59,11 +59,7 @@
  * delivers nothing.
  */
 
-import type {
-  PrimitivePayload,
-  SourceSpan,
-  TraceEvent,
-} from "@openlogo/core";
+import type { PrimitivePayload, SourceSpan, TraceEvent } from "@openlogo/core";
 import type { BlockNode, SpannedName, StatementNode } from "@openlogo/parser";
 import { parse } from "@openlogo/parser";
 import { runtimeDiag } from "./errors.js";
