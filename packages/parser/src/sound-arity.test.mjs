@@ -11,10 +11,11 @@ import * as OL from "@openlogo/parser";
  * `sound` profile is active. Behavior is verified against the built `@openlogo/parser` entry point
  * per the shared black-box test convention.
  *
- * Also covers the reserved-word collision parity: `define`/`local`/`struct` registrations that
- * redefine `set_tempo`/`beep` must raise `ol-reserved-word` (`namespace: "primitive"`) when the
+ * Also covers the reserved-word collision parity: `define`/`struct` registrations that
+ * redefine `set_tempo`/`beep` must raise `ol-reserved-word` when the
  * `sound` profile is active — the checker's static counterpart to the runtime's own
- * `isPrimitiveName()` collision guard (#403) — and must not raise when it is inactive.
+ * `isPrimitiveName()` collision guard (#403) — and must not raise when it is inactive. (Issue #838
+ * removed that diagnostic's `namespace` param; `local` became a binding form under ruling #833.)
  */
 
 function parseClean(source) {
@@ -244,7 +245,7 @@ test("without the sound profile active, set_tempo/beep parse cleanly but are fla
 
 // --- reserved-word collisions --------------------------------------------------
 
-test("a struct type name colliding with a Sound primitive raises ol-reserved-word (primitive wins)", () => {
+test("a struct type name colliding with a Sound primitive raises ol-reserved-word", () => {
   for (const name of ["set_tempo", "beep", "note", "rest", "play"]) {
     const ast = parseClean(`struct ${name} [ x ]`);
     const { diagnostics } = OL.check(ast, {
@@ -252,8 +253,8 @@ test("a struct type name colliding with a Sound primitive raises ol-reserved-wor
     });
     assert.equal(diagnostics.length, 1);
     assert.equal(diagnostics[0].code, "ol-reserved-word");
-    assert.equal(diagnostics[0].params.namespace, "primitive");
-    assert.equal(diagnostics[0].params.name, name);
+    // `params: { name }` only since issue #838 (`spec/error-model.md:125`).
+    assert.deepEqual(diagnostics[0].params, { name });
   }
 });
 
@@ -265,7 +266,7 @@ test("a define colliding with a Sound primitive raises ol-reserved-word", () => 
     });
     assert.equal(diagnostics.length, 1);
     assert.equal(diagnostics[0].code, "ol-reserved-word");
-    assert.equal(diagnostics[0].params.namespace, "primitive");
+    assert.deepEqual(diagnostics[0].params, { name });
   }
 });
 

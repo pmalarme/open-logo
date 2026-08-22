@@ -1,17 +1,24 @@
 {
-  "description": "ol-reserved-word (issue #113): two `define f ... end` blocks declare the same procedure name. The first stays clean — a name is only \"already defined\" relative to an earlier occurrence — so only the second, redefining `f` in source order, raises `ol-reserved-word` with `namespace: \"procedure\"`.",
+  "description": "ol-duplicate-definition (issue #113, RECODED by #838): two `define f ... end` blocks declare the same procedure name. The first stays clean -- a name is only \"already defined\" relative to an earlier occurrence -- so only the second raises. What changed is the CODE: this collision used to be `ol-reserved-word` with `namespace: \"procedure\"`, and spec/grammar.md:412 + error-model.md:126,132-141 now split it out, because a name the program itself declared is not a name OpenLogo owns. The new code carries BOTH spans -- `source_span` at the later declaration (line 4) and `params.original_span` at the earlier one (line 1) -- which is required identity, not message decoration: error-model.md:143-146 says an implementation \"MUST supply it rather than folding the earlier location into the message text\", so an editor can offer *jump to the first definition* and so the code works unchanged when the earlier declaration arrives from an imported module. The file name is kept from its `ol-reserved-word` era so the history stays greppable.",
   "profiles": ["core-language"],
   "check": true,
   "events": [],
   "diagnostics": [
     {
-      "code": "ol-reserved-word",
+      "code": "ol-duplicate-definition",
       "source_span": {
         "document": "core-language/check/reserved-word-define-procedure-redefinition",
         "start": [4, 8],
         "end": [4, 9]
       },
-      "params": { "name": "f", "namespace": "procedure" },
+      "params": {
+        "name": "f",
+        "original_span": {
+          "document": "core-language/check/reserved-word-define-procedure-redefinition",
+          "start": [1, 8],
+          "end": [1, 9]
+        }
+      },
       "stage": "semantic",
       "severity": "error"
     }

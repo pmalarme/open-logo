@@ -119,36 +119,42 @@ test("a struct constructor called (parenthesized) with too many inputs raises ol
   assert.equal(diagnostics[0].params.callable, "point");
 });
 
-// --- reserved-word collisions -------------------------------------------------
+// --- declaration-slot collisions ----------------------------------------------
 
-test("a struct type name colliding with a Data primitive raises ol-reserved-word (primitive wins)", () => {
+test("a struct type name colliding with a Data primitive raises ol-reserved-word", () => {
   const ast = parseClean("struct dict [ x ]");
   const { diagnostics } = OL.check(ast, {
     profiles: ["core-language", "data"],
   });
   assert.equal(diagnostics.length, 1);
   assert.equal(diagnostics[0].code, "ol-reserved-word");
-  assert.equal(diagnostics[0].params.namespace, "primitive");
+  // Issue #838 removed the `namespace` param: `ol-reserved-word` now means exactly "OpenLogo owns
+  // this name" and carries `params: { name }` only (`spec/error-model.md:125`).
+  assert.deepEqual(diagnostics[0].params, { name: "dict" });
 });
 
-test("a struct type name colliding with a define'd procedure raises ol-reserved-word", () => {
+test("a struct type name colliding with a define'd procedure raises ol-duplicate-definition", () => {
   const ast = parseClean("define point\nend\nstruct point [ x ]");
   const { diagnostics } = OL.check(ast, {
     profiles: ["core-language", "data"],
   });
   assert.equal(diagnostics.length, 1);
-  assert.equal(diagnostics[0].code, "ol-reserved-word");
-  assert.equal(diagnostics[0].params.namespace, "procedure");
+  // A name the PROGRAM declared is not a name OpenLogo owns, so #838 split this case out of
+  // `ol-reserved-word` (`spec/grammar.md:412`, `spec/error-model.md:126`) and gave it both spans.
+  assert.equal(diagnostics[0].code, "ol-duplicate-definition");
+  assert.equal(diagnostics[0].params.name, "point");
+  assert.deepEqual(diagnostics[0].params.original_span.start, [1, 8]);
 });
 
-test("a define colliding with an earlier struct type name raises ol-reserved-word", () => {
+test("a define colliding with an earlier struct type name raises ol-duplicate-definition", () => {
   const ast = parseClean("struct point [ x ]\ndefine point\nend");
   const { diagnostics } = OL.check(ast, {
     profiles: ["core-language", "data"],
   });
   assert.equal(diagnostics.length, 1);
-  assert.equal(diagnostics[0].code, "ol-reserved-word");
-  assert.equal(diagnostics[0].params.namespace, "struct");
+  assert.equal(diagnostics[0].code, "ol-duplicate-definition");
+  assert.equal(diagnostics[0].params.name, "point");
+  assert.deepEqual(diagnostics[0].params.original_span.start, [1, 8]);
 });
 
 test("two struct declarations sharing a name are checked in source order: the first is clean", () => {
@@ -157,9 +163,9 @@ test("two struct declarations sharing a name are checked in source order: the fi
     profiles: ["core-language", "data"],
   });
   assert.equal(diagnostics.length, 1);
-  assert.equal(diagnostics[0].code, "ol-reserved-word");
-  assert.equal(diagnostics[0].params.namespace, "struct");
+  assert.equal(diagnostics[0].code, "ol-duplicate-definition");
   assert.deepEqual(diagnostics[0].source_span.start, [2, 8]);
+  assert.deepEqual(diagnostics[0].params.original_span.start, [1, 8]);
 });
 
 test("without the data profile active, a struct name is not registered so no collision is reported", () => {

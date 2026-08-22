@@ -449,6 +449,13 @@
   ],
   "spec/grammar.md": [
     {
+      "fingerprint": "ea6cc8eb827559e1",
+      "excerpt": ":end = 1",
+      "kind": "deliberate-error",
+      "why": "The block's own last line is commented `# error: forward is a built-in name`, and the section around it is the normative statement of that rule. Its first five lines are the free half — binding a built-in name — and must stay clean; the `define forward` at the end must raise. Before issue #838 wired `turtlePrimitiveArity` into the declaration-slot rule this block ran CLEAN, so the spec's own worked example silently contradicted the paragraph it illustrates. This entry is what stops that from happening again in either direction: the block now fails if `define forward` becomes legal, and fails if any of the five bindings starts raising.",
+      "codes": ["ol-reserved-word"]
+    },
+    {
       "fingerprint": "b9b1575db83a4714",
       "excerpt": "# primary line comment",
       "kind": "prose-fragment",

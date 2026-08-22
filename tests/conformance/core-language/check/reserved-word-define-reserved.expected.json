@@ -1,5 +1,5 @@
 {
-  "description": "ol-reserved-word (issue #113): `define repeat ... end` redefines `repeat`, a reserved structural word (C19 in spec/grammar.md), even though the reader accepts it lexically in name position here. The checker flags it with `namespace: \"reserved\"`.",
+  "description": "ol-reserved-word (issue #113): `define repeat ... end` redefines `repeat`, a keyword (C19 in spec/grammar.md), even though the reader accepts it lexically in name position here. Issue #838 dropped the `namespace: \"reserved\"` param -- one code, one meaning, `params: { name }` only (spec/error-model.md:125,132-141). Its sibling reserved-word-define-primitive pins a Core PRIMITIVE at the same slot, and the pair now differ only in the name, which is the point: the learner sees one sentence either way.",
   "profiles": ["core-language"],
   "check": true,
   "events": [],
@@ -11,7 +11,7 @@
         "start": [1, 8],
         "end": [1, 14]
       },
-      "params": { "name": "repeat", "namespace": "reserved" },
+      "params": { "name": "repeat" },
       "stage": "semantic",
       "severity": "error"
     }
