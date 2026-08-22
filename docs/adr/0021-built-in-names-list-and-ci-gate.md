@@ -118,6 +118,17 @@ built-in name* as *what is*:
 ```jsonc
 {
   "specVersion": "0.1.0",
+  // The tag→accessor mapping the gate reads. The ADR's table is this object, printed.
+  // EXCERPT — 6 of the 14 tags shown; the table below lists all fourteen at 0.1.0.
+  "registries": {
+    "reserved": "OL_RESERVED_WORDS",
+    "profile-reserved": "OL_PROFILE_RESERVED_WORDS",
+    "core-primitive": "corePrimitiveArity",
+    "turtle-primitive": "turtlePrimitiveArity",
+    "heritage-alias": "heritageAliasNames",
+    "heritage-form-head": "heritageFormHeadNames"
+    // … 8 more tags omitted from this excerpt
+  },
   "names": [
     { "name": "define", "category": "keyword",   "profile": "core-language",    "registries": ["reserved"] },
     { "name": "ask",     "category": "keyword",   "profile": "sprites",          "registries": ["profile-reserved"] },
@@ -193,12 +204,24 @@ built-in name* as *what is*:
   | `heritage-form-head` | `heritageFormHeadNames` |
   | `heritage-worded-form-head` | `heritageWordedFormHeads` |
 
-  Adding a registry to the implementation means adding its row here, which is itself drift the gate
-  catches. **This is the vocabulary as of spec version `0.1.0`, and this record is immutable** — a
-  future registry is therefore not an edit to this table but a versioned change to
-  `spec/built-in-names.json`'s schema, carried by the `specVersion` field and recorded in a
-  superseding ADR. The gate reads the file's schema, not this prose, so the two cannot drift; what
-  this table pins is the mapping at the version the decision was made.
+  **The tag→accessor mapping is data, not prose: it lives in the file, as a top-level `registries`
+  object** (tag → accessor name) alongside `specVersion`. That is what the gate reads; the table
+  above is its human-readable copy at version `0.1.0`, printed here so the decision is reviewable
+  without opening the file. Putting the mapping in the file rather than in a second schema artifact
+  keeps one thing versioned by one `specVersion`, and means a new registry is a **versioned change
+  to the file** — not an edit to this record, which is `Status: Accepted` and therefore immutable.
+  A future registry is added to the file's `registries` object and recorded in a superseding ADR;
+  this table is not amended, it simply describes `0.1.0`. Because the gate consults the file and
+  never this prose, the record going stale after a superseding ADR cannot break the gate.
+
+  Moving the mapping into data removes the human who was checking it, so the gate takes that over:
+  **every accessor name in `registries` must resolve to a real export of `@openlogo/parser`.** A
+  typo'd accessor would otherwise make its registry silently unverifiable — entries claiming that
+  tag would be compared against nothing, which is a green gate proving less than it appears to, the
+  failure mode this whole record exists to prevent. The one accessor that does not resolve is
+  `tutorPrimitiveArity`, deliberately, so the check needs an explicit **declared-but-not-yet-created**
+  state rather than treating every non-resolving accessor as drift; that state is what makes the
+  red-on-arrival condition below expressible instead of indistinguishable from a mistake.
 - **Tutor (AI) gets its own registry: `tutorPrimitiveArity`.** This decision settles it here rather
   than deferring it, because an Accepted record must not hand an unresolved architecture choice to
   its implementing slice. The alternative — filing `challenge` in the existing
@@ -207,11 +230,13 @@ built-in name* as *what is*:
   table is Educational's — which measurably holds exactly the four Educational baseline
   meta-commands (`explain`, `why`, `hint`, `debug`). Keeping the invariant exception-free is worth
   one small table, and it matches the shape of every profile whose primitives live in an arity
-  table — eight of them, covering eight profiles. **Heritage is not a counterexample**: it registers
-  *surface spellings of primitives owned elsewhere* rather than primitives of its own, so it carries
-  alias-shaped registries instead of a table, which is exactly why the 13 short aliases are in no
-  arity table. Modules and Localization ship no primitives at all. Tutor (AI) ships a primitive of
-  its own and has neither shape, so it is the one genuinely missing registry. #841 creates it and
+  table — eight of them, covering eight profiles. **Heritage is not a counterexample**: the names it
+  contributes to `names` are *surface spellings of primitives owned elsewhere* rather than
+  primitives of its own, so they are carried by an alias registry instead of a table — which is
+  exactly why the 13 short aliases are in no arity table. (Heritage's other two registries hold
+  grammar **forms**, not primitives at all, and contribute no `primitive` entries.) Modules and
+  Localization ship no primitives. Tutor (AI) ships a primitive of its own and has neither shape,
+  so it is the one genuinely missing registry. #841 creates it and
   registers `challenge` in it, together with the runtime primitive — a bare arity entry would make
   the checker accept a call the evaluator cannot execute.
 - **Six names are reachable from two registries, so `category` needs a stated precedence.**
