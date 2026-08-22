@@ -140,8 +140,9 @@
       "fingerprint": "3792f144a077dc72",
       "excerpt": "print \"hello\"",
       "kind": "prose-fragment",
-      "why": "Excerpt, not a whole program: `:x` is never assigned anywhere in this document — the entry illustrates a form, not a runnable program.",
-      "codes": ["ol-undefined-var"]
+      "why": "Excerpt, not a whole program: `:x` is never assigned anywhere in this document. Its `setup` supplies a value so the block runs clean, which is what the surrounding C3 entry claims — it documents `print`'s arity, not an error.",
+      "codes": [],
+      "setup": ":x = \"world\""
     },
     {
       "fingerprint": "98fa6783cfe4273c",
@@ -549,9 +550,10 @@
     {
       "fingerprint": "9d7bac193fa088f2",
       "excerpt": ":name = input \"what is your name?\"",
-      "kind": "non-terminating",
-      "why": "The `input` example. `input` is the only blocking read in v0.1, and with no host answer available the read ends the only other way spec/interaction-events.md:110-111 allows: the program is cancelled (ol-limit). The block itself is correct OpenLogo.",
-      "codes": ["ol-limit"]
+      "kind": "prose-fragment",
+      "why": "Excerpt, not a whole program: `input` is the only blocking read in v0.1, so the learner's answer comes from outside the block. Its `inputs` script that answer, so the read completes and the greeting on line 2 actually runs — without one the read is cancelled (`ol-limit`) and the second line is never reached.",
+      "codes": [],
+      "inputs": ["tom"]
     },
     {
       "fingerprint": "01d2b8f93afe2546",
@@ -758,8 +760,9 @@
       "fingerprint": "75678075edc1182b",
       "excerpt": ":doubled = map num in :nums [",
       "kind": "deliberate-error",
-      "why": "Layer-2 example: the Finding line asserts code=ol-no-value — `map` needs the last instruction in its block to make a value. `:nums` is undefined here too, because the block is also an excerpt.",
-      "codes": ["ol-no-value", "ol-undefined-var"]
+      "why": "Layer-2 example: the Finding line asserts code=ol-no-value — `map` needs the last instruction in its block to make a value. Its `setup` supplies the `:nums` the excerpt reads, so the map body actually runs and the documented diagnostic is asserted against a block that executed rather than one that halted on line 1.",
+      "codes": ["ol-no-value"],
+      "setup": ":nums = [1 2 3]"
     },
     {
       "fingerprint": "4d7d83c68427eb32",

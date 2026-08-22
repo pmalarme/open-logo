@@ -18,6 +18,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
+import { parse } from "@openlogo/parser";
 import {
   DOCUMENTATION_INSTRUCTION_BUDGET,
   EXPECTATIONS_PATH,
@@ -29,7 +30,7 @@ import {
   describeExpectationMismatch,
   extractFencedBlocks,
   findMarkdownFiles,
-  lastExecutableLine,
+  lastStatementLine,
   loadExpectations,
   parseArgs,
   runMarkdownExamplesGate,
@@ -358,17 +359,83 @@ test("analyzeBlock reports a broken setup preamble as its own failure, not the b
   assert.deepEqual(result.codes, []);
 });
 
-test("lastExecutableLine ignores blank lines and whole-line comments", () => {
-  assert.equal(lastExecutableLine("forward 10\nright 90"), 2);
-  assert.equal(lastExecutableLine("forward 10\n\n  # trailing note\n"), 1);
-  // No executable line at all — reachable only directly, since a block that runs nothing can
-  // never produce the runtime error that makes analyzeBlock consult this.
-  assert.equal(lastExecutableLine("\n   \n# only a comment"), 0);
-  assert.equal(lastExecutableLine(""), 0);
-});
-
 test("analyzeBlock treats a wholly blank block as having no executable line", () => {
   assert.equal(analyzeBlock("\n   \n", "blank").partialFrom, null);
+});
+
+test("lastStatementLine finds the last top-level statement, or 0 when there is none", () => {
+  const { ast } = parse(
+    ["forward 10", ":doubled = map num in [1] [", "  print :num", "]"].join(
+      "\n",
+    ),
+    "probe",
+  );
+  assert.equal(lastStatementLine(ast), 2);
+  assert.equal(lastStatementLine(parse("", "empty").ast), 0);
+});
+
+test("analyzeBlock does not call a multi-line final statement partial", () => {
+  // The `map` raises ol-no-value, and its span points at the assignment's head line — but the
+  // body did run and no later statement was skipped. A span is not a program counter.
+  const result = analyzeBlock(
+    [
+      ":nums = [1 2 3]",
+      ":doubled = map num in :nums [",
+      "  print :num",
+      "]",
+    ].join("\n"),
+    "map",
+  );
+  assert.deepEqual(result.codes, ["ol-no-value"]);
+  assert.equal(result.partialFrom, null);
+});
+
+test("analyzeBlock rejects a setup that does not parse standalone", () => {
+  // Without this, `setup: "repeat 1"` plus a block of `forward 10` / `end repeat` would
+  // concatenate into a valid program and pass clean, though neither half is valid on its own.
+  const result = analyzeBlock("forward 10\nend repeat", "absorbed", {
+    setup: "repeat 1",
+  });
+  assert.match(result.setupError, /ol-missing-end/);
+  assert.deepEqual(result.codes, []);
+});
+
+test("analyzeBlock rejects a setup that shadows a primitive", () => {
+  // `define set_shape :s end` would make the canonical set_shape "bee" regression go green.
+  const result = analyzeBlock('set_shape "bee"', "shadowed", {
+    setup: "define set_shape :s\nend define",
+  });
+  assert.match(
+    result.setupError,
+    /redefines the built-in set_shape — a setup supplies context, it must not shadow a primitive/,
+  );
+  assert.deepEqual(result.codes, []);
+  // A setup MAY define a name of its own — that is ordinary context.
+  assert.equal(
+    analyzeBlock("move_and_turn", "helper", {
+      setup: "define move_and_turn\n  forward 10\nend define",
+    }).setupError,
+    null,
+  );
+});
+
+test("analyzeBlock reports a malformed setup as an internal failure rather than crashing", () => {
+  // A non-string setup used to throw out of the gate entirely, past the state built for exactly
+  // this: the preamble arithmetic now lives inside the try.
+  const result = analyzeBlock("forward 10", "bad-type", { setup: 42 });
+  assert.match(result.internalError, /split is not a function|not a function/);
+  assert.deepEqual(result.codes, []);
+});
+
+test("analyzeBlock scripts a blocking input read from `inputs`", () => {
+  const source = ':name = input "who?"\nprint word "hello " :name';
+  // With no answer the read is cancelled and line 2 never runs.
+  const unanswered = analyzeBlock(source, "unanswered");
+  assert.deepEqual(unanswered.codes, ["ol-limit"]);
+  // With one, the whole example runs.
+  const answered = analyzeBlock(source, "answered", { inputs: ["tom"] });
+  assert.deepEqual(answered.codes, []);
+  assert.equal(answered.partialFrom, null);
 });
 
 // --- suggestExpectation ---------------------------------------------------------------------
@@ -497,6 +564,61 @@ test("validateExpectationEntry accepts an empty codes list only alongside a setu
     validateExpectationEntry({ ...base, setup: ":size = 50" }, "spec/x.md", 0),
     [],
   );
+  // Scripted `inputs` are context too.
+  assert.deepEqual(
+    validateExpectationEntry({ ...base, inputs: ["tom"] }, "spec/x.md", 0),
+    [],
+  );
+  // But only for a prose excerpt: every other kind must still name what it produces.
+  assert.match(
+    validateExpectationEntry(
+      { ...base, kind: "deliberate-error", setup: ":size = 50" },
+      "spec/x.md",
+      0,
+    )[0],
+    /must list the codes it asserts/,
+  );
+});
+
+test("validateExpectationEntry rejects context on a profile-not-implemented entry", () => {
+  for (const field of ["setup", "inputs"]) {
+    assert.match(
+      validateExpectationEntry(
+        {
+          fingerprint: "a",
+          kind: "profile-not-implemented",
+          why: "w",
+          profiles: ["modules"],
+          [field]: field === "setup" ? ":x = 1" : ["tom"],
+        },
+        "spec/x.md",
+        0,
+      )[0],
+      new RegExp(
+        `"${field}" cannot apply to a "profile-not-implemented" entry`,
+      ),
+    );
+  }
+});
+
+test("validateExpectationEntry rejects malformed inputs", () => {
+  for (const inputs of [[], "tom", [42]]) {
+    assert.match(
+      validateExpectationEntry(
+        {
+          fingerprint: "a",
+          kind: "prose-fragment",
+          why: "w",
+          codes: ["ol-type"],
+          inputs,
+        },
+        "spec/x.md",
+        0,
+      )[0],
+      /"inputs" must be a non-empty array/,
+      `inputs ${JSON.stringify(inputs)} should be rejected`,
+    );
+  }
 });
 
 test("validateExpectationEntry rejects a non-string setup", () => {
@@ -951,6 +1073,23 @@ test("the gate fails a malformed expectation entry", () => {
   assert.ok(
     result.lines.some((line) => line.includes('"kind" must be one of')),
   );
+});
+
+test("the gate does not also analyse a block whose entry failed validation", () => {
+  // A non-string `setup` used to reach analyzeBlock and throw out of the whole run, so no other
+  // finding was reported at all. The entry's own problem is the finding; the block is left alone.
+  const source = "forward 10";
+  writeMarkdown("clean.md", logoBlock(source));
+  const result = runOverTemp({
+    [keyFor("clean.md")]: [
+      expectationFor(source, { kind: "prose-fragment", setup: 42 }),
+    ],
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.counts.failed, 1);
+  assert.match(result.lines[0], /"setup" must be a string of OpenLogo source/);
+  // No second, confusing failure for the same cause — and no stale-expectation noise either.
+  assert.ok(result.lines.every((line) => !line.includes("stale expectation")));
 });
 
 test("the gate fails two entries that pin the same block, since one of them is dead", () => {

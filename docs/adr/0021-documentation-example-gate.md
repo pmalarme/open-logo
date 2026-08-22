@@ -106,12 +106,21 @@ wherever it sits. But the lines *below* a block's first runtime error would neve
 runtime-only defect down there (`ol-type`, `ol-range`, `ol-unknown-key`, `ol-unknown-field`) would
 not be observed. Two things address this. An entry may carry a **`setup` preamble** — faithful
 context drawn from the surrounding prose, prepended before the block runs — which lets an excerpt
-execute to completion and assert a clean result instead of halting on line one; 31 of the 34
-affected blocks are handled that way. Where it is impossible (a `forever` demo, a blocking `input`,
-or a block whose whole point is the error it stops on), the limit is **surfaced rather than claimed
-away**: the block is reported as `PARTIAL`, with its own count in the summary line. Four of 315
-blocks are `PARTIAL` today. A green run does not mean every line of every block executed, and the
-gate says so.
+execute to completion and assert a clean result instead of halting on line one; `inputs` does the
+same for a blocking `input`, scripting the answer the learner would have typed. 33 blocks are
+handled that way. A preamble must parse standalone and must not redefine a primitive, so it can
+only supply context, never absorb a block's malformed structure or shadow away a real defect. Where
+context is impossible — a block whose whole point is the error it stops on — the limit is
+**surfaced rather than claimed away**: the block is reported as `PARTIAL`, with its own count in the
+summary line. **One** of 315 blocks is `PARTIAL` today (`spec/data-structures.md`'s
+`ol-unknown-key` demo, which places its corrected example after a guaranteed halt). A green run does
+not mean every line of every block executed, and the gate says so.
+
+Measuring that honestly needs a program counter, not a span: a diagnostic points at the construct
+that raised, not at where execution stopped, so a multi-line final statement raising on its own head
+line has still run everything there was to run. The gate compares the halt against the **last
+top-level statement's** start line, which is why a `forever` demo and a `map` whose body did run are
+correctly *not* reported as partial.
 
 **Unlabelled fences are invisible by construction**, so the convention "OpenLogo source in prose is
 fenced ` ```logo `" is now recorded in AGENTS.md, the Definition-of-Done skill, and the Epic Gate.

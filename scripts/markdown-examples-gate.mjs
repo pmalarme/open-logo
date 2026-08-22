@@ -37,11 +37,12 @@
  *
  * Two things address that. An entry may carry a **`setup`** preamble: faithful context drawn from
  * the surrounding prose, prepended before the block runs, which lets the excerpt execute to
- * completion and assert a clean result instead of halting on line one. Where that is impossible —
- * a `forever` demo, a blocking `input`, or a block whose whole point is the error it stops on — the
- * limit is **made visible rather than claimed away**: the block is reported as `PARTIAL` with its
- * own count in the summary line, naming the line execution stopped at. Four of 315 blocks are
- * `PARTIAL` today. Do not read a green run as "every line of every block executed".
+ * completion and assert a clean result instead of halting on line one. (`inputs` does the same for
+ * a blocking `input` read, scripting the answer the learner would have typed.) Where that is
+ * impossible — a block whose whole point is the error it stops on — the limit is **made visible
+ * rather than claimed away**: the block is reported as `PARTIAL` with its own count in the summary
+ * line, naming the line execution stopped at. One of 315 blocks is `PARTIAL` today. Do not read a
+ * green run as "every line of every block executed".
  *
  * **Determinism.** The instruction budget is fixed ({@link DOCUMENTATION_INSTRUCTION_BUDGET}) and
  * file order is a code-unit sort, so a run is reproducible. One exposure remains: blocks that call
@@ -67,7 +68,19 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, sep } from "node:path";
 import { isDiagnosticCode } from "@openlogo/core";
-import { OL_CHECK_PROFILES, check, parse } from "@openlogo/parser";
+import {
+  OL_CHECK_PROFILES,
+  check,
+  corePrimitiveArity,
+  dataPrimitiveArity,
+  educationalPrimitiveArity,
+  geometryPrimitiveArity,
+  interactionPrimitiveArity,
+  parse,
+  soundPrimitiveArity,
+  spritesPrimitiveArity,
+  turtlePrimitiveArity,
+} from "@openlogo/parser";
 import { execute } from "@openlogo/runtime";
 import { IMPLEMENTED_PROFILES, detectUsedProfiles } from "./examples-gate.mjs";
 
@@ -171,14 +184,14 @@ export function findMarkdownFiles(roots = MARKDOWN_ROOTS) {
   return found.sort();
 }
 
-const FENCE_OPENER = /^([ \t]*)(`{3,}|~{3,})[ \t]*(\S*)/;
+const FENCE_OPENER = /^([ \t]*)(`{3,}|~{3,})[ \t]*(.*)$/;
 const BLOCKQUOTED_FENCE = /^[ \t]*(?:>[ \t]*)+(?:`{3,}|~{3,})/;
 const LIST_MARKER_FENCE = /^[ \t]*(?:[-*+]|\d+[.)])[ \t]+(?:`{3,}|~{3,})/;
 
 /**
  * Which {@link UNSUPPORTED_FENCE_REASONS} entry (if any) applies to a line that opens a fence.
- * Checked before {@link FENCE_OPENER}, because a blockquoted or list-prefixed fence does not match
- * that pattern at all — silently ignoring such a line would drop a real block on the floor.
+ * Checked before the opener is accepted, because a blockquoted or list-prefixed fence does not match
+ * {@link FENCE_OPENER} at all — silently ignoring such a line would drop a real block on the floor.
  */
 function unsupportedFenceReason(line) {
   if (BLOCKQUOTED_FENCE.test(line)) {
@@ -197,8 +210,9 @@ function unsupportedFenceReason(line) {
   if (indent.includes("\t") || indent.length >= 4) {
     return UNSUPPORTED_FENCE_REASONS.DEEP_INDENT;
   }
-  // CommonMark: a backtick fence's info string may not contain a backtick, so such a line is not a
-  // fence at all. Rather than quietly consuming it as one, say so.
+  // CommonMark: a backtick fence's info string may not contain a backtick ANYWHERE — not just in
+  // its first word — so such a line is not a fence at all. Rather than quietly consuming it as one,
+  // say so.
   if (fence[0] === "`" && info.includes("`")) {
     return UNSUPPORTED_FENCE_REASONS.BACKTICK_IN_INFO;
   }
@@ -267,7 +281,12 @@ export function extractFencedBlocks(text) {
       });
     }
     blocks.push({
-      language: info.toLowerCase(),
+      // The info string's FIRST WORD is the language; the rest is attributes CommonMark leaves to
+      // the renderer. Validation above already saw the whole string.
+      language: info
+        .trim()
+        .split(/[ \t]+/)[0]
+        .toLowerCase(),
       source: body.join("\n"),
       startLine,
     });
@@ -286,21 +305,36 @@ export function blockFingerprint(source) {
 }
 
 /**
- * The 1-based line, within `source`, of the last line carrying something the runtime would execute
- * (ignoring blank lines and whole-line `#` comments), or `0` when there is none. Used to tell
- * "execution stopped early" from "execution reached the end and the last statement happened to
- * raise". Exported so its edge cases are testable directly: {@link analyzeBlock} only reaches it
- * once a runtime error exists, which a block with no executable line can never produce.
+ * Names that OpenLogo itself provides. A `setup` preamble supplies *context*; it must never
+ * redefine the language, because a preamble that shadows a primitive can make a real defect vanish
+ * — `define set_shape :s end` would turn the canonical `set_shape "bee"` regression green.
  */
-export function lastExecutableLine(source) {
-  const lines = source.split("\n");
-  for (let index = lines.length - 1; index >= 0; index -= 1) {
-    const text = lines[index].trim();
-    if (text !== "" && !text.startsWith("#")) {
-      return index + 1;
-    }
-  }
-  return 0;
+function isPrimitiveName(name) {
+  return [
+    corePrimitiveArity,
+    turtlePrimitiveArity,
+    dataPrimitiveArity,
+    educationalPrimitiveArity,
+    geometryPrimitiveArity,
+    interactionPrimitiveArity,
+    soundPrimitiveArity,
+    spritesPrimitiveArity,
+  ].some((arityOf) => arityOf(name) !== undefined);
+}
+
+/**
+ * The 1-based start line, within `source`, of the last **top-level statement** — the closest thing
+ * to a program counter available without replaying the trace. A diagnostic's span points at the
+ * construct that raised, not at where execution stopped, so comparing a halt against the last
+ * statement's start is what distinguishes "a later statement never began" from "the final statement
+ * ran and raised part-way through". Returns `0` for a block with no statements. Exported so its
+ * edge cases are testable directly.
+ */
+export function lastStatementLine(program) {
+  const statements = program.body;
+  return statements.length === 0
+    ? 0
+    : statements[statements.length - 1].source_span.start[0];
 }
 
 /**
@@ -317,9 +351,11 @@ export function lastExecutableLine(source) {
  * `setup` is optional OpenLogo source prepended to the block before analysis, so an excerpt whose
  * context lives in the prose can be given that context and run to completion instead of halting on
  * its first undefined name. Reported line numbers stay anchored to the real file: the preamble's
- * own lines are subtracted. The setup must itself be clean — a diagnostic landing inside it is
- * reported as `setupError` and never folded into the block's codes, because a broken preamble would
- * otherwise read as a defect in the documentation.
+ * own lines are subtracted. The preamble must **parse standalone** and must itself be clean — a
+ * diagnostic landing inside it is reported as `setupError`, never folded into the block's codes,
+ * because a broken preamble would otherwise read as a defect in the documentation *and* could
+ * absorb the block's own malformed structure. `inputs` scripts the answers a blocking `input` read
+ * consumes, so an interaction example can run instead of being cancelled.
  *
  * @returns `{ unimplementedProfiles, codes, details, internalError, setupError, partialFrom }`.
  *   `codes` is the sorted, de-duplicated set of error-severity `ol-*` codes across all three stages
@@ -332,13 +368,8 @@ export function lastExecutableLine(source) {
 export function analyzeBlock(
   source,
   label,
-  { startLine = 0, gateUnimplementedProfiles = true, setup } = {},
+  { startLine = 0, gateUnimplementedProfiles = true, setup, inputs } = {},
 ) {
-  const preambleLines = setup === undefined ? 0 : setup.split("\n").length;
-  const analyzed = setup === undefined ? source : `${setup}\n${source}`;
-  // Diagnostics are reported against `analyzed`; subtracting the preamble keeps every line number
-  // anchored to the block as it appears in the file.
-  const offset = startLine - preambleLines;
   const empty = {
     unimplementedProfiles: [],
     codes: [],
@@ -350,7 +381,51 @@ export function analyzeBlock(
   let unimplementedProfiles = [];
   let diagnostics;
   let runtimeErrorLines = [];
+  let offset = startLine;
+  let lastStatement = 0;
   try {
+    // Everything that can throw lives inside the try, including the preamble arithmetic: a
+    // malformed manifest entry must reach the reported `internalError`, never a raw stack trace.
+    const preambleLines = setup === undefined ? 0 : setup.split("\n").length;
+    const analyzed = setup === undefined ? source : `${setup}\n${source}`;
+    // Diagnostics are reported against `analyzed`; subtracting the preamble keeps every line
+    // number anchored to the block as it appears in the file.
+    offset = startLine - preambleLines;
+
+    if (setup !== undefined) {
+      // The preamble must stand on its own. Without this, a `setup` of `repeat 1` and a block of
+      // `forward 10` / `end repeat` would concatenate into a valid program and pass clean, even
+      // though neither half is valid OpenLogo — the preamble would be absorbing the block's own
+      // malformed structure instead of supplying context to it.
+      const preamble = parse(setup, `${label} (setup)`);
+      const broken = preamble.diagnostics.filter(
+        (diagnostic) => diagnostic.severity === "error",
+      );
+      if (broken.length > 0) {
+        return {
+          ...empty,
+          setupError: broken
+            .map((diagnostic) => `${diagnostic.code}: ${diagnostic.message}`)
+            .join("; "),
+        };
+      }
+      // A preamble supplies context; it must not redefine the language. Shadowing a primitive
+      // would let a setup silence a real defect rather than reveal it.
+      const shadowed = preamble.ast.body
+        .filter(
+          (statement) =>
+            statement.kind === "ProcedureDef" &&
+            isPrimitiveName(statement.name.name),
+        )
+        .map((statement) => statement.name.name);
+      if (shadowed.length > 0) {
+        return {
+          ...empty,
+          setupError: `it redefines the built-in ${shadowed.join(", ")} — a setup supplies context, it must not shadow a primitive`,
+        };
+      }
+    }
+
     unimplementedProfiles = detectUsedProfiles(analyzed).filter(
       (profile) => !IMPLEMENTED_PROFILES.includes(profile),
     );
@@ -359,8 +434,10 @@ export function analyzeBlock(
     }
 
     const parsed = parse(analyzed, label);
+    lastStatement = lastStatementLine(parsed.ast);
     const executed = execute(analyzed, label, {
       instructionBudget: DOCUMENTATION_INSTRUCTION_BUDGET,
+      ...(inputs === undefined ? {} : { hostInput: { responses: inputs } }),
     });
     // Only a *runtime*-stage error halts execution. `execute()` also returns the parse-stage
     // diagnostics it collected on the way in; counting those as a halt would mislabel a block that
@@ -377,43 +454,47 @@ export function analyzeBlock(
         .diagnostics,
       ...executed.diagnostics,
     ];
+
+    const errors = diagnostics.filter(
+      (diagnostic) => diagnostic.severity === "error",
+    );
+    const inPreamble = errors.filter(
+      (diagnostic) => diagnostic.source_span.start[0] <= preambleLines,
+    );
+    if (inPreamble.length > 0) {
+      return {
+        ...empty,
+        unimplementedProfiles,
+        setupError: inPreamble
+          .map((diagnostic) => `${diagnostic.code}: ${diagnostic.message}`)
+          .join("; "),
+      };
+    }
+
+    const haltLine =
+      runtimeErrorLines.length === 0 ? null : runtimeErrorLines[0];
+    return {
+      unimplementedProfiles,
+      codes: [...new Set(errors.map((diagnostic) => diagnostic.code))].sort(),
+      details: errors.map(
+        (diagnostic) =>
+          `${offset + diagnostic.source_span.start[0]}: ${diagnostic.code} — ${diagnostic.message}`,
+      ),
+      internalError: null,
+      setupError: null,
+      // Partial only when a later top-level statement never began. A diagnostic's span points at
+      // the construct that raised, not at where execution stopped, so a multi-line final statement
+      // that raises on its own head line has still run everything there was to run.
+      partialFrom:
+        haltLine !== null && haltLine < lastStatement
+          ? offset + haltLine
+          : null,
+    };
   } catch (error) {
     // A gate must never itself crash on an unexpected internal error — but it must never call one
     // a diagnostic either, so this is its own state rather than a pseudo `ol-*` code.
     return { ...empty, unimplementedProfiles, internalError: error.message };
   }
-
-  const errors = diagnostics.filter(
-    (diagnostic) => diagnostic.severity === "error",
-  );
-  const inPreamble = errors.filter(
-    (diagnostic) => diagnostic.source_span.start[0] <= preambleLines,
-  );
-  if (inPreamble.length > 0) {
-    return {
-      ...empty,
-      unimplementedProfiles,
-      setupError: inPreamble
-        .map((diagnostic) => `${diagnostic.code}: ${diagnostic.message}`)
-        .join("; "),
-    };
-  }
-
-  const haltLine = runtimeErrorLines.length === 0 ? null : runtimeErrorLines[0];
-  return {
-    unimplementedProfiles,
-    codes: [...new Set(errors.map((diagnostic) => diagnostic.code))].sort(),
-    details: errors.map(
-      (diagnostic) =>
-        `${offset + diagnostic.source_span.start[0]}: ${diagnostic.code} — ${diagnostic.message}`,
-    ),
-    internalError: null,
-    setupError: null,
-    partialFrom:
-      haltLine !== null && haltLine < lastExecutableLine(analyzed)
-        ? offset + haltLine
-        : null,
-  };
 }
 
 /** True when two sorted string lists hold the same entries. */
@@ -466,12 +547,34 @@ export function validateExpectationEntry(entry, file, position) {
   if (entry.setup !== undefined && typeof entry.setup !== "string") {
     problems.push(`${where}: "setup" must be a string of OpenLogo source`);
   }
+  if (
+    entry.inputs !== undefined &&
+    (!Array.isArray(entry.inputs) ||
+      entry.inputs.length === 0 ||
+      entry.inputs.some((answer) => typeof answer !== "string"))
+  ) {
+    problems.push(
+      `${where}: "inputs" must be a non-empty array of the answers a blocking \`input\` read consumes`,
+    );
+  }
   const asserts = EXPECTATION_KINDS.get(entry.kind);
   if (asserts === undefined) {
     problems.push(
       `${where}: "kind" must be one of ${[...EXPECTATION_KINDS.keys()].join(", ")} (got ${JSON.stringify(entry.kind)})`,
     );
     return problems;
+  }
+  // `setup`/`inputs` supply context a block is missing. They make no sense on a
+  // `profile-not-implemented` entry, which asserts that the block cannot run at all.
+  for (const field of ["setup", "inputs"]) {
+    if (
+      entry[field] !== undefined &&
+      entry.kind === "profile-not-implemented"
+    ) {
+      problems.push(
+        `${where}: "${field}" cannot apply to a "profile-not-implemented" entry — it asserts the block cannot run at all`,
+      );
+    }
   }
   const issueRequired = entry.kind === "known-broken";
   if (
@@ -491,9 +594,14 @@ export function validateExpectationEntry(entry, file, position) {
     );
     return problems;
   }
-  // An empty `codes` is meaningful only alongside a `setup` preamble: it asserts "given this
-  // context, the block runs clean". Without one it would assert nothing at all.
-  if (declared.length === 0 && entry.setup === undefined) {
+  // An empty `codes` is meaningful only for a prose excerpt that was given context: it asserts
+  // "with this setup/inputs, the block runs clean". Every other kind must name what it produces, so
+  // an empty list can never quietly assert nothing at all.
+  const hasContext = entry.setup !== undefined || entry.inputs !== undefined;
+  if (
+    declared.length === 0 &&
+    !(entry.kind === "prose-fragment" && hasContext)
+  ) {
     problems.push(
       `${where}: a "${entry.kind}" entry must list the ${asserts} it asserts`,
     );
@@ -598,12 +706,19 @@ export function runMarkdownExamplesGate({
   // Every entry starts unmatched; a block that matches one removes it. Whatever is left over
   // described a block that no longer exists (or has been edited), which is itself a failure.
   const unmatched = new Map();
+  // An entry that failed validation has already been reported; its block is not analysed with it,
+  // because a malformed entry cannot be trusted to describe anything.
+  const invalid = new Set();
   for (const [file, entries] of Object.entries(resolvedExpectations)) {
     for (const [position, entry] of entries.entries()) {
-      for (const problem of validateExpectationEntry(entry, file, position)) {
+      const problems = validateExpectationEntry(entry, file, position);
+      for (const problem of problems) {
         fail(problem);
       }
       const key = `${file}#${entry.fingerprint}`;
+      if (problems.length > 0) {
+        invalid.add(key);
+      }
       if (unmatched.has(key)) {
         fail(
           `${file} entry ${position}: duplicate fingerprint ${entry.fingerprint} — one of the two entries is dead`,
@@ -631,9 +746,16 @@ export function runMarkdownExamplesGate({
       counts.total += 1;
       const label = `${file}:${block.startLine}`;
       const fingerprint = blockFingerprint(block.source);
+      const key = `${file}#${fingerprint}`;
       const expectation = fileExpectations.find(
         (entry) => entry.fingerprint === fingerprint,
       );
+      if (invalid.has(key)) {
+        // Its problems were already reported; analysing the block with a malformed entry would
+        // only produce a second, confusing failure for the same cause.
+        unmatched.delete(key);
+        continue;
+      }
       const analysis = analyzeBlock(block.source, label, {
         startLine: block.startLine,
         // A listed block is analyzed for real: its expectation already says what it produces, so
@@ -642,6 +764,7 @@ export function runMarkdownExamplesGate({
           expectation === undefined ||
           expectation.kind === "profile-not-implemented",
         setup: expectation?.setup,
+        inputs: expectation?.inputs,
       });
 
       if (expectation !== undefined) {
