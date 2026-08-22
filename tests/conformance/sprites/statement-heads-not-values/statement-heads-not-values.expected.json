@@ -1,0 +1,64 @@
+{
+  "description": "issue #864: the two Sprites Kind-S statement-form heads in VALUE position, with the profile ACTIVE. The Sprites half of the same defect its Interaction & Events sibling `interaction-events/block-heads-not-values` pins: `spec/grammar.md:390` gives a keyword no derivation in a position the grammar does not cover, yet `ask` and `each` both read COMPLETELY CLEAN in value position under their own profile at the saga tip `a7db8f2` -- the silent no-op class, saga #811. The source is the issue's own reproduction plus a call argument and an assignment right-hand side, with both names in one program so a partial fix cannot pass. `tell` is deliberately ABSENT: the C3 Sprites rows give it Kind **C** (a command with a callable form), not Kind **S**, so it is a legitimate `callable-name` and is pinned as such by the sibling fixture `tell-is-a-command-not-a-block-head` -- the two together key this rule to the C3 Kind column rather than to profile membership, which is exactly the over-reach a review caught in round 1. Its byte-identical twin `statement-heads-ordinary-names-core-only` runs these exact bytes Core-only, where the same positions report `ol-unknown-command` instead. Deliberately declares nothing, so issue #841's unconditional-built-in-names change has nothing here to invalidate. This is a check-mode fixture: it proves static legality only and does not execute.",
+  "profiles": ["core-language", "turtle-rendering", "sprites"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "sprites/statement-heads-not-values/statement-heads-not-values",
+        "start": [1, 8],
+        "end": [1, 11]
+      },
+      "params": {
+        "text": "ask"
+      },
+      "message": "i don't know how to read ask here. ask starts its own instruction, so it cannot make a value.",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "sprites/statement-heads-not-values/statement-heads-not-values",
+        "start": [2, 8],
+        "end": [2, 12]
+      },
+      "params": {
+        "text": "each"
+      },
+      "message": "i don't know how to read each here. each starts its own instruction, so it cannot make a value.",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "sprites/statement-heads-not-values/statement-heads-not-values",
+        "start": [3, 7],
+        "end": [3, 10]
+      },
+      "params": {
+        "text": "ask"
+      },
+      "message": "i don't know how to read ask here. ask starts its own instruction, so it cannot make a value.",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "sprites/statement-heads-not-values/statement-heads-not-values",
+        "start": [4, 6],
+        "end": [4, 10]
+      },
+      "params": {
+        "text": "each"
+      },
+      "message": "i don't know how to read each here. each starts its own instruction, so it cannot make a value.",
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

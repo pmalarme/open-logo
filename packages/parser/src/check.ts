@@ -10,8 +10,11 @@
  * (`spec/tooling.md:175-176` — never a hardcoded "every optional profile active"), and the
  * return contract. `findings()` dispatches over an ordered list of rule functions, each
  * `(program, profiles) => readonly Diagnostic[]`; a rule slice adds its module and one
- * registration line in {@link RULES}. #117's `ol-unknown-command` is the first rule registered
- * here; #113's `ol-undefined-var`/`ol-reserved-word` (alongside #79/#113's completed
+ * registration line in {@link RULES}. #864's `profileWordPositionRule` is registered first — it
+ * reports the one defect that is a *derivation* failure rather than a meaning failure (an active
+ * profile's statement-form head read as a callee, `spec/grammar.md:390`), so it precedes every rule
+ * that assumes the word was read in a position the grammar allows. #117's `ol-unknown-command`
+ * follows it; #113's `ol-undefined-var`/`ol-reserved-word` (alongside #79/#113's completed
  * `ol-not-a-place`) are the third; #114's `ol-return-outside-proc`/`ol-stop-outside-proc`/
  * `ol-return-in-comprehension`/`ol-no-value`/`ol-duplicate-binder` control-flow statics are the
  * last Layer-2 (error) rule registered. Issue #667's Heritage form-head gate
@@ -33,6 +36,7 @@ import { arityRule } from "./checker-arity.js";
 import { controlFlowRule } from "./checker-control-flow.js";
 import { heritageFormRule } from "./checker-heritage-form.js";
 import { notAPlaceRule } from "./checker-not-a-place.js";
+import { profileWordPositionRule } from "./checker-profile-word-position.js";
 import { declarationSlotRule } from "./checker-reserved-word.js";
 import { STYLE_RULES } from "./checker-style.js";
 import { undefinedVarRule } from "./checker-undefined-var.js";
@@ -133,6 +137,7 @@ export type CheckRule = (
  * module and one entry here — see the module doc comment above.
  */
 const RULES: readonly CheckRule[] = [
+  profileWordPositionRule,
   unknownCommandRule,
   heritageFormRule,
   unknownTypeRule,

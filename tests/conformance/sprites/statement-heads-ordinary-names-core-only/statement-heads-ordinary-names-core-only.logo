@@ -1,0 +1,4 @@
+repeat ask [ ]
+repeat each [ ]
+print ask
+:x = each
