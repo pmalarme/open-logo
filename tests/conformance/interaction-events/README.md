@@ -89,8 +89,11 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   Issue **#828** adds the two properties that bound a handler which registers another handler. First,
   registrations are **never collapsed, deduplicated, or replaced**: `every-nested-registration-not-collapsed`
   (`every 3 [ every 3 [ … ] ]`) fires exactly **6** times over 12 ticks against exactly **4** for its
-  twin `every-single-registration-baseline`, so each registration provably survives with its own
-  capture (the property #821's E-A depends on). Second, that growth is bounded by the **ordinary
+  twin `every-single-registration-baseline`, so each registration provably survives as a **distinct
+  handler**. Note the narrow scope of that claim: the bodies print a literal, so the pair proves
+  collapse-freedom only — it says nothing about *capture*, which is issue #821's separate ruling and
+  is **not** repaired here (E-A still prints `30 30 30`). Collapse-freedom is the property #821's
+  repair will build on; #828 only guarantees it is not taken away. Second, that growth is bounded by the **ordinary
   instruction budget** rather than by a mechanism of its own, because each firing is a charged
   instruction: `every-nested-registration-budgeted` raises `ol-limit` where its control twin
   `every-single-registration-budgeted` — same empty body, same ticks, same budget — completes cleanly,
