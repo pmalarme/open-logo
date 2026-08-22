@@ -285,6 +285,10 @@ test("a local naming a Sound primitive is a binding, so it raises nothing", () =
 });
 
 test("without the sound profile active, define/local/struct set_tempo/beep raise no reserved-word collision", () => {
+  // The `define`/`struct` halves are SHIPPED BEHAVIOUR, not a spec requirement: `spec/grammar.md:408`
+  // makes every profile's primitives built-in names unconditionally, so a conforming implementation
+  // must raise on them with or without `sound`. Retiring the gate is #841's, which flips those
+  // assertions. The `local` half is correct and permanent — binding is free (`grammar.md:386`).
   for (const name of ["set_tempo", "beep", "note", "rest", "play"]) {
     const defineOnly = parseClean(`define ${name}\nend`);
     assert.deepEqual(

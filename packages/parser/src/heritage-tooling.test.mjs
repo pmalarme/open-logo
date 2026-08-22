@@ -277,8 +277,10 @@ test("semanticTokens: each list-reporter alias carries defaultLibrary in express
 
 test("highlight: every structural word of the value-of-key reader is a keyword, `of` included", () => {
   // Issue #785. `of` used to be the odd one out — `primitive`, while its three siblings in the SAME
-  // production were `keyword`. `spec/tooling.md:31` scopes `primitive` to "aliases from the C3
-  // primitive matrix" and `of` is in no primitive table; `spec/tooling.md:97-99` now names this
+  // production were `keyword`. `spec/tooling.md:31` scopes the *matrix* sense of `primitive` to
+  // "aliases from the C3 primitive matrix" and `of` is in no primitive table (it would reach that
+  // class only through `:31`'s grammar-safe fallback, which asserts no membership);
+  // `spec/tooling.md:97-99` now names this
   // reader alongside the `is`-predicate as a position where these contextual words are `keyword`.
   const source = 'print value of :d for key "a"';
   for (const word of VALUE_OF_KEY_WORDS) {
@@ -291,7 +293,7 @@ test("highlight: every structural word of the value-of-key reader is a keyword, 
   assert.equal(
     OL.corePrimitiveArity("of"),
     undefined,
-    "`of` is in no C3 primitive table, so `primitive` is not an available class for it",
+    "`of` is in no C3 primitive table, so `primitive` would be only the grammar-safe fallback for it, never a matrix claim",
   );
 });
 
@@ -386,10 +388,11 @@ test("highlight: a mid-edit or malformed reader degrades gracefully — `of` fal
   // precondition. Today the only thing between that and marking the wrong token `keyword` is
   // `markContextualWord`'s text guard, which nothing on this path exercises.
   //
-  // The fall-back class asserted here is `primitive`, which is itself the general defect #831 (a
-  // name in no C3 table must not be `primitive`, `spec/tooling.md:31`). It is asserted as the
-  // CURRENT value, not as correct: when #831 lands, these expectations change to whatever class it
-  // chooses. What this test actually pins — and what must hold under either — is that no
+  // The fall-back class asserted here is `primitive`, which `spec/tooling.md:31` now makes the
+  // normative grammar-safe fallback for a bare name no other row claims. What remains of defect
+  // #831 is only that `semanticTokens` adds `defaultLibrary` on top, asserting a matrix membership
+  // `:31` explicitly forbids inferring. What this test actually pins — and what must hold under
+  // either — is that no
   // `ValueOfKeyNode` means `of` is left to the ordinary fall-back rather than marked `keyword` at a
   // guessed index, and that `highlight()` does not throw.
   const partial = {

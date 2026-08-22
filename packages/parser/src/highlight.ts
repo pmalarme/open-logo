@@ -390,11 +390,13 @@ export function highlight(source: string, document = "<input>"): Token[] {
    * `spec/tooling.md`'s, so none of the four governs this class. Tightening their wording is a
    * maintainer call raised with the #785 ruling, not something this change assumes.
    *
-   * It is emphatically not `primitive`, the class it carried before #785: `spec/tooling.md:31`
-   * scopes that to "Built-in commands, reporters, and aliases from the C3 primitive matrix", and
+   * It is emphatically not `primitive` **as a matrix claim**: `spec/tooling.md:31` scopes that
+   * sense to "Built-in commands, reporters, and aliases from the C3 primitive matrix", and
    * `of` is in no primitive table (`corePrimitiveArity("of") === undefined`; `spec/commands.md` has
-   * no `of` entry). `semanticTokens` then decorated it with `defaultLibrary`, asserting
-   * standard-library membership for a word that has none.
+   * no `of` entry). `:31` does make `primitive` the grammar-safe *fallback* for an unclaimed bare
+   * name, but it forbids reading matrix membership into that — whereas `semanticTokens` then
+   * decorated `of` with `defaultLibrary`, asserting standard-library membership for a word that has
+   * none (the residue tracked by #831).
    *
    * This is a *classification*, not a reservation: `of` is still not a reserved word, so it stays
    * redefinable and remains an ordinary name outside these two positions (`:of`, `define of`,

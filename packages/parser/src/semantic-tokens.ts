@@ -113,6 +113,12 @@ function modifiersFor(
 ): TokenModifier[] {
   const modifiers: TokenModifier[] = [];
   if (token.class === "primitive") {
+    // KNOWN DEVIATION (#831): `spec/tooling.md:31` makes `primitive` the grammar-safe **fallback**
+    // for any bare name no other row claims, and says that fallback "is not a claim of matrix
+    // membership, and tools MUST NOT infer one from it". This branch infers exactly that, so an
+    // unresolved name (`fowad`, `zzz`) or a contextual word outside its structural positions
+    // (`local empty`) is decorated `defaultLibrary` despite being in no C3 table. Narrowing this to
+    // confirmed built-ins is #831's; the fallback CLASS itself is now normative and correct.
     modifiers.push("defaultLibrary");
   }
   const roleModifier =

@@ -196,6 +196,10 @@ test("a local naming a Geometry primitive is a binding, so it raises nothing", (
 });
 
 test("without the geometry profile active, define/local/struct grid/axes/measure raise no reserved-word collision", () => {
+  // The `define`/`struct` halves are SHIPPED BEHAVIOUR, not a spec requirement: `spec/grammar.md:408`
+  // makes every profile's primitives built-in names unconditionally, so a conforming implementation
+  // must raise on them with or without `geometry`. Retiring the gate is #841's, which flips those
+  // assertions. The `local` half is correct and permanent — binding is free (`grammar.md:386`).
   for (const name of ["grid", "axes", "measure"]) {
     const defineOnly = parseClean(`define ${name}\nend`);
     assert.deepEqual(
