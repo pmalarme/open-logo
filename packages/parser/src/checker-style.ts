@@ -357,15 +357,19 @@ const HERITAGE_SURFACE_SPELLINGS: ReadonlySet<string> = new Set(
  *   (short aliases + form heads + worded-form heads, issue #852). Heritage aliases carry no arity
  *   of their own, so {@link primitiveArity} cannot see them; this is the registry that does.
  *
- * The bound of this derivation is exactly "what the parser knows", and that is the intended bound.
- * A name no registry carries is not silently *skipped* here — it is unknown to every parser
- * component alike, and `ol-unknown-command` says so. The Tutor profile's `challenge`
- * (`spec/conformance.md`) is the live example: it has no arity table yet, so both `CHALLENGE` and
- * `challenge` report `ol-unknown-command` rather than a casing warning. When the Tutor slice
- * registers its table in `PROFILE_PRIMITIVE_ARITY_TABLES`, this rule covers it with no edit —
- * which is the whole point of deriving. Narrowing these three sources to #841's single always-on
- * built-in-names list is epic #900's endpoint, and is what this rule should consume once #841
- * exists.
+ * The bound of this derivation is exactly "what the parser knows", and **that bound has already
+ * been tested in flight**. When this rule was first written, the Tutor profile's `challenge`
+ * (`spec/conformance.md`) was the one built-in name with no registry at all, so `CHALLENGE`
+ * reported only `ol-unknown-command` and earned no casing warning. Issue #838 then registered
+ * `TUTOR_PRIMITIVE_ARITY` in `signatures.ts`'s `PROFILE_PRIMITIVE_ARITY_TABLES` — and this rule
+ * began covering `challenge` **with no edit here at all**, exactly as a derived set should. That is
+ * the same absorption #885's `NON_PRIMARY_NAMES` demonstrated when #837 added `mod`, and it is the
+ * property a hand-written list cannot have: the fix for the *next* profile is already written.
+ *
+ * A name no registry carries is still not silently *skipped* here — it is unknown to every parser
+ * component alike, and `ol-unknown-command` says so. Narrowing these three sources to #841's
+ * single always-on built-in-names list is epic #900's endpoint, and is what this rule should
+ * consume once #841 exists; until then this is every registry the parser has.
  *
  * Membership is **profile-independent on purpose** — see {@link nameCaseRule} for why. It is also
  * independent of what the program *declares*: `spec/grammar.md:363` is "a program may not declare

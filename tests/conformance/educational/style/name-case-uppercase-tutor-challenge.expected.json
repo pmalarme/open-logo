@@ -1,0 +1,37 @@
+{
+  "description": "ol-style-name-case (issue #854): the Tutor profile's `challenge` (spec/conformance.md:244) written non-lowercase. This fixture exists to pin an ABSORPTION rather than a spelling: when #854 derived this lint from the registries, `challenge` was the one built-in name with no registry at all and was documented as unreachable; #838 then registered TUTOR_PRIMITIVE_ARITY in PROFILE_PRIMITIVE_ARITY_TABLES and the coverage appeared with no change to checker-style.ts. The accompanying `ol-unknown-command` is the separate, pre-existing VISIBILITY half — `collectVisibleNames` has no Tutor branch yet, which is #841's work under epic #900 — so a slice that gives Tutor visibility should expect to drop that diagnostic from this fixture and keep the style warning.",
+  "profiles": ["core-language", "educational", "tutor-ai"],
+  "check": true,
+  "style": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "educational/style/name-case-uppercase-tutor-challenge",
+        "start": [1, 1],
+        "end": [1, 10]
+      },
+      "params": {
+        "name": "CHALLENGE"
+      },
+      "message": "i don't know how to CHALLENGE. check the spelling, or define it with 'define'.",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-style-name-case",
+      "source_span": {
+        "document": "educational/style/name-case-uppercase-tutor-challenge",
+        "start": [1, 1],
+        "end": [1, 10]
+      },
+      "params": {
+        "name": "CHALLENGE"
+      },
+      "message": "CHALLENGE should be lowercase snake_case, like a learner would read it aloud.",
+      "stage": "semantic",
+      "severity": "warning"
+    }
+  ]
+}

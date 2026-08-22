@@ -554,6 +554,37 @@ test("ol-style-name-case: optional-profile primitives are covered through the sh
   }
 });
 
+test("ol-style-name-case: the Tutor profile's challenge is absorbed by derivation, with no edit here", () => {
+  // The live proof that this rule fails CLOSED rather than enumerating. When #854 was written,
+  // `challenge` was the one built-in name with no registry at all, so `CHALLENGE` earned no casing
+  // warning and the gap was documented as one this rule could not reach. #838 then registered
+  // `TUTOR_PRIMITIVE_ARITY` in `PROFILE_PRIMITIVE_ARITY_TABLES`, and the coverage appeared with no
+  // change to `checker-style.ts` — the same absorption #885's `NON_PRIMARY_NAMES` showed when #837
+  // added `mod`.
+  //
+  // Asserting the registry membership FIRST is what makes this a derivation test rather than a
+  // spelling test: if the Tutor table were dropped, this fails at the registry assertion instead of
+  // quietly checking a word nothing registers.
+  assert.notEqual(
+    OL.tutorPrimitiveArity("challenge"),
+    undefined,
+    "challenge must be registered in the Tutor arity table",
+  );
+  assert.deepEqual(
+    nameCaseNames("CHALLENGE", ["core-language", "educational", "tutor-ai"]),
+    ["CHALLENGE"],
+  );
+  assert.deepEqual(
+    nameCaseNames("challenge", ["core-language", "educational", "tutor-ai"]),
+    [],
+  );
+  // And it is profile-blind like every other built-in: casing is a question about the name, not
+  // about whether the profile that makes it run is active.
+  assert.deepEqual(nameCaseNames("CHALLENGE", ["core-language"]), [
+    "CHALLENGE",
+  ]);
+});
+
 test("ol-style-name-case: keyword-headed statements the node-kind table never reached are covered", () => {
   // `Assign` and `ValueOfKey` were the two gaps issue #854 reported; `Add`/`Remove`/`Insert`/
   // `Clear`/`StructDef` and the profile block-heads were never in the table either and were silent
