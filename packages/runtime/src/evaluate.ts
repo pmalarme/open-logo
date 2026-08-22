@@ -658,11 +658,15 @@ export function checkExecutionLimits(
  * it gets the same answer. Charging here, at the single entry every `invoke*Handler` shares, is what
  * makes the accumulation terminate: with each firing charged, the quadratic growth burns the budget
  * and trips the ordinary `ol-limit` instead of running away silently. Registrations are never
- * collapsed, deduped, or replaced — each stays a distinct handler. That is collapse-freedom ONLY:
- * handlers share the live scope and read at FIRING time, so there is no per-registration capture in
- * this runtime (`:n = 10 ; every 3 [ print :n ] ; :n = 20 ; every 3 [ print :n ] ; wait 3` prints
- * `20 20`, not `10 20`). Capture-by-binding is issue #821's separate ruling and is NOT repaired
- * here; #828 only guarantees the collapse-freedom that repair will build on is not taken away.
+ * collapsed, deduped, or replaced — each stays a distinct handler. That is collapse-freedom ONLY.
+ * Registration captures the live lexical environment; it neither snapshots values nor creates fresh
+ * bindings. So two registrations made in genuinely different environments do keep them
+ * (`define setup :v ; every 3 [ print :v ] ; end` called as `setup 7` then `setup 8` prints `7 8`),
+ * while two registrations sharing ONE binding both read it live at firing time
+ * (`:n = 10 ; every 3 [ print :n ] ; :n = 20 ; every 3 [ print :n ]` prints `20 20`). What is missing
+ * is fresh per-iteration bindings, which is why a loop body still reuses one binding
+ * (issue #821's E-A prints `30 30 30`). That is #821's separate ruling and is NOT repaired here;
+ * #828 only guarantees the collapse-freedom that repair will build on is not taken away.
  *
  * ## Why the halt predicate has two arms
  *
