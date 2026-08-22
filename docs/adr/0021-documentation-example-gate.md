@@ -107,16 +107,21 @@ runtime-only defect down there (`ol-type`, `ol-range`, `ol-unknown-key`, `ol-unk
 not be observed. Two things address this. An entry may carry a **`setup` preamble** — faithful
 context drawn from the surrounding prose, prepended before the block runs — which lets an excerpt
 execute to completion and assert a clean result instead of halting on line one; `inputs` does the
-same for a blocking `input`, scripting the answer the learner would have typed. **34 blocks are
-handled that way: 33 carry a `setup`, one carries `inputs`.** A preamble must parse, check, *and*
-execute cleanly **on its own**, and must not redefine a primitive at any depth — so it can only
-supply context, never absorb a block's malformed structure, lean on the block it is supporting, or
+same for a blocking `input`, scripting the answer the learner would have typed. Most excerpts are
+handled that way. A preamble must parse, check, *and* execute cleanly **on its own**, must not
+define a name the block also defines, and must not redefine anything OpenLogo provides — every
+profile's primitives *and* every Heritage surface spelling — at any depth. So it can only supply
+context: never absorb a block's malformed structure, never lean on the block it is supporting, never
 shadow away a real defect. Where context is impossible — a block whose whole point is the error it
 stops on — the limit is **surfaced rather than claimed away**: the block is reported as `PARTIAL`,
-with its own count in the summary line. **One** of 315 blocks is `PARTIAL` today:
+with its own count in the summary line. Today that is exactly one block,
 `spec/data-structures.md`'s `ol-unknown-key` demo, whose halt *is* the lesson and whose corrected
-`# ok:` example therefore never executes. Splitting that block is a `spec/` edit, tracked on #888.
-A green run does not mean every line of every block executed, and the gate says so.
+`# ok:` example therefore never executes; splitting it is a `spec/` edit, tracked on #888. A green
+run does not mean every line of every block executed, and the gate says so.
+
+Deliberately, no count in this record is a number you have to keep in sync: the gate prints the live
+totals — clean, asserted, known-broken, partial, failed — on every run, and a hand-maintained tally
+in an immutable document goes stale the first time someone adds an entry.
 
 Measuring that honestly needs a program counter, not a span: a diagnostic points at the construct
 that raised, not at where execution stopped, so a multi-line final statement raising on its own head

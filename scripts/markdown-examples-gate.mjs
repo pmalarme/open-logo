@@ -75,6 +75,7 @@ import {
   dataPrimitiveArity,
   educationalPrimitiveArity,
   geometryPrimitiveArity,
+  heritageSurfaceSpellings,
   interactionPrimitiveArity,
   parse,
   soundPrimitiveArity,
@@ -306,11 +307,17 @@ export function blockFingerprint(source) {
 }
 
 /**
- * Names that OpenLogo itself provides. A `setup` preamble supplies *context*; it must never
- * redefine the language, because a preamble that shadows a primitive can make a real defect vanish
- * — `define set_shape :s end` would turn the canonical `set_shape "bee"` regression green.
+ * Names that OpenLogo itself provides — every profile's primitives **plus every Heritage surface
+ * spelling**. A `setup` preamble supplies *context*; it must never redefine the language, because a
+ * preamble that shadows a provided name can make a real defect vanish: `define set_shape :s end`
+ * would turn the canonical `set_shape "bee"` regression green, and `define fd :n end` would do the
+ * same for `fd "x"`'s `ol-type`. `heritageSurfaceSpellings()` is the parser's own enumeration
+ * (issue #852), so the alias list cannot drift from it here.
  */
 function isPrimitiveName(name) {
+  if (heritageSurfaceSpellings().includes(name)) {
+    return true;
+  }
   return [
     corePrimitiveArity,
     turtlePrimitiveArity,
@@ -324,19 +331,18 @@ function isPrimitiveName(name) {
 }
 
 /**
- * Every primitive name a preamble redefines, **at any depth**. Checking only the top-level
- * statements is not enough: wrapping the definition in a one-line block (`repeat 1 [ define
- * set_shape :s end ]`) hides it from a shallow scan but not from the runtime, which is the same
- * shadowing cheat through a one-token wrapper.
+ * Every name a program defines, at any depth — procedures and struct types alike. Used both to
+ * catch a preamble shadowing a provided name and to catch a preamble and its block defining the
+ * same name, which would let the block change what the preamble means.
  */
-function shadowedPrimitives(program) {
+function definedNames(program) {
   const found = new Set();
   walk(program, (node) => {
-    if (node.kind === "ProcedureDef" && isPrimitiveName(node.name.name)) {
+    if (node.kind === "ProcedureDef" || node.kind === "StructDef") {
       found.add(node.name.name);
     }
   });
-  return [...found].sort();
+  return found;
 }
 
 /**
@@ -439,13 +445,29 @@ export function analyzeBlock(
             .join("; "),
         };
       }
-      // A preamble supplies context; it must not redefine the language. Shadowing a primitive
-      // would let a setup silence a real defect rather than reveal it — at any nesting depth.
-      const shadowed = shadowedPrimitives(preamble.ast);
+      // A preamble supplies context; it must not redefine the language. Shadowing a provided name
+      // would let a setup silence a real defect rather than reveal it — at any nesting depth, and
+      // for Heritage spellings as much as Core primitives.
+      const preambleDefines = definedNames(preamble.ast);
+      const shadowed = [...preambleDefines]
+        .filter((name) => isPrimitiveName(name))
+        .sort();
       if (shadowed.length > 0) {
         return {
           ...empty,
           setupError: `it redefines the built-in ${shadowed.join(", ")} — a setup supplies context, it must not shadow a primitive`,
+        };
+      }
+      // Procedure resolution is whole-program, so a block that redefines a name the preamble also
+      // defines changes what the preamble MEANS — the preamble is no longer the standalone-clean
+      // program that was validated above.
+      const collisions = [...definedNames(parse(source, label).ast)]
+        .filter((name) => preambleDefines.has(name))
+        .sort();
+      if (collisions.length > 0) {
+        return {
+          ...empty,
+          setupError: `both it and the block define ${collisions.join(", ")} — the block would change what the preamble means, so the preamble is no longer the program that was validated`,
         };
       }
     }
@@ -482,27 +504,43 @@ export function analyzeBlock(
     const errors = diagnostics.filter(
       (diagnostic) => diagnostic.severity === "error",
     );
-    // No check for diagnostics inside the preamble is needed here: the preamble was already
-    // parsed, checked and executed standalone above and had to be clean, and it runs first and
-    // unchanged in the combined program, so it cannot raise anything now that it did not raise
-    // then.
+    // A `define` in the preamble defers its body, so standalone validation says nothing about what
+    // is inside it — the block calling that procedure can raise from a preamble line. The
+    // diagnostic is genuinely the block's (it made the call), so it stays in `codes` and nothing is
+    // masked; but its line must not be reported above the block's own opening fence. Clamp such a
+    // diagnostic to the block's first body line and say where it really came from.
+    const firstBodyLine = startLine + 1;
+    const attribute = (line) =>
+      line <= preambleLines ? firstBodyLine : offset + line;
+    const raisedInSetup = errors.some(
+      (diagnostic) => diagnostic.source_span.start[0] <= preambleLines,
+    );
 
     const haltLine =
       runtimeErrorLines.length === 0 ? null : runtimeErrorLines[0];
     return {
       unimplementedProfiles,
       codes: [...new Set(errors.map((diagnostic) => diagnostic.code))].sort(),
-      details: errors.map(
-        (diagnostic) =>
-          `${offset + diagnostic.source_span.start[0]}: ${diagnostic.code} — ${diagnostic.message}`,
-      ),
+      details: errors.map((diagnostic) => {
+        const line = diagnostic.source_span.start[0];
+        const origin =
+          line <= preambleLines
+            ? ` (raised inside this entry's setup preamble, at preamble line ${line})`
+            : "";
+        return `${attribute(line)}: ${diagnostic.code} — ${diagnostic.message}${origin}`;
+      }),
       internalError: null,
       setupError: null,
       // Partial only when a later top-level statement never began. A diagnostic's span points at
       // the construct that raised, not at where execution stopped, so a multi-line final statement
-      // that raises on its own head line has still run everything there was to run.
+      // that raises on its own head line has still run everything there was to run. A halt landing
+      // in the preamble carries no information about the block's own progress, so it is not
+      // reported as partial at all.
       partialFrom:
-        haltLine !== null && haltLine < lastStatement
+        haltLine !== null &&
+        haltLine > preambleLines &&
+        haltLine < lastStatement &&
+        !raisedInSetup
           ? offset + haltLine
           : null,
     };

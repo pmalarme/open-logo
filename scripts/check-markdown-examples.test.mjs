@@ -422,7 +422,7 @@ test("analyzeBlock rejects a setup that does not stand on its own", () => {
   assert.deepEqual(absorbed.codes, []);
 });
 
-test("analyzeBlock rejects a setup that shadows a primitive at any depth", () => {
+test("analyzeBlock rejects a setup that shadows anything OpenLogo provides, at any depth", () => {
   // `define set_shape :s end` would make the canonical set_shape "bee" regression go green…
   for (const setup of [
     "define set_shape :s\nend define",
@@ -437,6 +437,13 @@ test("analyzeBlock rejects a setup that shadows a primitive at any depth", () =>
     );
     assert.deepEqual(result.codes, []);
   }
+  // Heritage surface spellings are provided names too: `define fd :n end` would silence `fd "x"`.
+  assert.deepEqual(analyzeBlock('fd "x"', "heritage").codes, ["ol-type"]);
+  assert.match(
+    analyzeBlock('fd "x"', "heritage", { setup: "define fd :n\nend define" })
+      .setupError,
+    /redefines the built-in fd/,
+  );
   // A setup MAY define a name of its own — that is ordinary context.
   assert.equal(
     analyzeBlock("move_and_turn", "helper", {
@@ -444,6 +451,39 @@ test("analyzeBlock rejects a setup that shadows a primitive at any depth", () =>
     }).setupError,
     null,
   );
+});
+
+test("analyzeBlock rejects a setup and block that define the same name", () => {
+  // Procedure resolution is whole-program, so a block redefining a preamble name changes what the
+  // preamble means — it is no longer the standalone-clean program that was validated.
+  const result = analyzeBlock(
+    "define helper :n\nend define\nhelper 1",
+    "clash",
+    {
+      setup: "define helper\nend define",
+    },
+  );
+  assert.match(result.setupError, /both it and the block define helper/);
+  assert.deepEqual(result.codes, []);
+});
+
+test("a defect raised inside setup-supplied code is reported against the block, not above it", () => {
+  // A `define` in the preamble defers its body, so standalone validation says nothing about what
+  // is inside it. When the block calls it, the diagnostic's span points into the preamble — which
+  // must never be reported at a line above the block's own opening fence.
+  const result = analyzeBlock("helper", "deferred", {
+    startLine: 100,
+    setup: 'define helper\n  set_shape "bee"\nend define',
+  });
+  // It stays in `codes`, so nothing is masked and `codes: []` would fail…
+  assert.deepEqual(result.codes, ["ol-type"]);
+  // …and it is attributed to the block's first body line, saying where it really came from.
+  assert.match(
+    result.details[0],
+    /^101: ol-type — .*\(raised inside this entry's setup preamble, at preamble line 2\)$/,
+  );
+  // A halt inside the preamble says nothing about the block's own progress.
+  assert.equal(result.partialFrom, null);
 });
 
 test("analyzeBlock reports a malformed setup as an internal failure rather than crashing", () => {
