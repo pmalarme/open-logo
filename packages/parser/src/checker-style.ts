@@ -1254,6 +1254,148 @@ export function preferBlockRule(
 }
 
 /**
+ * The handler block-head keywords the Interaction & Events profile defines
+ * (`spec/interaction-events.md`'s "Profile grammar"), lowercased for comparison — OpenLogo
+ * identifiers are case-insensitive. Split into the two roles {@link nestedHandlerRule} needs.
+ *
+ * `REPEATING_HANDLER_HEADS` is the **outer** set: handlers that fire again and again on the tick
+ * clock, so a registration inside one runs once per firing. Only `every` qualifies, and that is a
+ * measured fact rather than a reading of the ruling's wording. `when` is **one-shot** — the runtime
+ * marks a fired handler and never re-delivers it (`invokeWhenHandler` sets `fired`;
+ * `pendingHandlersFor` skips it) — so `when "go" [ … ]` with the event delivered four times fires
+ * exactly once. Treating `when` as an outer would flag `when "start" [ every 10 [ shoot ] ]`, which
+ * registers exactly one handler and is the ordinary way a learner opens a game.
+ *
+ * `HANDLER_HEADS` is the **inner** set: every registration form, not merely the repeating ones,
+ * because what accumulates does not depend on whether the registered handler itself repeats.
+ * Measured: `every 2 [ on_key "x" [ print 1 ] ]` over 12 ticks answers a SINGLE key press with
+ * **five** firings against a baseline of one, because five `on_key` handlers had piled up by then —
+ * and that count grows with runtime. `on_key` is not a repeating handler, yet the hazard is exactly
+ * the one #828 exists to catch.
+ */
+const REPEATING_HANDLER_HEADS: ReadonlySet<string> = new Set(["every"]);
+
+/** Every Interaction & Events registration form — the inner set (see {@link REPEATING_HANDLER_HEADS}). */
+const HANDLER_HEADS: ReadonlySet<string> = new Set([
+  "every",
+  "when",
+  "on_key",
+  "on_click",
+]);
+
+/**
+ * The heads whose blocks are **user-bounded**, so {@link nestedHandlerRule} does not descend into
+ * them. A key press or a click is paced by a person; a clock is not. This is the carve-out the #828
+ * ruling makes normative, and it is why `on_key "space" [ every 10 [ shoot ] ]` stays completely
+ * clean.
+ */
+const USER_BOUNDED_HANDLER_HEADS: ReadonlySet<string> = new Set([
+  "on_key",
+  "on_click",
+]);
+
+/** The head keyword of `node` lowercased, or `undefined` when `node` is not a profile block-head. */
+function handlerHeadName(node: AnyNode): string | undefined {
+  return node.kind === "ProfileStatement"
+    ? node.keyword.name.toLowerCase()
+    : undefined;
+}
+
+/** Build an `ol-style-nested-handler` at the inner registration's own span. */
+function nestedHandlerDiagnostic(
+  node: AnyNode,
+  outer: string,
+  inner: string,
+): Diagnostic {
+  return {
+    code: "ol-style-nested-handler",
+    source_span: node.source_span,
+    params: { outer, inner },
+    message: `${outer} runs again and again, so this ${inner} adds another handler every time. register it once, outside the ${outer}.`,
+    stage: "semantic",
+    severity: "warning",
+  };
+}
+
+/**
+ * Collect the handler registrations `body` performs, at any depth, **without** descending into a
+ * nested user-bounded handler's block ({@link USER_BOUNDED_HANDLER_HEADS}).
+ *
+ * The stop matters. In `every 3 [ on_key "x" [ every 10 [ shoot ] ] ]` the `on_key` registration is
+ * itself reported — it accumulates, one per tick — but the `every 10` inside it is not, because a
+ * key press guards it. Reporting both would put two warnings on one line and contradict the
+ * user-bounded carve-out; the `on_key` is the registration that actually accumulates, so naming it
+ * once is the finding. Descent is otherwise unrestricted, so a registration buried in a `repeat` or
+ * an `if` inside the handler body is still found.
+ */
+function collectNestedRegistrations(
+  body: BlockNode,
+  out: { node: AnyNode; head: string }[],
+): void {
+  const visit = (node: AnyNode): void => {
+    const head = handlerHeadName(node);
+    if (head !== undefined && HANDLER_HEADS.has(head)) {
+      out.push({ node, head });
+      if (USER_BOUNDED_HANDLER_HEADS.has(head)) {
+        return;
+      }
+    }
+    for (const child of childrenOf(node)) {
+      visit(child);
+    }
+  };
+  for (const statement of body.body) {
+    visit(statement);
+  }
+}
+
+/**
+ * `ol-style-nested-handler` (issue #828): an `every` handler whose block registers another handler.
+ *
+ * This is the **teaching half** of the #828 ruling. Its other half — charging each handler firing
+ * against the instruction budget — already makes the program *safe*, so a learner who never reads
+ * this warning is still protected: the accumulation exhausts the budget and raises `ol-limit`
+ * exactly as a runaway `forever` does. The lint exists so a learner finds out *why* before being
+ * bitten, which is why it is a `warning` that never changes program meaning.
+ *
+ * Only runs when the `interaction-events` profile is active — the block-heads it looks for do not
+ * exist otherwise, and a rule must consult the active profile set rather than assume every optional
+ * profile is on (`spec/tooling.md`'s Layer-2/Layer-3 visibility rule).
+ *
+ * The finding is reported at the **inner** registration's span, not the outer handler's: that is the
+ * line the learner would move out of the block, and it keeps one finding per accumulating
+ * registration when a body registers several.
+ */
+export function nestedHandlerRule(
+  program: ProgramNode,
+  profiles: readonly CheckProfile[],
+): readonly Diagnostic[] {
+  if (!profiles.includes("interaction-events")) {
+    return [];
+  }
+  const diagnostics: Diagnostic[] = [];
+  walk(program, (node) => {
+    const head = handlerHeadName(node);
+    if (
+      head === undefined ||
+      !REPEATING_HANDLER_HEADS.has(head) ||
+      node.kind !== "ProfileStatement" ||
+      node.body === undefined
+    ) {
+      return;
+    }
+    const registrations: { node: AnyNode; head: string }[] = [];
+    collectNestedRegistrations(node.body, registrations);
+    for (const registration of registrations) {
+      diagnostics.push(
+        nestedHandlerDiagnostic(registration.node, head, registration.head),
+      );
+    }
+  });
+  return diagnostics;
+}
+
+/**
  * The opt-in Layer-3 style-rule registry (issue #115), run by `check()` only when
  * `options.style === true`. Order is the order findings are reported in; a later #169 slice
  * appends its rule(s) here the same way {@link RULES} in `check.ts` grows for Layer-2.
@@ -1268,4 +1410,5 @@ export const STYLE_RULES: readonly CheckRule[] = [
   deepNestingRule,
   blockIndentationRule,
   preferBlockRule,
+  nestedHandlerRule,
 ];
