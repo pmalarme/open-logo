@@ -424,7 +424,7 @@ test("ol-style-name-case: every silent row of issue #854's reported table now wa
   }
 });
 
-test("ol-style-name-case: EVERY Heritage surface spelling is covered, driven by the registry itself", () => {
+test("ol-style-name-case: EVERY Heritage alias is covered, driven by the registry itself", () => {
   // The point of #854 is not that `MAKE` and `FD` were added to a list — it is that there is no
   // list. This test names no spelling of its own: it iterates the registry
   // (`heritageAliasNames()` + `heritageFormHeadNames()` + `heritageWordedFormHeads()` are exactly
@@ -578,6 +578,20 @@ test("ol-style-name-case: keyword-headed statements the node-kind table never re
       `expected ${JSON.stringify(expected)} in: ${source}`,
     );
   }
+});
+
+test("ol-style-name-case: a prefix word-operator is caught, an infix one is not — pinned, not assumed", () => {
+  // A consequence of judging a node's OWN span start, worth pinning because it is asymmetric and a
+  // reader could reasonably expect otherwise. `not` is prefix, so its `Call` node's span starts at
+  // the operator word and the casing is judged. `mod`/`and`/`or` are infix, so their node's span
+  // starts at the LEFT OPERAND and the operator word is interior — the same reason `ELSE` and the
+  // worded reader's `OF`/`FOR`/`KEY` stay silent. Neither is a false positive; the infix case is a
+  // missed detection deferred to the #115 follow-up along with the other interior keywords.
+  assert.deepEqual(nameCaseNames("print NOT true"), ["NOT"]);
+  assert.deepEqual(nameCaseNames("print not true"), []);
+  assert.deepEqual(nameCaseNames("print 5 MOD 2"), []);
+  assert.deepEqual(nameCaseNames("print true AND false"), []);
+  assert.deepEqual(nameCaseNames("print true OR false"), []);
 });
 
 test("ol-style-name-case: an uppercase word that is no registry's built-in is left alone", () => {

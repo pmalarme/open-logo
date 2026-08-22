@@ -610,12 +610,19 @@ function checkNamesIn(node: AnyNode, diagnostics: Diagnostic[]): void {
       // to the #115 follow-up.
       //
       // The word-spelled operators (`mod`/`and`/`or`/`not`) are built-in names and so are in the
-      // set, but can never produce a finding here: the parser matches them case-insensitively and
-      // always *normalizes* the callee's stored spelling to canonical lowercase (`parser.ts`'s
-      // `parseMultiplicative`/`parseAnd`/`parseOr`/`parseUnary`), so a source `MOD`/`AND` never
-      // survives into the AST for this rule to see — unlike a `Call` built by `parseFixedCall`,
-      // which keeps the literal token spelling (`sname(token.text, token)`). Excluding them would
-      // be a hand-kept exception guarding nothing, which is exactly what issue #854 removed.
+      // set, but can never produce a finding *on this path*: the parser matches them
+      // case-insensitively and always *normalizes* the callee's stored spelling to canonical
+      // lowercase (`parser.ts`'s `parseMultiplicative`/`parseAnd`/`parseOr`/`parseUnary`), so a
+      // source `MOD`/`AND` never survives into the AST for this rule to see — unlike a `Call`
+      // built by `parseFixedCall`, which keeps the literal token spelling
+      // (`sname(token.text, token)`). Excluding them would be a hand-kept exception guarding
+      // nothing, which is exactly what issue #854 removed.
+      //
+      // Read that narrowly: it is a statement about the CALLEE path, not about the operators. A
+      // *prefix* operator's node span starts at the operator word itself, so `print NOT true` is
+      // still caught by {@link keywordCasingDiagnostic}, while an *infix* operator's span starts
+      // at its left operand, so `5 MOD 2` is not. That asymmetry follows from spans rather than
+      // from any judgement about the operators, and it is pinned by a test.
       if (isBuiltInName(node.callee.name)) {
         checkNameCase(node.callee, diagnostics);
       }
@@ -638,13 +645,17 @@ function checkNamesIn(node: AnyNode, diagnostics: Diagnostic[]): void {
 }
 
 /**
- * A start position, as the key {@link nameCaseRule} de-duplicates and exempts on. Two
+ * A span's start, as the key {@link nameCaseRule} de-duplicates and exempts on. Two
  * `ol-style-name-case` findings that start at the same position are always about the same run of
  * source characters, so at most one of them may be reported.
+ *
+ * The document is part of the key even though one `ProgramNode` is one document today: keying on
+ * `line:column` alone would silently start dropping findings the moment a program spanned more
+ * than one, and a de-duplicator that fails by *discarding* is the wrong failure direction.
  */
-function positionKey(start: Position): string {
-  const [line, column] = start;
-  return `${line}:${column}`;
+function positionKey(span: Diagnostic["source_span"]): string {
+  const [line, column] = span.start;
+  return `${span.document}:${line}:${column}`;
 }
 
 /**
@@ -696,7 +707,7 @@ export function nameCaseRule(
   >();
   const exemptPositions = new Set<string>();
   walk(program, (node) => {
-    const nodeKey = positionKey(node.source_span.start);
+    const nodeKey = positionKey(node.source_span);
     if (NON_KEYWORD_SPAN_START_KINDS.has(node.kind)) {
       exemptPositions.add(nodeKey);
     }
@@ -714,7 +725,7 @@ export function nameCaseRule(
     for (const finding of identifierFindings) {
       // Overwrites a keyword finding at the same position while keeping its report order (a `Map`
       // re-`set` does not move an existing key), so a callee keeps its identifier wording.
-      byPosition.set(positionKey(finding.source_span.start), {
+      byPosition.set(positionKey(finding.source_span), {
         diagnostic: finding,
         fromKeyword: false,
       });
