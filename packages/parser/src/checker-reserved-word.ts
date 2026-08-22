@@ -117,11 +117,13 @@
  * (the model slice H5/#670 and #733/#747 established), so an alias can never drift from its
  * canonical: whatever table the canonical is in — or is *not* in — decides both spellings alike.
  *
- * **Turtle & Rendering is still deliberately not consulted** (issue #783, which awaits a maintainer
- * ruling on whether `tooling.md:185`'s primitive category binds for a profile that shipped in the
- * 0.1.0 minimal claim). That is a scope boundary, not an oversight, and the resolve-to-canonical
- * design above is precisely what keeps it from leaking: `define forward` is accepted, so
- * `define fd` — which resolves to `forward` and finds no consulted table — is accepted too. The nine
+ * **Turtle & Rendering is still deliberately not consulted** (issue #783). The normative question is
+ * now settled — `spec/tooling.md:185` and `spec/grammar.md:408` make every profile's primitives
+ * built-in names whether or not the profile is claimed — so what remains is implementation, tracked
+ * with the rest of the always-on list in #841. That is a scope boundary, not an oversight, and the
+ * resolve-to-canonical design above is precisely what keeps it from leaking: `define forward` is
+ * accepted, so `define fd` — which resolves to `forward` and finds no consulted table — is accepted
+ * too. The nine
  * turtle aliases (`fd bk lt rt st ht pu pd cs`) therefore stay legal *because* their canonicals do,
  * and the day #783 wires in `turtlePrimitiveArity` all nine start colliding with no further edit
  * here. A parallel alias table would have had to be revisited by hand instead, which is exactly the
@@ -158,13 +160,18 @@ const NO_STRUCTS: ReadonlySet<string> = new Set();
 /**
  * `"primitive"` when `name` is a built-in of some **active** profile, `undefined` otherwise — the
  * whole of {@link collidingNamespace}'s primitive category, in one place, so a profile slice adds
- * exactly one branch here (`spec/tooling.md:185` "Required behavior", applied against the active
- * profile set per `:175-176`).
+ * exactly one branch here (`spec/tooling.md:185` "Required behavior").
+ *
+ * **The active-profile gating is shipped behaviour, not what that row requires.** `:185` and
+ * `spec/grammar.md:408` make profile primitives built-in names whether or not their profile is
+ * claimed; `:175-176` gates which names are *available* (the `ol-unknown-command` axis), which is a
+ * different question from whether a name may be declared. Retiring the gate here is #841's.
  *
  * Two properties this function exists to guarantee:
  *
- * 1. **Every profile is gated on its own claim**, so a Core-only program stays free to
- *    `define grid`/`define who`/`define pr`, exactly as it is free to `define ask`.
+ * 1. **Every profile is gated on its own claim**, so a Core-only program is currently accepted when
+ *    it declares `grid`/`who`/`pr`, exactly as it is when it declares `ask` — the deviation #841
+ *    closes.
  * 2. **A Heritage alias is its canonical, by construction.** The `heritage` branch resolves through
  *    {@link canonicalOfHeritageAlias} and re-enters this same function on the canonical spelling
  *    rather than consulting a table of its own, so `define pr` is exactly as (il)legal as
