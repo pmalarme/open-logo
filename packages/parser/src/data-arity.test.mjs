@@ -174,17 +174,35 @@ test("without the data profile active, a struct name is not registered so no col
   assert.deepEqual(diagnostics, []);
 });
 
-test("without the data profile active, a struct name colliding with a procedure is not checked either way", () => {
-  const defineFirst = parseClean("define point\nend\nstruct point [ x ]");
-  assert.deepEqual(
-    OL.check(defineFirst, { profiles: ["core-language"] }).diagnostics,
-    [],
-  );
-  const structFirst = parseClean("struct point [ x ]\ndefine point\nend");
-  assert.deepEqual(
-    OL.check(structFirst, { profiles: ["core-language"] }).diagnostics,
-    [],
-  );
+test("without the data profile active, a struct DUPLICATING a procedure is still reported", () => {
+  // This asserted the opposite until issue #838's review round: "not checked either way". The gate
+  // it pinned was real (issue #405) but belonged to the OLD rule, where the diagnostic meant "this
+  // name is already taken" and a struct that registered nothing could not take one.
+  //
+  // `ol-duplicate-definition` asks a different question — did the PROGRAM declare this name twice?
+  // — and `spec/execution-model.md:82-88` answers it with no profile condition: "The reader
+  // registers every `define`/`to` procedure AND EVERY `struct` declaration … a name an earlier
+  // declaration in the program or an imported module already registered raises
+  // `ol-duplicate-definition`". `spec/data-structures.md:304` says the same. The runtime's phase-1
+  // guard is profile-blind too, so keeping the gate here made `check()` call clean a program that
+  // `execute()` then rejected.
+  //
+  // Its neighbours above are unaffected and still gated, which is the distinction worth keeping:
+  // `struct dict [ x ]` under Core alone stays clean because `dict` is only a BUILT-IN name when
+  // `data` is claimed (that gate is issue #841's to retire), and `local point` stays clean because
+  // `local` is a binding form (ruling #833). Only the duplicate question is profile-blind.
+  for (const [label, source, laterLine] of [
+    ["define then struct", "define point\nend\nstruct point [ x ]", 3],
+    ["struct then define", "struct point [ x ]\ndefine point\nend", 2],
+  ]) {
+    const { diagnostics } = OL.check(parseClean(source), {
+      profiles: ["core-language"],
+    });
+    assert.equal(diagnostics.length, 1, `${label} must be reported`);
+    assert.equal(diagnostics[0].code, "ol-duplicate-definition");
+    assert.deepEqual(diagnostics[0].source_span.start, [laterLine, 8]);
+    assert.deepEqual(diagnostics[0].params.original_span.start, [1, 8]);
+  }
 });
 
 test("without the data profile active, a local colliding with a struct name is not checked", () => {

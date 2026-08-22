@@ -370,7 +370,7 @@ function isStructDef(node: AnyNode): node is StructDefNode {
  * earlier `define`/`struct` in the program already declared it. Built-in wins, so a name that is
  * both is reported once, as the thing the learner cannot change.
  *
- * A `define`/`struct` is checked only against procedures and structs *already seen earlier in
+ * A `define`/`struct` is checked only against declarations *already seen earlier in
  * source order* — including across the two kinds — so the first declaration of a name stays clean
  * and each later one (whichever kind it is) is flagged against it. That is what supplies
  * `original_span`, and why checking the full program symmetrically would be wrong: it would flag
@@ -387,74 +387,61 @@ function isStructDef(node: AnyNode): node is StructDefNode {
  * checked, that was the only out-of-order case and the sort became dead weight.) A consumer —
  * conformance fixture, editor, LSP — can rely on the order unconditionally either way.
  *
- * **Struct participation is split by code**, and deliberately so:
+ * **Both declaration kinds are treated identically, and neither is profile-gated.** `define` and
+ * `struct` share one first-declaration map, so a name's first declaration wins whichever kind it is
+ * and every later one names *that* span. An earlier revision (issue #838's first round) kept two
+ * maps and consulted procedures before structs, which had two defects a review caught:
  *
- * - The **built-in** check runs on every `struct`, unconditionally. Issue #838's AC2 requires
- *   `struct forward [ x y ]` to be rejected "regardless of the active profile set, including
- *   Core-only", and `spec/grammar.md:382` puts `struct` among the four slots with no profile
- *   condition on any of them. Whether the declaration would *register* anything is beside the
- *   point: the program asked OpenLogo for a name OpenLogo owns.
- * - The **duplicate** check stays gated on `"data"` being active (issue #405), mirroring
- *   `checker-names.ts`'s and `checker-arity.ts`'s own `data` gate: with `data` inactive a struct
- *   declaration registers no constructor at all (`collectVisibleNames`), so there is genuinely
- *   nothing for a later declaration to duplicate, and reporting one would flag a name that is not
- *   in fact taken. Unifying that gate belongs with #841's unconditional sweep, not here.
+ * - `struct f` / `define f` / `define f` pointed the third declaration's `original_span` at the
+ *   **second**, because the procedure map's first entry was the second declaration overall.
+ *   `spec/error-model.md:126` wants the earlier declaration, and "earlier" is a property of the
+ *   program, not of the node kind.
+ * - The duplicate check was gated on `"data"` (inherited from issue #405's reasoning for the *old*
+ *   rule), so Core-only `struct f` twice — and `define f` then `struct f` — checked **clean**.
+ *   That is wrong twice over. `spec/execution-model.md:82-88` makes phase-1 registration
+ *   unconditional ("The reader registers every `define`/`to` procedure **and every `struct`
+ *   declaration** … a name an earlier declaration in the program or an imported module already
+ *   registered raises `ol-duplicate-definition`"), and `spec/data-structures.md:304` says the same.
+ *   #405 reasoned about what a declaration *registers*; a duplicate is a property of what the
+ *   program *declares*, which no profile changes. And the runtime's own phase-1 guard
+ *   (`execute-internal.ts`'s `collectStructs`) is profile-blind, so the gate made `check()` and
+ *   `execute()` disagree — the exact disagreement `docs/design-notes/0007-binding-vs-registration.md`
+ *   says this ruling removes.
+ *
+ * `checker-names.ts` and `checker-arity.ts` keep their own `data` gates, and correctly so: those
+ * rules answer "is this name *visible* to call", which is precisely what a profile decides
+ * (`spec/grammar.md:408`). This rule answers "may the program declare it", which a profile never
+ * decides. Same word, two different questions.
  */
 export function declarationSlotRule(
   program: ProgramNode,
   profiles: readonly CheckProfile[],
 ): readonly Diagnostic[] {
-  const dataActive = profiles.includes("data");
-
   const diagnostics: Diagnostic[] = [];
-  const seenProcedures = new Map<string, SourceSpan>();
-  const seenStructs = new Map<string, SourceSpan>();
-
-  /** Report `spannedName`'s one collision, if any, against the declarations seen so far. */
-  const report = (spannedName: SpannedName, name: string): void => {
-    if (isBuiltInName(name, profiles)) {
-      diagnostics.push(reservedWordDiagnostic(spannedName));
-      return;
-    }
-    const originalSpan = seenProcedures.get(name) ?? seenStructs.get(name);
-    if (originalSpan !== undefined) {
-      diagnostics.push(
-        duplicateDefinitionDiagnostic(spannedName, originalSpan),
-      );
-    }
-  };
-
-  /** Remember the **first** declaration of `name`, so a third one still names the first. */
-  const remember = (
-    declared: Map<string, SourceSpan>,
-    name: string,
-    span: SourceSpan,
-  ): void => {
-    if (!declared.has(name)) {
-      declared.set(name, span);
-    }
-  };
+  /**
+   * The span of the **first** declaration of each name, across both declaration kinds. Only ever
+   * written when absent, so the third declaration of a name still names the first — and so a
+   * built-in name is never recorded at all, which is what keeps `define forward` twice reporting
+   * two `ol-reserved-word`s rather than degrading the second into a duplicate.
+   */
+  const firstDeclaration = new Map<string, SourceSpan>();
 
   walk(program, (node) => {
-    if (isProcedureDef(node)) {
-      const name = node.name.name.toLowerCase();
-      report(node.name, name);
-      remember(seenProcedures, name, node.name.source_span);
+    if (!isProcedureDef(node) && !isStructDef(node)) {
       return;
     }
-    if (isStructDef(node)) {
-      const name = node.name.name.toLowerCase();
-      if (!dataActive) {
-        // Built-in check only. With `data` inactive a struct registers no constructor, so this
-        // declaration neither duplicates an earlier one nor becomes one a later one can duplicate.
-        if (isBuiltInName(name, profiles)) {
-          diagnostics.push(reservedWordDiagnostic(node.name));
-        }
-        return;
-      }
-      report(node.name, name);
-      remember(seenStructs, name, node.name.source_span);
+    const declared = node.name;
+    const name = declared.name.toLowerCase();
+    if (isBuiltInName(name, profiles)) {
+      diagnostics.push(reservedWordDiagnostic(declared));
+      return;
     }
+    const originalSpan = firstDeclaration.get(name);
+    if (originalSpan !== undefined) {
+      diagnostics.push(duplicateDefinitionDiagnostic(declared, originalSpan));
+      return;
+    }
+    firstDeclaration.set(name, declared.source_span);
   });
 
   return diagnostics;

@@ -1003,6 +1003,12 @@ const PROFILE_PRIMITIVE_ARITY_TABLES: readonly ReadonlyMap<string, number>[] = [
   INTERACTION_PRIMITIVE_ARITY,
   SOUND_PRIMITIVE_ARITY,
   SPRITES_PRIMITIVE_ARITY,
+  // Tutor's `challenge` is arity 0, which is also `arityOf`'s fallback, so this entry changes no
+  // reader behavior TODAY — a QA review measured that removing it fails no test. It is registered
+  // anyway, because the alternative is that Tutor is the one profile the reader's single lookup
+  // does not cover, and the day the profile gains a primitive that takes an input, that omission
+  // would surface as a misgrouped call rather than as a missing table. Coverage by construction,
+  // not by the current arity happening to match the default.
   TUTOR_PRIMITIVE_ARITY,
 ];
 

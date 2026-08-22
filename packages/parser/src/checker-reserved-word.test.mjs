@@ -266,16 +266,51 @@ test("#838 AC5: a procedure defined twice raises ol-duplicate-definition with bo
   assert.equal(finding.severity, "error");
 });
 
-test("#838 AC5: a third declaration still names the FIRST one", () => {
-  // `original_span` is "the earlier one" (`spec/error-model.md:126`). Pointing a third `define` at
-  // the second would send the learner to another duplicate rather than to the definition that won.
-  const raised = duplicateFindings(
-    "define f\nend\ndefine f\nend\ndefine f\nend\n",
-    CORE_ONLY,
-  );
-  assert.equal(raised.length, 2);
-  for (const finding of raised) {
-    assert.deepEqual(finding.params.original_span.start, [1, 8]);
+test("#838 AC5: a third declaration still names the FIRST one — including across kinds", () => {
+  // `original_span` is "the earlier one" (`spec/error-model.md:126`). Pointing a third declaration
+  // at the second would send the learner to another duplicate rather than to the definition that
+  // won.
+  //
+  // The MIXED-KIND row is the one that matters, and it is a regression test: the first revision of
+  // this rule kept a `define` map and a `struct` map and consulted procedures first, so
+  // `struct f` / `define f` / `define f` pointed the third at the SECOND declaration — the
+  // procedure map's own first entry. A same-kind-only test could not see it, which is exactly how
+  // it shipped past 3783 tests. "Earlier" is a property of the program, not of the node kind.
+  for (const [label, source, profiles, expectedFirstLine] of [
+    [
+      "define/define/define",
+      "define f\nend\ndefine f\nend\ndefine f\nend\n",
+      CORE_ONLY,
+      1,
+    ],
+    [
+      "struct/define/define",
+      "struct f [ x ]\ndefine f\nend\ndefine f\nend\n",
+      ["core-language", "data"],
+      1,
+    ],
+    [
+      "define/struct/struct",
+      "define f\nend\nstruct f [ x ]\nstruct f [ y ]\n",
+      ["core-language", "data"],
+      1,
+    ],
+    [
+      "struct/struct/define",
+      "struct f [ x ]\nstruct f [ y ]\ndefine f\nend\n",
+      ["core-language", "data"],
+      1,
+    ],
+  ]) {
+    const raised = duplicateFindings(source, profiles);
+    assert.equal(raised.length, 2, `${label}: N declarations give N-1 reports`);
+    for (const finding of raised) {
+      assert.deepEqual(
+        finding.params.original_span.start,
+        [expectedFirstLine, 8],
+        `${label}: every duplicate must name the FIRST declaration`,
+      );
+    }
   }
 });
 
@@ -293,21 +328,41 @@ test("#838 AC5: struct-vs-struct and struct-vs-procedure duplicate in either ord
   }
 });
 
-test("#838 AC5: struct duplicates stay gated on the data profile", () => {
-  // The scope boundary #838 kept: with `data` inactive a struct registers no constructor at all
-  // (`checker-names.ts`'s `collectVisibleNames`, issue #405), so there is nothing for a later
-  // declaration to duplicate and reporting one would flag a name that is not in fact taken. Only
-  // the BUILT-IN half of the struct check is unconditional. Unifying the gate is issue #841's.
-  assert.deepEqual(
-    findings("struct pt [ x ]\nstruct pt [ y ]\n", CORE_ONLY),
-    [],
-    "a struct cannot duplicate another struct while data is inactive",
-  );
-  assert.deepEqual(
-    findings("define pt\nend\nstruct pt [ x ]\n", CORE_ONLY),
-    [],
-    "a struct cannot duplicate a procedure while data is inactive",
-  );
+test("#838 AC5: duplicate detection is NOT profile-gated — a struct duplicates under Core alone", () => {
+  // This asserted the opposite in #838's first round, gated on `data` by analogy with issue #405.
+  // That was wrong, and wrong in a way the whole ruling exists to prevent:
+  //
+  //   * `spec/execution-model.md:82-88` makes phase-1 registration unconditional — "The reader
+  //     registers every `define`/`to` procedure AND EVERY `struct` declaration … a name an earlier
+  //     declaration in the program or an imported module already registered raises
+  //     `ol-duplicate-definition`". `spec/data-structures.md:304` agrees. Neither carries a profile
+  //     condition.
+  //   * #405's reasoning was about what a declaration REGISTERS. A duplicate is a property of what
+  //     the program DECLARES, and no profile changes that.
+  //   * `@openlogo/runtime`'s phase-1 guard is profile-blind, so the gate made `check()` and
+  //     `execute()` disagree — Core-only `struct f` twice ran into a runtime error the checker had
+  //     just called clean. Ending that disagreement is the stated point of the ruling
+  //     (`docs/design-notes/0007-binding-vs-registration.md`).
+  //
+  // The contrast to hold on to: `checker-names.ts` and `checker-arity.ts` DO gate structs on
+  // `data`, and rightly — they answer "is this name visible to call", which is exactly what a
+  // profile decides (`spec/grammar.md:408`). This rule answers "may the program declare it", which
+  // a profile never decides.
+  for (const [label, source, laterLine] of [
+    ["struct twice", "struct pt [ x ]\nstruct pt [ y ]\n", 2],
+    ["procedure then struct", "define pt\nend\nstruct pt [ x ]\n", 3],
+    ["struct then procedure", "struct pt [ x ]\ndefine pt\nend\n", 2],
+  ]) {
+    const raised = findings(source, CORE_ONLY);
+    assert.equal(
+      raised.length,
+      1,
+      `${label} must be reported under Core alone, exactly as with data active`,
+    );
+    assert.equal(raised[0].code, "ol-duplicate-definition");
+    assert.deepEqual(raised[0].source_span.start, [laterLine, 8]);
+    assert.deepEqual(raised[0].params.original_span.start, [1, 8]);
+  }
 });
 
 test("#838 AC5: built-in beats duplicate — a doubly-taken name is reported once, as reserved", () => {

@@ -82,6 +82,7 @@ import {
   soundPrimitiveArity,
   spritesPrimitiveArity,
   turtlePrimitiveArity,
+  tutorPrimitiveArity,
   walk,
 } from "@openlogo/parser";
 import { execute } from "@openlogo/runtime";
@@ -321,12 +322,18 @@ export function blockFingerprint(source) {
 }
 
 /**
- * Names that OpenLogo itself provides — every profile's primitives **plus every Heritage surface
- * spelling**. A `setup` preamble supplies *context*; it must never redefine the language, because a
+ * Names that OpenLogo itself provides — **every** profile's primitives plus every Heritage surface
+ * spelling. A `setup` preamble supplies *context*; it must never redefine the language, because a
  * preamble that shadows a provided name can make a real defect vanish: `define set_shape :s end`
  * would turn the canonical `set_shape "bee"` regression green, and `define fd :n end` would do the
  * same for `fd "x"`'s `ol-type`. `heritageSurfaceSpellings()` is the parser's own enumeration
  * (issue #852), so the alias list cannot drift from it here.
+ *
+ * **"Every profile" has to mean every profile.** A missing table is a silent hole rather than a
+ * loud one: the guard simply stops recognising that profile's names, and a setup shadowing one
+ * sails through. Tutor's `challenge` was exactly that hole until issue #838 gave the profile a
+ * registry (`tutorPrimitiveArity`) and wired it in here — before that there was no table to
+ * consult, so a preamble could redefine `challenge` and no gate would say a word.
  */
 function isPrimitiveName(name) {
   // OpenLogo identifiers are case-insensitive, so `define FD :n end` shadows `fd` just as surely
@@ -345,6 +352,7 @@ function isPrimitiveName(name) {
     interactionPrimitiveArity,
     soundPrimitiveArity,
     spritesPrimitiveArity,
+    tutorPrimitiveArity,
   ].some((arityOf) => arityOf(canonical) !== undefined);
 }
 
