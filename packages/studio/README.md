@@ -220,11 +220,19 @@ shapes with an **attempt chain**.
   program asks something it is absent from the layout, the tab order, and the accessibility tree —
   which is why the e2e layout baselines are unchanged.
 - **One honest caveat.** `random` with no `randomize <seed>` seeds from the wall clock per
-  `execute()` call, so a program mixing unseeded `random` with `input` can draw different numbers in
-  a replayed prefix than the probe already showed. Every committed state is one whole attempt's own
-  reduction, so it is always self-consistent, and `randomize <seed>` makes the chain exact.
+  `execute()` call, so a replayed prefix is not guaranteed to reproduce the probe's. The dangerous
+  half of that is **handled, not merely documented**: answers are recorded together with the prompt
+  they answered, and a read only draws from the FIFO when the recorded prompt matches this attempt's
+  — so a diverged replay that reaches a *different* question at that position re-asks the learner
+  instead of silently applying `"5"`, given for "how many sides?", to a run that asked "what
+  colour?". What remains is cosmetic: the *picture* can change when the learner answers, because the
+  replayed prefix may draw different random values. Every committed state is one whole attempt's own
+  reduction, so none is internally inconsistent, and `randomize <seed>` makes the chain exact.
+  `ExecuteOptions` exposes no seed, so a host cannot pin it — the real fix is a runtime API plus a
+  suspendable executor, both outside this package.
 
 ## Friendlier run-status labels (#311)
+
 The `#run-status` region (`index.html`) shows a learner-facing label instead of the raw internal
 `RunStatus` state-machine name:
 

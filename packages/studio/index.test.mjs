@@ -538,3 +538,32 @@ test("#769: web/main.ts opens the prompt modally and routes Escape and Cancel to
     /inputPromptController\.submit\(inputPromptFieldElement\.value\)/,
   );
 });
+
+test("#769: the prompt dialog lives OUTSIDE <main>, so it is neither a grid item nor inside the e2e layout snapshot", () => {
+  // Round 1, @testing N6. `web/styles.css` lays `main` out as a grid, and `e2e/layout.spec.ts`
+  // snapshots `page.locator("main")` — so the dialog's position, not just its closed state, is
+  // what keeps it out of both. Documented in three places before this; asserted in none.
+  const mainEnd = indexHtml.indexOf("</main>");
+  const dialogStart = indexHtml.indexOf('<dialog id="input-prompt"');
+  assert.ok(mainEnd >= 0, "expected a <main> element");
+  assert.ok(dialogStart >= 0, "expected the input-prompt dialog");
+  assert.ok(
+    dialogStart > mainEnd,
+    "the prompt dialog must be declared after </main>, never inside it",
+  );
+});
+
+test("#769: web/main.ts sets the dialog's accessible name BEFORE opening it", () => {
+  // Round 1, @testing N9. showModal() computes the accessible name from aria-labelledby at open
+  // time — opening first would announce an empty dialog.
+  const messageAssignment = mainTs.indexOf(
+    "inputPromptMessageElement.textContent",
+  );
+  const showModalCall = mainTs.indexOf("inputPromptDialog.showModal()");
+  assert.ok(messageAssignment >= 0 && showModalCall >= 0);
+  assert.ok(
+    messageAssignment < showModalCall,
+    "the question must be written into #input-prompt-message before showModal() reads it as the " +
+      "dialog's accessible name",
+  );
+});

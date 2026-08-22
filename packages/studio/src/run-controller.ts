@@ -185,9 +185,20 @@
  * lazy `prepare()` therefore installs no reader at all — behavior unchanged from before #769.
  *
  * One honest caveat: `random` with no `randomize <seed>` seeds from the wall clock per `execute()`
- * call, so a program mixing unseeded `random` with `input` can draw different numbers in a replayed
- * prefix than the probe already showed. Every committed state stays internally consistent (each is
- * one whole attempt's own reduction), and `randomize <seed>` makes the chain exact.
+ * call, so a replayed prefix is not guaranteed to reproduce the probe's. Two consequences, and the
+ * dangerous one is handled rather than merely documented:
+ * - An answer is **never** bound to a question the learner was not shown. Answers are recorded with
+ *   the prompt they answered ({@link RecordedAnswer}) and a read only draws from the FIFO when the
+ *   recorded prompt matches this attempt's; a diverged replay that reaches a *different* question
+ *   at that position drops the rest of the FIFO and asks the learner the question it is actually
+ *   asking. Position alone would have silently handed `"42"` — given for "how many sides?" — to a
+ *   replay that asked "what colour?".
+ * - What remains is cosmetic and self-consistent: a program mixing unseeded `random` with `input`
+ *   can *draw* different numbers in a replayed prefix than the probe showed, so the picture can
+ *   change when the learner answers. Every committed state is one whole attempt's own reduction, so
+ *   none of them is internally inconsistent, and `randomize <seed>` makes the chain exact.
+ *   `ExecuteOptions` exposes no seed, so a host cannot pin this; the real fix is a runtime API and a
+ *   suspendable executor, both outside this package.
  */
 
 import { execute, printedForm } from "@openlogo/runtime";
@@ -274,6 +285,18 @@ export interface RunControllerOptions {
 interface PendingRead {
   readonly prompt: string;
   readonly host: InputPromptHost;
+}
+
+/**
+ * One answer the learner has already given during the current chain (#769), remembered **with the
+ * question it answered**. A replay re-executes the whole program, and an unseeded `random` before a
+ * read can make the replayed prefix reach a *different* question at the same position — so binding
+ * answers by position alone could hand an answer to a question the learner was never shown. Pairing
+ * each answer with its prompt is what makes that impossible; see `prepare()`'s reader.
+ */
+interface RecordedAnswer {
+  readonly prompt: string;
+  readonly answer: string;
 }
 
 /** A mutable {@link CancellationSignal} this controller owns and flips via `stop()`/`reset()`. */
@@ -402,6 +425,22 @@ function findCurrentInstructionSourceSpan(
   return null;
 }
 
+/**
+ * The exclusive end index of the animation step that starts at `cursor`: that event plus every
+ * following event up to (but not including) the next `"instruction"` event — exactly
+ * `TurtleAnimationController.step()`'s own boundary rule (`spec/rendering.md`'s worked
+ * `repeat 4 [ forward 100 right 90 ]` example). Purely a measurement: it never folds or reduces
+ * anything. #769's resume needs it because a step is instruction-aligned while the events a
+ * previous attempt actually drew are not — see `prepare()`'s resume loop.
+ */
+function stepEndIndex(events: readonly TraceEvent[], cursor: number): number {
+  let end = cursor + 1;
+  while (end < events.length && events[end]?.kind !== "instruction") {
+    end += 1;
+  }
+  return end;
+}
+
 /** Construct the Run/Stop/Reset/Step controller over an existing state model (never a copy). */
 export function createRunController(
   state: StudioStateStore,
@@ -454,7 +493,7 @@ export function createRunController(
   // `promptOutstanding` guards the present-once rule (the settle hook runs on every animation tick
   // AND once more after playback), and `promptGeneration` invalidates a responder that arrives
   // after Stop/Reset already decided the run's outcome.
-  let answers: string[] = [];
+  let answers: RecordedAnswer[] = [];
   let chainSource = "";
   let pendingRead: PendingRead | null = null;
   let attemptDiagnostics: readonly Diagnostic[] = [];
@@ -545,7 +584,7 @@ export function createRunController(
         state.setRunStatus("stopped");
         return;
       }
-      answers.push(answer);
+      answers.push({ prompt: read.prompt, answer });
       pump();
     });
   }
@@ -597,10 +636,9 @@ export function createRunController(
     userStopped = false;
     pendingRead = null;
 
-    // #769 — one cursor per attempt over the chain's accumulated answers: every read draws the next
-    // one, and the first read with none left records its prompt and reports `undefined`, the
-    // reader's documented "cannot answer" ending. `host` is captured into `pendingRead` so a probe
-    // can only ever exist when a host was supplied.
+    // #769 — one cursor per attempt over the chain's accumulated answers. A read is answered from
+    // the FIFO only when the recorded answer at this position was given for **this same question**;
+    // `host` is captured into `pendingRead` so a probe can only ever exist when a host was supplied.
     let answerCursor = 0;
     const execOptions: ExecuteOptions = {
       signal,
@@ -610,11 +648,20 @@ export function createRunController(
         : {
             hostInput: {
               read: (prompt: string): string | undefined => {
-                const answer = answers[answerCursor];
-                if (answer !== undefined) {
+                const recorded = answers[answerCursor];
+                if (recorded?.prompt === prompt) {
                   answerCursor += 1;
-                  return answer;
+                  return recorded.answer;
                 }
+                // Either the chain has no answer for this position yet, or a nondeterministic
+                // prefix (an unseeded `random` before the read) has reached a DIFFERENT question
+                // here than the learner was shown. Both mean this attempt cannot answer it, so it
+                // takes the reader's documented "cannot answer" ending. Every answer from this
+                // position on is dropped first: on a diverged replay those were given for
+                // questions this attempt is not asking, and handing one to the wrong question
+                // would silently apply a learner's answer to something they never saw. The
+                // learner is asked THIS question instead.
+                answers.length = answerCursor;
                 pendingRead = { prompt, host };
                 return undefined;
               },
@@ -686,14 +733,28 @@ export function createRunController(
     });
     animation = current;
     // #769 — resume the picture instead of redrawing it. A later attempt in the same chain replays
-    // the whole program, so its stream starts with everything the previous attempt already drew:
-    // consume that prefix silently (no snapshot is pushed until playback proper begins, so the
-    // canvas never blanks) and let paced playback carry on from the read. Clamped to the new
-    // stream's own length, which also makes this loop provably terminating — `step()` always
-    // advances the cursor while it is below `events.length`.
+    // the whole program, so its stream starts with everything the previous attempt already drew.
+    // Consume that prefix silently (no snapshot is pushed until playback proper begins, so the
+    // canvas never blanks) and let paced playback carry on from the read.
+    //
+    // The prefix is measured in EVENTS but consumed in STEPS, and those do not align at the read:
+    // the statement that was waiting on it contributed only its own `instruction` event to the
+    // probe, and the learner's answer has now extended that same step with the effects it
+    // produces. `forward input "how far?"` is the whole hazard in one line — stepping merely
+    // "past the event count" would consume that step's brand-new `move`/`draw-segment` too,
+    // silently skipping the very movement the answer just produced. So a step is only fast-
+    // forwarded when it ends at or before the already-drawn boundary; the first step that reaches
+    // past it is left for playback to animate. Clamping to the new stream's own length also makes
+    // this loop provably terminating — `stepEndIndex` always reports at least `cursor + 1`.
     const alreadyDrawn = Math.min(shownEventCount, result.events.length);
-    while (current.getSnapshot().cursor < alreadyDrawn) {
+    let drawnCursor = 0;
+    while (drawnCursor < alreadyDrawn) {
+      const stepEnd = stepEndIndex(result.events, drawnCursor);
+      if (stepEnd > alreadyDrawn) {
+        break;
+      }
       current.step();
+      drawnCursor = stepEnd;
     }
     return current;
   }

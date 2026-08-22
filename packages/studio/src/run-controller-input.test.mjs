@@ -58,7 +58,11 @@ function createManualScheduler() {
   const queue = [];
   return {
     queue,
-    /** Run queued ticks until the queue drains (bounded, so a bug cannot hang the suite). */
+    /**
+     * Run queued ticks until the queue drains (bounded, so a bug cannot hang the suite), reporting
+     * how many fired — the measure that tells a genuine resume apart from a replay of the whole
+     * picture, since the two differ only in how much paced work the next attempt still has to do.
+     */
     drain() {
       let drained = 0;
       while (queue.length > 0 && drained < 100) {
@@ -66,6 +70,7 @@ function createManualScheduler() {
         drained += 1;
         next();
       }
+      return drained;
     },
     scheduler: (callback) => {
       queue.push(callback);
@@ -188,9 +193,19 @@ test("the replayed run draws the same picture a single, un-asked execution would
   });
   OL.createRunController(literalStore).run();
 
+  assert.equal(askingStore.getState().runStatus, "done");
+  assert.deepEqual(
+    askingStore.getState().diagnostics,
+    [],
+    "a completed chain must not carry the probe's withheld cancellation",
+  );
   assert.deepEqual(
     askingStore.getState().turtleScene,
     literalStore.getState().turtleScene,
+  );
+  assert.equal(
+    askingStore.getState().turtleWorld.lastActedTurtleId,
+    literalStore.getState().turtleWorld.lastActedTurtleId,
   );
   assert.deepEqual(
     askingStore
@@ -437,4 +452,328 @@ test("stop() during a paced probe animation, before the question is even shown, 
   );
   assert.equal(store.getState().runStatus, "stopped");
   assert.equal(store.getState().diagnostics[0].code, "ol-limit");
+});
+
+test("the resume animates the movement the learner's own answer produced — it never swallows it (a read INSIDE a drawing instruction)", () => {
+  // Round 1, logic/spec reviewer, blocking finding 2. The prefix a previous attempt drew is
+  // measured in EVENTS, but an animation advances in instruction-aligned STEPS, and the two do
+  // not line up at the read: `forward input "how far?"` contributes only its own `instruction`
+  // event to the probe, and the answer extends that SAME step with the move/draw-segment it
+  // produces. Fast-forwarding merely "past the event count" consumed them, so the drawing the
+  // answer just enabled was never animated.
+  const paced = createManualScheduler();
+  const store = OL.createStudioState({ source: 'forward input "how far?"' });
+  const host = createTestPromptHost();
+  const controller = OL.createRunController(store, {
+    inputPrompt: host,
+    scheduler: paced.scheduler,
+  });
+
+  controller.run();
+  paced.drain();
+  assert.deepEqual(host.prompts, ["how far?"]);
+  assert.deepEqual(
+    store.getState().turtleScene.items,
+    [],
+    "nothing is drawn yet — the instruction is still waiting on the read",
+  );
+
+  host.respond("60");
+  assert.ok(
+    paced.queue.length > 0,
+    "the answered instruction's own move/draw-segment must still be queued for paced playback, " +
+      "never consumed by the resume",
+  );
+  paced.drain();
+
+  const literalStore = OL.createStudioState({ source: "forward 60" });
+  OL.createRunController(literalStore).run();
+  assert.deepEqual(
+    store.getState().turtleScene,
+    literalStore.getState().turtleScene,
+  );
+  assert.equal(store.getState().runStatus, "done");
+});
+
+test("the resume skips only the steps already drawn, so the canvas grows and never replays from blank", () => {
+  const paced = createManualScheduler();
+  const store = OL.createStudioState({
+    source: [
+      "forward 10",
+      "right 90",
+      "forward 10",
+      ':name = input "who?"',
+      "forward 10",
+    ].join("\n"),
+  });
+  const host = createTestPromptHost();
+  const controller = OL.createRunController(store, {
+    inputPrompt: host,
+    scheduler: paced.scheduler,
+  });
+
+  controller.run();
+  paced.drain();
+  const drawnAtPrompt = store.getState().turtleScene.items.length;
+  assert.ok(drawnAtPrompt > 0, "the picture up to the read must be on screen");
+
+  // Every scene published from here on must be at least as complete as the one the learner is
+  // looking at while they answer — a replay that redrew from a blank canvas would dip below it.
+  const itemCounts = [];
+  store.subscribe((next) => {
+    itemCounts.push(next.turtleScene.items.length);
+  });
+  host.respond("tom");
+  paced.drain();
+
+  assert.ok(itemCounts.length > 0, "the resumed run must publish scenes");
+  assert.equal(
+    itemCounts.filter((count) => count < drawnAtPrompt).length,
+    0,
+    `the picture must only ever grow; saw ${JSON.stringify(itemCounts)} against ${drawnAtPrompt}`,
+  );
+  assert.equal(store.getState().runStatus, "done");
+});
+
+test("answers are bound by position even when two reads ask the identical question", () => {
+  const store = OL.createStudioState({
+    source: [
+      ':first = input "value?"',
+      ':second = input "value?"',
+      "print :first",
+      "print :second",
+    ].join("\n"),
+  });
+  const given = ["one", "two"];
+  const host = createTestPromptHost((_prompt, index) => given[index]);
+  const controller = OL.createRunController(store, { inputPrompt: host });
+
+  controller.run();
+
+  assert.deepEqual(host.prompts, ["value?", "value?"]);
+  assert.deepEqual(store.getState().output, ["one", "two"]);
+});
+
+test("each answer is remembered with the question it answered, so a replay can only reuse it for that same question", () => {
+  // Round 1, logic/spec reviewer, blocking finding 1 (the dangerous half). A replay re-executes
+  // the whole program, and an unseeded `random` before a read can make the replayed prefix reach a
+  // DIFFERENT question at the same position. Matching on prompt as well as position is what stops
+  // an answer being silently applied to a question the learner never saw. Asserted deterministically
+  // here on the ordinary (non-diverging) path: every read must receive the answer given for its own
+  // prompt, and a question that is re-asked must be re-answered rather than served from the FIFO.
+  const store = OL.createStudioState({
+    source: [
+      ':sides = input "how many sides?"',
+      ':colour = input "what colour?"',
+      "print :sides",
+      "print :colour",
+    ].join("\n"),
+  });
+  const answerFor = { "how many sides?": "5", "what colour?": "red" };
+  const host = createTestPromptHost((prompt) => answerFor[prompt]);
+  const controller = OL.createRunController(store, { inputPrompt: host });
+
+  controller.run();
+
+  assert.deepEqual(host.prompts, ["how many sides?", "what colour?"]);
+  assert.deepEqual(
+    store.getState().output,
+    ["5", "red"],
+    "each value must be the answer given for ITS OWN question",
+  );
+});
+
+test("resuming costs only the ticks the previous attempt did NOT already draw (the resume is proven, not merely covered)", () => {
+  // Round 1, @testing BLOCK-2. Terminal state is invariant under the resume — `step()` folds every
+  // event either way — so a test that only checks the final scene passes even with the resume
+  // deleted (`shownEventCount` forced to 0 is a surviving mutant). The observable difference is how
+  // much PACED work the next attempt still has to do, which is what this measures.
+  const paced = createManualScheduler();
+  const store = OL.createStudioState({
+    source: [
+      "forward 10",
+      "forward 10",
+      "forward 10",
+      ':distance = input "how far?"',
+      "forward :distance",
+    ].join("\n"),
+  });
+  const host = createTestPromptHost();
+  const controller = OL.createRunController(store, {
+    inputPrompt: host,
+    scheduler: paced.scheduler,
+  });
+
+  controller.run();
+  const ticksBeforeTheQuestion = paced.drain();
+  assert.deepEqual(host.prompts, ["how far?"]);
+  assert.ok(
+    ticksBeforeTheQuestion >= 4,
+    `expected the whole prefix to be paced, saw ${ticksBeforeTheQuestion} ticks`,
+  );
+
+  host.respond("30");
+  const ticksAfterTheAnswer = paced.drain();
+
+  assert.ok(
+    ticksAfterTheAnswer < ticksBeforeTheQuestion,
+    "the answered attempt must resume, not replay: it may only pace the steps the learner has " +
+      `not already seen, but it paced ${ticksAfterTheAnswer} of ${ticksBeforeTheQuestion}`,
+  );
+  assert.ok(
+    ticksAfterTheAnswer >= 1,
+    "the instruction the answer unblocked must still be animated",
+  );
+  assert.equal(store.getState().runStatus, "done");
+});
+
+test("a read inside `repeat` draws from the same FIFO on every pass", () => {
+  const store = OL.createStudioState({
+    source: ['repeat 3 [ :value = input "value?" print :value ]'].join("\n"),
+  });
+  const given = ["a", "b", "c"];
+  const host = createTestPromptHost((_prompt, index) => given[index]);
+  const controller = OL.createRunController(store, { inputPrompt: host });
+
+  controller.run();
+
+  assert.deepEqual(host.prompts, ["value?", "value?", "value?"]);
+  assert.deepEqual(store.getState().output, ["a", "b", "c"]);
+  assert.equal(store.getState().runStatus, "done");
+});
+
+test("a read inside a procedure body draws from the same FIFO on every call", () => {
+  const store = OL.createStudioState({
+    source: [
+      "define ask",
+      '  :value = input "value?"',
+      "  print :value",
+      "end",
+      "ask",
+      "ask",
+    ].join("\n"),
+  });
+  const given = ["x", "y"];
+  const host = createTestPromptHost((_prompt, index) => given[index]);
+  const controller = OL.createRunController(store, { inputPrompt: host });
+
+  controller.run();
+
+  assert.deepEqual(host.prompts, ["value?", "value?"]);
+  assert.deepEqual(store.getState().output, ["x", "y"]);
+  assert.equal(store.getState().runStatus, "done");
+});
+
+test("cancelling the SECOND question keeps the first answer's work and cancels from there", () => {
+  const store = OL.createStudioState({
+    source: [
+      ':first = input "first?"',
+      "print :first",
+      ':second = input "second?"',
+      "print :second",
+    ].join("\n"),
+  });
+  const host = createTestPromptHost();
+  const controller = OL.createRunController(store, { inputPrompt: host });
+
+  controller.run();
+  host.respond("alpha");
+  assert.deepEqual(host.prompts, ["first?", "second?"]);
+  assert.deepEqual(store.getState().output, ["alpha"]);
+  assert.equal(store.getState().runStatus, "running");
+
+  host.respond(undefined);
+
+  assert.equal(store.getState().runStatus, "stopped");
+  assert.deepEqual(
+    store.getState().output,
+    ["alpha"],
+    "the work the first answer unblocked stays on screen",
+  );
+  assert.deepEqual(
+    store.getState().diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-limit"],
+  );
+});
+
+test("an answer that reads as a number is reported as one (spec/interaction-events.md:136-137), unchanged by the replay", () => {
+  const store = OL.createStudioState({
+    source: [':count = input "how many?"', "print :count + 1"].join("\n"),
+  });
+  const host = createTestPromptHost(() => "41");
+  const controller = OL.createRunController(store, { inputPrompt: host });
+
+  controller.run();
+
+  assert.deepEqual(
+    store.getState().output,
+    ["42"],
+    "the studio never re-classifies the answer — the runtime does, and the replay must not alter it",
+  );
+  assert.deepEqual(store.getState().diagnostics, []);
+});
+
+test("a host that answers synchronously still produces exactly ONE run-log entry", () => {
+  // Round 1, @testing N7. `settleAttempt`'s `pumpAgain` guard is what stops a probe committing a
+  // terminal runStatus when the answer arrives from inside the very attempt that asked. The async
+  // host can never exercise it, so the guard would otherwise be a surviving mutant.
+  const store = OL.createStudioState({ source: ASK_NAME_SOURCE });
+  const host = createTestPromptHost(() => "tom");
+  const controller = OL.createRunController(store, { inputPrompt: host });
+  const runLog = OL.createRunLogController(store);
+
+  controller.run();
+
+  const entries = runLog.getEntries();
+  assert.equal(
+    entries.length,
+    1,
+    "a probe attempt must never commit a terminal status of its own",
+  );
+  assert.equal(entries[0].runStatus, "done");
+  assert.deepEqual(entries[0].output, ["before", "tom"]);
+});
+
+test("reduced motion paints the answered run instantly and still finishes the chain", () => {
+  const store = OL.createStudioState({
+    source: [
+      "forward 50",
+      ':distance = input "how far?"',
+      "forward :distance",
+    ].join("\n"),
+  });
+  const host = createTestPromptHost();
+  const controller = OL.createRunController(store, {
+    inputPrompt: host,
+    reducedMotion: true,
+  });
+
+  controller.run();
+  assert.deepEqual(host.prompts, ["how far?"]);
+  host.respond("70");
+
+  const literalStore = OL.createStudioState({
+    source: "forward 50\nforward 70",
+  });
+  OL.createRunController(literalStore, { reducedMotion: true }).run();
+
+  assert.equal(store.getState().runStatus, "done");
+  assert.deepEqual(
+    store.getState().turtleScene,
+    literalStore.getState().turtleScene,
+  );
+});
+
+test("a host that answers the same question twice is ignored the second time", () => {
+  const store = OL.createStudioState({ source: ASK_NAME_SOURCE });
+  const host = createTestPromptHost();
+  const controller = OL.createRunController(store, { inputPrompt: host });
+
+  controller.run();
+  const respond = host.respond;
+  respond("tom");
+  respond("jerry");
+
+  assert.deepEqual(store.getState().output, ["before", "tom"]);
+  assert.equal(store.getState().runStatus, "done");
 });

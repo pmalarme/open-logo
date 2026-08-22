@@ -8,11 +8,10 @@ import * as OL from "@openlogo/studio";
  * view a renderer paints, and the two ways a read can end (answer / dismiss), and nothing else.
  */
 
-/** Records every view the controller publishes, so ordering can be asserted. */
 /**
- * A responder plus the answers it received. Shared by every test — including those that never
- * intend to answer — so a single source-location responder is exercised across the suite rather
- * than each test inventing a throwaway one.
+ * A responder plus the answers it was called with. One helper for the whole file so every test
+ * asserts the *same* recorder — including the tests whose point is that the responder is never
+ * called, which would otherwise pass a throwaway no-op whose silence proves nothing.
  */
 function createResponderRecorder() {
   const answers = [];
@@ -24,6 +23,7 @@ function createResponderRecorder() {
   };
 }
 
+/** Records every view the controller publishes, so ordering can be asserted. */
 function recordViews(controller) {
   const views = [];
   const unsubscribe = controller.subscribeView((view) => {
@@ -44,60 +44,56 @@ test("a fresh controller has nothing outstanding: hidden, no prompt text, but ev
   });
 });
 
-test("present() shows the program's own prompt text verbatim and notifies subscribers", () => {
+test("present() shows the program's own prompt verbatim and notifies subscribers, without finishing the read", () => {
   const controller = OL.createInputPromptController();
   const { views } = recordViews(controller);
+  const recorder = createResponderRecorder();
 
-  controller.present(
-    { prompt: "what is your name?" },
-    createResponderRecorder().respond,
-  );
+  controller.present({ prompt: "what is your name?" }, recorder.respond);
 
   assert.equal(controller.getView().isVisible, true);
   assert.equal(controller.getView().prompt, "what is your name?");
   assert.equal(views.length, 1);
   assert.deepEqual(views[0], controller.getView());
+  assert.deepEqual(
+    recorder.answers,
+    [],
+    "merely presenting a question must not finish the read",
+  );
 });
 
 test("submit() finishes the read with the learner's answer and takes the question down", () => {
   const controller = OL.createInputPromptController();
-  const answers = [];
-  controller.present({ prompt: "who?" }, (answer) => {
-    answers.push(answer);
-  });
+  const recorder = createResponderRecorder();
+  controller.present({ prompt: "who?" }, recorder.respond);
 
   controller.submit("tom");
 
-  assert.deepEqual(answers, ["tom"]);
+  assert.deepEqual(recorder.answers, ["tom"]);
   assert.equal(controller.getView().isVisible, false);
   assert.equal(controller.getView().prompt, "");
 });
 
 test("cancel() ends the read unanswered — the runtime reader's own `undefined` (spec/interaction-events.md:110-111)", () => {
   const controller = OL.createInputPromptController();
-  const answers = [];
-  controller.present({ prompt: "who?" }, (answer) => {
-    answers.push(answer);
-  });
+  const recorder = createResponderRecorder();
+  controller.present({ prompt: "who?" }, recorder.respond);
 
   controller.cancel();
 
-  assert.deepEqual(answers, [undefined]);
+  assert.deepEqual(recorder.answers, [undefined]);
   assert.equal(controller.getView().isVisible, false);
 });
 
 test("dismiss() withdraws the question WITHOUT answering it — the caller already decided the outcome", () => {
   const controller = OL.createInputPromptController();
-  const answers = [];
-  const record = (answer) => {
-    answers.push(answer);
-  };
+  const recorder = createResponderRecorder();
 
-  controller.present({ prompt: "who?" }, record);
+  controller.present({ prompt: "who?" }, recorder.respond);
   controller.dismiss();
 
   assert.deepEqual(
-    answers,
+    recorder.answers,
     [],
     "a withdrawn question must never call its responder",
   );
@@ -105,23 +101,21 @@ test("dismiss() withdraws the question WITHOUT answering it — the caller alrea
 
   // The same recorder on a question that IS answered, so the empty array above can only mean
   // "never called" — never "the recorder itself was broken".
-  controller.present({ prompt: "again?" }, record);
+  controller.present({ prompt: "again?" }, recorder.respond);
   controller.submit("tom");
-  assert.deepEqual(answers, ["tom"]);
+  assert.deepEqual(recorder.answers, ["tom"]);
 });
 
 test("a responder is used exactly once: a second submit() after the question closed is a no-op", () => {
   const controller = OL.createInputPromptController();
-  const answers = [];
-  controller.present({ prompt: "who?" }, (answer) => {
-    answers.push(answer);
-  });
+  const recorder = createResponderRecorder();
+  controller.present({ prompt: "who?" }, recorder.respond);
 
   controller.submit("tom");
   controller.submit("jerry");
   controller.cancel();
 
-  assert.deepEqual(answers, ["tom"]);
+  assert.deepEqual(recorder.answers, ["tom"]);
 });
 
 test("submit()/cancel() with nothing outstanding are no-ops, never a crash", () => {
@@ -133,17 +127,19 @@ test("submit()/cancel() with nothing outstanding are no-ops, never a crash", () 
   assert.equal(controller.getView().isVisible, false);
 });
 
-test("subscribeView's unsubscribe stops further notifications", () => {
+test("subscribeView's unsubscribe stops further notifications, but never the read itself", () => {
   const controller = OL.createInputPromptController();
   const { views, unsubscribe } = recordViews(controller);
+  const recorder = createResponderRecorder();
 
-  controller.present({ prompt: "first?" }, createResponderRecorder().respond);
+  controller.present({ prompt: "first?" }, recorder.respond);
   unsubscribe();
   controller.submit("tom");
-  controller.present({ prompt: "second?" }, createResponderRecorder().respond);
+  controller.present({ prompt: "second?" }, recorder.respond);
 
   assert.equal(views.length, 1);
   assert.equal(views[0].prompt, "first?");
+  assert.deepEqual(recorder.answers, ["tom"]);
 });
 
 test("mapInputPromptRequestToView is the one place the visible/hidden decision is made", () => {
