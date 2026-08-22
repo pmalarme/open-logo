@@ -35,9 +35,11 @@ import {
 const doc = "heritage-list-reporter-aliases.logo";
 const span = (start, end) => ({ document: doc, start, end });
 
-// Heritage active needs only Core + Data (its declared dependency, spec/conformance.md#heritage):
-// `se`→`sentence` builds a list, so Data is the right dependency, and deliberately NOT
-// turtle-rendering — the alias SPELLINGS are gated on `heritage`, never their Core targets.
+// Heritage active needs only Core + Data to make these aliases VISIBLE: `se`→`sentence` builds a
+// list, so Data is the right dependency, and deliberately NOT turtle-rendering — the alias
+// SPELLINGS are gated on `heritage`, never on their canonical targets' profile. These four alias
+// Core reporters, so issue #860's new Heritage→Turtle & Rendering DAG edge (which the nine turtle
+// aliases carry) does not reach them; profile sets here are activation sets, not claims.
 const HERITAGE_ACTIVE = ["core-language", "data", "heritage"];
 const CORE_ONLY = ["core-language", "data"];
 

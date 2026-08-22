@@ -29,9 +29,11 @@ import {
 const doc = "heritage-aliases.logo";
 const span = (start, end) => ({ document: doc, start, end });
 
-// Heritage active needs only Core + Data (its declared dependency, spec/conformance.md#heritage) to
-// make the aliases visible — deliberately NOT turtle-rendering, proving the aliases add no turtle
-// profile edge (the alias SPELLINGS are gated on `heritage`, never their Core turtle targets).
+// Heritage active needs only Core + Data to make the aliases VISIBLE, deliberately NOT
+// turtle-rendering: the alias SPELLINGS are gated on `heritage`, never on their canonical targets'
+// profile. That is a checker-gating fact and is unchanged by issue #860, which added Heritage's
+// normative Turtle & Rendering DAG edge (a conformance-claim requirement: a claimant owing `fd`
+// must own `forward`). Profile sets here are activation sets, not conformance claims.
 const HERITAGE_ACTIVE = ["core-language", "data", "heritage"];
 const CORE_ONLY = ["core-language", "turtle-rendering"];
 

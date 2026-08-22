@@ -5,11 +5,15 @@ Fixtures for the **Heritage** profile — alternate spellings only, no new seman
 (**#667**–**#671**) and the profile is claimed by its terminal slice (**#672**).
 
 **Normative dependencies** (`spec/conformance.md` profile DAG): Heritage depends on
-**Core Language** and **Data** — the `value of … for key` reader operates on dicts, so it also
-needs Data. It does **not** depend on Turtle & Rendering; the short command aliases
-(`fd`/`bk`/`lt`/`rt`/`pu`/`pd`/`st`/`ht`/`cs`/`pr`) are pure spellings of Core-declared behavior and
-add no profile edge. This matches `PROFILE_DEPS.heritage = ["core-language", "data"]` in
-`scripts/harness/index.mjs`.
+**Core Language**, on **Data** — the `value of … for key` reader operates on dicts — and, since
+issue **#860**, on **Turtle & Rendering**: nine of the thirteen alias spellings
+(`fd`/`bk`/`lt`/`rt`/`pu`/`pd`/`st`/`ht`/`cs`) spell Turtle & Rendering primitives, so a claimant
+owing those aliases must own the primitives they spell, while `pr`/`bf`/`bl`/`se` spell Core ones.
+This matches `PROFILE_DEPS.heritage = ["core-language", "data", "turtle-rendering"]` in
+`scripts/harness/index.mjs`. Note that a fixture's `profiles` array is the **active profile set**
+passed to `check()` (`scripts/harness/index.mjs`'s `produce`), not a conformance claim, so many
+fixtures below deliberately activate a minimal set — `make-assigns-like-set` declares bare
+`["heritage"]` — and are not obliged to be dependency-closed.
 
 Fixture shape and conventions: see [`../README.md`](../README.md).
 

@@ -206,7 +206,7 @@ end
 
 **Learner question:** “What math is the turtle discovering?”
 
-Level 6 connects turtle motion to angles, distance, symmetry, approximation, and measurement. Geometry commands are part of a derived standard library whose source is visible in [geometry-module.md](geometry-module.md). The educational path still starts from `repeat`, then packages the idea.
+Level 6 connects turtle motion to angles, distance, symmetry, approximation, and measurement. Most geometry commands are part of a derived standard library whose source is visible in [geometry-module.md](geometry-module.md); the `grid`, `axes`, and `measure` overlays are the exception and are renderer-backed. The educational path still starts from `repeat`, then packages the idea.
 
 Core ideas:
 

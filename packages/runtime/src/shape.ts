@@ -1,8 +1,9 @@
 /**
  * Shape-value validation for `set_shape` (issue #210), per `spec/rendering.md`'s "Turtle avatar
- * and shapes" section: an implementation MUST support the default shape and SHOULD support the
- * portable set `"turtle"`, `"triangle"`, `"arrow"`, `"circle"` — an open, implementation-defined
- * set (MAY support more), not a closed enumerable palette the way `set_color`'s colors are
+ * and shapes" section: an implementation MUST support the default shape and MUST support the
+ * portable set `"turtle"`, `"triangle"`, `"arrow"`, `"circle"` (raised from SHOULD by issue #851)
+ * — still an open set (MAY support more), not a closed enumerable palette the way `set_color`'s
+ * colors are
  * (`spec/commands.md`'s `set_shape` entry: "Possible errors: none specified in C3 beyond general
  * type and arity diagnostics"). Because the set is open, an unrecognized shape word is reported
  * as `ol-type` with `expected: "shape"` (an `ol-type` *identity* distinct from a non-word
@@ -16,8 +17,8 @@
  */
 
 /**
- * The portable shape set every implementation SHOULD support (`spec/rendering.md`'s "Turtle
- * avatar and shapes" section), lowercase. `"turtle"` is also the default
+ * The portable shape set every implementation MUST support (`spec/rendering.md`'s "Turtle
+ * avatar and shapes" section, MUST since issue #851), lowercase. `"turtle"` is also the default
  * (`createDefaultTurtleState`'s `shape: "turtle"`, matching `@openlogo/turtle`'s
  * `INITIAL_TURTLE_STATE.shape`).
  */
