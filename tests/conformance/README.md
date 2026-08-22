@@ -33,12 +33,14 @@ profile or the whole DAG. The runner discovers every `*.expected.json` and pairs
 - **Events and diagnostics both use `source_span` (underscore)** — one field-name convention
   throughout the fixture contract, matching the `TraceEvent`/`Diagnostic` envelopes in
   `@openlogo/core`. `kind` values come from the `@openlogo/core` event registry.
-- **`description` is the one field no gate executes.** Everything else here is run, diffed, or
-  registry-validated; a wrong description passes every check and misleads every later reader — and
-  descriptions in this corpus are cited by later slices as settled fact. Measure what you assert, be
-  hardest on prose justifying why a fixture is *absent*, and prefer pointing at the spec section or
-  harness function that settles a claim over paraphrasing it. See
-  `.github/skills/shared/conformance-fixture/SKILL.md`.
+- **`description` is never validated.** The harness reads it and compares nothing, so a wrong
+  description passes every check and misleads every later reader — and descriptions in this corpus
+  are cited by later slices as settled fact. Measure what you assert, be hardest on prose justifying
+  why a fixture is *absent*, and prefer pointing at the spec section or harness function that
+  settles a claim over paraphrasing it. Two neighbours are also unchecked: a diagnostic `message` is
+  deliberately excluded from comparison (identity is `code` + `params`; prose is presentation), and
+  any **unknown top-level key is silently dropped rather than rejected**, so an assertion written in
+  an invented field asserts nothing. See `.github/skills/shared/conformance-fixture/SKILL.md`.
 - **Diagnostics** use `code`, `source_span` (underscore), `params`, `stage`, `severity`.
 - **`execute` (optional, default `false`)** opts a fixture into execution. When `false` (or
   absent), `produce()` stays parse-only — it calls `@openlogo/parser`'s `parse()` and always
@@ -106,11 +108,12 @@ profile or the whole DAG. The runner discovers every `*.expected.json` and pairs
 
     Like `signal`, both fields can only express a **static** script fixed before the run starts, not
     input that reacts to what the program has done — that stays a unit-test concern.
-  - **Function-valued options are deliberately rejected by name**, not silently dropped: JSON cannot
-    express a function, so `executeOptions.tutorTemplates` (the injectable Educational template) and
-    `hostInput.read` (the live `input` reader) are fixture-author mistakes. Do not try to write
-    them; use `hostInput.responses` for scripted answers and cover the reactive seams with unit
-    tests in `packages/runtime/src/`.
+  - **Function-valued options are rejected as unknown keys**, with the offending key named in the
+    error, rather than silently dropped: JSON cannot express a function, so
+    `executeOptions.tutorTemplates` (the injectable Educational template) and `hostInput.read` (the
+    live `input` reader) are fixture-author mistakes. Do not try to write them; use
+    `hostInput.responses` for scripted answers and cover the reactive seams with unit tests in
+    `packages/runtime/src/`.
 - Keep results **deterministic**: assert semantic events and final state, never timing or frames.
 
 The harness validates every `kind`, `code`, and `profiles` tag against the `@openlogo/core`

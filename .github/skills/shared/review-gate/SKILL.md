@@ -77,13 +77,9 @@ because the verdict names a SHA and a SHA looks authoritative:
 - **False block** — the reviewer reads a defect already fixed on disk, and stamps a finding against
   a commit that is fine.
 
-Found during the #835/#836 review: the author requested a stamp asserting `git status` clean while
-carrying uncommitted changes; two reviewers caught it independently, and one nearly filed a finding
-that was **true of the disk and false of the commit**. The #768 session hit the adjacent version —
-HEAD moved several times during a reviewer's run, and a verdict was nearly stamped to a stale SHA.
-
-Four rules, in order. They are **mechanical on purpose**: two discipline-based remedies ("remember
-not to edit mid-round") failed in the same slice before the mechanical one held.
+Both have happened here; issue **#884** records the instances. Four rules, in order. They are
+**mechanical on purpose**: two discipline-based remedies ("remember not to edit mid-round") failed
+in the same slice before the mechanical one held.
 
 1. **Commit before dispatching a reviewer.** `git status --porcelain` must be empty — no
    uncommitted edits, no untracked scratch files. Push it too, so the SHA exists somewhere other
@@ -98,6 +94,34 @@ not to edit mid-round") failed in the same slice before the mechanical one held.
    run `git status --porcelain` and `git rev-parse HEAD` yourself, at the start **and** at the end
    of the review, and record both. If they differ, or the tree was dirty, say so and stamp nothing —
    that is the same standard this gate applies to every other claim.
+
+### A clean tree is not enough — say *which artifacts* you measured
+
+A tree can be `git status`-clean and still be measured wrong, because the **build** can diverge from
+the SHA while the working tree looks fine. #897 already proved the same tree measures differently on
+different platforms; these three modes (all observed in saga #572, catalogued on **#884**) prove it
+can measure differently on the *same* platform. A reviewer must be able to state which **artifacts**
+it measured, not merely which SHA:
+
+1. **Serialize — never mutate the tree while a reviewer is measuring it.** A session that dispatches
+   QA reviewers into its own worktree has **two writers on one `dist`**: the reviewer rebuilds while
+   the author is still working, or two reviewers rebuild concurrently, and the measured artifacts
+   belong to neither party's intended tree. This is a *concurrency* rule, distinct from rule 1
+   above. Order: reviewers finish → author re-verifies → freeze → PR. A reviewer wanting its own
+   clean-tree run should **clone to a scratch directory outside the repository** and build there.
+2. **`tsc -b` is mtime-based, so a restore may not rebuild.** Restoring a mutated file from a backup
+   gives it an mtime *older* than `dist`, so the build is skipped and the next run silently
+   re-measures the mutation — one session reported a regression that did not exist. The mirror image
+   is worse: a stale build leaves a test **green** under a mutation, and it gets certified
+   "mutation-checked" while asserting nothing. Force the mtime or build with `--force`, then
+   **confirm in `dist`, not `src`**.
+3. **Confirm a mutation actually applied.** One session's string-replace mutation did nothing (a
+   CRLF mismatch) and the all-green suite read as "my test is not load-bearing". `git diff` the file
+   to confirm the change is present, then confirm it reached `dist`. **A mutation you did not verify
+   applied is not a mutation test.**
+
+**Write every scratch probe outside the repository** (`$TMPDIR` / `$env:TEMP`) and delete it after.
+An untracked probe file is the cheapest way to dirty a tree you are in the middle of certifying.
 
 ## The checklist
 
@@ -226,6 +250,7 @@ ground out.
 
 - [ ] All required reviews run as sub-agents, **all ≠ author** (at least two): the **logic/spec reviewer** — `rubber-duck` (Claude/GPT large session model) **or a named non-author fallback** — plus **every** dispatched domain QA expert; reviewers stayed read-only.
 - [ ] **Every reviewer read the commit its verdict names**: tree clean (`git status --porcelain` empty) and pushed before each dispatch, every reviewer idle before any edit, reviewers asserted cleanliness themselves, and the branch was **frozen** once all verdicts landed on one SHA.
+- [ ] **Artifacts, not just a SHA**: the tree was never mutated while a reviewer was measuring it (no two writers on one `dist`); any forced rebuild was confirmed in `dist`, not `src`; any mutation was confirmed applied via `git diff` before its result was believed.
 - [ ] Clean-tree DoD re-run — build **emits** verified (no stale-`.tsbuildinfo` no-op; TS 7 confirmed).
 - [ ] Spec-fidelity — canonical vocabulary; `ol-*` codes with spans; profile boundaries.
 - [ ] Conformance fixtures present, green, and extended.

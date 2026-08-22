@@ -69,18 +69,16 @@ SHAs.
 ## Derived counts in prose are unenforced assertions
 
 A number written into prose — "14 fixtures", "three reviewers", "181 lines", "3599 tests passing" —
-is a claim **nothing recomputes**. It is correct at the instant it was written and silently wrong
-forever after. `spec/` fenced ` ```logo ` blocks are gated (item 6 above); the numbers in the prose
-around them are not, and **seven such counts drifted during saga #572 alone** — the built-in-names
-gap (corrected four times), two spec-file lengths, an export count, an alias count, a passing-test
-count in a PR body, and a citation count. Every one was caught by a reviewer re-deriving; none by a
-gate, because no gate exists.
+is a claim **nothing recomputes**. It is true at the instant it was written and can drift silently
+from then on, with nothing to announce that it has. `spec/` fenced ` ```logo ` blocks are gated
+(item 6 above); the numbers in the prose around them are not. Issue **#898** catalogues the
+measured instances from saga #572 — every one caught by a reviewer re-deriving, none by a gate.
 
 A number *looks* like evidence, which is what makes it dangerous, and a wrong one in a durable
 record **manufactures a future false alarm about the exact thing the record exists to reassure
 about**: record 289 as a file's length and the next person running `wc -l` sees a mismatch and
-believes something shifted. In this saga counts were load-bearing — one sized a write-set, another
-fed an implementation plan.
+believes something shifted. These counts are load-bearing — in that saga one sized a write-set and
+another fed an implementation plan.
 
 The rule, in priority order:
 
@@ -98,7 +96,7 @@ The rule, in priority order:
    `spec/*.md:<line>` against the *current* file; a renumbering elsewhere in the saga silently
    invalidates citations nobody touched.
 
-Two measurement traps produced a *plausible wrong number* rather than an error, so re-derive with a
+Two measurement traps produce a *plausible wrong number* rather than an error, so re-derive with a
 command you have sanity-checked:
 
 - `Get-Content <file> | Measure-Object -Line` counts **non-blank** lines, not file length.
