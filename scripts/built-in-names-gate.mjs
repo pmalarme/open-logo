@@ -265,9 +265,8 @@ export function deriveSummary(manifest, tags, profileByTag) {
     tags.includes(tag),
   );
   const winner =
-    ordered.find(
-      (tag) => manifest.registries[tag].category === "keyword",
-    ) ?? ordered[0];
+    ordered.find((tag) => manifest.registries[tag].category === "keyword") ??
+    ordered[0];
   return {
     category: manifest.registries[winner].category,
     profile: profileByTag.get(winner) ?? manifest.registries[winner].profile,
@@ -320,7 +319,9 @@ export function entryFindings(manifest, api) {
       }
     }
 
-    const claimed = entry.registries.filter((tag) => !unreachable.includes(tag));
+    const claimed = entry.registries.filter(
+      (tag) => !unreachable.includes(tag),
+    );
     const missing = claimed.filter((tag) => !actual.includes(tag));
     const extra = actual.filter((tag) => !entry.registries.includes(tag));
     if (missing.length > 0) {
@@ -711,10 +712,26 @@ export function proseFindings(manifest, io) {
           .filter((entry) => entry.registries.includes("profile-reserved"))
           .map((entry) => entry.name)
       : [];
+    if (deltas.addsProfileKeywords) {
+      // The row defers to the profile documents for the block-head NAMES rather than restating
+      // them, so requiring each one to appear would create a third list to keep in step — exactly
+      // what `spec/grammar.md:414` warns against. What the gate can assert without duplicating
+      // anything is that the clause is still there and still says what the manifest records: a
+      // reworded or deleted clause is a finding.
+      const phrase = deltas.addsProfileKeywordsPhrase;
+      if (typeof phrase !== "string" || phrase.length === 0) {
+        findings.push(
+          `${MANIFEST_PATH}: tokenClassKeyword.addsProfileKeywords is true but no addsProfileKeywordsPhrase records the clause the row must carry`,
+        );
+      } else if (!row.includes(phrase)) {
+        findings.push(
+          `${TOOLING_PATH}: the \`keyword\` token-class row no longer carries "${phrase}" — the clause that admits the ${profileWords.length} profile words into the class`,
+        );
+      }
+    }
     const members = [
       ...coreKeywords.filter((word) => !omitted.includes(word)),
       ...deltas.addsExcluded,
-      ...profileWords,
     ];
     const rowWords = new Set(backtickedWords(row));
     const unnamed = members.filter((word) => !rowWords.has(word));
