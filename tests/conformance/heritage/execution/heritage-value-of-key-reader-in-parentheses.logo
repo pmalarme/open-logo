@@ -5,7 +5,7 @@
 # Every `print` below pins a VALUE that only exists if the `(` path actually entered the
 # `value-of-reader` (`spec/grammar.md:203`, defined :217) instead of taking `value` as a
 # `parenthesized-call` callee (:215). The reader operates on a dict, so Heritage also needs
-# Data (`spec/conformance.md:301`).
+# Data (`spec/conformance.md:305`).
 :d = { a: 7 b: "a" }
 :nested = { inner: { x: 9 } }
 

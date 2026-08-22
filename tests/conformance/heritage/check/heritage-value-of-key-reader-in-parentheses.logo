@@ -10,7 +10,7 @@
 # now rejects it and the `(` path falls through to the reader. Nothing pinned that, hence this
 # fixture: the reader must stay reachable through every parenthesized shape.
 #
-# The reader operates on a dict, so Heritage also needs Data (`spec/conformance.md:301`).
+# The reader operates on a dict, so Heritage also needs Data (`spec/conformance.md:305`).
 :d = { a: 7 b: "a" }
 :nested = { inner: { x: 9 } }
 

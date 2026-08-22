@@ -557,11 +557,16 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * that derivation unreachable, which is exactly the `ol-bad-token` defect #830 reported. The
    * false comes from `value` being in {@link NON_PRIMARY_NAMES} via its presence in
    * {@link OL_KEYWORDS} — a property #885 established when it replaced a hand-written list with
-   * that derivation, incidentally fixing #830 without naming it. Do not special-case `value`/`key`
-   * back to true here, and do not move them into {@link EXPRESSION_INITIAL_KEYWORDS}, without
-   * re-routing the `(` path to the reader first;
-   * `value-of-key-in-parentheses.test.mjs` and the two
-   * `heritage-value-of-key-reader-in-parentheses` conformance fixtures fail if you do.
+   * that derivation, incidentally fixing #830 without naming it.
+   *
+   * Precisely: what would reopen #830 is dropping `value` from {@link OL_KEYWORDS} (it would leave
+   * {@link NON_PRIMARY_NAMES}, and the final clause would then answer true), or special-casing it
+   * to true here. Moving it into {@link EXPRESSION_INITIAL_KEYWORDS} would **not** — it would leave
+   * {@link NON_PRIMARY_NAMES}, but the final clause negates that same set, so the answer stays
+   * false. That edit breaks the *other* rule instead, #853's rejection of a bare `value` in
+   * expression position. Both cases are covered: `value-of-key-in-parentheses.test.mjs` and the two
+   * `heritage-value-of-key-reader-in-parentheses` conformance fixtures fail on the former, and that
+   * test file's bare-`value` case fails on the latter.
    */
   function isCalleeName(text: string): boolean {
     const lower = text.toLowerCase();

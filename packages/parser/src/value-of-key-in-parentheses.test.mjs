@@ -13,11 +13,26 @@
 // `parseValueOfKey`.
 //
 // Because that fix was incidental, nothing recorded the dependency. These tests do: they fail if a
-// future slice makes `value` callable again — by adding it to `EXPRESSION_INITIAL_KEYWORDS`, by
-// unwinding #885's derivation, or by special-casing it in `isCalleeName`. Asserting the
+// future slice makes `value` callable again — by unwinding #885's derivation (dropping `value` from
+// `OL_KEYWORDS` removes it from `NON_PRIMARY_NAMES`) or by special-casing it in `isCalleeName`.
+// Moving `value` into `EXPRESSION_INITIAL_KEYWORDS` is NOT such an edit: it too removes `value`
+// from `NON_PRIMARY_NAMES`, but `isCalleeName`'s final clause negates that same set, so the answer
+// stays false and #830 stays fixed — what that edit breaks is #853's rejection of a bare `value` in
+// expression position, which the last test here covers. Asserting the
 // `ValueOfKey` node (not merely "no diagnostics") is what makes them load-bearing: a program that
 // silently re-parses as a call to a procedure named `value` is the "silent no-op" class this saga
 // keeps rediscovering.
+//
+// **Boundary — all shapes below are single-line, deliberately.** Splitting an expression across a
+// newline inside `( … )` is currently rejected, but that is a GENERAL, pre-existing limitation of
+// the expression reader rather than anything to do with this reader or the `(` path: `( 1\n + 2 )`
+// and `( :d\n .a )` fail identically, and `value of :d\n for key "a"` fails with NO parentheses at
+// all. `parseParenthesized` skips newlines only after `(` and between `parenthesized-call`
+// arguments, so those two forms tolerate breaks while infix continuation, postfixes, and the
+// reader's `for`/`key` separators do not — a gap against `spec/grammar.md:34` ("Within a single
+// expression, list literal, dict literal, or parenthesized group, newlines are insignificant").
+// Fixing it is an expression-grammar change, not a `(`-routing change, so it is out of #830's
+// scope and reported separately rather than pinned here.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -131,9 +146,11 @@ test("a parenthesized value-of-key reader is clean at parse and check", () => {
   }
 });
 
-test("`value` is not a callable-name, which is what routes the `(` path to the reader", () => {
-  // The invariant #885 established and #830 depends on. If this flips, every test above fails
-  // too — this one just names the cause rather than the symptom.
+test("`value` and `key` are still registered keywords, which is what keeps them out of `callable-name`", () => {
+  // Names the CAUSE the tests above observe as a symptom. `isCalleeName` answers false for `value`
+  // only because `value` is in `OL_KEYWORDS` and therefore in the derived `NON_PRIMARY_NAMES`
+  // (#885). Dropping it from the registry is the edit that would reopen #830, so assert membership
+  // directly — this is registry state, not parser behaviour, hence a separate test.
   assert.equal(
     OL.OL_KEYWORDS.includes("value"),
     true,
