@@ -184,21 +184,25 @@
  * event stream (see "#228" above), so there is no execution in progress for a read to block, and its
  * lazy `prepare()` therefore installs no reader at all — behavior unchanged from before #769.
  *
- * One honest caveat: `random` with no `randomize <seed>` seeds from the wall clock per `execute()`
- * call, so a replayed prefix is not guaranteed to reproduce the probe's. Two consequences, and the
- * dangerous one is handled rather than merely documented:
+ * One honest caveat, tracked as issue **#881**: `random` with no `randomize <seed>` seeds from the
+ * wall clock per `execute()` call, so a replayed prefix is not guaranteed to reproduce the probe's.
+ * Two consequences, and the dangerous one is handled rather than merely documented:
  * - An answer is **never** bound to a question the learner was not shown. Answers are recorded with
  *   the prompt they answered ({@link RecordedAnswer}) and a read only draws from the FIFO when the
  *   recorded prompt matches this attempt's; a diverged replay that reaches a *different* question
  *   at that position drops the rest of the FIFO and asks the learner the question it is actually
- *   asking. Position alone would have silently handed `"42"` — given for "how many sides?" — to a
+ *   asking. Position alone would have silently handed `"5"` — given for "how many sides?" — to a
  *   replay that asked "what colour?".
- * - What remains is cosmetic and self-consistent: a program mixing unseeded `random` with `input`
- *   can *draw* different numbers in a replayed prefix than the probe showed, so the picture can
- *   change when the learner answers. Every committed state is one whole attempt's own reduction, so
- *   none of them is internally inconsistent, and `randomize <seed>` makes the chain exact.
- *   `ExecuteOptions` exposes no seed, so a host cannot pin this; the real fix is a runtime API and a
- *   suspendable executor, both outside this package.
+ * - What remains is **#881**: for nondeterminism evaluated *before* a read, the replay can still
+ *   reach a different question (so the learner is visibly re-asked rather than silently mis-bound),
+ *   two distinct `input` sites asking the identical prompt text are not told apart, and already-
+ *   drawn output can change. Every committed state is one whole attempt's own reduction, so none is
+ *   internally inconsistent, and an explicit `randomize <seed>` makes the chain exact today. The
+ *   durable fix is issue **#876** (a Worker + `Atomics.wait` execution host), which removes the
+ *   replay entirely; issue **#865** (an `ExecuteOptions` RNG seed) would narrow the window but is
+ *   not sufficient alone while a no-argument `randomize` still draws fresh wall-clock entropy.
+ *   `@orchestrator` shipped this slice with that limitation scoped to #881 rather than block the
+ *   whole capability behind #876 — see the #769 PR for the recorded ruling.
  */
 
 import { execute, printedForm } from "@openlogo/runtime";

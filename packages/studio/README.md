@@ -219,17 +219,23 @@ shapes with an **attempt chain**.
   `nextFocusStop`/`previousFocusStop` prove it cycles both ways. The dialog starts closed, so until a
   program asks something it is absent from the layout, the tab order, and the accessibility tree —
   which is why the e2e layout baselines are unchanged.
-- **One honest caveat.** `random` with no `randomize <seed>` seeds from the wall clock per
-  `execute()` call, so a replayed prefix is not guaranteed to reproduce the probe's. The dangerous
-  half of that is **handled, not merely documented**: answers are recorded together with the prompt
-  they answered, and a read only draws from the FIFO when the recorded prompt matches this attempt's
-  — so a diverged replay that reaches a *different* question at that position re-asks the learner
-  instead of silently applying `"5"`, given for "how many sides?", to a run that asked "what
-  colour?". What remains is cosmetic: the *picture* can change when the learner answers, because the
-  replayed prefix may draw different random values. Every committed state is one whole attempt's own
-  reduction, so none is internally inconsistent, and `randomize <seed>` makes the chain exact.
-  `ExecuteOptions` exposes no seed, so a host cannot pin it — the real fix is a runtime API plus a
-  suspendable executor, both outside this package.
+- **One honest caveat, tracked as [#881](https://github.com/pmalarme/open-logo/issues/881).**
+  `random` with no `randomize <seed>` seeds from the wall clock per `execute()` call, so a replayed
+  prefix is not guaranteed to reproduce the probe's. The **dangerous** half of that is handled, not
+  merely documented: answers are recorded together with the prompt they answered, and a read only
+  draws from the FIFO when the recorded prompt matches this attempt's — so a diverged replay that
+  reaches a *different* question at that position re-asks the learner instead of silently applying
+  `"5"`, given for "how many sides?", to a run that asked "what colour?". What remains is #881: for
+  nondeterminism evaluated *before* a read the replay can still reach a different question (visibly
+  re-asking rather than silently mis-binding), two distinct `input` sites asking identical prompt
+  text are not told apart, and already-drawn output can change. Every committed state is one whole
+  attempt's own reduction, so none is internally inconsistent, and an explicit `randomize <seed>`
+  makes the chain exact today. The durable fix is
+  [#876](https://github.com/pmalarme/open-logo/issues/876) (a Worker + `Atomics.wait` execution
+  host), which removes the replay entirely;
+  [#865](https://github.com/pmalarme/open-logo/issues/865) (an `ExecuteOptions` RNG seed) would
+  narrow the window but is not sufficient alone while a no-argument `randomize` still draws fresh
+  wall-clock entropy.
 
 ## Friendlier run-status labels (#311)
 
