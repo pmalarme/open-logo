@@ -109,6 +109,13 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   small for any program. (The twins are not byte-identical bodies: the nested subject's *outer* body
   holds the inner registration, while the control's body is empty. The control charges roughly 6
   against 14, so it never approaches the boundary and the comparison stays honest.)
+  `every-body-runs-in-registration-environment` pins a third, older property that had no fixture at
+  all: a handler body runs in the environment captured at **registration**, not the one current when
+  it fires. It registers inside `define setup :v` and fires from the top-level `wait`, after `setup`
+  has returned, so printing `7` is only possible if that environment was captured — resolving against
+  the firing-time scope raises `ol-undefined-var` instead. Note this pins capture of the *environment*,
+  which is weaker than capturing *values*: nothing is snapshotted and no fresh bindings are made,
+  which is why #821's loop case is still open.
 - **`on_key/`** — the `on_key <key-word> <block>` keyboard handler (issue #684, slice I5):
   registration emits `primitive` after the handler is registered; a key press is host input, so in a
   headless batch run the handler is registered but never delivered (locked by

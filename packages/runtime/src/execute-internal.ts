@@ -2848,7 +2848,7 @@ function invokeEveryHandler(
       statement_kind: "ProfileStatement",
     } satisfies InstructionPayload,
   });
-  const signal = executeStatements(handler.block.body, environment);
+  const signal = executeStatements(handler.block.body, handler.environment);
   handler.running = false;
   if (signal.kind === "return") {
     return halt(
