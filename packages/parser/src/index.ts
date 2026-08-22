@@ -97,6 +97,12 @@ export {
   soundPrimitiveArity,
   spritesPrimitiveArity,
   tutorPrimitiveArity,
+  // The profile-keyed primitive registry's two public accessors (issue #874). Together they let a
+  // caller walk `OL_CHECK_PROFILES` and ask what each profile registers and what arity it accepts,
+  // without restating a single primitive name — which is how the static arity rule stays derived
+  // rather than enumerated, and how its tests assert coverage of primitives they never name.
+  activeProfilePrimitiveArityRange,
+  profilePrimitiveNames,
   canonicalOfHeritageAlias,
   heritageAliasNames,
   heritageAliasArity,
@@ -110,6 +116,7 @@ export {
   heritageSurfaceSpellings,
 } from "./signatures.js";
 export type {
+  ArityRange,
   HeritageFormHead,
   // Exported to name the shapes the worded-form API already hands out: `HeritageWordedForm` is
   // `heritageWordedForms()`'s element type in the emitted `.d.ts`, and `HeritageWordedFormName` is

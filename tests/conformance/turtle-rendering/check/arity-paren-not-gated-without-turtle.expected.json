@@ -1,0 +1,19 @@
+{
+  "description": "issue #874's gating half: the SAME source as arity-paren-home-too-many, checked without `turtle-rendering` active. `home` is then not a visible name, so its arity is not statically known and the call belongs to ol-unknown-command alone — exactly ONE finding, never an arity one alongside it. This is `spec/tooling.md:175-176` (\"MUST use the active conformance profile set when deciding which primitives … are available\") and the two rules' never-double-report contract, which the fix makes structural by arity-checking only names the unknown-command rule already considers visible.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "turtle-rendering/check/arity-paren-not-gated-without-turtle",
+        "start": [1, 2],
+        "end": [1, 6]
+      },
+      "params": { "name": "home" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

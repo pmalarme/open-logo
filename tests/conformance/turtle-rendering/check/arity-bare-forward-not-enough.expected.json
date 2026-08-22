@@ -1,0 +1,19 @@
+{
+  "description": "issue #874, the too-FEW direction under an active `turtle-rendering`. A bare call is the only form that can be short: the reader gathers exactly the registered default arity, so a missing argument leaves a zero-argument Call rather than a parse error — and `forward number` (`spec/commands.md:1194`) needs one. `execute()` has always raised ol-not-enough-inputs here; `check()` was silent, so this is the same two-stage disagreement as the too-many fixtures, in the opposite direction. Worth pinning separately because the derived range gate treats the bare and parenthesized forms differently by design (bare: floor only; paren: ceiling, plus the floor only when the primitive is strictly fixed-arity).",
+  "profiles": ["core-language", "turtle-rendering"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-not-enough-inputs",
+      "source_span": {
+        "document": "turtle-rendering/check/arity-bare-forward-not-enough",
+        "start": [1, 1],
+        "end": [1, 8]
+      },
+      "params": { "callable": "forward", "expected": 1, "actual": 0 },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

@@ -281,7 +281,16 @@ test("analyzeBlock analyzes for real when the caller turns profile gating off", 
     gateUnimplementedProfiles: false,
   });
   assert.deepEqual(result.unimplementedProfiles, ["localization"]);
-  assert.deepEqual(result.codes, ["ol-bad-token", "ol-unknown-command"]);
+  // `ol-not-enough-inputs` joined this list in issue #874: with `alias` unreadable, the trailing
+  // `forward` is read as a bare Turtle & Rendering call supplying none of its one input. The
+  // checker was silent on it until the static arity rule stopped enumerating profiles by hand and
+  // started deriving them, which is exactly the "silent on a beginner's first commands" gap #874
+  // reports — visible here in a documentation example.
+  assert.deepEqual(result.codes, [
+    "ol-bad-token",
+    "ol-not-enough-inputs",
+    "ol-unknown-command",
+  ]);
 });
 
 test("analyzeBlock reports an internal failure instead of crashing the gate", () => {

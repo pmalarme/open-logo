@@ -1,0 +1,19 @@
+{
+  "description": "issue #874 in the Sprites profile: `spec/turtles-and-sprites.md:26` gives `who` as a Kind-R reporter taking 0 inputs, so `(who 1)` is one too many and `check()` raises ol-too-many-inputs — where it was silent before. Note the runtime does NOT yet raise here (its call-time arity check is lenient about over-supplying a zero-arity REPORTER in the parenthesized form, unlike a command), so this fixture is deliberately check-only: the checker is the stage that is right per the C3 row, and the runtime gap is reported separately rather than papered over by leaving the checker silent too. Pairs with sprites/reporters-check-clean, which pins the well-formed calls staying clean.",
+  "profiles": ["core-language", "turtle-rendering", "sprites"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-too-many-inputs",
+      "source_span": {
+        "document": "sprites/arity-paren-who-too-many/arity-paren-who-too-many",
+        "start": [1, 2],
+        "end": [1, 5]
+      },
+      "params": { "callable": "who", "expected": 0, "actual": 1 },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

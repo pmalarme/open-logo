@@ -6,22 +6,35 @@
  * `callable`/`expected`/`actual` param shape, differing only in `stage` (`semantic` here).
  *
  * ## What "statically known" means here
- * - **Core, Data-, Sound-, Interaction & Events-, and Geometry-profile primitives** — a default
- *   (bare-call) arity and a variadic ceiling from {@link corePrimitiveArityRange} /
- *   {@link dataPrimitiveArityRange} (issue #405 wires the latter in, mirroring the former exactly;
- *   issue #689 adds Sound's, issue #687 Interaction & Events' `wait`, and issue #844 Geometry's
- *   `grid`/`axes`/`measure` overlays, each gated on its own
- *   active profile). OpenLogo's reader gathers *exactly* the default
- *   number of arguments for a bare (non-parenthesized) call, so a bare primitive call can only
- *   ever be short of arguments (the line or block ended first, e.g. `print first`), never over —
- *   extra tokens become stray statements the parser reports as `ol-bad-token`, not a too-many
- *   call. The parenthesized form `(f …)` is where a learner can over-supply, and it is also the
- *   spec's escape hatch for a primitive's alternate/variadic arities (`(print …)`, `(random a b)`,
- *   `(list a b …)`): a *strictly fixed-arity* primitive given too many inputs there
- *   (`(first 1 2)`, `(reverse :a :b)`) raises `ol-too-many-inputs`, while an open variadic
- *   (`(print …)`, `(list …)`) never does. The lower bound of a parenthesized primitive call is
- *   left to the runtime arity check (issue #97), since an open variadic's true minimum is not
- *   expressible in the default-arity table.
+ * - **Every primitive an active conformance profile registers** — a default (bare-call) arity and
+ *   a variadic ceiling, read through `signatures.ts`'s single
+ *   {@link activeProfilePrimitiveArityRange} lookup. That lookup walks the profile-keyed
+ *   `PROFILE_PRIMITIVES` registry, so **this rule names no profile and no primitive of its own**:
+ *   a table registered there is arity-checked here automatically, gated on its owning profile
+ *   being active, and registering a future profile's table requires no edit to this file at all
+ *   (issue #874).
+ *
+ *   That derivation is the fix for a defect this rule shipped in its previous shape. It used to
+ *   hand-write one `if (<profile>Active) { … }` branch per profile — and Turtle & Rendering,
+ *   Educational, Sprites, and Tutor had no branch, so `(home 10)` and `(clear_screen 10)` checked
+ *   completely clean while `execute()` raised `ol-too-many-inputs` for the very same call. `home`
+ *   and `clear_screen` are among the first commands a learner types, so the silence was widest
+ *   exactly where beginners work. It was the third instance of one recurring shape (#783, #854,
+ *   this): a checker component enumerating one profile's names by hand and silently skipping the
+ *   rest. Enumerating the four missing profiles would have restored that shape; deriving the set
+ *   retires it.
+ *
+ *   OpenLogo's reader gathers *exactly* the default number of arguments for a bare
+ *   (non-parenthesized) call, so a bare primitive call can only ever be short of arguments (the
+ *   line or block ended first, e.g. `print first`), never over — extra tokens become stray
+ *   statements the parser reports as `ol-bad-token`, not a too-many call. The parenthesized form
+ *   `(f …)` is where a learner can over-supply, and it is also the spec's escape hatch for a
+ *   primitive's alternate/variadic arities (`(print …)`, `(random a b)`, `(list a b …)`): a
+ *   *strictly fixed-arity* primitive given too many inputs there (`(first 1 2)`, `(reverse :a :b)`,
+ *   `(home 10)`) raises `ol-too-many-inputs`, while an open variadic (`(print …)`, `(list …)`)
+ *   never does. The lower bound of a parenthesized primitive call is left to the runtime arity
+ *   check (issue #97), since an open variadic's true minimum is not expressible in the
+ *   default-arity table.
  * - **User procedures and struct constructors** — a `define`d procedure has an exact,
  *   non-variadic arity: the required-parameter count (parameters without a default) is the
  *   floor, the total parameter count the ceiling. Optional (defaulted) trailing parameters can
@@ -31,9 +44,23 @@
  *   (`spec/data-structures.md:252-266`) — checked identically in either call form.
  *
  * A callee that is none of these is *not* statically known — that is `ol-unknown-command`'s job
- * (issue #117); this rule does nothing for it, so the two rules never double-report. Grammar
- * operator calls (`+`, `and`, comparison heads, …) are likewise never in the arity table, so
- * they fall through the same "unknown arity → skip" path.
+ * (issue #117); this rule does nothing for it, so the two rules never double-report. Since #874
+ * that separation is **structural** rather than incidental: a primitive callee is arity-checked
+ * only when {@link collectVisibleNames} — the very set `ol-unknown-command` itself consults —
+ * holds its name, so both rules read one shared answer to "is this callee known here?" instead of
+ * two lists that can drift apart. It is what lets the Tutor profile's `challenge` sit in the arity
+ * registry alongside every other profile while it still has no checker visibility and no runtime:
+ * today it is reported `ol-unknown-command` alone, and the slice that makes it visible inherits its
+ * arity check for free. Grammar operator calls (`+`, `and`, comparison heads, …) are likewise never
+ * registered as primitives, so they fall through the same "unknown arity → skip" path.
+ *
+ * ## `params.callable` is the canonical name
+ * Diagnostic identity is `code` plus `params`, and the same condition MUST carry the same
+ * structured params (`spec/error-model.md:253-256`; canonical lowercase is also what the spec
+ * prefers for display, `:199`). OpenLogo identifiers are case-insensitive and Heritage is
+ * "alternate spellings only, no new semantics" (`spec/conformance.md:146`), so `(REVERSE 1 2)`,
+ * `(reverse 1 2)`, `(bf 1 2)`, and `(butfirst 1 2)` are each the same condition as their canonical
+ * twin and report the canonical lowercase name — never the surface spelling.
  */
 
 import type { Diagnostic, SourceSpan } from "@openlogo/core";
@@ -46,13 +73,9 @@ import type {
 } from "./ast.js";
 import { walk } from "./ast.js";
 import type { CheckProfile } from "./check.js";
-import {
-  corePrimitiveArityRange,
-  dataPrimitiveArityRange,
-  geometryPrimitiveArityRange,
-  interactionPrimitiveArityRange,
-  soundPrimitiveArityRange,
-} from "./signatures.js";
+import { collectVisibleNames } from "./checker-names.js";
+import type { ArityRange } from "./signatures.js";
+import { activeProfilePrimitiveArityRange } from "./signatures.js";
 
 /** The statically-known arity of a callee: a required floor and a total ceiling. */
 interface Arity {
@@ -175,34 +198,33 @@ function tooManyDiagnostic(
 
 /**
  * Compares `actual` against a primitive's `[min, max]` accepted-input range for the given call
- * `form` and pushes the matching `ol-not-enough-inputs`/`ol-too-many-inputs` diagnostic when they
- * disagree. Shared by every primitive whose parenthesized form can be a genuine variadic/alternate
- * arity — currently Core primitives and, since issue #405, `list` (the one Data primitive with a
- * variadic paren form, `spec/data-structures.md:78`) — since the reasoning is identical regardless
- * of profile: a **bare** call can only ever be short of arguments (the reader caps it at the
- * default arity, so extra tokens become a parse-stage `ol-bad-token`, never a too-many call); a
- * **parenthesized** call is where a learner can over-supply, and also where a strictly fixed-arity
- * primitive's true minimum is exact (`max === min`) — a bounded alternate or open variadic's true
- * minimum is left to the runtime arity check (issue #97) to avoid false positives.
+ * form and pushes the matching `ol-not-enough-inputs`/`ol-too-many-inputs` diagnostic when they
+ * disagree. Shared by the primitives of every profile, because the reasoning does not depend on
+ * which profile owns the name: a **bare** call can only ever be short of arguments (the reader
+ * caps it at the default arity, so extra tokens become a parse-stage `ol-bad-token`, never a
+ * too-many call); a **parenthesized** call is where a learner can over-supply, and also where a
+ * strictly fixed-arity primitive's true minimum is exact (`max === min`) — a bounded alternate or
+ * open variadic's true minimum is left to the runtime arity check (issue #97) to avoid false
+ * positives.
  */
 function checkPrimitiveRangeArity(
   node: CallNode | ParenCallNode,
-  raw: string,
-  range: { readonly min: number; readonly max: number },
+  callable: string,
+  range: ArityRange,
   actual: number,
   span: SourceSpan,
   diagnostics: Diagnostic[],
 ): void {
   if (node.kind === "Call") {
     if (actual < range.min) {
-      diagnostics.push(notEnoughDiagnostic(raw, range.min, actual, span));
+      diagnostics.push(notEnoughDiagnostic(callable, range.min, actual, span));
     }
     return;
   }
   if (actual > range.max) {
-    diagnostics.push(tooManyDiagnostic(raw, range.max, actual, span));
+    diagnostics.push(tooManyDiagnostic(callable, range.max, actual, span));
   } else if (range.max === range.min && actual < range.min) {
-    diagnostics.push(notEnoughDiagnostic(raw, range.min, actual, span));
+    diagnostics.push(notEnoughDiagnostic(callable, range.min, actual, span));
   }
 }
 
@@ -214,176 +236,87 @@ function checkPrimitiveRangeArity(
  * regardless of call form (bare or parenthesized).
  */
 function checkExactArity(
-  raw: string,
+  callable: string,
   arity: Arity,
   actual: number,
   span: SourceSpan,
   diagnostics: Diagnostic[],
 ): void {
   if (actual < arity.required) {
-    diagnostics.push(notEnoughDiagnostic(raw, arity.required, actual, span));
+    diagnostics.push(
+      notEnoughDiagnostic(callable, arity.required, actual, span),
+    );
   } else if (actual > arity.max) {
-    diagnostics.push(tooManyDiagnostic(raw, arity.max, actual, span));
+    diagnostics.push(tooManyDiagnostic(callable, arity.max, actual, span));
   }
 }
 
 /**
  * The `ol-not-enough-inputs` / `ol-too-many-inputs` rule. For each call site whose callee has a
  * statically-known arity, compares the supplied argument count against that arity and, when they
- * disagree, raises one diagnostic pointing at the callee. Parenthesized primitive calls are left
- * to the runtime (they are the alternate/variadic escape hatch); unknown callees are left to
- * `ol-unknown-command`.
+ * disagree, raises one diagnostic pointing at the callee. Unknown callees are left to
+ * `ol-unknown-command`; an open variadic's parenthesized lower bound is left to the runtime.
  */
 export function arityRule(
   program: ProgramNode,
   profiles: readonly CheckProfile[],
 ): readonly Diagnostic[] {
+  // User procedures come from the program's own `define`s, so their arity is checked regardless of
+  // the active profile set (mirroring `collectVisibleNames`). Struct constructors are declared by
+  // the program too, but `struct` is a Data-profile form, so they are collected only when `data` is
+  // active — mirroring `collectVisibleNames`'s own `data` gate (issue #405).
   const procedures = collectProcedureArities(program);
-  // Core primitives are only *visible* — and so only arity-checkable — when Core Language is
-  // active; otherwise the callee is unknown and belongs to `ol-unknown-command` (issue #117),
-  // never double-reported here. User procedures come from the program's own `define`s, so their
-  // arity is checked regardless of the active profile set (mirroring `collectVisibleNames`).
-  const coreActive = profiles.includes("core-language");
-  // Data-profile primitives and struct constructors are likewise only visible — and so only
-  // arity-checkable — when the `data` profile is active (issue #405), mirroring
-  // `collectVisibleNames`'s own `data` gate.
-  const dataActive = profiles.includes("data");
-  const structs = dataActive
+  const structs = profiles.includes("data")
     ? collectStructConstructorArities(program)
     : undefined;
-  // Sound-profile primitives (`set_tempo`/`beep`) are likewise only visible — and so only
-  // arity-checkable — when the `sound` profile is active (issue #689), mirroring
-  // `collectVisibleNames`'s own `sound` gate.
-  const soundActive = profiles.includes("sound");
-  // The Interaction & Events primitive `wait` is likewise only visible — and so only
-  // arity-checkable — when the `interaction-events` profile is active (issue #687), mirroring
-  // `collectVisibleNames`'s own `interaction-events` gate. The profile's four block-heads
-  // (`when`/`every`/`on_key`/`on_click`) are not call sites at all — the reader lowers them to a
-  // `ProfileStatement`, so `isCallSite` never sees them and this rule cannot mis-fire on one.
-  const interactionActive = profiles.includes("interaction-events");
-  // The Geometry overlay primitives (`grid`/`axes`/`measure`) are likewise only visible — and so
-  // only arity-checkable — when the `geometry` profile is active (issue #844), mirroring
-  // `collectVisibleNames`'s own `geometry` gate. All three are strictly fixed-arity 0, so a bare
-  // call can never over-supply (the reader caps it at 0 and extra tokens become a parse-stage
-  // `ol-bad-token`); the parenthesized form `(grid 50)` is the one place a learner can, and the
-  // runtime already raises `ol-too-many-inputs` there — this gate is what stops the checker from
-  // staying silent while the runtime rejects the very same call.
-  const geometryActive = profiles.includes("geometry");
+  // A Heritage short alias (`pr`/`fd`/…) is arity-checked exactly like the Core-spelled command it
+  // spells — Heritage adds no semantics (`spec/conformance.md:146`). The reader already recorded
+  // that canonical on the node, so resolve through it, but only when the Heritage profile is
+  // active: with it inactive the alias is an unknown callee owned by `ol-unknown-command` (issue
+  // #117), never double-reported here — mirroring `collectVisibleNames`'s own heritage gate.
+  const heritageActive = profiles.includes("heritage");
+  // The one shared answer to "is this callee known here?", built by the same helper
+  // `ol-unknown-command` uses. Consulting it — rather than assuming a registered primitive is also
+  // a visible one — is what keeps the two rules from double-reporting the same call site.
+  const visible = collectVisibleNames(program, profiles);
   const diagnostics: Diagnostic[] = [];
 
   walk(program, (node) => {
     if (!isCallSite(node)) {
       return;
     }
-    const raw = node.callee.name;
-    const lower = raw.toLowerCase();
+    const lower = node.callee.name.toLowerCase();
     const actual = node.args.length;
     const span = node.callee.source_span;
 
     const procedure = procedures.get(lower);
     if (procedure !== undefined) {
-      checkExactArity(raw, procedure, actual, span, diagnostics);
+      checkExactArity(lower, procedure, actual, span, diagnostics);
       return;
     }
 
     if (structs !== undefined) {
       const structArity = structs.get(lower);
       if (structArity !== undefined) {
-        checkExactArity(raw, structArity, actual, span, diagnostics);
+        checkExactArity(lower, structArity, actual, span, diagnostics);
         return;
       }
     }
 
-    if (dataActive) {
-      const dataRange = dataPrimitiveArityRange(lower);
-      if (dataRange !== undefined) {
-        checkPrimitiveRangeArity(
-          node,
-          raw,
-          dataRange,
-          actual,
-          span,
-          diagnostics,
-        );
-        return;
-      }
-    }
-
-    if (soundActive) {
-      const soundRange = soundPrimitiveArityRange(lower);
-      if (soundRange !== undefined) {
-        checkPrimitiveRangeArity(
-          node,
-          raw,
-          soundRange,
-          actual,
-          span,
-          diagnostics,
-        );
-        return;
-      }
-    }
-
-    if (interactionActive) {
-      const interactionRange = interactionPrimitiveArityRange(lower);
-      if (interactionRange !== undefined) {
-        checkPrimitiveRangeArity(
-          node,
-          raw,
-          interactionRange,
-          actual,
-          span,
-          diagnostics,
-        );
-        return;
-      }
-    }
-
-    if (geometryActive) {
-      const geometryRange = geometryPrimitiveArityRange(lower);
-      if (geometryRange !== undefined) {
-        checkPrimitiveRangeArity(
-          node,
-          raw,
-          geometryRange,
-          actual,
-          span,
-          diagnostics,
-        );
-        return;
-      }
-    }
-
-    if (!coreActive) {
-      // Core primitives are not visible: an unknown callee for `ol-unknown-command`, not arity.
+    if (!visible.has(lower)) {
+      // An unknown callee under this profile set: `ol-unknown-command`'s finding, not an arity one.
       return;
     }
-    // A Heritage short alias (`pr`/`fd`/…) is arity-checked exactly like the Core command it spells
-    // — Heritage adds no semantics (`spec/conformance.md:146`). The reader already recorded that
-    // canonical on the node (`canonical`), so resolve through it, but only when the Heritage profile
-    // is active: with it inactive the alias is an unknown callee owned by `ol-unknown-command`
-    // (issue #117), never double-reported here — mirroring `collectVisibleNames`'s own heritage gate.
-    // `pr` resolves to `print` (a Core range, so `(pr …)` is checked as an open variadic and a
-    // too-many `(pr)` is caught); the turtle canonicals (`forward`/…) have no Core static range, so
-    // they fall through to the runtime arity check exactly as their Core spelling does.
-    const heritageActive = profiles.includes("heritage");
-    const effective =
+
+    const canonical =
       heritageActive && node.canonical !== undefined ? node.canonical : lower;
-    const range = corePrimitiveArityRange(effective);
+    const range = activeProfilePrimitiveArityRange(canonical, profiles);
     if (range === undefined) {
-      // Unknown callee (or grammar operator): not this rule's concern.
+      // Visible, but no active profile registers an arity for it — a keyword the grammar handles,
+      // a profile block-head, or a grammar operator. Not this rule's concern.
       return;
     }
-    // Diagnostic identity is canonical, not the surface spelling (`spec/error-model.md:235-238`,
-    // issue #733): a Heritage alias (`bf`) and its Core twin (`butfirst`) name the SAME condition,
-    // so `params.callable` — a machine-readable identifier tools assert on — must be the canonical
-    // name, identical to the Core twin's, exactly as H5 (#670) canonicalizes `operation` through a
-    // shared read helper. `effective` is that canonical name (the reader's `canonical`, or `lower`
-    // when there is no alias), so it also drives the diagnostic's prose (canonical display is
-    // permitted; `spec/localization.md`). Heritage is "alternate spellings only, no new semantics"
-    // (`spec/conformance.md#heritage`) — a diagnostic whose structured identity changed with the
-    // spelling would be an observable semantic difference.
-    checkPrimitiveRangeArity(node, effective, range, actual, span, diagnostics);
+    checkPrimitiveRangeArity(node, canonical, range, actual, span, diagnostics);
   });
 
   return diagnostics;

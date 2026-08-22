@@ -21,6 +21,18 @@
  */
 
 import type { NodeKind } from "./ast.js";
+import type { CheckProfile } from "./check.js";
+
+/**
+ * The inclusive input-count range a primitive accepts: `min` is its bare default arity (the count
+ * the reader gathers for a bare call) and `max` the most its parenthesized alternate/variadic form
+ * accepts — `Number.POSITIVE_INFINITY` for an open variadic such as `(print …)`, and equal to `min`
+ * for a strictly fixed-arity primitive.
+ */
+export interface ArityRange {
+  readonly min: number;
+  readonly max: number;
+}
 
 /**
  * Default arity of each Core primitive, keyed by its canonical lowercase name. Kept module-
@@ -200,9 +212,10 @@ const DATA_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
  *
  * `DATA_PRIMITIVE_ARITY` is this profile's single source-of-truth table. Its name-enumeration
  * counterpart, {@link dataPrimitiveNames}, makes these reporters visible to `ol-unknown-command`
- * (`checker-names.ts`, issue #397); its range counterpart, {@link dataPrimitiveArityRange}, is what
- * the static arity check (`checker-arity.ts`, issue #405) actually consults — mirroring
- * {@link corePrimitiveArityRange}'s role for Core primitives.
+ * (`checker-names.ts`, issue #397); the static arity check (`checker-arity.ts`) reaches the same
+ * table — paired with {@link DATA_PRIMITIVE_MAX_ARITY} — through the profile-keyed
+ * {@link PROFILE_PRIMITIVES} registry rather than a per-profile range accessor of its own
+ * (issue #874).
  */
 export function dataPrimitiveArity(name: string): number | undefined {
   return DATA_PRIMITIVE_ARITY.get(name.toLowerCase());
@@ -219,26 +232,6 @@ export function dataPrimitiveArity(name: string): number | undefined {
 const DATA_PRIMITIVE_MAX_ARITY: ReadonlyMap<string, number> = new Map([
   ["list", Number.POSITIVE_INFINITY],
 ]);
-
-/**
- * The inclusive input-count range a Data-profile primitive accepts, or `undefined` when `name` is
- * not a known Data primitive. `min` is the bare default arity ({@link dataPrimitiveArity}); `max`
- * is the most its parenthesized alternate/variadic form accepts
- * ({@link DATA_PRIMITIVE_MAX_ARITY}) — `Number.POSITIVE_INFINITY` for an open variadic (`list`),
- * and equal to `min` for every other, strictly fixed-arity Data primitive. Mirrors
- * {@link corePrimitiveArityRange} exactly; the static arity checker (issue #405) uses this to tell
- * `list`'s genuine variadic paren form (`(list 1 2)`) from a fixed-arity Data primitive given too
- * many inputs (`(reverse :a :b)`). Matching is case-insensitive.
- */
-export function dataPrimitiveArityRange(
-  name: string,
-): { readonly min: number; readonly max: number } | undefined {
-  const min = dataPrimitiveArity(name);
-  if (min === undefined) {
-    return undefined;
-  }
-  return { min, max: DATA_PRIMITIVE_MAX_ARITY.get(name.toLowerCase()) ?? min };
-}
 
 /**
  * Every Data-profile primitive's canonical lowercase name, sorted for deterministic iteration.
@@ -361,31 +354,14 @@ const GEOMETRY_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
  * one of `grid`/`axes`/`measure`. Matching is case-insensitive.
  *
  * `GEOMETRY_PRIMITIVE_ARITY` is this profile's single source-of-truth table — mirroring
- * {@link turtlePrimitiveArity}/{@link educationalPrimitiveArity}.
+ * {@link turtlePrimitiveArity}/{@link educationalPrimitiveArity}. All three overlay primitives are
+ * strictly fixed-arity 0 (`spec/geometry-module.md`'s `## grid`, `## axes`, and `## measure`
+ * sections each specify a Kind-C command taking no inputs), so the profile registers no ceiling
+ * table in {@link PROFILE_PRIMITIVES} and the static arity checker reads `max === min` from this
+ * table alone.
  */
 export function geometryPrimitiveArity(name: string): number | undefined {
   return GEOMETRY_PRIMITIVE_ARITY.get(name.toLowerCase());
-}
-
-/**
- * The inclusive input-count range a Geometry-profile overlay primitive accepts, or `undefined` when
- * `name` is not one of `grid`/`axes`/`measure`. All three are strictly fixed-arity 0 — none has a
- * variadic or alternate parenthesized form (`spec/geometry-module.md`'s `## grid`, `## axes`, and
- * `## measure` sections each specify a Kind-C command taking no inputs) — so `max` always equals
- * `min` ({@link geometryPrimitiveArity}). Mirrors {@link soundPrimitiveArityRange} exactly; the
- * static arity checker (`checker-arity.ts`) consults this to flag an overlay primitive given too
- * many inputs in its parenthesized form (`(grid 50)`) under the active `geometry` profile, so the
- * checker agrees with the runtime arity check instead of staying silent where the runtime raises
- * `ol-too-many-inputs` (issue #844). Matching is case-insensitive.
- */
-export function geometryPrimitiveArityRange(
-  name: string,
-): { readonly min: number; readonly max: number } | undefined {
-  const min = geometryPrimitiveArity(name);
-  if (min === undefined) {
-    return undefined;
-  }
-  return { min, max: min };
 }
 
 /**
@@ -435,30 +411,12 @@ const INTERACTION_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
  *
  * `INTERACTION_PRIMITIVE_ARITY` is this profile's single source-of-truth table — mirroring
  * {@link geometryPrimitiveArity}/{@link educationalPrimitiveArity}. Its enumerable counterpart is
- * {@link interactionPrimitiveNames}.
+ * {@link interactionPrimitiveNames}. Both `wait <n>` and `input <prompt>` are strictly fixed-arity
+ * (`spec/interaction-events.md`'s "Profiles and reservation" table), so the profile registers no
+ * ceiling table in {@link PROFILE_PRIMITIVES}.
  */
 export function interactionPrimitiveArity(name: string): number | undefined {
   return INTERACTION_PRIMITIVE_ARITY.get(name.toLowerCase());
-}
-
-/**
- * The inclusive input-count range an Interaction & Events-profile primitive accepts, or `undefined`
- * when `name` is not one. Both `wait <n>` and `input <prompt>` are strictly fixed-arity — each takes
- * exactly one input, with no variadic parenthesized alternate (`spec/interaction-events.md`'s
- * "Profiles and reservation" table) — so `max` always equals `min`
- * ({@link interactionPrimitiveArity}). Mirrors
- * {@link soundPrimitiveArityRange} exactly; the static arity checker (`checker-arity.ts`) consults
- * this to flag a known Interaction primitive given the wrong number of inputs (e.g. `(wait)` or
- * `(input "a" "b")`) under the active `interaction-events` profile. Matching is case-insensitive.
- */
-export function interactionPrimitiveArityRange(
-  name: string,
-): { readonly min: number; readonly max: number } | undefined {
-  const min = interactionPrimitiveArity(name);
-  if (min === undefined) {
-    return undefined;
-  }
-  return { min, max: min };
 }
 
 /**
@@ -554,29 +512,12 @@ const SOUND_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
  * primitives registered in {@link SOUND_PRIMITIVE_ARITY}. Matching is case-insensitive.
  *
  * `SOUND_PRIMITIVE_ARITY` is this profile's single source-of-truth table — mirroring
- * {@link geometryPrimitiveArity}/{@link educationalPrimitiveArity}.
+ * {@link geometryPrimitiveArity}/{@link educationalPrimitiveArity}. Every Sound primitive is
+ * strictly fixed-arity — none has a variadic parenthesized alternate — so the profile registers no
+ * ceiling table in {@link PROFILE_PRIMITIVES}.
  */
 export function soundPrimitiveArity(name: string): number | undefined {
   return SOUND_PRIMITIVE_ARITY.get(name.toLowerCase());
-}
-
-/**
- * The inclusive input-count range a Sound-profile primitive accepts, or `undefined` when `name` is
- * not a known Sound primitive. Every Sound primitive (`set_tempo`, `beep`, `note`, `rest`) is
- * strictly fixed-arity — none has a variadic parenthesized alternate — so `max` always equals `min`
- * ({@link soundPrimitiveArity}). Mirrors {@link dataPrimitiveArityRange} exactly; the static arity
- * checker (`checker-arity.ts`) consults this to flag a known Sound command given the wrong number
- * of inputs (e.g. `(set_tempo 1 2)`, `(beep 1)`, or `(note "c4")`) under the active `sound`
- * profile. Matching is case-insensitive.
- */
-export function soundPrimitiveArityRange(
-  name: string,
-): { readonly min: number; readonly max: number } | undefined {
-  const min = soundPrimitiveArity(name);
-  if (min === undefined) {
-    return undefined;
-  }
-  return { min, max: min };
 }
 
 /**
@@ -986,52 +927,6 @@ export function heritageAliasArityRange(
 }
 
 /**
- * Every profile's primitive-arity table the reader consults, in lookup order. Core Language is
- * checked first (today's only always-visible table), then each optional profile's Core-spelled
- * primitives as they are registered — currently Turtle & Rendering, Data, Educational, Geometry,
- * Interaction & Events, Sound, Sprites, and Tutor. A later profile slice adds its table here rather than editing
- * {@link primitiveArity}'s body. Heritage short aliases are deliberately NOT a table here: they
- * carry no arity of their own — {@link heritageAliasArity} resolves the alias to its canonical and
- * reads that canonical's arity from these very tables, so there is never a duplicate arity number.
- */
-const PROFILE_PRIMITIVE_ARITY_TABLES: readonly ReadonlyMap<string, number>[] = [
-  CORE_PRIMITIVE_ARITY,
-  TURTLE_PRIMITIVE_ARITY,
-  DATA_PRIMITIVE_ARITY,
-  EDUCATIONAL_PRIMITIVE_ARITY,
-  GEOMETRY_PRIMITIVE_ARITY,
-  INTERACTION_PRIMITIVE_ARITY,
-  SOUND_PRIMITIVE_ARITY,
-  SPRITES_PRIMITIVE_ARITY,
-  // Tutor's `challenge` is arity 0, which is also `arityOf`'s fallback, so this entry changes no
-  // reader behavior TODAY — a QA review measured that removing it fails no test. It is registered
-  // anyway, because the alternative is that Tutor is the one profile the reader's single lookup
-  // does not cover, and the day the profile gains a primitive that takes an input, that omission
-  // would surface as a misgrouped call rather than as a missing table. Coverage by construction,
-  // not by the current arity happening to match the default.
-  TUTOR_PRIMITIVE_ARITY,
-];
-
-/**
- * The default arity of any registered primitive — Core or an optional profile's Core-spelled
- * primitives — or `undefined` when `name` matches none of them. This is the reader's single
- * lookup (`parser.ts`'s `arityOf`): the reader has no notion of an "active profile" (that is a
- * Layer-2 checker concept, `spec/tooling.md:175-176`), so it must group a bare call's arguments
- * for *any* known primitive name, leaving the question of whether that primitive is legal under
- * the program's active profile set entirely to `check()`. Matching is case-insensitive.
- */
-export function primitiveArity(name: string): number | undefined {
-  const lower = name.toLowerCase();
-  for (const table of PROFILE_PRIMITIVE_ARITY_TABLES) {
-    const arity = table.get(lower);
-    if (arity !== undefined) {
-      return arity;
-    }
-  }
-  return undefined;
-}
-
-/**
  * Every Core primitive's canonical lowercase name, sorted for deterministic iteration. This is
  * the enumerable counterpart to {@link corePrimitiveArity}: the checker's unknown-command rule
  * (issue #117) needs the full name *list* to build its did-you-mean candidate set, not just a
@@ -1083,4 +978,172 @@ export function corePrimitiveArityRange(
     return undefined;
   }
   return { min, max: CORE_PRIMITIVE_MAX_ARITY.get(name.toLowerCase()) ?? min };
+}
+
+/**
+ * One conformance profile's primitive registration: the profile's single source-of-truth default
+ * arity table and, only when the profile owns a primitive with a variadic or bounded-alternate
+ * *parenthesized* form, the ceiling table that records it. A profile with no such form omits
+ * `maxArity` entirely and every one of its primitives reads back as strictly fixed-arity
+ * (`max === min`) — which is what all of Turtle & Rendering, Educational, Geometry,
+ * Interaction & Events, Sound, Sprites, and Tutor are.
+ */
+interface ProfilePrimitives {
+  readonly arity: ReadonlyMap<string, number>;
+  readonly maxArity?: ReadonlyMap<string, number>;
+}
+
+/**
+ * **The primitive registry: one entry per conformance profile, and the single place a profile's
+ * primitives are wired to everything that consults them** (issue #874).
+ *
+ * Its type is `Record<CheckProfile, …>` — a mapped type over `OL_CHECK_PROFILES` — so it is
+ * **exhaustive by construction**: a profile added to that list does not compile until it declares
+ * an entry here, and the declaration is a binary choice with no silent third option (a table, or an
+ * explicit `null` meaning "this profile contributes no bare-call primitives"). That is the
+ * fail-closed property this registry exists for, and it is the same structural move `parser.ts`'s
+ * `NON_PRIMARY_NAMES` makes for keywords (issue #853).
+ *
+ * **Why it is shaped this way.** Before this, the reader walked an untagged *array* of tables while
+ * the checker's arity rule hand-wrote one `if (<profile>Active) { … }` branch per profile against a
+ * per-profile range accessor. Nothing tied the two together, so a profile could be — and for
+ * Turtle & Rendering, Educational, Sprites, and Tutor **was** — registered for the reader and
+ * silently missing from the checker: `(home 10)` checked clean while the runtime raised
+ * `ol-too-many-inputs` for the very same call (issue #874, the third instance of the same shape
+ * after #783 and #854). Tagging each table with its owning {@link CheckProfile} collapses both
+ * lookups onto one registry, so **registering a future profile's table here wires the reader and
+ * the checker together, with no edit to `checker-arity.ts` at all**.
+ *
+ * The `null` entries are not omissions, they are claims:
+ * - `heritage` — its short aliases carry no arity of their own. Heritage is "alternate spellings
+ *   only, no new semantics" (`spec/conformance.md:146`), so an alias resolves to its canonical and
+ *   reads *that* profile's entry ({@link heritageAliasArity}); a Heritage table here would be a
+ *   second copy of every canonical's arity, the very duplication this registry removes.
+ * - `modules`, `localization` — neither profile defines a bare-call primitive: `spec/modules.md`'s
+ *   `import`/`export` and `spec/localization.md`'s `alias` are grammar forms with their own
+ *   productions, not callables whose arguments the reader groups.
+ */
+const PROFILE_PRIMITIVES: Readonly<
+  Record<CheckProfile, ProfilePrimitives | null>
+> = {
+  "core-language": {
+    arity: CORE_PRIMITIVE_ARITY,
+    maxArity: CORE_PRIMITIVE_MAX_ARITY,
+  },
+  "turtle-rendering": { arity: TURTLE_PRIMITIVE_ARITY },
+  geometry: { arity: GEOMETRY_PRIMITIVE_ARITY },
+  sprites: { arity: SPRITES_PRIMITIVE_ARITY },
+  data: { arity: DATA_PRIMITIVE_ARITY, maxArity: DATA_PRIMITIVE_MAX_ARITY },
+  heritage: null,
+  "interaction-events": { arity: INTERACTION_PRIMITIVE_ARITY },
+  sound: { arity: SOUND_PRIMITIVE_ARITY },
+  modules: null,
+  localization: null,
+  educational: { arity: EDUCATIONAL_PRIMITIVE_ARITY },
+  "tutor-ai": { arity: TUTOR_PRIMITIVE_ARITY },
+};
+
+/**
+ * {@link PROFILE_PRIMITIVES}'s arity-bearing entries, flattened once into `[profile, tables]` pairs
+ * in registry declaration order. Both lookups below walk this one array, so the profile-blind
+ * reader ({@link primitiveArity}) and the profile-aware checker
+ * ({@link activeProfilePrimitiveArityRange}) resolve a name through the identical sequence of
+ * tables and can never disagree about which profile owns it.
+ */
+const REGISTERED_PROFILE_PRIMITIVES: readonly (readonly [
+  CheckProfile,
+  ProfilePrimitives,
+])[] = Object.entries(PROFILE_PRIMITIVES).flatMap(([profile, tables]) =>
+  tables === null ? [] : [[profile as CheckProfile, tables] as const],
+);
+
+/** Reads `name` (already lowercased) out of one profile's tables. See {@link ArityRange}. */
+function arityRangeIn(
+  tables: ProfilePrimitives,
+  name: string,
+): ArityRange | undefined {
+  const min = tables.arity.get(name);
+  if (min === undefined) {
+    return undefined;
+  }
+  return { min, max: tables.maxArity?.get(name) ?? min };
+}
+
+/**
+ * The default arity of any registered primitive — Core or an optional profile's Core-spelled
+ * primitives — or `undefined` when `name` matches none of them. This is the reader's single
+ * lookup (`parser.ts`'s `arityOf`): the reader has no notion of an "active profile" (that is a
+ * Layer-2 checker concept, `spec/tooling.md:175-176`), so it must group a bare call's arguments
+ * for *any* known primitive name, leaving the question of whether that primitive is legal under
+ * the program's active profile set entirely to `check()`. Matching is case-insensitive.
+ */
+export function primitiveArity(name: string): number | undefined {
+  const lower = name.toLowerCase();
+  for (const [, tables] of REGISTERED_PROFILE_PRIMITIVES) {
+    const arity = tables.arity.get(lower);
+    if (arity !== undefined) {
+      return arity;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * The inclusive input-count range `name` accepts under the **active** conformance profile set, or
+ * `undefined` when no active profile registers it — the static arity checker's single lookup
+ * (`checker-arity.ts`, issue #874), and the profile-aware counterpart to {@link primitiveArity}.
+ *
+ * Only profiles present in `profiles` are consulted, exactly as `spec/tooling.md:175-176` requires
+ * ("MUST use the active conformance profile set when deciding which primitives and profile
+ * block-heads are available") — a primitive whose owning profile is inactive is not visible, so its
+ * arity is not statically known and the callee belongs to `ol-unknown-command` instead. An
+ * unrecognized profile identifier simply matches no entry and contributes nothing. Matching is
+ * case-insensitive.
+ */
+export function activeProfilePrimitiveArityRange(
+  name: string,
+  profiles: readonly CheckProfile[],
+): ArityRange | undefined {
+  const lower = name.toLowerCase();
+  const active = new Set<string>(profiles);
+  for (const [profile, tables] of REGISTERED_PROFILE_PRIMITIVES) {
+    if (!active.has(profile)) {
+      continue;
+    }
+    const range = arityRangeIn(tables, lower);
+    if (range !== undefined) {
+      return range;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Every primitive name `profile` registers in {@link PROFILE_PRIMITIVES}, sorted, computed once per
+ * profile and frozen. Empty for a profile whose registry entry is `null` (`heritage`, `modules`,
+ * `localization`) — those contribute no bare-call primitives, which is a claim the registry makes
+ * rather than an omission.
+ */
+const PROFILE_PRIMITIVE_NAMES: ReadonlyMap<CheckProfile, readonly string[]> =
+  new Map(
+    Object.entries(PROFILE_PRIMITIVES).map(([profile, tables]) => [
+      profile as CheckProfile,
+      Object.freeze(tables === null ? [] : [...tables.arity.keys()].sort()),
+    ]),
+  );
+
+/**
+ * The full list of primitive names one conformance profile registers, in sorted order — the
+ * enumerable counterpart to {@link activeProfilePrimitiveArityRange}, derived from the same
+ * {@link PROFILE_PRIMITIVES} registry so the two can never disagree about what a profile owns.
+ *
+ * This is what lets a caller — the unit suites above all — walk the profile DAG
+ * (`OL_CHECK_PROFILES`) and assert a property of *every* registered primitive without restating any
+ * command name, so a primitive added to a profile's table is covered without editing the assertion.
+ * An unrecognized profile identifier reports no names.
+ */
+export function profilePrimitiveNames(
+  profile: CheckProfile,
+): readonly string[] {
+  return PROFILE_PRIMITIVE_NAMES.get(profile) ?? [];
 }
