@@ -116,7 +116,8 @@ profile or the whole DAG. The runner discovers every `*.expected.json` and pairs
     `randomSeed` creates is that two runs sharing a seed *agree*, and a fixture is one source to one
     expected stream, so cross-run determinism stays a unit-test concern
     (`packages/runtime/src/random-randomize.test.mjs`).
-  - **Function-valued options are rejected as unknown keys**, with the offending key named in the    error, rather than silently dropped: JSON cannot express a function, so
+  - **Function-valued options are rejected as unknown keys**, with the offending key named in the
+    error, rather than silently dropped: JSON cannot express a function, so
     `executeOptions.tutorTemplates` (the injectable Educational template) and `hostInput.read` (the
     live `input` reader) are fixture-author mistakes. Do not try to write them; use
     `hostInput.responses` for scripted answers and cover the reactive seams with unit tests in

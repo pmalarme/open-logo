@@ -214,8 +214,12 @@
  * exactly one entry per attempt, and a chain can never fail to make progress. Keeping a counter for
  * a branch no program can reach would have been untestable code guarding an impossible state.
  * (What the cap never covered, before or after, is a chain with genuinely *unbounded* reads such as
- * `forever [ input "?" ]` under a synchronous host: every attempt there answers one more read, so
- * it always counted as progress. That remains bounded only by the instruction budget.)
+ * `forever [ input "?" ]` under a synchronous host: every attempt there answers one more read, so it
+ * always counted as progress. That one does terminate — the single execution's `instructionBudget`
+ * eventually fires — just slowly, since each attempt replays the whole prefix. What is bounded by
+ * **nothing** is a *host* that restarts the run from inside `present()`, because each restart brings
+ * a fresh budget; that is a host-contract matter and is documented on {@link InputPromptHost} in
+ * `input-prompt.ts`.)
  *
  * A probe's own diagnostics are deliberately withheld while its question is outstanding, because the
  * only diagnostic a probe can carry is the reader's own forced cancellation: parse diagnostics stop
