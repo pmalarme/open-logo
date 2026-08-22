@@ -260,12 +260,7 @@ test("a Heritage alias is arity-checked as the canonical command it spells", () 
   });
   // Without Turtle & Rendering the canonical is not visible, so nothing statically knows `fd`'s
   // arity and the runtime check owns it — no false positive from the alias alone.
-  assert.deepEqual(
-    checkCodes("(fd 1 2)", ["core-language", "heritage"]).map(
-      (diagnostic) => diagnostic.code,
-    ),
-    [],
-  );
+  assert.deepEqual(checkCodes("(fd 1 2)", ["core-language", "heritage"]), []);
 });
 
 test("params.callable is the canonical lowercase name for every profile, not the surface spelling", () => {
