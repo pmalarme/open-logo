@@ -1,5 +1,5 @@
 {
-  "description": "ol-reserved-word (issue #113): `thing` is the one name reachable in more than one collision category at once — it is both a reserved structural word and a Core primitive. `define thing ... end` reports `namespace: \"reserved\"`, confirming the checker's documented priority order (reserved word, then primitive, then existing procedure) rather than reporting `\"primitive\"`.",
+  "description": "ONE diagnostic for a name in two categories at once (issue #113, rewritten by #838): `thing` is the only name that is both a keyword and a Core primitive. It used to prove the `namespace` priority order by reporting `\"reserved\"` rather than `\"primitive\"`; spec/error-model.md:125 has since removed that param, so what this fixture now pins is the invariant that outlived it -- a doubly-built-in name still produces exactly ONE `ol-reserved-word`, not one per category. That is a real regression risk for the checker's short-circuit: `isBuiltInName` asks three questions (keyword, unconditional table, gated table) and must stop at the first yes. The fixture name is kept so its history stays greppable.",
   "profiles": ["core-language"],
   "check": true,
   "events": [],
@@ -11,7 +11,7 @@
         "start": [1, 8],
         "end": [1, 13]
       },
-      "params": { "name": "thing", "namespace": "reserved" },
+      "params": { "name": "thing" },
       "stage": "semantic",
       "severity": "error"
     }

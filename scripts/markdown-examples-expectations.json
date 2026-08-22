@@ -58,24 +58,6 @@
       "codes": ["ol-not-a-place"]
     }
   ],
-  "docs/design-notes/0006-effect-event-snapshot-timing.md": [
-    {
-      "fingerprint": "7c411c83a02b450c",
-      "excerpt": ":x = [1, 2, 3]",
-      "kind": "known-broken",
-      "issue": "#887",
-      "why": "DEFECT surfaced by this gate: ':x = [1, 2, 3]' separates list items with commas, which OpenLogo has no grammar for — list literals are space-separated ('[1 2 3]'). Recorded rather than fixed here because the record is Status: Accepted and docs edits are serialized; tracked on #887, then this entry is DELETED (not re-fingerprinted).",
-      "codes": ["ol-bad-token"]
-    },
-    {
-      "fingerprint": "f7e6b44cdff8c4d9",
-      "excerpt": ":x = [1, 2, 3]",
-      "kind": "known-broken",
-      "issue": "#887",
-      "why": "Same defect as the entry above, in the second contrasting example of the same section: a comma-separated list literal. Tracked on #887; delete this entry when the block is fixed.",
-      "codes": ["ol-bad-token"]
-    }
-  ],
   "docs/educational-commands.md": [
     {
       "fingerprint": "62bdd113cf88a286",
@@ -448,6 +430,13 @@
     }
   ],
   "spec/grammar.md": [
+    {
+      "fingerprint": "ea6cc8eb827559e1",
+      "excerpt": ":end = 1",
+      "kind": "deliberate-error",
+      "why": "The block's own last line is commented `# error: forward is a built-in name`, and the section around it is the normative statement of that rule. Its first five lines are the free half — binding a built-in name — and must stay clean; the `define forward` at the end must raise. Before issue #838 wired `turtlePrimitiveArity` into the declaration-slot rule this block ran CLEAN, so the spec's own worked example silently contradicted the paragraph it illustrates. This entry is what stops that from happening again in either direction: the block now fails if `define forward` becomes legal, and fails if any of the five bindings starts raising.",
+      "codes": ["ol-reserved-word"]
+    },
     {
       "fingerprint": "b9b1575db83a4714",
       "excerpt": "# primary line comment",

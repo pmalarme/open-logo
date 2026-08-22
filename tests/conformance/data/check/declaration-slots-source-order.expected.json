@@ -1,5 +1,5 @@
 {
-  "description": "The `ol-reserved-word` rule returns its findings in SOURCE ORDER across both declaration slots, not just within one. `define repeat` (line 7), `struct if` (line 10), and `define while` (line 11) interleave `ProcedureDef` and `StructDef`, and the three findings must appear in that order. Issue #837 removed the rule's `.sort(compareBySpanStart)`: its only out-of-order case was a keyword inside an earlier procedure PARAMETER's default expression, reached later than the `ProcedureDef` carrying it, and parameters are binding positions that are no longer checked (spec/grammar.md:386). Source order now rests on the walk's pre-order alone, and every other multi-finding fixture is homogeneous (all `define`s or all `struct`s), so this is the one that would catch a regression. `\"check\": true` -- nothing is executed and no events are produced.",
+  "description": "The declaration-slot rule returns its findings in SOURCE ORDER across both declaration slots, not just within one. `define repeat` (line 7), `struct if` (line 10), and `define while` (line 11) interleave `ProcedureDef` and `StructDef`, and the three findings must appear in that order. Issue #837 removed the rule's `.sort(compareBySpanStart)`: its only out-of-order case was a keyword inside an earlier procedure PARAMETER's default expression, reached later than the `ProcedureDef` carrying it, and parameters are binding positions that are no longer checked (spec/grammar.md:386). Source order now rests on the walk's pre-order alone, and every other multi-finding fixture is homogeneous (all `define`s or all `struct`s), so this is the one that would catch a regression. Issue #838 gave the promise a second job: one walk now emits BOTH `ol-reserved-word` and `ol-duplicate-definition`, so source order also has to hold ACROSS the two codes -- which it does by construction, and which splitting the rule in two would have broken by grouping findings per code. The `namespace` param is gone (spec/error-model.md:125). `\"check\": true` -- nothing is executed and no events are produced.",
   "profiles": ["core-language", "data"],
   "check": true,
   "events": [],
@@ -12,8 +12,7 @@
         "end": [7, 14]
       },
       "params": {
-        "name": "repeat",
-        "namespace": "reserved"
+        "name": "repeat"
       },
       "stage": "semantic",
       "severity": "error"
@@ -26,8 +25,7 @@
         "end": [10, 10]
       },
       "params": {
-        "name": "if",
-        "namespace": "reserved"
+        "name": "if"
       },
       "stage": "semantic",
       "severity": "error"
@@ -40,8 +38,7 @@
         "end": [11, 13]
       },
       "params": {
-        "name": "while",
-        "namespace": "reserved"
+        "name": "while"
       },
       "stage": "semantic",
       "severity": "error"

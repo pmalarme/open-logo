@@ -1,5 +1,5 @@
 {
-  "description": "issue #679 (SP7): the reserved-word rule covers struct CONSTRUCTORS as well as procedures, so with `sprites` active `struct tell`/`struct ask`/`struct each` each raise `ol-reserved-word` at the struct-name token. `struct` is one of the grammar's four declaration slots (spec/grammar.md:382), which is why this fixture is unaffected by maintainer ruling #833. Scope note, twice corrected: when this fixture was written the `variables` third of spec/turtles-and-sprites.md:154's sentence was not diagnosed (`:tell = 1` checked clean); Epic-Gate finding B3 took that up as issue #739, which made it raise; ruling #833 then reversed #739 and made binding free again, permanently — spec/grammar.md:386 now makes accepting any name in a binding position a normative MUST, and spec/grammar.md:408 says what a profile decides is whether a name WORKS, never whether a program may declare it. The sibling fixture reserved-bindings-with-sprites pins that reversal; realigning the profile document's older wording is issue #855. This fixture owns the struct-constructor case, which is a declaration and still collides.",
+  "description": "issue #679 (SP7): the declaration-slot rule covers struct CONSTRUCTORS as well as procedures, so with `sprites` active `struct tell`/`struct ask`/`struct each` each raise `ol-reserved-word` at the struct-name token. `struct` is one of the grammar's four declaration slots (spec/grammar.md:382), which is why this fixture is unaffected by maintainer ruling #833. Scope note, twice corrected: when this fixture was written the `variables` third of spec/turtles-and-sprites.md:154's sentence was not diagnosed (`:tell = 1` checked clean); Epic-Gate finding B3 took that up as issue #739, which made it raise; ruling #833 then reversed #739 and made binding free again, permanently -- spec/grammar.md:386 now makes accepting any name in a binding position a normative MUST, and spec/grammar.md:408 says what a profile decides is whether a name WORKS, never whether a program may declare it. The sibling fixture reserved-bindings-with-sprites pins that reversal; realigning the profile document's older wording is issue #855. This fixture owns the struct-constructor case, which is a declaration and still collides. Issue #838 dropped the `namespace` param (spec/error-model.md:125) and made the built-in half of the struct check unconditional, so `struct tell` would now raise even Core-only -- what still needs `sprites` here is `tell` being a built-in name at all, which is #841's to retire.",
   "profiles": ["core-language", "sprites", "data"],
   "check": true,
   "events": [],
@@ -12,10 +12,9 @@
         "end": [1, 12]
       },
       "params": {
-        "name": "tell",
-        "namespace": "reserved"
+        "name": "tell"
       },
-      "message": "tell is already a reserved, so it can't be redefined here.",
+      "message": "tell is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -27,10 +26,9 @@
         "end": [2, 11]
       },
       "params": {
-        "name": "ask",
-        "namespace": "reserved"
+        "name": "ask"
       },
-      "message": "ask is already a reserved, so it can't be redefined here.",
+      "message": "ask is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -42,10 +40,9 @@
         "end": [3, 12]
       },
       "params": {
-        "name": "each",
-        "namespace": "reserved"
+        "name": "each"
       },
-      "message": "each is already a reserved, so it can't be redefined here.",
+      "message": "each is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     }

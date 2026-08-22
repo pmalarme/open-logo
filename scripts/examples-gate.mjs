@@ -150,15 +150,22 @@ const SPRITES_CALLEE_NAMES = new Set([
 
 /**
  * Call-site name `spec/conformance.md:279-280` reserves for the **Tutor (AI)** profile's
- * Socratic-challenge entry point. Not in a parser arity table (same as `SOUND_CALLEE_NAMES`/
- * `SPRITES_CALLEE_NAMES`/`INTERACTION_EVENTS_CALLEE_NAMES` above — none of those are
- * arity-registered either), so it is a bare-name hand-list identical in kind to those three. The
+ * Socratic-challenge entry point. Kept as a bare-name hand-list identical in kind to
+ * `SOUND_CALLEE_NAMES`/`SPRITES_CALLEE_NAMES`/`INTERACTION_EVENTS_CALLEE_NAMES` above. The
  * `definedProcedureNames` shadow-guard (checked before any of these hand-lists are consulted)
  * already neutralizes the "collides with a user's own `define challenge ... end`" risk for all
  * four, so there is no principled reason to hardcode Sound/Sprites/Interaction & Events this way
  * but leave Tutor (AI) undetected — doing so left a live G8 masking hole (issue #519, fourth
  * review round): an example calling `challenge` while declaring only an unrelated unimplemented
  * profile (omitting `tutor-ai`) reached SKIP undetected.
+ *
+ * An earlier revision of this comment justified the hand-list by saying `challenge` is "not in a
+ * parser arity table". That stopped being true in issue #838, which gave Tutor a registry
+ * (`tutorPrimitiveArity`) so the checker could reject `define challenge`. The hand-list is left in
+ * place because *this* gate detects CALL-SITE names for profile gating, which is a different
+ * question from arity, and every sibling profile above is listed the same way — folding all four
+ * into registry lookups is a worthwhile tidy-up but is not #838's, and doing it here would change
+ * four profiles' behavior to fix a stale sentence.
  */
 const TUTOR_AI_CALLEE_NAMES = new Set(["challenge"]);
 

@@ -96,6 +96,7 @@ export {
   interactionPrimitiveArity,
   soundPrimitiveArity,
   spritesPrimitiveArity,
+  tutorPrimitiveArity,
   canonicalOfHeritageAlias,
   heritageAliasNames,
   heritageAliasArity,

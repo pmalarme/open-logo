@@ -1,5 +1,5 @@
 {
-  "description": "Issue #742 (Heritage half of the alias/Sprites shadowing fix, landed with #746): with `heritage` ACTIVE, redefining a Heritage short alias raises `ol-reserved-word` with `namespace` `primitive` exactly as redefining its canonical Core spelling does. Heritage is \"alternate spellings only — no new semantics\" (`spec/conformance.md:146`), so `define pr` MUST be exactly as (il)legal as `define print`; before this fix `define print` raised and `define pr` was silently accepted **and the shadow took effect**, so a Heritage program could lose its `print` (`pr 7` then reported `ol-bad-token`). Two spellings of one primitive resolving to different callables is precisely the \"new semantics\" the profile forbids. This fixture declares ALL THIRTEEN aliases in registry order and is therefore the whole symmetry table in one file: `pr`/`bf`/`bl`/`se` alias the **Core** primitives `print`/`butfirst`/`butlast`/`sentence` and are the four reported here, while `fd`/`bk`/`lt`/`rt`/`st`/`ht`/`pu`/`pd`/`cs` alias **Turtle & Rendering** primitives whose table `collidingNamespace` deliberately does NOT yet consult (issue #783, which awaits a maintainer ruling on the 0.1.0 minimal claim) and so stay accepted — accepted *because* `define forward` is accepted, not by a separate rule. That is the design: the checker resolves an alias through `canonicalOfHeritageAlias` and re-runs the canonical's own table lookup rather than keeping a second table, so the two spellings agree **by construction** and all nine flip together, with no edit to the Heritage branch, on the day #783 is wired in. `params.name` is the **surface** spelling the learner wrote, at that name's own span (`pr`, never `print`) — the contract #737 recorded for this code. Paired with `heritage-alias-redefinition-legal-in-core`, which checks this exact source under Core alone and is clean, proving the rule is gated on the ACTIVE profile set (`spec/tooling.md:175-176`) rather than unconditional. `\"check\": true` (semantic-checker only, no execution) because this is a checker rule: the procedures are never called and no events are produced.",
+  "description": "Issue #742 (Heritage half of the alias/Sprites shadowing fix, landed with #746), COMPLETED by ruling #833 / issue #838: with `heritage` ACTIVE, redefining a Heritage short alias raises `ol-reserved-word` exactly as redefining its canonical Core spelling does. Heritage is \"alternate spellings only -- no new semantics\" (`spec/conformance.md:146`), so `define pr` MUST be exactly as (il)legal as `define print`; before #742, `define print` raised and `define pr` was silently accepted **and the shadow took effect**, so a Heritage program could lose its `print` (`pr 7` then reported `ol-bad-token`). This fixture declares ALL THIRTEEN aliases in registry order and is therefore the whole symmetry table in one file. When #742 landed, only FOUR of the thirteen were reported: `pr`/`bf`/`bl`/`se` alias the **Core** primitives, while the nine turtle aliases resolved to a Turtle & Rendering table the checker deliberately did not consult (issue #783, awaiting a maintainer ruling). #833 supplied that ruling -- spec/grammar.md:382, \"`define count`, `define forward`, and `define fd` are equally errors\" -- and #838 wired `turtlePrimitiveArity` in, so all thirteen report and the file finally means what its name says. That the nine flipped with NO edit to the Heritage branch is the design working: the checker resolves an alias through `canonicalOfHeritageAlias` and re-runs the canonical's own lookup rather than keeping a second table, so the two spellings agree by construction. `params.name` is the **surface** spelling the learner wrote, at that name's own span (`pr`, never `print`) -- the contract #737 recorded for this code -- and `params.namespace` is gone, per spec/error-model.md:125. Paired with `heritage-alias-redefinition-legal-in-core`, which checks this exact source under Core alone and now differs by exactly the four Core-backed aliases: the residue of the profile gate that issue #841 retires. `\"check\": true` (semantic-checker only, no execution) because this is a checker rule: the procedures are never called and no events are produced.",
   "profiles": ["core-language", "data", "heritage"],
   "check": true,
   "events": [],
@@ -8,14 +8,139 @@
       "code": "ol-reserved-word",
       "source_span": {
         "document": "heritage/check/heritage-alias-redefinition-rejected-when-active",
+        "start": [1, 8],
+        "end": [1, 10]
+      },
+      "params": {
+        "name": "fd"
+      },
+      "message": "fd is already part of OpenLogo. choose another name.",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "heritage/check/heritage-alias-redefinition-rejected-when-active",
+        "start": [3, 8],
+        "end": [3, 10]
+      },
+      "params": {
+        "name": "bk"
+      },
+      "message": "bk is already part of OpenLogo. choose another name.",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "heritage/check/heritage-alias-redefinition-rejected-when-active",
+        "start": [5, 8],
+        "end": [5, 10]
+      },
+      "params": {
+        "name": "lt"
+      },
+      "message": "lt is already part of OpenLogo. choose another name.",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "heritage/check/heritage-alias-redefinition-rejected-when-active",
+        "start": [7, 8],
+        "end": [7, 10]
+      },
+      "params": {
+        "name": "rt"
+      },
+      "message": "rt is already part of OpenLogo. choose another name.",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "heritage/check/heritage-alias-redefinition-rejected-when-active",
+        "start": [9, 8],
+        "end": [9, 10]
+      },
+      "params": {
+        "name": "st"
+      },
+      "message": "st is already part of OpenLogo. choose another name.",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "heritage/check/heritage-alias-redefinition-rejected-when-active",
+        "start": [11, 8],
+        "end": [11, 10]
+      },
+      "params": {
+        "name": "ht"
+      },
+      "message": "ht is already part of OpenLogo. choose another name.",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "heritage/check/heritage-alias-redefinition-rejected-when-active",
+        "start": [13, 8],
+        "end": [13, 10]
+      },
+      "params": {
+        "name": "pu"
+      },
+      "message": "pu is already part of OpenLogo. choose another name.",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "heritage/check/heritage-alias-redefinition-rejected-when-active",
+        "start": [15, 8],
+        "end": [15, 10]
+      },
+      "params": {
+        "name": "pd"
+      },
+      "message": "pd is already part of OpenLogo. choose another name.",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "heritage/check/heritage-alias-redefinition-rejected-when-active",
+        "start": [17, 8],
+        "end": [17, 10]
+      },
+      "params": {
+        "name": "cs"
+      },
+      "message": "cs is already part of OpenLogo. choose another name.",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "heritage/check/heritage-alias-redefinition-rejected-when-active",
         "start": [19, 8],
         "end": [19, 10]
       },
       "params": {
-        "name": "pr",
-        "namespace": "primitive"
+        "name": "pr"
       },
-      "message": "pr is already a primitive, so it can't be redefined here.",
+      "message": "pr is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -27,10 +152,9 @@
         "end": [21, 10]
       },
       "params": {
-        "name": "bf",
-        "namespace": "primitive"
+        "name": "bf"
       },
-      "message": "bf is already a primitive, so it can't be redefined here.",
+      "message": "bf is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -42,10 +166,9 @@
         "end": [23, 10]
       },
       "params": {
-        "name": "bl",
-        "namespace": "primitive"
+        "name": "bl"
       },
-      "message": "bl is already a primitive, so it can't be redefined here.",
+      "message": "bl is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -57,10 +180,9 @@
         "end": [25, 10]
       },
       "params": {
-        "name": "se",
-        "namespace": "primitive"
+        "name": "se"
       },
-      "message": "se is already a primitive, so it can't be redefined here.",
+      "message": "se is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     }

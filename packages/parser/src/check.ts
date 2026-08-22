@@ -33,7 +33,7 @@ import { arityRule } from "./checker-arity.js";
 import { controlFlowRule } from "./checker-control-flow.js";
 import { heritageFormRule } from "./checker-heritage-form.js";
 import { notAPlaceRule } from "./checker-not-a-place.js";
-import { reservedWordRule } from "./checker-reserved-word.js";
+import { declarationSlotRule } from "./checker-reserved-word.js";
 import { STYLE_RULES } from "./checker-style.js";
 import { undefinedVarRule } from "./checker-undefined-var.js";
 import { unknownCommandRule } from "./checker-unknown-command.js";
@@ -140,7 +140,7 @@ const RULES: readonly CheckRule[] = [
   arityRule,
   notAPlaceRule,
   undefinedVarRule,
-  reservedWordRule,
+  declarationSlotRule,
   controlFlowRule,
 ];
 

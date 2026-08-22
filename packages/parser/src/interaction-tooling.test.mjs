@@ -177,7 +177,7 @@ test("highlight: `wait` is never a keyword — a same-named procedure highlights
   // `keyword` class: the profile-blind highlighter resolves a user `define wait` to
   // `procedure-name` at its call site, unlike a Core reserved word which stays `keyword` no matter
   // what. This is purely a *token-class* statement — the checker separately reports that
-  // redefinition as `ol-reserved-word` (`namespace: "primitive"`, asserted below), which is a
+  // redefinition as `ol-reserved-word` (asserted below), which is a
   // legality question the highlighter deliberately does not answer.
   const source = "define wait\nend\nwait";
   const tokens = OL.highlight(source, doc).filter((t) => t.text === "wait");
@@ -372,10 +372,13 @@ test("check: redefining an Interaction block-head is allowed under Core-only (no
 test("check: `wait` is a primitive, so redefining it under an active profile raises ol-reserved-word", () => {
   // `wait` is NOT a profile block-head (contrast the four heads above — it never appears in
   // `OL_PROFILE_KEYWORDS`), but `spec/tooling.md:184` makes redefining a *primitive*
-  // `ol-reserved-word` all the same, with `namespace: "primitive"` rather than `"reserved"`.
-  // Sound's identically-shaped `set_tempo`, Geometry's `grid`, and Data's `list` already behaved
-  // this way; before I8 `wait` was the only one of those four profiles' primitives a program could
-  // silently shadow.
+  // `ol-reserved-word` all the same. That block-head/primitive distinction decides which BRANCH of
+  // the checker reports it, and since issue #838 no longer shows up in the diagnostic at all:
+  // `spec/error-model.md:125` gives the code `params: { name }` only, because whether the taken
+  // name is a keyword or a primitive "is an implementation distinction the learner never has to
+  // learn". Sound's identically-shaped `set_tempo`, Geometry's `grid`, and Data's `list` already
+  // behaved this way; before I8 `wait` was the only one of those four profiles' primitives a
+  // program could silently shadow.
   for (const primitive of Object.keys(INTERACTION_PRIMITIVES)) {
     const [finding, ...rest] = checkDiagnostics(
       `define ${primitive}\nend`,
@@ -386,7 +389,6 @@ test("check: `wait` is a primitive, so redefining it under an active profile rai
     assert.equal(finding.stage, "semantic");
     assert.deepEqual(finding.params, {
       name: primitive,
-      namespace: "primitive",
     });
   }
 });

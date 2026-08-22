@@ -1,5 +1,5 @@
 {
-  "description": "issue #679 (SP7): with `sprites` active, `tell`/`ask`/`each` are profile reserved words, so redefining any of them as a PROCEDURE raises `ol-reserved-word` (spec/turtles-and-sprites.md:154,179) — one diagnostic per `define`, each pointing at the procedure-name token with `namespace` `reserved`. Paired with reserved-procedures-without-sprites, which semantically CHECKS this exact source under Core alone and is clean: together they prove the reserved-word rule is gated on the active profile, not unconditional. Both fixtures are `\"check\": true` (semantic-checker only, no execution) because the rule is a checker rule — the procedures are never called, and no events are produced. Before this slice the rule was a normative MUST with no fixture at all.",
+  "description": "issue #679 (SP7): with `sprites` active, `tell`/`ask`/`each` are profile keywords, so redefining any of them as a PROCEDURE raises `ol-reserved-word` (spec/turtles-and-sprites.md:154,179) -- one diagnostic per `define`, each pointing at the procedure-name token. Paired with reserved-procedures-without-sprites, which semantically CHECKS this exact source under Core alone and is clean: that pairing pins the PROFILE GATE that still applies to these three names. The gate is on borrowed time -- spec/grammar.md:408 makes profile words built-in unconditionally, and retiring it is issue #841 -- but #838 moved only the 45 names it measured, so the pair stays honest about today. Issue #838 did drop the `namespace: \"reserved\"` param this used to pin (spec/error-model.md:125 gives `params: { name }` only). Both fixtures are `\"check\": true` (semantic-checker only, no execution) because the rule is a checker rule -- the procedures are never called, and no events are produced. Before this slice the rule was a normative MUST with no fixture at all.",
   "profiles": ["core-language", "sprites"],
   "check": true,
   "events": [],
@@ -12,10 +12,9 @@
         "end": [1, 12]
       },
       "params": {
-        "name": "tell",
-        "namespace": "reserved"
+        "name": "tell"
       },
-      "message": "tell is already a reserved, so it can't be redefined here.",
+      "message": "tell is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -27,10 +26,9 @@
         "end": [4, 11]
       },
       "params": {
-        "name": "ask",
-        "namespace": "reserved"
+        "name": "ask"
       },
-      "message": "ask is already a reserved, so it can't be redefined here.",
+      "message": "ask is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -42,10 +40,9 @@
         "end": [7, 12]
       },
       "params": {
-        "name": "each",
-        "namespace": "reserved"
+        "name": "each"
       },
-      "message": "each is already a reserved, so it can't be redefined here.",
+      "message": "each is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     }

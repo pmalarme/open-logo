@@ -1,0 +1,78 @@
+{
+  "description": "Issue #838 AC2, the headline: a program may not DECLARE a built-in name, and the profile set it runs under has nothing to do with it. Every `define` below was measured CLEAN at the saga tip `fc4371d` under this exact Core-only profile set, which is the set a beginner's program runs under -- so `define forward` was accepted and the turtle then silently stopped moving, with zero diagnostics at any stage. Five names, chosen to cover the five ways a name reaches the rule: `forward` is a Turtle & Rendering canonical, `fd` is a Heritage short alias resolving to it (blocked BY CONSTRUCTION, through `canonicalOfHeritageAlias`, never a parallel list), `setxy` is one of the five compact alias spellings that share a table entry with `set_xy` and used to create a call-site-dependent split with no diagnostic at either end, `hint` is an Educational meta-command, and `challenge` is Tutor's one command -- which before this slice had no registry at all. `spec/grammar.md:382` (\"`define count`, `define forward`, and `define fd` are equally errors\"), `:408` (\"what a profile decides is whether a name *works*, never whether a program may declare it\") and `:414` (built-in names are versioned with the specification, so an implementation \"MUST reject a declaration of exactly that version's built-in names\"). Core-only is the assertion that matters here: a fixture run under the full DAG would pass even for an implementation that gated these names per profile. `\"check\": true` -- a checker rule, nothing is executed and no events are produced.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "core-language/check/declare-built-in-names-core-only",
+        "start": [1, 8],
+        "end": [1, 15]
+      },
+      "params": {
+        "name": "forward"
+      },
+      "message": "forward is already part of OpenLogo. choose another name.",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "core-language/check/declare-built-in-names-core-only",
+        "start": [4, 8],
+        "end": [4, 10]
+      },
+      "params": {
+        "name": "fd"
+      },
+      "message": "fd is already part of OpenLogo. choose another name.",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "core-language/check/declare-built-in-names-core-only",
+        "start": [7, 8],
+        "end": [7, 13]
+      },
+      "params": {
+        "name": "setxy"
+      },
+      "message": "setxy is already part of OpenLogo. choose another name.",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "core-language/check/declare-built-in-names-core-only",
+        "start": [10, 8],
+        "end": [10, 12]
+      },
+      "params": {
+        "name": "hint"
+      },
+      "message": "hint is already part of OpenLogo. choose another name.",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "core-language/check/declare-built-in-names-core-only",
+        "start": [13, 8],
+        "end": [13, 17]
+      },
+      "params": {
+        "name": "challenge"
+      },
+      "message": "challenge is already part of OpenLogo. choose another name.",
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}
