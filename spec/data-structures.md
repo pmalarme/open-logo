@@ -244,13 +244,13 @@ Only the final selector upserts. A missing intermediate container in a chain rai
 
 ```logo
 :people = dict
-
 # error: the intermediate key tom is missing
 :people.tom.age = 8
+```
 
-:people.tom = {
-  age: 8
-}
+```logo
+:people = dict
+:people.tom = { age: 8 }
 
 # ok: final key height is added inside the existing tom dictionary
 :people.tom.height = 120
