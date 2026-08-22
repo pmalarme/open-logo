@@ -137,11 +137,85 @@
  * a call while `runStatus` is already `"running"`, so a run always finishes (or is `stop()`ped)
  * before another can start — the same "Stop is the only way to interrupt" contract the instruction
  * budget already gives a runaway program, now also guaranteed against a same-thread double-click.
+ *
+ * ## #769 — the `input` prompt and the synchronous reader
+ * `@openlogo/runtime`'s host reader (#681,
+ * `ExecuteOptions.hostInput.read?: (prompt: string) => string | undefined`) is **synchronous**:
+ * `spec/interaction-events.md:108-111` requires that no OpenLogo instruction and no handler block
+ * runs until a read finishes, and a synchronous call is that guarantee by construction. `execute()`
+ * itself never yields either (see the Stop caveat above), so a same-thread browser host cannot
+ * suspend inside `read` to await a styled, keyboard-operable, screen-reader-announced prompt. That
+ * constraint is real, and this module does **not** work around it by changing runtime semantics —
+ * the seam is used exactly as specified.
+ *
+ * What it does instead is an **attempt chain**. When a {@link RunControllerOptions.inputPrompt} host
+ * is supplied, `prepare()` installs a reader that answers each read from an accumulated FIFO of the
+ * answers the learner has already given. The first read with no answer left records its prompt and
+ * returns `undefined` — the reader's documented "cannot answer" ending, which cancels that
+ * execution with `ol-limit`/`cancelled` at the waiting `input`. Such an attempt is a **probe**, not
+ * a finished run: once its animation has drawn everything up to the read, the prompt is presented,
+ * and when the learner answers, that answer joins the FIFO and the **same captured source** is
+ * executed again from the top. N reads cost N+1 executions.
+ *
+ * **Why a replay still honors "the program must not appear to continue" — for a deterministic
+ * program.** The learner never observes the cancel-and-re-run, because this module already reduces
+ * the *whole* event stream wholesale on every attempt (`collectOutput` → `setOutput`,
+ * `setDiagnostics`, `setTutorOutput`, and a fresh `TurtleAnimationController` over the run's
+ * events). **When the replayed prefix reproduces the probe's** — which it does for any program whose
+ * prefix is deterministic, i.e. every program that does not draw unseeded randomness before a read —
+ * attempt *k+1*'s stream begins with attempt *k*'s, so each wholesale replacement can only *extend*
+ * what is on screen: output grows monotonically, the canvas resumes rather than blanking (the new
+ * animation is fast-forwarded past the events already drawn — see `prepare()`), and no consumer
+ * double-counts, because `run-log.ts`/`tutor-output-pane.ts` accumulate only on the `"running"` →
+ * terminal transition a probe never reaches. From the learner's side the program stops at the
+ * question and continues from exactly there, which is what `:108-111` asks a host to show.
+ *
+ * That qualifier is load-bearing and is **not** claimed unconditionally: when the prefix is *not*
+ * deterministic the guarantee genuinely does not hold — already-drawn output can change, the
+ * question can change, and one question can be asked more than once. That is the scoped limitation
+ * tracked as issue **#881**; see the caveat at the end of this comment.
+ *
+ * A probe's own diagnostics are deliberately withheld while its question is outstanding, because the
+ * only diagnostic a probe can carry is the reader's own forced cancellation: parse diagnostics stop
+ * the program before any read can happen, and a runtime error halts execution at the failure —
+ * which, for a probe, *is* that read. Publishing it would tell a learner the run was cancelled while
+ * they are still being asked to answer. They are published unchanged the moment the learner
+ * genuinely dismisses the prompt, because then the cancellation really did happen.
+ *
+ * `runStatus` stays `"running"` for the whole chain — the program *is* running, blocked on a read —
+ * which also means `run()`'s #314 guard already ignores a second Run while a question is open, and
+ * the Start/Stop toggle (`run-controls.ts`) already offers Stop. **Stop** withdraws the question and
+ * commits the probe as the cancelled run it is (`"stopped"`); **Reset** withdraws it and clears
+ * everything (`"idle"`); a late answer arriving after either is ignored via a generation counter.
+ * `step()` deliberately does **not** drive this flow: it is a scrubber over an already-produced
+ * event stream (see "#228" above), so there is no execution in progress for a read to block, and its
+ * lazy `prepare()` therefore installs no reader at all — behavior unchanged from before #769.
+ *
+ * One honest caveat, tracked as issue **#881**: `random` with no `randomize <seed>` seeds from the
+ * wall clock per `execute()` call, so a replayed prefix is not guaranteed to reproduce the probe's.
+ * Two consequences, and the dangerous one is handled rather than merely documented:
+ * - An answer is **never** bound to a question the learner was not shown. Answers are recorded with
+ *   the prompt they answered ({@link RecordedAnswer}) and a read only draws from the FIFO when the
+ *   recorded prompt matches this attempt's; a diverged replay that reaches a *different* question
+ *   at that position drops the rest of the FIFO and asks the learner the question it is actually
+ *   asking. Position alone would have silently handed `"5"` — given for "how many sides?" — to a
+ *   replay that asked "what colour?".
+ * - What remains is **#881**: for nondeterminism evaluated *before* a read, the replay can still
+ *   reach a different question (so the learner is visibly re-asked rather than silently mis-bound),
+ *   two distinct `input` sites asking the identical prompt text are not told apart, and already-
+ *   drawn output can change. Every committed state is one whole attempt's own reduction, so none is
+ *   internally inconsistent, and an explicit `randomize <seed>` makes the chain exact today. The
+ *   durable fix is issue **#876** (a Worker + `Atomics.wait` execution host), which removes the
+ *   replay entirely; issue **#865** (an `ExecuteOptions` RNG seed) would narrow the window but is
+ *   not sufficient alone while a no-argument `randomize` still draws fresh wall-clock entropy.
+ *   `@orchestrator` shipped this slice with that limitation scoped to #881 rather than block the
+ *   whole capability behind #876 — see the #769 PR for the recorded ruling.
  */
 
 import { execute, printedForm } from "@openlogo/runtime";
 import type { CancellationSignal, ExecuteOptions } from "@openlogo/runtime";
 import type {
+  Diagnostic,
   PrintPayload,
   SourceSpan,
   TraceEvent,
@@ -157,6 +231,7 @@ import {
 import type { Scheduler } from "@openlogo/turtle";
 import type { AppShell } from "./app-shell.js";
 import type { CanvasViewController } from "./canvas-view.js";
+import type { InputPromptHost } from "./input-prompt.js";
 import type { RunStatus, StudioStateStore } from "./state-model.js";
 import { eduTutorTemplate } from "./tutor-output-pane.js";
 import {
@@ -167,6 +242,28 @@ import {
 
 /** The document identifier passed to `execute()` when the caller doesn't supply one. */
 export const DEFAULT_RUN_DOCUMENT = "studio-session";
+
+/**
+ * How many **consecutive attempts that answer no new read** one `input` chain may make before the
+ * run is abandoned (#769).
+ *
+ * Deliberately *not* a cap on total attempts. A well-behaved chain costs one execution per read —
+ * a program with a hundred `input`s legitimately makes a hundred and one attempts, and capping the
+ * total would cancel it after the hundredth answer. What must be bounded is a chain that cannot
+ * make **progress**: a *diverged* replay re-asks the question it actually reached, and if the
+ * divergence is systematic — nondeterminism that keeps choosing a different question, issue
+ * **#881** — every attempt can diverge again and the chain answers nothing new, forever. With the
+ * studio's asynchronous `<dialog>` host each iteration needs a learner action, so that is merely
+ * tedious; with a **synchronous** host (the shape a `window.prompt`-backed one would have, and the
+ * shape this module's own tests use) it is an unbounded loop with no yield, i.e. a hung tab.
+ *
+ * Progress is measured as the chain's accumulated answers growing: an attempt that leaves the FIFO
+ * no longer than the previous attempt found it has answered nothing new. Reaching the limit ends
+ * the run the only other way `spec/interaction-events.md:110-111` allows — the read is left
+ * unanswered — so it surfaces as the runtime's own `ol-limit`/`cancelled` diagnostic at the waiting
+ * `input`, exactly like a dismissed prompt. No studio-invented diagnostic.
+ */
+export const MAX_INPUT_REPLAY_RETRIES = 64;
 
 /** Optional configuration for {@link createRunController}. */
 export interface RunControllerOptions {
@@ -200,6 +297,89 @@ export interface RunControllerOptions {
    * omit in tests that only assert the state model's turtle fields directly.
    */
   readonly canvasView?: CanvasViewController;
+  /**
+   * The learner-facing prompt host for the blocking `input` reporter (#769) — see
+   * `input-prompt.ts`, and this module's doc comment ("#769") for how a synchronous runtime reader
+   * is reconciled with an asynchronous browser prompt.
+   *
+   * **Omit it and nothing changes**: no `ExecuteOptions.hostInput` is passed at all, so `input`
+   * falls back to `@openlogo/runtime`'s scripted `responses` queue (empty for a studio run), and an
+   * `input` read cancels the program exactly as it did before this option existed.
+   */
+  readonly inputPrompt?: InputPromptHost;
+}
+
+/**
+ * One attempt's outstanding, unanswered `input` read (#769): the prompt to show, plus the host to
+ * show it through. Carrying the host here — rather than re-reading `options.inputPrompt` at
+ * presentation time — is what makes "a probe can only exist when a host was supplied" true by
+ * construction rather than by a runtime check.
+ */
+interface PendingRead {
+  readonly prompt: string;
+  readonly host: InputPromptHost;
+}
+
+/**
+ * One answer the learner has already given during the current chain (#769), remembered **with the
+ * question it answered**. A replay re-executes the whole program, and an unseeded `random` before a
+ * read can make the replayed prefix reach a *different* question at the same position — so binding
+ * answers by position alone could hand an answer to a question the learner was never shown. Pairing
+ * each answer with its prompt is what makes that impossible; see {@link resolveRecordedAnswer}.
+ */
+export interface RecordedAnswer {
+  /** The question, exactly as the learner was shown it. */
+  readonly prompt: string;
+  /** The text they submitted for it. */
+  readonly answer: string;
+}
+
+/** {@link resolveRecordedAnswer}'s verdict for a single read. */
+export interface RecordedAnswerResolution {
+  /**
+   * The learner's own answer to **this exact question**, or `undefined` when there is none and the
+   * question must be put to them.
+   */
+  readonly answer: string | undefined;
+  /**
+   * The answers the chain keeps. The same list, except when the replay diverged: then every entry
+   * from `cursor` on is dropped, because those answer questions this attempt is not asking.
+   */
+  readonly retained: readonly RecordedAnswer[];
+}
+
+/**
+ * Decide how the read at position `cursor` is answered from the chain's accumulated answers (#769)
+ * — the one tested place that owns this decision, extracted from `prepare()`'s reader so it can be
+ * proven directly rather than only through a replay whose divergence needs nondeterminism to
+ * provoke.
+ *
+ * An answer is used **only** when the entry at this position was given for this same `prompt`.
+ * "This same question" means **this prompt text at this FIFO position** — deliberately not read
+ * identity, which prompt text cannot express (see the limitation below). Otherwise the read cannot
+ * be answered: either the chain has no answer for this position yet, or a nondeterministic prefix
+ * has reached a different question here than the learner was shown. In that second case every
+ * remaining answer is dropped as well — handing one to the wrong question would silently apply a
+ * learner's answer to something they never saw, which is the failure this pairing exists to prevent.
+ *
+ * What this does **not** solve is recorded in issue **#881**: prompt text is not read identity, so
+ * two distinct `input` sites asking the identical question are indistinguishable here; the
+ * learner's earlier answer to a question a diverged replay no longer asks is **discarded** (they are
+ * asked the new one instead, so the answer is lost, not carried over); and because each re-ask can
+ * itself diverge, the number of times one question is asked terminates only probabilistically. What
+ * is genuinely eliminated is an answer reaching a question it did not answer. The durable fix is
+ * issue **#876**.
+ */
+export function resolveRecordedAnswer(
+  answers: readonly RecordedAnswer[],
+  cursor: number,
+  prompt: string,
+): RecordedAnswerResolution {
+  const recorded = answers[cursor];
+  if (recorded?.prompt === prompt) {
+    return { answer: recorded.answer, retained: answers };
+  }
+  return { answer: undefined, retained: answers.slice(0, cursor) };
 }
 
 /** A mutable {@link CancellationSignal} this controller owns and flips via `stop()`/`reset()`. */
@@ -222,13 +402,16 @@ export interface RunController {
    * immediately by an already-cancelled signal on the *next* `run()`, per this module's
    * same-thread caveat), pauses the in-progress turtle animation (#228) so the Canvas view halts
    * at the same point, and sets `runStatus` to `"stopped"` so the UI reflects the request right
-   * away.
+   * away. #769 — if an `input` question was outstanding it is withdrawn and the run is committed
+   * as the cancelled run it is, with the diagnostics the waiting attempt already produced.
    */
   stop(): void;
   /**
    * Clear output/diagnostics, re-arm cancellation, reset the turtle animation and restore
    * `turtleWorld`/`turtleScene` to `@openlogo/turtle`'s program-start defaults (repainting the
-   * Canvas view if one was supplied), and return `runStatus` to `"idle"`.
+   * Canvas view if one was supplied), and return `runStatus` to `"idle"`. #769 — also withdraws an
+   * outstanding `input` question and discards every answer given during the current run, so the
+   * next `run()` starts a genuinely fresh chain.
    */
   reset(): void;
   /**
@@ -246,6 +429,11 @@ export interface RunController {
    * `TurtleAnimationController` over the resulting event stream) and then steps that
    * freshly-prepared animation by one instruction, so pressing "Next step" from a blank studio
    * animates the very first instruction instead of doing nothing.
+   *
+   * #769 — a no-op while an `input` question is outstanding (the run is blocked on it), and its
+   * lazy `prepare()` never installs a prompt host: stepping is a scrubber over an already-produced
+   * event stream, so there is no execution in progress for a read to block. See this module's doc
+   * comment ("#769").
    */
   step(): void;
 }
@@ -320,6 +508,22 @@ function findCurrentInstructionSourceSpan(
   return null;
 }
 
+/**
+ * The exclusive end index of the animation step that starts at `cursor`: that event plus every
+ * following event up to (but not including) the next `"instruction"` event — exactly
+ * `TurtleAnimationController.step()`'s own boundary rule (`spec/rendering.md`'s worked
+ * `repeat 4 [ forward 100 right 90 ]` example). Purely a measurement: it never folds or reduces
+ * anything. #769's resume needs it because a step is instruction-aligned while the events a
+ * previous attempt actually drew are not — see `prepare()`'s resume loop.
+ */
+function stepEndIndex(events: readonly TraceEvent[], cursor: number): number {
+  let end = cursor + 1;
+  while (end < events.length && events[end]?.kind !== "instruction") {
+    end += 1;
+  }
+  return end;
+}
+
 /** Construct the Run/Stop/Reset/Step controller over an existing state model (never a copy). */
 export function createRunController(
   state: StudioStateStore,
@@ -360,6 +564,38 @@ export function createRunController(
   // pushTurtleSnapshot omit the clause instead of re-publishing a span for text that's no longer
   // on screen. Cleared back to "" by reset(), exactly like `currentEvents` itself.
   let preparedSource = "";
+  // #769 — the `input` attempt chain. `answers` is the FIFO the installed reader draws from, one
+  // entry per question the learner has already answered in the CURRENT chain; `chainSource` is the
+  // source text every attempt of that chain executes (captured once at `run()`, so editing the
+  // editor while a question is open cannot swap the program the answers were given for).
+  // `pendingRead` is non-null exactly while the latest attempt ended on an unanswered read, and
+  // `attemptDiagnostics` holds that attempt's real (withheld) diagnostics until the learner either
+  // answers — in which case a later attempt replaces them — or dismisses, in which case they are
+  // published. `shownEventCount` is how many events the previous attempt already drew, so the next
+  // attempt's animation resumes there instead of replaying the picture from a blank canvas.
+  // `promptOutstanding` guards the present-once rule (the settle hook runs on every animation tick
+  // AND once more after playback), and `promptGeneration` invalidates a responder that arrives
+  // after Stop/Reset already decided the run's outcome.
+  let answers: readonly RecordedAnswer[] = [];
+  let chainSource = "";
+  let pendingRead: PendingRead | null = null;
+  let attemptDiagnostics: readonly Diagnostic[] = [];
+  let shownEventCount = 0;
+  let promptOutstanding = false;
+  let promptGeneration = 0;
+  // The attempt pump's re-entrancy guard. A host may answer synchronously from inside `present()`
+  // — i.e. from inside the very attempt that asked — so `pump()` is a loop with a "go again" flag
+  // rather than recursion: a synchronous answer marks `pumpAgain` and unwinds, and the running loop
+  // picks up the next attempt. `pumpAgain` is also what tells the settle hook that the attempt it
+  // is settling has already been superseded.
+  let pumping = false;
+  let pumpAgain = false;
+  // How many consecutive attempts of the current chain have answered no new read (#769), bounded by
+  // MAX_INPUT_REPLAY_RETRIES so a chain that cannot converge ends rather than looping.
+  // `answeredAtLastAttempt` is the FIFO length the previous attempt started from; `-1` makes the
+  // first attempt of every chain count as progress. Both reset by run()/reset(), like `answers`.
+  let attemptsWithoutProgress = 0;
+  let answeredAtLastAttempt = -1;
 
   /** Push `current`'s folded per-turtle world/scene into the shared store and repaint (never
    * called with a null animation — callers only invoke this once `animation` has been
@@ -381,23 +617,141 @@ export function createRunController(
   }
 
   /**
-   * Commit `finalRunStatus` once `current` has actually reached `"done"` — unless the learner
-   * already called `stop()`, in which case `runStatus` stays `"stopped"` even if a subsequent
-   * manual `step()` exhausts the animation (see `userStopped`'s doc comment above).
+   * Called after every animation tick and once more when playback returns. Commits
+   * {@link finalRunStatus} once `current` has actually reached `"done"` — unless the learner already
+   * called `stop()`, in which case `runStatus` stays `"stopped"` even if a subsequent manual
+   * `step()` exhausts the animation (see `userStopped`'s doc comment above).
+   *
+   * #769 adds the two attempt-chain outcomes ahead of that. `pumpAgain` means a host already
+   * answered this attempt's question synchronously, so the *next* attempt supersedes this one and
+   * its (probe) outcome must not be committed. Otherwise, an attempt that ended on an unanswered
+   * read has now drawn everything up to that read, which is exactly when the question is put to the
+   * learner.
    */
-  function maybeSettleRunStatus(current: TurtleAnimationController): void {
-    if (!userStopped && current.getSnapshot().status === "done") {
+  function settleAttempt(current: TurtleAnimationController): void {
+    if (current.getSnapshot().status !== "done") {
+      return;
+    }
+    if (pumpAgain) {
+      return;
+    }
+    if (pendingRead !== null) {
+      presentPendingRead(pendingRead);
+      return;
+    }
+    if (!userStopped) {
       state.setRunStatus(finalRunStatus);
     }
   }
 
-  function prepare(): TurtleAnimationController {
+  /**
+   * Put the outstanding question to the learner (#769). Idempotent: the settle hook above fires both
+   * on the animation's final tick and once more when playback returns, and a question must be
+   * presented exactly once.
+   */
+  function presentPendingRead(read: PendingRead): void {
+    if (promptOutstanding) {
+      return;
+    }
+    promptOutstanding = true;
+    // Everything up to the read is now on the canvas, so the next attempt resumes from here.
+    shownEventCount = currentEvents.length;
+    const generation = promptGeneration;
+    read.host.present({ prompt: read.prompt }, (answer) => {
+      if (generation !== promptGeneration) {
+        // Stop/Reset already withdrew this question and decided the run's outcome.
+        return;
+      }
+      promptGeneration += 1;
+      promptOutstanding = false;
+      pendingRead = null;
+      if (answer === undefined) {
+        // The learner dismissed the question, so the read really did end unanswered — which is the
+        // one other ending `spec/interaction-events.md:110-111` allows. Publish the cancellation
+        // this attempt already produced.
+        commitCancelledRead();
+        state.setRunStatus("stopped");
+        return;
+      }
+      answers = [...answers, { prompt: read.prompt, answer }];
+      pump();
+    });
+  }
+
+  /**
+   * Commit the latest attempt as the cancelled run it is (#769) — the learner dismissed the
+   * question, or pressed Stop while it was open. Publishes the diagnostics `prepare()` withheld
+   * (see this module's doc comment) alongside the output the attempt did produce, so the run log
+   * records the full, real outcome. `signal.aborted` is deliberately NOT set here: the execution
+   * already ended, so there is nothing left to cancel, and only an explicit `stop()` should latch
+   * the signal (`reset()` is what re-arms it).
+   */
+  function commitCancelledRead(): void {
+    userStopped = true;
+    const output = collectOutput(currentEvents);
+    state.setOutput(output);
+    state.setDiagnostics(attemptDiagnostics);
+    state.setLastRunResult({
+      source: preparedSource,
+      output,
+      diagnostics: attemptDiagnostics,
+    });
+  }
+
+  /**
+   * Take down an outstanding question without answering it (#769, Stop/Reset), invalidating any
+   * responder still holding it. Reports whether there was a read to withdraw, so the caller knows
+   * whether a cancelled attempt needs committing.
+   */
+  function withdrawPendingRead(): boolean {
+    const read = pendingRead;
+    if (read === null) {
+      return false;
+    }
+    pendingRead = null;
+    promptGeneration += 1;
+    if (promptOutstanding) {
+      promptOutstanding = false;
+      read.host.dismiss();
+    }
+    return true;
+  }
+
+  function prepare(
+    sourceText: string,
+    host: InputPromptHost | undefined,
+  ): TurtleAnimationController {
     state.setRunStatus("running");
     userStopped = false;
+    pendingRead = null;
 
+    // #769 — one cursor per attempt over the chain's accumulated answers. A read is answered from
+    // the FIFO only when the recorded answer at this position was given for **this same question**;
+    // `host` is captured into `pendingRead` so a probe can only ever exist when a host was supplied.
+    let answerCursor = 0;
     const execOptions: ExecuteOptions = {
       signal,
       tutorTemplates: eduTutorTemplate,
+      ...(host === undefined
+        ? {}
+        : {
+            hostInput: {
+              read: (prompt: string): string | undefined => {
+                const resolution = resolveRecordedAnswer(
+                  answers,
+                  answerCursor,
+                  prompt,
+                );
+                answers = resolution.retained;
+                if (resolution.answer !== undefined) {
+                  answerCursor += 1;
+                  return resolution.answer;
+                }
+                pendingRead = { prompt, host };
+                return undefined;
+              },
+            },
+          }),
       ...(options?.instructionBudget !== undefined
         ? { instructionBudget: options.instructionBudget }
         : {}),
@@ -406,13 +760,20 @@ export function createRunController(
         : {}),
     };
 
-    const result = execute(state.getState().source, document, execOptions);
+    const result = execute(sourceText, document, execOptions);
     currentEvents = result.events;
-    preparedSource = state.getState().source;
+    preparedSource = sourceText;
+
+    // #769 — a probe (an attempt that ended on an unanswered read) withholds its diagnostics until
+    // the learner actually dismisses the question; see this module's doc comment for why the only
+    // diagnostic it can carry is the reader's own forced cancellation.
+    attemptDiagnostics = result.diagnostics;
+    const diagnostics: readonly Diagnostic[] =
+      pendingRead === null ? result.diagnostics : [];
 
     const output = collectOutput(result.events);
     state.setOutput(output);
-    state.setDiagnostics(result.diagnostics);
+    state.setDiagnostics(diagnostics);
     // #432 finding 2 — snapshot this run's output/diagnostics immutably, separate from the live
     // `output`/`diagnostics` fields above. Those live fields get overwritten by
     // `diagnostics.ts`'s parse-as-you-type re-checking on every subsequent source edit — including
@@ -423,7 +784,7 @@ export function createRunController(
     state.setLastRunResult({
       source: preparedSource,
       output,
-      diagnostics: result.diagnostics,
+      diagnostics,
     });
     state.setTutorOutput(collectTutorOutput(result.events));
     finalRunStatus = result.diagnostics.some(
@@ -438,7 +799,7 @@ export function createRunController(
       baseScheduler(() => {
         callback();
         pushTurtleSnapshot(current);
-        maybeSettleRunStatus(current);
+        settleAttempt(current);
       }, delayMs);
 
     const tickDelayMs = mapSpeedSliderValueToTickDelayMs(
@@ -456,32 +817,122 @@ export function createRunController(
         : { stepsPerSecond: tickDelayMsToStepsPerSecond(tickDelayMs) }),
     });
     animation = current;
+    // #769 — resume the picture instead of redrawing it. A later attempt in the same chain replays
+    // the whole program, so its stream starts with everything the previous attempt already drew.
+    // Consume that prefix silently (no snapshot is pushed until playback proper begins, so the
+    // canvas never blanks) and let paced playback carry on from the read.
+    //
+    // The prefix is measured in EVENTS but consumed in STEPS, and those do not align at the read:
+    // the statement that was waiting on it contributed only its own `instruction` event to the
+    // probe, and the learner's answer has now extended that same step with the effects it
+    // produces. `forward input "how far?"` is the whole hazard in one line — stepping merely
+    // "past the event count" would consume that step's brand-new `move`/`draw-segment` too,
+    // silently skipping the very movement the answer just produced. So a step is only fast-
+    // forwarded when it ends at or before the already-drawn boundary; the first step that reaches
+    // past it is left for playback to animate. Clamping to the new stream's own length also makes
+    // this loop provably terminating — `stepEndIndex` always reports at least `cursor + 1`.
+    const alreadyDrawn = Math.min(shownEventCount, result.events.length);
+    let drawnCursor = 0;
+    while (drawnCursor < alreadyDrawn) {
+      const stepEnd = stepEndIndex(result.events, drawnCursor);
+      if (stepEnd > alreadyDrawn) {
+        break;
+      }
+      current.step();
+      drawnCursor = stepEnd;
+    }
     return current;
+  }
+
+  /** Start (or resume) playback of the attempt `prepare()` just built, then settle its outcome. */
+  function playCurrentAttempt(current: TurtleAnimationController): void {
+    playWithMotionPreference(current, {
+      reducedMotion: (options?.reducedMotion ?? false) || currentIsInstant,
+    });
+    pushTurtleSnapshot(current);
+    settleAttempt(current);
+  }
+
+  /**
+   * Drive attempts of the current chain (#769) until one finishes without an unanswered read, or
+   * until a question is left outstanding for the learner. Re-entrant by design: a host that answers
+   * synchronously calls back into `pump()` from inside the attempt that asked, which only marks
+   * `pumpAgain` so the already-running loop takes the next attempt — never a nested call stack that
+   * would grow with the number of questions.
+   */
+  function pump(): void {
+    if (pumping) {
+      pumpAgain = true;
+      return;
+    }
+    pumping = true;
+    try {
+      do {
+        pumpAgain = false;
+        // #769 — bound only chains that make no PROGRESS (see MAX_INPUT_REPLAY_RETRIES). A
+        // legitimate chain answers one more read per attempt, so its FIFO grows every time; a
+        // systematically diverging one keeps truncating back and answers nothing new.
+        if (answers.length > answeredAtLastAttempt) {
+          answeredAtLastAttempt = answers.length;
+          attemptsWithoutProgress = 0;
+        } else {
+          attemptsWithoutProgress += 1;
+          if (attemptsWithoutProgress > MAX_INPUT_REPLAY_RETRIES) {
+            // This chain cannot converge. End it the only other way a read can end, publishing the
+            // cancellation the last attempt already produced, rather than looping forever on a
+            // synchronous host.
+            commitCancelledRead();
+            state.setRunStatus("stopped");
+            return;
+          }
+        }
+        playCurrentAttempt(prepare(chainSource, options?.inputPrompt));
+      } while (pumpAgain);
+    } finally {
+      pumping = false;
+    }
   }
 
   function run(): void {
     if (state.getState().runStatus === "running") {
       // #314 — a run is already in progress (only reachable with a real paced scheduler, where
-      // runStatus stays "running" across many event-loop turns): ignore the extra call rather than
-      // silently starting a second run mid-animation. See this module's doc comment, "#314".
+      // runStatus stays "running" across many event-loop turns, or #769's outstanding `input`
+      // question): ignore the extra call rather than silently starting a second run mid-animation.
+      // See this module's doc comment, "#314".
       return;
     }
-    const current = prepare();
-    playWithMotionPreference(current, {
-      reducedMotion: (options?.reducedMotion ?? false) || currentIsInstant,
-    });
-    pushTurtleSnapshot(current);
-    maybeSettleRunStatus(current);
+    // #769 — a fresh chain: no answers carried over, nothing drawn yet, and the program text pinned
+    // for every attempt this chain makes.
+    answers = [];
+    shownEventCount = 0;
+    attemptsWithoutProgress = 0;
+    answeredAtLastAttempt = -1;
+    promptGeneration += 1;
+    promptOutstanding = false;
+    chainSource = state.getState().source;
+    pump();
   }
 
   function stop(): void {
     signal.aborted = true;
     userStopped = true;
     animation?.pause();
+    if (withdrawPendingRead()) {
+      // #769 — Stop while an `input` question was open: the read ended unanswered, so publish the
+      // cancellation the attempt already produced rather than leaving it withheld.
+      commitCancelledRead();
+    }
     state.setRunStatus("stopped");
   }
 
   function reset(): void {
+    withdrawPendingRead();
+    answers = [];
+    chainSource = "";
+    attemptDiagnostics = [];
+    shownEventCount = 0;
+    attemptsWithoutProgress = 0;
+    answeredAtLastAttempt = -1;
     signal.aborted = false;
     userStopped = false;
     state.setOutput([]);
@@ -500,15 +951,22 @@ export function createRunController(
   }
 
   function step(): void {
+    if (pendingRead !== null) {
+      // #769 — the run is blocked on an `input` question: there is nothing to step until it is
+      // answered or dismissed. See this module's doc comment for why stepping never drives the
+      // prompt flow itself.
+      return;
+    }
     // #289 — from the initial idle state (before any run()), no animation exists yet: prepare()
     // lazily builds one (executing the CURRENT source exactly as run() would) so stepping from a
     // blank studio animates the first instruction instead of silently doing nothing. Once an
     // animation already exists (mid-run, paused, or exhausted), this is exactly the pre-#289
-    // behavior: step the existing one, never rebuilding it from a possibly-changed source.
-    const current = animation ?? prepare();
+    // behavior: step the existing one, never rebuilding it from a possibly-changed source. No
+    // prompt host is installed (#769) — see this module's doc comment.
+    const current = animation ?? prepare(state.getState().source, undefined);
     current.step();
     pushTurtleSnapshot(current);
-    maybeSettleRunStatus(current);
+    settleAttempt(current);
   }
 
   return { state, run, stop, reset, step };

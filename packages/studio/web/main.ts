@@ -59,6 +59,7 @@ import {
   createEditorController,
   createEditorExtensions,
   createExternalSyncQueue,
+  createInputPromptController,
   createKeyValueStorageAdapter,
   createLessonPaneController,
   createParserHighlighter,
@@ -97,6 +98,7 @@ import {
 import type {
   DiagnosticListItem,
   Canvas2DContext,
+  InputPromptView,
   LessonPaneView,
   RunLogEntry,
   RunLogEntryViewItem,
@@ -184,6 +186,37 @@ const announcerPoliteElement = assertPresent<HTMLElement>(
 const announcerAssertiveElement = assertPresent<HTMLElement>(
   document.getElementById("announcer-assertive"),
   "announcer-assertive",
+);
+const inputPromptDialog = assertPresent(
+  document.getElementById("input-prompt"),
+  "input-prompt",
+  (value): value is HTMLDialogElement => value instanceof HTMLDialogElement,
+);
+const inputPromptFormElement = assertPresent(
+  document.getElementById("input-prompt-form"),
+  "input-prompt-form",
+  (value): value is HTMLFormElement => value instanceof HTMLFormElement,
+);
+const inputPromptMessageElement = assertPresent<HTMLElement>(
+  document.getElementById("input-prompt-message"),
+  "input-prompt-message",
+);
+const inputPromptFieldLabelElement = assertPresent<HTMLElement>(
+  document.getElementById("input-prompt-field-label"),
+  "input-prompt-field-label",
+);
+const inputPromptFieldElement = assertPresent(
+  document.getElementById("input-prompt-field"),
+  "input-prompt-field",
+  (value): value is HTMLInputElement => value instanceof HTMLInputElement,
+);
+const inputPromptSubmitButton = assertPresent<HTMLElement>(
+  document.getElementById("input-prompt-submit"),
+  "input-prompt-submit",
+);
+const inputPromptCancelButton = assertPresent<HTMLElement>(
+  document.getElementById("input-prompt-cancel"),
+  "input-prompt-cancel",
 );
 
 const canvasContext = assertPresent<Canvas2DContext>(
@@ -399,8 +432,17 @@ const scheduler = selectScheduler(
   timeoutScheduler,
   IMMEDIATE_SCHEDULER,
 );
+/**
+ * #769 — the learner-facing prompt for the blocking `input` reporter. `createRunController` below
+ * receives it as `inputPrompt`, which is what installs `ExecuteOptions.hostInput.read` for every
+ * run; `renderInputPrompt` (further down) applies each published `InputPromptView` onto the native
+ * `<dialog>` in `index.html`. All decisions — visible or not, what text each control carries — were
+ * already made in `src/input-prompt.ts`, so this file only assigns them.
+ */
+const inputPromptController = createInputPromptController();
 const runController = createRunController(state, {
   canvasView,
+  inputPrompt: inputPromptController,
   scheduler,
   reducedMotion: prefersReducedMotion,
 });
@@ -441,6 +483,51 @@ resetButton.addEventListener("click", () => {
 });
 speedSliderElement.addEventListener("input", () => {
   shell.state.setSpeedSliderValue(speedSliderElement.valueAsNumber);
+});
+
+/**
+ * Applies the prompt's already-decided presentation ({@link InputPromptView}, produced by
+ * `src/input-prompt.ts`) onto the real `<dialog>` — plain text/open-state assignment with no
+ * decision of its own (#769). Every string, including the program's own question, is written via
+ * `textContent`, never `innerHTML`: a learner's prompt is data, never markup.
+ *
+ * `showModal()` (rather than `show()`) is what makes the question keyboard-operable without any
+ * focus-management code here — the browser scopes focus to the dialog, honors the field's
+ * `autofocus`, restores focus to whatever was focused before when it closes, and turns Escape into
+ * the `cancel` event wired below.
+ */
+function renderInputPrompt(view: InputPromptView): void {
+  inputPromptMessageElement.textContent = view.prompt;
+  inputPromptFieldLabelElement.textContent = view.fieldLabel;
+  inputPromptSubmitButton.textContent = view.submitLabel;
+  inputPromptCancelButton.textContent = view.cancelLabel;
+  if (view.isVisible) {
+    inputPromptFieldElement.value = "";
+    if (!inputPromptDialog.open) {
+      inputPromptDialog.showModal();
+    }
+    return;
+  }
+  inputPromptDialog.close();
+}
+renderInputPrompt(inputPromptController.getView());
+inputPromptController.subscribeView(renderInputPrompt);
+
+inputPromptFormElement.addEventListener("submit", (event) => {
+  // The form is `method="dialog"`, so let the controller — not the browser's own default close —
+  // own the transition: it is what reports the answer back to the waiting run.
+  event.preventDefault();
+  inputPromptController.submit(inputPromptFieldElement.value);
+});
+inputPromptCancelButton.addEventListener("click", () => {
+  inputPromptController.cancel();
+});
+inputPromptDialog.addEventListener("cancel", (event) => {
+  // Escape. Same ending as the Cancel button — the read finishes unanswered, cancelling the run
+  // (`spec/interaction-events.md:110-111`) — routed through the controller so the two paths cannot
+  // diverge.
+  event.preventDefault();
+  inputPromptController.cancel();
 });
 
 /** Applies the Start/Stop toggle button's already-decided presentation

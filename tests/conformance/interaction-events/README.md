@@ -37,16 +37,31 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   gated on the profile, as `spec/conformance.md:167-169` and `spec/interaction-events.md:11`
   require.
 
-  **Deliberately NOT fixtured: the `ol-type` a prompt "that cannot be displayed as learner text"
-  raises (`:131`).** The behavior is implemented and covered by
-  `packages/runtime/src/interaction-input.test.mjs`, but *which* values qualify is genuinely
-  ambiguous in the spec — `printedForm` gives every v0.1 value a printed form
-  (`spec/execution-model.md:552-574`), while the clause and the profile's error table (`:350`) imply
-  some types must be wrong — and the question is open as **#768**. A fixture here is normative for
-  every implementation ("Any conforming implementation should pass them",
-  `.github/skills/shared/conformance-fixture/SKILL.md:13-15`), so shipping one would make one
-  reading of a contested clause binding ecosystem-wide on the strength of a hedge in its
-  description. It lands once #768 rules. The **blocking** property (`:108-111`) is observable here only as the *pair*
+  **The prompt's `ol-type` (`:131`) is now fixtured — the #768 ruling settled it.** #681 withheld
+  a fixture because "the prompt cannot be displayed as learner text" had two defensible readings and
+  a fixture is normative for every implementation ("Any conforming implementation should pass them",
+  `.github/skills/shared/conformance-fixture/SKILL.md:13-15`), so shipping one would have settled a
+  contested clause by fixture instead of by ruling. The maintainer then ruled **narrower than either
+  reading on the table**: the prompt MUST be a `word`, so `number` and `boolean` are rejected
+  alongside `list`/`dict`/`record`/`turtle`, and the diagnostic carries `expected: "word"` — the
+  identity the `word` reporter itself reports (`word "Question" 3`) and the one `when`/`on_key` use —
+  rather than #681's one-off `expected: "text"`. `spec/interaction-events.md:129`/`:131` now state
+  the rule outright ("**Args:** one prompt, which MUST be a `word`" / "**Errors:** `ol-type` if the
+  prompt is not a `word`"), so the fixtures transcribe a normative clause instead of binding a
+  reading. Four land: `input-prompt-number-rejected` and `input-prompt-boolean-rejected` (the two
+  kinds the ruling newly rejects, so an implementation still carrying #681's scalar reading fails
+  exactly these two and nothing else), `input-prompt-list-rejected` (the compound half — `dict` and
+  `record` would drag in the Data profile and `turtle` the Sprites one for no extra proof, so all
+  six kinds stay asserted together in `packages/runtime/src/interaction-input.test.mjs`), and
+  `input-prompt-numeric-word-accepted`, the positive complement without which an implementation that
+  rejected *every* prompt would pass all three negatives. That last one forms a discriminating pair
+  with the number case: the two programs are byte-identical but for the quotes, so `input "42"` and
+  `input 42` display the same two characters while the pair demands OPPOSITE verdicts on them. No
+  classifier that looks only at printed form can satisfy both — it fails whichever member its
+  decision goes against (accepting numerals fails the number negative, rejecting them fails the
+  positive) — and reject-everything fails the positive. Neither member alone catches both.
+
+  The **blocking** property (`:108-111`) is observable here only as the *pair*
   `input-does-not-deliver-handlers` + `input-blocking-control-wait-delivers`: the same program and
   the same tick-0 pending key, with a read in one and `wait 0` in the other, so the control proves
   the key was genuinely deliverable and only the read declined to deliver it. A fixture cannot
@@ -158,14 +173,56 @@ the gaps it found rather than rubber-stamping them:
   as numbers are accepted where a number is expected" a normative **Core** rule: `wait "2"` is legal
   and must pause for 2 ticks. Without the positive half, an implementation that rejected *every*
   word — violating that Core rule — would pass the whole corpus while the negatives looked like
-  proof that words are simply illegal here. The negatives also record an observable wording
-  asymmetry: `every` reports `params.expected: "whole number"` where `wait` reports `"number"` for
-  the identical case. `spec/interaction-events.md` fixes only the `ol-type` **code** for both, so
-  both are recorded as emitted rather than normalized. **Note this is now normatively binding**: the
-  harness compares `params` exactly, so aligning the two later is a conformance-breaking change to
-  both fixtures, not a free refactor. The root cause is runtime-side (`executeEveryStatement` calls
-  `requireWholeNumber` directly, `executeWaitCall` calls `requireNumber` then `validateTickCount`),
-  outside this slice's write-set — **filed as a follow-up** for `@interpreter`.
+  proof that words are simply illegal here. The negatives originally recorded an observable wording
+  asymmetry — `every` reported `params.expected: "whole number"` where `wait` reported `"number"`
+  for the identical case — flagged here as normatively binding because the harness compares
+  `params` exactly. **Issue #775 has since resolved it**: `executeWaitCall` now type-checks through
+  the same shared `requireWholeNumber` as `executeEveryStatement` (and as `repeat` and `random`), so
+  both forms report `expected: "whole number"` with matching `actual`/`value` — one shared type
+  vocabulary; `params.operation` still names the primitive, so the two diagnostics stay
+  distinguishable. `wait/wait-non-number-type-error` was updated in that PR as the deliberate,
+  disclosed conformance-breaking change it is, and the pair `wait/wait-non-whole-word` /
+  `every/every-non-whole-word` was added there for the third arm the corpus had never covered on
+  either side: a *word* that parses as a non-whole number (`wait "1.5"`, `every "2.5"`), which pins
+  `actual: "word"` and the value as written rather than the pre-coerced `number` the old
+  `requireNumber` path reported. That arm is the only one that observes pre-coercion — a number
+  literal was never a word, and a non-numeric word never coerces at all — and its absence was found
+  by mutation: reintroducing the pre-coercion on `every` survived a fully green run.
+- **The arms of the two numeric-argument checks that only a *word* can reach**, added in the same
+  PR after mutation testing found each of them surviving a fully green run. The corpus had always
+  reached `ol-range` through a number literal (`wait -1`, `every 0`, `every -3`), so an
+  implementation could guard the range only when the argument was literally a number and let
+  `wait "-1"` **succeed** — emitting a trailing `primitive(wait)` as though a pause had run — or
+  register an `every` handler with an interval of `0`. `wait/wait-negative-word` and
+  `every/every-non-positive-word` close that, and they also pin a deliberate asymmetry that was
+  undocumented: on the `ol-range` arm `params.value` is the **coerced number**, not the word,
+  because range is a question about magnitude (which exists only after coercion) whereas `ol-type`
+  is a question about what the learner actually wrote. Separately,
+  `wait/wait-non-number-list-type-error`, `every/every-non-number-boolean-type-error`,
+  `wait/wait-non-number-dict-type-error`, `every/every-non-number-record-type-error`, and the pair
+  `wait/wait-turtle-type-error` / `every/every-turtle-type-error` cover a count that is neither a
+  number nor a word — between them every `OLTypeName` outside `number`/`word`. Before them every
+  `expected: "whole number"` fixture in the whole corpus (`wait`, `every`, `repeat`, `random`)
+  pinned `actual` as only `number` or `word`, so an implementation could report anything at all for
+  a list, dict, record, boolean, or turtle and still pass the full stack-neutral corpus —
+  `spec/error-model.md` requires an `ol-type` to "name the expected learner concept, such as number,
+  word, list, dict, record, or boolean", so mislabelling one violates a MUST. Each pins the value as
+  well as the concept: the harness unwraps an `OLDict`/`OLRecord` into a plain key→value object
+  before deep-comparing (see this corpus's top-level README, "Dict/record contents"), the record
+  fixture opts into the reserved `__type` key so a same-shaped `struct` of another type cannot
+  masquerade, and a turtle's value is the `{ "id": 1 }` shape `sprites/turtle-type-diagnostic`
+  already binds. The dict/record and turtle fixtures declare the **Data** and **Sprites** profiles
+  only to *construct* their values; the check under test is the Interaction one. Finally
+  `wait/wait-negative-non-whole` and `every/every-negative-non-whole`, with their `-word` twins
+  `wait/wait-negative-non-whole-word` and `every/every-negative-non-whole-word`, pin a count that is
+  **both** non-whole and out of range — the only input class that can observe the normative
+  TYPE-before-RANGE ordering (`spec/interaction-events.md`'s two entries, `spec/commands.md`'s
+  `repeat` entry). Every other count fixture is non-whole *or* out of range, never both, so an
+  implementation that checked range first passed the whole corpus while putting a fractional value
+  into an `ol-range` count diagnostic — which `spec/error-model.md` scopes to a negative
+  *whole*-number count — and silently splitting `wait`/`every` from `repeat`. The `-word` twins
+  exist because a word takes the coercion path, so ordering could be correct for numbers and wrong
+  for words; every one of these gaps was found by mutation.
 - **Profile-scoped reservation of the four block-heads.** `spec/interaction-events.md:43-46` reserves
   `when`/`every`/`on_key`/`on_click` **only within** the profile — a bidirectional MUST that had no
   fixture at all: `redefine-wait-reserved` covers only `wait`, which is a *primitive* name
@@ -187,12 +244,14 @@ the gaps it found rather than rubber-stamping them:
   `SUPPORTED_PROFILES`, which this slice's own claim falsifies. All six now state what their fixture
   actually pins.
 
-**Deliberately NOT added: `input-prompt-not-text`.** #681 shipped 751 fixtures rather than 752 by
-withdrawing it, because **#768** records both readings of "the prompt cannot be displayed as learner
-text" (`spec/interaction-events.md:131`) as defensible. A fixture is normative for every
-implementation, so shipping one would settle a contested clause by fixture instead of by ruling. It
-lands when #768 rules — argue it there, not here. The behavior remains covered by
-`packages/runtime/src/interaction-input.test.mjs`.
+**Landed after the audit: the `input-prompt-*` fixtures.** #681 shipped 751 fixtures rather than 752
+by withdrawing `input-prompt-not-text`, because **#768** recorded both readings of "the prompt cannot
+be displayed as learner text" (`spec/interaction-events.md:131`) as defensible, and a fixture is
+normative for every implementation. #768 has since been ruled — the prompt MUST be a `word` — and the
+spec states that outright at `:129`/`:131`, so the four `input-prompt-*` fixtures described under
+`input/` above now transcribe a normative clause rather than settling a contested one. The runtime
+unit tests in `packages/runtime/src/interaction-input.test.mjs` remain, covering the three rejected
+kinds a fixture would have to import another profile to reach (`dict`, `record`, `turtle`).
 
 **Deliberately NOT added: a repeated-delivery fixture for `when`.** The #688 review found, and the
 author confirmed by direct execution, that a `when` handler fires **at most once per run**: with the
@@ -202,11 +261,12 @@ in `packages/runtime/src/interaction.ts`, locked by the #686 unit test "a one-sh
 fires at most once even if its event is pending twice"), and no fixture in this corpus delivers a
 named event twice, so the corpus neither pins nor contradicts it.
 
-It is left unfixtured on purpose, for the same reason as `input-prompt-not-text`: **the spec does
-not settle it.** `spec/interaction-events.md` says a handler invocation is enqueued "when an event
-fires" but never states whether a `when` registration is one-shot or persistent, and both standard
+It is left unfixtured on purpose, for the reason `input-prompt-not-text` was withheld before #768
+ruled: **the spec does not settle it.** `spec/interaction-events.md` says a handler invocation is
+enqueued "when an event fires" but never states whether a `when` registration is one-shot or
+persistent, and both standard
 v0.1 event words are inherently once-per-run — `"start"` is "the start of the interactive run" and
-`"stop"` is "a requested stop notification before termination" (`:154-157`). A fixture asserting
+`"stop"` is "a requested stop notification before termination" (`:152-156`). A fixture asserting
 either reading would bind every implementation to a clause the spec has not written, and the
 alternative reading matters mainly for the vendor-prefixed events the spec permits but does not
 define. This also sits in `packages/runtime/`, outside this slice's write-set. **Filed for a

@@ -79,8 +79,14 @@ test("a procedure called via a body of aliases emits procedure-enter/exit with t
 });
 
 test("`cs` emits a clear event whose payload mode is the canonical `clear_screen`, not the alias", () => {
-  const [, clear] = eventsOf("cs\n"); // [instruction, clear]
-  assert.equal(clear.kind, "clear");
+  // [instruction, move, turn, clear] — since issue #847 `clear_screen` makes its homing
+  // observable, so the alias emits the homing pair before the clear just as the Core spelling does.
+  const events = eventsOf("cs\n");
+  assert.deepEqual(
+    events.map((e) => e.kind),
+    ["instruction", "move", "turn", "clear"],
+  );
+  const clear = events.at(-1);
   assert.deepEqual(clear.payload, { mode: "clear_screen" });
 });
 
@@ -193,4 +199,121 @@ test("an alias whose CANONICAL name is a user procedure dispatches to that proce
   const core = eventsOf("define forward :x\n  print :x\nend\nforward 7\n");
   assert.deepEqual(withoutSpans(alias), withoutSpans(core));
   assert.ok(!alias.some((e) => e.kind === "move"));
+});
+
+// ---------------------------------------------------------------------------
+// The same, from REPORTER position — issue #787's host crash
+// ---------------------------------------------------------------------------
+//
+// Statement position has its own chokepoint (`canonicalizeHeritageAliasCall`, which rewrites the
+// callee node). Expression position has a second one (`resolveHeritageAliasName`), and it resolved
+// the alias for DISPATCH only while handing the UNRESOLVED node to `callProcedure` — whose
+// `runProcedureBody` re-derives its lookup key from `node.callee.name`. The two disagreed, so a
+// reporter-position alias over a user-defined canonical looked up `fd`, found `undefined`, and
+// dereferenced it: a raw host `TypeError` escaping to the embedder with no `ol-*` diagnostic at all,
+// which `spec/error-model.md` never admits as an outcome. `withResolvedCallee` closes it by
+// rewriting the node here too, so both chokepoints behave the same way.
+//
+// Note this is reachable ONLY through `execute()`: it runs `parse()` and never `check()`, so no
+// checker rule can stand in for these tests (the same cross-stage split as #741).
+
+test("#787: a reporter-position alias over a user-defined canonical does not crash the host", () => {
+  // The literal crash repro from the issue. It must produce a value, not a `TypeError`.
+  const alias = eventsOf("define forward\n  return 55\nend\nprint fd\n");
+  const core = eventsOf("define forward\n  return 55\nend\nprint forward\n");
+  assert.deepEqual(withoutSpans(alias), withoutSpans(core));
+  assert.deepEqual(
+    alias.filter((e) => e.kind === "print").map((e) => e.payload),
+    [{ values: [55] }],
+  );
+});
+
+test("#787: the reporter path's procedure events carry the CANONICAL name, never the surface alias", () => {
+  // Canonicalization must be total, not just enough to stop the crash: a surface spelling reaching
+  // an event payload is the same class of defect as one reaching a diagnostic's params.
+  const events = eventsOf("define forward\n  return 55\nend\nprint fd\n");
+  const names = events
+    .filter((e) => e.kind === "procedure-enter" || e.kind === "procedure-exit")
+    .map((e) => e.payload.name);
+  assert.deepEqual(names, ["forward", "forward"]);
+});
+
+test("#787: the reporter path's spans still point at the alias the learner wrote", () => {
+  // Canonicalizing the dispatch name must not canonicalize the span — `withResolvedCallee` keeps
+  // `callee.source_span`. `fd` occupies two columns, so `procedure-enter` spans [4,7]–[4,9], not the
+  // seven columns `forward` would.
+  const events = eventsOf("define forward\n  return 55\nend\nprint fd\n");
+  const enter = events.find((e) => e.kind === "procedure-enter");
+  assert.deepEqual(enter.source_span.start, [4, 7]);
+  assert.deepEqual(enter.source_span.end, [4, 9]);
+});
+
+test("#787: the reporter path reaches the user procedure's arity and no-output guards", () => {
+  // Both were unreachable before the fix — the undefined lookup blew up on the line before them.
+  // `params.callable`/`params.procedure` must carry the CANONICAL name (#670/#733/#741's rule), and
+  // must be byte-identical to what the Core spelling reports.
+  for (const [aliasSource, coreSource] of [
+    [
+      "define forward\n  return 55\nend\nprint (fd 1 2)\n",
+      "define forward\n  return 55\nend\nprint (forward 1 2)\n",
+    ],
+    [
+      "define forward :x\n  return 55\nend\nprint (fd)\n",
+      "define forward :x\n  return 55\nend\nprint (forward)\n",
+    ],
+    [
+      "define forward\n  print 1\nend\nprint fd\n",
+      "define forward\n  print 1\nend\nprint forward\n",
+    ],
+  ]) {
+    const alias = execute(aliasSource, doc).diagnostics;
+    const core = execute(coreSource, doc).diagnostics;
+    assert.equal(alias.length, 1, `expected one diagnostic for ${aliasSource}`);
+    assert.deepEqual(
+      alias.map((d) => [d.code, d.params]),
+      core.map((d) => [d.code, d.params]),
+      `${aliasSource} must report the same identity as its Core twin`,
+    );
+    for (const value of Object.values(alias[0].params)) {
+      assert.notEqual(
+        value,
+        "fd",
+        "no structured param may carry the surface spelling",
+      );
+    }
+  }
+});
+
+test("#787: a user procedure named like the alias still shadows it in reporter position too", () => {
+  // The statement chokepoint's shadowing guard has an expression-position twin, and
+  // `withResolvedCallee` must not disturb it: when the SURFACE name is itself a registered
+  // procedure, `resolveHeritageAliasName` returns the surface name and the node is returned
+  // unchanged. `define fd` must therefore reach the learner's own `fd`, not `forward`.
+  const events = eventsOf("define fd\n  return 55\nend\nprint fd\n");
+  assert.deepEqual(
+    events
+      .filter((e) => e.kind === "procedure-enter")
+      .map((e) => e.payload.name),
+    ["fd"],
+  );
+  assert.deepEqual(
+    events.filter((e) => e.kind === "print").map((e) => e.payload),
+    [{ values: [55] }],
+  );
+});
+
+test("#787: an ordinary reporter-position procedure call is untouched", () => {
+  // The no-op guard for `withResolvedCallee`'s early return. What is asserted is BEHAVIOURAL
+  // non-regression: a callee carrying no `canonical` takes the Core path unchanged. An earlier
+  // wording claimed "the very same node object is dispatched" — object identity is an
+  // implementation detail this test cannot see and the language does not promise, so a
+  // copy-returning implementation would pass it too and the claim was simply unfalsifiable here.
+  // The early return exists for cheapness, not for an identity contract.
+  const events = eventsOf(
+    "define twice :x\n  return :x + :x\nend\nprint twice 4\n",
+  );
+  assert.deepEqual(
+    events.filter((e) => e.kind === "print").map((e) => e.payload),
+    [{ values: [8] }],
+  );
 });

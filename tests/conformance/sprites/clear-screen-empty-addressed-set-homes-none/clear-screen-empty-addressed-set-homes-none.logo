@@ -1,0 +1,6 @@
+forward 10
+right 30
+tell [ ]
+clear_screen
+print pos
+print heading

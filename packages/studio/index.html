@@ -198,6 +198,43 @@
         ></ul>
       </section>
     </main>
+    <!--
+      #769 — the learner-facing prompt for the blocking `input` reporter, wired to
+      `@openlogo/runtime`'s host reader seam (#681) through `src/input-prompt.ts`. A native dialog
+      element opened with `showModal()`, deliberately, because it is the only markup that gives the
+      accessibility this needs for free and without a focus-management framework: `role="dialog"`
+      semantics, a real focus scope while a question is open, browser-restored focus when it closes,
+      and an Escape key that fires a `cancel` event `web/main.ts` routes to
+      `InputPromptController.cancel()` — which is exactly the runtime reader's `undefined`, ending
+      the read unanswered.
+
+      It lives OUTSIDE the main element so it never becomes a grid item in `web/styles.css`'s
+      layout, and it carries no `open` attribute: until a program actually asks something the dialog
+      is absent from the layout, the tab order, AND the accessibility tree, so the studio's
+      `REPL_FOCUS_ORDER` is untouched and the e2e layout baselines are unchanged.
+
+      `aria-labelledby` points at `#input-prompt-message`, whose text `web/main.ts` sets from the
+      program's own prompt (`InputPromptView.prompt`, always via `textContent` — never markup), so a
+      screen reader announces the learner's own question as the dialog's name on open rather than a
+      generic title. The answer field is `autofocus` so `showModal()` lands there directly; its
+      label, and both button labels, come from `src/input-prompt.ts`'s exported constants.
+    -->
+    <dialog id="input-prompt" aria-labelledby="input-prompt-message">
+      <form id="input-prompt-form" method="dialog">
+        <p id="input-prompt-message"></p>
+        <label id="input-prompt-field-label" for="input-prompt-field"></label>
+        <input
+          id="input-prompt-field"
+          type="text"
+          autofocus
+          autocomplete="off"
+        />
+        <div class="input-prompt-actions">
+          <button id="input-prompt-submit" type="submit"></button>
+          <button id="input-prompt-cancel" type="button"></button>
+        </div>
+      </form>
+    </dialog>
     <script type="module" src="/web/main.ts"></script>
   </body>
 </html>

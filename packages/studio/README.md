@@ -162,6 +162,85 @@ slice may swap in a real renderer without changing this contract.
   never reported `"done"`/`"stopped"` before its animation has actually reached its own,
   `@openlogo/turtle`-owned `"done"` status).
 
+## The `input` prompt (#769)
+
+Wires the studio's prompt UI to the blocking `input` reader seam `@openlogo/runtime` shipped in
+#681 (`ExecuteOptions.hostInput.read?: (prompt: string) => string | undefined`), so a learner in the
+browser can actually answer `:name = input "what is your name?"`.
+
+**The hard part, stated honestly.** That reader is **synchronous**, and `execute()` never yields, so
+a same-thread browser host cannot suspend inside it to await a real prompt.
+`window.prompt` is the only synchronous browser prompt, and it is modal, unstyleable, unavailable in
+sandboxed iframes, and — decisively — permanently suppressible ("prevent this page from creating
+additional dialogs"), after which it returns `null` forever, which the seam reads as "cancel the
+run". A Worker + `SharedArrayBuffer`/`Atomics.wait` is the semantically exact answer (and the same
+mechanism a genuinely preemptible Stop needs — see the `run-controller.ts` cancellation caveat), but
+it needs cross-origin isolation and would make `run()` asynchronous: an architecture change, not
+prompt wiring. **The runtime seam was not changed**; instead the run controller reconciles the two
+shapes with an **attempt chain**.
+
+- `createInputPromptController()` (`src/input-prompt.ts`) — the headless prompt. It is an
+  `InputPromptHost`: the run controller `present()`s one outstanding question through it, and the
+  learner ends it with `submit(answer)` or `cancel()`. `cancel()` *is* the runtime reader's own
+  `undefined` — the read ends unanswered, which cancels the run
+  (`spec/interaction-events.md:110-111`). `dismiss()` is the third path: Stop/Reset withdraw a
+  question without answering it, so the responder is dropped rather than called.
+  `mapInputPromptRequestToView` is the one place the visible/hidden + label decisions are made, so
+  `web/main.ts` stays a branch-free wiring layer.
+- `RunControllerOptions.inputPrompt` (`src/run-controller.ts`) — supplying that host is what installs
+  `hostInput.read`; **omit it and nothing changes at all** (an `input` read still cancels the run
+  exactly as before #769). Each read is answered from a FIFO of the answers already given; the first
+  read with none left records its prompt and returns `undefined`. That attempt is a **probe**: its
+  animation draws everything up to the read, the question is asked, and the answer re-executes the
+  **source captured at `run()`** from the top. N reads cost N+1 executions.
+- **Why a replay still looks like blocking — for a deterministic program.** The controller already
+  reduces the *whole* event stream wholesale every attempt, and **when the replayed prefix reproduces
+  the probe's** (which it does for any program that does not draw unseeded randomness before a read)
+  attempt *k+1*'s stream starts with attempt *k*'s, so each replacement can only extend what is on
+  screen: output grows monotonically, the canvas resumes (the new animation is fast-forwarded past
+  the events already drawn, so it never blanks and redraws), and neither the run log nor the
+  tutor-output pane double-counts, because both accumulate only on the `"running"` → terminal
+  transition a probe never reaches. That qualifier is load-bearing and is **not** claimed
+  unconditionally — when the prefix is not deterministic the guarantee genuinely does not hold, which
+  is the scoped limitation below. A probe's own diagnostics are withheld until the learner genuinely
+  dismisses the question — the only diagnostic a probe can carry is the reader's own forced
+  cancellation.
+- **Run/Stop/Reset.** `runStatus` stays `"running"` for the whole chain (the program *is* running,
+  blocked on a read), which is also what makes `run()`'s #314 guard ignore a second Run and the
+  Start/Stop toggle offer Stop, with no new state. **Stop** withdraws the question and commits the
+  cancelled run (`"stopped"`, with the real `ol-limit`/`cancelled` diagnostic at the waiting
+  `input`); **Reset** withdraws it and discards every answer (`"idle"`, so the next run starts over
+  at the first question); an answer arriving after either is ignored via a generation counter.
+  `step()` is a no-op while a question is open and never installs a host of its own — stepping is a
+  scrubber over an already-produced event stream, so there is no execution for a read to block.
+- **Accessibility.** `index.html` declares a native `dialog` element opened with `showModal()`, which
+  gives a real focus scope, browser-restored focus on close, and Escape → `cancel` (routed to the
+  same `cancel()` the button uses) without any focus-management code. Its accessible name is
+  `aria-labelledby` the program's **own question**, so a screen reader announces what is being asked
+  rather than a generic title; the answer field is labeled and `autofocus`ed.
+  `INPUT_PROMPT_FOCUS_ORDER` is the dialog's own focus scope (answer field → Answer → Cancel),
+  deliberately separate from `REPL_FOCUS_ORDER` because a modal owns its own scope — `a11y.ts`'s
+  `nextFocusStop`/`previousFocusStop` prove it cycles both ways. The dialog starts closed, so until a
+  program asks something it is absent from the layout, the tab order, and the accessibility tree —
+  which is why the e2e layout baselines are unchanged.
+- **One honest caveat, tracked as [#881](https://github.com/pmalarme/open-logo/issues/881).**
+  `random` with no `randomize <seed>` seeds from the wall clock per `execute()` call, so a replayed
+  prefix is not guaranteed to reproduce the probe's. The **dangerous** half of that is handled, not
+  merely documented: answers are recorded together with the prompt they answered, and a read only
+  draws from the FIFO when the recorded prompt matches this attempt's — so a diverged replay that
+  reaches a *different* question at that position re-asks the learner instead of silently applying
+  `"5"`, given for "how many sides?", to a run that asked "what colour?". What remains is #881: for
+  nondeterminism evaluated *before* a read the replay can still reach a different question (visibly
+  re-asking rather than silently mis-binding), two distinct `input` sites asking identical prompt
+  text are not told apart, and already-drawn output can change. Every committed state is one whole
+  attempt's own reduction, so none is internally inconsistent, and an explicit `randomize <seed>`
+  makes the chain exact today. The durable fix is
+  [#876](https://github.com/pmalarme/open-logo/issues/876) (a Worker + `Atomics.wait` execution
+  host), which removes the replay entirely;
+  [#865](https://github.com/pmalarme/open-logo/issues/865) (an `ExecuteOptions` RNG seed) would
+  narrow the window but is not sufficient alone while a no-argument `randomize` still draws fresh
+  wall-clock entropy.
+
 ## Friendlier run-status labels (#311)
 
 The `#run-status` region (`index.html`) shows a learner-facing label instead of the raw internal

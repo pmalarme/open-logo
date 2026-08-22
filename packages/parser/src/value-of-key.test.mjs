@@ -26,12 +26,17 @@ test("parses `value of <dict> for key <key>` into a ValueOfKey node", () => {
   assert.equal(node.key.value, "tom");
 });
 
-test("a bare `value` not followed by `of` is left to fall through to a fixed-call/name read, not ValueOfKey", () => {
-  const { ast, diagnostics } = OL.parse("print value", doc);
+test("a bare `value` not followed by `of` is rejected as a misplaced reserved word, not read as a call", () => {
+  const { diagnostics } = OL.parse("print value", doc);
 
-  assert.deepEqual(diagnostics, []);
-  const node = ast.body[0].args[0];
-  assert.notEqual(node.kind, "ValueOfKey");
+  // `value` is globally reserved (`spec/grammar.md:358`) and heads no `expression` alternative but
+  // the `of`-gated reader above, so outside that form it is not permitted at this grammar position
+  // (`spec/error-model.md:109`). Before issue #853 it fell through to a bare zero-argument call
+  // that parsed and checked clean in every profile set — a silent no-op.
+  assert.deepEqual(
+    diagnostics.map((diagnostic) => [diagnostic.code, diagnostic.params.text]),
+    [["ol-bad-token", "value"]],
+  );
 });
 
 test("`value of` with no dictionary expression reports a diagnostic and does not parse", () => {
@@ -56,4 +61,20 @@ test("`value of <dict> for key` with no key expression reports a diagnostic and 
   const { diagnostics } = OL.parse("print value of :ages for key", doc);
 
   assert.equal(diagnostics.length > 0, true);
+});
+
+test("the reader now works inside parentheses, and nested inside itself", () => {
+  // Both of these were BROKEN before issue #853 and are fixed as a side effect: while `value` was
+  // still a `callable-name`, `( value of … )` read the `value` as a parenthesized call and choked on
+  // `of`. Pinned here so a later change cannot silently re-break them.
+  for (const source of [
+    'print ( value of :ages for key "tom" )',
+    'print value of ( value of :nested for key "inner" ) for key "outer"',
+  ]) {
+    assert.deepEqual(
+      OL.parse(source, doc).diagnostics,
+      [],
+      `\`${source}\` must read as the value-of-key reader`,
+    );
+  }
 });

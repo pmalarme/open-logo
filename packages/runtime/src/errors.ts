@@ -653,37 +653,29 @@ export interface OnKeyKeyNotWordParams {
 }
 
 /**
- * Params for the `ol-type` raised by `input` when its prompt cannot be displayed as learner text
- * (`spec/interaction-events.md:131`, issue #681). `input` "displays the prompt and waits for the
- * learner to enter one value" (`:134`), and the profile's own error table classes this as "an
- * argument has the wrong type" (`:350`), so the prompt is type-constrained: it must be a value whose
- * printed form IS the text shown — the scalars `word`, `number`, and `boolean`.
+ * Params for the `ol-type` raised by `input` when its prompt is not a word
+ * (`spec/interaction-events.md`'s `### input <prompt>`: "**Args:** one prompt, which MUST be a
+ * `word`" and "**Errors:** `ol-type` if the prompt is not a `word`"). `actual` is the argument's
+ * runtime type name (`@openlogo/core`'s `typeNameOf`) so the diagnostic identity records what was
+ * supplied; `expected` is the fixed `"word"`. Mirrors {@link WhenEventNotWordParams} and
+ * {@link OnKeyKeyNotWordParams} — the profile's three word-typed arguments validate identically.
  *
- * The boundary has to fall somewhere narrower than `print`. `printedForm` is total over the v0.1
- * value set, so a rule that accepted every printable value would leave this normative `ol-type`
- * clause unreachable — an unimplementable normative error is exactly the kind of untested claim
- * issue #679's audit exists to stop. `print` (`spec/commands.md`) is given no error clause at all
- * and accepts everything; `input` is given one specifically for its prompt, and that asymmetry is
- * the spec's own signal that the prompt is constrained where `print`'s operand is not. A `list`,
- * `dict`, or `record` renders as a bracketed container view and a `turtle` as the opaque identity
- * tag `turtle #<id>` (`spec/turtles-and-sprites.md:13`) — a rendering *of a structure*, not a
- * question authored for a person to read and answer.
+ * **This narrowed under the maintainer's ruling on issue #768.** #681 shipped a wider,
+ * implementation-defined reading — the scalars `word`, `number`, and `boolean` — while the clause
+ * still read "`ol-type` if the prompt cannot be displayed as learner text", and recorded here that a
+ * *widening* ruling should relax it. The ruling went the other way: the prompt MUST be a `word`, so
+ * `number` and `boolean` are rejected too, and `expected` moved from the one-off `"text"` to
+ * `"word"`. The reason is that `word` — the reporter whose whole job is building text — already
+ * refuses non-words (`print word "Question" 3` raises `ol-type` with `expected: "word"`), so
+ * word-ness is the language's existing standard for "this argument must be text", and the
+ * scalar/compound split #681 invented appears nowhere else in OpenLogo.
  *
- * Exactly where the line falls between "a value that has a printed form"
- * (`spec/execution-model.md:552-574` gives every value one) and "learner text" is not spelled out in
- * `spec/`, so this is an implementation-defined reading of a normative clause rather than a
- * transcription of one, and the question is open as **issue #768**. It is deliberately NOT bound by
- * a conformance fixture while that is unresolved: a fixture is normative for every implementation,
- * so one would make this reading binding ecosystem-wide. The behavior is covered by
- * `packages/runtime/src/interaction-input.test.mjs` instead, which scopes it to this runtime, and
- * `tests/conformance/interaction-events/README.md` records the deliberate gap.
- *
- * `actual` is the argument's runtime type name (`@openlogo/core`'s `typeNameOf`) so the diagnostic
- * identity records what was supplied; `expected` is the fixed `"text"`, naming the spec's own
- * phrase. Mirrors the `{ operation, expected, actual }` shape of
- * {@link WhenEventNotWordParams}/{@link OnKeyKeyNotWordParams}.
+ * The spec now states the rule outright, so this is a transcription of a normative clause rather
+ * than a reading of one, and it **is** bound by conformance fixtures — see
+ * `tests/conformance/interaction-events/input/`, whose `input-prompt-*` fixtures pin both halves of
+ * the boundary (a numeric *word* prompt is still accepted; the number it prints as is not).
  */
-export interface InputPromptNotTextParams {
+export interface InputPromptNotWordParams {
   readonly actual: OLTypeName;
 }
 
@@ -1692,21 +1684,23 @@ export const runtimeDiag = {
   },
 
   /**
-   * `ol-type` (issue #681, slice I2) — `input`'s prompt cannot be displayed as learner text
-   * (`spec/interaction-events.md:131`, and the profile's error table). Carries the
-   * `{ operation: "input", expected: "text", actual }` identity shape shared by the other
-   * Interaction `ol-type` builders. See {@link InputPromptNotTextParams} for why the accepted set is
-   * the scalars (`word`/`number`/`boolean`) rather than everything `print` can render.
+   * `ol-type` (issue #681, slice I2; narrowed by the #768 ruling) — `input`'s prompt is not a word
+   * (`spec/interaction-events.md`'s `### input <prompt>`: "**Errors:** `ol-type` if the prompt is
+   * not a `word`", and the profile's error table). `input` displays the prompt for a person to read
+   * and answer, so the prompt is text, and OpenLogo already spells "must be text" as "must be a
+   * `word`" — this is the same `{ operation, expected: "word", actual }` identity the `word`
+   * reporter and the profile's own {@link whenEventNotWord}/{@link onKeyKeyNotWord} report. See
+   * {@link InputPromptNotWordParams} for why `number` and `boolean` are rejected too.
    */
-  inputPromptNotText(
+  inputPromptNotWord(
     source_span: SourceSpan,
-    params: InputPromptNotTextParams,
+    params: InputPromptNotWordParams,
   ): Diagnostic {
     return runtimeError(
       "ol-type",
       source_span,
-      { operation: "input", expected: "text", actual: params.actual },
-      `input needs a prompt it can show as text, but got a ${params.actual}.`,
+      { operation: "input", expected: "word", actual: params.actual },
+      `input needs a prompt word, but got a ${params.actual}.`,
     );
   },
 } as const;

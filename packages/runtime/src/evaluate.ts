@@ -98,7 +98,6 @@ import type { HostInputReader } from "./index.js";
 import {
   emitInputPrimitive,
   interpretSubmittedText,
-  isLearnerText,
   takeInputResponse,
 } from "./interaction.js";
 import { createSoundState } from "./sound-state.js";
@@ -2150,6 +2149,10 @@ export function executeRemoveKey(
  * payload. A user procedure whose name is the alias's surface spelling shadows the alias (`define bf
  * … end` makes `bf` the user's procedure), mirroring the statement chokepoint's guard: when the
  * surface name is a registered procedure we keep it so the call dispatches to that procedure.
+ *
+ * This resolves the **dispatch name** only; a call that dispatches onward to a *user procedure*
+ * must also carry the resolved name on the node itself — see {@link withResolvedCallee}, and issue
+ * #787 for what happened while it did not.
  */
 function resolveHeritageAliasName(
   node: ArithmeticCallNode,
@@ -2161,6 +2164,39 @@ function resolveHeritageAliasName(
     return surface;
   }
   return canonical.toLowerCase();
+}
+
+/**
+ * Rewrite `node`'s callee to the `name` {@link resolveHeritageAliasName} resolved, preserving the
+ * original `callee.source_span` (so a diagnostic still points at the alias the learner wrote) and
+ * `args` — the expression-position counterpart of `execute-internal.ts`'s
+ * `canonicalizeHeritageAliasCall`, which does exactly this for statements. A node whose callee
+ * already spells `name` — every Core-spelled call, and an alias shadowed by a same-named user
+ * procedure — is returned **unchanged**, so this is a strict no-op outside Heritage.
+ *
+ * Issue #787: without it the expression chokepoint resolved the alias for *dispatch* only and then
+ * handed the **unresolved** node to `callProcedure`, whose `runProcedureBody` re-derives the lookup
+ * key from `node.callee.name`. The two therefore disagreed, and `print fd` against a user
+ * `define forward … end` looked up `fd`, found nothing, and dereferenced `undefined` — a raw host
+ * `TypeError` escaping to the embedder instead of any `ol-*` diagnostic, which
+ * `spec/error-model.md` never permits as an outcome. The statement path had no such bug precisely
+ * because it rewrites the node before dispatching, so making this path rewrite too removes the
+ * divergence rather than papering over it: `print fd` now runs the user's `forward` and reports
+ * `ol-not-enough-inputs`/`ol-too-many-inputs` (`params.callable`) and `ol-no-output`
+ * (`params.procedure`) against it exactly as `print forward` does, each carrying the CANONICAL
+ * name. That is the rule issues #670/#733/#741 established for the params on *this* kind of path —
+ * a name identifying the callable a diagnostic is about. It is not a blanket claim about every
+ * param: `ol-reserved-word`'s `name` is deliberately the SURFACE spelling, because its subject is
+ * the registration the learner wrote at that very span (`spec/error-model.md:124`, issue #737).
+ */
+function withResolvedCallee(
+  node: ArithmeticCallNode,
+  name: string,
+): ArithmeticCallNode {
+  if (node.callee.name.toLowerCase() === name) {
+    return node;
+  }
+  return { ...node, callee: { ...node.callee, name } };
 }
 
 function evaluateCall(
@@ -2289,7 +2325,10 @@ function evaluateCall(
     return evaluateInput(node, environment);
   }
   if (environment.procedures.has(name)) {
-    return environment.callProcedure(node, environment);
+    return environment.callProcedure(
+      withResolvedCallee(node, name),
+      environment,
+    );
   }
   if (environment.structs.has(name)) {
     return evaluateStructConstructor(
@@ -4654,9 +4693,10 @@ function evaluateTurtles(
  *
  *   1. **Arity** — exactly one input, guarded here because `execute()` runs `parse()` without the
  *      static checker, exactly like every other reporter.
- *   2. **Prompt type** — a prompt that "cannot be displayed as learner text" raises `ol-type`
- *      (`:131`); see {@link isLearnerText} for what qualifies and why the rule is narrower than
- *      `print`'s.
+ *   2. **Prompt type** — the prompt MUST be a `word`; anything else raises `ol-type` (`:129`,
+ *      `:131`). Checked inline with `typeof value !== "string"`, exactly as the profile's other two
+ *      word-typed arguments (`when`'s event, `on_key`'s key) are; see
+ *      {@link InputPromptNotWordParams} for the #768 ruling that narrowed this from #681's scalars.
  *   3. **The read** — take the next scripted answer ({@link takeInputResponse}) from the run's FIFO
  *      queue (`ExecuteOptions.hostInput.responses`, the #657 ruling). With no answer left the read
  *      can never finish, so it takes the only other ending `:110-111` allows and the program is
@@ -4685,14 +4725,17 @@ function evaluateInput(
   if (!promptResult.ok) {
     return promptResult;
   }
-  if (!isLearnerText(promptResult.value)) {
+  if (typeof promptResult.value !== "string") {
     return fail(
-      runtimeDiag.inputPromptNotText(promptNode.source_span, {
+      runtimeDiag.inputPromptNotWord(promptNode.source_span, {
         actual: typeNameOf(promptResult.value),
       }),
     );
   }
-  const promptText = printedForm(promptResult.value);
+  // A word IS the text the learner reads, so no rendering step stands between the prompt value and
+  // the host: `printedForm` prints a word verbatim, and the guard above has ruled out every value
+  // that would need rendering at all.
+  const promptText = promptResult.value;
   const answer = readInputAnswer(promptText, environment);
   if (answer === undefined) {
     // The read can never finish, so it takes the only other ending `spec/interaction-events.md:

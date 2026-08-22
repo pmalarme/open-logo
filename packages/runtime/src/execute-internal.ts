@@ -99,6 +99,7 @@ import {
   snapshotValue,
   requireNumber,
   requireWholeNumber,
+  turtleStateFor,
   type AssignResult,
   type Environment,
   type EvalResult,
@@ -129,7 +130,6 @@ import {
   registerWhenHandler,
   runWait,
   STANDARD_EVENT_WORDS,
-  validateTickCount,
   type EveryHandler,
   type HostInputEvent,
   type OnClickHandler,
@@ -645,53 +645,143 @@ function isTurtleClearCall(statement: StatementNode): boolean {
 }
 
 /**
- * Clear the drawing and, for `clear_screen` only, silently home the turtle's position and
- * heading — emitting exactly one `clear` event (`spec/rendering.md`'s "Clear operations" table:
- * `clean` clears drawing only, `clear_screen` clears drawing and homes position+heading; both
- * leave pen state, color, width, visibility, and background unchanged).
+ * Home one turtle's position and heading for `clear_screen`, emitting the **observable** `move`
+ * and `turn` pair that names it (issue #847). `identity` is the `{turtle_id}` envelope fragment
+ * every event of this homing carries (empty before any `tell` — see {@link clearScreen}).
  *
- * `clear_screen`'s homing is deliberately a *silent* internal state reset — no `move`/`turn`
- * event fires alongside it. `@openlogo/turtle`'s scene/state reducers (issues #211/#213, already
- * merged) fold a `clear{mode:"clear_screen"}` event into a position/heading reset themselves, so
- * emitting `move`/`turn` here as well would double-home the reducer's turtle state. This mirrors
- * how {@link setVisibility}/{@link setPen} emit only their own single event, not a compound one.
+ * The event shape deliberately mirrors `home`'s ({@link moveTurtleTo} + {@link setHeadingTo}) with
+ * **one deliberate difference: no `draw-segment` is ever emitted, whatever the pen state.**
+ * `spec/rendering.md:36`'s "a pen-down move appends one straight segment" describes what a move
+ * contributes to the **retained scene**, and `clear_screen`'s row of the "Clear operations" table
+ * (`spec/rendering.md:150`) fixes that contribution at *cleared* — the operation is defined to
+ * leave no drawing segments at all, so a segment back to the origin would be exactly the artifact
+ * the same instruction removes. `move` and `draw-segment` are independent events, so "moved but
+ * drew nothing" is expressible without any renderer-side special case.
  *
- * Still exactly one `clear` event, but a `clear_screen` under explicit addressing (`tell`/`ask`/
- * `each`) carries the homed turtle's `turtle_id` (`addressing.currentId`) so a per-turtle state
- * reducer homes the turtle the runtime actually homed rather than assuming the main turtle; `clean`
- * (drawing-only, homes no turtle) never carries one, and before any `tell` even `clear_screen` stays
- * un-stamped, exactly as the pre-slice Turtle & Rendering `clear` fixtures expect.
+ * The spec does **not** settle this explicitly. It does make the homing reproducible — through the
+ * `clear` payload's mode (`spec/rendering.md:153`) — but says nothing about whether a *duplicate*
+ * `move`/`turn` representation of the same homing also carries a segment. Read as an exception-free
+ * rule over every pen-down `move`, :36 would instead require `move`/`draw-segment`/`turn`/`clear`
+ * (same empty final scene, but a trace claiming a segment the learner never drew). That reading was
+ * raised during this change's review gate; the decision here is recorded and **escalated to the
+ * maintainer as issue #858** rather than silently settled. Emitting the segment instead would be a
+ * one-line change.
+ *
+ * The `move` payload reports the heading the turtle *had* (heading is not changed by a position
+ * move — same rule as {@link moveTurtleTo}); the following `turn` reports the reset to `0`, so a
+ * heading reset from a non-zero heading is observable in its own right rather than only implied by
+ * the `clear` payload's mode.
+ *
+ * Split out from {@link clearScreen} so "`clear_screen` homes *every* addressed turtle" (issue #738)
+ * could be built by calling it once per addressed turtle without re-deriving the event contract —
+ * which is exactly what {@link clearScreen} now does.
+ */
+function homeTurtleForClearScreen(
+  environment: Environment,
+  turtle: TurtleState,
+  identity: { readonly turtle_id?: TurtleId },
+  source_span: SourceSpan,
+): void {
+  // Position first, its event next, then heading and *its* event — so each payload is the
+  // point-in-time snapshot at the moment of emission (`spec/execution-model.md:652`) and each
+  // effect event follows the state change it describes (`spec/rendering.md:84`). Collapsing both
+  // mutations up front would emit a `move` reporting a heading the turtle no longer had.
+  const from: Point = [turtle.x, turtle.y];
+  turtle.x = 0;
+  turtle.y = 0;
+  environment.events.push({
+    seq: environment.events.length,
+    kind: "move",
+    source_span,
+    ...identity,
+    payload: {
+      from,
+      to: [0, 0],
+      heading: turtle.heading,
+    } satisfies MovePayload,
+  });
+  const heading = turtle.heading;
+  turtle.heading = 0;
+  environment.events.push({
+    seq: environment.events.length,
+    kind: "turn",
+    source_span,
+    ...identity,
+    payload: { from: heading, to: 0 } satisfies TurnPayload,
+  });
+}
+
+/**
+ * Clear the drawing and, for `clear_screen` only, home **every addressed turtle**'s position and
+ * heading (`spec/rendering.md`'s "Clear operations" table: `clean` clears drawing only,
+ * `clear_screen` clears drawing and homes position+heading; both leave pen state, color, width,
+ * visibility, and background unchanged).
+ *
+ * The canvas is cleared **once** however many turtles are addressed, and the homing applies once
+ * per addressed turtle — the rule `spec/turtles-and-sprites.md:111` and `:113` now state outright
+ * (issue #738). `clear_screen` is therefore not a per-turtle command
+ * ({@link isPerTurtleCommand}): multiplying the whole statement would emit N `clear` events for one
+ * shared surface. Only the homing is multiplied, here, over {@link TurtleAddressing.ids} — so
+ * `tell [ :a :b ]` and `tell [ :b :a ]` home the same two turtles and the result no longer depends
+ * on the order they were listed in, which is exactly the wart :113 removes. `tell [ ]` addresses no
+ * turtle, so it homes none while still clearing the surface, matching every other command's empty-set
+ * behavior.
+ *
+ * `clear_screen` therefore emits **two events per addressed turtle** — `move` then `turn`, via
+ * {@link homeTurtleForClearScreen} — followed by the single `clear`, while `clean` emits only the
+ * `clear`. The homing pair fixes issue #847: the homing used to be a silent internal state reset,
+ * leaving a stream consumer believing the turtle was still where `clear_screen` found it while the
+ * runtime reported the origin — the two disagreed with nothing in the stream to say so. Explicit
+ * `home` never had that gap, and now neither does `clear_screen`.
+ *
+ * Those per-turtle events are also the **only** record of which turtles were homed. The `clear`
+ * carries no `turtle_id` in either mode — `spec/turtles-and-sprites.md:113`: "A `clear` event
+ * describes the shared surface rather than any turtle, so it is not turtle-specific and carries no
+ * turtle identity" — because one shared-surface event cannot name the N turtles one `clear_screen`
+ * homes. `spec/rendering.md:153`'s obligation on the payload is unaffected and now spans both
+ * regimes: the payload's `mode` still distinguishes drawing-only clearing from clear-and-home, which
+ * is what a single-turtle consumer folds ({@link reduceTurtleState} in `@openlogo/turtle`). A
+ * multi-turtle consumer must instead read the per-turtle `move`/`turn` events and MUST NOT treat the
+ * `clear` as an instruction to move a turtle (`:113` again) — otherwise an un-stamped `clear` routed
+ * to a default turtle homes one that was never addressed.
+ *
+ * The homing events come **before** the `clear`, which is the only order in which *every* prefix of
+ * the stream folds to a state the runtime agrees with: `move` reports the pre-reset heading and
+ * `turn` then resets it, so a stepping consumer paused between them never sees a heading the
+ * runtime never had. It also means a consumer that (wrongly) inferred drawing from `move` rather
+ * than `draw-segment` has its stray segment wiped by the `clear` that closes the same instruction
+ * step (`spec/rendering.md:86` — every effect event between two `instruction` events belongs to
+ * one user-visible step).
+ *
+ * Each turtle's pair carries that turtle's own `turtle_id` — exactly the `turtle_id`
+ * {@link stampTurtleId} would put on a per-turtle event — so a per-turtle state reducer homes the
+ * turtles the runtime actually homed rather than assuming the main turtle. Before any `tell`
+ * (`explicit === false`) the events stay un-stamped, matching every Turtle & Rendering fixture that
+ * predates the Sprites profile; there the addressed set is the single default turtle, so the stream
+ * is unchanged by this slice.
  */
 function clearScreen(
   environment: Environment,
   mode: "clear_screen" | "clean",
   source_span: SourceSpan,
 ): void {
-  const turtle = currentTurtleState(environment);
   const { addressing } = environment;
   if (mode === "clear_screen") {
-    turtle.x = 0;
-    turtle.y = 0;
-    turtle.heading = 0;
+    // Snapshot the addressed ids for the same reason the per-turtle command loop does: the set this
+    // one statement homes is fixed at the moment it runs.
+    for (const id of [...addressing.ids]) {
+      homeTurtleForClearScreen(
+        environment,
+        turtleStateFor(addressing, id),
+        addressing.explicit ? { turtle_id: id } : {},
+        source_span,
+      );
+    }
   }
-  // The canvas clear is emitted once (not per turtle — see {@link isPerTurtleCommand}). Only
-  // `clear_screen` homes a turtle, and it homes the *current* one; once `tell`/`ask`/`each` has made
-  // the addressed set explicit that current turtle need not be the main turtle, so its single `clear`
-  // event carries `addressing.currentId` — exactly the `turtle_id` {@link stampTurtleId} would put on
-  // a per-turtle event — letting a per-turtle state reducer home the turtle the runtime actually
-  // homed instead of guessing the main turtle. `clean` changes no turtle (it only clears the
-  // drawing), so it never carries a `turtle_id`; and before any `tell` (`explicit === false`) even a
-  // `clear_screen` stays un-stamped, matching every Turtle & Rendering `clear` fixture emitted before
-  // this slice.
-  const turtle_id =
-    mode === "clear_screen" && addressing.explicit
-      ? addressing.currentId
-      : undefined;
   environment.events.push({
     seq: environment.events.length,
     kind: "clear",
     source_span,
-    ...(turtle_id === undefined ? {} : { turtle_id }),
     payload: { mode } satisfies ClearPayload,
   });
 }
@@ -2162,9 +2252,18 @@ const NOT_A_TURTLE_COMMAND = Symbol("not-a-turtle-command");
 /**
  * Validate and run a `wait <n>` statement matched by {@link isWaitCall} (issue #680,
  * `spec/interaction-events.md`, `wait <n>`): exactly one numeric argument
- * (`ol-not-enough-inputs`/`ol-too-many-inputs` on the wrong arity, `ol-type` on a non-number via
- * {@link requireNumber}), which MUST be a non-negative whole number
- * (`ol-type`/`ol-range` otherwise, via {@link validateTickCount}) — then the pause + trailing
+ * (`ol-not-enough-inputs`/`ol-too-many-inputs` on the wrong arity), which MUST be a non-negative
+ * **whole** number — `ol-type` via {@link requireWholeNumber} for a non-whole or non-number count,
+ * then `ol-range` via {@link runtimeDiag.negativeCount} for a negative one. That is deliberately
+ * the exact type-then-range shape {@link executeEveryStatement} applies to an `every` interval,
+ * down to the inline range guard (issue #775): both Interaction numeric arguments are whole-number
+ * arguments, so for one input class both must report one `ol-type` **type expectation** —
+ * `expected: "whole number"`, with `actual`/`value` naming the offending value as the learner wrote
+ * it — the spelling `repeat` and `random` already emit. (`operation` still names the primitive, so
+ * the two diagnostics remain distinguishable; it is the type vocabulary that is shared.) Using
+ * {@link requireNumber} here instead reported `expected: "number"` for a non-number word, and
+ * pre-coerced a word into a number so `actual`/`value` lost the word — an observable divergence,
+ * since `params` are part of a diagnostic's identity (`spec/error-model.md`). The pause + trailing
  * `primitive` event are produced by {@link runWait}. Returns an {@link ExecSignal} to halt on, or
  * `undefined` for {@link executeStatements} to `continue` on success (including the "left
  * un-evaluated" case for an unsupported argument expression, mirroring the turtle commands).
@@ -2203,13 +2302,21 @@ function executeWaitCall(
   if (!argResult.ok) {
     return halt(argResult.diagnostic);
   }
-  const ticks = requireNumber(argResult.value, arg.source_span, "wait");
+  const ticks = requireWholeNumber(argResult.value, arg.source_span, "wait");
   if (!ticks.ok) {
     return halt(ticks.diagnostic);
   }
-  const count = validateTickCount(ticks.value, arg.source_span);
-  if (!count.ok) {
-    return halt(count.diagnostic);
+  // RANGE after TYPE: `wait 0` is valid ("yields to the renderer and event loop without adding a
+  // visible delay"), only a negative count is out of range. Guarded inline, exactly as
+  // `executeEveryStatement` guards its own `<= 0` interval, so the two forms have no structural
+  // difference left for their diagnostics to drift through (issue #775).
+  if (ticks.value < 0) {
+    return halt(
+      runtimeDiag.negativeCount(arg.source_span, {
+        operation: "wait",
+        value: ticks.value,
+      }),
+    );
   }
   // Dispatch every due handler on each tick the pause advances through, in the normative same-tick
   // order (`when` → `on_key` → `on_click` → due `every`, `spec/interaction-events.md:84-89`) —
@@ -2224,7 +2331,7 @@ function executeWaitCall(
   const interrupted = runWait(
     environment.tickClock,
     environment.events,
-    count.value,
+    ticks.value,
     waitCall.source_span,
     (tick) => {
       const signal = dispatchDueHandlers(
@@ -3246,10 +3353,12 @@ function dispatchProfileStatement(
  * The canvas-global turtle commands are deliberately excluded: `set_background`, `grid`, `axes`, and
  * `measure` describe the drawing surface, not one turtle's avatar, so they run once regardless of
  * how many turtles are addressed. `clear_screen`/`clean` is also excluded — it clears the whole
- * canvas (one `clear` event) and homes only the current turtle; a per-turtle multiplication would
- * emit N `clear` events for one canvas clear, which no renderer expects. Under explicit addressing
- * that single event is stamped with the homed turtle's `turtle_id` (see {@link clearScreen}), so it
- * stays one event yet still names which turtle was homed (`clearScreen`'s doc comment).
+ * canvas, and there is one surface, so it is cleared once however many turtles are addressed
+ * (`spec/turtles-and-sprites.md:111`); a per-turtle multiplication would emit N `clear` events for
+ * one canvas clear, which no renderer expects. `clear_screen`'s **homing** is nonetheless per-turtle
+ * and reaches every addressed turtle — {@link clearScreen} runs that half of the command in its own
+ * loop, emitting one `move`/`turn` pair per addressed turtle while the canvas is still cleared
+ * exactly once (issue #738).
  */
 function isPerTurtleCommand(statement: StatementNode): boolean {
   return (
@@ -3331,21 +3440,17 @@ function runPerTurtleCommand(
  * The kinds a per-turtle command run may have **labelled with the turtle that is currently acting**
  * — the narrower producer policy that sits under `@openlogo/core`'s classification of which kinds
  * may carry a `turtle_id` at all ({@link OL_TURTLE_SPECIFIC_EVENT_KINDS}, issue #764). Derived from
- * that set so the two can never drift, minus the two kinds that already know their own turtle:
+ * that set so the two can never drift, minus the one kind that already knows its own turtle:
+ * `spawn-turtle` carries the identity of the turtle it just created in its own envelope and payload
+ * (`spec/turtles-and-sprites.md:34`). A `new_turtle` evaluated in a command's argument position must
+ * keep that id, never the acting turtle's.
  *
- * - `spawn-turtle` carries the identity of the turtle it just created in its own envelope and
- *   payload (`spec/turtles-and-sprites.md:34`). A `new_turtle` evaluated in a command's argument
- *   position must keep that id, never the acting turtle's.
- * - `clear` is **payload-dependent**: `clear_screen` homes the current turtle and is stamped at
- *   emission by {@link clearScreen} when addressing is explicit, but `clean` only wipes the shared
- *   drawing surface and concerns no turtle at all. Synthesizing the acting turtle here would attach
- *   an id to a scene-only `clean` — and would contradict {@link clearScreen}, which deliberately
- *   stamps one mode and not the other.
+ * `clear` needs no exclusion here: it is not turtle-specific at all
+ * (`spec/turtles-and-sprites.md:113` — "A `clear` event describes the shared surface rather than any
+ * turtle"), so `@openlogo/core` already leaves it out of the set this derives from (issue #738).
  */
 const ACTING_TURTLE_STAMPABLE_KINDS: ReadonlySet<string> = new Set(
-  [...OL_TURTLE_SPECIFIC_EVENT_KINDS].filter(
-    (kind) => kind !== "spawn-turtle" && kind !== "clear",
-  ),
+  [...OL_TURTLE_SPECIFIC_EVENT_KINDS].filter((kind) => kind !== "spawn-turtle"),
 );
 
 /**

@@ -222,13 +222,16 @@ test("the registry marks exactly the per-turtle effect kinds as turtle-specific 
     "stamp",
     "shape-change",
     "visibility-change",
-    "clear",
     // `spawn-turtle`'s envelope names the turtle just created (spec/turtles-and-sprites.md:34), so
     // it is turtle-specific even though it carries that id authoritatively rather than by stamping.
     "spawn-turtle",
   ];
   // Program/scene kinds are not turtle-specific — including `primitive`, whose addressing payload
-  // describes a SET of turtles.
+  // describes a SET of turtles, and `clear`, which describes the shared drawing surface: one
+  // `clear_screen` homes EVERY addressed turtle, so no single identity on the canvas event could
+  // name them, and spec/turtles-and-sprites.md:113 says so outright — "A `clear` event describes the
+  // shared surface rather than any turtle, so it is not turtle-specific and carries no turtle
+  // identity" (issue #738). The homing is carried by the per-turtle `move`/`turn` events instead.
   const notTurtleSpecific = [
     "instruction",
     "procedure-enter",
@@ -238,6 +241,7 @@ test("the registry marks exactly the per-turtle effect kinds as turtle-specific 
     "sound",
     "overlay",
     "background-change",
+    "clear",
     "error",
     "tutor-output",
     "primitive",

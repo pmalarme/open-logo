@@ -208,6 +208,41 @@ test("debug's turtle state reflects a clear_screen homing position and heading, 
   assert.match(cleanedSegment, /heading 90/);
 });
 
+test("debug reports the turtle a clear_screen did NOT home, because no turtle was addressed", () => {
+  // Issue #738: `clear_screen` homes every ADDRESSED turtle, so `tell [ ]` homes none while still
+  // clearing the shared surface. `spec/turtles-and-sprites.md:113` forbids a consumer reading the
+  // `clear` as an instruction to move a turtle, and names `debug` as one of the consumers the rule
+  // exists for. Folding the `clear` here used to report position (0, 0) heading 0 for a turtle the
+  // runtime had left at (0, 10) heading 30 — `debug` contradicting the `pos` the same program
+  // prints. The homing arrives as `move`/`turn` when it happens at all (the case above), so those
+  // arms carry it and this one has nothing to add.
+  const untouched = OL.debug(
+    contextFromSource("forward 10\nright 30\ntell [ ]\nclear_screen", {}),
+  );
+  const segment = untouched.segments.find((line) =>
+    line.startsWith("Turtle state so far:"),
+  );
+  assert.match(segment, /position \(0, 10\)/);
+  assert.match(segment, /heading 30/);
+});
+
+test("debug follows the addressed turtle's own homing under tell", () => {
+  // The `move`/`turn` pair `clear_screen` emits per addressed turtle is what carries the homing to
+  // this fold now. With one turtle addressed there is no ambiguity about whose state is reported,
+  // so the reported state must match the runtime's: homed.
+  const homed = OL.debug(
+    contextFromSource(
+      ":a = new_turtle\ntell [ :a ]\nforward 30\nright 90\nclear_screen",
+      {},
+    ),
+  );
+  const segment = homed.segments.find((line) =>
+    line.startsWith("Turtle state so far:"),
+  );
+  assert.match(segment, /position \(0, 0\)/);
+  assert.match(segment, /heading 0/);
+});
+
 test("debug shows a friendly call path for a procedure still open at the point of failure", () => {
   const program = {
     kind: "Program",

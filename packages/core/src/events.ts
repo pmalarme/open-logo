@@ -64,18 +64,25 @@ export type EventKind = (typeof OL_EVENT_KINDS)[number];
  *
  * These are the per-turtle effects — movement, turning, pen/width/color, the segment drawn,
  * `fill`/`stamp` (which "use the current turtle's pen and shape state",
- * `spec/turtles-and-sprites.md:109`), shape/visibility, `clear` (one canvas clear, which homes the
- * current turtle), and `spawn-turtle` (`spec/turtles-and-sprites.md:34`, whose envelope names the
- * turtle just created). Every other kind describes the program or the scene rather than one turtle:
- * `instruction`, `procedure-enter`/`procedure-exit`/`return`, `print`, `sound`, `overlay`,
- * `background-change`, `error`, `tutor-output`, and `primitive` — including the addressing
- * `primitive` events, whose {@link AddressingSnapshot} describes a *set* of turtles.
+ * `spec/turtles-and-sprites.md:109`), shape/visibility, and `spawn-turtle`
+ * (`spec/turtles-and-sprites.md:34`, whose envelope names the turtle just created). Every other
+ * kind describes the program or the scene rather than one turtle: `instruction`,
+ * `procedure-enter`/`procedure-exit`/`return`, `print`, `sound`, `overlay`, `background-change`,
+ * `error`, `tutor-output`, and `primitive` — including the addressing `primitive` events, whose
+ * {@link AddressingSnapshot} describes a *set* of turtles.
+ *
+ * **`clear` is deliberately not here** (issue #738). It once was, on the reading that a
+ * `clear_screen` homes the current turtle, but `spec/turtles-and-sprites.md:113` now settles the
+ * question the other way: "A `clear` event describes the shared surface rather than any turtle, so
+ * it is not turtle-specific and carries no turtle identity". `clear_screen` still homes — **every**
+ * addressed turtle, not just one — and that homing is reported by the ordinary per-turtle `move`/
+ * `turn` events, which carry the identities. One shared-surface event cannot name the N turtles a
+ * single `clear_screen` homes, so naming one of them was exactly the order-dependence :113 removes.
  *
  * This is a **classification**, not a licence to label: it says which kinds are turtle-specific at
  * all, not that a producer may attribute any such event to whichever turtle is currently acting.
- * `spawn-turtle` and `clear` both carry their identity authoritatively at emission (and `clear`'s
- * `clean` mode is scene-only, concerning no turtle), so a producer synthesizing an acting turtle's
- * id must apply its own, narrower policy — see `@openlogo/runtime`'s
+ * `spawn-turtle` carries its identity authoritatively at emission, so a producer synthesizing an
+ * acting turtle's id must apply its own, narrower policy — see `@openlogo/runtime`'s
  * `ACTING_TURTLE_STAMPABLE_KINDS`.
  *
  * Lives here, next to the registry it partitions, so a producer stamping envelopes and a consumer
@@ -92,7 +99,6 @@ export const OL_TURTLE_SPECIFIC_EVENT_KINDS: ReadonlySet<EventKind> = new Set([
   "stamp",
   "shape-change",
   "visibility-change",
-  "clear",
   "spawn-turtle",
 ]);
 

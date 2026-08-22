@@ -82,8 +82,11 @@ write procedures and localized aliases in a natural order.
 2. **Phase 1: registration.** The reader registers every `define`/`to`
    procedure and every `struct` declaration. Procedure forward references work.
    A `struct` registers both its record type and a constructor reporter named
-   after the type. Collisions with primitives, existing procedures, or reserved
-   names raise `ol-reserved-word`.
+   after the type. A built-in name in a declaration slot raises
+   `ol-reserved-word`; a name an earlier declaration in the program or an
+   imported module already registered raises `ol-duplicate-definition`, which
+   MUST NOT be a silent override. See
+   [grammar.md](grammar.md#keywords-primitives-and-built-in-names).
 3. **Phase 2: execution.** Top-level instructions execute in source order using
    the registered callable and record-type tables.
 
@@ -151,7 +154,7 @@ the value before `is`: `<value> is empty`, `<value> is member of <collection>`,
 `<value> is a <type-word>`, and `<value> is [ strictly ] between <low> and
 <high>` (inclusive, or exclusive with `strictly`). These are first-class
 alternates to the prefix `?`-predicates (`empty?`, `member?`, `is_a?`). Only
-`is`, `strictly`, and `between` are globally reserved; the contextual words
+`is`, `strictly`, and `between` are keywords everywhere; the contextual words
 `empty`, `member`, `of`, and `a` are recognized only just after `is` and remain
 valid ordinary names elsewhere. There is no infix `in` membership operator — use
 `<value> is member of <collection>` or `member?`; the word `in` is only the
@@ -507,7 +510,7 @@ Dict literals use braces only:
 }
 ```
 
-Bare dict keys are literal data, not procedure calls; reserved words are legal
+Bare dict keys are literal data, not procedure calls; built-in names are legal
 keys. Duplicate literal keys are allowed and the last value wins. Dict iteration
 is insertion order. A required read miss raises `ol-unknown-key`, but a write to
 a missing final dict key adds it.
@@ -922,6 +925,6 @@ for:
 - safety limits and trace event timing.
 
 Primitive names, aliases, kinds, arities, arguments, and errors must match the C3
-matrix in [commands.md](commands.md). Syntax productions and reserved words must
-match [grammar.md](grammar.md). Diagnostics must use the codes and message shape
-from [error-model.md](error-model.md).
+matrix in [commands.md](commands.md). Syntax productions, keywords, and built-in
+names must match [grammar.md](grammar.md). Diagnostics must use the codes and
+message shape from [error-model.md](error-model.md).

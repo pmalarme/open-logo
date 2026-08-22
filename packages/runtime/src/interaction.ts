@@ -59,13 +59,7 @@
  * delivers nothing.
  */
 
-import type {
-  Diagnostic,
-  OLValue,
-  PrimitivePayload,
-  SourceSpan,
-  TraceEvent,
-} from "@openlogo/core";
+import type { PrimitivePayload, SourceSpan, TraceEvent } from "@openlogo/core";
 import type { BlockNode, SpannedName, StatementNode } from "@openlogo/parser";
 import { parse } from "@openlogo/parser";
 import { runtimeDiag } from "./errors.js";
@@ -146,47 +140,6 @@ export function isWaitCall(statement: StatementNode): boolean {
   return statement.callee.name.toLowerCase() === "wait";
 }
 
-/** The number `wait`'s single argument resolved to, or the diagnostic to halt on. */
-type TickCountOrDiagnostic =
-  | { readonly ok: true; readonly value: number }
-  | { readonly ok: false; readonly diagnostic: Diagnostic };
-
-/**
- * Validate `wait`'s tick count: it MUST be a non-negative whole number
- * (`spec/interaction-events.md`, `wait <n>`). A non-whole count raises `ol-type`
- * ({@link runtimeDiag.notWholeNumber}) and a negative count raises `ol-range`
- * ({@link runtimeDiag.negativeCount}) — TYPE then RANGE, the same ordering `repeat`'s count
- * validation uses (`spec/execution-model.md:367-369`). `wait 0` is valid and returns `0` (it
- * yields with no tick advance and no visible delay). Reuses the shared `repeat`/`every` count
- * diagnostics rather than inventing ad-hoc strings, with `operation: "wait"` so the message names
- * the primitive.
- */
-export function validateTickCount(
-  value: number,
-  source_span: SourceSpan,
-): TickCountOrDiagnostic {
-  if (!Number.isInteger(value)) {
-    return {
-      ok: false,
-      diagnostic: runtimeDiag.notWholeNumber(source_span, {
-        actual: "number",
-        value,
-        operation: "wait",
-      }),
-    };
-  }
-  if (value < 0) {
-    return {
-      ok: false,
-      diagnostic: runtimeDiag.negativeCount(source_span, {
-        operation: "wait",
-        value,
-      }),
-    };
-  }
-  return { ok: true, value };
-}
-
 /**
  * Emit the `primitive` event `spec/interaction-events.md` requires `wait` to emit **after** the
  * pause completes ("`wait` emits a `primitive` event after the pause completes"). The catch-all
@@ -244,8 +197,9 @@ function emitInteractionPrimitive(
  * stopped, or the budget was cancelled) the pause aborts immediately: {@link runWait} returns `true`
  * and does **not** emit the trailing `primitive` event, because the pause did not complete. On a
  * clean pause it emits the `primitive` event AFTER the pause completes onto `events` and returns
- * `false`. `count` MUST already be a validated non-negative whole number (via
- * {@link validateTickCount}).
+ * `false`. `count` MUST already be a validated non-negative whole number — `executeWaitCall`'s
+ * `requireWholeNumber` (TYPE) then its non-negativity guard (RANGE), the same two-step
+ * `executeEveryStatement` applies to an `every` interval.
  *
  * `wait 0` advances the clock zero times but still {@link yieldToEventLoop}s exactly once — it
  * "yield[s] to the renderer and event loop without adding a visible delay" (a spec-mandated yield,
@@ -282,29 +236,6 @@ export function runWait(
   }
   emitWaitPrimitive(events, source_span);
   return false;
-}
-
-/**
- * Is `value` displayable as learner text — the constraint `spec/interaction-events.md:131` puts on
- * `input`'s prompt ("`ol-type` if the prompt cannot be displayed as learner text")?
- *
- * The prompt is the question a person reads before answering (`:134`, "`input` displays the prompt
- * and waits for the learner to enter one value"), so it must be text: the scalars `word`, `number`,
- * and `boolean` render as exactly the characters displayed. Every other OpenLogo value is a
- * structure or an identity — a `list`/`dict`/`record` renders as a bracketed container view, a
- * `turtle` as the opaque tag `turtle #<id>` (`spec/turtles-and-sprites.md:13`) — which is a
- * debugging rendering, not a question authored for a learner, so it is not learner text.
- *
- * The rule has to be narrower than `print`, whose `printedForm` renders *every* value: `input` is
- * the only primitive the spec gives a prompt error clause at all (`print` has none), and a rule that
- * accepted everything would make that normative clause unreachable.
- */
-export function isLearnerText(value: OLValue): boolean {
-  return (
-    typeof value === "string" ||
-    typeof value === "number" ||
-    typeof value === "boolean"
-  );
 }
 
 /**

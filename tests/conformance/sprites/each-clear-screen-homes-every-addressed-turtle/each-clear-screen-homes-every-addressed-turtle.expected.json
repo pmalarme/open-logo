@@ -1,0 +1,536 @@
+{
+  "description": "issue #679 (SP7) + issue #847 + issue #738: pins `each [ clear_screen ]`, which differs from a bare `clear_screen` in exactly one way — the number of canvas clears. Since the maintainer's ruling on issue #738, both routes home EVERY addressed turtle (spec/turtles-and-sprites.md:111). What `each` adds is that the shared surface is cleared once per iteration instead of once for the statement: two turtles, two `clear` events. Each iteration still emits that turtle's issue #847 homing pair — `move` ([0 10] -> [0 0], reporting the pre-reset heading 45) then `turn` (45 -> 0), stamped with that turtle's `turtle_id` — before its `clear`. No `draw-segment` accompanies either homing move even though both pens are down: the same instruction goes on to clear the drawing (spec/rendering.md:36 describes what a pen-down move contributes to the RETAINED SCENE, and :150's \"Clear operations\" row fixes `clear_screen`'s contribution at *cleared*; escalated to the maintainer as issue #858). Neither `clear` carries a `turtle_id`, in this or any other mode — :113: \"A `clear` event describes the shared surface rather than any turtle, so it is not turtle-specific and carries no turtle identity\" — so even under `each`, where exactly one turtle IS addressed per iteration, the homing is reported only by the per-turtle `move`/`turn` events. The trailing `each` proves the outcome rather than just the events - BOTH turtles report [0 0] and heading 0, which the bare `clear_screen` under `tell` (clear-screen-multi-turtle-homes-all-addressed) now also produces, with one `clear` instead of two. Every change of the addressed set - the `tell`, each `each` iteration, and each restoration - emits an addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }` (issue #766, spec/rendering.md:193).",
+  "profiles": ["sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [1, 6],
+        "end": [1, 16]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [2, 1],
+        "end": [2, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [2, 6],
+        "end": [2, 16]
+      },
+      "turtle_id": 2,
+      "payload": {
+        "turtle_id": 2,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [3, 1],
+        "end": [3, 15]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [3, 1],
+        "end": [3, 15]
+      },
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [1, 2],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [4, 1],
+        "end": [4, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [4, 1],
+        "end": [4, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "heading": 0
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 8,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [4, 1],
+        "end": [4, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "color": "black",
+        "width": 1
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 9,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [4, 1],
+        "end": [4, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "heading": 0
+      },
+      "turtle_id": 2
+    },
+    {
+      "seq": 10,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [4, 1],
+        "end": [4, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "color": "black",
+        "width": 1
+      },
+      "turtle_id": 2
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [5, 1],
+        "end": [5, 9]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "turn",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [5, 1],
+        "end": [5, 9]
+      },
+      "payload": {
+        "from": 0,
+        "to": 45
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 13,
+      "kind": "turn",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [5, 1],
+        "end": [5, 9]
+      },
+      "payload": {
+        "from": 0,
+        "to": 45
+      },
+      "turtle_id": 2
+    },
+    {
+      "seq": 14,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [6, 1],
+        "end": [6, 22]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [6, 1],
+        "end": [6, 22]
+      },
+      "payload": {
+        "name": "each",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [6, 8],
+        "end": [6, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [6, 8],
+        "end": [6, 20]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "from": [0, 10],
+        "to": [0, 0],
+        "heading": 45
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "turn",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [6, 8],
+        "end": [6, 20]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "from": 45,
+        "to": 0
+      }
+    },
+    {
+      "seq": 19,
+      "kind": "clear",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [6, 8],
+        "end": [6, 20]
+      },
+      "payload": {
+        "mode": "clear_screen"
+      }
+    },
+    {
+      "seq": 20,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [6, 1],
+        "end": [6, 22]
+      },
+      "payload": {
+        "name": "each",
+        "addressing": {
+          "addressed_turtle_ids": [2],
+          "current_turtle_id": 2
+        }
+      }
+    },
+    {
+      "seq": 21,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [6, 8],
+        "end": [6, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 22,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [6, 8],
+        "end": [6, 20]
+      },
+      "turtle_id": 2,
+      "payload": {
+        "from": [0, 10],
+        "to": [0, 0],
+        "heading": 45
+      }
+    },
+    {
+      "seq": 23,
+      "kind": "turn",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [6, 8],
+        "end": [6, 20]
+      },
+      "turtle_id": 2,
+      "payload": {
+        "from": 45,
+        "to": 0
+      }
+    },
+    {
+      "seq": 24,
+      "kind": "clear",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [6, 8],
+        "end": [6, 20]
+      },
+      "payload": {
+        "mode": "clear_screen"
+      }
+    },
+    {
+      "seq": 25,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [6, 1],
+        "end": [6, 22]
+      },
+      "payload": {
+        "name": "each",
+        "addressing": {
+          "addressed_turtle_ids": [1, 2],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 26,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [7, 1],
+        "end": [10, 2]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 27,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [7, 1],
+        "end": [10, 2]
+      },
+      "payload": {
+        "name": "each",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 28,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [8, 3],
+        "end": [8, 12]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 29,
+      "kind": "print",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [8, 3],
+        "end": [8, 12]
+      },
+      "payload": {
+        "values": [[0, 0]]
+      }
+    },
+    {
+      "seq": 30,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [9, 3],
+        "end": [9, 16]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 31,
+      "kind": "print",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [9, 3],
+        "end": [9, 16]
+      },
+      "payload": {
+        "values": [0]
+      }
+    },
+    {
+      "seq": 32,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [7, 1],
+        "end": [10, 2]
+      },
+      "payload": {
+        "name": "each",
+        "addressing": {
+          "addressed_turtle_ids": [2],
+          "current_turtle_id": 2
+        }
+      }
+    },
+    {
+      "seq": 33,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [8, 3],
+        "end": [8, 12]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 34,
+      "kind": "print",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [8, 3],
+        "end": [8, 12]
+      },
+      "payload": {
+        "values": [[0, 0]]
+      }
+    },
+    {
+      "seq": 35,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [9, 3],
+        "end": [9, 16]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 36,
+      "kind": "print",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [9, 3],
+        "end": [9, 16]
+      },
+      "payload": {
+        "values": [0]
+      }
+    },
+    {
+      "seq": 37,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/each-clear-screen-homes-every-addressed-turtle/each-clear-screen-homes-every-addressed-turtle",
+        "start": [7, 1],
+        "end": [10, 2]
+      },
+      "payload": {
+        "name": "each",
+        "addressing": {
+          "addressed_turtle_ids": [1, 2],
+          "current_turtle_id": 1
+        }
+      }
+    }
+  ],
+  "diagnostics": []
+}

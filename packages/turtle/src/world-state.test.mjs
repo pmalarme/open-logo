@@ -200,31 +200,70 @@ test("a clean clear leaves per-turtle state untouched", () => {
   assert.deepEqual(world.turtles.get(1).position, [0, 50]);
 });
 
-test("a stamped clear_screen clear homes only the turtle it names", () => {
-  // The runtime stamps a `clear_screen`'s single `clear` event with the homed turtle's `turtle_id`
-  // under explicit addressing (`tell`/`ask`/`each`), so the reducer homes exactly that turtle and
-  // leaves every other turtle's state untouched (`clearScreen`'s doc comment in the runtime).
+test("a clear_screen clear moves no turtle here — the homing arrives as move/turn", () => {
+  // Issue #738: one `clear_screen` homes EVERY addressed turtle, which no single identity on one
+  // shared-surface event could name, so `spec/turtles-and-sprites.md:113` makes the `clear` purely a
+  // surface event — "consumers MUST NOT read a `clear` event as an instruction to move a turtle: a
+  // turtle's position and heading change only through the events that report that turtle's
+  // movement". This reducer therefore ignores it, in either mode. The single-turtle
+  // `reduceTurtleState` still folds the payload's mode; that reading is sound only because it
+  // follows exactly one turtle.
   const world = OL.reduceTurtleWorldEvents([
     spawn(1),
     event("move", { from: [0, 0], to: [0, 50], heading: 90 }, 1),
     event("move", { from: [0, 0], to: [10, 0], heading: 45 }, 0),
-    event("clear", { mode: "clear_screen" }, 1),
+    event("clear", { mode: "clear_screen" }, undefined),
   ]);
-  assert.deepEqual(world.turtles.get(1).position, [0, 0]);
-  assert.equal(world.turtles.get(1).heading, 0);
+  assert.deepEqual(world.turtles.get(1).position, [0, 50]);
+  assert.equal(world.turtles.get(1).heading, 90);
   assert.deepEqual(world.turtles.get(0).position, [10, 0]);
   assert.equal(world.turtles.get(0).heading, 45);
 });
 
-test("an un-stamped clear_screen clear homes the main turtle", () => {
-  // Before any `tell` the runtime emits `clear` with no `turtle_id`; it homes the main turtle (id
-  // 0), matching the pre-slice single-turtle reducer and Turtle & Rendering `clear` fixtures.
+test("the runtime's clear_screen stream homes every turtle its move/turn pairs name", () => {
+  // The stream the runtime emits since issues #847 and #738 for `tell [ :a :b ]` + `clear_screen`:
+  // one homing pair per addressed turtle, each stamped, then ONE un-stamped `clear`. Both addressed
+  // turtles must end up home while an unaddressed turtle is left alone — the whole point of routing
+  // the homing through the movement events rather than the shared-surface one.
   const world = OL.reduceTurtleWorldEvents([
+    spawn(1),
+    spawn(2),
+    event("move", { from: [0, 0], to: [0, 50], heading: 90 }, 1),
+    event("move", { from: [0, 0], to: [0, 50], heading: 90 }, 2),
+    event("move", { from: [0, 0], to: [10, 0], heading: 45 }, 0),
+    event("move", { from: [0, 50], to: [0, 0], heading: 90 }, 1),
+    event("turn", { from: 90, to: 0 }, 1),
+    event("move", { from: [0, 50], to: [0, 0], heading: 90 }, 2),
+    event("turn", { from: 90, to: 0 }, 2),
+    event("clear", { mode: "clear_screen" }, undefined),
+  ]);
+  for (const id of [1, 2]) {
+    assert.deepEqual(world.turtles.get(id).position, [0, 0]);
+    assert.equal(world.turtles.get(id).heading, 0);
+  }
+  assert.deepEqual(world.turtles.get(0).position, [10, 0]);
+  assert.equal(world.turtles.get(0).heading, 45);
+});
+
+test("an un-stamped clear_screen clear does not home the main turtle", () => {
+  // The spurious home issue #738's AC2 exists to prevent: routing an un-stamped `clear` through the
+  // MAIN_TURTLE_ID default homed turtle 0 even when it was never addressed. Before any `tell` the
+  // runtime's own homing `move`/`turn` are equally un-stamped and fold into the main turtle, so the
+  // single-turtle program is still correct — it just gets there through the movement events.
+  const clearOnly = OL.reduceTurtleWorldEvents([
     event("move", { from: [0, 0], to: [7, 0], heading: 90 }, undefined),
     event("clear", { mode: "clear_screen" }, undefined),
   ]);
-  assert.deepEqual(world.turtles.get(0).position, [0, 0]);
-  assert.equal(world.turtles.get(0).heading, 0);
+  assert.deepEqual(clearOnly.turtles.get(0).position, [7, 0]);
+  assert.equal(clearOnly.turtles.get(0).heading, 90);
+  const withHoming = OL.reduceTurtleWorldEvents([
+    event("move", { from: [0, 0], to: [7, 0], heading: 90 }, undefined),
+    event("move", { from: [7, 0], to: [0, 0], heading: 90 }, undefined),
+    event("turn", { from: 90, to: 0 }, undefined),
+    event("clear", { mode: "clear_screen" }, undefined),
+  ]);
+  assert.deepEqual(withHoming.turtles.get(0).position, [0, 0]);
+  assert.equal(withHoming.turtles.get(0).heading, 0);
 });
 
 test("reduceTurtleWorldEvents defaults its seed to the initial world", () => {

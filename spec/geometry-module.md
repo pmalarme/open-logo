@@ -10,7 +10,7 @@ Geometry examples use the locked OpenLogo surface: variable reads are written as
 
 ## Profile and source contract
 
-The Geometry profile adds these derived commands and reporters:
+The Geometry profile adds these commands and reporters. All of them are derived OpenLogo source except the `grid`, `axes`, and `measure` overlays, which are renderer-backed primitives as stated above — so those three are **built-in names** and the rest are ordinary library procedures a learner may write for themselves (see [grammar.md](grammar.md#keywords-primitives-and-built-in-names)):
 
 | Name | Kind | Signature | Result |
 |---|---:|---|---|
