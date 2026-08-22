@@ -1,0 +1,2 @@
+every 3 [ every 3 [ print "x" ] ]
+wait 12

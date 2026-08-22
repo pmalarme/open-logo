@@ -1,0 +1,2 @@
+on_key "space" [ every 10 [ print "s" ] ]
+wait 40
