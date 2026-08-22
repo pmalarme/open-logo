@@ -6,10 +6,11 @@
  * `callable`/`expected`/`actual` param shape, differing only in `stage` (`semantic` here).
  *
  * ## What "statically known" means here
- * - **Core, Data-, Sound-, and Interaction & Events-profile primitives** — a default (bare-call)
- *   arity and a variadic ceiling from {@link corePrimitiveArityRange} /
+ * - **Core, Data-, Sound-, Interaction & Events-, and Geometry-profile primitives** — a default
+ *   (bare-call) arity and a variadic ceiling from {@link corePrimitiveArityRange} /
  *   {@link dataPrimitiveArityRange} (issue #405 wires the latter in, mirroring the former exactly;
- *   issue #689 adds Sound's and issue #687 Interaction & Events' `wait`, each gated on its own
+ *   issue #689 adds Sound's, issue #687 Interaction & Events' `wait`, and issue #844 Geometry's
+ *   `grid`/`axes`/`measure` overlays, each gated on its own
  *   active profile). OpenLogo's reader gathers *exactly* the default
  *   number of arguments for a bare (non-parenthesized) call, so a bare primitive call can only
  *   ever be short of arguments (the line or block ended first, e.g. `print first`), never over —
@@ -48,6 +49,7 @@ import type { CheckProfile } from "./check.js";
 import {
   corePrimitiveArityRange,
   dataPrimitiveArityRange,
+  geometryPrimitiveArityRange,
   interactionPrimitiveArityRange,
   soundPrimitiveArityRange,
 } from "./signatures.js";
@@ -259,6 +261,14 @@ export function arityRule(
   // (`when`/`every`/`on_key`/`on_click`) are not call sites at all — the reader lowers them to a
   // `ProfileStatement`, so `isCallSite` never sees them and this rule cannot mis-fire on one.
   const interactionActive = profiles.includes("interaction-events");
+  // The Geometry overlay primitives (`grid`/`axes`/`measure`) are likewise only visible — and so
+  // only arity-checkable — when the `geometry` profile is active (issue #844), mirroring
+  // `collectVisibleNames`'s own `geometry` gate. All three are strictly fixed-arity 0, so a bare
+  // call can never over-supply (the reader caps it at 0 and extra tokens become a parse-stage
+  // `ol-bad-token`); the parenthesized form `(grid 50)` is the one place a learner can, and the
+  // runtime already raises `ol-too-many-inputs` there — this gate is what stops the checker from
+  // staying silent while the runtime rejects the very same call.
+  const geometryActive = profiles.includes("geometry");
   const diagnostics: Diagnostic[] = [];
 
   walk(program, (node) => {
@@ -321,6 +331,21 @@ export function arityRule(
           node,
           raw,
           interactionRange,
+          actual,
+          span,
+          diagnostics,
+        );
+        return;
+      }
+    }
+
+    if (geometryActive) {
+      const geometryRange = geometryPrimitiveArityRange(lower);
+      if (geometryRange !== undefined) {
+        checkPrimitiveRangeArity(
+          node,
+          raw,
+          geometryRange,
           actual,
           span,
           diagnostics,

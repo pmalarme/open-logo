@@ -1,0 +1,19 @@
+{
+  "description": "issue #844, the reported symptom itself, pinned (EXECUTE-mode path; twin of geometry/check/bare-grid-extra-argument). `execute()` reports the same parse-stage `ol-bad-token` for `grid 10` that the check-mode entry point does — same `code`, `params`, `stage` and line/column coordinates, differing only in this fixture's own `source_span.document` id — and emits no events, because the program never parsed. This is a stray-token error, NOT a \"grid does not exist\" error: the issue's reading of this diagnostic as proof the runtime cannot execute `grid` is what this pair refutes.",
+  "profiles": ["geometry"],
+  "execute": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "geometry/overlays/bare-grid-extra-argument",
+        "start": [1, 6],
+        "end": [1, 8]
+      },
+      "params": { "text": "10" },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}
