@@ -87,7 +87,7 @@ const LEGAL_SHAPES = [
     "`.field` postfix on a parenthesized reader",
   ],
   [
-    "print (value of :nested for key \"inner\")[x]",
+    'print (value of :nested for key "inner")[x]',
     1,
     "`[selector]` postfix on a parenthesized reader",
   ],
