@@ -230,31 +230,47 @@ test("#787: the reporter-position crash repro is now rejected at registration", 
   );
 });
 
-test("#787: the reporter path's arity and no-output guards are still reached — through the PRIMITIVE, and still canonically", () => {
-  // The surviving half of #787's rule, and the half that actually mattered: a Heritage alias in
-  // reporter position must report `params.callable`/`params.procedure` byte-identically to its Core
-  // twin, with no structured param ever carrying the surface spelling. That is now proven against
-  // the built-in `forward` rather than a user procedure of the same name, because the latter can no
-  // longer be declared. The alias→canonical resolution under test is unchanged; only the callee's
-  // provenance is.
+test("#787: a reporter-position alias over a BUILT-IN canonical still behaves exactly like that canonical", () => {
+  // What survives of #787's rule once the user-procedure route is gone: `fd` in reporter position
+  // must be indistinguishable from `forward` there — same events, same diagnostics — because
+  // Heritage is "alternate spellings only, no new semantics" (`spec/conformance.md:146`). Asserted
+  // as full-result equivalence rather than against a named diagnostic, because these calls do not
+  // currently produce one: a command in reporter position is accepted leniently and yields no value,
+  // no `print` event and no `ol-*` code at all. That leniency is NOT this slice's to change (it is
+  // the runtime reporter-arity question issue #874 raised) — but it is exactly why this assertion
+  // has to compare the two spellings' whole results instead of pinning a code that isn't there.
+  //
+  // The user-procedure arity/no-output guards this test used to reach through an alias are covered
+  // by `heritage-alias-chokepoint.test.mjs` (the alias→canonical→procedure dispatch itself) and by
+  // the ordinary reporter-position procedure calls in `procedure-calls.test.mjs`; with
+  // `withResolvedCallee` rewriting the node before dispatch, the alias route IS the ordinary route.
   for (const [aliasSource, coreSource] of [
     ["print (fd 1 2)\n", "print (forward 1 2)\n"],
     ["print fd\n", "print forward\n"],
+    ["print bf [1 2 3]\n", "print butfirst [1 2 3]\n"],
+    ["print (bf)\n", "print (butfirst)\n"],
+    ["print bf []\n", "print butfirst []\n"],
   ]) {
-    const alias = execute(aliasSource, doc).diagnostics;
-    const core = execute(coreSource, doc).diagnostics;
-    assert.equal(alias.length, 1, `expected one diagnostic for ${aliasSource}`);
+    const alias = execute(aliasSource, doc);
+    const core = execute(coreSource, doc);
     assert.deepEqual(
-      alias.map((d) => [d.code, d.params]),
-      core.map((d) => [d.code, d.params]),
+      alias.diagnostics.map((d) => [d.code, d.params]),
+      core.diagnostics.map((d) => [d.code, d.params]),
       `${aliasSource} must report the same identity as its Core twin`,
     );
-    for (const value of Object.values(alias[0].params)) {
-      assert.notEqual(
-        value,
-        "fd",
-        "no structured param may carry the surface spelling",
-      );
+    assert.deepEqual(
+      withoutSpans(alias.events),
+      withoutSpans(core.events),
+      `${aliasSource} must emit the same events as its Core twin`,
+    );
+    for (const diagnostic of alias.diagnostics) {
+      for (const value of Object.values(diagnostic.params)) {
+        assert.notEqual(
+          value,
+          "fd",
+          "no structured param may carry the surface spelling",
+        );
+      }
     }
   }
 });

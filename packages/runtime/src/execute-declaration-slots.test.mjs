@@ -71,14 +71,27 @@ function checkIdentity(source) {
   );
 }
 
+/**
+ * The declaration `define <name> … end` with an EMPTY body. Deliberately empty: a body is source
+ * too, and a body that calls a primitive is re-read against the very declaration under test — with
+ * `print 1` as the body, `define print` declares a zero-parameter `print` and the body's own
+ * `print 1` then leaves `1` stranded as `ol-bad-token`, which has nothing to do with the
+ * declaration slot. An empty body keeps each sweep row about the name alone.
+ */
+function declareProcedure(name) {
+  return `define ${name}\nend`;
+}
+
 // ---------------------------------------------------------------------------
 // The enumeration is real — a guard against every loop below iterating nothing
 // ---------------------------------------------------------------------------
 
 test("the derived built-in-name enumeration is non-trivial and holds the names this slice is about", () => {
   // Three sessions in this saga shipped a test whose body never ran, because the array it iterated
-  // was empty. Assert the shape of the enumeration before relying on it, and anchor it on names
-  // drawn from four DIFFERENT registries so a single table falling out of the walk is visible.
+  // was empty. `profilePrimitiveNames` reports `[]` for an unrecognized profile rather than
+  // throwing, so an unguarded sweep would pass over nothing. Assert the shape of the enumeration
+  // before relying on it, and anchor it on names drawn from four DIFFERENT registries so a single
+  // table falling out of the walk is visible rather than merely smaller.
   assert.ok(
     everyBuiltInName.length > 100,
     `expected a substantial built-in-name list, got ${everyBuiltInName.length}`,
@@ -112,7 +125,7 @@ test("EVERY built-in name is rejected at `define`, with `ol-reserved-word` and `
   const accepted = [];
   const wrongIdentity = [];
   for (const name of everyBuiltInName) {
-    const identity = executeIdentity(`define ${name}\n  print 1\nend`);
+    const identity = executeIdentity(declareProcedure(name));
     if (identity.length === 0) {
       accepted.push(name);
       continue;
@@ -148,7 +161,7 @@ test("`execute()` and `check()` report the SAME identity for every built-in name
   // because `execute()` runs `parse()` and never `check()`.
   const disagreements = [];
   for (const name of everyBuiltInName) {
-    const source = `define ${name}\n  print 1\nend`;
+    const source = declareProcedure(name);
     const fromExecute = executeIdentity(source);
     const fromCheck = checkIdentity(source);
     if (JSON.stringify(fromExecute) !== JSON.stringify(fromCheck)) {
@@ -160,7 +173,7 @@ test("`execute()` and `check()` report the SAME identity for every built-in name
 
 test("`execute()` and `check()` agree on the SPAN, not merely the code and params", () => {
   for (const name of ["forward", "fd", "hint", "dict", "if"]) {
-    const source = `define ${name}\n  print 1\nend`;
+    const source = declareProcedure(name);
     const { ast } = parse(source, doc);
     const [fromCheck] = check(ast, { profiles: OL_CHECK_PROFILES }).diagnostics;
     const [fromExecute] = execute(source, doc).diagnostics;
@@ -175,10 +188,8 @@ test("a Heritage alias is exactly as illegal as its canonical, by construction",
     const canonical = canonicalOfHeritageAlias(alias);
     assert.notEqual(canonical, undefined, alias);
     assert.deepEqual(
-      executeIdentity(`define ${alias}\n  print 1\nend`).map(([code]) => code),
-      executeIdentity(`define ${canonical}\n  print 1\nend`).map(
-        ([code]) => code,
-      ),
+      executeIdentity(declareProcedure(alias)).map(([code]) => code),
+      executeIdentity(declareProcedure(canonical)).map(([code]) => code),
       `${alias} must be exactly as illegal as ${canonical}`,
     );
   }
@@ -267,7 +278,7 @@ test("a built-in name declared twice reports ol-reserved-word, never degrading i
   // be reported as a duplicate of the first. `execute()` halts at the first collision, so what this
   // pins at runtime is that the FIRST declaration is already the reserved-word error; `check()`,
   // which reports every finding, is asserted alongside to show BOTH are reserved-word.
-  const source = "define forward\n  print 1\nend\ndefine forward\n  print 2\nend";
+  const source = "define forward\nend\ndefine forward\nend";
   assert.deepEqual(executeIdentity(source), [
     ["ol-reserved-word", { name: "forward" }],
   ]);
