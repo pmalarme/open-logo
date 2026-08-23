@@ -1,5 +1,5 @@
 /**
- * The **built-in names** — every name OpenLogo itself owns, so a program may not bind it.
+ * The **built-in names** — every name OpenLogo itself owns, so a program may not **declare** it.
  *
  * `spec/grammar.md:414` defines the set as "exactly the keywords listed above plus every primitive
  * … so there is no second list to keep in step", and this module is that sentence as code: it
@@ -8,16 +8,21 @@
  * profile-keyed tables). A profile that gains a keyword or a table that gains a primitive is
  * covered the moment it lands, with no edit here.
  *
+ * **Declaring, not binding.** This predicate answers the question asked at the four declaration
+ * slots of `spec/grammar.md:382` (`define`, the heritage `to`, `struct`, and the first operand of
+ * `alias`) and at no other position. `spec/grammar.md:386` makes accepting a built-in name as a
+ * **binding** — `local`, an assignment target, a `for`/comprehension binder, a parameter, a struct
+ * field, a dictionary key — a MUST, so a caller that consults this at a binding position is using
+ * it wrongly. `local forward` is legal OpenLogo; `define forward` is not.
+ *
  * **Why it is one module rather than a predicate in each consumer.** Both stages ask this question
  * — `check()` at a declaration slot (`checker-reserved-word.ts`) and `execute()` at phase-1
  * registration (`execute-internal.ts`) — and until issue #841 each answered it with its own
- * composition. They drifted, and the drift was measured rather than hypothesised: the runtime's
- * copy omitted Sprites, Tutor and every Heritage alias, "the hole through which 45 names were
- * declarable at run time", while the checker's copy gated six profiles the spec does not gate. One
- * predicate, called by both, is what
- * [ADR-0021](../../../docs/adr/0021-built-in-names-list-and-ci-gate.md) means by the
- * implementation's registries being read rather than re-derived, and it is what
- * `spec/built-in-names.json`'s CI gate compares against.
+ * composition. They drifted, in opposite directions: the runtime's copy reached every profile's
+ * primitives but was assembled by hand from individual lookups, while the checker's copy gated six
+ * profiles that `spec/grammar.md:408` does not gate. One predicate called by both is what removes
+ * the possibility rather than the instance; whether that predicate agrees with the normative
+ * `spec/built-in-names.json` is a separate question, and `npm run built-in-names` is what asks it.
  *
  * @module
  */

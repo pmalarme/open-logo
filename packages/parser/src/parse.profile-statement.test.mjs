@@ -191,7 +191,13 @@ test("profile heads parse structurally with no active-profile input to the reade
   assert.equal(first("when :e [ forward 10 ]").kind, "ProfileStatement");
 });
 
-// --- Core backward compatibility: a user procedure may shadow a profile head ---
+// --- Reader precedence: a user declaration wins over a profile head, legal or not ---
+// These pin READER behaviour only — `codesOf` reports parse diagnostics, never `check()`'s. Since
+// issue #841 the declarations below are semantically illegal in every profile set
+// (`spec/grammar.md:408`, `ol-reserved-word`), and that is exactly why the shaping matters: the
+// reader must still produce the `ProcedureDef` + `Call` the learner wrote, so the diagnostic lands
+// on the declaration rather than on a mis-shaped `ProfileStatement`. "Shadowing" is the reader's
+// precedence rule, not a statement that the program is accepted.
 
 test("`define ask … end` then `ask` parses as a Core procedure, not a profile statement", () => {
   const program = parse("define ask\n  hint\nend\nask").ast;
@@ -206,7 +212,7 @@ test("`define ask … end` then `ask` parses as a Core procedure, not a profile 
   assert.deepEqual(codesOf("define ask\n  hint\nend\nask"), []);
 });
 
-test("a user procedure named `tell` shadows the profile mode-switch command", () => {
+test("a user procedure named `tell` takes reader precedence over the mode-switch command", () => {
   const program = parse("define tell :x\n  print :x\nend\ntell 3").ast;
   const hasProfileStmt = program.body.some(
     (n) => n.kind === "ProfileStatement",

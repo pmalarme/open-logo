@@ -370,18 +370,21 @@ const HERITAGE_SURFACE_SPELLINGS: ReadonlySet<string> = new Set(
  * component alike, and `ol-unknown-command` says so.
  *
  * **Issue #841's `built-in-names.ts` now exists, and this rule deliberately does not consume it
- * yet.** Measured at the time #841 landed, the two predicates agree exactly: over a 155-name
- * universe (the `spec/built-in-names.json` names, every Heritage surface spelling and alias, every
- * Core and profile keyword, every registered profile primitive, plus the four contextual words
- * `spec/grammar.md:380` says are *not* built-in names), neither side classified a name the other
- * did not — 0 lost, 0 gained. So the substitution is available and behaviour-preserving today.
- * What it is not is *proven* equivalent: the third source here is
- * {@link heritageSurfaceSpellings}, which carries Heritage **form heads** as well as short aliases,
- * while `built-in-names.ts` reaches Heritage only through alias resolution. Those agree because
- * every current form head is also a keyword, which is a fact about today's registry rather than a
- * property either module guarantees. Narrowing the three sources to one is epic #900's endpoint and
- * belongs with the corpus sweep in issue #842, not to a slice whose subject is the declaration
- * rule.
+ * yet.** Measured at the time #841 landed, the two predicates agree exactly: over a **152**-name
+ * universe — the 148 names of `spec/built-in-names.json` plus the four contextual words
+ * `spec/grammar.md:380` says are *not* built-in names (`empty`, `member`, `of`, `a`) — neither side
+ * classified a name the other did not: **0 lost, 0 gained**. Every other source is already a subset
+ * of the manifest, which is the more useful half of that measurement: each of
+ * {@link heritageSurfaceSpellings}, {@link OL_KEYWORDS}, `OL_PROFILE_KEYWORDS` and every profile's
+ * primitive table added **zero** names the manifest did not already carry.
+ *
+ * So the substitution is available and behaviour-preserving today. What it is not is *proven*
+ * equivalent: the third source here is {@link heritageSurfaceSpellings}, which carries Heritage
+ * **form heads** as well as short aliases, while `built-in-names.ts` reaches Heritage only through
+ * alias resolution. Those agree because every current form head is also a keyword, which is a fact
+ * about today's registry rather than a property either module guarantees. Narrowing the three
+ * sources to one is epic #900's endpoint and belongs with the corpus sweep in issue #842, not to a
+ * slice whose subject is the declaration rule.
  *
  * Membership is **profile-independent on purpose** — see {@link nameCaseRule} for why. It is also
  * independent of what the program *declares*: `spec/grammar.md:363` is "a program may not declare
