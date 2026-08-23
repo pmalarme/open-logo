@@ -964,6 +964,37 @@ const DEFAULT_CONFIGURATION = {
   enclosingKeyword: "define",
 };
 
+/**
+ * Per-axis overrides applied when THAT axis is the one being drawn.
+ *
+ * **Some axes are conditioned on another axis's value, and for those "the rest at defaults" is not a
+ * neutral background — it is a switch that turns the axis off.** `enclosingKeyword` only reaches the
+ * source through {@link nestInsideProcedure}'s loop, which does not run at depth 0, so drawing it
+ * against `DEFAULT_CONFIGURATION` produced **one** distinct program from two values. Measured: 9 of
+ * the 25 ordered cross-role axis pairs were degenerate — every one of them involving
+ * `enclosingKeyword` — while the derived cell count stayed correct at 1,828. A live defect sat in
+ * that gap: a declaration nested in a `to`-spelled procedure, silently overridden by a later
+ * `struct` of the same name, reproducing issue #839's own bug and surviving the entire Definition
+ * of Done.
+ *
+ * The default stays `depth: 0` globally, because top-level is the baseline worth keeping for every
+ * other axis; only the conditioned axis carries an enabling value. {@link drawAxis} applies it, and
+ * the "every axis changes the source" test below is what makes a future conditioned axis fail loudly
+ * instead of silently collapsing.
+ */
+const AXIS_ENABLING_CONFIGURATION = {
+  enclosingKeyword: { depth: 1 },
+};
+
+/** One declaration's configuration with `axis` set to `value`, at a configuration that lets it act. */
+function drawAxis(axis, value) {
+  return {
+    ...DEFAULT_CONFIGURATION,
+    ...(AXIS_ENABLING_CONFIGURATION[axis] ?? {}),
+    [axis]: value,
+  };
+}
+
 /** Every full configuration of one declaration — the product of all five axes. */
 const EVERY_DECLARATION_CONFIGURATION = AXIS_NAMES.reduce(
   (configurations, axis) =>
@@ -978,6 +1009,69 @@ const EVERY_DECLARATION_CONFIGURATION = AXIS_NAMES.reduce(
 
 const configurationLabel = (configuration) =>
   AXIS_NAMES.map((axis) => `${axis}=${configuration[axis]}`).join(",");
+
+test("every AXIS actually changes the generated source at the configuration the product draws it", () => {
+  // The dual of "each wrapper places the declaration in the slot it claims": that guard protects an
+  // axis's VALUE SET, this one protects the BACKGROUND it is drawn against. A pairwise covering
+  // array assumes its axes are independent; `enclosingKeyword` is conditioned on `depth > 0`, so
+  // drawn at the global default it produced ONE program from two values and 9 of 25 ordered axis
+  // pairs were silently degenerate — while the derived cell count stayed correct, which is exactly
+  // what stopped anyone looking. A derived count certifies the table, not the artefact.
+  //
+  // This also catches an axis that is inert entirely: add one to `DECLARATION_AXES` that
+  // `declarationSource` never consumes and the product doubles while asserting nothing — measured,
+  // 28/28 green before this test existed.
+  for (const axis of AXIS_NAMES) {
+    const sources = new Set(
+      DECLARATION_AXES[axis].map((value) =>
+        declarationSource({ ...drawAxis(axis, value), prefix: "outerA" }),
+      ),
+    );
+    assert.equal(
+      sources.size,
+      DECLARATION_AXES[axis].length,
+      `axis \`${axis}\` must produce a distinct program per value where the product draws it`,
+    );
+  }
+});
+
+test("the cross-role pair generator emits DISTINCT programs, not merely the right count", () => {
+  // The count is derived from the axis lengths and was correct at 1,828 while 469 of those cells
+  // were duplicates of another cell. A generator can satisfy a derived count and still emit the
+  // wrong pairs — the same shape as the wrapper-collision bug, where two wrappers shared a name and
+  // the product silently tested itself.
+  const seen = new Set();
+  for (const earlierAxis of AXIS_NAMES) {
+    for (const laterAxis of AXIS_NAMES) {
+      const programs = new Set();
+      for (const earlierValue of DECLARATION_AXES[earlierAxis]) {
+        for (const laterValue of DECLARATION_AXES[laterAxis]) {
+          const source = `${declarationSource({
+            ...drawAxis(earlierAxis, earlierValue),
+            prefix: "outerA",
+          })}\n${declarationSource({
+            ...drawAxis(laterAxis, laterValue),
+            prefix: "outerB",
+          })}`;
+          programs.add(source);
+          seen.add(source);
+        }
+      }
+      assert.equal(
+        programs.size,
+        DECLARATION_AXES[earlierAxis].length *
+          DECLARATION_AXES[laterAxis].length,
+        `pair \`${earlierAxis} x ${laterAxis}\` must emit one distinct program per combination`,
+      );
+    }
+  }
+  // And the whole pairwise half is distinct across pairs where the axes differ, so no ordered pair
+  // is a relabelling of another.
+  assert.ok(
+    seen.size > 400,
+    `expected many distinct programs, got ${seen.size}`,
+  );
+});
 
 test("the duplicate rule is invariant across the per-declaration product, with every cross-role AXIS PAIR covered", () => {
   // Two declarations, each independently configured across all five axes. The completeness argument:
@@ -1014,8 +1108,8 @@ test("the duplicate rule is invariant across the per-declaration product, with e
       for (const earlierValue of DECLARATION_AXES[earlierAxis]) {
         for (const laterValue of DECLARATION_AXES[laterAxis]) {
           pairs.push([
-            { ...DEFAULT_CONFIGURATION, [earlierAxis]: earlierValue },
-            { ...DEFAULT_CONFIGURATION, [laterAxis]: laterValue },
+            drawAxis(earlierAxis, earlierValue),
+            drawAxis(laterAxis, laterValue),
             `${earlierAxis} x ${laterAxis}`,
           ]);
         }
