@@ -381,23 +381,41 @@ function describeFoldedTurtleState(state: FoldedTurtleState): string {
 }
 
 /**
- * How many turtles the trace shows to be alive: the main turtle, which every program starts with,
- * plus one per `spawn-turtle` event (`spec/turtles-and-sprites.md`'s "Turtle creation" — the event
- * `new_turtle` emits, whose payload "MUST identify the newly created turtle"). Turtles are never
- * destroyed in v0.1, so a spawn seen anywhere in the trace means that turtle is still in play at
- * the end of it.
+ * How many turtles the trace shows to be in play: the main turtle, which every program starts
+ * with, plus every turtle the stream names — through a `spawn-turtle` event
+ * (`spec/turtles-and-sprites.md`'s "Turtle creation" — the event `new_turtle` emits, whose payload
+ * "MUST identify the newly created turtle") or by acting, via `observedTurtleIds`, the identities
+ * {@link foldTurtleStatesByIdentity} actually saw. Turtles are never destroyed in v0.1 — the
+ * runtime's `TurtleWorld` exposes no removal at all — so a turtle named anywhere in the trace is
+ * still in play at the end of it.
  *
  * This is the *world* population, deliberately not "how many turtles changed state". The two
  * differ exactly where it matters: `:a = new_turtle` / `ask :a [ forward 5 ]` gives one turtle
  * state but two live turtles, and it is the reported turtle's **identity** that a learner needs
  * there — otherwise `debug` prints the same sentence it prints for a bare `forward 5`, which
  * describes a different turtle.
+ *
+ * Both sources are needed, because `debug` reads whatever stream a host hands it, not only this
+ * runtime's. Counting spawns alone would miss a turtle that acts without the trace showing its
+ * creation; counting observed actors alone would miss a turtle that exists but never acted. A
+ * spawn id that is not a real number is ignored rather than counted, so an off-contract payload
+ * cannot invent a second turtle — the same distrust of payload contents the fold applies when it
+ * drops a turtle that describes nothing.
  */
-function countLiveTurtles(events: readonly TraceEvent[]): number {
-  const liveTurtleIds = new Set<TurtleId>([MAIN_TURTLE_ID]);
+function countLiveTurtles(
+  events: readonly TraceEvent[],
+  observedTurtleIds: Iterable<TurtleId>,
+): number {
+  const liveTurtleIds = new Set<TurtleId>([
+    MAIN_TURTLE_ID,
+    ...observedTurtleIds,
+  ]);
   for (const event of events) {
     if (event.kind === "spawn-turtle") {
-      liveTurtleIds.add((event.payload as SpawnTurtlePayload).turtle_id);
+      const spawnedTurtleId = (event.payload as SpawnTurtlePayload).turtle_id;
+      if (Number.isFinite(spawnedTurtleId)) {
+        liveTurtleIds.add(spawnedTurtleId);
+      }
     }
   }
   return liveTurtleIds.size;
@@ -426,8 +444,9 @@ function countLiveTurtles(events: readonly TraceEvent[]): number {
  * turtle set"), and `@openlogo/turtle`'s accessible state region already names turtles on this
  * same trigger — "once the world holds more than one live turtle" (`a11y.ts`, issue #749) — so
  * keying `debug` on anything else would have the two describers of one stream disagree about who
- * is where. A second clause is also emitted whenever two turtles have state, which covers a host
- * that feeds `debug` per-turtle events without the `spawn-turtle` that produced them.
+ * is where. The population counts every identity the trace names, whether by a `spawn-turtle` or
+ * by acting, so a host that feeds `debug` per-turtle events without the spawns that produced them
+ * still gets named clauses.
  *
  * `turtle #<id>` is the identity a turtle value prints as — `@openlogo/runtime`'s `printedForm`
  * renders `turtle #<id>` from `@openlogo/core`'s `OLTurtle.id` — so `debug`'s clauses match what
@@ -450,7 +469,8 @@ function countLiveTurtles(events: readonly TraceEvent[]): number {
  * an empty clause.
  */
 function turtleStateSegment(events: readonly TraceEvent[]): string | undefined {
-  const described = [...foldTurtleStatesByIdentity(events)]
+  const turtleStates = foldTurtleStatesByIdentity(events);
+  const described = [...turtleStates]
     .map(([turtleId, state]): readonly [TurtleId, string] => [
       turtleId,
       describeFoldedTurtleState(state),
@@ -463,7 +483,13 @@ function turtleStateSegment(events: readonly TraceEvent[]): string | undefined {
     return undefined;
   }
 
-  if (described.length === 1 && countLiveTurtles(events) < 2) {
+  // The population is read from every identity the fold saw, not just the ones that described
+  // something, so a turtle whose only event carried an unusable payload still counts as a second
+  // turtle and keeps the surviving clause named.
+  if (
+    described.length === 1 &&
+    countLiveTurtles(events, turtleStates.keys()) < 2
+  ) {
     return `Turtle state so far: ${first[1]}.`;
   }
 

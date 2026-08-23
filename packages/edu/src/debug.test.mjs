@@ -398,6 +398,84 @@ test("debug names turtles when two have state even if the trace never showed the
   );
 });
 
+test("debug keeps a lone clause named when another turtle acted but described nothing", () => {
+  // R3-3, the under-identification direction. Turtle #1's only event carries an unusable payload,
+  // so it describes nothing and is dropped from the report — but it plainly acted, so the world
+  // holds two turtles and the surviving main-turtle clause must stay NAMED. Keying the population
+  // on described turtles alone would print the bare `position (0, 5)` that means "the main turtle,
+  // alone" — the exact ambiguity that produced this slice's round-2 blocking finding.
+  const program = {
+    kind: "Program",
+    source_span: Core.makeSpan("main.logo", [1, 1], [1, 1]),
+    body: [],
+  };
+  const output = OL.debug({
+    command: "debug",
+    program,
+    events: [
+      {
+        seq: 0,
+        kind: "pen-change",
+        source_span: Core.makeSpan("main.logo", [1, 1], [1, 7]),
+        turtle_id: 1,
+        payload: {},
+      },
+      {
+        seq: 1,
+        kind: "move",
+        source_span: Core.makeSpan("main.logo", [2, 1], [2, 10]),
+        payload: { from: [0, 0], to: [0, 5], heading: 0 },
+      },
+    ],
+    diagnostics: [],
+    level: "3",
+  });
+  assert.ok(
+    output.segments.includes(
+      "Turtle state so far: turtle #0 — position (0, 5), heading 0.",
+    ),
+    `unexpected segments: ${JSON.stringify(output.segments)}`,
+  );
+});
+
+test("debug does not let an off-contract spawn-turtle payload invent a second turtle", () => {
+  // R3-1, the over-identification direction. A `spawn-turtle` whose payload carries no usable id
+  // names no turtle, so it must not push the population to two and rename a genuinely lone turtle.
+  // The fold already distrusts payload contents (it drops turtles that describe nothing); the
+  // count now does too, so the two cannot disagree about how many turtles exist.
+  const program = {
+    kind: "Program",
+    source_span: Core.makeSpan("main.logo", [1, 1], [1, 1]),
+    body: [],
+  };
+  const output = OL.debug({
+    command: "debug",
+    program,
+    events: [
+      {
+        seq: 0,
+        kind: "spawn-turtle",
+        source_span: Core.makeSpan("main.logo", [1, 1], [1, 11]),
+        payload: {},
+      },
+      {
+        seq: 1,
+        kind: "move",
+        source_span: Core.makeSpan("main.logo", [2, 1], [2, 10]),
+        payload: { from: [0, 0], to: [0, 5], heading: 0 },
+      },
+    ],
+    diagnostics: [],
+    level: "3",
+  });
+  assert.ok(
+    output.segments.includes(
+      "Turtle state so far: position (0, 5), heading 0.",
+    ),
+    `unexpected segments: ${JSON.stringify(output.segments)}`,
+  );
+});
+
 test("debug folds the main turtle's addressed and unaddressed movement into one turtle", () => {
   // The main turtle's id is `0`, and `tell [ who ]` addresses it explicitly, so `forward 5` here
   // carries `turtle_id: 0` while the surrounding `forward`s carry none. All three are the SAME
