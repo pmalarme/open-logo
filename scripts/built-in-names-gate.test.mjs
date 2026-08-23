@@ -35,6 +35,9 @@ import {
   backtickedWords,
   carveOutFindings,
   deriveSummary,
+  directionAgreementFindings,
+  duplicateRegistrationFindings,
+  duplicatedNames,
   entryFindings,
   extractConformanceProfiles,
   extractGrammarKeywordBlock,
@@ -132,7 +135,9 @@ function tinyFixture() {
     WORDS: ["define"],
     coreArity: (name) => (name === "print" ? 1 : undefined),
     coreNames: () => ["print"],
-    profilePrimitiveNames: () => ["print"],
+    // No profile-keyed primitive table: this fixture's `core-primitive` enumerates through its own
+    // `coreNames`, so declaring one here would claim a registry the manifest defines no tag for.
+    profilePrimitiveNames: () => [],
   };
   return { manifest, api };
 }
@@ -642,6 +647,221 @@ test("the profile sweep reports a missing derived accessor rather than throwing"
   const api = { ...realParserApi, profilePrimitiveNames: undefined };
   assert.deepEqual(profilePrimitiveSweepFindings(REAL_MANIFEST, api), [
     "profilePrimitiveNames is not exported from @openlogo/parser, so the profile-keyed registry cannot be swept at all — every primitive tag's enumerate direction is unreachable",
+  ]);
+});
+
+// ---------------------------------------------------------------------------------------------
+// Round 9: cardinality, and one registry's two accessors agreeing.
+//
+// Every check below kills a mutation that was measured LIVE on the previous revision — a check
+// whose mutation was never run is a check being hoped about.
+// ---------------------------------------------------------------------------------------------
+
+test("duplicatedNames reports each repeat once, in first-appearance order", () => {
+  assert.deepEqual(duplicatedNames(["a", "b", "a", "c", "b", "a"]), ["a", "b"]);
+  assert.deepEqual(duplicatedNames(["a", "b"]), []);
+  assert.deepEqual(duplicatedNames([]), []);
+});
+
+test("INJECTED DRIFT: a lookup that still answers while its enumerator dropped the name", () => {
+  // Measured green before this check existed: `corePrimitiveArity("print")` resolved, so
+  // entryFindings matched; the sweep and implementationFindings walk the enumerator, so neither
+  // saw an absence. One registry, two sources, no comparison between them.
+  const api = {
+    ...realParserApi,
+    profilePrimitiveNames: (profile) =>
+      realParserApi
+        .profilePrimitiveNames(profile)
+        .filter((name) => !(profile === "core-language" && name === "print")),
+  };
+  assert.equal(realParserApi.corePrimitiveArity("print") !== undefined, true);
+  assert.equal(
+    api.profilePrimitiveNames("core-language").includes("print"),
+    false,
+  );
+  const findings = directionAgreementFindings(REAL_MANIFEST, api);
+  assert.deepEqual(findings, [
+    "print: registry core-primitive's lookup (corePrimitiveArity) holds it but its enumerator (profilePrimitiveNames) does not list it — one registry's two directions disagree, and every other check here reads only one of them",
+  ]);
+});
+
+test("INJECTED DRIFT: an enumerator that lists a name its own lookup does not hold", () => {
+  const api = {
+    ...realParserApi,
+    profilePrimitiveNames: (profile) =>
+      profile === "sound"
+        ? [...realParserApi.profilePrimitiveNames(profile), "print"]
+        : realParserApi.profilePrimitiveNames(profile),
+  };
+  assert.equal(realParserApi.soundPrimitiveArity("print"), undefined);
+  const findings = directionAgreementFindings(REAL_MANIFEST, api);
+  assert.deepEqual(findings, [
+    "print: registry sound-primitive's lookup (soundPrimitiveArity) does not hold it but its enumerator (profilePrimitiveNames) lists it — one registry's two directions disagree, and every other check here reads only one of them",
+  ]);
+});
+
+test("agreement is unclaimed where a registry cannot be read from either side", () => {
+  // Both halves of the guard, on the two shapes that produce them: an unreachable ENUMERATOR skips
+  // the registry, and an unreachable LOOKUP stops it — the latter is name-independent, so it is one
+  // decision for the whole registry rather than 158 identical ones.
+  const noEnumerate = manifestCopy();
+  noEnumerate.registries["core-primitive"].enumerate.status = "declared";
+  assert.deepEqual(
+    directionAgreementFindings(noEnumerate, {
+      ...realParserApi,
+      profilePrimitiveNames: undefined,
+    }),
+    [],
+  );
+
+  const noLookup = manifestCopy();
+  noLookup.registries["core-primitive"].lookup.status = "declared";
+  assert.deepEqual(directionAgreementFindings(noLookup, realParserApi), []);
+});
+
+test("INJECTED DRIFT: a profile enumerating primitives the manifest defines no registry tag for", () => {
+  // Matching `entry.profile` alone was not enough: `fd` is already filed under `heritage` through
+  // `heritage-alias`, so a bogus heritage primitive table passed every check.
+  const api = {
+    ...realParserApi,
+    profilePrimitiveNames: (profile) =>
+      profile === "heritage"
+        ? ["fd"]
+        : realParserApi.profilePrimitiveNames(profile),
+  };
+  assert.deepEqual(realParserApi.profilePrimitiveNames("heritage"), []);
+  assert.equal(entryFor(REAL_MANIFEST, "fd").profile, "heritage");
+  assert.deepEqual(profilePrimitiveSweepFindings(REAL_MANIFEST, api), [
+    `profile heritage: profilePrimitiveNames enumerates 1 name(s) for it, but ${MANIFEST_PATH} defines no primitive registry tag for that profile — a table the file does not know about is one nothing compares`,
+  ]);
+});
+
+test("INJECTED DRIFT: an enumerated primitive whose entry does not record that primitive tag", () => {
+  const manifest = manifestCopy();
+  const entry = entryFor(manifest, "beep");
+  entry.registries = ["heritage-alias"];
+  entry.profile = "sound";
+  const findings = profilePrimitiveSweepFindings(manifest, realParserApi);
+  assert.deepEqual(findings, [
+    "beep: the sound primitive registry holds it but its entry records heritage-alias — not sound-primitive",
+  ]);
+});
+
+test("INJECTED DRIFT: a duplicate registration, on every accessor kind that can hold one", () => {
+  // Round 8 fixed this for `record` alone — one registry of fourteen. The other three kinds shipped
+  // the same defect green, each measured at N entries / N-1 unique.
+  const cases = [
+    [
+      "array",
+      { OL_KEYWORDS: [...realParserApi.OL_KEYWORDS, "define"] },
+      "define: OL_KEYWORDS lists it 2 times under core-language — every other comparison here is set-based, so a duplicate is invisible to all of them",
+    ],
+    [
+      "enumerator",
+      {
+        heritageAliasNames: () => [...realParserApi.heritageAliasNames(), "fd"],
+      },
+      "fd: heritageAliasNames lists it 2 times under heritage — every other comparison here is set-based, so a duplicate is invisible to all of them",
+    ],
+    [
+      "profile-enumerator",
+      {
+        profilePrimitiveNames: (profile) =>
+          profile === "turtle-rendering"
+            ? [...realParserApi.profilePrimitiveNames(profile), "forward"]
+            : realParserApi.profilePrimitiveNames(profile),
+      },
+      "forward: profilePrimitiveNames lists it 2 times under turtle-rendering — every other comparison here is set-based, so a duplicate is invisible to all of them",
+    ],
+    [
+      "record, same key twice",
+      {
+        OL_PROFILE_KEYWORDS: {
+          ...realParserApi.OL_PROFILE_KEYWORDS,
+          sprites: [
+            ...realParserApi.OL_PROFILE_KEYWORDS.sprites,
+            realParserApi.OL_PROFILE_KEYWORDS.sprites[0],
+          ],
+        },
+      },
+      `${realParserApi.OL_PROFILE_KEYWORDS.sprites[0]}: OL_PROFILE_KEYWORDS lists it 2 times under sprites — every other comparison here is set-based, so a duplicate is invisible to all of them`,
+    ],
+  ];
+  for (const [kind, override, expected] of cases) {
+    const api = { ...realParserApi, ...override };
+    assert.deepEqual(
+      duplicateRegistrationFindings(REAL_MANIFEST, api),
+      [expected],
+      kind,
+    );
+  }
+});
+
+test("the duplicate check skips a registry it cannot read, instead of throwing on it", () => {
+  // Round 8 omitted this guard on the argument that `accessorFindings` already reports an
+  // unresolvable accessor. It does — but the findings list is an EAGER array literal, so computing
+  // that finding never prevented the next call dereferencing `undefined`. Both shapes below threw.
+  const declared = manifestCopy();
+  declared.registries["profile-reserved"].enumerate = {
+    accessor: "futureProfileKeywords",
+    kind: "record",
+    status: "declared",
+  };
+  assert.deepEqual(duplicateRegistrationFindings(declared, realParserApi), []);
+
+  for (const absent of [undefined, null]) {
+    assert.deepEqual(
+      duplicateRegistrationFindings(REAL_MANIFEST, {
+        ...realParserApi,
+        OL_PROFILE_KEYWORDS: absent,
+      }),
+      [],
+    );
+  }
+});
+
+test("an accessor exported as null reads as unreachable, not as an empty registry", () => {
+  const registry = REAL_MANIFEST.registries["profile-reserved"];
+  const api = { ...realParserApi, OL_PROFILE_KEYWORDS: null };
+  assert.equal(registryHas(registry, api, "ask"), null);
+  assert.equal(registryMembers(registry, api), null);
+  // And the run reports rather than crashes.
+  const result = runBuiltInNamesGate({ api });
+  assert.equal(result.ok, false);
+});
+
+test("INJECTED DRIFT: a profile section spec/conformance.md names twice", () => {
+  const text = REAL_IO.readText(CONFORMANCE_PATH).replace(
+    "### Core Language",
+    "### Core Language\n\nplaceholder\n\n### Core Language",
+  );
+  const io = {
+    ...REAL_IO,
+    readText: (path) => {
+      // Pins WHICH file the check reads: another path would fail loudly here rather than quietly
+      // fall through to real content and pass for the wrong reason.
+      assert.equal(path, CONFORMANCE_PATH);
+      return text;
+    },
+  };
+  // The mutation must reach what the check READS, not merely change the file's text.
+  assert.deepEqual(duplicatedNames(extractConformanceProfiles(text)), [
+    "Core Language",
+  ]);
+  const findings = profileInventoryFindings(REAL_MANIFEST, realParserApi, io);
+  assert.deepEqual(findings, [
+    `${CONFORMANCE_PATH}: profile section(s) Core Language appear more than once — 13 sections, 12 unique`,
+  ]);
+});
+
+test("INJECTED DRIFT: a declared-empty profile whose rationale is blanked to whitespace", () => {
+  // `reason.length` is satisfied by "   ", so the gate asserted a reason it did not check — the
+  // same data-shaped off switch as `row.includes("")`.
+  const manifest = manifestCopy();
+  const profile = Object.keys(manifest.profilesWithoutPrimitives)[0];
+  manifest.profilesWithoutPrimitives[profile] = "   ";
+  assert.deepEqual(profileCoverageFindings(manifest, realParserApi), [
+    `profile ${profile}: ships no primitive entry and is not declared in profilesWithoutPrimitives with a reason`,
   ]);
 });
 

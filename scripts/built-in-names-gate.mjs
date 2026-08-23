@@ -12,8 +12,8 @@
  * rule: a program may not **declare** a built-in name, and may **bind** a value to any name. Until
  * this gate there was no artifact stating what that set is, and nothing compared the spec to the
  * implementation. The result was the bug class ruling #833 exists to close: 45 built-in names were
- * free at `define`, spread across eight arity tables plus three Heritage registries, and no single
- * document would have revealed it.
+ * free at `define`, spread across every profile's arity table plus three Heritage registries, and no
+ * single document would have revealed it.
  *
  * [ADR-0021](../docs/adr/0021-built-in-names-list-and-ci-gate.md) decides the direction:
  * **`spec/built-in-names.json` is authoritative** and CI asserts the implementation equals it,
@@ -40,16 +40,27 @@
  *    membership under the file's stated precedence and compared. Comparing names alone would accept
  *    `mod` implemented as a primitive, `forward` filed under the wrong profile, or a name that
  *    quietly lost one of its two registrations.
- * 4. **Alias edges** ({@link aliasFindings}). A Heritage alias is checked against the edge the
+ * 4. **Cardinality, everywhere a set comparison happens**
+ *    ({@link duplicateRegistrationFindings}, {@link duplicatedNames}). Set semantics are blind to
+ *    count, so a name listed twice on *both* sides of a comparison satisfies it. Measured green on
+ *    three of four accessor kinds and on `spec/conformance.md`'s section inventory; measured green
+ *    for `OL_KEYWORDS` duplicating a word that `spec/grammar.md` duplicating the *same* word failed
+ *    on — a gate asymmetric about its own subject.
+ * 5. **One registry's two accessors agree** ({@link directionAgreementFindings}). Every other check
+ *    reads either the `lookup` or the `enumerate`; nothing compared them, so a name the arity table
+ *    still resolves and `profilePrimitiveNames` has dropped satisfied each direction read alone.
+ *    Load-bearing for the nine primitive tags only — the other five name the same accessor in both
+ *    roles, where agreement is trivially true.
+ * 6. **Alias edges** ({@link aliasFindings}). A Heritage alias is checked against the edge the
  *    implementation actually resolves (`canonicalOfHeritageAlias`). The five Turtle & Rendering
  *    one-word spellings have **no** canonical accessor anywhere — they are independent arity entries
  *    bound to one primitive — so the strongest available check is that the target is a real entry of
  *    equal arity. ADR-0021 §3 states that limit; it is reported, not hidden.
- * 5. **Carve-outs** ({@link carveOutFindings}). Every `reason: "library"` entry names a real
+ * 7. **Carve-outs** ({@link carveOutFindings}). Every `reason: "library"` entry names a real
  *    `stdlib/*.logo` file, every `contextual-keyword` records the positions that make it structural,
  *    and no excluded name also appears in `names`. Deleting `stdlib/geometry/polygon.logo`, or
  *    "helpfully" promoting `polygon` to a built-in, fails the build.
- * 6. **No unregistered profile** ({@link profileInventoryFindings},
+ * 8. **No unregistered profile** ({@link profileInventoryFindings},
  *    {@link profileCoverageFindings}). The profile inventory is tied across three surfaces —
  *    `spec/conformance.md`'s sections (the normative inventory), the manifest's id map, and the
  *    checker's `OL_CHECK_PROFILES` — and then every profile either has at least one `primitive`
@@ -59,10 +70,12 @@
  *    never heard of invisible. This is the clause that would have caught Tutor (AI) having
  *    no registry at all, and it is why the gate is not a plain diff of whatever tables exist: a
  *    missing table must be a failure, not an empty set that trivially matches.
- * 7. **Prose drift, across BOTH hand-maintained lists** ({@link proseFindings}). `spec/grammar.md`'s
- *    normative keyword block, `spec/tooling.md`'s C19 mirror, **and** `spec/tooling.md`'s `keyword`
- *    token-class enumeration. Gating only the first would leave the newer list unguarded, which is
- *    the exact defect family this epic exists to close.
+ * 9. **Prose drift, across both hand-maintained lists in `spec/tooling.md`** ({@link proseFindings}).
+ *    Two of the three are compared **derivedly**: `spec/grammar.md`'s normative keyword block
+ *    against the manifest, and `spec/tooling.md`'s C19 mirror against that block. The third,
+ *    `spec/tooling.md`'s `keyword` token-class enumeration, is **change-detected only** — see below.
+ *    Gating the mirror alone would leave the newer list entirely unguarded, which is the exact
+ *    defect family this epic exists to close.
  *
  * ## Why the token-class row is change-detected rather than derived
  *
@@ -302,7 +315,7 @@ export function registryHas(registry, api, name) {
     return null;
   }
   const accessor = resolveAccessor(api, spec.accessor);
-  if (accessor === undefined) {
+  if (accessor === undefined || accessor === null) {
     return null;
   }
   switch (spec.kind) {
@@ -345,7 +358,7 @@ export function registryMembers(registry, api) {
     return null;
   }
   const accessor = resolveAccessor(api, spec.accessor);
-  if (accessor === undefined) {
+  if (accessor === undefined || accessor === null) {
     return null;
   }
   const members = new Map();
@@ -361,6 +374,27 @@ export function registryMembers(registry, api) {
     members.set(name, registry.profile);
   }
   return members;
+}
+
+/**
+ * The names a sequence lists more than once, in first-appearance order.
+ *
+ * **Cardinality is the axis every set comparison in this file is blind to.** `missing`/`extra`
+ * reduce both sides to membership and the C19 mirror compares joined strings, so a word duplicated
+ * on *both* sides satisfies all three. Measured on the two sides of the very contract this gate
+ * exists to enforce, with opposite verdicts:
+ *
+ * ```text
+ * SPEC side  spec/grammar.md duplicates "define"  45 entries / 44 unique  -> RED
+ * IMPL side  OL_KEYWORDS     duplicates "define"  45 entries / 44 unique  -> GREEN
+ * ```
+ *
+ * A gate that is asymmetric about its own subject is not a gate, so both sides run through here.
+ */
+export function duplicatedNames(names) {
+  return [
+    ...new Set(names.filter((name, index) => names.indexOf(name) !== index)),
+  ];
 }
 
 /**
@@ -512,6 +546,49 @@ export function implementationFindings(manifest, api) {
 }
 
 /**
+ * One registry, **both of its accessors, on the same name** — `lookup` and `enumerate` must agree.
+ *
+ * Every other comparison in this file reads one direction or the other. {@link entryFindings} asks
+ * `registryHas`; {@link implementationFindings} and {@link profilePrimitiveSweepFindings} walk
+ * `registryMembers`. Nothing had ever compared the two, so a name the lookup still resolves and the
+ * enumerator has dropped was invisible to all three: removing `print` from
+ * `profilePrimitiveNames("core-language")` while `corePrimitiveArity("print")` still answered
+ * reported `ok: true`, zero findings.
+ *
+ * **Honest scope: this is load-bearing for the nine primitive tags only.** Their `lookup` is a
+ * per-name arity table and their `enumerate` is `profilePrimitiveNames` — two separate sources that
+ * can disagree. The other five registries name the *same* accessor in both roles, so agreement
+ * there is trivially true and this check makes no claim about them.
+ */
+export function directionAgreementFindings(manifest, api) {
+  const findings = [];
+  const universe = [
+    ...manifest.names.map((entry) => entry.name),
+    ...manifest.excluded.map((entry) => entry.name),
+  ];
+  for (const [tag, registry] of Object.entries(manifest.registries)) {
+    const members = registryMembers(registry, api);
+    if (members === null) {
+      continue;
+    }
+    for (const name of new Set([...universe, ...members.keys()])) {
+      const held = registryHas(registry, api, name);
+      if (held === null) {
+        // Name-independent: the lookup direction is unreachable for this whole registry.
+        break;
+      }
+      if (held === members.has(name)) {
+        continue;
+      }
+      findings.push(
+        `${name}: registry ${tag}'s lookup (${registry.lookup.accessor}) ${held ? "holds" : "does not hold"} it but its enumerator (${registry.enumerate.accessor}) ${members.has(name) ? "lists" : "does not list"} it — one registry's two directions disagree, and every other check here reads only one of them`,
+      );
+    }
+  }
+  return findings;
+}
+
+/**
  * The whole profile-keyed registry, swept **profile by profile** rather than tag by tag.
  *
  * {@link implementationFindings} walks the registries the manifest names, so it can only see a
@@ -522,6 +599,11 @@ export function implementationFindings(manifest, api) {
  *
  * It also pins the `profile` a name is filed under against the profile whose table actually holds
  * it, which no per-name lookup can do: `corePrimitiveArity("forward")` is `undefined` either way.
+ *
+ * Matching the `profile` alone was not enough. A name can reach a profile through a registry that is
+ * not a primitive table at all, so injecting `fd` into `profilePrimitiveNames("heritage")` passed:
+ * `fd` is already filed under `heritage` via `heritage-alias`, and nothing required the enumerated
+ * name to record the *primitive* tag for that profile — or required the profile to have one.
  */
 export function profilePrimitiveSweepFindings(manifest, api) {
   const findings = [];
@@ -532,12 +614,37 @@ export function profilePrimitiveSweepFindings(manifest, api) {
     ];
   }
   const byName = new Map(manifest.names.map((entry) => [entry.name, entry]));
+  const tagByProfile = new Map(
+    Object.entries(manifest.registries)
+      .filter(
+        ([, registry]) =>
+          registry.enumerate.kind === "profile-enumerator" &&
+          registry.enumerate.accessor === "profilePrimitiveNames",
+      )
+      .map(([tag, registry]) => [registry.profile, tag]),
+  );
   for (const profile of api.OL_CHECK_PROFILES) {
-    for (const name of enumerate(profile)) {
+    const names = enumerate(profile);
+    const tag = tagByProfile.get(profile);
+    if (tag === undefined) {
+      if (names.length > 0) {
+        findings.push(
+          `profile ${profile}: profilePrimitiveNames enumerates ${names.length} name(s) for it, but ${MANIFEST_PATH} defines no primitive registry tag for that profile — a table the file does not know about is one nothing compares`,
+        );
+      }
+      continue;
+    }
+    for (const name of names) {
       const entry = byName.get(name);
       if (entry === undefined) {
         findings.push(
           `${name}: the ${profile} primitive registry holds it but it is absent from ${MANIFEST_PATH}`,
+        );
+        continue;
+      }
+      if (!entry.registries.includes(tag)) {
+        findings.push(
+          `${name}: the ${profile} primitive registry holds it but its entry records ${entry.registries.join(", ")} — not ${tag}`,
         );
         continue;
       }
@@ -787,7 +894,7 @@ export function profileCoverageFindings(manifest, api) {
       }
       continue;
     }
-    if (typeof reason !== "string" || reason.length === 0) {
+    if (typeof reason !== "string" || reason.trim().length === 0) {
       findings.push(
         `profile ${profile}: ships no primitive entry and is not declared in profilesWithoutPrimitives with a reason`,
       );
@@ -1003,12 +1110,10 @@ export function proseFindings(manifest, io) {
     if (words === null) {
       continue;
     }
-    const duplicated = words.filter(
-      (word, index) => words.indexOf(word) !== index,
-    );
+    const duplicated = duplicatedNames(words);
     if (duplicated.length > 0) {
       findings.push(
-        `${path}: the keyword list names ${[...new Set(duplicated)].join(", ")} more than once — ${words.length} entries, ${new Set(words).size} unique`,
+        `${path}: the keyword list names ${duplicated.join(", ")} more than once — ${words.length} entries, ${new Set(words).size} unique`,
       );
     }
   }
@@ -1080,6 +1185,15 @@ export function profileInventoryFindings(manifest, api, io) {
   }
   const ids = manifest.profiles.ids;
   if (sections !== null) {
+    // Cardinality first: `unmapped`/`phantom` below are set comparisons, so a section heading
+    // written twice satisfies both while the inventory silently stands at one fewer profile than
+    // it appears to. Same blindness as the keyword lists, on the third surface.
+    const repeated = duplicatedNames(sections);
+    if (repeated.length > 0) {
+      findings.push(
+        `${CONFORMANCE_PATH}: profile section(s) ${repeated.join(", ")} appear more than once — ${sections.length} sections, ${new Set(sections).size} unique`,
+      );
+    }
     const named = Object.values(ids);
     const unmapped = sections.filter((section) => !named.includes(section));
     const phantom = named.filter((name) => !sections.includes(name));
@@ -1154,38 +1268,64 @@ export function narrativeFindings(manifest) {
 }
 
 /**
- * Names a `record` registry lists under more than one key.
+ * Names a registry's enumerator yields **more than once** — under two keys, or twice under one.
  *
- * `registryMembers` flattens a Record into a Map, which is last-write-wins, so a name appearing
- * under two profiles collapses silently: injecting `when` into `OL_PROFILE_KEYWORDS.sprites` while
- * it stayed under `interaction-events` was green, and every entry still matched — because the
- * flattened map only remembered one owner. A name has one owning profile; two is a registry defect,
- * not a shape the manifest can express.
+ * `registryMembers` flattens every enumeration into a `Map`, which is last-write-wins, and
+ * `registryHas` answers with `.includes`. Both destroy cardinality, so a duplicate registration is
+ * invisible to every other check in this file: injecting `when` into `OL_PROFILE_KEYWORDS.sprites`
+ * while it stayed under `interaction-events` was green, and every entry still matched, because the
+ * flattened map only remembered one owner.
+ *
+ * Round 8 fixed that for `record` accessors alone, which is **one** registry of fourteen. The other
+ * three kinds shipped the same defect green — `OL_KEYWORDS` at 45 entries / 44 unique,
+ * `heritageAliasNames` at 14 / 13, and `profilePrimitiveNames` at 31 / 30, the last being a shape
+ * that was a real bug in this review's second round. So this walks **every** kind: a check scoped to
+ * the one instance that happened to be measured is the defect it is fixing, one level up.
+ *
+ * A name has one owning profile and one registration per registry; two of either is a registry
+ * defect, not a shape the manifest can express.
  */
-export function recordRegistryFindings(manifest, api) {
+export function duplicateRegistrationFindings(manifest, api) {
   const findings = [];
   for (const registry of Object.values(manifest.registries)) {
-    if (registry.enumerate.kind !== "record") {
+    const spec = registry.enumerate;
+    if (spec.status !== "present") {
       continue;
     }
-    // No `undefined` guard: a `record` registry's accessor is checked to resolve by
-    // `accessorFindings`, so an unresolvable one is already a finding and guarding it here would be
-    // an unreachable branch — invisible to the 100% coverage gate, which is how two dead clauses
-    // survived earlier in this file's history.
-    const owners = new Map();
-    for (const [profile, words] of Object.entries(
-      resolveAccessor(api, registry.enumerate.accessor),
-    )) {
+    // A `declared` accessor is absent by design and a `present` one that does not resolve is
+    // already reported by `accessorFindings` — but *computing* that finding does not *prevent* this
+    // line from dereferencing it, because the findings list is an eager array literal. Round 8
+    // carried a comment claiming this branch was unreachable for that reason; it was reachable, and
+    // it threw. A comment asserting a property the code does not have is this module's own subject.
+    const accessor = resolveAccessor(api, spec.accessor);
+    if (accessor === undefined || accessor === null) {
+      continue;
+    }
+    const occurrences = new Map();
+    const sequences =
+      spec.kind === "record"
+        ? Object.entries(accessor)
+        : [
+            [
+              registry.profile,
+              enumeratedNames(spec, accessor, registry.profile),
+            ],
+          ];
+    for (const [key, words] of sequences) {
       for (const word of words) {
-        owners.set(word, [...(owners.get(word) ?? []), profile]);
+        occurrences.set(word, [...(occurrences.get(word) ?? []), key]);
       }
     }
-    for (const [word, profiles] of owners) {
-      if (profiles.length > 1) {
-        findings.push(
-          `${word}: ${registry.enumerate.accessor} lists it under ${profiles.join(" and ")} — a name has one owning profile, and flattening two of them keeps only the last`,
-        );
+    for (const [word, keys] of occurrences) {
+      if (keys.length === 1) {
+        continue;
       }
+      const distinct = [...new Set(keys)];
+      findings.push(
+        distinct.length > 1
+          ? `${word}: ${spec.accessor} lists it under ${distinct.join(" and ")} — a name has one owning profile, and flattening two of them keeps only the last`
+          : `${word}: ${spec.accessor} lists it ${keys.length} times under ${distinct[0]} — every other comparison here is set-based, so a duplicate is invisible to all of them`,
+      );
     }
   }
   return findings;
@@ -1229,9 +1369,10 @@ export function runBuiltInNamesGate({
     ...versionFindings(resolved, api),
     ...narrativeFindings(resolved),
     ...accessorFindings(resolved, api),
-    ...recordRegistryFindings(resolved, api),
+    ...duplicateRegistrationFindings(resolved, api),
     ...entryFindings(resolved, api),
     ...implementationFindings(resolved, api),
+    ...directionAgreementFindings(resolved, api),
     ...profilePrimitiveSweepFindings(resolved, api),
     ...aliasFindings(resolved, api),
     ...carveOutFindings(resolved, io),
