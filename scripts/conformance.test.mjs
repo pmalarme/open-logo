@@ -2983,3 +2983,84 @@ test("runHarness reports a mismatch for an opted-in check fixture with wrong dia
   const exitCode = runHarness({ root: TEMP_ROOT });
   assert.equal(exitCode, 1);
 });
+
+// --- issue #865: executeOptions.randomSeed ------------------------------------------------------
+// `randomSeed` is a JSON-expressible ExecuteOptions key, so the allow-list must admit it — a
+// fixture whose program uses `random` is otherwise unusable, which is the harness limitation #865
+// names. These three tests pin acceptance, type rejection, and that the value reaches execute().
+
+test("loadFixture reads an executeOptions.randomSeed (issue #865)", () => {
+  mkdirSync(join(TEMP_ROOT, "with-random-seed"), { recursive: true });
+  writeFileSync(
+    join(TEMP_ROOT, "with-random-seed", "with-random-seed.logo"),
+    "print random 100",
+  );
+  writeFileSync(
+    join(TEMP_ROOT, "with-random-seed", "with-random-seed.expected.json"),
+    JSON.stringify({
+      profiles: ["core-language"],
+      execute: true,
+      executeOptions: { randomSeed: 123 },
+      events: [],
+      diagnostics: [],
+    }),
+  );
+
+  const loaded = loadFixture({
+    name: "with-random-seed/with-random-seed.expected.json",
+    expectedPath: join(
+      TEMP_ROOT,
+      "with-random-seed",
+      "with-random-seed.expected.json",
+    ),
+    logoPath: join(TEMP_ROOT, "with-random-seed", "with-random-seed.logo"),
+  });
+
+  assert.equal(loaded.error, undefined);
+  assert.deepEqual(loaded.expected.executeOptions, { randomSeed: 123 });
+});
+
+test("loadFixture rejects a non-numeric executeOptions.randomSeed (issue #865)", () => {
+  mkdirSync(join(TEMP_ROOT, "bad-random-seed"), { recursive: true });
+  writeFileSync(
+    join(TEMP_ROOT, "bad-random-seed", "bad-random-seed.logo"),
+    "print 1",
+  );
+  writeFileSync(
+    join(TEMP_ROOT, "bad-random-seed", "bad-random-seed.expected.json"),
+    JSON.stringify({
+      profiles: ["core-language"],
+      execute: true,
+      executeOptions: { randomSeed: "123" },
+      events: [],
+      diagnostics: [],
+    }),
+  );
+
+  const loaded = loadFixture({
+    name: "bad-random-seed/bad-random-seed.expected.json",
+    expectedPath: join(
+      TEMP_ROOT,
+      "bad-random-seed",
+      "bad-random-seed.expected.json",
+    ),
+    logoPath: join(TEMP_ROOT, "bad-random-seed", "bad-random-seed.logo"),
+  });
+
+  assert.equal(loaded.error, '"executeOptions.randomSeed" must be a number');
+});
+
+test("a fixture's executeOptions.randomSeed actually reaches execute() (issue #865)", () => {
+  // Not just "it loads": the seed must be FORWARDED through the harness's own produce(), so the
+  // same program under two different fixture seeds must produce two different draws — and 123 must
+  // reproduce the sequence `packages/runtime/src/random-randomize.test.mjs` already pins for
+  // `(randomize 123)`, which is what proves it is the real seeding path and not a coincidence.
+  const drawnFor = (randomSeed) =>
+    produce("print random 100", "fixture.logo", true, false, [], false, {
+      randomSeed,
+    }).events.filter((event) => event.kind === "print")[0].payload.values[0];
+
+  assert.equal(drawnFor(123), 78);
+  assert.equal(drawnFor(123), 78);
+  assert.notEqual(drawnFor(4242), 78);
+});

@@ -22,6 +22,26 @@
  * hypothetical `window.prompt`-backed one). `run-controller.ts` handles that re-entrancy
  * explicitly, so both shapes are supported.
  *
+ * ## The one thing a host must not do
+ * `present()` must **not unconditionally restart the run** — calling `reset()` then `run()` (or
+ * `run()` after any other transition out of `"running"`) on *every* presentation is a host-side
+ * infinite loop, and **nothing bounds it**. Each restart begins a fresh execution with a fresh
+ * `instructionBudget`, so the runtime's own safety gate never fires: measured at 5,000 questions in
+ * 460ms with no diagnostic and `runStatus` stuck at `"running"`.
+ *
+ * A program with genuinely unbounded reads — `forever [ :answer = input "?" ]`, note the
+ * **assignment**, since a bare `input "?"` statement reads nothing at all — is *formally* different
+ * but practically no better through this host: a single `execute()` of it hits the instruction
+ * budget, but the run controller answers only one more read per attempt, so it puts on the order of
+ * 500,000 questions to the learner at the default budget while replaying quadratically many reads
+ * to get there. It presents as a hang too. Neither is defended against in code,
+ * because no library can defend against a callback that unconditionally re-invokes the operation it
+ * was called back from, and because the retry cap `run-controller.ts` used to carry counted
+ * no-progress attempts *within one chain*: the unbounded-reads program makes progress on every
+ * attempt, and the host-restart loop never has a second attempt in any chain for the counter to
+ * reach. Restarting in response to a *learner action* is fine; doing
+ * it on every presentation is not.
+ *
  * ## `dismiss()` — withdrawing a question nobody will answer
  * Stop and Reset can both happen while a question is on screen. Neither is an *answer*, so neither
  * may go through `respond`: `run-controller.ts` calls {@link InputPromptHost.dismiss} to take the

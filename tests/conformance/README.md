@@ -108,6 +108,14 @@ profile or the whole DAG. The runner discovers every `*.expected.json` and pairs
 
     Like `signal`, both fields can only express a **static** script fixed before the run starts, not
     input that reacts to what the program has done — that stays a unit-test concern.
+  - **`randomSeed`** (number, issue #865) pins the seed the run's shared `random`/`randomize`
+    generator starts from, in place of `execute()`'s own `Date.now()` fallback — so a fixture whose
+    program uses `random` has a stable expected event stream at all, instead of being unusable. An
+    explicit `(randomize seed)` in the program still takes precedence over it, since this is a host
+    default rather than an override. Note what one fixture still cannot express: the property
+    `randomSeed` creates is that two runs sharing a seed *agree*, and a fixture is one source to one
+    expected stream, so cross-run determinism stays a unit-test concern
+    (`packages/runtime/src/random-randomize.test.mjs`).
   - **Function-valued options are rejected as unknown keys**, with the offending key named in the
     error, rather than silently dropped: JSON cannot express a function, so
     `executeOptions.tutorTemplates` (the injectable Educational template) and `hostInput.read` (the

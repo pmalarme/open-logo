@@ -257,12 +257,19 @@
  *   reader is synchronous and `execute()` never yields, so the run controller reconciles the two
  *   with an **attempt chain** rather than by changing runtime semantics — see `run-controller.ts`'s
  *   doc comment ("#769") for why replaying the captured source is observationally equivalent to
- *   blocking **for a program whose replayed prefix is deterministic**, and issue **#881** for the
- *   scoped limitation when it is not (already-drawn output can change, and so can the question).
+ *   blocking.
+ * - {@link RunControllerOptions.randomSeedSource} is what makes that equivalence hold for **every**
+ *   program rather than only deterministic ones (issue **#881**). `run()` draws one
+ *   `ExecuteOptions.randomSeed` (#865) from it per chain — `Date.now` by default, the same
+ *   implementation-chosen seed the runtime would have picked itself — so every attempt of a chain
+ *   is bit-identical up to the read the newest answer extends. The branch a `random` chose cannot
+ *   change under the covers, the question is never re-asked, what the learner has already seen is
+ *   never rewritten, and two `input` sites asking identical prompt text each get their own answer.
+ *   See `run-controller.ts`'s doc comment ("#881").
  *   {@link resolveRecordedAnswer} is the one tested place that decides how a read draws from the
  *   chain's accumulated answers — an answer is reused only when it was given for that same prompt at
- *   that same position, so a diverged replay can never apply it to a question the learner was not
- *   shown, though the answer itself may be discarded and the question re-asked (#881).
+ *   that same position, kept as defence in depth so an answer can never reach a question the learner
+ *   was not shown, independently of the determinism argument above.
  * - `index.html`/`web/main.ts`/`web/styles.css` add the real prompt: a native modal `<dialog>` whose
  *   accessible name is the program's own question, an autofocused answer field, and Escape/Cancel
  *   routed to `cancel()`. It is closed — and so absent from both the layout and the accessibility
@@ -345,7 +352,6 @@ export type {
 } from "./run-controller.js";
 export {
   DEFAULT_RUN_DOCUMENT,
-  MAX_INPUT_REPLAY_RETRIES,
   createRunController,
   mountRunController,
   resolveRecordedAnswer,

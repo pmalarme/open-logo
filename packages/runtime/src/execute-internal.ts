@@ -143,6 +143,7 @@ import type {
 } from "./index.js";
 import {
   createRandomNumberGeneratorState,
+  drawImplementationSeed,
   seedFromText,
 } from "./random-number-generator.js";
 import { createSoundState } from "./sound-state.js";
@@ -3787,9 +3788,13 @@ function executeShowCall(
  * into its own top-level function for the same stack-depth reason {@link executeShowCall}'s doc
  * comment gives.
  *
- * With no seed, a fresh implementation-chosen seed is drawn
- * ({@link createRandomNumberGeneratorState}'s own `Date.now()` fallback — the entry: "With no seed
- * the implementation chooses a seed"). With a seed, the entry documents no type restriction at
+ * With no seed, a fresh implementation-chosen seed is drawn from the generator itself
+ * ({@link drawImplementationSeed} — the entry: "With no seed the implementation chooses a seed",
+ * and `spec/execution-model.md:596-597`: "`randomize` with no input uses an implementation seed").
+ * Issue #865 moved that choice off the wall clock so a run a host pinned with
+ * `ExecuteOptions.randomSeed` stays deterministic even when the program reseeds itself; see
+ * {@link drawImplementationSeed} for why an unseeded run is unaffected. With a seed, the entry
+ * documents no type restriction at
  * all ("Possible errors: none specified beyond
  * general arity diagnostics" — deliberately omitting the "type" diagnostics every sibling entry
  * with an argument lists), so every {@link OLValue} is a valid seed: a number seeds directly
@@ -3811,8 +3816,17 @@ function executeRandomizeCall(
     );
   }
   if (statement.args.length === 0) {
-    environment.randomNumberGenerator.state =
-      createRandomNumberGeneratorState().state;
+    // Issue #865: the implementation's own seed is derived by advancing the generator's state
+    // rather than by reading the wall clock. `spec/execution-model.md:596-597` ("`randomize` with
+    // no input uses an implementation seed") leaves the choice entirely to the implementation, and
+    // deriving it keeps a run that a host pinned with `ExecuteOptions.randomSeed` deterministic
+    // END TO END — a clock read here would silently re-enter entropy and undo that seed. An
+    // unseeded run is unaffected: its initial state is still the clock, so it retains the prior
+    // clock-seeded behavior exactly. See {@link drawImplementationSeed}, including why the state is
+    // advanced rather than replaced by a drawn value.
+    environment.randomNumberGenerator.state = drawImplementationSeed(
+      environment.randomNumberGenerator,
+    );
     return undefined;
   }
   // Same unsupported-operand deferral as `show`/`print` use: only evaluate the seed when it is
@@ -5252,8 +5266,11 @@ export function resolveEffectiveRecursionDepthLimit(
  * unreachable, for expression-only tests with no procedures in scope), this is the environment
  * every real statement/expression in `program` actually runs against. Issue #287 adds
  * `randomNumberGenerator`, the shared seeded `random`/`randomize` generator state, freshly seeded
- * per run ({@link createRandomNumberGeneratorState}'s own `Date.now()` fallback) so two separate
- * `execute()` calls are independent even before either program ever calls `randomize`.
+ * per run; issue #865 lets a host pin that seed through `ExecuteOptions.randomSeed`, falling back
+ * to {@link createRandomNumberGeneratorState}'s own `Date.now()` when none is supplied — so two
+ * unseeded `execute()` calls keep the clock-seeded behavior they have always had, while two calls
+ * sharing a seed reproduce each other exactly (given deterministic host collaborators — see
+ * `index.ts`'s `randomSeed` bullet).
  *
  * Issue #102: `options` supplies the three execution-safety gates `spec/execution-model.md:
  * 551-557` requires — `instructionBudget`/`recursionDepthLimit` fall back to
@@ -5350,7 +5367,15 @@ function createExecutionEnvironment(
     signal: options?.signal,
     turtleWorld: new TurtleWorld(),
     addressing: createTurtleAddressing(mainTurtleState),
-    randomNumberGenerator: createRandomNumberGeneratorState(),
+    // Issue #865: `options.randomSeed` when a host pinned one, and only otherwise
+    // `createRandomNumberGeneratorState`'s own `Date.now()` fallback. That fallback is this
+    // package's only AMBIENT entropy source, so a pinned seed reproduces a run exactly — given
+    // host collaborators that are deterministic too, since `hostInput.read`/`tutorTemplates` are
+    // caller-supplied functions and `signal` is caller-mutable (see `index.ts`'s `randomSeed`
+    // bullet). An omitted seed leaves an ordinary run seeded from the clock, exactly as before.
+    randomNumberGenerator: createRandomNumberGeneratorState(
+      options?.randomSeed,
+    ),
     tickClock: createTickClock(),
     sound: createSoundState(),
     eventHandlers: createEventHandlerRegistry(),

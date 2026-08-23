@@ -840,8 +840,9 @@ test("resolveRecordedAnswer: a divergence drops the answers AFTER it too, never 
 });
 
 test("resolveRecordedAnswer: identical prompt text at different positions is answered positionally", () => {
-  // A limitation as much as a behaviour, and it is why #881 stays open: prompt text is not read
-  // identity, so two distinct `input` sites asking the same question are indistinguishable here.
+  // Since #881 pinned one random seed per chain, a read's FIFO position is stable across attempts,
+  // so answering positionally IS answering by read identity — which is what lets two distinct
+  // `input` sites asking the same question each receive their own answer.
   const answers = [
     { prompt: "value?", answer: "one" },
     { prompt: "value?", answer: "two" },
@@ -873,103 +874,60 @@ test("the run controller resolves every read through resolveRecordedAnswer, so a
   );
 });
 
-test("a DIVERGED replay re-asks the learner through the real controller, never silently completing with the wrong answer", () => {
-  // Round 3, logic/spec reviewer. `resolveRecordedAnswer`'s own tests prove the rule, but they do
-  // not prove the CONTROLLER consults it: swapping the reader back to a positional one, while
-  // leaving the exported helper intact, passed every test. Divergence needs nondeterminism, and the
-  // only source is `random`, which seeds from `Date.now()` per `execute()` call
-  // (`createRandomNumberGeneratorState`). Pinning that clock makes the divergence deterministic.
-  //
-  // Seeds verified against the real runtime: 1 selects the `else` branch ("B?"), 7 selects the
-  // `then` branch ("A?"). So the chain runs 1 → asks "B?"; 7 → branch A, whose "A?" does NOT match
-  // the recorded "B?", so the learner is re-asked; 7 again → "A?" now matches and the run finishes.
-  const seeds = [1, 7, 7];
-  let executions = 0;
-  const realDateNow = Date.now;
-  Date.now = () => seeds[Math.min(executions++, seeds.length - 1)];
+test("issue #881: the scenario that used to make a replay diverge now completes as ONE run", () => {
+  // This test's ancestor (round 3 of #769, logic/spec reviewer) pinned the OPPOSITE behaviour: it
+  // patched `Date.now` so the runtime reseeded 1 → 7 → 7 across attempts, proving the learner was
+  // re-asked when the replay reached a different question. That divergence is what #881 called a
+  // conformance problem, and it is now impossible: `run()` pins ONE seed per chain, so the same
+  // fixture — same program, same two branch-selecting seeds, now supplied through the public
+  // `randomSeedSource` seam — asks exactly one question and finishes as the run the learner was
+  // answering. The seed source deliberately yields a DIFFERENT seed on each call, so an
+  // implementation that drew per attempt instead of per chain still diverges here.
+  const store = OL.createStudioState({
+    source: [
+      'if (random 2) == 0 [ :answer = input "A?" ] else [ :answer = input "B?" ]',
+      "print :answer",
+    ].join("\n"),
+  });
+  const host = createTestPromptHost((prompt) => `answered-${prompt}`);
 
-  try {
-    const store = OL.createStudioState({
-      source: [
-        'if (random 2) == 0 [ :answer = input "A?" ] else [ :answer = input "B?" ]',
-        "print :answer",
-      ].join("\n"),
-    });
-    const host = createTestPromptHost((prompt) => `answered-${prompt}`);
+  OL.createRunController(store, {
+    inputPrompt: host,
+    randomSeedSource: createSeedQueue([1, 7, 7]),
+  }).run();
 
-    OL.createRunController(store, { inputPrompt: host }).run();
-
-    assert.deepEqual(
-      host.prompts,
-      ["B?", "A?"],
-      "the learner must be re-asked the question the replay actually reached",
-    );
-    assert.deepEqual(
-      store.getState().output,
-      ["answered-A?"],
-      "the program must receive the answer given for the question it asked — never the answer to " +
-        "the question the learner was shown on an earlier, diverged attempt",
-    );
-    assert.equal(store.getState().runStatus, "done");
-    assert.equal(
-      executions,
-      3,
-      "the chain must have taken exactly three attempts",
-    );
-  } finally {
-    Date.now = realDateNow;
-  }
+  assert.deepEqual(
+    host.prompts,
+    ["B?"],
+    "seed 1 selects the else branch, and the replay must reach that same question",
+  );
+  assert.deepEqual(
+    store.getState().output,
+    ["answered-B?"],
+    "the program receives the answer given for the question it asked",
+  );
+  assert.equal(store.getState().runStatus, "done");
 });
 
-test("a chain that can never converge is abandoned rather than looped forever (@testing N12)", () => {
-  // Round 3, @testing N12: their M8 mutant did not fail, it HUNG — 90s timeout. `pump()` is a
-  // `do … while (pumpAgain)` loop, and a SYNCHRONOUS host (the shape a `window.prompt`-backed one
-  // would have, and the shape these tests use) plus systematic divergence is an unbounded loop with
-  // no yield, i.e. a hung tab. Alternating the pinned clock between the two branch-selecting seeds
-  // makes every single attempt diverge, which is that scenario exactly — deterministically.
-  const realDateNow = Date.now;
-  let executions = 0;
-  Date.now = () => (executions++ % 2 === 0 ? 1 : 7);
+test("issue #881: an answer is still bound to its own question, by construction", () => {
+  // `resolveRecordedAnswer`'s pairing is kept as defence in depth even though the chain can no
+  // longer diverge, so the rule it enforces is still asserted directly: an answer recorded for one
+  // question is never handed to a different one, and the rest of the FIFO is dropped with it.
+  const answers = [{ prompt: "how many sides?", answer: "5" }];
 
-  try {
-    const store = OL.createStudioState({
-      source: [
-        'if (random 2) == 0 [ :answer = input "A?" ] else [ :answer = input "B?" ]',
-        "print :answer",
-      ].join("\n"),
-    });
-    const host = createTestPromptHost((prompt) => `answered-${prompt}`);
+  const diverged = OL.resolveRecordedAnswer(answers, 0, "what colour?");
 
-    OL.createRunController(store, { inputPrompt: host }).run();
-
-    // Attempt 1 and attempt 2 each answer a new read (the FIFO grows 0 -> 1), so both count as
-    // progress; from attempt 3 on every attempt diverges back to a one-entry FIFO and answers
-    // nothing new, so the retry budget is spent one per attempt and the chain is abandoned on the
-    // attempt after it runs out.
-    assert.equal(
-      executions,
-      OL.MAX_INPUT_REPLAY_RETRIES + 2,
-      "the chain must stop once it stops making progress, never run unbounded",
-    );
-    assert.equal(store.getState().runStatus, "stopped");
-    assert.deepEqual(
-      store.getState().diagnostics.map((diagnostic) => diagnostic.code),
-      ["ol-limit"],
-      "an abandoned chain ends the read the only other way the spec allows — the runtime's own " +
-        "cancellation, never a studio-invented diagnostic",
-    );
-    assert.deepEqual(store.getState().output, []);
-  } finally {
-    Date.now = realDateNow;
-  }
+  assert.equal(diverged.answer, undefined);
+  assert.deepEqual(diverged.retained, []);
 });
 
-test("a legitimate program with more reads than the retry budget still completes (the cap counts stalled retries, not reads)", () => {
-  // Round 4, logic/spec reviewer. The first version of this cap counted TOTAL attempts, so a valid
-  // program with MAX reads needed MAX+1 attempts and was cancelled after the learner's last answer.
-  // A legitimate chain answers one more read every attempt, so it must never spend retry budget at
-  // all, no matter how many questions it asks.
-  const reads = OL.MAX_INPUT_REPLAY_RETRIES + 6;
+test("a legitimate program with many more reads than one attempt can answer still completes", () => {
+  // Round 4, logic/spec reviewer. The first version of #769's retry cap counted TOTAL attempts, so
+  // a valid program with N reads needed N+1 attempts and was cancelled after the learner's last
+  // answer. #881 removed the cap entirely (see `run-controller.ts`'s doc comment), but the property
+  // it protected is the one that matters and is asserted here directly: a chain answers one more
+  // read every attempt, so a program asking many questions must simply finish.
+  const reads = 70;
   const store = OL.createStudioState({
     source: [
       `repeat ${reads} [ :value = input "value?" ]`,
@@ -986,39 +944,458 @@ test("a legitimate program with more reads than the retry budget still completes
   assert.equal(store.getState().runStatus, "done");
 });
 
-test("a chain well inside the cap is unaffected by it", () => {
-  const store = OL.createStudioState({ source: ASK_NAME_SOURCE });
-  const host = createTestPromptHost(() => "tom");
-
-  OL.createRunController(store, { inputPrompt: host }).run();
-
-  assert.ok(
-    OL.MAX_INPUT_REPLAY_RETRIES > 2,
-    "the cap must leave room for ordinary chains",
-  );
-  assert.equal(store.getState().runStatus, "done");
-  assert.deepEqual(store.getState().output, ["before", "tom"]);
-});
-
-test("the retry budget is per-run, so replaying the same input program never exhausts it", () => {
-  // Round 4, @testing BLOCK-5. Their MD4 mutant — deleting run()'s reset of the stall counters —
+test("re-running the same input program many times keeps completing (per-chain state is reset)", () => {
+  // Round 4, @testing BLOCK-5. Their MD4 mutant — deleting run()'s reset of the chain's own state —
   // survived all 130 studio tests, and the consequence they measured is worse than a spurious
-  // cancel: run 34 of the SAME program stops before executing anything, so commitCancelledRead()
-  // republishes the PREVIOUS run's events under a "stopped" status. A completed run's output
-  // showing beneath a cancelled one. Third instance of covered-but-unasserted in this slice.
+  // cancel: a later run of the SAME program stops before executing anything, so
+  // commitCancelledRead() republishes the PREVIOUS run's events under a "stopped" status. A
+  // completed run's output showing beneath a cancelled one. The reset is still load-bearing after
+  // #881 — `answers`, `chainSource`, `shownEventCount` and the chain's pinned seed all belong to
+  // one chain, not to the session — so the loop stays.
   const store = OL.createStudioState({ source: ASK_NAME_SOURCE });
   const controller = OL.createRunController(store, {
     inputPrompt: createTestPromptHost(() => "tom"),
   });
 
-  for (let run = 1; run <= OL.MAX_INPUT_REPLAY_RETRIES + 4; run += 1) {
+  for (let run = 1; run <= 68; run += 1) {
     controller.run();
     assert.equal(
       store.getState().runStatus,
       "done",
-      `run ${run} must still complete — the retry budget belongs to one chain, not the session`,
+      `run ${run} must still complete — chain state belongs to one chain, not the session`,
     );
     assert.deepEqual(store.getState().output, ["before", "tom"]);
     assert.deepEqual(store.getState().diagnostics, []);
   }
+});
+
+// --- issue #881: one pinned random seed per chain makes the replay a genuine continuation --------
+//
+// Every test below injects a seed source that hands out a DIFFERENT seed on every call. That is
+// the mutation check baked into the fixture: an implementation that drew the seed per *attempt*
+// instead of per *chain* diverges deterministically here, rather than only when the wall clock
+// happens to disagree. The two seeds used throughout (1 and 7) genuinely pick opposite branches of
+// `random 2`, and 11/22 genuinely print different numbers — verified directly, not assumed.
+
+/** A seed source that yields `seeds` in order, then keeps returning the last one. */
+function createSeedQueue(seeds) {
+  const remaining = [...seeds];
+  let last = seeds[seeds.length - 1];
+  return () => {
+    if (remaining.length > 0) {
+      last = remaining.shift();
+    }
+    return last;
+  };
+}
+
+/** Chooses WHICH question to ask from an unseeded `random` — issue #881's exact program class. */
+const RANDOM_BRANCH_SOURCE = [
+  'if (random 2) == 0 [ :answer = input "how many sides?" ] else [ :answer = input "what colour?" ]',
+  "print :answer",
+].join("\n");
+
+test("issue #881: a random-chosen question is asked once and does not change under the replay", () => {
+  const store = OL.createStudioState({ source: RANDOM_BRANCH_SOURCE });
+  const host = createTestPromptHost();
+  const controller = OL.createRunController(store, {
+    inputPrompt: host,
+    randomSeedSource: createSeedQueue([1, 7]),
+  });
+
+  controller.run();
+  assert.deepEqual(host.prompts, ["what colour?"]);
+
+  host.respond("red");
+
+  assert.deepEqual(
+    host.prompts,
+    ["what colour?"],
+    "the chain's pinned seed means the replay reaches the SAME question, so it is never re-asked",
+  );
+  assert.deepEqual(store.getState().output, ["red"]);
+  assert.equal(store.getState().runStatus, "done");
+  assert.deepEqual(store.getState().diagnostics, []);
+});
+
+test("issue #881: the pinned seed decides the branch — the other seed asks the other question", () => {
+  const store = OL.createStudioState({ source: RANDOM_BRANCH_SOURCE });
+  const host = createTestPromptHost();
+  const controller = OL.createRunController(store, {
+    inputPrompt: host,
+    randomSeedSource: createSeedQueue([7, 1]),
+  });
+
+  controller.run();
+  host.respond("5");
+
+  assert.deepEqual(host.prompts, ["how many sides?"]);
+  assert.deepEqual(store.getState().output, ["5"]);
+  assert.equal(store.getState().runStatus, "done");
+});
+
+test("issue #881: output the learner already observed is never rewritten by a later attempt", () => {
+  const store = OL.createStudioState({
+    source: ["print random 1000000", ':a = input "next?"', "print :a"].join(
+      "\n",
+    ),
+  });
+  const host = createTestPromptHost();
+  const controller = OL.createRunController(store, {
+    inputPrompt: host,
+    randomSeedSource: createSeedQueue([11, 22]),
+  });
+
+  controller.run();
+  const observed = [...store.getState().output];
+  assert.equal(
+    observed.length,
+    1,
+    "the draw before the read is already on screen",
+  );
+
+  host.respond("7");
+
+  assert.deepEqual(
+    store.getState().output,
+    [...observed, "7"],
+    "the completed run EXTENDS what was observed rather than replacing it",
+  );
+});
+
+test("issue #881: the drawing the learner already observed is never rewritten either", () => {
+  const store = OL.createStudioState({
+    source: [
+      "forward random 100",
+      ':a = input "how far next?"',
+      "forward :a",
+    ].join("\n"),
+  });
+  const host = createTestPromptHost();
+  const controller = OL.createRunController(store, {
+    inputPrompt: host,
+    randomSeedSource: createSeedQueue([11, 22]),
+  });
+
+  controller.run();
+  const observed = store
+    .getState()
+    .turtleScene.items.map((item) => JSON.stringify(item));
+  assert.equal(observed.length, 1, "the move before the read is already drawn");
+
+  host.respond("40");
+
+  const finalItems = store
+    .getState()
+    .turtleScene.items.map((item) => JSON.stringify(item));
+  assert.equal(finalItems.length, 2);
+  assert.equal(
+    finalItems[0],
+    observed[0],
+    "the segment already drawn must be identical, not merely present",
+  );
+});
+
+test("issue #881: two input sites asking the identical prompt text each receive their own answer", () => {
+  const store = OL.createStudioState({
+    source: [
+      "print random 1000000",
+      ':a = input "value?"',
+      ':b = input "value?"',
+      "print :a",
+      "print :b",
+    ].join("\n"),
+  });
+  const host = createTestPromptHost();
+  const controller = OL.createRunController(store, {
+    inputPrompt: host,
+    randomSeedSource: createSeedQueue([5, 6, 7]),
+  });
+
+  controller.run();
+  host.respond("first");
+  host.respond("second");
+
+  assert.deepEqual(host.prompts, ["value?", "value?"]);
+  const output = store.getState().output;
+  assert.deepEqual(
+    output.slice(1),
+    ["first", "second"],
+    "each read's own answer reaches its own source location, in order",
+  );
+  assert.equal(store.getState().runStatus, "done");
+});
+
+test("issue #881: the seed source is consulted exactly ONCE per chain, however many reads there are", () => {
+  // The invariant every other #881 guarantee rests on, pinned directly rather than inferred from a
+  // symptom. If a future change draws the seed per attempt instead of per chain, the replay can
+  // diverge again — and the no-progress retry cap this slice removed (see `run-controller.ts`'s
+  // doc comment) would become necessary again, silently. This test fails the moment that premise
+  // moves, so the dependency is visible rather than remembered.
+  let draws = 0;
+  const store = OL.createStudioState({
+    source: [
+      "print random 1000000",
+      ':a = input "one?"',
+      ':b = input "two?"',
+      ':c = input "three?"',
+      "print :c",
+    ].join("\n"),
+  });
+  const host = createTestPromptHost(() => "ok");
+
+  OL.createRunController(store, {
+    inputPrompt: host,
+    randomSeedSource: () => {
+      draws += 1;
+      return 4242;
+    },
+  }).run();
+
+  assert.equal(host.prompts.length, 3, "three reads, so four attempts");
+  assert.equal(
+    draws,
+    1,
+    "one chain draws one seed — four attempts must NOT draw four seeds",
+  );
+  assert.equal(store.getState().runStatus, "done");
+});
+
+test("issue #881: a second run() starts a new chain and therefore draws a new seed", () => {
+  let draws = 0;
+  const store = OL.createStudioState({ source: ASK_NAME_SOURCE });
+  const controller = OL.createRunController(store, {
+    inputPrompt: createTestPromptHost(() => "tom"),
+    randomSeedSource: () => {
+      draws += 1;
+      return draws;
+    },
+  });
+
+  controller.run();
+  controller.run();
+
+  assert.equal(
+    draws,
+    2,
+    "the pin belongs to one chain, not to the controller's lifetime",
+  );
+});
+
+test("issue #881: a run with no injected seed source still completes (the Date.now default)", () => {
+  const store = OL.createStudioState({ source: ASK_NAME_SOURCE });
+  const host = createTestPromptHost();
+  const controller = OL.createRunController(store, { inputPrompt: host });
+
+  controller.run();
+  host.respond("tom");
+
+  assert.deepEqual(store.getState().output, ["before", "tom"]);
+  assert.equal(store.getState().runStatus, "done");
+});
+
+// --- a synchronous host that ends the chain from inside present() -------------------------------
+// Round 2, logic/spec reviewer. A synchronous host may call `respond()` and THEN `stop()`/`reset()`
+// before `present()` returns. The answer queues a replay (`pumpAgain`); the lifecycle call then
+// unwinds into the pump loop, which used to run one more attempt over the top of the outcome
+// Stop/Reset had already committed. Measured before the fix: `respond(); stop()` replaced the
+// output the learner had just seen with `[]`, and `respond(); reset()` settled `"done"` with an
+// empty `lastRunResult.source` instead of `"idle"`. Both are exactly the "already-observed state is
+// never rewritten" guarantee #881 claims, so they are pinned here.
+
+/**
+ * A host whose `present()` hands the controller AND the responder to `act`, so a test can pin the
+ * exact re-entrant order it cares about — answer then stop, answer then reset, or stop without
+ * answering at all.
+ */
+function createEndingPromptHost(act) {
+  const host = {
+    prompts: [],
+    dismissCount: 0,
+    controller: null,
+    present(request, respond) {
+      host.prompts.push(request.prompt);
+      act(host.controller, respond);
+    },
+    dismiss() {
+      host.dismissCount += 1;
+    },
+  };
+  return host;
+}
+
+const DRAW_ASK_PRINT_SOURCE = [
+  "print random 1000000",
+  ':a = input "next?"',
+  "print :a",
+].join("\n");
+
+test("a host that answers and then stops, inside present(), keeps the output already shown", () => {
+  const store = OL.createStudioState({ source: DRAW_ASK_PRINT_SOURCE });
+  const host = createEndingPromptHost((controller, respond) => {
+    respond("7");
+    controller.stop();
+  });
+  const controller = OL.createRunController(store, {
+    inputPrompt: host,
+    randomSeedSource: createSeedQueue([11]),
+  });
+  host.controller = controller;
+
+  controller.run();
+
+  assert.equal(store.getState().runStatus, "stopped");
+  assert.deepEqual(
+    store.getState().output,
+    ["511587"],
+    "Stop must not let a queued replay erase what the learner already saw",
+  );
+});
+
+test("a host that answers and then resets, inside present(), settles idle rather than running again", () => {
+  const store = OL.createStudioState({ source: DRAW_ASK_PRINT_SOURCE });
+  const host = createEndingPromptHost((controller, respond) => {
+    respond("7");
+    controller.reset();
+  });
+  const controller = OL.createRunController(store, {
+    inputPrompt: host,
+    randomSeedSource: createSeedQueue([11]),
+  });
+  host.controller = controller;
+
+  controller.run();
+
+  assert.equal(store.getState().runStatus, "idle");
+  assert.deepEqual(store.getState().output, []);
+  assert.equal(
+    store.getState().lastRunResult,
+    null,
+    "a queued replay must not commit a run over the top of Reset — least of all one whose source Reset had already cleared",
+  );
+});
+
+test("a host that stops from inside present() WITHOUT answering has its question withdrawn", () => {
+  // The other order, and the one that reaches `dismiss()`: nothing was answered, so the read really
+  // did end unanswered and Stop must withdraw the question rather than leave it on screen.
+  const store = OL.createStudioState({ source: DRAW_ASK_PRINT_SOURCE });
+  const host = createEndingPromptHost((controller) => {
+    controller.stop();
+  });
+  const controller = OL.createRunController(store, {
+    inputPrompt: host,
+    randomSeedSource: createSeedQueue([11]),
+  });
+  host.controller = controller;
+
+  controller.run();
+
+  assert.equal(host.dismissCount, 1, "Stop must take the question down");
+  assert.equal(store.getState().runStatus, "stopped");
+  assert.deepEqual(
+    store.getState().diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-limit"],
+    "the read ended unanswered, so the runtime's own cancellation is published",
+  );
+});
+
+test("a host that resets and then re-runs, inside present(), starts the new chain rather than losing it", () => {
+  // Round 3, logic/spec reviewer. The first version of the chain-generation guard told a stale
+  // retry apart from a live chain with a plain boolean, which could only say "something is
+  // pending" — so `reset()` followed by `run()` from inside present() queued a request the loop
+  // then discarded as stale, and the new run vanished: one prompt, status "idle", no result. The
+  // pending request now carries the generation it was made for, so a request naming the NEW chain
+  // is honoured while one naming an ended chain is dropped.
+  const store = OL.createStudioState({ source: DRAW_ASK_PRINT_SOURCE });
+  let firstPresentation = true;
+  const host = createEndingPromptHost((controller, respond) => {
+    if (firstPresentation) {
+      firstPresentation = false;
+      controller.reset();
+      controller.run();
+      return;
+    }
+    respond("42");
+  });
+  const controller = OL.createRunController(store, {
+    inputPrompt: host,
+    randomSeedSource: createSeedQueue([11]),
+  });
+  host.controller = controller;
+
+  controller.run();
+
+  assert.equal(
+    host.prompts.length,
+    2,
+    "the re-run chain must actually ask its question — silently dropping it is the defect",
+  );
+  assert.equal(store.getState().runStatus, "done");
+  assert.deepEqual(store.getState().output, ["511587", "42"]);
+  assert.notEqual(
+    store.getState().lastRunResult,
+    null,
+    "the re-run must commit a real result, not leave the studio idle",
+  );
+});
+
+test("a lazy step() after a chain was cancelled mid-present still settles, rather than sticking at running", () => {
+  // Round 4, logic/spec reviewer. The pump loop correctly REFUSED a request naming a chain Reset
+  // had ended — but left the request marker set. `settleAttempt` reads any pending request as
+  // "this attempt was superseded, do not commit its outcome", so the stale marker suppressed
+  // settlement forever: a later lazy `step()` finished its animation with runStatus stuck at
+  // "running", which run()'s #314 guard then reads as a run in progress and ignores. The studio
+  // was wedged with no way back except another Reset.
+  const store = OL.createStudioState({ source: DRAW_ASK_PRINT_SOURCE });
+  const host = createEndingPromptHost((controller, respond) => {
+    respond("7");
+    controller.reset();
+  });
+  const controller = OL.createRunController(store, {
+    inputPrompt: host,
+    randomSeedSource: createSeedQueue([11]),
+  });
+  host.controller = controller;
+
+  controller.run();
+  assert.equal(store.getState().runStatus, "idle");
+
+  store.setSource('print "new"');
+  controller.step();
+
+  assert.equal(
+    store.getState().runStatus,
+    "done",
+    "a stale pump request must not suppress settlement of a later, unrelated animation",
+  );
+  assert.deepEqual(store.getState().output, ["new"]);
+});
+
+test("run() is not ignored after a lazy step() follows a chain cancelled from inside present()", () => {
+  // The consequence the learner actually feels, and the reviewer's exact sequence: the stale marker
+  // left runStatus wedged at "running" after the step, which makes the Run button a no-op because
+  // #314 reads it as a run already in progress. The studio is stuck with no way back except Reset.
+  const store = OL.createStudioState({ source: DRAW_ASK_PRINT_SOURCE });
+  const host = createEndingPromptHost((controller, respond) => {
+    respond("7");
+    controller.reset();
+  });
+  const controller = OL.createRunController(store, {
+    inputPrompt: host,
+    randomSeedSource: createSeedQueue([11]),
+  });
+  host.controller = controller;
+
+  controller.run();
+  store.setSource('print "new"');
+  controller.step();
+  store.setSource('print "again"');
+  controller.run();
+
+  assert.equal(store.getState().runStatus, "done");
+  assert.deepEqual(
+    store.getState().output,
+    ["again"],
+    "Run must still work after stepping — a wedged runStatus silently swallows it",
+  );
 });
