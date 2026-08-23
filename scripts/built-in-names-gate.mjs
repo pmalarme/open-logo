@@ -161,18 +161,44 @@ export function definesProcedure(text, name) {
   if (typeof text !== "string") {
     return false;
   }
-  // Multi-line string literals are `"""…"""` (spec/grammar.md:19), and a `define` header written
-  // inside one is prose, not a declaration. Splitting on the delimiter leaves the OUTSIDE regions at
-  // even indices; scanning the raw text without this read documentation as source.
-  return text
-    .split('"""')
-    .filter((_, index) => index % 2 === 0)
-    .join("\n")
-    .split(/\r?\n/)
+  return codeOnly(text)
+    .split("\n")
     .some((line) => {
       const words = line.trim().split(/\s+/);
       return words[0] === "define" && words[1] === name;
     });
+}
+
+/**
+ * `source` with comments and string literals blanked out, newlines preserved.
+ *
+ * A single split on `"""` is not enough, because `spec/grammar.md:19` allows `\"` escapes inside a
+ * literal and `:32` makes `#`, `//` and `/* *` + `/` comments — whose markers are literal *inside*
+ * strings, and whose contents can therefore contain an unbalanced quote. Each construct has to be
+ * recognised in the order the lexer would meet it, so the states below are mutually exclusive.
+ */
+export function codeOnly(source) {
+  const normalised = source.replace(/\r\n/g, "\n");
+  let out = "";
+  let index = 0;
+  const keepLayout = (text) => text.replace(/[^\n]/g, " ");
+  while (index < normalised.length) {
+    const rest = normalised.slice(index);
+    const blockComment = /^\/\*[\s\S]*?(\*\/|$)/.exec(rest);
+    const lineComment = /^(#|\/\/)[^\n]*/.exec(rest);
+    const multiString = /^"""[\s\S]*?(?<!\\)(?:\\\\)*(?:"""|$)/.exec(rest);
+    const singleString = /^"(?:[^"\\\n]|\\.)*("|$)/.exec(rest);
+    const match =
+      blockComment ?? lineComment ?? multiString ?? singleString ?? null;
+    if (match === null) {
+      out += normalised[index];
+      index += 1;
+      continue;
+    }
+    out += keepLayout(match[0]);
+    index += match[0].length;
+  }
+  return out;
 }
 
 /** Default filesystem port, so tests can drive every branch without touching disk. */
@@ -276,10 +302,26 @@ export function describeAccessor(resolved) {
  */
 export function accessorFindings(manifest, api) {
   const findings = [];
+  const profileNames = Object.keys(manifest.profiles.ids);
   for (const [tag, registry] of Object.entries(manifest.registries)) {
     if (!CATEGORIES.includes(registry.category)) {
       findings.push(
         `registry ${tag}: category ${JSON.stringify(registry.category)} is outside the closed vocabulary [${CATEGORIES.join(", ")}]`,
+      );
+    }
+    // Validated directly, not incidentally. Twelve tags are caught through an entry whose derived
+    // profile stops matching, but `heritage-form-head` and `heritage-worded-form-head` currently win
+    // precedence for no entry, so nothing ever read their `profile` and any value passed.
+    // A `record` registry is the one shape that legitimately has none: it supplies a profile per key.
+    if (registry.profile === undefined) {
+      if (registry.enumerate?.kind !== "record") {
+        findings.push(
+          `registry ${tag}: no profile, and its enumerate kind is not \`record\` — only a Record registry supplies a profile per key, so this tag has no profile source at all`,
+        );
+      }
+    } else if (!profileNames.includes(registry.profile)) {
+      findings.push(
+        `registry ${tag}: profile ${JSON.stringify(registry.profile)} is not one of the ids in profiles.ids — \`invariants.precedence\` files a name under its precedence-winning registry's profile, so a tag no entry currently wins is still load-bearing for the next one`,
       );
     }
     for (const role of ["lookup", "enumerate"]) {
@@ -638,7 +680,7 @@ export function profilePrimitiveSweepFindings(manifest, api) {
     Object.entries(manifest.registries)
       .filter(
         ([, registry]) =>
-          registry.enumerate.kind === "profile-enumerator" &&
+          registry.enumerate?.kind === "profile-enumerator" &&
           registry.enumerate.accessor === "profilePrimitiveNames",
       )
       .map(([tag, registry]) => [registry.profile, tag]),
@@ -950,7 +992,7 @@ export function backtickedWords(text) {
 }
 
 /**
- * The normative keyword block: the fenced `logo` block that follows `spec/grammar.md`'s
+ * The normative keyword block: the fenced `text` block that follows `spec/grammar.md`'s
  * "The normative OpenLogo keyword list is:" line.
  *
  * Anchored on the prose that is already there, because `spec/` is maintainer-owned and this gate
@@ -1279,7 +1321,7 @@ export function narrativeFindings(manifest) {
   // One sweep over a list the file DERIVES from itself, rather than four hand-written loops. The
   // previous shape was fixed in one location and not its neighbours three rounds running, which is
   // the second-list problem in miniature: the registry notes below come from `registries`, so a
-  // fifteenth registry is covered without editing anything here.
+  // further registry is covered without editing anything here.
   const required = [
     ["about", manifest.about],
     ["profiles.about", manifest.profiles?.about],
@@ -1294,11 +1336,13 @@ export function narrativeFindings(manifest) {
       `tokenClassKeyword.${key}`,
       manifest.tokenClassKeyword?.[key],
     ]),
-    // A `note` is optional — six registries have nothing to say beyond their data, and demanding one
-    // would produce filler. But one that EXISTS must say something.
-    ...Object.entries(manifest.registries)
-      .filter(([, registry]) => registry.note !== undefined)
-      .map(([tag, registry]) => [`registries.${tag}.note`, registry.note]),
+    // Every registry carries a `note`, without exception: an optional field could only be gated
+    // when present, which left all eight existing ones deletable, and "the six with nothing to say"
+    // is a hand-maintained count sitting inside a list that is otherwise derived.
+    ...Object.entries(manifest.registries).map(([tag, registry]) => [
+      `registries.${tag}.note`,
+      registry.note,
+    ]),
   ];
   return required
     .filter(([, value]) => blank(value))
@@ -1412,7 +1456,7 @@ export function runBuiltInNamesGate({
   ];
 
   const unenumerable = Object.entries(resolved.registries)
-    .filter(([, registry]) => registry.enumerate.status !== "present")
+    .filter(([, registry]) => registry.enumerate?.status !== "present")
     .map(([tag]) => tag);
 
   for (const finding of findings) {

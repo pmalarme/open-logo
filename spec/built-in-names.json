@@ -50,7 +50,8 @@
         "accessor": "profilePrimitiveNames",
         "kind": "profile-enumerator",
         "status": "present"
-      }
+      },
+      "note": "Core Language primitives. Its lookup is the per-name arity table and its enumerate is the derived profilePrimitiveNames called with this tag's profile, so the two roles read one source."
     },
     "turtle-primitive": {
       "category": "primitive",
@@ -66,7 +67,8 @@
         "accessor": "profilePrimitiveNames",
         "kind": "profile-enumerator",
         "status": "present"
-      }
+      },
+      "note": "Turtle & Rendering primitives. The five one-word spellings (setxy, setpos, setheading, setpencolor, setbg) are separate arity entries bound to one primitive, and their alias edges are carried by aliasEnumerator/canonicalAccessor rather than by this role pair."
     },
     "data-primitive": {
       "category": "primitive",
@@ -80,7 +82,8 @@
         "accessor": "profilePrimitiveNames",
         "kind": "profile-enumerator",
         "status": "present"
-      }
+      },
+      "note": "Data profile primitives. Same derived-enumeration shape as every other profile-keyed primitive tag."
     },
     "educational-primitive": {
       "category": "primitive",
@@ -124,7 +127,8 @@
         "accessor": "profilePrimitiveNames",
         "kind": "profile-enumerator",
         "status": "present"
-      }
+      },
+      "note": "Interaction & Events primitives. Its profile words (ask, when, ...) are keywords held by profile-reserved, not primitives, so they are filed under that tag instead."
     },
     "sound-primitive": {
       "category": "primitive",
@@ -138,7 +142,8 @@
         "accessor": "profilePrimitiveNames",
         "kind": "profile-enumerator",
         "status": "present"
-      }
+      },
+      "note": "Sound profile primitives. Same derived-enumeration shape as every other profile-keyed primitive tag."
     },
     "sprites-primitive": {
       "category": "primitive",
@@ -152,7 +157,8 @@
         "accessor": "profilePrimitiveNames",
         "kind": "profile-enumerator",
         "status": "present"
-      }
+      },
+      "note": "Sprites profile primitives. Its profile words are keywords held by profile-reserved; only the callable primitives are here."
     },
     "tutor-primitive": {
       "category": "primitive",

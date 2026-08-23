@@ -35,6 +35,7 @@ import {
   aliasFindings,
   backtickedWords,
   carveOutFindings,
+  codeOnly,
   definesProcedure,
   deriveSummary,
   describeAccessor,
@@ -95,12 +96,14 @@ function tinyFixture() {
     registries: {
       reserved: {
         category: "keyword",
+        note: "a tiny fixture",
         profile: "core-language",
         lookup: { accessor: "WORDS", kind: "array", status: "present" },
         enumerate: { accessor: "WORDS", kind: "array", status: "present" },
       },
       "core-primitive": {
         category: "primitive",
+        note: "a tiny fixture",
         profile: "core-language",
         lookup: { accessor: "coreArity", kind: "arity", status: "present" },
         enumerate: {
@@ -510,10 +513,12 @@ test("INJECTED DRIFT: deleting every alias edge is caught — the direction alia
   );
 });
 
-test("the Turtle & Rendering alias map is consumed by the resolver, not kept beside it", () => {
-  // "Consumed" is what makes the edge unable to drift: `turtlePrimitiveArity` resolves an alias
-  // THROUGH the map to its canonical's arity, so the two spellings share one number rather than
-  // holding two that could diverge. ADR-0021 §3 requires exactly this of #841.
+test("the Turtle & Rendering alias and canonical spellings derive from one row, so their arities cannot diverge", () => {
+  // NOT "the arity lookup resolves through the canonical map" — `signatures.ts` builds
+  // `TURTLE_PRIMITIVE_ARITY` and `TURTLE_ALIAS_CANONICAL` as two maps from one `TURTLE_PRIMITIVES`
+  // row table, and `turtlePrimitiveArity` queries the arity map directly. What makes the edge
+  // undriftable is that a single row supplies the canonical name, the alias, and the one arity both
+  // entries get — so there is no second number to keep in step.
   assert.deepEqual(realParserApi.turtleAliasNames(), [
     "setbg",
     "setcolor",
@@ -1071,6 +1076,121 @@ test("INJECTED DRIFT: a carve-out spelled non-canonically", () => {
   );
 });
 
+test("a registry missing EITHER role is reported, and read as unreachable rather than dereferenced", () => {
+  // The earlier version of this test deleted only `lookup` while its title said "a whole role" —
+  // a title claiming more than its body. Deleting `enumerate` crashed.
+  for (const role of ["lookup", "enumerate"]) {
+    const manifest = manifestCopy();
+    const registry = manifest.registries["core-primitive"];
+    registry[role] = undefined;
+    assert.equal(
+      role === "lookup"
+        ? registryHas(registry, realParserApi, "print")
+        : registryMembers(registry, realParserApi),
+      null,
+      role,
+    );
+    const result = runBuiltInNamesGate({ manifest });
+    assert.equal(result.ok, false, role);
+    assert.equal(
+      result.findings.includes(
+        `registry core-primitive: no ${role} accessor — each tag must name both, because the two comparison directions need different shapes`,
+      ),
+      true,
+      result.findings.join("\n"),
+    );
+  }
+});
+
+test("INJECTED DRIFT: a registry profile that is not one of the manifest's own profile ids", () => {
+  // Twelve tags are caught incidentally, through an entry whose derived profile stops matching. The
+  // two Heritage form-head tags currently win precedence for no entry, so nothing read their
+  // `profile` and any value passed — a check that looks universal but is conditional on data.
+  for (const tag of [
+    "heritage-form-head",
+    "heritage-worded-form-head",
+    "reserved",
+  ]) {
+    const manifest = manifestCopy();
+    manifest.registries[tag].profile = "zzz-not-a-profile";
+    const result = runBuiltInNamesGate({ manifest });
+    assert.equal(result.ok, false, tag);
+    assert.equal(
+      result.findings.some((finding) =>
+        finding.startsWith(
+          `registry ${tag}: profile "zzz-not-a-profile" is not one of the ids in profiles.ids`,
+        ),
+      ),
+      true,
+      result.findings.join("\n"),
+    );
+  }
+  // A valid id that is simply the wrong one is equally invisible without this check.
+  const wrong = manifestCopy();
+  wrong.registries["heritage-form-head"].profile = "geometry";
+  assert.deepEqual(
+    accessorFindings(wrong, realParserApi),
+    [],
+    "a real id passes the vocabulary check — that limit is deliberate and stated",
+  );
+
+  // Only a Record registry may omit `profile`, because it supplies one per key. Any other tag with
+  // no profile has no source for it at all.
+  const noProfile = manifestCopy();
+  noProfile.registries["heritage-form-head"].profile = undefined;
+  assert.deepEqual(accessorFindings(noProfile, realParserApi), [
+    "registry heritage-form-head: no profile, and its enumerate kind is not `record` — only a Record registry supplies a profile per key, so this tag has no profile source at all",
+  ]);
+  // The one that legitimately has none stays quiet.
+  assert.equal(REAL_MANIFEST.registries["profile-reserved"].profile, undefined);
+  assert.deepEqual(accessorFindings(REAL_MANIFEST, realParserApi), []);
+});
+
+test("INJECTED DRIFT: a registry note deleted, not merely blanked", () => {
+  // Gating only notes that are present left all of them deletable. Every registry carries one now,
+  // so there is no optional case and no count of the exceptions.
+  assert.equal(
+    Object.values(REAL_MANIFEST.registries).every(
+      (registry) => typeof registry.note === "string",
+    ),
+    true,
+  );
+  const manifest = manifestCopy();
+  manifest.registries.reserved.note = undefined;
+  assert.deepEqual(narrativeFindings(manifest), [
+    `${MANIFEST_PATH}: registries.reserved.note is missing or empty — this file is normative, and a claim it makes about itself that nothing states cannot be reviewed`,
+  ]);
+});
+
+test("codeOnly blanks comments and string literals, and keeps the line count", () => {
+  const triple = '"""';
+  const cases = [
+    ["# define arc\n", false],
+    ["// define arc\n", false],
+    ["/* define arc */\n", false],
+    ["/* define arc */\ndefine arc :a", true],
+    [`:d = ${triple}\ndefine arc\n${triple}\n`, false],
+    [`:d = ${triple}\nx\n${triple}\ndefine arc :a`, true],
+    // A comment marker inside a string is literal text (spec/grammar.md:32) …
+    ['print "# not a comment"\ndefine arc :a', true],
+    // … and a quote inside a comment does not open a string.
+    [`# see ${triple} below\ndefine arc :a`, true],
+    // An escaped delimiter does not close the literal it sits in.
+    ['print "a \\" define arc"\n', false],
+    // Unterminated constructs swallow the rest, which fails closed.
+    [`:d = ${triple}\ndefine arc\n`, false],
+    ["/* x\ndefine arc\n", false],
+  ];
+  for (const [source, expected] of cases) {
+    assert.equal(definesProcedure(source, "arc"), expected, source);
+    assert.equal(
+      codeOnly(source).split("\n").length,
+      source.split("\n").length,
+      `line count preserved: ${source}`,
+    );
+  }
+});
+
 test("definesProcedure reads a Core define header, and only that", () => {
   assert.equal(definesProcedure("define arc :angle :radius\nend", "arc"), true);
   assert.equal(definesProcedure("  define arc :a\nend", "arc"), true);
@@ -1133,25 +1253,9 @@ test("INJECTED DRIFT: an accessor kind this module does not know is a finding, n
   }
 });
 
-test("a registry missing a whole role is reported, and read as unreachable rather than dereferenced", () => {
-  const manifest = manifestCopy();
-  const registry = manifest.registries["core-primitive"];
-  registry.lookup = undefined;
-  assert.equal(registryHas(registry, realParserApi, "print"), null);
-  const result = runBuiltInNamesGate({ manifest });
-  assert.equal(result.ok, false);
-  assert.equal(
-    result.findings.includes(
-      "registry core-primitive: no lookup accessor — each tag must name both, because the two comparison directions need different shapes",
-    ),
-    true,
-    result.findings.join("\n"),
-  );
-});
-
 test("precedence is two-level: category first, then the declared key order within a category", () => {
   // `invariants.precedence` states both halves, and both are load-bearing on the shipped tree:
-  // `thing` is decided by category, the four Heritage-spelled keywords by key order.
+  // `thing` is decided by category; the five Heritage-spelled keywords by key order.
   assert.equal(entryFor(REAL_MANIFEST, "thing").category, "keyword");
   assert.deepEqual(entryFor(REAL_MANIFEST, "thing").registries, [
     "reserved",
@@ -1174,7 +1278,7 @@ test("precedence is two-level: category first, then the declared key order withi
   assert.deepEqual(entryFindings(reordered, realParserApi), []);
 
   // Key order decides among same-category tags: putting the Heritage keyword registry first
-  // re-files the four Heritage-spelled keywords, so the manifest's own `profile` becomes wrong.
+  // re-files the Heritage-spelled keywords, so the manifest's own `profile` becomes wrong.
   const heritageFirst = moveFirst(manifestCopy(), "heritage-form-head");
   assert.equal(Object.keys(heritageFirst.registries)[0], "heritage-form-head");
   assert.equal(
@@ -1765,14 +1869,17 @@ test("resolveAccessor reads a public export and reports a missing one as undefin
 
 test("accessorFindings rejects every value outside the closed vocabularies", () => {
   const manifest = {
+    profiles: { ids: { "core-language": "Core Language" } },
     registries: {
       bad: {
         category: "colour",
+        profile: "core-language",
         lookup: { accessor: "x", kind: "telepathy", status: "maybe" },
         enumerate: { accessor: "y", kind: "arity", status: "present" },
       },
       halfway: {
         category: "keyword",
+        profile: "core-language",
         lookup: { accessor: "z", kind: "array", status: "present" },
       },
     },
@@ -1872,7 +1979,7 @@ test("registryMembers enumerates, taking a Record's profile from its own key", (
   assert.equal(registryMembers(at("array", "gone"), api), null);
 });
 
-test("deriveSummary applies keyword-before-primitive in the registries' own key order", () => {
+test("deriveSummary puts category before key order, and uses key order within a category", () => {
   const manifest = {
     registries: {
       reserved: { category: "keyword", profile: "core-language" },
