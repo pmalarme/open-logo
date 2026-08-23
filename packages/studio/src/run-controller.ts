@@ -663,6 +663,12 @@ export function createRunController(
     if (current.getSnapshot().status !== "done") {
       return;
     }
+    if (attemptPending) {
+      // #876 — an execution is in flight, so this animation is not the run's ending: it is the
+      // prefix drawn up to a question the learner has already answered. Committing here would
+      // report a still-running program as finished.
+      return;
+    }
     if (pendingPumpGeneration !== null) {
       return;
     }
@@ -702,6 +708,13 @@ export function createRunController(
         // "cannot answer") back to the waiting execution and let it continue. There is no attempt
         // to replay and no withheld diagnostic to publish — the run itself reports what happened
         // next, and `settleAttempt` commits that outcome exactly as it does for a finished run.
+        //
+        // Resuming puts an execution back in flight, so the guard goes back up. Without it the
+        // *prefix* animation — which has already reached `"done"`, because it only ever contained
+        // the events up to the question — would commit the run as finished while the interpreter is
+        // still running: `runStatus` `"done"` over partial output, Run offered instead of Stop, and
+        // a live Worker behind a UI that says the program ended.
+        attemptPending = true;
         resolveReadInPlace(answer);
         return;
       }
@@ -990,22 +1003,33 @@ export function createRunController(
     promptOutstanding = false;
     chainSource = state.getState().source;
     chainRandomSeed = drawRandomSeed();
-    // #876 — publish THIS run's (still empty) result before anything can observe it. With the
-    // default in-process host the settlement overwrites all of this within the same call, so it is
-    // invisible; with a host that settles later, a Stop landing before the first settlement would
-    // otherwise leave the *previous* run's output, scene and `lastRunResult` in place — and
-    // `run-log.ts`, which snapshots `lastRunResult` on the `"running"` → terminal transition, would
-    // record that earlier run a second time.
+    // #876 — publish THIS run's (still empty) result before anything can observe it, and clear
+    // every other field a run owns. With the default in-process host the settlement overwrites all
+    // of this within the same call, so it is invisible; with a host that settles later, a Stop
+    // landing before the first settlement would otherwise leave the *previous* run's state in
+    // place. `run-log.ts` would record that earlier run a second time (it snapshots
+    // `lastRunResult` on the `"running"` → terminal transition), and `tutor-output-pane.ts` would
+    // append its `explain`/`why`/`hint`/`debug` output to the pane's history all over again — both
+    // accumulate on exactly the transition an abandoned run still makes. The canvas is cleared for
+    // the same reason: a fresh chain draws from a blank scene anyway (`shownEventCount` is 0, so
+    // nothing is fast-forwarded), so leaving the previous run's picture up would show a drawing
+    // this run never made.
     currentEvents = [];
     currentOutput = [];
     attemptDiagnostics = [];
     preparedSource = chainSource;
     state.setOutput([]);
+    state.setDiagnostics([]);
+    state.setTutorOutput([]);
     state.setLastRunResult({
       source: chainSource,
       output: [],
       diagnostics: [],
     });
+    state.setCurrentInstructionSourceSpan(null);
+    state.setTurtleWorld(INITIAL_TURTLE_WORLD_STATE);
+    state.setTurtleScene(INITIAL_TURTLE_SCENE);
+    options?.canvasView?.repaint();
     pump();
   }
 

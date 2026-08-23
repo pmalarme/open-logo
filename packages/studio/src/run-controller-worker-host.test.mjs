@@ -135,6 +135,136 @@ function createDeferredHost() {
   };
 }
 
+/**
+ * A real settlement for `source`, produced by the in-process host — so the deferred tests below
+ * carry genuine trace events, output and tutor payloads rather than hand-built stand-ins. A read
+ * settlement with an **empty** event list is what let the first round of these tests miss that a
+ * finished *prefix* animation could commit the whole run as done.
+ */
+function settlementFor(source) {
+  const host = OL.createInProcessExecutionHost({ signal: { aborted: false } });
+  let captured = null;
+  host.execute(
+    {
+      source,
+      document: "deferred.logo",
+      randomSeed: 1,
+      cancellationRequested: false,
+      acceptsReads: false,
+      answers: [],
+    },
+    (settlement) => {
+      captured = settlement;
+    },
+  );
+  return captured;
+}
+
+test("answering a suspended read does NOT commit the run as finished", () => {
+  // The prefix animation has already reached "done" — it only ever held the events up to the
+  // question — so without an in-flight guard the run is reported finished the moment the learner
+  // answers: `runStatus` "done" over partial output, Run offered instead of Stop, and a live
+  // Worker behind a UI that says the program ended.
+  const prefix = settlementFor('print "before"\nforward 100');
+  const store = OL.createStudioState({ source: ASK_NAME_SOURCE });
+  const deferred = createDeferredHost();
+  const prompt = createTestPromptHost(() => "Ada");
+  const controller = OL.createRunController(store, {
+    inputPrompt: prompt,
+    executionHost: deferred.host,
+  });
+  controller.run();
+
+  deferred.report({
+    events: prefix.events,
+    output: prefix.output,
+    pendingPrompt: "what is your name?",
+  });
+
+  assert.deepEqual(deferred.calls.resolved, ["Ada"]);
+  assert.equal(
+    store.getState().runStatus,
+    "running",
+    "the interpreter is still executing — only its own ending may commit the run",
+  );
+
+  const whole = settlementFor('print "before"\nforward 100\nprint "Ada"');
+  deferred.report({ events: whole.events, output: whole.output });
+
+  assert.equal(store.getState().runStatus, "done");
+  assert.deepEqual(store.getState().output, ["before", "Ada"]);
+});
+
+test("stepping while a resumed run is still executing cannot commit it either", () => {
+  // Same defect reached through `step()` rather than through playback's trailing settle.
+  const prefix = settlementFor('print "before"\nforward 100');
+  const store = OL.createStudioState({ source: ASK_NAME_SOURCE });
+  const deferred = createDeferredHost();
+  const prompt = createTestPromptHost();
+  const controller = OL.createRunController(store, {
+    inputPrompt: prompt,
+    executionHost: deferred.host,
+  });
+  controller.run();
+  deferred.report({
+    events: prefix.events,
+    output: prefix.output,
+    pendingPrompt: "what is your name?",
+  });
+
+  prompt.respond("Ada");
+  controller.step();
+
+  assert.equal(store.getState().runStatus, "running");
+  assert.deepEqual(store.getState().output, ["before"]);
+});
+
+test("a new Run clears the tutor pane's per-run output, so an early Stop cannot duplicate it", () => {
+  // `tutor-output-pane.ts` accumulates history from the store's `tutorOutput` field. Leaving the
+  // previous run's payloads there meant an abandoned run appended them to the pane a second time.
+  const explained = settlementFor("forward 100\nexplain");
+  assert.equal(explained.tutorOutput.length > 0, true);
+  const store = OL.createStudioState({ source: "forward 100\nexplain" });
+  const deferred = createDeferredHost();
+  const controller = OL.createRunController(store, {
+    executionHost: deferred.host,
+  });
+  const pane = OL.createTutorOutputController(store);
+  controller.run();
+  deferred.report({
+    events: explained.events,
+    output: explained.output,
+    tutorOutput: explained.tutorOutput,
+  });
+  const afterFirstRun = pane.getEntries().length;
+
+  controller.run();
+  controller.stop();
+
+  assert.equal(pane.getEntries().length, afterFirstRun);
+});
+
+test("a new Run clears the canvas, so an early Stop cannot leave the previous drawing up", () => {
+  const drawn = settlementFor("repeat 4 [ forward 100 right 90 ]");
+  const store = OL.createStudioState({
+    source: "repeat 4 [ forward 100 right 90 ]",
+  });
+  const deferred = createDeferredHost();
+  const controller = OL.createRunController(store, {
+    executionHost: deferred.host,
+  });
+  controller.run();
+  deferred.report({ events: drawn.events, output: drawn.output });
+  assert.equal(store.getState().turtleScene.items.length, 4);
+
+  controller.run();
+  controller.stop();
+
+  assert.equal(store.getState().turtleScene.items.length, 0);
+  assert.deepEqual(store.getState().tutorOutput, []);
+  assert.deepEqual(store.getState().diagnostics, []);
+});
+
 test("under an asynchronous host, answering routes back into the SAME suspended run", () => {
   // The behaviour that makes this a blocking read rather than a replay, asserted at the seam the
   // controller actually uses: the answer goes to `resolveRead`, and no second execution is started.
