@@ -97,14 +97,16 @@ export function corePrimitiveArity(name: string): number | undefined {
  * in it). That made the edge unverifiable: `spec/built-in-names.json` records `setxy → set_xy`, and
  * the strongest check available against an unrecorded edge was "the target is some entry of equal
  * arity", which accepts `setxy → distance` just as happily.
- * [ADR-0021](../../../docs/adr/0021-built-in-names-list-and-ci-gate.md) §3 names the fix and
- * requires it of #841: an enumerable canonical map, so the edge can be checked at all.
+ * [ADR-0021](../../../docs/adr/0021-built-in-names-list-and-ci-gate.md) §3 requires of #841 an
+ * enumerable canonical map *"consumed by the resolver, so it cannot drift"*.
  *
- * Keeping the pair on one row is what removes the second number: both spellings take the same
- * `arity` literal because there is only one, so they cannot disagree — and there is no lookup that
- * could point at a name the table does not hold, so no failure mode to guard and no unreachable
- * guard to leave behind. {@link turtlePrimitiveArity} reads {@link TURTLE_PRIMITIVE_ARITY} directly
- * and does **not** route through the canonical map.
+ * The map is enumerable, and the drift the clause exists to prevent is removed **structurally**
+ * rather than by routing: both spellings take the same `arity` literal because the row holds only
+ * one, so there is no second number to keep in step, and no lookup that could point at a name the
+ * table does not hold — no failure mode to guard and no unreachable guard to leave behind.
+ * {@link turtlePrimitiveArity} reads {@link TURTLE_PRIMITIVE_ARITY} directly and does **not** route
+ * through the canonical map, so the ADR's literal *consumed* is not satisfied; its stated purpose
+ * is.
  *
  * It does **not** change what the five mean at a call site: they remain independent spellings bound
  * to one primitive, with no canonicalisation in either direction, which is exactly the call-site

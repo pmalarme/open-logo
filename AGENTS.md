@@ -176,8 +176,9 @@ spec ([ADR-0021](docs/adr/0021-built-in-names-list-and-ci-gate.md)) — against 
 registries **in both directions**, comparing structured entries rather than a flat name set. It also
 gates the three hand-maintained prose lists that used to have nothing checking them: the normative
 keyword block in `spec/grammar.md` and the C19 mirror in `spec/tooling.md`, both compared
-**derivedly** — the expected words are computed from the manifest, and the mirror must be
-byte-order-identical to the block — plus `spec/tooling.md`'s `keyword` **token-class** row, which is
+**derivedly** — the expected words are computed from the manifest, and the mirror must carry the same
+words in the same order as the block (the extracted words, not the bytes) — plus `spec/tooling.md`'s
+`keyword` **token-class** row, which is
 only **change-detected**. That row is a different set from the keyword list on purpose
 (`spec/grammar.md:378`) and is deliberately underivable, so the gate fingerprints it: a change to it
 cannot pass unseen, and whether the new row is *correct* is maintainer-reviewed under `CODEOWNERS`.

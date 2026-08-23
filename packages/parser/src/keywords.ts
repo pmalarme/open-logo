@@ -45,18 +45,22 @@
 /**
  * The keywords, in the grammar's grouping order (`spec/grammar.md:368-376`).
  *
- * **Adding or removing a keyword edits several places, and issue #841 gates them.** Deliberately
- * listed rather than counted, because the count is itself the kind of claim nothing recomputes:
+ * **Adding or removing a keyword edits several places.** Deliberately listed rather than counted,
+ * because the count is itself the kind of claim nothing recomputes — and it names which gate covers
+ * each, because "gated" alone hides the difference between a comparison and a change detector:
  *
- * - `spec/grammar.md:368-375` — normative; compared word-for-word against `spec/built-in-names.json`.
- * - `spec/tooling.md:91-94` — mirrors that block; compared against it byte-for-byte.
- * - this array — reaches the comparison through `spec/built-in-names.json`, in both directions.
+ * - `spec/grammar.md:368-375` — normative; `npm run built-in-names` compares its extracted words
+ *   against `spec/built-in-names.json`.
+ * - `spec/tooling.md:91-94` — mirrors that block; the same gate compares **the same extracted words
+ *   in the same order**. Not the bytes: the extractor takes the backticked words, so a
+ *   whitespace-only edit to that paragraph changes the file and the gate stays green.
+ * - this array — reaches that comparison through `spec/built-in-names.json`, in both directions.
  * - `spec/built-in-names.json` itself — the authoritative list, added by #841.
  * - `spec/tooling.md:30` — the `keyword` **token class**, a different set on purpose
  *   (`spec/grammar.md:378`). **Change-detected only**: a content fingerprint notices an edit, and
  *   nothing verifies the edited row is still correct.
- * - `keywords.profiles.test.mjs`'s `EXPECTED_CORE_KEYWORDS` — asserted against this array by
- *   `npm run test`, not by `npm run built-in-names`.
+ * - `keywords.profiles.test.mjs`'s `EXPECTED_CORE_KEYWORDS` — asserted against this array by the
+ *   pre-existing `npm run test`, not by `npm run built-in-names`.
  *
  * The gate exists because the `tooling.md` mirror had already drifted to 43 words (missing `mod`)
  * before #855 restored it, with nothing reading `spec/*.md` to notice.

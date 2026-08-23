@@ -1500,7 +1500,7 @@ test("INJECTED DRIFT: the exact regression that already happened — the C19 mir
   assert.equal(
     findings.some((finding) =>
       finding.startsWith(
-        `${TOOLING_PATH}: the C19 mirror (43 words) is not byte-order-identical`,
+        `${TOOLING_PATH}: the C19 mirror (43 words) does not carry the same words in the same order`,
       ),
     ),
     true,

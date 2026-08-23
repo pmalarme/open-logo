@@ -1133,8 +1133,10 @@ export function rowFingerprintFindings(manifest, row) {
  *
  * Two are compared **derivedly**, by computing the expected words from the manifest and the
  * implementation: `spec/grammar.md`'s normative keyword block, and `spec/tooling.md`'s C19 mirror,
- * which must be byte-order-identical to it. That pair is the one that caught the drift which
- * actually happened — the mirror silently losing `mod` and standing at 43 words.
+ * which must carry the same words in the same order. The comparison is on the **extracted words**,
+ * not the bytes, so a whitespace-only edit to either paragraph is not a finding. That pair is the
+ * one that caught the drift which actually happened — the mirror silently losing `mod` and standing
+ * at 43 words.
  *
  * The third, `spec/tooling.md`'s `keyword` **token-class** row, is only **change-detected**; see
  * {@link rowFingerprintFindings} for why, and issue #841 for the three mechanisms that tried for
@@ -1203,7 +1205,7 @@ export function proseFindings(manifest, io) {
   if (grammarWords !== null && mirrorWords !== null) {
     if (grammarWords.join(" ") !== mirrorWords.join(" ")) {
       findings.push(
-        `${TOOLING_PATH}: the C19 mirror (${mirrorWords.length} words) is not byte-order-identical to ${GRAMMAR_PATH}'s normative block (${grammarWords.length} words) — it mirrors that list and must not diverge from it`,
+        `${TOOLING_PATH}: the C19 mirror (${mirrorWords.length} words) does not carry the same words in the same order as ${GRAMMAR_PATH}'s normative block (${grammarWords.length} words) — it mirrors that list and must not diverge from it`,
       );
     }
   }
@@ -1359,9 +1361,10 @@ export function narrativeFindings(manifest) {
  * No string value anywhere in the file may contain a Unicode `Cc` control character.
  *
  * Authoring the notes through a shell whose escape character is a backtick turned `` `note` ``,
- * `` `aliasOf` ``, `` `reserved` `` and `` `excluded` `` into LF, BEL, CR and ESC bytes inside a
- * normative `spec/` artefact: still valid JSON, still Prettier-clean, still zero findings, and four
- * words left unreadable.
+ * `` `aliasOf` ``, `` `reserved` `` and `` `excluded` `` into LF, BEL, CR and ESC **code points in
+ * the decoded strings** inside a normative `spec/` artefact — carried, as a conforming JSON file
+ * must, as visible six-character escapes. Still valid JSON, still Prettier-clean, still zero
+ * findings, and four words left unreadable.
  *
  * Every string leaf, not only the prose ones — `Object.entries` yields indexed pairs for arrays, so
  * the bare strings inside `names[].registries[]` and `excluded[].positions[]` are reached too. `Cc`

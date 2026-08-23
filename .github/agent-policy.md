@@ -50,10 +50,12 @@ npm ci && npm run build && npm run typecheck && npm run lint && npm run format:c
 
 - **Adding or removing a primitive is a two-file change** — the registry **and**
   `spec/built-in-names.json` — and `npm run built-in-names` is red until both land. A **keyword**
-  edits more: those two plus `spec/grammar.md`'s normative block and `spec/tooling.md`'s C19 mirror,
-  which the gate compares derivedly, plus `spec/tooling.md`'s `keyword` token-class row, which it
-  only **change-detects** — an edit is noticed, its correctness is not verified. See
-  [ADR-0021](../docs/adr/0021-built-in-names-list-and-ci-gate.md).
+  edits more: those two, plus `spec/grammar.md`'s normative block and `spec/tooling.md`'s C19 mirror
+  (which that gate compares), plus `spec/tooling.md`'s `keyword` token-class row (which it only
+  **change-detects** — an edit is noticed, its correctness is not verified), plus
+  `keywords.profiles.test.mjs`'s `EXPECTED_CORE_KEYWORDS`, which `npm run test` asserts rather than
+  `npm run built-in-names`. `packages/parser/src/keywords.ts` carries the list and names the gate
+  covering each. See [ADR-0021](../docs/adr/0021-built-in-names-list-and-ci-gate.md).
 
 ## Known traps
 
