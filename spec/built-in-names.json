@@ -1,6 +1,6 @@
 {
   "specVersion": "0.1.0",
-  "about": "The authoritative list of OpenLogo's built-in names for this specification version: every keyword and every primitive, aliases included. spec/grammar.md:363 governs them with one rule -- a program may not DECLARE a built-in name, and may BIND a value to any name -- and spec/grammar.md:414 versions them with the specification. This file is that list in machine-readable form, and CI asserts the implementation's registries equal it exactly, in both directions (docs/adr/0021-built-in-names-list-and-ci-gate.md). It is normative and maintainer-owned like the rest of spec/. Membership here answers one question only -- may a program declare this name? -- and never how a word is highlighted, which spec/tooling.md owns as an independent axis.",
+  "about": "The authoritative list of OpenLogo's built-in names for this specification version: every keyword and every primitive, aliases included. spec/grammar.md:363 governs them with one rule -- a program may not DECLARE a built-in name, and may BIND a value to any name -- and spec/grammar.md:414 versions them with the specification. This file is that list in machine-readable form, and CI asserts the implementation's registries equal it exactly, in both directions (docs/adr/0021-built-in-names-list-and-ci-gate.md). It is normative and maintainer-owned like the rest of spec/. Membership here answers one question only -- may a program declare this name? -- and never how a word is highlighted, which spec/tooling.md owns as an independent axis. The \note on each registry and every other prose field here is NON-NORMATIVE rationale: it records why a tag is shaped as it is, and nothing verifies it. Prose must never restate data this file already carries -- a name list, a count, a profile assignment -- because a restatement is a second list, and the one thing this file exists to remove is a second list.",
   "invariants": {
     "unconditional": "Every profile's keywords and primitives are built-in names in EVERY implementation, whether or not that profile is claimed (spec/grammar.md:408). `profile` below is metadata for docs and tooling; nothing may branch on it when deciding whether a name is blocked at a declaration slot.",
     "precedence": "A name reachable from two registries is filed ONCE. Precedence is TWO-LEVEL and the order matters: first by CATEGORY, `keyword` beating `primitive` regardless of where the tags sit -- which is what files `thing` as a keyword though `core-primitive` also holds it; then, among registries of the SAME category, by the key order of `registries` below -- which is what files `to` under core-language rather than heritage, since `reserved` precedes `heritage-form-head`. Reordering `registries` therefore never changes a keyword/primitive verdict, only which same-category tag supplies the `profile`. Its `profile` follows the precedence-winning registry. The full membership is always recorded in `registries` on the entry, never inferred from `category` or `profile`, so losing one of two registrations fails the gate instead of matching a summary that still looks right.",
@@ -12,7 +12,7 @@
     "reserved": {
       "category": "keyword",
       "profile": "core-language",
-      "note": "ADR-0021's table names OL_RESERVED_WORDS; issue #837 renamed the vocabulary to keywords and added `mod`, so the tree's accessor is OL_KEYWORDS. The tag name is ADR-0021's closed vocabulary and does not change with the accessor.",
+      "note": "ADR-0021's table names OL_RESERVED_WORDS; issue #837 renamed the vocabulary to keywords, so the tree's accessor is OL_KEYWORDS. The tag name is ADR-0021's closed vocabulary and does not change with the accessor.",
       "lookup": {
         "accessor": "OL_KEYWORDS",
         "kind": "array",
@@ -26,7 +26,7 @@
     },
     "profile-reserved": {
       "category": "keyword",
-      "note": "ADR-0021's table names OL_PROFILE_RESERVED_WORDS; the tree's accessor is OL_PROFILE_KEYWORDS after issue #837. A Record keyed by profile, so it supplies each entry's `profile` directly and is flattened per key, never concatenated.",
+      "note": "ADR-0021's table names OL_PROFILE_RESERVED_WORDS; the tree's accessor is OL_PROFILE_KEYWORDS after issue #837. A Record keyed by profile, so it supplies each entry's profile directly and has none of its own at tag level.",
       "lookup": {
         "accessor": "OL_PROFILE_KEYWORDS",
         "kind": "record",
@@ -51,7 +51,7 @@
         "kind": "profile-enumerator",
         "status": "present"
       },
-      "note": "Core Language primitives. Its lookup is the per-name arity table and its enumerate is the derived profilePrimitiveNames called with this tag's profile, so the two roles read one source."
+      "note": "Why the two roles cannot disagree about membership: the arity table and profilePrimitiveNames read one source. What differs between them is case normalisation."
     },
     "turtle-primitive": {
       "category": "primitive",
@@ -68,7 +68,7 @@
         "kind": "profile-enumerator",
         "status": "present"
       },
-      "note": "Turtle & Rendering primitives. The five one-word spellings (setxy, setpos, setheading, setpencolor, setbg) are separate arity entries bound to one primitive, and their alias edges are carried by aliasEnumerator/canonicalAccessor rather than by this role pair."
+      "note": "Why the one-word spellings are not ordinary members: each is a separate arity entry bound to a canonical, and that edge is carried by aliasEnumerator/canonicalAccessor rather than by the lookup/enumerate pair."
     },
     "data-primitive": {
       "category": "primitive",
@@ -83,12 +83,12 @@
         "kind": "profile-enumerator",
         "status": "present"
       },
-      "note": "Data profile primitives. Same derived-enumeration shape as every other profile-keyed primitive tag."
+      "note": "No exception. Present so that the Data profile's table is compared like every other, rather than being absent and trivially matching."
     },
     "educational-primitive": {
       "category": "primitive",
       "profile": "educational",
-      "note": "Holds exactly the four Educational baseline meta-commands. `challenge` is Tutor (AI) and lives in its own registry, so this table's `profile` stays exception-free.",
+      "note": "Why this table has no exception: challenge is Tutor (AI) and lives in its own registry, so no Educational entry has to be carved out of it.",
       "lookup": {
         "accessor": "educationalPrimitiveArity",
         "kind": "arity",
@@ -103,7 +103,7 @@
     "geometry-primitive": {
       "category": "primitive",
       "profile": "geometry",
-      "note": "Only the three renderer-backed overlays. The derived Geometry standard library is OpenLogo source and is listed under `excluded`, never here.",
+      "note": "Why this table is much smaller than the profile: the derived Geometry standard library is OpenLogo source and is listed under \u001bxcluded, never here.",
       "lookup": {
         "accessor": "geometryPrimitiveArity",
         "kind": "arity",
@@ -128,7 +128,7 @@
         "kind": "profile-enumerator",
         "status": "present"
       },
-      "note": "Interaction & Events primitives. Its profile words (ask, when, ...) are keywords held by profile-reserved, not primitives, so they are filed under that tag instead."
+      "note": "Why this table holds fewer names than the profile does: the profile's words are keywords, held by profile-reserved, and only callable primitives are filed here."
     },
     "sound-primitive": {
       "category": "primitive",
@@ -143,7 +143,7 @@
         "kind": "profile-enumerator",
         "status": "present"
       },
-      "note": "Sound profile primitives. Same derived-enumeration shape as every other profile-keyed primitive tag."
+      "note": "No exception. Present so that the Sound profile's table is compared like every other, rather than being absent and trivially matching."
     },
     "sprites-primitive": {
       "category": "primitive",
@@ -158,12 +158,12 @@
         "kind": "profile-enumerator",
         "status": "present"
       },
-      "note": "Sprites profile primitives. Its profile words are keywords held by profile-reserved; only the callable primitives are here."
+      "note": "Why this table holds fewer names than the profile does: the profile's words are keywords, held by profile-reserved, and only callable primitives are filed here."
     },
     "tutor-primitive": {
       "category": "primitive",
       "profile": "tutor-ai",
-      "note": "`tutorPrimitiveArity` answers 0 for `challenge` (issue #838) and `profilePrimitiveNames(\"tutor-ai\")` enumerates it (issue #874), so this tag is fully `present` in both roles. ADR-0021 recorded BOTH accessors as `declared` -- decided but not yet created -- and named issue #841 as the slice that would create them; the tree reached it by a better route, one derived accessor over the whole profile-keyed registry rather than a tenth hand-written `tutorPrimitiveNames`. The ADR is a dated record of the decision, not of the code.",
+      "note": "ADR-0021 recorded BOTH accessors as declared -- decided but not yet created -- and named issue #841 as the slice that would create them. The tree reached them by a better route (issues #838 and #874), one derived accessor over the whole profile-keyed registry rather than a tenth hand-written enumerator. The ADR is a dated record of the decision, not of the code.",
       "lookup": {
         "accessor": "tutorPrimitiveArity",
         "kind": "arity",
@@ -178,7 +178,7 @@
     "heritage-alias": {
       "category": "primitive",
       "profile": "heritage",
-      "note": "The 13 short aliases are in NO primitive arity table: only their canonicals are. They are registered solely here, which is why `category` cannot be derived from arity-table membership.",
+      "note": "Why category cannot be derived from arity-table membership here: the short aliases are in no primitive arity table at all -- only their canonicals are -- so they are registered solely under this tag.",
       "canonicalAccessor": "canonicalOfHeritageAlias",
       "aliasEnumerator": "heritageAliasNames",
       "lookup": {
@@ -195,7 +195,7 @@
     "heritage-form-head": {
       "category": "keyword",
       "profile": "heritage",
-      "note": "Grammar form heads, not name-for-name substitutions, so they carry no `aliasOf`. All four are also Core keywords, so the keyword-before-primitive precedence files them under core-language.",
+      "note": "Why these carry no \u0007liasOf: they are grammar form heads, not name-for-name substitutions. They are also Core keywords, so they lose precedence to \reserved on the same-category key order rather than on category.",
       "lookup": {
         "accessor": "heritageFormHeadNames",
         "kind": "enumerator",
@@ -210,7 +210,7 @@
     "heritage-worded-form-head": {
       "category": "keyword",
       "profile": "heritage",
-      "note": "The head of `value of ... for key`. A worded form is a grammar spelling, not an alias edge, so it has no `aliasOf` target.",
+      "note": "Why this carries no \u0007liasOf: a worded form is a grammar spelling, not an alias edge, so it has no single target to name.",
       "lookup": {
         "accessor": "heritageWordedFormHeads",
         "kind": "enumerator",

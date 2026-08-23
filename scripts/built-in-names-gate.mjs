@@ -309,7 +309,7 @@ export function accessorFindings(manifest, api) {
         `registry ${tag}: category ${JSON.stringify(registry.category)} is outside the closed vocabulary [${CATEGORIES.join(", ")}]`,
       );
     }
-    // Validated directly, not incidentally. Twelve tags are caught through an entry whose derived
+    // Validated directly, not incidentally. Most tags are caught through an entry whose derived
     // profile stops matching, but `heritage-form-head` and `heritage-worded-form-head` currently win
     // precedence for no entry, so nothing ever read their `profile` and any value passed.
     // A `record` registry is the one shape that legitimately has none: it supplies a profile per key.
@@ -725,10 +725,10 @@ export function profilePrimitiveSweepFindings(manifest, api) {
  *
  * `aliasOf` is an edge rather than a parallel list so it cannot drift from its target. Two registries
  * carry edges and each names its own resolver and enumerator in the manifest:
- * `heritageAliasNames`/`canonicalOfHeritageAlias` for the 13 Heritage short spellings, and
- * `turtleAliasNames`/`canonicalOfTurtleAlias` for the five Turtle & Rendering one-word spellings.
- * The turtle pair is added by this slice — ADR-0021 §3 requires it, consumed by the resolver so it
- * cannot drift, and it supersedes the equal-arity fallback that ADR records in the past tense.
+ * `heritageAliasNames`/`canonicalOfHeritageAlias` for the Heritage short spellings, and
+ * `turtleAliasNames`/`canonicalOfTurtleAlias` for the Turtle & Rendering one-word spellings. The
+ * turtle pair is added by this slice — ADR-0021 §3 requires it — and supersedes the equal-arity
+ * fallback that ADR records in the past tense.
  */
 export function aliasFindings(manifest, api) {
   const findings = [];

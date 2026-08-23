@@ -513,12 +513,13 @@ test("INJECTED DRIFT: deleting every alias edge is caught — the direction alia
   );
 });
 
-test("the Turtle & Rendering alias and canonical spellings derive from one row, so their arities cannot diverge", () => {
-  // NOT "the arity lookup resolves through the canonical map" — `signatures.ts` builds
-  // `TURTLE_PRIMITIVE_ARITY` and `TURTLE_ALIAS_CANONICAL` as two maps from one `TURTLE_PRIMITIVES`
-  // row table, and `turtlePrimitiveArity` queries the arity map directly. What makes the edge
-  // undriftable is that a single row supplies the canonical name, the alias, and the one arity both
-  // entries get — so there is no second number to keep in step.
+test("every Turtle & Rendering one-word spelling resolves to a canonical of equal arity", () => {
+  // The title names only what this body can prove: the observable outputs. That the two maps are
+  // `flatMap`ped from one `TURTLE_PRIMITIVES` row — so the canonical and the alias share a single
+  // arity binding — is why they cannot diverge, but it is an implementation detail this test cannot
+  // falsify: two independently built maps holding identical values would pass it. An earlier title
+  // claimed the arity lookup resolves THROUGH the canonical map, and `turtlePrimitiveArity` does
+  // not do that; it reads the arity map directly.
   assert.deepEqual(realParserApi.turtleAliasNames(), [
     "setbg",
     "setcolor",
@@ -1103,7 +1104,7 @@ test("a registry missing EITHER role is reported, and read as unreachable rather
 });
 
 test("INJECTED DRIFT: a registry profile that is not one of the manifest's own profile ids", () => {
-  // Twelve tags are caught incidentally, through an entry whose derived profile stops matching. The
+  // Most tags are caught incidentally, through an entry whose derived profile stops matching. The
   // two Heritage form-head tags currently win precedence for no entry, so nothing read their
   // `profile` and any value passed — a check that looks universal but is conditional on data.
   for (const tag of [
@@ -1175,8 +1176,11 @@ test("codeOnly blanks comments and string literals, and keeps the line count", (
     ['print "# not a comment"\ndefine arc :a', true],
     // … and a quote inside a comment does not open a string.
     [`# see ${triple} below\ndefine arc :a`, true],
-    // An escaped delimiter does not close the literal it sits in.
+    // An escaped delimiter does not close the literal it sits in — single-line …
     ['print "a \\" define arc"\n', false],
+    // … and multi-line, which is the case the earlier comment claimed and did not exercise.
+    [`:d = ${triple}\n\\${triple} define arc\n${triple}\n`, false],
+    [`:d = ${triple}\n\\${triple} x\n${triple}\ndefine arc :a`, true],
     // Unterminated constructs swallow the rest, which fails closed.
     [`:d = ${triple}\ndefine arc\n`, false],
     ["/* x\ndefine arc\n", false],
