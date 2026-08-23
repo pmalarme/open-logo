@@ -1,5 +1,5 @@
 {
-  "description": "Issue #742 (Heritage half of the alias/Sprites shadowing fix, landed with #746), COMPLETED by ruling #833 / issue #838: with `heritage` ACTIVE, redefining a Heritage short alias raises `ol-reserved-word` exactly as redefining its canonical Core spelling does. Heritage is \"alternate spellings only -- no new semantics\" (`spec/conformance.md:150`), so `define pr` MUST be exactly as (il)legal as `define print`; before #742, `define print` raised and `define pr` was silently accepted **and the shadow took effect**, so a Heritage program could lose its `print` (`pr 7` then reported `ol-bad-token`). This fixture declares ALL THIRTEEN aliases in registry order and is therefore the whole symmetry table in one file. When #742 landed, only FOUR of the thirteen were reported: `pr`/`bf`/`bl`/`se` alias the **Core** primitives, while the nine turtle aliases resolved to a Turtle & Rendering table the checker deliberately did not consult (issue #783, awaiting a maintainer ruling). #833 supplied that ruling -- spec/grammar.md:382, \"`define count`, `define forward`, and `define fd` are equally errors\" -- and #838 wired `turtlePrimitiveArity` in, so all thirteen report and the file finally means what its name says. That the nine flipped with NO edit to the Heritage branch is the design working: the checker resolves an alias through `canonicalOfHeritageAlias` and re-runs the canonical's own lookup rather than keeping a second table, so the two spellings agree by construction. `params.name` is the **surface** spelling the learner wrote, at that name's own span (`pr`, never `print`) -- the contract #737 recorded for this code -- and `params.namespace` is gone, per spec/error-model.md:125. Paired with `heritage-alias-redefinition-legal-in-core`, which checks this exact source under Core alone and reports the same diagnostics -- an alias is a built-in name whether or not `heritage` is claimed (`spec/grammar.md:408`). That twin's file name no longer describes it; renaming is issue #842's. `\"check\": true` (semantic-checker only, no execution) because this is a checker rule: the procedures are never called and no events are produced.",
+  "description": "Issue #742 (maintainer ruling #833): with `heritage` ACTIVE, redefining a Heritage short alias raises `ol-reserved-word` exactly as redefining its canonical Core spelling does. Heritage is \"alternate spellings only -- no new semantics\" (`spec/conformance.md:150`), so `define pr` MUST be exactly as (il)legal as `define print`. The checker resolves an alias through `canonicalOfHeritageAlias` and re-runs the canonical's own lookup rather than keeping a second table, so the two spellings agree by construction. `params.name` is the **surface** spelling the learner wrote, at that name's own span (`pr`, never `print`) -- the contract #737 recorded for this code. Paired with `heritage-alias-redefinition-rejected-in-core`, which checks this exact source under Core alone and reports the same diagnostics -- an alias is a built-in name whether or not `heritage` is claimed (`spec/grammar.md:408`). `message` is absent from the diagnostics below, as it is from its twin: the harness strips it from BOTH sides before comparing (`scripts/harness/index.mjs:977-983`), so supplying one here would be an assertion nothing can evaluate; the learner-facing wording is pinned by unit tests instead (`packages/parser/src/checker-reserved-word.test.mjs:236`). `\"check\": true` (semantic-checker only, no execution) because this is a checker rule: the procedures are never called and no events are produced.",
   "profiles": ["core-language", "data", "heritage"],
   "check": true,
   "events": [],
@@ -14,7 +14,6 @@
       "params": {
         "name": "fd"
       },
-      "message": "fd is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -28,7 +27,6 @@
       "params": {
         "name": "bk"
       },
-      "message": "bk is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -42,7 +40,6 @@
       "params": {
         "name": "lt"
       },
-      "message": "lt is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -56,7 +53,6 @@
       "params": {
         "name": "rt"
       },
-      "message": "rt is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -70,7 +66,6 @@
       "params": {
         "name": "st"
       },
-      "message": "st is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -84,7 +79,6 @@
       "params": {
         "name": "ht"
       },
-      "message": "ht is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -98,7 +92,6 @@
       "params": {
         "name": "pu"
       },
-      "message": "pu is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -112,7 +105,6 @@
       "params": {
         "name": "pd"
       },
-      "message": "pd is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -126,7 +118,6 @@
       "params": {
         "name": "cs"
       },
-      "message": "cs is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -140,7 +131,6 @@
       "params": {
         "name": "pr"
       },
-      "message": "pr is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -154,7 +144,6 @@
       "params": {
         "name": "bf"
       },
-      "message": "bf is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -168,7 +157,6 @@
       "params": {
         "name": "bl"
       },
-      "message": "bl is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -182,7 +170,6 @@
       "params": {
         "name": "se"
       },
-      "message": "se is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     }

@@ -1,5 +1,5 @@
 {
-  "description": "ONE diagnostic for a name in two categories at once (issue #113, rewritten by #838): `thing` is the only name that is both a keyword and a Core primitive. It used to prove the `namespace` priority order by reporting `\"reserved\"` rather than `\"primitive\"`; spec/error-model.md:125 has since removed that param, so what this fixture now pins is the invariant that outlived it -- a doubly-built-in name still produces exactly ONE `ol-reserved-word`, not one per category. That is a real regression risk for the checker's short-circuit: `isBuiltInName` asks three questions (keyword, unconditional table, gated table) and must stop at the first yes. The fixture name is kept so its history stays greppable.",
+  "description": "ONE diagnostic for a name in two categories at once (issue #113): `thing` is the only name that is both a keyword and a Core primitive. A doubly-built-in name produces exactly ONE `ol-reserved-word`, not one per category. That is a real regression risk for the checker's short-circuit, which must stop at the first yes.",
   "profiles": ["core-language"],
   "check": true,
   "events": [],

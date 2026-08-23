@@ -1,5 +1,5 @@
 {
-  "description": "Issue #839 AC4, the Core half of \"nothing shadows\": `define first :xs … end` then `print first [10 20 30]`. Before this slice `execute()` ran the program and printed `10` — the primitive resolved ahead of `environment.procedures`, so the learner's own procedure was silently dead while `check()` had already said `ol-reserved-word`. Phase-1 registration now raises the same `ol-reserved-word` with the same `params` at the same span, so the two stages agree and nothing runs. The printed value is what makes this discriminating: `10` means the primitive won, `999` means the procedure won, and an empty event stream means the declaration was rejected before either could.",
+  "description": "Issue #839 AC4, the Core half of \"nothing shadows\": `define first :xs … end` then `print first [10 20 30]`. Phase-1 registration raises the same `ol-reserved-word` with the same `params` at the same span as `check()`, so the two stages agree and nothing runs. The printed value is what makes this discriminating: `10` means the primitive won, `999` means the procedure won, and an empty event stream means the declaration was rejected before either could.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [],

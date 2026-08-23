@@ -1,5 +1,5 @@
 {
-  "description": "issue #679 (SP7): the declaration-slot rule covers struct CONSTRUCTORS as well as procedures, so with `sprites` active `struct tell`/`struct ask`/`struct each` each raise `ol-reserved-word` at the struct-name token. `struct` is one of the grammar's four declaration slots (spec/grammar.md:382), which is why this fixture is unaffected by maintainer ruling #833. Scope note, twice corrected: when this fixture was written the `variables` third of spec/turtles-and-sprites.md:154's sentence was not diagnosed (`:tell = 1` checked clean); Epic-Gate finding B3 took that up as issue #739, which made it raise; ruling #833 then reversed #739 and made binding free again, permanently -- spec/grammar.md:386 now makes accepting any name in a binding position a normative MUST, and spec/grammar.md:408 says what a profile decides is whether a name WORKS, never whether a program may declare it. The sibling fixture reserved-bindings-with-sprites pins that reversal; the profile document's older wording was realigned by issue #855. This fixture owns the struct-constructor case, which is a declaration and still collides. Issue #838 dropped the `namespace` param (spec/error-model.md:125) and removed the `data` gate from the struct check, so the STRUCT SLOT itself is now unconditional. The sibling reserved-struct-without-sprites checks the same declarations with Sprites absent and expects the same diagnostics: `tell` is a built-in NAME whether or not its profile is claimed (`spec/grammar.md:408`).",
+  "description": "issue #679 (SP7): the declaration-slot rule covers struct CONSTRUCTORS as well as procedures, so with `sprites` active `struct tell`/`struct ask`/`struct each` each raise `ol-reserved-word` at the struct-name token. `struct` is one of the grammar's four declaration slots (spec/grammar.md:382), which is why this fixture is unaffected by maintainer ruling #833. Binding is free (`spec/grammar.md:386`) and is pinned by the sibling fixture reserved-bindings-with-sprites; this fixture owns the struct-constructor case, which is a declaration and collides. The sibling reserved-struct-without-sprites checks the same declarations with Sprites absent and expects the same diagnostics: `tell` is a built-in NAME whether or not its profile is claimed (`spec/grammar.md:408`). `message` is absent from the diagnostics below, as it is from its twin: the harness strips it from BOTH sides before comparing (`scripts/harness/index.mjs:977-983`), so supplying one here would be an assertion nothing can evaluate.",
   "profiles": ["core-language", "sprites", "data"],
   "check": true,
   "events": [],
@@ -14,7 +14,6 @@
       "params": {
         "name": "tell"
       },
-      "message": "tell is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -28,7 +27,6 @@
       "params": {
         "name": "ask"
       },
-      "message": "ask is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -42,7 +40,6 @@
       "params": {
         "name": "each"
       },
-      "message": "each is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     }

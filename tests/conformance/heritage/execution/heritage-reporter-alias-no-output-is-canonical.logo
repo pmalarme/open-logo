@@ -1,8 +1,8 @@
-# Issue #787: the reporter-position alias path reaching the user procedure's NO-OUTPUT guard.
-# `forward` is a command here — it never reaches `return` — so using it as a reporter is
-# `ol-no-output`. Fixtured because this diagnostic carries `params.procedure`, a DIFFERENT param
-# name from the arity diagnostics' `params.callable`, and params on this path are exactly what
-# this saga has gotten wrong five times.
+# Issue #787: the reporter-position alias path over a user procedure that never reaches `return`.
+# `define forward` takes a built-in name, so phase-1 registration raises `ol-reserved-word` and
+# the program halts before the reporter is evaluated: the event stream is empty and no
+# `ol-no-output` is produced. Re-legalise `define forward` and this fixture reddens, leading the
+# next reader to #787.
 define forward
   print 1
 end

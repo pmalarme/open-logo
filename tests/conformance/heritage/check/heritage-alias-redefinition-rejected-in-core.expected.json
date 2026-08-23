@@ -1,5 +1,5 @@
 {
-  "description": "Every Heritage alias in the registry declared under Core alone, each raising `ol-reserved-word` -- byte-for-byte the same source as `heritage-alias-redefinition-rejected-when-active`, which runs it with `heritage` claimed and expects exactly the same diagnostics. That equality is the assertion: `spec/grammar.md:408` makes every profile's names built in whether or not the profile is claimed, and `:414` makes every alias spelling a built-in name, so a difference between the two fixtures would be the defect. Sharing one source is what removes the possibility that the pair drifts. **The file name is no longer true** -- nothing in this program is \"legal in core\" -- and renaming it belongs to the corpus sweep in issue #842; it is kept for now so the regression lock and its history stay attached to one path. `\"check\": true`: a checker rule with no execution. `message` is deliberately absent from the diagnostics below: the harness strips it from BOTH sides before comparing (`scripts/harness/index.mjs:977-983` projects every diagnostic to code/span/params/stage/severity), so supplying one here would be an assertion nothing can evaluate. Diagnostic identity is `code` plus `params` and \"prose is presentation\" (`spec/error-model.md:253`); the learner-facing wording is pinned by unit tests instead. Its twin DOES carry `message`, and that asymmetry is intentional; dropping the decorative field from the twins is a corpus-wide edit and belongs to issue #842.",
+  "description": "Every Heritage alias in the registry declared under Core alone, each raising `ol-reserved-word` -- byte-for-byte the same source as `heritage-alias-redefinition-rejected-when-active`, which runs it with `heritage` claimed and expects exactly the same diagnostics. That equality is the assertion: `spec/grammar.md:408` makes every profile's names built in whether or not the profile is claimed, and `:414` makes every alias spelling a built-in name, so a difference between the two fixtures would be the defect. `\"check\": true`: a checker rule with no execution. `message` is absent from the diagnostics below, as it is from its twin: the harness strips it from BOTH sides before comparing (`scripts/harness/index.mjs:977-983` projects every diagnostic to code/span/params/stage/severity), so supplying one here would be an assertion nothing can evaluate. Diagnostic identity is `code` plus `params` and \"prose is presentation\" (`spec/error-model.md:253`); the learner-facing wording is pinned by unit tests instead (`packages/parser/src/checker-reserved-word.test.mjs:236`).",
   "profiles": ["core-language"],
   "check": true,
   "events": [],
@@ -7,7 +7,7 @@
     {
       "code": "ol-reserved-word",
       "source_span": {
-        "document": "heritage/check/heritage-alias-redefinition-legal-in-core",
+        "document": "heritage/check/heritage-alias-redefinition-rejected-in-core",
         "start": [1, 8],
         "end": [1, 10]
       },
@@ -20,7 +20,7 @@
     {
       "code": "ol-reserved-word",
       "source_span": {
-        "document": "heritage/check/heritage-alias-redefinition-legal-in-core",
+        "document": "heritage/check/heritage-alias-redefinition-rejected-in-core",
         "start": [3, 8],
         "end": [3, 10]
       },
@@ -33,7 +33,7 @@
     {
       "code": "ol-reserved-word",
       "source_span": {
-        "document": "heritage/check/heritage-alias-redefinition-legal-in-core",
+        "document": "heritage/check/heritage-alias-redefinition-rejected-in-core",
         "start": [5, 8],
         "end": [5, 10]
       },
@@ -46,7 +46,7 @@
     {
       "code": "ol-reserved-word",
       "source_span": {
-        "document": "heritage/check/heritage-alias-redefinition-legal-in-core",
+        "document": "heritage/check/heritage-alias-redefinition-rejected-in-core",
         "start": [7, 8],
         "end": [7, 10]
       },
@@ -59,7 +59,7 @@
     {
       "code": "ol-reserved-word",
       "source_span": {
-        "document": "heritage/check/heritage-alias-redefinition-legal-in-core",
+        "document": "heritage/check/heritage-alias-redefinition-rejected-in-core",
         "start": [9, 8],
         "end": [9, 10]
       },
@@ -72,7 +72,7 @@
     {
       "code": "ol-reserved-word",
       "source_span": {
-        "document": "heritage/check/heritage-alias-redefinition-legal-in-core",
+        "document": "heritage/check/heritage-alias-redefinition-rejected-in-core",
         "start": [11, 8],
         "end": [11, 10]
       },
@@ -85,7 +85,7 @@
     {
       "code": "ol-reserved-word",
       "source_span": {
-        "document": "heritage/check/heritage-alias-redefinition-legal-in-core",
+        "document": "heritage/check/heritage-alias-redefinition-rejected-in-core",
         "start": [13, 8],
         "end": [13, 10]
       },
@@ -98,7 +98,7 @@
     {
       "code": "ol-reserved-word",
       "source_span": {
-        "document": "heritage/check/heritage-alias-redefinition-legal-in-core",
+        "document": "heritage/check/heritage-alias-redefinition-rejected-in-core",
         "start": [15, 8],
         "end": [15, 10]
       },
@@ -111,7 +111,7 @@
     {
       "code": "ol-reserved-word",
       "source_span": {
-        "document": "heritage/check/heritage-alias-redefinition-legal-in-core",
+        "document": "heritage/check/heritage-alias-redefinition-rejected-in-core",
         "start": [17, 8],
         "end": [17, 10]
       },
@@ -124,7 +124,7 @@
     {
       "code": "ol-reserved-word",
       "source_span": {
-        "document": "heritage/check/heritage-alias-redefinition-legal-in-core",
+        "document": "heritage/check/heritage-alias-redefinition-rejected-in-core",
         "start": [19, 8],
         "end": [19, 10]
       },
@@ -137,7 +137,7 @@
     {
       "code": "ol-reserved-word",
       "source_span": {
-        "document": "heritage/check/heritage-alias-redefinition-legal-in-core",
+        "document": "heritage/check/heritage-alias-redefinition-rejected-in-core",
         "start": [21, 8],
         "end": [21, 10]
       },
@@ -150,7 +150,7 @@
     {
       "code": "ol-reserved-word",
       "source_span": {
-        "document": "heritage/check/heritage-alias-redefinition-legal-in-core",
+        "document": "heritage/check/heritage-alias-redefinition-rejected-in-core",
         "start": [23, 8],
         "end": [23, 10]
       },
@@ -163,7 +163,7 @@
     {
       "code": "ol-reserved-word",
       "source_span": {
-        "document": "heritage/check/heritage-alias-redefinition-legal-in-core",
+        "document": "heritage/check/heritage-alias-redefinition-rejected-in-core",
         "start": [25, 8],
         "end": [25, 10]
       },
