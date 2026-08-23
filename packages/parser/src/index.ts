@@ -109,7 +109,7 @@ export {
   // resolver, so it cannot drift". The map is enumerable; the consumption half is NOT satisfied.
   // Sharing a row removes the duplicate arity and nothing more — `turtlePrimitiveArity` never
   // consults this map, so which canonical a spelling maps to remains two facts, here and in the
-  // runtime's dispatch. Closing that needs a real consumer, which #841 does not add.
+  // runtime's dispatch. Closing that needs a real consumer, which this slice does not add.
   canonicalOfTurtleAlias,
   turtleAliasNames,
   canonicalOfHeritageAlias,

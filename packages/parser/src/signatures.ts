@@ -109,8 +109,8 @@ export function corePrimitiveArity(name: string): number | undefined {
  * alias column onto a different row of equal arity and update `spec/built-in-names.json` to match,
  * and the gate agrees while the runtime still dispatches the old way. Only a hand-written pin in
  * this slice's own `scripts/built-in-names-gate.test.mjs` notices, and **nothing compares either
- * fact against the runtime's dispatch**. Closing that needs a real consumer of the map, which #841
- * does not add; the gap is recorded on #841.
+ * fact against the runtime's dispatch**. Closing that needs a real consumer of the map, which this
+ * slice does not add; the gap is recorded on #841.
  *
  * It does **not** change what the five mean at a call site: they remain independent spellings bound
  * to one primitive, with no canonicalisation in either direction, which is exactly the call-site
