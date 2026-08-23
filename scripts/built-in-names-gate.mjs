@@ -114,9 +114,18 @@ export const ACCESSOR_STATUSES = ["present", "declared"];
 /**
  * How an accessor is adapted to each of the two roles. The eight `*PrimitiveArity` functions are
  * lookups only (`arity`), `OL_KEYWORDS` is an `array` and `OL_PROFILE_KEYWORDS` a `record`, so
- * neither is a callable predicate and the lookup side scans them.
+ * neither is a callable predicate and the lookup side scans them. A `profile-enumerator` is called
+ * with the registry's own `profile` — `profilePrimitiveNames(profile)` (issue #874) is one derived
+ * accessor over the whole profile-keyed registry rather than nine hand-written per-profile
+ * functions, so a profile that gains a table becomes enumerable here with no edit.
  */
-export const ACCESSOR_KINDS = ["array", "record", "arity", "enumerator"];
+export const ACCESSOR_KINDS = [
+  "array",
+  "record",
+  "arity",
+  "enumerator",
+  "profile-enumerator",
+];
 
 /** The two `category` values (ADR-0021 §2): the implementation's organizing split, not a paint. */
 export const CATEGORIES = ["keyword", "primitive"];
@@ -222,8 +231,22 @@ export function registryHas(registry, api, name) {
       return Object.values(accessor).some((words) => words.includes(name));
     case "arity":
       return accessor(name) !== undefined;
+    case "profile-enumerator":
+      return accessor(registry.profile).includes(name);
     default:
       return accessor().includes(name);
+  }
+}
+
+/** The names an `enumerate` accessor yields, given its kind. */
+function enumeratedNames(spec, accessor, profile) {
+  switch (spec.kind) {
+    case "array":
+      return accessor;
+    case "profile-enumerator":
+      return accessor(profile);
+    default:
+      return accessor();
   }
 }
 
@@ -233,7 +256,7 @@ export function registryHas(registry, api, name) {
  * @returns a `Map` of name -> owning profile, or `null` when the registry cannot enumerate yet.
  *   A `record` accessor supplies the profile from its own key — `OL_PROFILE_KEYWORDS` is keyed by
  *   profile, so it must be flattened per key rather than concatenated blindly; every other kind
- *   uses the registry's single `profile`.
+ *   uses the registry's single `profile`, which a `profile-enumerator` also takes as its argument.
  */
 export function registryMembers(registry, api) {
   const spec = registry.enumerate;
@@ -253,8 +276,7 @@ export function registryMembers(registry, api) {
     }
     return members;
   }
-  const names = spec.kind === "array" ? accessor : accessor();
-  for (const name of names) {
+  for (const name of enumeratedNames(spec, accessor, registry.profile)) {
     members.set(name, registry.profile);
   }
   return members;
@@ -401,6 +423,46 @@ export function implementationFindings(manifest, api) {
       if (!entry.registries.includes(tag)) {
         findings.push(
           `${name}: the implementation registers it in ${tag} but its entry records only ${entry.registries.join(", ")}`,
+        );
+      }
+    }
+  }
+  return findings;
+}
+
+/**
+ * The whole profile-keyed registry, swept **profile by profile** rather than tag by tag.
+ *
+ * {@link implementationFindings} walks the registries the manifest names, so it can only see a
+ * profile that already has a tag. This walks `OL_CHECK_PROFILES` instead, which is what makes the
+ * gate cover a **tenth** profile the moment `PROFILE_PRIMITIVES` gains its entry — with no manifest
+ * edit at all, and with `tsc` forcing that entry because the registry is a mapped type over
+ * `CheckProfile` (issue #874). A gate that detects drift is good; one that cannot drift is better.
+ *
+ * It also pins the `profile` a name is filed under against the profile whose table actually holds
+ * it, which no per-name lookup can do: `corePrimitiveArity("forward")` is `undefined` either way.
+ */
+export function profilePrimitiveSweepFindings(manifest, api) {
+  const findings = [];
+  const enumerate = resolveAccessor(api, "profilePrimitiveNames");
+  if (enumerate === undefined) {
+    return [
+      "profilePrimitiveNames is not exported from @openlogo/parser, so the profile-keyed registry cannot be swept at all — every primitive tag's enumerate direction is unreachable",
+    ];
+  }
+  const byName = new Map(manifest.names.map((entry) => [entry.name, entry]));
+  for (const profile of api.OL_CHECK_PROFILES) {
+    for (const name of enumerate(profile)) {
+      const entry = byName.get(name);
+      if (entry === undefined) {
+        findings.push(
+          `${name}: the ${profile} primitive registry holds it but it is absent from ${MANIFEST_PATH}`,
+        );
+        continue;
+      }
+      if (entry.profile !== profile) {
+        findings.push(
+          `${name}: filed under profile "${entry.profile}" but it is the ${profile} registry that holds it`,
         );
       }
     }
@@ -876,6 +938,7 @@ export function runBuiltInNamesGate({
     ...accessorFindings(resolved, api),
     ...entryFindings(resolved, api),
     ...implementationFindings(resolved, api),
+    ...profilePrimitiveSweepFindings(resolved, api),
     ...aliasFindings(resolved, api),
     ...carveOutFindings(resolved, io),
     ...profileInventoryFindings(resolved, api, io),

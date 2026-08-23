@@ -5,7 +5,8 @@
     "unconditional": "Every profile's keywords and primitives are built-in names in EVERY implementation, whether or not that profile is claimed (spec/grammar.md:408). `profile` below is metadata for docs and tooling; nothing may branch on it when deciding whether a name is blocked at a declaration slot.",
     "precedence": "A name reachable from two registries is filed ONCE, as `keyword` before `primitive`, and its `profile` follows the precedence-winning registry -- so `to` is core-language, not heritage. Precedence runs in the key order of `registries` below. The full membership is always recorded in `registries` on the entry, never inferred from `category` or `profile`, so losing one of two registrations fails the gate instead of matching a summary that still looks right.",
     "bothDirections": "The gate compares structured entries, not a flat name set: every name here must be in the implementation and every name in the implementation must be here, with `category`, `profile` and `registries` all checked. Each registry names TWO accessors because the two directions need different shapes -- a `lookup` (is this name here?) and an `enumerate` (what does this hold?). The eight *PrimitiveArity functions are lookups only.",
-    "accessorStatus": "`present` means the accessor MUST resolve as a public export of @openlogo/parser; a missing one is drift. `declared` means decided but not yet created: the gate accepts its absence and FAILS if it ever resolves, because at that moment it should have become `present`. Status attaches per accessor, not per tag, because a tag can be split."
+    "accessorStatus": "`present` means the accessor MUST resolve as a public export of @openlogo/parser; a missing one is drift. `declared` means decided but not yet created: the gate accepts its absence and FAILS if it ever resolves, because at that moment it should have become `present`. Status attaches per accessor, not per tag, because a tag can be split. At 0.1.0 every accessor is `present`.",
+    "derivedEnumeration": "The nine profile-keyed primitive tags enumerate through ONE accessor, `profilePrimitiveNames`, called with the tag's own profile. Nine hand-written per-profile enumerators would each be a claim about a registry, maintained by hand, beside the registry -- the shape this whole file exists to remove. The derived form also lets the gate sweep OL_CHECK_PROFILES directly, so a TENTH profile that gains a primitive table is covered with no edit to this file at all."
   },
   "registries": {
     "reserved": {
@@ -46,8 +47,8 @@
         "status": "present"
       },
       "enumerate": {
-        "accessor": "corePrimitiveNames",
-        "kind": "enumerator",
+        "accessor": "profilePrimitiveNames",
+        "kind": "profile-enumerator",
         "status": "present"
       }
     },
@@ -60,8 +61,8 @@
         "status": "present"
       },
       "enumerate": {
-        "accessor": "turtlePrimitiveNames",
-        "kind": "enumerator",
+        "accessor": "profilePrimitiveNames",
+        "kind": "profile-enumerator",
         "status": "present"
       }
     },
@@ -74,8 +75,8 @@
         "status": "present"
       },
       "enumerate": {
-        "accessor": "dataPrimitiveNames",
-        "kind": "enumerator",
+        "accessor": "profilePrimitiveNames",
+        "kind": "profile-enumerator",
         "status": "present"
       }
     },
@@ -89,8 +90,8 @@
         "status": "present"
       },
       "enumerate": {
-        "accessor": "educationalPrimitiveNames",
-        "kind": "enumerator",
+        "accessor": "profilePrimitiveNames",
+        "kind": "profile-enumerator",
         "status": "present"
       }
     },
@@ -104,8 +105,8 @@
         "status": "present"
       },
       "enumerate": {
-        "accessor": "geometryPrimitiveNames",
-        "kind": "enumerator",
+        "accessor": "profilePrimitiveNames",
+        "kind": "profile-enumerator",
         "status": "present"
       }
     },
@@ -118,8 +119,8 @@
         "status": "present"
       },
       "enumerate": {
-        "accessor": "interactionPrimitiveNames",
-        "kind": "enumerator",
+        "accessor": "profilePrimitiveNames",
+        "kind": "profile-enumerator",
         "status": "present"
       }
     },
@@ -132,8 +133,8 @@
         "status": "present"
       },
       "enumerate": {
-        "accessor": "soundPrimitiveNames",
-        "kind": "enumerator",
+        "accessor": "profilePrimitiveNames",
+        "kind": "profile-enumerator",
         "status": "present"
       }
     },
@@ -146,24 +147,24 @@
         "status": "present"
       },
       "enumerate": {
-        "accessor": "spritesPrimitiveNames",
-        "kind": "enumerator",
+        "accessor": "profilePrimitiveNames",
+        "kind": "profile-enumerator",
         "status": "present"
       }
     },
     "tutor-primitive": {
       "category": "primitive",
       "profile": "tutor-ai",
-      "note": "`tutorPrimitiveArity` exists and answers 0 for `challenge` (issue #838). Its enumerator does not exist yet and lives in packages/parser/src/signatures.ts; it is `declared`, so the gate accepts its absence and FAILS the moment it resolves — at which point this status becomes `present`.",
+      "note": "`tutorPrimitiveArity` answers 0 for `challenge` (issue #838) and `profilePrimitiveNames(\"tutor-ai\")` enumerates it (issue #874), so this tag is fully `present` in both roles. ADR-0021 recorded BOTH accessors as `declared` -- decided but not yet created -- and named issue #841 as the slice that would create them; the tree reached it by a better route, one derived accessor over the whole profile-keyed registry rather than a tenth hand-written `tutorPrimitiveNames`. The ADR is a dated record of the decision, not of the code.",
       "lookup": {
         "accessor": "tutorPrimitiveArity",
         "kind": "arity",
         "status": "present"
       },
       "enumerate": {
-        "accessor": "tutorPrimitiveNames",
-        "kind": "enumerator",
-        "status": "declared"
+        "accessor": "profilePrimitiveNames",
+        "kind": "profile-enumerator",
+        "status": "present"
       }
     },
     "heritage-alias": {

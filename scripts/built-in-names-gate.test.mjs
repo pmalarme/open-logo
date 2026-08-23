@@ -22,16 +22,6 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import * as realParserApi from "@openlogo/parser";
 import {
-  corePrimitiveNames,
-  dataPrimitiveNames,
-  educationalPrimitiveNames,
-  geometryPrimitiveNames,
-  interactionPrimitiveNames,
-  soundPrimitiveNames,
-  spritesPrimitiveNames,
-  turtlePrimitiveNames,
-} from "@openlogo/parser";
-import {
   ACCESSOR_KINDS,
   ACCESSOR_STATUSES,
   CATEGORIES,
@@ -55,6 +45,7 @@ import {
   parseArgs,
   profileCoverageFindings,
   profileInventoryFindings,
+  profilePrimitiveSweepFindings,
   proseFindings,
   registryHas,
   registryMembers,
@@ -129,6 +120,7 @@ function tinyFixture() {
     WORDS: ["define"],
     coreArity: (name) => (name === "print" ? 1 : undefined),
     coreNames: () => ["print"],
+    profilePrimitiveNames: () => ["print"],
   };
   return { manifest, api };
 }
@@ -160,13 +152,12 @@ test("the report names the totals it checked, so a green run is evidence rather 
   );
 });
 
-test("an unenumerable registry is reported as a limit of the run, never passed over silently", () => {
-  const note = runBuiltInNamesGate().lines.find((line) =>
-    line.includes("NOTE"),
-  );
+test("every registry is enumerable, so the run reports no unreachable direction", () => {
+  const result = runBuiltInNamesGate();
   assert.equal(
-    note,
-    "built-in-names: NOTE tutor-primitive cannot be enumerated yet, so the implementation->file direction is unchecked for names reachable only through them",
+    result.lines.some((line) => line.includes("NOTE")),
+    false,
+    result.lines.join("\n"),
   );
 });
 
@@ -276,28 +267,48 @@ test("Tutor (AI) has its own registry and challenge is in it, not in Educational
   assert.equal(entry.profile, "tutor-ai");
 });
 
-test("the enumerable name accessors are exported from the parser's public entry", () => {
-  // Named imports rather than a loop over the namespace: these eight are the public-API addition
-  // ADR-0021 §4 requires, so naming each one here is the assertion, and a missing export becomes a
-  // build failure in this file rather than a runtime lookup that quietly reads `undefined`.
-  for (const [name, accessor] of [
-    ["corePrimitiveNames", corePrimitiveNames],
-    ["turtlePrimitiveNames", turtlePrimitiveNames],
-    ["dataPrimitiveNames", dataPrimitiveNames],
-    ["educationalPrimitiveNames", educationalPrimitiveNames],
-    ["geometryPrimitiveNames", geometryPrimitiveNames],
-    ["interactionPrimitiveNames", interactionPrimitiveNames],
-    ["soundPrimitiveNames", soundPrimitiveNames],
-    ["spritesPrimitiveNames", spritesPrimitiveNames],
-  ]) {
-    assert.equal(typeof accessor, "function", name);
-    assert.equal(accessor().length > 0, true, name);
+test("the nine primitive registries enumerate through one derived accessor, not nine hand-written ones", () => {
+  let total = 0;
+  const withTables = [];
+  for (const profile of realParserApi.OL_CHECK_PROFILES) {
+    const names = realParserApi.profilePrimitiveNames(profile);
+    total += names.length;
+    if (names.length > 0) {
+      withTables.push(profile);
+    }
   }
-  // The one enumerator the manifest files as `declared`. When it appears, the manifest's status
-  // must move with it — which the gate enforces, and this pins the premise.
+  assert.equal(total, 85);
+  assert.deepEqual(withTables.sort(), [
+    "core-language",
+    "data",
+    "educational",
+    "geometry",
+    "interaction-events",
+    "sound",
+    "sprites",
+    "turtle-rendering",
+    "tutor-ai",
+  ]);
+  // Heritage registers no bare-call primitive of its own: its 13 contributions are alias SPELLINGS
+  // of primitives owned elsewhere, carried by `heritage-alias`. `[]` here rather than the 13 is what
+  // keeps the two registries from absorbing each other.
+  assert.deepEqual(realParserApi.profilePrimitiveNames("heritage"), []);
+  // 85 registry names, minus `thing` (in corePrimitiveArity but filed `keyword` under the
+  // precedence rule), plus the 13 Heritage aliases that are in no arity table at all.
   assert.equal(
-    REAL_MANIFEST.registries["tutor-primitive"].enumerate.status,
-    "declared",
+    REAL_MANIFEST.names.filter((entry) => entry.category === "primitive")
+      .length,
+    85 - 1 + 13,
+  );
+  // Every tag reaches both directions now: ADR-0021's ten `declared` accessors are all `present`.
+  assert.deepEqual(
+    Object.entries(REAL_MANIFEST.registries).map(
+      ([tag, registry]) =>
+        `${tag}:${registry.lookup.status}/${registry.enumerate.status}`,
+    ),
+    Object.keys(REAL_MANIFEST.registries).map(
+      (tag) => `${tag}:present/present`,
+    ),
   );
 });
 
@@ -469,7 +480,14 @@ test("INJECTED DRIFT: a profile that ships a primitive nobody registered is caug
   // set matching an empty set and report green.
   const manifest = manifestCopy();
   manifest.names = manifest.names.filter((entry) => entry.name !== "challenge");
-  const api = { ...realParserApi, tutorPrimitiveArity: () => undefined };
+  const api = {
+    ...realParserApi,
+    tutorPrimitiveArity: () => undefined,
+    profilePrimitiveNames: (profile) =>
+      profile === "tutor-ai"
+        ? []
+        : realParserApi.profilePrimitiveNames(profile),
+  };
   const result = runBuiltInNamesGate({ manifest, api });
   assert.equal(result.ok, false);
   assert.equal(
@@ -481,14 +499,14 @@ test("INJECTED DRIFT: a profile that ships a primitive nobody registered is caug
   );
 });
 
-test("INJECTED DRIFT: a declared-not-yet-built accessor that quietly appears is caught", () => {
-  const api = { ...realParserApi, tutorPrimitiveNames: () => ["challenge"] };
-  assert.deepEqual(api.tutorPrimitiveNames(), ["challenge"]);
-  const result = runBuiltInNamesGate({ api });
+test("INJECTED DRIFT: an accessor the manifest declares not-yet-built that in fact resolves", () => {
+  const manifest = manifestCopy();
+  manifest.registries["tutor-primitive"].enumerate.status = "declared";
+  const result = runBuiltInNamesGate({ manifest });
   assert.equal(result.ok, false);
   assert.equal(
     result.findings.includes(
-      `registry tutor-primitive.enumerate: tutorPrimitiveNames is declared "declared" (decided, not yet created) but now resolves — flip its status to "present" in ${MANIFEST_PATH}`,
+      `registry tutor-primitive.enumerate: profilePrimitiveNames is declared "declared" (decided, not yet created) but now resolves — flip its status to "present" in ${MANIFEST_PATH}`,
     ),
     true,
     result.findings.join("\n"),
@@ -496,16 +514,43 @@ test("INJECTED DRIFT: a declared-not-yet-built accessor that quietly appears is 
 });
 
 test("INJECTED DRIFT: an accessor that stops being exported is caught", () => {
-  const api = { ...realParserApi, corePrimitiveNames: undefined };
-  const result = runBuiltInNamesGate({ api });
+  const manifest = manifestCopy();
+  manifest.registries["core-primitive"].enumerate.accessor =
+    "gonePrimitiveNames";
+  const result = runBuiltInNamesGate({ manifest });
   assert.equal(result.ok, false);
   assert.equal(
     result.findings.includes(
-      'registry core-primitive.enumerate: corePrimitiveNames is declared "present" but is not exported from @openlogo/parser',
+      'registry core-primitive.enumerate: gonePrimitiveNames is declared "present" but is not exported from @openlogo/parser',
     ),
     true,
     result.findings.join("\n"),
   );
+});
+
+test("INJECTED DRIFT: a profile primitive absent from the manifest, found by the profile sweep", () => {
+  const manifest = manifestCopy();
+  manifest.names = manifest.names.filter((entry) => entry.name !== "beep");
+  const findings = profilePrimitiveSweepFindings(manifest, realParserApi);
+  assert.deepEqual(findings, [
+    `beep: the sound primitive registry holds it but it is absent from ${MANIFEST_PATH}`,
+  ]);
+});
+
+test("INJECTED DRIFT: a primitive filed under a profile whose registry does not hold it", () => {
+  const manifest = manifestCopy();
+  entryFor(manifest, "beep").profile = "sprites";
+  const findings = profilePrimitiveSweepFindings(manifest, realParserApi);
+  assert.deepEqual(findings, [
+    'beep: filed under profile "sprites" but it is the sound registry that holds it',
+  ]);
+});
+
+test("the profile sweep reports a missing derived accessor rather than throwing", () => {
+  const api = { ...realParserApi, profilePrimitiveNames: undefined };
+  assert.deepEqual(profilePrimitiveSweepFindings(REAL_MANIFEST, api), [
+    "profilePrimitiveNames is not exported from @openlogo/parser, so the profile-keyed registry cannot be swept at all — every primitive tag's enumerate direction is unreachable",
+  ]);
 });
 
 test("INJECTED DRIFT: a specVersion that no longer matches openlogo.version is caught", () => {
@@ -659,7 +704,13 @@ test("a moved prose anchor is a finding, never a silent skip", () => {
 
 test("the closed vocabularies are the ones ADR-0021 states", () => {
   assert.deepEqual(ACCESSOR_STATUSES, ["present", "declared"]);
-  assert.deepEqual(ACCESSOR_KINDS, ["array", "record", "arity", "enumerator"]);
+  assert.deepEqual(ACCESSOR_KINDS, [
+    "array",
+    "record",
+    "arity",
+    "enumerator",
+    "profile-enumerator",
+  ]);
   assert.deepEqual(CATEGORIES, ["keyword", "primitive"]);
 });
 
@@ -685,7 +736,7 @@ test("accessorFindings rejects every value outside the closed vocabularies", () 
   const findings = accessorFindings(manifest, { y: [], z: [] });
   assert.deepEqual(findings, [
     'registry bad: category "colour" is outside the closed vocabulary [keyword, primitive]',
-    'registry bad.lookup: kind "telepathy" is outside the closed vocabulary [array, record, arity, enumerator]',
+    'registry bad.lookup: kind "telepathy" is outside the closed vocabulary [array, record, arity, enumerator, profile-enumerator]',
     'registry bad.lookup: status "maybe" is outside the closed vocabulary [present, declared]',
     "registry bad.enumerate: y is an arity lookup and cannot enumerate — naming it here would satisfy the per-name direction while leaving the whole-list direction unreachable",
     "registry halfway: no enumerate accessor — each tag must name both, because the two comparison directions need different shapes",
@@ -698,8 +749,10 @@ test("registryHas answers through each accessor kind, and null when the answer i
     byProfile: { sprites: ["ask"] },
     arity: (name) => (name === "print" ? 1 : undefined),
     names: () => ["fd"],
+    byProfileName: (profile) => (profile === "sound" ? ["beep"] : []),
   };
-  const at = (kind, accessor, status = "present") => ({
+  const at = (kind, accessor, status = "present", profile = "sound") => ({
+    profile,
     lookup: { accessor, kind, status },
   });
   assert.equal(registryHas(at("array", "words"), api, "end"), true);
@@ -709,6 +762,19 @@ test("registryHas answers through each accessor kind, and null when the answer i
   assert.equal(registryHas(at("arity", "arity"), api, "print"), true);
   assert.equal(registryHas(at("arity", "arity"), api, "if"), false);
   assert.equal(registryHas(at("enumerator", "names"), api, "fd"), true);
+  assert.equal(
+    registryHas(at("profile-enumerator", "byProfileName"), api, "beep"),
+    true,
+    "a profile-enumerator is asked with the registry's own profile",
+  );
+  assert.equal(
+    registryHas(
+      at("profile-enumerator", "byProfileName", "present", "sprites"),
+      api,
+      "beep",
+    ),
+    false,
+  );
   assert.equal(
     registryHas(at("array", "words", "declared"), api, "end"),
     null,
@@ -722,6 +788,7 @@ test("registryMembers enumerates, taking a Record's profile from its own key", (
     words: ["end"],
     byProfile: { sprites: ["ask"], "interaction-events": ["when"] },
     names: () => ["fd"],
+    byProfileName: (profile) => [`${profile}-only`],
   };
   const at = (
     kind,
@@ -746,6 +813,15 @@ test("registryMembers enumerates, taking a Record's profile from its own key", (
   assert.deepEqual(
     [...registryMembers(at("enumerator", "names", "present", "heritage"), api)],
     [["fd", "heritage"]],
+  );
+  assert.deepEqual(
+    [
+      ...registryMembers(
+        at("profile-enumerator", "byProfileName", "present", "sound"),
+        api,
+      ),
+    ],
+    [["sound-only", "sound"]],
   );
   assert.equal(registryMembers(at("array", "words", "declared"), api), null);
   assert.equal(registryMembers(at("array", "gone"), api), null);
