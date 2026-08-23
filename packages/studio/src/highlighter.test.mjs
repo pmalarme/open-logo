@@ -151,6 +151,17 @@ const PROFILE_BLOCK_HEADS = Object.entries(OL_PROFILE_KEYWORDS).flatMap(
 );
 
 /**
+ * The seven profile words the registry holds today (`spec/tooling.md:30`'s "the profile
+ * block-heads together with the Sprites mode-switch command `tell`"). Asserted so the derivation
+ * above cannot silently *shrink* — a `words.slice(0, 1)` slip would otherwise drop five words from
+ * every profile test and stay green. Unlike a hand-written list, this pins the derivation's shape
+ * rather than restating the words; when the registry legitimately grows, this failing is the
+ * intended "extend this test" signal, since {@link PROFILE_BLOCK_HEAD_SOURCE} needs a new line for
+ * the new word anyway.
+ */
+const PROFILE_BLOCK_HEAD_COUNT = 7;
+
+/**
  * A well-formed program (zero parse diagnostics, and zero `check()` findings under the studio's
  * profile set) exercising all seven of them. Every form matches its normative signature —
  * `tell <turtle|turtle-list>` and `ask <turtle|turtle-list> <block>`
@@ -204,7 +215,7 @@ function classOf(tokens, text) {
 test("the default profile set classifies every active-profile block-head as keyword", () => {
   const tokens = createParserHighlighter()(PROFILE_BLOCK_HEAD_SOURCE);
 
-  assert.ok(PROFILE_BLOCK_HEADS.length > 0);
+  assert.equal(PROFILE_BLOCK_HEADS.length, PROFILE_BLOCK_HEAD_COUNT);
   for (const { profile, word } of PROFILE_BLOCK_HEADS) {
     // Tripwire, not a branch: see the derivation docblock above.
     assert.ok(
@@ -224,7 +235,7 @@ test("an explicit Core-Language-only set classifies those same words as primitiv
     PROFILE_BLOCK_HEAD_SOURCE,
   );
 
-  assert.ok(PROFILE_BLOCK_HEADS.length > 0);
+  assert.equal(PROFILE_BLOCK_HEADS.length, PROFILE_BLOCK_HEAD_COUNT);
   for (const { profile, word } of PROFILE_BLOCK_HEADS) {
     assert.equal(
       classOf(tokens, word),
@@ -243,7 +254,7 @@ test("an explicitly empty profile set is honored, not replaced by the default", 
     PROFILE_BLOCK_HEAD_SOURCE,
   );
 
-  assert.ok(PROFILE_BLOCK_HEADS.length > 0);
+  assert.equal(PROFILE_BLOCK_HEADS.length, PROFILE_BLOCK_HEAD_COUNT);
   for (const { profile, word } of PROFILE_BLOCK_HEADS) {
     assert.equal(
       classOf(tokens, word),

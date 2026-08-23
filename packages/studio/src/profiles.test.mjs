@@ -1,10 +1,14 @@
 // Unit tests for #740's studio-level active profile set (packages/studio/src/profiles.ts): the one
 // constant `highlighter.ts` gives `highlight()` and `diagnostics.ts` gives `check()`.
+//
+// Deliberately absent: a runtime check that every studio profile is one the parser knows. That
+// invariant is enforced at compile time by `profiles.ts`'s `readonly CheckProfile[]` annotation —
+// an unknown profile is a `TS2322`, and `pretest` runs the build — so a runtime assertion for it
+// could never fail and would only look like coverage.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { SUPPORTED_PROFILES } from "@openlogo/core";
-import { OL_CHECK_PROFILES } from "@openlogo/parser";
 import * as OL from "@openlogo/studio";
 
 const { STUDIO_PROFILES } = OL;
@@ -26,16 +30,6 @@ test("STUDIO_PROFILES is a frozen copy, not a live handle on core's own array", 
     STUDIO_PROFILES.push("modules");
   }, TypeError);
   assert.deepEqual([...STUDIO_PROFILES], [...SUPPORTED_PROFILES]);
-});
-
-test("every studio profile is a profile the parser knows", () => {
-  assert.ok(STUDIO_PROFILES.length > 0);
-  for (const profile of STUDIO_PROFILES) {
-    assert.ok(
-      OL_CHECK_PROFILES.includes(profile),
-      `${profile} is not in the parser's OL_CHECK_PROFILES vocabulary`,
-    );
-  }
 });
 
 test("STUDIO_PROFILES is strictly wider than the parser's Core-Language-only default", () => {
