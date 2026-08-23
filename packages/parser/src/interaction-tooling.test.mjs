@@ -7,14 +7,13 @@
 //
 // Two shapes with deliberately different mechanics — proven not to leak into each other:
 //
-//   1. Block-head forms `when`/`every`/`on_key`/`on_click` lower to a `ProfileStatement` and are
-//      treated as reserved words *only when the Interaction & Events profile is active* — the
-//      shipped behaviour, which `spec/grammar.md:408` and `spec/interaction-events.md:43-47`
-//      retract in favour of an unconditional rule ("what a profile decides is whether a name
-//      *works*, never whether a program may declare it"); retiring the gate is #841. The earlier
-//      "reserved only within this profile" wording is gone from `spec/` — #855 deleted it — so the
-//      assertions below lock today's GATED behaviour rather than the spec's rule, and they invert
-//      when #841 lands. Slices I3–I6 already taught the Layer-2 checker to treat them as visible
+//   1. Block-head forms `when`/`every`/`on_key`/`on_click` lower to a `ProfileStatement`. Their
+//      PAINT is profile-gated, but their DECLARATION is not: `spec/grammar.md:408` and
+//      `spec/interaction-events.md:43-47` state an unconditional rule ("what a profile decides is
+//      whether a name *works*, never whether a program may declare it"), #855 deleted the earlier
+//      "reserved only within this profile" wording from `spec/`, and #841 removed the matching gate
+//      from the checker — so the assertions below expect the SAME answer with the profile active
+//      and inactive. Slices I3–I6 already taught the Layer-2 checker to treat them as visible
 //      command names (`interactionEventsBlockHeadNames` in `collectVisibleNames`), so this slice
 //      LOCKS that half with fixtures rather than re-adding it.
 //      Reservation is a *legality* question and is independent of the token class, which #740
@@ -509,19 +508,17 @@ test("check: `input` is STILL ol-unknown-command without the profile — it is n
   assert.equal(diagnostics[0].params.name, "input");
 });
 
-// --- Reserved-word gating: what the CHECKER does today, which is #841's tracked deviation -------
+// --- Reserved-word gating: retired by issue #841, asserted in both directions ------------------
 
 test("check: redefining an Interaction block-head under an active profile raises ol-reserved-word", () => {
-  // Read this section as a lock on TODAY's checker, not as a statement of the rule.
-  // `when`/`every`/`on_key`/`on_click` are **treated as** reserved only when Interaction & Events
-  // is active (C1 #663) — shipped behaviour that `spec/grammar.md:408` and
-  // `spec/interaction-events.md:43-47` make unconditional ("reserved **unconditionally**: every
-  // implementation reserves them whether or not it claims this profile"), for `wait`/`input` and
-  // the Sound names too; retiring the gate is #841. So under Core-only the checker accepts
-  // declarations the spec says must be rejected, and the Core-only expectations below will INVERT
-  // when #841 lands. They are asserted rather than skipped so the deviation stays visible and
-  // dated instead of silent. `wait` is NOT a block-head — asserted by the redefinition test below
-  // and the `wait` procedure highlight test above.
+  // This section is a lock on the RULE, not on a profile's behaviour. `when`/`every`/`on_key`/
+  // `on_click` were once treated as reserved only while Interaction & Events was active (C1 #663);
+  // `spec/grammar.md:408` and `spec/interaction-events.md:43-47` make them unconditional ("reserved
+  // **unconditionally**: every implementation reserves them whether or not it claims this
+  // profile"), for `wait`/`input` and the Sound names too, and #841 removed the gate. So this test
+  // and its Core-only twin below must agree name for name; a difference between them is the defect.
+  // `wait` is NOT a block-head — asserted by the redefinition test below and the `wait` procedure
+  // highlight test above.
   for (const head of Object.keys(INTERACTION_BLOCK_HEADS)) {
     const diagnostics = checkDiagnostics(
       `define ${head}\nend`,
@@ -535,12 +532,19 @@ test("check: redefining an Interaction block-head under an active profile raises
   }
 });
 
-test("check: redefining an Interaction block-head is accepted under Core-only — the #841 deviation", () => {
+test("#841: redefining an Interaction block-head raises under Core-only too", () => {
+  // The deviation this test used to record, now closed. `spec/interaction-events.md:43-47` and
+  // `spec/grammar.md:408` make these words built-in names unconditionally, so the answer here must
+  // match the profile-ACTIVE test above name for name — the profile set is no longer a
+  // discriminating variable for a declaration.
   for (const head of Object.keys(INTERACTION_BLOCK_HEADS)) {
+    const codes = checkDiagnostics(`define ${head}\nend`, CORE_PROFILES).map(
+      (d) => d.code,
+    );
     assert.deepEqual(
-      checkDiagnostics(`define ${head}\nend`, CORE_PROFILES),
-      [],
-      `${head} is accepted under Core-only today; spec/interaction-events.md:43-47 says it should not be (#841)`,
+      codes,
+      ["ol-reserved-word"],
+      `${head} is a built-in name whether or not interaction-events is claimed`,
     );
   }
 });
@@ -570,17 +574,22 @@ test("check: `wait` is a primitive, so redefining it under an active profile rai
   }
 });
 
-test("check: `wait` is accepted under Core-only — the same #841 deviation", () => {
-  // The profile gate cuts both ways: with `interaction-events` inactive `wait` registers no
-  // primitive at all (`collectVisibleNames`), so a Core-only program is free to `define wait`,
-  // exactly as it is free to `define grid` without Geometry. `spec/interaction-events.md:47` says
-  // it should not be — `input`/`wait` "are built-in names on the same unconditional terms" — so
-  // this expectation, like its block-head twin above, INVERTS when #841 lands.
+test("#841: `wait` raises under Core-only too — the same rule, on the primitive branch", () => {
+  // The gate used to cut both ways: with `interaction-events` inactive `wait` registered no
+  // primitive, so a Core-only program could `define wait`, exactly as it could `define grid`
+  // without Geometry. `spec/interaction-events.md:47` says it must not be —
+  // `input`/`wait` "are built-in names on the same unconditional terms" — and #841 removed the
+  // gate. Asserting it on the PRIMITIVE branch as well as the block-head branch above is the point:
+  // the two reach the predicate through different lookups, so a partial fix leaves one of them red.
   for (const primitive of Object.keys(INTERACTION_PRIMITIVES)) {
+    const codes = checkDiagnostics(
+      `define ${primitive}\nend`,
+      CORE_PROFILES,
+    ).map((d) => d.code);
     assert.deepEqual(
-      checkDiagnostics(`define ${primitive}\nend`, CORE_PROFILES),
-      [],
-      `${primitive} is accepted under Core-only today; spec says it should not be (#841)`,
+      codes,
+      ["ol-reserved-word"],
+      `${primitive} is a built-in name whether or not interaction-events is claimed`,
     );
   }
 });

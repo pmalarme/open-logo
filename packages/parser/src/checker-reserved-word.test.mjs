@@ -458,18 +458,26 @@ test("#742: the four Core-backed aliases are rejected, with the surface spelling
   }
 });
 
-test("#742: the four Core-backed aliases are the last profile-gated names left", () => {
-  // The boundary #838 deliberately left standing, asserted so it cannot be mistaken for an
-  // oversight in either direction. `spec/grammar.md:408` makes profile words built-in
-  // unconditionally, and #838 delivered that for the 45 names it had MEASURED — which is why the
-  // nine turtle aliases now raise Core-only. `pr`/`bf`/`bl`/`se` resolve to CORE canonicals reached
-  // through the still-gated branch, so they remain free without `heritage`. Issue #841's always-on
-  // list is what takes these four, and this assertion flips to "rejected" when it lands.
+test("#841: no Heritage alias depends on a profile gate any more", () => {
+  // The boundary #838 deliberately left standing, now removed, asserted so neither half can be
+  // mistaken for an oversight. `spec/grammar.md:408` makes profile words built-in unconditionally,
+  // and #838 delivered that for the 45 names it had MEASURED — which is why the nine turtle aliases
+  // raised Core-only first. `pr`/`bf`/`bl`/`se` resolve to CORE canonicals that were reached through
+  // the profile-gated branch, so they stayed free without `heritage` until issue #841 deleted that
+  // branch. Sweeping the whole registry rather than the two groups separately is the point: a future
+  // alias is covered without editing this test, and the two groups can no longer diverge.
+  for (const alias of OL.heritageAliasNames()) {
+    assert.ok(
+      collides(alias, CORE_ONLY),
+      `${alias} is a built-in name unconditionally (spec/grammar.md:408,414)`,
+    );
+  }
+  // The four that moved last, named explicitly so emptying the registry cannot make this vacuous.
   for (const alias of ["pr", "bf", "bl", "se"]) {
-    assert.deepEqual(
-      reservedWordFindings(`define ${alias}\nend\n`, CORE_ONLY),
-      [],
-      `${alias} still depends on the heritage gate until #841`,
+    assert.equal(
+      reservedWordFindings(`define ${alias}\nend\n`, CORE_ONLY).length,
+      1,
+      `${alias} must raise under Core alone once the heritage gate is gone`,
     );
   }
   for (const alias of HERITAGE_TURTLE_ALIASES) {
@@ -481,11 +489,10 @@ test("#742: the four Core-backed aliases are the last profile-gated names left",
 });
 
 test("#742: alias resolution is depth-1 — no canonical spelling is itself an alias", () => {
-  // Both `unconditionalBuiltInName` and `gatedPrimitiveCollision` re-enter themselves on the
-  // resolved canonical. That terminates only because the registry is a one-step map; an alias whose
-  // canonical were itself an alias would loop. The registry is the thing to guard, so guard it
-  // directly rather than adding a depth counter to the checker for a shape the language does not
-  // have.
+  // `built-in-names.ts`'s `isPrimitiveName` re-enters itself on the resolved canonical. That
+  // terminates only because the registry is a one-step map; an alias whose canonical were itself an
+  // alias would loop. The registry is the thing to guard, so guard it directly rather than adding a
+  // depth counter to the checker for a shape the language does not have.
   for (const alias of OL.heritageAliasNames()) {
     const canonical = OL.canonicalOfHeritageAlias(alias);
     assert.equal(
@@ -557,13 +564,19 @@ test("#746: every Sprites reporter collides while sprites is active", () => {
   }
 });
 
-test("#746: no Sprites reporter collides while the sprites profile is inactive", () => {
+test("#841: every Sprites reporter collides while the sprites profile is INACTIVE too", () => {
+  // The inverted half of the pair above, and the discriminating variable is the profile set: the
+  // same three names, checked with and without `sprites`, must now answer identically.
+  // `spec/grammar.md:408` — a profile decides whether a name works, never whether a program may
+  // declare it — so a difference between these two tests would be the defect, not the point.
   for (const reporter of SPRITES_REPORTERS) {
-    assert.deepEqual(
-      reservedWordFindings(`define ${reporter}\nend\n`, CORE_ONLY),
-      [],
-      `${reporter} must stay free to declare when sprites is inactive`,
+    const raised = reservedWordFindings(`define ${reporter}\nend\n`, CORE_ONLY);
+    assert.equal(
+      raised.length,
+      1,
+      `${reporter} is a built-in name whether or not sprites is claimed`,
     );
+    assert.deepEqual(raised[0].params, { name: reporter });
   }
 });
 

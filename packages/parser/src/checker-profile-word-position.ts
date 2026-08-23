@@ -35,12 +35,13 @@
  * same words as visible statement-form heads.
  *
  * **Scope: position, not reservation.** This rule decides *what happens when an active profile's
- * word appears where the grammar gives it no callable form*. It deliberately does **not** touch
- * whether those words are built-in names *unconditionally* — `spec/grammar.md:408` ("Profile words
- * are built-in names unconditionally") is issue #841's subject, and the profile gating of the four
- * **declaration** slots stays exactly where `checker-reserved-word.ts` has it. A Core-only program
- * keeps every one of these seven as an ordinary name in every position, which is why the gate below
- * is `isProfileKeyword(name, profiles)` and not a profile-blind lookup.
+ * word appears where the grammar gives it no callable form*. It deliberately does **not** decide
+ * whether those words are built-in names — `spec/grammar.md:408` ("Profile words are built-in names
+ * unconditionally") is `checker-reserved-word.ts`'s subject, and since issue #841 that rule answers
+ * it with no profile set at all. The two rules therefore disagree about profiles on purpose: a
+ * Core-only program may not **declare** `when`, yet `when` in a value position is an ordinary
+ * unknown name rather than an `ol-bad-token`, because nothing has given it a structural role. That
+ * is why the gate below is `isProfileKeyword(name, profiles)` and not a profile-blind lookup.
  *
  * **Why the callee, rather than a value-slot walk.** `spec/grammar.md:390` draws the line at what a
  * word is *matched as*: a keyword "is matched as `callable-name` only where the

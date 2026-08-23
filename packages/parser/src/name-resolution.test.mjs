@@ -737,13 +737,17 @@ test("thing is reachable in two categories at once; it is still reported exactly
   assert.deepEqual(findings[0].params, { name: "thing" });
 });
 
-test("a Core primitive collision is only checked when core-language is an active profile", () => {
-  assert.deepEqual(
-    checkSource("define first :x\n  print :x\nend\n", []).filter(
-      isReservedWordFinding,
-    ),
-    [],
+test("#841: a Core primitive collides even with an EMPTY profile set", () => {
+  // The most extreme statement of `spec/grammar.md:408` available: no profile at all is claimed,
+  // and `first` is still a name the program may not declare. Before #841 this asserted the
+  // opposite — the checker consulted `profiles.includes("core-language")`, so an empty set made
+  // every Core primitive declarable. Nothing consults the profile set on this axis now, and an
+  // empty set is the cheapest way to prove it.
+  const findings = checkSource("define first :x\n  print :x\nend\n", []).filter(
+    isReservedWordFinding,
   );
+  assert.equal(findings.length, 1);
+  assert.deepEqual(findings[0].params, { name: "first" });
 });
 
 test("two define f ... end blocks only flag the second, later occurrence", () => {

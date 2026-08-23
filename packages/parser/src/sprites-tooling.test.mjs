@@ -7,14 +7,14 @@
 // Two shapes with deliberately different mechanics — proven not to leak into each other:
 //
 //   1. Block-head forms `tell`/`ask`/`each` lower to a `ProfileStatement` and are keywords of the
-//      Sprites profile — matched by `isKeyword` only while that profile is active today
-//      (`spec/turtles-and-sprites.md#reserved-words-in-this-profile`, C1 #663), though
-//      `spec/grammar.md:408` now makes profile words built-in **unconditionally** and issue #841
-//      lands the always-on list that retires the gate (the profile documents are realigned by #855).
-//      The Layer-2 checker was taught to treat them as visible command names by SP2–SP4
-//      (`spritesStatementFormNames` in `collectVisibleNames`), and **declaring** one — `define` or
-//      `struct`, not a binding — under an active profile raises `ol-reserved-word`. This slice locks
-//      that with fixtures rather than re-adding.
+//      Sprites profile (`spec/turtles-and-sprites.md#reserved-words-in-this-profile`, C1 #663).
+//      Their PAINT is profile-gated — `isKeyword` matches them only while Sprites is active — while
+//      their DECLARATION is not: `spec/grammar.md:408` makes profile words built-in names
+//      unconditionally, #855 realigned the profile documents, and #841 retired the checker gate, so
+//      **declaring** one — `define` or `struct`, not a binding — raises `ol-reserved-word` whether
+//      or not the profile is claimed. The Layer-2 checker was taught to treat them as visible
+//      command names by SP2–SP4 (`spritesStatementFormNames` in `collectVisibleNames`). This slice
+//      locks all of that with fixtures rather than re-adding.
 //   2. Reporters `new_turtle`/`who`/`turtles` are ordinary zero-arity primitives in the arity table
 //      (`spec/turtles-and-sprites.md`'s C3 rows: each Kind-R, arity 0). SP1 registered their arities
 //      but deliberately deferred their *checker visibility* to this slice; before SP6 they raised
@@ -398,14 +398,15 @@ test("check: that same program under Core-only flags each Sprites name as unknow
   );
 });
 
-// --- Reserved-word gating: block-heads only, and only under an active profile ------------------
+// --- Reserved-word collisions: block-heads and reporters, under every profile set ---------------
 
 test("check: redefining a Sprites block-head under an active profile raises ol-reserved-word", () => {
-  // `tell`/`ask`/`each` are reserved only when Sprites is active (C1 #663; a gate
-  // `spec/grammar.md:408` has since overruled and issue #841 retires). The reporters are NOT
-  // keywords in any profile — they collide through the checker's *primitive* branch instead
-  // (issue #746, asserted by the reporter redefinition tests below), which since issue #838 is a
-  // difference in branch only: both report the same one-param `ol-reserved-word`.
+  // `tell`/`ask`/`each` were once reserved only while Sprites was active (C1 #663), a gate
+  // `spec/grammar.md:408` overruled and issue #841 removed — so this test's Core-only twin below
+  // must agree with it head for head. The reporters are NOT keywords in any profile — they collide
+  // through the checker's *primitive* branch instead (issue #746, asserted by the reporter
+  // redefinition tests below), which since issue #838 is a difference in branch only: both report
+  // the same one-param `ol-reserved-word`.
   for (const head of Object.keys(SPRITES_BLOCK_HEADS)) {
     const diagnostics = checkDiagnostics(
       `define ${head}\nend`,
@@ -419,12 +420,18 @@ test("check: redefining a Sprites block-head under an active profile raises ol-r
   }
 });
 
-test("check: redefining a Sprites block-head is allowed under Core-only (no sprite-specific diagnostic)", () => {
+test("#841: redefining a Sprites block-head raises under Core-only too", () => {
+  // `spec/grammar.md:408` and `spec/turtles-and-sprites.md:154`: a profile decides whether a name
+  // works, never whether a program may declare it. So this must match the profile-ACTIVE test above
+  // head for head — a difference between the two would be the defect.
   for (const head of Object.keys(SPRITES_BLOCK_HEADS)) {
+    const codes = checkDiagnostics(`define ${head}\nend`, CORE_PROFILES).map(
+      (d) => d.code,
+    );
     assert.deepEqual(
-      checkDiagnostics(`define ${head}\nend`, CORE_PROFILES),
-      [],
-      `${head} is an ordinary name under Core-only and may be redefined`,
+      codes,
+      ["ol-reserved-word"],
+      `${head} is a built-in name whether or not sprites is claimed`,
     );
   }
 });
@@ -467,17 +474,21 @@ test("check: redefining a Sprites reporter under an active profile raises ol-res
   }
 });
 
-test("check: redefining a Sprites reporter is allowed under Core-only — the rule is profile-gated", () => {
-  // The other direction of #746, and the property the reporters share with the block-heads above:
-  // with `sprites` inactive the name registers nothing, so it stays an ordinary name a Core-only
-  // program is free to declare — exactly as `define ask` is legal without Sprites. The `ol-unknown-
-  // command` a *call* to it would raise is a different rule, exercised above; a bare declaration is
-  // fully clean.
+test("#841: redefining a Sprites reporter raises under Core-only too", () => {
+  // The other direction of #746. The reporters reach the built-in-names predicate as registered
+  // PRIMITIVES while the block-heads above reach it as keywords, so asserting both under Core-only
+  // is what distinguishes a complete fix from one that moved a single branch. A *call* to the name
+  // is still `ol-unknown-command` under Core-only — that is the availability axis
+  // (`spec/tooling.md:175-176`) and a different rule, exercised above.
   for (const reporter of Object.keys(SPRITES_REPORTERS)) {
+    const codes = checkDiagnostics(
+      `define ${reporter}\nend`,
+      CORE_PROFILES,
+    ).map((d) => d.code);
     assert.deepEqual(
-      checkDiagnostics(`define ${reporter}\nend`, CORE_PROFILES),
-      [],
-      `${reporter} is an ordinary name under Core-only and may be redefined`,
+      codes,
+      ["ol-reserved-word"],
+      `${reporter} is a built-in name whether or not sprites is claimed`,
     );
   }
 });

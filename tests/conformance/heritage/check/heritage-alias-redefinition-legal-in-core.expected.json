@@ -1,5 +1,5 @@
 {
-  "description": "THE PROFILE-GATE BOUNDARY, half retired (issue #742, REVERSED IN PART by ruling #833 / issue #838). Byte-for-byte the same source as `heritage-alias-redefinition-rejected-when-active`, checked under Core alone. It used to be COMPLETELY CLEAN, and its stated purpose was to prove that `ol-reserved-word`'s primitive category is profile-gated rather than unconditional. Ruling #833 overturned exactly that premise: spec/grammar.md:408 -- \"a name that could be declared in one implementation but not in another would be invisible and unpredictable to a learner\" -- makes every profile's names built in whether or not the profile is claimed, and spec/grammar.md:414 makes every alias spelling a built-in name. So the NINE turtle aliases `fd`/`bk`/`lt`/`rt`/`st`/`ht`/`pu`/`pd`/`cs` now raise here, Core-only, exactly as they do with `heritage` claimed. FOUR remain clean -- `pr`/`bf`/`bl`/`se` -- and that is a deliberate, temporary boundary, not an inconsistency in the ruling: issue #838 blocked only the 45 names it had MEASURED as free, and those four resolve to the CORE canonicals `print`/`butfirst`/`butlast`/`sentence`, which are still reached through the profile-gated branch. Issue #841's always-on built-in-names list retires that branch and takes these last four with it, at which point this fixture becomes 13 diagnostics and its name stops being true. Sharing one source with the rejecting sibling is still deliberate: it removes the possibility that the two fixtures diverge, and the DIFFERENCE between them is now precisely the size of the gate that is left. `\"check\": true` for the same reason as the sibling: this is a checker rule with no execution.",
+  "description": "THE PROFILE-GATE BOUNDARY, now fully retired (issue #742, reversed by ruling #833 via issues #838 and #841). Byte-for-byte the same source as `heritage-alias-redefinition-rejected-when-active`, checked under Core alone -- and now producing the SAME thirteen `ol-reserved-word` diagnostics, because `spec/grammar.md:408` makes every profile's names built in whether or not the profile is claimed and `:414` makes every alias spelling a built-in name. HISTORY, and why the file name is now false: it was written to prove `ol-reserved-word`'s primitive category was profile-gated, so it expected ZERO diagnostics; #838 then blocked the nine turtle aliases `fd`/`bk`/`lt`/`rt`/`st`/`ht`/`pu`/`pd`/`cs` it had measured, leaving it at nine; the last four -- `pr`/`bf`/`bl`/`se`, which resolve to the CORE canonicals `print`/`butfirst`/`butlast`/`sentence` -- went through the profile-gated branch that #841 deleted, taking the count to thirteen. Nothing in this program is \"legal in core\" any more. The name is kept anyway: renaming the six inverted fixtures belongs to the corpus sweep in issue #842, and keeping the source byte-identical to its sibling is what removes the possibility that the two drift. The DIFFERENCE between this fixture and that sibling was exactly the size of the remaining gate; it is now empty, which is the strongest statement the pair can make. `\"check\": true` for the same reason as the sibling: a checker rule with no execution.",
   "profiles": ["core-language"],
   "check": true,
   "events": [],
@@ -117,6 +117,58 @@
       },
       "params": {
         "name": "cs"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "heritage/check/heritage-alias-redefinition-legal-in-core",
+        "start": [19, 8],
+        "end": [19, 10]
+      },
+      "params": {
+        "name": "pr"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "heritage/check/heritage-alias-redefinition-legal-in-core",
+        "start": [21, 8],
+        "end": [21, 10]
+      },
+      "params": {
+        "name": "bf"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "heritage/check/heritage-alias-redefinition-legal-in-core",
+        "start": [23, 8],
+        "end": [23, 10]
+      },
+      "params": {
+        "name": "bl"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "heritage/check/heritage-alias-redefinition-legal-in-core",
+        "start": [25, 8],
+        "end": [25, 10]
+      },
+      "params": {
+        "name": "se"
       },
       "stage": "semantic",
       "severity": "error"

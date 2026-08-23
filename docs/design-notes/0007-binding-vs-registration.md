@@ -376,9 +376,10 @@ beginner can predict what a line does.
   the runtime stop disagreeing: at `1499e1e` `struct forward [ x y ]` passed `check()` and halted at
   `execute()`, and `define foo` twice was flagged by `check()` yet silently overridden by
   `execute()`. Issue #838 closed the first split at the checker and issue #839 closed the second at
-  the runtime. One narrower disagreement is deliberately left standing until issue #841 retires the
-  checker's profile gate: `execute()` has no active profile set, so it applies the rule
-  unconditionally as decided above, while `check()` under Core alone still accepts `define ask`.
+  the runtime. A third, narrower disagreement outlived both — `execute()` has no active profile set
+  and so applied the rule unconditionally, while `check()` under Core alone still accepted
+  `define ask` — and issue #841 closed it by giving both stages one predicate to call rather than
+  two compositions to keep in step.
 - **Every ordinary English word stays available for data.** `:end`, `:count`, `:value`,
   `for end from 1 to 3`, `map value in :xs [ … ]`, `{ end: 1 }`, `struct point [ repeat y ]` — all
   legal, with no carve-outs to memorize. This reverses the binding restriction that issue #739

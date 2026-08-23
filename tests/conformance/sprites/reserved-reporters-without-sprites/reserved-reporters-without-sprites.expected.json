@@ -1,7 +1,47 @@
 {
-  "description": "Issue #746, the profile-INACTIVE direction: byte-for-byte the same source as `reserved-reporters-with-sprites`, checked under Core + Turtle & Rendering alone, is completely clean. Without `sprites` claimed the reporters register nothing (`collectVisibleNames` gates them on the profile), so `new_turtle`/`who`/`turtles` are ordinary names a program is free to declare — mirroring `reserved-procedures-without-sprites`, which does the same for the block-heads. SCOPE, CORRECTED: maintainer ruling #833 retracted that gate for the NAMING axis. `spec/grammar.md:408` makes every profile's primitives built-in names unconditionally -- what a profile decides is whether a name WORKS, never whether a program may declare it -- so a conforming 0.4.0 implementation must raise `ol-reserved-word` on these three declarations with or without the profile. `spec/tooling.md:175-176` is about which names are AVAILABLE (the `ol-unknown-command` axis) and does not gate the reserved-word rule; the earlier reading of it here conflated the two axes. This fixture therefore pins SHIPPED BEHAVIOUR the spec now contradicts, and is kept red-flagged rather than deleted so the behaviour is not silently unpinned; issue #841 flips this expectation. Note this is a bare *declaration*: the `ol-unknown-command` a **call** to one of these names raises under Core-only is a different rule, covered by `sprites/reporters-unknown-without-sprites`. Sharing one source with the rejecting sibling is deliberate, so the two cannot diverge and silently stop testing the gate. `\"check\": true` for the same reason as the sibling: this is a checker rule with no execution.",
+  "description": "The Sprites REPORTERS half, and the name now says what the fixture pins: `new_turtle`/`who`/`turtles` are reserved WITHOUT the Sprites profile. All three `define`s raise `ol-reserved-word` under `core-language` alone. Keeping reporters separate from the block-heads (`reserved-procedures-without-sprites`) is deliberate: they reach the built-in-names predicate as registered PRIMITIVES rather than as keywords, so a change that fixed one category and missed the other would still turn this fixture red. HISTORY: issue #746 wrote it as the OFF half of a profile gate, expecting three clean declarations; `spec/grammar.md:408` and ruling #833 retracted that gate, and issue #841 removed it from the checker -- the expectation is flipped rather than the fixture deleted, so the behaviour stays pinned across the reversal. `\"check\": true`: checker diagnostics only, nothing executes.",
   "profiles": ["core-language", "turtle-rendering"],
   "check": true,
   "events": [],
-  "diagnostics": []
+  "diagnostics": [
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "sprites/reserved-reporters-without-sprites/reserved-reporters-without-sprites",
+        "start": [1, 8],
+        "end": [1, 18]
+      },
+      "params": {
+        "name": "new_turtle"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "sprites/reserved-reporters-without-sprites/reserved-reporters-without-sprites",
+        "start": [3, 8],
+        "end": [3, 11]
+      },
+      "params": {
+        "name": "who"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "sprites/reserved-reporters-without-sprites/reserved-reporters-without-sprites",
+        "start": [5, 8],
+        "end": [5, 15]
+      },
+      "params": {
+        "name": "turtles"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
 }

@@ -215,17 +215,15 @@ test("a user procedure named `tell` shadows the profile mode-switch command", ()
   assert.deepEqual(codesOf("define tell :x\n  print :x\nend\ntell 3"), []);
 });
 
-// --- Core-neutrality: define AND call a profile head as an ordinary procedure ---
-// A Core-only program is currently free to both DECLARE and CALL these words. That is SHIPPED
-// BEHAVIOUR, not a spec requirement: `spec/grammar.md:408` makes profile words built-in names
-// unconditionally, and #855 aligned `spec/interaction-events.md` with it, so a conforming
-// implementation must raise `ol-reserved-word` on the declaration. Retiring the gate is #841, which
-// flips these assertions. The reader is
-// profile-blind, so this proves the call side (not just the declaration side): a user-declared name
-// shadows the profile head, the trailing call parses as a `Call`, and the whole program is diagnostic
-// clean under Core-only checking. (End-to-end runtime execution — the call actually running the
-// user body — is covered by the runtime/conformance suites; here we prove the parse+check shape this
-// slice owns.)
+// --- Core-neutrality: the READER is profile-blind, even though the declaration is now illegal ---
+// A Core-only program may not DECLARE these words — `spec/grammar.md:408` makes profile words
+// built-in names unconditionally, #855 aligned `spec/interaction-events.md` with it, and #841
+// retired the checker gate, so the declaration raises `ol-reserved-word`. What these tests own is a
+// different, unchanged property one layer down: **the reader does not consult a profile set**, so
+// once a program declares such a name the trailing call is shaped as an ordinary `Call` rather than
+// a `ProfileStatement`. That shape is what the checker then judges, and pinning it separately is
+// what keeps a checker change from being mistaken for a reader change. The diagnostic assertions
+// below therefore expect exactly one `ol-reserved-word` — from the declaration, not the call.
 
 /** The last statement of `src`'s parse tree. */
 const last = (src) => {
@@ -241,24 +239,24 @@ const coreCodesOf = (src) => {
   return [...diagnostics, ...checkDiagnostics].map((d) => d.code);
 };
 
-test("a Core program can define and call the Sprites head `ask` as an ordinary procedure", () => {
+test("a declared Sprites head `ask` still parses its call as an ordinary Call", () => {
   const src = "define ask :x\n  print :x\nend\nask 5";
   assert.equal(last(src).kind, "Call");
   assert.equal(last(src).callee.name, "ask");
-  assert.deepEqual(coreCodesOf(src), []);
+  assert.deepEqual(coreCodesOf(src), ["ol-reserved-word"]);
 });
 
-test("a Core program can define and call the Sprites head `tell` as an ordinary procedure", () => {
+test("a declared Sprites head `tell` still parses its call as an ordinary Call", () => {
   const src = "define tell :x\n  print :x\nend\ntell 9";
   assert.equal(last(src).kind, "Call");
-  assert.deepEqual(coreCodesOf(src), []);
+  assert.deepEqual(coreCodesOf(src), ["ol-reserved-word"]);
 });
 
-test("a Core program can define and call the Interaction head `when` as an ordinary procedure", () => {
+test("a declared Interaction head `when` still parses its call as an ordinary Call", () => {
   const src = "define when :x\n  print :x\nend\nwhen 7";
   assert.equal(last(src).kind, "Call");
   assert.equal(last(src).callee.name, "when");
-  assert.deepEqual(coreCodesOf(src), []);
+  assert.deepEqual(coreCodesOf(src), ["ol-reserved-word"]);
 });
 
 // --- Core-neutrality: an UNDECLARED profile head is never silently accepted ---

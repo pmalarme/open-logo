@@ -1,0 +1,99 @@
+{
+  "description": "THE RULE ITSELF, in the profile that claims none of these names (issue #841). Seven declarations of names belonging to four OPTIONAL profiles — Sprites, Interaction & Events, Geometry and Sound — are checked under `profiles: [\"core-language\"]` alone, and every one raises `ol-reserved-word`. `spec/grammar.md:382`: \"The grammar has exactly four declaration slots ... A built-in name in any of those slots raises `ol-reserved-word`. Nothing shadows\", and `:408` supplies the reason a profile cannot soften it — a program cannot declare which profiles it requires, so a name declarable under one profile set and not another would make conformance implementation-dependent, \"invisible and unpredictable to a learner\". This fixture lives under `core-language/` deliberately: after #841 the declaration rule is Core's rather than each profile's, so a Core-only program is the case that decides it. The per-profile OFF-halves (`sprites/reserved-procedures-without-sprites`, `interaction-events/block-heads-free-core-only`, `geometry/check/reserved-word-not-gated-without-geometry`, `heritage/check/heritage-alias-redefinition-legal-in-core`) each pin one profile's names and were INVERTED by #841 from clean to raising; this one pins the rule they now share, so removing the rule reddens a Core fixture rather than only profile ones. The seven declarations cross the predicate's internal branches rather than sampling one of them: `ask` and `when` are profile KEYWORDS (Sprites and Interaction & Events, from `OL_PROFILE_KEYWORDS`); `grid`, `new_turtle`, `wait` and `set_tempo` are registered PRIMITIVES of Geometry, Sprites, Interaction & Events and Sound, which reach the predicate through a different lookup; and the seventh, `struct tell`, uses the `struct` declaration slot rather than `define` — `spec/grammar.md:165` makes them separate slots, so a fix reaching only `define` would leave that line clean. `\"check\": true`: these are checker diagnostics — nothing is called, no struct is instantiated, and no events are produced.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "core-language/check/reserved-word-profile-names-under-core-alone",
+        "start": [1, 8],
+        "end": [1, 11]
+      },
+      "params": {
+        "name": "ask"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "core-language/check/reserved-word-profile-names-under-core-alone",
+        "start": [3, 8],
+        "end": [3, 12]
+      },
+      "params": {
+        "name": "when"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "core-language/check/reserved-word-profile-names-under-core-alone",
+        "start": [5, 8],
+        "end": [5, 12]
+      },
+      "params": {
+        "name": "tell"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "core-language/check/reserved-word-profile-names-under-core-alone",
+        "start": [6, 8],
+        "end": [6, 12]
+      },
+      "params": {
+        "name": "grid"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "core-language/check/reserved-word-profile-names-under-core-alone",
+        "start": [8, 8],
+        "end": [8, 18]
+      },
+      "params": {
+        "name": "new_turtle"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "core-language/check/reserved-word-profile-names-under-core-alone",
+        "start": [10, 8],
+        "end": [10, 12]
+      },
+      "params": {
+        "name": "wait"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "core-language/check/reserved-word-profile-names-under-core-alone",
+        "start": [12, 8],
+        "end": [12, 17]
+      },
+      "params": {
+        "name": "set_tempo"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

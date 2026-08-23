@@ -139,17 +139,23 @@ const KEYWORDS = new Set<string>(OL_KEYWORDS);
  * - `"interaction-events"` — the event block-heads `when`, `every`, `on_key`, and `on_click`
  *   (`spec/interaction-events.md#profiles-and-reservation`).
  *
- * **These words are still gated on their profile here, and the spec no longer is.**
- * `spec/grammar.md:408` says profile words are built-in names **unconditionally** — "a program
- * cannot declare which profiles it requires … so a name that could be declared in one
- * implementation but not in another would be invisible and unpredictable to a learner", and "what a
- * profile decides is whether a name *works*, never whether a program may declare it". Issue #855
- * aligned the rest of the spec with that ruling, so `turtles-and-sprites.md:154`,
- * `interaction-events.md#profiles-and-reservation`, and `spec/tooling.md:100-104` now state the
- * unconditional rule too. The always-on built-in-names list that retires this gate is still #841:
- * until it lands, {@link isKeyword} keeps consulting this registry only for **active** profiles —
- * the behavior every current caller and fixture is written against — so this comment records a
- * known, tracked deviation from the spec rather than a rule the spec still states.
+ * **Two different questions read this registry, and only one of them is profile-gated.** Confusing
+ * them is what issue #841 came to fix, so the split is stated here rather than at each call site:
+ *
+ * - **May a program declare this name?** No. `spec/grammar.md:408` makes profile words built-in
+ *   names **unconditionally** — "a program cannot declare which profiles it requires … so a name
+ *   that could be declared in one implementation but not in another would be invisible and
+ *   unpredictable to a learner", and "what a profile decides is whether a name *works*, never
+ *   whether a program may declare it". {@link isKeywordInAnyProfile} answers this one, and takes no
+ *   profile set because there is none to take.
+ * - **Does this word paint as a keyword?** Only while its profile is active, which
+ *   `spec/tooling.md:30`'s `keyword` row states directly ("plus the profile block-heads … while
+ *   their profile is active"). {@link isKeyword}'s two-argument form answers this one and stays
+ *   profile-gated, because here the gate is what the spec asks for.
+ *
+ * Issue #855 aligned the rest of the spec with the `:408` ruling, so `turtles-and-sprites.md:154`,
+ * `interaction-events.md#profiles-and-reservation`, and `spec/tooling.md:100-104` state the
+ * unconditional rule too.
  */
 export const OL_PROFILE_KEYWORDS = {
   sprites: ["ask", "each", "tell"],
@@ -195,6 +201,30 @@ export function isProfileKeyword(
 }
 
 /**
+ * Every profile that contributes keywords, straight off {@link OL_PROFILE_KEYWORDS}'s own keys, so
+ * a profile that starts contributing keywords is covered without editing this line.
+ */
+const ALL_KEYWORD_PROFILES: readonly string[] =
+  Object.keys(OL_PROFILE_KEYWORDS);
+
+/**
+ * Is `name` a keyword of Core **or of any profile at all**, active or not? This is the
+ * **declaration** axis of `spec/grammar.md:408` — "what a profile decides is whether a name
+ * *works*, never whether a program may declare it" — so `ask`, `tell`, `when` and friends answer
+ * `true` here even for a Core-only program, and `define ask` is `ol-reserved-word` in every
+ * conformance profile set.
+ *
+ * It is {@link isKeyword} with every keyword-contributing profile supplied, not a second registry:
+ * the profile list is derived from {@link OL_PROFILE_KEYWORDS}'s keys, so no keyword is restated
+ * here and the two predicates cannot disagree about what a keyword is — only about *when* it
+ * counts. Keep the profile-gated {@link isKeyword} for the highlighter's paint axis, where
+ * `spec/tooling.md:30` does ask for a gate.
+ */
+export function isKeywordInAnyProfile(name: string): boolean {
+  return isKeyword(name, ALL_KEYWORD_PROFILES);
+}
+
+/**
  * Is `name` a keyword? Matching is case-insensitive because OpenLogo identifiers are
  * case-insensitive with lowercase canonical.
  *
@@ -202,10 +232,13 @@ export function isProfileKeyword(
  * {@link OL_KEYWORDS} — its long-standing behavior, kept **unchanged** so the Core keyword list
  * never grows. When `activeProfiles` is supplied, any {@link OL_PROFILE_KEYWORDS} word contributed
  * by an active profile also counts, so a consumer that already threads the active profile set gets
- * profile-aware matching from this one registry without forking it. Both consumers now do: the
- * **checker** (`check.ts`) and, since issue #740, the **highlighter** — `highlight.ts` calls this
- * two-argument form so `spec/tooling.md:30`'s "while their profile is active" clause is decided
- * here rather than re-derived there.
+ * profile-aware matching from this one registry without forking it.
+ *
+ * **This gated form is the paint axis, and since issue #841 the highlighter is its only caller.**
+ * `highlight.ts` passes the program's active profile set so `spec/tooling.md:30`'s "while their
+ * profile is active" clause is decided here rather than re-derived there. The callers that ask the
+ * *declaration* question — whether a program may bind the name at all — moved to
+ * {@link isKeywordInAnyProfile}, because `spec/grammar.md:408` makes that answer profile-independent.
  *
  * Returns a plain `boolean` rather than a type predicate: matching is case-insensitive, so a
  * mixed-case keyword `name` is not literally a lowercase-canonical `Keyword`/`ProfileKeyword`, and
