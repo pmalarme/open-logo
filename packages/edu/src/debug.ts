@@ -235,20 +235,24 @@ interface FoldedTurtleState {
   width?: number;
 }
 
-/** The trace's turtle state, partitioned by the turtle identity each event is attributed to. */
-interface TurtleStatesByIdentity {
-  /**
-   * State folded from the state-bearing events that carry **no** `turtle_id`. Per
-   * `spec/turtles-and-sprites.md`'s addressing model — "in a program without the Sprites
-   * profile, the addressed set contains the single default turtle" — and :113's "where no
-   * explicit addressing is in force ... the single default turtle's behavior is as the Turtle &
-   * Rendering profile defines it", those events are that one default turtle's. `undefined` when
-   * every state-bearing event named a turtle.
-   */
-  readonly defaultTurtle: FoldedTurtleState | undefined;
-  /** State folded per identified turtle, keyed by the `turtle_id` its own events carry. */
-  readonly addressedTurtles: ReadonlyMap<TurtleId, FoldedTurtleState>;
-}
+/** The trace's turtle state, one entry per turtle, keyed by turtle identity. */
+type TurtleStatesByIdentity = ReadonlyMap<TurtleId, FoldedTurtleState>;
+
+/**
+ * The reserved id of the **main turtle** — the single default turtle every program starts with,
+ * the one Turtle & Rendering commands drive before any `new_turtle`. It is `0` to match
+ * `@openlogo/runtime`'s `MAIN_TURTLE_ID` (the allocator that seeds the `turtle_id` this fold
+ * routes on) and `@openlogo/turtle`'s reducer constant of the same name, so a per-turtle event
+ * stamped with `turtle_id: 0` and an un-stamped main-turtle event (no `turtle_id`, emitted before
+ * any `tell`) fold into the *same* turtle here — exactly as `@openlogo/turtle`'s `reduceTurtleState`
+ * already folds them for the renderer. `debug` agreeing with the renderer about who is where is the
+ * whole point of issues #738/#889; disagreeing was the defect they removed.
+ *
+ * Declared locally, mirroring `@openlogo/turtle`'s own local declaration and for the same reason:
+ * `@openlogo/runtime` does not export it, and `@openlogo/edu` must not take a dependency on
+ * `@openlogo/turtle` to reach a single number.
+ */
+const MAIN_TURTLE_ID: TurtleId = 0;
 
 /**
  * Folds the trace so far into one {@link FoldedTurtleState} **per turtle**, keyed by the
@@ -264,11 +268,15 @@ interface TurtleStatesByIdentity {
  * stepping, `why`, and `debug` can explain which turtle moved or changed", and names `debug`
  * among the consumers the rule exists for.
  *
- * An absent `turtle_id` is a distinct bucket from any present one, and is **not** merged into a
- * numbered turtle: the producer omits the id exactly when no explicit `tell`/`ask`/`each`
- * addressing is in force (:113 scopes the identity requirement to explicit addressing), and the
- * spec names that turtle only as "the single default turtle" — it pins no id for it, so
- * inventing one here would report a fact the stream never carried.
+ * An absent `turtle_id` folds into {@link MAIN_TURTLE_ID}, not into a bucket of its own. The
+ * producer omits the id exactly when no explicit `tell`/`ask`/`each` addressing is in force
+ * (:113 scopes the identity requirement to explicit addressing), and the turtle acting then is
+ * the main turtle — the same one a `tell [ who ]` later stamps as `turtle_id: 0`. Keeping them
+ * apart would let one turtle be reported twice, at two different positions, whenever a program
+ * interleaves addressed and unaddressed movement (`forward 5` / `ask who [ forward 5 ]` /
+ * `forward 5`) — with the addressed clause frozen at a stale position. `@openlogo/turtle`'s
+ * `reduceTurtleState` already folds the two together for the renderer, so splitting them here is
+ * also exactly how `debug` would start contradicting the picture on screen again.
  *
  * A `clear` is deliberately **not** a state-bearing kind, in either mode (issue #738).
  * `spec/turtles-and-sprites.md:113` is explicit that "consumers MUST NOT read a `clear` event as an
@@ -290,24 +298,20 @@ interface TurtleStatesByIdentity {
 function foldTurtleStatesByIdentity(
   events: readonly TraceEvent[],
 ): TurtleStatesByIdentity {
-  let defaultTurtle: FoldedTurtleState | undefined;
-  const addressedTurtles = new Map<TurtleId, FoldedTurtleState>();
+  const turtleStates = new Map<TurtleId, FoldedTurtleState>();
 
   /**
-   * The bucket `event` belongs to, created on first use. The identity test is against
-   * `undefined`, never truthiness: `0` is a real `turtle_id` — the main turtle's — which a
-   * `tell [ who ]` stamps onto its events, so a falsy check would silently file the main
-   * turtle's own effects under the unaddressed default.
+   * The bucket `event` belongs to, created on first use. `??` (nullish), never `||` (falsy): `0`
+   * is a real `turtle_id` — the main turtle's, which a `tell [ who ]` stamps onto its events — so
+   * a falsy default would misfile turtle `0`'s own effects as unaddressed. Both spellings of the
+   * main turtle, stamped `0` and unstamped, resolve to the same bucket.
    */
   const stateFor = (turtleId: TurtleId | undefined): FoldedTurtleState => {
-    if (turtleId === undefined) {
-      defaultTurtle ??= {};
-      return defaultTurtle;
-    }
-    let state = addressedTurtles.get(turtleId);
+    const key = turtleId ?? MAIN_TURTLE_ID;
+    let state = turtleStates.get(key);
     if (state === undefined) {
       state = {};
-      addressedTurtles.set(turtleId, state);
+      turtleStates.set(key, state);
     }
     return state;
   };
@@ -346,13 +350,14 @@ function foldTurtleStatesByIdentity(
     }
   }
 
-  return { defaultTurtle, addressedTurtles };
+  return turtleStates;
 }
 
 /**
  * Renders one turtle's folded state as the comma-separated field list `debug` reports, in the
- * fixed order `spec/educational-model.md:520` lists them. Never empty: a bucket only exists
- * because some state-bearing event created it, and every such event sets at least one field.
+ * fixed order `spec/educational-model.md:520` lists them ("position, heading, pen, color,
+ * width"). Empty when the bucket describes nothing — see {@link turtleStateSegment}, which drops
+ * such a turtle rather than emitting a clause with no fields in it.
  */
 function describeFoldedTurtleState(state: FoldedTurtleState): string {
   const parts: string[] = [];
@@ -376,17 +381,20 @@ function describeFoldedTurtleState(state: FoldedTurtleState): string {
 
 /**
  * The turtle-state segment `debug` reports (`spec/educational-model.md:520`), naming **which**
- * turtle each state belongs to whenever the trace attributes it to one.
+ * turtle each state belongs to once more than one turtle has any.
  *
  * Three shapes, all sharing the `Turtle state so far:` opening so a consumer can still find the
  * segment by that prefix:
  *
- * - Nothing touched turtle state — no segment at all.
- * - Only unattributed events (a Turtle & Rendering program, with no `tell`/`ask`/`each` in
- *   force): the single default turtle's fields, exactly as before this became per-turtle — the
- *   non-Sprites wording is unchanged, because there is no identity to report.
- * - Any identified turtle: one clause per turtle, `the turtle` (the unattributed default, when
- *   it has state) first, then each named turtle in **ascending `turtle_id`** order.
+ * - No turtle has any state to report — no segment at all.
+ * - Exactly one turtle does: its fields alone, unnamed. There is no other turtle to confuse it
+ *   with, so naming it would add nothing — and this keeps every Turtle & Rendering program's
+ *   wording byte-identical to what it was before `debug` became per-turtle.
+ * - Two or more: one clause per turtle, `turtle #<id>` in **ascending id** order.
+ *
+ * `turtle #<id>` is the same identity tag a turtle value prints as (`spec/turtles-and-sprites.md:13`,
+ * `spec/execution-model.md:540`), so a learner can line `debug`'s clauses up against what
+ * `print who` or `print turtles` just showed them.
  *
  * Ordering by id rather than by when each turtle last acted is deliberate.
  * `spec/turtles-and-sprites.md:113` requires that "the result never depends on the order the
@@ -395,39 +403,35 @@ function describeFoldedTurtleState(state: FoldedTurtleState): string {
  * last turtle to act (or reporting in event order) would make `debug`'s answer depend on the
  * listing order the spec says it must not.
  *
- * One accepted consequence: a program that moves the default turtle **and then explicitly
- * addresses that same turtle** (`forward 10` / `tell [ who ]` / `forward 5`) reports it twice —
- * once as `the turtle`, once as `turtle 0` — because the trace attributes the first move to no
- * turtle and the second to turtle `0`, and nothing in the stream says they are the same one.
- * Collapsing them would mean hard-coding the default turtle's id here, and
- * `spec/turtles-and-sprites.md` names it only as "the single default turtle" without pinning an
- * id, so `debug` would be asserting a fact the spec never gave it. Reporting both clauses states
- * only what the trace carries, and the far commoner mixed shape — the default turtle plus a
- * genuinely different `new_turtle` — is exactly right. Both shapes are pinned in
- * `debug.test.mjs`.
+ * The reported subject is **every turtle the trace gave state**, not the addressed set in force at
+ * the end. This segment is a history ("state so far"), so a turtle that moved and was then
+ * un-addressed still has a position a learner may be asking about, while a turtle that is
+ * addressed but has never acted has nothing to report — reporting the addressed set instead would
+ * invert both. Turtles whose bucket describes no field at all are dropped rather than emitted as
+ * an empty clause.
  */
 function turtleStateSegment(events: readonly TraceEvent[]): string | undefined {
-  const { defaultTurtle, addressedTurtles } =
-    foldTurtleStatesByIdentity(events);
+  const described = [...foldTurtleStatesByIdentity(events)]
+    .map(([turtleId, state]): readonly [TurtleId, string] => [
+      turtleId,
+      describeFoldedTurtleState(state),
+    ])
+    .filter(([, fields]) => fields !== "")
+    .sort(([left], [right]) => left - right);
 
-  if (defaultTurtle === undefined && addressedTurtles.size === 0) {
+  const [first] = described;
+  if (first === undefined) {
     return undefined;
   }
 
-  if (defaultTurtle !== undefined && addressedTurtles.size === 0) {
-    return `Turtle state so far: ${describeFoldedTurtleState(defaultTurtle)}.`;
+  if (described.length === 1) {
+    return `Turtle state so far: ${first[1]}.`;
   }
 
-  const reported: string[] = [];
-  if (defaultTurtle !== undefined) {
-    reported.push(`the turtle — ${describeFoldedTurtleState(defaultTurtle)}`);
-  }
-  for (const [turtleId, state] of [...addressedTurtles].sort(
-    ([left], [right]) => left - right,
-  )) {
-    reported.push(`turtle ${turtleId} — ${describeFoldedTurtleState(state)}`);
-  }
-  return `Turtle state so far: ${reported.join("; ")}.`;
+  const clauses = described.map(
+    ([turtleId, fields]) => `turtle #${turtleId} — ${fields}`,
+  );
+  return `Turtle state so far: ${clauses.join("; ")}.`;
 }
 
 /**

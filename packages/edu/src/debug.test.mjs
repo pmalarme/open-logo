@@ -251,7 +251,9 @@ test("debug follows the addressed turtle's own homing under tell", () => {
  * which turtle moved or changed", and names `debug` among the consumers the rule exists for.
  *
  * The test above is deliberately scoped to a SINGLE addressed turtle (issue #738), so it never
- * locked the blend in; these widen it to the multi-turtle cases it left open.
+ * locked the blend in; these widen it to the multi-turtle cases it left open. Each asserts a full
+ * literal segment rather than a pattern, so a regression shows up as a diff rather than a silent
+ * near-miss.
  */
 const turtleStateOf = (source) => {
   const segment = OL.debug(contextFromSource(source, {})).segments.find(
@@ -265,17 +267,13 @@ test("debug reports each addressed turtle's own state instead of one blended sta
   // :a ends at (0, 30) heading 0 in red; :b at (10, ~0) heading 90 with width 7. The old fold
   // reported ONE line taking position+heading from :b and color from :a — a state neither turtle
   // was ever in. Each field must now be attributed to the turtle it actually belongs to.
-  const segment = turtleStateOf(
-    ':a = new_turtle\n:b = new_turtle\nask :a [ forward 30 set_color "red" ]\nask :b [ right 90 forward 10 set_width 7 ]\ntell [ :a :b ]',
-  );
   assert.equal(
-    segment,
-    "Turtle state so far: turtle 1 — position (0, 30), heading 0, color `red`; " +
-      "turtle 2 — position (10, 6.123233995736766e-16), heading 90, width 7.",
+    turtleStateOf(
+      ':a = new_turtle\n:b = new_turtle\nask :a [ forward 30 set_color "red" ]\nask :b [ right 90 forward 10 set_width 7 ]\ntell [ :a :b ]',
+    ),
+    "Turtle state so far: turtle #1 — position (0, 30), heading 0, color `red`; " +
+      "turtle #2 — position (10, 6.123233995736766e-16), heading 90, width 7.",
   );
-  // The blend was not merely incomplete, it was a state no turtle had: :a's color never belonged
-  // with :b's width on one turtle.
-  assert.ok(!/color `red`, width 7/.test(segment));
 });
 
 test("debug reports a position per addressed turtle when one command moved them all", () => {
@@ -285,8 +283,8 @@ test("debug reports a position per addressed turtle when one command moved them 
     turtleStateOf(
       ":a = new_turtle\n:b = new_turtle\nask :a [ right 90 ]\ntell [ :a :b ]\nforward 10",
     ),
-    "Turtle state so far: turtle 1 — position (10, 6.123233995736766e-16), heading 90; " +
-      "turtle 2 — position (0, 10), heading 0.",
+    "Turtle state so far: turtle #1 — position (10, 6.123233995736766e-16), heading 90; " +
+      "turtle #2 — position (0, 10), heading 0.",
   );
 });
 
@@ -295,11 +293,20 @@ test("debug's turtle state does not depend on the order the turtles were address
   // listed in: `tell [ :a :b ]` and `tell [ :b :a ]` home the same two turtles". Those two forms
   // genuinely emit their per-turtle events in OPPOSITE orders, so reporting the turtle that acted
   // last — the obvious alternative to reporting per turtle — would make `debug` contradict this.
+  //
+  // Both turtles must end in the SAME state, so that clause ORDER is the only thing that could
+  // differ between the two programs. An earlier version of this test turned :a before the `tell`,
+  // which created :a's bucket first in both orderings and so passed even with the sort deleted.
   const program = (order) =>
-    `:a = new_turtle\n:b = new_turtle\nask :a [ right 90 ]\ntell [ ${order} ]\nforward 10`;
+    `:a = new_turtle\n:b = new_turtle\ntell [ ${order} ]\nforward 10`;
   assert.equal(
     turtleStateOf(program(":a :b")),
     turtleStateOf(program(":b :a")),
+  );
+  assert.equal(
+    turtleStateOf(program(":b :a")),
+    "Turtle state so far: turtle #1 — position (0, 10), heading 0; " +
+      "turtle #2 — position (0, 10), heading 0.",
   );
 });
 
@@ -310,48 +317,70 @@ test("debug reports every addressed turtle a clear_screen homed, not just one", 
     turtleStateOf(
       ":a = new_turtle\n:b = new_turtle\nask :a [ forward 30 ]\nask :b [ right 90 forward 10 ]\ntell [ :a :b ]\nclear_screen",
     ),
-    "Turtle state so far: turtle 1 — position (0, 0), heading 0; " +
-      "turtle 2 — position (0, 0), heading 0.",
+    "Turtle state so far: turtle #1 — position (0, 0), heading 0; " +
+      "turtle #2 — position (0, 0), heading 0.",
   );
 });
 
-test("debug names the turtle even when only one is addressed", () => {
-  // With an identity in the trace, `debug` reports it: :113's requirement exists so `debug` can say
-  // WHICH turtle, and that answer is useful before a second turtle exists.
+test("debug leaves a lone turtle unnamed, however it was addressed", () => {
+  // With only one turtle in play there is nothing to disambiguate, so the clause stays unnamed —
+  // which is also what keeps every Turtle & Rendering program's wording byte-identical to the
+  // pre-#891 output. `tell [ :a ]` (identified) and a bare `forward` (unidentified) agree on shape.
   assert.equal(
     turtleStateOf(":a = new_turtle\ntell [ :a ]\nforward 30"),
-    "Turtle state so far: turtle 1 — position (0, 30), heading 0.",
+    "Turtle state so far: position (0, 30), heading 0.",
   );
-});
-
-test("debug treats turtle 0 as a real identity, not as an unaddressed turtle", () => {
-  // The main turtle's id is `0`. `tell [ who ]` addresses it explicitly, so its events carry
-  // `turtle_id: 0` — and a falsy identity check (`if (event.turtle_id)`) would silently file them
-  // under the unaddressed default and report the pre-#891 unnamed wording.
-  assert.equal(
-    turtleStateOf("tell [ who ]\nforward 5"),
-    "Turtle state so far: turtle 0 — position (0, 5), heading 0.",
-  );
-});
-
-test("debug keeps the unaddressed default turtle distinct from an addressed one", () => {
-  // `:friend` moves under `ask` (so its events carry its id); the trailing `forward 3` runs with no
-  // explicit addressing in force, so its event carries NO id — `spec/turtles-and-sprites.md`'s
-  // "single default turtle". The old fold blended the two into `position (0, 3)`, losing :friend
-  // entirely. `debug` must not invent an id for the unattributed one: the spec pins none.
-  assert.equal(
-    turtleStateOf(":friend = new_turtle\nask :friend [ forward 7 ]\nforward 3"),
-    "Turtle state so far: the turtle — position (0, 3), heading 0; " +
-      "turtle 1 — position (0, 7), heading 0.",
-  );
-});
-
-test("debug keeps the unnamed wording for a program with no turtle identities at all", () => {
-  // The whole non-Sprites world: no `tell`/`ask`/`each`, so no event carries a `turtle_id` and
-  // there is no identity to report. This wording must stay byte-identical to the pre-#891 output.
   assert.equal(
     turtleStateOf("forward 30\nright 90"),
     "Turtle state so far: position (0, 30), heading 90.",
+  );
+});
+
+test("debug folds the main turtle's addressed and unaddressed movement into one turtle", () => {
+  // The main turtle's id is `0`, and `tell [ who ]` addresses it explicitly, so `forward 5` here
+  // carries `turtle_id: 0` while the surrounding `forward`s carry none. All three are the SAME
+  // turtle: `@openlogo/turtle`'s `reduceTurtleState` folds the two spellings together for the
+  // renderer, so `debug` must too or it starts contradicting the picture on screen — reporting one
+  // turtle twice, with the addressed clause frozen at a stale (0, 10).
+  assert.equal(
+    turtleStateOf("forward 5\nask who [ forward 5 ]\nforward 5"),
+    "Turtle state so far: position (0, 15), heading 0.",
+  );
+  assert.equal(
+    turtleStateOf("forward 10\ntell [ who ]\nforward 5"),
+    "Turtle state so far: position (0, 15), heading 0.",
+  );
+});
+
+test("debug distinguishes the main turtle from another turtle, naming it turtle #0", () => {
+  // `:friend` moves under `ask` (so its events carry its id); the trailing `forward 3` runs with no
+  // explicit addressing in force, so its event carries NO id — that is the main turtle, id 0. The
+  // old fold blended the two into `position (0, 3)`, losing :friend entirely. Now that a second
+  // turtle is in play, both are named, and the main turtle gets its real id rather than a label.
+  assert.equal(
+    turtleStateOf(":friend = new_turtle\nask :friend [ forward 7 ]\nforward 3"),
+    "Turtle state so far: turtle #0 — position (0, 3), heading 0; " +
+      "turtle #1 — position (0, 7), heading 0.",
+  );
+});
+
+test("debug names turtles with the same `turtle #<id>` tag a turtle value prints as", () => {
+  // `spec/turtles-and-sprites.md:13` / `spec/execution-model.md:540`: a turtle's printed form is
+  // `turtle #<id>`. `debug` uses the same tag so a learner can line its clauses up against what
+  // `print who` just showed them, rather than having to translate between two spellings. The tag
+  // is taken from the runtime's own `printedForm`, so the two cannot drift apart silently.
+  const { events } = Runtime.execute(
+    ":a = new_turtle\ntell [ :a ]\nprint who",
+    "main.logo",
+  );
+  const printed = events.find((event) => event.kind === "print");
+  const printedTurtle = Runtime.printedForm(printed.payload.values[0]);
+  assert.equal(printedTurtle, "turtle #1");
+  assert.match(
+    turtleStateOf(
+      ":a = new_turtle\n:b = new_turtle\ntell [ :a :b ]\nforward 10",
+    ),
+    new RegExp(`${printedTurtle} —`),
   );
 });
 
@@ -364,23 +393,9 @@ test("debug reports addressed turtles in ascending id order, not the order they 
     turtleStateOf(
       ":a = new_turtle\n:b = new_turtle\n:c = new_turtle\ntell [ :c :a :b ]\nforward 10",
     ),
-    "Turtle state so far: turtle 1 — position (0, 10), heading 0; " +
-      "turtle 2 — position (0, 10), heading 0; " +
-      "turtle 3 — position (0, 10), heading 0.",
-  );
-});
-
-test("debug reports the default turtle twice when it is later addressed by id, rather than inventing its identity", () => {
-  // The accepted consequence documented on `turtleStateSegment`. `forward 10` runs with no explicit
-  // addressing, so its event carries no `turtle_id`; `tell [ who ]` then addresses that SAME turtle
-  // explicitly, so `forward 5` carries `turtle_id: 0`. Nothing in the stream says the two are one
-  // turtle, and `spec/turtles-and-sprites.md` pins no id for "the single default turtle" — so
-  // merging them would have `debug` assert a fact it was never given. Pinned so the trade-off is
-  // decided and visible, not accidental.
-  assert.equal(
-    turtleStateOf("forward 10\ntell [ who ]\nforward 5"),
-    "Turtle state so far: the turtle — position (0, 10), heading 0; " +
-      "turtle 0 — position (0, 15), heading 0.",
+    "Turtle state so far: turtle #1 — position (0, 10), heading 0; " +
+      "turtle #2 — position (0, 10), heading 0; " +
+      "turtle #3 — position (0, 10), heading 0.",
   );
 });
 
@@ -392,7 +407,64 @@ test("debug reports only the fields each turtle actually changed", () => {
     turtleStateOf(
       ':a = new_turtle\n:b = new_turtle\nask :a [ pen_up ]\nask :b [ set_color "blue" ]',
     ),
-    "Turtle state so far: turtle 1 — pen up; turtle 2 — color `blue`.",
+    "Turtle state so far: turtle #1 — pen up; turtle #2 — color `blue`.",
+  );
+});
+
+test("debug lists one turtle's fields in the spec's order: position, heading, pen, color, width", () => {
+  // `spec/educational-model.md:520` fixes the order ("position, heading, pen, color, width"), so a
+  // single turtle must carry ALL five at once for the sequence itself to be pinned — splitting them
+  // across turtles leaves neighbouring pairs (e.g. color/width) free to swap unnoticed.
+  assert.equal(
+    turtleStateOf(
+      ':a = new_turtle\n:b = new_turtle\nask :a [ right 90 forward 5 pen_up set_color "blue" set_width 4 ]\nask :b [ forward 1 ]',
+    ),
+    "Turtle state so far: turtle #1 — position (5, 3.061616997868383e-16), heading 90, " +
+      "pen up, color `blue`, width 4; turtle #2 — position (0, 1), heading 0.",
+  );
+});
+
+test("debug reports a turtle that has state even after it stops being addressed", () => {
+  // The reported subject is every turtle the trace GAVE STATE, not the addressed set in force at
+  // the end — this segment is a history ("state so far"). :a moved and was then un-addressed by
+  // `tell [ :b ]`; its position is exactly what a learner asking "where did :a end up?" needs, so
+  // it must survive. Reporting the addressed set instead would drop :a and add nothing for :b.
+  assert.equal(
+    turtleStateOf(
+      ":a = new_turtle\n:b = new_turtle\nask :a [ forward 30 ]\nask :b [ forward 5 ]\ntell [ :b ]",
+    ),
+    "Turtle state so far: turtle #1 — position (0, 30), heading 0; " +
+      "turtle #2 — position (0, 5), heading 0.",
+  );
+});
+
+test("debug omits a turtle whose events described no state at all, rather than emitting an empty clause", () => {
+  // Buckets are created per state-bearing event kind, before the payload is known to carry a
+  // defined value. A host feeding `debug` an off-contract payload must not produce a malformed
+  // `turtle #1 — .` clause (or a bare `Turtle state so far: .`) — such a turtle contributes
+  // nothing and is dropped, which for a single turtle means no segment at all.
+  const program = {
+    kind: "Program",
+    source_span: Core.makeSpan("main.logo", [1, 1], [1, 1]),
+    body: [],
+  };
+  const emptyPayloadEvent = {
+    seq: 0,
+    kind: "pen-change",
+    source_span: Core.makeSpan("main.logo", [1, 1], [1, 7]),
+    turtle_id: 1,
+    payload: {},
+  };
+  const output = OL.debug({
+    command: "debug",
+    program,
+    events: [emptyPayloadEvent],
+    diagnostics: [],
+    level: "3",
+  });
+  assert.ok(
+    !output.segments.some((segment) => segment.startsWith("Turtle state")),
+    `expected no turtle-state segment, got: ${JSON.stringify(output.segments)}`,
   );
 });
 
