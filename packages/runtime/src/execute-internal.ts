@@ -4270,6 +4270,12 @@ function isBuiltInName(name: string): boolean {
  * makes a declaration an ordinary statement, so `define outer / define forward / end / end` is a
  * collision exactly as the top-level form is.
  *
+ * **One half of `spec/execution-model.md:86-87` is out of scope here and NOT covered:** it also
+ * makes a name "an imported module already registered" a duplicate. `import` has no runtime
+ * implementation (Modules is M6), so there is nothing to collide with and no fixture asserts it.
+ * That clause is *unimplemented*, not merely untested — recorded so a later reader does not mistake
+ * this guard for having handled it.
+ *
  * The first collision found in source order halts the whole program — nothing runs, so the
  * `define foo` twice that used to print the *second* body prints nothing at all.
  */

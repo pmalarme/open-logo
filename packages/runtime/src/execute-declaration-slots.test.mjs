@@ -137,16 +137,35 @@ function declareProcedure(name, keyword = "define") {
  * 1 is the same defect one level in: a mutant exempting only depth ≥ 2 also passed every gate. The
  * variable has to be varied, not merely introduced.
  */
-function nestInsideProcedure(declaration, depth = 1) {
+function nestInsideProcedure(declaration, depth = 1, prefix = "outer") {
   let nested = declaration;
   for (let level = 0; level < depth; level += 1) {
     const indented = nested
       .split("\n")
       .map((line) => `  ${line}`)
       .join("\n");
-    nested = `define outer${level}\n${indented}\nend`;
+    nested = `define ${prefix}${level}\n${indented}\nend`;
   }
-  return depth === 0 ? nested : `${nested}\nouter${depth - 1}`;
+  return depth === 0 ? nested : `${nested}\n${prefix}${depth - 1}`;
+}
+
+/**
+ * One declaration's full configuration as source: spelling, casing, enclosing construct and nesting
+ * depth. `prefix` keeps the synthesised enclosing procedures distinct so two independently-nested
+ * declarations can sit in one program without colliding with each other.
+ *
+ * **Every axis is drawn per declaration, never per program.** A diagnostic about two declarations
+ * has *pair-relative* properties — are they in the same construct? at the same depth? — that are
+ * invisible if the generator applies one wrapper to the pair. Measured: it did, and a mutant giving
+ * handler bodies their own declaration scope let `define dup` + `every 1 [ define dup ]` silently
+ * override across the boundary, passing all 3943 tests and 892 fixtures.
+ */
+function declarationSource({ name, keyword, wrapper, depth, prefix }) {
+  return nestInsideProcedure(
+    BLOCK_WRAPPERS[wrapper](declareProcedure(name, keyword)),
+    depth,
+    prefix,
+  );
 }
 
 /**
@@ -522,10 +541,13 @@ test("the built-in-name rule is invariant across spelling x case x depth x enclo
     for (const name of ["forward", "FORWARD"]) {
       for (const depth of NESTING_DEPTHS) {
         for (const wrapper of WRAPPER_KINDS) {
-          const source = nestInsideProcedure(
-            BLOCK_WRAPPERS[wrapper](declareProcedure(name, keyword)),
+          const source = declarationSource({
+            name,
+            keyword,
+            wrapper,
             depth,
-          );
+            prefix: "outer",
+          });
           const label = `${keyword} ${name} @depth ${depth} in ${wrapper}`;
           const { fromExecute, fromCheck } = bothStages(source);
           rows.push([
@@ -563,53 +585,80 @@ test("the built-in-name rule is invariant across spelling x case x depth x enclo
   );
 });
 
-test("the duplicate rule is invariant across spelling x case x depth x enclosing construct", () => {
-  // The same product for `ol-duplicate-definition`: two declarations of one name, varying BOTH
-  // spellings independently so a cross-kind guard cannot hide, and varying the later declaration's
-  // casing so a fold applied only when nested cannot hide either.
+test("the duplicate rule is invariant across the FULL per-declaration product — every axis drawn twice", () => {
+  // Two declarations, each independently configured. This is the completeness claim, and it is
+  // checkable rather than aspirational: both diagnostics concern **at most two declarations**, each
+  // declaration is fully characterised by `(keyword, case, depth, wrapper)`, and there is no third
+  // level because there is no third declaration. Drawing all four axes INDEPENDENTLY for each of the
+  // two therefore closes the space by construction — every configuration the rule can distinguish is
+  // a cell of this product.
+  //
+  // The previous revision drew one wrapper and one depth for the PAIR, so across all 252 cells the
+  // two declarations were always in the same construct at the same depth. "They sit in different
+  // constructs" was not a cell — it was outside the product. Measured: a mutant giving handler
+  // bodies their own declaration scope let `define dup` + `every 1 [ define dup ]` silently override
+  // across the boundary, passing all 3943 tests and 892 fixtures. That is issue #839's literal
+  // defect, surviving the generator written to prevent it.
   const rows = [];
-  for (const first of DECLARATION_KEYWORDS) {
-    for (const second of DECLARATION_KEYWORDS) {
+  for (const firstKeyword of DECLARATION_KEYWORDS) {
+    for (const secondKeyword of DECLARATION_KEYWORDS) {
       for (const laterName of ["dup", "DUP"]) {
-        for (const depth of [0, 1]) {
-          for (const wrapper of WRAPPER_KINDS) {
-            const pair = `${declareProcedure("dup", first)}\n${declareProcedure(laterName, second)}`;
-            const source = nestInsideProcedure(
-              BLOCK_WRAPPERS[wrapper](pair),
-              depth,
-            );
-            const label = `${first}+${second} ${laterName} @depth ${depth} in ${wrapper}`;
-            const { fromExecute, fromCheck } = bothStages(source);
-            rows.push([
-              label,
-              fromExecute,
-              fromCheck,
-              execute(source, doc).events.length,
-            ]);
+        for (const firstDepth of [0, 1]) {
+          for (const secondDepth of [0, 1]) {
+            for (const firstWrapper of WRAPPER_KINDS) {
+              for (const secondWrapper of WRAPPER_KINDS) {
+                const source = `${declarationSource({
+                  name: "dup",
+                  keyword: firstKeyword,
+                  wrapper: firstWrapper,
+                  depth: firstDepth,
+                  prefix: "outerA",
+                })}\n${declarationSource({
+                  name: laterName,
+                  keyword: secondKeyword,
+                  wrapper: secondWrapper,
+                  depth: secondDepth,
+                  prefix: "outerB",
+                })}`;
+                const label = `${firstKeyword}@${firstDepth}/${firstWrapper} + ${secondKeyword} ${laterName}@${secondDepth}/${secondWrapper}`;
+                const { fromExecute, fromCheck } = bothStages(source);
+                rows.push([label, fromExecute, fromCheck, laterName]);
+              }
+            }
           }
         }
       }
     }
   }
 
-  assert.equal(rows.length, 252);
+  // 3 keywords x 3 keywords x 2 casings x 2 depths x 2 depths x 7 wrappers x 7 wrappers.
+  assert.equal(rows.length, 3 * 3 * 2 * 2 * 2 * 7 * 7);
 
+  // `execute()` and `check()` agree on code, params AND span, in every cell.
   assert.deepEqual(
     rows.map(([label, fromExecute]) => [label, fromExecute]),
     rows.map(([label, , fromCheck]) => [label, fromCheck]),
   );
 
+  // Each cell reports exactly one `ol-duplicate-definition` naming the LATER spelling as written.
   assert.deepEqual(
-    rows.map(([label, fromExecute, , events]) => [
+    rows.map(([label, fromExecute]) => [
       label,
       fromExecute.map(([code, params]) => [code, params.name]),
-      events,
     ]),
-    rows.map(([label]) => [
+    rows.map(([label, , , laterName]) => [
       label,
-      [["ol-duplicate-definition", label.split(" ")[1]]],
-      0,
+      [["ol-duplicate-definition", laterName]],
     ]),
+  );
+
+  // …and every cell carries `original_span`, so the earlier declaration is always identified.
+  assert.deepEqual(
+    rows.map(([label, fromExecute]) => [
+      label,
+      fromExecute.map(([, params]) => params.original_span !== undefined),
+    ]),
+    rows.map(([label]) => [label, [true]]),
   );
 });
 
@@ -666,12 +715,24 @@ test("EVERY built-in name — all 148, not just the two the cross-product sample
   // projection: the whole registry, at depth 1 and depth 2. Keeping both is deliberate — each is
   // blind to what the other varies, which is the entire lesson of this slice.
   for (const depth of [1, 2]) {
+    const rows = everyBuiltInName.map((name) => {
+      const source = nestInsideProcedure(declareProcedure(name), depth);
+      const { fromExecute, fromCheck } = bothStages(source);
+      return [name, fromExecute, fromCheck];
+    });
+    // Compared on the FULL identity, span included — `executeIdentity` omits the span, and an
+    // omitted facet is a variable held constant across every table that uses the helper.
     assert.deepEqual(
-      everyBuiltInName.map((name) => [
+      rows.map(([name, fromExecute]) => [name, fromExecute]),
+      rows.map(([name, , fromCheck]) => [name, fromCheck]),
+      `depth ${depth}`,
+    );
+    assert.deepEqual(
+      rows.map(([name, fromExecute]) => [
         name,
-        executeIdentity(nestInsideProcedure(declareProcedure(name), depth)),
+        fromExecute.map(([code, params]) => [code, params.name]),
       ]),
-      everyBuiltInName.map((name) => [name, [["ol-reserved-word", { name }]]]),
+      everyBuiltInName.map((name) => [name, [["ol-reserved-word", name]]]),
       `depth ${depth}`,
     );
   }
