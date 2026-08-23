@@ -145,6 +145,38 @@ test("styleCheck: true has no effect when semanticCheck is false (default)", () 
   assert.equal(view.items.length, 0);
 });
 
+// #740 — the checker reads the same active profile set the highlighter does. `beep` is the probe:
+// a Sound command, so it is a genuine `ol-unknown-command` under Core Language alone and a known
+// name once Sound is active. Asserting both directions is what makes the first test non-vacuous —
+// the rule really does fire on this fixture when the profile is missing.
+test("the checker runs under the studio's profile set by default", () => {
+  const state = createStudioState();
+  createDiagnosticsController(state, { semanticCheck: true });
+
+  state.setSource("beep");
+
+  const view = toDiagnosticsView(state.getState().diagnostics);
+  // Asserted as a count, not as `!items.some(...)`: `some`'s callback never runs on an empty list,
+  // so that spelling would report 100% coverage while proving nothing.
+  assert.equal(view.items.length, 0);
+});
+
+test("an explicit Core-Language-only set still flags a profile command as unknown", () => {
+  const state = createStudioState();
+  createDiagnosticsController(state, {
+    profiles: ["core-language"],
+    semanticCheck: true,
+  });
+
+  state.setSource("beep");
+
+  const view = toDiagnosticsView(state.getState().diagnostics);
+  assert.deepEqual(
+    view.items.map((item) => item.code),
+    ["ol-unknown-command"],
+  );
+});
+
 test("refresh() is a no-op guard when source hasn't changed (subscribe doesn't clobber itself)", () => {
   const state = createStudioState();
   const controller = createDiagnosticsController(state);

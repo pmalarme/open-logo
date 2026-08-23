@@ -39,6 +39,25 @@ villain" — er, "an ordinary list" — in another, depending on the tree around
 light up more classes: your own procedure names get their own color once you `define` them, and
 `:variable`s, words, and comments each get one too.
 
+## Some words only become keywords when their part of the language is switched on
+
+A few words — `tell`, `ask`, `each`, `when`, `every`, `on_key`, `on_click` — belong to optional
+parts of OpenLogo (Sprites, and Interaction & Events). They only get the **keyword** color when the
+part of the language they belong to is actually switched on. Somewhere else, where it isn't, `ask`
+is just an ordinary word, so it gets the plain **primitive** color instead — nothing special is
+happening there, and the color shouldn't pretend otherwise.
+
+So the highlighter has to be *told* which parts are switched on. In the OpenLogo studio it's told
+"all the ones this build supports" — the same list the checker uses when it decides whether a
+command is one it knows. That shared list is the whole point: it would be confusing if the editor
+painted `ask` as a built-in word while the checker underlined it as one it had never heard of.
+
+Careful, though: switching Sound on does **not** turn `beep` or `note` into keywords. Those are
+ordinary commands, like `forward` — they take their arguments and get on with it. The words that do
+become keywords are the ones that *hold a block of other instructions*, like `repeat`, `if`, and
+`ask`. `tell` is the one exception that proves the rule: it holds no block, but it changes **who**
+the instructions after it are talking to, and steering the program like that is keyword work.
+
 ## What's real today
 
 ✅ **Highlighting is grammar-derived, not guesswork** — it reuses the real lexer and the real tree
@@ -47,6 +66,14 @@ command.
 
 ✅ **Bracket roles are real** — the `[ ]` around our square's repeat block is correctly classified
 `instruction-block`, distinct from an ordinary list.
+
+✅ **The studio's colors know which parts of the language are on** — the editor classifies under the
+profiles this build supports, so `ask` reads as the keyword it is.
+
+ℹ️ **The code blocks in these docs are not colored by OpenLogo** — the `.logo` snippets you read on
+GitHub are painted by GitHub's own markdown renderer, not by OpenLogo's highlighter. The docs
+toolchain does *run* every snippet (that's how they're kept honest), but it never colors one, so
+there is nothing here that needs to be told which parts of the language are on.
 
 ℹ️ **A few classes need the tree, not just tokens** — most classes (keyword, number, primitive,
 bracket, and more) can be decided token-by-token. A handful, like the name of a procedure you

@@ -7,12 +7,17 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
-import { OL_TOKEN_CLASSES } from "@openlogo/parser";
+import {
+  DEFAULT_CHECK_PROFILES,
+  highlight,
+  OL_TOKEN_CLASSES,
+} from "@openlogo/parser";
 import * as OL from "@openlogo/studio";
 
 const {
   OL_HIGHLIGHT_CSS_CLASS,
   OL_HIGHLIGHT_CSS_CLASS_PREFIX,
+  STUDIO_PROFILES,
   createParserHighlighter,
 } = OL;
 
@@ -109,6 +114,147 @@ test("every token's start/end positions round-trip onto the exact source substri
   for (const token of tokens) {
     assert.equal(token.start[0], token.end[0]);
     assert.equal(slice(token.start, token.end), token.text);
+  }
+});
+
+// #740 — the active profile set reaches the studio's highlighter.
+//
+// `spec/tooling.md:30` puts the profile block-heads, plus the Sprites mode-switch command `tell`,
+// in the `keyword` class "while their profile is active"; `:31` puts "a profile word whose profile
+// is inactive" in `primitive`. Both directions are asserted below over the same fixture, because a
+// highlighter that ignored the profile set entirely would still satisfy either one alone.
+
+/** The seven words whose token class depends on the active profile set. */
+const PROFILE_BLOCK_HEADS = [
+  "tell",
+  "ask",
+  "each",
+  "when",
+  "every",
+  "on_key",
+  "on_click",
+];
+
+/** A well-formed program (zero parse diagnostics) exercising all seven of them. */
+const PROFILE_BLOCK_HEAD_SOURCE = [
+  'tell "a"',
+  'ask "a" [ right 90 ]',
+  "each [ forward 1 ]",
+  "when [ 1 == 1 ] [ forward 1 ]",
+  "every 10 [ forward 1 ]",
+  'on_key "w" [ forward 1 ]',
+  "on_click [ forward 1 ]",
+].join("\n");
+
+/**
+ * The control case: Sound's commands and Interaction's `wait`/`input` are ordinary profile
+ * *primitives*, not block-heads, so `spec/tooling.md:30`'s "while their profile is active" clause
+ * never applied to them — `primitive` is their correct class under every profile set.
+ */
+const PROFILE_PRIMITIVES = [
+  "set_tempo",
+  "note",
+  "beep",
+  "rest",
+  "play",
+  "wait",
+  "input",
+];
+
+const PROFILE_PRIMITIVE_SOURCE = [
+  "set_tempo 120",
+  "note 60 1",
+  "beep",
+  "rest 1",
+  "play [ 60 ]",
+  "wait 10",
+  'print input "name"',
+].join("\n");
+
+/** The class of the token spelled `text`, failing loudly if the fixture never produced one. */
+function classOf(tokens, text) {
+  const token = tokens.find((candidate) => candidate.text === text);
+  assert.ok(token, `the fixture produced no token spelled ${text}`);
+  return token.class;
+}
+
+test("the default profile set classifies every active-profile block-head as keyword", () => {
+  const tokens = createParserHighlighter()(PROFILE_BLOCK_HEAD_SOURCE);
+
+  assert.equal(PROFILE_BLOCK_HEADS.length, 7);
+  for (const word of PROFILE_BLOCK_HEADS) {
+    assert.equal(classOf(tokens, word), "ol-tok-keyword", word);
+  }
+});
+
+test("an explicit Core-Language-only set classifies those same words as primitive", () => {
+  const tokens = createParserHighlighter({ profiles: ["core-language"] })(
+    PROFILE_BLOCK_HEAD_SOURCE,
+  );
+
+  assert.equal(PROFILE_BLOCK_HEADS.length, 7);
+  for (const word of PROFILE_BLOCK_HEADS) {
+    assert.equal(classOf(tokens, word), "ol-tok-primitive", word);
+  }
+});
+
+test("profile primitives stay primitive under the studio set and under Core alone", () => {
+  const underStudioProfiles = createParserHighlighter()(
+    PROFILE_PRIMITIVE_SOURCE,
+  );
+  const underCoreOnly = createParserHighlighter({
+    profiles: DEFAULT_CHECK_PROFILES,
+  })(PROFILE_PRIMITIVE_SOURCE);
+
+  assert.equal(PROFILE_PRIMITIVES.length, 7);
+  for (const word of PROFILE_PRIMITIVES) {
+    assert.equal(classOf(underStudioProfiles, word), "ol-tok-primitive", word);
+    assert.equal(classOf(underCoreOnly, word), "ol-tok-primitive", word);
+  }
+});
+
+test("createParserHighlighter defaults to the studio's profile set, not the parser's", () => {
+  // The regression guard for the #740 defect itself: `highlight()` defaults to Core Language alone,
+  // so a studio highlighter that forwards no profile set silently paints `ask` as an ordinary
+  // primitive. Pinning the default against *both* candidate sets — equal to the studio's, different
+  // from the parser's — is what makes that reversion fail here.
+  const classes = (highlighter) =>
+    highlighter(PROFILE_BLOCK_HEAD_SOURCE).map((token) => token.class);
+
+  const byDefault = classes(createParserHighlighter());
+  const explicitStudioSet = classes(
+    createParserHighlighter({ profiles: STUDIO_PROFILES }),
+  );
+  const parserDefaultSet = classes(
+    createParserHighlighter({ profiles: DEFAULT_CHECK_PROFILES }),
+  );
+
+  assert.ok(byDefault.length > 0);
+  assert.deepEqual(byDefault, explicitStudioSet);
+  assert.notDeepEqual(byDefault, parserDefaultSet);
+});
+
+test("the studio's classes match batch highlight() token-for-token for the same profile set", () => {
+  // `spec/tooling.md`'s LSP-parity requirement, now asserted for a non-default profile set too:
+  // before #740 the studio agreed with batch output only because both were profile-blind.
+  for (const profiles of [STUDIO_PROFILES, DEFAULT_CHECK_PROFILES]) {
+    const studioTokens = createParserHighlighter({ profiles })(
+      PROFILE_BLOCK_HEAD_SOURCE,
+    );
+    const batchTokens = highlight(PROFILE_BLOCK_HEAD_SOURCE, undefined, {
+      profiles,
+    });
+
+    assert.ok(batchTokens.length > 0);
+    assert.equal(studioTokens.length, batchTokens.length);
+    for (const [index, batchToken] of batchTokens.entries()) {
+      assert.equal(studioTokens[index].text, batchToken.text);
+      assert.equal(
+        studioTokens[index].class,
+        OL_HIGHLIGHT_CSS_CLASS[batchToken.class],
+        `${batchToken.text} under ${profiles.join("+")}`,
+      );
+    }
   }
 });
 
