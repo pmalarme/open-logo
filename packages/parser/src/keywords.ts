@@ -45,13 +45,16 @@
 /**
  * The keywords, in the grammar's grouping order (`spec/grammar.md:368-376`).
  *
- * **Adding or removing a keyword is a FIVE-PLACE edit, and none of the five is machine-gated.**
- * `spec/grammar.md:368-375` is normative; `spec/tooling.md:91-94` mirrors it byte-for-byte;
- * `spec/tooling.md:30` enumerates the `keyword` **token class**, which is this list minus the four
- * word-spelled operators plus the contextual and profile words; this array; and
- * `keywords.profiles.test.mjs`'s `EXPECTED_CORE_KEYWORDS`. No test reads `spec/*.md`, so nothing
- * catches a partial edit — the `tooling.md` mirror had already drifted to 43 words (missing `mod`)
- * before #855 restored it. Adding the drift gate is #841's (issue #855, review round 7).
+ * **Adding or removing a keyword is a FIVE-PLACE edit**, and three of the five are now machine-gated
+ * by `npm run built-in-names` (issue #841): `spec/grammar.md:368-375` is normative;
+ * `spec/tooling.md:91-94` mirrors it byte-for-byte; and this array reaches the gate through
+ * `spec/built-in-names.json`, which is compared against both documents in each direction. The two
+ * that are **not** gated are `spec/tooling.md:30`'s `keyword` **token class** — change-detected by a
+ * content fingerprint, so an edit is noticed but its correctness is not verified — and
+ * `keywords.profiles.test.mjs`'s `EXPECTED_CORE_KEYWORDS`.
+ *
+ * The gate exists because the `tooling.md` mirror had already drifted to 43 words (missing `mod`)
+ * before #855 restored it, with nothing reading `spec/*.md` to notice.
  */
 export const OL_KEYWORDS = [
   // Procedures and control transfer.

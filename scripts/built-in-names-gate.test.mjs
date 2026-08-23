@@ -959,16 +959,26 @@ test("INJECTED DRIFT: a registry note naming any accessor the manifest declares"
   assert.deepEqual(noteRestatementFindings(absent), []);
 });
 
-test("the manifest states which checks apply to a note, and claims no more", () => {
-  // Round 4 shipped `about` enumerating "no control characters, no accessor value, and no counting
-  // word" among the checks the gate applies, in the same PR as the docstring saying the counts half
-  // is deliberately unenforced. A count in a note passes; the file must not say otherwise.
+test("a note containing a count passes the gate, and `about` does not claim it is caught", () => {
+  // Round 4 shipped `about` enumerating "no counting word" among the checks the gate applies, in
+  // the same PR as the docstring saying that half is deliberately unenforced. A count in a note
+  // passes; the file must not say otherwise.
   const counted = manifestCopy();
   counted.registries["data-primitive"].note = "There are three of them.";
   assert.deepEqual(runBuiltInNamesGate({ manifest: counted }).findings, []);
+
+  // That empty result has to mean "checked and clean", not "nothing checked". An absence assertion
+  // cannot tell those apart on its own — it survives a gate whose every check returns `[]`, which
+  // is how this test read before. Proving the same note reds when it carries a control character
+  // makes the emptiness above discriminating.
+  const live = manifestCopy();
+  live.registries["data-primitive"].note = "There are three of them.\u0007";
+  assert.equal(runBuiltInNamesGate({ manifest: live }).ok, false);
+
+  // The exact round-4 phrasing cannot return, and the honest limit is stated.
   assert.equal(/and no counting word/.test(REAL_MANIFEST.about), false);
   assert.equal(
-    REAL_MANIFEST.about.includes("deliberately not enforced"),
+    REAL_MANIFEST.about.includes("deliberately NOT checked"),
     true,
     REAL_MANIFEST.about,
   );

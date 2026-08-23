@@ -1390,7 +1390,7 @@ export function controlCharacterFindings(manifest) {
               ),
             ].join(
               ", ",
-            )} — invisible in every view of this file, and the one property of a string here that a machine can check without a word list`,
+            )} — a Cc code point in a string value of this file, which no rendering of it makes obvious`,
           );
         }
       } else if (value !== null && typeof value === "object") {
