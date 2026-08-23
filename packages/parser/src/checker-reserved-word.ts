@@ -108,11 +108,12 @@
  * It did not always. The category was assembled profile by profile — Data (#405), Geometry (#427),
  * the profile block-heads (#663), Interaction's `wait` (#687), the Sprites reporters (#746), the
  * Heritage aliases (#742), then Turtle/Educational/Tutor unconditionally (#838) — leaving a
- * `gatedPrimitiveCollision` helper whose six `profiles.includes(…)` branches decided the question
- * per profile. Under it `define ask` checked clean for a Core-only program and raised once Sprites
- * was claimed, which is the implementation-dependent outcome `:408` exists to forbid: "a name that
- * could be declared in one implementation but not in another would be invisible and unpredictable
- * to a learner". Issue #841 deleted the helper and the parameter that fed it.
+ * `gatedPrimitiveCollision` helper whose **seven** `profiles.includes(…)` branches decided the
+ * question per profile: six consulting one profile's primitive table each, and a seventh gating the
+ * Heritage alias resolution. Under it `define ask` checked clean for a Core-only program and raised
+ * once Sprites was claimed, which is the implementation-dependent outcome `:408` exists to forbid:
+ * "a name that could be declared in one implementation but not in another would be invisible and
+ * unpredictable to a learner". Issue #841 deleted the helper and the parameter that fed it.
  *
  * Two properties of that history survive because they are still load-bearing, and both moved with
  * the predicate rather than being restated here:

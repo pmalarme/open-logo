@@ -18,11 +18,13 @@
  * **Why it is one module rather than a predicate in each consumer.** Both stages ask this question
  * — `check()` at a declaration slot (`checker-reserved-word.ts`) and `execute()` at phase-1
  * registration (`execute-internal.ts`) — and until issue #841 each answered it with its own
- * composition. They drifted, in opposite directions: the runtime's copy reached every profile's
- * primitives but was assembled by hand from individual lookups, while the checker's copy gated six
- * profiles that `spec/grammar.md:408` does not gate. One predicate called by both is what removes
- * the possibility rather than the instance; whether that predicate agrees with the normative
- * `spec/built-in-names.json` is a separate question, and `npm run built-in-names` is what asks it.
+ * composition. The two were built differently and disagreed: the runtime derived its primitive set
+ * from the profile registry (`OL_CHECK_PROFILES.flatMap(profilePrimitiveNames)`) and so reached
+ * every profile unconditionally, while the checker kept hand-composed `profiles.includes(…)` gates
+ * over six profiles that `spec/grammar.md:408` does not gate. One predicate called by both is what
+ * removes the possibility rather than the instance; whether that predicate agrees with the
+ * normative `spec/built-in-names.json` is a separate question, and `npm run built-in-names` is what
+ * asks it.
  *
  * @module
  */
