@@ -1,0 +1,27 @@
+{
+  "description": "Issue #839 AC1, with ARITY as the discriminating variable: the two declarations of `scale` take one and two parameters, and the call `scale 1 2` matches only the LATER one. A last-wins override would run and print `2`; a first-wins rule would reach `ol-too-many-inputs`; the ruling's rule reports `ol-duplicate-definition` at the second declaration and runs nothing. A fixture whose two definitions were identical would pass under all three, which is why this one varies what the rule turns on.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-duplicate-definition",
+      "source_span": {
+        "document": "core-language/procedures/define-twice-differing-arity",
+        "start": [4, 8],
+        "end": [4, 13]
+      },
+      "params": {
+        "name": "scale",
+        "original_span": {
+          "document": "core-language/procedures/define-twice-differing-arity",
+          "start": [1, 8],
+          "end": [1, 13]
+        }
+      },
+      "message": "you already defined scale on line 1.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

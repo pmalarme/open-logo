@@ -419,16 +419,16 @@ test("a failing prompt expression propagates its own diagnostic, not input's", (
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
 });
 
-// --- A user procedure does NOT shadow the primitive, exactly as for every other primitive --------
+// --- INVERTED (issue #839): `define input` is rejected at registration, so there is no dispatch --
+// --- order left to lock — check() and execute() now agree instead of splitting -------------------
 
-test("the primitive wins over a same-named user procedure, in a program the checker already rejects", () => {
-  // `define input` is ILLEGAL under an active `interaction-events` profile: redefining a primitive
-  // raises `ol-reserved-word` (`spec/tooling.md:185`), asserted below so this test cannot be read as
-  // endorsing the program. What it locks is the runtime's dispatch order for a program that reached
-  // `execute()` anyway — `execute()` runs `parse()` only, never `check()` — and that order is the
-  // same for `input` as for every other primitive (`define random`/`define who` behave identically):
-  // primitives resolve before `environment.procedures`. Locking it keeps `input` from drifting into
-  // a one-off precedence rule of its own.
+test("`define input` is rejected at registration by BOTH check() and execute(), with the same code and params", () => {
+  // Was: "the primitive wins over a same-named user procedure, in a program the checker already
+  // rejects" — it locked `execute()`'s dispatch order for a program `check()` rejected, i.e. it
+  // locked a cross-stage split. Issue #839 closes that split: the runtime's phase-1 registration
+  // (`spec/execution-model.md:82-89`) rejects the declaration itself, so `input` never gets the
+  // chance to resolve ahead of `environment.procedures`. `input` is not special here — `define
+  // random` and `define who` behave identically.
   const source = [
     "define input :prompt",
     "  return 7",
@@ -440,19 +440,25 @@ test("the primitive wins over a same-named user procedure, in a program the chec
   const checked = check(ast, {
     profiles: ["core-language", "turtle-rendering", "interaction-events"],
   });
-  assert.deepEqual(
-    checked.diagnostics.map((finding) => [finding.code, finding.params]),
-    [["ol-reserved-word", { name: "input" }]],
-    "the checker is what tells a learner about the collision",
-  );
+  const checkedIdentity = checked.diagnostics.map((finding) => [
+    finding.code,
+    finding.params,
+  ]);
+  assert.deepEqual(checkedIdentity, [["ol-reserved-word", { name: "input" }]]);
 
   const result = runWithAnswers(source, ["tom"]);
-  assert.deepEqual(result.diagnostics, []);
-  assert.deepEqual(printedValues(result), ["tom"]);
-  // It really was the primitive: the read happened, so it emitted its `primitive` event and took
-  // the queue's head.
   assert.deepEqual(
-    effectEvents(result).map((event) => event.kind),
-    ["primitive", "print"],
+    result.diagnostics.map((finding) => [finding.code, finding.params]),
+    checkedIdentity,
+    "execute() must report the same identity check() does",
   );
+  assert.deepEqual(
+    result.diagnostics[0].source_span,
+    checked.diagnostics[0].source_span,
+    "…at the same span",
+  );
+  // Asserted on the WHOLE event stream: `effectEvents`/`printedValues` are filtered views, and
+  // filtering an empty array never calls its predicate, so neither would notice an `instruction`
+  // event — or anything else — being emitted before the halt.
+  assert.deepEqual(result.events, [], "nothing runs at all");
 });

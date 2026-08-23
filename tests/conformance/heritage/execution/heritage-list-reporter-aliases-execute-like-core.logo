@@ -4,9 +4,9 @@ print bl :l
 print bf bl :l
 print se "a" "b"
 repeat 2 [print se "x" "y"]
-to rest :xs
+to tail :xs
   print bf :xs
 end
-rest :l
+tail :l
 make "s" se "p" "q"
 print :s

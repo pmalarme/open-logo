@@ -1,0 +1,27 @@
+{
+  "description": "Issue #839: a duplicate spanning two nesting depths. `dup` is declared at the top level on line 1 and again inside `define outer` on line 5, and `params.original_span` points at the top-level one — so the first-declaration map is shared across depths, not per-scope. That is the correct reading of phase-1 registration: `spec/execution-model.md:82-89` registers every `define`/`to` procedure into one callable table, and a nested `define` is registered and callable from anywhere (`define outer` / `define helper` / `helper` runs), so a second declaration of the same name genuinely collides no matter which body it sits in. The two bodies print different values, so a last-wins override would print `2` here. Companion to `nested-declaration-of-a-built-in-name`, which covers the `ol-reserved-word` half of the same depth axis.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-duplicate-definition",
+      "source_span": {
+        "document": "core-language/procedures/nested-duplicate-definition",
+        "start": [5, 10],
+        "end": [5, 13]
+      },
+      "params": {
+        "name": "dup",
+        "original_span": {
+          "document": "core-language/procedures/nested-duplicate-definition",
+          "start": [1, 8],
+          "end": [1, 11]
+        }
+      },
+      "message": "you already defined dup on line 1.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

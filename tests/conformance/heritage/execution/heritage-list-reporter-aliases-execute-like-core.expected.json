@@ -1,5 +1,5 @@
 {
-  "description": "Heritage list-reporter aliases execute through the identical Core code path (issue #669, slice H4): the three reporter aliases `bf`/`bl`/`se` are 'alternate spellings only — no new semantics' (spec/conformance.md#heritage), so this program's full event stream is byte-identical (payloads included) to the same program written with the Core reporter names `butfirst`/`butlast`/`sentence` — the command-alias proof `heritage-aliases-execute-like-core` extended to REPORTERS, which appear in expression position (as arguments to `print`, composed as `bf bl :l`, and as an assignment RHS `make \"s\" se …`) rather than as leading statements. Unlike the command aliases (normalized at the statement dispatch chokepoint), a reporter alias is normalized to its `canonical` at the single EXPRESSION chokepoint (`resolveHeritageAliasName`, shared by `evaluateCall` and `isSupportedExpression`) before any evaluator predicate runs, so every `print` payload carries the reporter's reported value and the `procedure-enter`/`procedure-exit` names carry the canonical Core name — no alias spelling reaches any payload. The aliases are exercised in awkward positions the reader must still canonicalize: composed with one another (line 4), inside a `repeat [ … ]` body (line 6), inside a procedure body (`rest`), and as an assignment RHS (line 11). The runtime is profile-blind (the reader records `canonical` unconditionally), so `data`/`heritage` need not be listed for execution — but they are, to document that these spellings are the Heritage profile's and that `se`→`sentence` needs Data.",
+  "description": "Heritage list-reporter aliases execute through the identical Core code path (issue #669, slice H4): the three reporter aliases `bf`/`bl`/`se` are 'alternate spellings only — no new semantics' (spec/conformance.md#heritage), so this program's full event stream is byte-identical (payloads included) to the same program written with the Core reporter names `butfirst`/`butlast`/`sentence` — the command-alias proof `heritage-aliases-execute-like-core` extended to REPORTERS, which appear in expression position (as arguments to `print`, composed as `bf bl :l`, and as an assignment RHS `make \"s\" se …`) rather than as leading statements. Unlike the command aliases (normalized at the statement dispatch chokepoint), a reporter alias is normalized to its `canonical` at the single EXPRESSION chokepoint (`resolveHeritageAliasName`, shared by `evaluateCall` and `isSupportedExpression`) before any evaluator predicate runs, so every `print` payload carries the reporter's reported value and the `procedure-enter`/`procedure-exit` names carry the canonical Core name — no alias spelling reaches any payload. The aliases are exercised in awkward positions the reader must still canonicalize: composed with one another (line 4), inside a `repeat [ … ]` body (line 6), inside a procedure body (`tail`, renamed from `rest` by issue #839 -- `rest` is a Sound primitive and so a built-in name; the replacement is the same length, so every span is unchanged), and as an assignment RHS (line 11). The runtime is profile-blind (the reader records `canonical` unconditionally), so `data`/`heritage` need not be listed for execution — but they are, to document that these spellings are the Heritage profile's and that `se`→`sentence` needs Data.",
   "profiles": ["core-language", "data", "heritage"],
   "execute": true,
   "events": [
@@ -204,7 +204,7 @@
         "end": [10, 8]
       },
       "payload": {
-        "name": "rest",
+        "name": "tail",
         "args": [[10, 20, 30, 40]]
       }
     },
@@ -241,7 +241,7 @@
         "end": [10, 8]
       },
       "payload": {
-        "name": "rest",
+        "name": "tail",
         "result": null
       }
     },

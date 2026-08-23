@@ -63,8 +63,8 @@ test("an all-three-reporter-aliases program produces an event stream byte-identi
       "print bf bl :l\n" +
       'print se "a" "b"\n' +
       'repeat 2 [print se "x" "y"]\n' +
-      "to rest :xs\n  print bf :xs\nend\n" +
-      "rest :l\n" +
+      "to tail_of :xs\n  print bf :xs\nend\n" +
+      "tail_of :l\n" +
       'make "s" se "p" "q"\n' +
       "print :s\n",
   );
@@ -75,8 +75,8 @@ test("an all-three-reporter-aliases program produces an event stream byte-identi
       "print butfirst butlast :l\n" +
       'print sentence "a" "b"\n' +
       'repeat 2 [print sentence "x" "y"]\n' +
-      "define rest :xs\n  print butfirst :xs\nend\n" +
-      "rest :l\n" +
+      "define tail_of :xs\n  print butfirst :xs\nend\n" +
+      "tail_of :l\n" +
       'make "s" sentence "p" "q"\n' +
       "print :s\n",
   );
@@ -150,18 +150,22 @@ test("a Core-only reporter program is bit-for-bit unchanged — no `canonical`, 
 });
 
 // ---------------------------------------------------------------------------
-// Shadowing — a user procedure named like a reporter alias shadows the alias
+// INVERTED by issue #839 (ruling #833 rule 3): a user procedure can no longer
+// be named like a reporter alias, so there is no shadow left to protect
 // ---------------------------------------------------------------------------
 
-test("a user procedure named `bf` shadows the alias — the surface name is not silently rewritten", () => {
-  // `define bf … end` makes `bf` the user's procedure, exactly as `define butfirst … end` would
-  // shadow the Core reporter. The runtime's guard skips canonicalization when the surface name is a
-  // registered procedure, so the call dispatches to the user procedure, not `butfirst`.
-  const events = eventsOf("to bf :x\n  print :x\nend\nbf 7\n");
-  const enters = events.filter((e) => e.kind === "procedure-enter");
-  assert.equal(enters.length, 1);
-  assert.equal(enters[0].payload.name, "bf");
-  assert.deepEqual(printedValues(events), [[7]]);
+test("a user procedure named `bf` is rejected at registration, so the alias can never be shadowed", () => {
+  // Was: `define bf … end` made `bf` the user's procedure, exactly as `define butfirst … end` would
+  // shadow the Core reporter, and the runtime's canonicalization guard had to skip rewriting when
+  // the surface name was a registered procedure. `bf` is an alias spelling of the Core `butfirst`,
+  // so `spec/grammar.md`'s declaration-slot rule now rejects the declaration itself — kept as an
+  // inversion so re-legalising it reddens this assertion instead of silently dropping the guard.
+  const result = execute("to bf :x\n  print :x\nend\nbf 7\n", doc);
+  assert.deepEqual(
+    result.diagnostics.map((d) => [d.code, d.params]),
+    [["ol-reserved-word", { name: "bf" }]],
+  );
+  assert.deepEqual(result.events, [], "nothing runs");
 });
 
 // ---------------------------------------------------------------------------

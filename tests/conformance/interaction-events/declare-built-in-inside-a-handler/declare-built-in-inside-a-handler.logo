@@ -1,0 +1,3 @@
+every 1 [ define forward
+  print 999
+end ]

@@ -309,50 +309,65 @@ test("throwing a record formats it via printedForm in the ol-user-error message"
   assert.equal(diag.params.message, "point {x: 3 y: 4}");
 });
 
-// --- phase-1 ol-reserved-word collisions ------------------------------------------------------
+// --- phase-1 declaration-slot collisions ------------------------------------------------------
 
-test("a struct type name declared twice raises ol-reserved-word (namespace struct)", () => {
+test("a struct type name declared twice raises ol-duplicate-definition carrying both spans", () => {
   const result = execute("struct point [ x y ]\nstruct point [ a b ]", doc);
   const diag = onlyDiagnostic(result);
-  assert.equal(diag.code, "ol-reserved-word");
-  assert.deepEqual(diag.params, { name: "point", namespace: "struct" });
+  assert.equal(diag.code, "ol-duplicate-definition");
+  assert.deepEqual(diag.params, {
+    name: "point",
+    original_span: {
+      document: doc,
+      start: [1, 8],
+      end: [1, 13],
+    },
+  });
+  assert.deepEqual(diag.source_span, {
+    document: doc,
+    start: [2, 8],
+    end: [2, 13],
+  });
 });
 
-test("a struct name colliding with a reserved word raises ol-reserved-word (reserved)", () => {
+test("a struct name colliding with a keyword raises ol-reserved-word", () => {
   const result = execute("struct if [ x y ]", doc);
   const diag = onlyDiagnostic(result);
   assert.equal(diag.code, "ol-reserved-word");
-  assert.equal(diag.params.namespace, "reserved");
+  assert.deepEqual(diag.params, { name: "if" });
 });
 
-test("a struct name colliding with a Core primitive raises ol-reserved-word (primitive)", () => {
+test("a struct name colliding with a Core primitive raises ol-reserved-word", () => {
   const result = execute("struct print [ x y ]", doc);
-  assert.equal(onlyDiagnostic(result).params.namespace, "primitive");
+  assert.deepEqual(onlyDiagnostic(result).params, { name: "print" });
 });
 
-test("a struct name colliding with a Turtle primitive raises ol-reserved-word (primitive)", () => {
+test("a struct name colliding with a Turtle primitive raises ol-reserved-word", () => {
   const result = execute("struct forward [ x y ]", doc);
-  assert.equal(onlyDiagnostic(result).params.namespace, "primitive");
+  assert.deepEqual(onlyDiagnostic(result).params, { name: "forward" });
 });
 
-test("a struct name colliding with a Data primitive raises ol-reserved-word (primitive)", () => {
+test("a struct name colliding with a Data primitive raises ol-reserved-word", () => {
   const result = execute("struct dict [ x y ]", doc);
-  assert.equal(onlyDiagnostic(result).params.namespace, "primitive");
+  assert.deepEqual(onlyDiagnostic(result).params, { name: "dict" });
 });
 
-test("a struct name colliding with an Educational primitive raises ol-reserved-word (primitive)", () => {
+test("a struct name colliding with an Educational primitive raises ol-reserved-word", () => {
   const result = execute("struct explain [ x y ]", doc);
-  assert.equal(onlyDiagnostic(result).params.namespace, "primitive");
+  assert.deepEqual(onlyDiagnostic(result).params, { name: "explain" });
 });
 
-test("a struct name colliding with a user procedure raises ol-reserved-word (procedure)", () => {
+test("a struct name colliding with a user procedure raises ol-duplicate-definition", () => {
   const result = execute(
     "define foo\n  return 1\nend\nstruct foo [ x y ]",
     doc,
   );
   const diag = onlyDiagnostic(result);
-  assert.equal(diag.code, "ol-reserved-word");
-  assert.equal(diag.params.namespace, "procedure");
+  assert.equal(diag.code, "ol-duplicate-definition");
+  assert.deepEqual(diag.params, {
+    name: "foo",
+    original_span: { document: doc, start: [1, 8], end: [1, 11] },
+  });
 });
 
 test("only the first collision halts the program (later structs are skipped)", () => {

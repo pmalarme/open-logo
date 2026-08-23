@@ -1,39 +1,18 @@
 {
-  "description": "Issue #787's crash path again, this time OVER-APPLIED, so it lands on a diagnostic instead of a value: `define forward … return 55 … end` then `print (fd 1 2)`. Before the fix this crashed the host with the same raw `TypeError` the sibling fixture `heritage-reporter-alias-reaches-canonical-user-procedure` documents — the arity check in `runProcedureBody` never ran, because the undefined lookup blew up on the line before it. Two things are asserted here that the clean-run sibling cannot: that a reporter-position alias call reaches the user procedure's ARITY guard at all, and that the resulting `ol-too-many-inputs` carries the CANONICAL `params.callable` `\"forward\"` — byte-identical to what `print (forward 1 2)` reports, never the surface `\"fd\"`. That is the rule #670 (`operation`), #733 (`callable`), and #741 (`keyword`) each established one param at a time and this saga has now had to re-close five times: diagnostic identity is `code` plus structured `params` (`spec/error-model.md:235-238`), Heritage is \"alternate spellings only, no new semantics\" (`spec/conformance.md:146`), so a param whose value changed with the spelling would itself be the observable semantic difference the profile forbids. Only the prose `message` may echo the learner's own word — and here even it says `forward`, because the message is rendered from the resolved callable rather than from the span. The `source_span` still covers the two columns of `fd` the learner wrote, so canonicalizing the param did not canonicalize the span. `\"execute\": true` because `execute()` runs `parse()` only and never `check()`, which is precisely why the static arity rule cannot cover this path. TRANSITIONAL FIXTURE (ruling #833, slice #839): like its sibling `heritage-reporter-alias-reaches-canonical-user-procedure`, this fixture needs a user procedure registered under a Heritage alias's canonical name — and every one of the thirteen canonicals is a built-in name, which #833 rules may never be registered. Once #839 adds the runtime phase-1 guard, `define forward` halts before phase 2 and this setup stops being expressible as source→events at all. See the sibling's description for why the production fix is nonetheless not transitional, and for the request to carry this regression forward as a lower-level evaluator test rather than deleting it.",
+  "description": "INVERTED by issue #839 (maintainer ruling #833 rule 3, \"nothing shadows\"). The program is unchanged — `define forward … return 55 … end` then `print (fd 1 2)` — but its outcome is not. This fixture was authored by issue #787 as the OVER-APPLIED half of a host-crash regression: the reporter-position alias path had to reach the user procedure's ARITY guard and report `ol-too-many-inputs` with the CANONICAL `params.callable` `\"forward\"`, never the surface `\"fd\"`. It was marked TRANSITIONAL when it landed, because it needs a user procedure registered under a Heritage alias's canonical name, and every one of the thirteen canonicals is a built-in name. #839 adds the runtime phase-1 registration guard (`spec/execution-model.md:82-89`), so `define forward` now raises `ol-reserved-word` (`spec/error-model.md:125`) before phase 2 and the arity guard is never reached — the event stream is empty and no `ol-too-many-inputs` is produced at all. The fixture is kept and inverted rather than deleted: it is now the cheapest guard against the *precondition* silently coming back. Re-legalise `define forward` and this goes red, leading the next reader straight to #787. The evaluator invariant it used to prove — that the two chokepoints in one call path derive the same callee name — is carried forward at a lower level in `packages/runtime/src/heritage-alias-chokepoint.test.mjs`, which drives `evaluate()` over a hand-assembled `Environment` and so is unaffected by what registration admits. `params.callable`'s canonicalisation rule itself is unchanged and still pinned by `heritage-aliases-eval.test.mjs`, but note it is pinned there through `bf` and NOT through `fd`: measured, `print (fd 1 2)` and `print (forward 1 2)` both report zero diagnostics, because a command in reporter position is currently accepted leniently (the runtime reporter-arity question issue #874 raised). The rows that carry the rule are `(bf)` → `ol-not-enough-inputs{callable:\"butfirst\"}` and `bf []` → `ol-range{operation:\"butfirst\"}`.",
   "profiles": ["core-language", "data", "turtle-rendering", "heritage"],
   "execute": true,
-  "events": [
-    {
-      "seq": 0,
-      "kind": "instruction",
-      "source_span": {
-        "document": "heritage/execution/heritage-reporter-alias-arity-diagnostic-is-canonical",
-        "start": [5, 1],
-        "end": [7, 4]
-      },
-      "payload": { "statement_kind": "ProcedureDef" }
-    },
-    {
-      "seq": 1,
-      "kind": "instruction",
-      "source_span": {
-        "document": "heritage/execution/heritage-reporter-alias-arity-diagnostic-is-canonical",
-        "start": [8, 1],
-        "end": [8, 15]
-      },
-      "payload": { "statement_kind": "Call" }
-    }
-  ],
+  "events": [],
   "diagnostics": [
     {
-      "code": "ol-too-many-inputs",
+      "code": "ol-reserved-word",
       "source_span": {
         "document": "heritage/execution/heritage-reporter-alias-arity-diagnostic-is-canonical",
-        "start": [8, 8],
-        "end": [8, 10]
+        "start": [5, 8],
+        "end": [5, 15]
       },
-      "params": { "callable": "forward", "expected": 0, "actual": 2 },
-      "message": "forward takes 0 inputs, but got 2.",
+      "params": { "name": "forward" },
+      "message": "forward is already part of OpenLogo. choose another name.",
       "stage": "runtime",
       "severity": "error"
     }
