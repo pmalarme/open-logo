@@ -1154,17 +1154,15 @@ test("aliasFindings rejects an edge on a registry that carries none, and a dangl
   const { manifest, api } = tinyFixture();
   manifest.registries["core-primitive"].canonicalAccessor = "canonicalOfCore";
   manifest.registries["core-primitive"].aliasEnumerator = "coreAliasNames";
-  api.canonicalOfCore = (name) => (name === "print" ? "define" : undefined);
+  api.canonicalOfCore = (name) => (name === "print" ? "define" : "end");
   api.coreAliasNames = () => [];
   assert.equal(api.canonicalOfCore("print"), "define");
+  assert.equal(api.canonicalOfCore("other"), "end");
   entryFor(manifest, "print").aliasOf = "nowhere";
   entryFor(manifest, "define").aliasOf = "print";
   assert.deepEqual(aliasFindings(manifest, api), [
     'define: records aliasOf "print" but none of its registries (reserved) carries alias edges',
-    'print: aliasOf "nowhere" is not an entry in spec\\built-in-names.json'.replace(
-      "spec\\built-in-names.json",
-      MANIFEST_PATH,
-    ),
+    `print: aliasOf "nowhere" is not an entry in ${MANIFEST_PATH}`,
   ]);
 });
 
