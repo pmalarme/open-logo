@@ -17,8 +17,8 @@ import * as OL from "@openlogo/parser";
  * is whether a name *works*, never whether a program may declare it" — so a conforming 0.4.0
  * implementation raises `ol-reserved-word` on `define dict` with or without the profile claimed.
  *
- * The checker no longer gates that third axis (issue #841), which is why the Core-only cases below
- * expect `ol-reserved-word` rather than a clean check.
+ * The checker does not gate that third axis, which is why the Core-only cases below expect
+ * `ol-reserved-word` rather than a clean check.
  */
 
 function parseClean(source) {
@@ -208,11 +208,9 @@ test("two struct declarations sharing a name are checked in source order: the fi
 });
 
 test("#841: `dict` is a built-in name without the data profile, so `struct dict` raises", () => {
-  // The title used to say "so `struct dict` is free", stating a profile gate that
-  // `spec/grammar.md:408` had already overruled — a profile decides whether a name works, never
-  // whether a program may declare it. Issue #841 retired the gate, so `dict` is a built-in name
-  // under Core alone exactly as it is under Data, and this is the `ol-reserved-word` half rather
-  // than `ol-duplicate-definition`'s.
+  // `spec/grammar.md:408` — a profile decides whether a name works, never whether a program may
+  // declare it — so `dict` is a built-in name under Core alone exactly as it is under Data. This is
+  // the `ol-reserved-word` half, not `ol-duplicate-definition`'s.
   const ast = parseClean("struct dict [ x ]");
   const { diagnostics } = OL.check(ast, { profiles: ["core-language"] });
   assert.equal(diagnostics.length, 1);

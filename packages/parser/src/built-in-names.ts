@@ -17,17 +17,14 @@
  *
  * **Why it is one module rather than a predicate in each consumer.** Both stages ask this question
  * — `check()` at a declaration slot (`checker-reserved-word.ts`) and `execute()` at phase-1
- * registration (`execute-internal.ts`) — and until issue #841 each answered it with its own
- * composition. The two were built differently and disagreed: the runtime derived its primitive set
- * from the profile registry (`OL_CHECK_PROFILES.flatMap(profilePrimitiveNames)`) and so reached
- * every profile unconditionally, while the checker kept hand-composed `profiles.includes(…)` gates
- * that `spec/grammar.md:408` does not sanction — see `checker-reserved-word.ts`'s module doc for
- * the shape they had. One predicate called by both is what
- * removes the possibility rather than the instance; whether the registries it composes agree with
- * the normative `spec/built-in-names.json` is a separate question, and `npm run built-in-names` is
- * what asks it — **of those registries, not of this predicate**, which the gate never calls.
- * `built-in-names.test.mjs` is what ties the predicate back to them, by asserting it recognises
- * every name each registry contributes.
+ * registration (`execute-internal.ts`). Two compositions of the same rule drift apart silently,
+ * because nothing compares them; one predicate called by both removes the possibility rather than
+ * the instance. **Do not reintroduce a second one.**
+ *
+ * Whether the registries it composes agree with the normative `spec/built-in-names.json` is a
+ * separate question, and `npm run built-in-names` is what asks it — **of those registries, not of
+ * this predicate**, which the gate never calls. `built-in-names.test.mjs` is what ties the
+ * predicate back to them, by asserting it recognises every name each registry contributes.
  *
  * @module
  */
@@ -59,13 +56,12 @@ function isPrimitiveName(name: string): boolean {
  * Does OpenLogo itself own `name` — as a keyword, or as a primitive of any profile including every
  * alias spelling? This is `ol-reserved-word`'s whole subject (`spec/error-model.md:125`).
  *
- * **It takes no profile set, and that is the change issue #841 landed.** A declaration is legal or
- * illegal for the *version*, never for the profile set a given run happens to claim, because "a
- * program cannot declare which profiles it requires … so a name that could be declared in one
- * implementation but not in another would be invisible and unpredictable to a learner"
- * (`spec/grammar.md:408`). Before #841 the checker gated six of these profiles, so `define ask`
- * checked clean under Core alone and raised under Sprites — the implementation-dependent outcome
- * `:408` exists to forbid.
+ * **It takes no profile set, deliberately.** A declaration is legal or illegal for the *version*,
+ * never for the profile set a given run happens to claim, because "a program cannot declare which
+ * profiles it requires … so a name that could be declared in one implementation but not in another
+ * would be invisible and unpredictable to a learner" (`spec/grammar.md:408`). **Do not add one:**
+ * a profile-gated answer here makes `define ask` legal for a Core-only program and illegal for a
+ * Sprites one, which is exactly the implementation-dependent outcome `:408` forbids.
  *
  * The *availability* question keeps its gate and is asked elsewhere: whether a primitive whose
  * profile is inactive may be **called** is `ol-unknown-command`'s subject

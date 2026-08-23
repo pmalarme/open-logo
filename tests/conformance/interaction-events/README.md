@@ -280,17 +280,12 @@ the gaps it found rather than rubber-stamping them:
   fixture at all: `redefine-wait-reserved` covers only `wait`, which is a *primitive* name,
   not a reserved block-head. The new pair
   `block-heads-reserved-under-profile` / `block-heads-free-core-only` runs the **byte-identical**
-  source both ways. It originally pinned four `define`s raising `ol-reserved-word` under the
-  active profile and checking clean under Core Language alone; since issue #841 both halves raise,
-  so the pair now pins the reservation as invariant under the profile set rather than scoped by
-  it. This is the same gap class the Sprites terminal slice #679 found for its own
-  `ol-reserved-word` rule. (The recorded `message` used to read "when is already a reserved, so it
-  can't be redefined here." — an ungrammatical template filed as issue #883 and **fixed by issue
-  #838**, which replaced it with the one category-free sentence `spec/error-model.md:125` requires
-  and dropped the `namespace` param both halves of that message depended on. The scope originally
-  pinned here did not survive: `spec/grammar.md:408` makes profile words built-in unconditionally,
-  and issue #841 retired the gate, flipping `block-heads-free-core-only` from clean to four
-  diagnostics.)
+  source both ways: four `define`s raising `ol-reserved-word` under the active profile, and the same
+  four under Core Language alone. Either fixture alone is satisfied by an implementation that
+  answers the same way for the wrong reason; only the pair pins the rule as invariant under the
+  profile set. This is the same gap class the Sprites terminal slice #679 found for its own
+  `ol-reserved-word` rule. (The recorded `message` is one category-free sentence per
+  `spec/error-model.md:125`, and the code carries `params: { name }` only — no `namespace`.)
 
   Both fixtures of that pair use `define`, which issue #837 confirmed is the right slot: maintainer
   ruling #833 keys `ol-reserved-word` to the grammar's four **declaration** slots and frees every

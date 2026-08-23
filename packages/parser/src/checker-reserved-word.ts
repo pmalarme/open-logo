@@ -105,24 +105,12 @@
  * and every alias spelling", and `:408` makes it profile-independent, so this rule asks one
  * question of one predicate ({@link isBuiltInName}) and takes no profile set at all.
  *
- * It did not always. The category was assembled profile by profile — Data (#405), Geometry (#427),
- * the profile block-heads (#663), Interaction's `wait` (#687), the Sprites reporters (#746), the
- * Heritage aliases (#742), then Turtle/Educational/Tutor unconditionally (#838) — leaving a
- * `gatedPrimitiveCollision` helper whose **seven** `profiles.includes(…)` branches decided the
- * question per profile: six consulting one profile's primitive table each, and a seventh gating the
- * Heritage alias resolution. Under it `define ask` checked clean for a Core-only program and raised
- * once Sprites was claimed, which is the implementation-dependent outcome `:408` exists to forbid:
- * "a name that could be declared in one implementation but not in another would be invisible and
- * unpredictable to a learner". Issue #841 deleted the helper and the parameter that fed it.
- *
- * Two properties of that history survive because they are still load-bearing, and both moved with
- * the predicate rather than being restated here:
+ * Two properties of that predicate this rule depends on, both guaranteed there rather than here:
  *
  * - **A Heritage alias is its canonical, by construction.** An alias resolves to its canonical
- *   spelling and re-enters the same lookup rather than getting a table of its own (#742, the shape
- *   H5/#670 established), so `define pr` is exactly as illegal as `define print`. Before it,
- *   `define print` raised while `define pr` was accepted **and the shadow took effect**, so `pr 7`
- *   then reported `ol-bad-token` — a Heritage program could silently lose its `print`.
+ *   spelling and re-enters the same lookup rather than getting a table of its own, so `define pr`
+ *   is exactly as illegal as `define print`. Give an alias a table of its own and the two spellings
+ *   drift: a program can then shadow `print` through `pr` and lose it silently.
  * - **Built-in beats duplicate.** When a name is both, it is reported once, as the thing the
  *   learner can do nothing about.
  */
@@ -248,11 +236,9 @@ function isStructDef(node: AnyNode): node is StructDefNode {
  * (`spec/grammar.md:408`). This rule answers "may the program declare it", which a profile never
  * decides. Same word, two different questions.
  *
- * **It therefore takes no profile set at all** (issue #841). It used to take one and thread it into
- * a `gatedPrimitiveCollision` helper that consulted six profiles' tables only while they were
- * claimed, so `define ask` checked clean under Core and raised under Sprites. `spec/grammar.md:408`
- * forbids exactly that outcome, and a parameter a rule does not consult is a claimed dependency
- * that does not exist — so the parameter went with the gate rather than being left behind unused.
+ * **It therefore takes no profile set at all.** Do not add one back: a parameter a rule does not
+ * consult is a claimed dependency that does not exist, and a profile-gated answer here is the
+ * outcome `:408` forbids.
  */
 export function declarationSlotRule(
   program: ProgramNode,

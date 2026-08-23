@@ -459,21 +459,17 @@ test("#742: the four Core-backed aliases are rejected, with the surface spelling
 });
 
 test("#841: no Heritage alias depends on a profile gate any more", () => {
-  // The boundary #838 deliberately left standing, now removed, asserted so neither half can be
-  // mistaken for an oversight. `spec/grammar.md:408` makes profile words built-in unconditionally,
-  // and #838 delivered that for the names it had MEASURED — which is why the turtle aliases in
-  // `HERITAGE_TURTLE_ALIASES` raised Core-only first. `pr`/`bf`/`bl`/`se` resolve to CORE canonicals
-  // that were reached through the profile-gated branch, so they stayed free without `heritage` until
-  // issue #841 deleted that branch. Sweeping the whole registry rather than the two groups
-  // separately is the point: a future alias is covered without editing this test, and the two groups
-  // can no longer diverge.
+  // `spec/grammar.md:408` makes profile words built-in unconditionally, so no alias spelling may
+  // be declared under any profile set. Sweeping the whole registry rather than naming groups is the
+  // point: a future alias is covered without editing this test, and no two groups of aliases can
+  // drift apart from each other.
   for (const alias of OL.heritageAliasNames()) {
     assert.ok(
       collides(alias, CORE_ONLY),
       `${alias} is a built-in name unconditionally (spec/grammar.md:408,414)`,
     );
   }
-  // The four that moved last, named explicitly so emptying the registry cannot make this vacuous.
+  // The Core-backed aliases, named explicitly so emptying the registry cannot make this vacuous.
   for (const alias of ["pr", "bf", "bl", "se"]) {
     assert.equal(
       reservedWordFindings(`define ${alias}\nend\n`, CORE_ONLY).length,
@@ -566,8 +562,8 @@ test("#746: every Sprites reporter collides while sprites is active", () => {
 });
 
 test("#841: every Sprites reporter collides while the sprites profile is INACTIVE too", () => {
-  // The inverted half of the pair above, and the discriminating variable is the profile set: the
-  // same three names, checked with and without `sprites`, must now answer identically.
+  // The other half of the pair above, and the discriminating variable is the profile set: the
+  // same names, checked with and without `sprites`, must answer identically.
   // `spec/grammar.md:408` — a profile decides whether a name works, never whether a program may
   // declare it — so a difference between these two tests would be the defect, not the point.
   for (const reporter of SPRITES_REPORTERS) {

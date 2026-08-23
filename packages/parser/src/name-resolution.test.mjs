@@ -739,10 +739,8 @@ test("thing is reachable in two categories at once; it is still reported exactly
 
 test("#841: a Core primitive collides even with an EMPTY profile set", () => {
   // The most extreme statement of `spec/grammar.md:408` available: no profile at all is claimed,
-  // and `first` is still a name the program may not declare. Before #841 this asserted the
-  // opposite — the checker consulted `profiles.includes("core-language")`, so an empty set made
-  // every Core primitive declarable. Nothing consults the profile set on this axis now, and an
-  // empty set is the cheapest way to prove it.
+  // and `first` is still a name the program may not declare. Nothing consults the profile set on
+  // this axis, and an empty set is the cheapest way to prove it.
   const findings = checkSource("define first :x\n  print :x\nend\n", []).filter(
     isReservedWordFinding,
   );

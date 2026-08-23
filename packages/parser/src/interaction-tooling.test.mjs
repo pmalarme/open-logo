@@ -533,10 +533,9 @@ test("check: redefining an Interaction block-head under an active profile raises
 });
 
 test("#841: redefining an Interaction block-head raises under Core-only too", () => {
-  // The deviation this test used to record, now closed. `spec/interaction-events.md:43-47` and
-  // `spec/grammar.md:408` make these words built-in names unconditionally, so the answer here must
-  // match the profile-ACTIVE test above name for name — the profile set is no longer a
-  // discriminating variable for a declaration.
+  // `spec/interaction-events.md:43-47` and `spec/grammar.md:408` make these words built-in names
+  // unconditionally, so the answer here must match the profile-ACTIVE test above name for name. A
+  // difference between the two is the defect, not the point.
   for (const head of Object.keys(INTERACTION_BLOCK_HEADS)) {
     const codes = checkDiagnostics(`define ${head}\nend`, CORE_PROFILES).map(
       (d) => d.code,
@@ -575,12 +574,10 @@ test("check: `wait` is a primitive, so redefining it under an active profile rai
 });
 
 test("#841: `wait` raises under Core-only too — the same rule, on the primitive branch", () => {
-  // The gate used to cut both ways: with `interaction-events` inactive `wait` registered no
-  // primitive, so a Core-only program could `define wait`, exactly as it could `define grid`
-  // without Geometry. `spec/interaction-events.md:47` says it must not be —
-  // `input`/`wait` "are built-in names on the same unconditional terms" — and #841 removed the
-  // gate. Asserting it on the PRIMITIVE branch as well as the block-head branch above is the point:
-  // the two reach the predicate through different lookups, so a partial fix leaves one of them red.
+  // `spec/interaction-events.md:47`: `input`/`wait` "are built-in names on the same unconditional
+  // terms". Asserting it on the PRIMITIVE branch as well as the block-head branch above is the
+  // point — the two reach the predicate through different lookups, so a change that moves only one
+  // of them leaves the other red.
   for (const primitive of Object.keys(INTERACTION_PRIMITIVES)) {
     const codes = checkDiagnostics(
       `define ${primitive}\nend`,

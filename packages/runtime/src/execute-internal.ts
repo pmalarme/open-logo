@@ -4181,12 +4181,9 @@ type DeclarationRegistration =
  * with the one code that fits, exactly as the parser's `declarationSlotRule` does, so `check()` and
  * `execute()` agree on code, params and spans (issue #839).
  *
- * That agreement used to carry the qualifier "**when every profile is active**", because each stage
- * composed its own answer to *what is a built-in name* and the two compositions differed: this file
- * swept every profile unconditionally while `checker-reserved-word.ts` gated six of them, so under a
- * Core-only `check()` there was a measured residual in the opposite direction. Issue #841 removed the
- * qualifier by removing the second composition — both stages now call one exported predicate,
- * `@openlogo/parser`'s {@link isBuiltInName}, so there is nothing left to disagree.
+ * **They agree because they call the same predicate**, `@openlogo/parser`'s {@link isBuiltInName},
+ * rather than composing an answer each. Two compositions of one rule drift apart silently, and this
+ * pair did — so do not reintroduce a local one here.
  *
  * - `ol-reserved-word` when OpenLogo owns the name ({@link isBuiltInName});
  * - otherwise `ol-duplicate-definition` when an earlier declaration already registered the name,

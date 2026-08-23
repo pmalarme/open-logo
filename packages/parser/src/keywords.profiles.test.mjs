@@ -11,15 +11,13 @@
 //                        (non-regression) — but they are still built-in names a program may not
 //                        declare, which is the axis #841 separated out.
 //
-// **The profile gate these tests used to pin is gone (issue #841).** `spec/grammar.md:408` says
-// profile words are built-in names **unconditionally** — "what a profile decides is whether a name
-// *works*, never whether a program may declare it" — issue #855 aligned the two profile documents
-// and `spec/tooling.md:100-104` with it, and #841 removed the gate from the checker. So the
-// declaration assertions below now answer the same way for every profile set, and the "Core only"
-// row above reads: `ask`/`when` are built-in names there too, while the **Core keyword list itself**
-// is still unchanged (the non-regression half, which never depended on the gate). The section
-// citations are to the sections that define these words, not to a profile-conditional reservation
-// no spec text states.
+// **Two axes read this registry and answer differently.** `spec/grammar.md:408` — "what a profile
+// decides is whether a name *works*, never whether a program may declare it" — makes the
+// DECLARATION assertions below answer the same way for every profile set. The PAINT assertions stay
+// profile-gated, because `spec/tooling.md:30` asks for that gate. So the "Core only" row above
+// reads: `ask`/`when` do not paint as keywords there, yet are still names a program may not
+// declare. The section citations are to the sections that define these words; no spec text states a
+// profile-conditional reservation.
 //
 // Runs under `node --test` against the built `@openlogo/parser` package.
 
@@ -280,13 +278,11 @@ test("Interaction & Events active: define when/every/on_key/on_click raises ol-r
 });
 
 test("#841: Core only, ask/each/tell/when/every/on_key/on_click are still built-in names", () => {
-  // This was AC 3 of issue #663 and asserted the opposite: that the seven profile words were
-  // ordinary procedure names for a Core-only program. Maintainer ruling #833 overturned the
-  // premise — `spec/grammar.md:408`, "a program cannot declare which profiles it requires … so a
-  // name that could be declared in one implementation but not in another would be invisible and
-  // unpredictable to a learner" — and #841 removed the gate. The word's own profile is now
-  // irrelevant to the declaration question, which is exactly what the sibling test above (each word
-  // flagged with its profile ACTIVE) has always asserted for the other direction.
+  // `spec/grammar.md:408`: "a program cannot declare which profiles it requires … so a name that
+  // could be declared in one implementation but not in another would be invisible and unpredictable
+  // to a learner". The word's own profile is therefore irrelevant to the declaration question, and
+  // this test must agree word for word with the sibling above that checks each with its profile
+  // ACTIVE.
   for (const word of [...SPRITES_WORDS, ...INTERACTION_WORDS]) {
     const findings = checkSource(`define ${word} :x\n  print :x\nend\n`).filter(
       isReservedWordFinding,
