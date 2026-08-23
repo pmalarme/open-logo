@@ -217,11 +217,12 @@
  * `forever [ :answer = input "?" ]` under a synchronous host — note the **assignment**: a bare
  * `input "?"` statement reads nothing at all, since a reporter in statement position is never
  * evaluated, and that program simply exhausts its budget. Every attempt of the assigned form
- * answers one more read, so it always counted as progress. A *single* `execute()` of it does
- * terminate on the instruction budget in about three seconds; the studio's **replayed chain** of it
- * terminates only in principle, because attempt *k* answers just *k* reads, so reaching the budget
- * needs on the order of 10^11 presentations — measured at 52 presentations per second, i.e. decades.
- * Treat it as a hang. What is bounded by
+ * answers one more read, so it always counted as progress. A *single* `execute()` of it terminates
+ * on the instruction budget. The studio's **replayed chain** of it terminates too, but only in
+ * principle: attempt *k* answers just *k* reads, so the number of questions put to the learner is
+ * linear in the budget (measured: 49 at a budget of 100, 499 at 1,000 — so about 500,000 at the
+ * default), while the reads actually replayed across all those attempts grow *quadratically*, on
+ * the order of 10^11. Treat it as a hang. What is bounded by
  * **nothing** at all is a *host* that restarts the run from inside `present()`, because each restart
  * brings a fresh budget; that is a host-contract matter and is documented on {@link InputPromptHost}
  * in `input-prompt.ts`.)

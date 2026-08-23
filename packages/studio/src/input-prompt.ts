@@ -32,8 +32,9 @@
  * A program with genuinely unbounded reads — `forever [ :answer = input "?" ]`, note the
  * **assignment**, since a bare `input "?"` statement reads nothing at all — is *formally* different
  * but practically no better through this host: a single `execute()` of it hits the instruction
- * budget in about three seconds, but the run controller's replayed chain needs roughly 10^11
- * presentations to get there, so it presents as a hang too. Neither is defended against in code,
+ * budget, but the run controller answers only one more read per attempt, so it puts on the order of
+ * 500,000 questions to the learner at the default budget while replaying quadratically many reads
+ * to get there. It presents as a hang too. Neither is defended against in code,
  * because no library can defend against a callback that unconditionally re-invokes the operation it
  * was called back from, and because the retry cap `run-controller.ts` used to carry would not have
  * caught either: that cap counted attempts *within one chain* that made no progress, and both of
