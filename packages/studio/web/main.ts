@@ -254,7 +254,10 @@ mountLessonPane(shell, lessonPane);
  * wires the real `@openlogo/parser`-backed highlighter (`highlighter.ts`'s
  * `createParserHighlighter`) into both the controller (`getTokens()`, for any future non-CM6
  * consumer) and the CM6 extension list (the actual painted decorations) — one shared instance, so
- * both read the exact same classification.
+ * both read the exact same classification. #740 makes that classification profile-aware: with no
+ * argument, `createParserHighlighter()` classifies under `profiles.ts`'s `STUDIO_PROFILES` (the
+ * profiles this build supports — the ones a learner here can actually run), so a Sprites block-head
+ * like `ask` paints as the `keyword` it is instead of an ordinary primitive.
  */
 const highlighter = createParserHighlighter();
 const editorController = createEditorController(state, { highlighter });

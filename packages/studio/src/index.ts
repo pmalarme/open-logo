@@ -362,11 +362,14 @@ export {
   setDiagnosticsEffect,
 } from "./editor-cm6.js";
 
+export type { ParserHighlighterOptions } from "./highlighter.js";
 export {
   OL_HIGHLIGHT_CSS_CLASS,
   OL_HIGHLIGHT_CSS_CLASS_PREFIX,
   createParserHighlighter,
 } from "./highlighter.js";
+
+export { STUDIO_PROFILES } from "./profiles.js";
 
 export type { RunController, RunControllerOptions } from "./run-controller.js";
 export {

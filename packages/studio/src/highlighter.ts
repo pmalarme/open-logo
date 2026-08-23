@@ -10,11 +10,22 @@
  * Bracket **role** (`spec/tooling.md`'s "Delimiter roles" table) is intentionally not encoded in
  * the CSS class — the spec allows a theme to map every role to the same bracket color — but it is
  * still present on the underlying parser {@link Token} for any future semantic-token consumer.
+ *
+ * ## The active profile set (#740)
+ * `highlight()` classifies a handful of words *relative to the active conformance profile set*:
+ * `spec/tooling.md:30` puts the profile block-heads and the Sprites mode-switch command `tell` in
+ * `keyword` "while their profile is active", and `:31` puts "a profile word whose profile is
+ * inactive" in `primitive`. Omitting the set gets the parser's profile-neutral default (Core
+ * Language alone), which is why a learner with Sprites available used to see `ask` painted as an
+ * ordinary primitive. This module supplies {@link STUDIO_PROFILES} — the same set `diagnostics.ts`
+ * hands `check()` — so the editor's colors and the checker's diagnostics always read the same
+ * program the same way (`spec/tooling.md`'s "LSP parity").
  */
 
 import { highlight } from "@openlogo/parser";
-import type { Token, TokenClass } from "@openlogo/parser";
+import type { CheckProfile, Token, TokenClass } from "@openlogo/parser";
 import type { HighlightProvider, HighlightToken } from "./editor.js";
+import { STUDIO_PROFILES } from "./profiles.js";
 
 /** Stable CSS class prefix every token-class rule in `web/styles.css` shares. */
 export const OL_HIGHLIGHT_CSS_CLASS_PREFIX = "ol-tok-";
@@ -53,13 +64,33 @@ function toHighlightToken(token: Token): HighlightToken {
   };
 }
 
+/** Optional configuration for {@link createParserHighlighter}. */
+export interface ParserHighlighterOptions {
+  /**
+   * The active conformance profile set, in the same vocabulary `check()` and `highlight()` use.
+   * Defaults to {@link STUDIO_PROFILES} — the profiles this build actually supports, which is what
+   * a learner in the studio is really running under. Pass an explicit set (e.g.
+   * `["core-language"]`) to preview how the same source would be classified elsewhere.
+   */
+  readonly profiles?: readonly CheckProfile[];
+}
+
 /**
  * Build the real {@link HighlightProvider}: classify `source` with `@openlogo/parser`'s
  * `highlight()` (the grammar-derived lexical pass plus its semantic disambiguation, per
- * `spec/tooling.md`) and map each resulting {@link Token} onto a CSS-classed {@link HighlightToken}.
- * Never throws — {@link highlight} itself has a never-throw contract over malformed/mid-edit
- * input, so this stays safe to call on every keystroke.
+ * `spec/tooling.md`) under `options.profiles` — defaulting to {@link STUDIO_PROFILES} — and map
+ * each resulting {@link Token} onto a CSS-classed {@link HighlightToken}. Never throws —
+ * {@link highlight} itself has a never-throw contract over malformed/mid-edit input, so this stays
+ * safe to call on every keystroke.
+ *
+ * `highlight()`'s `document` argument only labels each token's `source_span`, which
+ * {@link HighlightToken} does not carry, so this passes the parser's own default rather than
+ * inventing a studio-specific name no caller can observe.
  */
-export function createParserHighlighter(): HighlightProvider {
-  return (source: string) => highlight(source).map(toHighlightToken);
+export function createParserHighlighter(
+  options: ParserHighlighterOptions = {},
+): HighlightProvider {
+  const profiles = options.profiles ?? STUDIO_PROFILES;
+  return (source: string) =>
+    highlight(source, undefined, { profiles }).map(toHighlightToken);
 }
