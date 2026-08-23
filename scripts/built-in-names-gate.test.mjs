@@ -2075,4 +2075,17 @@ test("the CLI shell exits 0 on the shipped tree and non-zero on injected drift",
   );
   assert.equal(red.status, 1);
   assert.equal(red.stdout.includes("does not exist"), true);
+
+  // The deliberate act. It prints the digest and nothing else, and exits 0 — it is a tool you reach
+  // for after re-deriving the class, not a value the failure diagnostic hands you.
+  const printed = spawnSync(
+    process.execPath,
+    ["scripts/check-built-in-names.mjs", "--print-fingerprint"],
+    { encoding: "utf8" },
+  );
+  assert.equal(printed.status, 0, printed.stdout + printed.stderr);
+  assert.equal(
+    printed.stdout.trim(),
+    REAL_MANIFEST.tokenClassKeyword.rowFingerprint,
+  );
 });
