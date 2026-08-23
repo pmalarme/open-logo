@@ -1040,21 +1040,21 @@ test("the cross-role pair generator emits DISTINCT programs, not merely the righ
   // were duplicates of another cell. A generator can satisfy a derived count and still emit the
   // wrong pairs — the same shape as the wrapper-collision bug, where two wrappers shared a name and
   // the product silently tested itself.
-  const seen = new Set();
+  const blocks = [];
   for (const earlierAxis of AXIS_NAMES) {
     for (const laterAxis of AXIS_NAMES) {
       const programs = new Set();
       for (const earlierValue of DECLARATION_AXES[earlierAxis]) {
         for (const laterValue of DECLARATION_AXES[laterAxis]) {
-          const source = `${declarationSource({
-            ...drawAxis(earlierAxis, earlierValue),
-            prefix: "outerA",
-          })}\n${declarationSource({
-            ...drawAxis(laterAxis, laterValue),
-            prefix: "outerB",
-          })}`;
-          programs.add(source);
-          seen.add(source);
+          programs.add(
+            `${declarationSource({
+              ...drawAxis(earlierAxis, earlierValue),
+              prefix: "outerA",
+            })}\n${declarationSource({
+              ...drawAxis(laterAxis, laterValue),
+              prefix: "outerB",
+            })}`,
+          );
         }
       }
       assert.equal(
@@ -1063,13 +1063,22 @@ test("the cross-role pair generator emits DISTINCT programs, not merely the righ
           DECLARATION_AXES[laterAxis].length,
         `pair \`${earlierAxis} x ${laterAxis}\` must emit one distinct program per combination`,
       );
+      blocks.push(programs);
     }
   }
-  // And the whole pairwise half is distinct across pairs where the axes differ, so no ordered pair
-  // is a relabelling of another.
-  assert.ok(
-    seen.size > 400,
-    `expected many distinct programs, got ${seen.size}`,
+  // Every ordered axis-pair block must be genuinely distinct from every other block — the strict
+  // claim, which is true, rather than "all 676 cells are distinct", which is not: 192 cells are
+  // shared between blocks, because two different pairs can generate the same program where their
+  // drawn values coincide with the shared default. Asserted as "no two blocks are the same SET",
+  // with no magic floor: a hand-written threshold is the `>= 10` shape this file already removed
+  // once, and a comment claiming more than its assertion checks is the shape it removed three times.
+  const blockKeys = blocks.map((programs) =>
+    [...programs].sort().join("\u0000"),
+  );
+  assert.equal(
+    new Set(blockKeys).size,
+    blockKeys.length,
+    "no ordered axis pair may be a relabelling of another",
   );
 });
 
@@ -1095,9 +1104,16 @@ test("the duplicate rule is invariant across the per-declaration product, with e
   //     appears with the remaining axes at their defaults. So any defect expressible as "this
   //     property of the earlier declaration together with that property of the later" is generated.
   //
-  // What remains outside: a defect requiring **three or more** axis values to coincide across the
-  // two declarations simultaneously. That is the honest boundary, and if a mutant is ever found
-  // there, the fix is to widen this sweep — not to add its cell.
+  // What remains outside, stated exactly: (a) a defect requiring **three or more** axis values to
+  // coincide across the two declarations simultaneously, and (b) **ancestor-chain interleaving**.
+  // `declarationSource` always applies the wrapper INSIDE the nest, so every generated ancestor
+  // chain is `{procedures}* · {one wrapper}` — a procedure inside a loop body is not in the space.
+  // Measured: a mutant exempting declarations whose enclosing PROCEDURE sits in a loop body
+  // survives, while the plausible unconditional form of that wrong model — "declarations in a loop
+  // body are per-iteration" — dies against two tests. The surviving variant is derived from this
+  // generator's composition order rather than from how the code could plausibly be wrong, which is
+  // why it is recorded as a boundary and not patched with its own cell. If a mutant is ever found
+  // there that is derived from the code, the fix is to widen the composition — not to add the cell.
   const pairs = [];
   for (const configuration of EVERY_DECLARATION_CONFIGURATION) {
     pairs.push([configuration, DEFAULT_CONFIGURATION, "earlier role"]);
