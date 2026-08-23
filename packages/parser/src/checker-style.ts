@@ -369,15 +369,12 @@ const HERITAGE_SURFACE_SPELLINGS: ReadonlySet<string> = new Set(
  * A name no registry carries is still not silently *skipped* here — it is unknown to every parser
  * component alike, and `ol-unknown-command` says so.
  *
- * **This rule deliberately does not consume `built-in-names.ts`.** The two predicates classify the
- * same names today, so the substitution would be behaviour-preserving — but it is not *proven*
- * equivalent, and that is why it is not made here. The third source above is
+ * **This rule deliberately does not consume `built-in-names.ts`.** The third source above is
  * {@link heritageSurfaceSpellings}, which carries Heritage **form heads** as well as short aliases,
- * while `built-in-names.ts` reaches Heritage only through alias resolution. They agree because
- * every form head the registry currently holds is also a keyword — a fact about the registry, not a
- * property either module guarantees. Narrowing the three sources to one is epic #900's endpoint and
- * belongs with the corpus sweep in issue #842, not to a slice whose subject is the declaration
- * rule.
+ * while `built-in-names.ts` reaches Heritage only through alias resolution. They agree — a fact
+ * about the registry, not a property either module guarantees. Narrowing the three sources to one
+ * is epic #900's endpoint and belongs with the corpus sweep in issue #842, not to a slice whose
+ * subject is the declaration rule.
  *
  * Membership is **profile-independent on purpose** — see {@link nameCaseRule} for why. It is also
  * independent of what the program *declares*: `spec/grammar.md:363` is "a program may not declare

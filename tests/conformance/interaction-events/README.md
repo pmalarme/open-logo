@@ -284,8 +284,7 @@ the gaps it found rather than rubber-stamping them:
   same diagnostics under Core Language alone. Either fixture alone is satisfied by an
   implementation that answers the same way for the wrong reason; only the pair pins the rule as
   invariant under the profile set. This is the same gap class the Sprites terminal slice #679 found
-  for its own `ol-reserved-word` rule. (The recorded `message` is one category-free sentence per
-  `spec/error-model.md:125`, and the code carries `params: { name }` only — no `namespace`.)
+  for its own `ol-reserved-word` rule.
 
   Both fixtures of that pair use `define`, which issue #837 confirmed is the right slot: maintainer
   ruling #833 keys `ol-reserved-word` to the grammar's four **declaration** slots and frees every
