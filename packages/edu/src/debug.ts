@@ -406,16 +406,27 @@ function countLiveTurtles(
   events: readonly TraceEvent[],
   observedTurtleIds: Iterable<TurtleId>,
 ): number {
-  const liveTurtleIds = new Set<TurtleId>([
-    MAIN_TURTLE_ID,
-    ...observedTurtleIds,
-  ]);
+  const liveTurtleIds = new Set<TurtleId>([MAIN_TURTLE_ID]);
+
+  /**
+   * Admits an id only if it actually identifies a turtle. `Number.isFinite` — never the global
+   * `isFinite`, which coerces, so `isFinite("1")` is `true` — so a `NaN`, an infinity, or a
+   * non-number from an off-contract producer names nothing and cannot inflate the population into
+   * renaming a genuinely lone turtle. Every source goes through here: guarding the spawn events
+   * but not the observed actors would just move the same hole one line over.
+   */
+  const admitIfIdentified = (turtleId: TurtleId): void => {
+    if (Number.isFinite(turtleId)) {
+      liveTurtleIds.add(turtleId);
+    }
+  };
+
+  for (const observedTurtleId of observedTurtleIds) {
+    admitIfIdentified(observedTurtleId);
+  }
   for (const event of events) {
     if (event.kind === "spawn-turtle") {
-      const spawnedTurtleId = (event.payload as SpawnTurtlePayload).turtle_id;
-      if (Number.isFinite(spawnedTurtleId)) {
-        liveTurtleIds.add(spawnedTurtleId);
-      }
+      admitIfIdentified((event.payload as SpawnTurtlePayload).turtle_id);
     }
   }
   return liveTurtleIds.size;
@@ -485,7 +496,10 @@ function turtleStateSegment(events: readonly TraceEvent[]): string | undefined {
 
   // The population is read from every identity the fold saw, not just the ones that described
   // something, so a turtle whose only event carried an unusable payload still counts as a second
-  // turtle and keeps the surviving clause named.
+  // turtle and keeps the surviving clause named. The `described.length === 1` conjunct is not
+  // redundant against that count: an identity the population deliberately ignored (a non-finite
+  // id from an off-contract producer) can still describe state, and dropping the conjunct would
+  // then report the first turtle's fields alone and silently discard the other's.
   if (
     described.length === 1 &&
     countLiveTurtles(events, turtleStates.keys()) < 2

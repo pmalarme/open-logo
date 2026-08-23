@@ -443,6 +443,56 @@ test("debug does not let an off-contract spawn-turtle payload invent a second tu
   // names no turtle, so it must not push the population to two and rename a genuinely lone turtle.
   // The fold already distrusts payload contents (it drops turtles that describe nothing); the
   // count now does too, so the two cannot disagree about how many turtles exist.
+  //
+  // `"1"` and `Infinity` are pinned alongside the missing id because the guard is deliberately
+  // `Number.isFinite` and NOT the global `isFinite`, which coerces — `isFinite("1")` is `true`.
+  // Without them, loosening the guard to a coercing form would reintroduce R3-1 through the
+  // string door with a green suite.
+  const program = {
+    kind: "Program",
+    source_span: Core.makeSpan("main.logo", [1, 1], [1, 1]),
+    body: [],
+  };
+  const loneMainTurtleMove = {
+    seq: 1,
+    kind: "move",
+    source_span: Core.makeSpan("main.logo", [2, 1], [2, 10]),
+    payload: { from: [0, 0], to: [0, 5], heading: 0 },
+  };
+  for (const spawnPayload of [
+    {},
+    { turtle_id: "1" },
+    { turtle_id: Number.POSITIVE_INFINITY },
+    { turtle_id: Number.NaN },
+  ]) {
+    const output = OL.debug({
+      command: "debug",
+      program,
+      events: [
+        {
+          seq: 0,
+          kind: "spawn-turtle",
+          source_span: Core.makeSpan("main.logo", [1, 1], [1, 11]),
+          payload: spawnPayload,
+        },
+        loneMainTurtleMove,
+      ],
+      diagnostics: [],
+      level: "3",
+    });
+    assert.ok(
+      output.segments.includes(
+        "Turtle state so far: position (0, 5), heading 0.",
+      ),
+      `spawn payload ${JSON.stringify(spawnPayload)} renamed a lone turtle: ${JSON.stringify(output.segments)}`,
+    );
+  }
+});
+
+test("debug does not let an off-contract turtle_id on an acting event invent a second turtle", () => {
+  // The mirror of the case above, one line over in the same function: the identities the fold saw
+  // feed the same population, so they must pass the same guard. A `NaN` turtle_id names nothing,
+  // so a genuinely lone main turtle must stay unnamed.
   const program = {
     kind: "Program",
     source_span: Core.makeSpan("main.logo", [1, 1], [1, 1]),
@@ -454,8 +504,9 @@ test("debug does not let an off-contract spawn-turtle payload invent a second tu
     events: [
       {
         seq: 0,
-        kind: "spawn-turtle",
-        source_span: Core.makeSpan("main.logo", [1, 1], [1, 11]),
+        kind: "pen-change",
+        source_span: Core.makeSpan("main.logo", [1, 1], [1, 7]),
+        turtle_id: Number.NaN,
         payload: {},
       },
       {
@@ -474,6 +525,46 @@ test("debug does not let an off-contract spawn-turtle payload invent a second tu
     ),
     `unexpected segments: ${JSON.stringify(output.segments)}`,
   );
+});
+
+test("debug still names both turtles when an unidentifiable one describes real state", () => {
+  // Pins the `described.length === 1` conjunct, which the live-turtle count alone does NOT imply:
+  // a non-finite id is deliberately excluded from the population (so the count is 1) yet can still
+  // describe real state. Keying only on the count would report one turtle's fields alone and
+  // silently discard the other's — the under-identification direction again. Asserted by shape
+  // rather than an exact string, because ordering against a `NaN` key is not meaningful.
+  const program = {
+    kind: "Program",
+    source_span: Core.makeSpan("main.logo", [1, 1], [1, 1]),
+    body: [],
+  };
+  const output = OL.debug({
+    command: "debug",
+    program,
+    events: [
+      {
+        seq: 0,
+        kind: "move",
+        source_span: Core.makeSpan("main.logo", [1, 1], [1, 10]),
+        turtle_id: Number.NaN,
+        payload: { from: [0, 0], to: [0, 9], heading: 0 },
+      },
+      {
+        seq: 1,
+        kind: "move",
+        source_span: Core.makeSpan("main.logo", [2, 1], [2, 10]),
+        payload: { from: [0, 0], to: [0, 5], heading: 0 },
+      },
+    ],
+    diagnostics: [],
+    level: "3",
+  });
+  const segment = output.segments.find((line) =>
+    line.startsWith("Turtle state so far:"),
+  );
+  assert.ok(segment !== undefined, "expected a turtle-state segment");
+  assert.match(segment, /turtle #0 — position \(0, 5\), heading 0/);
+  assert.match(segment, /position \(0, 9\), heading 0/);
 });
 
 test("debug folds the main turtle's addressed and unaddressed movement into one turtle", () => {
