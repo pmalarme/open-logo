@@ -38,14 +38,21 @@ the layers fit together: [`devops/agent-policy`](skills/devops/agent-policy/SKIL
 - → [`shared/review-gate`](skills/shared/review-gate/SKILL.md),
   [`orchestrator/integrate-and-merge`](skills/orchestrator/integrate-and-merge/SKILL.md)
 
-## Definition of Done — run all eight from a clean tree
+## Definition of Done — run all nine from a clean tree
 
 ```bash
 npm ci && npm run build && npm run typecheck && npm run lint && npm run format:check \
-  && npm run test && npm run coverage && npm run conformance && npm run examples
+  && npm run test && npm run coverage && npm run conformance && npm run examples \
+  && npm run built-in-names
 ```
 
 → [`shared/definition-of-done`](skills/shared/definition-of-done/SKILL.md)
+
+- **Adding or removing a keyword or primitive is a two-file change** — the registry **and**
+  `spec/built-in-names.json` — and `npm run built-in-names` is red until both land. It also gates
+  the three hand-maintained prose lists (`spec/grammar.md`'s keyword block, `spec/tooling.md`'s C19
+  mirror and its `keyword` token-class enumeration). See
+  [ADR-0021](../docs/adr/0021-built-in-names-list-and-ci-gate.md).
 
 ## Known traps
 

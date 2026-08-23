@@ -103,6 +103,13 @@ export {
   // rather than enumerated, and how its tests assert coverage of primitives they never name.
   activeProfilePrimitiveArityRange,
   profilePrimitiveNames,
+  // The Turtle & Rendering alias half: `setxy`/`seth`/`setcolor`/`setbg`/`setwidth` and the
+  // canonical each is a spelling of (issue #841). An `aliasOf` edge nothing exposes is an edge
+  // nothing can verify — ADR-0021 §3 requires an enumerable canonical map *consumed by the
+  // resolver*, and `turtlePrimitiveArity` now resolves an alias through it rather than holding a
+  // second arity entry that could drift from its canonical's.
+  canonicalOfTurtleAlias,
+  turtleAliasNames,
   canonicalOfHeritageAlias,
   heritageAliasNames,
   heritageAliasArity,

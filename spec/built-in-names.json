@@ -55,6 +55,8 @@
     "turtle-primitive": {
       "category": "primitive",
       "profile": "turtle-rendering",
+      "canonicalAccessor": "canonicalOfTurtleAlias",
+      "aliasEnumerator": "turtleAliasNames",
       "lookup": {
         "accessor": "turtlePrimitiveArity",
         "kind": "arity",
@@ -171,6 +173,8 @@
       "category": "primitive",
       "profile": "heritage",
       "note": "The 13 short aliases are in NO primitive arity table: only their canonicals are. They are registered solely here, which is why `category` cannot be derived from arity-table membership.",
+      "canonicalAccessor": "canonicalOfHeritageAlias",
+      "aliasEnumerator": "heritageAliasNames",
       "lookup": {
         "accessor": "heritageAliasNames",
         "kind": "enumerator",
@@ -251,8 +255,16 @@
     ],
     "addsExcludedReason": "The four contextual words. They are not built-in names, yet they take this class in the structural positions recorded in `excluded[].positions`, and are ordinary names everywhere else.",
     "addsProfileKeywords": true,
-    "addsProfileKeywordsPhrase": "the profile block-heads together with the Sprites mode-switch command `tell`",
-    "addsProfileKeywordsReason": "The profile block-heads and the Sprites mode-switch command `tell` take this class while their profile is active. That is the PAINT axis and is unaffected by these words being built-in names unconditionally on the DECLARATION axis. The row defers to the profile documents for the block-head NAMES rather than restating them, so the gate asserts the clause is PRESENT instead of duplicating a third list to keep in step (spec/grammar.md:414). `tell` is named explicitly in the row because it is not a block head; deleting or rewording the clause fails the gate."
+    "addsProfileKeywordsNamedIndividually": [
+      "tell"
+    ],
+    "rowAnchors": {
+      "exclusionClause": "The word-spelled operators",
+      "exclusionPolarity": "are **not** in this class",
+      "profileClause": "the profile block-heads together with the Sprites mode-switch command `tell`"
+    },
+    "rowAnchorsReason": "The gate splits the row at `exclusionClause` and compares BOTH segments by set equality: the enumeration before it must name exactly the computed membership, and the words inside the clause must be exactly `omitsKeywords`. `exclusionPolarity` is checked separately because rewriting \"are **not** in this class\" to \"are in this class\" would otherwise turn every omission into an inclusion with no other symptom. A one-directional check -- every expected word appears somewhere in the row -- was measured GREEN against five mutations including `polygon` added to the class, which is why the anchors exist.",
+    "addsProfileKeywordsReason": "The profile block-heads and the Sprites mode-switch command `tell` take this class while their profile is active. That is the PAINT axis and is unaffected by these words being built-in names unconditionally on the DECLARATION axis. The row names `tell` individually because it is not a block head, and defers to the profile documents for the block-head NAMES rather than restating them -- so `addsProfileKeywordsNamedIndividually` records the ones set equality must expect, and `rowAnchors.profileClause` gates the deferral. Restating the six block-heads here would be the third list to keep in step that spec/grammar.md:414 warns against."
   },
   "names": [
     {

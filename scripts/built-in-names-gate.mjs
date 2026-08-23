@@ -30,7 +30,10 @@
  * 2. **Every accessor the file names resolves, per accessor** ({@link accessorFindings}).
  *    `present` must resolve as a public export of `@openlogo/parser`; `declared` must **not**, and
  *    fails the moment it does — that is what makes a not-yet-built accessor self-healing instead of
- *    a hard-coded exception list, which would be the second list this gate exists to remove.
+ *    a hard-coded exception list, which would be the second list this gate exists to remove. Status
+ *    attaches per **accessor**, not per tag, because a tag can be split: one registry's `lookup` can
+ *    resolve while its `enumerate` does not exist. At `0.1.0` no tag is split and every accessor is
+ *    `present` — the mechanism is there for the next one that is not.
  * 3. **Entry equality in both directions** ({@link entryFindings}, {@link implementationFindings}).
  *    Structured entries, never a flat name set: `registries` is compared **set-equal** against the
  *    tags whose `lookup` actually answers yes, and `category`/`profile` are re-derived from that
@@ -130,6 +133,30 @@ export const ACCESSOR_KINDS = [
 /** The two `category` values (ADR-0021 §2): the implementation's organizing split, not a paint. */
 export const CATEGORIES = ["keyword", "primitive"];
 
+/**
+ * Where the OpenLogo standard library lives (ADR-0012). A `reason: "library"` carve-out claims the
+ * name is OpenLogo **source** rather than a primitive, so its `source` must be a file under here —
+ * pointing it at any other existing file would satisfy a bare existence check while proving nothing.
+ */
+export const STDLIB_DIR = "stdlib";
+
+/**
+ * The closed vocabulary of positions that make a contextual word structural
+ * (`spec/grammar.md:380`): the `is`-predicate, and the heritage `value of … for key` reader. A
+ * position outside this set is a typo or an invention, and either way the carve-out stops meaning
+ * anything.
+ */
+export const CONTEXTUAL_POSITIONS = ["is-predicate", "value-of-reader"];
+
+/** Is `source` a `stdlib/*.logo` path? Accepts either separator, so the check is OS-independent. */
+export function isStdlibSource(source) {
+  return (
+    typeof source === "string" &&
+    /^stdlib[\\/]/.test(source) &&
+    source.endsWith(".logo")
+  );
+}
+
 /** Default filesystem port, so tests can drive every branch without touching disk. */
 export const REAL_IO = {
   readText: (path) => readFileSync(path, "utf8"),
@@ -154,10 +181,12 @@ export function resolveAccessor(api, accessor) {
  * Check that every accessor the file names resolves exactly as its `status` claims, and that the
  * file's own vocabulary (`kind`, `status`, `category`) stays inside the closed sets above.
  *
- * Per accessor, not per tag: at `0.1.0` one tag is **split** — `tutor-primitive`'s `lookup`
- * resolves while its `enumerate` does not exist yet. A per-tag status could not express that, and
- * either reading of it fails: call the tag `declared` and a resolving lookup reads as drift; call it
- * `present` and a missing enumerator goes unnoticed.
+ * Per accessor, not per tag, because a tag can be **split** — one registry's `lookup` resolving
+ * while its `enumerate` does not exist. A per-tag status could not express that, and either reading
+ * of it fails: call the tag `declared` and a resolving lookup reads as drift; call it `present` and
+ * a missing enumerator goes unnoticed. At `0.1.0` no tag is split and every accessor is `present`;
+ * ADR-0021 recorded ten as `declared` at its own date, and #837/#838/#874 closed all ten before
+ * this gate landed.
  */
 export function accessorFindings(manifest, api) {
   const findings = [];
@@ -179,6 +208,17 @@ export function accessorFindings(manifest, api) {
         findings.push(
           `registry ${tag}.${role}: kind ${JSON.stringify(spec.kind)} is outside the closed vocabulary [${ACCESSOR_KINDS.join(", ")}]`,
         );
+      }
+      // Checked before `status`, because a status is a claim ABOUT an accessor and an entry with no
+      // accessor name has nothing to claim. Measured: `{ kind, status: "declared" }` with no
+      // `accessor` reported zero findings and silently disabled that whole direction — `resolveAccessor`
+      // reads `api[undefined]`, which is `undefined`, which is exactly what a `declared` accessor is
+      // supposed to look like. Invariants 4 and 5 both depend on this.
+      if (typeof spec.accessor !== "string" || spec.accessor.length === 0) {
+        findings.push(
+          `registry ${tag}.${role}: no accessor named — a status is a claim about an accessor, so an entry with no name silently disables this direction`,
+        );
+        continue;
       }
       if (!ACCESSOR_STATUSES.includes(spec.status)) {
         findings.push(
@@ -471,60 +511,98 @@ export function profilePrimitiveSweepFindings(manifest, api) {
 }
 
 /**
- * Alias edges. `aliasOf` is an edge rather than a parallel list precisely so it cannot drift from
- * its target — but only the Heritage half is verifiable against the implementation today.
+ * Alias edges, checked **against the edge the implementation actually resolves, in both
+ * directions**.
  *
- * - **Heritage**: `canonicalOfHeritageAlias` exposes the edge the implementation actually resolves,
- *   so the recorded target is compared against it exactly.
- * - **Turtle & Rendering**: `setxy`/`setbg`/`setcolor`/`seth`/`setwidth` are independent arity
- *   entries bound to one primitive, with **no** canonical accessor anywhere and no resolution at
- *   all — which is precisely why they split at the call site. The strongest available check is that
- *   the target is a real entry sharing the alias's registry and arity. ADR-0021 §3 records this
- *   limit and names the enumerable canonical map that would close it.
+ * `aliasOf` is an edge rather than a parallel list precisely so it cannot drift from its target,
+ * but an edge is only as good as the accessor that can confirm it. Two registries carry edges and
+ * each names its own resolver in the manifest: `heritageAliasNames`/`canonicalOfHeritageAlias` for
+ * the 13 Heritage short spellings, and `turtleAliasNames`/`canonicalOfTurtleAlias` for the five
+ * Turtle & Rendering one-word spellings.
+ *
+ * **The turtle accessor did not exist before this slice**, and its absence made the check
+ * decorative on the ADR's own worked example: with only "the target is an entry of equal arity"
+ * available, `setxy → distance` and `setxy → towards` both passed. `spec/commands.md` gives those
+ * five as alias spellings, so ADR-0021 §3 requires the map — **consumed by the resolver, so it
+ * cannot drift** — as part of the public-API addition §4 already asks of #841.
+ *
+ * Both directions matter. An entry claiming an edge the implementation does not resolve is drift;
+ * so is an entry silently dropping an edge the implementation still has, which the forward loop
+ * cannot see because `aliasOf` is optional.
  */
 export function aliasFindings(manifest, api) {
   const findings = [];
   const byName = new Map(manifest.names.map((entry) => [entry.name, entry]));
+  // tag -> the accessor that resolves an edge in that registry, from the manifest's own data.
+  const edgeTags = Object.entries(manifest.registries)
+    .filter(([, registry]) => registry.canonicalAccessor !== undefined)
+    .map(([tag]) => tag);
+
   for (const entry of manifest.names) {
+    const carrying = entry.registries.filter((tag) => edgeTags.includes(tag));
     if (entry.aliasOf === undefined) {
       continue;
     }
-    const target = byName.get(entry.aliasOf);
-    if (target === undefined) {
+    if (carrying.length === 0) {
+      // Measured: `define.aliasOf = "end"` used to pass, because a keyword registry has no arity
+      // lookup and the check simply skipped it. An alias edge on a registry that carries no edges
+      // is meaningless, and meaningless is not the same as absent.
+      findings.push(
+        `${entry.name}: records aliasOf "${entry.aliasOf}" but none of its registries (${entry.registries.join(", ")}) carries alias edges`,
+      );
+      continue;
+    }
+    if (byName.get(entry.aliasOf) === undefined) {
       findings.push(
         `${entry.name}: aliasOf "${entry.aliasOf}" is not an entry in ${MANIFEST_PATH}`,
       );
       continue;
     }
-    if (entry.registries.includes("heritage-alias")) {
-      const canonical = api.canonicalOfHeritageAlias(entry.name);
-      if (canonical !== entry.aliasOf) {
+    const accessorName = manifest.registries[carrying[0]].canonicalAccessor;
+    const resolve = resolveAccessor(api, accessorName);
+    if (resolve === undefined) {
+      findings.push(
+        `${entry.name}: ${accessorName} is not exported from @openlogo/parser, so its alias edge cannot be verified`,
+      );
+      continue;
+    }
+    const canonical = resolve(entry.name);
+    if (canonical !== entry.aliasOf) {
+      findings.push(
+        `${entry.name}: aliasOf "${entry.aliasOf}" but ${accessorName} resolves ${JSON.stringify(canonical)}`,
+      );
+    }
+  }
+
+  // The other direction. `aliasOf` is optional, so an entry that simply drops its edge is invisible
+  // to the loop above: measured, deleting ALL 18 edges left the gate green while the implementation
+  // still resolved every one of them. An edge the implementation has and the list does not is drift
+  // in exactly the same way as the reverse.
+  for (const [tag, registry] of Object.entries(manifest.registries)) {
+    if (registry.canonicalAccessor === undefined) {
+      continue;
+    }
+    const names = resolveAccessor(api, registry.aliasEnumerator);
+    const resolve = resolveAccessor(api, registry.canonicalAccessor);
+    if (names === undefined || resolve === undefined) {
+      findings.push(
+        `registry ${tag}: names ${registry.aliasEnumerator} / ${registry.canonicalAccessor} for its alias edges, and at least one is not exported from @openlogo/parser`,
+      );
+      continue;
+    }
+    for (const name of names()) {
+      const entry = byName.get(name);
+      if (entry === undefined) {
         findings.push(
-          `${entry.name}: aliasOf "${entry.aliasOf}" but canonicalOfHeritageAlias resolves ${JSON.stringify(canonical)}`,
+          `${name}: ${registry.aliasEnumerator} lists it as an alias of "${resolve(name)}" but it has no entry in ${MANIFEST_PATH}`,
+        );
+        continue;
+      }
+      if (entry.aliasOf === undefined) {
+        findings.push(
+          `${name}: ${registry.canonicalAccessor} resolves it to "${resolve(name)}" but its entry records no aliasOf — a dropped edge is drift, not an absent one`,
         );
       }
-      continue;
-    }
-    const shared = entry.registries.filter((tag) =>
-      target.registries.includes(tag),
-    );
-    if (shared.length === 0) {
-      findings.push(
-        `${entry.name}: aliasOf "${entry.aliasOf}" but the two share no registry, so the edge cannot be checked at all`,
-      );
-      continue;
-    }
-    const spec = manifest.registries[shared[0]].lookup;
-    if (spec.kind !== "arity") {
-      continue;
-    }
-    const accessor = resolveAccessor(api, spec.accessor);
-    const aliasArity = accessor(entry.name);
-    const targetArity = accessor(entry.aliasOf);
-    if (aliasArity !== targetArity) {
-      findings.push(
-        `${entry.name}: arity ${aliasArity} but its aliasOf target "${entry.aliasOf}" has arity ${targetArity}`,
-      );
     }
   }
   return findings;
@@ -555,21 +633,43 @@ export function carveOutFindings(manifest, io) {
         `excluded ${entry.name}: no rationale — a carve-out with no stated reason is indistinguishable from an oversight`,
       );
     }
+    if (entry.reason !== "library" && entry.source !== undefined) {
+      // Measured: relabelling `arc` from `library` to `contextual-keyword` kept its `source` and
+      // stopped it being existence-checked, so a carve-out could escape clause 3 by changing one
+      // word. A `source` that nothing checks is worse than no `source`.
+      findings.push(
+        `excluded ${entry.name}: reason "${entry.reason}" carries a source (${entry.source}) that nothing checks — only a "library" carve-out has one`,
+      );
+    }
     switch (entry.reason) {
       case "library":
-        if (!io.exists(entry.source)) {
+        if (!isStdlibSource(entry.source)) {
+          findings.push(
+            `excluded ${entry.name}: reason "library" names ${JSON.stringify(entry.source)}, which is not a ${STDLIB_DIR}/*.logo path — the carve-out is that the name is OpenLogo SOURCE (ADR-0012), so any other file would prove nothing`,
+          );
+        } else if (!io.exists(entry.source)) {
           findings.push(
             `excluded ${entry.name}: reason "library" names ${entry.source}, which does not exist — the carve-out only holds while the OpenLogo source does`,
           );
         }
         break;
-      case "contextual-keyword":
+      case "contextual-keyword": {
         if (!Array.isArray(entry.positions) || entry.positions.length === 0) {
           findings.push(
             `excluded ${entry.name}: reason "contextual-keyword" records no positions — the positions are what make the word structural without OpenLogo owning the name`,
           );
+          break;
+        }
+        const unknown = entry.positions.filter(
+          (position) => !CONTEXTUAL_POSITIONS.includes(position),
+        );
+        if (unknown.length > 0) {
+          findings.push(
+            `excluded ${entry.name}: position(s) ${unknown.join(", ")} are outside the closed vocabulary [${CONTEXTUAL_POSITIONS.join(", ")}]`,
+          );
         }
         break;
+      }
       default:
         findings.push(
           `excluded ${entry.name}: reason ${JSON.stringify(entry.reason)} is outside the closed vocabulary [library, contextual-keyword]`,
@@ -763,69 +863,123 @@ export function proseFindings(manifest, io) {
   }
 
   if (row !== null) {
-    const deltas = manifest.tokenClassKeyword;
-    const omitted = deltas.omitsKeywords;
-    const strayOmission = omitted.filter(
-      (word) => !coreKeywords.includes(word),
-    );
-    if (strayOmission.length > 0) {
-      findings.push(
-        `${MANIFEST_PATH}: tokenClassKeyword.omitsKeywords names ${strayOmission.join(", ")}, which is not a keyword — a delta can only omit something the list holds`,
-      );
-    }
-    const contextual = new Set(
-      manifest.excluded
-        .filter((entry) => entry.reason === "contextual-keyword")
-        .map((entry) => entry.name),
-    );
-    const strayAddition = deltas.addsExcluded.filter(
-      (word) => !contextual.has(word),
-    );
-    if (strayAddition.length > 0) {
-      findings.push(
-        `${MANIFEST_PATH}: tokenClassKeyword.addsExcluded names ${strayAddition.join(", ")}, which is not an excluded contextual keyword`,
-      );
-    }
+    findings.push(...tokenClassFindings(manifest, coreKeywords, row));
+  }
 
-    const profileWords = deltas.addsProfileKeywords
-      ? manifest.names
-          .filter((entry) => entry.registries.includes("profile-reserved"))
-          .map((entry) => entry.name)
-      : [];
-    if (deltas.addsProfileKeywords) {
-      // The row defers to the profile documents for the block-head NAMES rather than restating
-      // them, so requiring each one to appear would create a third list to keep in step — exactly
-      // what `spec/grammar.md:414` warns against. What the gate can assert without duplicating
-      // anything is that the clause is still there and still says what the manifest records: a
-      // reworded or deleted clause is a finding.
-      const phrase = deltas.addsProfileKeywordsPhrase;
-      if (typeof phrase !== "string" || phrase.length === 0) {
-        findings.push(
-          `${MANIFEST_PATH}: tokenClassKeyword.addsProfileKeywords is true but no addsProfileKeywordsPhrase records the clause the row must carry`,
-        );
-      } else if (!row.includes(phrase)) {
-        findings.push(
-          `${TOOLING_PATH}: the \`keyword\` token-class row no longer carries "${phrase}" — the clause that admits the ${profileWords.length} profile words into the class`,
-        );
-      }
-    }
-    const members = [
-      ...coreKeywords.filter((word) => !omitted.includes(word)),
-      ...deltas.addsExcluded,
-    ];
-    const rowWords = new Set(backtickedWords(row));
-    const unnamed = members.filter((word) => !rowWords.has(word));
-    if (unnamed.length > 0) {
-      findings.push(
-        `${TOOLING_PATH}: the \`keyword\` token-class row does not name ${unnamed.join(", ")} — the class is an enumeration, so every member has to appear in it`,
-      );
-    }
-    const unexcluded = omitted.filter((word) => !rowWords.has(word));
-    if (unexcluded.length > 0) {
-      findings.push(
-        `${TOOLING_PATH}: the \`keyword\` token-class row does not name ${unexcluded.join(", ")} as excluded from the class — an omission the row never mentions is indistinguishable from a forgotten member`,
-      );
-    }
+  return findings;
+}
+
+/**
+ * The `keyword` **token-class** row, compared by **set equality with polarity** rather than by
+ * "every expected word appears somewhere".
+ *
+ * The one-directional form was green against five separate mutations — flipping
+ * `addsProfileKeywords` off, deleting `mod` from the omissions, deleting `a` from the additions,
+ * **adding `polygon` to the enumeration**, and rewriting "are **not** in this class" to "are in this
+ * class". A membership check that cannot see an *extra* member is not a membership check.
+ *
+ * So the row is split at its exclusion clause, whose anchors the manifest declares:
+ *
+ * - the **enumeration segment** before it must name **exactly** the computed membership;
+ * - the words inside the **exclusion clause** must be **exactly** `omitsKeywords`;
+ * - the clause's negative polarity must still be stated, or an omission reads as an inclusion.
+ *
+ * The row defers to the profile documents for the block-head *names* rather than restating them
+ * (`spec/grammar.md:414` — no second list to keep in step), so the manifest records which profile
+ * words the row names **individually** and the rest are carried by the declared clause. That keeps
+ * set equality exact without duplicating a third list.
+ */
+export function tokenClassFindings(manifest, coreKeywords, row) {
+  const findings = [];
+  const deltas = manifest.tokenClassKeyword;
+  const omitted = deltas.omitsKeywords;
+  const strayOmission = omitted.filter((word) => !coreKeywords.includes(word));
+  if (strayOmission.length > 0) {
+    findings.push(
+      `${MANIFEST_PATH}: tokenClassKeyword.omitsKeywords names ${strayOmission.join(", ")}, which is not a keyword — a delta can only omit something the list holds`,
+    );
+  }
+  const contextual = new Set(
+    manifest.excluded
+      .filter((entry) => entry.reason === "contextual-keyword")
+      .map((entry) => entry.name),
+  );
+  const strayAddition = deltas.addsExcluded.filter(
+    (word) => !contextual.has(word),
+  );
+  if (strayAddition.length > 0) {
+    findings.push(
+      `${MANIFEST_PATH}: tokenClassKeyword.addsExcluded names ${strayAddition.join(", ")}, which is not an excluded contextual keyword`,
+    );
+  }
+
+  const anchors = deltas.rowAnchors;
+  const start = row.indexOf(anchors.exclusionClause);
+  if (start === -1) {
+    findings.push(
+      `${TOOLING_PATH}: the \`keyword\` token-class row no longer carries "${anchors.exclusionClause}" — the clause this gate splits the enumeration on has moved`,
+    );
+    return findings;
+  }
+  const polarity = row.indexOf(anchors.exclusionPolarity, start);
+  if (polarity === -1) {
+    findings.push(
+      `${TOOLING_PATH}: the \`keyword\` token-class row's exclusion clause no longer says "${anchors.exclusionPolarity}" — without the negative polarity an omission reads as an inclusion`,
+    );
+    return findings;
+  }
+
+  // Drop the leading `| `keyword` |` cell so the class's own name is not read as a member.
+  const cellStart = row.indexOf("|", 1) + 1;
+  const enumerated = new Set(backtickedWords(row.slice(cellStart, start)));
+  const excludedWords = new Set(backtickedWords(row.slice(start, polarity)));
+
+  const named = deltas.addsProfileKeywords
+    ? deltas.addsProfileKeywordsNamedIndividually
+    : [];
+  const expected = new Set([
+    ...coreKeywords.filter((word) => !omitted.includes(word)),
+    ...deltas.addsExcluded,
+    ...named,
+  ]);
+
+  const missing = [...expected].filter((word) => !enumerated.has(word));
+  const extra = [...enumerated].filter((word) => !expected.has(word));
+  if (missing.length > 0) {
+    findings.push(
+      `${TOOLING_PATH}: the \`keyword\` token-class row does not name ${missing.join(", ")} — the class is an enumeration, so every member has to appear in it`,
+    );
+  }
+  if (extra.length > 0) {
+    findings.push(
+      `${TOOLING_PATH}: the \`keyword\` token-class row names ${extra.join(", ")}, which ${MANIFEST_PATH} does not put in the class — an enumeration is wrong when it says too much, not only when it says too little`,
+    );
+  }
+
+  const unexcluded = omitted.filter((word) => !excludedWords.has(word));
+  const overexcluded = [...excludedWords].filter(
+    (word) => !omitted.includes(word),
+  );
+  if (unexcluded.length > 0) {
+    findings.push(
+      `${TOOLING_PATH}: the row's exclusion clause does not name ${unexcluded.join(", ")} — an omission the row never mentions is indistinguishable from a forgotten member`,
+    );
+  }
+  if (overexcluded.length > 0) {
+    findings.push(
+      `${TOOLING_PATH}: the row's exclusion clause names ${overexcluded.join(", ")}, which ${MANIFEST_PATH} does not omit from the class`,
+    );
+  }
+
+  if (deltas.addsProfileKeywords && !row.includes(anchors.profileClause)) {
+    const deferred = manifest.names.filter(
+      (entry) =>
+        entry.registries.includes("profile-reserved") &&
+        !named.includes(entry.name),
+    ).length;
+    findings.push(
+      `${TOOLING_PATH}: the \`keyword\` token-class row no longer carries "${anchors.profileClause}" — the clause that admits the ${deferred} profile words it does not name individually`,
+    );
   }
 
   return findings;
@@ -899,6 +1053,35 @@ export function profileInventoryFindings(manifest, api, io) {
   return findings;
 }
 
+/**
+ * The file's own prose must be present. Small, but it is the part a reader relies on to understand
+ * what the data means, and blanking it left the gate green — a manifest that validates 148 entries
+ * and not its own contract statement is asserting the wrong things about itself.
+ */
+export function narrativeFindings(manifest) {
+  const findings = [];
+  if (typeof manifest.about !== "string" || manifest.about.length === 0) {
+    findings.push(
+      `${MANIFEST_PATH}: no \`about\` — the file is normative, so what it claims to be is part of the contract`,
+    );
+  }
+  for (const key of [
+    "unconditional",
+    "precedence",
+    "bothDirections",
+    "accessorStatus",
+    "derivedEnumeration",
+  ]) {
+    const value = manifest.invariants?.[key];
+    if (typeof value !== "string" || value.length === 0) {
+      findings.push(
+        `${MANIFEST_PATH}: invariants.${key} is missing or empty — ADR-0021 §2's invariants are the normative part, and an unstated one cannot be reviewed`,
+      );
+    }
+  }
+  return findings;
+}
+
 /** `specVersion` must match `openlogo.version`, or "ships with every spec version" is decorative. */
 export function versionFindings(manifest, api) {
   if (manifest.specVersion === api.OPENLOGO_VERSION) {
@@ -935,6 +1118,7 @@ export function runBuiltInNamesGate({
 
   const findings = [
     ...versionFindings(resolved, api),
+    ...narrativeFindings(resolved),
     ...accessorFindings(resolved, api),
     ...entryFindings(resolved, api),
     ...implementationFindings(resolved, api),

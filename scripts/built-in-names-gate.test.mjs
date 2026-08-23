@@ -42,6 +42,7 @@ import {
   extractToolingKeywordRow,
   implementationFindings,
   loadManifest,
+  narrativeFindings,
   parseArgs,
   profileCoverageFindings,
   profileInventoryFindings,
@@ -73,6 +74,14 @@ function entryFor(manifest, name) {
 function tinyFixture() {
   const manifest = {
     specVersion: "9.9.9",
+    about: "a tiny fixture",
+    invariants: {
+      unconditional: "x",
+      precedence: "x",
+      bothDirections: "x",
+      accessorStatus: "x",
+      derivedEnumeration: "x",
+    },
     registries: {
       reserved: {
         category: "keyword",
@@ -97,6 +106,12 @@ function tinyFixture() {
       omitsKeywords: [],
       addsExcluded: [],
       addsProfileKeywords: false,
+      addsProfileKeywordsNamedIndividually: [],
+      rowAnchors: {
+        exclusionClause: "not in the class:",
+        exclusionPolarity: "not in the class:",
+        profileClause: "profiles",
+      },
     },
     names: [
       {
@@ -423,18 +438,95 @@ test("INJECTED DRIFT: an alias edge pointing at the wrong canonical is caught", 
   );
 });
 
-test("INJECTED DRIFT: a turtle alias whose target has a different arity is caught", () => {
+test("INJECTED DRIFT: a turtle alias pointing at the wrong canonical is caught", () => {
+  // Before the canonical map existed this was GREEN: `setxy` and `distance` are both
+  // `turtle-primitive` with arity 2, and "a real entry of equal arity" was the strongest check
+  // available. `rubber-duck` broke it with exactly this mutation.
   const manifest = manifestCopy();
-  entryFor(manifest, "setxy").aliasOf = "set_color";
+  entryFor(manifest, "setxy").aliasOf = "distance";
   const result = runBuiltInNamesGate({ manifest });
   assert.equal(result.ok, false);
   assert.equal(
     result.findings.includes(
-      'setxy: arity 2 but its aliasOf target "set_color" has arity 1',
+      'setxy: aliasOf "distance" but canonicalOfTurtleAlias resolves "set_xy"',
     ),
     true,
     result.findings.join("\n"),
   );
+});
+
+test("INJECTED DRIFT: an aliasOf on a registry that carries no alias edges is caught", () => {
+  const manifest = manifestCopy();
+  entryFor(manifest, "define").aliasOf = "end";
+  const result = runBuiltInNamesGate({ manifest });
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.findings.includes(
+      'define: records aliasOf "end" but none of its registries (reserved) carries alias edges',
+    ),
+    true,
+    result.findings.join("\n"),
+  );
+});
+
+test("INJECTED DRIFT: deleting every alias edge is caught — the direction aliasOf's optionality hides", () => {
+  const manifest = manifestCopy();
+  let deleted = 0;
+  for (const entry of manifest.names) {
+    if (entry.aliasOf !== undefined) {
+      delete entry.aliasOf;
+      deleted += 1;
+    }
+  }
+  assert.equal(deleted, 18, "13 Heritage + 5 Turtle & Rendering");
+  const result = runBuiltInNamesGate({ manifest });
+  assert.equal(result.ok, false);
+  const dropped = result.findings.filter((finding) =>
+    finding.includes("its entry records no aliasOf"),
+  );
+  assert.equal(dropped.length, 18, result.findings.join("\n"));
+  assert.equal(
+    dropped.includes(
+      'fd: canonicalOfHeritageAlias resolves it to "forward" but its entry records no aliasOf — a dropped edge is drift, not an absent one',
+    ),
+    true,
+  );
+  assert.equal(
+    dropped.includes(
+      'setxy: canonicalOfTurtleAlias resolves it to "set_xy" but its entry records no aliasOf — a dropped edge is drift, not an absent one',
+    ),
+    true,
+  );
+});
+
+test("the Turtle & Rendering alias map is consumed by the resolver, not kept beside it", () => {
+  // "Consumed" is what makes the edge unable to drift: `turtlePrimitiveArity` resolves an alias
+  // THROUGH the map to its canonical's arity, so the two spellings share one number rather than
+  // holding two that could diverge. ADR-0021 §3 requires exactly this of #841.
+  assert.deepEqual(realParserApi.turtleAliasNames(), [
+    "setbg",
+    "setcolor",
+    "seth",
+    "setwidth",
+    "setxy",
+  ]);
+  for (const alias of realParserApi.turtleAliasNames()) {
+    const canonical = realParserApi.canonicalOfTurtleAlias(alias);
+    assert.equal(
+      realParserApi.turtlePrimitiveArity(alias),
+      realParserApi.turtlePrimitiveArity(canonical),
+      `${alias} -> ${canonical}`,
+    );
+  }
+  assert.equal(realParserApi.canonicalOfTurtleAlias("SETXY"), "set_xy");
+  assert.equal(realParserApi.canonicalOfTurtleAlias("forward"), undefined);
+  assert.equal(realParserApi.canonicalOfTurtleAlias("fd"), undefined);
+  // Both spellings still enumerate: `spec/grammar.md:414` makes every alias spelling a built-in
+  // name, so a consumer asking what the profile registers must be told about `setxy` too.
+  const names = realParserApi.profilePrimitiveNames("turtle-rendering");
+  assert.equal(names.includes("setxy"), true);
+  assert.equal(names.includes("set_xy"), true);
+  assert.equal(names.length, 30);
 });
 
 test("INJECTED DRIFT: deleting a stdlib/*.logo file breaks the Geometry carve-out", () => {
@@ -662,7 +754,24 @@ test("INJECTED DRIFT: a word-operator the token-class row stops excluding", () =
   const findings = proseFindings(REAL_MANIFEST, io);
   assert.equal(
     findings.includes(
-      `${TOOLING_PATH}: the \`keyword\` token-class row does not name mod as excluded from the class — an omission the row never mentions is indistinguishable from a forgotten member`,
+      `${TOOLING_PATH}: the row's exclusion clause does not name mod — an omission the row never mentions is indistinguishable from a forgotten member`,
+    ),
+    true,
+    findings.join("\n"),
+  );
+});
+
+test("INJECTED DRIFT: the exclusion clause naming a word the manifest does not omit", () => {
+  const io = proseIo(TOOLING_PATH, (text) =>
+    text.replace(
+      "The word-spelled operators `and`, `or`, `not`, and `mod` are **not** in this class",
+      "The word-spelled operators `and`, `or`, `not`, `mod`, and `repeat` are **not** in this class",
+    ),
+  );
+  const findings = proseFindings(REAL_MANIFEST, io);
+  assert.equal(
+    findings.includes(
+      `${TOOLING_PATH}: the row's exclusion clause names repeat, which ${MANIFEST_PATH} does not omit from the class`,
     ),
     true,
     findings.join("\n"),
@@ -679,11 +788,151 @@ test("INJECTED DRIFT: deleting the clause that admits the profile words into the
   const findings = proseFindings(REAL_MANIFEST, io);
   assert.equal(
     findings.some((finding) =>
-      finding.includes("the clause that admits the 7 profile words"),
+      finding.includes(
+        "the clause that admits the 6 profile words it does not name individually",
+      ),
     ),
     true,
     findings.join("\n"),
   );
+});
+
+test("INJECTED DRIFT: the token-class row gains a word the class does not contain", () => {
+  // The regression lock. A one-directional check — "every expected word appears somewhere in the
+  // row" — was GREEN against this, because it could see a missing member but never an extra one.
+  const io = proseIo(TOOLING_PATH, (text) =>
+    text.replace(
+      "`struct`, `alias`, `import`, `export`;",
+      "`struct`, `alias`, `import`, `export`, `polygon`;",
+    ),
+  );
+  const findings = proseFindings(REAL_MANIFEST, io);
+  assert.equal(
+    findings.includes(
+      `${TOOLING_PATH}: the \`keyword\` token-class row names polygon, which ${MANIFEST_PATH} does not put in the class — an enumeration is wrong when it says too much, not only when it says too little`,
+    ),
+    true,
+    findings.join("\n"),
+  );
+});
+
+test("INJECTED DRIFT: the exclusion clause's negative polarity is removed", () => {
+  // "are **not** in this class" -> "are in this class" turns every omission into an inclusion, with
+  // no other symptom anywhere in the row.
+  const io = proseIo(TOOLING_PATH, (text) =>
+    text.replace("are **not** in this class", "are in this class"),
+  );
+  const findings = proseFindings(REAL_MANIFEST, io);
+  assert.equal(
+    findings.includes(
+      `${TOOLING_PATH}: the \`keyword\` token-class row's exclusion clause no longer says "are **not** in this class" — without the negative polarity an omission reads as an inclusion`,
+    ),
+    true,
+    findings.join("\n"),
+  );
+});
+
+test("INJECTED DRIFT: a delta the manifest stops declaring is caught by set equality", () => {
+  // Each of these three was GREEN under the one-directional check.
+  for (const [label, mutate, expected] of [
+    [
+      "omitsKeywords loses mod",
+      (deltas) => {
+        deltas.omitsKeywords = deltas.omitsKeywords.filter(
+          (word) => word !== "mod",
+        );
+      },
+      `${TOOLING_PATH}: the \`keyword\` token-class row does not name mod — the class is an enumeration, so every member has to appear in it`,
+    ],
+    [
+      "addsExcluded loses a",
+      (deltas) => {
+        deltas.addsExcluded = deltas.addsExcluded.filter(
+          (word) => word !== "a",
+        );
+      },
+      `${TOOLING_PATH}: the \`keyword\` token-class row names a, which ${MANIFEST_PATH} does not put in the class — an enumeration is wrong when it says too much, not only when it says too little`,
+    ],
+    [
+      "addsProfileKeywords turned off",
+      (deltas) => {
+        deltas.addsProfileKeywords = false;
+      },
+      `${TOOLING_PATH}: the \`keyword\` token-class row names tell, which ${MANIFEST_PATH} does not put in the class — an enumeration is wrong when it says too much, not only when it says too little`,
+    ],
+  ]) {
+    const manifest = manifestCopy();
+    mutate(manifest.tokenClassKeyword);
+    const findings = proseFindings(manifest, REAL_IO);
+    assert.equal(
+      findings.includes(expected),
+      true,
+      `${label}: ${findings.join("\n")}`,
+    );
+  }
+});
+
+test("INJECTED DRIFT: a library carve-out pointed at a file that is not OpenLogo source", () => {
+  const manifest = manifestCopy();
+  manifest.excluded.find((entry) => entry.name === "polygon").source =
+    "package.json";
+  const result = runBuiltInNamesGate({ manifest });
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.findings.includes(
+      'excluded polygon: reason "library" names "package.json", which is not a stdlib/*.logo path — the carve-out is that the name is OpenLogo SOURCE (ADR-0012), so any other file would prove nothing',
+    ),
+    true,
+    result.findings.join("\n"),
+  );
+});
+
+test("INJECTED DRIFT: a carve-out relabelled to escape its stdlib check", () => {
+  const manifest = manifestCopy();
+  const arc = manifest.excluded.find((entry) => entry.name === "arc");
+  arc.reason = "contextual-keyword";
+  arc.positions = ["bogus"];
+  const result = runBuiltInNamesGate({ manifest });
+  assert.equal(result.ok, false);
+  assert.deepEqual(
+    result.findings.filter((finding) => finding.startsWith("excluded arc:")),
+    [
+      'excluded arc: reason "contextual-keyword" carries a source (stdlib/geometry/arc.logo) that nothing checks — only a "library" carve-out has one',
+      "excluded arc: position(s) bogus are outside the closed vocabulary [is-predicate, value-of-reader]",
+    ],
+  );
+});
+
+test("INJECTED DRIFT: an accessor entry with a status but no accessor name", () => {
+  // Measured GREEN before: `resolveAccessor(api, undefined)` reads `api[undefined]`, which is
+  // `undefined`, which is exactly what a `declared` accessor is supposed to look like — so the
+  // direction was silently disabled while the gate reported zero findings.
+  const manifest = manifestCopy();
+  manifest.registries["core-primitive"].enumerate = {
+    kind: "profile-enumerator",
+    status: "declared",
+  };
+  const result = runBuiltInNamesGate({ manifest });
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.findings.includes(
+      "registry core-primitive.enumerate: no accessor named — a status is a claim about an accessor, so an entry with no name silently disables this direction",
+    ),
+    true,
+    result.findings.join("\n"),
+  );
+});
+
+test("INJECTED DRIFT: the file's own contract statement blanked", () => {
+  const manifest = manifestCopy();
+  manifest.about = "";
+  manifest.invariants.precedence = "";
+  const result = runBuiltInNamesGate({ manifest });
+  assert.equal(result.ok, false);
+  assert.deepEqual(narrativeFindings(manifest), [
+    `${MANIFEST_PATH}: no \`about\` — the file is normative, so what it claims to be is part of the contract`,
+    `${MANIFEST_PATH}: invariants.precedence is missing or empty — ADR-0021 §2's invariants are the normative part, and an unstated one cannot be reviewed`,
+  ]);
 });
 
 test("a moved prose anchor is a finding, never a silent skip", () => {
@@ -901,27 +1150,46 @@ test("implementationFindings reports an entry that omits a registry it is actual
   );
 });
 
-test("aliasFindings rejects a dangling target and an uncheckable edge", () => {
+test("aliasFindings rejects an edge on a registry that carries none, and a dangling target", () => {
   const { manifest, api } = tinyFixture();
+  manifest.registries["core-primitive"].canonicalAccessor = "canonicalOfCore";
+  manifest.registries["core-primitive"].aliasEnumerator = "coreAliasNames";
+  api.canonicalOfCore = (name) => (name === "print" ? "define" : undefined);
+  api.coreAliasNames = () => [];
+  assert.equal(api.canonicalOfCore("print"), "define");
   entryFor(manifest, "print").aliasOf = "nowhere";
   entryFor(manifest, "define").aliasOf = "print";
   assert.deepEqual(aliasFindings(manifest, api), [
-    `define: aliasOf "print" but the two share no registry, so the edge cannot be checked at all`,
-    `print: aliasOf "nowhere" is not an entry in ${MANIFEST_PATH}`,
+    'define: records aliasOf "print" but none of its registries (reserved) carries alias edges',
+    'print: aliasOf "nowhere" is not an entry in spec\\built-in-names.json'.replace(
+      "spec\\built-in-names.json",
+      MANIFEST_PATH,
+    ),
   ]);
 });
 
-test("aliasFindings leaves an edge alone when the shared registry cannot report arity", () => {
+test("aliasFindings reports an alias the implementation resolves that has no entry at all", () => {
+  const manifest = manifestCopy();
+  manifest.names = manifest.names.filter((entry) => entry.name !== "seth");
+  const findings = aliasFindings(manifest, realParserApi);
+  assert.equal(
+    findings.includes(
+      `seth: turtleAliasNames lists it as an alias of "set_heading" but it has no entry in ${MANIFEST_PATH}`,
+    ),
+    true,
+    findings.join("\n"),
+  );
+});
+
+test("aliasFindings reports an alias resolver that is not exported", () => {
   const { manifest, api } = tinyFixture();
-  api.WORDS = ["define", "end"];
-  manifest.names.push({
-    name: "end",
-    category: "keyword",
-    profile: "core-language",
-    registries: ["reserved"],
-    aliasOf: "define",
-  });
-  assert.deepEqual(aliasFindings(manifest, api), []);
+  manifest.registries["core-primitive"].canonicalAccessor = "goneCanonical";
+  manifest.registries["core-primitive"].aliasEnumerator = "goneNames";
+  entryFor(manifest, "print").aliasOf = "define";
+  assert.deepEqual(aliasFindings(manifest, api), [
+    "print: goneCanonical is not exported from @openlogo/parser, so its alias edge cannot be verified",
+    "registry core-primitive: names goneNames / goneCanonical for its alias edges, and at least one is not exported from @openlogo/parser",
+  ]);
 });
 
 test("carveOutFindings rejects a duplicate, a missing rationale, and an unknown reason", () => {
@@ -1054,23 +1322,18 @@ test("proseFindings rejects a delta that does not correspond to real data", () =
   );
 });
 
-test("proseFindings rejects a profile-word clause the manifest forgot to record", () => {
-  const manifest = manifestCopy();
-  manifest.tokenClassKeyword.addsProfileKeywordsPhrase = "";
-  const findings = proseFindings(manifest, REAL_IO);
+test("proseFindings fails closed when the row's exclusion anchor moves", () => {
+  const io = proseIo(TOOLING_PATH, (text) =>
+    text.replace("The word-spelled operators", "The word-shaped operators"),
+  );
+  const findings = proseFindings(REAL_MANIFEST, io);
   assert.equal(
     findings.includes(
-      `${MANIFEST_PATH}: tokenClassKeyword.addsProfileKeywords is true but no addsProfileKeywordsPhrase records the clause the row must carry`,
+      `${TOOLING_PATH}: the \`keyword\` token-class row no longer carries "The word-spelled operators" — the clause this gate splits the enumeration on has moved`,
     ),
     true,
     findings.join("\n"),
   );
-});
-
-test("proseFindings skips the profile-word clause when the class does not add them", () => {
-  const manifest = manifestCopy();
-  manifest.tokenClassKeyword.addsProfileKeywords = false;
-  assert.deepEqual(proseFindings(manifest, REAL_IO), []);
 });
 
 test("the prose extractors fail closed on a truncated document", () => {
@@ -1151,7 +1414,7 @@ test("a run with every registry enumerable prints no unenumerable note", () => {
     [GRAMMAR_PATH]:
       "The normative OpenLogo keyword list is:\n\n```logo\ndefine\n```\n",
     [TOOLING_PATH]:
-      "x this is the C19 registry repeated y:\n\n`define`.\n\n| `keyword` | `define` |\n",
+      "x this is the C19 registry repeated y:\n\n`define`.\n\n| `keyword` | `define` not in the class: |\n",
     [CONFORMANCE_PATH]:
       "## Required profiles\n### Core Language\n## Feature to profile table\n",
   });

@@ -37,8 +37,11 @@ through (`docs/delivery.md`); you own the harness and the CI that runs it.
    gate prints `PARTIAL` and a count for blocks whose later lines were statically checked but never
    run.
 7. **CI (`shared/definition-of-done`):** wire `.github/workflows/` to run build, type-check/lint, unit,
-   **coverage**, **conformance**, runnable examples, and applicable a11y/pedagogy checks on every PR.
-   Required checks gate merges — the agent never merges.
+   **coverage**, **conformance**, runnable examples, **the built-in-names drift gate**
+   (`npm run built-in-names` — `spec/built-in-names.json` against `@openlogo/parser`'s registries in
+   both directions, plus the three hand-maintained prose lists;
+   [ADR-0021](../../../../docs/adr/0021-built-in-names-list-and-ci-gate.md)), and applicable
+   a11y/pedagogy checks on every PR. Required checks gate merges — the agent never merges.
 8. **Post-M0 maintenance:** optional scheduled nightly conformance/stability + grammar-vs-highlighter
    drift checks that auto-file issues on regression.
 
