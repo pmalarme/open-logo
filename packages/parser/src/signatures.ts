@@ -84,17 +84,16 @@ export function corePrimitiveArity(name: string): number | undefined {
 }
 
 /**
-/**
  * The **Turtle & Rendering** profile's primitives (issue #193), derived from the Turtle movement /
  * Pen and screen tables in [`spec/commands.md`](../../../spec/commands.md). Each row is a canonical
  * name, its arity, and — for five of them — the one-word alias spelling `spec/commands.md`
- * documents inline: `setxy`/`seth` (issue #202; `spec/commands.md:1279,1296`), `setcolor`/`setbg`
- * (issue #208; `spec/commands.md:1521,1539`), and `setwidth` (issue #209; `spec/commands.md:1556`).
+ * documents inline: `setxy`/`seth` (issue #202; `spec/commands.md:1280,1297`), `setcolor`/`setbg`
+ * (issue #208; `spec/commands.md:1522,1540`), and `setwidth` (issue #209; `spec/commands.md:1557`).
  *
  * **The alias lives on its canonical's row rather than in a table beside it.** Until issue #841 the
  * five were independent arity entries with no recorded relationship, so nothing anywhere could
  * answer "what is `setxy` an alias *of*?" — `canonicalOfHeritageAlias("setxy")` returns `undefined`,
- * because they are not Heritage (`spec/conformance.md:105-117` closes that list and none of them is
+ * because they are not Heritage (`spec/conformance.md:148-157` closes that list and none of them is
  * in it). That made the edge unverifiable: `spec/built-in-names.json` records `setxy → set_xy`, and
  * the strongest check available against an unrecorded edge was "the target is some entry of equal
  * arity", which accepts `setxy → distance` just as happily.
@@ -194,9 +193,10 @@ export function turtleAliasNames(): readonly string[] {
 }
 
 /**
- * The default arity of a Turtle & Rendering primitive, or `undefined` when `name` is not one of
- * the Core-spelled turtle primitives registered in {@link TURTLE_PRIMITIVE_ARITY}. Matching is
- * case-insensitive.
+ * The default arity of a Turtle & Rendering primitive, or `undefined` when `name` is not one of the
+ * primitives registered in {@link TURTLE_PRIMITIVE_ARITY} — which holds the canonical spellings
+ * **and** the five one-word alias spellings, each sharing its canonical's arity because they share
+ * a row in {@link TURTLE_PRIMITIVES}. Matching is case-insensitive.
  *
  * `TURTLE_PRIMITIVE_ARITY` is this profile's single source-of-truth table. A future visibility
  * slice (issue #136) that makes turtle primitives visible to `ol-unknown-command`

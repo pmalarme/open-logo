@@ -106,8 +106,9 @@ export {
   // The Turtle & Rendering alias half: `setxy`/`seth`/`setcolor`/`setbg`/`setwidth` and the
   // canonical each is a spelling of (issue #841). An `aliasOf` edge nothing exposes is an edge
   // nothing can verify — ADR-0021 §3 requires an enumerable canonical map *consumed by the
-  // resolver*, and `turtlePrimitiveArity` now resolves an alias through it rather than holding a
-  // second arity entry that could drift from its canonical's.
+  // resolver*. Consumed here is structural rather than a routing step: the alias shares its
+  // canonical's row in `TURTLE_PRIMITIVES`, so both spellings take the same arity literal and the
+  // two views are built from one tuple. There is nothing to keep in step.
   canonicalOfTurtleAlias,
   turtleAliasNames,
   canonicalOfHeritageAlias,

@@ -41,8 +41,10 @@ import {
   extractToolingC19Mirror,
   extractToolingKeywordRow,
   implementationFindings,
+  isStdlibSource,
   loadManifest,
   narrativeFindings,
+  numberWord,
   parseArgs,
   profileCoverageFindings,
   profileInventoryFindings,
@@ -111,6 +113,8 @@ function tinyFixture() {
         exclusionClause: "not in the class:",
         exclusionPolarity: "not in the class:",
         profileClause: "profiles",
+        deltaSentence: "omits {omits}, adds {adds}",
+        independenceClause: "independent",
       },
     },
     names: [
@@ -935,6 +939,159 @@ test("INJECTED DRIFT: the file's own contract statement blanked", () => {
   ]);
 });
 
+test("INJECTED DRIFT: the profile clause's activation qualifier removed", () => {
+  // Mutation proven live first: gating the noun phrase but not its condition let
+  // "while their profile is active" become "whether or not their profile is active" — which makes
+  // the PAINT axis unconditional, contradicting `spec/tooling.md:31`'s fallback rule — with the
+  // gate green and every gated token identical.
+  const io = proseIo(TOOLING_PATH, (text) =>
+    text.replace(
+      "while their profile is active, the profile block-heads",
+      "whether or not their profile is active, the profile block-heads",
+    ),
+  );
+  const findings = proseFindings(REAL_MANIFEST, io);
+  assert.equal(
+    findings.some((finding) =>
+      finding.includes("the clause that admits the 6 profile words"),
+    ),
+    true,
+    findings.join("\n"),
+  );
+});
+
+test("INJECTED DRIFT: the row's delta counts drifting from the manifest's deltas", () => {
+  // The row states its deltas in prose — "it omits four reserved words, adds four non-reserved
+  // ones" — in the 993-character tail that neither compared segment reads. Measured: adding a
+  // fifth omission and editing the row exactly as the gate demanded left the row contradicting
+  // itself eight words later, with 0 findings. The expected sentence is now BUILT from the counts.
+  const manifest = manifestCopy();
+  manifest.tokenClassKeyword.omitsKeywords = [
+    ...manifest.tokenClassKeyword.omitsKeywords,
+    "repeat",
+  ];
+  const findings = proseFindings(manifest, REAL_IO);
+  assert.equal(
+    findings.includes(
+      `${TOOLING_PATH}: the \`keyword\` token-class row does not say "it omits five reserved words, adds four non-reserved ones" — it states the deltas in prose, and the count it states must be the count ${MANIFEST_PATH} holds`,
+    ),
+    true,
+    findings.join("\n"),
+  );
+});
+
+test("INJECTED DRIFT: the independence claim inverted — the second polarity in the same row", () => {
+  const io = proseIo(TOOLING_PATH, (text) =>
+    text.replace(
+      "This class is **not derived from** the reserved list",
+      "This class is **derived from** the reserved list",
+    ),
+  );
+  const findings = proseFindings(REAL_MANIFEST, io);
+  assert.equal(
+    findings.some((finding) =>
+      finding.includes(
+        'no longer says "This class is **not derived from** the reserved list"',
+      ),
+    ),
+    true,
+    findings.join("\n"),
+  );
+});
+
+test("INJECTED DRIFT: a registry's alias enumerator and resolver disagreeing with each other", () => {
+  // Measured live: making `turtleAliasNames()` omit `setxy` while `canonicalOfTurtleAlias("setxy")`
+  // still resolved was GREEN — the forward loop asks only the resolver, the reverse loop walks only
+  // the enumerator, so the two accessors could contradict each other unobserved.
+  const api = {
+    ...realParserApi,
+    turtleAliasNames: () =>
+      realParserApi.turtleAliasNames().filter((name) => name !== "setxy"),
+  };
+  assert.equal(api.turtleAliasNames().includes("setxy"), false);
+  assert.equal(realParserApi.canonicalOfTurtleAlias("setxy"), "set_xy");
+  const result = runBuiltInNamesGate({ api });
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.findings.includes(
+      "setxy: canonicalOfTurtleAlias resolves its edge but turtleAliasNames does not list it — the registry's two accessors disagree",
+    ),
+    true,
+    result.findings.join("\n"),
+  );
+});
+
+test("INJECTED DRIFT: a library carve-out escaping stdlib by path traversal", () => {
+  // The round-1 fix for "any file that exists" was "any file whose STRING starts with stdlib/",
+  // which is a prefix test wearing a containment test's clothes. This path is real: it exists, it
+  // ends `.logo`, it starts with `stdlib/`, and it is not OpenLogo standard-library source.
+  assert.equal(
+    REAL_IO.exists("stdlib/../spec/examples/01-movement.logo"),
+    true,
+  );
+  assert.equal(
+    isStdlibSource("stdlib/../spec/examples/01-movement.logo"),
+    false,
+  );
+  assert.equal(isStdlibSource("stdlib/geometry/polygon.logo"), true);
+  assert.equal(isStdlibSource("stdlib/geometry/polygon.txt"), false);
+  assert.equal(isStdlibSource("stdlib"), false);
+  assert.equal(isStdlibSource(undefined), false);
+  const manifest = manifestCopy();
+  manifest.excluded.find((entry) => entry.name === "polygon").source =
+    "stdlib/../spec/examples/01-movement.logo";
+  const result = runBuiltInNamesGate({ manifest });
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.findings.some((finding) =>
+      finding.startsWith(
+        'excluded polygon: reason "library" names "stdlib/../spec/examples/01-movement.logo"',
+      ),
+    ),
+    true,
+    result.findings.join("\n"),
+  );
+});
+
+test("aliasFindings rejects an entry carrying two edge registries, whose verdict would be order-dependent", () => {
+  const manifest = manifestCopy();
+  entryFor(manifest, "fd").registries = ["heritage-alias", "turtle-primitive"];
+  assert.deepEqual(
+    aliasFindings(manifest, realParserApi).filter((finding) =>
+      finding.startsWith("fd:"),
+    ),
+    [
+      "fd: is in 2 registries that each carry alias edges (heritage-alias, turtle-primitive) — one name has one canonical, so this is ambiguous rather than merely unusual",
+    ],
+  );
+});
+
+test("numberWord spells small counts and falls back to digits", () => {
+  assert.equal(numberWord(0), "zero");
+  assert.equal(numberWord(4), "four");
+  assert.equal(numberWord(12), "twelve");
+  assert.equal(numberWord(13), "13");
+});
+
+test("the grammar keyword block is found by structure, not by its fence's info string", () => {
+  // Issue #888 re-fenced the block from ```logo to ```text — it is a word list, not a runnable
+  // program. An info-string-specific search silently walked past it to the NEXT ```logo block and
+  // compared the wrong text, which is how this was found: the gate reported 39 missing keywords
+  // rather than failing to locate its anchor.
+  assert.deepEqual(
+    extractGrammarKeywordBlock(
+      "The normative OpenLogo keyword list is:\n\n```text\ndefine to\nend\n```\n\n```logo\nprint 1\n```\n",
+    ),
+    ["define", "to", "end"],
+  );
+  assert.deepEqual(
+    extractGrammarKeywordBlock(
+      "The normative OpenLogo keyword list is:\n\n```logo\ndefine\n```\n",
+    ),
+    ["define"],
+  );
+});
+
 test("a moved prose anchor is a finding, never a silent skip", () => {
   const grammarless = proseFindings(
     REAL_MANIFEST,
@@ -1412,7 +1569,7 @@ test("a run with every registry enumerable prints no unenumerable note", () => {
     [GRAMMAR_PATH]:
       "The normative OpenLogo keyword list is:\n\n```logo\ndefine\n```\n",
     [TOOLING_PATH]:
-      "x this is the C19 registry repeated y:\n\n`define`.\n\n| `keyword` | `define` not in the class: |\n",
+      "x this is the C19 registry repeated y:\n\n`define`.\n\n| `keyword` | `define` not in the class: omits zero, adds zero independent |\n",
     [CONFORMANCE_PATH]:
       "## Required profiles\n### Core Language\n## Feature to profile table\n",
   });

@@ -90,7 +90,7 @@
  */
 
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve, sep } from "node:path";
 import * as parserApi from "@openlogo/parser";
 
 /** The authoritative list (ADR-0021 §1). Under `spec/`, so maintainer-owned via `CODEOWNERS`. */
@@ -148,13 +148,22 @@ export const STDLIB_DIR = "stdlib";
  */
 export const CONTEXTUAL_POSITIONS = ["is-predicate", "value-of-reader"];
 
-/** Is `source` a `stdlib/*.logo` path? Accepts either separator, so the check is OS-independent. */
+/**
+ * Is `source` a file **inside** `stdlib/`, with a `.logo` extension?
+ *
+ * Containment, not a prefix test. `stdlib/../spec/examples/01-movement.logo` starts with `stdlib/`,
+ * ends `.logo`, and exists — and the first version of this check passed it. That version was itself
+ * a round-1 fix for "any file that exists"; replacing it with "any file whose *string* starts with
+ * the right thing" inherited the same reasoning and so reproduced the same defect one step in. The
+ * path is normalized and its containment asserted, rather than its spelling inspected.
+ */
 export function isStdlibSource(source) {
-  return (
-    typeof source === "string" &&
-    /^stdlib[\\/]/.test(source) &&
-    source.endsWith(".logo")
-  );
+  if (typeof source !== "string" || !source.endsWith(".logo")) {
+    return false;
+  }
+  const root = resolve(STDLIB_DIR);
+  const target = resolve(source);
+  return target.startsWith(root + sep) && target.length > root.length + 1;
 }
 
 /** Default filesystem port, so tests can drive every branch without touching disk. */
@@ -552,6 +561,14 @@ export function aliasFindings(manifest, api) {
       );
       continue;
     }
+    if (carrying.length > 1) {
+      // No entry carries two edge registries at `0.1.0`, and none should: the verdict below would
+      // otherwise depend on the order of `registries[]`, so a cosmetic reorder could flip the gate.
+      findings.push(
+        `${entry.name}: is in ${carrying.length} registries that each carry alias edges (${carrying.join(", ")}) — one name has one canonical, so this is ambiguous rather than merely unusual`,
+      );
+      continue;
+    }
     if (byName.get(entry.aliasOf) === undefined) {
       findings.push(
         `${entry.name}: aliasOf "${entry.aliasOf}" is not an entry in ${MANIFEST_PATH}`,
@@ -559,17 +576,29 @@ export function aliasFindings(manifest, api) {
       continue;
     }
     const accessorName = manifest.registries[carrying[0]].canonicalAccessor;
-    const resolve = resolveAccessor(api, accessorName);
-    if (resolve === undefined) {
+    const resolveEdge = resolveAccessor(api, accessorName);
+    if (resolveEdge === undefined) {
       findings.push(
         `${entry.name}: ${accessorName} is not exported from @openlogo/parser, so its alias edge cannot be verified`,
       );
       continue;
     }
-    const canonical = resolve(entry.name);
+    const canonical = resolveEdge(entry.name);
     if (canonical !== entry.aliasOf) {
       findings.push(
         `${entry.name}: aliasOf "${entry.aliasOf}" but ${accessorName} resolves ${JSON.stringify(canonical)}`,
+      );
+      continue;
+    }
+    // The registry's two accessors must also agree with each other. Measured: making
+    // `turtleAliasNames()` omit `setxy` while `canonicalOfTurtleAlias("setxy")` still resolved left
+    // the gate green, because the forward loop asks only the resolver and the reverse loop walks
+    // only the enumerator. A gate that reads one side of a two-sided contract certifies half of it.
+    const enumerator = manifest.registries[carrying[0]].aliasEnumerator;
+    const names = resolveAccessor(api, enumerator);
+    if (names !== undefined && !names().includes(entry.name)) {
+      findings.push(
+        `${entry.name}: ${accessorName} resolves its edge but ${enumerator} does not list it — the registry's two accessors disagree`,
       );
     }
   }
@@ -746,7 +775,15 @@ export function extractGrammarKeywordBlock(text) {
   if (anchor === -1) {
     return null;
   }
-  const open = lines.indexOf("```logo", anchor);
+  // The FIRST fence after the anchor, whatever its info string — not the next ```logo anywhere
+  // below. Issue #888 re-fenced this block from ```logo to ```text (it is a word list, not a
+  // runnable program), and an info-string-specific search silently walked past it to the next
+  // ```logo block twenty lines further down and compared the wrong text. Searching for a specific
+  // info string is a guess about the document; "the block immediately after the sentence that
+  // introduces it" is the structure.
+  const open = lines.findIndex(
+    (line, index) => index > anchor && line.startsWith("```"),
+  );
   if (open === -1) {
     return null;
   }
@@ -982,7 +1019,52 @@ export function tokenClassFindings(manifest, coreKeywords, row) {
     );
   }
 
+  // The tail after the exclusion clause is read by neither segment above, and it carries two claims
+  // that restate data this file already holds. Both were measured green while contradicting it: the
+  // delta counts ("omits four … adds four …") survived a fifth omission, and the independence
+  // sentence survived being inverted to "derived from". Restating a number the manifest computes is
+  // the second-list problem this gate exists to remove, so the expected sentences are BUILT from
+  // the data rather than declared alongside it.
+  const expectedDeltas = anchors.deltaSentence
+    .replace("{omits}", numberWord(omitted.length))
+    .replace("{adds}", numberWord(deltas.addsExcluded.length));
+  if (!row.includes(expectedDeltas)) {
+    findings.push(
+      `${TOOLING_PATH}: the \`keyword\` token-class row does not say "${expectedDeltas}" — it states the deltas in prose, and the count it states must be the count ${MANIFEST_PATH} holds`,
+    );
+  }
+  if (!row.includes(anchors.independenceClause)) {
+    findings.push(
+      `${TOOLING_PATH}: the \`keyword\` token-class row no longer says "${anchors.independenceClause}" — that the class is NOT derived from the keyword list is what \`spec/grammar.md:378\` establishes and what this whole file is premised on`,
+    );
+  }
+
   return findings;
+}
+
+/**
+ * The English word for a small count, because `spec/tooling.md` spells its counts out. Falls back
+ * to digits above twelve, which is past anything the deltas can plausibly reach — and would be a
+ * visible prose change rather than a silent one.
+ */
+export function numberWord(count) {
+  return (
+    [
+      "zero",
+      "one",
+      "two",
+      "three",
+      "four",
+      "five",
+      "six",
+      "seven",
+      "eight",
+      "nine",
+      "ten",
+      "eleven",
+      "twelve",
+    ][count] ?? String(count)
+  );
 }
 
 /**
