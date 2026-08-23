@@ -80,9 +80,16 @@ function checkIdentity(source) {
  * `print 1` as the body, `define print` declares a zero-parameter `print` and the body's own
  * `print 1` then leaves `1` stranded as `ol-bad-token`, which has nothing to do with the
  * declaration slot. An empty body keeps each sweep row about the name alone.
+ *
+ * `keyword` selects the declaration spelling. `spec/grammar.md`'s declaration slots are `define`,
+ * the Heritage `to`, `struct`, and the first operand of `alias` — and a sweep that only ever writes
+ * `define` holds the SPELLING constant, which is the same blindness that let a mixed-case defect
+ * through: the corpus cannot see a variable it never varies. Both spellings reach the same
+ * `ProcedureDef` node (they differ only in its `keyword` field), so a guard keyed on that field
+ * would be invisible to a `define`-only sweep.
  */
-function declareProcedure(name) {
-  return `define ${name}\nend`;
+function declareProcedure(name, keyword = "define") {
+  return `${keyword} ${name}\nend`;
 }
 
 // ---------------------------------------------------------------------------
@@ -132,6 +139,20 @@ test("EVERY built-in name is rejected at `define`, with `ol-reserved-word` and `
     everyBuiltInName.map((name) => [
       name,
       executeIdentity(declareProcedure(name)),
+    ]),
+    everyBuiltInName.map((name) => [name, [["ol-reserved-word", { name }]]]),
+  );
+});
+
+test("EVERY built-in name is rejected at the Heritage `to` as well — the spelling is not the variable", () => {
+  // `spec/grammar.md` makes `to` a declaration slot in its own right. `define` and `to` lower to the
+  // same `ProcedureDef` node, differing only in its `keyword` field, so a `define`-only sweep cannot
+  // see a guard keyed on that field — and until this row existed, exempting `to` from the built-in
+  // check was killed by exactly one incidental assertion elsewhere in the suite.
+  assert.deepEqual(
+    everyBuiltInName.map((name) => [
+      name,
+      executeIdentity(declareProcedure(name, "to")),
     ]),
     everyBuiltInName.map((name) => [name, [["ol-reserved-word", { name }]]]),
   );
@@ -188,6 +209,7 @@ test("`params.name` is the DECLARED surface spelling for a built-in too, never t
     "define FiRsT\nend",
     "define FD\nend",
     "define IF\nend",
+    "to FORWARD\nend",
     "struct FORWARD [ x ]",
     "struct FD [ x ]",
   ]) {
@@ -199,6 +221,35 @@ test("`params.name` is the DECLARED surface spelling for a built-in too, never t
       `${source} must report the spelling the learner wrote`,
     );
   }
+});
+
+test("the learner-facing MESSAGE quotes the declared spelling too, and matches the checker's", () => {
+  // `params` is diagnostic identity, but the message is what the learner reads — and the
+  // conformance harness deliberately EXCLUDES `message` from comparison, so a unit test is the only
+  // place wording can be pinned at all. A mutant lowercasing only the message would survive every
+  // fixture and every params assertion above. `spec/error-model.md` fixes both the sentence and its
+  // warm lowercase voice, so the two stages must produce it identically.
+  for (const source of ["define FORWARD\nend", "struct FD [ x ]"]) {
+    const declared = source.split(/\s+/)[1];
+    const { ast } = parse(source, doc);
+    const [fromCheck] = check(ast, { profiles: OL_CHECK_PROFILES }).diagnostics;
+    const [fromExecute] = execute(source, doc).diagnostics;
+    assert.equal(
+      fromExecute.message,
+      `${declared} is already part of OpenLogo. choose another name.`,
+      source,
+    );
+    assert.equal(fromExecute.message, fromCheck.message, source);
+  }
+});
+
+test("the duplicate MESSAGE names the earlier declaration's line, and matches the checker's", () => {
+  const source = duplicateForms["define twice, differing case"];
+  const { ast } = parse(source, doc);
+  const [fromCheck] = check(ast, { profiles: OL_CHECK_PROFILES }).diagnostics;
+  const [fromExecute] = execute(source, doc).diagnostics;
+  assert.equal(fromExecute.message, "you already defined FOO on line 1.");
+  assert.equal(fromExecute.message, fromCheck.message);
 });
 
 test("a Heritage alias is exactly as illegal as its canonical, by construction", () => {
@@ -231,21 +282,44 @@ test("no canonical spelling is itself an alias, so alias resolution is depth-1 a
 // AC1 / AC2 — duplicates, and the four forms agreeing across both stages
 // ---------------------------------------------------------------------------
 
-/** The four duplicate-registration forms of issue #839's AC2 table, with DIFFERING declarations. */
+/**
+ * The duplicate-registration forms of issue #839's AC2 table, with DIFFERING declarations.
+ *
+ * Three variables are varied deliberately, because the corpus is blind to any one it holds
+ * constant: the declaration **kind** (`define`/`to`/`struct`, in both orders), the declaration
+ * **spelling** (`define` vs the Heritage `to` — both lower to one `ProcedureDef` differing only in
+ * its `keyword` field), and the **casing** of the later declaration, at more than one kind.
+ */
 const duplicateForms = {
   "define twice":
     "define foo\n  print 111\nend\ndefine foo\n  print 222\nend\nfoo",
   "struct twice": "struct point [ x y ]\nstruct point [ a b ]",
   "define then struct": "define pair\n  return 1\nend\nstruct pair [ x ]",
   "struct then define": "struct pair [ x ]\ndefine pair\n  return 1\nend",
-  // Mixed case on purpose. Every other row here is all-lowercase, and an all-lowercase corpus is
-  // exactly how issue #874's `params.callable` question stayed unadjudicated for 57 fixtures: the
-  // rule under test never varied. A case-sensitive registration would accept this one.
+  // The Heritage `to` spelling of the same slot. Until these rows existed, exempting `to` from the
+  // duplicate guard reproduced issue #839's ORIGINAL defect verbatim — `to foo` twice ran the
+  // second body and printed `222` — while all 3912 tests and 886 fixtures stayed green.
+  "to twice": "to foo\n  print 111\nend\nto foo\n  print 222\nend\nfoo",
+  "define then to":
+    "define foo\n  print 111\nend\nto foo\n  print 222\nend\nfoo",
+  "to then define":
+    "to foo\n  print 111\nend\ndefine foo\n  print 222\nend\nfoo",
+  "to then struct": "to pair\n  print 1\nend\nstruct pair [ x ]",
+  // Mixed case on purpose. An all-lowercase corpus is exactly how issue #874's `params.callable`
+  // question stayed unadjudicated for 57 fixtures: the rule under test never varied. Applied at
+  // more than one declaration kind, because holding the KIND constant at the mixed-case site hides
+  // a fold applied only to `struct` — measured: that mutant survived every gate.
   "define twice, differing case":
     "define foo\n  print 111\nend\ndefine FOO\n  print 222\nend\nfoo",
+  "define then struct, differing case":
+    "define foo\n  return 1\nend\nstruct FOO [ x ]",
+  "struct then define, differing case":
+    "struct foo [ x ]\ndefine FOO\n  return 1\nend",
+  "to twice, differing case":
+    "to foo\n  print 111\nend\nto FOO\n  print 222\nend\nfoo",
 };
 
-test("all four duplicate-registration forms raise ol-duplicate-definition at runtime", () => {
+test("every duplicate-registration form raises ol-duplicate-definition at runtime", () => {
   for (const [label, source] of Object.entries(duplicateForms)) {
     const identity = executeIdentity(source);
     assert.equal(identity.length, 1, label);
@@ -261,14 +335,31 @@ test("all four duplicate-registration forms raise ol-duplicate-definition at run
 test("`params.name` is the LATER declaration's surface spelling, exactly as written", () => {
   // Matching is case-insensitive, but the name a diagnostic reports is the one the learner typed at
   // that span — the same rule the checker follows. A folded `foo` here would misquote the source.
-  const [[, params]] = executeIdentity(
-    duplicateForms["define twice, differing case"],
-  );
-  assert.equal(params.name, "FOO");
-  assert.deepEqual(params.original_span.start, [1, 8]);
+  // Asserted at every mixed-case row rather than one, because the later declaration's KIND and
+  // SPELLING are themselves variables: a fold applied only to `struct`, or only to `to`, survives a
+  // single `define`/`define` row.
+  for (const label of [
+    "define twice, differing case",
+    "define then struct, differing case",
+    "struct then define, differing case",
+    "to twice, differing case",
+  ]) {
+    const source = duplicateForms[label];
+    const [[, params]] = executeIdentity(source);
+    assert.equal(params.name, "FOO", label);
+    // The earlier declaration's span is derived from its own keyword rather than hard-coded: `to`
+    // is three characters where `define` and `struct` are six, so a fixed column would have quietly
+    // restricted this assertion to the spellings that happen to share a width.
+    const [keyword] = source.split(/\s+/);
+    assert.deepEqual(
+      params.original_span.start,
+      [1, keyword.length + 2],
+      label,
+    );
+  }
 });
 
-test("all four forms report the SAME code, params and span from check() and execute()", () => {
+test("every duplicate form reports the SAME code, params and span from check() and execute()", () => {
   // AC2 in full: the table that used to have one row splitting across the stages and three rows
   // reporting the wrong code now has four rows that agree.
   for (const [label, source] of Object.entries(duplicateForms)) {

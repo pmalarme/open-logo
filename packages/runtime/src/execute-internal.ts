@@ -4172,25 +4172,34 @@ const ALL_KEYWORD_PROFILES: readonly string[] =
 
 /**
  * Every primitive name any profile registers, derived from `signatures.ts`'s profile-keyed registry
- * by walking `OL_CHECK_PROFILES` — never a list of names kept here.
+ * by walking `OL_CHECK_PROFILES`.
  *
- * That is the mechanism [ADR-0021](../../../docs/adr/0021-built-in-names-list-and-ci-gate.md) §4
- * prescribes: it requires that the implementation "consumes the list; it does not re-derive it", and
- * says that to make this possible "`@openlogo/parser` must export the enumerable name accessors that
- * `signatures.ts` already defines internally". Those accessors are what this reads. Issue #839's AC4
- * requires the runtime to enforce *every* built-in name rather than the handful an earlier
- * hand-composed lookup happened to consult, and a hand-maintained runtime copy of the list is
- * precisely what let `execute()` and `check()` drift apart in the first place. A profile that gains
- * a table, or a table that gains a name, is covered here the moment it lands.
+ * **This is a temporary, NON-ADR-COMPLIANT fallback, approved by @orchestrator as an interim
+ * sequence for issue #839, to be REPLACED by issue #841's export — not kept alongside it.** Saying
+ * so plainly is the point.
+ * [ADR-0021](../../../docs/adr/0021-built-in-names-list-and-ci-gate.md) makes a single
+ * machine-readable file, `spec/built-in-names.json`, the **authoritative** source, with CI asserting
+ * the implementation's registries equal it exactly in both directions; it also says explicitly that
+ * "a flat name set is insufficient" and that every registry a name belongs to must be recorded
+ * rather than inferred. A flattened `Set` derived from the registries is therefore *not* the list
+ * ADR-0021 means, and this comment must not claim otherwise. That manifest does not exist in this
+ * tree — it is #841's deliverable, along with the CI drift gate and retiring
+ * `checker-reserved-word.ts`'s remaining hand-composed profile branches.
  *
- * **What is still outstanding, and whose it is.** ADR-0021 also specifies an authoritative
- * `spec/built-in-names.json` plus a CI drift gate; neither exists yet, and both are **issue #841**'s
- * deliverables along with retiring `checker-reserved-word.ts`'s remaining hand-composed profile
- * branches. Until they land, the two stages are held together by measurement rather than by
- * construction: `execute-declaration-slots.test.mjs`'s "`execute()` and `check()` report the SAME
- * identity for every built-in name at `define`" walks the whole registry and fails on the first
- * divergence, which is the same property the CI gate will assert from the shipped list. When #841
- * lands, this set should be replaced by its export rather than kept in parallel.
+ * What it does buy, and what it does not. It replaces a hand-composed disjunction of seven arity
+ * lookups that silently omitted Sprites, Tutor and every Heritage alias — the hole through which 45
+ * names were declarable at run time — so a profile that gains a table, or a table that gains a
+ * name, is covered the moment it lands, with no second edit here.
+ *
+ * The interim guarantee is `execute-declaration-slots.test.mjs`'s "`execute()` and `check()` report
+ * the SAME identity for every built-in name at `define`". **That is a weaker property than #841's
+ * gate and must not be described as the same one**: it proves the two stages *agree* on the names
+ * the runtime knows, whereas the gate proves both *match a normative artifact*. Agreement is not
+ * correctness — an accidental extra registry name makes both stages reject a spec-legal name, and
+ * they would agree about it. A cross-stage agreement test draws its expected value from the
+ * implementation, so an error present in both stages is invisible to it by construction. It closes
+ * the divergence that exists today (`execute()` never runs `check()`); conformance to the shipped
+ * list is #841's to establish.
  */
 const ANY_PROFILE_PRIMITIVE_NAMES: ReadonlySet<string> = new Set(
   OL_CHECK_PROFILES.flatMap((profile) => profilePrimitiveNames(profile)),
@@ -4226,7 +4235,10 @@ function isBuiltInName(name: string): boolean {
 
 /**
  * The runtime's phase-1 registration guard, over the grammar's **declaration slots** — `define`/`to`
- * and `struct`, and only those (`spec/grammar.md:58-59,165`; issue #833's maintainer ruling).
+ * and `struct` (`spec/grammar.md:58-59,165`; issue #833's maintainer ruling). `spec/grammar.md:165`
+ * enumerates **four** slots: the fourth is the first operand of `alias`, which has no AST node yet
+ * (`alias fwd forward` is `ol-bad-token` at parse), so there is nothing here to check for it — it is
+ * named so that whoever lands `alias` wires the slot rather than rediscovering it.
  *
  * It answers the one question a declaration slot asks — *is this name already taken, and by whom?* —
  * with the one code that fits, exactly as the parser's `declarationSlotRule` does, so `check()` and

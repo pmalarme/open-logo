@@ -457,7 +457,6 @@ test("`define input` is rejected at registration by BOTH check() and execute(), 
     checked.diagnostics[0].source_span,
     "…at the same span",
   );
-  assert.deepEqual(printedValues(result), []);
   // Asserted on the WHOLE event stream: `effectEvents`/`printedValues` are filtered views, and
   // filtering an empty array never calls its predicate, so neither would notice an `instruction`
   // event — or anything else — being emitted before the halt.
