@@ -1,0 +1,4 @@
+define fd :n
+  print 999
+end
+fd 10

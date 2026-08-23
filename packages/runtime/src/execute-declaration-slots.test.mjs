@@ -60,12 +60,15 @@ function executeIdentity(source) {
   ]);
 }
 
-/** The same, from `check()` with every profile active — the stage `execute()` must agree with. */
+/**
+ * The `[code, params]` identity of every diagnostic `check()` reports for `source` with every
+ * profile active — the stage `execute()` must agree with. Every source these tests hand it parses
+ * cleanly, so `check()` is always reached; a parse failure would surface as an empty result and a
+ * mismatch against `executeIdentity`, rather than being papered over with a fallback branch that
+ * no test ever executes.
+ */
 function checkIdentity(source) {
-  const { ast, diagnostics } = parse(source, doc);
-  if (diagnostics.length > 0) {
-    return diagnostics.map((finding) => [finding.code, finding.params]);
-  }
+  const { ast } = parse(source, doc);
   return check(ast, { profiles: OL_CHECK_PROFILES }).diagnostics.map(
     (finding) => [finding.code, finding.params],
   );
@@ -122,53 +125,43 @@ test("the derived built-in-name enumeration is non-trivial and holds the names t
 // ---------------------------------------------------------------------------
 
 test("EVERY built-in name is rejected at `define`, with `ol-reserved-word` and `params: { name }`", () => {
-  const accepted = [];
-  const wrongIdentity = [];
-  for (const name of everyBuiltInName) {
-    const identity = executeIdentity(declareProcedure(name));
-    if (identity.length === 0) {
-      accepted.push(name);
-      continue;
-    }
-    const [[code, params]] = identity;
-    if (
-      identity.length !== 1 ||
-      code !== "ol-reserved-word" ||
-      params.name !== name ||
-      Object.keys(params).length !== 1
-    ) {
-      wrongIdentity.push([name, identity]);
-    }
-  }
-  assert.deepEqual(accepted, [], "no built-in name may be declared");
-  assert.deepEqual(wrongIdentity, []);
+  // Written as one whole-list comparison rather than a filter that collects failures: a loop whose
+  // recording branch never runs is a test whose body is partly dead, and this saga has shipped three
+  // of those. Every line here executes on a green run, and a failure is a readable diff.
+  assert.deepEqual(
+    everyBuiltInName.map((name) => [
+      name,
+      executeIdentity(declareProcedure(name)),
+    ]),
+    everyBuiltInName.map((name) => [name, [["ol-reserved-word", { name }]]]),
+  );
 });
 
 test("EVERY built-in name is rejected at `struct` too — both registration forms, not just one", () => {
   // Ruling #833's amendment measured that the names free at `define` were free at `struct` as well,
   // so a fix covering only one form would leave the other open.
-  const accepted = [];
-  for (const name of everyBuiltInName) {
-    if (executeIdentity(`struct ${name} [ x y ]`).length === 0) {
-      accepted.push(name);
-    }
-  }
-  assert.deepEqual(accepted, []);
+  assert.deepEqual(
+    everyBuiltInName.map((name) => [
+      name,
+      executeIdentity(`struct ${name} [ x y ]`).map(([code]) => code),
+    ]),
+    everyBuiltInName.map((name) => [name, ["ol-reserved-word"]]),
+  );
 });
 
 test("`execute()` and `check()` report the SAME identity for every built-in name at `define`", () => {
   // The cross-stage agreement, name by name. Only `stage` may differ (`"runtime"` vs `"semantic"`),
   // because `execute()` runs `parse()` and never `check()`.
-  const disagreements = [];
-  for (const name of everyBuiltInName) {
-    const source = declareProcedure(name);
-    const fromExecute = executeIdentity(source);
-    const fromCheck = checkIdentity(source);
-    if (JSON.stringify(fromExecute) !== JSON.stringify(fromCheck)) {
-      disagreements.push([name, fromCheck, fromExecute]);
-    }
-  }
-  assert.deepEqual(disagreements, []);
+  assert.deepEqual(
+    everyBuiltInName.map((name) => [
+      name,
+      executeIdentity(declareProcedure(name)),
+    ]),
+    everyBuiltInName.map((name) => [
+      name,
+      checkIdentity(declareProcedure(name)),
+    ]),
+  );
 });
 
 test("`execute()` and `check()` agree on the SPAN, not merely the code and params", () => {
@@ -213,10 +206,16 @@ test("no canonical spelling is itself an alias, so alias resolution is depth-1 a
 
 /** The four duplicate-registration forms of issue #839's AC2 table, with DIFFERING declarations. */
 const duplicateForms = {
-  "define twice": "define foo\n  print 111\nend\ndefine foo\n  print 222\nend\nfoo",
+  "define twice":
+    "define foo\n  print 111\nend\ndefine foo\n  print 222\nend\nfoo",
   "struct twice": "struct point [ x y ]\nstruct point [ a b ]",
   "define then struct": "define pair\n  return 1\nend\nstruct pair [ x ]",
   "struct then define": "struct pair [ x ]\ndefine pair\n  return 1\nend",
+  // Mixed case on purpose. Every other row here is all-lowercase, and an all-lowercase corpus is
+  // exactly how issue #874's `params.callable` question stayed unadjudicated for 57 fixtures: the
+  // rule under test never varied. A case-sensitive registration would accept this one.
+  "define twice, differing case":
+    "define foo\n  print 111\nend\ndefine FOO\n  print 222\nend\nfoo",
 };
 
 test("all four duplicate-registration forms raise ol-duplicate-definition at runtime", () => {
@@ -230,6 +229,16 @@ test("all four duplicate-registration forms raise ol-duplicate-definition at run
       `${label} must carry both spans`,
     );
   }
+});
+
+test("`params.name` is the LATER declaration's surface spelling, exactly as written", () => {
+  // Matching is case-insensitive, but the name a diagnostic reports is the one the learner typed at
+  // that span — the same rule the checker follows. A folded `foo` here would misquote the source.
+  const [[, params]] = executeIdentity(
+    duplicateForms["define twice, differing case"],
+  );
+  assert.equal(params.name, "FOO");
+  assert.deepEqual(params.original_span.start, [1, 8]);
 });
 
 test("all four forms report the SAME code, params and span from check() and execute()", () => {
@@ -264,9 +273,10 @@ test("`ol-duplicate-definition` is not profile-gated — Core-only sees it too",
     check(ast, { profiles: ["core-language"] }).diagnostics.map((d) => d.code),
     ["ol-duplicate-definition"],
   );
-  assert.deepEqual(executeIdentity(source).map(([code]) => code), [
-    "ol-duplicate-definition",
-  ]);
+  assert.deepEqual(
+    executeIdentity(source).map(([code]) => code),
+    ["ol-duplicate-definition"],
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -294,7 +304,10 @@ test("the first collision in source order halts the run, whichever code it carri
     "define tally\n  print 1\nend\ndefine tally\n  print 2\nend\ndefine forward\n  print 3\nend";
   const builtInFirst =
     "define forward\n  print 3\nend\ndefine tally\n  print 1\nend\ndefine tally\n  print 2\nend";
-  assert.equal(executeIdentity(duplicateFirst)[0][0], "ol-duplicate-definition");
+  assert.equal(
+    executeIdentity(duplicateFirst)[0][0],
+    "ol-duplicate-definition",
+  );
   assert.equal(executeIdentity(builtInFirst)[0][0], "ol-reserved-word");
 });
 
@@ -306,7 +319,7 @@ test("binding a built-in name is still legal at run time — only DECLARING one 
   // `spec/grammar.md` makes accepting these a MUST: a program may bind a value to any name. This is
   // the boundary the declaration-slot guard must not cross, and the one issue #739 got wrong.
   const result = execute(
-    ':end = 7\nprint :end\nlocal count\nfor forward from 1 to 2 [ print :forward ]',
+    ":end = 7\nprint :end\nlocal count\nfor forward from 1 to 2 [ print :forward ]",
     doc,
   );
   assert.deepEqual(result.diagnostics, []);

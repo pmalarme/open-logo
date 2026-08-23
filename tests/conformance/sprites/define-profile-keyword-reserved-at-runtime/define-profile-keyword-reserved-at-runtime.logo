@@ -1,0 +1,4 @@
+define ask
+  print 1
+end
+ask

@@ -75,9 +75,9 @@ test("a later define of the same name is ol-duplicate-definition, not a silent o
     end: [4, 9],
   });
   assert.deepEqual(
-    result.events.filter((event) => event.kind === "print"),
+    result.events,
     [],
-    "neither body ran",
+    "neither body ran — asserted on the whole event stream, since filtering an empty one never calls its predicate",
   );
 });
 

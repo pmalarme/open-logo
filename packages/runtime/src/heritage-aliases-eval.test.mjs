@@ -224,9 +224,9 @@ test("#787: the reporter-position crash repro is now rejected at registration", 
     [["ol-reserved-word", { name: "forward" }]],
   );
   assert.deepEqual(
-    result.events.filter((e) => e.kind === "print"),
+    result.events,
     [],
-    "the program halts before `print fd` could reach the crash",
+    "the program halts at registration, before `print fd` could reach the crash",
   );
 });
 
@@ -285,10 +285,7 @@ test("#787: a user procedure named like the alias is rejected in reporter positi
     result.diagnostics.map((d) => [d.code, d.params]),
     [["ol-reserved-word", { name: "fd" }]],
   );
-  assert.deepEqual(
-    result.events.filter((e) => e.kind === "print"),
-    [],
-  );
+  assert.deepEqual(result.events, [], "nothing runs");
 });
 
 test("#787: an ordinary reporter-position procedure call is untouched", () => {

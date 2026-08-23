@@ -4167,7 +4167,8 @@ type DeclarationRegistration =
  * unconditionally — and `spec/grammar.md:408` wants exactly that of a declaration slot anyway:
  * "what a profile decides is whether a name works, never whether a program may declare it".
  */
-const ALL_KEYWORD_PROFILES: readonly string[] = Object.keys(OL_PROFILE_KEYWORDS);
+const ALL_KEYWORD_PROFILES: readonly string[] =
+  Object.keys(OL_PROFILE_KEYWORDS);
 
 /**
  * Every primitive name any profile registers, derived from `signatures.ts`'s profile-keyed registry
@@ -4706,13 +4707,25 @@ function executeProcedureCallStatement(
  * every Core-spelled call, which has no `canonical` — is returned unchanged, so this is a strict
  * no-op outside Heritage and the existing execution behavior is bit-for-bit identical.
  *
- * A user procedure whose name is the alias's surface spelling shadows the alias: `define fd :x … end`
- * makes `fd` the user's procedure, exactly as `define forward :x … end` shadows the Core `forward`.
- * The reader sets `canonical` profile-blind (it cannot see the program's procedures), so the guard
- * lives here — when the surface name is a registered procedure we leave the callee untouched so it
- * dispatches to the user procedure, never silently rewriting `fd` to `forward`. (Canonicalizing to a
- * name that *is* a user procedure — `fd` when the program defines `forward` — is intended and stays:
- * the alias dispatches to whatever `forward` means.)
+ * A user procedure whose name is the alias's surface spelling used to shadow the alias — `define fd
+ * :x … end` made `fd` the user's procedure — so this function carried a guard that left the callee
+ * untouched when the surface name was a registered procedure. **Issue #839 removed that guard**,
+ * because the ruling it implements (#833 rule 3, "nothing shadows") makes the shadow impossible to
+ * create: an alias spelling is a built-in name, so `define fd` raises `ol-reserved-word` at phase-1
+ * registration and `procedures` can never hold one. The condition was therefore unreachable from any
+ * source program, and unreachable code cannot meet this repository's 100% coverage gate.
+ *
+ * What proves it is unreachable, rather than merely believed to be:
+ * `execute-declaration-slots.test.mjs`'s "EVERY built-in name is rejected at `define`" sweeps every
+ * `heritageAliasNames()` entry, and "a Heritage alias is exactly as illegal as its canonical" pins
+ * the same property through the alias→canonical resolution. If either goes red, this guard has to
+ * come back. (Canonicalizing to a name that *is* a user procedure — `fd` when the program defines
+ * `forward` — is likewise impossible now, for the same reason.)
+ *
+ * The **expression**-position twin of the guard, `evaluate.ts`'s `resolveHeritageAliasName`, is
+ * deliberately KEPT: `evaluate()` and `createEnvironment()` are public API, so a host can assemble a
+ * registry this function can never see, and `heritage-alias-chokepoint.test.mjs` drives exactly that.
+ * There is no equivalent public entry into statement execution, which is the whole of the asymmetry.
  *
  * This is the single dispatch chokepoint: because the callee name is normalized here, before any
  * `is*Call` predicate or executor runs, `fd 10` executes through the exact same path as
@@ -4722,16 +4735,12 @@ function executeProcedureCallStatement(
  */
 function canonicalizeHeritageAliasCall(
   statement: StatementNode,
-  procedures: ProcedureRegistry,
 ): StatementNode {
   if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
     return statement;
   }
   const canonical = statement.canonical;
   if (canonical === undefined) {
-    return statement;
-  }
-  if (procedures.has(statement.callee.name.toLowerCase())) {
     return statement;
   }
   return {
@@ -4753,10 +4762,7 @@ function executeStatements(
     // exactly as they do for the Core spelling, with no per-command alias handling and no divergent
     // code path. A Core-spelled statement carries no `canonical`, so this is a no-op for it and the
     // entire existing behavior is bit-for-bit unchanged.
-    const statement = canonicalizeHeritageAliasCall(
-      rawStatement,
-      environment.procedures,
-    );
+    const statement = canonicalizeHeritageAliasCall(rawStatement);
     const limitDiagnostic = checkExecutionLimits(
       environment,
       statement.source_span,

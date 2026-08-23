@@ -223,8 +223,8 @@ OpenLogo has neither, its readers are children, and its feedback loop is a drawi
 came out wrong. So the design goal is not "make shadowing well-defined" but "make the question not
 arise": if nothing shadows, there is no resolution order to learn, no precedence rule to document,
 and no silent no-op to debug. It also removes a real defect by construction — the runtime already
-enforces some of these names itself, in registration and in reporter dispatch, so today
-`struct forward [ x y ]` passes the checker and then halts at run time. With nothing shadowing, the
+enforced some of these names itself, in registration and in reporter dispatch, so at `1499e1e`
+`struct forward [ x y ]` passed the checker and then halted at run time. With nothing shadowing, the
 checker and the runtime can finally agree.
 
 ### Why "keyword", not "reserved word"
@@ -373,9 +373,10 @@ beginner can predict what a line does.
   defines this).
 - **A whole class of silent failure disappears.** The three inconsistent shadowing outcomes
   measured above become one diagnostic at the point of definition. In particular the checker and
-  the runtime stop disagreeing: today `struct forward [ x y ]` passes `check()` and halts at
-  `execute()`, and `define foo` twice is flagged by `check()` yet silently overridden by
-  `execute()`.
+  the runtime stop disagreeing: at `1499e1e` `struct forward [ x y ]` passed `check()` and halted at
+  `execute()`, and `define foo` twice was flagged by `check()` yet silently overridden by
+  `execute()`. Issue #838 closed the first split at the checker and issue #839 closed the second at
+  the runtime, so both stages now report the same code, params and span for every declaration slot.
 - **Every ordinary English word stays available for data.** `:end`, `:count`, `:value`,
   `for end from 1 to 3`, `map value in :xs [ … ]`, `{ end: 1 }`, `struct point [ repeat y ]` — all
   legal, with no carve-outs to memorize. This reverses the binding restriction that issue #739

@@ -196,9 +196,9 @@ test("a user-defined procedure named `explain` is rejected at registration, not 
   assert.deepEqual(diagnostic.params, { name: "explain" });
   assert.deepEqual(tutorEvents(result), []);
   assert.deepEqual(
-    result.events.filter((event) => event.kind === "print"),
+    result.events,
     [],
-    "the program halts at registration, so the shadowing body never runs",
+    "the program halts at registration, so NOTHING runs — asserted on the whole event stream rather than a filtered view of it, because `[].filter(…)` never calls its predicate and so proves nothing about an empty stream",
   );
 });
 
@@ -213,8 +213,5 @@ test("a procedure named `hint` is rejected at registration, so no call can be a 
   assert.equal(result.diagnostics[0].code, "ol-reserved-word");
   assert.deepEqual(result.diagnostics[0].params, { name: "hint" });
   assert.deepEqual(tutorEvents(result), []);
-  assert.deepEqual(
-    result.events.filter((event) => event.kind === "print"),
-    [],
-  );
+  assert.deepEqual(result.events, [], "nothing runs");
 });

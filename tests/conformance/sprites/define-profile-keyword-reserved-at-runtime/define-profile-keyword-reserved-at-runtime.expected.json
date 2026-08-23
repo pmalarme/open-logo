@@ -1,0 +1,20 @@
+{
+  "description": "Issue #839: at RUN TIME a profile keyword is a built-in name unconditionally. `execute()` has no active profile set — it runs every profile's primitives and the reader recognises all six block heads regardless of profile — so the declaration-slot guard cannot be gated on one, and `spec/grammar.md`'s rule (maintainer ruling #833 rule 4) says it must not be: \"a name that could be declared in one implementation but not in another would be invisible and unpredictable to a learner\". So `define ask` halts at phase-1 registration with `ol-reserved-word` and the `ask` call on line 4 never runs. This fixture was added because a mutation removing profile keywords from the runtime's built-in-name lookup passed the ENTIRE conformance corpus: `sprites/reserved-procedures-with-sprites` and its `-without-sprites` pair are both `\"check\": true`, so nothing in the corpus executed one of these names. KNOWN RESIDUAL, deliberately documented rather than hidden: `check()` under Core alone still accepts `define ask` (`reserved-procedures-without-sprites` pins exactly that), so the two stages disagree for profile-gated names in the direction opposite to the one #839 closed. Retiring `checker-reserved-word.ts`'s profile gate is issue #841's always-on built-in-names list; when it lands, that fixture inverts and this one is unaffected.",
+  "profiles": ["core-language", "turtle-rendering", "sprites"],
+  "execute": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "sprites/define-profile-keyword-reserved-at-runtime/define-profile-keyword-reserved-at-runtime",
+        "start": [1, 8],
+        "end": [1, 11]
+      },
+      "params": { "name": "ask" },
+      "message": "ask is already part of OpenLogo. choose another name.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}
