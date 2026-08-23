@@ -17,10 +17,7 @@ fixtures below deliberately activate a minimal set — `make-assigns-like-set` d
 
 Fixture shape and conventions: see [`../README.md`](../README.md).
 
-Until #672 claims `heritage` in `packages/core/src/host-metadata.ts`'s `SUPPORTED_PROFILES`, the
-examples gate SKIPs (with a visible notice) any `spec/examples/*.logo` that requires it — see
-`scripts/examples-gate.mjs`. The profile is not yet claimed, but its per-slice behavior is proven
-here fixture-by-fixture as each Heritage slice lands:
+Its per-slice behavior is proven here fixture-by-fixture, slice by slice:
 
 - `assignment/` — `make` assigns exactly like `set` (slice H2, #667).
 - `check/heritage-forms-{accepted-when-active,rejected-in-core}` — the form heads `make`/`to`/
@@ -29,8 +26,8 @@ here fixture-by-fixture as each Heritage slice lands:
   `fd`/`bk`/`lt`/`rt`/`pu`/`pd`/`st`/`ht`/`cs`/`pr` are gated on the `heritage` profile, visible only
   when it is active and otherwise `ol-unknown-command` (slice H3, #668).
 - `check/heritage-alias-suggestion-loses-tie-to-full-name` — a did-you-mean tie between a full
-  canonical name and a short alias resolves to the full name (`dca` → `dict`, not the alias `cs`),
-  per `spec/error-model.md:145-146` (slice H3, #668).
+  canonical name and a short alias resolves to the full name (`dca` → `dict`, not the alias `cs`)
+  (slice H3, #668).
 - `execution/heritage-forms-execute-like-core` — the form heads execute through the identical Core
   node kinds (slice H2, #667).
 - `execution/heritage-aliases-execute-like-core` — the ten command aliases produce a full event
@@ -46,7 +43,7 @@ here fixture-by-fixture as each Heritage slice lands:
 - `check/heritage-reporter-alias-arity-canonical-callable` — a parenthesized reporter alias's arity
   diagnostic carries the **canonical** `params.callable` (`butfirst`), byte-identical to its Core
   twin's, never the surface spelling `bf`: structured diagnostic identity is canonical even when the
-  spelling is an alias (`spec/error-model.md:235-238`), asserting the field directly (#733).
+  spelling is an alias, asserting the field directly (#733).
 - `check/heritage-return-alias-canonical-keyword-{outside-proc,in-comprehension}` — the escape
   spellings `output`/`op` carry the **canonical** `params.keyword` (`return`) at BOTH
   `keyword`-carrying control-flow sites, byte-identical to their Core twin's, while the prose

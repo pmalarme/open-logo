@@ -1,5 +1,5 @@
 {
-  "description": "F5: a `struct` type name colliding with the Geometry overlay primitive `axes` raises `ol-reserved-word` at phase-1 registration. Issue #403; issue #839 dropped the `namespace` param and adopted the single learner-facing sentence, so this fixture is now byte-identical in `code`/`params` to what `check()` reports for the same program (`spec/error-model.md:125`).",
+  "description": "F5: a `struct` type name colliding with the Geometry overlay primitive `axes` raises `ol-reserved-word` at phase-1 registration. Issue #403; byte-identical in `code`/`params` to what `check()` reports for the same program (`spec/error-model.md:125`).",
   "profiles": ["core-language", "data", "geometry"],
   "execute": true,
   "events": [],

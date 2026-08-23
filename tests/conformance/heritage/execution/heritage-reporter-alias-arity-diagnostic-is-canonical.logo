@@ -1,7 +1,7 @@
-# Issue #787: the same reporter-position path when the call is over-applied. It must reach a
-# runtime `ol-too-many-inputs` whose `params.callable` is the CANONICAL `forward`, never the
-# surface `fd` — the rule #670/#733/#741 established for structured params. Before the fix this
-# program crashed the host with a raw `TypeError` instead.
+# Issue #787: the reporter-position alias path when the call is over-applied. `define forward`
+# takes a built-in name, so phase-1 registration raises `ol-reserved-word` and the program halts
+# before the reporter is evaluated: the event stream is empty and no `ol-too-many-inputs` is
+# produced. Re-legalise `define forward` and this fixture reddens.
 define forward
   return 55
 end

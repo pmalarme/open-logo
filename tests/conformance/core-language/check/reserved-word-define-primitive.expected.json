@@ -1,5 +1,5 @@
 {
-  "description": "ol-reserved-word (issue #113): `define first ... end` redefines `first`, a Core primitive. The static checker flags the procedure name at its own span. Issue #838 dropped the `namespace: \"primitive\"` param this fixture used to pin -- spec/error-model.md:125 gives the code `params: { name }` only, and forbids the words *keyword*, *primitive* and *alias* from reaching the learner at all.",
+  "description": "ol-reserved-word (issue #113): `define first ... end` redefines `first`, a Core primitive. The static checker flags the procedure name at its own span.",
   "profiles": ["core-language"],
   "check": true,
   "events": [],

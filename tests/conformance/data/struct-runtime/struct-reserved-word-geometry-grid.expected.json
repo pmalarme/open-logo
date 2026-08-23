@@ -1,5 +1,5 @@
 {
-  "description": "F5: a `struct` type name colliding with the Geometry overlay primitive `grid` raises `ol-reserved-word` at phase-1 registration. Issue #403; since issue #839 the runtime's built-in-name lookup is derived from `@openlogo/parser`'s profile-keyed primitive registry rather than a hand-composed list of arity tables, so `grid` is covered by the registry walk rather than by a named `geometryPrimitiveArity()` branch.",
+  "description": "F5: a `struct` type name colliding with the Geometry overlay primitive `grid` raises `ol-reserved-word` at phase-1 registration. Issue #403.",
   "profiles": ["core-language", "data", "geometry"],
   "execute": true,
   "events": [],

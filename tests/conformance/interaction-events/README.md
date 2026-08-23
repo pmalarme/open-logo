@@ -34,7 +34,7 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   ending (`:110-111` — "until the read finishes or the program is cancelled") through the profile's
   ordinary cancellation diagnostic rather than inventing an answer or a lookalike code; and the
   `check`-mode pair `input-visible-under-profile`/`input-rejected-core-only` proves the name is
-  gated on the profile, as `spec/conformance.md:167-169` and `spec/interaction-events.md:11`
+  gated on the profile, as `spec/conformance.md:171-173` and `spec/interaction-events.md:11`
   require.
 
   **The prompt's `ol-type` (`:131`) is now fixtured — the #768 ruling settled it.** #681 withheld
@@ -186,8 +186,6 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
 - **`redefine-wait-reserved/`** — also issue #687: redefining the profile primitive `wait` raises
   `ol-reserved-word` under an active profile, the primitive branch of the
   rule rather than the reserved-word branch (`wait` is not one of the four reserved block-heads).
-  Issue #838 removed that diagnostic's `namespace` param, so the two branches are now a distinction
-  in the checker only (`spec/error-model.md:125`).
 - **`bindings-free-with-interaction/`** and **`bindings-free-core-only/`** — issue #837: the same
   four block-heads used in **binding** positions (`:when = 1`, `set every to 2`, a `for on_key in …`
   binder, `local on_click`) check clean with the profile active *and* without it. Maintainer ruling
@@ -274,17 +272,12 @@ the gaps it found rather than rubber-stamping them:
   *whole*-number count — and silently splitting `wait`/`every` from `repeat`. The `-word` twins
   exist because a word takes the coercion path, so ordering could be correct for numbers and wrong
   for words; every one of these gaps was found by mutation.
-- **Profile-scoped reservation of the four block-heads.** `spec/interaction-events.md:43-47` reserved
-  `when`/`every`/`on_key`/`on_click` **only within** the profile *as that section read when this pair
-  was written* — a bidirectional MUST that had no
-  fixture at all: `redefine-wait-reserved` covers only `wait`, which is a *primitive* name,
-  not a reserved block-head. The new pair
-  `block-heads-reserved-under-profile` / `block-heads-free-core-only` runs the **byte-identical**
+- **Unconditional reservation of the four block-heads.** The pair
+  `block-heads-reserved-under-profile` / `block-heads-reserved-under-core-only` runs the **byte-identical**
   source both ways: the same `define`s raising `ol-reserved-word` under the active profile, and the
   same diagnostics under Core Language alone. Either fixture alone is satisfied by an
   implementation that answers the same way for the wrong reason; only the pair pins the rule as
-  invariant under the profile set. This is the same gap class the Sprites terminal slice #679 found
-  for its own `ol-reserved-word` rule.
+  invariant under the profile set (`spec/grammar.md:408`).
 
   Both fixtures of that pair use `define`, which issue #837 confirmed is the right slot: maintainer
   ruling #833 keys `ol-reserved-word` to the grammar's four **declaration** slots and frees every
@@ -294,8 +287,7 @@ the gaps it found rather than rubber-stamping them:
   is clean in both directions, so profile-word binding freedom is pinned as **profile-independent**
   rather than inferred. The two profile sets differ by exactly `interaction-events`, since this
   profile depends only on Core (`PROFILE_DEPS`), so nothing else confounds the comparison. It mirrors
-  the Sprites `reserved-bindings-with-sprites` / `-without-sprites` pair, whose two halves became
-  clean under the same ruling.
+  the Sprites `reserved-bindings-with-sprites` / `-without-sprites` pair.
 - **Description corrections.** Three fixtures still deferred handler delivery to "a later
   interactive host slice" that #686 had already landed (`on-key-registered-not-delivered`,
   `on-click-registered-not-delivered`, `when-stop-registered-not-delivered` — and `"stop"` is in

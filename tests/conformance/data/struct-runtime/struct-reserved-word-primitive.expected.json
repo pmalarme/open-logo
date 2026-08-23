@@ -1,5 +1,5 @@
 {
-  "description": "A `struct` type name colliding with a built-in primitive raises `ol-reserved-word` at phase-1 registration (issue #329, `spec/data-structures.md:304,323`): `forward` is a Turtle & Rendering primitive, so `struct forward` cannot register a constructor of that name. Note the profile set here is Core + Data only: the rule is unconditional (`spec/grammar.md`'s declaration-slot rule, ruling #833 rule 4), so a Turtle name is a built-in name whether or not Turtle & Rendering is claimed. Issue #839 dropped the `namespace` param, so `code`/`params` now match `check()`'s exactly.",
+  "description": "A `struct` type name colliding with a built-in primitive raises `ol-reserved-word` at phase-1 registration (issue #329, `spec/data-structures.md:304,323`): `forward` is a Turtle & Rendering primitive, so `struct forward` cannot register a constructor of that name. Note the profile set here is Core + Data only: the rule is unconditional (`spec/grammar.md`'s declaration-slot rule, ruling #833 rule 4), so a Turtle name is a built-in name whether or not Turtle & Rendering is claimed.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [],

@@ -1,5 +1,5 @@
 {
-  "description": "issue #688 (terminal slice, review round 1): the ACTIVE half of `spec/interaction-events.md:43-47` as that section read when this pair was written -- `when`, `every`, `on_key`, and `on_click` are profile block-heads, and they were reserved WITHIN the Interaction & Events profile. Redefining any of the four with `define` raises `ol-reserved-word`, and all four are asserted in one program so a fix that reserved only the name a single fixture happened to pick cannot pass. This used to pin `params.namespace: \"reserved\"` to distinguish these four from the profile's ordinary primitive `wait` (sibling `redefine-wait-reserved`, which pinned `\"primitive\"`); issue #838 removed the param, because spec/error-model.md:125 forbids the words *keyword*, *primitive* and *alias* from the learner message and gives the code `params: { name }` only. The branch distinction survives in the checker, not in the diagnostic. Before this fixture the corpus proved the primitive branch only, so the four block-heads' reservation -- a normative MUST -- rested on unit tests alone and no other implementation was bound by it (the same gap class the Sprites terminal slice #679 found for its own `ol-reserved-word` rule). Its twin `block-heads-free-core-only` runs the SAME source with Core Language alone and expects the same diagnostics, because spec/grammar.md:408 makes the reservation INVARIANT under the profile set rather than scoped by it. It takes the pair to say that; either fixture alone is satisfied by an implementation answering the same way for the wrong reason. This is a check-mode fixture: it proves static legality only and does not execute.",
+  "description": "issue #688: the ACTIVE half of the pair -- `when`, `every`, `on_key`, and `on_click` are profile block-heads. Redefining any of the four with `define` raises `ol-reserved-word`, and all four are asserted in one program so a fix that reserved only the name a single fixture happened to pick cannot pass. Its twin `block-heads-reserved-under-core-only` runs the SAME source with Core Language alone and expects the same diagnostics, because spec/grammar.md:408 makes the reservation INVARIANT under the profile set rather than scoped by it. It takes the pair to say that; either fixture alone is satisfied by an implementation answering the same way for the wrong reason. `message` is absent from the diagnostics below, as it is from its twin: the harness strips it from BOTH sides before comparing (`scripts/harness/index.mjs:977-983`), so supplying one here would be an assertion nothing can evaluate; the learner-facing wording is pinned by unit tests instead (`packages/parser/src/checker-reserved-word.test.mjs:236`). This is a check-mode fixture: it proves static legality only and does not execute.",
   "profiles": ["core-language", "interaction-events"],
   "check": true,
   "events": [],
@@ -14,7 +14,6 @@
       "params": {
         "name": "when"
       },
-      "message": "when is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -28,7 +27,6 @@
       "params": {
         "name": "every"
       },
-      "message": "every is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -42,7 +40,6 @@
       "params": {
         "name": "on_key"
       },
-      "message": "on_key is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -56,7 +53,6 @@
       "params": {
         "name": "on_click"
       },
-      "message": "on_click is already part of OpenLogo. choose another name.",
       "stage": "semantic",
       "severity": "error"
     }

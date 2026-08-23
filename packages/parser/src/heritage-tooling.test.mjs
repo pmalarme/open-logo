@@ -454,7 +454,7 @@ test("highlight: a short alias name is never a keyword — it can be redefined a
   // declaration and call — proving the alias is classified by name/role, not locked to `primitive`
   // the way a keyword is. Declaring `fd` is nonetheless ILLEGAL: since #838 wired
   // `turtlePrimitiveArity` into the declaration-slot rule, the checker raises `ol-reserved-word` on
-  // it Core-only (measured; pinned by `heritage/check/heritage-alias-redefinition-legal-in-core`).
+  // it Core-only (measured; pinned by `heritage/check/heritage-alias-redefinition-rejected-in-core`).
   // What this test pins is token recovery for such a declaration, not its legality.
   const tokens = OL.highlight("define fd\nend\nfd", doc).filter(
     (t) => t.text === "fd",

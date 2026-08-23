@@ -1,5 +1,5 @@
 {
-  "description": "ol-reserved-word (issue #837, maintainer ruling #833): `local measure` is ACCEPTED even with the `geometry` profile active. `local` is a binding form rather than one of the four declaration slots (spec/grammar.md:382), and spec/grammar.md:386 makes accepting the name a MUST in every binding position, whatever profile owns the name. This fixture expected `namespace: \"primitive\"` under issue #427 until this reversal. The renderer-backed overlay `measure` is still a built-in name at a DECLARATION: reserved-word-define-axes and reserved-word-struct-grid pin that half, and stdlib-names-are-definable pins the contrasting Geometry library case.",
+  "description": "ol-reserved-word (issue #837, maintainer ruling #833): `local measure` is ACCEPTED even with the `geometry` profile active. `local` is a binding form rather than one of the four declaration slots (spec/grammar.md:382), and spec/grammar.md:386 makes accepting the name a MUST in every binding position, whatever profile owns the name. The renderer-backed overlay `measure` is a built-in name at a DECLARATION: data/struct-runtime/struct-reserved-word-geometry-measure pins that half for this name, and stdlib-names-are-definable pins the contrasting Geometry library case.",
   "profiles": ["core-language", "geometry"],
   "check": true,
   "events": [],
