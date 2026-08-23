@@ -5352,7 +5352,12 @@ function createExecutionEnvironment(
     repeatTurns: [],
     procedures,
     structs,
-    events: [],
+    // Issue #876: a caller-supplied sink when one was given, so a host suspended inside
+    // `hostInput.read` can read what has already been emitted — `spec/interaction-events.md:108-110`
+    // permits rendering already-emitted events while `input` waits, and the reader receives only the
+    // prompt, so without this seam that allowance is unreachable. It IS the array `runProgram`
+    // returns; supplying it only makes the stream readable earlier. See `index.ts`.
+    events: options?.observedEvents ?? [],
     foreverIterationLimit,
     callDepth: [],
     recursionDepthLimit: resolveEffectiveRecursionDepthLimit(

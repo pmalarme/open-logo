@@ -274,6 +274,30 @@
  *   accessible name is the program's own question, an autofocused answer field, and Escape/Cancel
  *   routed to `cancel()`. It is closed — and so absent from both the layout and the accessibility
  *   tree — until a program actually asks something.
+ *
+ * #876 makes that read **genuinely blocking**, and gives Stop something it can preempt. It is a
+ * mechanism change, not a correctness fix: #881 already closed the replay's divergence window.
+ * - {@link ExecutionHost} (`execution-host.ts`) is the seam. `createRunController` composes one
+ *   instead of calling `@openlogo/runtime`'s `execute()` itself, and a host's whole contract is to
+ *   settle with an {@link ExecutionSettlement}. {@link createInProcessExecutionHost} is the default
+ *   and carries #769's replay unchanged, settling synchronously — so omitting
+ *   {@link RunControllerOptions.executionHost} changes nothing.
+ * - {@link createWorkerExecutionHost} runs the interpreter in a Worker that parks inside the read on
+ *   `Atomics.wait`, so **one execution answers however many questions** (the replay costs N+1), and
+ *   a `CancellationSignal` backed by shared memory aborts a loop *mid*-`execute()` — the preemptible
+ *   Stop `run-controller.ts` has recorded as impossible since #126.
+ * - `blocking-input-channel.ts` is the protocol: straight-line logic over an `Int32Array` control
+ *   block and a `Uint16Array` answer region, with `wait`/`notify` **injected** so a primitive that
+ *   throws on a browser's main thread stays fully covered by `node:test` with no timing dependence.
+ *   No single park is indefinite, so a Stop is observed even if its wake-up were missed.
+ * - {@link runExecutionWorkerCommand} (`execution-worker-runner.ts`) is the Worker side;
+ *   `web/execution-worker.ts` supplies the real `Atomics.wait` and nothing else.
+ * - {@link selectExecutionHost} picks between them from `crossOriginIsolated` +
+ *   `SharedArrayBuffer`, because the Worker host needs COOP/COEP cross-origin isolation — a
+ *   deployment posture, not a code decision. The replay is the **degraded mode**, kept and tested.
+ * - A settlement carries `output`/`tutorOutput` already reduced, because structured clone drops
+ *   class prototypes and `printedForm` throws on a cloned `OLDict`: values are reduced on the thread
+ *   that produced them. See `docs/adr/0023-worker-execution-host.md`.
  */
 
 export type {
@@ -344,18 +368,68 @@ export {
   createParserHighlighter,
 } from "./highlighter.js";
 
-export type {
-  RecordedAnswer,
-  RecordedAnswerResolution,
-  RunController,
-  RunControllerOptions,
-} from "./run-controller.js";
+export type { RunController, RunControllerOptions } from "./run-controller.js";
 export {
   DEFAULT_RUN_DOCUMENT,
   createRunController,
   mountRunController,
-  resolveRecordedAnswer,
 } from "./run-controller.js";
+
+export type {
+  ExecutionHost,
+  ExecutionRequest,
+  ExecutionSettle,
+  ExecutionSettlement,
+  InProcessExecutionHostOptions,
+  RecordedAnswer,
+  RecordedAnswerResolution,
+} from "./execution-host.js";
+export {
+  collectOutput,
+  collectTutorOutput,
+  createInProcessExecutionHost,
+  resolveRecordedAnswer,
+  toExecuteOptions,
+} from "./execution-host.js";
+
+export type {
+  BlockingAnswerDelivery,
+  BlockingInputBufferAllocator,
+  BlockingInputChannel,
+  BlockingInputNotify,
+  BlockingInputWait,
+  BlockingReadOutcome,
+} from "./blocking-input-channel.js";
+export {
+  BLOCKING_INPUT_CONTROL_SLOT_COUNT,
+  DEFAULT_BLOCKING_INPUT_ANSWER_CAPACITY,
+  DEFAULT_BLOCKING_INPUT_POLL_INTERVAL_MS,
+  armBlockingRead,
+  awaitBlockingRead,
+  blockingInputBufferByteLength,
+  clearBlockingRead,
+  createBlockingInputChannel,
+  createSharedCancellationSignal,
+  deliverBlockingAnswer,
+  dismissBlockingRead,
+  isBlockingCancellationRequested,
+  isBlockingReadOutstanding,
+  requestBlockingCancellation,
+} from "./blocking-input-channel.js";
+
+export type {
+  ExecutionWorkerCommand,
+  ExecutionWorkerDoneReport,
+  ExecutionWorkerPort,
+  ExecutionWorkerReadReport,
+  ExecutionWorkerReport,
+  ExecutionWorkerRunCommand,
+  WorkerExecutionHostOptions,
+} from "./worker-execution-host.js";
+export { createWorkerExecutionHost } from "./worker-execution-host.js";
+
+export type { ExecutionWorkerRunnerOptions } from "./execution-worker-runner.js";
+export { runExecutionWorkerCommand } from "./execution-worker-runner.js";
 
 export type {
   InputPromptController,
@@ -432,6 +506,7 @@ export {
 export type {
   DiagnosticListItem,
   KeyValueStorage,
+  SharedMemoryCapability,
   TextValueTarget,
   TimeoutSchedulerTimers,
 } from "./web-bootstrap.js";
@@ -445,7 +520,9 @@ export {
   formatOutput,
   NO_DIAGNOSTICS_LABEL,
   selectAnnouncerElementId,
+  selectExecutionHost,
   selectScheduler,
+  supportsBlockingExecutionHost,
   syncTextValue,
   toDiagnosticListItems,
 } from "./web-bootstrap.js";

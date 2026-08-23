@@ -567,3 +567,34 @@ test("#769: web/main.ts sets the dialog's accessible name BEFORE opening it", ()
       "dialog's accessible name",
   );
 });
+
+test("#876: web/main.ts delegates the execution-host choice to the tested helper, never a ternary of its own", () => {
+  // `selectExecutionHost` takes a FACTORY, so a page without shared memory never constructs a
+  // Worker it could not use — and the branch stays in `src/web-bootstrap.ts`, inside the coverage
+  // gate, rather than in this untested wiring layer.
+  assert.match(mainTs, /selectExecutionHost\(/);
+  assert.match(
+    mainTs,
+    /crossOriginIsolated: globalThis\.crossOriginIsolated === true/,
+  );
+  assert.match(
+    mainTs,
+    /hasSharedArrayBuffer: typeof SharedArrayBuffer !== "undefined"/,
+  );
+  assert.match(mainTs, /createWorkerExecutionHost\(/);
+  assert.match(mainTs, /executionHost,/);
+});
+
+test("#876: the Worker entry supplies the real Atomics primitives and decides nothing itself", () => {
+  const workerTs = readFileSync(
+    path.join(packageDir, "web", "execution-worker.ts"),
+    "utf8",
+  );
+
+  assert.match(workerTs, /runExecutionWorkerCommand\(/);
+  assert.match(workerTs, /Atomics\.wait\(/);
+  // `Atomics.wait` is only legal off the main thread, which is exactly why the interpreter runs
+  // here — and why the main-thread half only ever notifies.
+  assert.doesNotMatch(mainTs, /Atomics\.wait\(/);
+  assert.match(mainTs, /Atomics\.notify\(/);
+});

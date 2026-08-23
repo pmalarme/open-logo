@@ -215,6 +215,27 @@ export interface ExecuteResult {
  *   generator's own state rather than reading the clock
  *   (`random-number-generator.ts`'s `drawImplementationSeed`), so it cannot silently re-enter
  *   entropy and undo a pinned seed mid-run.
+ * - `observedEvents` (issue #876) — a caller-supplied array this run **appends every trace event to
+ *   as it is emitted**, rather than only handing the stream back when `execute()` returns.
+ *
+ *   For any program that actually starts executing it is the *same* array
+ *   {@link ExecuteResult.events} reports, so supplying it only makes that stream readable
+ *   *earlier*. Rely on its **contents**, though, not on identity: a call that returns before an
+ *   execution environment exists at all — a program that fails to parse, for instance — never
+ *   reaches the sink, and reports its own separate empty `events` array. Nothing is appended on
+ *   those paths, so a host still cannot read a stale or partial prefix; only `result.events ===
+ *   observedEvents` may be `false`.
+ *
+ *   It exists for exactly one caller: a host suspended inside {@link HostInput.read}. The reader is
+ *   called with the prompt and nothing else, so without this a host that blocks there — a Worker
+ *   using `Atomics.wait`, say — cannot see what the program has drawn or printed so far, and must
+ *   show the learner a question over a blank canvas. `spec/interaction-events.md:108-110` explicitly
+ *   permits the opposite ("While `input` is waiting, the implementation **MAY** continue rendering
+ *   already-emitted trace events"), and this is the seam that makes that allowance reachable.
+ *
+ *   Pass a **fresh empty array** per run: the events are appended, never cleared, so reusing one
+ *   across runs concatenates them. Reading it while a run is in progress is only meaningful from
+ *   inside a `read` call, since `execute()` never yields anywhere else.
  */
 export interface ExecuteOptions {
   readonly instructionBudget?: number;
@@ -224,6 +245,7 @@ export interface ExecuteOptions {
   readonly learnerLevel?: TutorLearnerLevel;
   readonly hostInput?: HostInput;
   readonly randomSeed?: number;
+  readonly observedEvents?: TraceEvent[];
 }
 
 /**
