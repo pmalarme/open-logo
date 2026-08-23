@@ -18,13 +18,13 @@
 //      visible-name rule, because they lower onto the same Core AST nodes as their equivalents.
 //   2. Ten short command aliases — `fd`/`bk`/`lt`/`rt`/`pu`/`pd`/`st`/`ht`/`cs`/`pr` (#668). Ordinary
 //      primitive call names (not reserved), so they fall through the profile-blind lexical fallback
-//      to `primitive` + `defaultLibrary` (`spec/tooling.md:31,278`), exactly like `forward`.
+//      to `primitive` + `defaultLibrary` (`spec/tooling.md:31,279`), exactly like `forward`.
 //      Recognized under an active `heritage` profile by `collectVisibleNames`.
 //   3. Three list-reporter aliases — `bf`/`bl`/`se` (#669). Also ordinary primitive names, but they
 //      appear in EXPRESSION position (as arguments), a different highlighter path than a
 //      statement-head call — still `primitive` + `defaultLibrary`, like `butfirst`/`sentence`.
 //   4. The `value of <dict> for key <key>` reader (#670). A four-word grammar production
-//      (`spec/grammar.md:213`) lowering to a dedicated `ValueOfKeyNode`. All four of its words are
+//      (`spec/grammar.md:217`) lowering to a dedicated `ValueOfKeyNode`. All four of its words are
 //      `keyword` and none carries `defaultLibrary`. `value`/`for`/`key` because they are reserved
 //      words (`spec/tooling.md:92`); `of` because `spec/tooling.md:97-99` — the normative
 //      highlighter instruction — marks these contextual words `keyword` "only inside an
@@ -36,13 +36,12 @@
 //      names `of` among the contextual words that take the `keyword` class in the structural
 //      positions it describes, and
 //      `spec/grammar.md:380` calls it "the contextual preposition in the heritage
-//      `value of … for key` reader". Not every passage is yet phrased to match:
-//      `spec/grammar.md:234`, `:380`, `spec/execution-model.md:154-156`, and
-//      `spec/commands.md:461` still scope these words' contextual-keyword status to the
-//      `is`-predicate — a tension `:380` has carried since the spec's initial commit, since it also
-//      contains the reader parenthetical. All four govern reader recognition and reservation, not
-//      the token-class model that `spec/tooling.md` owns; tightening them is a maintainer call
-//      raised with the ruling.
+//      `value of … for key` reader". Those passages now match: `spec/grammar.md:234`,
+//      `spec/execution-model.md:156-159`, and `spec/commands.md:461` each keep their
+//      "after `is`" claim scoped to their own subject and name this reader as `of`'s other
+//      structural position (#856), and `spec/grammar.md:380` had already folded its reader
+//      parenthetical into the sentence (#875), ending the tension it carried from the spec's
+//      initial commit. None of them governs the token-class model that `spec/tooling.md` owns.
 //
 //      Until #785 `of` alone was `primitive` + `defaultLibrary` — a class `spec/tooling.md:31`
 //      scopes to "commands, reporters, and aliases **from the C3 primitive matrix**", which `of` is
@@ -118,7 +117,7 @@ function commandAliasCall(alias) {
 }
 
 /**
- * Every structural word of the `value of … for key` reader (`spec/grammar.md:213`) — all four are
+ * Every structural word of the `value of … for key` reader (`spec/grammar.md:217`) — all four are
  * `keyword`. `value`/`for`/`key` are reserved words; `of` is the contextual preposition this
  * production recognizes positionally (issue #785).
  */
