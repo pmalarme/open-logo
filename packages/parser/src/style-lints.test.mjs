@@ -801,8 +801,11 @@ test("ol-style-predicate-name: a procedure ending in ? that returns a number is 
 });
 
 test("ol-style-predicate-name: a procedure returning an unclassifiable expression (a variable) is left unflagged either way", () => {
-  assert.deepEqual(checkStyle("define pick :flag\n  return :flag\nend"), []);
-  assert.deepEqual(checkStyle("define pick? :flag\n  return :flag\nend"), []);
+  // The stand-in name must be one no registry owns: `pick` is a Data primitive, so declaring it
+  // raises `ol-reserved-word` and the assertion would fail for a reason unrelated to predicate-name
+  // style.
+  assert.deepEqual(checkStyle("define decide :flag\n  return :flag\nend"), []);
+  assert.deepEqual(checkStyle("define decide? :flag\n  return :flag\nend"), []);
 });
 
 test("ol-style-predicate-name: returns belonging to a nested procedure are never attributed to the outer one", () => {

@@ -14,12 +14,11 @@ import * as OL from "@openlogo/parser";
  * Also covers the reserved-word collision parity: `define`/`struct` registrations that
  * redefine `set_tempo`/`beep` must raise `ol-reserved-word` when the
  * `sound` profile is active — the checker's static counterpart to the runtime's own
- * `isPrimitiveName()` collision guard (#403) — and must not raise when it is inactive. That
- * inactive-profile half is SHIPPED BEHAVIOUR, not a spec requirement: `spec/grammar.md:408` makes
- * every profile's primitives built-in names unconditionally, so a conforming implementation must
- * raise with or without `sound`; retiring the gate is #841's, which flips those assertions.
+ * `isPrimitiveName()` collision guard (#403) — and, since issue #841, when it is inactive too:
+ * `spec/grammar.md:408` makes every profile's primitives built-in names unconditionally, so the
+ * active and inactive cases below must agree name for name.
  * (Issue #838 removed that diagnostic's `namespace` param; `local` became a binding form under
- * ruling #833 and raises nothing at all.)
+ * ruling #833 and raises nothing at all — the one axis a profile set still does not move.)
  */
 
 function parseClean(source) {
@@ -290,24 +289,34 @@ test("a local naming a Sound primitive is a binding, so it raises nothing", () =
   }
 });
 
-test("without the sound profile active, define/local/struct set_tempo/beep raise no reserved-word collision", () => {
+test("#841: without the sound profile, define/struct set_tempo/beep/… still raise — only local stays free", () => {
+  // Both axes at once, and they answer differently on purpose. The DECLARATION slots (`define`,
+  // `struct`) are profile-independent — `spec/grammar.md:408`, retired gate, issue #841 — while
+  // `local` is a BINDING form that `spec/grammar.md:386` makes a MUST to accept, so it raises
+  // nothing whether or not `sound` is claimed. Keeping all three in one test is what stops a future
+  // change from flipping the wrong one.
   for (const name of ["set_tempo", "beep", "note", "rest", "play"]) {
     const defineOnly = parseClean(`define ${name}\nend`);
-    assert.deepEqual(
-      OL.check(defineOnly, { profiles: ["core-language"] }).diagnostics,
-      [],
-    );
+    const defineDiagnostics = OL.check(defineOnly, {
+      profiles: ["core-language"],
+    }).diagnostics;
+    assert.equal(defineDiagnostics.length, 1, `define ${name} must raise`);
+    assert.equal(defineDiagnostics[0].code, "ol-reserved-word");
+    assert.deepEqual(defineDiagnostics[0].params, { name });
 
     const localOnly = parseClean(`define greet\n  local ${name}\nend`);
     assert.deepEqual(
       OL.check(localOnly, { profiles: ["core-language"] }).diagnostics,
       [],
+      `local ${name} is a binding, not a declaration slot`,
     );
 
     const structOnly = parseClean(`struct ${name} [ x ]`);
-    assert.deepEqual(
-      OL.check(structOnly, { profiles: ["core-language", "data"] }).diagnostics,
-      [],
-    );
+    const structDiagnostics = OL.check(structOnly, {
+      profiles: ["core-language", "data"],
+    }).diagnostics;
+    assert.equal(structDiagnostics.length, 1, `struct ${name} must raise`);
+    assert.equal(structDiagnostics[0].code, "ol-reserved-word");
+    assert.deepEqual(structDiagnostics[0].params, { name });
   }
 });

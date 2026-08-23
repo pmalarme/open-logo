@@ -11,11 +11,13 @@
 // own `repeat <word> [ ]`. The `repeat` ran with no count and nothing said so — the silent no-op
 // class (saga #811).
 //
-// **The rule is deliberately profile-GATED**, which is what the Core-only half below pins. The
-// reader is profile-blind by design (`parser.ts`'s `PROFILE_STATEMENT_FORMS`), because a Core-only
-// program may legally `define ask … end` and call it — so this is a checker rule, not a reader one.
-// Whether these words are built-in names *unconditionally* (`spec/grammar.md:408`) is a different
-// question, asked at the four **declaration** slots, and is issue #841's: nothing here touches it.
+// **The rule is deliberately profile-GATED**, which is what the Core-only half below pins — and it
+// is now the *opposite* of the declaration rule, which is why the two are pinned together. The
+// reader is profile-blind by design (`parser.ts`'s `PROFILE_STATEMENT_FORMS`), so a program that
+// declares `ask` is shaped as an ordinary `define`/call pair; whether that declaration is *legal*
+// is `checker-reserved-word.ts`'s question, and since issue #841 the answer is no, in every profile
+// set (`spec/grammar.md:408`). This rule still asks its own question with the profile set, because
+// `ol-bad-token` is about a word used where an ACTIVE profile's grammar gives it no callable form.
 //
 // The sweeps run off `OL.OL_PROFILE_KEYWORDS` rather than a hand-written list, so a profile slice
 // that adds a block-head cannot slip past them unnoticed. It is NOT covered automatically, and that
@@ -275,11 +277,16 @@ test("both profiles active at once — each word answers to its own profile", ()
   ]);
 });
 
-test("without its profile, a profile word stays an ordinary name — no ol-bad-token", () => {
-  // The gate that keeps this rule out of issue #841's territory. Core-only, `when` is simply a name
-  // nothing declares, so `checker-unknown-command.ts` reports it exactly as it did before — and a
-  // program that DOES declare it checks clean, which is what the conformance fixture
-  // `interaction-events/block-heads-free-core-only` pins for the declaration half.
+test("without its profile, a profile word stays an ordinary name in VALUE position — no ol-bad-token", () => {
+  // The gate that keeps THIS rule (issue #864's position rule) profile-scoped, which #841 did not
+  // touch: `ol-bad-token` fires when a profile word appears where the word's own ACTIVE profile
+  // gives it no callable form. With the profile inactive it has no structural role to be out of,
+  // so Core-only `when` in value position is simply a name nothing declares and
+  // `checker-unknown-command.ts` reports it exactly as before.
+  //
+  // The DECLARATION half is the opposite and is asserted below: since #841 a Core-only
+  // `define when` raises `ol-reserved-word`, which is why the two axes are pinned in one test —
+  // `spec/grammar.md:408` moved one of them and not the other.
   for (const { word } of PROFILE_WORDS) {
     assert.deepEqual(
       badTokenTexts(`print ${word}\n`, CORE_ONLY),
@@ -297,9 +304,9 @@ test("without its profile, a profile word stays an ordinary name — no ol-bad-t
       allDiagnostics(
         `define ${word}\n  return 3\nend\nprint ${word}\n`,
         CORE_ONLY,
-      ),
-      [],
-      `Core-only \`define ${word}\` and its call must stay legal`,
+      ).map((diagnostic) => diagnostic.code),
+      ["ol-reserved-word"],
+      `Core-only \`define ${word}\` is a built-in-name collision, not an ol-bad-token`,
     );
   }
 });

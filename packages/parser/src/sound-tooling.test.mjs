@@ -1,9 +1,9 @@
 // Unit tests for the **tooling** view of the Sound profile's five commands — `set_tempo`, `beep`,
 // `note`, `rest`, `play` (issue #692, slice S4 of the Sound epic #662; `spec/tooling.md`'s token
 // classes + three checker layers, `spec/interaction-events.md`'s "Sound primitives" section). The
-// executable behavior (reader arity grouping + Layer-2 recognition/arity/reserved-word gating)
-// already shipped in S1–S3 and is exercised by `sound-arity.test.mjs`; this file locks the
-// grammar-derived *tooling* contract those slices left implicit:
+// The executable behavior (reader arity grouping + Layer-2 recognition, arity, and reserved-word
+// collision checking) already shipped in S1–S3 and is exercised by `sound-arity.test.mjs`; this
+// file locks the grammar-derived *tooling* contract those slices left implicit:
 //
 //   1. Highlighting — a Sound command name is an ordinary primitive call, not a block-head, so
 //      `highlight()` classifies it `primitive` (`spec/tooling.md:28-44`) and `semanticTokens()`

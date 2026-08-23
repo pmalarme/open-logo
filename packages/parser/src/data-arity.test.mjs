@@ -17,9 +17,8 @@ import * as OL from "@openlogo/parser";
  * is whether a name *works*, never whether a program may declare it" — so a conforming 0.4.0
  * implementation raises `ol-reserved-word` on `define dict` with or without the profile claimed.
  *
- * The shipped checker still gates that third axis, which is why the tests below assert it. That is
- * a tracked deviation from the spec, not the rule: retiring it is issue #841's always-on
- * built-in-names list, at which point the Core-only reserved-word cases here flip.
+ * The checker does not gate that third axis, which is why the Core-only cases below expect
+ * `ol-reserved-word` rather than a clean check.
  */
 
 function parseClean(source) {
@@ -110,7 +109,7 @@ test("a Data primitive called (parenthesized) with too many inputs raises ol-too
 // taken, and calling it is an unknown command.
 //
 // **This is pre-existing.** #838 did not create it; it made the first half profile-blind and so
-// made the asymmetry visible. It is NOT what issue #841 retires either: #841's subject is the
+// made the asymmetry visible. It is NOT what issue #841 retired either: #841's subject was the
 // `ol-reserved-word` axis (may a program DECLARE a built-in name), and this is the
 // `ol-unknown-command` axis (is a name AVAILABLE), which `spec/tooling.md:175-176` genuinely does
 // gate on the profile. The open question is narrower than either: whether a Core-only `struct` is a
@@ -208,19 +207,15 @@ test("two struct declarations sharing a name are checked in source order: the fi
   assert.deepEqual(diagnostics[0].params.original_span.start, [1, 8]);
 });
 
-test("without the data profile active, `dict` is not a built-in name, so `struct dict` is free", () => {
-  // The title used to say "a struct name is not registered so no collision is reported", which
-  // stated the pre-#838 rule as the reason and now contradicts the test six lines below: a struct
-  // DOES collide under Core alone when it duplicates an earlier declaration. The body was always
-  // right; only the stated reason was wrong.
-  //
-  // The real reason is narrower and belongs to a different rule: `dict` is a **Data primitive**, so
-  // it is a built-in name only while `data` is claimed. That gate is `ol-reserved-word`'s, not
-  // `ol-duplicate-definition`'s, and `spec/grammar.md:408` has already overruled it — retiring it is
-  // issue #841's, at which point this test flips to expecting `ol-reserved-word`.
+test("#841: `dict` is a built-in name without the data profile, so `struct dict` raises", () => {
+  // `spec/grammar.md:408` — a profile decides whether a name works, never whether a program may
+  // declare it — so `dict` is a built-in name under Core alone exactly as it is under Data. This is
+  // the `ol-reserved-word` half, not `ol-duplicate-definition`'s.
   const ast = parseClean("struct dict [ x ]");
   const { diagnostics } = OL.check(ast, { profiles: ["core-language"] });
-  assert.deepEqual(diagnostics, []);
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].code, "ol-reserved-word");
+  assert.deepEqual(diagnostics[0].params, { name: "dict" });
 });
 
 test("without the data profile active, a struct DUPLICATING a procedure is still reported", () => {
@@ -236,10 +231,10 @@ test("without the data profile active, a struct DUPLICATING a procedure is still
   // guard is profile-blind too, so keeping the gate here made `check()` call clean a program that
   // `execute()` then rejected.
   //
-  // Its neighbours above are unaffected and still gated, which is the distinction worth keeping:
-  // `struct dict [ x ]` under Core alone stays clean because `dict` is only a BUILT-IN name when
-  // `data` is claimed (that gate is issue #841's to retire), and `local point` stays clean because
-  // `local` is a binding form (ruling #833). Only the duplicate question is profile-blind.
+  // Its neighbours above are unaffected, which is the distinction worth keeping: `struct dict` is
+  // now `ol-reserved-word` under Core alone because issue #841 made `dict` a built-in name whether
+  // or not `data` is claimed, and `local point` stays clean because `local` is a binding form
+  // (ruling #833). Three questions, three answers — only one of which a profile ever moved.
   for (const [label, source, laterLine] of [
     ["define then struct", "define point\nend\nstruct point [ x ]", 3],
     ["struct then define", "struct point [ x ]\ndefine point\nend", 2],

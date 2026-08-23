@@ -63,15 +63,7 @@ import type {
   StatementNode,
   StructDefNode,
 } from "@openlogo/parser";
-import {
-  canonicalOfHeritageAlias,
-  isKeyword,
-  OL_CHECK_PROFILES,
-  OL_PROFILE_KEYWORDS,
-  parse,
-  profilePrimitiveNames,
-  walk,
-} from "@openlogo/parser";
+import { isBuiltInName, parse, walk } from "@openlogo/parser";
 import { normalizeColor } from "./color.js";
 import { isRecognizedShape, normalizeShape } from "./shape.js";
 import { isValidPitch } from "./pitch.js";
@@ -4179,81 +4171,6 @@ type DeclarationRegistration =
   | { readonly ok: false; readonly diagnostic: Diagnostic };
 
 /**
- * Every profile keyword's contributing profile, straight off `OL_PROFILE_KEYWORDS`'s own keys, so
- * {@link isBuiltInName} counts `ask`/`when`/`on_key`… without restating one of them and a profile
- * that starts contributing keywords is covered without editing this file.
- *
- * `execute()` has no notion of an active profile set — it runs every profile's primitives
- * unconditionally — and `spec/grammar.md:408` wants exactly that of a declaration slot anyway:
- * "what a profile decides is whether a name works, never whether a program may declare it".
- */
-const ALL_KEYWORD_PROFILES: readonly string[] =
-  Object.keys(OL_PROFILE_KEYWORDS);
-
-/**
- * Every primitive name any profile registers, derived from `signatures.ts`'s profile-keyed registry
- * by walking `OL_CHECK_PROFILES`.
- *
- * **This is a temporary, NON-ADR-COMPLIANT fallback, approved by @orchestrator as an interim
- * sequence for issue #839, to be REPLACED by issue #841's export — not kept alongside it.** Saying
- * so plainly is the point.
- * [ADR-0021](../../../docs/adr/0021-built-in-names-list-and-ci-gate.md) makes a single
- * machine-readable file, `spec/built-in-names.json`, the **authoritative** source, with CI asserting
- * the implementation's registries equal it exactly in both directions; it also says explicitly that
- * "a flat name set is insufficient" and that every registry a name belongs to must be recorded
- * rather than inferred. A flattened `Set` derived from the registries is therefore *not* the list
- * ADR-0021 means, and this comment must not claim otherwise. That manifest does not exist in this
- * tree — it is #841's deliverable, along with the CI drift gate and retiring
- * `checker-reserved-word.ts`'s remaining hand-composed profile branches.
- *
- * What it does buy, and what it does not. It replaces a hand-composed disjunction of seven arity
- * lookups that silently omitted Sprites, Tutor and every Heritage alias — the hole through which 45
- * names were declarable at run time — so a profile that gains a table, or a table that gains a
- * name, is covered the moment it lands, with no second edit here.
- *
- * The interim guarantee is `execute-declaration-slots.test.mjs`'s "`execute()` and `check()` report
- * the SAME identity for every built-in name at `define`". **That is a weaker property than #841's
- * gate and must not be described as the same one**: it proves the two stages *agree* on the names
- * the runtime knows, whereas the gate proves both *match a normative artifact*. Agreement is not
- * correctness — an accidental extra registry name makes both stages reject a spec-legal name, and
- * they would agree about it. A cross-stage agreement test draws its expected value from the
- * implementation, so an error present in both stages is invisible to it by construction. It closes
- * the divergence that exists today (`execute()` never runs `check()`); conformance to the shipped
- * list is #841's to establish.
- */
-const ANY_PROFILE_PRIMITIVE_NAMES: ReadonlySet<string> = new Set(
-  OL_CHECK_PROFILES.flatMap((profile) => profilePrimitiveNames(profile)),
-);
-
-/**
- * Is `name` a primitive of any profile, including every Heritage short-alias spelling of one?
- *
- * An alias is resolved to its canonical spelling and looked up again rather than given a table of
- * its own, the construction `checker-reserved-word.ts` uses: Heritage is "alternate spellings only,
- * no new semantics" (`spec/conformance.md:150`), so `define pr` must be exactly as illegal as
- * `define print`, and re-entering the same lookup makes that hold by construction. The recursion is
- * depth-1 because no canonical spelling is itself an alias, which
- * `execute-declaration-slots.test.mjs` pins directly off the registry.
- */
-function isPrimitiveName(name: string): boolean {
-  const lower = name.toLowerCase();
-  if (ANY_PROFILE_PRIMITIVE_NAMES.has(lower)) {
-    return true;
-  }
-  const canonical = canonicalOfHeritageAlias(lower);
-  return canonical !== undefined && isPrimitiveName(canonical);
-}
-
-/**
- * Does OpenLogo itself own `name` — as a keyword or as a primitive of any profile, alias spellings
- * included? This is `ol-reserved-word`'s whole subject (`spec/error-model.md:125`), and the runtime
- * half of the parser's `isBuiltInName` with every profile active.
- */
-function isBuiltInName(name: string): boolean {
-  return isKeyword(name, ALL_KEYWORD_PROFILES) || isPrimitiveName(name);
-}
-
-/**
  * The runtime's phase-1 registration guard, over the grammar's **declaration slots** — `define`/`to`
  * and `struct` (`spec/grammar.md:58-59,165`; issue #833's maintainer ruling). `spec/grammar.md:165`
  * enumerates **four** slots: the fourth is the first operand of `alias`, which has no AST node yet
@@ -4262,10 +4179,11 @@ function isBuiltInName(name: string): boolean {
  *
  * It answers the one question a declaration slot asks — *is this name already taken, and by whom?* —
  * with the one code that fits, exactly as the parser's `declarationSlotRule` does, so `check()` and
- * `execute()` agree on code, params and spans **when every profile is active** (issue #839). That
- * qualifier is load-bearing: `checker-reserved-word.ts` still gates some profiles, so under a
- * Core-only `check()` there is a measured residual in the opposite direction, recorded in
- * `tests/conformance/sprites/define-profile-keyword-reserved-at-runtime/` and owned by issue #841.
+ * `execute()` agree on code, params and spans (issue #839).
+ *
+ * **They agree because they call the same predicate**, `@openlogo/parser`'s {@link isBuiltInName},
+ * rather than composing an answer each. Two compositions of one rule drift apart silently, and this
+ * pair did — so do not reintroduce a local one here.
  *
  * - `ol-reserved-word` when OpenLogo owns the name ({@link isBuiltInName});
  * - otherwise `ol-duplicate-definition` when an earlier declaration already registered the name,

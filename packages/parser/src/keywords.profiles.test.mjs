@@ -7,15 +7,17 @@
 // criteria are proven here against the public `@openlogo/parser` surface:
 //   - Sprites active  → ask/each/tell are keywords.
 //   - Interaction active → when/every/on_key/on_click are keywords.
-//   - Core only        → ask/when are ordinary names AND the Core list is unchanged (non-regression).
+//   - Core only        → ask/when do not PAINT as keywords, and the Core list is unchanged
+//                        (non-regression) — but they are still built-in names a program may not
+//                        declare, which is the axis #841 separated out.
 //
-// **The profile gate these tests pin is a tracked deviation from the spec.** `spec/grammar.md:408`
-// says profile words are built-in names **unconditionally** — "what a profile decides is whether a
-// name *works*, never whether a program may declare it" — and issue #855 aligned the two profile
-// documents and `spec/tooling.md:100-104` with it, so no spec text carries the profile-conditional
-// wording any more. The always-on built-in-names list that retires the gate is #841. Until then
-// these assertions describe the shipped behaviour, and the section citations above are to the
-// sections that define these words, not to a profile-conditional reservation they no longer state.
+// **Two axes read this registry and answer differently.** `spec/grammar.md:408` — "what a profile
+// decides is whether a name *works*, never whether a program may declare it" — makes the
+// DECLARATION assertions below answer the same way for every profile set. The PAINT assertions stay
+// profile-gated, because `spec/tooling.md:30` asks for that gate. So the "Core only" row above
+// reads: `ask`/`when` do not paint as keywords there, yet are still names a program may not
+// declare. The section citations are to the sections that define these words; no spec text states a
+// profile-conditional reservation.
 //
 // Runs under `node --test` against the built `@openlogo/parser` package.
 
@@ -108,16 +110,27 @@ test("isKeyword stays case-insensitive for Core words", () => {
 });
 
 test("Core-only callers do not match any profile block-head (AC 3)", () => {
+  // The PAINT axis only. `isKeyword` answers "does this word classify as a keyword right now" —
+  // it is what `highlight.ts` consults for the `keyword` token class — and under Core alone the
+  // answer is no, which is `spec/tooling.md:30`'s "while their profile is active" clause. The
+  // reader never calls it: `parser.ts` is profile-blind by design. Nor is a `false` here a
+  // statement that the word is an ordinary name — since issue #841 `define ask` is
+  // `ol-reserved-word` under Core too, and `isKeywordInAnyProfile` is the predicate that says so.
   for (const word of [...SPRITES_WORDS, ...INTERACTION_WORDS]) {
     assert.equal(
       OL.isKeyword(word),
       false,
-      `${word} must be an ordinary name in Core`,
+      `${word} must not paint as a keyword in Core`,
     );
     assert.equal(
       OL.isKeyword(word, ["core-language"]),
       false,
-      `${word} must be an ordinary name with only core-language active`,
+      `${word} must not paint as a keyword with only core-language active`,
+    );
+    assert.equal(
+      OL.isKeywordInAnyProfile(word),
+      true,
+      `${word} is still a name Core-only programs may not declare`,
     );
   }
 });
@@ -200,9 +213,10 @@ test("OL_PROFILE_KEYWORDS maps exactly the two contributing profiles to their sp
 });
 
 // --- Checker-level end-to-end proof of the three acceptance criteria (issue #663). ---
-// A profile block-head declared by `define`/`struct` raises `ol-reserved-word` only when its
-// profile is active. Verified through the public `check()` surface, mirroring name-resolution's
-// `checkSource` shape.
+// A profile block-head declared by `define`/`struct` raises `ol-reserved-word` under EVERY profile
+// set: `spec/grammar.md:408` makes profile words built-in names unconditionally, and issue #841
+// removed the gate that once made this answer depend on the active profile. Verified through the
+// public `check()` surface, mirroring name-resolution's `checkSource` shape.
 
 function checkSource(source, profiles = ["core-language"]) {
   const { ast, diagnostics: parseDiagnostics } = OL.parse(source, "unit.logo");
@@ -263,27 +277,41 @@ test("Interaction & Events active: define when/every/on_key/on_click raises ol-r
   }
 });
 
-test("Core only: ask/each/tell/when/every/on_key/on_click are ordinary procedure names (AC 3)", () => {
+test("#841: Core only, ask/each/tell/when/every/on_key/on_click are still built-in names", () => {
+  // `spec/grammar.md:408`: "a program cannot declare which profiles it requires … so a name that
+  // could be declared in one implementation but not in another would be invisible and unpredictable
+  // to a learner". The word's own profile is therefore irrelevant to the declaration question, and
+  // this test must agree word for word with the sibling above that checks each with its profile
+  // ACTIVE.
   for (const word of [...SPRITES_WORDS, ...INTERACTION_WORDS]) {
-    assert.deepEqual(
-      checkSource(`define ${word} :x\n  print :x\nend\n`).filter(
-        isReservedWordFinding,
-      ),
-      [],
-      `${word} must be a legal name in a Core-only program`,
+    const findings = checkSource(`define ${word} :x\n  print :x\nend\n`).filter(
+      isReservedWordFinding,
     );
+    assert.equal(
+      findings.length,
+      1,
+      `${word} is a built-in name in a Core-only program too`,
+    );
+    assert.deepEqual(findings[0].params, { name: word });
   }
 });
 
-test("Sprites active still does not reserve the Interaction block-heads at the checker level", () => {
+test("#841: an unrelated active profile does not change the answer either", () => {
+  // The third point on the same axis, and the one that makes it a rule rather than a pair of
+  // cases: the Interaction words are checked with `sprites` active — a profile that contributes
+  // keywords, but not THESE keywords. Under the retired gate the answer depended on which profile
+  // was claimed; now no profile set changes it, so all three settings agree.
   for (const word of INTERACTION_WORDS) {
-    assert.deepEqual(
-      checkSource(`define ${word} :x\n  print :x\nend\n`, [
-        "core-language",
-        "sprites",
-      ]).filter(isReservedWordFinding),
-      [],
+    const findings = checkSource(`define ${word} :x\n  print :x\nend\n`, [
+      "core-language",
+      "sprites",
+    ]).filter(isReservedWordFinding);
+    assert.equal(
+      findings.length,
+      1,
+      `${word} must raise under any profile set`,
     );
+    assert.deepEqual(findings[0].params, { name: word });
   }
 });
 

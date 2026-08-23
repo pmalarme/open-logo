@@ -13,12 +13,11 @@ import * as OL from "@openlogo/parser";
  * Also covers issue #427 (M4 audit): `define`/`struct` registrations that redefine
  * `grid`/`axes`/`measure` must raise `ol-reserved-word` when the
  * `geometry` profile is active — the checker's static parity counterpart to the runtime's own
- * `isPrimitiveName()` collision guard (#403) — and must not raise when it is inactive. That
- * inactive-profile half is SHIPPED BEHAVIOUR, not a spec requirement: `spec/grammar.md:408` makes
- * every profile's primitives built-in names unconditionally, so a conforming implementation must
- * raise with or without `geometry`; retiring the gate is #841's, which flips those assertions.
+ * `isPrimitiveName()` collision guard (#403) — and, since issue #841, when it is inactive too:
+ * `spec/grammar.md:408` makes every profile's primitives built-in names unconditionally, so the
+ * active and inactive cases below must agree name for name.
  * (Issue #838 removed that diagnostic's `namespace` param; `local` became a binding form under
- * ruling #833 and raises nothing at all.)
+ * ruling #833 and raises nothing at all — the one axis a profile set still does not move.)
  *
  * And issue #844: the Layer-2 arity gate for these three, so `check()` agrees with the runtime's
  * call-time arity check on `(grid 50)` instead of staying silent where `execute()` raises
@@ -200,24 +199,34 @@ test("a local naming a Geometry primitive is a binding, so it raises nothing", (
   }
 });
 
-test("without the geometry profile active, define/local/struct grid/axes/measure raise no reserved-word collision", () => {
+test("#841: without the geometry profile, define/struct grid/axes/measure still raise — only local stays free", () => {
+  // Both axes at once, and they answer differently on purpose. The DECLARATION slots (`define`,
+  // `struct`) are profile-independent — `spec/grammar.md:408`, retired gate, issue #841 — while
+  // `local` is a BINDING form that `spec/grammar.md:386` makes a MUST to accept, so it raises
+  // nothing whether or not `geometry` is claimed. Keeping all three in one test is what stops a
+  // future change from flipping the wrong one.
   for (const name of ["grid", "axes", "measure"]) {
     const defineOnly = parseClean(`define ${name}\nend`);
-    assert.deepEqual(
-      OL.check(defineOnly, { profiles: ["core-language"] }).diagnostics,
-      [],
-    );
+    const defineDiagnostics = OL.check(defineOnly, {
+      profiles: ["core-language"],
+    }).diagnostics;
+    assert.equal(defineDiagnostics.length, 1, `define ${name} must raise`);
+    assert.equal(defineDiagnostics[0].code, "ol-reserved-word");
+    assert.deepEqual(defineDiagnostics[0].params, { name });
 
     const localOnly = parseClean(`define greet\n  local ${name}\nend`);
     assert.deepEqual(
       OL.check(localOnly, { profiles: ["core-language"] }).diagnostics,
       [],
+      `local ${name} is a binding, not a declaration slot`,
     );
 
     const structOnly = parseClean(`struct ${name} [ x ]`);
-    assert.deepEqual(
-      OL.check(structOnly, { profiles: ["core-language", "data"] }).diagnostics,
-      [],
-    );
+    const structDiagnostics = OL.check(structOnly, {
+      profiles: ["core-language", "data"],
+    }).diagnostics;
+    assert.equal(structDiagnostics.length, 1, `struct ${name} must raise`);
+    assert.equal(structDiagnostics[0].code, "ol-reserved-word");
+    assert.deepEqual(structDiagnostics[0].params, { name });
   }
 });

@@ -280,16 +280,11 @@ the gaps it found rather than rubber-stamping them:
   fixture at all: `redefine-wait-reserved` covers only `wait`, which is a *primitive* name,
   not a reserved block-head. The new pair
   `block-heads-reserved-under-profile` / `block-heads-free-core-only` runs the **byte-identical**
-  source both ways — four `define`s raising `ol-reserved-word` under the
-  active profile, and checking clean under Core Language alone. Either fixture alone is satisfied by
-  an implementation that reserves the words unconditionally or by one that never reserves them; only
-  the pair pins the scope. This is the same gap class the Sprites terminal slice #679 found for its
-  own `ol-reserved-word` rule. (The recorded `message` used to read "when is already a reserved, so
-  it can't be redefined here." — an ungrammatical template filed as issue #883 and **fixed by issue
-  #838**, which replaced it with the one category-free sentence `spec/error-model.md:125` requires
-  and dropped the `namespace` param both halves of that message depended on. The scope pinned here
-  is itself on borrowed time: `spec/grammar.md:408` makes profile words built-in unconditionally,
-  and retiring the gate — which will flip `block-heads-free-core-only` — is issue #841.)
+  source both ways: the same `define`s raising `ol-reserved-word` under the active profile, and the
+  same diagnostics under Core Language alone. Either fixture alone is satisfied by an
+  implementation that answers the same way for the wrong reason; only the pair pins the rule as
+  invariant under the profile set. This is the same gap class the Sprites terminal slice #679 found
+  for its own `ol-reserved-word` rule.
 
   Both fixtures of that pair use `define`, which issue #837 confirmed is the right slot: maintainer
   ruling #833 keys `ol-reserved-word` to the grammar's four **declaration** slots and frees every

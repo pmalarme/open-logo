@@ -100,78 +100,19 @@
  * also what keeps a name that is *both* built in and declared twice from being reported twice, and
  * what keeps the two codes interleaved in **source order** rather than grouped by code.
  *
- * **The 44 names #838 closes.** `spec/grammar.md:414` makes the built-in names "exactly the
- * keywords listed above plus every primitive … and every alias spelling", and `:408` makes profile
- * words built-in **unconditionally**. Measured at the saga tip `fc4371d` with a sanity-asserted
- * harness (`define count` must raise before any row is recorded), 44 of the 45 names in issue
- * #838's AC2 were free to declare at **both** registration forms — `mod` was the only one already
- * blocked, as a keyword added by #837. They are closed here by {@link unconditionalBuiltInName},
- * which consults the three tables the profile-gated lookup never reached — Turtle & Rendering's 30
- * names (including the five compact alias spellings `setbg`/`setcolor`/`seth`/`setwidth`/`setxy`,
- * which are members of `turtlePrimitiveNames()` and so need no list of their own), Educational's
- * four meta-commands, and Tutor's `challenge` — plus the nine Heritage short aliases that resolve
- * into them.
+ * **What counts as a built-in name lives in `built-in-names.ts`, not here.**
+ * `spec/grammar.md:414` makes the set "exactly the keywords listed above plus every primitive …
+ * and every alias spelling", and `:408` makes it profile-independent, so this rule asks one
+ * question of one predicate ({@link isBuiltInName}) and takes no profile set at all.
  *
- * **Why {@link unconditionalBuiltInName} is not profile-gated, while {@link gatedPrimitiveCollision}
- * still is.** `spec/grammar.md:408`: "a name that could be declared in one implementation but not
- * in another would be invisible and unpredictable to a learner", so every profile's names are
- * built in "whether or not that profile is claimed". Issue #838's AC2 requires exactly that of its
- * 45 names — *regardless of the active profile set, including Core-only* — so the new branch takes
- * no `profiles` argument at all. The pre-existing Data/Geometry/Sound/Interaction/Sprites branches
- * below keep their gates for now: retiring **those** is issue #841's always-on built-in-names list
- * and its CI drift gate, and reaching into them here would have silently changed names outside
- * this slice's measured 45.
+ * Two properties of that predicate this rule depends on, both guaranteed there rather than here:
  *
- * ---
- *
- * `namespace` priority when a name collided with more than one category used to be reserved →
- * primitive → procedure → struct. With the param gone, what survives is the **code** priority:
- * built-in beats duplicate, because "OpenLogo owns this name" is the more fundamental answer and
- * the only one the learner can do nothing about.
- *
- * Issue #427 (M4 audit) extends the primitive branch again to the Geometry profile: `grid`,
- * `axes`, and `measure` (`signatures.ts`'s `geometryPrimitiveArity`) collide the same way a Core
- * or Data primitive does when `"geometry"` is active, mirroring the Data branch #405 added — gated
- * the same way, so a Core-only program is free to `define grid`.
- *
- * Issue #663 (C1, M5) extends the *keyword* branch the same profile-conditional way: the
- * Sprites block-heads `ask`/`each`/`tell` and the Interaction & Events block-heads
- * `when`/`every`/`on_key`/`on_click` count only when their profile is active
- * (`OL_PROFILE_KEYWORDS` in `keywords.ts`; `spec/turtles-and-sprites.md`,
- * `spec/interaction-events.md`). Threading the active `profiles` into `isKeyword` here — the
- * profile-blind default kept every Core-only program's `ask`/`when` an ordinary name — is the whole
- * wiring; the registry and its non-regression guarantee live in `keywords.ts`, whose doc comment
- * also records that `spec/grammar.md:408` now makes profile words built-in **unconditionally** and
- * that retiring this gate is issue #841's.
- *
- * Issue #687 (I8, M5) extends the *primitive* branch to the Interaction & Events profile's `wait`
- * (`signatures.ts`'s `interactionPrimitiveArity`), gated on `"interaction-events"` exactly like the
- * Data/Geometry/Sound branches above. `wait` is an ordinary primitive rather than a profile
- * block-head, but `spec/tooling.md:185` makes redefining a *primitive* `ol-reserved-word` just the
- * same — the block-head/primitive distinction decides which branch reports it and under which
- * profile, not whether it is reportable at all. Without this, `wait` was the Interaction profile's
- * one primitive and yet the only one of the Data/Geometry/Sound/Interaction primitives a program
- * could silently shadow.
- *
- * Issues #746 (Sprites half) and #742 (Heritage half) close the last two holes in that same
- * primitive category, and had to land **together** — see {@link gatedPrimitiveCollision}, which is where
- * every profile's *gated* table is now consulted from. #746 adds the Sprites reporters
- * `new_turtle`/`who`/`turtles` (`signatures.ts`'s `spritesPrimitiveArity`), gated on `"sprites"`,
- * so they collide exactly as `grid` (Geometry), `set_tempo` (Sound), `dict` (Data), and `wait`
- * (Interaction & Events) already did. #742 adds the Heritage short aliases, gated on `"heritage"`,
- * by **resolving the alias to its canonical spelling and re-running that same table lookup** —
- * never by a second table of its own. Heritage is "alternate spellings only, no new semantics"
- * (`spec/conformance.md:146`), so `define pr` had to be exactly as (il)legal as `define print`;
- * before this, `define print` raised while `define pr` was accepted **and the shadow took effect**,
- * so `pr 7` then reported `ol-bad-token` — a Heritage program could silently lose its `print`.
- * Resolving through {@link canonicalOfHeritageAlias} makes that symmetry hold **by construction**
- * (the model slice H5/#670 and #733/#747 established), so an alias can never drift from its
- * canonical: whatever table the canonical is in — or is *not* in — decides both spellings alike.
- * {@link unconditionalBuiltInName} reuses that exact shape, which is why the nine turtle aliases
- * `fd bk lt rt st ht pu pd cs` needed no list of their own here: they resolve to Turtle & Rendering
- * canonicals, and so flip to unconditional together with them. `pr`/`bf`/`bl`/`se` resolve to
- * **Core** canonicals instead, so they stay in the gated branch until #841 retires it — the one
- * boundary this slice deliberately leaves visible.
+ * - **A Heritage alias is its canonical, by construction.** An alias resolves to its canonical
+ *   spelling and re-enters the same lookup rather than getting a table of its own, so `define pr`
+ *   is exactly as illegal as `define print`. Give an alias a table of its own and the two spellings
+ *   drift: a program can then shadow `print` through `pr` and lose it silently.
+ * - **Built-in beats duplicate.** When a name is both, it is reported once, as the thing the
+ *   learner can do nothing about.
  */
 
 import type { Diagnostic, SourceSpan } from "@openlogo/core";
@@ -183,128 +124,7 @@ import type {
   StructDefNode,
 } from "./ast.js";
 import { walk } from "./ast.js";
-import { isKeyword } from "./keywords.js";
-import {
-  canonicalOfHeritageAlias,
-  corePrimitiveArity,
-  dataPrimitiveArity,
-  educationalPrimitiveArity,
-  geometryPrimitiveArity,
-  interactionPrimitiveArity,
-  soundPrimitiveArity,
-  spritesPrimitiveArity,
-  turtlePrimitiveArity,
-  tutorPrimitiveArity,
-} from "./signatures.js";
-import type { CheckProfile } from "./check.js";
-
-/**
- * Is `name` a built-in name **no matter which profiles are active** (`spec/grammar.md:408`)?
- *
- * This is issue #838's branch: the Turtle & Rendering, Educational and Tutor tables that
- * {@link gatedPrimitiveCollision} never consulted, plus — by the same resolve-to-canonical construction
- * #742 established — any Heritage short alias of one of them. Between them they cover 44 of the 45
- * names AC2 measured as free at the saga tip (`mod`, the 45th, is a keyword and is reached by
- * {@link isKeyword}).
- *
- * It takes no `profiles` argument on purpose. A declaration is legal or illegal for the *version*,
- * never for the profile set a given run happens to claim, because "what a profile decides is
- * whether a name works, never whether a program may declare it" (`spec/grammar.md:408`). The
- * recursion is depth-1 by construction — no canonical spelling is itself an alias, which
- * `checker-reserved-word.test.mjs` pins directly off the registry.
- */
-function unconditionalBuiltInName(name: string): boolean {
-  if (
-    turtlePrimitiveArity(name) !== undefined ||
-    educationalPrimitiveArity(name) !== undefined ||
-    tutorPrimitiveArity(name) !== undefined
-  ) {
-    return true;
-  }
-  const canonical = canonicalOfHeritageAlias(name);
-  return canonical !== undefined && unconditionalBuiltInName(canonical);
-}
-
-/**
- * Is `name` a primitive of some **active** profile? The gated half of the primitive category, in
- * one place, so a profile slice adds exactly one branch here (`spec/tooling.md:185` "Required
- * behavior"). The active-profile gating here is shipped behaviour, not what that row requires:
- * `:185` and `spec/grammar.md:408` make profile primitives built-in names whether or not their
- * profile is claimed, while `:175-176` gates which names are *available* (the
- * `ol-unknown-command` axis) — a different question from whether a name may be declared.
- *
- * Two properties this function exists to guarantee:
- *
- * 1. **Every profile is gated on its own claim**, so a Core-only program stays free to
- *    `define grid`/`define who`/`define pr`, exactly as it is free to `define ask`. Retiring these
- *    gates — `spec/grammar.md:408` makes profile words built-in unconditionally — is issue #841's
- *    always-on list; #838 moved only the names it measured (see {@link unconditionalBuiltInName}).
- * 2. **A Heritage alias is its canonical, by construction.** The `heritage` branch resolves through
- *    {@link canonicalOfHeritageAlias} and re-enters this same function on the canonical spelling
- *    rather than consulting a table of its own, so `define pr` is exactly as (il)legal as
- *    `define print` — no arity or name knowledge is duplicated and the two spellings cannot drift
- *    (issue #742; the same resolve-then-reuse shape as `signatures.ts`'s `heritageAliasArity`).
- *    The recursion is depth-1 by construction: no canonical spelling is itself an alias, which
- *    `checker-reserved-word.test.mjs` pins directly off the registry so a future alias whose
- *    canonical is another alias is caught rather than looping.
- */
-function gatedPrimitiveCollision(
-  name: string,
-  profiles: readonly CheckProfile[],
-): boolean {
-  if (
-    profiles.includes("core-language") &&
-    corePrimitiveArity(name) !== undefined
-  ) {
-    return true;
-  }
-  if (profiles.includes("data") && dataPrimitiveArity(name) !== undefined) {
-    return true;
-  }
-  if (
-    profiles.includes("geometry") &&
-    geometryPrimitiveArity(name) !== undefined
-  ) {
-    return true;
-  }
-  if (profiles.includes("sound") && soundPrimitiveArity(name) !== undefined) {
-    return true;
-  }
-  if (
-    profiles.includes("interaction-events") &&
-    interactionPrimitiveArity(name) !== undefined
-  ) {
-    return true;
-  }
-  if (
-    profiles.includes("sprites") &&
-    spritesPrimitiveArity(name) !== undefined
-  ) {
-    return true;
-  }
-  if (profiles.includes("heritage")) {
-    const canonical = canonicalOfHeritageAlias(name);
-    if (canonical !== undefined) {
-      return gatedPrimitiveCollision(canonical, profiles);
-    }
-  }
-  return false;
-}
-
-/**
- * Does OpenLogo itself own `name` — as a keyword, or as a primitive of any kind including every
- * alias spelling? This is `ol-reserved-word`'s whole subject (`spec/error-model.md:125`).
- */
-function isBuiltInName(
-  name: string,
-  profiles: readonly CheckProfile[],
-): boolean {
-  return (
-    isKeyword(name, profiles) ||
-    unconditionalBuiltInName(name) ||
-    gatedPrimitiveCollision(name, profiles)
-  );
-}
+import { isBuiltInName } from "./built-in-names.js";
 
 /**
  * The one learner-facing sentence for a built-in name, from `spec/error-model.md:125`. It names no
@@ -411,21 +231,29 @@ function isStructDef(node: AnyNode): node is StructDefNode {
  *   `execute()` disagree — the exact disagreement `docs/design-notes/0007-binding-vs-registration.md`
  *   says this ruling removes.
  *
- * `checker-names.ts` and `checker-arity.ts` keep their own `data` gates, and correctly so: those
+ * `checker-names.ts` and `checker-arity.ts` keep their own profile gates, and correctly so: those
  * rules answer "is this name *visible* to call", which is precisely what a profile decides
  * (`spec/grammar.md:408`). This rule answers "may the program declare it", which a profile never
  * decides. Same word, two different questions.
+ *
+ * **It therefore takes no profile set at all.** Do not add one back: a parameter a rule does not
+ * consult is a claimed dependency that does not exist, and a profile-gated answer here is the
+ * outcome `:408` forbids.
  */
 export function declarationSlotRule(
   program: ProgramNode,
-  profiles: readonly CheckProfile[],
 ): readonly Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
   /**
    * The span of the **first** declaration of each name, across both declaration kinds. Only ever
-   * written when absent, so the third declaration of a name still names the first — and so a
-   * built-in name is never recorded at all, which is what keeps `define forward` twice reporting
-   * two `ol-reserved-word`s rather than degrading the second into a duplicate.
+   * written when absent, so the third declaration of a name still names the first.
+   *
+   * A built-in name never reaches this map, because the built-in check returns first — and it is
+   * that early `return`, not the absence of a recording, that keeps `define forward` twice
+   * reporting two `ol-reserved-word`s rather than degrading the second into a duplicate. The
+   * non-recording is a consequence, not the mechanism: recording built-ins here changes no
+   * observable behaviour while the checks stay in this order (measured — the conformance corpus and
+   * the unit suite are both unmoved by it).
    */
   const firstDeclaration = new Map<string, SourceSpan>();
 
@@ -435,7 +263,7 @@ export function declarationSlotRule(
     }
     const declared = node.name;
     const name = declared.name.toLowerCase();
-    if (isBuiltInName(name, profiles)) {
+    if (isBuiltInName(name)) {
       diagnostics.push(reservedWordDiagnostic(declared));
       return;
     }

@@ -1,0 +1,13 @@
+define ask
+end
+define when
+end
+struct tell [ x ]
+define grid
+end
+define new_turtle
+end
+define wait
+end
+define set_tempo
+end

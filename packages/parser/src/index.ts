@@ -79,8 +79,11 @@ export type { CheckOptions, CheckProfile, CheckResult } from "./check.js";
 export { resolveRecordField } from "./checker-type-field.js";
 export type { RecordFieldAccess } from "./checker-type-field.js";
 
+export { isBuiltInName } from "./built-in-names.js";
+
 export {
   isKeyword,
+  isKeywordInAnyProfile,
   isProfileKeyword,
   OL_KEYWORDS,
   OL_PROFILE_KEYWORDS,

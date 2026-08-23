@@ -1,7 +1,60 @@
 {
-  "description": "issue #688 (terminal slice, review round 1): the `ONLY within` half of `spec/interaction-events.md:43-47` as that section read when this fixture was written -- `An implementation that does not declare this profile does not reserve those words except through a vendor extension or an imported alias.` This is the byte-identical source its twin `block-heads-reserved-under-profile` runs under an ACTIVE profile, checked here with Core Language alone: all four names are ordinary, definable procedure names and the program checks CLEAN, with zero diagnostics. The pair is what made the reservation PROFILE-SCOPED rather than global -- either fixture alone is satisfied by an implementation that reserves the four words unconditionally (failing learners on a Core-only program that legitimately defines a procedure called `every`) or by one that never reserves them at all. SCOPE, CORRECTED: maintainer ruling #833 RETRACTED the `only within` half. `spec/grammar.md:408` makes profile words built-in names unconditionally -- what a profile decides is whether a name WORKS, never whether a program may declare it -- and issue #855 aligned `spec/interaction-events.md:43-47` with it, so the sentence quoted above is no longer in the spec. This fixture therefore pins SHIPPED BEHAVIOUR that the spec now contradicts: a conforming 0.4.0 implementation must raise `ol-reserved-word` here. It is kept, red-flagged, so the behaviour is not silently unpinned; issue #841 lands the always-on built-in-names list and flips this fixture's expectation. This is a check-mode fixture: it proves static legality only and does not execute.",
+  "description": "The Interaction & Events block-heads `when`/`every`/`on_key`/`on_click` declared as procedures with Core Language alone: each raises `ol-reserved-word`. This is the byte-identical source its twin `block-heads-reserved-under-profile` runs with the profile ACTIVE, and both expect the same four diagnostics -- which is precisely what `spec/grammar.md:408` requires: \"a program cannot declare which profiles it requires ... so a name that could be declared in one implementation but not in another would be invisible and unpredictable to a learner\". It takes both fixtures to say so: either one alone is satisfied by an implementation that answers the same way for the wrong reason. **The file name is no longer true** -- these names are not \"free core only\" -- and renaming belongs to issue #842. `\"check\": true`: static legality only, nothing executes. `message` is deliberately absent from the diagnostics below: the harness strips it from BOTH sides before comparing (`scripts/harness/index.mjs:977-983` projects every diagnostic to code/span/params/stage/severity), so supplying one here would be an assertion nothing can evaluate. Diagnostic identity is `code` plus `params` and \"prose is presentation\" (`spec/error-model.md:253`); the learner-facing wording is pinned by unit tests instead. Its twin DOES carry `message`, and that asymmetry is intentional; dropping the decorative field from the twins is a corpus-wide edit and belongs to issue #842.",
   "profiles": ["core-language"],
   "check": true,
   "events": [],
-  "diagnostics": []
+  "diagnostics": [
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "interaction-events/block-heads-free-core-only/block-heads-free-core-only",
+        "start": [1, 8],
+        "end": [1, 12]
+      },
+      "params": {
+        "name": "when"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "interaction-events/block-heads-free-core-only/block-heads-free-core-only",
+        "start": [4, 8],
+        "end": [4, 13]
+      },
+      "params": {
+        "name": "every"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "interaction-events/block-heads-free-core-only/block-heads-free-core-only",
+        "start": [7, 8],
+        "end": [7, 14]
+      },
+      "params": {
+        "name": "on_key"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "interaction-events/block-heads-free-core-only/block-heads-free-core-only",
+        "start": [10, 8],
+        "end": [10, 16]
+      },
+      "params": {
+        "name": "on_click"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
 }

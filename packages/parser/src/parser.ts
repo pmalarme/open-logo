@@ -114,11 +114,11 @@ const EXPRESSION_INITIAL_KEYWORDS: ReadonlySet<string> = new Set<string>([
  *
  * Scope is the **global Core registry only**. {@link OL_PROFILE_KEYWORDS} (`ask`/`each`/`tell`, the
  * four event heads) is deliberately excluded: this reader is profile-blind by design (see
- * {@link PROFILE_STATEMENT_FORMS}), so a Core-only program's `define ask … end` and its call are
- * currently accepted. That acceptance is shipped behaviour, not what the spec requires —
- * `spec/grammar.md:408` makes profile words built-in names unconditionally, and retiring the gate is
- * #841's. Rejecting them in value position is
- * the profile-aware checker's job, not this set's (issue #864).
+ * {@link PROFILE_STATEMENT_FORMS}), so it shapes a program that declares `ask` as an ordinary
+ * `define`/call pair rather than a profile statement. Since issue #841 the *checker* then raises
+ * `ol-reserved-word` on that declaration — `spec/grammar.md:408` makes profile words built-in names
+ * unconditionally — but which diagnostic to raise is the checker's question, not this set's, and
+ * rejecting them in value position is a third rule again (issue #864).
  *
  * The statement heads stay unaffected because {@link parseStatement} dispatches `add`/`remove`/
  * `insert`/`clear` by keyword *before* any expression is read, and the bare-key positions
@@ -1739,15 +1739,14 @@ export function parse(source: string, document = "<input>"): ParseResult {
           break;
       }
       // A registered profile head becomes a profile statement (`ask`/`each`/`tell`, the four event
-      // heads) — the seam every M5 profile grammar slice hangs off. But these words are treated as
-      // reserved only when their profile is active (C1 #663 — shipped behaviour that
-      // `spec/grammar.md:408` makes unconditional; retiring the gate is #841): a Core-only program
-      // declaring a procedure named `ask` (`define ask … end`) and calling it is currently accepted
-      // by the shipped implementation, so a *user-declared* callable of the same spelling wins here
-      // and parses as an ordinary Core call. The reader stays profile-blind —
-      // it never inspects the active profile set — and the checker (which does thread active
-      // profiles) is what raises `ol-reserved-word` for a profile-active redefinition. Without this
-      // guard the reader would mis-shape legitimate Core code (`define ask` / `ask`,
+      // heads) — the seam every M5 profile grammar slice hangs off. But a *user-declared* callable
+      // of the same spelling wins here and parses as an ordinary Core call, because the reader is
+      // profile-blind: it never inspects the active profile set, so it cannot ask whether the word
+      // is a profile head "right now". Since issue #841 the checker raises `ol-reserved-word` on
+      // that declaration whatever the profile set (`spec/grammar.md:408`), so the program is not
+      // legal — but it must still be SHAPED as the learner wrote it, or the diagnostic would land
+      // on the wrong node. Without this guard the reader would mis-shape ordinary code that shadows
+      // one of these heads (see
       // `tests/conformance/educational/meta-commands/hint-in-procedure-falls-back-to-program`).
       const lowerHead = token.text.toLowerCase();
       const profileForm = PROFILE_STATEMENT_FORMS.get(lowerHead);
