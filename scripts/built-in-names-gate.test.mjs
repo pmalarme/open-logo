@@ -35,6 +35,7 @@ import {
   aliasFindings,
   backtickedWords,
   carveOutFindings,
+  controlCharacterFindings,
   codeOnly,
   definesProcedure,
   deriveSummary,
@@ -53,6 +54,7 @@ import {
   isStdlibSource,
   loadManifest,
   narrativeFindings,
+  noteRestatementFindings,
   parseArgs,
   profileCoverageFindings,
   profileInventoryFindings,
@@ -866,6 +868,64 @@ test("INJECTED DRIFT: a profile section spec/conformance.md names twice", () => 
   assert.deepEqual(findings, [
     `${CONFORMANCE_PATH}: profile section(s) Core Language appear more than once — 13 sections, 12 unique`,
   ]);
+});
+
+test("INJECTED DRIFT: a control character hidden in any prose field", () => {
+  // The defect that shipped into a normative spec/ artefact and every gate stayed green: authoring
+  // notes through a shell whose escape character is a backtick turned `note`, `aliasOf`, `reserved`
+  // and `excluded` into LF, BEL, CR and ESC. Valid JSON, Prettier-clean, zero findings.
+  assert.deepEqual(controlCharacterFindings(REAL_MANIFEST), []);
+  for (const [path, mutate] of [
+    ["about", (manifest) => (manifest.about = `x\u0007y`)],
+    [
+      "invariants.precedence",
+      (manifest) => (manifest.invariants.precedence = `a\u001bb`),
+    ],
+    [
+      "registries.reserved.note",
+      (manifest) => (manifest.registries.reserved.note = `a\note`),
+    ],
+    [
+      "excluded.0.rationale",
+      (manifest) => (manifest.excluded[0].rationale = `a\rb`),
+    ],
+  ]) {
+    const manifest = manifestCopy();
+    mutate(manifest);
+    const findings = controlCharacterFindings(manifest);
+    assert.equal(findings.length, 1, path);
+    assert.equal(
+      findings[0].startsWith(
+        `${MANIFEST_PATH}: ${path} contains control character(s)`,
+      ),
+      true,
+      findings[0],
+    );
+    // And it reaches the run, not just the helper.
+    assert.equal(runBuiltInNamesGate({ manifest }).ok, false, path);
+  }
+});
+
+test("INJECTED DRIFT: a registry note that names the tag's own accessor", () => {
+  // `about` forbids prose restating data the file carries. This is the derivable half, compared
+  // against the tag's OWN accessor values so there is no word list to maintain.
+  assert.deepEqual(noteRestatementFindings(REAL_MANIFEST), []);
+  const manifest = manifestCopy();
+  manifest.registries.reserved.note = `The tree's accessor is ${manifest.registries.reserved.lookup.accessor}.`;
+  assert.deepEqual(noteRestatementFindings(manifest), [
+    `${MANIFEST_PATH}: registries.reserved.note names its own accessor(s) OL_KEYWORDS — the value is a few lines above it, so the prose is a second copy that the next rename drifts`,
+  ]);
+  // An alias registry's edge accessors count too, and a note may echo more than one.
+  const alias = manifestCopy();
+  const registry = alias.registries["heritage-alias"];
+  registry.note = `${registry.aliasEnumerator} and ${registry.canonicalAccessor} carry the edge.`;
+  assert.deepEqual(noteRestatementFindings(alias), [
+    `${MANIFEST_PATH}: registries.heritage-alias.note names its own accessor(s) ${registry.aliasEnumerator}, ${registry.canonicalAccessor} — the value is a few lines above it, so the prose is a second copy that the next rename drifts`,
+  ]);
+  // A note that is not a string is the presence check's business, not this one's.
+  const absent = manifestCopy();
+  absent.registries.reserved.note = undefined;
+  assert.deepEqual(noteRestatementFindings(absent), []);
 });
 
 test("INJECTED DRIFT: a declared-empty profile whose rationale is blanked to whitespace", () => {

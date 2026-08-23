@@ -1,6 +1,6 @@
 {
   "specVersion": "0.1.0",
-  "about": "The authoritative list of OpenLogo's built-in names for this specification version: every keyword and every primitive, aliases included. spec/grammar.md:363 governs them with one rule -- a program may not DECLARE a built-in name, and may BIND a value to any name -- and spec/grammar.md:414 versions them with the specification. This file is that list in machine-readable form, and CI asserts the implementation's registries equal it exactly, in both directions (docs/adr/0021-built-in-names-list-and-ci-gate.md). It is normative and maintainer-owned like the rest of spec/. Membership here answers one question only -- may a program declare this name? -- and never how a word is highlighted, which spec/tooling.md owns as an independent axis. The \note on each registry and every other prose field here is NON-NORMATIVE rationale: it records why a tag is shaped as it is, and nothing verifies it. Prose must never restate data this file already carries -- a name list, a count, a profile assignment -- because a restatement is a second list, and the one thing this file exists to remove is a second list.",
+  "about": "The authoritative list of OpenLogo's built-in names for this specification version: every keyword and every primitive, aliases included. spec/grammar.md:363 governs them with one rule -- a program may not DECLARE a built-in name, and may BIND a value to any name -- and spec/grammar.md:414 versions them with the specification. This file is that list in machine-readable form, and CI asserts the implementation's registries equal it exactly, in both directions (docs/adr/0021-built-in-names-list-and-ci-gate.md). It is normative and maintainer-owned like the rest of spec/. Membership here answers one question only -- may a program declare this name? -- and never how a word is highlighted, which spec/tooling.md owns as an independent axis. Each registry's `note` is NON-NORMATIVE rationale: it records why a tag is shaped as it is, and nothing verifies its content beyond the mechanical checks the gate applies -- no control characters, no accessor value, and no counting word. A note must never restate data this file already carries, because a restatement is a second list and a second list is the one thing this file exists to remove. This narrow rule applies to `note` only: `invariants`, `profiles.about`, `tokenClassKeyword` and every `excluded[].rationale` are normative or required as data by ADR-0021 and are not demoted by it.",
   "invariants": {
     "unconditional": "Every profile's keywords and primitives are built-in names in EVERY implementation, whether or not that profile is claimed (spec/grammar.md:408). `profile` below is metadata for docs and tooling; nothing may branch on it when deciding whether a name is blocked at a declaration slot.",
     "precedence": "A name reachable from two registries is filed ONCE. Precedence is TWO-LEVEL and the order matters: first by CATEGORY, `keyword` beating `primitive` regardless of where the tags sit -- which is what files `thing` as a keyword though `core-primitive` also holds it; then, among registries of the SAME category, by the key order of `registries` below -- which is what files `to` under core-language rather than heritage, since `reserved` precedes `heritage-form-head`. Reordering `registries` therefore never changes a keyword/primitive verdict, only which same-category tag supplies the `profile`. Its `profile` follows the precedence-winning registry. The full membership is always recorded in `registries` on the entry, never inferred from `category` or `profile`, so losing one of two registrations fails the gate instead of matching a summary that still looks right.",
@@ -12,7 +12,7 @@
     "reserved": {
       "category": "keyword",
       "profile": "core-language",
-      "note": "ADR-0021's table names OL_RESERVED_WORDS; issue #837 renamed the vocabulary to keywords, so the tree's accessor is OL_KEYWORDS. The tag name is ADR-0021's closed vocabulary and does not change with the accessor.",
+      "note": "ADR-0021 named this table before issue #837 renamed the vocabulary from reserved words to keywords. The tag name is ADR-0021's closed vocabulary and deliberately does not track the accessor it points at, so a further rename moves the accessor and leaves the tag alone.",
       "lookup": {
         "accessor": "OL_KEYWORDS",
         "kind": "array",
@@ -26,7 +26,7 @@
     },
     "profile-reserved": {
       "category": "keyword",
-      "note": "ADR-0021's table names OL_PROFILE_RESERVED_WORDS; the tree's accessor is OL_PROFILE_KEYWORDS after issue #837. A Record keyed by profile, so it supplies each entry's profile directly and has none of its own at tag level.",
+      "note": "The same ADR-0021 rename applies here. Keyed by profile rather than flat, because each word belongs to a different profile: it therefore supplies each entry's profile directly and declares none of its own at tag level.",
       "lookup": {
         "accessor": "OL_PROFILE_KEYWORDS",
         "kind": "record",
@@ -51,7 +51,7 @@
         "kind": "profile-enumerator",
         "status": "present"
       },
-      "note": "Why the two roles cannot disagree about membership: the arity table and profilePrimitiveNames read one source. What differs between them is case normalisation."
+      "note": "Why the two roles cannot disagree about membership: both read the same table. What differs between them is case normalisation, which is what the agreement check actually catches."
     },
     "turtle-primitive": {
       "category": "primitive",
@@ -68,7 +68,7 @@
         "kind": "profile-enumerator",
         "status": "present"
       },
-      "note": "Why the one-word spellings are not ordinary members: each is a separate arity entry bound to a canonical, and that edge is carried by aliasEnumerator/canonicalAccessor rather than by the lookup/enumerate pair."
+      "note": "Why the one-word spellings are not ordinary members here: each is a separate arity entry bound to a canonical, and that edge is carried by this tag's alias accessors rather than by its lookup and enumerate pair."
     },
     "data-primitive": {
       "category": "primitive",
@@ -83,12 +83,12 @@
         "kind": "profile-enumerator",
         "status": "present"
       },
-      "note": "No exception. Present so that the Data profile's table is compared like every other, rather than being absent and trivially matching."
+      "note": "No exception worth recording. The tag exists so that this profile's table is compared like every other, rather than being known only to the implementation."
     },
     "educational-primitive": {
       "category": "primitive",
       "profile": "educational",
-      "note": "Why this table has no exception: challenge is Tutor (AI) and lives in its own registry, so no Educational entry has to be carved out of it.",
+      "note": "Why this table needs no exception: the AI coaching command has a registry of its own rather than being carved out of this one.",
       "lookup": {
         "accessor": "educationalPrimitiveArity",
         "kind": "arity",
@@ -103,7 +103,7 @@
     "geometry-primitive": {
       "category": "primitive",
       "profile": "geometry",
-      "note": "Why this table is much smaller than the profile: the derived Geometry standard library is OpenLogo source and is listed under \u001bxcluded, never here.",
+      "note": "Why this table is far smaller than its profile: the derived standard library is OpenLogo source, listed under `excluded` and never here.",
       "lookup": {
         "accessor": "geometryPrimitiveArity",
         "kind": "arity",
@@ -128,7 +128,7 @@
         "kind": "profile-enumerator",
         "status": "present"
       },
-      "note": "Why this table holds fewer names than the profile does: the profile's words are keywords, held by profile-reserved, and only callable primitives are filed here."
+      "note": "Why this table holds fewer names than its profile does: the profile's words are keywords, held by the profile-keyed keyword registry, and only callable primitives are filed here."
     },
     "sound-primitive": {
       "category": "primitive",
@@ -143,7 +143,7 @@
         "kind": "profile-enumerator",
         "status": "present"
       },
-      "note": "No exception. Present so that the Sound profile's table is compared like every other, rather than being absent and trivially matching."
+      "note": "No exception worth recording. The tag exists so that this profile's table is compared like every other, rather than being known only to the implementation."
     },
     "sprites-primitive": {
       "category": "primitive",
@@ -158,12 +158,12 @@
         "kind": "profile-enumerator",
         "status": "present"
       },
-      "note": "Why this table holds fewer names than the profile does: the profile's words are keywords, held by profile-reserved, and only callable primitives are filed here."
+      "note": "Why this table holds fewer names than its profile does: the profile's words are keywords, held by the profile-keyed keyword registry, and only callable primitives are filed here."
     },
     "tutor-primitive": {
       "category": "primitive",
       "profile": "tutor-ai",
-      "note": "ADR-0021 recorded BOTH accessors as declared -- decided but not yet created -- and named issue #841 as the slice that would create them. The tree reached them by a better route (issues #838 and #874), one derived accessor over the whole profile-keyed registry rather than a tenth hand-written enumerator. The ADR is a dated record of the decision, not of the code.",
+      "note": "ADR-0021 recorded both of this tag's accessors as `declared` -- decided but not yet created -- and named issue #841 as the slice that would create them. The tree reached them by a better route (issues #838 and #874): one derived accessor over the whole profile-keyed registry, rather than a hand-written enumerator per profile. The ADR is a dated record of the decision, not of the code.",
       "lookup": {
         "accessor": "tutorPrimitiveArity",
         "kind": "arity",
@@ -178,7 +178,7 @@
     "heritage-alias": {
       "category": "primitive",
       "profile": "heritage",
-      "note": "Why category cannot be derived from arity-table membership here: the short aliases are in no primitive arity table at all -- only their canonicals are -- so they are registered solely under this tag.",
+      "note": "Why `category` cannot be derived from arity-table membership here: the short spellings are in no primitive arity table at all, only their canonicals are, so they are registered solely under this tag.",
       "canonicalAccessor": "canonicalOfHeritageAlias",
       "aliasEnumerator": "heritageAliasNames",
       "lookup": {
@@ -195,7 +195,7 @@
     "heritage-form-head": {
       "category": "keyword",
       "profile": "heritage",
-      "note": "Why these carry no \u0007liasOf: they are grammar form heads, not name-for-name substitutions. They are also Core keywords, so they lose precedence to \reserved on the same-category key order rather than on category.",
+      "note": "Why these carry no `aliasOf`: they are grammar form heads, not name-for-name substitutions. They are keywords elsewhere too, so they lose precedence on the same-category key order rather than on category.",
       "lookup": {
         "accessor": "heritageFormHeadNames",
         "kind": "enumerator",
@@ -210,7 +210,7 @@
     "heritage-worded-form-head": {
       "category": "keyword",
       "profile": "heritage",
-      "note": "Why this carries no \u0007liasOf: a worded form is a grammar spelling, not an alias edge, so it has no single target to name.",
+      "note": "Why this carries no `aliasOf`: a worded form is a grammar spelling, not an alias edge, so it has no single target to name.",
       "lookup": {
         "accessor": "heritageWordedFormHeads",
         "kind": "enumerator",
@@ -247,7 +247,7 @@
   "tokenClassKeyword": {
     "about": "spec/tooling.md's `keyword` TOKEN CLASS is a different set from the keyword list above, on purpose (spec/grammar.md:378), and it cannot be derived: measured against shipped output it OMITS some keywords (`and`/`or`/`not`/`mod`, which are `operator`), ADDS four words that are not built-in names at all (`empty`/`member`/`of`/`a`), and adds the profile words. Both a positional rule and \"the keyword list minus the operators\" were tried and refuted by measurement in issue #855.",
     "rowFingerprint": "5fe80a78d818c0162f94287110cf94a845e388d7cd4a1eb82e57ee0c9d1197b9",
-    "rowFingerprintReason": "A sha256 of the `keyword` row of spec/tooling.md's token-class table, byte for byte. It is a CHANGE DETECTOR and nothing more: it verifies the row has not changed, and verifies NOTHING about whether the row is correct. Stating that limit is the point. Issue #841 tried three stronger mechanisms across six review rounds -- hand-declared clause anchors (about twenty findings), then a fingerprint alone, then a fingerprint with derived claims layered on -- and every one of them overstated what it checked. The last and clearest: two clauses described as 'derived' were self-declared literals compared against the row, so they verified manifest-row AGREEMENT rather than truth, and inverting the sentence in both while recomputing the digest passed every check. The row is 2000 characters of English that spec/grammar.md:378 makes deliberately underivable; a mechanism claiming more than change detection over it has, repeatedly, been claiming something it did not check. What guards this row's CORRECTNESS is that spec/ is maintainer-owned under CODEOWNERS. What this digest guarantees is that a change to it cannot pass unseen -- silent drift becomes loud drift, which is the difference between the row shifting unnoticed and someone being made to look at it. The token-class enumeration therefore remains only partially guarded, and that gap is recorded on issue #841 rather than implied."
+    "rowFingerprintReason": "A sha256 of the `keyword` row of spec/tooling.md's token-class table, byte for byte. It is a CHANGE DETECTOR and nothing more: it verifies the row has not changed, and verifies NOTHING about whether the row is correct. Stating that limit is the point. Issue #841 tried three stronger mechanisms across six review rounds -- hand-declared clause anchors (about twenty findings), then a fingerprint alone, then a fingerprint with derived claims layered on -- and every one of them overstated what it checked. The last and clearest: two clauses described as 'derived' were self-declared literals compared against the row, so they verified manifest-row AGREEMENT rather than truth, and inverting the sentence in both while recomputing the digest passed every check. The row is a long paragraph of English that spec/grammar.md:378 makes deliberately underivable; a mechanism claiming more than change detection over it has, repeatedly, been claiming something it did not check. What guards this row's CORRECTNESS is that spec/ is maintainer-owned under CODEOWNERS. What this digest guarantees is that a change to it cannot pass unseen -- silent drift becomes loud drift, which is the difference between the row shifting unnoticed and someone being made to look at it. The token-class enumeration therefore remains only partially guarded, and that gap is recorded on issue #841 rather than implied."
   },
   "names": [
     {

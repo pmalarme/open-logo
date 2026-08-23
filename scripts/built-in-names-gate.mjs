@@ -1344,12 +1344,95 @@ export function narrativeFindings(manifest) {
       registry.note,
     ]),
   ];
-  return required
+  const findings = required
     .filter(([, value]) => blank(value))
     .map(
       ([path]) =>
         `${MANIFEST_PATH}: ${path} is missing or empty — this file is normative, and a claim it makes about itself that nothing states cannot be reviewed`,
     );
+  findings.push(...controlCharacterFindings(manifest));
+  findings.push(...noteRestatementFindings(manifest));
+  return findings;
+}
+
+/**
+ * No prose field anywhere in the file may contain a C0 control character.
+ *
+ * The one property of prose that IS mechanically checkable. Authoring the notes through a shell
+ * whose escape character is a backtick turned `` `note` ``, `` `aliasOf` ``, `` `reserved` `` and
+ * `` `excluded` `` into LF, BEL, CR and ESC bytes inside a normative `spec/` artefact: still valid
+ * JSON, still Prettier-clean, still zero findings, and four words left unreadable.
+ */
+export function controlCharacterFindings(manifest) {
+  const findings = [];
+  const walk = (node, path) => {
+    for (const [key, value] of Object.entries(node)) {
+      const at = path ? `${path}.${key}` : key;
+      if (typeof value === "string") {
+        const found = [...value].filter(
+          (character) => character.codePointAt(0) < 0x20,
+        );
+        if (found.length > 0) {
+          findings.push(
+            `${MANIFEST_PATH}: ${at} contains control character(s) ${[
+              ...new Set(
+                found.map(
+                  (character) =>
+                    `U+${character.codePointAt(0).toString(16).padStart(4, "0").toUpperCase()}`,
+                ),
+              ),
+            ].join(
+              ", ",
+            )} — prose is the only unguarded surface in this file, and this is the one thing about it a machine can check`,
+          );
+        }
+      } else if (value !== null && typeof value === "object") {
+        walk(value, at);
+      }
+    }
+  };
+  walk(manifest, "");
+  return findings;
+}
+
+/**
+ * A registry `note` may not name the accessors the tag itself declares.
+ *
+ * `about` states the no-restatement rule; this is the derivable half of it, executable. The
+ * comparison is against the tag's **own** `accessor` values, so there is no word list to maintain
+ * and no way for it to be wrong about what counts as a restatement.
+ *
+ * The other half of the rule — no counts — is deliberately **not** enforced. Doing so needs a list
+ * of counting words, which is a hand-maintained second list inside the check that exists to remove
+ * second lists, and it fires on ordinary English: "one-word spellings" and "carved out of this one"
+ * are not counts. An unfalsifiable stoplist would be a worse defect than the one it catches.
+ *
+ * Scoped to `note` deliberately: `invariants`, `profiles.about`, `tokenClassKeyword` and each
+ * `excluded[].rationale` are normative or required as data by ADR-0021, so they are not subject to
+ * it.
+ */
+export function noteRestatementFindings(manifest) {
+  const findings = [];
+  for (const [tag, registry] of Object.entries(manifest.registries)) {
+    if (typeof registry.note !== "string") {
+      continue;
+    }
+    const accessors = [
+      registry.lookup?.accessor,
+      registry.enumerate?.accessor,
+      registry.aliasEnumerator,
+      registry.canonicalAccessor,
+    ].filter((accessor) => typeof accessor === "string");
+    const echoed = [...new Set(accessors)].filter((accessor) =>
+      registry.note.includes(accessor),
+    );
+    if (echoed.length > 0) {
+      findings.push(
+        `${MANIFEST_PATH}: registries.${tag}.note names its own accessor(s) ${echoed.join(", ")} — the value is a few lines above it, so the prose is a second copy that the next rename drifts`,
+      );
+    }
+  }
+  return findings;
 }
 
 /**
