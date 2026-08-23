@@ -196,8 +196,8 @@ test("an explicitly empty profile set is honored by the checker too", () => {
 test("the checker and the editor agree about a profile word under the shared default", () => {
   // The contradiction #740 exists to remove, on one program: the editor paints `ask` as the keyword
   // it is while the checker, reading the same default set, treats it as an available name and
-  // reports only the name nothing knows. Before this slice the editor said "ordinary primitive"
-  // about a command its own checker was happy to accept.
+  // reports only the name nothing knows. Before this slice the editor gave `ask` the plain
+  // `primitive` fallback — a command its own checker was happy to accept.
   //
   // Deliberately framed as *availability*, not reservation: `spec/grammar.md:408` makes profile
   // words built-in names unconditionally — "what a profile decides is whether a name works, never

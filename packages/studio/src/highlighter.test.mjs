@@ -270,9 +270,9 @@ test("profile primitives stay primitive under the studio set and under Core alon
 
 test("createParserHighlighter defaults to the studio's profile set, not the parser's", () => {
   // The regression guard for the #740 defect itself: `highlight()` defaults to Core Language alone,
-  // so a studio highlighter that forwards no profile set silently paints `ask` as an ordinary
-  // primitive. Pinning the default against *both* candidate sets — equal to the studio's, different
-  // from the parser's — is what makes that reversion fail here.
+  // so a studio highlighter that forwards no profile set silently gives `ask` the plain
+  // `primitive` fallback. Pinning the default against *both* candidate sets — equal to the
+  // studio's, different from the parser's — is what makes that reversion fail here.
   const classes = (highlighter) =>
     highlighter(PROFILE_BLOCK_HEAD_SOURCE).map((token) => token.class);
 
