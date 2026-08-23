@@ -133,7 +133,7 @@ test("semanticTokens: each Sound command call carries the defaultLibrary modifie
 
 test("semanticTokens: every Sound command carries defaultLibrary when nested in a whole program", () => {
   // The nested counterpart of the top-level check above: all five commands, in awkward positions,
-  // must still surface as `primitive` + `defaultLibrary` semantic tokens (spec/tooling.md:278).
+  // must still surface as `primitive` + `defaultLibrary` semantic tokens (spec/tooling.md:278-280).
   const tokens = OL.semanticTokens(NESTED_SOUND_PROGRAM, doc);
   for (const name of Object.keys(SOUND_CALLS)) {
     const token = tokens.find((t) => t.text === name);
