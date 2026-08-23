@@ -497,7 +497,7 @@ test("check: `input` checks clean under an active profile now that its slice (#6
 });
 
 test("check: `input` is STILL ol-unknown-command without the profile — it is not a Core name", () => {
-  // The other direction of the same gate: `spec/conformance.md:167-169` puts `input` in Interaction &
+  // The other direction of the same gate: `spec/conformance.md:169-173` puts `input` in Interaction &
   // Events, and `spec/interaction-events.md:11` is explicit that "OpenLogo **Core** remains
   // non-interactive: `input` is defined here, not in Core". A Core-only program that calls it must
   // still be told the name is unknown. Written as a bare call (with an argument the profile-blind
@@ -550,9 +550,10 @@ test("check: `wait` is a primitive, so redefining it under an active profile rai
   // `OL_PROFILE_KEYWORDS`), but `spec/tooling.md:185` makes redefining a *primitive*
   // `ol-reserved-word` all the same. That block-head/primitive distinction decides which BRANCH of
   // the checker reports it, and since issue #838 no longer shows up in the diagnostic at all:
-  // `spec/error-model.md:125` gives the code `params: { name }` only, because whether the taken
-  // name is a keyword or a primitive "is an implementation distinction the learner never has to
-  // learn". Sound's identically-shaped `set_tempo`, Geometry's `grid`, and Data's `list` already
+  // `spec/error-model.md:125` gives the code `params: { name }` only, and requires that "the words
+  // *keyword*, *primitive*, and *alias* MUST NOT appear in the learner message" — because, as
+  // `spec/error-model.md:136` puts it, that is "an implementation distinction the learner never has
+  // to learn". Sound's identically-shaped `set_tempo`, Geometry's `grid`, and Data's `list` already
   // behaved this way; before I8 `wait` was the only one of those four profiles' primitives a
   // program could silently shadow.
   for (const primitive of Object.keys(INTERACTION_PRIMITIVES)) {
@@ -587,8 +588,9 @@ test("check: `wait` is accepted under Core-only — the same #841 deviation", ()
 // --- Static arity: `wait` is strictly fixed-arity, gated on the same profile --------------------
 
 test("check: a `wait` call short of its one input raises ol-not-enough-inputs at stage=semantic", () => {
-  // `wait <n>` is Kind-C taking exactly one number, so a bare `wait` that ran out of line is
-  // statically short (`spec/tooling.md:181`). Before I8 this checked clean, because `wait` had no
+  // `wait <n>` is Kind-C taking exactly one number (`spec/interaction-events.md:31`), so a bare
+  // `wait` that ran out of line is statically short — `spec/tooling.md:182`, "Not enough inputs for
+  // a fixed-arity or selected call form". Before I8 this checked clean, because `wait` had no
   // static arity range — the same shape Sound's `set_tempo` already had via #689.
   const [finding, ...rest] = checkDiagnostics("wait", INTERACTION_PROFILES);
   assert.deepEqual(rest, []);
