@@ -1223,7 +1223,7 @@ export const runtimeDiag = {
   /**
    * `ol-no-output`: a procedure was called where a value is required, but the invocation reached
    * the end of its body (or `stop`) without ever executing `return`/`output`/`op`
-   * (`spec/execution-model.md:346-349`, `spec/error-model.md:112`). Raised at the CALL site, not
+   * (`spec/execution-model.md:368-374`, `spec/error-model.md:114`). Raised at the CALL site, not
    * inside the procedure's own body — the procedure itself ran to completion without error.
    */
   noOutput(source_span: SourceSpan, procedure: string): Diagnostic {

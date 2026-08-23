@@ -13,7 +13,7 @@
  * {@link ExecSignal} — `"normal"`/`"halt"` (its original two outcomes, renamed) plus `"return"`/
  * `"stop"` — so a control form's body (`If`/`While`/`Repeat`/`Forever`/`ForIn`/`ForRange`)
  * transparently propagates a `return`/`stop` up to the nearest enclosing procedure, rather than
- * only stopping its own loop (`spec/execution-model.md:340-349`). {@link runProcedure} is the
+ * only stopping its own loop (`spec/execution-model.md:368-374`). {@link runProcedure} is the
  * shared call mechanics reachable from both a statement-position call (dispatched directly, right
  * here) and an expression-position call (`evaluate.ts`'s `evaluateCall`, via the `callProcedure`
  * callback threaded onto `Environment` — see `evaluate.ts`'s doc comment for why a direct import
@@ -294,9 +294,25 @@ function moveTurtle(
  * call, so every local variable declared directly in its body adds to the native stack frame
  * reserved on *every* recursive level — even for recursion that never touches `forward`/`back`.
  * Keeping this branch's locals in their own (non-recursive) function keeps `executeStatements`'s
- * own frame small, which is what lets `execution-budget.test.mjs`'s 1000-deep
- * `recursionDepthLimit` override actually complete without hitting the real (V8) native stack
- * limit first.
+ * own frame small, which is what lets a deep recursive program run out of OpenLogo's *own*
+ * recursion-depth budget — and report the friendly `ol-limit` — instead of hitting the real (V8)
+ * native stack limit first.
+ *
+ * **This is the canonical frame-width note**; the sibling helpers below point here. Each of them
+ * records that inlining it back into `executeStatements` once pushed the deep-recursion budget
+ * test *of the day* over that native limit — at the time, a 600-deep run under
+ * `recursionDepthLimit: 1000`. That test no longer exists: issue #726 found it promised a depth
+ * the host could not honor and replaced it with `execution-budget.test.mjs`'s "recursion up to
+ * just under the host-safe ceiling completes normally" case — depth
+ * `HOST_SAFE_RECURSION_DEPTH - 1` (499) under a limit of {@link HOST_SAFE_RECURSION_DEPTH} (500)
+ * — plus the clamp in {@link resolveEffectiveRecursionDepthLimit}, which caps any configured
+ * `recursionDepthLimit` at that ceiling. **Only the numbers changed, not the constraint:** frame
+ * width is still multiplied by recursion depth, and {@link HOST_SAFE_RECURSION_DEPTH} keeps only
+ * its documented headroom margin below a cold-overflow floor that drifts *down* as the evaluator
+ * gains features. Note the live test recurses *shallower* than the 600 these regressions were
+ * observed at, so it is a weaker tripwire than the one that caught them — treat every extraction
+ * that cites this note as load-bearing even if some future inlining experiment happens to stay
+ * green.
  */
 function executeTurtleMoveCall(
   moveCall: CallNode | ParenCallNode,
@@ -2200,7 +2216,7 @@ const NOT_A_SOUND_COMMAND = Symbol("not-a-sound-command");
  * step (issue #689 registers `set_tempo`/`beep`; #690/#691 add `note`/`play`/`rest` here). Kept as
  * its own dispatcher — like {@link dispatchTurtleCommand} — so `executeStatements`'s own stack frame
  * stays fixed regardless of how many sound commands exist (the recursion-depth rationale that
- * dispatcher's doc comment records).
+ * {@link executeTurtleMoveCall}'s canonical frame-width note records).
  */
 function dispatchSoundCommand(
   statement: StatementNode,
@@ -2267,7 +2283,7 @@ const NOT_A_TURTLE_COMMAND = Symbol("not-a-turtle-command");
  * un-evaluated" case for an unsupported argument expression, mirroring the turtle commands).
  *
  * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
- * {@link dispatchTurtleCommand}: `executeStatements` recurses once per procedure call, so this
+ * {@link executeTurtleMoveCall}: `executeStatements` recurses once per procedure call, so this
  * argument-gating logic stays out of its body.
  */
 function executeWaitCall(
@@ -3626,9 +3642,10 @@ function dispatchTurtleCommandOnce(
  * `Assign` and the five mutators share one dispatch — and therefore one result local in
  * {@link executeStatements} — on purpose. `executeStatements` recurses once per procedure call, so
  * every extra local it declares widens the per-level stack frame; a *second* result local there for
- * the mutators pushed the 600-deep `recursionDepthLimit: 1000` regression test
- * (`execution-budget.test.mjs`) over the native call-stack limit, exactly as {@link executeShowCall}'s
- * doc comment warns. Folding them together keeps that frame at its original width.
+ * the mutators pushed the deep-recursion budget test of the day over the native call-stack limit,
+ * exactly as {@link executeShowCall}'s doc comment warns. Folding them together keeps that frame at
+ * its original width. See {@link executeTurtleMoveCall}'s canonical frame-width note for that
+ * test's history and the ceiling enforced today.
  */
 function dispatchAssignOrListMutator(
   statement: StatementNode,
@@ -3655,12 +3672,12 @@ function dispatchAssignOrListMutator(
 /**
  * Executes a `print value1 [value2 ...]` statement (`spec/commands.md`'s `print`) once
  * {@link executeStatements} has confirmed it via {@link isPrintCall}. Extracted into its own
- * function for the same reason {@link dispatchTurtleCommand}'s doc comment gives: `executeStatements`
- * recurses once per procedure call, so keeping this arity/evaluation/snapshot logic (including the
- * per-print `snapshotValue` memo, issue #495's point-in-time-snapshot rule) out of its body keeps
- * its own stack frame size fixed — inlining it there is exactly what pushed the 600-deep
- * `recursionDepthLimit: 1000` regression test (`execution-budget.test.mjs`) over the native
- * call-stack limit.
+ * function for the same reason {@link executeTurtleMoveCall}'s canonical frame-width note gives:
+ * `executeStatements` recurses once per procedure call, so keeping this arity/evaluation/snapshot
+ * logic (including the per-print `snapshotValue` memo, issue #495's point-in-time-snapshot rule)
+ * out of its body keeps its own stack frame size fixed — inlining it there is exactly what pushed
+ * the deep-recursion budget test of the day over the native call-stack limit (that note has the
+ * numbers, then and now).
  *
  * All arguments are evaluated first into `rawValues`, and only once every argument has finished
  * evaluating is that whole list snapshotted, in one pass sharing a single memo (issue #543): a
@@ -3723,10 +3740,11 @@ function executePrintCall(
 /**
  * Executes a `show value` statement (issue #234, `spec/commands.md`'s `show`) once
  * {@link executeStatements} has confirmed it via {@link isShowCall}. Extracted into its own
- * function for the same reason {@link dispatchTurtleCommand}'s doc comment gives: `executeStatements`
- * recurses once per procedure call, so keeping this arity/evaluation logic out of its body keeps
- * its own stack frame size fixed — inlining it there pushed the 600-deep `recursionDepthLimit:
- * 1000` regression test (`execution-budget.test.mjs`) over the native call-stack limit.
+ * function for the same reason {@link executeTurtleMoveCall}'s canonical frame-width note gives:
+ * `executeStatements` recurses once per procedure call, so keeping this arity/evaluation logic out
+ * of its body keeps its own stack frame size fixed — inlining it there pushed the deep-recursion
+ * budget test of the day over the native call-stack limit (that note has the numbers, then and
+ * now).
  */
 function executeShowCall(
   statement: CallNode | ParenCallNode,
@@ -4035,14 +4053,16 @@ const NOT_A_SHOW_RANDOMIZE_OR_EDUCATIONAL_COMMAND = Symbol(
 /**
  * Single entry point {@link executeStatements} calls to try `show`, `randomize`, and the four
  * Educational meta-commands (`explain`/`why`/`hint`/`debug`, issue #332) in one step — the same
- * amortization {@link dispatchTurtleCommand}'s doc comment explains: folding multiple
+ * amortization {@link executeTurtleMoveCall}'s canonical frame-width note explains: folding multiple
  * single-command predicate/dispatch pairs behind one call site keeps `executeStatements`'s own
  * body (and so every stack frame in a deep recursive program) from growing with each additional
  * statement kind it recognizes. `show` (issue #234) and `randomize` (issue #287) were already
  * combined here for exactly this reason — the doc comment on the original two-command version
- * of this function recorded that "the second inline check alone was enough to push the 600-deep
- * `recursionDepthLimit: 1000` regression test over the native call-stack limit under coverage
- * instrumentation" — and issue #332's own first attempt (a separate
+ * of this function (`dispatchShowOrRandomizeCommand`, as it stood in #294) recorded that "the
+ * second inline check alone was enough to push the 600-deep `recursionDepthLimit: 1000`
+ * regression test over the native call-stack limit under coverage instrumentation"; that quoted
+ * test has since been replaced by the depth-499/limit-500 case described in the canonical note,
+ * but the effect it measured has not gone away — and issue #332's own first attempt (a separate
  * `dispatchEducationalMetaCommand` call site right after this one) reproduced precisely that
  * regression, so the four meta-commands are folded into this SAME dispatcher rather than added
  * as a new one. `statements` (the full statement list `statement` appears in) is threaded through
@@ -4122,7 +4142,7 @@ function evaluateCondition(
  * `stop` reached). Every control-form body below (`If`/`While`/`Repeat`/`Forever`/`ForIn`/
  * `ForRange`) now propagates ANY non-`"normal"` signal straight up unchanged rather than only
  * checking for `"halt"` — this is what makes a `stop`/`return` nested inside a loop inside a
- * procedure exit the whole procedure, not just that loop (`spec/execution-model.md:340-349`).
+ * procedure exit the whole procedure, not just that loop (`spec/execution-model.md:368-374`).
  * {@link runProcedure} is the only place that ever *consumes* a `"return"`/`"stop"` signal; if one
  * reaches {@link runProgram}'s top level instead, no procedure was there to catch it, so it is
  * converted to `ol-return-outside-proc`/`ol-stop-outside-proc`.
@@ -4385,7 +4405,7 @@ type ProcedureOutcome =
  * but only on a clean or `return`/`stop` outcome (a `"halt"` outcome skips it, matching the
  * existing convention that a diagnostic stops the trace with no further events at all). This
  * ordering reproduces the spec's worked recursive-call trace exactly
- * (`spec/execution-model.md:606-648`).
+ * (`spec/execution-model.md:775-813`).
  *
  * Before any of that, the call is checked against `environment.callDepth`'s length — the current
  * procedure-call nesting depth — against {@link Environment.recursionDepthLimit}: exceeding it
@@ -4430,8 +4450,9 @@ function runProcedure(
  * {@link runProcedureBody}'s `procedure-enter` push — for the same stack-frame-size reason
  * {@link executePrintCall}'s doc comment gives: `runProcedureBody` is on the
  * `recursionDepthLimit`-checked recursive call path, so any inline growth there (a `Map`
- * allocation, a `.map()` call) risks reproducing the 600-deep `recursionDepthLimit: 1000`
- * regression (`execution-budget.test.mjs`) over the native call-stack limit.
+ * allocation, a `.map()` call) risks reproducing the native-call-stack overflow the deep-recursion
+ * budget test of the day caught here (see {@link executeTurtleMoveCall}'s canonical frame-width
+ * note).
  */
 function snapshotProcedureEnterPayload(
   name: string,
@@ -4537,12 +4558,13 @@ function runProcedureBody(
       name: def.name.name,
       // Snapshotted inline (issue #495), unlike `procedure-enter`'s payload just above, which
       // uses the extracted `snapshotProcedureEnterPayload` helper: an equivalent extracted
-      // helper here was tried and regressed the 600-deep `recursionDepthLimit: 1000` regression
-      // test (`execution-budget.test.mjs`) over the native call-stack limit, since this push is
-      // in `runProcedureBody`'s own frame on the recursion-depth-checked call path — every byte
-      // added to this frame's own size is multiplied by the recursion depth. `procedure-enter`'s
-      // extraction stayed under that budget; this one and `executeStatements`'s `"Return"`
-      // branch below did not, so both are inlined as the smallest correct fix instead.
+      // helper here was tried and pushed the deep-recursion budget test of the day over the
+      // native call-stack limit (see `executeTurtleMoveCall`'s canonical frame-width note), since
+      // this push is in `runProcedureBody`'s own frame on the recursion-depth-checked call path —
+      // every byte added to this frame's own size is multiplied by the recursion depth.
+      // `procedure-enter`'s extraction stayed under that budget; this one and
+      // `executeStatements`'s `"Return"` branch below did not, so both are inlined as the
+      // smallest correct fix instead.
       result: result === null ? null : snapshotValue(result),
     } satisfies ProcedureExitPayload,
   });
@@ -4554,7 +4576,7 @@ function runProcedureBody(
  * Call a user procedure from an expression/reporter position (`print area :r`): like
  * {@link runProcedure}, but a command result (`null` — the procedure never reached `return`)
  * is `ol-no-output` here, since a value is required in this position
- * (`spec/execution-model.md:346-349`). Wired onto every execution `Environment`'s
+ * (`spec/execution-model.md:368-374`). Wired onto every execution `Environment`'s
  * `callProcedure` field so `evaluate.ts`'s `evaluateCall` can reach it without importing this
  * module (see this file's header comment).
  */
@@ -4695,7 +4717,7 @@ function callProcedureAsValue(
  * both still work correctly across a nested `for`. Every control-form body below propagates ANY
  * non-`"normal"` signal from `executeStatements` straight back up — including `"return"`/`"stop"`
  * — so a `stop` or `return` nested inside a loop nested inside a procedure exits the *procedure*,
- * not just that loop (`spec/execution-model.md:340-349`).
+ * not just that loop (`spec/execution-model.md:368-374`).
  *
  * Statement kinds this issue does not give meaning to (e.g. a bare arithmetic expression, or any
  * call this evaluator does not know) still emit their `instruction` event but do not evaluate —
@@ -4714,9 +4736,9 @@ function callProcedureAsValue(
  * {@link isProcedureCallStatement} has confirmed it. Extracted into its own function for the same
  * reason {@link executeShowCall}'s doc comment gives: `executeStatements` recurses once per
  * procedure call, so keeping this argument-gating logic out of its body keeps its own stack frame
- * size fixed — inlining an `isSupportedExpression` gate directly there pushed the 600-deep
- * `recursionDepthLimit: 1000` regression test (`execution-budget.test.mjs`) over the native
- * call-stack limit.
+ * size fixed — inlining an `isSupportedExpression` gate directly there pushed the deep-recursion
+ * budget test of the day over the native call-stack limit (see {@link executeTurtleMoveCall}'s
+ * canonical frame-width note).
  *
  * Unlike an expression-position call (`print area :r`), which only ever reaches `runProcedure`
  * after `evaluate.ts`'s own `isSupportedExpression` gate already checked every argument, a
@@ -4951,8 +4973,9 @@ function executeStatements(
         // Snapshotted inline (issue #495) rather than via an extracted helper — see
         // `runProcedureBody`'s `procedure-exit` push's comment: `executeStatements` is on the
         // same recursion-depth-checked call path, and an extracted helper here reproduced the
-        // 600-deep `recursionDepthLimit: 1000` regression (`execution-budget.test.mjs`), so this
-        // is the smallest correct fix instead.
+        // deep-recursion budget test of the day's native-call-stack overflow (see
+        // `executeTurtleMoveCall`'s canonical frame-width note), so this is the smallest correct
+        // fix instead.
         source_span: statement.source_span,
         payload: { value: snapshotValue(result.value) } satisfies ReturnPayload,
       });
