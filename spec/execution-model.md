@@ -146,18 +146,18 @@ the left operand is `true`; `or` evaluates its right operand only when the left
 operand is `false`. Parenthesized `(and ...)` and `(or ...)` use the same
 left-to-right short-circuit semantics.
 
-Comparisons may be **chained**: `1 < :x < 10` is evaluated as
-`1 < :x and :x < 10`, computing each operand once with `and` short-circuit
-semantics. OpenLogo also offers worded predicates at the comparison level that
-read as English and return booleans. They are written **operand-first**, with
-the value before `is`: `<value> is empty`, `<value> is member of <collection>`,
-`<value> is a <type-word>`, and `<value> is [ strictly ] between <low> and
-<high>` (inclusive, or exclusive with `strictly`). These are first-class
-alternates to the prefix `?`-predicates (`empty?`, `member?`, `is_a?`). Only
-`is`, `strictly`, and `between` are keywords everywhere; the contextual words
-`empty`, `member`, `of`, and `a` are recognized only just after `is` and remain
-valid ordinary names elsewhere. There is no infix `in` membership operator — use
-`<value> is member of <collection>` or `member?`; the word `in` is only the
+Comparisons may be **chained**: `1 < :x < 10` is evaluated as `1 < :x and :x <
+10`, computing each operand once with `and` short-circuit semantics. OpenLogo also
+offers worded predicates at the comparison level that read as English and return
+booleans. They are written **operand-first**, with the value before `is`: `<value>
+is empty`, `<value> is member of <collection>`, `<value> is a <type-word>`, and
+`<value> is [ strictly ] between <low> and <high>` (inclusive, or exclusive with
+`strictly`). These are first-class alternates to the prefix `?`-predicates
+(`empty?`, `member?`, `is_a?`). Only `is`, `strictly`, and `between` are keywords
+everywhere; the contextual words `empty`, `member`, `of`, and `a` are recognized
+just after `is` — `of` also in the heritage `value of … for key` reader — and
+remain valid ordinary names elsewhere. There is no infix `in` membership operator
+— use `<value> is member of <collection>` or `member?`; the word `in` is only the
 `for`/comprehension preposition. Operand types depend on the operator: ordering
 comparisons (`<`, `>`, `<=`, `>=`) and `[ strictly ] between` require numbers or
 words; `==` and `!=` compare any two values; `is empty` accepts lists, dicts, and

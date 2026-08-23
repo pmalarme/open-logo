@@ -391,7 +391,7 @@ export function highlight(
   }
 
   /**
-   * `of` in the Heritage `value of <dict> for key <key>` reader (`spec/grammar.md:213`'s
+   * `of` in the Heritage `value of <dict> for key <key>` reader (`spec/grammar.md:217`'s
    * `value-of-reader`) is `keyword`, alongside the `is`-predicate's `of` above.
    *
    * `spec/tooling.md:97-99` is the normative highlighter instruction and names **both** positions:
@@ -410,19 +410,17 @@ export function highlight(
    * already `keyword`; and `spec/grammar.md:380` calls this `of` "the contextual preposition in the
    * heritage `value of … for key` reader".
    *
-   * Not every passage is yet phrased to match. `spec/grammar.md:234` and `:380`,
-   * `spec/execution-model.md:154-156`, and `spec/commands.md:461` still scope these four words'
-   * contextual-keyword status to the `is`-predicate — `:380` then adds the reader parenthetical
-   * quoted above, so it has carried that tension since the spec's initial commit, independently of
-   * #785. All four are about reader recognition and *reservation* rather than token class:
-   * `spec/grammar.md:7` scopes that document to "lexis, reader-visible syntax … and the built-in
-   * names a program may not declare", and `spec/commands.md:461` draws its contrast in
-   * keyword-class terms ("Only `is`, `strictly`, and `between` are keywords; `empty`, `member`,
-   * `of`, and `a` are contextual keywords after `is`") — the *reservation* half of the claim comes
+   * Those passages now match. `spec/grammar.md:234`, `spec/execution-model.md:156-159`, and
+   * `spec/commands.md:461` each keep their "after `is`" claim scoped to their own subject and
+   * name this reader as `of`'s other structural position (#856); `spec/grammar.md:380` had already
+   * folded its reader parenthetical into the sentence (#875), ending the tension it had carried
+   * since the spec's initial commit. None of them governs token class in any case:
+   * `spec/grammar.md:7` scopes that document to "lexis, reader-visible syntax, expression
+   * precedence, bracket roles, assignable places, keywords, and the built-in names a program may
+   * not declare", and `spec/commands.md:461` draws its contrast in keyword-membership terms ("Only
+   * `is`, `strictly`, and `between` are keywords") — the *reservation* half of the claim comes
    * from `spec/tooling.md:100` ("`is`, `between`, and `strictly` are globally reserved"). The
-   * normative token-class model is
-   * `spec/tooling.md`'s, so none of the four governs this class. Tightening their wording is a
-   * maintainer call raised with the #785 ruling, not something this change assumes.
+   * normative token-class model is `spec/tooling.md`'s.
    *
    * It is emphatically not `primitive` **as a matrix claim**: `spec/tooling.md:31` scopes that
    * sense to "Built-in commands, reporters, and aliases from the C3 primitive matrix", and
