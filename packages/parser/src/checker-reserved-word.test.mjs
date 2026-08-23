@@ -423,7 +423,7 @@ test("#742: every Heritage alias collides exactly as its canonical does, under e
     assert.equal(
       collides(alias, ALL_PROFILES),
       collides(canonical, ALL_PROFILES),
-      `define ${alias} and define ${canonical} must agree — Heritage is alternate spellings only, no new semantics (spec/conformance.md:146)`,
+      `define ${alias} and define ${canonical} must agree — Heritage is alternate spellings only, no new semantics (spec/conformance.md:150)`,
     );
   }
 });
