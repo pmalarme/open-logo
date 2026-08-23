@@ -258,14 +258,26 @@
     "addsProfileKeywordsNamedIndividually": [
       "tell"
     ],
+    "addsProfileKeywordsCoveredByClause": [
+      "ask",
+      "each",
+      "when",
+      "every",
+      "on_key",
+      "on_click"
+    ],
+    "addsProfileKeywordsCoverageReason": "Every profile keyword must be in EXACTLY ONE of these two lists, and their union must equal the full profile-keyword set -- the gate checks that set-equality. Without it, adding a profile keyword to OL_PROFILE_KEYWORDS and to `names` was measured GREEN with no spec/tooling.md edit at all, because the row's clause covers `the profile block-heads` generically and nothing checked that a new word was one. A word in `NamedIndividually` must appear in the row's enumeration; a word in `CoveredByClause` must NOT, because the clause speaks for it. `tell` is named because it is not a block head.",
     "rowAnchors": {
       "exclusionClause": "The word-spelled operators",
       "exclusionPolarity": "are **not** in this class",
       "profileClause": "while their profile is active, the profile block-heads together with the Sprites mode-switch command `tell`",
+      "contextualClause": "in the structural positions described under [Reserved words](#reserved-words-for-tooling), none of which is a reserved word",
+      "contextualCountSentence": "other than the {adds} contextual ones, which take this class only in the structural positions just described and are ordinary names elsewhere",
       "deltaSentence": "it omits {omits} reserved words, adds {adds} non-reserved ones",
+      "paintIndependenceClause": "reserved-list membership never decides how a token is painted",
       "independenceClause": "This class is **not derived from** the reserved list"
     },
-    "rowAnchorsReason": "The gate splits the row at `exclusionClause` and compares BOTH segments by set equality: the enumeration before it must name exactly the computed membership, and the words inside the clause must be exactly `omitsKeywords`. Every other anchor guards a claim the segments cannot see. `exclusionPolarity` and `independenceClause` are POLARITY claims -- rewriting \"are **not** in this class\" to \"are in this class\", or \"**not derived from**\" to \"derived from\", inverts a rule while every gated token stays identical. `profileClause` carries the words \"while their profile is active\" for the same reason: gating the noun phrase and not its condition would let the paint axis be made unconditional silently. `deltaSentence` is a TEMPLATE, not a sentence: the counts are filled in from `omitsKeywords` and `addsExcluded`, so the prose cannot state a number this file does not hold. A one-directional check -- every expected word appears somewhere in the row -- was measured GREEN against five mutations including `polygon` added to the class, which is why all of this exists.",
+    "rowAnchorsReason": "The gate splits the row at `exclusionClause` and compares BOTH segments by set equality: the enumeration before it must name exactly the computed membership, and the words inside the clause must be exactly `omitsKeywords`. Every other anchor guards a claim the segments cannot see, because a set of backticked words is blind to the sentence around them. `exclusionPolarity` and `independenceClause` are POLARITY claims -- rewriting \"are **not** in this class\" to \"are in this class\", or \"**not derived from**\" to \"derived from\", inverts a rule while every gated token stays identical. `profileClause` carries \"while their profile is active\" and `contextualClause` carries \"in the structural positions ... none of which is a reserved word\" for the same reason: both were measured GREEN when their QUALIFIER was inverted and only their nouns left intact, which would make the paint axis unconditional and the contextual words unconditional keywords respectively. `deltaSentence` is a TEMPLATE: the counts are filled in from `omitsKeywords` and `addsExcluded`, so the prose cannot state a number this file does not hold. Every anchor must be a non-empty string, because blanking one was itself a way to switch its check off.",
     "addsProfileKeywordsReason": "The profile block-heads and the Sprites mode-switch command `tell` take this class while their profile is active. That is the PAINT axis and is unaffected by these words being built-in names unconditionally on the DECLARATION axis. The row names `tell` individually because it is not a block head, and defers to the profile documents for the block-head NAMES rather than restating them -- so `addsProfileKeywordsNamedIndividually` records the ones set equality must expect, and `rowAnchors.profileClause` gates the deferral. Restating the six block-heads here would be the third list to keep in step that spec/grammar.md:414 warns against."
   },
   "names": [

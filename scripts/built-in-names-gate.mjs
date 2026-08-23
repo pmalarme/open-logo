@@ -89,8 +89,8 @@
  * there.
  */
 
-import { existsSync, readFileSync } from "node:fs";
-import { join, resolve, sep } from "node:path";
+import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { join, sep } from "node:path";
 import * as parserApi from "@openlogo/parser";
 
 /** The authoritative list (ADR-0021 §1). Under `spec/`, so maintainer-owned via `CODEOWNERS`. */
@@ -149,27 +149,52 @@ export const STDLIB_DIR = "stdlib";
 export const CONTEXTUAL_POSITIONS = ["is-predicate", "value-of-reader"];
 
 /**
- * Is `source` a file **inside** `stdlib/`, with a `.logo` extension?
+ * Is `source` a `.logo` file the manifest may point a `library` carve-out at?
  *
- * Containment, not a prefix test. `stdlib/../spec/examples/01-movement.logo` starts with `stdlib/`,
- * ends `.logo`, and exists — and the first version of this check passed it. That version was itself
- * a round-1 fix for "any file that exists"; replacing it with "any file whose *string* starts with
- * the right thing" inherited the same reasoning and so reproduced the same defect one step in. The
- * path is normalized and its containment asserted, rather than its spelling inspected.
+ * This has been wrong twice, each time in the same shape, so it is worth naming. Round 1 checked
+ * only that the file **existed** — `package.json` passed. Round 2 checked that its **string**
+ * started with `stdlib/` — `stdlib/../spec/examples/01-movement.logo` passed, a *prefix* test
+ * wearing a containment test's clothes. **A correction inherits the reasoning that produced the
+ * defect** unless the reasoning is deliberately changed, so the spelling is no longer inspected at
+ * all: {@link REAL_IO.isStdlibFile} resolves the real path, requires it to be a real **file**, and
+ * requires it to remain beneath the real `stdlib/` root — which a symlink escaping the directory
+ * does not, and a directory named `example.logo` is not.
+ *
+ * The extension is checked here because it is a statement about the manifest, not the filesystem.
  */
-export function isStdlibSource(source) {
-  if (typeof source !== "string" || !source.endsWith(".logo")) {
-    return false;
-  }
-  const root = resolve(STDLIB_DIR);
-  const target = resolve(source);
-  return target.startsWith(root + sep) && target.length > root.length + 1;
+export function isStdlibSource(source, io) {
+  return (
+    typeof source === "string" &&
+    // Case-insensitive, because on a case-insensitive filesystem `STDLIB/x.LOGO` names the same
+    // file as `stdlib/x.logo`, and a maintainer who types it should get a finding about the real
+    // problem rather than one about the spelling of a path that plainly is a `.logo` file.
+    source.toLowerCase().endsWith(".logo") &&
+    io.isStdlibFile(source)
+  );
 }
 
 /** Default filesystem port, so tests can drive every branch without touching disk. */
 export const REAL_IO = {
   readText: (path) => readFileSync(path, "utf8"),
   exists: (path) => existsSync(path),
+  // Real-path containment, not a lexical one, and a real FILE, not merely an existing entry. A
+  // directory named `stdlib/example.logo` and a symlink pointing out of `stdlib/` both satisfy
+  // "exists" and both satisfy a string test; neither is OpenLogo source.
+  isStdlibFile: (path) => {
+    try {
+      if (!statSync(path).isFile()) {
+        return false;
+      }
+      // `startsWith(root + sep)` alone. A second `target.length > root.length + 1` clause looked
+      // prudent and was unreachable — the caller has already required a `.logo` suffix, so `target`
+      // can never be exactly `root + sep`. An unreachable clause inside a 100%-branch-covered file
+      // is invisible to the coverage gate, which is how the round-2 unreachable `throw` survived.
+      const root = realpathSync(STDLIB_DIR);
+      return realpathSync(path).startsWith(root + sep);
+    } catch {
+      return false;
+    }
+  },
 };
 
 /** Read and parse the authoritative list. */
@@ -603,33 +628,47 @@ export function aliasFindings(manifest, api) {
     }
   }
 
-  // The other direction. `aliasOf` is optional, so an entry that simply drops its edge is invisible
-  // to the loop above: measured, deleting ALL 18 edges left the gate green while the implementation
-  // still resolved every one of them. An edge the implementation has and the list does not is drift
-  // in exactly the same way as the reverse.
+  // The three domains must agree **as sets**, walked over the registry's whole membership rather
+  // than over any one of them. Measured: `canonicalOfTurtleAlias("forward") → "back"` while
+  // `turtleAliasNames()` omitted `forward` was green, because the forward loop visits only entries
+  // that already claim an edge and the reverse loop visits only names the enumerator already lists
+  // — so an edge the RESOLVER invented, in neither list, was seen by neither.
   for (const [tag, registry] of Object.entries(manifest.registries)) {
     if (registry.canonicalAccessor === undefined) {
       continue;
     }
     const names = resolveAccessor(api, registry.aliasEnumerator);
-    const resolve = resolveAccessor(api, registry.canonicalAccessor);
-    if (names === undefined || resolve === undefined) {
+    const resolveEdge = resolveAccessor(api, registry.canonicalAccessor);
+    const members = registryMembers(registry, api);
+    if (names === undefined || resolveEdge === undefined || members === null) {
       findings.push(
         `registry ${tag}: names ${registry.aliasEnumerator} / ${registry.canonicalAccessor} for its alias edges, and at least one is not exported from @openlogo/parser`,
       );
       continue;
     }
-    for (const name of names()) {
+    const enumerated = new Set(names());
+    for (const name of new Set([...members.keys(), ...enumerated])) {
+      const resolved = resolveEdge(name) !== undefined;
+      const listed = enumerated.has(name);
       const entry = byName.get(name);
+      if (resolved !== listed) {
+        findings.push(
+          `${name}: ${registry.canonicalAccessor} ${resolved ? "resolves" : "does not resolve"} an edge for it but ${registry.aliasEnumerator} ${listed ? "lists" : "does not list"} it — the registry's two accessors disagree`,
+        );
+        continue;
+      }
+      if (!resolved) {
+        continue;
+      }
       if (entry === undefined) {
         findings.push(
-          `${name}: ${registry.aliasEnumerator} lists it as an alias of "${resolve(name)}" but it has no entry in ${MANIFEST_PATH}`,
+          `${name}: ${registry.aliasEnumerator} lists it as an alias of "${resolveEdge(name)}" but it has no entry in ${MANIFEST_PATH}`,
         );
         continue;
       }
       if (entry.aliasOf === undefined) {
         findings.push(
-          `${name}: ${registry.canonicalAccessor} resolves it to "${resolve(name)}" but its entry records no aliasOf — a dropped edge is drift, not an absent one`,
+          `${name}: ${registry.canonicalAccessor} resolves it to "${resolveEdge(name)}" but its entry records no aliasOf — a dropped edge is drift, not an absent one`,
         );
       }
     }
@@ -672,13 +711,9 @@ export function carveOutFindings(manifest, io) {
     }
     switch (entry.reason) {
       case "library":
-        if (!isStdlibSource(entry.source)) {
+        if (!isStdlibSource(entry.source, io)) {
           findings.push(
-            `excluded ${entry.name}: reason "library" names ${JSON.stringify(entry.source)}, which is not a ${STDLIB_DIR}/*.logo path — the carve-out is that the name is OpenLogo SOURCE (ADR-0012), so any other file would prove nothing`,
-          );
-        } else if (!io.exists(entry.source)) {
-          findings.push(
-            `excluded ${entry.name}: reason "library" names ${entry.source}, which does not exist — the carve-out only holds while the OpenLogo source does`,
+            `excluded ${entry.name}: reason "library" names ${JSON.stringify(entry.source)}, which is not a real ${STDLIB_DIR}/*.logo file — the carve-out is that the name is OpenLogo SOURCE (ADR-0012), so any other path would prove nothing`,
           );
         }
         break;
@@ -775,16 +810,17 @@ export function extractGrammarKeywordBlock(text) {
   if (anchor === -1) {
     return null;
   }
-  // The FIRST fence after the anchor, whatever its info string — not the next ```logo anywhere
-  // below. Issue #888 re-fenced this block from ```logo to ```text (it is a word list, not a
-  // runnable program), and an info-string-specific search silently walked past it to the next
-  // ```logo block twenty lines further down and compared the wrong text. Searching for a specific
-  // info string is a guess about the document; "the block immediately after the sentence that
-  // introduces it" is the structure.
-  const open = lines.findIndex(
-    (line, index) => index > anchor && line.startsWith("```"),
-  );
-  if (open === -1) {
+  // The block introduced by the anchor is the one immediately after it: the anchor line, one blank
+  // line, then the fence. Binding to "the first fence anywhere below" would let a decoy fence
+  // inserted between them shadow the real block — the same positional-binding defect as searching
+  // for a specific info string, which is what this replaced.
+  const open = anchor + 2;
+  if (
+    lines[anchor + 1] === undefined ||
+    lines[anchor + 1].trim() !== "" ||
+    lines[open] === undefined ||
+    !lines[open].startsWith("```")
+  ) {
     return null;
   }
   const close = lines.indexOf("```", open + 1);
@@ -824,15 +860,33 @@ export function extractToolingC19Mirror(text) {
   if (paragraph.length === 0) {
     return null;
   }
+  // Verify this paragraph IS the word list, rather than trusting that it is the one after the
+  // anchor. Positional binding is the same defect as searching for a specific fence info string:
+  // inserting an editorial note between the sentence and the list made the gate report
+  // "the C19 mirror (1 words) is not byte-order-identical…" instead of saying its anchor had moved.
+  // A word list is backticked words and separators, and nothing else.
+  const residue = paragraph
+    .join(" ")
+    .replace(/`[^`]*`/g, "")
+    .replace(/[\s,.;:]/g, "");
+  if (residue.length > 0) {
+    return null;
+  }
   return backtickedWords(paragraph.join(" "));
 }
 
-/** The `keyword` row of `spec/tooling.md`'s token-class table — the second hand-maintained list. */
+/**
+ * The `keyword` row of `spec/tooling.md`'s token-class table — the second hand-maintained list.
+ *
+ * Requires **exactly one** such row. `find` would bind to the first, so a second row with the same
+ * prefix inserted above the real one shadowed it and the gate compared a decoy. "The row" is only
+ * meaningful while there is one.
+ */
 export function extractToolingKeywordRow(text) {
-  const row = text
+  const rows = text
     .split(/\r?\n/)
-    .find((line) => line.startsWith("| `keyword` |"));
-  return row ?? null;
+    .filter((line) => line.startsWith("| `keyword` |"));
+  return rows.length === 1 ? rows[0] : null;
 }
 
 /**
@@ -951,6 +1005,66 @@ export function tokenClassFindings(manifest, coreKeywords, row) {
   }
 
   const anchors = deltas.rowAnchors;
+  // Every anchor must be a non-empty string. Measured: blanking `profileClause`, `deltaSentence`
+  // and `independenceClause` switched all three checks off silently, because `row.includes("")` is
+  // always true — a check whose anchor is empty is a check that always passes.
+  const blank = Object.entries(anchors)
+    .filter(([, value]) => typeof value !== "string" || value.length === 0)
+    .map(([key]) => key);
+  if (blank.length > 0) {
+    findings.push(
+      `${MANIFEST_PATH}: tokenClassKeyword.rowAnchors.${blank.join(", ")} is empty — an empty anchor matches everything, so the check it guards is switched off rather than satisfied`,
+    );
+    return findings;
+  }
+  for (const [key, placeholders] of [
+    ["deltaSentence", ["{omits}", "{adds}"]],
+    ["contextualCountSentence", ["{adds}"]],
+  ]) {
+    for (const placeholder of placeholders) {
+      if (anchors[key].split(placeholder).length !== 2) {
+        findings.push(
+          `${MANIFEST_PATH}: tokenClassKeyword.rowAnchors.${key} must contain ${placeholder} exactly once, or the count it claims is not the count this file holds`,
+        );
+      }
+    }
+  }
+
+  const profileKeywords = manifest.names
+    .filter((entry) => entry.registries.includes("profile-reserved"))
+    .map((entry) => entry.name);
+  const named = deltas.addsProfileKeywords
+    ? deltas.addsProfileKeywordsNamedIndividually
+    : [];
+  const byClause = deltas.addsProfileKeywords
+    ? deltas.addsProfileKeywordsCoveredByClause
+    : [];
+  if (deltas.addsProfileKeywords) {
+    // Exact coverage, not a trusted list. Measured: adding `broadcast` to `OL_PROFILE_KEYWORDS` and
+    // to `names` — with no `spec/tooling.md` edit at all — was a green 149-name gate, because the
+    // row's clause covers "the profile block-heads" generically and nothing checked that a new word
+    // was one. Every profile keyword must now be in exactly one of the two lists.
+    const covered = [...named, ...byClause];
+    const uncovered = profileKeywords.filter((word) => !covered.includes(word));
+    const phantom = covered.filter((word) => !profileKeywords.includes(word));
+    const both = named.filter((word) => byClause.includes(word));
+    if (uncovered.length > 0) {
+      findings.push(
+        `${MANIFEST_PATH}: profile keyword(s) ${uncovered.join(", ")} are in neither addsProfileKeywordsNamedIndividually nor addsProfileKeywordsCoveredByClause — every one must be accounted for in the row, individually or by the clause`,
+      );
+    }
+    if (phantom.length > 0) {
+      findings.push(
+        `${MANIFEST_PATH}: ${phantom.join(", ")} is recorded as a profile keyword of the token-class row but is not a profile keyword`,
+      );
+    }
+    if (both.length > 0) {
+      findings.push(
+        `${MANIFEST_PATH}: ${both.join(", ")} is both named individually and covered by the clause — one word, one treatment`,
+      );
+    }
+  }
+
   const start = row.indexOf(anchors.exclusionClause);
   if (start === -1) {
     findings.push(
@@ -971,9 +1085,6 @@ export function tokenClassFindings(manifest, coreKeywords, row) {
   const enumerated = new Set(backtickedWords(row.slice(cellStart, start)));
   const excludedWords = new Set(backtickedWords(row.slice(start, polarity)));
 
-  const named = deltas.addsProfileKeywords
-    ? deltas.addsProfileKeywordsNamedIndividually
-    : [];
   const expected = new Set([
     ...coreKeywords.filter((word) => !omitted.includes(word)),
     ...deltas.addsExcluded,
@@ -1009,34 +1120,53 @@ export function tokenClassFindings(manifest, coreKeywords, row) {
   }
 
   if (deltas.addsProfileKeywords && !row.includes(anchors.profileClause)) {
-    const deferred = manifest.names.filter(
-      (entry) =>
-        entry.registries.includes("profile-reserved") &&
-        !named.includes(entry.name),
-    ).length;
     findings.push(
-      `${TOOLING_PATH}: the \`keyword\` token-class row no longer carries "${anchors.profileClause}" — the clause that admits the ${deferred} profile words it does not name individually`,
+      `${TOOLING_PATH}: the \`keyword\` token-class row no longer carries "${anchors.profileClause}" — the clause that admits the ${byClause.length} profile words it does not name individually`,
+    );
+  }
+  if (!row.includes(anchors.contextualClause)) {
+    findings.push(
+      `${TOOLING_PATH}: the \`keyword\` token-class row no longer says "${anchors.contextualClause}" — the four contextual words take this class ONLY in those positions, and without the qualifier the row makes them unconditional keywords`,
     );
   }
 
-  // The tail after the exclusion clause is read by neither segment above, and it carries two claims
-  // that restate data this file already holds. Both were measured green while contradicting it: the
-  // delta counts ("omits four … adds four …") survived a fifth omission, and the independence
-  // sentence survived being inverted to "derived from". Restating a number the manifest computes is
-  // the second-list problem this gate exists to remove, so the expected sentences are BUILT from
-  // the data rather than declared alongside it.
-  const expectedDeltas = anchors.deltaSentence
-    .replace("{omits}", numberWord(omitted.length))
-    .replace("{adds}", numberWord(deltas.addsExcluded.length));
-  if (!row.includes(expectedDeltas)) {
-    findings.push(
-      `${TOOLING_PATH}: the \`keyword\` token-class row does not say "${expectedDeltas}" — it states the deltas in prose, and the count it states must be the count ${MANIFEST_PATH} holds`,
-    );
-  }
-  if (!row.includes(anchors.independenceClause)) {
-    findings.push(
-      `${TOOLING_PATH}: the \`keyword\` token-class row no longer says "${anchors.independenceClause}" — that the class is NOT derived from the keyword list is what \`spec/grammar.md:378\` establishes and what this whole file is premised on`,
-    );
+  // Claims the two compared segments cannot see, because a set of backticked words is blind to the
+  // sentence around it. Each restates something the manifest already holds, and each was measured
+  // green while contradicting it: the delta counts, the contextual-carve-out count, and two
+  // separate polarity claims about the class's independence from the keyword list.
+  const claims = [
+    [
+      "deltaSentence",
+      anchors.deltaSentence
+        .replace("{omits}", numberWord(omitted.length))
+        .replace("{adds}", numberWord(deltas.addsExcluded.length)),
+      "it states the deltas in prose, and the count it states must be the count",
+    ],
+    [
+      "contextualCountSentence",
+      anchors.contextualCountSentence.replace(
+        "{adds}",
+        numberWord(deltas.addsExcluded.length),
+      ),
+      "it counts the contextual carve-outs in prose, and that count must be the one",
+    ],
+    [
+      "paintIndependenceClause",
+      anchors.paintIndependenceClause,
+      "that reserved-list membership never decides paint is the independence",
+    ],
+    [
+      "independenceClause",
+      anchors.independenceClause,
+      "that the class is NOT derived from the keyword list is the independence",
+    ],
+  ];
+  for (const [key, expected, why] of claims) {
+    if (!row.includes(expected)) {
+      findings.push(
+        `${TOOLING_PATH}: the \`keyword\` token-class row does not say "${expected}" — ${why} ${MANIFEST_PATH} holds (rowAnchors.${key})`,
+      );
+    }
   }
 
   return findings;

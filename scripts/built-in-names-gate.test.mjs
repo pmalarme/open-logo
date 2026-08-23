@@ -109,11 +109,15 @@ function tinyFixture() {
       addsExcluded: [],
       addsProfileKeywords: false,
       addsProfileKeywordsNamedIndividually: [],
+      addsProfileKeywordsCoveredByClause: [],
       rowAnchors: {
         exclusionClause: "not in the class:",
         exclusionPolarity: "not in the class:",
         profileClause: "profiles",
+        contextualClause: "contextually",
+        contextualCountSentence: "the {adds} contextual ones",
         deltaSentence: "omits {omits}, adds {adds}",
+        paintIndependenceClause: "never decides paint",
         independenceClause: "independent",
       },
     },
@@ -149,6 +153,7 @@ function fakeIo(files, existing = Object.keys(files)) {
   return {
     readText: (path) => files[path],
     exists: (path) => existing.includes(path),
+    isStdlibFile: (path) => existing.includes(path),
   };
 }
 
@@ -536,15 +541,17 @@ test("the Turtle & Rendering alias map is consumed by the resolver, not kept bes
 test("INJECTED DRIFT: deleting a stdlib/*.logo file breaks the Geometry carve-out", () => {
   const manifest = manifestCopy();
   const io = {
-    readText: REAL_IO.readText,
-    exists: (path) =>
-      path === "stdlib/geometry/polygon.logo" ? false : REAL_IO.exists(path),
+    ...REAL_IO,
+    isStdlibFile: (path) =>
+      path === "stdlib/geometry/polygon.logo"
+        ? false
+        : REAL_IO.isStdlibFile(path),
   };
   const result = runBuiltInNamesGate({ manifest, io });
   assert.equal(result.ok, false);
   assert.equal(
     result.findings.includes(
-      'excluded polygon: reason "library" names stdlib/geometry/polygon.logo, which does not exist — the carve-out only holds while the OpenLogo source does',
+      'excluded polygon: reason "library" names "stdlib/geometry/polygon.logo", which is not a real stdlib/*.logo file — the carve-out is that the name is OpenLogo SOURCE (ADR-0012), so any other path would prove nothing',
     ),
     true,
     result.findings.join("\n"),
@@ -884,7 +891,7 @@ test("INJECTED DRIFT: a library carve-out pointed at a file that is not OpenLogo
   assert.equal(result.ok, false);
   assert.equal(
     result.findings.includes(
-      'excluded polygon: reason "library" names "package.json", which is not a stdlib/*.logo path — the carve-out is that the name is OpenLogo SOURCE (ADR-0012), so any other file would prove nothing',
+      'excluded polygon: reason "library" names "package.json", which is not a real stdlib/*.logo file — the carve-out is that the name is OpenLogo SOURCE (ADR-0012), so any other path would prove nothing',
     ),
     true,
     result.findings.join("\n"),
@@ -972,8 +979,10 @@ test("INJECTED DRIFT: the row's delta counts drifting from the manifest's deltas
   ];
   const findings = proseFindings(manifest, REAL_IO);
   assert.equal(
-    findings.includes(
-      `${TOOLING_PATH}: the \`keyword\` token-class row does not say "it omits five reserved words, adds four non-reserved ones" — it states the deltas in prose, and the count it states must be the count ${MANIFEST_PATH} holds`,
+    findings.some((finding) =>
+      finding.includes(
+        'does not say "it omits five reserved words, adds four non-reserved ones"',
+      ),
     ),
     true,
     findings.join("\n"),
@@ -990,9 +999,7 @@ test("INJECTED DRIFT: the independence claim inverted — the second polarity in
   const findings = proseFindings(REAL_MANIFEST, io);
   assert.equal(
     findings.some((finding) =>
-      finding.includes(
-        'no longer says "This class is **not derived from** the reserved list"',
-      ),
+      finding.includes("rowAnchors.independenceClause"),
     ),
     true,
     findings.join("\n"),
@@ -1030,13 +1037,9 @@ test("INJECTED DRIFT: a library carve-out escaping stdlib by path traversal", ()
     true,
   );
   assert.equal(
-    isStdlibSource("stdlib/../spec/examples/01-movement.logo"),
+    isStdlibSource("stdlib/../spec/examples/01-movement.logo", REAL_IO),
     false,
   );
-  assert.equal(isStdlibSource("stdlib/geometry/polygon.logo"), true);
-  assert.equal(isStdlibSource("stdlib/geometry/polygon.txt"), false);
-  assert.equal(isStdlibSource("stdlib"), false);
-  assert.equal(isStdlibSource(undefined), false);
   const manifest = manifestCopy();
   manifest.excluded.find((entry) => entry.name === "polygon").source =
     "stdlib/../spec/examples/01-movement.logo";
@@ -1089,6 +1092,232 @@ test("the grammar keyword block is found by structure, not by its fence's info s
       "The normative OpenLogo keyword list is:\n\n```logo\ndefine\n```\n",
     ),
     ["define"],
+  );
+});
+
+test("INJECTED DRIFT: the contextual words' positional qualifier removed", () => {
+  // The nouns stay identical; only the qualifier changes. Measured green before this check:
+  // "in the structural positions … none of which is a reserved word" → "in every position …",
+  // which makes `empty`/`member`/`of`/`a` unconditional keywords and contradicts
+  // `spec/grammar.md:380`.
+  const io = proseIo(TOOLING_PATH, (text) =>
+    text.replace(
+      "in the structural positions described under [Reserved words](#reserved-words-for-tooling), none of which is a reserved word",
+      "in every position, all of which are reserved words",
+    ),
+  );
+  const findings = proseFindings(REAL_MANIFEST, io);
+  assert.equal(
+    findings.some((finding) =>
+      finding.includes(
+        "the four contextual words take this class ONLY in those positions",
+      ),
+    ),
+    true,
+    findings.join("\n"),
+  );
+});
+
+test("INJECTED DRIFT: a new profile keyword that no prose treatment accounts for", () => {
+  // Measured live: adding `broadcast` to OL_PROFILE_KEYWORDS.sprites AND to `names` — with no
+  // spec/tooling.md edit at all — was a GREEN 149-name gate. The row's clause covers "the profile
+  // block-heads" generically, and nothing checked that a new word was one.
+  const manifest = manifestCopy();
+  manifest.names.push({
+    name: "broadcast",
+    category: "keyword",
+    profile: "sprites",
+    registries: ["profile-reserved"],
+  });
+  const findings = proseFindings(manifest, REAL_IO);
+  assert.equal(
+    findings.includes(
+      `${MANIFEST_PATH}: profile keyword(s) broadcast are in neither addsProfileKeywordsNamedIndividually nor addsProfileKeywordsCoveredByClause — every one must be accounted for in the row, individually or by the clause`,
+    ),
+    true,
+    findings.join("\n"),
+  );
+});
+
+test("INJECTED DRIFT: a profile-word treatment that names something that is not one", () => {
+  const manifest = manifestCopy();
+  manifest.tokenClassKeyword.addsProfileKeywordsCoveredByClause = [
+    ...manifest.tokenClassKeyword.addsProfileKeywordsCoveredByClause,
+    "repeat",
+  ];
+  const findings = proseFindings(manifest, REAL_IO);
+  assert.equal(
+    findings.includes(
+      `${MANIFEST_PATH}: repeat is recorded as a profile keyword of the token-class row but is not a profile keyword`,
+    ),
+    true,
+    findings.join("\n"),
+  );
+});
+
+test("INJECTED DRIFT: a profile word given two prose treatments at once", () => {
+  const manifest = manifestCopy();
+  manifest.tokenClassKeyword.addsProfileKeywordsCoveredByClause = [
+    ...manifest.tokenClassKeyword.addsProfileKeywordsCoveredByClause,
+    "tell",
+  ];
+  const findings = proseFindings(manifest, REAL_IO);
+  assert.equal(
+    findings.includes(
+      `${MANIFEST_PATH}: tell is both named individually and covered by the clause — one word, one treatment`,
+    ),
+    true,
+    findings.join("\n"),
+  );
+});
+
+test("INJECTED DRIFT: a row anchor blanked, which switches its check off rather than satisfying it", () => {
+  // `row.includes("")` is always true, so an empty anchor is a check that always passes. Measured:
+  // blanking profileClause, deltaSentence and independenceClause left the shipped gate green.
+  const manifest = manifestCopy();
+  manifest.tokenClassKeyword.rowAnchors.independenceClause = "";
+  const result = runBuiltInNamesGate({ manifest });
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.findings.includes(
+      `${MANIFEST_PATH}: tokenClassKeyword.rowAnchors.independenceClause is empty — an empty anchor matches everything, so the check it guards is switched off rather than satisfied`,
+    ),
+    true,
+    result.findings.join("\n"),
+  );
+});
+
+test("INJECTED DRIFT: a delta template that cannot interpolate its counts", () => {
+  const manifest = manifestCopy();
+  manifest.tokenClassKeyword.rowAnchors.deltaSentence = "it omits some words";
+  const findings = proseFindings(manifest, REAL_IO);
+  for (const placeholder of ["{omits}", "{adds}"]) {
+    assert.equal(
+      findings.includes(
+        `${MANIFEST_PATH}: tokenClassKeyword.rowAnchors.deltaSentence must contain ${placeholder} exactly once, or the count it claims is not the count this file holds`,
+      ),
+      true,
+      findings.join("\n"),
+    );
+  }
+});
+
+test("INJECTED DRIFT: an alias edge the resolver invents that neither list knows about", () => {
+  // Measured live: `canonicalOfTurtleAlias("forward") → "back"` while `turtleAliasNames()` omitted
+  // `forward` was GREEN — the forward loop visits only entries that already claim an edge, and the
+  // reverse loop only names the enumerator already lists, so an edge in neither was seen by neither.
+  const api = {
+    ...realParserApi,
+    canonicalOfTurtleAlias: (name) =>
+      name === "forward" ? "back" : realParserApi.canonicalOfTurtleAlias(name),
+  };
+  assert.equal(api.canonicalOfTurtleAlias("forward"), "back");
+  assert.equal(api.turtleAliasNames().includes("forward"), false);
+  const result = runBuiltInNamesGate({ api });
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.findings.includes(
+      "forward: canonicalOfTurtleAlias resolves an edge for it but turtleAliasNames does not list it — the registry's two accessors disagree",
+    ),
+    true,
+    result.findings.join("\n"),
+  );
+});
+
+test("INJECTED DRIFT: a library carve-out pointed at a directory, or outside stdlib", () => {
+  // Third attempt at this check. Round 1 accepted any file that existed; round 2 accepted any path
+  // whose STRING started with `stdlib/`. It now resolves the real path and requires a real file.
+  const io = {
+    ...REAL_IO,
+    isStdlibFile: (path) => path === "stdlib/geometry/polygon.logo",
+  };
+  assert.equal(isStdlibSource("stdlib/geometry/polygon.logo", io), true);
+  assert.equal(isStdlibSource("stdlib/geometry/polygon.txt", io), false);
+  assert.equal(isStdlibSource(undefined, io), false);
+  // A directory named `<something>.logo` satisfies "exists" and every string test; it is not source.
+  assert.equal(REAL_IO.isStdlibFile("stdlib/geometry"), false);
+  assert.equal(REAL_IO.isStdlibFile("stdlib"), false);
+  assert.equal(REAL_IO.isStdlibFile("package.json"), false);
+  assert.equal(REAL_IO.isStdlibFile("stdlib/../package.json"), false);
+  assert.equal(
+    REAL_IO.isStdlibFile("stdlib/../spec/examples/01-movement.logo"),
+    false,
+  );
+  assert.equal(REAL_IO.isStdlibFile("stdlib/nope.logo"), false, "missing file");
+  assert.equal(REAL_IO.isStdlibFile("stdlib/geometry/polygon.logo"), true);
+});
+
+test("INJECTED DRIFT: the row's contextual-carve-out count drifting from the manifest", () => {
+  // "other than the four contextual ones" is a live count in prose, 717 characters into the region
+  // no compared segment reads. Measured green while the manifest held four and the row said five.
+  const io = proseIo(TOOLING_PATH, (text) =>
+    text.replace(
+      "other than the four contextual ones",
+      "other than the five contextual ones",
+    ),
+  );
+  const findings = proseFindings(REAL_MANIFEST, io);
+  assert.equal(
+    findings.some((finding) =>
+      finding.includes("rowAnchors.contextualCountSentence"),
+    ),
+    true,
+    findings.join("\n"),
+  );
+});
+
+test("INJECTED DRIFT: the third polarity claim — that membership never decides paint", () => {
+  const io = proseIo(TOOLING_PATH, (text) =>
+    text.replace(
+      "reserved-list membership never decides how a token is painted",
+      "reserved-list membership always decides how a token is painted",
+    ),
+  );
+  const findings = proseFindings(REAL_MANIFEST, io);
+  assert.equal(
+    findings.some((finding) =>
+      finding.includes("rowAnchors.paintIndependenceClause"),
+    ),
+    true,
+    findings.join("\n"),
+  );
+});
+
+test("the extractors bind to the block their anchor introduces, not to a plausible one", () => {
+  // Every one of these was a live way to match the wrong thing and misdiagnose it as drift.
+  assert.equal(
+    extractGrammarKeywordBlock(
+      "The normative OpenLogo keyword list is:\n\n```logo\nnot the list at all\n```\n\n```text\ndefine\n```\n",
+    ).join(" "),
+    "not the list at all",
+    "the block after the anchor is the block, decoy or not — but it must be THAT block",
+  );
+  assert.equal(
+    extractGrammarKeywordBlock(
+      "The normative OpenLogo keyword list is:\n\nan editorial note\n\n```text\ndefine\n```\n",
+    ),
+    null,
+    "a note between the anchor and the fence fails closed rather than skipping ahead",
+  );
+  assert.equal(
+    extractToolingC19Mirror(
+      "x this is the C19 registry repeated y:\n\nan editorial note.\n\n`define`.\n",
+    ),
+    null,
+    "a paragraph that is not a word list is not the word list",
+  );
+  assert.deepEqual(
+    extractToolingC19Mirror(
+      "x this is the C19 registry repeated y:\n\n`define`, `to`,\n`end`.\n",
+    ),
+    ["define", "to", "end"],
+  );
+  assert.equal(
+    extractToolingKeywordRow(
+      "| `keyword` | decoy |\n| `keyword` | the real one |\n",
+    ),
+    null,
+    "two rows with the same prefix means there is no single row to compare",
   );
 });
 
@@ -1312,7 +1541,7 @@ test("aliasFindings rejects an edge on a registry that carries none, and a dangl
   manifest.registries["core-primitive"].canonicalAccessor = "canonicalOfCore";
   manifest.registries["core-primitive"].aliasEnumerator = "coreAliasNames";
   api.canonicalOfCore = (name) => (name === "print" ? "define" : "end");
-  api.coreAliasNames = () => [];
+  api.coreAliasNames = () => ["print"];
   assert.equal(api.canonicalOfCore("print"), "define");
   assert.equal(api.canonicalOfCore("other"), "end");
   entryFor(manifest, "print").aliasOf = "nowhere";
@@ -1569,7 +1798,7 @@ test("a run with every registry enumerable prints no unenumerable note", () => {
     [GRAMMAR_PATH]:
       "The normative OpenLogo keyword list is:\n\n```logo\ndefine\n```\n",
     [TOOLING_PATH]:
-      "x this is the C19 registry repeated y:\n\n`define`.\n\n| `keyword` | `define` not in the class: omits zero, adds zero independent |\n",
+      "x this is the C19 registry repeated y:\n\n`define`.\n\n| `keyword` | `define` not in the class: omits zero, adds zero independent contextually the zero contextual ones never decides paint |\n",
     [CONFORMANCE_PATH]:
       "## Required profiles\n### Core Language\n## Feature to profile table\n",
   });
