@@ -68,10 +68,16 @@ the instructions after it are talking to, and steering the program like that is 
 ## What's real today
 
 ✅ **Highlighting is grammar-derived, not guesswork** — it reuses the real lexer and the real tree
-(the parser's output), so a variable named `printer` is never colored as if it were the command
-`print`. A real keyword keeps its keyword color everywhere, even somewhere the grammar happens to
-allow it as a plain name — `local end` still shows `end` in the keyword color, on purpose, so the
-colors always tell you which words the language itself has claimed.
+(the parser's output), so the color follows the *grammar*, not a pattern match on the text. Write
+`{ if: 6 }` and that `if` is colored as a dictionary key, because a key is what it is there. Write
+`define printer` and `printer` gets the "a procedure you named" color. And a word the language owns
+keeps its keyword color even somewhere the grammar would let you use it as a plain name — `local end`
+still shows `end` in the keyword color, deliberately.
+
+ℹ️ **The plain "primitive" color is the modest one** — it's what a word gets when nothing more
+specific applies, including a word OpenLogo has never heard of. `print 5` and `fowad 5` look alike
+until you run them. That color means "a name goes here," not "this one exists" — which is exactly
+why `ask`, when its part of the language is switched off, lands there.
 
 ✅ **Bracket roles are real** — the `[ ]` around our square's repeat block is correctly classified
 `instruction-block`, distinct from an ordinary list.
