@@ -29,12 +29,15 @@ import {
   GRAMMAR_PATH,
   MANIFEST_PATH,
   REAL_IO,
+  STDLIB_DIR,
   TOOLING_PATH,
   accessorFindings,
   aliasFindings,
   backtickedWords,
   carveOutFindings,
+  definesProcedure,
   deriveSummary,
+  describeAccessor,
   directionAgreementFindings,
   duplicateRegistrationFindings,
   duplicatedNames,
@@ -43,7 +46,9 @@ import {
   extractGrammarKeywordBlock,
   extractToolingC19Mirror,
   extractToolingKeywordRow,
+  hasAccessorShape,
   implementationFindings,
+  isCanonicalName,
   isStdlibSource,
   loadManifest,
   narrativeFindings,
@@ -865,6 +870,230 @@ test("INJECTED DRIFT: a declared-empty profile whose rationale is blanked to whi
   ]);
 });
 
+// ---------------------------------------------------------------------------------------------
+// Round 10: the remaining set-valued lists, accessor SHAPE, and canonical spelling.
+// ---------------------------------------------------------------------------------------------
+
+test("INJECTED DRIFT: cardinality on the three set-valued lists that were still uncounted", () => {
+  const withRepeatedTag = manifestCopy();
+  const entry = entryFor(withRepeatedTag, "print");
+  entry.registries = [...entry.registries, entry.registries[0]];
+  assert.deepEqual(entryFindings(withRepeatedTag, realParserApi), [
+    "print: records registry core-primitive more than once — 2 entries, 1 unique; the set comparison below cannot see the difference",
+  ]);
+
+  const withRepeatedPosition = manifestCopy();
+  const carveOut = withRepeatedPosition.excluded.find(
+    (candidate) => candidate.reason === "contextual-keyword",
+  );
+  carveOut.positions = [...carveOut.positions, carveOut.positions[0]];
+  assert.equal(
+    carveOutFindings(withRepeatedPosition, REAL_IO).includes(
+      `excluded ${carveOut.name}: position(s) ${carveOut.positions[0]} recorded more than once — 2 entries, 1 unique`,
+    ),
+    true,
+  );
+
+  const repeatedProfiles = [
+    ...realParserApi.OL_CHECK_PROFILES,
+    "core-language",
+  ];
+  assert.equal(
+    profileInventoryFindings(
+      REAL_MANIFEST,
+      { ...realParserApi, OL_CHECK_PROFILES: repeatedProfiles },
+      REAL_IO,
+    ).includes(
+      `OL_CHECK_PROFILES lists core-language more than once — ${repeatedProfiles.length} entries, ${new Set(repeatedProfiles).size} unique`,
+    ),
+    true,
+  );
+});
+
+test("INJECTED DRIFT: two profile ids claiming one display name", () => {
+  // `profiles.ids` is a Record, so a duplicate KEY is inexpressible — but two ids mapping to one
+  // name collapses the section comparison, which is a set comparison on the values.
+  const manifest = manifestCopy();
+  const [first, second] = Object.keys(manifest.profiles.ids);
+  manifest.profiles.ids[second] = manifest.profiles.ids[first];
+  assert.equal(
+    profileInventoryFindings(manifest, realParserApi, REAL_IO).includes(
+      `${MANIFEST_PATH}: profile name(s) ${manifest.profiles.ids[first]} are claimed by more than one id — a profile has one name`,
+    ),
+    true,
+  );
+});
+
+test("an accessor's SHAPE is checked, not merely its presence", () => {
+  assert.equal(hasAccessorShape([], "array"), true);
+  assert.equal(hasAccessorShape({}, "array"), false);
+  assert.equal(hasAccessorShape({}, "record"), true);
+  assert.equal(hasAccessorShape([], "record"), false);
+  assert.equal(hasAccessorShape(null, "record"), false);
+  for (const kind of ["arity", "enumerator", "profile-enumerator"]) {
+    // An imported function rather than a fresh arrow: `hasAccessorShape` only inspects the type and
+    // never calls it, so a literal here would be an uninvoked function this file declares — the
+    // Node 22 coverage gate counts those, and rightly.
+    assert.equal(hasAccessorShape(duplicatedNames, kind), true);
+    assert.equal(hasAccessorShape(null, kind), false);
+  }
+  // An unknown kind is already its own finding; this predicate makes no second claim about it.
+  assert.equal(hasAccessorShape(null, "not-a-kind"), true);
+
+  assert.equal(describeAccessor(null), "exported as null");
+  assert.equal(describeAccessor([]), "an array");
+  assert.equal(describeAccessor({}), "an object");
+  assert.equal(describeAccessor(7), "a number");
+});
+
+test("INJECTED DRIFT: an export of the wrong shape is a finding, and never a crash", () => {
+  // Measured before this landed: `corePrimitiveArity: null` reported ZERO findings, while
+  // `profilePrimitiveNames: null` and `canonicalOfTurtleAlias: null` threw TypeErrors from
+  // consumers that call them directly. One broken export, three outcomes, no clear finding.
+  const shapes = [
+    [
+      "corePrimitiveArity",
+      null,
+      'registry core-primitive.lookup: corePrimitiveArity is declared "present" with kind "arity", but it is exported as null rather than a function',
+    ],
+    [
+      "OL_KEYWORDS",
+      null,
+      'registry reserved.lookup: OL_KEYWORDS is declared "present" with kind "array", but it is exported as null rather than an array',
+    ],
+    [
+      "OL_KEYWORDS",
+      {},
+      'registry reserved.lookup: OL_KEYWORDS is declared "present" with kind "array", but it is an object rather than an array',
+    ],
+    [
+      "OL_PROFILE_KEYWORDS",
+      [],
+      'registry profile-reserved.lookup: OL_PROFILE_KEYWORDS is declared "present" with kind "record", but it is an array rather than an object keyed by profile',
+    ],
+    [
+      "heritageAliasNames",
+      null,
+      'registry heritage-alias.lookup: heritageAliasNames is declared "present" with kind "enumerator", but it is exported as null rather than a function',
+    ],
+  ];
+  for (const [accessor, value, expected] of shapes) {
+    const result = runBuiltInNamesGate({
+      api: { ...realParserApi, [accessor]: value },
+    });
+    assert.equal(result.ok, false, `${accessor} = ${JSON.stringify(value)}`);
+    assert.equal(
+      result.findings.includes(expected),
+      true,
+      result.findings.join("\n"),
+    );
+  }
+});
+
+test("INJECTED DRIFT: a non-canonical name both sides agree on", () => {
+  // The hole every membership comparison here shares: agreement is not correctness when both sides
+  // can move together. `spec/grammar.md` permits lowercase ASCII only.
+  assert.deepEqual(
+    ["abs", "set_xy", "empty?", "clear_screen"].filter(
+      (name) => !isCanonicalName(name),
+    ),
+    [],
+  );
+  assert.deepEqual(
+    ["ABS", "1x", "set-xy", "", "Forward"].filter(isCanonicalName),
+    [],
+  );
+
+  const manifest = manifestCopy();
+  entryFor(manifest, "abs").name = "ABS";
+  const api = {
+    ...realParserApi,
+    corePrimitiveArity: (name) =>
+      realParserApi.corePrimitiveArity(name === "ABS" ? "abs" : name),
+    profilePrimitiveNames: (profile) =>
+      realParserApi
+        .profilePrimitiveNames(profile)
+        .map((name) => (name === "abs" ? "ABS" : name)),
+  };
+  // Both sides genuinely agree — that is the point.
+  assert.equal(api.corePrimitiveArity("ABS") !== undefined, true);
+  assert.equal(
+    api.profilePrimitiveNames("core-language").includes("ABS"),
+    true,
+  );
+  assert.equal(
+    entryFindings(manifest, api).some((finding) =>
+      finding.startsWith("ABS: is not a canonical OpenLogo name"),
+    ),
+    true,
+  );
+});
+
+test("INJECTED DRIFT: a library carve-out whose name its source does not define", () => {
+  // `isStdlibSource` validates the PATH and never reads the file, so the one field the carve-out is
+  // about was bound to nothing: renaming it while keeping a real source shipped green.
+  const renamed = manifestCopy();
+  const carveOut = renamed.excluded.find(
+    (candidate) => candidate.reason === "library",
+  );
+  const source = carveOut.source;
+  const original = carveOut.name;
+  carveOut.name = "zzz_not_a_real_procedure";
+  assert.equal(
+    carveOutFindings(renamed, REAL_IO).includes(
+      `excluded zzz_not_a_real_procedure: ${source} is a real ${STDLIB_DIR} file but defines no procedure named "zzz_not_a_real_procedure" — the carve-out claims this name IS that library source, so the path alone proves nothing`,
+    ),
+    true,
+  );
+
+  // And the other direction: the source stops defining the name it is carved out for.
+  const text = REAL_IO.readText(source).replace(
+    `define ${original}`,
+    "define zzz_other",
+  );
+  assert.equal(definesProcedure(REAL_IO.readText(source), original), true);
+  assert.equal(definesProcedure(text, original), false);
+});
+
+test("INJECTED DRIFT: a carve-out spelled non-canonically", () => {
+  const manifest = manifestCopy();
+  manifest.excluded[0].name = "Polygon";
+  assert.equal(
+    carveOutFindings(manifest, REAL_IO).includes(
+      "excluded Polygon: is not a canonical OpenLogo name — lowercase ASCII letters, digits, `_` and `?`/`!` only (spec/grammar.md)",
+    ),
+    true,
+  );
+});
+
+test("definesProcedure reads a Core define header, and only that", () => {
+  assert.equal(definesProcedure("define arc :angle :radius\nend", "arc"), true);
+  assert.equal(definesProcedure("  define arc :a\nend", "arc"), true);
+  // A Heritage `to` header does not satisfy it — stdlib/ is Core-profile source.
+  assert.equal(definesProcedure("to arc :a\nend", "arc"), false);
+  // Not a prefix match, and not a call site.
+  assert.equal(definesProcedure("define arcs :a\nend", "arc"), false);
+  assert.equal(definesProcedure("arc 90 10", "arc"), false);
+  assert.equal(definesProcedure(undefined, "arc"), false);
+});
+
+test("one registry's two alias accessors disagreeing is reported exactly once", () => {
+  // Both loops used to fire, producing two findings differing only in wording. The reverse loop
+  // walks a universe containing every manifest entry, so it already sees everything the forward
+  // loop could — the forward loop's copy was redundant, not additive.
+  const api = {
+    ...realParserApi,
+    turtleAliasNames: () =>
+      realParserApi.turtleAliasNames().filter((name) => name !== "setxy"),
+  };
+  const disagreements = aliasFindings(REAL_MANIFEST, api).filter(
+    (finding) => finding.startsWith("setxy:") && finding.includes("disagree"),
+  );
+  assert.deepEqual(disagreements, [
+    "setxy: canonicalOfTurtleAlias resolves an edge for it but turtleAliasNames does not list it — the registry's two accessors disagree",
+  ]);
+});
+
 test("INJECTED DRIFT: a specVersion that no longer matches openlogo.version is caught", () => {
   const manifest = manifestCopy();
   manifest.specVersion = "0.2.0";
@@ -1013,7 +1242,9 @@ test("INJECTED DRIFT: the file's own contract statement blanked", () => {
 test("INJECTED DRIFT: a registry's alias enumerator and resolver disagreeing with each other", () => {
   // Measured live: making `turtleAliasNames()` omit `setxy` while `canonicalOfTurtleAlias("setxy")`
   // still resolved was GREEN — the forward loop asks only the resolver, the reverse loop walks only
-  // the enumerator, so the two accessors could contradict each other unobserved.
+  // the enumerator, so the two accessors could contradict each other unobserved. The forward loop's
+  // copy of this check has since been removed as redundant; the reverse loop's universe already
+  // contains every manifest entry, and reporting it twice in two wordings helped nobody.
   const api = {
     ...realParserApi,
     turtleAliasNames: () =>
@@ -1025,7 +1256,7 @@ test("INJECTED DRIFT: a registry's alias enumerator and resolver disagreeing wit
   assert.equal(result.ok, false);
   assert.equal(
     result.findings.includes(
-      "setxy: canonicalOfTurtleAlias resolves its edge but turtleAliasNames does not list it — the registry's two accessors disagree",
+      "setxy: canonicalOfTurtleAlias resolves an edge for it but turtleAliasNames does not list it — the registry's two accessors disagree",
     ),
     true,
     result.findings.join("\n"),
@@ -1439,6 +1670,7 @@ test("accessorFindings rejects every value outside the closed vocabularies", () 
     'registry bad: category "colour" is outside the closed vocabulary [keyword, primitive]',
     'registry bad.lookup: kind "telepathy" is outside the closed vocabulary [array, record, arity, enumerator, profile-enumerator]',
     'registry bad.lookup: status "maybe" is outside the closed vocabulary [present, declared]',
+    'registry bad.enumerate: y is declared "present" with kind "arity", but it is an array rather than a function',
     "registry bad.enumerate: y is an arity lookup and cannot enumerate — naming it here would satisfy the per-name direction while leaving the whole-list direction unreachable",
     "registry halfway: no enumerate accessor — each tag must name both, because the two comparison directions need different shapes",
   ]);
@@ -1638,7 +1870,7 @@ test("aliasFindings reports an alias resolver that is not exported", () => {
   entryFor(manifest, "print").aliasOf = "define";
   assert.deepEqual(aliasFindings(manifest, api), [
     "print: goneCanonical is not exported from @openlogo/parser, so its alias edge cannot be verified",
-    "registry core-primitive: names goneNames / goneCanonical for its alias edges, and at least one is not exported from @openlogo/parser",
+    "registry core-primitive: names goneNames / goneCanonical for its alias edges, and at least one is not a usable export of @openlogo/parser",
   ]);
 });
 
@@ -1669,6 +1901,7 @@ test("carveOutFindings rejects a duplicate, a missing rationale, and an unknown 
       "excluded of: listed twice",
       'excluded polygon: reason "vibes" is outside the closed vocabulary [library, contextual-keyword]',
       "excluded star: no rationale — a carve-out with no stated reason is indistinguishable from an oversight",
+      'excluded star: stdlib/star.logo is a real stdlib file but defines no procedure named "star" — the carve-out claims this name IS that library source, so the path alone proves nothing',
     ],
   );
 });
