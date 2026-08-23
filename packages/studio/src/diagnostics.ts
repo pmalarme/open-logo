@@ -130,10 +130,10 @@ export interface DiagnosticsControllerOptions {
   readonly styleCheck?: boolean;
   /**
    * Active conformance profiles passed to `check()` when `semanticCheck` is `true`. Defaults to
-   * {@link STUDIO_PROFILES} — the same set `highlighter.ts` gives `highlight()`, so the checker and
-   * the editor's colors always read a program under the same profiles (#740). Leaving it unset used
-   * to fall through to `check()`'s own Core-Language-only default, which is not the environment the
-   * studio actually runs.
+   * {@link STUDIO_PROFILES} — the same default `highlighter.ts` gives `highlight()`, so by default,
+   * when neither caller overrides the profile set, the checker and the editor's colors read a
+   * program under the same profiles (#740). Leaving it unset used to fall through to `check()`'s own
+   * Core-Language-only default, which is not the environment the studio actually runs.
    */
   readonly profiles?: readonly CheckProfile[];
 }

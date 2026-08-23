@@ -69,8 +69,9 @@ the instructions after it are talking to, and steering the program like that is 
 
 ✅ **Highlighting is grammar-derived, not guesswork** — it reuses the real lexer and the real tree
 (the parser's output), so a variable named `printer` is never colored as if it were the command
-`print`. (It isn't perfect yet: a *keyword* used as a name — `local if` — is still painted as a
-keyword today. Teaching the highlighter about those positions is its own piece of work.)
+`print`. A real keyword keeps its keyword color everywhere, even somewhere the grammar happens to
+allow it as a plain name — `local end` still shows `end` in the keyword color, on purpose, so the
+colors always tell you which words the language itself has claimed.
 
 ✅ **Bracket roles are real** — the `[ ]` around our square's repeat block is correctly classified
 `instruction-block`, distinct from an ordinary list.
