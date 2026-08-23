@@ -48,10 +48,11 @@ npm ci && npm run build && npm run typecheck && npm run lint && npm run format:c
 
 → [`shared/definition-of-done`](skills/shared/definition-of-done/SKILL.md)
 
-- **Adding or removing a keyword or primitive is a two-file change** — the registry **and**
-  `spec/built-in-names.json` — and `npm run built-in-names` is red until both land. It also gates
-  the three hand-maintained prose lists (`spec/grammar.md`'s keyword block, `spec/tooling.md`'s C19
-  mirror and its `keyword` token-class enumeration). See
+- **Adding or removing a primitive is a two-file change** — the registry **and**
+  `spec/built-in-names.json` — and `npm run built-in-names` is red until both land. A **keyword**
+  edits more: those two plus `spec/grammar.md`'s normative block and `spec/tooling.md`'s C19 mirror,
+  which the gate compares derivedly, plus `spec/tooling.md`'s `keyword` token-class row, which it
+  only **change-detects** — an edit is noticed, its correctness is not verified. See
   [ADR-0021](../docs/adr/0021-built-in-names-list-and-ci-gate.md).
 
 ## Known traps

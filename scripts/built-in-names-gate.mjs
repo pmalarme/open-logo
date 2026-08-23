@@ -1388,9 +1388,7 @@ export function controlCharacterFindings(manifest) {
                     `U+${character.codePointAt(0).toString(16).padStart(4, "0").toUpperCase()}`,
                 ),
               ),
-            ].join(
-              ", ",
-            )} — a Cc code point in a string value of this file, which no rendering of it makes obvious`,
+            ].join(", ")} — a Cc code point in a string value of this file`,
           );
         }
       } else if (value !== null && typeof value === "object") {

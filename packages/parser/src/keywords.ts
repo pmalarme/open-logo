@@ -45,13 +45,18 @@
 /**
  * The keywords, in the grammar's grouping order (`spec/grammar.md:368-376`).
  *
- * **Adding or removing a keyword is a FIVE-PLACE edit**, and three of the five are now machine-gated
- * by `npm run built-in-names` (issue #841): `spec/grammar.md:368-375` is normative;
- * `spec/tooling.md:91-94` mirrors it byte-for-byte; and this array reaches the gate through
- * `spec/built-in-names.json`, which is compared against both documents in each direction. The two
- * that are **not** gated are `spec/tooling.md:30`'s `keyword` **token class** — change-detected by a
- * content fingerprint, so an edit is noticed but its correctness is not verified — and
- * `keywords.profiles.test.mjs`'s `EXPECTED_CORE_KEYWORDS`.
+ * **Adding or removing a keyword edits several places, and issue #841 gates them.** Deliberately
+ * listed rather than counted, because the count is itself the kind of claim nothing recomputes:
+ *
+ * - `spec/grammar.md:368-375` — normative; compared word-for-word against `spec/built-in-names.json`.
+ * - `spec/tooling.md:91-94` — mirrors that block; compared against it byte-for-byte.
+ * - this array — reaches the comparison through `spec/built-in-names.json`, in both directions.
+ * - `spec/built-in-names.json` itself — the authoritative list, added by #841.
+ * - `spec/tooling.md:30` — the `keyword` **token class**, a different set on purpose
+ *   (`spec/grammar.md:378`). **Change-detected only**: a content fingerprint notices an edit, and
+ *   nothing verifies the edited row is still correct.
+ * - `keywords.profiles.test.mjs`'s `EXPECTED_CORE_KEYWORDS` — asserted against this array by
+ *   `npm run test`, not by `npm run built-in-names`.
  *
  * The gate exists because the `tooling.md` mirror had already drifted to 43 words (missing `mod`)
  * before #855 restored it, with nothing reading `spec/*.md` to notice.
