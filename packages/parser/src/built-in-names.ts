@@ -22,9 +22,11 @@
  * from the profile registry (`OL_CHECK_PROFILES.flatMap(profilePrimitiveNames)`) and so reached
  * every profile unconditionally, while the checker kept hand-composed `profiles.includes(…)` gates
  * over six profiles that `spec/grammar.md:408` does not gate. One predicate called by both is what
- * removes the possibility rather than the instance; whether that predicate agrees with the
- * normative `spec/built-in-names.json` is a separate question, and `npm run built-in-names` is what
- * asks it.
+ * removes the possibility rather than the instance; whether the registries it composes agree with
+ * the normative `spec/built-in-names.json` is a separate question, and `npm run built-in-names` is
+ * what asks it — **of those registries, not of this predicate**, which the gate never calls.
+ * `built-in-names.test.mjs` is what ties the predicate back to them, by asserting it recognises
+ * every name each registry contributes.
  *
  * @module
  */
