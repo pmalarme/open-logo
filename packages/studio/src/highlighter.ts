@@ -16,8 +16,8 @@
  * `spec/tooling.md:30` puts the profile block-heads and the Sprites mode-switch command `tell` in
  * `keyword` "while their profile is active", and `:31` puts "a profile word whose profile is
  * inactive" in `primitive`. Omitting the set gets the parser's profile-neutral default (Core
- * Language alone), which is why a learner with Sprites available used to see `ask` painted as an
- * ordinary primitive. This module supplies {@link STUDIO_PROFILES} — the same set `diagnostics.ts`
+ * Language alone), which is why a learner with Sprites available used to see `ask` painted with the
+ * plain `primitive` fallback. This module supplies {@link STUDIO_PROFILES} — the same set `diagnostics.ts`
  * hands `check()` by default — so when neither caller overrides that default, the editor's colors
  * and the checker's diagnostics read a program under the same profiles.
  *

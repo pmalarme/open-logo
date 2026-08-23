@@ -257,7 +257,7 @@ mountLessonPane(shell, lessonPane);
  * both read the exact same classification. #740 makes that classification profile-aware: with no
  * argument, `createParserHighlighter()` classifies under `profiles.ts`'s `STUDIO_PROFILES` (the
  * profiles this build supports — the ones a learner here can actually run), so a Sprites block-head
- * like `ask` paints as the `keyword` it is instead of an ordinary primitive.
+ * like `ask` paints as the `keyword` it is instead of taking the plain `primitive` fallback.
  */
 const highlighter = createParserHighlighter();
 const editorController = createEditorController(state, { highlighter });

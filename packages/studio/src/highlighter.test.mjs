@@ -206,12 +206,7 @@ test("the default profile set classifies every active-profile block-head as keyw
 
   assert.ok(PROFILE_BLOCK_HEADS.length > 0);
   for (const { profile, word } of PROFILE_BLOCK_HEADS) {
-    // A guard, deliberately not a conditional expectation: every profile in the registry is one
-    // the studio has active today, which is exactly what makes `keyword` the right class for all
-    // of them. Should a future block-head arrive from a profile this build does not claim, this
-    // fails loudly and names it, instead of silently demanding the wrong class — whereas branching
-    // the expectation on `STUDIO_PROFILES.includes(profile)` would add an arm no test can reach,
-    // which the 100%-branch gate rejects (and §11's "no speculative abstraction" discourages).
+    // Tripwire, not a branch: see the derivation docblock above.
     assert.ok(
       STUDIO_PROFILES.includes(profile),
       `${profile} owns a block-head but is not active in the studio — extend this test`,
