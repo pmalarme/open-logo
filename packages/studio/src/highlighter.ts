@@ -18,8 +18,8 @@
  * inactive" in `primitive`. Omitting the set gets the parser's profile-neutral default (Core
  * Language alone), which is why a learner with Sprites available used to see `ask` painted as an
  * ordinary primitive. This module supplies {@link STUDIO_PROFILES} — the same set `diagnostics.ts`
- * hands `check()` by default — so the editor's colors and the checker's diagnostics read a program
- * under the same profiles.
+ * hands `check()` by default — so when neither caller overrides that default, the editor's colors
+ * and the checker's diagnostics read a program under the same profiles.
  *
  * The token classes are normative (`spec/tooling.md:8`) and an LSP `textDocument/semanticTokens`
  * response returns "the token classes in this document" (`:278-280`), so this adapter has no

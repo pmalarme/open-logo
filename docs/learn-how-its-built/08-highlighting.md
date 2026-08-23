@@ -50,9 +50,14 @@ that isn't switched on.
 
 So the highlighter has to be *told* which parts are switched on. In the OpenLogo studio it's told
 "all the ones this build supports" — the same list the checker uses when it decides whether a
-command is one it knows. That shared list is the whole point: it would be confusing if the editor
-painted `ask` as a built-in word while the checker cheerfully let you `define ask` as if the name
-were free.
+command is one you can actually use here. That shared list is the whole point: it would be confusing
+if the editor painted `ask` as a plain unknown-ish word while the checker was perfectly happy to run
+it.
+
+(Switching a part off doesn't make its words available for your own procedure names, by the way. All
+of them stay reserved everywhere, so nobody can write a program that works in one OpenLogo and
+mysteriously breaks in another. What a part being switched on decides is whether a word *works* —
+never whether you're allowed to name something after it.)
 
 Careful, though: switching Sound on does **not** turn `beep` or `note` into keywords. Those are
 ordinary commands, like `forward` — they take their arguments and get on with it. The words that do
@@ -63,8 +68,9 @@ the instructions after it are talking to, and steering the program like that is 
 ## What's real today
 
 ✅ **Highlighting is grammar-derived, not guesswork** — it reuses the real lexer and the real tree
-(the parser's output), so it never mis-colors a variable that happens to share a name with a
-command.
+(the parser's output), so a variable named `printer` is never colored as if it were the command
+`print`. (It isn't perfect yet: a *keyword* used as a name — `local if` — is still painted as a
+keyword today. Teaching the highlighter about those positions is its own piece of work.)
 
 ✅ **Bracket roles are real** — the `[ ]` around our square's repeat block is correctly classified
 `instruction-block`, distinct from an ordinary list.

@@ -182,37 +182,56 @@ test("an explicit Core-Language-only set additionally flags the profile command"
 });
 
 test("the checker and the editor agree about a profile word under the shared default", () => {
-  // The contradiction #740 exists to remove: the checker refuses `define ask` as a reserved word
-  // while the editor paints a real `ask` call as the keyword it is — both decided by the same
-  // default profile set. Before this slice the editor said "ordinary primitive" about a word its
-  // own checker treated as reserved.
+  // The contradiction #740 exists to remove, on one program: the editor paints `ask` as the keyword
+  // it is while the checker, reading the same default set, treats it as an available name and
+  // reports only the name nothing knows. Before this slice the editor said "ordinary primitive"
+  // about a command its own checker was happy to accept.
+  //
+  // Deliberately framed as *availability*, not reservation: `spec/grammar.md:408` makes profile
+  // words built-in names unconditionally — "what a profile decides is whether a name works, never
+  // whether a program may declare it" — so `ol-reserved-word` is not a profile-conditional
+  // judgement and must not be asserted as one here.
+  const source = ":t = new_turtle\nask :t [ right 90 ]\nflibbertigibbet";
   const state = createStudioState();
   createDiagnosticsController(state, { semanticCheck: true });
 
-  state.setSource("define ask\nend");
+  state.setSource(source);
 
-  const view = toDiagnosticsView(state.getState().diagnostics);
-  assert.deepEqual(
-    view.items.map((item) => item.code),
-    ["ol-reserved-word"],
-  );
+  assert.deepEqual(reportedNames(state), ["flibbertigibbet"]);
 
-  const highlighter = createParserHighlighter();
-  const call = highlighter(":t = new_turtle\nask :t [ right 90 ]").find(
+  const askToken = createParserHighlighter()(source).find(
     (token) => token.text === "ask",
   );
-  assert.ok(call, "the call fixture produced no token spelled ask");
-  assert.equal(call.class, "ol-tok-keyword");
+  assert.ok(askToken, "the fixture produced no token spelled ask");
+  assert.equal(askToken.class, "ol-tok-keyword");
+});
 
-  // At the `define` site the same word is `procedure-name`, not `keyword` — that is
-  // `spec/tooling.md:30`'s identifier-disambiguation rule ("what demotes a token to
-  // `procedure-name`"), which is decided by grammatical position and is independent of the profile
-  // set this slice threads through. Asserted so the two halves above don't read as a contradiction.
-  const definition = highlighter("define ask\nend").find(
-    (token) => token.text === "ask",
-  );
-  assert.ok(definition, "the define fixture produced no token spelled ask");
-  assert.equal(definition.class, "ol-tok-procedure-name");
+test("under Core Language alone the same program reads as unavailable and uncolored", () => {
+  // The other direction of the same contradiction, so neither half above is vacuous: with Sprites
+  // and Turtle & Rendering inactive the checker does not know `new_turtle`/`ask`/`right`, and the
+  // editor stops painting `ask` as a keyword — `spec/tooling.md:31`'s "a profile word whose profile
+  // is inactive" is `primitive`.
+  const source = ":t = new_turtle\nask :t [ right 90 ]\nflibbertigibbet";
+  const state = createStudioState();
+  createDiagnosticsController(state, {
+    profiles: ["core-language"],
+    semanticCheck: true,
+  });
+
+  state.setSource(source);
+
+  assert.deepEqual(reportedNames(state), [
+    "new_turtle",
+    "ask",
+    "right",
+    "flibbertigibbet",
+  ]);
+
+  const askToken = createParserHighlighter({ profiles: ["core-language"] })(
+    source,
+  ).find((token) => token.text === "ask");
+  assert.ok(askToken, "the fixture produced no token spelled ask");
+  assert.equal(askToken.class, "ol-tok-primitive");
 });
 
 test("refresh() is a no-op guard when source hasn't changed (subscribe doesn't clobber itself)", () => {

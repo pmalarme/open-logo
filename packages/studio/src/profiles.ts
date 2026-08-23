@@ -2,10 +2,10 @@
  * The studio's **active conformance profile set** (#740) — the one value every profile-aware
  * `@openlogo/parser` entry point the studio calls defaults to: `highlight()` through
  * `highlighter.ts` and `check()` through `diagnostics.ts`. Sharing one default is the point: a
- * learner's program has exactly one profile set, so with neither caller overriding it the colors in
- * the editor and the diagnostics in the pane read that program under the same profiles. (A caller
- * that passes its own set can still make the two differ — the shared default is what is guaranteed,
- * not an invariant this module can enforce.)
+ * learner's program has exactly one profile set, so when neither caller overrides the default, the
+ * colors in the editor and the diagnostics in the pane read that program under the same profiles. (A
+ * caller that passes its own set can still make the two differ — the shared default is what is
+ * guaranteed, not an invariant this module can enforce.)
  *
  * ## Why the host's supported profiles, and not Core Language alone
  * `spec/tooling.md:30` puts the profile block-heads — plus the Sprites mode-switch command `tell` —
@@ -19,8 +19,13 @@
  * (`import` loads modules, not profiles), so the learner's active set is simply **whatever this
  * build supports**: `@openlogo/core`'s {@link SUPPORTED_PROFILES}, the same list `getHostMetadata()`
  * publishes for feature detection. A learner really can write `ask :t [ right 90 ]` in this editor
- * (`spec/turtles-and-sprites.md:23`), so `ask` must paint as the `keyword` it is — and the checker,
- * reading the same set, must reject `define ask` as `ol-reserved-word` instead of accepting it.
+ * (`spec/turtles-and-sprites.md:23`), so `ask` must paint as the `keyword` it is, and the checker —
+ * reading the same set — must treat it as an available name rather than an unknown command.
+ *
+ * What a profile set decides is exactly that: **whether a name works**, never whether a program may
+ * declare it. Profile words are built-in names *unconditionally* (`spec/grammar.md:408`), so
+ * `ol-reserved-word` is not a profile-conditional judgement and nothing here should be read as
+ * making it one.
  *
  * ## Derived and frozen, never re-listed
  * The contents are `SUPPORTED_PROFILES`, not a hand-maintained copy: a second list would drift the
