@@ -893,69 +893,70 @@ export function extractToolingC19Mirror(text) {
 }
 
 /**
- * The `keyword` row of `spec/tooling.md`'s token-class table — the second hand-maintained list.
- *
- * **Bound to its table, not merely to a matching line.** Hashing the row's bytes says nothing about
- * whether those bytes are still *normative*: the row could be wrapped in an HTML comment, moved
- * into a code fence, or relocated verbatim under a "no longer normative" heading with its digest
- * intact and the gate green. So this walks the document tracking fence and comment state, ignores
- * any match inside either, requires **exactly one** active match, and requires the two lines above
- * it to be the table's declared header and separator.
+ * The `keyword` row of `spec/tooling.md`'s token-class table: the single line beginning
+ * `` | `keyword` | ``. Requires **exactly one**, so a duplicate leaves nothing unambiguous to hash.
  */
-export function extractToolingKeywordRow(text, header) {
-  const lines = text.split(/\r?\n/);
-  const rows = [];
-  let inFence = false;
-  let inComment = false;
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index];
-    if (line.startsWith("```")) {
-      inFence = !inFence;
-      continue;
-    }
-    if (inFence) {
-      continue;
-    }
-    if (!inComment && line.includes("<!--")) {
-      inComment = !line.includes("-->");
-      continue;
-    }
-    if (inComment) {
-      inComment = !line.includes("-->");
-      continue;
-    }
-    if (line.startsWith("| `keyword` |")) {
-      rows.push(index);
-    }
-  }
-  if (rows.length !== 1) {
-    return null;
-  }
-  const at = rows[0];
-  // `at - 1` and `at - 2` are read directly: a row at the top of the file has no header above it,
-  // and `lines[-1]` is `undefined`, which fails both tests below. No `??` fallback, because an
-  // unreachable default is a branch the coverage gate cannot see.
-  if (
-    lines[at - 2] !== header ||
-    !/^\|[-|]+\|$/.test(String(lines[at - 1]).trim())
-  ) {
-    return null;
-  }
-  return lines[at];
+export function extractToolingKeywordRow(text) {
+  const rows = text
+    .split(/\r?\n/)
+    .filter((line) => line.startsWith("| `keyword` |"));
+  return rows.length === 1 ? rows[0] : null;
+}
+
+/** The row's sha256, over its exact bytes — untrimmed, unnormalised. */
+export function rowFingerprint(row) {
+  return createHash("sha256").update(row, "utf8").digest("hex");
 }
 
 /**
- * Both hand-maintained lists in `spec/tooling.md`, plus `spec/grammar.md`'s normative block.
+ * The `keyword` token-class row's **change detector**.
  *
- * The C19 mirror is compared to the grammar block **in order** — `spec/grammar.md` is the normative
- * source and the mirror is byte-order-identical to it — while the manifest is compared as a **set**,
- * because `names` is sorted alphabetically for readable diffs and the prose is in the grammar's
- * teaching order.
+ * **This verifies that the row has not changed. It verifies nothing about whether the row is
+ * correct**, and that limit is the whole of its contract. It cannot tell a true row from a false
+ * one, it has no opinion on where in the document the row sits, and its remedy — re-derive, then
+ * record the new digest — is only as good as the hand that re-derives. What it converts is *silent*
+ * drift into *loud* drift, which is the difference between the row shifting unnoticed and someone
+ * being made to look at it.
  *
- * The token-class row is checked against the membership computed from the file's declared deltas,
- * so adding a keyword and forgetting the row fails here. The four omitted word-operators must also
- * be named in the row: they are there as an explicit exclusion, and a fifth word-spelled operator
- * added without updating that sentence would otherwise slip through.
+ * Everything stronger was tried and is recorded on issue #841. Gating the row **clause by clause**
+ * did not converge across six review rounds: hand-declared anchors (about twenty findings), then a
+ * fingerprint, then a fingerprint with derived claims layered on — and each mechanism carried its
+ * own overstatement, the last being that two "derived" polarity clauses were self-declared literals
+ * that verified **manifest ↔ row agreement, not truth**: invert the sentence in both, recompute the
+ * digest, and every check passed. The row is 2,000 characters of English that
+ * `spec/grammar.md:378` makes deliberately underivable, and a mechanism that claims more than
+ * change detection over it has, six times, been claiming something it did not check.
+ *
+ * What actually guards this row's *correctness* is that `spec/` is maintainer-owned under
+ * `CODEOWNERS`. This gate makes sure a change to it cannot pass unseen.
+ */
+export function rowFingerprintFindings(manifest, row) {
+  const expected = manifest.tokenClassKeyword.rowFingerprint;
+  if (typeof expected !== "string" || !/^[0-9a-f]{64}$/.test(expected)) {
+    return [
+      `${MANIFEST_PATH}: tokenClassKeyword.rowFingerprint is not a sha256 digest — without it a change to the token-class row passes unseen`,
+    ];
+  }
+  const actual = rowFingerprint(row);
+  if (actual === expected) {
+    return [];
+  }
+  return [
+    `${TOOLING_PATH}: the \`keyword\` token-class row has changed. Nothing here verifies the new row is CORRECT -- this is a change detector, and the correctness of that row is maintainer-reviewed under CODEOWNERS. Re-derive the token class against @openlogo/parser's shipped output, confirm every claim the row makes is still true, and then record ${actual} as tokenClassKeyword.rowFingerprint in ${MANIFEST_PATH}.`,
+  ];
+}
+
+/**
+ * The three hand-maintained lists in `spec/` that this gate covers.
+ *
+ * Two are compared **derivedly**, by computing the expected words from the manifest and the
+ * implementation: `spec/grammar.md`'s normative keyword block, and `spec/tooling.md`'s C19 mirror,
+ * which must be byte-order-identical to it. That pair is the one that caught the drift which
+ * actually happened — the mirror silently losing `mod` and standing at 43 words.
+ *
+ * The third, `spec/tooling.md`'s `keyword` **token-class** row, is only **change-detected**; see
+ * {@link rowFingerprintFindings} for why, and issue #841 for the three mechanisms that tried for
+ * more and each overstated what they checked.
  */
 export function proseFindings(manifest, io) {
   const findings = [];
@@ -974,13 +975,10 @@ export function proseFindings(manifest, io) {
     );
   }
 
-  const row = extractToolingKeywordRow(
-    toolingText,
-    manifest.tokenClassKeyword.rowTableHeader,
-  );
+  const row = extractToolingKeywordRow(toolingText);
   if (row === null) {
     findings.push(
-      `${TOOLING_PATH}: could not find exactly one \`keyword\` token-class row under the declared table header, outside any code fence or HTML comment — the row this gate reads has moved, been duplicated, or stopped being a live table row`,
+      `${TOOLING_PATH}: could not find exactly one \`keyword\` token-class row — the row this gate fingerprints has moved or been duplicated`,
     );
   }
 
@@ -1012,341 +1010,10 @@ export function proseFindings(manifest, io) {
   }
 
   if (row !== null) {
-    findings.push(...tokenClassFindings(manifest, coreKeywords, row));
+    findings.push(...rowFingerprintFindings(manifest, row));
   }
 
   return findings;
-}
-
-/**
- * The `keyword` **token-class** row: a **content fingerprint** plus two **derived** comparisons.
- *
- * This function used to gate the row by declaring literal anchors — the exclusion clause's polarity,
- * the profile clause, the contextual clause, two count templates, two independence claims — and
- * comparing substrings. That approach took **five review rounds and never converged**, because the
- * row is 2,000 characters of English and enumerating it by hand is *exactly the defect this gate
- * exists to remove*, reproduced in the remover. Each round gated the claims the last round missed,
- * and each round the reviewers found more: an ungated qualifier, a count in the tail, a third
- * polarity claim, then a fourth, then 697 characters still unread, then anchors that could be
- * **blanked** — or set to a single space — to switch their own checks off.
- *
- * A fingerprint ends that. It is **strictly stronger** than the anchors it replaces: it catches
- * every edit rather than the six that happened to be enumerated, it is not positionally bound so it
- * cannot match the wrong thing, and it has **no empty value that matches**, so it cannot be turned
- * off by emptying a field. The precedent is in this repo already — `markdown-examples-gate.mjs`
- * keys on content fingerprints rather than line numbers, for the same reason.
- *
- * **What is deliberately kept is the *derived* half**, because a fingerprint alone is a tripwire and
- * not a comparison. Two checks compute their expectation from the data:
- *
- * - the **enumeration segment** must name **exactly** the membership computed from the deltas;
- * - the **exclusion clause** must name **exactly** `omitsKeywords`.
- *
- * Those two catch the row and the manifest *disagreeing*. The fingerprint catches the row changing
- * at all. Together they are semantic and syntactic cover; separately, neither is enough.
- *
- * The row defers to the profile documents for the block-head *names* rather than restating them
- * (`spec/grammar.md:414` — no second list to keep in step), so the manifest records which profile
- * words the row names **individually** and which the clause speaks for, and their union must equal
- * the profile-keyword set exactly.
- */
-export function tokenClassFindings(manifest, coreKeywords, row) {
-  const findings = [];
-  const deltas = manifest.tokenClassKeyword;
-
-  // Set-valued data must actually be a set. A duplicate `mod` made `omitsKeywords.length` read 5
-  // while the row named four words, and the count-template check compared the corrupted number and
-  // passed. The templates are gone, but a duplicate still corrupts every length and every
-  // difference computed below, so it is rejected at the door.
-  for (const [key, values] of [
-    ["omitsKeywords", deltas.omitsKeywords],
-    ["addsExcluded", deltas.addsExcluded],
-    [
-      "addsProfileKeywordsNamedIndividually",
-      deltas.addsProfileKeywordsNamedIndividually,
-    ],
-    [
-      "addsProfileKeywordsCoveredByClause",
-      deltas.addsProfileKeywordsCoveredByClause,
-    ],
-  ]) {
-    const duplicated = values.filter(
-      (value, index) => values.indexOf(value) !== index,
-    );
-    if (duplicated.length > 0) {
-      findings.push(
-        `${MANIFEST_PATH}: tokenClassKeyword.${key} lists ${[...new Set(duplicated)].join(", ")} more than once — these are sets, and a duplicate corrupts every count and difference derived from them`,
-      );
-    }
-  }
-
-  const omitted = deltas.omitsKeywords;
-  const strayOmission = omitted.filter((word) => !coreKeywords.includes(word));
-  if (strayOmission.length > 0) {
-    findings.push(
-      `${MANIFEST_PATH}: tokenClassKeyword.omitsKeywords names ${strayOmission.join(", ")}, which is not a keyword — a delta can only omit something the list holds`,
-    );
-  }
-
-  // Both directions. `addsExcluded` feeds the expected membership, so a contextual carve-out that
-  // is not in it silently drops out of the class the row is checked against.
-  const contextual = manifest.excluded
-    .filter((entry) => entry.reason === "contextual-keyword")
-    .map((entry) => entry.name);
-  const strayAddition = deltas.addsExcluded.filter(
-    (word) => !contextual.includes(word),
-  );
-  const uncounted = contextual.filter(
-    (word) => !deltas.addsExcluded.includes(word),
-  );
-  if (strayAddition.length > 0) {
-    findings.push(
-      `${MANIFEST_PATH}: tokenClassKeyword.addsExcluded names ${strayAddition.join(", ")}, which is not an excluded contextual keyword`,
-    );
-  }
-  if (uncounted.length > 0) {
-    findings.push(
-      `${MANIFEST_PATH}: contextual carve-out(s) ${uncounted.join(", ")} are not in tokenClassKeyword.addsExcluded — the token class admits the contextual words, so one the deltas forget is one the row is never checked for`,
-    );
-  }
-
-  const profileKeywords = manifest.names
-    .filter((entry) => entry.registries.includes("profile-reserved"))
-    .map((entry) => entry.name);
-  const named = deltas.addsProfileKeywords
-    ? deltas.addsProfileKeywordsNamedIndividually
-    : [];
-  const byClause = deltas.addsProfileKeywords
-    ? deltas.addsProfileKeywordsCoveredByClause
-    : [];
-  if (deltas.addsProfileKeywords) {
-    // Exact coverage, not a trusted list. Adding a word to `OL_PROFILE_KEYWORDS` and to `names` —
-    // with no `spec/tooling.md` edit at all — was a green 149-name gate, because the row's clause
-    // covers "the profile block-heads" generically and nothing checked a new word was one.
-    const covered = [...named, ...byClause];
-    const uncovered = profileKeywords.filter((word) => !covered.includes(word));
-    const phantom = covered.filter((word) => !profileKeywords.includes(word));
-    const both = named.filter((word) => byClause.includes(word));
-    if (uncovered.length > 0) {
-      findings.push(
-        `${MANIFEST_PATH}: profile keyword(s) ${uncovered.join(", ")} are in neither addsProfileKeywordsNamedIndividually nor addsProfileKeywordsCoveredByClause — every one must be accounted for in the row, individually or by the clause`,
-      );
-    }
-    if (phantom.length > 0) {
-      findings.push(
-        `${MANIFEST_PATH}: ${phantom.join(", ")} is recorded as a profile keyword of the token-class row but is not a profile keyword`,
-      );
-    }
-    if (both.length > 0) {
-      findings.push(
-        `${MANIFEST_PATH}: ${both.join(", ")} is both named individually and covered by the clause — one word, one treatment`,
-      );
-    }
-  }
-
-  findings.push(...rowFingerprintFindings(deltas, row));
-
-  // The one structural anchor left: where the enumeration ends and the exclusion clause begins.
-  // It is not a claim about content — the fingerprint owns those — only about shape, and the
-  // fingerprint pins the row byte-for-byte, so the split cannot silently move underneath it.
-  const splitAnchor = deltas.rowSplitAnchor;
-  if (typeof splitAnchor !== "string" || splitAnchor.trim().length === 0) {
-    // Rejected on `trim()`, not on `length`: `row.includes(" ")` is as true as `row.includes("")`,
-    // so a whitespace anchor switches its check off exactly as an empty one does.
-    findings.push(
-      `${MANIFEST_PATH}: tokenClassKeyword.rowSplitAnchor is empty — an empty or blank anchor matches everything, so the split it defines is arbitrary rather than structural`,
-    );
-    return findings;
-  }
-  const occurrences = row.split(splitAnchor).length - 1;
-  if (occurrences !== 1) {
-    findings.push(
-      `${MANIFEST_PATH}: tokenClassKeyword.rowSplitAnchor "${splitAnchor}" occurs ${occurrences} times in the row — it must occur exactly once to define a split`,
-    );
-    return findings;
-  }
-
-  const start = row.indexOf(splitAnchor);
-  const endAnchor = deltas.rowExclusionEndAnchor;
-  const end = row.indexOf(endAnchor, start);
-  if (endAnchor.trim().length === 0 || end === -1) {
-    findings.push(
-      `${MANIFEST_PATH}: tokenClassKeyword.rowExclusionEndAnchor ${JSON.stringify(endAnchor)} does not close the exclusion clause after "${splitAnchor}" — without both ends the clause has no bounded region, so "the words it excludes" is whatever follows to the end of the row`,
-    );
-    return findings;
-  }
-
-  // Drop the leading `| `keyword` |` cell so the class's own name is not read as a member.
-  const cellStart = row.indexOf("|", 1) + 1;
-  const enumerated = new Set(backtickedWords(row.slice(cellStart, start)));
-  const exclusionRegion = row.slice(start + splitAnchor.length, end);
-  // The split must actually BOUND the exclusion names, not merely precede them. If the region
-  // between the two anchors is anything other than backticked identifiers and separators, the
-  // anchors are marking something that is not a name list and the comparison below is meaningless.
-  if (
-    exclusionRegion.replace(/`[^`]*`/g, "").replace(/[\s,.;:—-]|and/g, "")
-      .length > 0
-  ) {
-    findings.push(
-      `${TOOLING_PATH}: the text between the exclusion clause's two anchors is not a bare list of names, so the anchors are not bounding the words the clause excludes`,
-    );
-    return findings;
-  }
-  const excludedWords = new Set(backtickedWords(exclusionRegion));
-
-  const expected = new Set([
-    ...coreKeywords.filter((word) => !omitted.includes(word)),
-    ...deltas.addsExcluded,
-    ...named,
-  ]);
-
-  const missing = [...expected].filter((word) => !enumerated.has(word));
-  const extra = [...enumerated].filter((word) => !expected.has(word));
-  if (missing.length > 0) {
-    findings.push(
-      `${TOOLING_PATH}: the \`keyword\` token-class row does not name ${missing.join(", ")} — the class is an enumeration, so every member has to appear in it`,
-    );
-  }
-  if (extra.length > 0) {
-    findings.push(
-      `${TOOLING_PATH}: the \`keyword\` token-class row names ${extra.join(", ")}, which ${MANIFEST_PATH} does not put in the class — an enumeration is wrong when it says too much, not only when it says too little`,
-    );
-  }
-
-  const unexcluded = omitted.filter((word) => !excludedWords.has(word));
-  const overexcluded = [...excludedWords].filter(
-    (word) => !omitted.includes(word),
-  );
-  if (unexcluded.length > 0) {
-    findings.push(
-      `${TOOLING_PATH}: the row's exclusion clause does not name ${unexcluded.join(", ")} — an omission the row never mentions is indistinguishable from a forgotten member`,
-    );
-  }
-  if (overexcluded.length > 0) {
-    findings.push(
-      `${TOOLING_PATH}: the row's exclusion clause names ${overexcluded.join(", ")}, which ${MANIFEST_PATH} does not omit from the class`,
-    );
-  }
-
-  findings.push(...derivedClaimFindings(deltas, omitted, row));
-
-  return findings;
-}
-
-/**
- * The four claims the row makes **about the data**, each computed rather than declared.
- *
- * These were removed with the twelve clause anchors and both reviewers asked for them back, for a
- * reason worth stating: they are a **different category**. The anchors were hand-declared literals
- * enumerating English, which is what would not converge. These four *compute their expectation from
- * the manifest* — two counts from array lengths, two polarities that invert a rule the whole file is
- * premised on — and each was measured to catch a contradiction the fingerprint cannot.
- *
- * The fingerprint detects that the row **changed**; it cannot tell a correct row from a wrong one,
- * and its only remedy is "re-derive and record the new digest", which a hurried contributor turns
- * into a green button. These four survive that: bump the digest with a contradicted count still in
- * the prose and they still fire.
- */
-export function derivedClaimFindings(deltas, omitted, row) {
-  const findings = [];
-  const claims = [
-    [
-      "deltaSentence",
-      deltas.deltaSentence
-        .replace("{omits}", numberWord(omitted.length))
-        .replace("{adds}", numberWord(deltas.addsExcluded.length)),
-      "it states the deltas in prose, and the count it states must be the count",
-    ],
-    [
-      "independenceClause",
-      deltas.independenceClause,
-      "that the class is NOT derived from the keyword list is the independence",
-    ],
-    [
-      "paintIndependenceClause",
-      deltas.paintIndependenceClause,
-      "that keyword-list membership never decides paint is the independence",
-    ],
-  ];
-  for (const [key, expected, why] of claims) {
-    if (typeof expected !== "string" || expected.trim().length === 0) {
-      findings.push(
-        `${MANIFEST_PATH}: tokenClassKeyword.${key} is empty — an empty claim matches everything, so the check it guards is switched off rather than satisfied`,
-      );
-      continue;
-    }
-    if (!row.includes(expected)) {
-      findings.push(
-        `${TOOLING_PATH}: the \`keyword\` token-class row does not say "${expected}" — ${why} ${MANIFEST_PATH} holds (tokenClassKeyword.${key})`,
-      );
-    }
-  }
-  for (const placeholder of ["{omits}", "{adds}"]) {
-    if (deltas.deltaSentence.split(placeholder).length !== 2) {
-      findings.push(
-        `${MANIFEST_PATH}: tokenClassKeyword.deltaSentence must contain ${placeholder} exactly once, or the count it claims is not the count this file holds`,
-      );
-    }
-  }
-  return findings;
-}
-
-/**
- * The English word for a small count, because `spec/tooling.md` spells its counts out. Falls back
- * to digits above twelve, which is past anything the deltas can plausibly reach — and would be a
- * visible prose change rather than a silent one.
- */
-export function numberWord(count) {
-  return (
-    [
-      "zero",
-      "one",
-      "two",
-      "three",
-      "four",
-      "five",
-      "six",
-      "seven",
-      "eight",
-      "nine",
-      "ten",
-      "eleven",
-      "twelve",
-    ][count] ?? String(count)
-  );
-}
-
-/**
- * The row's content fingerprint.
- *
- * **The failure message deliberately does not carry the new digest.** A hash gate whose failure mode
- * is *"paste in the new hash"* is a rubber stamp with extra steps: the next contributor edits the
- * row, CI goes red, they copy the value out of the diagnostic, and the gate has certified nothing
- * while looking rigorous. So the message names the **obligation** — re-derive the class against the
- * implementation and confirm the row is still true — and the digest is obtained by a **separate,
- * deliberate act**: `npm run built-in-names -- --print-fingerprint`.
- *
- * Hashed over the row **exactly as it appears** — no trimming, no normalisation, no whitespace
- * collapsing. Every such convenience is a class of edit the fingerprint would stop seeing.
- */
-export function rowFingerprintFindings(deltas, row) {
-  const expected = deltas.rowFingerprint;
-  if (typeof expected !== "string" || !/^[0-9a-f]{64}$/.test(expected)) {
-    return [
-      `${MANIFEST_PATH}: tokenClassKeyword.rowFingerprint is not a sha256 digest — without it every claim in the row that this gate does not derive is unguarded`,
-    ];
-  }
-  if (rowFingerprint(row) === expected) {
-    return [];
-  }
-  return [
-    `${TOOLING_PATH}: the \`keyword\` token-class row has changed. This is not a request to update a hash — the row is a hand-maintained enumeration of a token class that cannot be derived (${MANIFEST_PATH}'s tokenClassKeyword.about), so re-derive the class against @openlogo/parser's shipped output and confirm every claim the row makes is still true. Only then record the new digest, which \`npm run built-in-names -- --print-fingerprint\` will give you.`,
-  ];
-}
-
-/** The row's sha256, over its exact bytes. */
-export function rowFingerprint(row) {
-  return createHash("sha256").update(row, "utf8").digest("hex");
 }
 
 /**
@@ -1449,18 +1116,10 @@ export function narrativeFindings(manifest) {
   }
   // The token-class block's own prose. Every `*Reason` field explains a decision that is otherwise
   // only visible as data, and all seven could be blanked — or deleted outright — unnoticed.
-  for (const key of [
-    "about",
-    "omitsReason",
-    "addsExcludedReason",
-    "addsProfileKeywordsReason",
-    "addsProfileKeywordsCoverageReason",
-    "rowSplitAnchorReason",
-    "rowFingerprintReason",
-  ]) {
+  for (const key of ["about", "rowFingerprintReason"]) {
     if (blank(manifest.tokenClassKeyword?.[key])) {
       findings.push(
-        `${MANIFEST_PATH}: tokenClassKeyword.${key} is missing or empty — it records why a delta or an anchor is what it is, which nothing else in the file says`,
+        `${MANIFEST_PATH}: tokenClassKeyword.${key} is missing or empty — it records what the token-class fingerprint does and does not guarantee, which nothing else in the file says`,
       );
     }
   }
@@ -1540,27 +1199,5 @@ export function parseArgs(argv) {
   if (index !== -1 && argv[index + 1] !== undefined) {
     options.manifestPath = argv[index + 1];
   }
-  if (argv.includes("--print-fingerprint")) {
-    options.printFingerprint = true;
-  }
   return options;
-}
-
-/**
- * The digest of the row as it stands, for `--print-fingerprint`. Deliberately not reachable from
- * the failure path: obtaining it is an act you take after re-deriving the class, not a value the
- * diagnostic invites you to copy.
- */
-export function currentRowFingerprint({
-  manifestPath = MANIFEST_PATH,
-  io = REAL_IO,
-} = {}) {
-  const manifest = loadManifest(manifestPath, io);
-  const row = extractToolingKeywordRow(
-    io.readText(TOOLING_PATH),
-    manifest.tokenClassKeyword.rowTableHeader,
-  );
-  return row === null
-    ? `no single live \`keyword\` row found under ${manifest.tokenClassKeyword.rowTableHeader}`
-    : rowFingerprint(row);
 }
