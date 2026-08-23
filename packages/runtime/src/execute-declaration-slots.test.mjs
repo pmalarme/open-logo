@@ -79,19 +79,25 @@ function checkIdentity(source) {
 }
 
 /**
- * The **full** identity of a diagnostic — `code`, `params` AND `source_span`.
+ * The **full** identity of a diagnostic — `code`, `params`, `source_span` AND `severity`.
+ *
+ * `severity` is in the row because `spec/error-model.md:125` makes `ol-reserved-word` normatively an
+ * error, and measured: downgrading it to `"warning"` **only inside loop and comprehension bodies**
+ * passed the entire Definition of Done. It is safe to compare across stages because both produce
+ * `"error"`. **`stage` is deliberately NOT here** — `execute()` reports `"runtime"` and `check()`
+ * reports `"semantic"` by design, so including it would make every cross-stage cell diff.
  *
  * `executeIdentity`/`checkIdentity` deliberately omit the span so their rows stay readable, but that
  * omission is itself a variable held constant: a mutant reporting the ENCLOSING declaration's span
  * at depth ≥ 2 (underlining `define b` instead of `forward`) passed every gate, because the only
- * span assertions in this suite were at depth 0. Comparing the whole shape closes that by
- * construction, and retroactively strengthens every sweep that uses it.
+ * span assertions in this suite were at depth 0.
  */
 function fullIdentity(diagnostics) {
   return diagnostics.map((finding) => [
     finding.code,
     finding.params,
     finding.source_span,
+    finding.severity,
   ]);
 }
 
@@ -154,8 +160,8 @@ function stableText(value) {
 function comparableRow(diagnostics) {
   return declarationSlotIdentity(diagnostics)
     .map(
-      ([code, params, span]) =>
-        `${code} params=${stableText(params)} span=${stableText(span)}`,
+      ([code, params, span, severity]) =>
+        `${code} severity=${severity} params=${stableText(params)} span=${stableText(span)}`,
     )
     .join(" ;; ");
 }
@@ -423,6 +429,7 @@ test("the COMPARATOR distinguishes diagnostics that differ only in a span or a p
       code: "ol-duplicate-definition",
       params: { name: "dup", original_span: span(1) },
       source_span: span(4),
+      severity: "error",
     },
   ];
   const differentSourceSpan = [{ ...base[0], source_span: span(5) }];
@@ -432,6 +439,8 @@ test("the COMPARATOR distinguishes diagnostics that differ only in a span or a p
   const differentName = [
     { ...base[0], params: { name: "DUP", original_span: span(1) } },
   ];
+  const differentCode = [{ ...base[0], code: "ol-reserved-word" }];
+  const differentSeverity = [{ ...base[0], severity: "warning" }];
 
   assert.notEqual(
     comparableRow(base),
@@ -448,11 +457,22 @@ test("the COMPARATOR distinguishes diagnostics that differ only in a span or a p
     comparableRow(differentName),
     "a differing params.name must change the row",
   );
+  assert.notEqual(
+    comparableRow(base),
+    comparableRow(differentCode),
+    "a differing code must change the row — the one facet this guard used to hold constant",
+  );
+  assert.notEqual(
+    comparableRow(base),
+    comparableRow(differentSeverity),
+    "a differing severity must change the row: `spec/error-model.md:125` makes it an error",
+  );
   // Key order must NOT change it, or every product would diff on incidental ordering.
   assert.equal(
     comparableRow(base),
     comparableRow([
       {
+        severity: "error",
         source_span: span(4),
         params: { original_span: span(1), name: "dup" },
         code: "ol-duplicate-definition",
@@ -463,7 +483,12 @@ test("the COMPARATOR distinguishes diagnostics that differ only in a span or a p
   assert.equal(
     comparableRow([
       ...base,
-      { code: "ol-no-value", params: {}, source_span: span(9) },
+      {
+        code: "ol-no-value",
+        params: {},
+        source_span: span(9),
+        severity: "error",
+      },
     ]),
     comparableRow(base),
   );
