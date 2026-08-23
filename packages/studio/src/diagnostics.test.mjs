@@ -184,7 +184,7 @@ test("an explicit Core-Language-only set additionally flags the profile command"
 test("an explicitly empty profile set is honored by the checker too", () => {
   // The `check()` half of the same guard: `[]` means "no profiles active", so even Core Language's
   // own `print` is an unknown command. A regression that quietly substituted the studio default
-  // would report nothing here.
+  // would fail to report `print` here.
   const state = createStudioState();
   createDiagnosticsController(state, { profiles: [], semanticCheck: true });
 

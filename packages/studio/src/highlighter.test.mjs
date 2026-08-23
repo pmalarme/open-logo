@@ -133,13 +133,22 @@ test("every token's start/end positions round-trip onto the exact source substri
 // highlighter that ignored the profile set entirely would still satisfy either one alone.
 
 /**
- * The words whose token class depends on the active profile set — derived from the parser's own
- * registry rather than restated here, so a profile block-head added parser-side is covered by these
- * tests automatically. That is this repo's house rule for profile-specific names (compare
- * `packages/parser/src/profile-arity-derivation.test.mjs` and `checker-reserved-word.test.mjs`,
- * both of which are driven off the registry rather than a hand-kept list).
+ * The words whose token class depends on the active profile set, each paired with the profile that
+ * owns it — derived from the parser's own registry rather than restated here, so a profile
+ * block-head added parser-side is covered by these tests automatically. That is this repo's house
+ * rule for profile-specific names (compare `packages/parser/src/profile-arity-derivation.test.mjs`
+ * and `checker-reserved-word.test.mjs`, both driven off the registry rather than a hand-kept list).
+ *
+ * Ownership is kept, not flattened away: each entry carries the profile that owns the word, so the
+ * tests can state — and check — that every registry profile is one the studio actually has active,
+ * which is what makes `keyword` the right expectation for all of them today. A future block-head
+ * from a profile this build does not claim must stay `primitive` (`spec/tooling.md:31`); the tests
+ * assert that precondition rather than branching on it, because a branch no test can reach would
+ * fail the 100%-branch gate.
  */
-const PROFILE_BLOCK_HEADS = Object.values(OL_PROFILE_KEYWORDS).flat();
+const PROFILE_BLOCK_HEADS = Object.entries(OL_PROFILE_KEYWORDS).flatMap(
+  ([profile, words]) => words.map((word) => ({ profile, word })),
+);
 
 /**
  * A well-formed program (zero parse diagnostics, and zero `check()` findings under the studio's
@@ -196,8 +205,22 @@ test("the default profile set classifies every active-profile block-head as keyw
   const tokens = createParserHighlighter()(PROFILE_BLOCK_HEAD_SOURCE);
 
   assert.ok(PROFILE_BLOCK_HEADS.length > 0);
-  for (const word of PROFILE_BLOCK_HEADS) {
-    assert.equal(classOf(tokens, word), "ol-tok-keyword", word);
+  for (const { profile, word } of PROFILE_BLOCK_HEADS) {
+    // A guard, deliberately not a conditional expectation: every profile in the registry is one
+    // the studio has active today, which is exactly what makes `keyword` the right class for all
+    // of them. Should a future block-head arrive from a profile this build does not claim, this
+    // fails loudly and names it, instead of silently demanding the wrong class — whereas branching
+    // the expectation on `STUDIO_PROFILES.includes(profile)` would add an arm no test can reach,
+    // which the 100%-branch gate rejects (and §11's "no speculative abstraction" discourages).
+    assert.ok(
+      STUDIO_PROFILES.includes(profile),
+      `${profile} owns a block-head but is not active in the studio — extend this test`,
+    );
+    assert.equal(
+      classOf(tokens, word),
+      "ol-tok-keyword",
+      `${word} (${profile})`,
+    );
   }
 });
 
@@ -207,8 +230,12 @@ test("an explicit Core-Language-only set classifies those same words as primitiv
   );
 
   assert.ok(PROFILE_BLOCK_HEADS.length > 0);
-  for (const word of PROFILE_BLOCK_HEADS) {
-    assert.equal(classOf(tokens, word), "ol-tok-primitive", word);
+  for (const { profile, word } of PROFILE_BLOCK_HEADS) {
+    assert.equal(
+      classOf(tokens, word),
+      "ol-tok-primitive",
+      `${word} (${profile})`,
+    );
   }
 });
 
@@ -222,8 +249,12 @@ test("an explicitly empty profile set is honored, not replaced by the default", 
   );
 
   assert.ok(PROFILE_BLOCK_HEADS.length > 0);
-  for (const word of PROFILE_BLOCK_HEADS) {
-    assert.equal(classOf(tokens, word), "ol-tok-primitive", word);
+  for (const { profile, word } of PROFILE_BLOCK_HEADS) {
+    assert.equal(
+      classOf(tokens, word),
+      "ol-tok-primitive",
+      `${word} (${profile})`,
+    );
   }
 });
 
