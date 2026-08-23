@@ -4,8 +4,13 @@
  *
  * `run-controller.ts` composes a host rather than calling `@openlogo/runtime`'s `execute()` itself.
  * Everything the controller does around a run — reducing output, driving the turtle animation,
- * committing `runStatus`, presenting the question — is identical whichever host is installed,
- * because a host's whole contract is "settle with an {@link ExecutionSettlement}".
+ * committing `runStatus`, presenting the question — reaches the same **eventual** state whichever
+ * host is installed, because a host's whole contract is "settle with an
+ * {@link ExecutionSettlement}". What differs is *when*: the in-process host settles synchronously,
+ * so a run ends within the call that started it, while a Worker host settles across event-loop
+ * turns — so the studio is still `"running"` at moments the in-process host would already have
+ * committed a terminal status. Dismissing a question is the clearest case: identical outcome, but
+ * one is immediate and the other waits for the abandoned run's own ending to arrive.
  *
  * ## The two hosts, and why both exist
  * - {@link createInProcessExecutionHost} is the default and carries **#769's replay** unchanged: the
@@ -126,6 +131,16 @@ export interface ExecutionRequest {
   readonly document: string;
   /** The chain's pinned `ExecuteOptions.randomSeed` (#865/#881). */
   readonly randomSeed: number;
+  /**
+   * Whether the controller's cancellation is **already latched** when this attempt starts (#876).
+   *
+   * `stop()` latches its signal and only `reset()` re-arms it, so a `run()` after a Stop is meant to
+   * halt immediately with `ol-limit`. The in-process host holds that very signal object and honours
+   * it for free; a Worker host cannot see an object's mutation across threads, so it needs the state
+   * as **data** and raises the flag on the new run's shared channel before the interpreter starts.
+   * Without it the two hosts disagreed on a rule this controller documents.
+   */
+  readonly cancellationRequested: boolean;
   /** Overrides `ExecuteOptions.instructionBudget` when set. */
   readonly instructionBudget?: number;
   /** Overrides `ExecuteOptions.recursionDepthLimit` when set. */
@@ -290,6 +305,9 @@ export function createInProcessExecutionHost(
 ): ExecutionHost {
   return {
     execute(request, settle) {
+      // `request.cancellationRequested` needs no handling here: this host was constructed with the
+      // very `CancellationSignal` object the controller latches, so `execute()` already sees it.
+      // It exists for a host that cannot observe an object's mutation — see the field's own docs.
       // One cursor per attempt over the chain's accumulated answers. A read is answered from the
       // FIFO only when the recorded answer at this position was given for **this same question**.
       let answerCursor = 0;

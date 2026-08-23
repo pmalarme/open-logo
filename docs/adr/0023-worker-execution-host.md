@@ -57,7 +57,9 @@ decision**.
 host's whole contract is "settle with an `ExecutionSettlement`" — the events so far, their reduced
 output, the diagnostics, and the question the run is suspended on (or `null`). Everything the
 controller does around a run — reducing to `output`, driving the turtle animation, committing
-`runStatus`, presenting the question — is identical whichever host is installed.
+`runStatus`, presenting the question — reaches the same eventual state whichever host is installed.
+What differs is *when*: the in-process host settles synchronously, so a run ends within the call that
+started it, while a Worker host settles across event-loop turns.
 
 **2. Two hosts ship, and the replay is the fallback rather than a deletion.**
 `createInProcessExecutionHost` carries #769's replay unchanged and settles **synchronously inside
@@ -103,16 +105,29 @@ learner has already seen is literally the same growing array the run keeps exten
 
 **A preemptible Stop.** The Worker's `CancellationSignal` is a getter over `Atomics.load`, so Stop
 takes effect on the interpreter's very next statement. A `repeat 100000 [ … ]` halts where it is
-rather than at the instruction budget — pinned by test, and impossible before.
+rather than at the instruction budget — impossible before. **Both** links of that chain are pinned by
+test, because either alone is worthless: that `stop()`/`reset()` actually reach the host, and that a
+raised flag preempts the running interpreter. (Review measured the cost of losing the first: a Stop
+that does not stop, a Reset the program survives and repaints over, and a Worker left parked on
+`Atomics.wait` forever.)
 
 **The bound that replaces the deleted retry cap.** #881 removed the replay chain's no-progress retry
 cap, having proved the state it guarded unreachable; its reviewers carried forward the consequence
 that a future reintroduction of divergence would be an unbounded loop rather than a bounded test
 failure. A Worker host answers that **structurally**: it never replays, so there is no attempt
 sequence to diverge and nothing for a counter to count. That invariant is asserted directly (one run
-command for a program with several reads). Separately, no wait is ever indefinite: `awaitBlockingRead`
-parks with a timeout and re-reads the control block, so a cancellation is observed within one poll
-interval **even if its wake-up were missed entirely**.
+command for a program with several reads). Separately, no single **park** is indefinite:
+`awaitBlockingRead` parks with a timeout and re-reads the control block, so a cancellation is
+observed within one poll interval **even if its wake-up were missed entirely**. The *total* time a
+learner may be asked to wait is of course unbounded — that is what a blocking question is — but it
+always ends on their next Stop rather than on a wake-up arriving.
+
+**The bound applies to the Worker host only, and the replay is what everyone runs today.** Until
+COOP/COEP is decided the in-process replay is the sole reachable host, and its divergence bound is
+still the structural argument #881 made, not a counter. A future defect that reintroduced divergence
+there would present as a synchronous non-terminating `pump()` — a hang rather than a red test, since
+`--test-timeout` cannot interrupt a synchronous loop. That is inherited, not introduced here, and it
+is the strongest argument for enabling the isolated path once the deployment decision lands.
 
 **What is still unbounded is unchanged, and still a host contract.** A prompt host that
 unconditionally restarts the run from inside `present()` is a host-side infinite loop that nothing

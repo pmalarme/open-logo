@@ -227,8 +227,11 @@
  *
  * **`prepare()` above is now two functions.** `beginAttempt()` starts an attempt through the host;
  * `finishAttempt()` does everything the old function did once a settlement exists — reduce, publish,
- * build the animation, fast-forward past what is already drawn. Every reference to `prepare()` in
- * the sections above means that pair. `run()` still returns `void`: this controller was already
+ * build the animation, fast-forward past what is already drawn. **Every reference to `prepare()`
+ * anywhere in this file — this header block *and* the per-function and per-field doc comments
+ * below — means that pair.** Those older sections are deliberately left as they were: each records
+ * what the code did at the issue it names (#126, #228, #289, #769, #881), and rewriting them would
+ * retroactively falsify that record rather than document a change. `run()` still returns `void`: this controller was already
  * asynchronous-by-continuation (`present`/`respond`, generation counters, a paced scheduler that
  * leaves `runStatus` at `"running"` across many event-loop turns), so a host that settles through a
  * callback needed no new shape.
@@ -596,6 +599,14 @@ export function createRunController(
   // attempt it is settling has already been superseded.
   let pumping = false;
   let pendingPumpGeneration: number | null = null;
+  // #876 — whether an attempt has been handed to the execution host and has not settled yet. With
+  // the default in-process host this is only ever true *within* `beginAttempt`, so nothing can
+  // observe it; with a Worker host it spans event-loop turns, and it is what stops a second
+  // execution being started over an in-flight one. `run()` is already guarded by `runStatus`
+  // (#314), but `step()` was not: before this, two early `step()` presses each reached `execute()`,
+  // and Stop then cancelled only the second run's shared buffer while the Worker was still
+  // executing the first — which is precisely a Stop that does not stop.
+  let attemptPending = false;
   // #881 — the one random seed every attempt of the current chain executes with. Drawn once by
   // `run()` (and once per lazy `step()` preparation, which is its own single-attempt chain), so
   // attempt k+1 reproduces attempt k exactly up to the read the new answer extends.
@@ -774,6 +785,13 @@ export function createRunController(
       // module's doc comment ("#881"). A Worker host never replays, so the seed matters there only
       // for reproducing a whole run.
       randomSeed: chainRandomSeed,
+      // #876 — the controller's cancellation state, carried as data because an object's mutation is
+      // invisible across a thread boundary. `stop()` latches `signal.aborted` and only `reset()`
+      // clears it, so a `run()` after a Stop is expected to halt immediately with `ol-limit`
+      // (see this module's doc comment, "#126"). Without this the Worker host allocated a fresh,
+      // uncancelled buffer per run and quietly ran to completion instead — the two hosts disagreeing
+      // on a documented rule.
+      cancellationRequested: signal.aborted,
       acceptsReads: host !== undefined,
       answers,
       ...(options?.instructionBudget !== undefined
@@ -784,7 +802,9 @@ export function createRunController(
         : {}),
     };
 
+    attemptPending = true;
     executionHost.execute(request, (settlement) => {
+      attemptPending = false;
       then(finishAttempt(settlement, sourceText, host));
     });
   }
@@ -891,7 +911,8 @@ export function createRunController(
     return current;
   }
 
-  /** Start (or resume) playback of the attempt `prepare()` just built, then settle its outcome. */
+  /** Start (or resume) playback of the attempt `prepare()` (now `beginAttempt()`/`finishAttempt()`)
+   * just built, then settle its outcome. */
   function playCurrentAttempt(current: TurtleAnimationController): void {
     playWithMotionPreference(current, {
       reducedMotion: (options?.reducedMotion ?? false) || currentIsInstant,
@@ -969,6 +990,22 @@ export function createRunController(
     promptOutstanding = false;
     chainSource = state.getState().source;
     chainRandomSeed = drawRandomSeed();
+    // #876 — publish THIS run's (still empty) result before anything can observe it. With the
+    // default in-process host the settlement overwrites all of this within the same call, so it is
+    // invisible; with a host that settles later, a Stop landing before the first settlement would
+    // otherwise leave the *previous* run's output, scene and `lastRunResult` in place — and
+    // `run-log.ts`, which snapshots `lastRunResult` on the `"running"` → terminal transition, would
+    // record that earlier run a second time.
+    currentEvents = [];
+    currentOutput = [];
+    attemptDiagnostics = [];
+    preparedSource = chainSource;
+    state.setOutput([]);
+    state.setLastRunResult({
+      source: chainSource,
+      output: [],
+      diagnostics: [],
+    });
     pump();
   }
 
@@ -977,8 +1014,10 @@ export function createRunController(
     // #876 — the preemptible half. For the default in-process host this is a no-op (its `execute()`
     // has already returned by the time anything can call `stop()`); for a Worker host it flips a
     // flag in shared memory that the still-running interpreter reads before its very next
-    // statement, and wakes it if it is parked on a question.
+    // statement, and wakes it if it is parked on a question. Deleting this line leaves a Stop that
+    // does not stop and a Worker parked forever, so it is pinned directly by test.
     executionHost.cancel();
+    attemptPending = false;
     // Ends this chain: a queued replay from a synchronous answer must not run after it.
     chainGeneration += 1;
     userStopped = true;
@@ -994,8 +1033,10 @@ export function createRunController(
   function reset(): void {
     withdrawPendingRead();
     // #876 — abandon whatever the host is still running, so a Worker's in-flight execution cannot
-    // settle over the cleared state a moment later.
+    // settle over the cleared state a moment later. Deleting this line lets a Reset the learner
+    // pressed be undone: the studio clears, then the abandoned run finishes and repaints it.
     executionHost.cancel();
+    attemptPending = false;
     // Ends this chain, exactly as stop() does — see chainGeneration.
     chainGeneration += 1;
     answers = [];
@@ -1025,6 +1066,12 @@ export function createRunController(
       // #769 — the run is blocked on an `input` question: there is nothing to step until it is
       // answered or dismissed. See this module's doc comment for why stepping never drives the
       // prompt flow itself.
+      return;
+    }
+    if (attemptPending) {
+      // #876 — an execution is already in flight and has not settled. Only reachable with a host
+      // that settles across event-loop turns; starting a second one would leave two live runs, and
+      // the host owns a single cancellation channel, so Stop would reach only the newer of them.
       return;
     }
     // #289 — from the initial idle state (before any run()), no animation exists yet: prepare()

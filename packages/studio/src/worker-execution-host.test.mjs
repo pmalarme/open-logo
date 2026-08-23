@@ -54,6 +54,7 @@ function makeRequest(overrides = {}) {
     source: ':a = input "who?"',
     document: "worker.logo",
     randomSeed: 3,
+    cancellationRequested: false,
     acceptsReads: true,
     answers: [],
     ...overrides,
@@ -284,6 +285,44 @@ test("cancel raises the shared cancellation flag and abandons the run", () => {
   assert.equal(OL.isBlockingCancellationRequested(channel), true);
   assert.deepEqual(notified, [0], "a parked Worker is woken, not left hanging");
   assert.deepEqual(takeSettlements(), []);
+});
+
+test("a request that arrives already cancelled starts its run cancelled", () => {
+  // `stop()` latches the controller's signal and only `reset()` re-arms it, so a Run after a Stop
+  // must halt immediately. A fresh shared buffer starts clean, so the latch has to be re-raised
+  // here or the Worker host would run to completion where the in-process host halts.
+  const { fake, host } = makeHost();
+
+  host.execute(makeRequest({ cancellationRequested: true }), recordSettlement);
+
+  assert.equal(
+    OL.isBlockingCancellationRequested(
+      OL.createBlockingInputChannel(fake.commands[0].buffer),
+    ),
+    true,
+  );
+});
+
+test("starting a run while one is still in flight cancels the older one", () => {
+  // Defence in depth behind the controller's own guard: the host owns a single cancellation
+  // channel, so two live interpreters would leave Stop reaching only the newer of them.
+  const { fake, host } = makeHost();
+  host.execute(makeRequest(), recordSettlement);
+
+  host.execute(makeRequest(), recordSettlement);
+
+  assert.equal(
+    OL.isBlockingCancellationRequested(
+      OL.createBlockingInputChannel(fake.commands[0].buffer),
+    ),
+    true,
+  );
+  assert.equal(
+    OL.isBlockingCancellationRequested(
+      OL.createBlockingInputChannel(fake.commands[1].buffer),
+    ),
+    false,
+  );
 });
 
 test("cancel before any run has started is a no-op", () => {

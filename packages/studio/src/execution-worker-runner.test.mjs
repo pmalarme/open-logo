@@ -23,6 +23,7 @@ function makeCommand(source, overrides = {}, capacity = 64) {
         source,
         document: "worker.logo",
         randomSeed: 5,
+        cancellationRequested: false,
         acceptsReads: true,
         answers: [],
         ...overrides,

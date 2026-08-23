@@ -34,11 +34,13 @@
  * rather than an encoding-dependent surprise.
  *
  * ## The bound
- * A blocked read is **never** an unbounded wait. {@link awaitBlockingRead} waits with a timeout and
+ * A blocked read is **never an indefinite park**. {@link awaitBlockingRead} waits with a timeout and
  * re-checks the state, so it observes a cancellation within one poll interval even if the wake-up
- * were missed entirely — the wait cannot outlive a Stop. This is the bound that replaces the
- * no-progress retry cap #881 deleted, and it fits the mechanism: the cap counted *attempts within a
- * replay chain*, whereas a Worker host has no replay to count (see `execution-host.ts`).
+ * were missed entirely — the wait cannot outlive a Stop. The *total* time a learner is given to
+ * answer is deliberately unbounded, since that is what a blocking question means; what is bounded is
+ * how long it takes a cancellation to be noticed. This is the bound that replaces the no-progress
+ * retry cap #881 deleted, and it fits the mechanism: the cap counted *attempts within a replay
+ * chain*, whereas a Worker host has no replay to count (see `execution-host.ts`).
  */
 
 import type { CancellationSignal } from "@openlogo/runtime";

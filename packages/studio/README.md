@@ -257,7 +257,7 @@ shapes with an **attempt chain**.
 `createRunController` no longer calls `@openlogo/runtime`'s `execute()` itself. It composes an
 **`ExecutionHost`**, whose whole contract is to settle with an `ExecutionSettlement` — the events so
 far, their already-reduced `output`/`tutorOutput`, the diagnostics, and the question the run is
-suspended on (or `null`). Everything the controller does around a run is identical whichever host is
+suspended on (or `null`). Everything the controller does around a run reaches the same eventual state whichever host is
 installed. See [ADR-0023](../../docs/adr/0023-worker-execution-host.md).
 
 **This is a mechanism change, not a correctness fix.** #881 already closed the replay's divergence
@@ -272,6 +272,10 @@ window; do not read the section above as describing a bug this removes.
   answers however many questions**, and its `CancellationSignal` is a getter over `Atomics.load`, so
   Stop aborts a loop *mid*-`execute()`. `repeat 100000 [ … ]` halts where it is rather than at the
   instruction budget — the caveat `run-controller.ts` has carried since #126, finally answered.
+  **Both** links are pinned by test, because either alone is worthless: that `stop()`/`reset()`
+  actually reach the host, and that a raised flag preempts the running interpreter. Losing the first
+  costs a Stop that does not stop, a Reset the program survives and repaints over, and a Worker left
+  parked on `Atomics.wait` forever.
 - `blocking-input-channel.ts` is the protocol: straight-line logic over an `Int32Array` control block
   and a `Uint16Array` answer region (UTF-16 code units, so no `TextEncoder` seam is needed and
   surrogate pairs round-trip unchanged), with `wait`/`notify` **injected**. A primitive that throws
@@ -300,7 +304,7 @@ that produced them, and the controller never re-reduces a stream it did not prod
 consequence forward: with the cap gone, a reintroduction of divergence would be an unbounded loop.
 A Worker host answers that **structurally** — it never replays, so there is no attempt sequence to
 diverge and nothing for a counter to count (asserted directly: one run command for a program with
-several reads). Separately, no wait is ever indefinite: `awaitBlockingRead` parks with a timeout and
+several reads). Separately, no single **park** is indefinite: `awaitBlockingRead` parks with a timeout and
 re-reads the control block, so a Stop is observed within one poll interval even if its wake-up were
 missed entirely. What remains unbounded is unchanged and still a host contract: a prompt host that
 restarts the run from inside `present()` on *every* presentation, since each restart brings a fresh

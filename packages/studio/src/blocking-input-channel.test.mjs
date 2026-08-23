@@ -22,6 +22,14 @@ function makeChannel(capacity = 16) {
   );
 }
 
+/**
+ * The control slot holding the pending answer's length. The module keeps its slot indices private,
+ * which is right — but two of its stores are otherwise unobservable through the public API (the
+ * `dismissed` path never decodes an answer), so the tests below read this one directly rather than
+ * asserting a store in prose that nothing checks.
+ */
+const ANSWER_LENGTH_SLOT = 1;
+
 /** Records every `Atomics.notify` the module would have issued. */
 function makeNotifyRecorder() {
   const calls = [];
@@ -94,6 +102,9 @@ test("armBlockingRead marks a read outstanding and clears any stale answer lengt
   assert.equal(OL.isBlockingReadOutstanding(channel), true);
   // Re-arming must not leave the previous answer's length behind: a reader that woke on the new
   // read would otherwise decode `length` code units of whatever happens to be in the region.
+  // Asserted on the control slot directly, because the `dismissed` path below never decodes an
+  // answer — so observing only the outcome would leave the store unpinned.
+  assert.equal(Atomics.load(channel.control, ANSWER_LENGTH_SLOT), 0);
   const wait = makeWait(() => {
     OL.dismissBlockingRead(channel, notifier.notify);
   });
@@ -306,7 +317,9 @@ test("clearBlockingRead returns the channel to idle once an outcome is consumed"
   OL.clearBlockingRead(channel);
 
   assert.equal(OL.isBlockingReadOutstanding(channel), false);
-  // The length is cleared too, so a later read cannot decode a stale answer.
+  // The length is cleared too, so a later read cannot decode a stale answer — asserted on the
+  // control slot, since the `dismissed` outcome below never decodes one and so cannot prove it.
+  assert.equal(Atomics.load(channel.control, ANSWER_LENGTH_SLOT), 0);
   OL.armBlockingRead(channel);
   OL.dismissBlockingRead(channel, notifier.notify);
   const wait = makeWait();

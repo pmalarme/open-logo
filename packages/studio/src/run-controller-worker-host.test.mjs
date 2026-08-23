@@ -94,6 +94,176 @@ const DRAW_THEN_ASK_SOURCE = [
   "forward :distance",
 ].join("\n");
 
+/**
+ * A host that records what the controller asked of it and settles **only when a test says so** —
+ * the shape a real Worker has, where every report crosses an event-loop turn. The synchronous
+ * harness above cannot model Stop and Reset at all, because its runner has already unwound by the
+ * time either is called: cancellation's whole job is to reach the thing that harness has deleted.
+ * Review measured the cost of that blind spot — both `executionHost.cancel()` calls could be
+ * removed with the entire suite green — so these are pinned directly.
+ */
+function createDeferredHost() {
+  const calls = { runs: [], cancels: 0, resolved: [] };
+  let settle = null;
+  return {
+    calls,
+    /** Settle the run the controller is waiting on, as a Worker's report would. */
+    report(settlement) {
+      settle?.({
+        events: [],
+        output: [],
+        tutorOutput: [],
+        diagnostics: [],
+        retainedAnswers: [],
+        pendingPrompt: null,
+        ...settlement,
+      });
+    },
+    host: {
+      execute(request, nextSettle) {
+        calls.runs.push(request);
+        settle = nextSettle;
+      },
+      cancel() {
+        calls.cancels += 1;
+        settle = null;
+      },
+      resolveRead(answer) {
+        calls.resolved.push(answer);
+      },
+    },
+  };
+}
+
+test("Stop reaches the host, so a Worker's running interpreter is actually cancelled", () => {
+  // The single link the whole "Stop preempts a running loop" claim rests on. Without it a Stop does
+  // not stop, a Worker parked on a question is never woken, and the abandoned run repaints the
+  // canvas the learner just cleared.
+  const store = OL.createStudioState({ source: "forward 1" });
+  const deferred = createDeferredHost();
+  const controller = OL.createRunController(store, {
+    executionHost: deferred.host,
+  });
+  controller.run();
+
+  controller.stop();
+
+  assert.equal(deferred.calls.cancels, 1);
+  assert.equal(store.getState().runStatus, "stopped");
+});
+
+test("Reset reaches the host too, so an abandoned run cannot repaint what was cleared", () => {
+  const store = OL.createStudioState({ source: "forward 1" });
+  const deferred = createDeferredHost();
+  const controller = OL.createRunController(store, {
+    executionHost: deferred.host,
+  });
+  controller.run();
+
+  controller.reset();
+
+  assert.equal(deferred.calls.cancels, 1);
+  assert.equal(store.getState().runStatus, "idle");
+});
+
+test("Stop before the first settlement records THIS run, not the one before it", () => {
+  // With a host that settles later, the previous run's output and `lastRunResult` would otherwise
+  // still be in place when Stop lands — and `run-log.ts`, which snapshots `lastRunResult` on the
+  // "running" → terminal transition, would record that earlier run a second time.
+  const store = OL.createStudioState({ source: 'print "old"' });
+  const deferred = createDeferredHost();
+  const controller = OL.createRunController(store, {
+    executionHost: deferred.host,
+  });
+  const log = OL.createRunLogController(store);
+  controller.run();
+  deferred.report({ output: ["old"] });
+  assert.deepEqual(store.getState().output, ["old"]);
+
+  store.setSource("forever [ forward 1 ]");
+  controller.run();
+  controller.stop();
+
+  assert.deepEqual(store.getState().output, []);
+  assert.deepEqual(store.getState().lastRunResult?.output, []);
+  assert.deepEqual(
+    log.getEntries().map((entry) => entry.output),
+    [["old"], []],
+    "the second entry is the stopped run's own empty result, not a duplicate of the first",
+  );
+});
+
+test("a Run after Stop without Reset stays cancelled, exactly as the in-process host does", () => {
+  // `stop()` latches the controller's signal and only `reset()` re-arms it. A Worker cannot see an
+  // object's mutation, so the state travels as data on the request; without it the two hosts
+  // disagreed — the in-process one halting with `ol-limit`, the Worker one running to completion.
+  const store = OL.createStudioState({ source: "forward 1" });
+  const deferred = createDeferredHost();
+  const controller = OL.createRunController(store, {
+    executionHost: deferred.host,
+  });
+  controller.run();
+  controller.stop();
+
+  controller.run();
+
+  assert.deepEqual(
+    deferred.calls.runs.map((request) => request.cancellationRequested),
+    [false, true],
+  );
+
+  controller.reset();
+  controller.run();
+  assert.equal(deferred.calls.runs.at(-1).cancellationRequested, false);
+});
+
+test("step() never starts a second execution over one still in flight", () => {
+  // The host owns a single cancellation channel, so two live runs would leave Stop reaching only
+  // the newer of them — a Stop that does not stop the run the learner is watching.
+  const store = OL.createStudioState({ source: "forward 1" });
+  const deferred = createDeferredHost();
+  const controller = OL.createRunController(store, {
+    executionHost: deferred.host,
+  });
+
+  controller.step();
+  controller.step();
+
+  assert.equal(deferred.calls.runs.length, 1);
+});
+
+test("a settled attempt releases the in-flight guard, so stepping still works afterwards", () => {
+  const store = OL.createStudioState({ source: "forward 1\nforward 1" });
+  const deferred = createDeferredHost();
+  const controller = OL.createRunController(store, {
+    executionHost: deferred.host,
+  });
+  controller.step();
+  deferred.report({});
+
+  controller.step();
+
+  assert.equal(
+    deferred.calls.runs.length,
+    1,
+    "the animation now exists, so stepping scrubs it rather than executing again",
+  );
+});
+
+test("Stop releases the in-flight guard, so a later step is not wedged forever", () => {
+  const store = OL.createStudioState({ source: "forward 1" });
+  const deferred = createDeferredHost();
+  const controller = OL.createRunController(store, {
+    executionHost: deferred.host,
+  });
+  controller.run();
+  controller.stop();
+
+  controller.step();
+
+  assert.equal(deferred.calls.runs.length, 2);
+});
+
 test("the question is put to the learner over the picture the program has already drawn", () => {
   // The regression this slice had to avoid. A Worker parked inside the reader is called with the
   // prompt and nothing else, so without `ExecuteOptions.observedEvents` (#876) it could not report

@@ -289,7 +289,7 @@
  * - `blocking-input-channel.ts` is the protocol: straight-line logic over an `Int32Array` control
  *   block and a `Uint16Array` answer region, with `wait`/`notify` **injected** so a primitive that
  *   throws on a browser's main thread stays fully covered by `node:test` with no timing dependence.
- *   A wait is never indefinite, so a Stop is observed even if its wake-up were missed.
+ *   No single park is indefinite, so a Stop is observed even if its wake-up were missed.
  * - {@link runExecutionWorkerCommand} (`execution-worker-runner.ts`) is the Worker side;
  *   `web/execution-worker.ts` supplies the real `Atomics.wait` and nothing else.
  * - {@link selectExecutionHost} picks between them from `crossOriginIsolated` +

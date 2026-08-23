@@ -17,6 +17,7 @@ function makeRequest(overrides = {}) {
     source: 'print "hello"',
     document: "host.logo",
     randomSeed: 7,
+    cancellationRequested: false,
     acceptsReads: false,
     answers: [],
     ...overrides,

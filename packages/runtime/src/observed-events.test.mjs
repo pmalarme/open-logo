@@ -114,6 +114,10 @@ test("issue #876: omitting observedEvents changes nothing", () => {
 test("issue #876: a program that fails to parse appends nothing", () => {
   // The parse diagnostics return before any environment exists, so there is no run to observe —
   // and `ExecuteResult.events` is empty for the same reason. A host must not read a stale prefix.
+  //
+  // Identity is deliberately NOT asserted here: a pre-environment exit never reaches the sink, so
+  // it reports its own separate empty array. That is exactly why the documented contract is about
+  // the sink's CONTENTS, not about `result.events === observedEvents` — see `ExecuteOptions`.
   const observed = [];
   const result = execute("forward [", doc, { observedEvents: observed });
 

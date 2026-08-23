@@ -195,6 +195,13 @@ export function createWorkerExecutionHost(
 
   return {
     execute(nextRequest, nextSettle) {
+      // Defence in depth: a caller that starts a run without cancelling the previous one would
+      // otherwise leave two live interpreters and only one cancellation channel, so Stop would
+      // reach the newer of them. The controller guards this too, but the host owns the channel and
+      // is the last place that can keep "at most one live run" true.
+      if (channel !== null) {
+        requestBlockingCancellation(channel, options.notify);
+      }
       // A fresh buffer per run is what re-arms cancellation: `reset()` needs no counterpart here,
       // because the flag a previous Stop set lives in memory this run never looks at.
       channel = createBlockingInputChannel(
@@ -202,6 +209,12 @@ export function createWorkerExecutionHost(
           blockingInputBufferByteLength(options.answerCapacity),
         ),
       );
+      // …which is exactly why a Stop the controller has *latched* must be re-raised here: the new
+      // buffer starts clean, so without this the Worker host would run to completion where the
+      // in-process host halts with `ol-limit`. See `ExecutionRequest.cancellationRequested`.
+      if (nextRequest.cancellationRequested) {
+        requestBlockingCancellation(channel, options.notify);
+      }
       request = nextRequest;
       settle = nextSettle;
       currentRunId += 1;
