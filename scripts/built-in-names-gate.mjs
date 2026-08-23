@@ -89,6 +89,7 @@
  * there.
  */
 
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { join, sep } from "node:path";
 import * as parserApi from "@openlogo/parser";
@@ -165,10 +166,11 @@ export const CONTEXTUAL_POSITIONS = ["is-predicate", "value-of-reader"];
 export function isStdlibSource(source, io) {
   return (
     typeof source === "string" &&
-    // Case-insensitive, because on a case-insensitive filesystem `STDLIB/x.LOGO` names the same
-    // file as `stdlib/x.logo`, and a maintainer who types it should get a finding about the real
-    // problem rather than one about the spelling of a path that plainly is a `.logo` file.
-    source.toLowerCase().endsWith(".logo") &&
+    // Case-SENSITIVE, deliberately. `realpathSync` does not canonicalise case on Windows, so a
+    // case-insensitive extension test made the verdict depend on the host: `stdlib/x.LOGO` was
+    // accepted here and rejected on CI's `ubuntu-latest`. A gate whose answer for a fixed manifest
+    // changes with the filesystem is worse than one that is strict everywhere.
+    source.endsWith(".logo") &&
     io.isStdlibFile(source)
   );
 }
@@ -647,7 +649,17 @@ export function aliasFindings(manifest, api) {
       continue;
     }
     const enumerated = new Set(names());
-    for (const name of new Set([...members.keys(), ...enumerated])) {
+    // The universe is every name the gate knows about, not just this registry's members. Probing
+    // `members ∪ enumerated` left an edge the RESOLVER invented on a name outside the registry —
+    // `canonicalOfTurtleAlias("print") → "forward"` — visible to nothing, because `print` is in the
+    // manifest but in neither the turtle registry nor its alias enumerator.
+    const universe = new Set([
+      ...members.keys(),
+      ...enumerated,
+      ...byName.keys(),
+      ...manifest.excluded.map((entry) => entry.name),
+    ]);
+    for (const name of universe) {
       const resolved = resolveEdge(name) !== undefined;
       const listed = enumerated.has(name);
       const entry = byName.get(name);
@@ -860,11 +872,16 @@ export function extractToolingC19Mirror(text) {
   if (paragraph.length === 0) {
     return null;
   }
-  // Verify this paragraph IS the word list, rather than trusting that it is the one after the
-  // anchor. Positional binding is the same defect as searching for a specific fence info string:
-  // inserting an editorial note between the sentence and the list made the gate report
-  // "the C19 mirror (1 words) is not byte-order-identical…" instead of saying its anchor had moved.
-  // A word list is backticked words and separators, and nothing else.
+  // Every code span must be a single keyword identifier. Removing all spans and checking the
+  // residue accepted a span that is not a word at all: appending `` `not a complete list` `` left
+  // extraction at 44 words and the gate green, because the residue check saw a code span and the
+  // word extractor skipped it for not matching an identifier. A word list is words.
+  const spans = [...paragraph.join(" ").matchAll(/`([^`]*)`/g)].map(
+    (match) => match[1],
+  );
+  if (spans.some((span) => !/^[a-z_?]+$/.test(span))) {
+    return null;
+  }
   const residue = paragraph
     .join(" ")
     .replace(/`[^`]*`/g, "")
@@ -961,28 +978,67 @@ export function proseFindings(manifest, io) {
 }
 
 /**
- * The `keyword` **token-class** row, compared by **set equality with polarity** rather than by
- * "every expected word appears somewhere".
+ * The `keyword` **token-class** row: a **content fingerprint** plus two **derived** comparisons.
  *
- * The one-directional form was green against five separate mutations — flipping
- * `addsProfileKeywords` off, deleting `mod` from the omissions, deleting `a` from the additions,
- * **adding `polygon` to the enumeration**, and rewriting "are **not** in this class" to "are in this
- * class". A membership check that cannot see an *extra* member is not a membership check.
+ * This function used to gate the row by declaring literal anchors — the exclusion clause's polarity,
+ * the profile clause, the contextual clause, two count templates, two independence claims — and
+ * comparing substrings. That approach took **five review rounds and never converged**, because the
+ * row is 2,000 characters of English and enumerating it by hand is *exactly the defect this gate
+ * exists to remove*, reproduced in the remover. Each round gated the claims the last round missed,
+ * and each round the reviewers found more: an ungated qualifier, a count in the tail, a third
+ * polarity claim, then a fourth, then 697 characters still unread, then anchors that could be
+ * **blanked** — or set to a single space — to switch their own checks off.
  *
- * So the row is split at its exclusion clause, whose anchors the manifest declares:
+ * A fingerprint ends that. It is **strictly stronger** than the anchors it replaces: it catches
+ * every edit rather than the six that happened to be enumerated, it is not positionally bound so it
+ * cannot match the wrong thing, and it has **no empty value that matches**, so it cannot be turned
+ * off by emptying a field. The precedent is in this repo already — `markdown-examples-gate.mjs`
+ * keys on content fingerprints rather than line numbers, for the same reason.
  *
- * - the **enumeration segment** before it must name **exactly** the computed membership;
- * - the words inside the **exclusion clause** must be **exactly** `omitsKeywords`;
- * - the clause's negative polarity must still be stated, or an omission reads as an inclusion.
+ * **What is deliberately kept is the *derived* half**, because a fingerprint alone is a tripwire and
+ * not a comparison. Two checks compute their expectation from the data:
+ *
+ * - the **enumeration segment** must name **exactly** the membership computed from the deltas;
+ * - the **exclusion clause** must name **exactly** `omitsKeywords`.
+ *
+ * Those two catch the row and the manifest *disagreeing*. The fingerprint catches the row changing
+ * at all. Together they are semantic and syntactic cover; separately, neither is enough.
  *
  * The row defers to the profile documents for the block-head *names* rather than restating them
  * (`spec/grammar.md:414` — no second list to keep in step), so the manifest records which profile
- * words the row names **individually** and the rest are carried by the declared clause. That keeps
- * set equality exact without duplicating a third list.
+ * words the row names **individually** and which the clause speaks for, and their union must equal
+ * the profile-keyword set exactly.
  */
 export function tokenClassFindings(manifest, coreKeywords, row) {
   const findings = [];
   const deltas = manifest.tokenClassKeyword;
+
+  // Set-valued data must actually be a set. A duplicate `mod` made `omitsKeywords.length` read 5
+  // while the row named four words, and the count-template check compared the corrupted number and
+  // passed. The templates are gone, but a duplicate still corrupts every length and every
+  // difference computed below, so it is rejected at the door.
+  for (const [key, values] of [
+    ["omitsKeywords", deltas.omitsKeywords],
+    ["addsExcluded", deltas.addsExcluded],
+    [
+      "addsProfileKeywordsNamedIndividually",
+      deltas.addsProfileKeywordsNamedIndividually,
+    ],
+    [
+      "addsProfileKeywordsCoveredByClause",
+      deltas.addsProfileKeywordsCoveredByClause,
+    ],
+  ]) {
+    const duplicated = values.filter(
+      (value, index) => values.indexOf(value) !== index,
+    );
+    if (duplicated.length > 0) {
+      findings.push(
+        `${MANIFEST_PATH}: tokenClassKeyword.${key} lists ${[...new Set(duplicated)].join(", ")} more than once — these are sets, and a duplicate corrupts every count and difference derived from them`,
+      );
+    }
+  }
+
   const omitted = deltas.omitsKeywords;
   const strayOmission = omitted.filter((word) => !coreKeywords.includes(word));
   if (strayOmission.length > 0) {
@@ -990,44 +1046,27 @@ export function tokenClassFindings(manifest, coreKeywords, row) {
       `${MANIFEST_PATH}: tokenClassKeyword.omitsKeywords names ${strayOmission.join(", ")}, which is not a keyword — a delta can only omit something the list holds`,
     );
   }
-  const contextual = new Set(
-    manifest.excluded
-      .filter((entry) => entry.reason === "contextual-keyword")
-      .map((entry) => entry.name),
-  );
+
+  // Both directions. `addsExcluded` feeds the expected membership, so a contextual carve-out that
+  // is not in it silently drops out of the class the row is checked against.
+  const contextual = manifest.excluded
+    .filter((entry) => entry.reason === "contextual-keyword")
+    .map((entry) => entry.name);
   const strayAddition = deltas.addsExcluded.filter(
-    (word) => !contextual.has(word),
+    (word) => !contextual.includes(word),
+  );
+  const uncounted = contextual.filter(
+    (word) => !deltas.addsExcluded.includes(word),
   );
   if (strayAddition.length > 0) {
     findings.push(
       `${MANIFEST_PATH}: tokenClassKeyword.addsExcluded names ${strayAddition.join(", ")}, which is not an excluded contextual keyword`,
     );
   }
-
-  const anchors = deltas.rowAnchors;
-  // Every anchor must be a non-empty string. Measured: blanking `profileClause`, `deltaSentence`
-  // and `independenceClause` switched all three checks off silently, because `row.includes("")` is
-  // always true — a check whose anchor is empty is a check that always passes.
-  const blank = Object.entries(anchors)
-    .filter(([, value]) => typeof value !== "string" || value.length === 0)
-    .map(([key]) => key);
-  if (blank.length > 0) {
+  if (uncounted.length > 0) {
     findings.push(
-      `${MANIFEST_PATH}: tokenClassKeyword.rowAnchors.${blank.join(", ")} is empty — an empty anchor matches everything, so the check it guards is switched off rather than satisfied`,
+      `${MANIFEST_PATH}: contextual carve-out(s) ${uncounted.join(", ")} are not in tokenClassKeyword.addsExcluded — the token class admits the contextual words, so one the deltas forget is one the row is never checked for`,
     );
-    return findings;
-  }
-  for (const [key, placeholders] of [
-    ["deltaSentence", ["{omits}", "{adds}"]],
-    ["contextualCountSentence", ["{adds}"]],
-  ]) {
-    for (const placeholder of placeholders) {
-      if (anchors[key].split(placeholder).length !== 2) {
-        findings.push(
-          `${MANIFEST_PATH}: tokenClassKeyword.rowAnchors.${key} must contain ${placeholder} exactly once, or the count it claims is not the count this file holds`,
-        );
-      }
-    }
   }
 
   const profileKeywords = manifest.names
@@ -1040,10 +1079,9 @@ export function tokenClassFindings(manifest, coreKeywords, row) {
     ? deltas.addsProfileKeywordsCoveredByClause
     : [];
   if (deltas.addsProfileKeywords) {
-    // Exact coverage, not a trusted list. Measured: adding `broadcast` to `OL_PROFILE_KEYWORDS` and
-    // to `names` — with no `spec/tooling.md` edit at all — was a green 149-name gate, because the
-    // row's clause covers "the profile block-heads" generically and nothing checked that a new word
-    // was one. Every profile keyword must now be in exactly one of the two lists.
+    // Exact coverage, not a trusted list. Adding a word to `OL_PROFILE_KEYWORDS` and to `names` —
+    // with no `spec/tooling.md` edit at all — was a green 149-name gate, because the row's clause
+    // covers "the profile block-heads" generically and nothing checked a new word was one.
     const covered = [...named, ...byClause];
     const uncovered = profileKeywords.filter((word) => !covered.includes(word));
     const phantom = covered.filter((word) => !profileKeywords.includes(word));
@@ -1065,25 +1103,33 @@ export function tokenClassFindings(manifest, coreKeywords, row) {
     }
   }
 
-  const start = row.indexOf(anchors.exclusionClause);
-  if (start === -1) {
+  findings.push(...rowFingerprintFindings(deltas, row));
+
+  // The one structural anchor left: where the enumeration ends and the exclusion clause begins.
+  // It is not a claim about content — the fingerprint owns those — only about shape, and the
+  // fingerprint pins the row byte-for-byte, so the split cannot silently move underneath it.
+  const splitAnchor = deltas.rowSplitAnchor;
+  if (typeof splitAnchor !== "string" || splitAnchor.trim().length === 0) {
+    // Rejected on `trim()`, not on `length`: `row.includes(" ")` is as true as `row.includes("")`,
+    // so a whitespace anchor switches its check off exactly as an empty one does.
     findings.push(
-      `${TOOLING_PATH}: the \`keyword\` token-class row no longer carries "${anchors.exclusionClause}" — the clause this gate splits the enumeration on has moved`,
+      `${MANIFEST_PATH}: tokenClassKeyword.rowSplitAnchor is empty — an empty or blank anchor matches everything, so the split it defines is arbitrary rather than structural`,
     );
     return findings;
   }
-  const polarity = row.indexOf(anchors.exclusionPolarity, start);
-  if (polarity === -1) {
+  const occurrences = row.split(splitAnchor).length - 1;
+  if (occurrences !== 1) {
     findings.push(
-      `${TOOLING_PATH}: the \`keyword\` token-class row's exclusion clause no longer says "${anchors.exclusionPolarity}" — without the negative polarity an omission reads as an inclusion`,
+      `${MANIFEST_PATH}: tokenClassKeyword.rowSplitAnchor "${splitAnchor}" occurs ${occurrences} times in the row — it must occur exactly once to define a split`,
     );
     return findings;
   }
 
+  const start = row.indexOf(splitAnchor);
   // Drop the leading `| `keyword` |` cell so the class's own name is not read as a member.
   const cellStart = row.indexOf("|", 1) + 1;
   const enumerated = new Set(backtickedWords(row.slice(cellStart, start)));
-  const excludedWords = new Set(backtickedWords(row.slice(start, polarity)));
+  const excludedWords = new Set(backtickedWords(row.slice(start)));
 
   const expected = new Set([
     ...coreKeywords.filter((word) => !omitted.includes(word)),
@@ -1105,96 +1151,42 @@ export function tokenClassFindings(manifest, coreKeywords, row) {
   }
 
   const unexcluded = omitted.filter((word) => !excludedWords.has(word));
-  const overexcluded = [...excludedWords].filter(
-    (word) => !omitted.includes(word),
-  );
   if (unexcluded.length > 0) {
     findings.push(
       `${TOOLING_PATH}: the row's exclusion clause does not name ${unexcluded.join(", ")} — an omission the row never mentions is indistinguishable from a forgotten member`,
     );
-  }
-  if (overexcluded.length > 0) {
-    findings.push(
-      `${TOOLING_PATH}: the row's exclusion clause names ${overexcluded.join(", ")}, which ${MANIFEST_PATH} does not omit from the class`,
-    );
-  }
-
-  if (deltas.addsProfileKeywords && !row.includes(anchors.profileClause)) {
-    findings.push(
-      `${TOOLING_PATH}: the \`keyword\` token-class row no longer carries "${anchors.profileClause}" — the clause that admits the ${byClause.length} profile words it does not name individually`,
-    );
-  }
-  if (!row.includes(anchors.contextualClause)) {
-    findings.push(
-      `${TOOLING_PATH}: the \`keyword\` token-class row no longer says "${anchors.contextualClause}" — the four contextual words take this class ONLY in those positions, and without the qualifier the row makes them unconditional keywords`,
-    );
-  }
-
-  // Claims the two compared segments cannot see, because a set of backticked words is blind to the
-  // sentence around it. Each restates something the manifest already holds, and each was measured
-  // green while contradicting it: the delta counts, the contextual-carve-out count, and two
-  // separate polarity claims about the class's independence from the keyword list.
-  const claims = [
-    [
-      "deltaSentence",
-      anchors.deltaSentence
-        .replace("{omits}", numberWord(omitted.length))
-        .replace("{adds}", numberWord(deltas.addsExcluded.length)),
-      "it states the deltas in prose, and the count it states must be the count",
-    ],
-    [
-      "contextualCountSentence",
-      anchors.contextualCountSentence.replace(
-        "{adds}",
-        numberWord(deltas.addsExcluded.length),
-      ),
-      "it counts the contextual carve-outs in prose, and that count must be the one",
-    ],
-    [
-      "paintIndependenceClause",
-      anchors.paintIndependenceClause,
-      "that reserved-list membership never decides paint is the independence",
-    ],
-    [
-      "independenceClause",
-      anchors.independenceClause,
-      "that the class is NOT derived from the keyword list is the independence",
-    ],
-  ];
-  for (const [key, expected, why] of claims) {
-    if (!row.includes(expected)) {
-      findings.push(
-        `${TOOLING_PATH}: the \`keyword\` token-class row does not say "${expected}" — ${why} ${MANIFEST_PATH} holds (rowAnchors.${key})`,
-      );
-    }
   }
 
   return findings;
 }
 
 /**
- * The English word for a small count, because `spec/tooling.md` spells its counts out. Falls back
- * to digits above twelve, which is past anything the deltas can plausibly reach — and would be a
- * visible prose change rather than a silent one.
+ * The row's content fingerprint.
+ *
+ * **The failure message deliberately does not say "expected X, got Y".** A hash gate whose failure
+ * mode is *"paste in the new hash"* is a rubber stamp with extra steps: the next contributor edits
+ * the row, CI goes red, they update the digest, and the gate has certified nothing while looking
+ * rigorous — which is the exact family of green-but-empty signal this whole slice exists to remove.
+ * So the message names the **obligation**: re-derive the class against the implementation, confirm
+ * the row is still true, and only then record the new fingerprint.
+ *
+ * Hashed over the row **exactly as it appears** — no trimming, no normalisation, no whitespace
+ * collapsing. Every such convenience is a class of edit the fingerprint would stop seeing.
  */
-export function numberWord(count) {
-  return (
-    [
-      "zero",
-      "one",
-      "two",
-      "three",
-      "four",
-      "five",
-      "six",
-      "seven",
-      "eight",
-      "nine",
-      "ten",
-      "eleven",
-      "twelve",
-    ][count] ?? String(count)
-  );
+export function rowFingerprintFindings(deltas, row) {
+  const expected = deltas.rowFingerprint;
+  if (typeof expected !== "string" || !/^[0-9a-f]{64}$/.test(expected)) {
+    return [
+      `${MANIFEST_PATH}: tokenClassKeyword.rowFingerprint is not a sha256 digest — without it every claim in the row that this gate does not derive is unguarded`,
+    ];
+  }
+  const actual = createHash("sha256").update(row, "utf8").digest("hex");
+  if (actual === expected) {
+    return [];
+  }
+  return [
+    `${TOOLING_PATH}: the \`keyword\` token-class row has changed. This is not a request to update a hash — the row is a hand-maintained enumeration of a token class that cannot be derived (${MANIFEST_PATH}'s tokenClassKeyword.about), so re-derive the class against @openlogo/parser's shipped output, confirm every claim the row makes is still true, and only then record the new digest ${actual} in ${MANIFEST_PATH}.`,
+  ];
 }
 
 /**
