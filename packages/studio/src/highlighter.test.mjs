@@ -59,6 +59,10 @@ test("createParserHighlighter classifies numbers, comments, and delimiters", () 
   assert.equal(byText("4")[0].class, "ol-tok-number");
   assert.equal(byText("100")[0].class, "ol-tok-number");
   assert.equal(byText("# go")[0].class, "ol-tok-comment");
+  // `every` on an empty array is vacuously true, so the counts are asserted first — otherwise
+  // these two lines would still pass if the fixture produced no brackets at all.
+  assert.equal(byText("[").length, 1);
+  assert.equal(byText("]").length, 1);
   assert.ok(byText("[").every((token) => token.class === "ol-tok-bracket"));
   assert.ok(byText("]").every((token) => token.class === "ol-tok-bracket"));
 });
@@ -87,6 +91,9 @@ test("createParserHighlighter classifies struct type/field names and parens", ()
   assert.equal(byText("point")[0].class, "ol-tok-type-name");
   assert.ok(byText("x").some((token) => token.class === "ol-tok-field-name"));
   assert.ok(byText("y").some((token) => token.class === "ol-tok-field-name"));
+  // Counts first: `every` is vacuously true on an empty array (see above).
+  assert.equal(byText("(").length, 2);
+  assert.equal(byText(")").length, 2);
   assert.ok(byText("(").every((token) => token.class === "ol-tok-paren"));
   assert.ok(byText(")").every((token) => token.class === "ol-tok-paren"));
 });
@@ -135,15 +142,23 @@ const PROFILE_BLOCK_HEADS = [
   "on_click",
 ];
 
-/** A well-formed program (zero parse diagnostics) exercising all seven of them. */
+/**
+ * A well-formed program (zero parse diagnostics, and zero `check()` findings under the studio's
+ * profile set) exercising all seven of them. Every form matches its normative signature —
+ * `tell <turtle|turtle-list>` and `ask <turtle|turtle-list> <block>`
+ * (`spec/turtles-and-sprites.md:22-23`) take turtle *values*, not words, and
+ * `when <event-word> <block>`/`on_key <key-word> <block>`
+ * (`spec/interaction-events.md:27,29`) take words, not conditions.
+ */
 const PROFILE_BLOCK_HEAD_SOURCE = [
-  'tell "a"',
-  'ask "a" [ right 90 ]',
+  ":t = new_turtle",
+  "tell :t",
+  "ask :t [ right 90 ]",
   "each [ forward 1 ]",
-  "when [ 1 == 1 ] [ forward 1 ]",
-  "every 10 [ forward 1 ]",
-  'on_key "w" [ forward 1 ]',
-  "on_click [ forward 1 ]",
+  'when "start" [ print "ready" ]',
+  "every 30 [ right 15 ]",
+  'on_key "space" [ forward 20 ]',
+  "on_click [ stamp ]",
 ].join("\n");
 
 /**
@@ -162,13 +177,13 @@ const PROFILE_PRIMITIVES = [
 ];
 
 const PROFILE_PRIMITIVE_SOURCE = [
-  "set_tempo 120",
-  "note 60 1",
+  "set_tempo 90",
+  'note "c4" 1',
   "beep",
   "rest 1",
-  "play [ 60 ]",
-  "wait 10",
-  'print input "name"',
+  'play [ "c4" 1 "e4" 2 ]',
+  "wait 2",
+  'print input "what is your name?"',
 ].join("\n");
 
 /** The class of the token spelled `text`, failing loudly if the fixture never produced one. */
@@ -235,8 +250,9 @@ test("createParserHighlighter defaults to the studio's profile set, not the pars
 });
 
 test("the studio's classes match batch highlight() token-for-token for the same profile set", () => {
-  // `spec/tooling.md`'s LSP-parity requirement, now asserted for a non-default profile set too:
-  // before #740 the studio agreed with batch output only because both were profile-blind.
+  // The token classes are normative (`spec/tooling.md:8`), so this adapter has no licence to
+  // classify differently from a batch `highlight()` on the same source and profile set. Asserted
+  // for a non-default set too: before #740 the two agreed only because both were profile-blind.
   for (const profiles of [STUDIO_PROFILES, DEFAULT_CHECK_PROFILES]) {
     const studioTokens = createParserHighlighter({ profiles })(
       PROFILE_BLOCK_HEAD_SOURCE,

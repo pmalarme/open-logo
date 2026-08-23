@@ -4,6 +4,7 @@ import * as OL from "@openlogo/studio";
 
 const {
   createDiagnosticsController,
+  createParserHighlighter,
   DEFAULT_DIAGNOSTICS_DOCUMENT,
   mountDiagnosticsPane,
   toDiagnosticsView,
@@ -145,36 +146,73 @@ test("styleCheck: true has no effect when semanticCheck is false (default)", () 
   assert.equal(view.items.length, 0);
 });
 
-// #740 — the checker reads the same active profile set the highlighter does. `beep` is the probe:
-// a Sound command, so it is a genuine `ol-unknown-command` under Core Language alone and a known
-// name once Sound is active. Asserting both directions is what makes the first test non-vacuous —
-// the rule really does fire on this fixture when the profile is missing.
+// #740 — the checker reads the same active profile set the highlighter does. The fixture pairs a
+// Sound command with a name no profile knows: under the studio's default set only the unknown name
+// is reported, and under Core Language alone `beep` is reported too. Reporting the *names*, from a
+// list that is non-empty either way, is what makes both directions non-vacuous — an assertion that
+// merely counted zero would also pass if semantic checking never ran at all, and `!items.some(...)`
+// would report 100% coverage without its callback ever executing.
+const UNKNOWN_NAME_FIXTURE = "beep\nflibbertigibbet";
+
+function reportedNames(state) {
+  return toDiagnosticsView(state.getState().diagnostics).items.map(
+    (item) => item.params.name,
+  );
+}
+
 test("the checker runs under the studio's profile set by default", () => {
   const state = createStudioState();
   createDiagnosticsController(state, { semanticCheck: true });
 
-  state.setSource("beep");
+  state.setSource(UNKNOWN_NAME_FIXTURE);
 
-  const view = toDiagnosticsView(state.getState().diagnostics);
-  // Asserted as a count, not as `!items.some(...)`: `some`'s callback never runs on an empty list,
-  // so that spelling would report 100% coverage while proving nothing.
-  assert.equal(view.items.length, 0);
+  assert.deepEqual(reportedNames(state), ["flibbertigibbet"]);
 });
 
-test("an explicit Core-Language-only set still flags a profile command as unknown", () => {
+test("an explicit Core-Language-only set additionally flags the profile command", () => {
   const state = createStudioState();
   createDiagnosticsController(state, {
     profiles: ["core-language"],
     semanticCheck: true,
   });
 
-  state.setSource("beep");
+  state.setSource(UNKNOWN_NAME_FIXTURE);
+
+  assert.deepEqual(reportedNames(state), ["beep", "flibbertigibbet"]);
+});
+
+test("the checker and the editor agree about a profile word under the shared default", () => {
+  // The contradiction #740 exists to remove: the checker refuses `define ask` as a reserved word
+  // while the editor paints a real `ask` call as the keyword it is — both decided by the same
+  // default profile set. Before this slice the editor said "ordinary primitive" about a word its
+  // own checker treated as reserved.
+  const state = createStudioState();
+  createDiagnosticsController(state, { semanticCheck: true });
+
+  state.setSource("define ask\nend");
 
   const view = toDiagnosticsView(state.getState().diagnostics);
   assert.deepEqual(
     view.items.map((item) => item.code),
-    ["ol-unknown-command"],
+    ["ol-reserved-word"],
   );
+
+  const highlighter = createParserHighlighter();
+  const call = highlighter(":t = new_turtle\nask :t [ right 90 ]").find(
+    (token) => token.text === "ask",
+  );
+  assert.ok(call, "the call fixture produced no token spelled ask");
+  assert.equal(call.class, "ol-tok-keyword");
+
+  // At the `define` site the same word is `procedure-name`, not `keyword` — that is
+  // `spec/tooling.md:30`'s identifier-disambiguation rule ("what demotes a token to
+  // `procedure-name`"), which is decided by grammatical position and is independent of the profile
+  // set this slice threads through. Asserted so the two halves above don't read as a contradiction.
+  const definition = highlighter("define ask\nend").find(
+    (token) => token.text === "ask",
+  );
+  assert.ok(definition, "the define fixture produced no token spelled ask");
+  assert.equal(definition.class, "ol-tok-procedure-name");
 });
 
 test("refresh() is a no-op guard when source hasn't changed (subscribe doesn't clobber itself)", () => {

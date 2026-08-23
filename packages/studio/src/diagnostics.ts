@@ -32,10 +32,11 @@
  *
  * ## One profile set, shared with the highlighter (#740)
  * When `check()` does run, its active profile set defaults to `profiles.ts`'s
- * {@link STUDIO_PROFILES} — the identical constant `highlighter.ts` hands `highlight()`. A learner's
- * program has exactly one profile set, so the checker deciding a name is available while the editor
- * paints it as if that profile were off (or the reverse) would be a contradiction the learner sees
- * on screen.
+ * {@link STUDIO_PROFILES} — the identical constant `highlighter.ts` hands `highlight()` by default.
+ * A learner's program has exactly one profile set, so the checker deciding a name is available
+ * while the editor paints it as if that profile were off (or the reverse) would be a contradiction
+ * the learner sees on screen. Sharing the default is what removes that class of contradiction; a
+ * caller that passes its own `profiles` here is on its own to keep the two aligned.
  */
 
 import { check, parse } from "@openlogo/parser";

@@ -18,8 +18,14 @@
  * inactive" in `primitive`. Omitting the set gets the parser's profile-neutral default (Core
  * Language alone), which is why a learner with Sprites available used to see `ask` painted as an
  * ordinary primitive. This module supplies {@link STUDIO_PROFILES} — the same set `diagnostics.ts`
- * hands `check()` — so the editor's colors and the checker's diagnostics always read the same
- * program the same way (`spec/tooling.md`'s "LSP parity").
+ * hands `check()` by default — so the editor's colors and the checker's diagnostics read a program
+ * under the same profiles.
+ *
+ * The token classes are normative (`spec/tooling.md:8`) and an LSP `textDocument/semanticTokens`
+ * response returns "the token classes in this document" (`:278-280`), so this adapter has no
+ * licence to classify differently from a batch `highlight()` given the same source and profile set.
+ * (`spec/tooling.md:294-295`'s explicit batch-parity MUST is about *diagnostics*, not tokens — the
+ * token obligation is the normative-class one above.)
  */
 
 import { highlight } from "@openlogo/parser";

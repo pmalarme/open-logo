@@ -43,14 +43,16 @@ light up more classes: your own procedure names get their own color once you `de
 
 A few words — `tell`, `ask`, `each`, `when`, `every`, `on_key`, `on_click` — belong to optional
 parts of OpenLogo (Sprites, and Interaction & Events). They only get the **keyword** color when the
-part of the language they belong to is actually switched on. Somewhere else, where it isn't, `ask`
-is just an ordinary word, so it gets the plain **primitive** color instead — nothing special is
-happening there, and the color shouldn't pretend otherwise.
+part of the language they belong to is actually switched on. Where it isn't, `ask` falls back to the
+plain **primitive** color — and that fallback is deliberately modest: it says only "a name goes
+here," not "this is a built-in you can call." Painting it as a keyword there would promise a feature
+that isn't switched on.
 
 So the highlighter has to be *told* which parts are switched on. In the OpenLogo studio it's told
 "all the ones this build supports" — the same list the checker uses when it decides whether a
 command is one it knows. That shared list is the whole point: it would be confusing if the editor
-painted `ask` as a built-in word while the checker underlined it as one it had never heard of.
+painted `ask` as a built-in word while the checker cheerfully let you `define ask` as if the name
+were free.
 
 Careful, though: switching Sound on does **not** turn `beep` or `note` into keywords. Those are
 ordinary commands, like `forward` — they take their arguments and get on with it. The words that do
@@ -72,8 +74,9 @@ profiles this build supports, so `ask` reads as the keyword it is.
 
 ℹ️ **The code blocks in these docs are not colored by OpenLogo** — the `.logo` snippets you read on
 GitHub are painted by GitHub's own markdown renderer, not by OpenLogo's highlighter. The docs
-toolchain does *run* every snippet (that's how they're kept honest), but it never colors one, so
-there is nothing here that needs to be told which parts of the language are on.
+toolchain checks every one of those snippets, and runs the ones whose parts of the language are
+built yet, but it never *colors* one — so there's nothing here that needs telling which parts are
+switched on.
 
 ℹ️ **A few classes need the tree, not just tokens** — most classes (keyword, number, primitive,
 bracket, and more) can be decided token-by-token. A handful, like the name of a procedure you

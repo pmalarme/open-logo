@@ -1,9 +1,11 @@
 /**
  * The studio's **active conformance profile set** (#740) — the one value every profile-aware
- * `@openlogo/parser` entry point the studio calls reads: `highlight()` through
- * {@link "./highlighter.js"} and `check()` through {@link "./diagnostics.js"}. Both defaulting to
- * the same constant is the point: a learner's program has exactly one profile set, so the colors
- * in the editor and the diagnostics in the pane can never disagree about the same word.
+ * `@openlogo/parser` entry point the studio calls defaults to: `highlight()` through
+ * `highlighter.ts` and `check()` through `diagnostics.ts`. Sharing one default is the point: a
+ * learner's program has exactly one profile set, so with neither caller overriding it the colors in
+ * the editor and the diagnostics in the pane read that program under the same profiles. (A caller
+ * that passes its own set can still make the two differ — the shared default is what is guaranteed,
+ * not an invariant this module can enforce.)
  *
  * ## Why the host's supported profiles, and not Core Language alone
  * `spec/tooling.md:30` puts the profile block-heads — plus the Sprites mode-switch command `tell` —
@@ -16,24 +18,28 @@
  * The studio has no profile picker, and an OpenLogo program cannot declare its own profiles
  * (`import` loads modules, not profiles), so the learner's active set is simply **whatever this
  * build supports**: `@openlogo/core`'s {@link SUPPORTED_PROFILES}, the same list `getHostMetadata()`
- * publishes for feature detection and the same list the studio's runtime registers unconditionally.
- * A learner really can run `ask "a [ right 90 ]` in this editor, so `ask` must paint as the
- * `keyword` it is rather than as an ordinary primitive name.
+ * publishes for feature detection. A learner really can write `ask :t [ right 90 ]` in this editor
+ * (`spec/turtles-and-sprites.md:23`), so `ask` must paint as the `keyword` it is — and the checker,
+ * reading the same set, must reject `define ask` as `ol-reserved-word` instead of accepting it.
  *
- * ## Derived, never re-listed
- * This is `SUPPORTED_PROFILES` itself, not a hand-maintained copy. A second list would drift the
- * first time a profile is claimed or withdrawn, and the studio would then color a word by a profile
- * its own runtime does not implement — the exact class of false claim `SUPPORTED_PROFILES` exists to
- * prevent. The `readonly CheckProfile[]` annotation is the compile-time proof that every profile
- * this build claims is one the parser actually knows.
+ * ## Derived and frozen, never re-listed
+ * The contents are `SUPPORTED_PROFILES`, not a hand-maintained copy: a second list would drift the
+ * first time a profile is claimed or withdrawn, and the studio would then classify a word by a
+ * profile its own runtime does not implement — the exact class of false claim `SUPPORTED_PROFILES`
+ * exists to prevent. It is a **frozen copy** rather than an alias because this is a public export
+ * and `readonly` is erased at runtime: aliasing would hand every consumer a live handle to
+ * `@openlogo/core`'s own array. The `readonly CheckProfile[]` annotation is the compile-time proof
+ * that every profile this build claims is one the parser knows.
  */
 
 import { SUPPORTED_PROFILES } from "@openlogo/core";
 import type { CheckProfile } from "@openlogo/parser";
 
 /**
- * The profile set the studio is running under — `@openlogo/core`'s `SUPPORTED_PROFILES`, narrowed
- * to the parser's `CheckProfile` vocabulary. See this module's doc comment for why the host's
- * supported profiles are the learner's active profiles.
+ * The profile set the studio is running under — a frozen copy of `@openlogo/core`'s
+ * `SUPPORTED_PROFILES`, narrowed to the parser's `CheckProfile` vocabulary. See this module's doc
+ * comment for why the host's supported profiles are the learner's active profiles.
  */
-export const STUDIO_PROFILES: readonly CheckProfile[] = SUPPORTED_PROFILES;
+export const STUDIO_PROFILES: readonly CheckProfile[] = Object.freeze([
+  ...SUPPORTED_PROFILES,
+]);

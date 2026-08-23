@@ -17,6 +17,17 @@ test("STUDIO_PROFILES is the host's supported profiles, not a hand-maintained co
   assert.deepEqual([...STUDIO_PROFILES], [...SUPPORTED_PROFILES]);
 });
 
+test("STUDIO_PROFILES is a frozen copy, not a live handle on core's own array", () => {
+  // `readonly` is erased at runtime, and this is a public export: aliasing `SUPPORTED_PROFILES`
+  // would let any JavaScript consumer mutate `@openlogo/core`'s array through it.
+  assert.ok(Object.isFrozen(STUDIO_PROFILES));
+  assert.notEqual(STUDIO_PROFILES, SUPPORTED_PROFILES);
+  assert.throws(() => {
+    STUDIO_PROFILES.push("modules");
+  }, TypeError);
+  assert.deepEqual([...STUDIO_PROFILES], [...SUPPORTED_PROFILES]);
+});
+
 test("every studio profile is a profile the parser knows", () => {
   assert.ok(STUDIO_PROFILES.length > 0);
   for (const profile of STUDIO_PROFILES) {
