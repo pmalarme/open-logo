@@ -292,27 +292,40 @@ test("a new Run clears every field the previous run owned, so an early Stop leav
   assert.equal(store.getState().tutorOutput.length > 0, true);
   assert.equal(store.getState().diagnostics.length > 0, true);
   assert.notEqual(store.getState().currentInstructionSourceSpan, null);
+  // The one precondition with no sibling assertion until now. A run replaces the world with the
+  // animation's own folded snapshot, so the identity check below only means something while this
+  // holds — and if the fold were ever optimised to return the canonical object when nothing moved,
+  // that check would silently become trivially true with nothing to flag it.
+  assert.notEqual(store.getState().turtleWorld, INITIAL_TURTLE_WORLD_STATE);
   const repaintsBefore = repaints.count;
 
   controller.run();
-  controller.stop();
 
+  // Asserted BEFORE `stop()`: the point of this fix is that the clears happen at **chain start**,
+  // so a Stop landing before the first settlement finds nothing of the previous run left. Clears
+  // performed at Stop-time instead would satisfy every assertion below and leave the real property
+  // guarded only incidentally, by an unrelated pre-existing animation test.
   assert.equal(store.getState().turtleScene.items.length, 0);
   assert.deepEqual(store.getState().tutorOutput, []);
   assert.deepEqual(store.getState().diagnostics, []);
   assert.equal(store.getState().currentInstructionSourceSpan, null);
-  // The world is restored to `@openlogo/turtle`'s canonical program-start object, not merely to
-  // something that looks like it — a run replaces it with the animation's own folded snapshot, so
-  // identity is what distinguishes "cleared" from "left as it was".
   assert.equal(store.getState().turtleWorld, INITIAL_TURTLE_WORLD_STATE);
-  // The Canvas pane is push-based (`RunControllerOptions.canvasView`), so clearing the store's
-  // scene without repainting leaves the previous drawing on screen — the exact visible symptom
-  // this clear exists to prevent.
   assert.equal(
     repaints.count > repaintsBefore,
     true,
     "starting a run must repaint, or the pixels keep showing the run before it",
   );
+
+  controller.stop();
+
+  // …and still clear once the run is actually abandoned.
+  assert.equal(store.getState().turtleScene.items.length, 0);
+  assert.deepEqual(store.getState().tutorOutput, []);
+  assert.deepEqual(store.getState().diagnostics, []);
+  assert.equal(store.getState().currentInstructionSourceSpan, null);
+  // The world is restored to `@openlogo/turtle`'s canonical program-start object, not merely to
+  // something that looks like it — see the `notEqual` precondition above.
+  assert.equal(store.getState().turtleWorld, INITIAL_TURTLE_WORLD_STATE);
 });
 
 test("Reset releases the in-flight guard too, so a later step is not wedged forever", () => {
