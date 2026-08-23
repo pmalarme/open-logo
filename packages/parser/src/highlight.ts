@@ -41,6 +41,8 @@ import type {
   ValueOfKeyNode,
 } from "./ast.js";
 import { walk } from "./ast.js";
+import type { CheckProfile } from "./check.js";
+import { DEFAULT_CHECK_PROFILES } from "./check.js";
 import { parse } from "./parser.js";
 import { isKeyword } from "./keywords.js";
 import type { LexToken, LexTokenKind } from "./tokens.js";
@@ -137,14 +139,43 @@ function isAtOrBefore(a: Position, b: Position): boolean {
 }
 
 /**
+ * Options for {@link highlight} and {@link semanticTokens}.
+ *
+ * `profiles` is the **active profile set**, in the same vocabulary `check()` uses
+ * (`check.ts`'s `OL_CHECK_PROFILES`), because a learner's program has exactly one profile set and
+ * it would be a trap for the checker and the highlighter to name it differently.
+ *
+ * `options.profiles` decides the class of the profile block-heads and the Sprites mode-switch
+ * command `tell`: `spec/tooling.md:30` puts them in `keyword` "while their profile is active",
+ * and `:31` puts "a profile word whose profile is inactive" in `primitive`. Omitted, it defaults
+ * to {@link DEFAULT_CHECK_PROFILES} (Core Language alone) — the profile-neutral reading, and
+ * exactly what every caller saw before this option existed. Profile *primitives* — the Sound
+ * commands, Interaction's `wait`/`input`, the Sprites reporters — are `primitive` under every
+ * profile set (`:31`, "profile primitives when enabled"), so this option never moves them.
+ */
+export interface HighlightOptions {
+  readonly profiles?: readonly CheckProfile[];
+}
+
+/**
  * Classify `source` into a flat, source-ordered `Token[]` — the grammar-derived lexical first
  * pass. Reuses {@link tokenize} for the raw token stream and {@link parse} for the AST that
  * resolves grammatical position (list/instruction-block/selector roles, dict-key selector
  * literals, negative-literal merging, contextual `is`-predicate keywords); it never re-lexes.
  * Malformed input still yields a best-effort token stream, matching {@link parse}'s own
  * never-throw contract.
+ *
+ * `options.profiles` is the active profile set — see {@link HighlightOptions}. It is the only
+ * input that changes a class here, and it changes exactly one thing: whether a profile
+ * block-head — or the Sprites mode-switch command `tell`, which takes no block — is `keyword`
+ * or `primitive`. Profile *primitives* never move.
  */
-export function highlight(source: string, document = "<input>"): Token[] {
+export function highlight(
+  source: string,
+  document = "<input>",
+  options: HighlightOptions = {},
+): Token[] {
+  const activeProfiles = options.profiles ?? DEFAULT_CHECK_PROFILES;
   const lex = tokenize(source, document).tokens;
   const program = parse(source, document).ast;
 
@@ -384,9 +415,12 @@ export function highlight(source: string, document = "<input>"): Token[] {
    * contextual-keyword status to the `is`-predicate — `:380` then adds the reader parenthetical
    * quoted above, so it has carried that tension since the spec's initial commit, independently of
    * #785. All four are about reader recognition and *reservation* rather than token class:
-   * `spec/grammar.md:7` scopes that document to "lexis, reader-visible syntax … and reserved
-   * structural words", and `spec/commands.md:461`'s clause is explicitly a reservation contrast
-   * ("Only `is`, `strictly`, and `between` are reserved"). The normative token-class model is
+   * `spec/grammar.md:7` scopes that document to "lexis, reader-visible syntax … and the built-in
+   * names a program may not declare", and `spec/commands.md:461` draws its contrast in
+   * keyword-class terms ("Only `is`, `strictly`, and `between` are keywords; `empty`, `member`,
+   * `of`, and `a` are contextual keywords after `is`") — the *reservation* half of the claim comes
+   * from `spec/tooling.md:100` ("`is`, `between`, and `strictly` are globally reserved"). The
+   * normative token-class model is
    * `spec/tooling.md`'s, so none of the four governs this class. Tightening their wording is a
    * maintainer call raised with the #785 ruling, not something this change assumes.
    *
@@ -664,7 +698,28 @@ export function highlight(source: string, document = "<input>"): Token[] {
         source_span: token.source_span,
       };
     }
-    if (isKeyword(lower)) {
+    // A profile block-head — Sprites' `ask`/`each` and its mode-switch command `tell`, which takes
+    // no block, and Interaction's `when`/`every`/`on_key`/`on_click` — joins the Core keywords, but
+    // only WHILE ITS PROFILE IS ACTIVE (`spec/tooling.md:30`, "and, while their profile is active,
+    // the profile block-heads together with the Sprites mode-switch command `tell`"). With the
+    // profile inactive it falls through to `primitive`, which is where `:31` puts "a profile word
+    // whose profile is inactive". Those two clauses are the whole rule, and they are why this
+    // classifier needs an active-profile set at all (issue #740).
+    //
+    // `isKeyword`'s two-argument form IS this rule — `keywords.ts` defines it as the Core list OR
+    // an active profile's words — so the registry stays the single entry point rather than this
+    // file re-deriving the disjunction.
+    //
+    // Deliberately checked HERE, after symbol discovery rather than before it: `spec/tooling.md:30`
+    // says "[Disambiguating identifiers] is what demotes a token to `procedure-name`, `type-name`,
+    // or `field-name` once parsing or symbol discovery resolves it", so a program's own
+    // `define ask … end` stays `procedure-name` under an active Sprites profile. Hoisting this
+    // above the discovery block would silently reverse that.
+    //
+    // Profile *primitives* are NOT affected and must not be: the Sound commands, Interaction's
+    // `wait`/`input`, and the Sprites reporters are ordinary primitives under every profile set
+    // (`:31`, "profile primitives when enabled"). Only the block-heads and `tell` move.
+    if (isKeyword(lower, activeProfiles)) {
       return {
         class: "keyword",
         text: token.text,

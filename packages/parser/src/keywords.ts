@@ -188,10 +188,11 @@ export function isProfileKeyword(
  * With no `activeProfiles` (or a Core-only set) this consults only the profile-independent
  * {@link OL_KEYWORDS} — its long-standing behavior, kept **unchanged** so the Core keyword list
  * never grows. When `activeProfiles` is supplied, any {@link OL_PROFILE_KEYWORDS} word contributed
- * by an active profile also counts, so a consumer that already threads the active profile set — the
- * **checker** (`check.ts`) — gets profile-aware matching from this one registry without forking it.
- * The **highlighter does not**: `highlight.ts` calls this function with one argument, so its
- * profile words fall through to the `primitive` fallback. Giving it a profile set is issue #740.
+ * by an active profile also counts, so a consumer that already threads the active profile set gets
+ * profile-aware matching from this one registry without forking it. Both consumers now do: the
+ * **checker** (`check.ts`) and, since issue #740, the **highlighter** — `highlight.ts` calls this
+ * two-argument form so `spec/tooling.md:30`'s "while their profile is active" clause is decided
+ * here rather than re-derived there.
  *
  * Returns a plain `boolean` rather than a type predicate: matching is case-insensitive, so a
  * mixed-case keyword `name` is not literally a lowercase-canonical `Keyword`/`ProfileKeyword`, and

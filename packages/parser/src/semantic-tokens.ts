@@ -1,7 +1,7 @@
 /**
  * The LSP `textDocument/semanticTokens`-shaped contract (issue #121) layered over
  * {@link highlight}'s token-class + delimiter-role output — the "Informative LSP-style editor
- * integration" section of `spec/tooling.md:273-279`. It never re-lexes or re-classifies: every
+ * integration" section of `spec/tooling.md:274-280`. It never re-lexes or re-classifies: every
  * {@link SemanticToken} carries {@link highlight}'s own `class`/`text`/`source_span`/`role`
  * unchanged, plus a `modifiers` array populated from that section's exact modifier vocabulary —
  * `declaration`, `reference`, `readonly`, `defaultLibrary`, `listRole`, `blockRole`, and
@@ -31,10 +31,10 @@
  *    case, since a nested comprehension that re-shadows the name would itself just as validly
  *    mark those inner reads `readonly` again for its own binder.
  *  - `primitive` — every Core primitive/alias call is a call into the standard library, so it
- *    always gets `defaultLibrary` (`tooling.md:278`'s literal example).
+ *    always gets `defaultLibrary` (`tooling.md:279`'s literal example).
  *  - any class — a `[`/`]` carrying {@link Token.role} `"list"`, `"instruction-block"`, or
  *    `"selector"` gets `listRole`, `blockRole`, or `selectorRole` respectively; `"pattern"` and
- *    `"field-list"` have no named LSP modifier in `tooling.md:278` and so contribute none.
+ *    `"field-list"` have no named LSP modifier in `tooling.md:278-280` and so contribute none.
  *  - every other class (`keyword`, `number`, `word/string`, `comment`, `bracket`, `brace`,
  *    `paren`, `operator`, `index/dot`, `dict-key`) gets no declaration/reference/readonly
  *    modifier — there is no binding/use distinction for a literal, delimiter, or operator.
@@ -44,11 +44,16 @@ import type { Position } from "@openlogo/core";
 import type { AnyNode, Binder, ProgramNode } from "./ast.js";
 import { walk } from "./ast.js";
 import { parse } from "./parser.js";
-import type { BracketRole, Token, TokenClass } from "./highlight.js";
+import type {
+  BracketRole,
+  HighlightOptions,
+  Token,
+  TokenClass,
+} from "./highlight.js";
 import { highlight } from "./highlight.js";
 
 /**
- * The LSP-style semantic-token modifiers from `spec/tooling.md:278-279`, in the document's own
+ * The LSP-style semantic-token modifiers from `spec/tooling.md:278-280`, in the document's own
  * order.
  */
 export const OL_TOKEN_MODIFIERS = [
@@ -97,8 +102,9 @@ function posKey(position: Position): string {
 export function semanticTokens(
   source: string,
   document = "<input>",
+  options: HighlightOptions = {},
 ): SemanticToken[] {
-  const tokens = highlight(source, document);
+  const tokens = highlight(source, document, options);
   const program = parse(source, document).ast;
   const readonlyReads = collectComprehensionBinderReads(program);
   return tokens.map((token) => ({

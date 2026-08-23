@@ -5,15 +5,23 @@
 // already shipped in S1–S3 and is exercised by `sound-arity.test.mjs`; this file locks the
 // grammar-derived *tooling* contract those slices left implicit:
 //
-//   1. Highlighting — a Sound command name is an ordinary primitive call, not a reserved
-//      block-head, so `highlight()` classifies it `primitive` (the profile-blind lexical fallback,
-//      `spec/tooling.md:28-44`) and `semanticTokens()` layers `defaultLibrary` on it
-//      (`spec/tooling.md:278`), exactly as a Core command like `forward` is treated. The
-//      highlighter has no notion of an active profile — the same design the reader follows
-//      (`spec/tooling.md:175-176`) — so this holds regardless of profiles.
+//   1. Highlighting — a Sound command name is an ordinary primitive call, not a block-head, so
+//      `highlight()` classifies it `primitive` (`spec/tooling.md:28-44`) and `semanticTokens()`
+//      layers `defaultLibrary` on it (`spec/tooling.md:278-280`), exactly as a Core command like
+//      `forward` is treated. Since issue #740 the highlighter DOES take an active-profile set, and
+//      that is precisely why this file matters: `spec/tooling.md:30` moves only "the profile
+//      block-heads together with the Sprites mode-switch command `tell`" into `keyword` while
+//      their profile is active, and `:31` keeps "profile primitives when enabled" in `primitive`.
+//      Sound has no block-heads at all, so all five commands must be unmoved in BOTH directions —
+//      this file is the control case that separates "classify by block-head-ness" from the wrong
+//      rule "classify by profile membership".
 //   2. Checker recognition — under an active `sound` profile a Sound program checks clean, and
 //      under Core-only the same program is `ol-unknown-command`. Legality gating is the checker's
-//      job, never the reader's or the highlighter's.
+//      job, never the reader's or the highlighter's: `spec/interaction-events.md:47` says "`input`
+//      and `wait` are ordinary primitives rather than block-heads, as are the Sound command names;
+//      all of them are built-in names on the same unconditional terms, and their profile decides
+//      only whether they work" — so declaring one IS blocked, while its token class stays
+//      `primitive`. Those are different questions and this file answers only the second.
 //
 // These are proven in **awkward positions** — inside a `[ … ]` instruction block, inside `repeat`,
 // and nested in a procedure body — not just at top level, so a future regression that (say) only
@@ -65,7 +73,7 @@ function classOf(source, name) {
 
 // --- Highlighting: Sound command names classify as `primitive` -------------------------------
 
-test("highlight: each Sound command name classifies as primitive (profile-blind, like a Core command)", () => {
+test("highlight: each Sound command name classifies as primitive under Core-only", () => {
   for (const [name, source] of Object.entries(SOUND_CALLS)) {
     assert.equal(
       classOf(source, name),
@@ -75,7 +83,7 @@ test("highlight: each Sound command name classifies as primitive (profile-blind,
   }
 });
 
-test("highlight: every Sound command stays primitive nested in a whole program (block, repeat, procedure body)", () => {
+test("highlight: every Sound command stays primitive nested in a whole program under Core-only", () => {
   // A Sound command is an ordinary primitive call wherever a statement is legal — the highlighter
   // classifies it by name, not by syntactic position, so nesting must not change its class. Assert
   // ALL FIVE at once inside NESTED_SOUND_PROGRAM (set_tempo/beep in the body, note/rest inside
@@ -96,10 +104,13 @@ test("highlight: every Sound command stays primitive nested in a whole program (
   }
 });
 
-test("highlight: a Sound command name is never a keyword — it can be redefined as a procedure name", () => {
-  // Reserved block-heads (if/repeat/define) always highlight as `keyword`; Sound commands are not
-  // reserved words, so a user procedure literally named `note` resolves to `procedure-name` at its
-  // call site, proving the name is not locked to `keyword`/`primitive` the way a real keyword is.
+test("highlight: a Sound command name is never a keyword — a same-named procedure highlights as procedure-name", () => {
+  // Block-heads (`if`/`repeat`/`define`, and an active profile's own heads) reach the `keyword`
+  // class; Sound commands never do, so a user procedure literally named `note` resolves to
+  // `procedure-name` at its call site via symbol discovery (`spec/tooling.md:30`'s demotion
+  // clause). This is a *token-class* claim only: `spec/interaction-events.md:47` makes the Sound
+  // names built-in unconditionally, so the checker separately rejects this very declaration —
+  // legality is not what the highlighter answers.
   const source = "define note\nend\nnote";
   const tokens = OL.highlight(source, doc).filter((t) => t.text === "note");
   assert.equal(tokens.length, 2);
@@ -122,7 +133,7 @@ test("semanticTokens: each Sound command call carries the defaultLibrary modifie
 
 test("semanticTokens: every Sound command carries defaultLibrary when nested in a whole program", () => {
   // The nested counterpart of the top-level check above: all five commands, in awkward positions,
-  // must still surface as `primitive` + `defaultLibrary` semantic tokens (spec/tooling.md:278).
+  // must still surface as `primitive` + `defaultLibrary` semantic tokens (spec/tooling.md:278-280).
   const tokens = OL.semanticTokens(NESTED_SOUND_PROGRAM, doc);
   for (const name of Object.keys(SOUND_CALLS)) {
     const token = tokens.find((t) => t.text === name);
@@ -131,6 +142,62 @@ test("semanticTokens: every Sound command carries defaultLibrary when nested in 
     assert.ok(
       token.modifiers.includes("defaultLibrary"),
       `nested ${name} should be a defaultLibrary primitive`,
+    );
+  }
+});
+
+// --- The control case for #740: an ACTIVE profile must NOT move a Sound command ---------------
+
+test("highlight: every Sound command stays primitive with the sound profile ACTIVE", () => {
+  // `spec/tooling.md:30` moves only "the profile block-heads together with the Sprites mode-switch
+  // command `tell`" into `keyword` while their profile is active; `:31` keeps "profile primitives
+  // when enabled" in `primitive`. `spec/interaction-events.md:47` says the same in words:
+  // "`input` and `wait` are ordinary primitives rather than block-heads, as are the Sound command
+  // names".
+  //
+  // Sound has no block-heads at all, so ALL FIVE commands are the control: if a future change
+  // classified profile words by profile membership instead of by block-head-ness, these rows go
+  // red and the Sprites/Interaction rows stay green. Asserted in both directions and nested, so
+  // the control cannot pass merely because the profile was never switched on.
+  for (const profiles of [SOUND_PROFILES, ["core-language"]]) {
+    const label = profiles.includes("sound") ? "ACTIVE" : "INACTIVE";
+    for (const [name, source] of Object.entries(SOUND_CALLS)) {
+      const token = OL.highlight(source, doc, { profiles }).find(
+        (t) => t.text === name,
+      );
+      assert.ok(token, `expected a ${name} token (sound ${label})`);
+      assert.equal(token.class, "primitive", `${name} (sound ${label})`);
+    }
+    const nested = OL.highlight(NESTED_SOUND_PROGRAM, doc, { profiles });
+    for (const name of Object.keys(SOUND_CALLS)) {
+      const commandTokens = nested.filter((t) => t.text === name);
+      assert.equal(
+        commandTokens.length,
+        1,
+        `expected exactly one nested ${name} token (sound ${label})`,
+      );
+      assert.equal(
+        commandTokens[0].class,
+        "primitive",
+        `nested ${name} (sound ${label})`,
+      );
+    }
+  }
+});
+
+test("semanticTokens: a Sound command keeps defaultLibrary with the sound profile ACTIVE", () => {
+  // The modifier follows the class, so the control case has to hold here too: an active Sound
+  // profile must not strip `defaultLibrary` the way it legitimately does for an active
+  // Sprites/Interaction block-head, which sheds it by becoming `keyword`.
+  for (const [name, source] of Object.entries(SOUND_CALLS)) {
+    const token = OL.semanticTokens(source, doc, {
+      profiles: SOUND_PROFILES,
+    }).find((t) => t.text === name);
+    assert.ok(token, `expected a semantic token for ${name}`);
+    assert.equal(token.class, "primitive");
+    assert.ok(
+      token.modifiers.includes("defaultLibrary"),
+      `${name} should stay a defaultLibrary primitive under an active profile`,
     );
   }
 });
